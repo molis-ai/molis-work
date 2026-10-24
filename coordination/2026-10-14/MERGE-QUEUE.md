@@ -42,7 +42,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 26 | [#1125](https://github.com/molis-ai/molis-work/pull/1125) | 评审修复线（合并 Agent 派）：复审报告剩余风险登记进防腐 spec（#1018 Todo 私路） | — | `full` 为空 | 草稿；头 `21d4b3719`；等 `ac-review` 一轮；负责人 review-fix-owner |
 | 27 | [#1128](https://github.com/molis-ai/molis-work/pull/1128) | 评审修复线（合并 Agent 派）：翻译门禁盲区写进文档（#958） | — | `full` 为空 | 草稿；头 `f26d7f8b8`；等 `ac-review` 一轮；负责人 review-fix-owner |
 | 25 | [#1137](https://github.com/molis-ai/molis-work/pull/1137) | W5-03/04 Images 片：客户端打包成 TS；`images.js` 21,670→19,915 B | 和 #1129、#1132 在 `page-assets.json` 撞相邻行，后合的解 | `full` 非空（deletes-code），进下一批 | 头 `c0d39defa`；`ac-review` 排队审（顺带改了错误模型测试的源码扫描范围，要看没放宽） |
-| 26 | [#1138](https://github.com/molis-ai/molis-work/pull/1138) | PG-051 P2a：Agent 声明停用后按「未运行」保留、重启恢复、卸载才删（新 Home 库 `agent-declarations`） | #1124 已合 | `full` 非空（contracts），进下一批 | 头 `370d330fd`（之后又补 `fe74018ba` 类的 boundary 修补，以 PR 当前头为准）；`ac-review` **二轮：可合**（[评论](https://github.com/molis-ai/molis-work/pull/1138#issuecomment-6375020710)）；新头 CI 待跑 |
 | 27 | [#1139](https://github.com/molis-ai/molis-work/pull/1139) | PG-017 P0：`sandboxServicesFor` 一张映射；不给的服务一声明就以 `sandbox.service_not_given` 拒绝（项目与 Home 执行器共用）；S-60 一行 | **叠在 #1119 上**；S 号连续要 #1117、#1119 先合；#1134 合入后作者把切片文件改动并进来 | `full` 为空 | 头 `2a6d905c6`（并入切片文件改动）；`ac-review` **二轮：可合**；合前和 #1119 解 `SECURITY-INVARIANTS.md` 冲突；Security invariants 要看 |
 | 28 | ~~#1140~~ | SC-4 残留：BL-485/486/488 | 作者已关闭（第三层）；分支 `migrate/sessions-sc4b-runtime-leftovers`（`259a5fc84`）留着，#1113 合入且 #1130 改投 main 后合 main 再重开新 PR | — | 不在队里 |
 | 29 | [#1143](https://github.com/molis-ai/molis-work/pull/1143) | PG-017 P2a：连接经 broker 给沙箱插件 | 叠在 #1139→#1119（第三层）；**草稿**，#1119 合入、#1139 改投 main 后再转 ready | 待重算 | 统筹转了草稿，先不审 |
@@ -81,3 +80,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1134 | `27bb3c212` | 10-23 21:42 UTC |
 | #1149 | `afaa4fea3` | 10-23 22:58 UTC |
 | #1131 | `abc052bcb` | 10-23 23:09 UTC |
+| #1138 | `7b1819e44` | 10-24 00:20 UTC |

@@ -28,7 +28,7 @@ git grep -l -E '@molis-ai/molis-work-plugin-text-stats|plugins/native/text-stats
 git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json ':!*.md'
 ```
 
-第一条得到 7 个文件（包依赖与装配）。第二条得到 5 个，其中 `coding-surface.ts` 与第一条重复，另有 4 个按名字登记的位置（见 3.1），合计 11（W4-03 删掉默认连线表之前是 12）。
+第一条得到 7 个文件（包依赖与装配）。第二条得到 4 个按名字登记的位置（见 3.1），合计 11 个里去掉 `coding-surface.ts`（PG-036 C9 已删，伙伴页由各插件自己的舞台声明画）后是 10（W4-03 删掉默认连线表之前是 12）。
 
 ## 2. 总表
 
@@ -56,7 +56,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 **怎么加**：新的内置插件只走 Plugin Runtime（`AGENTS.md` 硬约束；门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。步骤在 `skills/molis-plugin-dev/host.md`「内置插件：经 Plugin Runtime 装配」：包 `plugins/native/<id>`（Manifest、动作、界面贡献、客户端、`en.ts`）、监督器条目、包自己的 `src/registration.ts`（目录条目，`builtin-plugins.ts` 由 `node scripts/generate-plugin-registry.mjs` 生成）。HTTP 由 Manifest `routes` 声明，挂在 `/api/plugins/<plugin_id>/`，不写 `apps/local-host/src/<插件>-native-plugin-http.ts`。
 
-**现在要改**（包外 11 处，另 1 处按需，外加 2）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；门禁名单和 SSOT 行是两端都要的外加项，不计入 11。一个带自己舞台页的新插件，把 `coding-surface.ts`、`demo-plugin-seed.ts` 两项换成舞台渲染的两处和英文词典，数字是 12。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
+**现在要改**（包外 11 处，另 1 处按需，外加 2）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；门禁名单和 SSOT 行是两端都要的外加项，不计入 11。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
 
 | 栏 | 文件 | 要做什么 |
 | --- | --- | --- |
@@ -72,14 +72,14 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 外加 | `docs/SSOT-MATRIX.md` | 一行 owner |
 | 按需 | `apps/workbench/src/scripts/client/global-search.ts` | `SEARCH_ITEM_TAB_SURFACES`，命中结果按标签打开某个对象时才需要 |
 
-Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `coding-surface.ts`（宿主里写死的伙伴页渲染分支）、`demo-plugin-seed.ts`。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
+Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `demo-plugin-seed.ts`（原来还有 `coding-surface.ts`，宿主里写死的伙伴页渲染分支，PG-036 C9 已删）。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
 
 **个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 已不靠宿主里手写的文件接上 Home 数据：它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的（`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住），S4 删了 `shelf-actions.ts`，演示数据的示例由宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回；按第 1 节同一条命令换成 shelf，包外仍有 17 个源码或配置文件点名它。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
 
 **目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
 
 - W3-06：模型服务、Home 库服务、Home 级 Runtime 实例（2026-10-07 已定：个人插件装在一个 Home 级实例，按项目启用照旧，数据留在 `{home}/<id>/<id>.db`）。Home 级实例已经有了：Issue 插件（#396）在目录条目（现在是它自己的 `registration`）上声明 `runtime: { scope: "home" }`，宿主的 `home-plugins.ts` 装配它；W3-06-F 复用这个实例（spec §1 2026-10-12），登记位置按用户 2026-10-14 的决定写进 `AGENTS.md`。
-- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts` 和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。
+- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts`（PG-036 C9 已删）和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。
 - W5-02：目录、监督器列表、设计系统名单、搜索标签面、分组与常驻提示都由各包的声明生成。
 - W5-06：声明式贡献挂载，取代每个插件一套的渲染接线。
 - **X-1（4.3）**：应用的 `package.json` 依赖和根包依赖由脚本生成。路线图第 4.6 节的普查已经把「应用的 package.json 依赖」列进声明式注册该生成的东西（`specs/repository-anti-corruption/roadmap-2026-10-07.md` 第 607 行），W5-02 的切片描述却没有写它。没有 X-1，目标是 4（`scripts/workspace-packages.mjs` 加三个 `package.json`），不是 1。

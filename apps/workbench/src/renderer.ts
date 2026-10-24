@@ -33,6 +33,7 @@ import {
 } from "./page-assets.js";
 import { renderGoalInputsHtml } from "./goal-inputs-html.js";
 import type { MolisWorkWebView } from "./page-view.js";
+import { shownProjectPlugins } from "./plugin-catalog.js";
 import { createWorkbenchProjectChooserRenderer } from "./arrival/chooser.js";
 import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
@@ -76,7 +77,7 @@ const { buildScheduleNativePluginModel, renderScheduleNativePluginSurface } = cr
 const stageModels: ReadonlyMap<string, (view: MolisWorkWebView) => unknown> = new Map<string, (view: MolisWorkWebView) => unknown>([
   ["feed", view => buildFeedNativePluginModel(view, "feed", [], false)], ["inbox", buildInboxNativePluginModel], ["schedule", buildScheduleNativePluginModel]]);
 const declaredStageModel = (projectPluginId: string, view: MolisWorkWebView): unknown =>
-  stageModels.get(projectPluginId)?.(view) ?? { primitives: { escape: escapeHtml, text: L } };
+  stageModels.get(projectPluginId)?.(view) ?? { route_prefix: view.route_prefix, shown_plugins: shownProjectPlugins(view.enabled_plugins ?? [], view.hidden_plugins ?? []), primitives: { escape: escapeHtml, text: L } };
 
 const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
 

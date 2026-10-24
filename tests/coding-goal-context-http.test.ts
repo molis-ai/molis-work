@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 // Host and Coding surface come from the same modules, so one project platform serves both.
-import { seedDemoBoard, DEMO_PROJECT_ID, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID, filesOutputsRefresh, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, AGENT_RUNTIME_CAPABILITIES, type AgentRunView, type AgentRuntimeCapabilityMatrix, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -116,7 +116,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     store, artifacts, processItems, projectId: DEMO_PROJECT_ID, actorId: "web-user",
     capabilities: host.client(ref), homeDirectory: root,
     escapeHtml: value => String(value), translate: value => value,
-  }, codingRouteHooks)).catch(error => { const refused = actionErrorResponse(error); response.writeHead(refused.status); response.end(JSON.stringify(refused.body)); }); });
+  }, filesOutputsRefresh)).catch(error => { const refused = actionErrorResponse(error); response.writeHead(refused.status); response.end(JSON.stringify(refused.body)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (path: string, method = "GET", body?: unknown) => {

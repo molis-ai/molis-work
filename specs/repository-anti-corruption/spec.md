@@ -633,7 +633,7 @@ W5-01-GIT Git 离开 HYBRID 名单（G5，2026-10-23，③；分支 `migrate/git
 - 错误主人（T5）：写者工作树的五个码从 `git.*` 改成 `workspace_git.worktree.*`（`unavailable`、`not_a_repository`、`failed`、`not_owned`、`dirty`）；没有别的代码、测试或库按旧码分支，调用记录里的错误码只是诊断行。`tooling/gates/error-owners.json` 的 `git` 主人只留 SDK 的 `git-porcelain.ts`，三个改名的文件归 `workspace_git`。`workspace-git.ts` 与 `workspace-git-index.ts` 在 merge-base 是 `host` 的，主人表只许变严，所以留在 `host`；`workspace-git.ts` 的 `GitReadError` 只在本文件里抛、本文件里转成读取结果，不是线上的错误，不改。
 - 名单：`tests/builtin-plugin-assembly-gate.test.ts` 的 `HYBRID_RUNTIME_PLUGINS` 去掉 `git`，剩 `coding`、`shelf`。
 - 验收：
-  - `W5-01-GIT-01`：宿主里 import Git 包的文件正好是 `project-plugins.ts` 和 `coding-surface.ts`（后者是 Coding 的 Git 伙伴页，① 10-21 裁 T1 放行，C9 删它时收紧，见 privileges PG-091）；监督器不带参数调 `createGitPlugin()`；宿主没有 `gitPorts` 或 `observeGitOperations`。
+  - `W5-01-GIT-01`：宿主里 import Git 包的文件正好是 `project-plugins.ts`（Coding 页里的 Git 伙伴页是 Git 自己的 surface，C9 删 `coding-surface.ts` 时收紧，见 privileges PG-091）；监督器不带参数调 `createGitPlugin()`；宿主没有 `gitPorts` 或 `observeGitOperations`。
   - `W5-01-GIT-02`：`workspace-git*.ts` 不 import 任何 `@molis-ai/molis-work-plugin-*`。
   - `W5-01-GIT-03`：真实宿主里 `projects.workspace.git.*`、`projects.workspace.writers.*` 都没有 typed 条目，Git 的四项与 writer 的四项都是只给插件调的动作。
   - `W5-01-GIT-04`：没有以 Git 命名的宿主文件，Git 不在 HYBRID 名单里（同一测试文件的 hybrid 用例）。

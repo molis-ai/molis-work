@@ -258,6 +258,15 @@ export interface UiContributionDescriptor {
   readonly slots: readonly UiSlotDescriptor[];
 }
 
+/**
+ * What the platform adds to the model of a view that opens slots (`UiContributionDescriptor.slots`): for each slot id, the markup the
+ * running plugins it embeds (`manifest.ui.embedded_plugins`) drew in it through a surface that targets that slot, in the order the
+ * Manifest lists them. A slot nothing fills is absent; an embedded plugin that is not running adds nothing.
+ */
+export interface UiNestedContentModel {
+  readonly nested?: Readonly<Record<string, string>>;
+}
+
 export interface UiRenderRequest<TModel = unknown> {
   readonly contribution_id: string;
   readonly surface: string;

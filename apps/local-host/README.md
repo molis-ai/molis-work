@@ -47,7 +47,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/plugin-host-services.ts](src/plugin-host-services.ts) | 一个插件启动时宿主交给它的身份和服务（动作、私人存储、成果、事件、输入输出）；`PluginHostExecutor` 只管启停 |
 | [src/plugin-interaction.ts](src/plugin-interaction.ts) | `services.interaction`（PG-062）：插件自己的页面要的问题卡、操作卡与下一步行，用助理同一套画法、按调用的语言画；只画不写、不要权限，交来的值形状不对就拒（S-56） |
 | [src/plugin-route-operations.ts](src/plugin-route-operations.ts) | Runtime 插件 HTTP 共用的那一段：重启、解除隔离、升级、未运行的 503、视图版本号、已声明路由的分发；不认识任何插件，属于某个插件或项目输入图的部分由调用方经钩子给（项目一侧的调用方是 `project-plugin-http.ts`） |
-| [src/project-plugin-http.ts](src/project-plugin-http.ts) | 项目插件的 HTTP 入口，与 Home 一侧的 `home-plugin-http.ts` 对称：升级候选、事件的恢复与跳过、`/api/plugins/<插件 id>/…` 都在这里，交给 `plugin-route-operations.ts`；不认识任何插件，Coding 族还要做的一段（`coding-surface.ts` 的 `codingRouteHooks`：读 Files 产物的插件先刷新一次）由调用方经路由前的钩子给；插件回答之后不再加料（PG-062） |
+| [src/project-plugin-http.ts](src/project-plugin-http.ts) | 项目插件的 HTTP 入口，与 Home 一侧的 `home-plugin-http.ts` 对称：升级候选、事件的恢复与跳过、`/api/plugins/<插件 id>/…` 都在这里，交给 `plugin-route-operations.ts`；不认识任何插件，还要做的一段（`project-plugin-input-refresh.ts` 的 `filesOutputsRefresh`：读 Files 产物的插件先刷新一次；BL-521 让工作区设置的变化通知 Files 之后，这个钩子和文件一起删）由调用方经路由前的钩子给；插件回答之后不再加料（PG-062） |
 | [src/project-plugin-ports.ts](src/project-plugin-ports.ts) | 项目里内置插件和已安装插件用到的端口（`MolisWorkLocalHost` 的两个入口转到这里） |
 | [src/home-side.ts](src/home-side.ts) | 宿主与它的 Home 的登记：宿主构造时绑定（`bindHomeSide`，Agent 服务照旧在这里装配）、关闭时撤下；项目的插件平台经它拿到本宿主的 Home（模型注入在调用时读，不在启动时拷）和测试夹具，`PluginPlatformOptions.home` 的值（`pluginHomeFor`）也由它给 |
 | [src/plugin-model-service.ts](src/plugin-model-service.ts)、[src/plugin-instructions.ts](src/plugin-instructions.ts) | 插件的模型服务端口（`hostTextGeneration` → agent-host）与插件运行时的 Agent 定义登记（指令、Agent 提示词、方法，PG-051） |

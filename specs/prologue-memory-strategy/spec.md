@@ -1176,3 +1176,23 @@ M4 普通 Index 读写交错修复短合同（2026-10-24）：用户停止子任
 修复后的最终根/工作区类型、health（精确父 a168）、boundary、API/Action、提交范围 secret 与 diff 检查再次通过，结果 `/private/tmp/molis-memory-session-lifecycle-sdk100-20261024-index-read-final.results.json`；资源门仍仅为上述已批准父未合入的 5,184 B 差额，失败保留，额度未变。最终 dirty 新增文本补扫零匹配；SDK #100 归档 SHA-256 复核仍为 d42b1699b0bd7a41db97521b27dadf892feff27d560047dcd4e8ec2f6eea700e，未改包/锁。以上只关闭本片已复现的停止刷新问题；promotion 原取消时序、父集成/全量与实际业务消费者仍由统筹继续，不以本片定向通过代替。
 
 M4 独立交付准备（2026-10-24）：源码提交 `3786cdbc6`，将准确父 #1155 `66f32c4a` 的既有资源批准合入为 `f794d5e29`；两侧 spec 追加记录完整保留，产品源码无冲突。实际合并树整体 build、health 对该准确父、boundary、API/Action、资源、secrets、diff 均通过，结果 `/private/tmp/molis-memory-session-lifecycle-delivery-20261024.results.json`。27项资源共7,830,253 B，与父一致，无本片新增额度；旧基准资源拒绝记录不删。独立深审固定 `a16800e→3786cdbc6` 实际源码，未发现确定 P1/P2；该次仅阅读源码和断言，没有另跑测试。评审将 README 中不准确的 Node/SQLite 描述收口为真实 Node 持久存储。当前可独立进入 Draft 审查，完整共享全量、后继 Coding/助理入口、项目删除、备份恢复和用户验收仍按原依赖推进，不以本片替代。
+
+### M4 Coding 归档消费者短合同（2026-10-24）
+
+对应 MEM-04/15/20/29：用户在现 Coding 页面确认归档静止会话后，该会话的 SDK canonical 状态与 Coding 列表/持久标记均为 archived；Session 记忆因此暂停任务读取，原期限和 paused 不变。第一片只接 Coding 归档，不新增取消归档、永久清除、助理或 Session 分类 UI。依赖 M4 AgentHost 原决定投影及正式 SDK #98 以上；可以按冻结公开合同并行写消费者，验收必须使用正式包与完整生产链。
+
+复用现确认框、Action、SessionIndex 原决定、CodingSessionStore 事务和当前授权门。新增只读 `coding.sessions.archive.preview@1`，路由 `GET /sessions/:sessionId/archive-preview`；仅本人 audience，取当前 Coding 行的 runtime binding 后调用公开 lifecycle read，页面不能指定 runtime/owner。首次预览产生原 decision；存在未完成 archive 时返回其原 decision，完成 archive 但业务未收尾时仍返回原决定供显式重试；相反/不明状态拒绝。预览无持久写、无恢复副作用。没有 runtime binding 的未启动会话不创建 SDK Session，返回明确的本地归档预览。
+
+现 `coding.sessions.update` 升 v2，保留 concurrent 以免等待 SDK 时阻塞同项目其他 Session；同一 Session 归档等待期间，普通设置写入均按现 busy 门拒绝，改名在实际事务提交时再核对原业务行。Store 的默认重复归档拒绝不变，只有消费者核对原决定后显式请求幂等返回。archive 请求携带先前取得的 archive_decision（runtime 模式含原 operation_id/expected_version/expected_state 与原 runtime binding，或明确 local 模式），普通设置字段不变。页面先预览，再由本人确认；失败重试复用同一请求，关闭重开则从 AgentHost 原决定重建，不从新版本自动重做。执行目标 runtime/ref/project/actor/install 全由当前 Coding 业务行与正式 Host Action 上下文绑定；请求中的原 runtime binding 只作与当前业务行严格相等的前置条件，不选择执行目标，也不能授权任何目标。仅声明 lifecycle read/archive 两个本片依赖，走现 actions.invoke 与 codingActionControl，不直接调用 SDK 或读 Index。
+
+运行中的提交/Run、暂停、待批或待核对仍拒绝，不自动 stop。SDK 命令成功并核对同 Session/同操作 archived 回执后，Coding 原事务重核当前权限、原 binding、busy 与业务归档状态，再写 archived。绑定在预览后建立/替换时原请求拒绝；已写业务且回应丢失，仅在原 SDK 回执仍成立时幂等返回，不再更新日期。未启动 local 会话只在当前仍无 binding 时归档。SDK 成功但 Coding 失败不做 unarchive 补偿；普通 GET 不补账，重新获得合法权限后的明确重试才续原决定。原归档后若已合法 unarchive，旧请求必须冲突；仅当该 unarchive 已完成、canonical 状态为 active 且 Coding 业务行尚未归档时，新的本人预览可生成新决定，不能借此自动取消业务归档。
+
+硬边界为四维可信 owner、原版本/决定、当前 Action 授权与取消、最终事务守卫、忙碌拒绝；不可配置关闭。可替换 Runtime 沿现公开 Port，缺 lifecycle 明确 unavailable；App 决定调用，终端用户保留现确认/取消，不增阈值、持久表、通用协调器或第二把生命周期锁。
+
+允许修改 Coding 的 manifest、route-actions、routes-sessions（可按完整归档职责拆同包文件）、store、client、messages、README，与现 effect-control/client-lifecycle 回归和一份真实链 lifecycle 回归/必要 fixture；AgentHost/Contracts 只消费已冻结父片，不改 SDK/vendor/锁、共享快照或资源门。统筹拥有 spec、SDK 包、API/Action 生成快照和集成。新资源增长先去重实测再按既定规则单项评审，不挪用前片额度。
+
+页面确认沿正式 `UiPageDialogs.confirm` 从 workbench 传给 Coding 客户端，关闭页面按原 scope 取消。非空浏览器重启验证使用同一隔离 Home 的构建后公开 Web launcher：等待旧服务 PID 退出再启动新 PID，不把同进程 Adapter 重开或 Page.reload 算进程重启；测试的 HTTP 模型响应受控，不构成真实模型质量验收。
+
+验收编号：COD-MEM-ARCH-01 非空真实 Coding route/Action→AgentHost→Node SDK/SQLite→列表，重启后两层一致，未启动会话零 SDK 创建；COD-MEM-ARCH-02 prepared start/归档交错及其他 Session 独立；COD-MEM-ARCH-03 SDK 已提交/Index 中断、业务提交失败、回应丢失分别按原决定重开恢复，普通读取零修补；COD-MEM-ARCH-04 等待及 SDK 成功后取消/撤权分别保留已发生事实并拒绝后续写；COD-MEM-ARCH-05 伪造身份、跨项目/安装、缺 manifest grant、binding 改变及后来 unarchive 拒绝旧决定。工程验证需正式 SDK 整体 build、类型/API/Action/health/boundary/资源门和两包 README 必跑项；真实非空页面确认、取消、失败重试与重启另记，模拟模型不证明真实模型质量或用户验收。
+
+Coding 归档交付前统筹复核（2026-10-24）：已独立核真实 backend/typed browser/进程夹具差异及原日志；独立深审亦未发现确定 P1/P2。SDK #100 的原决定、当前身份、事务复核与不逆向补偿保持；实际非空页面确认/取消/丢回应原请求重试、两次新 PID 恢复通过。这里只证明隔离 Home、本机模型替身下指定产品路径，未代替最终 Memory 全旅程或真实模型质量。生产构建、根/工作区类型、API/Action、health 对准确父8386b2355、boundary已通过；正式提交后继续secrets扫描。唯一资源门仍为 Coding.js 376,126→376,696 B（+570），其余26项不变；已复用现确认框、客户端生命周期和typed bundle，未登记新额度。保持Draft待这项单独授权、父链与最终集成，不因局部测试通过合并。

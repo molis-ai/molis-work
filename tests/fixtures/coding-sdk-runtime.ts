@@ -7,7 +7,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -20,7 +20,9 @@ import { seedConfiguredModels } from "./configured-models.js";
 /** The existing Coding effect fixture's real Plugin Runtime, Host and SDK composition, shared by recovery tests. */
 export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?: ReadonlyArray<{ definition: PluginDefinition; grants: string[] }>; wrapCoding?: (definition: PluginDefinition) => PluginDefinition;
   /** Stands between Coding and the Host's capability client, to count or refuse a call. */
-  wrapCapabilities?: <Client extends object>(client: Client) => Client } = {}) {
+  wrapCapabilities?: <Client extends object>(client: Client) => Client;
+  /** Use the production Host Action queue and registry for nested lifecycle dependencies. */
+  hostActions?: boolean } = {}) {
   const home = await mkdtemp(join(tmpdir(), "coding-sdk-regression-")), file = join(home, "project.db");
   // The model Coding lists comes from the Home's provider catalog through `services.model` (PG-047), as it does in the Host.
   await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]);
@@ -38,7 +40,9 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
   // Coding reads what the person brought through project knowledge (specs/project-knowledge PMAT-18); here its stand-in answers
   // a fixed version from the project's stores. The knowledge service's own reads are tested in tests/knowledge-*.test.ts.
-  service.registerProvider({ provider: { provider_id: KNOWLEDGE_PROVIDER_ID, title: "项目资料", kind: "system" }, definitions: [knowledgeActions.read],
+  const actionRegistry = options.hostActions ? local.actionRegistry(reference) : service;
+  const actionClient = options.hostActions ? local.actionClient(reference) : service;
+  actionRegistry.registerProvider({ provider: { provider_id: KNOWLEDGE_PROVIDER_ID, title: "项目资料", kind: "system" }, definitions: [knowledgeActions.read],
     handlers: [{ ...knowledgeActions.read, handle: (_caller, input) => {
       const asked = input as KnowledgeReadRequest, reference = asked.subject.kind === "artifact" ? parseArtifactSubjectId(asked.subject.id) : null;
       const record = reference && (artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference) ?? processItems.query.getArtifactVersion(DEMO_PROJECT_ID, reference));
@@ -48,12 +52,12 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
         remaining: 0, owner_truncated: false, round_chars_left: null } satisfies KnowledgeReadResponse;
     } }] });
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: { directory: home, completeText: () => undefined, stores: homeStores() },
-    actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: (options.wrapCapabilities ?? (client => client))(local.client(reference)), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
+    actions: { registry: actionRegistry, client: actionClient, project_id: DEMO_PROJECT_ID }, capabilities: (options.wrapCapabilities ?? (client => client))(local.client(reference)), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
   await platform.start([{ definition: (options.wrapCoding ?? (definition => definition))(createCodingPlugin()), grants: ["search:read", "goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read", "review:git-worktree", "review:git-integration"] }, ...(options.extraPlugins ?? [])]);
   t.after(async () => { await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
     await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const router = platform.router(), prefix = "/api/plugins/io.molis.work.coding";
-  const call = (path: string, body?: unknown, method = body === undefined ? "GET" : "POST") => router.dispatch({ method, pathname: prefix + path, actor_id: "web-user", ...(body === undefined ? {} : { body }) });
+  const call = (path: string, body?: unknown, method = body === undefined ? "GET" : "POST", execution?: PluginRouteRequest["execution"]) => router.dispatch({ method, pathname: prefix + path, actor_id: "web-user", execution, ...(body === undefined ? {} : { body }) });
   const create = (id: string) => sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
   const reopenSdk = async () => { await adapter.close(); adapter = await makeAdapter(); agentHost = new AgentHost({ reviews }); agentHost.register(adapter); };
   return { home, store, sessions, service, reviews, platform, call, create, reopenSdk, get adapter() { return adapter; } };

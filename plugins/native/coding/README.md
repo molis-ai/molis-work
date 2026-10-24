@@ -70,6 +70,20 @@ Directory candidates and browsing preferences come from the [current-project set
 
 本片遵循 [Memory spec §9.4](../../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。作者证明、同身份不可改文和当前权限不可配置关闭；已有 Host/Agent Adapter 可替换，未接原件读取时明确不可用；用户仍只操作原输入框/继续按钮。聚焦验收为 `tests/coding-original-inputs.test.ts` 与 `tests/coding-continuation.test.ts`，覆盖真实 HTTP/SDK、重启、同输入重试与派生来源拒绝；不代表来源形成或整体 Memory P0 已完成。
 
+## Session 归档消费者
+
+现归档入口先经 `coding.sessions.archive.preview@1`（`GET /sessions/:sessionId/archive-preview`）读取当前业务 binding 和 AgentHost 原归档决定，再由本人确认，调用 `coding.sessions.update@2`。没有 runtime binding 的会话返回 local 模式，不创建空 SDK Session。两个模式都沿用现 Coding busy 集合与项目库事务；runtime 模式只消费公开 lifecycle read/archive，身份由当前 Host 上下文绑定，请求 binding 仅作前置比较，不能指定执行目标。SDK 成功后才提交 Coding archived，事务重核权限、原 binding、状态和业务修订；回应丢失后的同决定重试不刷新日期。SDK 已提交而业务失败不补偿取消归档，GET 不修补；页面保留原请求，重开后可由 M4 operation 投影重建。
+
+Store 的普通 `archive` 调用（含任意 guard）仍拒绝重复归档；只有消费者在真实回执/当前 local 模式与事务 guard 均满足后显式指定 `allowAlreadyArchived`，才可返回原行。已完成的合法 unarchive 若 canonical active/version 一致且 Coding 仍未归档，预览可以产生新的本人确认；旧 archive 决定仍冲突，不新增 unarchive UI。
+
+`update@2` 保留 concurrent 是为了归档等待不占住其他 Session 的项目队列，不是嵌套调用必然死锁。生产链是 `project-plugin-ports → LocalHost.actionClient/enqueue → pluginHostActions → lifecycle`；Host 已支持占线父调用的嵌套继承。更新路由在首次写前统一核权限与现 busy；actions/configuration/MCP/methods/character/skills/question drafts/draft/budget/materials 都在该检查后同步写入，期间没有 await。rename 唯一还等待项目事务，故在真实事务内再核 busy、archived、原 binding/修订/title，Store 的其他调用仍保留原默认。真实 Host 队列回归覆盖归档等待中同 Session 各设置零写、其他 Session 可编辑，以及先读后等的 rename 不能在归档后落笔。新增 Store 参数沿现包入口发布；本次 API 快照无需变化，动作快照由统筹生成。
+
+本片不接取消归档、永久清除或助理。合同见 [M4 Coding 归档消费者短合同](../../../specs/prologue-memory-strategy/spec.md)。新动作、update v2 及 manifest 两个依赖由本包声明；共享 API/Action 快照、正式 SDK #98 以上、资源实测和集成由统筹处理。
+
+定向回归：`node scripts/run-tests.mjs tests/coding-session-archive.test.ts tests/coding-session-effect-control.test.ts`，以及浏览器 `node scripts/run-tests.mjs tests/coding-client-lifecycle.e2e.test.ts`。真实链 fixture 走生产 Plugin Runtime/Action、AgentHost、Node SDK 和 SQLite，模型响应受控；它覆盖非空会话、SDK 重开、原决定重试、取消/撤权、忙碌/其他 Session、binding 变化和缺依赖声明。业务提交与返回失败通过实际 Port 注入；新增消费者回归沿原 `beforeEffect` 与 SDK 公开 storage Port，在 SDK 已 archived/Index 仍 prepared，以及 Index sdk-complete 两个确切边界中断，SDK 重开后通过真实 Coding GET 重建原决定，验证纯读零修补和明确重试。页面通过 Coding workbench 借用正式 `UiPageDialogs.confirm`，不调用原生浏览器确认。浏览器回归使用本机 HTTP 模型响应、真实非空会话与构建后的公开 Web launcher；仅本用例启用独立服务进程模式，每次等待原 PID 退出才以同一 Home/端口启动新 PID，覆盖保存重启、确认/取消、丢回应后原请求重试与归档后再启动。
+
+本片已基于正式 M4 父提交 `8386b2355` 与 SDK #100 安装、完整构建，验证按上述短合同记录。进程内 `reopenSdk` 只算 SDK 重开；独立 launcher 的退出/新 PID 才算进程重启。模型响应受控，工程与限定页面路径的证据不代表真实模型质量、完整桌面体验或用户验收；不跑真实 Home 或付费模型。
+
 ## 开发要求
 
 - 负责：参照 App：编码会话、每轮执行、委派，以及它们产出的变更集、报告与图；自己固定的报告和变更怎样变成可复制的 Markdown 正文（`coding.results.document@1`），以及自己成果的列表。

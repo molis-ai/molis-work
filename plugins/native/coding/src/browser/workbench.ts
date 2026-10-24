@@ -1,4 +1,5 @@
-import type { UiRequest, UiRequestInit, UiPageWorkspaces, UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiRequest, UiRequestInit, UiPageWorkspaces, UiPageReviews, UiPageDialogs } from "@molis-ai/molis-work-contracts/platform/ui";
+import { codingArchive } from "./session-archive.js";
 
 /** The page's one request helper (packages/ui-host request-client, W3-10); clients receive it as `host.request` from W5-04. */
 declare const molisWorkRequest: UiRequest;
@@ -52,6 +53,7 @@ export interface CodingWorkbenchHost {
   readonly headers: () => Record<string, string>;
   readonly interaction?: unknown;
   readonly receipts?: unknown;
+  readonly confirm: UiPageDialogs["confirm"];
   readonly openItem?: (plugin: string, id: string, title?: string) => void;
   readonly openBeside?: (plugin: string, id: string, title?: string) => void;
   readonly openPlugin?: (plugin: string) => void;
@@ -119,6 +121,7 @@ export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient,
     onWorkspaceSelected: () => { void gitBrowser?.refresh?.(); },
     openResult: () => openCompanionResult("files"), closeResult: closeCompanionResult }) ?? null : null;
   coding({ ...lent, interaction: host.interaction, receipts: host.receipts,
+    archive: (ports: Omit<Parameters<typeof codingArchive>[0], "confirm">) => codingArchive({ ...ports, confirm: host.confirm }),
     revealTask: () => { if (matchMedia("(max-width: 600px)").matches) host.hideDirectory?.(); closeCompanionResult(); },
     onDirectoryFace: (face: string) => { const handled = filesBrowser?.show?.(face) ?? false; gitBrowser?.show?.(face); return handled; },
     showReviews: reviews({ mountPluginClient, route, headers }),

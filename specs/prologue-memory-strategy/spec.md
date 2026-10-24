@@ -2059,6 +2059,10 @@ Assistant 界面资源批准与聚合（2026-10-25）：用户明确批准本片
 
 资源额度只迁移原已批准净增：相对新基础仍为 Workbench +32,890 B、Coding +570 B、settings/workbench CSS 各 +680 B；本轮不借主干变化增加额度。先解冲并核真实公开合同、类型和实际产物，再与在途的项目删除恢复及 Coding 恢复合并验证；各自独立回归按原合同保留，统一在 #1101 交付，不另开小 PR。最终 CI/全量、未解释的首败与工程/产品/用户验收边界继续保留。基础 #1064 的新 CI 与应用集成并行，合并顺序仍是基础先、应用后。
 
+本轮合并提交 `211ee50f0` 仅五处既定冲突，已保留应用 @3/lifecycle 与主干 runtimes@2；自动合并的 Character/Runtime 选择、原件及分类调用链已核对。固定 Node24.14/pnpm11.9 整体构建、根/工作区类型、准确基础 health、boundary、API/Action 通过；两类快照生成均无额外变更。实际 27 资源共 7,677,447 B，Workbench 1,166,999 B、Coding 378,450 B，CSS 两项保持已批准值，相对准确基础只含上段原净增；只读资源门通过，无新额度。
+
+受影响组合定向 21/21 文件、175/175 用例首轮通过，jobs2/browser1/retries0，包含 Runtime 选择、正式 Host 动作、可信原件、冻结分类策略、形成/扩展、SDK100 Session lifecycle、Coding/Assistant 业务归档，以及 Coding 动作卡、Coding 生命周期、Assistant 归档三份真实浏览器文件。逐文件结果 `/private/tmp/molis-memory-application-batch33-delta-results-20261025.json`，原日志同前缀 `-delta-20261025.log`，构建/类型/health/boundary/API/Action/资源原记录同前缀保存。此为本轮增量工程验证，不替代后继项目删除/Coding 恢复与 #1101 最终整合全量；旧 dd975 全量的六项首败和两项 retry-only UNKNOWN 仍保留。未触真实 Home 或付费模型，未宣布 P0 或用户验收完成。
+
 ### #1064 接入 batch-33 的增量合同（2026-10-25，实施前）
 
 基础93b76797的普通CI40116662394与Full suite40116658143已成功，完整1402/1402 Linux文件；stream-text浏览器只经原一次重试通过，首败原因UNKNOWN。Cloudflare生产构建失败仍缺真实错误日志，不据GitHub绿色宣布全部可合。当前main为bde02c59eb9a1d794a442419570819a80585708a，包含runtime声明、项目设置和插件挂载变化。实际三方检查只有五处冲突：资源脚本/预算、Coding卡片与Memory MCP测试、host动作快照；生产路径自动合并仍须独立检查。

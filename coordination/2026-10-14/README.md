@@ -3595,3 +3595,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 03:25：`ac-sandbox-sched` 做完 P2c、P2d（本地分支）；统筹定：RAC-350～369 给它；卸载清主人文件目录；Home 级沙箱也给 owner files；旧公网读取改名 P2e。#1119 同步后 CLEAN、增量复核过；#1139 待同步，同步后统筹起 batch-20。
 - 10-24：#1127（隔离页 link 通道、SYS-15-U10 flake）合入 `c0b48111b`；#1159（BL-540～542）合入 `f4df5b471`，工作树 ac-coord-docs 已删。
 - 10-24 03:50：#1128、#1151（C1 首片）、#1150 合入。batch-1024-19 红：home-offers、web-home-isolation 是旧 #1130 头所致（新头 `fb22b7dc1` 已改）；touch-targets 第 659 行两主题确定性失败，交 `ac-sc3` 定性并把 main 合进 #1130/#1157；batch-20 由 Claude 统筹等新头再起。
+- 10-24 04:10：#1120、#1141 合入。batch-1024-20 起（#1148、#1119、#1139，run 40061024962）；SC-4 组因 #1120 又冲突，`ac-sc3` 再同步后单起 batch-21。touch-targets 定性为 SC-4 预期变化，夹具修好、断言原样。

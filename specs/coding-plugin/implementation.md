@@ -119,14 +119,13 @@ C1 → C2 → C3 → C4 → C5 不是偏好，是依赖：
 
 Agent Host 的 `AgentReviewQueue` 已经有请求、决定、一次性消费、回执和停止时撤回
 （`horizontal/agent-host/src/reviews.ts`，`tests/agent-host.test.ts` 覆盖了各条边界）。
-**缺的只是用户能操作的界面**。
+审查队列由宿主持有。
 
-它属于宿主，不属于 Coding——放在宿主的审查面里，不放进插件。
-`registerAgentHostCapabilities` 原先只有测试在调用。本阶段做的是**把接缝开出来**：
-`MolisWorkLocalHost.registerCapability` 让组合根可以接，`tests/agent-host-wiring.test.ts` 证明这条路通。
-
-**产品的装配根仍然没有构造 Agent Host，也没有挂审查面。** 这和 `createPluginPlatform` 是同一个状态：
-接得通、有测试证明通，但今天跑起来的产品没有调用。等 Coding 真正由 Plugin Runtime 托管时一起接。
+`apps/local-host/src/system-agent-service.ts` 的 `ensureSystemAgentService` 已调用 `composeAgentHost` 构造 Agent Host。
+`apps/local-host/src/agent-host-composition.ts` 通过 `registerAgentHostCapabilities` 将动作交给
+`MolisWorkLocalHost.registerAction` 登记；首次调用时初始化 Runtime，并把 `agentHost.reviews` 接给 Prologue adapter。
+`tests/agent-host-wiring.test.ts` 验证声明消费的插件能经 `services.actions` 调到这些动作，以及宿主客户端的拒绝路径。
+该用例验证宿主动作接线；审查界面与真实 Provider 的完成度仍以各自的验收记录为准。
 
 ## 5. C5：审批桥与真实验证
 

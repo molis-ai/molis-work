@@ -1,6 +1,6 @@
 # R8：agent 宿主的 typed 能力分批改登记成动作（PG-035、BL-364、BL-365）
 
-状态：第 1～4 批与 `waitRun` 一批已合入 main；「删 typed 通道」（§12，统筹 10-24 裁选 A）在分支 `ac-kernel/r8-typed-channel` 上做完，只推分支、等 #1226～#1228 进批后再开 PR；定向回归通过，共享核心全量由统筹进批时跑，未宣称整线完成。
+状态：第 1～4 批与 `waitRun` 一批已合入 main；「删 typed 通道」（§12，统筹 10-24 裁选 A）已开 [PR #1242](https://github.com/molis-ai/molis-work/pull/1242)，实现及同步 main 后的两处测试冲突解法均一轮评审可合，本轮活文档修正交增量复核；定向回归证据按各自 head 保留，共享核心全量仍待统筹在 batch-35 执行，实际合入 main 前不关闭 PG-035 整行或宣称整线完成。
 
 ## 1. 目标
 
@@ -340,7 +340,7 @@ BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
 
 ### 12.1 删了什么
 
-- 合同：`HostCapabilityDefinition`、`HostMethodCapability`、`HostCapabilityInput` / `HostCapabilityOutput`、`HostCapabilityDescriptor` 顶层的 `scheduling`；`HostCapabilityCallOptions` 的 `plugin_caller` 与 `consumer`；插件侧的 `PluginCapabilityClient` 与 `PluginHostServices.capabilities`。`ActionDefinition` 改为扩展 `HostCapabilityDescriptor`，自己带 `__types__`。
+- 合同：`HostCapabilityDefinition`、`HostMethodCapability`、`HostCapabilityInput` / `HostCapabilityOutput`、`HostCapabilityDescriptor` 顶层的 `scheduling`；`HostCapabilityCallOptions` 的 `plugin_caller` 与 `consumer`；插件侧的 `PluginCapabilityClient` 与 `PluginHostServices.capabilities`。统筹 10-24 裁定保留的是动作身份字段与输入输出类型：`ActionDefinition` 直接扩展 `HostCapabilityDescriptor`，自己带 `__types__`，不保留 `HostCapabilityDefinition` 旧名或别名。
 - 宿主：`LocalHost.register`、`ProjectHost.registerCapability`、typed 调用的结算（`typed-call-settlement.ts`）与只为它留的 `host.registration_seam`；`typed-capability-invocation.ts` 只剩宿主项目客户端的调用者，改名 `project-call-caller.ts`。`LocalHost.invoke` 只走 `ActionService.invoke`：没注册的 id 答 `actions.missing`（以前 typed 兜底答 `actions.dependency_missing`），调用方自报的 `operation` 与 `wait` 不再起作用，并发只看已注册动作的 `scheduling`。
 - 调用记录与结算：`path: "typed"` 字段（`CallDescription`、`ActionCallRecord`）没有人再写，删掉；内核入口不再导出 `settleCall`、`startHandler`。
 - 插件运行时：`createPluginCapabilityClient`、`PluginCapabilityPort`；执行器与平台的 `capabilities` 选项改名 `dependencyCheck`（只答依赖是否可用，宿主用 `hostDependencyCheck(client)` 造）。

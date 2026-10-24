@@ -57,22 +57,35 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
   assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
   assert.equal(await v.ask("$('[data-issue-flag] a[href=\"/settings/models\"]')?.textContent"), "Models");
   assert.doesNotMatch(await v.ask<string>("$('[data-issue-flag]').textContent"), /[\u3400-\u9fff]/u);
+  const ownerState = "({address:location.href, marker:window.__homeSettingsOwner, sameFrame:Boolean(window.__homeSettingsFrame?.isConnected && window.__homeSettingsFrame === document.querySelector('iframe[data-plugin-frame=issues]'))})";
+  const owner = await b.evaluate(`(() => { window.__homeSettingsOwner = 'issue-settings-owner'; window.__homeSettingsFrame = document.querySelector('iframe[data-plugin-frame=issues]'); return ${ownerState}; })()`);
+  await v.ask("globalThis.__settingsDraftMarker = 'original-issue-frame'");
+  // W2-18-HOME-LOCALE-01 / S-47: the standalone Home host receives the opaque page's settings request in place.
   // Only fail delivery of this settings document; the retry uses the real Host and its empty model catalog.
   await b.evaluate(`(() => { const fetch = window.fetch; let failed = false;
+    window.__modelSettingsLoads = [];
     window.fetch = function(url, init) {
-      if (!failed && new URL(url, location.href).pathname === '/settings/models') {
-        failed = true; return Promise.reject(new TypeError('settings delivery interrupted'));
+      if (new URL(url, location.href).pathname === '/settings/models') {
+        if (!failed) {
+          failed = true; window.__modelSettingsLoads.push('interrupted');
+          return Promise.reject(new TypeError('settings delivery interrupted'));
+        }
+        return fetch.call(this, url, init).then(response => { window.__modelSettingsLoads.push(response.status); return response; });
       }
       return fetch.call(this, url, init);
     }; return true; })()`);
   await v.press('[data-issue-flag] a[href="/settings/models"]');
   await b.waitFor("document.querySelector('[data-home-model-settings]').open && !document.querySelector('[data-home-model-retry]').hidden");
-  assert.deepEqual(await b.evaluate("({ title: document.querySelector('#home-model-title').textContent, close: document.querySelector('[data-home-model-close]').textContent, retry: document.querySelector('[data-home-model-retry]').textContent, status: document.querySelector('[data-home-model-status]').textContent })"),
+  assert.deepEqual(await b.evaluate("({ lang: document.documentElement.lang, title: document.querySelector('#home-model-title').textContent, close: document.querySelector('[data-home-model-close]').textContent, retry: document.querySelector('[data-home-model-retry]').textContent, status: document.querySelector('[data-home-model-status]').textContent })"),
     // A dropped connection is said by the shared request helper, in English here (W3-10).
-    { title: "Models", close: "Close", retry: "Retry", status: "Can't reach the Molis Work service. Try again in a moment." });
+    { lang: "en", title: "Models", close: "Close", retry: "Retry", status: "Can't reach the Molis Work service. Try again in a moment." });
+  assert.deepEqual(await b.evaluate("window.__modelSettingsLoads"), ["interrupted"]);
   await b.click("[data-home-model-retry]");
   await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]') && document.querySelector('[data-home-model-status]').hidden", 15_000);
+  assert.deepEqual(await b.evaluate("window.__modelSettingsLoads"), ["interrupted", 200], "Retry fetches the real Host document after the failed request");
+  assert.deepEqual(await b.evaluate(ownerState), owner, "the settings link keeps the owner document and the original plugin frame");
   await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
+  assert.equal(await v.ask("globalThis.__settingsDraftMarker"), "original-issue-frame", "the Issue execution context was not reloaded");
   assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
   assert.equal((await v.list()).items.length, 0, "opening settings does not save the Issue");
   await v.press(`${editor} [name=title]`); await v.type("删除");

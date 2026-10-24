@@ -100,7 +100,7 @@ export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "
     pickDirectory: () => pickLocalDirectory() }) };
 
 /**
- * The after-write checkers of the project's authorized workspaces (specs/prologue-adoption §6.0p.12): the person's own two
+ * The after-write checkers of the project's authorized workspaces (specs/prologue-adoption §6.0p.13): the person's own two
  * actions, called as the person. This route only adapts the form: it checks nothing itself and answers a refusal with the
  * action's own code, so a stale version is a 409 and an invalid checker a 400 with the action's words.
  */

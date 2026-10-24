@@ -3,13 +3,17 @@ import { isAbsolute, join } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { isCompletePrefs, memoryErrors } from "@molis-ai/molis-work-service-memory";
-import { openPrologueMemoryAdoption } from "@molis-ai/molis-work-service-agent-host";
+import { isDeepStrictEqual } from "node:util";
+import { openPrologueMemoryAdoption, type PrologueMemoryAdoptionBridge } from "@molis-ai/molis-work-service-agent-host";
 import { LocalSqliteStorage, inspectMemoryLedgerAdoption, beginMemoryLedgerAdoption, completeMemoryLedgerAdoption,
   type MemoryLedgerAdoptionProfile, type MemoryLedgerAdoptionSnapshot } from "@molis-ai/molis-work-storage";
 import { assertCurrentCatalog, assertOwnedCatalog } from "../catalog-schema.js";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 import { PRODUCT_VERSION } from "../product-version.js";
 import { memoryRuntimePolicy } from "./memory-runtime-policy.js";
+import { cleanupConfirmed, cleanupPreview, fixedCleanup, type MemoryHomeAdoptionCleanup,
+  type MemoryHomeAdoptionCleanupPreview, type MemoryHomeAdoptionCleanupResult } from "./memory-home-adoption-cleanup.js";
+export type { MemoryHomeAdoptionCleanup, MemoryHomeAdoptionCleanupPreview, MemoryHomeAdoptionCleanupResult } from "./memory-home-adoption-cleanup.js";
 
 export interface MemoryHomeAdoptionScope { readonly scope: "user" | "project" | "character"; readonly owner: string }
 type ItemOutcome = "adopted" | "current" | "needs-reconcile" | "conflict" | "unknown";
@@ -24,6 +28,8 @@ export interface MemoryHomeAdoptionBridge {
   verify(input: { scopes: readonly MemoryHomeAdoptionScope[]; cursor?: string; signal?: AbortSignal }): Promise<{
     outcome: VerificationOutcome; exhausted: boolean; cursor?: string;
   }>;
+  previewCleanup: PrologueMemoryAdoptionBridge["previewCleanup"];
+  purgeCleanupTarget: PrologueMemoryAdoptionBridge["purgeCleanupTarget"];
   close(): Promise<void>;
 }
 
@@ -31,15 +37,19 @@ export interface MemoryHomeAdoptionInput {
   /** Explicit stopped, backed-up Home. This function never defaults to the person's current Home. */
   homeDirectory: string;
   signal?: AbortSignal;
+  cleanup?: MemoryHomeAdoptionCleanup;
+  /** Synchronous current maintenance authority; invoked again immediately before each ledger commit. */
+  assertCurrent?: () => void;
   /** Acquire the existing exclusive storage owner before returning; failure must release partially opened resources. */
   open?(input: { homeDirectory: string; scopes: readonly MemoryHomeAdoptionScope[];
-    profiles: readonly MemoryLedgerAdoptionProfile[]; signal?: AbortSignal }): Promise<MemoryHomeAdoptionBridge>;
+    profiles: readonly MemoryLedgerAdoptionProfile[]; signal?: AbortSignal; assertCurrent(): void }): Promise<MemoryHomeAdoptionBridge>;
 }
 
 export interface MemoryHomeAdoptionResult {
   outcome: "completed" | "incomplete" | "cancelled";
   items: Record<ItemOutcome, number>;
   verification: VerificationOutcome | "not-run";
+  cleanup?: MemoryHomeAdoptionCleanupResult;
 }
 
 /** Only explicit offline adoption fills the known prior shapes; all stored choices and current restrictions survive. */
@@ -118,25 +128,61 @@ async function convert(bridge: MemoryHomeAdoptionBridge, scopes: readonly Memory
   } while (cursor !== undefined);
 }
 
+function prepareAdoption(input: MemoryHomeAdoptionInput) {
+  // Isolate identities, callbacks and control before the first owner-acquisition await.
+  const fixed = { ...input, cleanup: fixedCleanup(input.cleanup) };
+  if (!fixed.homeDirectory || !isAbsolute(fixed.homeDirectory)) throw memoryErrors.invalid("记忆采用需要明确的 Home 绝对路径");
+  fixed.signal?.throwIfAborted();
+  const snapshot = inspectMemoryLedgerAdoption(fixed);
+  const profiles = profilesForAdoption(snapshot), scopes = adoptionScopes(fixed.homeDirectory, snapshot);
+  const assertCurrent = () => {
+    fixed.signal?.throwIfAborted();
+    const checked: unknown = fixed.assertCurrent?.();
+    if (checked !== undefined) {
+      if (checked !== null && (typeof checked === "object" || typeof checked === "function") && "then" in checked)
+        void Promise.resolve(checked).catch(() => undefined);
+      throw memoryErrors.forbidden("维护权限必须由同步检查确认");
+    }
+    if (!isDeepStrictEqual(adoptionScopes(fixed.homeDirectory, inspectMemoryLedgerAdoption(fixed)), scopes))
+      throw memoryErrors.forbidden("当前 Home 的维护范围已改变");
+    fixed.signal?.throwIfAborted();
+  };
+  assertCurrent();
+  return { fixed, snapshot, profiles, scopes, assertCurrent };
+}
+async function openAdoption(prepared: ReturnType<typeof prepareAdoption>): Promise<MemoryHomeAdoptionBridge> {
+  const { fixed, profiles, scopes, assertCurrent } = prepared;
+  return fixed.open ? fixed.open({ homeDirectory: fixed.homeDirectory, profiles, scopes, assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) })
+    : openPrologueMemoryAdoption({ storageRoot: agentRuntimeDirectory(fixed.homeDirectory), appVersion: PRODUCT_VERSION,
+      scopes, policy: memoryRuntimePolicy(() => undefined).policy, assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) });
+}
+
+/** Body-free paged inspection of an explicit stopped Home; never changes its ledger or adoption barrier. */
+export async function previewMemoryHomeAdoptionCleanup(input: Omit<MemoryHomeAdoptionInput, "cleanup"> & { cursor?: string }): Promise<MemoryHomeAdoptionCleanupPreview> {
+  const prepared = prepareAdoption(input), cursor = input.cursor;
+  const bridge = await openAdoption(prepared);
+  try { return await cleanupPreview({ ...prepared.fixed, ...prepared, bridge }, cursor); }
+  finally { await bridge.close(); }
+}
+
 /** Explicit offline adoption only. Backup/copy rehearsal belongs to the operator, never to ordinary Home startup. */
 export async function adoptMemoryHome(input: MemoryHomeAdoptionInput): Promise<MemoryHomeAdoptionResult> {
-  if (!input.homeDirectory || !isAbsolute(input.homeDirectory)) throw memoryErrors.invalid("记忆采用需要明确的 Home 绝对路径");
-  input.signal?.throwIfAborted();
-  const snapshot = inspectMemoryLedgerAdoption(input);
-  const profiles = profilesForAdoption(snapshot), scopes = adoptionScopes(input.homeDirectory, snapshot);
-  const bridge = await (input.open ? input.open({ homeDirectory: input.homeDirectory, scopes, profiles, ...(input.signal ? { signal: input.signal } : {}) })
-    : openPrologueMemoryAdoption({ storageRoot: agentRuntimeDirectory(input.homeDirectory), appVersion: PRODUCT_VERSION,
-      scopes, policy: memoryRuntimePolicy(() => undefined).policy, ...(input.signal ? { signal: input.signal } : {}) }));
+  const prepared = prepareAdoption(input), { fixed, snapshot, profiles, scopes, assertCurrent } = prepared;
+  const bridge = await openAdoption(prepared);
   let adopting: MemoryLedgerAdoptionSnapshot;
   const result: MemoryHomeAdoptionResult = { outcome: "completed", items: { adopted: 0, current: 0, "needs-reconcile": 0, conflict: 0, unknown: 0 }, verification: "not-run" };
   try {
-    input.signal?.throwIfAborted();
-    adopting = beginMemoryLedgerAdoption({ homeDirectory: input.homeDirectory, snapshot });
-    await convert(bridge, scopes, result, input.signal);
+    assertCurrent();
+    adopting = beginMemoryLedgerAdoption({ homeDirectory: fixed.homeDirectory, snapshot });
+    if (fixed.cleanup) {
+      result.cleanup = await cleanupConfirmed({ homeDirectory: fixed.homeDirectory, snapshot: adopting, scopes, bridge,
+        assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) }, fixed.cleanup);
+      if (result.cleanup.some(item => item.outcome !== "completed")) result.outcome = fixed.signal?.aborted ? "cancelled" : "incomplete";
+    }
+    if (result.outcome === "completed") await convert(bridge, scopes, result, fixed.signal);
   } finally { await bridge.close(); }
-  input.signal?.throwIfAborted();
   if (result.outcome === "completed" && result.verification === "complete") {
-    completeMemoryLedgerAdoption({ homeDirectory: input.homeDirectory, snapshot: adopting!, profiles });
+    completeMemoryLedgerAdoption({ homeDirectory: fixed.homeDirectory, snapshot: adopting!, profiles, assertCurrent });
   }
   return result;
 }

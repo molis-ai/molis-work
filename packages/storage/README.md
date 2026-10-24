@@ -60,6 +60,9 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+
+`memory-ledger-adoption-cleanup` 是原离线采用的窄维护主人：直接复用 `BEGIN IMMEDIATE`，不经普通 `openMemoryLedger` 打开 ledger3。既有 memory-operation marker 固定无正文确认与每项子操作号；source-links、候选 source_refs 和原 promotion journal 提供已知来源，首次 SDK 删除前幂等保留 memory-source-forgotten。正式项沿 retention.forget 清历史、使用、成对记录与正文/undo，候选项只删准确投影；不按同源扩删 SDK 对象。每次事务核采用快照、原决定、当前权限和取消，未完成决定始终阻止 ledger4。相关回归 `tests/memory-ledger-adoption.test.ts`；新用例待正式 SDK 包集成后实跑。
+
 ## 开发要求
 
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。

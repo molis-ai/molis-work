@@ -1113,3 +1113,40 @@ M3 逐条分类纠正本轮验证完成（2026-10-24，本地生产 head `68564e
 续期资源批准与登记（2026-10-24）：用户明确批准 #1154 本片 workbench.js 一次性 +1,680 B。已先合入 #1153 的额度记录，再以该父提交 `ffa831255` 的准确预算 1,206,014→1,207,694 登记；其余 26 项不变。当前构建的 `page-assets --update --base ffa831255` 与实际资源门均通过，日志 `/private/tmp/molis-memory-expiry-renewal-approved-assets-20261024.log`。仅同步门禁与记录，没有修改产品代码或重跑已有效的产品用例；保留前次未通过资源门的事实。仍等待父链和 #1064 最终全量，不宣称 P0 或用户验收完成。
 
 旧文字采用资源批准与登记（2026-10-24）：用户明确批准 #1155 本片 workbench.js 一次性 +480 B。已合入 #1154 的额度记录，以父 `a8bd07eb0` 的准确预算 1,207,694→1,208,174 登记；其余 26 项不变。当前构建的预算更新与实际资源门均通过，日志 `/private/tmp/molis-memory-history-text-approved-assets-20261024.log`。本次仅改资源登记、实测预算与记录，不改产品代码，不重复此前有效产品验证；仍等待父链、#1064 最终全量及完整 P0 验收。
+
+### M1 失效 Session 绑定对象的离线清理短合同（2026-10-24，合同冻结、实现待验）
+
+对应 MEM-03/04/15/20 与 §8.3：SDK 曾写入成功而 App ledger 尚未登记，原 Session 随后 missing/purged 时，普通管理读取及采用正确拒绝，但维护者缺少合法发现与明确清理入口。最小闭环为：无正文分页预览 → 本人确认固定目标和已知来源抑制影响 → 原 marker 落决定 → 逐项 SDK purge 与 ledger 收尾 → 原转换和整 App 核验 → 关闭维护 Runtime → ledger4。依赖已合并 SDK #98 和后续 `previewAdoptionCleanup` 正式包；不读取 SDK 原始 Store，不放开普通管理读，不默认指向真实 Home。
+
+此片在原采用“不重写 history/revisions/changes/uses/pairs”的规则下明确增加本人主动清理的限定路径：只清确认的 missing/purged Session 绑定对象及已证明归属它的副本；未选目标及正常采用仍保持原历史。`previewMemoryHomeAdoptionCleanup` 只从原 profiles、只读 Catalog、character owner 得到可信范围，在该范围调用 SDK 两种 kind 的有界预览，空中间页不得当结束；输出固定目标和可证明的来源抑制影响，不含正文。active/archived、未决 reservation、坏形状和未知身份不生成可清理项；未知 owner 仍不披露并阻断整 App 核验。预览不改变业务记录。
+
+原 `adoptMemoryHome` 增加 `cleanup: { mode: confirm, operation_id, targets } | { mode: resume, operation_id }`。输入在首次等待前隔离并校验。首次确认在取得既有独占 owner 后核对 SDK 预览的准确 ref/expectedVersion/identity/sessionRef/state/reason 与已知来源；随后用现 memory-operation marker 固定选集及子操作号。恢复仅读取原决定，缺 marker、同号换身份/版本/选集拒绝；不得重新预览后追随墓碑 v+1 删除，始终传原 expectedVersion/operationId。逐项返回 completed/conflict/denied/unknown/not-executed，取消、撤权、冲突或未知停止后续，已发生事实不撤销或隐瞒。
+
+storage 是 ledger3/4 的唯一维护写主人：复用 memory-ledger-adoption 的 BEGIN IMMEDIATE 与现 retention，在同事务核当前采用快照、原 cleanup marker 和取消/权限，再提交本项清账与回执；不借 openMemoryLedger 打开 ledger3，不新增表、版本、完整 MemoryLedgerPort 或第二执行队列。任何未完成 cleanup 决定均阻止 completeMemoryLedgerAdoption，即使 SDK 已不存在。AgentHost 只补 previewCleanup/purgeCleanupTarget 窄口，维护策略只增加 delete，不开放 save/accept/promote 或模型；SDK 派发前、回来进入 ledger 前及 SQL 提交前继续当前 owner/scope/取消守卫。absence 只证明当前不存在，补账仍须原固定决定与当前权限，不能借 SDK 零授权回调绕过 App 守卫。
+
+已知来源重学抑制保持 §7.4：从 ledger 的 source-links、候选 source_refs 和原 journal 中已有的可信来源身份提取并固定必要引用；逐项核验当前可信范围后，在该目标首次 SDK 删除前幂等写它的现 memory-source-forgotten；不得提前写尚未获当前授权目标的抑制。原确认的选集与来源影响保持固定，保留既有抑制，失败不回滚已发生抑制。不得调用会按同 event/supersedes 扩删 SDK 候选的普通 forgetSources，也不删来源原件或同源未选中的合法长期记忆。正式项复用 retention.forget 清 revisions/uses/pairs/change 正文与 undo、关联候选投影；候选只清它的准确投影，不沿 memory_id 删除未选正式结果。无 ledger 孤儿不补造来源；该维护结果只证明固定对象及可证明副本清除，不把缺来源记录声称为完整来源遗忘，也不削弱普通本人 forget 的既有承诺。
+
+全部确认项清理完成后，继续原 convert 和 verifyAdoption 全页累计；任何 issues、未知 owner 或不完整结果保留 adopting。必须 finally close，关闭成功才原 storage 事务保留完整九字段 prefs、恢复原 origin、完成 ledger4；关闭失败继续阻断。预览或清理之外的正常启动不调用维护入口；回退仍为已确认的完整副本恢复，不做读取兼容或自动降级。
+
+当前必须是复用 SDK 预览/准确 purge、现 marker/retention 与原采用编排；可延后为 UI/CLI 和自动维护，不新增这些入口、后台重试、通用注册表或跨库事务。硬边界是独占写主、可信范围、固定原决定、当前权限、无正文、明确本人确认及关闭后才完成；Host 可替换沿原 bridge，App 提供维护路径和确认输入，用户选择确认目标，没有新增策略默认或阈值。
+
+允许修改：LocalHost memory-home-adoption 及同职责必要完整文件、显式公开导出/README；AgentHost prologue-memory-adoption 及其公开类型/README；storage memory-ledger-adoption/retention 及同职责必要文件、显式导出/README；原 memory-adoption-maintenance、prologue-memory-adoption、memory-ledger-adoption 测试及本 spec。SDK 包、锁、API 快照由统筹独占集成；不改页面、资源门、普通模型/形成/召回、数据库 schema。不得将一个完整职责拆为转发碎片。
+
+验收（MEM-03/04/15/20）：真实 Node/SQLite 非空旧库发现无 ledger 正式/候选，missing/purged 与 active/archived 区分，未知 owner/坏行/未决决定阻断，预览零业务写；原版本冲突零删除；墓碑提交失败、物理删除丢回应及 ledger 回滚后重启原决定恢复；缺 marker/换决定拒绝；absence 后撤权和取消停止后续；已知来源重放被抑制、同源未选长期记忆不变；清完后整 App verify、close 失败不得 ledger4，正常重开副本不复活。按受影响包 README 完成必要回归；只跑定向、重活服从 FIFO。当前尚未构建或实跑，不表述为工程通过、最终 App 实操或用户验收。
+
+M1 本地源码准备（2026-10-24，尚未工程验证）：在独立树 `codex/memory-adoption-cleanup`（基线 `66f32c4a6`）补齐有界无正文 `previewMemoryHomeAdoptionCleanup`、原 adopt 的 confirm/resume、AgentHost 公开 SDK preview/purge 接线与 storage 原维护事务/retention 清理。来源从原 ledger owner 提取，首次 SDK 删除前写现来源抑制；固定子操作号与原 expectedVersion 保留，未完成 marker 阻 ledger4。同步当前授权接到 SDK 最终使用/提交及 SQL 提交前，取消或失败停止后续。未新增表、普通 Runtime 写能力、UI/CLI 或后台任务；SDK/vendor/锁/快照/资源由统筹持有。
+
+原三个回归文件已补真实公开 Node SDK/SQLite 用例与有界编排故障用例，覆盖 missing/purged 与 active/archived、无 ledger 孤儿、坏行/未决 reservation/未知 owner、预览无业务写、版本冲突、墓碑提交/物理删除/账本提交失败恢复、缺 marker/换决定拒绝、取消/撤权后不得补账、来源抑制与同源未选长期项保留、整 App 分页核验及关闭失败阻断。上述用例仅已编写，尚未运行。当前完成的检查仅为 Node 24 对八个实现/回归 TypeScript 文件的语法检查及 `git diff --check`；没有类型检查、构建或测试通过结论。正式 preview SDK 包尚未集成且此树没有依赖，按统筹要求未启动必然失败的构建。后续须在 SDK 正式包和依赖就绪后，经 machine-slot FIFO 运行完整 build、三个专项文件及三包 README 必跑回归，再由统筹跑边界/API/资源门与独立评审；本记录不代表最终 App、完整 P0 或用户验收。
+
+M1 独立评审发现（2026-10-24）：原实现逐项核范围，却在本项删除前写整个决定的来源抑制。可复现的恢复条件是原决定已落盘、抑制尚未开始，随后一个 project 从可信 Catalog 范围移除；恢复仍先处理 user 项，便会提前写无授权 project 的抑制。此项按当前权限合同收紧为逐项目标抑制；先准备真实 SQLite/Catalog 范围移除回归，再改原函数及调用。原操作、版本、选集和逐项结果不变，不新增状态或批次原子承诺。正式包和依赖尚未接入，回归未运行。
+
+上述恢复权限 P2 的源码复核：抑制入口现接收当前 index，Host 先核本项可信 scope，storage 仅写该项原固定来源，原 marker 比对与 SQL 提交尾检保持。独立复核确认旧实现会使新增范围移除用例多写 project 抑制标记，源码层关闭原 P2，未发现新的确定 P1/P2。回归使用真实 SQLite/Catalog 与受控 SDK bridge，范围是 App 编排和持久边界；当前仅 diff/语法检查通过，没有运行红绿、构建或正式 SDK 验证结论。
+
+M1 正式 SDK 采用准备（2026-10-24）：本树 vendor 已替换为已合 Prologue #99 的正式包，来源 merge `ca0de1c60c248b83c79d49f064f725ecb97664ee`，实际 clean 打包 head `1c4cb31a4811b9c2d46c7fe19adf1d8cd788f4dd` 与该 merge 整树相同；归档 SHA-256 `1ce7089030708da3be43e0801802fff6bf87cf8d5a06a8f6504c2016971ac752`。旧 #96 包实际 bytes/hash/Git blob 与记录一致，已归入现 packagesWithoutPatch；文件名保持 memory-p0。SDK Memory 42/734 通过；quality 首轮 717/718，唯一公开名称快照同步后专项 4/4 与后续步骤通过，并非整条 quality 一次通过。干净安装公开 types/真实磁盘行为通过，正式归档与已测包逐字节一致、781 个非 manifest 文件一致。以上仅上游证据；M1 仍为源码待验，本次未安装、未改 lock、未构建或运行回归，统筹后续完成锁文件、全树 build/API/类型、三核心回归及 README 所需验证。
+
+
+M1 正式包验证与可审查交付（2026-10-24）：已安装 Prologue #99 的上述归档并同步锁文件，安装目录 781 个非 manifest 文件与归档逐字节一致；整体 build、根与工作区类型、API/Action、boundary、实际资源门通过。三核心回归中 maintenance 23/23，ledger 9/9、真实 SDK adoption 16/16 分批通过；README/影响面另 88 文件先有 87 通过，唯一旧 Session 撤权回归期望“物理记录全无”，与 SDK #98/99 已冻结的无正文原决定回执不符。现保留原 SDK/owner-index 两个提交屏障，断言同一准确 ID、原版本/preview、purged/complete、无 secure body、公开 readSecure 拒绝；完整关闭重开后旧 Session 不可打开，而另一个正常 Session 可用。该文件最终 13/13 通过，未改产品来迎合旧断言，未重跑其余未变的 87 文件。最终 health 对准确父 `66f32c4a69ab0cdf542e7accaa217be0679de10e`、secrets、diff 均通过，资源 27 项与父相同。
+
+首轮 build、三个旧夹具断言、provenance 同名包登记及 Session 旧断言的失败日志均保留。夹具分别恢复 adopting 前原 origin、对坏 reservation 断言准确 MEMORY_SCOPE_DENIED 与原持久值、把删除故障注入实际 storage.remove；不改变生产授权与恢复合同。provenance 因 #94 和 #96 沿用同一 tarball 文件名，原 packagesWithoutPatch 不允许重名：保留 #94 原行，#96 的完整 bytes/hash/Git blob/source 元数据记入原 notes，祖先提交仍在 commitsChecked，未改门禁或丢失来源记录。初次权限评审的逐项目标来源抑制修复，已纳入真实 SQLite/Catalog 范围移除回归验证。
+
+复核结果见 `/private/tmp/molis-memory-adoption-cleanup-sdk99-narrowed-20261024.results.json`、`/private/tmp/molis-memory-adoption-cleanup-sdk99-fixture-fixed-20261024.results.json`、`/private/tmp/molis-memory-adoption-cleanup-sdk99-provenance-fixed-20261024.results.json`、`/private/tmp/molis-memory-adoption-cleanup-sdk99-effects-receipt-20261024.log` 与 `/private/tmp/molis-memory-adoption-cleanup-final-review-gates-20261024.results.json`。这些是明确离线入口与临时 Home 的分批相关工程证据，不是一次新全量。以 #1155 为父独立提交 Draft，SDK 变化与共享装配仍须最终集成全量、CI 和评审后按依赖合并；UI/CLI 未在本片新增，未操作真实 Home、未运行付费 B2、未发布，不代表最终 App、整体 P0 或用户验收。

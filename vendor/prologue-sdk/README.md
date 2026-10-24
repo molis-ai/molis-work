@@ -4,13 +4,13 @@
 
 目录里现在有这些东西：
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,359,578 字节），SHA-256 `bb0b6b79c3f744a2bb64c214472a53b74b0a50d5c61d5f0b026c1f02b5a086c5`。来源为 Prologue [#96](https://github.com/molis-ai/molis-prologue/pull/96) 的干净提交 `15c38aed0bde2f8f0540a3e390f2e03033cdb717`，已合 main `d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11`，整树一致，无补丁。保留 #95 最终权限保护，新增本人明确续期与同 Runtime Session 转换的提交失效保护；正式记录 shape 8，旧 shape 7 包对新记录拒写。Molis 续期入口及分类接线按对应切片验收。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,365,058 字节），SHA-256 `1ce7089030708da3be43e0801802fff6bf87cf8d5a06a8f6504c2016971ac752`。来源为已合并的 Prologue [#99](https://github.com/molis-ai/molis-prologue/pull/99) `ca0de1c60c248b83c79d49f064f725ecb97664ee`；实际打包自干净 head `1c4cb31a4811b9c2d46c7fe19adf1d8cd788f4dd`，两者整树相同，无本地补丁。包含 #96 续期、#97 本人显式分类采用、#98 Session purge 与 #99 离线采用清理公开入口。此树已替换 vendor；锁文件、依赖安装及 M1 集成验证待统筹完成。
 - 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `f4bbbd88` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 32 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
+- `patch-history.json`：已删除的 26 份历史补丁和 33 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
-该 head 的完整 `pnpm quality`（68 文件 684 项）、Memory 专项（41 文件 680 项）及干净安装真实 Node/本机 HTTP 消费者通过；原归档反例与首次粒度门失败保留。制包环境 macOS arm64、Node 24.14.0、pnpm 11.9.0；实际 tgz 独立离线安装后，上一版 #95 实包读取/更新续期记录被拒，正式写入为零、磁盘不变，新包重开结果保持。干净提交重打包与已测试产物逐字节一致，775 个非 manifest 文件与构建树一致；未作独立重复构建。不宣称 Molis 采用、模型收益或用户验收通过，集成状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
+SDK 验证记录：Memory 专项 42 文件 / 734 项通过；quality 测试阶段先为 717/718，唯一失败是公开名称快照，同步后该文件 4/4 通过，其余后续 quality 步骤通过。不能描述为整条 quality 一次通过。干净安装包的公开 types 与真实磁盘行为通过。制包环境 macOS arm64、Node 24.14.0、pnpm 11.9.0；干净 head 重打包与已测试归档逐字节一致，781 个非 manifest 文件与构建树一致，未作独立重复构建。上述为上游 SDK 证据；Molis 本树尚未安装、更新锁、构建或运行 M1 回归，不宣称 Molis 工程通过、最终 App 实操或用户验收。集成状态见 [Memory spec](../../specs/prologue-memory-strategy/spec.md) 的 M1 短合同。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 

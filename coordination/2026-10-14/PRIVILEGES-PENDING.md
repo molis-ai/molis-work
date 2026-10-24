@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | PG-094 | #1146 | `fea1eb0ba` | 状态仍进行中，追加一句：S4（10-23）网页层不再持有 Goals 协调器（RAC-250），宿主剩余持有者与读 Goals 表的文件冻结成清单（RAC-251～253，测试进 Package boundaries 必跑作业）；钉死的提供方（BL-501）与 `goalTitle` 端口（BL-500）不动 |
 | PG-031 | #1146 | `fea1eb0ba` | 描述或状态追加：Goals 部分的写死提供方登记为 BL-501，归 `ac-platform` 一片（宿主按能力在共同目录找提供方，`allowed_actions` 精确提供方不放宽；统筹 10-23 裁） |
-| PG-056、070、071 | #1145、#1132 | `b1ab81518`、`1dedc1f5c` | 进度追加：Jelly、Issues 已完成（客户端打包成 TS 并类型检查、请求只经共同 request helper、页面文字稳定键）；整条等 W5-03/04 各插件片都合入再标已做 |
+| PG-056、070、071 | #1145、#1132（Todo 片 #1129 的内容也随 #1132 合入，#1129 已关） | `b1ab81518`、`1dedc1f5c` | 进度追加：Jelly、Issues 已完成（客户端打包成 TS 并类型检查、请求只经共同 request helper、页面文字稳定键）；整条等 W5-03/04 各插件片都合入再标已做 |
 | PG-029 | #1117 | `acb8941b0` | 待做（平台一半已做，#1117：内核拒绝处理器里自写的 `user_action`，页面路由入口给 `web`；Goals 转接里手写的 web 与管理出处随 Goals S9 删） |
 | PG-030 | #1117 | `acb8941b0` | 已做（#1117；宿主 `system.*` 提供方与 `horizontal/*` 的钉法不在本行范围） |
 | PG-012 | #1076、#1083 | `b30325bd5` | 仍进行中，改状态里的 Shelf 一句：Shelf 迁入已完成（S2 #1051、S3 #1076、S4 #1083；宿主 `shelf-actions.ts` 已删，Home 级动作都由 Shelf 声明）；剩 Goals 的个人规划方法（`personal-planning-actions.ts`、`personal-planning-methods.ts`），归 Goals 迁移 |

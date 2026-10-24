@@ -1992,3 +1992,34 @@ node scripts/check-secrets.mjs --base 817aa497b
 最终必要权限修复在聚合验证（2026-10-25）：按序接f204facbd为22414f4d4、40d916464为bcb5b988d，只spec交接追加冲突保留双方；231不重复，产品8文件原样。真实SDK返回后同步复核原authority.assertBeforeStart与required assertCanSchedule复用既有控制口，原enqueue/tick/remove未改；红例与owner四文件结果见上文，不以旧12文件绿色代替新交错。整体build一次exit0（19.27s），最终仅三文件assistant-work-lifecycle17、assistant-thread-reply4、assistant-followups-collaborator5，共3/3文件26/26例、jobs2/retries0通过；无新browser变化，复用刚完成的12文件113例与原owner有效证据。
 
 最终根/LocalHost包类型、准确93b health、boundary、API/Action实际生成、资源及完整分支secrets/diff均exit0；API/Action unchanged，SDK100/锁与三read@3/start@2不变，资源仍新父7,641,839→7,672,595及原四项净增长。最新索引`/private/tmp/molis-memory-p0-aggregate-20261025-build-final-authority.results.json`、`-final-authority-delta.results.json`、`-final-authority-gates.results.json`；相邻同stem日志保留实际命令与结果。源码候选仅本地提交，未push/新PR/关闭Draft，完整共享全量及PR处置由统筹负责。此前MEM-SOURCE-01未知首败、完整项目删除和上述维护/purge边界继续保留，不宣称P0全部完成或用户验收通过。
+
+#### AST-MEM-ARCH UI 收尾（2026-10-25，实施前短合同）
+
+准确父 dd97576b70700f5f8ca5dbbd10ad4b3cd5ad4180，聚合树只读，新树 codex/memory-assistant-archive-ui 承担本界面，最终并入同一个 #1101。现 Assistant 没有归档/恢复按钮；复用“全部工作”菜单、现 mw-dialog 和共同请求助手，不新增状态服务或第二执行路径。菜单按原状态组织，并提供已归档分组；本人选定工作后看见工作名、当前状态与归档/恢复影响，SDK ref/version/operation 不展示给用户，完整原件只固定在请求中。取消不 POST；确认后的失败在原框保留原件、同一决定重试；成功刷新可见状态，历史保持，独立 Node Host 重启仍可找到归档工作并恢复。已归档工作不可直接发送，先明确恢复；恢复不自动启动模型或旧定时。
+
+必要只读列表接缝经统筹确认：Service.list 参数只认 false/true/any，HTTP GET works 只解码这些现行值，省略仍是原 active 列表，非法值拒绝。复用 Store.list 的同 actor、50 项原边界，不扩成全库枚举。普通列表仍按原 notice/observe/settle 语义；新增 archived 行不重放旧通知、安排或执行，不称整个列表纯零写。生命周期写权限、owner、原 operation/revision、SDK 先完成后 Work CAS 合同全部不变。
+
+允许路径：apps/workbench/src/scripts/client/assistant-island.ts、完整菜单及确认职责所需的一个 browser 工厂、apps/workbench/src/i18n/assistant-en.ts、apps/workbench/README.md；必要后端仅 apps/local-host/src/assistant/assistant-http.ts 与 assistant-service.ts、apps/local-host/README.md；直接测试 tests/assistant-work-lifecycle.test.ts 与一个新归档浏览器测试；本 spec。SDK/vendor/锁、Coding purge、项目删除、CI、门禁、资源额度及真实 Home 禁止修改。现巨大 island 单元只抽出已有完整“全部工作”职责并复用其装配，不以压行或新压缩旁路绕门，不造巨型工厂。
+
+AST-MEM-ARCH-UI-01：真实非空 Work/SDK Session，菜单到确认、取消零 lifecycle POST/状态不变、确认归档并持久，历史不丢。
+AST-MEM-ARCH-UI-02：实际 SDK 已归档而 Work CAS 失败，界面清楚显示失败；重试 body 与原 preview 完全相同、SDK 决定不重复，成功状态可见。
+AST-MEM-ARCH-UI-03：独立 Node Host 同 Home 重启后从已归档菜单找到原 ID，显式恢复同 Session，零模型调用；原历史保留。
+AST-MEM-ARCH-UI-04：新增 archived 列表的 actor/筛选、非法输入、观察/通知与队列副作用边界；默认列表原语义保持。界面取消/焦点返回、原失败与重试、可操作状态及明暗/窄宽可达按实际 Chrome 覆盖记录。
+
+固定 Node24.14/pnpm11.9，frozen offline 安装；整体 build 与 browser 走机器槽，普通 jobs2/browser1/retries0，不跑全量。按实际影响跑 Workbench README 去重必跑及界面回归，复用有效且未变的父证据时单列；独立进程重启与页面 reload 分开说明。准确父已构建真实27资源只读实测，最终源码重建测净增；先复用已有菜单/样式/请求，无法省回的增长如实保留门禁失败交统筹统一申请，不登记或挪用额度。工程、产品实操与用户验收分开，不提前声称 P0 全部完成。
+
+UI 实施接缝补充：统筹批准复用现 assistant-inputs.ts 的纯 checkArchiveFilter，供 Service 原 Store.list 表达式消费，保持运行时严格参数合同而不增长现巨大 Service；HTTP 仍独立解码字符串边界。首个 health 的 Service +1 与尚未索引新工厂的静态展开失败保留 `/private/tmp/molis-assistant-archive-ui-health-first-20261025.log`，不改门、不压行。named() 仅返回读取到的项目标题副本，原样保留；archived 行仅跳过 notice 的观察/通知写入。
+
+CAND-05 聚合导航合同修复（2026-10-25，统筹追加授权，修改前）：聚合全量 `/private/tmp/molis-memory-1101-full-shard1-20261025.log` 暴露 dom-events-contract26/28，dd975现同文件本机原断言零重试也26/28；`settings-memory.ts` 向 window 发 open-settings-section，但合同与 settings-directory.ts:333 监听在 document。实际 listener 不 preventDefault 且只开全局 settings；只改发向 document 会先打开错误的全局 scope再强制导航，不能修成该行为。最小修复删无效事件捷径，保留原来实际生效的 location.assign 精确 personal/project 路径，项目来源与角色缺 project 明确拒绝不变。不加事件、监听、known-gap 或豁免；仅将现 settings-memory.ts 扩入本树allowlist。待当前12browser批完成再改源；原Assistant行为证据复用，整体重建后只补dom-events及真实候选导航并重测资源。
+
+UI 本次实际结果（准确父 dd97576b，2026-10-25）：本人归档/恢复已接到“全部工作”菜单，归档行保留单独分组。确认框以共享 mw-dialog 显示工作名、当前状态和影响；原 SDK 原件固定在请求中而非展示实现字段。取消不 POST 且实际 SQLite 整条 Work body 保持；失败保留原件，按原决定重试；成功先消费 POST 的真实 Work 回执显示状态再刷新。归档 Work 只读且不能直接 Send；恢复沿同 Session，历史保持，不重新启用旧定时、不启动模型。现菜单完整职责抽入 assistant-work-menu.ts，未新增后台、状态服务、表、公共平台合同或资源路径。Service.list 的新增筛选仍50项、同 actor；archived 不进入 notice，原 named 展示和 active 观察行为保留。
+
+真实 Chrome 主流程在 `/private/tmp/molis-assistant-archive-ui-browser-dom-ready-20261025.log` 完整通过，新增一例逐项覆盖 UI-01～04：非空 Work 和真实 SDK Session，取消持久零写与焦点返回，SDK 先完成/Work 触发器拒绝的部分失败，重试完整 body 相同且 SDK 只升一次，真实独立 Node Host 不同 PID 重启，已归档分组找到原 ID、同 Session 显式恢复、完整历史相等与零新模型轮。浅色桌面及深色390px原确认/恢复页已截图并实际观察；footer在视口内可点击。截图在本树忽略的 `.impeccable/qa/review/assistant-archive/confirm-desktop.png` 与 `restore-phone-dark.png`，不是入库新评审组。只用回环模型 stand-in 和临时 Home；这是真实指定 Web/SDK 路径的工程证据，不是完整打包 App、付费模型、真实 Home 或用户验收。
+
+首败保留且未修改等待上限/断言来消账：`...-browser-first-20261025.log` 是夹具误用 SDK 协议名，ModelProviderStore 只认现 openai-chat-completions/anthropic-messages；修为实际 stand-in 的 /v1 地址与现格式。`...-browser-model-fixed-20261025.log` 是 CDP expression 顶层 await 语法错误，改返回 Promise 链。`...-browser-20261025.log` 原比较公开 DTO，唯一差异 state running→completed，取消不应冻结独立运行结算；保留零POST，改用实际 SQLite 完整 Work body 判无写。`...-browser-persistence-20261025.log` 在重启后点击只读输入不会打开最小化面板，改走现工作目标 chip 真实入口，不绕过可见性。`...-browser-restart-entry-20261025.log` 与 `...-browser-terminal-ready-20261025.log` 的旧历史快照仍为 running/ended_at null：已定位 goal-browser.waitFor 是同步 DOM 谓词，我误传 fetch Promise 使条件恒真；未改共享 harness，改等待真实 DOM 工作已完成及轮次 completed，再取完整历史。最终原完整历史断言保留且通过，前述失败不称产品红、不归环境。
+
+最终产品源码整体 build 均 exit0；首次全新树含现有 Swift 构建，随后仅受影响包增量重建。最新导航修复构建 `/private/tmp/molis-assistant-archive-ui-navigation-build-20261025.log` exit0。Workbench README精确去重18普通加生命周期整文件，`...-ordinary-20261025.log` 19/19文件161/161项通过，包含列表同actor、原观察/通知/队列快照不变与严格非法参数。原界面 README10份加直接 error-recovery/page-written 两份，`...-readme-browser-20261025.log` 12/12文件36/36项首轮通过，browser1/retries0；新归档完整例另列，未冒充整仓全量。根、Workbench、Local Host类型与boundary均exit0，日志 `...-{root-types,workbench-types,host-types,boundary}-20261025.log`；准确父health通过，巨大单元下降，翻译/脚本展开/API保持有效。以上同前缀 `/private/tmp/molis-assistant-archive-ui`，命令文件集合保留 `...-test-plan-20261025.json`。
+
+CAND-05 失效捷径修复实际结果：本机原 dom-events-contract26/28（`...-navigation-red-20261025.log`）与统筹全量相同，删 window 事件分支后原合同28/28。实际 settings-directory 监听位于 `apps/workbench/src/scripts/client/settings-directory.ts:333`，只打开全局且不 preventDefault，故没有将事件改向 document。最终四普通 dom-events-contract、assistant-island-script、client-script-undeclared、i18n 共4/4文件49/49项（`...-navigation-ordinary-20261025.log`）；真实候选整文件4/4（`...-navigation-browser-20261025.log`），其中 project/character 助理卡均到准确项目原候选，保留取消、采用原ID/version/owner、重开与持久断言。源码冻结后整体构建再验证；不重跑无关 Assistant32份，也不把原全量首败抹去。最终精确dd975 health再次exit0（`...-navigation-health-20261025.log`）。
+
+资源是本次明确未过的门：准确父已构建27项只读实测7,672,595 B，最终同27项7,676,659 B；仅 `/assets/molis-work-workbench.js` 1,162,083→1,166,147 B，净增4,064 B，其余26逐项相同。最初UI实测+4,211 B，删除已证实无效的导航捷径回收147 B。复用原菜单与样式、共同请求/弹框、原SDK决定；无新CSS、资源路径或压缩旁路，不挪旧额度，不提高门/预算。`...-final-assets-gate-20261025.log` 正式 --base dd975 exit1 保留；`...-parent-assets-20261025.json`、`...-final-assets-20261025.json` report exit0仅证明测量，不是放行。新增确认、固定原件重试、原状态列表的必要增长交统筹按具体可审查提交统一申请；批准及最终聚合集成/CI仍待完成，不能称所有工程门通过或P0全部完成。

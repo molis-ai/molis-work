@@ -133,6 +133,8 @@ Memory 形成复用登记的 `memory.extract` 与唯一 HostTextGeneration，由
 
 炼金术士的关闭先停止接纳并撤销提交，再等待前台动作与 worker 的真实退出；只有工作室与搜索资源全部关闭后才移出登记和删除目录。失败保留 live 删除钩子与未关闭资源，公开 Host.close 的同次并发与成功后重复调用返回同一 Promise；失败后可单独重试炼金术士收尾，其余已完成 Host 收尾不重复执行。搜索组合直接拥有 query transport 的清理，避免 SEL 缓存一次关闭失败后无法重试；SEL 内部终端故障仍保留失败和资源，不假称清理成功。回归：`tests/security-invariants-alchemist-lifecycle.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/search-evidence-runtime.test.ts`。
 
+Assistant 工作列表的 GET `archived=false|true|any` 复用原 actor 与50项边界，省略仍为普通 active 列表；非法值明确拒绝。归档行只投影，不重放旧观察/通知、定时或执行；普通列表原副作用语义保持。此入口用于本人在 UI 找回归档工作，不是项目删除或全库枚举口。
+
 助理 Work 的归档/恢复先沿 AgentHost lifecycle 完成其自有 `StoredWork.session_id` 的原决定，再按原 Work revision 提交。`GET /api/assistant/works/:id/archive-preview?archived=true|false` 纯读返回完整原请求；POST 原 archive 路由须交回该原件，失败后重试不换决定/版本。SDK 已完成而 Work 尚未提交时保留部分结果，版本/绑定变化拒绝；`threads.start` 先恢复，成功前不写新回复或调用模型。任意执行方插件的 `executor.session_id` 及委托子 Work 不级联；已 stopped 可归档，真正进行中/未决状态仍拒绝。定时取消的部分结果如实保留，归档失败不把未取消项写成已停用，原请求可继续；恢复不启用旧定时。新增定时在等待后复核当前 Work 和归档占用，不越过停用快照；已经保存的安排若迟到入队，由原记录检查取消真实队列。启动保护只覆盖 Session 创建到 Work 绑定，SDK 创建返回后绑定前及最终 CAS 同步检查原调用当前授权。专项：`tests/assistant-work-lifecycle.test.ts`、`tests/assistant-thread-reply.test.ts`、`tests/assistant-followups.test.ts`、`tests/assistant-followups-collaborator.test.ts`、`tests/assistant-delegation.test.ts`、`tests/assistant-continuation-control.test.ts`。
 
 助理每轮的未完成接入材料由 `src/assistant/assistant-setup-material.ts` 从接入 owner 读取，按当前 actor、会话、项目和读取授权筛选；只给公开状态、意图修订及实际旧等待撤回结果，不带凭据、不决定保留/取消。新消息后的暂缓与等待撤回仍分别由连接 owner 和 SDK 负责。回归：`tests/assistant-connector-business.test.ts`。

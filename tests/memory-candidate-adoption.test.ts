@@ -149,6 +149,17 @@ test("CAND-05: an unrelated project overview cannot expire a personal candidate 
     finally { notes.close(); }
     assert.equal(response.status, 200, JSON.stringify(result));
     assert.deepEqual(result.candidates.map(item => item.candidate_id).sort(), ["character-fresh", "project-fresh"]);
+    const personal = await fetch(server.origin + "/api/memory/overview"), partial = await personal.json() as {
+      candidates: MemoryCandidate[] | null; items: MemoryItem[];
+    };
+    assert.equal(personal.status, 200, JSON.stringify(partial));
+    assert.equal(partial.candidates, null, "failed candidate reading is explicitly unknown, never an empty list");
+    assert.equal(partial.items.length, 1, "the committed formal memory remains manageable after restart and waiting TTL");
+    assert.equal(partial.items[0]!.memory_id, before.entries[0]!.memory_id);
+    const after = await snapshot();
+    assert.deepEqual(after.entries, before.entries, "overview must not rewrite the committed formal entry");
+    assert.deepEqual(after.candidates.find(item => item.candidate_id === "personal-recover"), before.candidates.find(item => item.candidate_id === "personal-recover"));
+    assert.deepEqual(after.accept, before.accept, "the original pending accept identity is retained");
   } finally { await server.close(); await host.close(); }
 });
 

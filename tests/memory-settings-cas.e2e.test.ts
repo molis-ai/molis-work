@@ -75,6 +75,29 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
 const item = (id = "active") => `[data-memory-id=${id}]`;
 const textButton = (label: string) => `button[aria-label^="${label}："]`;
 
+test("Candidate read failure preserves formal management and clears only after an explicit successful reread", { timeout: 45_000 }, async t => {
+  const f = await open(t, () => ({ body: {} })); if (!f) return;
+  let unavailable = true;
+  Object.defineProperty(f.overview, "candidates", { get: () => unavailable ? null : [] });
+  await f.page.click("[data-memory-reload]");
+  await f.page.wait("!document.querySelector('[data-memory-candidates-section]').hidden && document.querySelector('[data-memory-candidates]').textContent.includes('读取未完成')");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-list]').inert"), false);
+  assert.equal(await f.page.evaluate("document.querySelectorAll('[data-memory-candidate]').length"), 0, "stale candidate controls are removed");
+  await f.page.click(item() + " " + textButton("修改"));
+  await f.page.fill(item() + " textarea", "正式记忆仍可修改");
+  await f.page.click(item() + " button[type=submit]");
+  await f.page.wait("!document.querySelector('[data-memory-id=active] textarea')");
+  assert.equal(f.calls.at(-1)!.body.expected_version, 7);
+  assert.equal(f.calls.at(-1)!.body.text, "正式记忆仍可修改");
+  await f.page.fill("[data-memory-filter=query]", "active");
+  await f.page.wait("document.querySelectorAll('[data-memory-id]').length === 1 && !document.querySelector('[data-memory-reload]').disabled");
+  assert.equal(f.reads.at(-1)?.query, "active");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-candidates-section]').hidden"), false, "formal page reads do not erase the candidate failure");
+  unavailable = false;
+  await f.page.click("[data-memory-reload]");
+  await f.page.wait("document.querySelector('[data-memory-candidates-section]').hidden");
+});
+
 // MEM-PAGE-02/03: bounded read states and delayed HTTP are protocol fixtures; the real Home journey is separate.
 test("Memory page continues after an empty scan, preserves unknown totals and sends the server cursor with its filters", { timeout: 45_000 }, async t => {
   const final = { ...entry("expired", 31), text: "临时周报约定", kind: "habit", classification: null,

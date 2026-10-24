@@ -1840,3 +1840,11 @@ Coding 归档交付前统筹复核（2026-10-24）：已独立核真实 backend/
 实际冲突处理：R8 capability-registration/session-actions保留新父从当前caller取owner及ownsSession，组合原Run分类快照；MemoryQueries的完整查询职责抽取与批量历史同时保留；MCP回归保留v3设置写主人/generation，采用recall@3的union输出；candidate policy把TTL新提交门与run explicit/disable门求交，PrologueMemory原call复用options并传取消signal；候选/导入/批量页面各自原请求与完整决定均保留。生命周期合并保留cache generation/current fence和live Run memoryBinding；Coding新stage保留，旧archive分支替换为既有受控原决定流程，旧assistant-coding文件尊重新父删除，generic WorkExecutor仍按所选插件角色发现现版本。三read已升@3，原PluginRuntime拒@1测试补拒read@2，start@2不变。SDK100八个vendor文件逐blob等415c，包1,365,062B/SHA与上节一致；锁只采用其SDK100 integrity，同时保留新父依赖。spec两侧历史记录保留；生成快照和资源暂保留基线，等待最终真实生成和测量，不手编通过状态。
 
 统一验证准备：按实际8包（Local Host、Workbench、AgentHost、Memory、Contracts、PluginRuntime、Storage、Coding）README必跑首条、Workbench界面必需、当前修改测试和直接冲突消费者去重，正式selector为219个非browser、20个browser；5个darwin非browser是Action快照、真实安装Host/执行、Keychain重试及插件材料拒绝。清单与逐项原因暂存 `/private/tmp/molis-memory-p0-aggregate-20261025.plan.json`，不把旧批次数相加。先固定Node24.14/pnpm11.9离线冻结安装、一次整体build，继而类型、API/Action实际生成、准确父1c2的health/boundary/资源/secrets/diff；必要非browser先核冲突核心再跑其余去重集，jobs2/retries0。20浏览器在build后独占统一批次、browser1/retries0。共享全量由统筹执行，仍无付费模型。当前上述验证未运行，资源实际净增尚未知，后续按真实结果记录首败和补验，不把源码clean当通过。
+
+### 2026-10-25 合并交付补缺：候选局部失败不阻断正式管理
+
+实际问题：个人候选采用已提交正文但 finish 中断，跨候选等待期限后，自动过期与原 accept reservation 冲突；overview 原 Promise.all 将候选失败放大成整页失败。此项按 MEM-17/MEM-24 修复，纳入同一整合 PR，不另开 PR。
+
+最小完整方案：复用现有 overview 与候选区，不改 SDK、Action 版本、持久化状态或决定恢复。HTTP 组合仅将候选读取失败表达为 `candidates:null`，明确不同于已读空列表；正式 page、prefs、changes 仍走各自原授权和错误链。页面保留正式分页及管理入口，在候选区显示原有“读取未完成，请重新读取。”文案，重读沿现整页刷新。请求取消仍传出，不将取消当作成功读取。本人离页/刷新后恢复原命令继续受原 §9.4 M2 页面生命周期边界限制；不读取 SDK 内部 reservation，不自动换决定或猜正文。
+
+写入范围：LocalHost memory HTTP 组合、Workbench 现候选渲染、两包 README、现候选故障/浏览器用例。验收：真实 SDK/SQLite before-finish 故障、关闭重开、跨等待 TTL 后 overview 仍返回正式页；候选明确不可读，原 candidate 与正式版本/原决定保持；正常空候选不显示错误，浏览器能继续分页和管理正式条目并显式重试。复用现样式/翻译，资源实测，原额度不擅自扩用。当前为短合同，未运行不计通过。

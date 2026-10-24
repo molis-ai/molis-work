@@ -29,7 +29,7 @@ export interface BoardRun {
   readonly ref: { readonly run_id: string };
   readonly phase: string;
   readonly task?: string;
-  readonly started_at?: string | number;
+  readonly started_at?: string | number | null;
   readonly turns?: readonly { readonly kind: string; readonly text: string; readonly steer?: unknown }[];
   readonly frozen?: {
     readonly role_id?: string;
@@ -48,7 +48,7 @@ export interface BoardChild {
   readonly error?: string;
   readonly workspace_path?: string;
   readonly verdict?: { readonly status?: string };
-  readonly activity?: readonly { readonly at?: string }[];
+  readonly activity?: readonly { readonly at?: string | null }[];
 }
 
 export interface BoardSubagents {

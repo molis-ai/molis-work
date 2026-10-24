@@ -15,7 +15,7 @@ export function hue(name: string): number {
 }
 
 /** A moment as a row shows it: the time today, the day otherwise; none when it is unknown. */
-export function when(at: string | number | undefined): RowTime | null {
+export function when(at: string | number | null | undefined): RowTime | null {
   if (!at) return null;
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return null;

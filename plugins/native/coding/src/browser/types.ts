@@ -19,13 +19,18 @@ export interface Lifetime {
   /** Reads `read` every `delay` ms while the page is visible; a failure goes to `onError`. */
   poll(read: (signal: AbortSignal) => unknown, delay: number, onError?: (error: unknown) => void): () => void;
   fetch(input: string, init?: RequestInit): Promise<Response>;
+  /** Waits `ms`, or rejects when the page ends (or `signal` aborts) first. */
+  delay(ms: number, signal?: AbortSignal): Promise<void>;
+  nextFrame(): Promise<number>;
+  frame(callback: (time: number) => void): number;
+  cancelFrame(id: number): void;
 }
 
 /** One Element lookup under the Coding page's root; a missing element is a bug in the page, so it throws. */
 export type Query = <Found extends Element = HTMLElement>(selector: string) => Found;
 
 /** One request to the Coding routes (the path is under the plugin's own route); a failure is an Error that may carry the Host's `code`. */
-export type Api = <Answer = unknown>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<Answer>;
+export type Api = <Answer = unknown>(path: string, method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown, signal?: AbortSignal) => Promise<Answer>;
 
 /** What every piece of the Coding page gets from the page's client (src/browser/page.ts). */
 export interface PagePorts {
@@ -46,7 +51,10 @@ export interface ReceiptLinks {
 }
 
 /** Draws the Host's review cards for the runs it is given in a container (`host.showReviews`). */
-export type ShowReviews = (container: Element, refs: readonly { readonly run_id: string }[], sessionId?: string | null, workspaceId?: string | null) => unknown;
+export type ShowReviews = (
+  container: Element, refs: readonly { readonly run_id: string }[], sessionId?: string | null, workspaceId?: string | null,
+  scope?: { readonly runSession: string; readonly limit: number }, view?: { readonly lifetime: Lifetime; readonly signal?: AbortSignal },
+) => unknown;
 
 /** A model-facing explanation of a failure: what it was, and what to do. */
 export interface FailureExplanation { readonly title: string; readonly hint: string }

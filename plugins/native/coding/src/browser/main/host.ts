@@ -9,9 +9,18 @@ export interface HostReceipts extends ReceiptLinks {
   step(state: string): string;
 }
 
-/** A card made interactive by the Host: submitting it, and what the person answered. */
+/** A card made interactive by the Host (the shared question card): what it holds, and how to close it. */
 export interface HostInteraction {
-  [key: string]: unknown;
+  read(): Record<string, unknown> | null;
+  write(values: Record<string, unknown>): void;
+  destroy(): void;
+  showErrors(errors: unknown, options?: { focus?: boolean }): void;
+}
+
+export interface InteractionOptions {
+  onSubmit?: () => void | Promise<void>;
+  onAction?: () => void;
+  onChange?: () => void;
 }
 
 /** What the workbench gives Coding's page (`host`): navigation, the shared receipts and reviews, and the page's own requests. */
@@ -19,6 +28,8 @@ export interface CodingHost {
   readonly translate: Translate;
   /** Makes the page's lifetime from its root; none when the root is gone or already mounted. */
   mountPluginClient(root: Element): Lifetime | null;
+  /** The Manifest identity this page runs under; presentation only. */
+  readonly pluginId: string;
   /** A relative path under this plugin's Manifest identity and current project. */
   pluginRoute(path: string): string;
   /** The page's user-facing words for a refused request, when the Host has them. */
@@ -28,7 +39,7 @@ export interface CodingHost {
   openBeside?(kind: string, id?: string, title?: string): void;
   revealTask?(): void;
   receipts: HostReceipts;
-  interaction(card: Element, options: { onSubmit?: () => void }): HostInteraction;
+  interaction(card: Element, options: InteractionOptions): HostInteraction;
   selectWorkspace(id: string): Promise<void>;
   addWorkspace(path: string): Promise<{ readonly workspace_id: string }>;
   confirm(question: string): Promise<boolean>;

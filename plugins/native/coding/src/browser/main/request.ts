@@ -11,8 +11,10 @@ export interface Refusal extends Error {
 const refusalOf = (error: unknown): Refusal | null =>
   error !== null && typeof error === "object" && "message" in error && "status" in error ? error as Refusal : null;
 
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
 /** One request to the Coding routes (the path is under the plugin's own route). A read goes with the view's signal while it is on show. */
-export async function api<Answer = unknown>(page: Page, path: string, method = "GET", body?: unknown, requestSignal?: AbortSignal): Promise<Answer> {
+export async function api<Answer = unknown>(page: Page, path: string, method: HttpMethod = "GET", body?: unknown, requestSignal?: AbortSignal): Promise<Answer> {
   const { L, host, lifetime } = page;
   const { s } = page;
   const signal = requestSignal || (method === "GET" && lifetime.visible && !s.viewSignal?.aborted ? s.viewSignal : undefined);

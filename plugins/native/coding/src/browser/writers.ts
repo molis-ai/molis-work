@@ -33,7 +33,7 @@ export interface WriterPorts extends Pick<PagePorts, "lifetime" | "translate" | 
 export interface WriterTurnRun {
   readonly frozen: { readonly role_id: string; readonly subagent_workspaces?: readonly { readonly workspace_id: string; readonly directory: { readonly canonical_path: string } }[] };
 }
-export interface WriterTurn { readonly kind: string; readonly steer?: boolean; readonly text: string }
+export interface WriterTurn { readonly kind: string; readonly steer?: unknown; readonly text: string }
 
 interface SplitRow { readonly workspace_id: string; readonly directory: string; readonly task: string; readonly branch: string; readonly base_commit: string }
 

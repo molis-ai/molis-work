@@ -2,7 +2,7 @@ import { el, errorMessage } from "../dom.js";
 import { shut } from "./composer-state.js";
 import type { Page } from "./page.js";
 import { api } from "./request.js";
-import type { McpServer, McpToolRef, MethodRef } from "./shapes.js";
+import type { McpServer, McpToolRef, MethodEntry, MethodRef } from "./shapes.js";
 
 interface ToolRow extends McpToolRef { readonly label: string; readonly available: boolean; readonly description: string }
 interface SourceRow { readonly server: string; readonly configuration_version: number; readonly label: string; readonly resources: readonly unknown[]; readonly available: boolean }
@@ -24,7 +24,7 @@ function checkRow(checked: boolean, disabled: boolean, text: string) {
 /** The tools of the MCP servers, and those the session chose that are gone. */
 function drawMcpTools(page: Page, list: HTMLElement) {
   const { L, lifetime } = page, { s } = page, servers = s.state.mcp || [];
-  const catalog: ToolRow[] = servers.flatMap(server => server.tools.map(tool => ({ ...tool, label: server.label, available: connected(server) })));
+  const catalog: ToolRow[] = servers.flatMap(server => server.tools.map(tool => ({ ...tool, label: server.label, description: tool.description ?? "", available: connected(server) })));
   for (const selected of s.mcpChoices) {
     if (!catalog.some(tool => toolKey(tool) === toolKey(selected))) {
       catalog.push({ ...selected, label: servers.find(server => server.id === selected.server)?.label || selected.server, available: false, description: L("coding.mcp.tool-gone") });
@@ -87,7 +87,7 @@ async function readMethod(page: Page, method: MethodRef & { readonly skill_id: s
 }
 
 /** One method of the catalog: its box, its words, and the way to read it. */
-function methodRow(page: Page, method: MethodRef & { readonly name: string; readonly summary: string; readonly enabled: boolean }): HTMLElement {
+function methodRow(page: Page, method: MethodEntry): HTMLElement {
   const { L, lifetime } = page, { s } = page;
   const row = el("div", "", "mw-field"), label = el("label", "", "mw-check-row"), check = el("input", "", "mw-check");
   check.type = "checkbox";
@@ -130,7 +130,7 @@ export function renderMethods(page: Page) {
 export function openMethods(page: Page) {
   const { q } = page, { s } = page;
   if (shut(page)) return;
-  s.methodChoices = structuredClone(s.methodSelections.get(s.current) || []);
+  s.methodChoices = [...structuredClone(s.methodSelections.get(s.current) || [])];
   s.methodDocumentTicket++;
   q<HTMLInputElement>("[data-coding-method-search]").value = "";
   q("[data-coding-method-document]").hidden = true;

@@ -2,13 +2,14 @@ import { api, sessionPath } from "./request.js";
 import type { Page } from "./page.js";
 import type { BoardData } from "../taskboard-types.js";
 import type { PlanEntry } from "../shapes.js";
-import type { BoardSubagents } from "../taskboard-types.js";
+import type { SubagentGroup } from "../subagents.js";
+import type { RunView } from "./shapes.js";
 
 /** The session's whole read for the board (`/taskboard`): every round, its plans and its subagents. */
 export interface BoardRead {
-  readonly runs: readonly { readonly ref: { readonly run_id: string } }[];
-  readonly taskboard_plans: readonly PlanEntry[];
-  readonly subagents: readonly BoardSubagents[];
+  readonly runs: RunView[];
+  readonly taskboard_plans: PlanEntry[];
+  readonly subagents: SubagentGroup[];
 }
 
 /** What the board draws: the window just read for its own rounds, the whole-session read for the others. */

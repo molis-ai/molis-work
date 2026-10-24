@@ -23,7 +23,7 @@ export interface RunCard { readonly card_id: string; readonly revision: number; 
 export interface CardRun { readonly cards?: readonly RunCard[] }
 
 /** What the page keeps on a card it drew: the interaction bound to it and what it showed (FLOW-03). */
-interface CardNode extends HTMLElement { ix?: UiPageInteraction; ixBase?: string }
+export interface CardNode extends HTMLElement { ix?: UiPageInteraction; ixBase?: string }
 
 export interface ActionPorts extends PagePorts {
   /** The actions each session's next run is given. */

@@ -1,7 +1,7 @@
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
-interface Activity { readonly name: string; readonly state: string; readonly target?: string }
+interface Activity { readonly name: string; readonly state: string; readonly target?: string; readonly at?: string | null }
 
 /** What a subagent used; `usageSummary` words it. */
 export interface ChildUsage { readonly tokens?: { readonly input?: number; readonly output?: number } }

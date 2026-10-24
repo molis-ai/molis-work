@@ -1,5 +1,6 @@
 import { codeLanguage, codeTokens, diffRowTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { el } from "../dom.js";
+import { paintable } from "./boundary.js";
 import type { Page } from "./page.js";
 
 /**
@@ -39,10 +40,15 @@ export function paintDiffs(page: Page, scope: ParentNode) {
     const language = codeLanguage(list.closest<HTMLElement>("[data-code-path]")?.dataset.codePath || ""), rows = diffRows(codes);
     // A line past 40,000 characters stays text and the rest are coloured, a slice a frame (paintRows); splitting is cheap.
     const painted = language ? diffRowTokens(rows, language, codeTokens) : null;
-    const fresh = rows.map((row, index) => ({ ...row, pieces: painted?.[index] })).filter(row => !row.code.dataset.painted && (row.code.dataset.painted = "true") && row.pieces);
+    const fresh = rows.flatMap((row, index) => {
+      const pieces = painted?.[index];
+      if (row.code.dataset.painted || !pieces) return [];
+      row.code.dataset.painted = "true";
+      return [{ code: paintable(row.code), sign: row.sign, text: row.text, pieces }];
+    });
     paintRows(fresh, step => lifetime.frame(() => {
       if (list.isConnected) step();
-    }), list, release => host.mountPluginClient(list)?.own(release));
+    }), paintable(list), release => host.mountPluginClient(list)?.own(release) ?? (() => undefined));
   }));
 }
 
@@ -52,11 +58,11 @@ export function enrichCode(page: Page, node: ParentNode) {
   node.querySelectorAll<HTMLElement>("pre:not([data-enriched])").forEach(pre => {
     pre.dataset.enriched = "";
     const code = pre.querySelector("code");
-    codeSource.set(pre, (code || pre).textContent ?? "");
-    if (code) paintBlock(code);
+    codeSource.set(paintable(pre), (code || pre).textContent ?? "");
+    if (code) paintBlock(paintable(code));
     const button = el("button", L("coding.copy.label"), "mw-btn coding-code-copy");
     button.type = "button";
-    lifetime.listen(button, "click", () => window.molisCopy?.(button, () => codeSource.get(pre), { done: L("coding.copy.done"), failed: L("coding.copy.failed") }));
+    lifetime.listen(button, "click", () => window.molisCopy?.(button, () => codeSource.get(paintable(pre)) ?? "", { done: L("coding.copy.done"), failed: L("coding.copy.failed") }));
     pre.append(button);
   });
 }

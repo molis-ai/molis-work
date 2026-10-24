@@ -1,6 +1,6 @@
 # 插件要素词典
 
-Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略。声明了就必须兑现。
+Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从 `@molis-ai/molis-work-contracts/platform/plugin` 导入。用不到的块省略。声明了就必须兑现。
 
 ## 身份
 

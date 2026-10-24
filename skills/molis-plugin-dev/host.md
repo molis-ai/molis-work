@@ -102,7 +102,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 `BUILD_TIME_ASSEMBLED` 里的旧插件仍是手写接线：Host 里的 `registerProvider(...)`（`project-host.ts`）、`apps/local-host/src/<id>-native-plugin-http.ts` 和目录条目（各包的 `registration`）。只有改这些旧插件时才看这一段，新插件不照抄。
 
 - 手写 HTTP 文件：实现 `<id>-native-plugin-http.ts`。其中 Alchemist 再挂进 `personal-native-plugin-http.ts` 的 handler 列表；Pages、灵光、Feed、Inbox、Schedule 等是 `web-request.ts` 路由表里的条目，各调自己的 `handle<X>NativePluginHttp`。
-- Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不在 `BUILD_TIME_ASSEMBLED`），只是还留着冻结的 `shelf-native-plugin-http.ts`（`/api/shelf`，同样挂在 `personal-native-plugin-http.ts`），新插件不照抄。
+- Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不在 `BUILD_TIME_ASSEMBLED`），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/plugins/io.molis.work.shelf/…`），宿主只剩演示种子用的过渡文件客户端 `shelf-actions.ts`（S4 删），新插件不照抄。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 
 ### 按需

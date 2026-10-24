@@ -210,7 +210,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `shelf/catalog.json`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:132-133`（建 `files/`、`jobs/`）、`:877`（打开）；桌面壳也读 `catalog.json`（`apps/desktop/adapters/tauri/src/shelf_http.rs:118`） | JSON 加文件 · `catalog.json` 的 `version` = 1（`modules/shelf/src/store.ts:64`） | 必备份 | purge（`installer/uninstall.ts:52`） |
+| `shelf/catalog.json`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:870`（打开；`files/`、`jobs/` 由 `plugins/native/shelf/src/plugin.ts:15` 的 `SHELF_OWNER_FILES` 声明）；桌面壳也读 `catalog.json` 的设置（`apps/desktop/adapters/tauri/src/shelf_http.rs:146`） | JSON 加文件 · `catalog.json` 的 `version` = 2（`modules/shelf/src/store.ts:54`；Shelf S3 由 1 升到 2，条目不再带原件路径，维护见防腐 spec §4.1 维护八） | 必备份 | purge（`installer/uninstall.ts:52`） |
 | `browser/sites.json` | `apps/local-host/src/browser/browser-surfaces.ts:36`：侧栏浏览器允许、拒绝了哪些站点，助理能否使用浏览器 | JSON · `version` = 1（`:61`） | 必备份 | purge |
 | `browser/profile/` | `apps/local-host/src/browser/browser-host.ts:81`：侧栏浏览器的 Chrome 用户数据目录（`--user-data-dir`，`:147`），含该浏览器里登录过的站点的 Cookie 等登录态 | 目录（Chrome 自己的格式） | 密钥（登录态）；除登录态外可重建 | purge |
 | `browser/downloads/`、`browser/uploads/`、`browser/browser.pid` | `apps/local-host/src/browser/browser-host.ts:82-83`、`:206` | 目录、PID 文件 | 临时 | purge |

@@ -9,17 +9,14 @@ export declare const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput,
 export interface ShelfAdmitActionInput {
     text?: string;
     title?: string;
-    capture_pages?: boolean;
     filename?: string;
     bytes_base64?: string;
     mime?: string;
-    origin_realpath?: string;
 }
 
 export interface ShelfAdmitFolderInput {
     readonly name: string;
     readonly entries: readonly ShelfFolderEntryInput[];
-    readonly origin_realpath?: string | null;
 }
 
 export interface ShelfAdmitInput {
@@ -27,7 +24,6 @@ export interface ShelfAdmitInput {
     readonly filename: string;
     readonly bytes: Uint8Array;
     readonly mime?: string;
-    readonly origin_realpath?: string | null;
 }
 
 export interface ShelfAiPorts {
@@ -196,6 +192,13 @@ export interface ShelfMaterialPorts {
     readWebsite?: MaterialWebsiteReader;
     extract?: MaterialExtractor;
     imageTextAvailable?(): boolean;
+    claimOriginal?(item_id: string): Promise<void>;
+    readOriginal?(item_id: string, request?: {
+        signal?: AbortSignal;
+    }): Promise<{
+        bytes: Uint8Array;
+    }>;
+    releaseOriginal?(item_id: string): Promise<void>;
 }
 
 export interface ShelfModelSelection {

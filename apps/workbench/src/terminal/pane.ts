@@ -1,8 +1,7 @@
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
-export interface WorkTerminalUiModel {
+export interface TerminalPaneModel {
   selected?: Pick<GoalRecord, "goal_id" | "title" | "decomposition_state" | "fulfillment_state"> & { statusHtml: string; event_work?: boolean };
   children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
   cliAvailability: Record<string, boolean>;
@@ -10,20 +9,8 @@ export interface WorkTerminalUiModel {
   icon(name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal"): string;
 }
 
-export const WORK_TERMINAL_UI_CONTRIBUTION_ID = "io.molis.work.native.work.terminal.v1";
-export const workTerminalUiContribution: UiContribution<WorkTerminalUiModel> = {
-  descriptor: {
-    contribution_id: WORK_TERMINAL_UI_CONTRIBUTION_ID,
-    plugin_id: "io.molis.work.native.work",
-    kind: "embedded",
-    label: "Terminal",
-    surfaces: [{ surface_id: "terminal", target_slot_id: "workbench.main", format: "declarative-html" }],
-    slots: [],
-  },
-  render: (request) => renderWorkTerminal(request.model),
-};
-
-function renderWorkTerminal(model: WorkTerminalUiModel): string {
+/** The Goal terminal pane beside the Goal document; `startGoalTerminalClient` drives it in the page. */
+export function renderTerminalPane(model: TerminalPaneModel): string {
   const { selected, children, cliAvailability, text: L, icon } = model;
   const selectedGoalId = selected?.goal_id ?? "";
   const compoundParent = selected?.decomposition_state === "closed_compound" && !selected?.event_work;

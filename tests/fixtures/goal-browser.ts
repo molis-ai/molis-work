@@ -191,7 +191,11 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         if (!element || element.contains(hit)) return null;
         const style = getComputedStyle(element), rect = element.getBoundingClientRect();
         return (hit?.outerHTML.slice(0, 400) ?? 'nothing') + ' (target: pointer-events ' + style.pointerEvents + ', visibility ' + style.visibility
-          + ', rect ' + [rect.x, rect.y, rect.width, rect.height].map(Math.round).join(',') + ', viewport ' + innerWidth + 'x' + innerHeight + ')'; })()`);
+          + ', rect ' + [rect.x, rect.y, rect.width, rect.height].map(Math.round).join(',') + ', viewport ' + innerWidth + 'x' + innerHeight
+          // Where the target sits in its scroll boxes: a click that scrolled nothing says which ancestor could not.
+          + ', ancestors ' + (() => { const boxes = []; for (let box = element.parentElement; box && boxes.length < 12; box = box.parentElement) {
+              const box_style = getComputedStyle(box); boxes.push(String(box.className || box.tagName).split(' ')[0] + '[overflow-y ' + box_style.overflowY + ', client ' + box.clientHeight + ', scroll ' + box.scrollHeight + ', top ' + Math.round(box.scrollTop) + ']'); }
+            return boxes.join(' > '); })() + ')'; })()`);
       if (hit !== null) throw new Error("Click target " + selector + " is covered by " + hit);
     }
     await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);

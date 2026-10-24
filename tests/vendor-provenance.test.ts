@@ -214,11 +214,11 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // PR #96's tested head has the same tree as its upstream main merge; the package includes #60.
-    assert.equal(provenance.source.commit, "15c38aed0bde2f8f0540a3e390f2e03033cdb717");
-    assert.equal(provenance.source.mergedUpstream.pullRequest, 96);
-    assert.equal(provenance.source.mergedUpstream.head, provenance.source.commit);
-    assert.equal(provenance.source.mergedUpstream.merge, "d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11");
+    // PR #99's tested packing head has the same tree as its recorded upstream main merge.
+    assert.equal(provenance.source.commit, "ca0de1c60c248b83c79d49f064f725ecb97664ee");
+    assert.equal(provenance.source.mergedUpstream.pullRequest, 99);
+    assert.equal(provenance.source.mergedUpstream.head, "1c4cb31a4811b9c2d46c7fe19adf1d8cd788f4dd");
+    assert.equal(provenance.source.mergedUpstream.merge, provenance.source.commit);
     assert.equal(provenance.source.inFlight, undefined);
     // The historical ancestry audit remains pinned to the main commit it actually checked.
     assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");
@@ -250,8 +250,8 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 42);
-    assert.equal(record.upstream.commitsChecked.at(-1), "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512");
+    assert.equal(record.upstream.commitsChecked.length, 43);
+    assert.deepEqual(record.upstream.commitsChecked.slice(-2), ["f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512", "15c38aed0bde2f8f0540a3e390f2e03033cdb717"]);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

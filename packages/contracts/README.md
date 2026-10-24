@@ -118,3 +118,5 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 ### 明确续期（2026-10-24，实现中）
 
 `memory.change@4` 增加本人 renew 决定，输入为原 memory_id、所见 expected_version 和 UTC ISO expires_at；仅改期限，拒绝附带其他变更。AgentMemoryCapability 增加 renew 窄口，保留原 mutation/执行控制合同。历史/变更沿 edited，不新增历史 schema；SDK 包及公开 API/Action 快照由统筹统一更新。
+
+候选显式分类采用的当前合同：`MemoryCandidate` 增加 canonical 分类、正式期限意图和独立等待期限；`MemoryCandidateDecision.formal` 由本人明确给出完整 kind/classification/expires_at，不接收 owner、来源或 Session 授权。按现行合同规则，受候选输出影响的 `memory.write@4`、`memory.candidates.list@3`、`memory.candidates.accept@4`、`memory.candidates.discard@3` 同步升版本。Host HTTP、助理接线和内部查询均从现 `memoryActions` 引用，不保留旧版本兼容；存量固定旧 Action 的工作流引用按原规则保留并报版本不可用，不静默改为新版本。统筹已在 SDK99 整体构建后生成两个受影响 API 快照和一份 Action 快照；API/Action 生成检查通过，其余动作与 API 不变。验收复用 `tests/memory-candidate-adoption.test.ts`、`tests/memory-actions.test.ts` 与既定合同回归。

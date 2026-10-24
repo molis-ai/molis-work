@@ -77,6 +77,9 @@ export interface MemoryBatchResult {
 }
 
 export interface MemoryCandidate {
+    classification?: MemoryClassification | null;
+    formal_expires_at?: string | null;
+    waiting_expires_at?: string;
     candidate_id: string;
     version: number;
     scope: MemoryScope;
@@ -102,6 +105,11 @@ export interface MemoryCandidateDecision {
     candidate_id: string;
     expected_version: number;
     text?: string;
+    formal?: {
+        kind: MemoryFormalKind;
+        classification: MemoryClassificationCorrection;
+        expires_at: string | null;
+    };
 }
 
 export interface MemoryCandidateRecord extends MemoryCandidate {

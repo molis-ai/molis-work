@@ -107,6 +107,15 @@ function prefRow(_L: (text: string) => string, key: string, title: string, descr
     <span class="setting-value"><span class="mw-switch"><input type="checkbox" role="switch" data-memory-pref="${key}" aria-label="${title}" disabled><span class="mw-switch__track" aria-hidden="true"></span></span></span></label>`;
 }
 
+/** Candidate and change cards open the same memory settings owner, using the current project at click time. */
+export const MEMORY_SETTINGS_NAVIGATION_FACTORY_SCRIPT = String.raw`(projectFor, L) => (target) => {
+  const project = projectFor();
+  if (target.scope === "character" && !target.project_id) throw new Error(L("角色建议缺少项目，无法打开设置"));
+  const scoped = target.scope === "character" ? target.project_id : target.scope === "project" ? target.project_id || project?.id : "";
+  const handled = scoped === (project?.id || "") && !window.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: "memory" }, cancelable: true }));
+  if (!handled) location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
+}`;
+
 /**
  * Binds one memory page (a standalone settings page, or the same page fetched into the settings cover): safe to call
  * again for a new root. Everything is drawn with textContent; nothing the memories say is ever parsed as markup.
@@ -372,6 +381,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       list.replaceChildren();
       candidates.forEach((candidate) => {
         const row = el("li", "memory-row memory-row--candidate"), submit = mutation();
+        row.dataset.memoryCandidate = candidate.candidate_id;
         const decide = (action, values = {}) => submit("/candidates/" + encodeURIComponent(candidate.candidate_id) + "/" + action, { ...values, expected_version: candidate.version });
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", candidate.text));
@@ -380,14 +390,20 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         // Held by the gate, the reason it waits is its whole basis: said once, below, not twice.
         if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", L("依据") + "：" + candidate.why));
         if (candidate.work) meta.append(el("span", "", L("工作") + "「" + candidate.work.title + "」"));
+        if (candidate.waiting_expires_at) meta.append(el("span", "", L("建议等待至") + "：" + new Date(candidate.waiting_expires_at).toLocaleString()));
         copy.append(meta);
         if (candidate.hold_reason) copy.append(el("span", "memory-hold", candidate.hold_reason));
         const actions = el("div", "memory-actions");
         const keep = button(L("记住"), "mw-btn--primary", L("记住") + "：" + candidate.text);
-        keep.addEventListener("click", () => run(() => decide("accept"), "已记住"));
+        const needsDecision = !candidate.classification?.scenes?.length || candidate.classification.scenes.some(scene => !["coding", "assistant", "common"].includes(scene))
+          || !["long-term", "short-term"].includes(candidate.classification.lifecycle) || candidate.formal_expires_at === undefined;
+        const openDecision = () => { const form = itemEditor({ ...candidate, expires_at: candidate.formal_expires_at }, values => decide("accept", values), "candidate"); row.replaceChildren(form); form.querySelector("textarea").focus(); };
+        if (needsDecision) keep.textContent = L("明确分类与期限");
+        keep.addEventListener("click", () => needsDecision ? openDecision() : run(() => decide("accept"), "已记住"));
         const reword = button(L("改一下再记"), "mw-btn--ghost");
         reword.addEventListener("click", () => {
-          const editor = textEditor(candidate.text, async (text) => { await decide("accept", { text }); }, "已记住");
+          if (needsDecision) { openDecision(); return; }
+          const editor = itemEditor(candidate, values => decide("accept", values), "text");
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
         const drop = button(L("不用"), "mw-btn--ghost", L("不用") + "：" + candidate.text);
@@ -398,24 +414,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       });
     }
 
-    function textEditor(text, save, done) {
-      const form = el("form", "memory-editor");
-      const area = el("textarea", "mw-input memory-editor-text"); area.value = text; area.maxLength = 400; area.rows = 2; area.setAttribute("aria-label", L("记忆内容"));
-      const row = el("div", "memory-editor-actions");
-      const ok = button(L("保存"), "mw-btn--primary"); ok.type = "submit";
-      const cancel = button(L("取消"), "mw-btn--ghost");
-      cancel.addEventListener("click", () => paint());
-      row.append(ok, cancel);
-      form.append(area, row);
-      form.addEventListener("submit", (event) => { event.preventDefault(); const value = area.value.trim(); if (value) run(() => save(value), done); });
-      return form;
-    }
-
     const classificationText = classification => classification
       ? classification.scenes.map(scene => L(CLASS[scene] || scene)).concat(L(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : L("未归类");
-    const expiryText = expires => expires ? new Date(expires).toLocaleString() : L("无固定期限");
+    const expiryText = expires => expires === undefined ? L("尚未决定") : expires ? new Date(expires).toLocaleString() : L("无固定期限");
 
-    function classificationFields(item) {
+    function classificationFields(item, adopting = false) {
       const host = el("details", "memory-origin"), scenes = el("div", "memory-editor-fields");
       host.append(el("summary", "", L("分类与期限")), el("p", "settings-muted", L("原分类") + "：" + classificationText(item.classification)));
       const sceneNames = ["coding", "assistant", "common"];
@@ -438,14 +441,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       lifecycle.value = item.classification?.lifecycle || "";
       const initialLifecycle = lifecycle.value;
       const expiry = el("select", "mw-select"); expiry.setAttribute("aria-label", L("期限决定")); expiry.dataset.memoryExpiry = "";
-      for (const [key, title] of [["keep", "保留原期限"], ["set", "设置截止时间"], ["remove", "移除固定期限"]]) {
+      for (const [key, title] of [[adopting && item.expires_at === undefined ? "" : "keep", adopting && item.expires_at === undefined ? "请选择正式期限" : "保留原期限"], ["set", "设置截止时间"], ["remove", "移除固定期限"]]) {
         const option = el("option", "", L(title)); option.value = key; expiry.append(option);
       }
       const date = el("input", "mw-input"); date.type = "datetime-local"; date.step = "1"; date.disabled = true; date.hidden = true;
       date.setAttribute("aria-label", L("截止时间（本地时间）")); date.dataset.memoryExpiresAt = "";
       expiry.addEventListener("change", () => { date.disabled = date.hidden = expiry.value !== "set"; date.required = expiry.value === "set"; });
       fields.append(lifecycle, expiry, date);
-      host.append(fields, el("p", "settings-muted", L("原期限") + "：" + expiryText(item.expires_at)),
+      host.append(fields, el("p", "settings-muted", L("原期限") + "：" + (item.expires_at === undefined ? L("尚未决定") : expiryText(item.expires_at))),
         el("p", "settings-muted", L("改为长期不会自动移除期限；短期必须有未来的截止时间。")));
       return { host, read: kindChanged => {
         const selected = Array.from(scenes.querySelectorAll("input:checked"), box => box.value);
@@ -456,6 +459,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           ? "这条记忆已到期，请先在更多操作中明确续期，再纠正分类。" : "会话内记忆需要可信会话绑定，暂不支持在这里纠正分类。"));
         if (!lifecycle.value) throw new Error(L("请选择保留类型"));
         if (!selected.length) throw new Error(L("至少选择一个适用场景"));
+        if (!expiry.value) throw new Error(L("请选择正式期限"));
         const expires = expiry.value === "keep" ? item.expires_at : expiry.value === "remove" ? null : new Date(date.value).toISOString();
         if (lifecycle.value === "short-term" && (!expires || Date.parse(expires) <= Date.now())) throw new Error(L("短期记忆需要未来的截止时间"));
         if (expiry.value === "set" && Date.parse(expires) <= Date.now()) throw new Error(L("截止时间必须晚于现在"));
@@ -465,7 +469,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           || (item.expires_at && (!expires || Date.parse(expires) > Date.parse(item.expires_at)));
         const removed = (item.classification?.scenes || []).filter(scene => !sceneNames.includes(scene));
         if (item.classification && !["long-term", "short-term", "session"].includes(item.classification.lifecycle)) removed.push(item.classification.lifecycle);
-        return { classification, ...(expiry.value !== "keep" ? { expires_at: expires } : {}),
+        return { classification, ...(adopting || expiry.value !== "keep" ? { expires_at: expires } : {}),
           confirmation: expanded || removed.length ? L("适用场景与保留时间") + "：" + classificationText(item.classification) + " → " + classificationText(classification)
             + "；" + L("有效至") + "：" + expiryText(item.expires_at) + " → " + expiryText(expires)
             + (removed.length ? "；" + L("将移除未声明的分类值") + "：" + removed.join("、") : "") : "" };
@@ -497,24 +501,29 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       return form;
     }
 
-    function itemEditor(item, onSave) {
+    function itemEditor(item, onSave, mode) {
+      const adopting = mode === "candidate";
       const form = el("form", "memory-editor");
       const area = el("textarea", "mw-input memory-editor-text"); area.value = item ? item.text : ""; area.maxLength = 400; area.rows = 2; area.required = true;
       area.placeholder = L("一句能单独读懂的话，例如：周报用要点列表，每条一句"); area.setAttribute("aria-label", L("记忆内容"));
+      const row = el("div", "memory-editor-actions"), ok = button(L(adopting ? "记住" : "保存"), "mw-btn--primary"), cancel = button(L("取消"), "mw-btn--ghost");
+      ok.type = "submit"; cancel.addEventListener("click", paint); row.append(ok, cancel);
+      if (mode === "text") {
+        form.append(area, row);
+        form.addEventListener("submit", event => { event.preventDefault(); const text = area.value.trim(); if (text) run(() => onSave({ text }), "已记住"); });
+        return form;
+      }
       const fields = el("div", "memory-editor-fields");
       const kind = el("select", "mw-select"); kind.setAttribute("aria-label", L("类别"));
+      if (adopting) kind.dataset.memoryCandidateKind = "";
       const kinds = item ? FORMAL_KIND : KIND;
       Object.keys(kinds).forEach((key) => { const option = el("option", "", L(kinds[key])); option.value = key; kind.append(option); });
       kind.value = item ? item.kind : (scope === "project" ? "convention" : "preference");
       const task = el("input", "mw-input"); task.maxLength = 200; task.placeholder = L("适用于（可选），例如：写周报时"); task.setAttribute("aria-label", L("适用情境"));
       task.value = item && item.applies && item.applies.task ? item.applies.task : "";
-      fields.append(kind, task);
-      const correction = item ? classificationFields(item) : null;
-      const row = el("div", "memory-editor-actions");
-      const ok = button(L("保存"), "mw-btn--primary"); ok.type = "submit";
-      const cancel = button(L("取消"), "mw-btn--ghost");
-      cancel.addEventListener("click", () => paint());
-      row.append(ok, cancel);
+      fields.append(kind); if (!adopting) fields.append(task);
+      const correction = item ? classificationFields(item, adopting) : null;
+      if (adopting) { correction.host.open = true; form.append(el("p", "settings-muted", L("正式记忆的保留时间与建议等待期限分开。请明确这条记忆以后怎样使用。"))); }
       form.append(area, fields); if (correction) form.append(correction.host); form.append(row);
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -522,7 +531,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const applies = Object.assign({}, item ? item.applies : {}); if (task.value.trim()) applies.task = task.value.trim(); else delete applies.task;
         ok.disabled = true;
         try {
-          const corrected = correction?.read(kind.value !== item.kind);
+          const corrected = correction?.read(adopting || kind.value !== item.kind);
+          if (adopting) {
+            const { confirmation, ...values } = corrected;
+            if (!await ask(L("记住这条建议"), confirmation || classificationText(values.classification) + "；" + L("有效至") + "：" + expiryText(values.expires_at), L("记住"))) return;
+            const request = { text, formal: { kind: kind.value, ...values } };
+            form.replaceChildren(el("p", "settings-muted", L("正在保存…")));
+            return await run(() => onSave(request), "已记住");
+          }
           if (corrected) {
             const { confirmation, ...values } = corrected;
             if (confirmation && !await ask(L("确认分类与期限变更？"), confirmation, L("确认保存"))) return;

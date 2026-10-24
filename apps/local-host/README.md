@@ -118,6 +118,9 @@ node scripts/run-tests.mjs tests/local-host.test.ts tests/web-home-isolation.tes
 
 Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受当前同安装动作 scope，保留原调用者并交给同一动作服务检查。HTTP 在既有 routedControls 保存可信 caller；项目来自已核路径，Home 无项目不借项目，复制 control 不能取得身份。本机 owner 的 native 读取集合由原 LOCAL_OWNER_PERMISSIONS 提供，来源插件自身仍必须声明并持有目标权限。请求 signal 归 route control，接受前断开拒绝；已接受的后台工作保留现 entry-owned lifetime。Home 插件内使用底层已有 client，避免 start 内 discover 重入 Home ready；公开入口仍负责原 Runtime 准备。相关验证：`tests/plugin-action-query-http.test.ts`、`tests/plugin-action-query-home-http.test.ts`、`tests/plugin-action-query-mcp.test.ts` 与 `tests/security-invariants-plugin-background.test.ts`。
 
+
+离线 Session 孤儿清理复用 `adoptMemoryHome`：`previewMemoryHomeAdoptionCleanup({ homeDirectory, cursor? })` 每次只返回一页无正文目标及已知来源抑制影响，空页仍按 cursor 继续；确认传 `cleanup: { mode: "confirm", operation_id, targets }`，恢复只传 `{ mode: "resume", operation_id }`。确认输入在获取 owner 前隔离，原 marker 固定版本、身份、选集与子操作号；不会按新墓碑追删。当前 scope/取消/同步 `assertCurrent` 在 SDK 前后及 ledger 提交前复核，未知或拒绝停止后续。全部项、整 App 分页核验及关闭均完成才允许 ledger4；正常 Home 启动没有清理入口。无来源的孤儿仅表示来源未知，不承诺完整来源遗忘。回归在 `tests/memory-adoption-maintenance.test.ts`、`tests/prologue-memory-adoption.test.ts`；本次新回归待正式 SDK 包集成后实跑。
+
 ## 开发要求
 
 生成插件的 SDK 声明由 Host 从已构建的 contracts 提供：`src/plugin-builder/build-sdk-declarations.ts` 持有 `SandboxSdk` 的声明依赖集合，`build-project.ts` 创建只读文件，`build-checks.ts` 的 G1 逐文件校验，隔离检查只复制这份 Host 集合。`developer/sdk.d.ts` 仍是作者的入口，依赖声明保留在 `developer/contracts/` 的原相对目录；不复制运行时代码，不增加插件权限，不改变公开合同。声明闭包修复只涉及这条生成、校验与快照链，不改变取消、恢复或执行语义。缺少构建声明时明确失败；声明被改动时在 G1 拒绝；错误的交互参数由 G2 拒绝，`skipLibCheck: false`、无 Node 环境类型、文件白名单与 Seatbelt 保持不变。验收是正常交互调用通过原六道门、错误参数不进入执行、篡改依赖不进入编译；整体构建后运行 `node scripts/run-tests.mjs tests/agent-built-plugins-checks.test.ts`。这证明生成插件的工程检查路径，不代表创作台完整体验或用户验收。

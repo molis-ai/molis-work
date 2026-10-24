@@ -48,7 +48,8 @@ test("formal retention shorter and longer than the candidate window survives acc
   for (const days of [1, 30]) {
     const expires = new Date(START + days * DAY).toISOString();
     const pending = await f.service.propose(caller(`propose-${days}`, { current_scene: "assistant" }), proposal(`Use afternoon appointments for ${days} days`), { formal_expires_at: expires });
-    assert.equal("formal_expires_at" in pending, false, "internal retention is absent from the public candidate projection");
+    assert.equal(pending.formal_expires_at, expires, "formal retention is visible separately from the waiting deadline");
+    assert.equal(pending.waiting_expires_at, new Date(START + Math.min(days, 14) * DAY).toISOString());
     const raw = (await f.raw().candidates.list("project", "project-a")).find(item => item.candidate_id === pending.candidate_id)!;
     assert.equal(raw.meta.expires_at_ms, START + Math.min(days, 14) * DAY);
     await f.reopen();

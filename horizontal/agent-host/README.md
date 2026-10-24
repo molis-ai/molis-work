@@ -17,11 +17,13 @@
 
 依 spec §9.4，Memory Capability 的 `previewMutation` 只将带原版本与原操作号的 update/pause/disable/resume/remove 真实命令交同一 SDK management.preview，不写条目，不替代执行时的当前授权。`tombstone` 委托 SDK 逻辑 remove，返回实际条目版本与原操作重放结果；现 `remove` 仍委托物理 purge。两口沿原 caller/ExecutionControl，不增加第二写主人、查询授权或恢复账。App 的维护补账只接受实际 SDK 提交确认；缺失、同文或版本加一不能作为成功证明。验证使用公开 Adapter 与真实隔离 Node 存储，覆盖取消/撤权、原操作重放和后继版本冲突。
 
+已知目标的 `remove` / `candidates.purge` 将现有 ID、scope/owner、原版本和操作号直接交 SDK 的删除专用 identity locator，不先 hydrate/get。原 Session 永久结束不会为此获得正文读取许可；普通读取、逻辑删除和候选接受保持原边界。存在目标时，当前授权、取消、版本冲突和未决候选决定仍由同一 SDK/Host 拒绝，不扩大删除集合。冷启动时，给定 scope/owner 下不存在目标沿 SDK 既有幂等合同返回 void、零写入，不证明原删除曾成功；已缓存的同 ID 与给定身份冲突则拒绝。对应 §M4 与 `tests/prologue-memory-delete-locator.test.ts`：分别覆盖冷启动错身份的真实目标保留、已知身份冲突和存在目标的最终授权门。已在正式 SDK #99 上通过公开 Adapter 与真实隔离 Node 存储的定向工程验证；同进程关闭重开只证明持久语义，不冒充 OS 进程重启、完整 App 实操或真实 Home 验收。
+
 Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副作用 Review 队列。
 
 显式 `storageRoot` 的 Node 适配器持有 SQLite 独占锁，直到 SDK 正常关闭或进程退出，防止另一执行器把活动审阅误判为重启遗留。获取失败报告 `agent.storage_busy`，不读取恢复记录。该锁保护当前单执行方假设；跨进程调用转发仍由 LocalHost 接通，不能用多个 runtime 直接共享这个目录。
 
-离线记忆采用的 `openPrologueMemoryAdoption` 使用同一存储 owner 锁，只向显式范围开放 SDK 的 `adoptLegacy` 与整 App `verifyAdoption`，不装 Agent、模型或普通记忆写入口。维护 Runtime 保留 App taxonomy、版本与限额，但只装只读维护配方；不要求安装普通 Runtime 的提炼、召回或晋升实例，也不把维护配方写回正常配置。调用方必须先停所有 owner 并备份，在关闭维护 Runtime 后重新打开正常 Runtime；关闭等待在途页结束，SDK 关闭失败不释放写锁。旧 metadata 无法证明自然场景时保持未分类，不从 kind/namespace 猜测；原引用、版本、期限、来源与已完成候选关联由 SDK 保持。页中的 issues、未决决定、未知归属、取消与未知提交均不是完成；LocalHost 累计整次结果后才提交 ledger4。维护入口不改变正常 Runtime 的授权。真实隔离 Node 回归：`tests/prologue-memory-adoption.test.ts`；SQLite 编排故障回归：`tests/memory-adoption-maintenance.test.ts`。
+离线记忆采用的 `openPrologueMemoryAdoption` 使用同一存储 owner 锁，只向显式范围开放 SDK 的 `adoptStorage`、整 App `verifyAdoption` 及固定目标清理，不装 Agent、模型或普通记忆写入口。维护 Runtime 保留 App taxonomy、版本与限额，但只装采用、读取及明确清理的维护配方；不要求安装普通 Runtime 的提炼、召回或晋升实例，也不把维护配方写回正常配置。调用方必须先停所有 owner 并备份，在关闭维护 Runtime 后重新打开正常 Runtime；关闭等待在途页结束，SDK 关闭失败不释放写锁。旧 metadata 无法证明自然场景时保持未分类，不从 kind/namespace 猜测；原引用、版本、期限、来源与已完成候选关联由 SDK 保持。页中的 issues、未决决定、未知归属、取消与未知提交均不是完成；LocalHost 累计整次结果后才提交 ledger4。维护入口不改变正常 Runtime 的授权。真实隔离 Node 回归：`tests/prologue-memory-adoption.test.ts`；SQLite 编排故障回归：`tests/memory-adoption-maintenance.test.ts`。
 
 包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
 
@@ -53,6 +55,8 @@ Adapter 的实际 disable 调用在原 ALS 帧携带 operation=disable，作为 
 
 Host 可注入版本化 `memory.promotion`，Adapter 将候选、来源、正式变更与 App 历史回执转换为纯 AgentHost DTO，只有这里依赖 SDK 类型。`decide` 只读返回 promote/hold；`undo.prepare` 保存当前操作的准备，`undo.record` 以 SDK 已提交的 canonical entry 补历史及撤销身份。回调首参只能来自当前 `withCaller` 的独立调用上下文，或 SDK 请求对应的可信 Session owner；prepare/record 没有来源上下文时要求原调用绑定仍在，缺失即拒绝，不从模型参数恢复身份，不新建操作账。 App 的 prepare/record 写账也复用原调用的 `PrologueEffects`：异步身份解析和 `beforeEffect` 后紧邻写入核 `assertCurrent` 及本次 `signal`，任一等待中取消不再调用 App 写账；撤权后不能留下准备历史，正式已提交而补账被拒时沿原操作恢复。
 
+晋升 `promote` 与替换 `settleInto` 将各自本次 `input.signal` 显式传入现有 Memory effect 帧。`beforeEffect` 在纯调用授权等待前后检查取消，并只让这一段等待响应取消；监听在结束时移除，迟到授权拒绝被消费。等待解除后也不能续调 App prepare/record。此适配不竞速正式写入或整条晋升，不扩大其它 SDK authorizer 的取消承诺；提交前为安全固定的 `CANCELLED`，提交后仍由 SDK 返回原操作待补账事实。真实 Node 专项 `tests/prologue-memory-promotion.test.ts` 使用 durable reservation/commit 屏障，覆盖 create/replace、迟到 resolve/reject、原正文和版本保持及关闭重开后的原操作恢复。该专项属于工程验证，不代表真实 Home 或用户体验验收。
+
 SDK 仍拥有来源、权限、期限、取消与正式 CAS 门。App 的回执必须保持原 operation、候选原版本、policy/version 和实际 memory/version；Adapter 不伪造成功，也不证明 App 的历史事务已实际可撤销。已提交而 record 未完成时，SDK 的 `MEMORY_PROMOTION_RECORD_PENDING` 映为 `agent.memory_promotion_record_pending`（conflict），保留`operation_id` 与无正文 `committed: { memory_id, version }`，可用完整原请求重试，不能报成零写入。未装完整晋升实例仍不可用。
 
 分类限制依赖 SDK 最终授权 fence：App 在 `memory.assertCurrent` 同步核本次 target/before 的当前规则，可信 caller 使用各自调用/原 attempt 的 ALS 帧，不借另一个 Run 的最新快照。它只能收紧已完成的异步授权。Memory 专用 effect 帧将异步 `beforeEffect` 放在 authority 检查之前，最终 Host storage 包装只同步核执行令牌，避免分类检查后再等待；普通 Session/Run 写入和晋升 prepare/record 保留原完整门。真实 Node 在每次实际网络派发前执行该 fence；没有安装同步 App 检查时不承诺等待期间即时撤权。专项包含目标分类撤权后重启无候选及发送前关闭后零 HTTP；本片尚待新 SDK 包集成验证。
@@ -83,6 +87,9 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 - `src/capability-registration.ts`：对外暴露的动作与它们的授权边界。
 - `src/session-actions.ts`：关于会话轮次的统一动作——等待与接续（`agent.collaboration.*`），以及插件向一轮补充要求（`agent.inputs.send`，回执说这一轮收下了还是留到下一轮；纠正用 `about` 指向原来那条）、撤回还没交给模型的补充（`agent.inputs.withdraw`）。
 - `tests/agent-host.test.ts`：授权与批准各条边界的断言。
+
+
+维护桥另提供 `previewCleanup` / `purgeCleanupTarget`，只走 SDK 公开 `previewAdoptionCleanup` 与原 formal/candidate purge。配方仅在原 manage-read 上增加 delete，不开放保存、接纳、晋升或模型；原 scope、operationId、expectedVersion 不随恢复变化。同步当前授权接到 SDK 最终使用/提交的 assertCurrent，absence 也要经过桥自己的当前范围和取消检查。真实 Node 故障回归仍在 `tests/prologue-memory-adoption.test.ts`；新用例待正式 SDK 包集成后实跑。
 
 ## 开发要求
 

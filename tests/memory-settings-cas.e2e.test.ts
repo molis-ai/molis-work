@@ -26,7 +26,8 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const directory = await mkdtemp(join(tmpdir(), "memory-settings-cas-"));
   const calls: Request[] = [];
   const overview = { items: [entry("active", 7), entry("disabled", 11, "disabled"), entry("paused", 19, "paused")],
-    candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: null, prefs: {} };
+    candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference",
+      classification: { scenes: ["common"], lifecycle: "long-term" }, formal_expires_at: null }], changes: [], pairs: null, prefs: {} };
   const reads: PageInput[] = [];
   const project = { project_id: "project", display_name: "测试项目" };
   const view: MolisWorkWebView = {

@@ -33,7 +33,6 @@ import type { PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
-import { assertFilesEntries } from "./plugin-files-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
@@ -59,9 +58,7 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
  * One entry of the Host's own start list. A plugin on it is given the library in the Home its Manifest declares
  * (`databases.home`, as `services.database`); `assertDatabaseEntries` says what a list may declare.
  */
-export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "initialize_owner_files" | "dual_instance"> {
-  readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
-}
+export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "dual_instance"> {}
 
 export interface PluginPlatformOptions {
   project_id: string;
@@ -147,7 +144,6 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     providerFor,
     databaseFor: identity.databaseFor,
     projectLibrary: projectLibraryOf(options.db), scheduler: options.scheduler,
-    filesFor: identity.filesFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
@@ -239,7 +235,6 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       }
       assertDatabaseEntries(entries, options.home, "project");
       assertOwnerFilesEntries(homeOwnerFilesEntries(options.home?.directory ?? null), entries, options.home);
-      assertFilesEntries(entries, options.home);
       identity.remember(entries);
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.

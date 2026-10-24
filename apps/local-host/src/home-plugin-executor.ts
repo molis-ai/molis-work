@@ -12,7 +12,6 @@ import { openPluginDatabase } from "./plugin-database.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
-import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
 import { givenService } from "./plugin-declared-services.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
@@ -40,7 +39,6 @@ export class HomePluginExecutor implements PluginExecutor {
   constructor(private readonly options: {
     home: string; actorId: string; client: ActionClient;
     database(definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined;
-    files(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
     ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
     modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
@@ -81,7 +79,6 @@ export class HomePluginExecutor implements PluginExecutor {
       { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active() });
     let database: ReturnType<typeof openPluginDatabase> | undefined;
     let partitions: PartitionedPluginDatabase | undefined;
-    let files: ReturnType<typeof openPluginFiles> | undefined;
     let background: ReturnType<typeof pluginBackgroundFor>;
     let terminal: ReturnType<typeof pluginTerminalFor>;
     let withdrawAgentDefinitions: (() => void) | undefined;
@@ -90,7 +87,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const dispose = () => {
       active = false; stopped = true; withdrawPages?.(); terminal?.dispose(); directory?.dispose(); background?.close(); withdrawCaller?.();
       const failures: unknown[] = [];
-      for (const release of [() => database?.close(), () => partitions?.close(), () => files?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
+      for (const release of [() => database?.close(), () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
@@ -106,12 +103,9 @@ export class HomePluginExecutor implements PluginExecutor {
         const open = () => openPluginDatabase(this.options.home, library.declaration, authorize, context);
         database = library.installed ? openInstalledPluginLibrary(this.options.home, library.installed, library.declaration, home.stores, open) : open();
       }
-      const fileDeclaration = this.options.files(definition);
-      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context);
       const owned = ownerFilesGiven(definition, this.options.ownerFiles(definition));
       const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
         { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: authorize }, join(realpathSync(this.options.home), owned.declaration.store_name)) : undefined;
-      if (owned?.initialize && context.grants.includes("storage:private") && context.grants.includes(owned.declaration.write_permission)) ownerFiles!.initializeTrusted(owned.initialize);
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
@@ -130,7 +124,7 @@ export class HomePluginExecutor implements PluginExecutor {
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       terminal = pluginTerminalFor(this.options.home, manifest, authorized, ownerFiles?.client, assertActive);
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
+        ui: ui.client, interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });

@@ -1,5 +1,5 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { type PluginDefinition, type PluginFilesDeclaration, type PluginOwnerFilesDeclaration, type PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { type PluginDefinition, type PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { fixtureDeclarationsFor, type PluginPlatformHome } from "./home-side.js";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
 import { assertHomeOnlyDeclarations, givenService } from "./plugin-declared-services.js";
@@ -7,8 +7,6 @@ import { ownerFileSegments } from "./plugin-owner-files-paths.js";
 
 export interface PluginOwnerFilesEntry {
   readonly definition: PluginDefinition;
-  readonly files?: PluginFilesDeclaration;
-  readonly initialize_owner_files?: (writer: PluginOwnerFilesWriter) => void;
   /**
    * On a Home fixture: this is the Home half of a dual-instance plugin, and the project fixture of the same plugin_id is its other
    * half (`PluginRegistration.runtime.dual_instance` for a shipped plugin). A project entry never says it; the scope check does.
@@ -17,7 +15,6 @@ export interface PluginOwnerFilesEntry {
 }
 export interface PluginOwnerFilesBinding {
   readonly declaration: PluginOwnerFilesDeclaration;
-  readonly initialize?: (writer: PluginOwnerFilesWriter) => void;
 }
 
 /**
@@ -39,6 +36,10 @@ export function homeOwnerFilesEntries(home: string | null): PluginOwnerFilesEntr
     ...home === null ? [] : fixtureDeclarationsFor(home, "home")];
 }
 
+/** Whether a name in a store's root is its library's: the library file and its journals, and the partition directory of a partitioned one. */
+const libraryHolds = (store: string, partition: "project" | undefined, name: string) =>
+  name === `${store}.db` || name.startsWith(`${store}.db-`) || (partition === "project" && name === "projects");
+
 /**
  * Both scopes are checked together before any managed owner IO or initializer. A definition's files are what its Manifest declares
  * (`owner_files`); a project's half of a dual-instance plugin shares that Manifest and is given none, while any other project
@@ -49,8 +50,7 @@ export function assertOwnerFilesEntries(homeEntries: readonly PluginOwnerFilesEn
   // Without a Home no Home instance starts, so only the project list has anything to check.
   const all = [...home ? homeEntries : [], ...projectEntries], taken = new Set<string>();
   for (const entry of all) {
-    const { definition, initialize_owner_files: initialize } = entry, files = definition.manifest.owner_files;
-    if (initialize && !files) throw new Error("文件初始化器需要可信文件声明");
+    const { definition } = entry, files = definition.manifest.owner_files;
     if (!files) continue;
     const id = definition.manifest.plugin_id;
     if (projectEntries.includes(entry)) continue;
@@ -59,8 +59,13 @@ export function assertOwnerFilesEntries(homeEntries: readonly PluginOwnerFilesEn
     if (!PLUGIN_LIBRARY_NAME.test(files.store_name)) throw new Error("主人文件根必须是普通目录名");
     const store = home.stores.get(files.store_name);
     if (store?.owner !== id) throw new Error(`主人文件根 ${files.store_name} 未登记为插件 ${id} 所有`);
-    if (store.library || all.some(other => other.definition.manifest.databases?.home?.store_name === files.store_name || other.files?.store_name === files.store_name)) {
-      throw new Error(`主人文件根 ${files.store_name} 不能同时用于数据库或旧文件服务`);
+    // The root may hold the plugin's own library, the one its Manifest declares (`databases.home`, same store); no other library, and no
+    // entry may name the library's files.
+    if (store.library && definition.manifest.databases?.home?.store_name !== files.store_name) {
+      throw new Error(`主人文件根 ${files.store_name} 里的数据库不是插件 ${id} 的 Manifest 声明的`);
+    }
+    if (all.some(other => other !== entry && other.definition.manifest.plugin_id !== id && other.definition.manifest.databases?.home?.store_name === files.store_name)) {
+      throw new Error(`主人文件根 ${files.store_name} 不能同时用于其他插件的数据库`);
     }
     if (taken.has(files.store_name)) throw new Error(`主人文件根 ${files.store_name} 在启动名单中重复`);
     taken.add(files.store_name);
@@ -73,6 +78,9 @@ export function assertOwnerFilesEntries(homeEntries: readonly PluginOwnerFilesEn
     for (const item of files.entries) {
       if (ownerFileSegments(item.name).length !== 1 || !["file", "directory"].includes(item.kind) || names.has(item.name)) {
         throw new Error("主人文件条目必须是名称唯一的顶层普通文件或目录");
+      }
+      if (store.library && libraryHolds(files.store_name, store.library.partition, item.name)) {
+        throw new Error(`主人文件条目 ${item.name} 是 ${files.store_name} 库自己的文件`);
       }
       names.add(item.name);
     }

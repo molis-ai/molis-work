@@ -9,8 +9,7 @@ import { IMAGES_IMAGE_GENERATION } from "@molis-ai/molis-work-plugin-images";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { filesProbe, filesProject } from "./fixtures/plugin-files.js";
-import { ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
+import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 
 // specs/repository-anti-corruption/slices/pg022-manifest-declarations.md, P3: a plugin's model settings and image connections are
 // declared in its Manifest (`model_configuration`, `image_generation`) and nowhere else.
@@ -80,11 +79,11 @@ test("RAC-313 a definition that declares model settings or image connections and
 });
 
 test("RAC-314 a project plugin that declares model settings or image connections is refused, so none is left without the service it asked for", async t => {
-  const home = mkdtempSync(join(tmpdir(), "service-declarations-")), old = filesProbe("project-set", "project");
-  const project = filesProject(home, old);
+  const home = mkdtempSync(join(tmpdir(), "service-declarations-")), old = ownerFilesProbe("project-set", "project");
+  const project = ownerFilesProject(home, old);
   t.after(async () => { await project.close(); rmSync(home, { recursive: true, force: true }); });
   for (const [what, extra] of [["model settings", { model_configuration: MODEL }], ["image connections", { image_generation: IMAGES }]] as const) {
-    await assert.rejects(project.platform.start([{ definition: declaring(old.definition, extra) }]), /项目插件.*不能声明/u, what);
+    await assert.rejects(project.platform.start([{ definition: declaring(old.withoutFiles(), extra) }]), /项目插件.*不能声明/u, what);
   }
   assert.equal(old.contexts.length, 0);
 });

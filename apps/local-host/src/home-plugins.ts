@@ -8,7 +8,6 @@ import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
-import { assertFilesEntries } from "./plugin-files-entries.js";
 import { assertModelConfigurationEntries } from "./model-configuration-entries.js";
 import { assertImageGenerationEntries } from "./plugin-image-generation-entries.js";
 import { assertProjectCleanupEntries, registerPluginProjectCleanup, type PluginProjectCleanup } from "./plugin-project-cleanup.js";
@@ -21,8 +20,6 @@ export interface HomePluginEntry {
   readonly scope: "home";
   readonly manifest: PluginManifest;
   readonly create: () => PluginDefinition;
-  readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
-  readonly initialize_owner_files?: (writer: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesWriter) => void;
   readonly project_data?: PluginProjectCleanup;
   readonly dual_instance?: true;
   readonly package_name: string;
@@ -110,13 +107,10 @@ export class HomePluginHost {
     const identity = pluginEntryIdentity();
     const shipped = this.options.entries.map(entry => {
       const definition = entry.create();
-      return { definition, bundled: true, files: entry.files, initialize_owner_files: entry.initialize_owner_files,
-        project_data: entry.project_data, dual_instance: entry.dual_instance,
+      return { definition, bundled: true, project_data: entry.project_data, dual_instance: entry.dual_instance,
         releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => {
           const released = factory();
-          identity.remember([{ definition: released, bundled: true, files: identity.filesFor(definition),
-            initialize_owner_files: identity.ownerFilesFor(definition)?.initialize,
-            project_data: identity.projectDataFor(definition),
+          identity.remember([{ definition: released, bundled: true, project_data: identity.projectDataFor(definition),
             dual_instance: entry.dual_instance }]);
           return released;
         }) };
@@ -130,7 +124,6 @@ export class HomePluginHost {
     const home = pluginHomeFor(this.options.home);
     assertOwnerFilesEntries(entries, fixtureDeclarationsFor(this.options.home, "project"), home);
     assertDatabaseEntries(entries, home, "home");
-    assertFilesEntries(entries, home);
     assertModelConfigurationEntries(entries, home);
     assertImageGenerationEntries(entries, home);
     assertProjectCleanupEntries(entries);
@@ -139,7 +132,7 @@ export class HomePluginHost {
     this.db = db;
     const repository = pluginInstallRecords(db);
     const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id),
-      invalidateView: pluginId => this.platform?.invalidateView(pluginId), database: identity.databaseFor, files: identity.filesFor,
+      invalidateView: pluginId => this.platform?.invalidateView(pluginId), database: identity.databaseFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.

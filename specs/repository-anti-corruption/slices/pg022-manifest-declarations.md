@@ -1,6 +1,6 @@
 # PG-022 / PG-102 / PG-103 / PG-104：宿主条目上的声明搬进 Manifest
 
-状态：统筹已裁（2026-10-24，见 §6「统筹 10-24 裁」）；P1（Home 库）已在分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，已推送，PR 排在 §8 列的在途 PR 和本线 #1119、#1139 合入之后；顺序 P1 → P1b → P2 → P3；P2 拆成 P2a（`owner_files` 进 Manifest，已在同一分支实现）和 P2b（删 `files`、Images 迁移、动作之外开 ownerFiles、删 `initialize_owner_files`，R1～R3 已裁，见 §6）；P1b 取 A（Home 库账本的发布者取自安装记录，见 §6），已在同一分支实现（§4.4）；P3（`model_configuration`、`image_generation` 进 Manifest）已在同一分支实现。代码按 main `abc052bcb` 核过。
+状态：统筹已裁（2026-10-24，见 §6「统筹 10-24 裁」）；P1（Home 库）已在分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，已推送，PR 排在 §8 列的在途 PR 和本线 #1119、#1139 合入之后；顺序 P1 → P1b → P2 → P3；P2 拆成 P2a（`owner_files` 进 Manifest，已在同一分支实现）和 P2b（删 `files`、Images 迁移、动作之外开 ownerFiles、删 `initialize_owner_files`，R1～R3 已裁，见 §6）；P1b 取 A（Home 库账本的发布者取自安装记录，见 §6），已在同一分支实现（§4.4）；P3（`model_configuration`、`image_generation` 进 Manifest）已在同一分支实现；P2b 已在同一分支实现（§4.5）。代码按 main `abc052bcb` 核过。
 
 ## 1. 现状
 
@@ -77,6 +77,16 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 | 与 Q1 原稿不同 | Q1 写「登记从已安装插件的 Manifest 推出」。安装记录里没有 Manifest（只有哈希），所以账本自己就是这份登记，purge 读它；效果一样（清得到），来源更可靠 |
 | 没做 | 沙箱插件的 Home 库（等模型 broker，PG-017）；装进来的插件按项目分开的库；单个插件卸载时删它的库（今天内置插件的库也不删，`retain_private_data` 只管插件私有存储） |
 
+### 4.5 P2b：一套私有文件、动作之外开、删钩子（2026-10-24，统筹 R1～R3）
+
+- **只剩 `ownerFiles`。** 删 `PluginFilesDeclaration`/`PluginFilesClient`（`contracts/src/platform/plugin-files.ts`）、`PluginHostServices.files`、`PluginRegistration.runtime.files` 与 `initialize_owner_files`、宿主的 `plugin-files.ts`、`plugin-files-entries.ts`、`entry-identity` 的 `files`/`filesFor`、两个执行器与平台里的 `files`；`createPluginOwnerFilesClient` 不再返回 `initializeTrusted`。名字留 `ownerFiles`/`owner_files`（R3），GLOSSARY 速查加一行写明旧名 `files`。
+- **R1 动作之外。** `owner-files-service.ts` 的 `check`：没有任何动作、场景或作业在跑（`start`、`start` 里设的定时器、路由，`currentPluginInvocation()` 为空）时，凭安装**当前**授权决定：`gate.assertActive()` 后 `storage:private` 与文件权限都要在现行授权里（与 `assertPluginActionCurrent` 一贯的规矩一致）；停用、卸载、撤权后写不了（停止之后的调用按 BL-411 静默失效：读返回 `undefined`、写永不结算，什么都不写）。别的实例的动作里、场景里、激活作业里仍一律拒绝；动作之内没有变。访问仍只限 Manifest 声明的顶层条目。`write` 在动作之外不等 `beforeEffect`（没有调用者可问），其余不变。
+- **共根。** `assertOwnerFilesEntries`：根可以放同一个插件自己 Manifest 声明的库（`databases.home` 同一个 store），条目不能叫库文件（`<库名>.db`、`<库名>.db-*`）或分区目录 `projects`；根里的库不是本定义 Manifest 声明的、或别的插件的 Manifest 也声明这个 store，都拒绝（先于任何受管开库）。
+- **Shelf。** 去掉 `registration.ts` 的 `initialize_owner_files`；`createHomeShelfPlugin().start` 在必需授权齐了之后 `await files.write(initializeShelfFiles)`（有无材料仍由 `seeded_sample` 判断）。
+- **Images（R2）。** Manifest 加 `owner_files`（根 `images`，顶层目录 `assets`，读 `images:read`，写 `images:files:write`）与**必需**权限 `images:files:write`；`images.jobs.start` 2→3、`images.jobs.delete` 1→2，权限各加 `images:files:write`（`pnpm actions:update` 已刷新 `tooling/gates/actions`）；`ImagesService` 用 `ownerFiles`：后台任务在原动作作用域里 `files.write(writer => writer.writeFile("assets/<名>", bytes, "create"))`，写入同一同步步骤里先复查任务与连接；删任务 `removeTree`；`readImage` 读 `assets/<名>`；启动恢复在 Images 自己的 `start` 里（动作之外）列出 `assets` 并删没人引用的文件。图片仍在原来的 `images/assets/`，不搬数据；单文件 20MB 上限本来就在 Images 的 provider 里（`MAX_IMAGE_BYTES`）。
+- **对调用方的影响（PR 要写）：** MCP 客户端、工作流步骤和 Agent 如果固定了 `images.jobs.start@2`、`images.jobs.delete@1`，要重新选版本（MCP 工具名 `images.jobs.start__v3`、`images.jobs.delete__v2`），并且授权里要有 `images:files:write`（内置安装默认同意；已装的 Images 升级后这项是必需权限）。没有这项权限的调用者仍能读和列图片，不能生成也不能删。
+- **S-15 没有放松。** 动作之内仍是动作和原调用者的权限都要有；动作之外的新规矩不给任何新调用者，只是让插件自己的 `start`/定时器用自己的现行授权，和其他服务一致；沙箱、项目插件、没有 Manifest 声明或不在启动名单上的定义拿不到服务。
+
 ## 5. P2、P3 轮廓（审定前不写代码）
 
 **P2 文件（PG-102 文件一半、PG-103、PG-104）**
@@ -108,7 +118,7 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 我自己定的两点：
 
 - 项目插件的 Manifest 声明了 `owner_files`：除非它是 Home 那一半的双实例的项目一半（与 Home 一半共用 Manifest，不拿服务），一律以 `plugin.declaration_invalid` 拒绝启动。这也关掉了 PG-104 说的「项目执行器的 files 不按项目分区」：项目实例拿不到文件，就无从谈分区；真要给项目实例分区的文件是以后的功能，要先定。
-- 文件根可以和同一个插件自己的库共用（Images 的 `images.db` 与 `assets/` 都在 `images` 下），条目决定服务能碰哪些，不然 Images 要搬真实 Home 里已有的图片。到 P2b 才用得上，现在 `assertOwnerFilesEntries` 仍拒绝共根。
+- 文件根可以和同一个插件自己的库共用（Images 的 `images.db` 与 `assets/` 都在 `images` 下），条目决定服务能碰哪些，不然 Images 要搬真实 Home 里已有的图片。P2b 已做（§4.5）。
 
 P2a（已做）：`PluginManifest.owner_files`（SDK `ownerFilesDeclarationProblems` 查形状）；`plugin-owner-files-entries.ts` 的 `assertOwnerFilesEntries` 读 Manifest，`ownerFilesGiven` 对「声明了却不在名单上」以 `plugin.declaration_invalid` 拒绝；条目与 `PluginRegistration.runtime` 去掉 `owner_files`；Shelf 把 `SHELF_OWNER_FILES` 搬进 `owner-files.ts` 并写进自己的 Manifest；`setAccess` 的权限位收紧（V-30）。`initialize_owner_files` 和旧 `files` 还在，等 R1～R3。
 
@@ -176,6 +186,18 @@ P1b：
 | RAC-320 | 装进来的插件按项目分开的库被拒（`plugin.declaration_invalid`，账本没开）；库名不合规、读写权限不在 permissions 里的 Manifest 装不上 | 同上 |
 | RAC-321 | purge 计划含装进来的插件的库和账本；账本里被改过的名字（登记里的 `feed`、`../outside`、带斜杠、大写）不列；账本读不出来，计划是冲突 | 同上；`tests/personal-plugins-review-fixes.test.ts`（每个登记的存储都被列入并删掉，含账本里的库） |
 
+
+P2b：
+
+| 编号 | 断言 | 测试 |
+| --- | --- | --- |
+| RAC-323 | 根可以放同一个插件自己 Manifest 声明的库：两样都声明的插件启动，文件与库并排，库的文件不是它的条目；条目叫库文件、库的日志文件、分区目录，库不是本定义声明的，别的插件也声明这个库名，都在任何开库之前被拒 | `tests/security-invariants-plugin-owner-files-registration.test.ts` |
+| RAC-324 | 插件在自己的 `start` 和它在 `start` 里设的定时器里，凭安装现行授权读写自己的文件 | `tests/security-invariants-plugin-owner-files-outside-action.test.ts` |
+| RAC-325 | 动作之外也只有 Manifest 声明的条目：没声明的条目、越出根的路径一律拒绝，什么都不创建 | 同上 |
+| RAC-326 | 动作之外，写权限被撤、读权限被撤、停止、卸载之后都拒绝：撤权后新的启动里读写按现行授权拒绝（`actions.forbidden`），旧句柄静默失效（读返回 `undefined`、写不结算、文件不变） | 同上 |
+| RAC-327 | 没有宿主启动钩子：源码、合同、注册里都没有 `initialize_owner_files`；Shelf 在自己的 `start` 里放示例，首次启动在任何动作读之前就有，删掉以后不放回 | `tests/owner-files-declaration.test.ts`；`tests/shelf-owner-files.test.ts`（第一次启动写示例） |
+| RAC-328 | Images 的 `images:files:write` 是必需权限，`owner_files` 在它的 Manifest 里，`jobs.start` 是第 3 版、`jobs.delete` 是第 2 版并带这项，别的动作不带；合同里没有第二套文件服务 | `tests/owner-files-declaration.test.ts` |
+| RAC-329 | 没有 `images:files:write` 的调用者能读和列，不能生成也不能删：没有厂商请求、没有任务、没有文件；Images 的启动恢复在动作之外只清没人引用的文件 | `tests/images-service.test.ts` |
 
 ## 8. 开工前核对（2026-10-23，`gh pr list` 的文件清单）
 

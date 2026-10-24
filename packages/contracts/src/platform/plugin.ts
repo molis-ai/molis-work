@@ -18,7 +18,6 @@ export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
 export type { PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration } from "./plugin-scheduler.js";
-export type { PluginFilesClient, PluginFilesDeclaration } from "./plugin-files.js";
 export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";
 export type { PluginImageTarget, PluginImageConnectionState, PluginImageGenerationRequest, PluginImageGenerationClient, PluginImageGenerationDeclaration } from "./plugin-image-generation.js";

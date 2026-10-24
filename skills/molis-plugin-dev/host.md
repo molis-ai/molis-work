@@ -12,7 +12,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要在�
 
 ### 个人 Home 插件
 
-个人数据跨项目一致、无项目也可用时，插件自己的 `registration` 声明 `runtime: { scope: "home", create, package_name, factory_export, files?, initialize_owner_files? }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它（双实例插件的项目一半除外，见下面「双实例」）。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
+个人数据跨项目一致、无项目也可用时，插件自己的 `registration` 声明 `runtime: { scope: "home", create, package_name, factory_export }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它（双实例插件的项目一半除外，见下面「双实例」）。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
 
 Home 级插件的数据按项目放、删项目时整份一起走（如 Alchemist 的工作室）时，在 Manifest 的 `databases.home` 写 `partition: "project"`，Home 存储登记里同一个库的 `library.partition` 也写 `"project"`，并在目录条目声明 `project_data`（`label` 必填，`purge` 可省：平台删这个项目的库）。插件拿到的 `services.database` API 不变，宿主按调用所在的项目给它那个项目的库：只有在项目里调用的动作和场景回调能读写，`start`、路由处理器本身、Home 路径下的动作答 `actions.project_required`；后台作业写进受理它的那个项目。打开、闲置关闭、停用关闭、删项目都归平台，插件不自己拼目录、不自己管连接。项目级插件不能声明。规则与验收见 `specs/plugin-project-partition/spec.md`。
 
@@ -26,7 +26,7 @@ Home 的 `services.storage` 是 v2 Home Runtime 库里的安装隔离 KV；升�
 
 运行时读写自己的表用 `context.services.project_database`，与 Home 库同一个 `PluginDatabase` 接口，经 Plugin Runtime 启动、Manifest 声明了 `databases.project` 的插件才有：读用 `get`、`all`，只认 `SELECT`、`WITH`；写只在 `transaction(caller.beforeEffect, tx => …)` 里，回调同步，`tx.run` 一次一句，只认 `INSERT`、`UPDATE`、`DELETE`。每一句运行前平台用 `EXPLAIN` 带着参数核对它的步骤：只许碰本插件声明的表与索引，`project_root` 只许读（外键检查读它也算）；建、删、改表与索引，`PRAGMA`，事务控制，别的插件或平台的表，`temp` 与附加的库，都以 `plugin.project_database.statement_refused` 拒绝，语句一步也不运行。表结构只能升 `version` 走维护，运行时改不了。停用、撤权、取消之后句柄写不进去，与 Home 库相同。沙箱插件在操作的 effects 里写 `projectDatabase: ['read']` 或 `['read', 'write']`（查询只能读），人批准后经 `sdk.projectDatabase.get(sql, parameters)`、`all(sql, parameters)`、`transaction([{ sql, parameters }])` 走同一份检查；参数只许 null、有限数和字符串，BLOB 与超出 2^53 的整数传不回来，一个事务 1 到 64 句，一句被拒整个不写。创作台生成的 Manifest 写不出 `databases.project`，所以生成插件用不上它；创作台防腐收尾后删除（BL-377）。
 
-原生插件自己的二进制文件用 `services.files`，在可信 Host 条目声明 `files: { store_name, directory, max_file_bytes, read_permission, write_permission }`；存储登记的 owner 必须匹配。`list/read` 不创建目录；`create(caller, name, bytes)` 排他创建，`remove(caller, name)` 删除，缺失可重试。只收单层非隐藏 ASCII 文件名，拒绝越界、符号链接与超限字节；不向插件传 Home 路径。当前安装与授权每次检查，停用后旧句柄失效，沙箱与升级预检没有它。文件与数据库提交间的业务一致性、失败后未引用文件清理由插件拥有。
+原生插件自己的文件只有一套服务：`services.ownerFiles`，声明在 Manifest 的 `owner_files`（下面一节）。旧的启动条目 `files` / `services.files` 已删（PG-102/104）；单文件字节上限、文件名规则由插件自己守，Images 在它的 provider 里限 20MB。
 
 Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `model:invoke`，用 `context.services.model.complete(instructed(自己的指令, 数据))`，不再写宿主里的绑定文件。只要模型列表和能不能用、不发请求的（比如让人选模型），声明只读的 `model:read`：它只开 `choices()` 与 `availability()`，`complete()` 仍只认 `model:invoke`。只在自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调（其余位置 `plugin.model_*` 拒绝，动作返回之后是 `actions.expired`）；指令在 `PluginDefinition.instructions` 里声明（没有目录条目时），`owner_id` 是自己的插件 id；写入之前仍要自己 `await caller.beforeEffect()`。沙箱插件没有它。细则见 `docs/platform/PROLOGUE-AI.md` 第 4 节。
 
@@ -48,9 +48,9 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 ### Home 主人文件树
 
-在 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（和 `databases.home` 一样，宿主条目上不再写），其中 entries 固定顶层文件或目录，根须已登记归该插件所有；不与任何 scope 的 database/旧 files 共根。声明了却不在宿主启动名单上的定义启动被拒（`plugin.declaration_invalid`）；项目插件不能声明，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务。`services.ownerFiles` 提供 `stat/read/list` 与 `await write(writer => …)`；写回调同步完成，每个原语重查原动作权限，不能保存 writer 或跨 await 使用。Writer 支持 mkdir、独占 create/copy、存在文件 replace、原子替换、树删除与固定访问模式（只读 0o400/0o500、读写 0o600/0o700，不留组和其他人的位），接受 Unicode 相对路径但拒绝链接、硬链接和特殊节点。声明目录顶层不能删除。
+在 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（和 `databases.home` 一样，宿主条目上不再写），其中 entries 固定顶层文件或目录，根须已登记归该插件所有；根可以同时放这个插件自己 Manifest 声明的库（`databases.home` 同一个 store），条目不能叫库文件（`<库名>.db*`）或分区目录 `projects`，别的插件的库不行。声明了却不在宿主启动名单上的定义启动被拒（`plugin.declaration_invalid`）；项目插件不能声明，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务。`services.ownerFiles` 提供 `stat/read/list` 与 `await write(writer => …)`；写回调同步完成，动作之内每个原语重查原动作和原调用者的权限，不能保存 writer 或跨 await 使用；动作之外（`start`、`start` 里设的定时器、路由）凭这个安装当前的授权（`storage:private` 加文件权限）决定，撤权、停用、卸载后拒绝，别的实例的动作里和场景里一律拒绝。Writer 支持 mkdir、独占 create/copy、存在文件 replace、原子替换、树删除与固定访问模式（只读 0o400/0o500、读写 0o600/0o700，不留组和其他人的位），接受 Unicode 相对路径但拒绝链接、硬链接和特殊节点。声明目录顶层不能删除。
 
-`initialize_owner_files` 只在当前安装与写 grant 有效后、插件 start 前获得单次同步 writer；失败不注册动作，但已经合法写入的字节不回滚。原子替换在 rename 前失败保留原文件，树删除先预检；没有多文件事务或抵御同 OS 用户并发替换父目录的承诺。自报 id、project、sandbox 和升级预检不能取得此服务。Shelf 从 S2 起用它：Home 实例启动时放一次首次示例（`registration.ts` 的 `initialize_owner_files: initializeShelfFiles`）。详情见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-主人的私有文件树)。
+没有启动钩子：初始文件由插件在自己的 `start` 里用 `await services.ownerFiles.write(…)` 写（写 grant 有效才写）。写回调同步完成，失败不回滚已写入的字节。原子替换在 rename 前失败保留原文件，树删除先预检；没有多文件事务或抵御同 OS 用户并发替换父目录的承诺。自报 id、project、sandbox 和升级预检不能取得此服务。Shelf 用它：Home 实例在自己的 `start` 里放一次首次示例（`createHomeShelfPlugin` 里 `files.write(initializeShelfFiles)`）；Images 用它存生成的图片（`images:files:write`），在自己的 `start` 里回收没人引用的图片。详情见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-主人的私有文件树)。
 
 ### Home 模型配置与生图
 

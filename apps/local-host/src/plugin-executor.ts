@@ -31,7 +31,6 @@ export interface PluginHostExecutorOptions {
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
   installations?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
-  filesFor?(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
    * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions

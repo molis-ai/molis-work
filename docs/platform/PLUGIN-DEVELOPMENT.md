@@ -136,9 +136,8 @@ Home 动作/场景可以声明 Home 或项目 scope。项目作用域必须经�
 
 Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与其他项目动作仍可用；普通 ready 保持失败，不自动重试。受保护的 POST retry 才重试，并发 retry 共用一次启动；清理失败或关闭不能再开第二实例。`pluginFixtures.home` 与 `.project` 沿用 definition 或 `{ definition, database?, files? }` 夹具形状，不是 bundled、不接受沙箱或内置同名伪造，实际两份启动名单不能重复插件身份。
 
-可信原生插件需要自己的二进制文件时，在同一个宿主启动条目上声明 `files: { store_name, directory, max_file_bytes, read_permission, write_permission }`，得到 `context.services.files`。`store_name` 必须已在 Home 存储登记中属于该插件，`directory` 是它下面的一个普通目录名。Manifest 只声明 `storage:private` 和读写权限，不选磁盘路径；无 Home、沙箱、错误 owner 或缺声明会在启动任何条目前被拒，升级预检没有文件服务。Home 和项目实例使用同一份实现。
+插件需要自己的文件（二进制、目录树）时，在 Manifest 里声明 `owner_files`（见下一节「Home 主人的私有文件树」），得到 `context.services.ownerFiles`；旧的启动条目 `files` 与 `context.services.files` 已删（PG-102/104，P2b）。单文件字节上限、文件名规则由插件自己管（Images 的上限在它的 provider 里）。
 
-`files.list()` 只列可访问的普通文件名；`read(name)` 返回字节或 null，二者都不创建目录。`create(caller, name, bytes)` 排他创建 0600 文件，拒绝覆盖；`remove(caller, name)` 删除普通文件，缺失时成功。文件名必须是 ASCII 字母或数字开头、其后只含字母、数字、点、下划线或连字符，最多 200 字符，不接受路径；目录与文件符号链接都被拒，读写受条目声明的单文件上限约束。变更在等待后同步重查 signal、原调用者与安装权限，停止钩子和旧句柄不能继续写。文件的业务身份、记录提交与未引用文件的清理由插件负责；本服务不提供任意本机文件读取或后台执行能力。
 
 Manifest 的 `databases.home`（`PluginDatabaseDeclaration`，PG-022；项目库见 `databases.project`）描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只给宿主启动名单上的 Native 插件（库要登记在 Home 的存储登记里；名单之外的插件还没有 Home 库，声明了就拒绝启动）；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
 
@@ -481,9 +480,9 @@ await caller.beforeEffect(); // 写业务记录之前
 
 ## Home 主人的私有文件树
 
-插件在自己的 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（PG-102，和 `databases.home` 一样写在 Manifest、不写在宿主条目上；读写权限和 `storage:private` 都要在 Manifest 的 permissions 里）。Home 条目另可带 `initialize_owner_files`。根目录沿唯一 HomeStoreRegistry 验证 owner；同一根不能同时被 database、旧 files 或第二份 owner_files 占用，完整声明校验在受管开库和初始化之前完成。声明绑定宿主启动名单上的实际 definition 并深复制冻结：声明了文件却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明文件被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱、升级预检不能获得服务。Shelf 用它。
+插件在自己的 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（PG-102，和 `databases.home` 一样写在 Manifest、不写在宿主条目上；读写权限和 `storage:private` 都要在 Manifest 的 permissions 里）。根目录沿唯一 HomeStoreRegistry 验证 owner；同一根可以同时放这个插件自己 Manifest 声明的库（`databases.home`，如 Images 的 `images/images.db` 与 `images/assets/`），但条目不能叫库文件（`<库名>.db*`）或分区目录 `projects`，别的插件的库、第二份 owner_files 不行；完整声明校验在受管开库之前完成。声明绑定宿主启动名单上的实际 definition 并深复制冻结：声明了文件却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明文件被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱、升级预检不能获得服务。Shelf 用它。
 
-`services.ownerFiles.stat/read/list(relative)` 需要本安装正在执行的真实动作读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。可信 initializer 在有效 activation 与写 grant 下获得同样的短 writer，完成后才 start/register；它不进入插件 services。新建文件和目录只有 Host 的用户可读写（0o600/0o700），`setAccess` 的只读是 0o400/0o500、读写是 0o600/0o700，不留组和其他人的权限位（V-30）。
+`services.ownerFiles.stat/read/list(relative)` 在本安装正在执行的真实动作里需要动作和原调用者的读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。动作之外（`start`、`start` 里设的定时器、路由）没有原调用者可问，凭这个安装当前的授权决定：`storage:private` 加文件权限都在现行授权里才读写（与其他服务在动作之外的规则一致，`assertPluginActionCurrent`）；停用、卸载、撤权、停止之后不能写（停止后的调用静默失效，BL-411），别的实例的动作里、场景里一律拒绝。初始文件（Shelf 的示例）由插件在自己的 `start` 里写，不再有宿主启动钩子。新建文件和目录只有 Host 的用户可读写（0o600/0o700），`setAccess` 的只读是 0o400/0o500、读写是 0o600/0o700，不留组和其他人的权限位（V-30）。
 
 路径是已声明顶层下的严格相对路径，可包含 Unicode；软硬链接、特殊节点和不安全子树均拒绝。create/copy 独占，replace 要已有文件；replaceFileAtomic 使用同目录独占临时文件，rename 前失败保留原字节并清本次临时文件。removeTree 先预检且不删除声明目录顶层。读写无额外32MiB限制，仍受运行环境字节上限约束。没有多文件事务、掉电持久或同 OS 用户并发替换父目录防护的承诺；同步成功后又抛错不会回滚此前合法写入。
 

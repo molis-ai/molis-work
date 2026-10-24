@@ -3,7 +3,7 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { imagesActions as actions, imagesManifest } from "@molis-ai/molis-work-plugin-images";
+import { imagesActions as actions, imagesManifest, IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
 import { imageRuntimeFixture, imageTerminal, imageUntil, imageReply, IMAGE_PNG } from "./fixtures/images-runtime.js";
 
 // W5-01-IMGPORT-02: one real Home supervisor, real action authority, real provider HTTP and persistent bytes.
@@ -41,7 +41,7 @@ test("W5-01-IMGPORT-02: two-job Home limit, cancellation and ignored late replie
   assert.equal(assetFiles(f.home).length, 2);
 });
 
-test("W5-01-IMGPORT-02: stop writes no failure; restart interrupts once and reclaims only unreferenced files", async t => {
+test("W5-01-IMGPORT-02 RAC-329: stop writes no failure; restart interrupts once and reclaims only unreferenced files (the recovery is Images' own, outside any action)", async t => {
   const f = await imageRuntimeFixture(t, { respond: (input, response) => { if (input.prompt === "saved") imageReply(response); } }), client = f.client(), { connection } = await f.connection();
   const saved = await client.invoke(actions.start, { request_id: "saved", connection_id: connection.id, prompt: "saved" });
   const savedJob = await imageTerminal(client, saved.job.id);
@@ -117,13 +117,13 @@ for (const position of ["before-create", "after-create"] as const) {
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let pause = true;
     const f = await imageRuntimeFixture(t, { context: context => {
-      const files = context.services!.files!;
-      return { ...context, services: { ...context.services, files: { ...files, async create(control, name, bytes) {
-        if (!pause) return files.create(control, name, bytes);
+      const files = context.services!.ownerFiles!;
+      return { ...context, services: { ...context.services, ownerFiles: { ...files, async write(run) {
+        if (!pause) return files.write(run);
         pause = false;
-        if (position === "after-create") await files.create(control, name, bytes);
+        if (position === "after-create") await files.write(run);
         entered.resolve(); await release.promise;
-        if (position === "before-create") await files.create(control, name, bytes);
+        if (position === "before-create") await files.write(run);
       } } } };
     } });
     const { connection } = await f.connection();
@@ -152,3 +152,20 @@ test("W5-01-IMGPORT-02: the bounded Host timeout records one failure and never r
 });
 
 function assetFiles(home: string): string[] { const path = join(home, "images", "assets"); return existsSync(path) ? readdirSync(path) : []; }
+
+test("RAC-329 a caller without images:files:write can read and list but can neither start a generation nor delete one: no provider request, no job, no file", async t => {
+  const f = await imageRuntimeFixture(t);
+  const { connection } = await f.connection();
+  const withoutFiles = IMAGES_ACTION_PERMISSIONS.filter(permission => permission !== "images:files:write");
+  assert.ok(withoutFiles.includes("images:generate") && withoutFiles.includes("images:delete") && withoutFiles.includes("images:read"));
+  const limited = f.client("project-a", { permissions: withoutFiles });
+  await assert.rejects(limited.invoke(actions.start, { request_id: "no-files", connection_id: connection.id, prompt: "没有文件权限" }), { code: "actions.forbidden" });
+  assert.deepEqual((await limited.invoke(actions.list, {})).jobs, []); assert.equal(f.calls.length, 0); assert.deepEqual(assetFiles(f.home), []);
+  const started = await f.client().invoke(actions.start, { request_id: "with-files", connection_id: connection.id, prompt: "有文件权限" });
+  const done = await imageTerminal(f.client(), started.job.id);
+  assert.equal(done.status, "succeeded"); assert.equal(assetFiles(f.home).length, 1);
+  assert.equal((await limited.invoke(actions.get, { id: done.id })).job.id, done.id);
+  assert.equal((await limited.invoke(actions.image, { id: done.id, image_id: done.images[0]!.id })).filename, done.images[0]!.filename, "reading is images:read");
+  await assert.rejects(limited.invoke(actions.delete, { id: done.id }), { code: "actions.forbidden" });
+  assert.equal(assetFiles(f.home).length, 1, "the file is still there");
+});

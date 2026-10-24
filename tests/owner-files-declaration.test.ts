@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { IMAGES_OWNER_FILES, imagesActions, imagesManifest } from "@molis-ai/molis-work-plugin-images";
 import { SHELF_OWNER_FILES, createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -46,11 +47,14 @@ test("RAC-309 the Manifest's owner_files declare a store name, top-level entries
   ] as const) assert.throws(() => parsePluginManifest(manifest(declared, permissions as string[] | undefined)), mentions, JSON.stringify(declared));
 });
 
-test("RAC-310 Shelf's files are its Manifest's owner_files: its registration names none, and it is the only shipped plugin that declares any", () => {
+test("RAC-310 Shelf's and Images' files are their Manifests' owner_files: their registrations name none, and they are the only shipped plugins that declare any", () => {
   const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === "io.molis.work.shelf")!;
   assert.equal(shelf.manifest.owner_files, SHELF_OWNER_FILES);
   assert.equal("owner_files" in (shelf.runtime ?? {}), false, "the registration carries no files of its own");
-  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.owner_files).map(entry => entry.manifest.plugin_id), ["io.molis.work.shelf"]);
+  const images = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === "io.molis.work.images")!;
+  assert.equal(images.manifest.owner_files, IMAGES_OWNER_FILES);
+  assert.equal("files" in (images.runtime ?? {}), false, "and no start entry of its own either");
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.owner_files).map(entry => entry.manifest.plugin_id).sort(), ["io.molis.work.images", "io.molis.work.shelf"]);
   assert.equal(readFileSync(new URL("../apps/local-host/src/plugin-owner-files-entries.ts", import.meta.url), "utf8").includes("readonly owner_files?"), false,
     "the start entry type does not either");
 });
@@ -85,4 +89,30 @@ test("RAC-322 a project's platform with no Home does not refuse the shipped Shel
     await assert.rejects(platformWithoutHome().start([{ definition: imposter.definition }]), /不能声明.*主人文件服务/u);
     assert.equal(imposter.contexts.length, 0, "it never ran");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("RAC-327 there is no host start hook for initial files: Shelf puts its sample on a new shelf in its own start, and no registration, entry type or contract names the hook", () => {
+  const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  for (const file of ["apps/local-host/src/plugin-owner-files-entries.ts", "apps/local-host/src/plugin-platform.ts", "apps/local-host/src/home-plugins.ts",
+    "apps/local-host/src/home-plugin-executor.ts", "packages/contracts/src/platform/plugin-registration.ts", "packages/plugin-runtime/src/owner-files-service.ts",
+    "plugins/native/shelf/src/registration.ts"]) {
+    assert.doesNotMatch(source(file), /initialize_owner_files|initializeTrusted/u, file);
+  }
+  assert.match(source("plugins/native/shelf/src/home-plugin.ts"), /files\.write\(initializeShelfFiles\)/u, "Shelf's own start writes the sample");
+  // The sample appears on the first start and not again after the person removed it: tests/shelf-owner-files.test.ts, "the first start writes the sample".
+});
+
+test("RAC-328 Images' generated images are written through ownerFiles under a required images:files:write: jobs.start is version 3 and jobs.delete version 2, both carry it, and no second files service is left", () => {
+  const permission = imagesManifest.permissions.find(item => item.permission === "images:files:write");
+  assert.equal(permission?.required, true, "without it a job cannot save its images, so it is not one the person can leave out");
+  assert.deepEqual(imagesManifest.owner_files, { store_name: "images", entries: [{ name: "assets", kind: "directory" }], read_permission: "images:read", write_permission: "images:files:write" });
+  assert.equal(imagesActions.start.version, 3); assert.equal(imagesActions.delete.version, 2);
+  for (const action of [imagesActions.start, imagesActions.delete]) assert.ok(action.action.permissions.includes("images:files:write"), action.capability_id);
+  for (const [name, action] of Object.entries(imagesActions)) {
+    if (action !== imagesActions.start && action !== imagesActions.delete) assert.equal(action.action.permissions.includes("images:files:write"), false, `${name} writes no files`);
+  }
+  const contract = readFileSync(new URL("../packages/contracts/src/platform/plugin-host-services.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(contract, /PluginFilesClient|\bfiles\?:/u, "the services a plugin is given have one files service");
+  assert.equal(existsSync(new URL("../apps/local-host/src/plugin-files.ts", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../packages/contracts/src/platform/plugin-files.ts", import.meta.url)), false);
 });

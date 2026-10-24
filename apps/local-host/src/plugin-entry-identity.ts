@@ -1,4 +1,4 @@
-import type { HomePluginDatabaseDeclaration, PluginFilesDeclaration, PluginDefinition, PluginManifest, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
 import type { PluginOwnerFilesEntry, PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 
@@ -7,7 +7,6 @@ export function pluginEntryIdentity() {
   const bundled = new WeakSet<PluginDefinition>();
   const bundledManifests = new WeakSet<PluginManifest>();
   const listed = new WeakSet<PluginDefinition>();
-  const files = new WeakMap<PluginDefinition, PluginFilesDeclaration>();
   const ownerFiles = new WeakMap<PluginDefinition, PluginOwnerFilesBinding>();
   const configurations = new WeakMap<PluginDefinition, PluginModelConfigurationDeclaration>();
   const images = new WeakMap<PluginDefinition, PluginImageGenerationDeclaration>();
@@ -17,7 +16,6 @@ export function pluginEntryIdentity() {
     providerFor: (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId,
     /** The library its Manifest declares, for a definition object the Host's start list holds; none for any other. */
     databaseFor: (definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined => listed.has(definition) ? definition.manifest.databases?.home : undefined,
-    filesFor: (definition: PluginDefinition) => files.get(definition),
     ownerFilesFor: (definition: PluginDefinition) => ownerFiles.get(definition),
     modelConfigurationFor: (definition: PluginDefinition) => configurations.get(definition),
     imageGenerationFor: (definition: PluginDefinition) => images.get(definition),
@@ -26,18 +24,16 @@ export function pluginEntryIdentity() {
     dualInstance: (definition: PluginDefinition) => dual.has(definition),
     /** Whether this Manifest object is the one a bundled definition on the Host's start list carries. */
     shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && bundledManifests.has(manifest),
-    /** The files its Manifest declares, for a definition object the Host's start list holds, with the initializer the list gave it. */
-    remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean; files?: PluginFilesDeclaration;
+    /** The files its Manifest declares, for a definition object the Host's start list holds. */
+    remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean;
       project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
         if (entry.bundled) { bundled.add(entry.definition); bundledManifests.add(entry.definition.manifest); }
         if (entry.dual_instance) dual.add(entry.definition);
         listed.add(entry.definition);
-        if (entry.files) files.set(entry.definition, Object.freeze({ ...entry.files }));
         const owned = entry.definition.manifest.owner_files;
         if (owned) ownerFiles.set(entry.definition, Object.freeze({
           declaration: Object.freeze({ ...owned, entries: Object.freeze(owned.entries.map(item => Object.freeze({ ...item }))) }),
-          initialize: entry.initialize_owner_files,
         }));
         const config = entry.definition.manifest.model_configuration;
         if (config) configurations.set(entry.definition, Object.freeze({

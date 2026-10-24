@@ -29,8 +29,6 @@ export interface PluginRegistration {
     readonly runtime?: {
         readonly scope: "home";
         readonly create: () => PluginDefinition;
-        readonly files?: PluginFilesDeclaration;
-        readonly initialize_owner_files?: (writer: import("platform/plugin-owner-files").PluginOwnerFilesWriter) => void;
         readonly package_name: string;
         readonly factory_export: string;
         readonly keys?: string;

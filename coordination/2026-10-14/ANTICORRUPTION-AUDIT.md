@@ -600,3 +600,38 @@ diff 影响：`git diff 89c9a7194..8aa62a65b -- specs/repository-anti-corruption
 ### 14.5 下一轮
 
 task-17 PR 出现后只读复核；#1168 合入后把 E14 标记完成；主题 h（manifest 声明 vs 实际消费）若继续（建议清单：声明了 actions/views/artifacts/process_items 但无消费者的条目；有消费但未声明的调用；页面不在 manifest 里的残留）。
+
+### 14.2a 追加（2026-10-25 00:30 左右查询）
+
+- #1168 head `98906bfad`：`failed: []`、`pending: 10`（CI 对本 head 仍在跑；等全绿后再记「可合」终态）。
+- 同期 open PR 新增（仅记录，未派）：#1172 `anticorr/ac-trust-design`、#1169 `ac-r11-intake`、#1167 `ac-clients-cognia`、#1165 `ac-kernel/pg047-validate-result`；task-17 的 audit 文档分支尚未出现（`git ls-remote` 无匹配）。
+
+## §15 第 10 轮（2026-10-25 凌晨）：主题 h — Manifest 声明 vs 实际消费
+
+### 15.1 方法与机器槽位
+
+- 数据源：`tooling/gates/actions/{actions,host-actions,scenes,host-scenes}.tsv`（由 `node scripts/gates/action-contract-snapshot.mjs --update`；`pnpm actions:update` 生成）。**main tip `8aa62a65b` 的 CI「Action and plugin contracts」作业 success**（该作业跑 `tests/action-contract-snapshot.test.ts`，除比快照外还断言「每个 Manifest 动作都由 Host 以同一 provider 注册」），因此快照可代表当前 main 的声明与运行时登记。
+- 机器槽位尝试：`node scripts/machine-slot.mjs run build --label ... -- pnpm build` 排队、拿到槽后失败于 pnpm install 的 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`（审计工作树 node_modules 是指向主检出的符号链接，pnpm 想清空重建但无 TTY）；槽位自动释放，未产生半成品构建、未动源码。改用 CI 证据 + 已入库快照，不再本地 build（避免与其它会话抢槽）。
+
+### 15.2 库存数字
+
+- 声明动作 601 条 / 24 provider（actions.tsv）。按 provider：goals 70、alchemist 59、jelly 53、pages 44、feed 36、shelf 33、coding 28、dataset 27、form 27、cognia 25、todo 25、ppt 24、lingguang 20、schedule 19、sessions 18、artifacts 17、workflows 16（provider `io.molis.work.native.workflows`）、inbox 15、images 14、issues 11、git 10、files 6、diff 2、text-stats 2。
+- 宿主注册但无 Manifest 声明的动作 271 条 / 29 provider：platform 27、system.connectors 22、system.functions 21、system.memory 20、characters 19、system.home 13、system.knowledge 12、system.placement 12、13×`sdk.artifacts.plugin-install-<hash>` 各 8（共 104）、feed 3、inbox 3、system.search 6、system.project-workspaces 3、goals.home 2、system.action-usages 2、system.information 1、plugin-platform 1。
+- 场景：声明 2 条（feed.capture@1、inbox.next@1，provider=feed/inbox）；宿主注册 1 条（home.dock@1，system.home）。
+
+### 15.3 结论
+
+(a) 「用了但没声明」= host-actions 的 132 条非 system/platform 行，全部落在已知 PG 组，无新的插件私路/未声明动作：characters 19（PG-085/086，Characters 已是 Module，provider 仍是旧插件 id `io.molis.work.characters`；被持久引用钉住，建议不动或待合同决策）；feed/inbox 各 3（`scenes.{enable,disable,targets}:<scene>`，PG-034 Feed/Inbox action_scenes 实现在宿主，待做）；goals.home 2（PG-012 双实例 Home 半，进行中）；13 个 Home 安装各自的 SDK 服务动作 104 条（PG-023/PG-102/104 的过渡面）；plugin-platform model.generate 1（宿主）。
+
+(b) 「声明了但没人用」：静态 id 字符串面（排除快照/tests/specs archive）145 条零文本引用；其中 131 条 audiences 含 mcp（MCP 工具名由能力生成，可被客户端调用，不能判死），14 条只面向 user/页面（coding.executor.run.start/control、coding.executor.session.open/read/update、coding.executor.state、coding.plans.confirm；feed.sources.disconnect；pages.comments.context/reply；shelf.clipboard.material、shelf.items.file、shelf.results.copy、shelf.terminal.open）→ **UNVERIFIED**：静态看不到页面调用（动作对象常量）与持久工作流步骤（用户库里的绑定）。要定死需要：构建后的动作目录 + 页面调用面（浏览器抓包/评审）或真实 Home 的调用日志 + 持久工作流绑定（本机无真实 Home）；建议收尾后专项。→ 本轮无可派修项。
+
+(c) PASS：SSOT:212「Jelly 53 动作」✓（actions.tsv jelly 53 行）；GLOSSARY:286 workflows 的 plugin_id 多 `.native.` 段是已文档化例外；`reminders.add/cancel`、`schedules.add/cancel` 是归档 spec 明确保留的稳定 id（不是漂移）；声明场景与宿主场景一致（2+1）；`provider != registered_provider` 只有 goals 2 条（Home 半 `io.molis.work.goals.home`，PG-012 已记）；schedule 19 条里 4 条前缀 `reminders.`/`schedules.` 为保留 id。
+
+### 15.4 发现 AC-AUDIT-17（non-blocker，文档漂移）
+
+- `docs/SSOT-MATRIX.md:142` coding 行写「19 项 `coding.*` 动作（16 项业务动作，另有对象读取、搜索与成果预览）」；当前 Manifest 声明 **28 条 coding.***（多出的 9 条即 C8-2 执行器与计划面：`coding.executor.session.open/read/update`、`coding.executor.run.start/control`、`coding.executor.state`、`coding.plans.confirm`、`coding.plans.read/save`、`coding.artifacts.list`、`coding.changesets.read` 等）。建议 19→28，括注改为「含执行器会话/计划（C8-2）与对象读取、搜索、成果预览」；owner=统筹批量写（SSOT 行）；验证：`grep -c '^coding\.'` 于 actions.tsv（provider=io.molis.work.coding 行）。
+
+### 15.5 下一轮
+
+- 等 task-17 PR 做一次 diff 只读复核；#1168 绿后把 §14.2/E14 记完成态。
+- 主题 h 的 UNVERIFIED 部分需要真实 Home 调用数据或页面抓包，暂不深挖；#1165/#1167/#1169/#1172 等新 PR 是否覆盖 AC-AUDIT-01..04，等 lead 派。

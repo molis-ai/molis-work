@@ -56,6 +56,7 @@ export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js"
 
 
 export { LocalProjectDatabase } from "./project-database.js";
+export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export * from "./goal-project-application.js";

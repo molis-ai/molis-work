@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginActionClient, PluginCapabilityClient, PluginDatabase, PluginHostServices, PluginPrivateStorage, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginActionClient, PluginDatabase, PluginHostServices, PluginPrivateStorage, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PROJECT_DATABASE, CodingSessionStore, createCodingPlugin, type CodingBeforeEffect } from "@molis-ai/molis-work-plugin-coding";
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
@@ -116,19 +116,16 @@ const privateStorage = (): PluginPrivateStorage => {
 };
 
 /** A Coding route over a fresh in-memory library whose every write first runs `onWrite`: the moment between a handler having prepared a write and its commit. */
-function routesOver(services: { capabilities?: PluginCapabilityClient; agent?: Pick<PluginActionClient, "invoke"> }) {
+function routesOver(services: { agent?: Pick<PluginActionClient, "invoke"> }) {
   const database = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["board"]);
   const hooks = { onWrite: () => {} };
   const watched: PluginDatabase = { ...database, transaction: (beforeEffect, write) => { hooks.onWrite(); return database.transaction(beforeEffect, write); } };
   const sessions = new CodingSessionStore(watched);
-  // Coding's routes need the Host's client; one the test does not give answers nothing.
-  const capabilities = services.capabilities ?? { availability: () => ({ available: true }), invoke: async (definition: { capability_id: string }) => { throw new Error(`unexpected capability ${definition.capability_id}`); } };
-  const context = startContext({ storage: privateStorage(), capabilities });
+  // The fixture redeems Coding's own actions; the Agent Host's (R8) answer from `agent`, and one the test does not give answers nothing.
+  const agentHost = services.agent ?? { invoke: async (definition: { capability_id: string }) => { throw new Error(`unexpected action ${definition.capability_id}`); } };
+  const host = { availability: () => ({ available: true }), invoke: (definition: never, input: never) => agentHost.invoke(definition, input) };
+  const context = startContext({ storage: privateStorage(), actions: host as never });
   const routes = codingFixtureRoutes(context, sessions);
-  // The fixture redeems Coding's own actions; the Agent Host's (R8) answer from `agent`.
-  const actions = context.services!.actions!, own = actions.invoke.bind(actions), agentHost = services.agent;
-  if (agentHost) Object.assign(actions, { invoke: (definition: { capability_id: string }, input: unknown, control?: unknown) =>
-    definition.capability_id.startsWith("agent.") ? agentHost.invoke(definition as never, input as never) : own(definition as never, input as never, control as never) });
   return { database, sessions, hooks, call: (id: string, request: Partial<PluginRouteRequest>) => routes.find(route => route.route_id === id)!.handle({ query: {}, ...request } as PluginRouteRequest) };
 }
 
@@ -200,11 +197,11 @@ for (const stop of ["cancel", "revoke"] as const) {
     // Queries project recovery for the page without committing it. Stop the call while it reads the Runtime;
     // neither that read nor a subsequent current read may write a session or enter a transaction.
     let reading = () => control.stop(stop);
-    const unreadable: PluginCapabilityClient = { availability: () => ({ available: true }), async invoke<Input, Output>(definition: { capability_id: string }): Promise<Output> {
+    const unreadable = { async invoke<Output>(definition: { capability_id: string }): Promise<Output> {
       if (definition.capability_id === agent.readSession.capability_id) { reading(); throw new Error("SESSION_HISTORY_UNAVAILABLE"); }
       return [] as Output;
-    } };
-    const h = routesOver({ capabilities: unreadable });
+    } } as Pick<PluginActionClient, "invoke">;
+    const h = routesOver({ agent: unreadable });
     try {
       await h.sessions.create(noEffect, { project_id: "board", session_id: "app", title: "中断", runtime_id: "prologue", at: AT });
       await h.sessions.setRuntimeSession(noEffect, "board", "app", "sdk", AT);

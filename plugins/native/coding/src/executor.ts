@@ -1,6 +1,6 @@
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { defineErrorCodes, type WorkExecutorMode } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginCapabilityClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentMcpToolRef, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { codingExecutorActions } from "./executor-actions.js";
@@ -34,7 +34,7 @@ const known = (mode: string) => {
   if (!CODING_EXECUTOR_MODES.some(entry => entry.id === mode)) throw executorErrors.executor_mode_unknown(`Coding 没有「${mode}」这种方式`);
 };
 /** The directory new rounds run in, picked as the page's directory read picks it: the project's browsing workspace, else its preferred one. */
-const currentWorkspace = async (api: PluginCapabilityClient) =>
+const currentWorkspace = async (api: PluginActionClient) =>
   await unlessMissing(api.invoke(projectSettingsCapabilities.browsingWorkspace, []), null) ?? await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null);
 /** The session's next-round settings as Coding keeps them, or null when none were chosen. */
 const kept = (a: CodingActivation, sessionId: string): Settings | null => {

@@ -11,7 +11,7 @@ Contract：`@molis-ai/molis-work-contracts/modules/projects` 的 `projectSetting
 | 已关联目录 | `projects.settings.workspaces.read.v1` | `readonly ProjectWorkspaceRef[]` |
 | 当前浏览目录 | `projects.settings.browsing-workspace.read.v1` | `ProjectWorkspaceRef \| null` |
 
-两个能力分别写入 Manifest `capabilities.consumes`。调用统一为 `context.services.capabilities.invoke(capability, [])`。未声明的项在 Plugin Runtime 拒绝；Host 未装配的项返回不可用。不存在全量设置读取、通配授权或任意 key 查询。调用不接受项目编号；Host 根据当前 runtime 的项目返回，显式只投影 `workspace_id / canonical_path / realpath_verified / display_name`，不返回 catalog 的其他项目关联。
+两个能力分别写入 Manifest `capabilities.consumes`。调用统一为 `context.services.actions.invoke(capability, [], control)`，事先可用 `context.services.actions.availability(capability)` 只读检查。未声明的项在 Plugin Runtime 拒绝；Host 未装配的项返回不可用。不存在全量设置读取、通配授权或任意 key 查询。调用不接受项目编号；Host 根据当前 runtime 的项目返回，显式只投影 `workspace_id / canonical_path / realpath_verified / display_name`，不返回 catalog 的其他项目关联。
 
 ```ts
 import { projectSettingsCapabilities } from '@molis-ai/molis-work-contracts/modules/projects';
@@ -27,7 +27,7 @@ const candidates = await context.services!.capabilities!.invoke(projectSettingsC
 
 目录事实唯一来源仍是 catalog 的 `workspaces / workspace_project_memberships`，不复制目录到设置存储。Local Host 的项目数据库 `project_browsing_settings` 只保存 `project_id` 与所选 workspace ID，不迁移旧 Workspace 插件的选择。所选目录仅在当前关联且可用时生效。无关联返回 null，只有一个关联且未选择时自动使用该目录，多目录未选择时返回 null。关联被移除或目录不可用后返回 null，用户重新选择。
 
-受保护的项目 Web 页面使用 `/projects/<id>/api/project-settings/workspaces` GET 读取列表与选择、POST `{ workspace_id }` 切换；关联及目录选择器复用既有 `/api/workspaces`、`/api/workspaces/pick`。这些是可信 Host UI 路由，不是给插件绕过 Manifest 的 SDK。插件用 typed capability。读接口不提供写设置能力。
+受保护的项目 Web 页面使用 `/projects/<id>/api/project-settings/workspaces` GET 读取列表与选择、POST `{ workspace_id }` 切换；关联及目录选择器复用既有 `/api/workspaces`、`/api/workspaces/pick`。这些是可信 Host UI 路由，不是给插件绕过 Manifest 的 SDK。插件经 `services.actions` 调这些具名动作。读接口不提供写设置能力。
 
 Workspace 不再进入产品 catalog 或启动图，也没有 navigator view。Files/Git 从设置读取；Workspace Artifact 连线不再控制它们。旧安装数据和历史 Artifact 保留但不再更新，也不迁移。旧 `projects.workspaces.list.v1 / projects.workspace.read.v1` 为已有调用方保留兼容；后者仍是执行目录默认值语义，不等于浏览选择。新消费者使用设置能力。
 

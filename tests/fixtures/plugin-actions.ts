@@ -69,9 +69,8 @@ export function fakeWriterActions(actions: ReturnType<typeof pluginActions>, ans
 const writers = new WeakSet<object>();
 
 /**
- * The agent Host's plugin-only actions (PG-035: session messages and background commands) answered by a Coding test's own fake of
- * the agent Host, so one table answers both the actions and the typed capabilities still left (the real handlers are tested in
- * tests/agent-host-actions.test.ts). `answer` gives what an action returns for its input; actions the test serves itself are `served`.
+ * The agent Host's plugin-only actions answered by a Coding test's own fake of the agent Host, so one table answers every one of
+ * them (the real handlers are tested in tests/agent-host-actions.test.ts). `answer` gives what an action returns for its input; actions the test serves itself are `served`.
  */
 export function fakeAgentHostActions(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, input: unknown, options: { signal?: AbortSignal }) => unknown,
   served: readonly ActionDefinition[] = []) {
@@ -86,8 +85,7 @@ export function fakeAgentHostActions(actions: ReturnType<typeof pluginActions>, 
 const agentHosts = new WeakSet<object>();
 
 /**
- * A Coding test's host whose fake Agent Host (`capabilities`) also answers the agent Host's actions, as the real Host answers both
- * from one registration. The first host made for a project's actions is the one that answers; `served` are the test's own.
+ * A Coding test's host whose fake Agent Host (the test's own `capabilities` table) answers the agent Host's actions. The first host made for a project's actions is the one that answers; `served` are the test's own.
  */
 export function withFakeAgentHost<H extends { actions: ReturnType<typeof pluginActions>; capabilities: { invoke(definition: ActionDefinition, input: never): Promise<unknown> } }>(host: H, served: readonly ActionDefinition[] = []): H {
   fakeAgentHostActions(host.actions, (definition, input) => host.capabilities.invoke(definition, input as never), served);

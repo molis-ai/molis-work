@@ -83,8 +83,8 @@ async function world(t: TestContext) {
   await localHost.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] }, project.reference);
   const plugin = keeper.contexts.at(-1);
   assert.ok(plugin?.actor_id, "the plugin whose sessions these are has started");
-  const capabilities = plugin.services?.capabilities, actions = plugin.services?.actions;
-  assert.ok(capabilities && actions, "it reaches the Agent Host and the action directory through its own SDK");
+  const actions = plugin.services?.actions, control = { beforeEffect: async () => {} };
+  assert.ok(actions, "it reaches the Agent Host and the action directory through its own SDK");
   const owner = { project_id: project.project_id, plugin_id: plugin.plugin_id, install_id: plugin.install_id, actor_id: plugin.actor_id };
   const answer: { read: (session: AgentSessionRef) => AgentSessionView } = {
     read: session => ({ session, owner, title: "Read", runs: [], latest_run: null }) };
@@ -123,9 +123,9 @@ async function world(t: TestContext) {
     return { capability_id, version: row.version, provider_id: row.provider_id };
   };
   /** `agent.run.start` as the plugin's page sends it, in the given session of that plugin; `extra` is whatever else a body could carry. */
-  const start = (sessionId: string, tools: readonly string[], extra: Record<string, unknown> = {}) => capabilities.invoke(agentHostCapabilities.startRun, [RUNTIME, {
+  const start = (sessionId: string, tools: readonly string[], extra: Record<string, unknown> = {}) => actions.invoke(agentHostCapabilities.startRun, [RUNTIME, {
     session: { runtime_id: RUNTIME, session_id: sessionId }, task: "读取项目", role_id: "builder",
-    directory: { canonical_path: home, realpath_verified: true }, action_tools: tools.map(reference), ...extra } as AgentStartInput]);
+    directory: { canonical_path: home, realpath_verified: true }, action_tools: tools.map(reference), ...extra } as AgentStartInput], control);
   const tools = [note.capability_id, goalsActions.treeSubmit.capability_id, goalsActions.treeRead.capability_id];
   const submit = (round: AgentActionClient, key: string, item = key) => round.invoke(reference(goalsActions.treeSubmit.capability_id), proposal(key, item)) as Promise<Submitted>;
   const proposals = async (round: AgentActionClient) => ((await round.invoke(reference(goalsActions.treeRead.capability_id), {})) as Proposals).proposals;
@@ -135,7 +135,7 @@ async function world(t: TestContext) {
   /** The latest round's model suggests an action, with its contract as the Host reads it now; the input is the person's at the click. */
   const suggest = async (offer_id: string, capability_id: string) => {
     const round = held[held.length - 1]!, ref = reference(capability_id);
-    const view = (await capabilities.invoke(agentHostCapabilities.listActions, [RUNTIME])).find(row =>
+    const view = (await actions.invoke(agentHostCapabilities.listActions, [RUNTIME], control)).find(row =>
       row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
     assert.ok(view, `${capability_id} is offered to the round`);
     round.offers.push({ offer_id, offered_at: "2026-10-20T08:00:00.000Z", title: view.action.title, summary: view.action.description, reference: ref, input: {}, action_digest: actionDigest(view) });

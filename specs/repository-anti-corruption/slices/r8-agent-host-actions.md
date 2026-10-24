@@ -1,6 +1,6 @@
 # R8：agent 宿主的 typed 能力分批改登记成动作（PG-035、BL-364、BL-365）
 
-状态：第 1～3 批与 `waitRun` 一批已合入 main（#1121、#1148、batch-26 #1202）；第 4 批（§11）在 PR 里（2026-10-24，防腐线 ac-kernel，从 main `1712c0331` 重放），§11.3 四项统筹 10-23 已裁、按裁定做完，验收 RAC-182～187 的定向回归通过。共享核心全量与浏览器验证留统一集成窗口，未宣称整线完成。
+状态：第 1～4 批与 `waitRun` 一批已合入 main；「删 typed 通道」（§12，统筹 10-24 裁选 A）在分支 `ac-kernel/r8-typed-channel` 上做完，只推分支、等 #1226～#1228 进批后再开 PR；定向回归通过，共享核心全量由统筹进批时跑，未宣称整线完成。
 
 ## 1. 目标
 
@@ -332,5 +332,26 @@ BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
 
 ### 11.6 没改的、留给后面的
 
-- typed 定义顶层的 `scheduling` 字段（`HostCapabilityDefinition`）还在，宿主里别的 typed 条目还在用；随 typed 登记口整体删除时一起去。
+- typed 定义顶层的 `scheduling` 字段（`HostCapabilityDefinition`）还在，宿主里别的 typed 条目还在用；随 typed 登记口整体删除时一起去（§12 已删）。
 
+## 12. 删 typed 通道（统筹 10-24 裁：选 A，一个 PR）
+
+第 4 批之后注册表里已经没有 typed 条目（`tests/typed-registry-inventory.test.ts`），剩下的只是通道本身。这一片把它整个删掉，`typedCapabilities` 门禁的数字清到 0。
+
+### 12.1 删了什么
+
+- 合同：`HostCapabilityDefinition`、`HostMethodCapability`、`HostCapabilityInput` / `HostCapabilityOutput`、`HostCapabilityDescriptor` 顶层的 `scheduling`；`HostCapabilityCallOptions` 的 `plugin_caller` 与 `consumer`；插件侧的 `PluginCapabilityClient` 与 `PluginHostServices.capabilities`。`ActionDefinition` 改为扩展 `HostCapabilityDescriptor`，自己带 `__types__`。
+- 宿主：`LocalHost.register`、`ProjectHost.registerCapability`、typed 调用的结算（`typed-call-settlement.ts`）与只为它留的 `host.registration_seam`；`typed-capability-invocation.ts` 只剩宿主项目客户端的调用者，改名 `project-call-caller.ts`。`LocalHost.invoke` 只走 `ActionService.invoke`：没注册的 id 答 `actions.missing`（以前 typed 兜底答 `actions.dependency_missing`），调用方自报的 `operation` 与 `wait` 不再起作用，并发只看已注册动作的 `scheduling`。
+- 调用记录与结算：`path: "typed"` 字段（`CallDescription`、`ActionCallRecord`）没有人再写，删掉；内核入口不再导出 `settleCall`、`startHandler`。
+- 插件运行时：`createPluginCapabilityClient`、`PluginCapabilityPort`；执行器与平台的 `capabilities` 选项改名 `dependencyCheck`（只答依赖是否可用，宿主用 `hostDependencyCheck(client)` 造）。
+
+### 12.2 `services.actions` 怎么接替
+
+- 调用：`services.actions.invoke(definition, input, control)`，`definition` 是 `ActionDefinition`；Manifest 仍要在 `capabilities.consumes` 列出，没列的答 `actions.forbidden`，列了没注册的答 `actions.dependency_missing`。
+- 可用性：新加同步的 `services.actions.availability(reference)`，次序与原 `services.capabilities.availability` 一样：宿主没给检查答 `actions.dependency_unknown`；实例已停（含停用钩子里）答 `actions.provider_stopped`；没声明消费答 `plugin.capability_denied`（`invalid`）；其余问宿主的项目客户端（`availability(reference, { consumer: "plugin" })`）。SDK 的 `bindOwnerPluginAction` 改问它，所以依赖不在时页面目录与路由的表现不变（同一个码）。
+
+### 12.3 验收
+
+- 拒绝路径：`tests/plugin-capability-availability.test.ts`（声明、缺失、版本、换提供方、停用钩子、无检查、项目与提供方范围，页面目录与路由同码）、`tests/plugin-host-services.test.ts`（没声明的动作在问宿主之前拒绝）、`tests/current-project-settings.test.ts`（逐项按 Manifest 放行）、`tests/goal-management-identity.test.ts` 与 `tests/management-door-identity.test.ts`（退役的旧 id 经宿主客户端与插件客户端都拒）、`tests/host-action-registration.test.ts`（PG035-02 插件拿不到 `services.capabilities`，PG035-06 宿主上没有 `register` / `registerCapability`）。
+- 门禁：`tests/health-gates-structure.test.ts` 在本仓库上找不到别名、注册口与任何计数；`node scripts/check-health-gates.mjs --base origin/main` 的 `typedCapabilities` 为 0。
+- 创作台与 Alchemist：`skills/molis-plugin-dev`、`apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`、`examples/`、`tests/plugin-sample*` 里没有 `services.capabilities`；改的只是 `skills/molis-plugin-dev/host.md` 里不在章节里的两段说明，创作台章节与提示词没动，不需要 `pnpm studio:replay`。

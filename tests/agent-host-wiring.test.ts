@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
 import {
   AgentHost,
@@ -121,7 +122,7 @@ test("组合根把 Agent Host 接进宿主之后，插件经动作够得到它",
     );
 
     // RAC-187: 列项目全部审批的入口已删（插件看自己一轮的审批走 readRunReviews），宿主里没有这一项
-    await assert.rejects(() => client.invoke({ capability_id: "agent.reviews.list.v1", version: 1, operation: "query" }, ["project-a"]), { code: "actions.dependency_missing" });
+    await assert.rejects(() => client.invoke({ capability_id: "agent.reviews.list.v1", version: 1, operation: "query" } as ActionDefinition, ["project-a"]), { code: "actions.missing" });
   } finally {
     store.close();
     await localHost.closeProject(reference);

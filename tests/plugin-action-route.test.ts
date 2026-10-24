@@ -41,7 +41,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
     },
   };
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
-    capabilities: { availability: () => ({ available: true }), invoke: async () => 1 as never },
+    dependencyCheck: () => ({ available: true }),
     ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
   try {
     const installed = runtime.install({ definition, deployment: "local", grants: [] }).install;
@@ -55,18 +55,15 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
     assert.equal((await route.handle(request("owner", { value: "bad" }))).status, 400);
     assert.equal((await route.handle(request("intruder", { value: 7 }))).status, 403);
     const old = contexts[0]!.services!.actions!;
-    const oldCapabilities = contexts[0]!.services!.capabilities!;
     const backend = { capability_id: "unknown.backend", version: 1, operation: "query" as const };
-    assert.equal(oldCapabilities.availability(backend).available, true);
-    assert.equal(await oldCapabilities.invoke(backend, {}), 1);
+    assert.equal(old.availability(backend).available, true);
     await assert.rejects(old.invoke({ ...action, capability_id: "foreign.action" }, { value: 1 }));
     assert.equal(calls, 1);
     await runtime.reportCrash(installed.install_id);
     await runtime.recover(installed.install_id);
-    assert.equal(oldCapabilities.availability(backend).available, false);
+    assert.equal(old.availability(backend).available, false);
     // BL-411: outside every call the crashed activation's clients are refused and throw nothing: their calls never answer.
-    assert.equal(await within(oldCapabilities.invoke(backend, {})), PENDING);
-    assert.equal(contexts[1]!.services!.capabilities!.availability(backend).available, true);
+    assert.equal(contexts[1]!.services!.actions!.availability(backend).available, true);
     assert.equal(await within(old.invoke(action, { value: 7 })), PENDING);
     assert.equal(await within(old.discover()), PENDING);
     // BL-403: the Host routes requests to the running activation only. Held directly, the crashed activation's route is refused by

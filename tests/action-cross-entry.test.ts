@@ -217,15 +217,16 @@ test("W3-09-1-01 T6: a stopped Runtime withdraws its actions and rejects page an
   const gatewayId = newCallId();
   await withCallId(gatewayId, () => assert.rejects(connection.client.invoke(connection.caller, subject.create, input),
     { code: "actions.missing" }));
-  const typedId = newCallId();
-  await withCallId(typedId, () => assert.rejects(home.host.client(project.reference).invoke(subject.create, input),
-    { code: "actions.dependency_missing" }));
-  assert.equal(row(home, typedId, subject.create.capability_id).code, "actions.dependency_missing");
-  const diagnostics = await fetch(home.origin + "/settings/diagnostics?call=" + typedId.slice(0, 8));
+  // The Host's own project client refuses the withdrawn action as the gateway does: there is no other path to fall back to.
+  const hostId = newCallId();
+  await withCallId(hostId, () => assert.rejects(home.host.client(project.reference).invoke(subject.create, input),
+    { code: "actions.missing" }));
+  assert.equal(row(home, hostId, subject.create.capability_id).code, "actions.missing");
+  const diagnostics = await fetch(home.origin + "/settings/diagnostics?call=" + hostId.slice(0, 8));
   assert.equal(diagnostics.status, 200);
   const html = await diagnostics.text();
-  assert.ok(html.includes(`data-molis-call-id="${typedId}"`));
-  assert.match(html, /actions\.dependency_missing/u); assert.match(html, /未执行/u);
+  assert.ok(html.includes(`data-molis-call-id="${hostId}"`));
+  assert.match(html, /actions\.missing/u); assert.match(html, /未执行/u);
   await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
   assert.deepEqual(await home.web.get(path), before, "reenabling exposes the unchanged owner's task facts");
 });

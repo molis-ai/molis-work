@@ -1,9 +1,9 @@
 import type { ImRoomState, ImThreadState } from '@molis-ai/molis-work-contracts/services/im';
 import type { TopicDraft, ApiError } from './types.js';
-import type { ImCtx } from './controller-types.js';
+import type { ImBaseCtx, ImCtx } from './controller-types.js';
 /** The thread pane: revealing it, closing it and the new-topic form. */
-export function createImTopics(c: ImCtx): Pick<ImCtx, 'revealThread' | 'closeThread' | 'newThread'> {
-  const { s, v, q, api, storage, drafts } = c;
+export function createImTopics(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx, 'revealThread' | 'closeThread' | 'newThread'> {
+  const { s, v, q, api, storage, drafts } = base;
   function revealThread() {
     const pane = q('[data-thread-pane]'), wasOpen = q('[data-conversations]').classList.contains('has-thread');
     pane.hidden = false;
@@ -13,6 +13,7 @@ export function createImTopics(c: ImCtx): Pick<ImCtx, 'revealThread' | 'closeThr
     q('[data-conversations]').classList.add('has-thread');
   }
   function closeThread() {
+    const c = context();
     c.rememberPosition();
     ++s.epoch;
     s.threadId = '';
@@ -31,6 +32,7 @@ export function createImTopics(c: ImCtx): Pick<ImCtx, 'revealThread' | 'closeThr
     c.scheduleRead();
   }
   function newThread(messageId = '') {
+    const c = context();
     if (!s.roomState)
       return;
     c.rememberPosition();

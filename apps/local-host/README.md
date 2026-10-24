@@ -27,7 +27,7 @@ Home Runtime 渲染工作台页面时，同时交回每个已画 stage 的 contr
 
 助理接续监听归 Local Host：关闭借用 Web 传输不终止共享助理，Host 关闭开始时释放监听，持久等待留待重启恢复。手动构造 `AssistantService` 的嵌入者需在关闭运行时及数据库前调用 `service.continuations.close()`；回归见 `tests/assistant-continuation-control.test.ts`、`tests/assistant-connector-continuation.test.ts`。
 
-助理本人初始输入由受保护发送入口交给可信 caller，再经 AgentHost 固定在现 Session attempt；业务正文不能声明作者。人工记住与完成学习只读 Runtime 的原件及未撤回补充，初始原件跨接续按原引用去重，不从展示轮次或 `starting` 推断。无来源的旧调用仍可运行，但不补作本人；页面、重新提问、Host 与委托输入保持派生。范围及后续 SDK 补充时间依赖见 [记忆策略 §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。
+助理本人初始输入由受保护发送入口交给可信 caller，再经 AgentHost 固定在现 Session attempt；业务正文不能声明作者。人工记住与完成学习只读 Runtime 的原件及未撤回补充，初始原件跨接续按原引用去重，不从展示轮次或 `starting` 推断。无来源的旧调用仍可运行，但不补作本人；页面、重新提问、Host 与委托输入保持派生。范围及后续 SDK 补充时间依赖见 [记忆策略 §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。`tests/assistant-http-logging.test.ts` 的学习入队故障夹具同样保存 Runtime 本人原件，并核对队列携带其精确引用；不靠 task 或展示行绕过来源边界。
 
 助理记忆工具必须携带 Host 本次执行的 signal 与操作号，通过现受控 MemoryService 写入。正式 Host 提交前重读实际采用的 canonical 原件，同步复核停止/暂停、工作身份、权限与遗忘屏障；ledger 同步写也受同一控制。明确保存只绑定实际匹配的本人原件。已校验作用域的补充撤回请求会同步取消采用它的在途调用，结束即解绑，不影响无关来源；SDK 对已进入上下文的输入仍拒绝撤回，已提交效果不因请求伪报零写。停用由 Service 定位真实目标后绑定同次控制，最终提交按该目标的现权限检查，不把形成开关当作停用权限。定向回归 `tests/memory-review-remember-cancellation.test.ts`、`tests/memory-review-forget-revocation.test.ts` 覆盖这些交错及重开结果。
 

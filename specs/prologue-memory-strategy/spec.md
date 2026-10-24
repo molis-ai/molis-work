@@ -593,6 +593,14 @@ write 的 manual/said/plugin 与 offer 的 auto 同用此分支；公开候选 a
 允许路径为 horizontal/memory 的 duplicates/service/operations、README、本节和原真实 memory-service-cas、memory-actions 测试；不改 SDK、schema、UI、包锁或门禁，不新建账本或正文快照。验收覆盖 manual 与可信 said 重启重复、plugin/auto 共同入口、自动项采用有界证据的 SDK 回应/账本失败恢复、取消/撤权、后继同文编辑/删除和跨项目拒绝，核条目/version/evidence/history/change/marker及零 append；保留导入与原创建恢复用例。本片构建、受影响行为回归和静态门的实测见 §13；全套与最终合并仍依赖 #1064 已记录的失败收束。
 
 
+#### M2 合并新增 Assistant 日志回归的原件合同适配（2026-10-25）
+
+准确组合为基础头 `71d345f5f363c351b417fb8b5192eedc340babf8` 与主干 `584112c65477baf907620d86657d1582d92e9eda`。主干 #1238 新增的 `assistant-http-logging` 首例直接把 task 当学习来源；MEM-35 已要求由 Runtime 保存本人原件，task 和展示轮次不证明作者。本片先在未改测试的准确合并产物保存定向失败，再只修该夹具的公开 `adapter.start` 输入与精确来源断言，显式创建并核对同一个 canonical original，不放宽生产来源校验。
+
+沿用原 RAC-116 的拒绝、完成状态、无自动重排、下一明确轮次恢复、队列载荷及安全日志断言；补充同一原件身份核验。范围限该测试、本节与必要 README 说明，不改生产代码、SDK、依赖、门禁、timeout 或 retries，不新增执行路径。原件可信性是不可配置的硬边界，本片不增插件、App 配置或终端设置。验收为原失败明确复现、修后全文件与 host-log、原件 owner/Assistant 原件专项通过；现有 README 的完整包级证据由统筹按受影响范围核对，不以专项冒充整包或最终用户验收。
+
+实测合并预览 `d41257f9da9edb6b5b744da906dec5e80f9d484b`（上述两父提交）在独立共享 clone 上完整构建后，原文件 4/5 通过；唯一失败为首例等待 `the production Memory Host's enqueue refusal` 超时，日志 `/private/tmp/molis-memory-http-logging-red.log`。调用链为完成观测 → `memoryLearningSources` → `typedMemorySources` → `learnLater` → `assistantMemorySources`；无原件的 task 得到空 sources，在 enqueue 前退出。补入真实 `original_input` 并精确核原件回读及队列引用后，日志全文件、host-log、memory-source-owner、assistant-original-inputs 共 4 文件 21/21 首轮通过、零 skip、jobs2/retries0，日志 `/private/tmp/molis-memory-http-logging-green.log`。严格定向 TypeScript、该测试 Biome 与 diff 检查通过；生产文件、原故障/恢复/隐私断言、超时和重试均未变。README 仅补夹具遵守原件边界的说明，未触及包主链；完整包级/CI/全量结果仍由统筹整合，未重跑或冒认。安装与本机构建先遇 pnpm store/Swift 缓存的沙箱写入限制，按对应权限完成后实际构建 exit0，日志 `/private/tmp/molis-memory-http-logging-build-resume.log`；这些是独立环境准备记录，不解释上述确定产品合同适配红例。无付费模型、真实 Home、浏览器或用户验收。
+
 ### 9.5 Q0 基线记录与证据边界
 
 本轮固定的 B1 为 Molis `f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10`，实际使用 `attachment-order` SDK 包，上游来源 `753dbae8359e56a74397d030af4d18abf402d5b5`。Prologue 的实现起点是 `f481d53726b3a896a525386d8e93225f6091e947`，两者不能当作同一版本。B0 在相同初始材料和任务下关闭记忆；B2 只在新生产路径可运行后测量，缺席不是零成本。必要时补“新 SDK + 原 Molis 配方”的归因对照，区分 SDK 既有修复与新记忆策略的收益，不把其差异全部归功于本方案。
@@ -2214,3 +2222,7 @@ DB维护只在隔离非空副本：会话`/private/tmp/molis-coding-lifecycle-ma
 - 根`pnpm exec tsc --noEmit -p tsconfig.json` exit0（`...-root-types-final-20261025.log`）、boundary errors=[]、API及Action快照匹配（`...-{boundary,api,actions}-20261025.log`）；`node scripts/check-health-gates.mjs --base ac0a4e30f98d1020e27bd650279df37879be71f9` exit0（`...-health-first-20261025.log`），无门禁/基线/公开Action形状变化。提交前diff check0。
 
 资源实测`...-assets-20261025.json`为27项，与ac0a原候选`/private/tmp/molis-memory-coding-restore-assets-head-20261025.json`逐项完全相同，本修复新增0 B。正式`page-assets.mjs --base ac0a...`仍exit1（`...-assets-gate-20261025.log`）：仅父候选已有Coding+1,333 B、Workbench+4,064 B，未改额度/门/JSON，不把旧批准当余量。前述Knowledge恢复引发模型的产品合同冲突依然待用户决定，本刀不改搜索/Knowledge协议，不能称Coding恢复完整交付。build/browser槽均释放；只本地窄提交供统筹整合，不push/新PR。
+
+**#1064 与新日志测试的最终整合（2026-10-25）。** `71d345f5f` 的普通 CI `40128787943` 在合并主干 #1238 后，Product subset 1/2 为214/215，唯一失败是 `assistant-http-logging.test.ts`（原重试后仍失败）；当时完整 Full `40128780824` 仍在运行，不能记为通过。准确 `71d + 584112c65` 的独立合并预览真实复现日志文件4/5，原因是故障夹具只传 task、没有本人原件，MEM-35 在 enqueue 前正确跳过，故等不到入队拒绝。最小测试修正保存公开 Runtime original_input，并精确断言 Runtime 回读及队列来源引用，原隐私、次数、失败/恢复断言保留；不改生产来源门、CI、超时或重试。
+
+现基础候选 `7d5ddfc39` 已正常合入准确 main `584112c65`，仅日志补丁来自诊断提交 `b0703c65a`；两树 `git diff b0703c65a 7d5ddfc39` 为空，完整构建与4文件21/21定向证据可复用，不机械重建同一源码。构建初次被 Swift 缓存权限拒绝，取得本机缓存访问后通过；日志原红 `/private/tmp/molis-memory-http-logging-red.log`、修后绿 `-green.log` 保留。统筹另在这一相同完整树检查根类型、准确584 health（含API/库登记）、boundary、真实临时Host动作快照、资源及全分支secrets，均exit0，日志 `/private/tmp/molis-memory-1064-http-merge-{types,health,boundary,actions,assets,secrets}-20261025.log`。27资源仍7,642,627 B，沿用原已批准净增，无新额度；未把上游自身变更冒称本任务新实现。旧 CI 重试UNKNOWN、Cloudflare原失败缺日志及产品/用户验收边界保留；最终新提交普通CI与Full需重新取得结果，不能由上述局部检查替代。

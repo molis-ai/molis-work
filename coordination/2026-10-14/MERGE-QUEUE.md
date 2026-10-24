@@ -45,7 +45,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 30 | [#1144](https://github.com/molis-ai/molis-work/pull/1144) | PG-017 P2b：不联网的材料读取经 broker 给沙箱 | 叠在 #1143（第四层）；已按用户要求转为非 Draft，仍按层依赖合入 | 待重算 | 统筹转了已按用户要求转为非 Draft；评审要看 RAC-25 旧测试改写没放宽 |
 | 33 | [#1147](https://github.com/molis-ai/molis-work/pull/1147) | PG-051 P2b：插件 Agent 定义只由运行中的定义登记，删目录那条、`BUILTIN_PLUGIN_AGENTS` 与 `startAuthority` 回落；创作台改为平台来源；`PluginRegistration` 去三字段 | #1138 已合（10-24），已改投 main | `full` 非空（contracts），和 #1138 同批 | 新头 `8a7277f8e9d8deec2eaecde6270503f2aa164ea5`，修复2交付6379541799并释放。仅elements.md一段人工冲突，其他70补丁保留；已派专职最终增量评审和证据核验（含Skill replay规则适用性），新头CI待完成，不重跑full |
 | 34 | [#1148](https://github.com/molis-ai/molis-work/pull/1148) | R8 第 2 批（BL-364）：项目里的工作与会话状态 4 条 typed 改登记成只给插件的动作 | **叠在 #1121 上**（第二层），#1121 合入后改投 main | `full` 非空，进下一批 | 头 `2a8eec5d8`（squash 感知同步，只剩自己的 13 个文件）；二轮可合；在 **batch-1024-19**（统筹起，10-24 03:35，run [40054696653](https://github.com/molis-ai/molis-work/actions/runs/40054696653)：main `aa4de404f` + #1157 `782af05ed`（含 #1130 `f7fb96ed6`）+ #1148 `2a8eec5d8`）；绿后入队 |
-| 29 | [#1141](https://github.com/molis-ai/molis-work/pull/1141) | 评审修复线（合并 Agent 派）：#902 Home 待办批量「移到」菜单补 menu 语义与单一 Tab 停点（只改 todo 插件 UI + 新 e2e） | — | `full` 为空 | 头 `034056a26efd65438f2023c2ff2705b1000f98b5`；专职一轮6379274929可合，测试证据/full=[]已核；最终CI run40056614086全部14项成功。统筹认领6379452498并正常匹配head入队，队列position3/QUEUED；实际合入另核。保留todo-from-inbox重试flake，不冒称全部首过 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 新开的开发片 PR 由统筹按依赖插进本表。
@@ -54,6 +53,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | PR | 合并提交 | 日期 |
 | --- | --- | --- |
+| #1141 | `04435950a05a3602d6408f31c51c5b3e66080f28` | 10-24 03:56:55 UTC（Codex 已核实际合并） |
 | #1150 | `034af76c50a68151c39d62da13aa78d2a0bc0079` | 10-24 03:47:25 UTC（Codex 已核实际合并） |
 | #1120 | `47c78064460dadd1890943c73e6af27e7347211c` | 10-24 03:50:00 UTC（Codex 已核实际合并） |
 | #1096 | `01a875af0` | 10-23 |
@@ -102,3 +102,5 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 后续更新：#1157已在6379484788确认不重复推两测试补丁，原重复认领等待已解除；现等待ac-sc3处理batch-19新增touch-targets移动端失败。测试专职只读核原始失败与产品契约，下一全量仍未启动。#1119需在后续明确集成批补全量，不能借用batch13–19。
 
 20:57 洛杉矶接续：batch-19最终16分片13绿、5/7/13失败（home-offers、web-home-isolation、touch-targets），不是通过。#1157另线b640三测试已推但尚未合入下层已审更完整修复；统筹6379553963明确由ac-sc3统一收口，候选最终交付前不启动新全量。#1119作者已答复同步在途，不再等待归属决定。
+
+20:59洛杉矶：#1157 b640候选预审确认必须补齐Dock +N菜单44px实际覆盖；新默认pin使390/360 Home无+N，原popovers分支直接continue。统筹已公开具体复现链和交付要求，ac-sc3同一writer处理；该候选尚未可合。

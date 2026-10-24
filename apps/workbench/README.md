@@ -152,6 +152,14 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 独立插件资源每项最多等待 10 秒，失败或挂起超时解除界面等待并提供原资源重试入口；重试不重派业务动作。Host 关闭释放等待中的资源与定时器，旧请求迟到不重复挂载；已打开界面和最近选择沿用原实例。
 
+### 记忆文件的显式采用
+
+分类编辑只处理缺 classification 的条目；合法 v1 中已有完整分类的条目同 v2 一样保留原分类、期限及已有约束，v1 Session 仍拒绝采用。IMPORT-04 的真实页面回归分别覆盖 v1/v2 混合包；完整 v2 普通项与 Session 混合沿后端逐项结果，可能部分成功，不承诺整包零写。
+
+`settings-memory-import.ts` 拥有旧 v1/缺分类 v2 的本页草稿和明确选择，现 `settings-memory.ts` 仍拥有请求、范围与同操作重试。仅在本人完成类别、场景和长期/短期决定后生成当前 v2；未知/坏分类不兜底，未知依据不变 explicit，期限/Session/namespace/适用条件不剥离。已过期内容必须明确选择未来绝对期限并确认按新期限重新导入；这不是原 ref 续期。后端仍严格只认当前 v2，授权与逐条写入/部分失败恢复不变。具体取舍及 IMPORT-01～05 见现 Memory strategy spec 的旧包显式采用短合同。
+
+改动加跑 `tests/memory-settings-import-adoption.e2e.test.ts`、`tests/memory-settings-cas.e2e.test.ts`、`tests/memory-settings-classification.e2e.test.ts`、`tests/memory-settings-renewal.e2e.test.ts`、`tests/memory-retention-roundtrip.test.ts`、`tests/memory-service-cas.test.ts`、`tests/memory-actions.test.ts`，以及上列包必跑和界面回归。只用临时 Home 与真实公开 Host/SDK，不接付费模型；资源增量必须实测，不改额度。当前源码冻结后按机器 FIFO 的 browser → build 顺序验证；运行结果记录在现 spec，尚未运行时不计为通过。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/platform/UI-PLATFORM.md)

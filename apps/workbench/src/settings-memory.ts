@@ -1,4 +1,5 @@
 import { renderMemoryClassSettings, MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT } from "./settings-memory-classes.js";
+import { MEMORY_IMPORT_CLIENT_SCRIPT } from "./settings-memory-import.js";
 
 /**
  * The memory settings page (specs/archive/memory-system §10): 个人 → 记忆 in the global settings, and 项目记忆 in a project's
@@ -92,6 +93,7 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
         <span class="setting-value"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-export>${L("导出")}</button></span></div>
       <div class="settings-setting-row"><span class="setting-copy"><strong>${L("导入")}</strong><span>${L("选择一个记忆包；已有的相同内容会跳过，包损坏时一条也不写入。")}</span></span>
         <span class="setting-value"><label class="mw-btn mw-btn--secondary mw-btn--sm memory-import">${L("导入")}<input type="file" accept="application/json,.json" data-memory-import hidden></label></span></div>
+      <div class="memory-editor-slot" data-memory-import-editor hidden></div>
       <div class="settings-setting-row"><span class="setting-copy"><strong>${personal ? L("清空个人记忆") : L("清空这个项目的记忆")}</strong><span>${L("先告诉你会删掉几条，确认后删除；删除后任何地方都不会再用到。")}</span></span>
         <span class="setting-value"><button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-clear>${L("清空…")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-clear-reset hidden>${L("重新预览…")}</button></span></div>
       <p class="settings-muted" data-memory-clear-status aria-live="polite" hidden></p>
@@ -731,6 +733,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     }, "已导出"));
     const importPackage = mutation();
+    const prepareImport = (${MEMORY_IMPORT_CLIENT_SCRIPT})({ L, el, button, ask, run }, part("import-editor"),
+      pack => importPackage("/import", { scope, package: pack }), { kinds: FORMAL_KIND, classes: CLASS, sources: SOURCE,
+        appliesText, expiryText, targetTitle: L(scope === "project" ? "项目记忆" : "个人记忆") });
     part("import").addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       event.target.value = "";
@@ -738,7 +743,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       run(async () => {
         let pack;
         try { pack = JSON.parse(await file.text()); } catch { throw new Error(L("这个文件不是记忆包")); }
-        await importPackage("/import", { scope, package: pack });
+        await prepareImport(pack);
       });
     });
     let clearPreview = null;

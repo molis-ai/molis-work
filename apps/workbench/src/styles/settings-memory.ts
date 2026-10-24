@@ -55,6 +55,8 @@ export const MEMORY_SETTINGS_STYLES = `
   .memory-settings .memory-pair-line:first-of-type { box-shadow: none; }
   .memory-settings .memory-pair-line .settings-muted { font-size: 12px; white-space: nowrap; }
   .memory-settings .memory-import { cursor: pointer; }
+  .memory-settings [data-memory-import-editor] .settings-muted { margin: 0; overflow-wrap: anywhere; }
+  .memory-settings [data-memory-import-entry] .memory-editor-fields { align-items: center; }
   @media (max-width: 600px) {
     .memory-settings .memory-row, .memory-settings .memory-change { grid-template-columns: minmax(0, 1fr); }
     .memory-settings .memory-row--selectable { grid-template-columns: auto minmax(0, 1fr); }

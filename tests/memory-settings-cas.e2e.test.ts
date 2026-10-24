@@ -294,7 +294,8 @@ test("Import retry retains the selected package after the file input clears and 
     : { body: { written: 1, skipped: 1, refused: 1 } }); if (!f) return;
   const { page, calls, directory } = f;
   const pack: MemoryExportPackage = { format: "molis.memory", version: 2, exported_at: "2026-10-23T00:00:00Z", scope: "project", redactions: [],
-    entries: ["导入原文", "已有原文", "暂不导入"].map(text => ({ text, kind: "preference", applies: {}, source: "manual", basis: "explicit", origin: "本人", expires_at: null })) };
+    entries: ["导入原文", "已有原文", "暂不导入"].map(text => ({ text, kind: "preference", applies: {}, source: "manual", basis: "explicit", origin: "本人", expires_at: null,
+      classification: { scenes: ["common"], lifecycle: "long-term" } })) };
   const file = join(directory, "memory.json"); await writeFile(file, JSON.stringify(pack));
   const document = await page.command<{ root: { nodeId: number } }>("DOM.getDocument");
   const input = await page.command<{ nodeId: number }>("DOM.querySelector", { nodeId: document.root.nodeId, selector: "[data-memory-import]" });

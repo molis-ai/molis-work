@@ -76,6 +76,6 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 
 ## 统筹自用号段（10-24）
 
-- BL-540～549：统筹评审时登记的隐患与后续。已用：BL-540（Coding 的切断界限不读宿主进程，归 `ac-platform`，R-39）、BL-541（Agent 宿主给持有者与报告作者结构化字段，归 `ac-kernel`、R8 之后，R-40）。BL-542（运行时安装的插件写的视图 `group`、`creates`、`start` 工作台不读，按插件同等待遇收口，归 W5-06 线 #1112 之后；`skills/molis-plugin-dev/ui.md` 先注明只对随宿主发布的插件生效）。三行写进下一个统筹文档 PR 的 `specs/BACKLOG.md`。
+- BL-540～549：统筹评审时登记的隐患与后续。已用：BL-540（Coding 的切断界限不读宿主进程，归 `ac-platform`，R-39）、BL-541（Agent 宿主给持有者与报告作者结构化字段，归 `ac-kernel`、R8 之后，R-40）。BL-542（运行时安装的插件写的视图 `group`、`creates`、`start` 工作台不读，按插件同等待遇收口，归 W5-06 线 #1112 之后；`skills/molis-plugin-dev/ui.md` 先注明只对随宿主发布的插件生效）。三行已由 #1159 写进 `specs/BACKLOG.md`（`f4df5b471`）；BL-542 的 skill 注明一句等 #1098 合入后补。
 - **10-24 起各开发线暂停开新 PR**（用户 10-24：PR 积压），只同步、修自己开着的 PR；本地分支照做。积压清到 10 个以内再放开。
 - 10-24 用户定 PG-017 再加两片，归 `ac-sandbox-sched`：P2c 沙箱经 broker 拿有界的 owner files（S-65，`claude/ac-pg017-p2-owner-files` `37e7ca25c`；统筹 10-24 补：卸载清目录，Home 级沙箱也给），P2d 沙箱经 broker 拿材料的 `fetch_local`、`original`（S-66，`claude/ac-pg017-p2-local-original` `b517bdc7a`，`readOriginalRange` 每段过宿主闸门）。排在 P2a #1143、P2b #1144 之后；都等 S-61～64 落地再开 PR。原来的公网读取（BL-492，`claude/ac-pg017-p2-fetch`）改名 P2e。

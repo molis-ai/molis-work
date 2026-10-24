@@ -103,10 +103,12 @@ test("S-12 RAC-104: special backup and vault files are refused without blocking 
     const target = subject === "backup" ? result.backup_path! : join(f.home, "feed", "secrets.json");
     await unlink(target);
     const fifo = spawnSync("mkfifo", [target], { encoding: "utf8" }); assert.equal(fifo.status, 0, fifo.stderr);
+    // The 1 s budget is the owner call's own, timed inside the child; the process timeout only stops a real hang, because loading the
+    // Host package in a fresh process takes longer than the call on a busy CI runner.
     const child = spawnSync(process.execPath, ["--input-type=module", "-e",
-      "import {readRuntimeConfigBackup} from '@molis-ai/molis-work-app-local-host';try{await readRuntimeConfigBackup(process.argv[1],'codex',process.argv[2]);process.exitCode=2;}catch(error){if(error.code!==process.argv[3])throw error;}",
+      "import {readRuntimeConfigBackup} from '@molis-ai/molis-work-app-local-host';const started=performance.now();try{await readRuntimeConfigBackup(process.argv[1],'codex',process.argv[2]);process.exitCode=2;}catch(error){if(error.code!==process.argv[3])throw error;}const took=performance.now()-started;if(took>1000){console.error(`owner call took ${Math.round(took)} ms`);process.exitCode=3;}",
       f.home, plan.plan_id, subject === "backup" ? "installer.runtime_backup.invalid" : "installer.runtime_backup.key_unavailable"],
-      { encoding: "utf8", env: process.env, timeout: 2500 });
+      { encoding: "utf8", env: process.env, timeout: 30_000 });
     assert.equal(child.error, undefined, "a special file must be rejected instead of waiting for a writer");
     assert.equal(child.status, 0, child.stderr);
   }

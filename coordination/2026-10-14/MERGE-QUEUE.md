@@ -52,7 +52,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 34 | [#1148](https://github.com/molis-ai/molis-work/pull/1148) | R8 第 2 批（BL-364）：项目里的工作与会话状态 4 条 typed 改登记成只给插件的动作 | **叠在 #1121 上**（第二层），#1121 合入后改投 main | `full` 非空，进下一批 | 头 `d4fa12217`；`ac-review` **二轮：可合**（[评论](https://github.com/molis-ai/molis-work/pull/1148#issuecomment-6375826711)）；#1121 合入后改投 main 再合 |
 | 35 | [#1150](https://github.com/molis-ai/molis-work/pull/1150) | Codex：Shelf S3 合后 P2——桌面四个收集入口提示「原件登记部分成功」（PG-026-S1-S3-1～5） | #1076 已合 | `full` 为空 | 头 `46bfb7cc2`；`ac-review` 一轮**修后可合** 1 条（轮盘一次拖进几个文件时逐个发提示、后到的警告盖掉真正的失败；改成整批一条汇总、复用 `finish_capture`、补两种顺序的 Rust 用例；[评论](https://github.com/molis-ai/molis-work/pull/1150#issuecomment-6376547750)）；作者 Codex 修 |
 | 36 | [#1151](https://github.com/molis-ai/molis-work/pull/1151) | Codex C1 第 1 片：W5-13 server+cli 关闭失败与异步命令错误（RAC-110～112） | — | `full` 为空 | 头 `913ea55e0`；`ac-review` 一轮**修后可合** 1 条（改用 `process.stdout.write` 后管道读端关闭时 EPIPE 崩溃退出 1，原 `console.log` 会忽略）；作者 Codex 修 |
-| 37 | [#1152](https://github.com/molis-ai/molis-work/pull/1152) | 统筹：privileges.md 状态 3——PG-039、041、042 已做，PG-040、082 进度，PG-089、093 补前置 | — | `full` 为空（只改 specs） | 文档 PR，不过 `ac-review`；CI 绿即可入队 |
 | 29 | [#1141](https://github.com/molis-ai/molis-work/pull/1141) | 评审修复线（合并 Agent 派）：#902 Home 待办批量「移到」菜单补 menu 语义与单一 Tab 停点（只改 todo 插件 UI + 新 e2e） | — | `full` 为空 | 草稿；头 `ab8a43768`；等 `ac-review` 一轮；负责人 review-fix-owner |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
@@ -81,3 +80,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1149 | `afaa4fea3` | 10-23 22:58 UTC |
 | #1131 | `abc052bcb` | 10-23 23:09 UTC |
 | #1138 | `7b1819e44` | 10-24 00:20 UTC |
+| #1152 | `53a8c464c` | 10-24 00:42 UTC |

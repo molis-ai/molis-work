@@ -154,20 +154,47 @@
 - 直接模型端点：`plugins/native/images/src/browser/connections.ts:5-6` 的 OpenAI/Gemini 端点只是图片服务的 UI 预置配置（`PRESETS`），插件内无 fetch/HTTP 调用；全仓无 `chat/completions` 等直接调用（tests 里只有 1.1.1.1 fixture 假端点）→ 「模型调用只经 horizontal/agent-host」成立（code-read）。
 - `packages/plugin-sdk/src` 未 re-export `@prologue/sdk` 或任何私有包（grep 0；`packages/plugin-sdk/src/index.ts:83` 只是自己的 packageName 声明）；SDK deps 仅 contracts（第 1 轮 PASS）。
 
-### 6.2 AC-AUDIT-06 复核修正 + 精确删除清单（只读确认，未改代码）
+### 6.2 AC-AUDIT-06 复核修正 + 精确删除清单（v2，2026-10-23 修正前提；只读确认，未改代码）
 
-- **更正第 1 轮描述**：不存在 `/api/personal` 路由；`personal` 只是 `apps/local-host/src/web-request.ts` 路由表条目的 id。该条目实际作用：对 build-time 且 `personal: true` 的目录项，把 `/api/plugins/<id>/…` 经 `withRewrittenPluginApi` 重写为 `/api/<id>/…` 后交给 **alchemist** handler；alchemist handler 只认 `/api/alchemist` 前缀（`apps/local-host/src/alchemist-native-plugin-http.ts:18`）。Runtime 插件的 `/api/plugins/<runtime id>/…` 由更早的 `runtimePluginsRoute`（`project-plugin-http.ts`）处理，不经过此桥。
-- **调用方核实**：`handlePersonalNativePluginHttp` 仅被 `apps/local-host/src/web-request.ts:34,206` 与 `tests/personal-plugins-review-fixes.test.ts:46,71,77` 使用；`/api/plugins/<alchemist|plugin-builder>` 前缀在 `apps/workbench`、`apps/desktop`、`apps/local-host`、`plugins/`、`tests/` 中无构造（静态 grep）；`/api/personal` 除 archive spec 的 `/api/personal-assistant` 外无引用。`withRewrittenPluginApi` / `rewriteNativePluginApiPath` 仍被 `apps/local-host/src/functions-http.ts:1,22` 使用（`/api/plugins/functions` ↔ `/api/functions`），测试也钉住其行为 → **`native-plugin-api.ts` 必须保留**。
-- **精确删除清单（PG-058 / W6-01 片，供派修子代理执行）**：
-  1. 删文件 `apps/local-host/src/personal-native-plugin-http.ts`（薄壳：2 个 import + `handlePersonalNativePluginHttp`）。
-  2. `apps/local-host/src/web-request.ts`：删 `:7` `pluginRouteControl` import、`:8` `ActionError` import、`:14` `ALCHEMIST_ACTION_PERMISSIONS` import（三者仅被该路由块使用：grep 计数 2/3/2）；删 `:34` personal handler import；删 `:203-215` 注释 + `const nativePluginRoutes = [ { id: "personal", … } ]`；删 `:298` `...nativePluginRoutes,`。
-  3. `tests/builtin-plugin-assembly-gate.test.ts:55-58`：`NATIVE_PLUGIN_HTTP_FILES` 删 `"personal"`（剩 alchemist/artifact/feed/inbox；名单只减，合法）。
-  4. `tests/personal-plugins-review-fixes.test.ts`：删 `:46` import；`:69-71` `listenDispatcher` 的 `ports` 参数与 `:77` 的 `handlePersonalNativePluginHttp(...)` 调用改为只走 `handleFunctionsHttp`；`:184-189` 的 `rewriteNativePluginApiPath` 断言保留。
-  5. 不需要改 `apps/local-host/src/index.ts`（未导出该文件；grep 确认）。
-  6. 验证：`node scripts/run-tests.mjs tests/builtin-plugin-assembly-gate.test.ts tests/personal-plugins-review-fixes.test.ts tests/security-invariants-plugin-pages.test.ts`；`node scripts/check-health-gates.mjs --base origin/main`（数字只减；必要时同 PR `--update --base origin/main` 刷新 `tooling/gates/baseline.json`）。
-- **预期收益**：冻结名单 −1、宿主 `*-native-plugin-http.ts` 5→4、assembly `hostPluginFiles`/路由表 −1；无对外 API 变化（无客户端调用）。
-- **风险**：仓库外（第三方/用户脚本）若硬编码 `/api/plugins/<alchemist>` 会 404；本仓静态不可见 → 标 **UNVERIFIED（外部调用方）**，建议删除 PR 说明里写明。
-- **HANDOFF-TO-CODEX**：AC-AUDIT-05（context-onboarding-service 直接 import pages/artifacts/todo）按 lead 指示本轮不派修，由统筹转 ac-platform 线处理；本轮只在审计文件保留证据。
+**前提修正（v1 的错误）**：v1 把「调用方核实」口径定为只 grep `/api/plugins/<alchemist|plugin-builder>`，漏了 alchemist 自己的产品路径 **`/api/alchemist/...`**。实际接线：`apps/local-host/src/web-request.ts` 的 `nativePluginRoutes` 只有一条 `id:"personal"` 的路由，它同时承担两件事：
+
+1. 别名重写：`handlePersonalNativePluginHttp`（`apps/local-host/src/personal-native-plugin-http.ts`）用 `withRewrittenPluginApi(url)` 把 `/api/plugins/<短名>/…` 重写成 `/api/<短名>/…`；
+2. **alchemist 显式直连**：非 `/api/plugins/` 前缀的 URL 由 `withRewrittenPluginApi` 原样返回，随后交给 `handleAlchemistNativePluginHttp`（`alchemist-native-plugin-http.ts:18` 只认 `/api/alchemist` 前缀）。
+
+即 `/api/alchemist/...` 今天只有这一条接线；直接删桥会让 alchemist HTTP 全 404（task-13 已被定向用例拦下：`tests/security-invariants-plugin-pages.test.ts:19` SYS-15/S-47 alchemist 行、`tests/alchemist-host.test.ts`、`tests/security-invariants-alchemist-resumption.test.ts`）。**产品路径 `/api/alchemist/...` 必须保留。**
+
+**调用方核实（修正后口径 = 产品 URL 与别名 URL 都 grep）**：
+
+- 产品直连：`plugins/native/alchemist/src/client.ts:25`、`plugins/native/alchemist/src/registration.ts:15-17` 的请求都走 `/api/alchemist/...`；`tests/alchemist-host.test.ts`、`tests/security-invariants-alchemist-resumption.test.ts`、`tests/alchemist-workbench.e2e.test.ts`、`tests/alchemist-resumption.e2e.test.ts`、`tests/web-route-table.test.ts`、`tests/security-invariants-plugin-pages.test.ts` 都钉它。
+- 别名 URL：`/api/plugins/<alchemist|plugin-builder>` 在 `apps/workbench`、`apps/desktop`、`apps/local-host`、`plugins/`、`tests/` 无构造（v1 已核）；`/api/plugins/personal` 无引用。
+- `withRewrittenPluginApi` / `rewriteNativePluginApiPath` 另被 `functions-http.ts:1,22` 用于 `/api/plugins/functions` ↔ `/api/functions`，且测试钉住 → `native-plugin-api.ts` **必须保留**。
+
+**精确删除清单（v2，供 task-13 执行）**：
+
+1. 删文件 `apps/local-host/src/personal-native-plugin-http.ts`（2 个 import + 薄壳）。
+2. `apps/local-host/src/web-request.ts`：
+   - 删 `:34` `handlePersonalNativePluginHttp` import；
+   - 把 `nativePluginRoutes` 唯一条目从 `id:"personal"`（调 `handlePersonalNativePluginHttp`、经 `withRewrittenPluginApi`）改成 `id:"alchemist"`，直接 `await handleAlchemistNativePluginHttp(request, response, url, ports)`（**不再重写 URL**；前缀由 alchemist handler 自己判 `/api/alchemist`）；
+   - 端口构造与权限逻辑保持：`pluginRouteControl`（`:7`）、`ActionError`（`:8`）、`ALCHEMIST_ACTION_PERMISSIONS`（`:14`）、`{ actions: { invoke } }` 都不动（服务于 alchemist 路由层权限）；
+   - `:298` 的 `...nativePluginRoutes` 保留（路由条数净不变，只换 id/目标）。
+3. `tests/builtin-plugin-assembly-gate.test.ts:55-58`：`NATIVE_PLUGIN_HTTP_FILES` 删 `"personal"`（剩余 alchemist/artifact/feed/inbox，5→4，名单只减，合法）。
+4. `tests/personal-plugins-review-fixes.test.ts`：删 `:46` import；`:69-71` 的 `ports` 参数与 `:77` 的 `handlePersonalNativePluginHttp(...)` 链式调用改为只走 `handleFunctionsHttp`；`:184-189` 的 `rewriteNativePluginApiPath` 断言保留（helper 仍被 functions-http 使用）。
+5. 不需要改 `apps/local-host/src/index.ts`（未导出该文件；grep 确认）。
+
+**验证命令/预期（v2）**：
+
+- 定向用例（5 个文件）：`node scripts/run-tests.mjs tests/builtin-plugin-assembly-gate.test.ts tests/personal-plugins-review-fixes.test.ts tests/security-invariants-plugin-pages.test.ts tests/alchemist-host.test.ts tests/security-invariants-alchemist-resumption.test.ts`
+- alchemist e2e（2 个文件，需要 Chrome）：`node scripts/run-tests.mjs tests/alchemist-workbench.e2e.test.ts tests/alchemist-resumption.e2e.test.ts`
+- 数字：`node scripts/check-health-gates.mjs --base origin/main`（assembly 冻结名单 5→4、hostPluginFiles 只减；必要时同 PR `--update --base origin/main`）。
+- 预期：冻结名单 −1、宿主 `*-native-plugin-http.ts` 5→4、别名重写路径 −1；**alchemist 直连路由与产品 URL 不变**（`/api/alchemist/...` 仍 200）；`/api/plugins/alchemist/...` 不再被重写（产品无调用方）。
+
+**教训（防复犯）**：核实「旧路由/旧桥是否有调用方」必须同时 grep 产品 URL（如 `/api/alchemist`）与别名 URL（`/api/plugins/...`），并读 handler 的实际前缀匹配逻辑；不能只 grep 别名或只看路由 id。
+
+**风险**：仓库外若硬编码 `/api/plugins/<alchemist>` 会 404（本仓无调用方）→ **UNVERIFIED（外部调用方）**，PR 说明写明。
+
+**PG-058 E14 联动**：task-13 合入后 `PG-058` 的「九份 `*-native-plugin-http.ts`」→ **4 份：alchemist/artifact/feed/inbox**（personal 文件删掉）；E14 的预留句继续有效。
+
+**HANDOFF-TO-CODEX**：AC-AUDIT-05（context-onboarding-service 直接 import pages/artifacts/todo）保持由统筹转 ac-platform 线处理，本轮不派修。
 
 ### 6.3 下一轮
 

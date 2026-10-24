@@ -1088,3 +1088,7 @@ M3 分页本轮验证完成（2026-10-24，本地生产 head `86872848d`）：�
 本次实际27资源7,795,921 B，workbench1,197,336 B，正好为父1,193,899 B加原批准3,437 B，全部路径等于现登记。没有调整额度、SDK、lock、CI或快照；准确父health/资源及提交级secrets仍待统筹完成merge提交后执行。本片主路径使用真实隔离非空Home、Node/SQLite、HTTP与Chrome；未验证外部模型质量、最终完整Full suite/CI或用户体验认可。结果索引为 `/private/tmp/molis-memory-pages-parent71-20261024.results.json` 与 `-required.results.json`，原失败日志为同前缀 `-readme-browser.log`。
 
 对上述单文件仅增加失败时DOM状态/截图诊断后，以原断言、原时限、零自动重试定向复验2/2通过；未进入失败分支，因此没有获得失败时hover/active状态或截图，不能把样式specificity线索认定为已证根因。临时诊断已移除，原测试与父71逐字相同，无产品修复。原样复验曾排队但在启动测试前按统筹指示取消；实际诊断复验日志为同前缀 `-request-failure-diagnostic.log`。保留首轮失败与后续通过两份结果，不把首轮批次改记全绿；该间歇性颜色问题交统筹决定后续范围。
+
+分页精确父门首败（2026-10-24）：merge `5d72ad692` 后health识别出主干Pages新引入“未分类”→Unfiled与本片Memory“未分类”→Unclassified的真实翻译冲突，资源/secrets/diff通过。保留 `/private/tmp/molis-memory-pages-parent71-final-20261024.results.json` 的失败。最小修复只将Memory同义标签消歧为“未归类”，英文保持Unclassified，更新原两处页面调用、所属词典及两个浏览器断言，不改Pages或数据/分类语义；中文键字节数相同。重新构建、i18n/脚本/翻译、非空分页与CAS浏览器及精确父门后再报告。诊断链接悬停对比度已在独立main f586树稳定复现并由独立修复片处理，不在本页增加绕过。
+
+文案消歧最终验证：整体build、i18n/脚本两文件、非空分页与CAS两浏览器均通过；health对准确父71ec9c7、实际资源及diff全部通过。资源仍为27项7,795,921 B，workbench1,197,336 B；没有新增额度。原翻译失败与toast首败保留，toast稳定悬停红例正在独立主干修复，不将本次标签验证冒称其关闭。结果 `/private/tmp/molis-memory-pages-parent71-translation-20261024.results.json`。

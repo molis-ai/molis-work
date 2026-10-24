@@ -154,7 +154,7 @@ test("nonempty memory settings page through authorized storage, preserve old dec
     const projectIds = [...saved.map(entry => entry.memory_id), "historical", expiring.memory.memory_id].sort();
     assert.deepEqual((await ids(page)).sort(), projectIds);
     const historical = '[data-memory-test-active] [data-memory-id="historical"]', expired = `[data-memory-test-active] [data-memory-id="${expiring.memory.memory_id}"]`;
-    assert.match(await page.evaluate<string>(`document.querySelector('${historical} .memory-meta').textContent`), /未分类/);
+    assert.match(await page.evaluate<string>(`document.querySelector('${historical} .memory-meta').textContent`), /未归类/);
     assert.match(await page.evaluate<string>(`document.querySelector('${expired} .memory-meta').textContent`), /已到期/);
     assert.equal(await page.evaluate(`document.querySelector('${expired} [data-mw-state]') === null`), true, "expired active entry must not be relabelled disabled");
     await filter(page, "scene", "unclassified"); assert.deepEqual(await ids(page), ["historical"]);

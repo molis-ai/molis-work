@@ -1954,3 +1954,18 @@ README 与实际影响面精确去重77普通+2browser，文件/分类/命令输
 完成边界：这是隔离 Home、真实 Node/SQLite/SDK、真实本地 HTTP 模型 stub 与两条 Chrome 工程路径的证据。独立 Node 进程恢复与进程内重开分别标明；未触真实 Home、未付费调用模型、未做 UI 归档入口或完整最终 App 旅程，也未作用户验收。UI、purge、项目删除与完整大 PR 的新主干集成/最终全量/资源实测由统筹继续，两个未改路径失败不得在归并时抹掉。
 
 Assistant合入新父后的限定结果（2026-10-25）：231bd698e窄cherry为0aaf82f7c，仅spec追加冲突双方保留；源码13文件，原提交两生成快照在汇总已存在而无新增差异。整体build0，按`/private/tmp/molis-memory-p0-aggregate-20261025-assistant.plan.json`的10普通+2browser、jobs2/browser1/retries0，12/12文件113例通过（`-assistant-delta.log/results.json`）；包含真实Memory、生命周期、线程、通用执行方、委托、定时/删除、原件、Characters和S-62及README两browser。根/工作区类型、boundary、准确93b health、资源、secrets均0，API/Action实际生成unchanged（`-assistant-gates.results.json`）。health生成仅Service文件1829→1826、类1472→1469，89方法不变；资源仍27项7,672,595及原四项净增。此结果只覆盖冻结0aaf；独立评审另发现bindSession在SDK createSession等待后缺原authority.assertBeforeStart同步复核，原owner正在以实际屏障取得红例并修复，未将本轮绿判为该接缝已关闭。后继必要修复另按影响补验，不中途修改此批或删除首败。
+本地交接：源码/测试/短合同提交为 `231bd698e05a323dd2a2904a5bdc918c9f1ae434`，准确编译依赖基点 `817aa497b9`；提交后 `node scripts/check-secrets.mjs --base 817aa497b` 扫描本刀872新增行，结果0，日志 `/private/tmp/molis-memory-assistant-lifecycle-final-secret-commit-20261025.log`。本刀状态干净，未 push/另开 PR。统筹告知两处未改路径已在聚合修复；本刀原73批的两文件首败仍保留，不将聚合结果倒算成本树73全过。
+
+最后源码状态的必要复验命令（均使用上述固定 PATH，前置 frozen offline install；不含全量）：
+```sh
+pnpm build
+node scripts/run-tests.mjs tests/assistant-work-lifecycle.test.ts tests/assistant-followups.test.ts tests/assistant-followup-deletion.test.ts --jobs 2 --browser-jobs 1 --retries 0 --verbose
+node scripts/run-tests.mjs tests/runtime-plugin-http-discovery.test.ts tests/assistant-page-written.e2e.test.ts --jobs 1 --browser-jobs 1 --retries 0 --verbose
+node scripts/check-health-gates.mjs --base 2c970e823529e10551f7f042ba50442db07c84fa
+pnpm exec tsc --noEmit -p tsconfig.json
+pnpm --filter @molis-ai/molis-work-app-local-host run typecheck
+pnpm boundary:check
+node scripts/gates/api-snapshot.mjs
+node scripts/gates/action-contract-snapshot.mjs
+node scripts/check-secrets.mjs --base 817aa497b
+```

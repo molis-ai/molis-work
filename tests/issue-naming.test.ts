@@ -5,9 +5,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID, ISSUE_ASK, ISSUE_SCREENSHOTS_UNREAD, ISSUE_TITLE_RULES, ISSUE_TOO_LITTLE, ISSUE_TYPE_RULES,
-  issueActionHandlers, issuesActions, issuesManifest, issuesMethods, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
+  createIssuesPlugin, issueActionHandlers, issuesActions, issuesManifest, issuesMethods, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelAvailability, PluginModelClient, PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -194,9 +193,10 @@ test("ISSUE-52 ISSUE-53 Issue's rules are written once: the naming instruction a
   for (const line of [...ISSUE_TOO_LITTLE, ...ISSUE_TITLE_RULES, ...ISSUE_TYPE_RULES]) {
     assert.ok(ISSUES_NAME.body.includes(line), line); assert.ok(method!.body.includes(line), line);
   }
-  // Declared on Issue's own catalog entry, so the person can read and edit it in “Prompt 与 Character”.
-  const entry = BUILTIN_PLUGIN_CATALOG.find(row => row.manifest.plugin_id === ISSUES_PLUGIN_ID)!;
-  assert.deepEqual(entry.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@1`]);
+  // Carried by Issue's own definition, registered while it runs, so the person can read and edit it in “Prompt 与 Character” (PG-051).
+  const definition = createIssuesPlugin();
+  assert.deepEqual(definition.methods, issuesMethods);
+  assert.deepEqual(definition.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@1`]);
   assert.equal(method!.version, 11);
   for (const word of ["change-reversible", "change-capability", "read-capability", "find-capabilities", "suggest-action", "ask-user", "录入草稿", "待整理记录"]) assert.ok(!method!.body.includes(word), word);
   assert.ok(method!.body.includes("issues.create"));

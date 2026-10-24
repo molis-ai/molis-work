@@ -9,13 +9,14 @@ import { pptErrors } from "./error.js";
 import { PptStore, type PptStores } from "./store.js";
 import { pptUiContribution } from "./ui.js";
 import { promotePpt, type PptLineHeadPort, type PptPromoteStore, type PptPublicationSnapshot, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
+import { PPT_INSTRUCTIONS } from "./prompts.js";
 
 /**
  * PPT as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
  * `ppt` store its Host entry declares; the 成果 it pins, the model and the Pages reads come from the Runtime's services.
  */
 export function createPptPlugin(): PluginDefinition {
-  return { manifest: pptManifest, async start(context) {
+  return { manifest: pptManifest, instructions: PPT_INSTRUCTIONS, async start(context) {
     for (const permission of pptManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, artifacts = context.services?.artifacts;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供演示稿库");

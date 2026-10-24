@@ -17,7 +17,7 @@ import { reaskMaterial } from "./reask.js";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
-import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
+import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { methodSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { startDelegation } from "./routes-delegations.js";
@@ -227,7 +227,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
     // The round has started either way; the delegation shows its own last recorded state.
     // A Runtime without letters between sessions has none to accept: the read comes back empty.
-    await startDelegation(record, context.services!.capabilities!, session.session_id).catch(() => undefined);
+    await startDelegation(record, codingActions(context, beforeWrite), session.session_id).catch(() => undefined);
     await beforeWrite(); beforeWrite.assert_current();
     if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
     // A session named by default takes its name from the first task, the way a person would label it.

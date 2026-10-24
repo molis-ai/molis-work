@@ -55,7 +55,7 @@ function directoryHtml(platform: { supervisor: { contribution(pluginId: string):
     primitives: { escape: value => String(value), icon: () => "", text: value => value, formatDate: value => value.slice(0, 10) } } });
 }
 const until = async (done: () => boolean, ms = 5_000) => { for (const end = Date.now() + ms; !done() && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 50)); assert.ok(done(), "the awaited step happened"); };
-const registration = (service: ActionService) => ({ registry: service, client: service, project_id: DEMO_PROJECT_ID });
+const registration = (service: Pick<ActionService, "registerProvider" | "invoke" | "discover">) => ({ registry: service, client: service, project_id: DEMO_PROJECT_ID });
 
 test("W5-01-CODING-23 PG035-07 Coding declares model:read, model:invoke only as optional for its two explicit drafts, and lists the draft, Goals and Characters actions it reads through under consumes", () => {
   const modelPermissions = codingManifest.permissions.filter(declared => declared.permission.startsWith("model:"));

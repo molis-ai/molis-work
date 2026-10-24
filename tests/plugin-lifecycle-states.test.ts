@@ -61,6 +61,71 @@ test("RAC-196-U2 uninstall cleanup retries stay revoked, serialized and replayab
   });
 });
 
+test("RAC-196-U3 a replay suspended in cleanup refuses reinstall, then immediately admits a new generation after it returns", { timeout: 10_000 }, async () => {
+  const repository = new MemoryPluginRuntimeRepository();
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let suspended = false, replacementStarted = false;
+  const executor = Object.assign(new NativePluginExecutor(), {
+    async uninstalled() { if (suspended) { entered.resolve(); await release.promise; } },
+  });
+  const runtime = new PluginRuntime(repository, executor), definition = probe("1.0.0");
+  const id = runtime.install({ definition, deployment: "local" }).install.install_id;
+  await runtime.start(id); await runtime.uninstall(id);
+  const removed = runtime.get(id);
+  const replacement: PluginDefinition = { ...definition, async start(context) { replacementStarted = true; return definition.start(context); } };
+  suspended = true;
+  const replay = runtime.uninstall(id);
+  try {
+    await entered.promise;
+    assert.throws(() => runtime.install({ definition: replacement, deployment: "local" }), { code: "plugin.state_invalid" });
+    assert.deepEqual(repository.get(id), removed, "refused reinstall has no new generation or other stored side effect");
+  } finally { release.resolve(); await replay; }
+  // No extra turn is allowed here: await uninstall means its own queue marker is already released.
+  const installed = runtime.install({ definition: replacement, deployment: "local" }).install;
+  assert.notEqual(installed.installation_generation, removed.installation_generation);
+  assert.equal(installed.version, removed.version);
+  await runtime.start(id);
+  assert.equal(runtime.get(id).state, "running");
+  assert.equal(runtime.get(id).installation_generation, installed.installation_generation);
+  assert.equal(replacementStarted, true, "the new definition, not the earlier one, can start");
+  await runtime.stop(id);
+});
+
+test("RAC-196-U4 failed cleanup lets its queued retry continue and cannot release the newer retry's queue marker", { timeout: 10_000 }, async () => {
+  const firstEntered = Promise.withResolvers<void>(), firstRelease = Promise.withResolvers<void>();
+  const nextEntered = Promise.withResolvers<void>(), nextRelease = Promise.withResolvers<void>();
+  const failure = new Error("cleanup temporarily unavailable"), events: string[] = [];
+  let calls = 0;
+  const executor = Object.assign(new NativePluginExecutor(), {
+    async uninstalled() {
+      calls += 1;
+      if (calls === 2) {
+        events.push("first enters"); firstEntered.resolve(); await firstRelease.promise;
+        events.push("first fails"); throw failure;
+      }
+      if (calls === 3) { events.push("next enters"); nextEntered.resolve(); await nextRelease.promise; }
+    },
+  });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), executor), definition = probe("1.0.0");
+  const id = runtime.install({ definition, deployment: "local" }).install.install_id;
+  await runtime.start(id); await runtime.uninstall(id);
+  const removed = runtime.get(id), replacement = { ...definition };
+  const failed = assert.rejects(runtime.uninstall(id), error => error === failure);
+  await firstEntered.promise;
+  const next = runtime.uninstall(id);
+  try {
+    firstRelease.resolve(); await failed; await nextEntered.promise;
+    assert.deepEqual(events, ["first enters", "first fails", "next enters"], "the next cleanup starts only after the failed one ends");
+    assert.throws(() => runtime.install({ definition: replacement, deployment: "local" }), { code: "plugin.state_invalid" });
+    assert.deepEqual(runtime.get(id), removed, "the queued retry still owns the uninstall; reinstall did not change it");
+  } finally { firstRelease.resolve(); nextRelease.resolve(); await failed; await next; }
+  const installed = runtime.install({ definition: replacement, deployment: "local" }).install;
+  assert.notEqual(installed.installation_generation, removed.installation_generation);
+  await runtime.start(id);
+  assert.equal(runtime.get(id).state, "running");
+  await runtime.stop(id);
+});
+
 interface ProbeOptions {
   starts?: string[];
   publishes?: string[];

@@ -156,6 +156,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
+    if (current?.state === "uninstalled" && this.operations.has(installId)) throw pluginErrors.state_invalid("Plugin 卸载尚未完成，请等待卸载完成后再安装");
     if (input.definition.execution === "sandbox" && (input.grants === undefined || input.bundled === true)) throw pluginErrors.grant_denied("生成插件安装需要明确授权清单，且不能当作随宿主发布的插件授予全部权限");
     if (current && current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能改变已安装插件的执行信任边界");
     const digest = pluginManifestDigest(manifest);
@@ -693,10 +694,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     const run = previous.then(operation, operation);
     const tail = run.then(() => undefined, () => undefined);
     this.operations.set(installId, tail);
-    void tail.finally(() => {
+    return run.finally(() => {
       if (this.operations.get(installId) === tail) this.operations.delete(installId);
     });
-    return run;
   }
 
   private hasLiveInstance(installId: string): boolean {

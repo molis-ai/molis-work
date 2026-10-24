@@ -13,7 +13,6 @@ import { withPluginModelImages } from "./plugin-model-images.js";
 import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 import type { PluginPlatformHome } from "./home-side.js";
 import { MODEL_PERMISSIONS } from "./plugin-service-permissions.js";
-import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 
 /**
  * `services.model` for a plugin this Host runs itself: declared `model:read` or `model:invoke`, not sandboxed, on a platform that
@@ -25,10 +24,7 @@ export function pluginModelFor(home: PluginPlatformHome | null | undefined, defi
   assertActive: () => void, declaration?: PluginModelConfigurationDeclaration): PluginModelClient | undefined {
   if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
   const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
-  // What this definition may send: its own instructions, and until PG-051 P2 those the catalog registers for its owner.
-  const owner = definition.manifest.plugin_id, catalog = builtinRegistrations().find(row => row.owner_id === owner)?.prompts
-    .filter(prompt => prompt.kind === "instruction").map(prompt => ({ owner_id: owner, prompt_id: prompt.prompt_id })) ?? [];
-  return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home, [...definition.instructions ?? [], ...catalog]), gate),
+  return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home, definition.instructions ?? []), gate),
     ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),
   });
 }

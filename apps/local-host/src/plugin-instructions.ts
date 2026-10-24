@@ -15,7 +15,7 @@ import type { PluginPlatformHome } from "./home-side.js";
  */
 type Holder = { held: number; version: string; registration: AgentDefinitionRegistration | null };
 const holders = new Map<string, Map<string, Holder>>();
-let catalogOwners: ReadonlySet<string> | undefined;
+let hostOwners: ReadonlySet<string> | undefined;
 
 /**
  * Registers what a definition carries for Agents for as long as the installation runs: the roles and Agent prompts of its Manifest's
@@ -31,15 +31,12 @@ let catalogOwners: ReadonlySet<string> | undefined;
  * running: the Home remembers it whole, the person still sees and edits it, it offers other Agents no method; uninstalling forgets it
  * (`forgetPluginAgentDefinitions`, PG-051 Q1 b).
  *
- * An owner has its Agent definitions in one place. The register shows one row per owner, and a definition's row would take the place
- * of the catalog's: the roles and methods the catalog registers for an owner (Schedule's and the assistant's roles, Issues' method)
- * would be gone from the person's settings and from other Agents while the definition runs. So a definition that carries instructions
- * or methods for an owner the catalog registers anything for (instructions, Agent prompts, roles or methods) is refused, as is one
- * that names an owner other than itself; a plugin with a catalog entry declares them on the entry.
+ * This is the one way a plugin's Agent definitions reach the register (PG-051): built-in or installed, a plugin's come with its
+ * definition. A definition for an owner the Host registers itself (the assistant, Plugin Builder, Alchemist) is refused, as is one
+ * that names an owner other than itself.
  */
 export function registerPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, installId: string): (() => void) | undefined {
   if (!home || definition.execution === "sandbox") return undefined;
-  // What the definition itself carries: a catalog plugin's Manifest declares methods too, and the catalog registers them.
   const instructions = definition.instructions ?? [], bodies = definition.methods ?? [], agent = definition.manifest.agent;
   const carries = instructions.length > 0 || bodies.length > 0 || agent !== undefined;
   const { plugin_id: owner, version, name } = definition.manifest;
@@ -51,13 +48,9 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
   const holder = installs.get(installId), declarations = agentDeclarationsFor(home.directory);
   // A version that declares nothing and has nothing to replace: no instance of the installation runs, nothing is remembered.
   if (!carries && !holder && !declarations.has(installId, owner)) return undefined;
-  // The catalog's owners, not the register's: a remembered declaration of this plugin is in the register too (PG-051 Q1 b).
-  catalogOwners ??= new Set(builtinRegistrations().map(row => row.owner_id));
-  if (!holder && installs.size === 0 && catalogOwners.has(owner)) {
-    // Until PG-051 P2 a catalog plugin's `agent` block is registered by the catalog, from the same package: nothing to add here.
-    if (instructions.length === 0 && bodies.length === 0) return undefined;
-    throw new Error(`插件 ${owner} 在目录里已经登记了 Agent 定义（指令、角色或方法）：一个主人的定义只在一处，不能再由 PluginDefinition 登记第二个来源；有目录条目的插件把指令和方法声明在条目上`);
-  }
+  // The Host's own owners, not the register's: a remembered declaration of this plugin is in the register too (PG-051 Q1 b).
+  hostOwners ??= new Set(builtinRegistrations().map(row => row.owner_id));
+  if (hostOwners.has(owner)) throw new Error(`${owner} 的 Agent 定义由平台自己登记，插件定义不能再登记第二个来源`);
   const registry = agentDefinitionsFor(home.directory, builtinRegistrations);
   // Only a newer version replaces what the running instances registered.
   const replaces = !holder || comparePluginVersions(version, holder.version) > 0;

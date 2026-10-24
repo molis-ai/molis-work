@@ -8,6 +8,8 @@
 
 根 apps/desktop/launchers/cli/main.ts 提供启动环境，Local Host 注入项目与安装操作，dispatchCli 分发命令；项目命令拿到 Host 造的管理调用者（`CliManagementActions`：本机这个人、出处 `management`、一次一个 Goals 动作），调用 Goals 的初始化、快照、当前目标与目标树提案动作。JSON/file 输入解析与错误呈现留在 CLI，状态改变由实际 owner 完成。
 
+所有命令端口（含 `plugin`）的同步抛错与异步拒绝都由 dispatchCli 输出一次现有错误文本并返回 1；成功时保留端口的返回码和输出。
+
 ## 从哪里读代码
 
 公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。

@@ -6,8 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { Server } from "node:http";
-import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
+import { createEvidenceContentStore, createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, seedDemoBoard, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -132,7 +131,7 @@ test("async home scopes and retained stores keep secrets and body keys in their 
   try {
     const pending = runWithMolisWorkHome(join(root, "a"), async () => {
       const secrets = createFileSecretStore();
-      const content = createFeedEvidenceContentStore();
+      const content = createEvidenceContentStore();
       await waitForOtherHome;
       secrets.put(authRef, "a-first");
       const body = content.write("body belonging to A");
@@ -142,7 +141,7 @@ test("async home scopes and retained stores keep secrets and body keys in their 
       const secrets = createFileSecretStore();
       secrets.put(authRef, "b-only");
       release();
-      return { secrets, content: createFeedEvidenceContentStore() };
+      return { secrets, content: createEvidenceContentStore() };
     });
     const a = await pending;
     runWithMolisWorkHome(join(root, "b"), () => a.secrets.put(authRef, "a-updated"));

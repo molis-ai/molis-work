@@ -115,7 +115,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 | 新 Artifact 类型 | 合同 + Artifacts Module，不要只写在插件里 |
 | 设置页 | contribution + `settings` 槽 + `settingsClient` |
 | 图标名 | 必须是 `packages/design-system/src/icons.ts` 的 `MolisWorkIcon`（灵光用 `idea`）。写了不存在的名字，插件切换里那一行还在，图标是空的；不写 `icon` 才落到 `package`。不要往壳层塞 SVG |
-| `agent` | 在包 `registration` 的同一条目绑定 `agent.prompts/skills` 包正文；`BUILTIN_PLUGIN_AGENTS` 自动派生。Manifest 声明不等于已经提供正文，缺失由现有回归拒绝 |
+| `agent` | 正文放在插件定义（`PluginDefinition`）的 `agent_prompts` / `agent_skills`，模型指令放 `instructions`、方法正文放 `methods`，不放在 `registration` 上；插件运行时由 Host 登记（PG-051）。Manifest 声明不等于已经提供正文，缺失由 `tests/builtin-plugin-agent-texts.test.ts` 拒绝 |
 | 重编辑器 IIFE | `apps/local-host/src/web-assets.ts` 挂 `/assets/…`，页面再引 script。只打 bundle、不挂路径，浏览器 404 |
 | 项目启用连带 | `registration` 上的 `companions`，写对方的短 id（今天只有 Feed→Inbox）；必选输入口的同伴由端口自动推出，不用写 |
 | 全局搜索 | 内容一律经系统搜索：声明搜索来源（[search.md](search.md)），不改 `global-search.ts`。打开到具体对象：在 `registration` 的 `workbench` 声明 `searchRow`；按标签打开（`molis-work:select-item`）的插件列在 `global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES` |

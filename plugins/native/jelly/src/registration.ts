@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin } from "./index.js";
+import { JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin } from "./index.js";
 import { JELLY_MESSAGES } from "./messages.js";
 
 /**
@@ -12,7 +12,6 @@ export const registration: PluginRegistration = {
     package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" },
   messages: JELLY_MESSAGES,
   manifest: jellyManifest,
-  instructions: JELLY_INSTRUCTIONS,
   personal: true,
   summary: "日历与笔记，按天安排。",
   workbench: {

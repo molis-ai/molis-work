@@ -11,7 +11,7 @@ export interface CliCommandPorts {
 
 export async function dispatchCli(args: string[], ports: CliCommandPorts): Promise<number> {
   try {
-    if (args[0] === "plugin") return ports.plugin(args.slice(1));
+    if (args[0] === "plugin") return await ports.plugin(args.slice(1));
     if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
       console.log("Molis Work commands: molis-work install | molis-work service <operation> | molis-work demo <operation> | molis-work uninstall | molis-work plugin <operation> | molis-work v1 <operation>\n");
       printV1Help();

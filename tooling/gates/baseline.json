@@ -1,5 +1,5 @@
 {
-  "giantUnits": 116,
+  "giantUnits": 113,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -82,15 +82,6 @@
     "class horizontal/search/src/index.ts#SearchService": {
       "lines": 403,
       "methods": 26
-    },
-    "class modules/feed/src/index.ts#FeedModule": {
-      "lines": 501,
-      "methods": 16
-    },
-    "file modules/functions/src/store.ts": 937,
-    "class modules/functions/src/store.ts#FunctionsStore": {
-      "lines": 331,
-      "methods": 22
     },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
       "lines": 371,
@@ -229,7 +220,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 446,
+  "testInternalImports": 444,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -266,7 +257,7 @@
     "tests/assistant-island-script.test.ts": 1,
     "tests/assistant-memory.test.ts": 1,
     "tests/assistant-mentions.test.ts": 2,
-    "tests/assistant-methods.test.ts": 4,
+    "tests/assistant-methods.test.ts": 3,
     "tests/assistant-tool-words.test.ts": 3,
     "tests/assistant-turns.test.ts": 1,
     "tests/assistant-undo.test.ts": 1,
@@ -279,7 +270,7 @@
     "tests/characters-native-execution.test.ts": 1,
     "tests/characters-publication-http.test.ts": 1,
     "tests/client-script-undeclared.test.ts": 4,
-    "tests/coding-commit-draft.test.ts": 2,
+    "tests/coding-commit-draft.test.ts": 1,
     "tests/coding-delegation-waits.test.ts": 2,
     "tests/coding-plan-dependencies.test.ts": 1,
     "tests/coding-session-follow.test.ts": 1,
@@ -667,12 +658,8 @@
     "plugin-module-import#plugins/native/shelf -> modules/shelf": 1,
     "lists#declared": 1
   },
-  "moduleRepositoryExportsTotal": 8,
+  "moduleRepositoryExportsTotal": 4,
   "moduleRepositoryExports": {
-    "modules/feed#export:FeedEvidenceContentStore": 1,
-    "modules/feed#export:createFeedEvidenceContentStore": 1,
-    "modules/functions#export:openFunctionsStore": 1,
-    "modules/functions#export:FunctionsStore": 1,
     "modules/private-work-context#export:createSessionContentStore": 1,
     "modules/private-work-context#export:SessionContentStore": 1,
     "modules/shelf#export:ShelfStore": 1,
@@ -1245,11 +1232,10 @@
     "tests/workspace-plugin-graph.test.ts": 2,
     "tests/writer-integration-host.test.ts": 1
   },
-  "consoleCallsTotal": 28,
+  "consoleCallsTotal": 21,
   "consoleCalls": {
     "apps/local-host/src/assistant/assistant-http.ts": 2,
     "apps/local-host/tooling/pack-npm.mjs": 1,
-    "apps/server/src/main.ts": 7,
     "examples/seed-demo.mts": 3,
     "server/public/preview.mjs": 1,
     "tests/cli-protocol.test.ts": 1,

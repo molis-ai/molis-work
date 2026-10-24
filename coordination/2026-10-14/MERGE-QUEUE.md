@@ -10,6 +10,31 @@
 git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination/handoff-2026-10-14:coordination/2026-10-14/MERGE-QUEUE.md
 ```
 
+## 0. 现行协作模式（用户 2026-10-24 晚，覆盖本文、`CODEX-TASKS.md`、`SLICE-RULES.md` 里与它不一致的旧说法）
+
+用户原话：「在 claude：组织好合并顺序，进行开发和 review。在 codex：review 问题修复，修复后的二轮 review，以及有独立任务可以交付 Codex 执行」；「完整实现某个功能或者 slice 之后统一 PR」。
+
+| 谁 | 做什么 |
+| --- | --- |
+| Claude 统筹 | 范围、优先级、合并顺序；按路径组批（§1a），唯一起 full；批 PR 入队，合入后关源 PR；裁定 |
+| Claude 开发线（`ac-*`） | 开发。一个完整功能或 slice 做完才开一个 PR，开完接着做下一个；**不修评审意见** |
+| Claude 评审（`ac-review`） | **所有**防腐 PR 的一轮评审（Codex 写的也是），按统筹排的顺序 |
+| Codex 修复（全部 Codex 写代码的合起来一个 writer） | 一轮评审里全部有效意见（挡合并的与不挡合并的）在原 PR 分支上修，先留「修复认领」；一轮的修复攒齐一次推送 |
+| Codex 评审 | 修复后的二轮（只看增量），结论写「二轮：可合」加固定 head；没过就回 Codex 修复 |
+| Codex 独立实现 | 统筹派的独立片（`CODEX-TASKS.md` §0a），和修复共用那一个 writer；**排在下一批要用的修复后面** |
+| Codex 测试 | 红用例归因、偶发失败、`known-red-main.md` |
+
+一片的流程：开发线开 PR → `ac-review` 一轮 → Codex 修复 → Codex 二轮可合 → 统筹组批、full、批 PR 入队 → 合入后关源 PR。一轮结论是「可合」的不经修复，直接等组批。二轮可合之前不进批。
+
+PR 粒度（GitHub runner 槽位有限，开得多就积压）：
+
+- 一个 PR 是一个完整功能或 slice 的全部；分几步做就是几个提交，不拆成几个 PR。没做完的只推分支不开 PR：只推分支不跑 CI（`ci.yml` 只在 PR、main、合并队列上跑；`full-suite.yml` 只在 `integration/**` 和加标签时跑）。草稿 PR 也跑 CI，不开草稿占位。
+- 每条开发线同时最多一个 PR 在评审或修复中；二轮可合、只等进批的不算。
+- 落后 main 不同步；共用文件冲突由统筹在批分支里一次解（§1a）。
+- 已推了没开 PR 的几步合成一个 PR：S-57 扩展 X1～X4 一个 PR；BL-521 第二片并进 #1230；PG-017 P1 与 P3 一个 PR。
+
+过渡：已经在修的保持原修复者，修完为止（如 #1223 的 BL-372 三项由原作者修完，合同版本由统筹在载体里升）。从这条起，新的评审意见一律交 Codex 修复。
+
 ## 1. 一个 PR 可以合的条件（全部满足）
 
 1. CI 的 `Verify` 绿（分支保护只要求它，合并走 GitHub 合并队列：`gh pr merge <n>`，方法由队列定）。

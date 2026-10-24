@@ -3,8 +3,6 @@ import type { InstructionPrompt } from "./model-prompts.js";
 import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 import type { HomeStoreDeclaration } from "./plugin-database.js";
 import type { PluginFilesDeclaration } from "./plugin-files.js";
-import type { PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
-import type { PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
 import type { PluginDefinition, PluginManifest } from "./plugin.js";
 import type { UiContribution } from "./ui.js";
 
@@ -101,17 +99,15 @@ export interface PluginRegistration {
   readonly companions?: readonly string[];
   /**
    * Explicit Runtime activation in the Home; personal visibility alone never migrates an existing plugin. Trusted, as above.
-   * Its library is the Manifest's `databases.home` (PG-022). Its files are the Manifest's `owner_files` (PG-102). 2026-10-18 改: the old files,
-   * model settings and image generation it names are declared in the Manifest and granted like any plugin's too (PG-102 in
-   * specs/repository-anti-corruption/privileges.md); until then, as here.
+   * Its library is the Manifest's `databases.home` (PG-022). Its files, model settings and image generation are the Manifest's `owner_files`,
+   * `model_configuration` and `image_generation` (PG-102). 2026-10-18 改: the old `files` it names is declared in the Manifest and granted like
+   * any plugin's too (PG-102 in specs/repository-anti-corruption/privileges.md); until then, as here.
    */
   readonly runtime?: {
     readonly scope: "home";
     readonly create: () => PluginDefinition;
     readonly files?: PluginFilesDeclaration;
     readonly initialize_owner_files?: (writer: import("./plugin-owner-files.js").PluginOwnerFilesWriter) => void;
-    readonly model_configuration?: PluginModelConfigurationDeclaration;
-    readonly image_generation?: PluginImageGenerationDeclaration;
     readonly package_name: string;
     readonly factory_export: string;
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */

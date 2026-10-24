@@ -18,6 +18,7 @@ export * from "./markdown.js";
 export * from "./import.js";
 export * from "./error.js";
 export * from "./plugin.js";
+export { JELLY_MODEL_CONFIGURATION } from "./model-configuration.js";
 export * from "./ai.js";
 export * from "./actions.js";
 export * from "./command-actions.js";

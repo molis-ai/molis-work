@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginFilesDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createImagesActionHandlers } from "./actions.js";
 import { imagesManifest } from "./manifest.js";
 import { imagesRoutes } from "./routes.js";
@@ -8,8 +8,6 @@ import { imagesUiContribution } from "./ui.js";
 
 export const IMAGES_FILES: PluginFilesDeclaration = { store_name: "images", directory: "assets", max_file_bytes: 20 * 1024 * 1024,
   read_permission: "storage:private", write_permission: "storage:private" };
-export const IMAGES_IMAGE_GENERATION: PluginImageGenerationDeclaration = { store_name: "images",
-  read_permission: "images:connections:read", write_permission: "images:connections:write", generate_permission: "images:generate" };
 
 export function createImagesPlugin(): PluginDefinition {
   let service: ImagesService | undefined;

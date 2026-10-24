@@ -1,6 +1,6 @@
 # PG-022 / PG-102 / PG-103 / PG-104：宿主条目上的声明搬进 Manifest
 
-状态：统筹已裁（2026-10-24，见 §6「统筹 10-24 裁」）；P1（Home 库）已在分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，已推送，PR 排在 §8 列的在途 PR 和本线 #1119、#1139 合入之后；顺序 P1 → P1b → P2 → P3；P2 拆成 P2a（`owner_files` 进 Manifest，已在同一分支实现）和 P2b（`files` 合并、Images 迁移、删 `initialize_owner_files`，等 R1～R3 的裁定）；P1b 等统筹答 A/B；P3 还没写代码。代码按 main `abc052bcb` 核过。
+状态：统筹已裁（2026-10-24，见 §6「统筹 10-24 裁」）；P1（Home 库）已在分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，已推送，PR 排在 §8 列的在途 PR 和本线 #1119、#1139 合入之后；顺序 P1 → P1b → P2 → P3；P2 拆成 P2a（`owner_files` 进 Manifest，已在同一分支实现）和 P2b（`files` 合并、Images 迁移、删 `initialize_owner_files`，等 R1～R3 的裁定）；P1b 等统筹答 A/B；P3（`model_configuration`、`image_generation` 进 Manifest）已在同一分支实现。代码按 main `abc052bcb` 核过。
 
 ## 1. 现状
 
@@ -96,6 +96,8 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 
 P2a（已做）：`PluginManifest.owner_files`（SDK `ownerFilesDeclarationProblems` 查形状）；`plugin-owner-files-entries.ts` 的 `assertOwnerFilesEntries` 读 Manifest，`ownerFilesGiven` 对「声明了却不在名单上」以 `plugin.declaration_invalid` 拒绝；条目与 `PluginRegistration.runtime` 去掉 `owner_files`；Shelf 把 `SHELF_OWNER_FILES` 搬进 `owner-files.ts` 并写进自己的 Manifest；`setAccess` 的权限位收紧（V-30）。`initialize_owner_files` 和旧 `files` 还在，等 R1～R3。
 
+P3（已做，Q3 统筹同意不等模型 broker）：`PluginManifest.model_configuration`、`image_generation`（SDK `service-declarations.ts` 查形状，含 `model:invoke`、`storage:private` 和声明里的权限在 permissions 里）；`model-configuration-entries.ts`、`plugin-image-generation-entries.ts` 读 Manifest；`plugin-declared-services.ts` 的 `givenService` 对「声明了却不在名单上」以 `plugin.declaration_invalid` 拒绝（Home 执行器里 `ownerFilesGiven`、模型设置、生图三处共用），`assertHomeOnlyDeclarations` 对项目插件声明主人文件、模型设置、生图一律拒绝（双实例的项目一半除外，它和 Home 一半共用 Manifest）；Jelly 的 `JELLY_MODEL_CONFIGURATION`、Images 的 `IMAGES_IMAGE_GENERATION` 各搬进自己的文件、写进自己的 Manifest，`PluginRegistration.runtime` 去掉这两项。声明的内容一个字没变。没有外部调用方；P3 之后条目上只剩 `files`（P2b）和 `initialize_owner_files`。
+
 ## 6. 要统筹定的
 
 - **Q1 非内置插件的 Home 库（P1b）什么时候做？** 推荐：P1 合入后紧接着做，不等沙箱。做法：登记从已安装插件的 Manifest 推出（卸载并清理用户数据时才清得到），首次打开在库文件里记一张账本表（`plugin_id`、发布者签名、版本、基线哈希），换了发布者、版本或形状就拒，这与项目库账本同一种规则。P1 先把「只有内置定义」写成带码的拒绝，不留静默缺席。
@@ -126,7 +128,7 @@ P2a（已做）：`PluginManifest.owner_files`（SDK `ownerFilesDeclarationProbl
 | RAC-305 | 分区库的 `project_data` 清理仍成立（读 Manifest 的 `partition`）；删项目时库被清 | `tests/plugin-database-partition.test.ts`（PART-03）、`tests/plugin-database-partition-deletion.test.ts` |
 | PLIB-11 | Home 库的声明只在 Manifest 的 `databases.home`，可信条目上不再有 `database:` | `tests/home-library-declaration.test.ts`（读源码断言条目类型没有 `database`） |
 
-P2a：
+P2a、P3：
 
 | 编号 | 断言 | 测试 |
 | --- | --- | --- |
@@ -135,6 +137,10 @@ P2a：
 | RAC-308 | 装在名单之外、声明了 `owner_files` 的定义：启动被拒，安装记录的 `last_error_code` 是 `plugin.declaration_invalid`，没读没写，没建根目录 | `tests/owner-files-declaration.test.ts` |
 | RAC-309 | Manifest 的 `owner_files` 形状逐条拒绝：不认的字段、根名、没有条目、带路径或重名的条目、不认的种类、不在 permissions 里的权限、没有 `storage:private` | 同上 |
 | RAC-310 | Shelf 的文件声明在它自己的 Manifest 里，登记里没有；内置插件里只有它声明 | 同上；`tests/dual-instance-services.test.ts`（双实例的项目一半不拿服务）、`tests/security-invariants-plugin-owner-files-registration.test.ts`（项目插件声明被拒） |
+| RAC-311 | Manifest 的 `model_configuration`、`image_generation` 形状逐条拒绝：不认的字段、库名与文件名、专用供应商、两个动作引用、不在 permissions 里的权限、没有 `model:invoke`、`storage:private` | `tests/service-declarations.test.ts` |
+| RAC-312 | Jelly 的模型设置、Images 的生图声明在各自的 Manifest 里，登记里没有；内置插件里只有它们声明 | 同上 |
+| RAC-313 | 装在名单之外、声明了模型设置或生图的定义：启动被拒，`last_error_code` 是 `plugin.declaration_invalid`，代码没运行 | 同上 |
+| RAC-314 | 项目插件声明模型设置或生图：启动名单被拒，不留一个要了服务却没拿到的插件 | 同上 |
 
 ## 8. 开工前核对（2026-10-23，`gh pr list` 的文件清单）
 

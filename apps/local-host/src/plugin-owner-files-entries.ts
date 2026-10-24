@@ -1,7 +1,8 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { pluginErrors, type PluginDefinition, type PluginFilesDeclaration, type PluginOwnerFilesDeclaration, type PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { type PluginDefinition, type PluginFilesDeclaration, type PluginOwnerFilesDeclaration, type PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { fixtureDeclarationsFor, type PluginPlatformHome } from "./home-side.js";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
+import { assertHomeOnlyDeclarations, givenService } from "./plugin-declared-services.js";
 import { ownerFileSegments } from "./plugin-owner-files-paths.js";
 
 export interface PluginOwnerFilesEntry {
@@ -25,12 +26,7 @@ export interface PluginOwnerFilesBinding {
  * refused to start, with its own code, not started without the service.
  */
 export function ownerFilesGiven(definition: PluginDefinition, given: PluginOwnerFilesBinding | undefined): PluginOwnerFilesBinding | undefined {
-  const declared = definition.manifest.owner_files;
-  if (declared === undefined) return undefined;
-  if (given === undefined) {
-    throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 的 Manifest 声明了文件根 ${declared.store_name}，但宿主没有把这些文件给它：不在宿主启动名单上的插件现在还没有主人文件`);
-  }
-  return given;
+  return givenService(definition, definition.manifest.owner_files, given, "主人文件");
 }
 
 /** The same catalog and bound fixtures used by the Home supervisor, without starting any instance. */
@@ -45,16 +41,14 @@ export function homeOwnerFilesEntries(home: string): PluginOwnerFilesEntry[] {
  * plugin that declares them is refused.
  */
 export function assertOwnerFilesEntries(homeEntries: readonly PluginOwnerFilesEntry[], projectEntries: readonly PluginOwnerFilesEntry[], home: Pick<PluginPlatformHome, "stores"> | null): void {
+  assertHomeOnlyDeclarations(homeEntries, projectEntries);
   const all = [...homeEntries, ...projectEntries], taken = new Set<string>();
   for (const entry of all) {
     const { definition, initialize_owner_files: initialize } = entry, files = definition.manifest.owner_files;
     if (initialize && !files) throw new Error("文件初始化器需要可信文件声明");
     if (!files) continue;
     const id = definition.manifest.plugin_id;
-    if (projectEntries.includes(entry)) {
-      if (homeEntries.some(other => other.dual_instance && other.definition.manifest.plugin_id === id)) continue;
-      throw pluginErrors.declaration_invalid(`项目插件 ${id} 不能声明 Home 主人文件服务：它不是双实例插件在项目里的那一半`);
-    }
+    if (projectEntries.includes(entry)) continue;
     if (!home) throw new Error(`插件 ${id} 的文件服务需要 Home`);
     if (definition.execution === "sandbox") throw new Error(`沙箱插件 ${id} 不能声明主人文件服务`);
     if (!PLUGIN_LIBRARY_NAME.test(files.store_name)) throw new Error("主人文件根必须是普通目录名");

@@ -13,6 +13,7 @@ import { homeLibraryFor } from "./plugin-database-entries.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
+import { givenService } from "./plugin-declared-services.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
@@ -111,8 +112,8 @@ export class HomePluginExecutor implements PluginExecutor {
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
       withdrawCaller = issuePluginCaller(caller, heldPermissions(manifest, context.grants));
       const authorized = { ...context, requireGrant: authorize };
-      const model = pluginModelFor(home, definition, authorized, assertActive, this.options.modelConfiguration(definition));
-      const imageGeneration = pluginImageGenerationFor(home, definition, authorized, this.options.imageGeneration(definition), assertActive);
+      const model = pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.model_configuration, this.options.modelConfiguration(definition), "模型设置"));
+      const imageGeneration = pluginImageGenerationFor(home, definition, authorized, givenService(definition, manifest.image_generation, this.options.imageGeneration(definition), "图片生成"), assertActive);
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
       const connections = pluginConnectionsFor(home, definition, authorized, assertActive);
       directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)

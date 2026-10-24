@@ -31,8 +31,6 @@ export interface PluginRegistration {
         readonly create: () => PluginDefinition;
         readonly files?: PluginFilesDeclaration;
         readonly initialize_owner_files?: (writer: import("platform/plugin-owner-files").PluginOwnerFilesWriter) => void;
-        readonly model_configuration?: PluginModelConfigurationDeclaration;
-        readonly image_generation?: PluginImageGenerationDeclaration;
         readonly package_name: string;
         readonly factory_export: string;
         readonly keys?: string;

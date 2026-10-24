@@ -3156,6 +3156,8 @@ export interface PluginManifest {
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
+    model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
+    image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];

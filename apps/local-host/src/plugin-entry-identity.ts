@@ -28,7 +28,7 @@ export function pluginEntryIdentity() {
     shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && bundledManifests.has(manifest),
     /** The files its Manifest declares, for a definition object the Host's start list holds, with the initializer the list gave it. */
     remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean; files?: PluginFilesDeclaration;
-      model_configuration?: PluginModelConfigurationDeclaration; image_generation?: PluginImageGenerationDeclaration; project_data?: PluginProjectCleanup })[]) {
+      project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
         if (entry.bundled) { bundled.add(entry.definition); bundledManifests.add(entry.definition.manifest); }
         if (entry.dual_instance) dual.add(entry.definition);
@@ -39,12 +39,12 @@ export function pluginEntryIdentity() {
           declaration: Object.freeze({ ...owned, entries: Object.freeze(owned.entries.map(item => Object.freeze({ ...item }))) }),
           initialize: entry.initialize_owner_files,
         }));
-        const config = entry.model_configuration;
+        const config = entry.definition.manifest.model_configuration;
         if (config) configurations.set(entry.definition, Object.freeze({
           preference: Object.freeze({ ...config.preference }), custom_provider: Object.freeze({ ...config.custom_provider }),
           actions: Object.freeze({ read: Object.freeze({ ...config.actions.read }), save: Object.freeze({ ...config.actions.save }) }),
         }));
-        if (entry.image_generation) images.set(entry.definition, Object.freeze({ ...entry.image_generation }));
+        if (entry.definition.manifest.image_generation) images.set(entry.definition, Object.freeze({ ...entry.definition.manifest.image_generation }));
         if (entry.project_data) projectData.set(entry.definition, Object.freeze({ owner_id: entry.project_data.owner_id,
           declaration: Object.freeze({ ...entry.project_data.declaration }) }));
       }

@@ -1,11 +1,12 @@
-import type { PluginDefinition, PluginModelConfigurationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginPlatformHome } from "./home-side.js";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
 
-/** Check the trusted composition before any plugin starts or receives a configuration port. */
-export function assertModelConfigurationEntries(entries: readonly { definition: PluginDefinition; model_configuration?: PluginModelConfigurationDeclaration }[], home: PluginPlatformHome | null): void {
+/** Check the start list before any plugin starts or receives a configuration port; a definition's settings are what its Manifest declares (`model_configuration`). */
+export function assertModelConfigurationEntries(entries: readonly { definition: PluginDefinition }[], home: PluginPlatformHome | null): void {
   const files = new Set<string>(), providers = new Set<string>();
-  for (const { definition, model_configuration: declaration } of entries) {
+  for (const { definition } of entries) {
+    const declaration = definition.manifest.model_configuration;
     if (!declaration) continue;
     const id = definition.manifest.plugin_id;
     if (!home || definition.execution === "sandbox") throw new Error(`插件 ${id} 的模型设置需要宿主执行与 Home`);

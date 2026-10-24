@@ -1,5 +1,5 @@
 {
-  "giantUnits": 96,
+  "giantUnits": 90,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1842,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -44,13 +44,8 @@
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 185,
-    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 440,
-    "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
-    "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
+    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
-    "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 185,
-    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
-    "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
     "file horizontal/agent-host/src/adapters/prologue.ts": 965,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
@@ -180,7 +175,6 @@
     },
     "file plugins/native/shelf/src/client.ts": 1641,
     "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 233,
-    "file plugins/native/workflows/src/client.ts": 1329,
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013,
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 178,
     "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 168,
@@ -409,7 +403,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 112,
+  "emptyCatchesInScriptsTotal": 110,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -454,8 +448,7 @@
     "plugins/native/plugin-builder/src/agent-studio.ts": 3,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/reading-client.ts": 1,
-    "plugins/native/shelf/src/settings-client.ts": 1,
-    "plugins/native/workflows/src/client.ts": 2
+    "plugins/native/shelf/src/settings-client.ts": 1
   },
   "oldNamesTotal": 3,
   "oldNames": {
@@ -557,7 +550,7 @@
     "plugins/native/shelf/src/result-client.ts": 1,
     "plugins/native/shelf/src/settings-client.ts": 1
   },
-  "rawFetchInScriptsTotal": 32,
+  "rawFetchInScriptsTotal": 31,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
@@ -574,7 +567,6 @@
     "plugins/native/schedule/src/client.ts": 3,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/result-client.ts": 1,
-    "plugins/native/workflows/src/client.ts": 1,
     "plugins/native/shelf/src/settings-client.ts": 4,
     "packages/im-ui/src/browser/transport.ts": 1
   },

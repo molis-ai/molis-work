@@ -45,6 +45,7 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | #1238 | 6388105657 | 同一文件三处catch分清回答与失败，精确not_found安静，其余安全hostLog | FIX5已一轮齐修并正常push固定 `55fc9f14715a574d122c87da479e516215748d55`（相对c72仅3文件+183/-15）；真实HTTP/SQLite/SDK三红→日志5PASS，6文件37有效，旧23+19按范围复用。源码clean/released，已直交二轮/TEST，尚待正式结论/新头CI；原c72绿不跨推。C1作者只做独立desktop，不同时改此文件 |
 | #1239 | 6388031418 / 6388049535 | B2b用途隔离、采集限额、S12与严格原后端恢复文档 | 唯一修复owner FIX4 `01a16f15-e025-71a3-adac-2e84f0e83fdd`，以冻结b9af98fd430e7451ad0a267e3fc2bc9aab1d7944接同轮全意见；C2已18:53:15Z明确零改动释放认领6388158312，不开第二writer。payload加用途/owner/Home绑定且不改既有vault格式，限额拒绝不截断/跳cache；恢复只找回原file/env/Keychain后端钥匙，不凭新ENV切后端。具体行为/额度按Root现行裁定；新头后修后复审/TEST。旧Functions首次超时、Keychain候选/干净006各8/8证据保留，不能判负载或首全绿 |
 | #1234 | 6387698407 | **挡合并**：`SECURITY-INVARIANTS.md:81` S-67 正文的「操作 id + 输入」换别的引号（S-20 把「」当测试名，Security invariants 1/2 红，同 #1187）。不挡合并：①受理期间 broker 停止，那条运行逃过取消；②cancel 不查被取消运行的目标；③S-67 三条真进程用例只在 mac 跑，挪到「只在本机跑」那栏，S-66 行补缺的一栏；④S-67 第②道门（宿主客户端）在沙箱路径补测试 |专职FIX5 `01a16f24-7a33-76f2-80b4-f20c55006d09` 已Root实际START，原71e4d059分支一轮齐修 |
+| #1240 | 6388577861 | **统筹升为挡合并**：①一条坏记录会让项目删不掉——`ProjectDeletionService` 查终端存活时走完整读取 `listDesktopPanels`，删除返回 500，而列表和关闭也都拒，产品里没有路径清掉它；存活检查只读 `panel_id`，补测试：带坏记录的项目能删，记录随项目清掉。②写入侧 `panels.ts:42` 的 `map(String)` 改成用 `desktop.launch_args_invalid` 拒绝，就在本 PR 改，不排后续 | |
 
 | 序 | 独立片 | 状态 |
 | --- | --- | --- |

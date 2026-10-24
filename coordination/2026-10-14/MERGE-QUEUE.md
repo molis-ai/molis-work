@@ -45,6 +45,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1161](https://github.com/molis-ai/molis-work/pull/1161) | #805非阻塞遗留：写后检查设置页路由注释规格错号 | — | 注释only，无full需求 | head `a6621a7ea817077b489c8e26648986568a9c02b2`；修复1交付/释放，1文件+1/-1，正式一轮6379702002可合，独立文档/secret检查通过；CI40061206220原生剪贴板测试间歇失败，独立诊断后待原run完成，统筹已成功单job重跑一次（6379912743），等原生/Verify结果 |
 | 新 | [#1163](https://github.com/molis-ai/molis-work/pull/1163) | #1147非阻塞遗留：SDK instructions统一登记文案 | #1147已实际合入1756f9842 | 纯文档，无full需求 | head `fd7c64a0ee77e72642cd5d6cf3b6c2a1cc281896`；修复2已交付/释放，1行README，正式review6379896345及独立原始文档/secret核验通过；已转ready，当前CI40062592114待完成 |
 | 新 | [#1164](https://github.com/molis-ai/molis-work/pull/1164) | `ac-sc3` BL-385（R-17）：删除项目时清该项目的 Characters 原生执行记录 | — | `full` 非空（shared-core、storage、spans-packages，137 文件），进批 | 10-24 05:10 开，头对 main 无冲突、未同步（落后不同步）；待 `ac-review` 一轮 |
+| 新 | [#1165](https://github.com/molis-ai/molis-work/pull/1165) | `ac-kernel` PG-047：模型结果的 `validateResult()` 由平台强制 | — | `full` 非空（63 个单元文件，无浏览器），进批 | 10-24 05:15 开，头 `40cbaa09b`，对 main 无冲突；待 `ac-review` 一轮 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 新开的开发片 PR 由统筹按依赖插进本表。

@@ -1,7 +1,8 @@
 import { scanTree, workingTreeSnapshot, isProductSource } from "../scripts/gates/translations.mjs";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -12,10 +13,11 @@ import {
   TODO_MESSAGES,
   TODO_EN,
   TODO_PROJECT_PLUGIN_ID,
+  createTodoPlugin,
   todoManifest,
   todoOrganizeActions,
 } from "@molis-ai/molis-work-plugin-todo";
-import { L, runWithLocale, homeStores, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { L, runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -147,11 +149,13 @@ test("HTTP routes map to the same actions; fixed paths are not read as ids; a pr
   assert.equal(gone.status, 200, JSON.stringify(gone.body));
 });
 
-test("待办整理师 and both organizing methods are registered with the Host, so they show in “Prompt 与 Character” and can be edited", async () => {
-  const { builtinRegistrations } = await import("../apps/local-host/dist/agent-definitions/builtin-agents.js");
-  const todo = (builtinRegistrations() as Array<{ owner_id?: string; roles?: Array<{ name: string; workspace?: string; execution?: string }>; prompts?: Array<{ prompt_id: string }>;
-    methods?: Array<{ skill_id: string; version: number; tools: string[]; body: string }> }>)
-    .filter(entry => entry.owner_id === "io.molis.work.todo");
+test("待办整理师 and both organizing methods are registered with the Host while Todo runs, so they show in “Prompt 与 Character” and can be edited", async t => {
+  // Todo's definition carries them (PG-051); the Host registers what a running definition carries.
+  const { registerPluginAgentDefinitions } = await import("../apps/local-host/dist/plugin-instructions.js");
+  const home = mkdtempSync(join(tmpdir(), "todo-agent-definitions-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  registerPluginAgentDefinitions({ directory: home, completeText: () => undefined, stores: homeStores() }, createTodoPlugin(), "todo-install");
+  const todo = homeAgentDefinitions(home).registrations().filter(entry => entry.owner_id === "io.molis.work.todo");
   assert.equal(todo.length, 1);
   assert.deepEqual(todo[0]!.roles!.map(role => [role.name, role.workspace, role.execution]), [["待办整理师", "business", "operate"]]);
   assert.deepEqual(todo[0]!.prompts!.map(prompt => prompt.prompt_id).sort(), ["todo-organizer", "todo.organize.basic", "todo.organize.organizer"]);

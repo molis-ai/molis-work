@@ -220,7 +220,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 446,
+  "testInternalImports": 444,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -257,7 +257,7 @@
     "tests/assistant-island-script.test.ts": 1,
     "tests/assistant-memory.test.ts": 1,
     "tests/assistant-mentions.test.ts": 2,
-    "tests/assistant-methods.test.ts": 4,
+    "tests/assistant-methods.test.ts": 3,
     "tests/assistant-tool-words.test.ts": 3,
     "tests/assistant-turns.test.ts": 1,
     "tests/assistant-undo.test.ts": 1,
@@ -270,7 +270,7 @@
     "tests/characters-native-execution.test.ts": 1,
     "tests/characters-publication-http.test.ts": 1,
     "tests/client-script-undeclared.test.ts": 4,
-    "tests/coding-commit-draft.test.ts": 2,
+    "tests/coding-commit-draft.test.ts": 1,
     "tests/coding-delegation-waits.test.ts": 2,
     "tests/coding-plan-dependencies.test.ts": 1,
     "tests/coding-session-follow.test.ts": 1,

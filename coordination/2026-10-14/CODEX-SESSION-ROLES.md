@@ -63,7 +63,6 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | [#1112二轮6380756955](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380756955)：Skill构建期范围、PG060/RAC证据映射、Files侧栏真实打开B并选中（冷/热两态） | 修复2 `01a16b08-de51-7cd0-a4c5-d45d89d9cdb3`，沿已有认领 | 当前C1→C2 B1保持；C2 B1固定head释放后，在其独立审验窗口给修复2一个完整短片。开工鲜核当前head/claim、真实依赖及更高优先级must-fix，不碰DeepSeek在途1107；完成释放即还C2 B2 | 目前尚无这三项修复提交，不能称完成。固定head直发REVIEW/TEST/流水线，随后记录实际PR/提交、验证和最终merge SHA；#1112本身安全/full/W5依赖另核 |
 | #1174 BL544侧视图慢加载可点无响应 | 修复1 `01a1682d-0a26-7522-b2b2-4446d904a7b7`，ac-shell领域归属保留 | 依原PR顺序在C片审验/CI插空；鲜核side-view在途认领，唯一spec＋真实延迟bundle/严格pointer回归；不调整R44期限 | 未实现；独立审验/实际提交与merge后关闭，不以BL登记代替 |
 | AC05 context-onboarding插件耦合（PG088/031） | 修复2，ac-shell/ac-platform领域归属保留 | 依W5动态目录合同及Claude优先级；沿已有审计核公开转换/限额/提供方合同，新取舍交root，真冲突只暂停相关文件 | 未实现；不得仅换字符串或搬私有实现进contracts；完整修复、独立证据和真merge才闭环 |
-
 | [#1182评审6381371024](https://github.com/molis-ai/molis-work/pull/1182#issuecomment-6381371024)：接续恢复的board.created行为人说明 | 修复1 `01a1682d-0a26-7522-b2b2-4446d904a7b7`，原ac-sc3代码owner保留 | 按原PR顺序排在前序nonblock后，当前C2 writer释放/审验窗口才开写；仅goals-s8b-library-identity slice澄清project.created仍continuity:local-restore、board.created在首次打开由本人创建，鲜核最终代码 | 未实现；原PR可合不因该句阻挡，文档差异/独立复审核证/真merge才闭环 |
 
 ## 未闭环评审问题的认领与修复

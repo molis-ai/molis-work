@@ -1,5 +1,5 @@
 import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
-import { ActionError, bindActionClient, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
@@ -72,10 +72,23 @@ export function bindGoalsWebActions(client: ActionClient, reference: LocalHostPr
  * action as the person on this machine, with nothing else granted. A project whose Goals is removed or whose guidance cannot be
  * read refuses it, and the caller starts without the layer.
  */
-export function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceView> {
+export async function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceView> {
   const read = goalsActions.guidanceRead;
-  return bindActionClient(client, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions,
-    allowed_actions: [{ capability_id: read.capability_id, version: read.version, provider_id: GOALS_PLUGIN_ID }] })).invoke({ ...read, provider_id: GOALS_PLUGIN_ID }, {});
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions };
+  return await invokeGoals(client, caller, read, {});
+}
+
+/**
+ * Calls `definition` as `caller` on the Goals that ships with the Host, pinned exactly (BL-501). These calls carry the person's decision
+ * (management) or put what they read into prompts (guidance), and a capability id belongs to no publisher (R-45): a third-party
+ * installation that registered `goals.*` while Goals is away must not receive them. The provider id `GOALS_PLUGIN_ID` is one only the Host
+ * assigns (`plugin-entry-identity.ts`), so the dispatcher refuses any other provider before a handler runs, and records the call like any
+ * other (a cancellation while it waits is settled there). Accepting a trusted publisher's installation instead is ac-trust's (BL-555 onwards).
+ */
+async function invokeGoals<Input, Output>(client: ActionClient, caller: ActionCallContext, definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> {
+  const provider_id = GOALS_PLUGIN_ID;
+  return await client.invoke({ ...caller, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id }] },
+    { ...definition, provider_id }, input) as Output;
 }
 
 /** What a management entry can do: Goals' actions as the person on this machine, origin management. */
@@ -138,9 +151,9 @@ export function bindGoalsManagementActions(client: ActionClient, reference: Loca
     async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output> {
       const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
       if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
-      return await client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
-        permissions: definition.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}), allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: GOALS_PLUGIN_ID }],
-        user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, { ...definition, provider_id: GOALS_PLUGIN_ID }, input) as Output;
+      return await invokeGoals(client, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
+        permissions: definition.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}),
+        user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, definition, input);
     },
   };
 }

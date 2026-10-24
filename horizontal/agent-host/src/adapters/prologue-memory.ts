@@ -13,7 +13,9 @@ import type { AgentMemoryCaller, AgentMemoryFormationContext, AgentMemoryMutatio
  */
 export interface PrologueMemoryBinding {
   context(caller: AgentMemoryCaller): MemoryCallerContext;
-  run<T>(caller: AgentMemoryCaller, work: () => Promise<T>, formation?: AgentMemoryFormationContext, validateContext?: () => Promise<void>): Promise<T>;
+  run<T>(caller: AgentMemoryCaller, work: () => Promise<T>, options?: {
+    formation?: AgentMemoryFormationContext; validateContext?: () => Promise<void>; operation?: "disable";
+  }): Promise<T>;
 }
 export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEffects, "memory">, binding: PrologueMemoryBinding): {
   capability: AgentMemoryCapability;
@@ -38,7 +40,7 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
     return reference;
   };
   const facade = (caller?: AgentMemoryCaller, control?: AgentMemoryExecutionControl): AgentMemoryCapability => {
-    const call = <T>(work: (bound: Bound) => Promise<T>, formation?: AgentMemoryFormationContext, validateContext?: () => Promise<void>): Promise<T> => {
+    const call = <T>(work: (bound: Bound) => Promise<T>, options?: Parameters<PrologueMemoryBinding["run"]>[2]): Promise<T> => {
       if (!caller) return Promise.reject(agentErrors.capability_unavailable("记忆调用缺少可信身份绑定"));
       return binding.run(caller, () => {
         const operation = () => work(runtime.bindMemory(binding.context(caller)));
@@ -46,12 +48,12 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
           if (isPrologueError(error) && error.code === "STORAGE_CONFLICT") throw agentErrors.memory_conflict("记忆已变化，请重新查看后再决定");
           throw memoryPromotionFailure(error);
         });
-      }, formation, validateContext);
+      }, options);
     };
     return {
       withCaller: next => facade(Object.freeze(structuredClone(next)), control),
       withExecution: next => facade(caller, next),
-      list: (scope, owner) => call(async bound => (await bound.memory.list({ scope, owner })).map(memoryView)),
+      list: (scope, owner) => call(async bound => (await bound.memory.list({ scope, owner, ...(caller?.run_explicit ? { readMode: "explicit" as const } : {}) })).map(memoryView)),
       page: input => call(async bound => {
         const { scan_limit, ...query } = input;
         const page = await bound.memory.page({ ...query, ...(scan_limit === undefined ? {} : { scanLimit: scan_limit }) });
@@ -66,7 +68,7 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
       update: input => call(async bound => memoryView(await bound.memory.update(await formal(bound, input), change(input.change), mutation(input)))),
       setMeta: input => call(async bound => memoryView(await bound.memory.setMeta(await formal(bound, input), toSdkMemoryMeta(input.meta), mutation(input)))),
       pause: input => call(async bound => memoryView(await bound.memory.pause(await formal(bound, input), input.reason, mutation(input)))),
-      disable: input => call(async bound => memoryView(await bound.memory.disable(await formal(bound, input), input.reason, mutation(input)))),
+      disable: input => call(async bound => memoryView(await bound.memory.disable(await formal(bound, input), input.reason, mutation(input))), { operation: "disable" }),
       resume: input => call(async bound => memoryView(await bound.memory.resume(await formal(bound, input), mutation(input)))),
       renew: input => call(async bound => memoryView(await bound.memory.renew(await formal(bound, input), input.expires_at_ms, mutation(input)))),
       previewMutation: input => call(async bound => {
@@ -109,7 +111,7 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
       }),
       candidates: {
         form: input => call(async bound => formationView(await bound.candidates.form(formationInput(input))),
-          input.trigger === "none" ? undefined : input.context, input.trigger === "none" ? undefined : input.validate_context),
+          input.trigger === "none" ? undefined : { formation: input.context, validateContext: input.validate_context }),
         propose: input => call(async bound => candidateView(await bound.candidates.propose({ scope: input.scope, owner: input.owner,
           text: input.text, origin: input.origin, ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}),
           ...(input.sources ? { sources: input.sources.map(source => ({ eventId: source.event_id, version: source.version })) } : {}) }, mutation(input)))),

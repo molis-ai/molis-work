@@ -404,6 +404,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly audit_actor_id?: string;
     readonly delegated_by?: string;
     readonly runtime_session_id?: string;
+    readonly runtime_memory_read?: import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadControl;
     readonly runtime_memory?: {
         readonly plugin_id: string;
         readonly current_scene: string;

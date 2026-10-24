@@ -32,20 +32,20 @@ export function formationClassAllowed(caller: MemoryCaller, prefs: MemoryPrefs, 
 /** An unreadable scope must not hydrate formal bodies merely to discard them later. */
 export function formationReadPossible(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope): boolean {
   if (caller.session_id && !caller.class_restrictions) return false;
-  const access = consumerAccess(prefs, caller.consumer, caller.plugin_id, "task");
-  const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, "task") : undefined;
+  const access = consumerAccess(prefs, caller.consumer, caller.plugin_id, caller.run_explicit ? "explicit" : "task");
+  const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, caller.run_explicit ? "explicit" : "task") : undefined;
   if (!access.allowed || (plugin && !plugin.allowed)) return false;
   const kinds = access.kinds && plugin?.kinds ? access.kinds.filter(kind => plugin.kinds!.includes(kind)) : access.kinds ?? plugin?.kinds;
   if (kinds?.length === 0) return false;
   const context = { consumer: caller.consumer, current_scene: newMemoryClassification(caller, null).classification!.scenes[0]! };
   const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"];
-  return memoryClassReadPossible([...prefs.class_restrictions, ...(frozen ?? [])], context, "task", kinds ? { kinds } : {});
+  return memoryClassReadPossible([...prefs.class_restrictions, ...(frozen ?? [])], context, caller.run_explicit ? "explicit" : "task", kinds ? { kinds } : {});
 }
 
 /** Recheck already-captured context synchronously after the last asynchronous canonical read. */
 export function formationReferenceAllowed(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope, target: MemoryClassTarget, mode: "read" | "form"): boolean {
   if (caller.session_id && !caller.class_restrictions) return false;
-  const accessMode = mode === "read" ? "task" : "explicit";
+  const accessMode = mode === "read" && !caller.run_explicit ? "task" : "explicit";
   const access = consumerAccess(prefs, caller.consumer, caller.plugin_id, accessMode);
   const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, accessMode) : undefined;
   if (!access.allowed || (plugin && !plugin.allowed)
@@ -53,8 +53,8 @@ export function formationReferenceAllowed(caller: MemoryCaller, prefs: MemoryPre
   if (mode === "form") return prefs.form && (caller.source_use === "explicit" || prefs.learn_from_work) && formationClassAllowed(caller, prefs, scope, target);
   const context = { consumer: caller.consumer, current_scene: newMemoryClassification(caller, null).classification!.scenes[0]! };
   const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"];
-  return memoryClassReadAllowed(prefs.class_restrictions, context, target, "task")
-    && (!frozen || memoryClassReadAllowed(frozen, context, target, "task"));
+  return memoryClassReadAllowed(prefs.class_restrictions, context, target, caller.run_explicit ? "explicit" : "task")
+    && (!frozen || memoryClassReadAllowed(frozen, context, target, caller.run_explicit ? "explicit" : "task"));
 }
 
 /** Keep a kind if a new or replacement destination in the declared current scenes could still be formed. */

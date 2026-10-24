@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -49,7 +50,7 @@ test("HTTP renewal keeps the original decision after a lost response, rejects in
     expected_version: replay.memory!.version, text: "The later HTTP decision" })).memory!;
   const stale = await post(body), staleError = await stale.json() as { code: string };
   assert.equal(stale.status, 409, JSON.stringify(staleError)); assert.equal(staleError.code, "agent.memory_conflict");
-  assert.equal((await client.invoke(memoryActions.list, {})).items[0]!.text, later.text);
+  assert.equal((memoryData(await client.invoke(memoryActions.list, {}))).items[0]!.text, later.text);
 });
 
 test("project HTTP renewal cannot cross the trusted project or create an unknown formal identity", { timeout: 30_000 }, async t => {

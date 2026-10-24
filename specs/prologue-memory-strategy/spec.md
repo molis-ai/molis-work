@@ -779,6 +779,36 @@ App authority 新增同步 `assertCurrent` 窄口，复用同一 `permitted` 规
 
 范围 preview/clear/export/import 及内聚投影移入同包 scope-commands，复用单一写门、固定预览和原操作重试；不新建账本、不放宽巨大单元门禁。 同一次项目清空跨 project/character 分段时，任何分段出现 unknown 必须停止后续分段，未派发项逐项记 not-executed；重试仍绑定原预览和原操作，不能扩大范围。真实生产策略、Node 和 SQLite 验证期限、纠正、补账、重启、往返、撤销及拒绝。允许路径为 Memory Service、shapes、classification、operations、scope-commands、Memory 合同和 README、独立 TTL/往返专项；不改 SDK、storage、锁文件、界面或晋升策略。
 
+#### M2 同一 Run 内的按需展开（2026-10-24，限定工程验证通过，待集成交付）
+
+本片结构门收束（2026-10-24）：Run 引用选择与它复用的召回排序、候选原件读取归现 `MemoryQueries`，Service 保留公开调用及写入编排；原 scopes/current 权限检查、查询顺序和使用记账条件不变。Host 的 Agent list/recall 共用一处读取分支，外部 MCP 仍走原授权分支。RunRecord 的构造与活控制绑定归现 `prologue-run-memory`，仍在订阅建立后释放原 ready 等待；终态/缺控制拒绝使用现 Agent 主人的 `agent.capability_unavailable`。新增 Run DTO 与对应 schema 移入现 `memory-queries` 合同文件，从原 `services/memory` 入口显式转出，动作版本和 schema 形状不变。不增加表、registry、授权口或通用层；本次结构调整的构建、类型和定向回归由统筹重新验证，不能沿用调整前的通过结论。
+
+结构调整后验证（2026-10-24）：移除搬迁后未用的 `visibleTo` 导入，Memory 单包类型检查通过。首次沙箱构建在 Swift 写用户缓存时被环境拒绝，原日志保留；固定 Node 24.14.0 / pnpm 11.9.0、正常本机环境及 browser→build 机器槽下重建通过。派生的 `structure-native-20261024` 验证批次实际展开 20 个相关文件，299/299 通过；根及 workspace 类型、对准确父 `a16800e4addfaf7f785230864c47324fe8548454` 的 health、boundary、API、Action、diff 与已有提交 secrets 检查均通过。API 导出位置调整不改变现快照，无需刷新；动作版本和形状没有追加变更。此前未变部分的 149 普通文件 / 2 浏览器文件证据按统筹决定复用，本轮不重复运行。资源仅实测报告：27 件合计 7,830,253 B，workbench.js 为 1,208,174 B，比当前预算 1,202,990 B 多 5,184 B，其余 26 件与预算相同；没有更新预算或额度，本段不声明资源门已通过。记录在 `/private/tmp/molis-memory-run-expansion-structure-native-20261024.results.json`，本次仅为对应工程验证，未提交、未推送，未操作真实 Home。
+
+本轮首败修复范围（2026-10-24）：Memory Action 依既有可信 `agent:*` 身份识别内部 Run，外部 MCP 的 runtime Session 审计字段不建立展开要求；内部缺原控制仍拒绝，外部读取仍守原 MCP grant/consumer 门。manual 助理回归补生产同源 reviewQueue 装配。S-43 回归分别验证 own-invoke 后的插件实际目标授权和直接 directory 委托的原调用者目标授权，保留两层回调隐藏控制及伪造不能替换控制断言；不改变 S-43 权限语义。此三项后来随上述 structure-native 批次验证通过；forget/form 策略不在该修复范围。
+
+**MEM-33 停用独立授权修复合同。** 真实助理回归证明 SDK 将 disable 投影为 save，App 因 form=false 拒绝已有目标的停用。仅凭 target.disabled 无法区分停用与已停用条目的编辑；原操作重试又没有 before，因此不以字段猜操作。复用 Adapter 既有每次调用 ALS，只有实际 disable 入口携带可信 operation=disable，将其作为 `PrologueMemoryOptions.authorize/assertCurrent` 的可选第三参数交 App；模型输入、caller 自报字段、普通 update/setMeta/write/resume 与另一并发调用不能设置或继承它。SDK 接口、存储格式、动作版本及写主人不变，无新增状态表或全局 registry。App 只为此入口的 save+disabled 目标按原 task-read、当前/冻结分类和 scope/plugin/namespace 权限许可，不要求 form；当前关闭读取仍拒绝，CAS、取消和最终同步权限 fence 原样保留。允许修改 AgentHost Adapter/README、LocalHost policy、现 policy/助理回归与本记录。验收：form=false 正常停用及同操作重启重试不增版本；普通保存、已停用记录编辑/恢复仍拒绝；读取/分类撤销或跨范围拒绝且落盘无变化；并发普通编辑不能借停用上下文通过。仅完成上述验证后才记工程通过。
+
+本片补齐 §5.2、§7.3 和 MEM-33 已承诺的真实消费者：助理在短记忆不足或需要纠正目标时调用现有 `list-memories`，Coding/通用 Agent 调用已获准的 `memory.list` / `memory.recall`。可信 Memory owner 选出当次可见的固定 ref/version，交该 Run 已有 SDK `started.memory.expand`；工具只得到无正文的引用与排队回执，正文只能经下一次真实模型请求的 Memory Context 注入。queued 不表示已发送，更不表示模型采用；自然结束后不为记忆再启动一轮。保留 memory_id/version，使后续纠正仍指向确定目标。
+
+写主人和调用链：MemoryService 保留产品范围、选择与当前许可，AgentHost 保留同一次 Run 的 control，SDK 保留 canonical 读取、最终授权、期限/状态、累计预算与 ref/version 去重。`PrologueRuntimePort` 只投影 SDK 现有 control；现 `RunRecord` 持有它，不落盘、不加第二 Run registry。启动前建立一次性可取消 ready 等待，首工具即使先于 start 返回，也只能等 SDK 启动与现 RunRecord 绑定成功后调用；失败拒绝等待，恢复的历史 Run 不补造 control。不能依赖微任务顺序、网络较慢或 Session 的“最新 Run”。Adapter 复用固定 attempt 的 `memoryAuthority.forAttempt`，不得借另一 Run 的分类快照。
+
+跨模块合同调整：`AgentMemoryTools.list` 从正文数组改为无正文展开回执；`AgentActionClient` 的调用控制与 Host 私有 `ActionCallContext` 传递同一 Run 的展开窄口。控制不来自 Action/tool 参数，不进入序列化的 runtime_memory，不暴露给插件回调视图；现有内部嵌套 Action 转发保留原控制，不能绕开 Memory owner 回落正文。运行中 Agent 的 memory.list/recall 在 owner 边界返回显式展开结果，缺绑定报 unavailable；普通本人管理及既有非 Run 调用保留各自语义。依当前开发协议更新 `memory.list@5`、`memory.recall@3` 的输出 union 及所有现消费者，不保留旧版本兼容层；Action/API 快照由统筹统一生成。
+
+读取与形成独立。助理可读但 form=false 时仍提供 list；remember/propose/forget 各守原来的来源、形成或停用门，stop check 不再把“不能形成”等同全部记忆关闭。forget 仍按既有 task-read 定位目标，与 form 独立：read=true/form=false/task-read=true 仍可停用；manual 不展示当前无法定位的 forget，不借展开控制扩大写工具许可。manual / skip automatic 不禁止另行授权的 explicit 读取，off、角色禁止 read、撤权或当前安装失效则零正文读取。展开的 explicit 用途仅由 Host 对固定 Run 的可信控制建立，不能以 person=true 或模型自报 scope/owner/session 获得；原冻结与当前分类规则、consumer/plugin/namespace 限制仍求交。选择后到派发前版本、期限、状态或权限改变，SDK 拒绝原引用，不换新正文、不退还已计额度、不跨 Run 共享预算。
+
+范围及可配与可换：沿用现 Adapter/Memory backend/Action 装配，不新增 SDK API、普通插件消费者、槽、缓存、模型循环、UI 矩阵或预算配置。App 继续传入原 Run 配方和预算；用户继续在现设置中调整读与形成许可。当前权限、可信身份、固定 Run、共享预算、终态与无正文工具结果均不可配置关闭。允许改 AgentHost adapter/现 RunRecord 与工具接线、MemoryService 窄口、LocalHost 助理与 Action 装配、相关 contracts、插件回调上下文剥离及对应文档/定向测试；vendor/lock/生成快照与并行 Session 生命周期片由统筹合流。
+
+可观察验收：真实 Node/SQLite/本机 HTTP 的生产链中，首工具早于 start 返回仍不挂死或串 Run；list/recall tool result 不含记忆正文，下一实际请求与 Context receipt 对上同 ref/version，重复/并发展开共用剩余额度；read=true/form=false 可读，off/角色禁读零读；选择后撤权、版本变化、到期、取消、启动失败、终态和重启历史 Run 均不迟到注入或隐式回落正文；助理仍能按返回 ID 纠正。定向源码入口为 `node scripts/run-tests.mjs --jobs 2 tests/memory-run-expansion.test.ts tests/agent-memory-action-class-policy.test.ts tests/assistant-memory.test.ts tests/memory-actions.test.ts tests/memory-presets.test.ts tests/memory-mcp.test.ts`；统筹再运行完整类型/边界/API/Action 门及最终产品实操。该段是初始验收合同，当前已运行的限定工程结果见本节开头；完整产品实操及最终全量仍待执行。新增源码覆盖真实 Node 的 read-only、off、缺原配方、分类/consumer 禁读、owner 不匹配、取消、选择后撤权和版本变化，以及生产 Coding list/recall 与助理工具装配；启动登记失败的等待解除使用现 RuntimePort 受控替身测试生产 Adapter，不能冒充真实 Node afterStart 存储故障。真实 SDK 首工具早于 start 返回的确定性交错、到期/安装撤权/重启历史控制仍需统筹补充实际验证，不以这些测试文件存在宣称验收。
+
+性能测量另片处理：现 SDK 在 opening recall 完成后才发 `memory-recalled`，事件没有 recall 开始或 `cost.elapsedMs`；与后续 prepared receipt 相减不是自动召回耗时。实际 prepared/dispatched receipt 可证明最终注入及派发，不能补造检索起点。后续保留三档容量、自动召回增量延迟、最终可见反馈与 B2 总成本原门槛，本片不加入计时实现或宣称节省。
+
+上述公开输出的最小变化是新增一种共享无正文 DTO：`mode: "run-expansion"`、原 receipt_id/outcome/可选错误码、queued/omitted 的 memory_id 与 version、tokens/basis/remaining_tokens。list@5 输出为原 MemoryListResponse 或此 DTO；recall@3 输出为原 MemoryRecallResponse 或同 DTO，原管理结果不添加必填字段。AgentMemoryTools.list 直接返回此 DTO，不再包装正文 memories 数组；queued/omitted 都不是实际发送证明。Action 参数不增 owner、Session、Run 或 permission 字段。Host 私有控制只对已校验的 list-memories / memory.list / memory.recall 读取意图建立 explicit 用途；任意其他 runtime Action、插件回调或模型自报字段不能建立该用途。调用该窄口时仍须核同 Run 当前 role/install/read/场景与原冻结权限；对通用 Action，在 Memory owner 读取前验证当前具体 Action 授权，嵌套调用不能仅凭继承 runtime actor 获得许可。
+
+ready 等待的无环依据是现役调用链：SDK `session.startRun` 调同步 `startRun`；后者启动独立 `work` 异步 drive 并立即返回 handle，Session 随即 track/return，SDK start 不等待工具结果。故即使 drive 同步进入首工具，该工具 await ready 也只挂起 drive，SDK start 仍能返回；Molis `afterStart` 只登记 attempt、控制与项目工作，随后 `roundHandle` 返回，Adapter 创建并订阅原 RunRecord 后释放 ready。失败先拒绝 ready，再等待任何 cancel/drain；工具自己的 AbortSignal 在等待期间直接退出，不能依赖未建立的订阅解除等待。若 ready 释放前已终态，重放订阅先更新原记录，然后拒绝展开。验收须由真实公开 SDK 启动路径构造这个交错；一个在 start 内 await 工具后才返回的假 Runtime 不满足现 SDK 合同，不能用它反证或替代生产行为。
+
+最终采用的私有边界：`MemoryRunReadControl.read(select, signal)` 只在 AgentHost 给既有 Memory 工具/具体 Memory Action 接线，先等待并检查原 Run，再把冻结 scope/owner 交可信 MemoryService selector；选择结束后再核当前 Host 与 Memory 权限，然后转到 SDK expand。selector 只返回固定引用，不暴露给插件或模型。现 RunFrame 的可信 `run_explicit` 标识与 SDK 自己保存的 `request.readMode` 共同决定 explicit 复核，后续 captureReads 派发仍沿原 frame；不为 ref 另存权限表。选择阶段 caller 的同名标识仅由该受控 owner 路径建立，普通 Action 参数不能设置。原 recall 在此路径仅选择、不记使用，最后仍由真实 Context receipt 记账。关闭 Adapter 先撤下现 RunRecord 的 control，恢复历史记录没有 control。助理 assistant/assistant-delegated 角色升至 3；list 工具返回与独立读/形成装配同步更新停止检查文案。普通插件消费边界不变。
+
 ## 10. 验收标准
 
 原 MEM-01～24 保留编号并按本次决定修订；新增编号从 25 起。P0 指首期，P1/P2 不计入首期完成但仍保留为本 spec 承诺；各项实现与验证进度见 §13；已有局部工程证据不等于该项或 P0 整体验收。实施测试须在测试名或注释引用编号；人工判断另标，不以编号覆盖率代替行为证据。
@@ -1530,3 +1560,13 @@ macOS 补验按统筹独立依赖审计选择五个受影响文件：action-cont
 旧文字采用资源批准与登记（2026-10-24）：用户明确批准 #1155 本片 workbench.js 一次性 +480 B。已合入 #1154 的额度记录，以父 `a8bd07eb0` 的准确预算 1,207,694→1,208,174 登记；其余 26 项不变。当前构建的预算更新与实际资源门均通过，日志 `/private/tmp/molis-memory-history-text-approved-assets-20261024.log`。本次仅改资源登记、实测预算与记录，不改产品代码，不重复此前有效产品验证；仍等待父链、#1064 最终全量及完整 P0 验收。
 
 固定选集资源批准与登记（2026-10-24）：用户明确批准 #1160 三项一次性增长：workbench.js +4,794 B、settings.css +488 B、workbench.css +488 B。先合入父链所有独立批准，以 #1155 `66f32c4a6` 的准确预算分别登记 1,208,174→1,212,968、996,117→996,605、1,614,554→1,615,042；其余 24 项不变。当前构建实际 27 项共 7,836,023 B，预算更新与资源门均通过，日志 `/private/tmp/molis-memory-selected-batch-approved-assets-20261024.log`。只改精确额度、预算与记录，没有扩大批准、修改产品代码或复跑已有效产品用例；此前未通过记录保留。依赖合并、#1064 当前冻结全量和完整 P0 验收仍待完成。
+
+按需展开独立交付准备（2026-10-24）：统筹复核实际 53 文件差异、真实 Run 控制绑定与插件回调隐藏边界，以及结构调整后的 20 文件 299 项和既有 149 普通/2 浏览器证据。源父 a16800e4 与已获批准的旧文字采用 #1155 head 66f32c4a 在产品源码上完全相同，后者仅增加既有资源登记与 spec；交付前合入该准确父，再核资源门，不为本片新增额度。完整共享全量与最终 Coding/助理产品旅程仍待验证，保持 Draft。
+
+按需展开交付门核对（2026-10-24）：源码提交 ca101be48 后，合入准确父 #1155 66f32c4a，merge 1af28480b；唯一冲突为 spec 末尾追加记录，双方保留，产品源码无变化。整体构建通过；首次在 merge 尚未提交时运行资源基线检查仍取旧 merge-base a168，按原规则拒绝预算上涨，日志保留。提交实际父关系后，以同一构建再验真实资源、health 对66f32c4a、boundary、API/Action、secrets、diff 全部通过（`/private/tmp/molis-memory-run-expansion-delivery-parent-20261024.results.json`），无新增资源额度。工作台与父实际值同为1,208,174 B、27资源7,830,253 B。进入 Draft 供评审；本节列出的首工具交错、期限/安装撤权/恢复控制和最终真实旅程/性能/B2待验项仍保留，不用本次门禁替代。
+
+按需展开缺口补验（2026-10-24，基于 `7408bc853`，仅测试及本记录）：现文件已有真实公开 SDK/Node 的三个 afterStart 存储屏障用例，实际断言首工具进入时 start 尚未返回，并分别验证放行、登记失败及等待中取消；本次复用并重新执行，没有新增违约 Runtime。新增选择后到期和可信安装派发许可撤销：到期用真实短期记忆及受控 Date，原 ref 无排队、无 Context、无使用账、无正文进入下一请求；安装撤权在公开 `AgentStartExecution.beforeDispatch` 原可信口受控改变当前许可，确认选择后读取及下一派发都拒绝、只存在首个 HTTP 请求。此项证明 AgentHost/SDK 如何执行 Host 的当前安装 fence，不单独证明插件卸载界面或安装事实主人的完整接线。
+
+重启用例实际关闭并重新打开 Node Adapter 与 SQLite ledger，从原 Session 恢复历史 Run；公开历史只返回数据，恢复不触发 HTTP，原使用账保持，旧控制在新 Run 存在时仍在选择前拒绝。新 Run 获得独立控制和完整预算，可以重新接受同 ref/version，旧正文不进入它的首请求；没有历史控制的序列化或补造。工具内关键断言的完成结果在外层再次确认，避免被正常工具错误处理吞掉。
+
+本次首败为测试推进业务日期同时越过自身 Date 等待截止线，109ms 即触发等待断言，日志 `/private/tmp/molis-memory-run-expansion-coverage-20261024.log` 保留；等待改用 `performance.now()`，原 15 秒上限不变。窄 strict tsc 另暴露原 consumer-off 的不完整 consumers 与旧替身 createSession 缺 role_id，两处仅补当前完整字段及 reader 身份。最终 `node scripts/run-tests.mjs --jobs 2 --retries 0 tests/memory-run-expansion.test.ts` 为 17/17（`/private/tmp/molis-memory-run-expansion-coverage-reviewed-20261024.log`）；该文件 strict tsc、health 对本轮 HEAD 及 diff 检查通过，类型首败与通过日志分别保留 `coverage-types` / `coverage-types-fixed`，最终健康日志为 `coverage-health-final`，均带 `-20261024.log`。生产源码、SDK96、锁、资源与公共合同未改，复用原构建和其它已有效工程证据；未重跑全量、浏览器、真实 Home、付费 B2、性能或最终产品/用户验收，也未据此宣称这些范围完成。

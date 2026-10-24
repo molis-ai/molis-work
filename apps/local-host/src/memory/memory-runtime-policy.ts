@@ -91,7 +91,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     return { prefs, allowed: access.allowed && (!plugin || plugin.allowed)
       && (!target.kind || (!access.kinds || access.kinds.some(kind => kind === target.kind)) && (!plugin?.kinds || plugin.kinds.some(kind => kind === target.kind))) };
   };
-  const permitted = (caller: AgentMemoryCaller, request: Request, state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }) => {
+  const permitted = (caller: AgentMemoryCaller, request: Request, state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }, operation?: "disable") => {
     if (request.appId !== "io.molis.work" || !scoped(caller, request.target, state) || !namespaceAllowed(caller, request.target.namespace)) return false;
     if (state.deletion) return request.action === "manage-read" || request.action === "delete";
     if (request.action === "manage-read" || request.action === "delete") {
@@ -99,8 +99,8 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
       if (request.action === "delete") return false;
     }
     const { prefs, allowed } = preferences(caller, request.target, state.owner,
-      request.readMode === "explicit" && caller.person === true ? "explicit" : "task");
-    const readMode = request.readMode === "explicit" && caller.person === true ? "explicit" : request.readMode === "resident" ? "resident" : "task";
+      request.readMode === "explicit" && (caller.person === true || caller.run_explicit === true) ? "explicit" : "task");
+    const readMode = request.readMode === "explicit" && (caller.person === true || caller.run_explicit === true) ? "explicit" : request.readMode === "resident" ? "resident" : "task";
     const mayForm = (target: Target) => classAllowed(caller, preferences(caller, target, state.owner, "explicit").prefs, target, "form");
     const formation = () => mayForm(request.target) && (!request.before || mayForm(request.before));
     if (request.action === "manage-read" && request.target.ref.kind === "memory-candidate"
@@ -114,14 +114,22 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     if (request.action === "promote") return prefs.form && prefs.learn_from_work && prefs.auto
       && preferences(caller, request.target, state.owner, "explicit").allowed && formation();
     if (caller.person === true && caller.purpose === "management") return true;
+    if (operation === "disable" && request.action === "save" && request.target.disabled === true) {
+      const readable = (target: Target) => {
+        const access = preferences(caller, target, state.owner, "task");
+        return access.allowed && classAllowed(caller, access.prefs, target, "task");
+      };
+      return (caller.consumer !== "plugin" || request.target.namespace === caller.plugin_id)
+        && readable(request.target) && (!request.before || readable(request.before));
+    }
     if (!prefs.form || request.action === "accept" || !preferences(caller, request.target, state.owner, "explicit").allowed) return false;
     // Plugins write only their own namespace; shared explicit statements are admitted by MemoryService's source gate.
     const pluginSave = request.action === "save" && caller.consumer === "plugin" && request.target.namespace === caller.plugin_id
       && request.target.source === "plugin" && request.target.approvedBy?.by === "policy" && request.target.approvedBy.policy === `plugin:${caller.plugin_id}`;
     return (caller.consumer !== "plugin" || request.target.namespace === caller.plugin_id) && (pluginSave || formation());
   };
-  const requestsAllowed = (caller: AgentMemoryCaller, requests: readonly Request[], state: ReturnType<typeof currentFacts>) =>
-    !!state && requests.every(request => permitted(caller, request, state)
+  const requestsAllowed = (caller: AgentMemoryCaller, requests: readonly Request[], state: ReturnType<typeof currentFacts>, operation?: "disable") =>
+    !!state && requests.every(request => permitted(caller, request, state, operation)
       && (!request.before || scoped(caller, request.before, state) && namespaceAllowed(caller, request.before.namespace)));
   return {
     policy: extractor ? { ...POLICY, formation: { maxSlots: 144 },
@@ -129,17 +137,17 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
       limits: { maxContentChars: 655360, maxContentNodes: 16384 }, matrix: { ...POLICY.matrix,
       rows: POLICY.matrix!.rows!.map(row => ({ ...row, formation: ["run-end"] })) } } : POLICY,
     ...(extractor ? { extractor } : {}),
-    async authorize(caller, requests) {
-      return requestsAllowed(caller, requests, await current(caller));
+    async authorize(caller, requests, operation) {
+      return requestsAllowed(caller, requests, await current(caller), operation);
     },
-    assertCurrent: (caller, requests) => requestsAllowed(caller, requests, currentFacts(caller)),
+    assertCurrent: (caller, requests, operation) => requestsAllowed(caller, requests, currentFacts(caller), operation),
     async authorizeRecall(caller, request) {
       const state = await current(caller);
       // No readable scope means no storage scan; mixed off/on still admits its readable part and rechecks every entry.
       return { allowed: !!state && !state.deletion && request.appId === "io.molis.work"
         && namespaceAllowed(caller, request.filter.namespace) && request.scopes.every(target => scoped(caller, target, state))
         && request.scopes.some(target => {
-          const mode = request.readMode === "explicit" && caller.person === true ? "explicit" : "task";
+          const mode = request.readMode === "explicit" && (caller.person === true || caller.run_explicit === true) ? "explicit" : "task";
           const access = preferences(caller, target, state.owner, mode);
           const frozen = caller.class_restrictions?.[target.scope === "user" ? "personal" : "project"];
           return access.allowed && !(caller.purpose === "task" && caller.session_id && !frozen)

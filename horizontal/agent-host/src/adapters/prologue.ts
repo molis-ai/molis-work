@@ -1,3 +1,5 @@
+import { bindRunMemory, type PrologueRunMemoryPort, type RunRecord } from "./prologue-run-memory.js";
+export type { RunRecord } from "./prologue-run-memory.js";
 import { agentErrors } from "../errors.js";
 import { BUSINESS_HOST_TOOLS, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -33,7 +35,7 @@ import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
 import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
 import { controlFailure } from "./prologue-control-errors.js";
-import { PrologueMemoryUsage, runMemoryContext } from "./prologue-memory-usage.js";
+import { PrologueMemoryUsage } from "./prologue-memory-usage.js";
 import { restoredSessionRecords, restorePrologueRun } from "./prologue-restored-session.js";
 import { inputsPort, type RoundInputs, type SessionQueue } from "./prologue-inputs.js";
 import { readSupplementaryInput, type SupplementaryLocation } from "./prologue-original-inputs.js";
@@ -47,7 +49,6 @@ import {
   settleProloguePending,
   type PrologueControlState,
   type PrologueEvent,
-  type PrologueStreamState,
 } from "./prologue-stream.js";
 
 /**
@@ -223,6 +224,7 @@ export interface PrologueRuntimePort {
   startAgentRun(input: PrologueStartInput): Promise<{
     run: PrologueRunPort;
     control: PrologueControlPort;
+    memory?: PrologueRunMemoryPort;
   } & RoundDesk>;
   shutdown(): Promise<unknown>;
 }
@@ -295,21 +297,6 @@ function currentCapabilities(approvalsAttached: boolean, receiptsAttached: boole
   matrix.compaction = "unsupported";
   matrix.usage = "supported";
   return matrix;
-}
-
-export interface RunRecord {
-  view: AgentRunView;
-  state: PrologueStreamState;
-  control: PrologueControlPort;
-  /** The model this Run started with (live runs only): what a switch has to stay compatible with. */
-  model?: PrologueModelConfiguration;
-  unsubscribe: () => void;
-  listeners: Set<(view: AgentRunView) => void>;
-  timingCommit?: Promise<void>;
-  timingReady?: boolean;
-  timingError?: string;
-  observedEndAt?: string;
-  memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage"> & Partial<Pick<AgentRecalledMemory, "class_restrictions" | "current_scene">>;
 }
 
 /** Validate a frozen role and any continued plan against this Runtime before preparing an execution. */
@@ -599,6 +586,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
     await execution?.beforeStart?.();
     requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
+    const memoryBinding = bindRunMemory(memory, () => execution?.beforeDispatch?.());
+    try {
     const started = await this.#runtime.startAgentRun({
       beforeStart: execution?.beforeStart,
       assertBeforeStart: execution?.assertBeforeStart,
@@ -625,8 +614,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       skills: role.skills ?? [],
       mcp_tools: request.mcp_tools ?? [],
       mcp_sources: request.mcp_sources ?? [],
-      ...(role.actions ? { actions: role.actions } : {}),
-      ...(role.action_gateway ? { action_gateway: role.action_gateway } : {}),
+      ...(role.actions ? { actions: { ...role.actions, client: memoryBinding.client(role.actions.client) } } : {}),
+      ...(role.action_gateway ? { action_gateway: { ...role.action_gateway, client: memoryBinding.client(role.action_gateway.client) } } : {}),
       mode,
       ...(request.history === "digest" ? { history: "digest" as const } : {}),
       ...(request.queued_work_id ? { queued_work_id: request.queued_work_id } : {}), ...(request.queued ? { queued: request.queued } : {}),
@@ -653,15 +642,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
     state.turns.push(view.turns[0]!);
 
-    const record: RunRecord = {
-      view,
-      state,
-      control: started.control,
-      model,
-      ...runMemoryContext(memory),
-      unsubscribe: () => {},
-      listeners: new Set(),
-    };
+    const record = memoryBinding.record({
+      view, state, control: started.control, model,
+    }, started.memory);
     this.#runs.set(ref.run_id, record);
     session.runs.push(ref);
 
@@ -694,7 +677,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const unsubscribeControl = started.control.subscribe(() => this.#publish(ref.run_id));
     record.unsubscribe = () => { unsubscribeEvents(); unsubscribeControl(); };
     this.#publish(ref.run_id);
+    memoryBinding.ready(record);
     return { ref, frozen };
+    } catch (error) { memoryBinding.failed(error); throw error; }
   }
 
   async read(run: AgentRunRef): Promise<AgentRunView> {
@@ -801,6 +786,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   /** Release the underlying Runtime. The Host owns when this happens. */
   async close(): Promise<void> {
+    for (const record of this.#runs.values()) record.memory = undefined;
     this.#detachApprovalAnswers?.();
     await Promise.all([...this.#runs.values()].map(record => record.timingCommit));
     try { await this.#runtime.shutdown(); }

@@ -15,7 +15,7 @@ export const ANNOUNCE_HELD =
 
 /** What the model reads when it claimed a memory change in a round the person gave no memory (switched off in settings). */
 const MEMORY_OFF_HELD =
-  "The person has switched off forming memories, so this round cannot keep or forget anything and nothing was kept. Say plainly that you did not keep it, that it still applies within this work, and that they can turn on “允许记住” under 设置 · 个人 · 记忆.";
+  "This round has no authorized memory tools, so the claimed memory change was not made. Say plainly what was not kept or forgotten. Follow the actual memory settings supplied for this work; do not infer that reading permission grants permission to form or disable a memory.";
 
 /** What the model reads when it claimed a memory change it did not make. */
 const MEMORY_CLAIM_HELD = {
@@ -23,9 +23,9 @@ const MEMORY_CLAIM_HELD = {
   forget: "You said you forgot it, but no forget-memory call succeeded in this round, so it is still in use. Call forget-memory now if the person asked; otherwise say plainly that it was not forgotten. (forget-memory switches it off; it does not delete it.)",
 } as const;
 
-/** What the model reads when it claimed a memory change in a work that was handed to it: it has no tool to keep or forget. */
+/** Missing change tools can follow delegation or independent formation/read permissions. Do not guess why. */
 const MEMORY_NOT_GIVEN_HELD =
-  "This work was handed to you by another work, so you have no tools to keep or forget memories (only the person's own work does): nothing was kept or forgotten. Say plainly that you did not keep or forget it, and leave it to the work that handed this to you to do it if the person asked.";
+  "This round has no authorized tool for the memory change you claimed. Nothing was kept or forgotten by that claim. Say plainly that the requested change was not made. Reading remembered information does not mean you can keep or forget it.";
 
 /** What the model reads when a round's reply claims `claim` that no call made: switched off, no such tool in a handed-down work, or just not done. */
 export function memoryHeld(round: { off: boolean; without: { keep: boolean; forget: boolean } }, claim: "keep" | "forget"): string {

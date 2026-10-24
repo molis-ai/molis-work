@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -124,13 +125,13 @@ test("manual recall is explicit only at the protected memory HTTP entry and not 
   const actions = bindActionClient(web.host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
   await actions.invoke(memoryActions.write, { scope: "personal", text: "周报先写风险" });
   await actions.invoke(memoryActions.savePrefs, { scope: "personal", preset: "manual" });
-  const task = await actions.invoke(memoryActions.recall, { query: "周报", scopes: ["personal"] });
+  const task = memoryData(await actions.invoke(memoryActions.recall, { query: "周报", scopes: ["personal"] }));
   assert.equal(task.state, "off"); assert.equal(task.items.length, 0);
   await assert.rejects(actions.invoke(memoryActions.recall, { query: "周报", readMode: "explicit" } as never));
   await assert.rejects(actions.invoke(memoryActions.recall, { query: "周报", memory_read_mode: "explicit" } as never));
   await actions.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { mcp: true } } as never });
   const mcp = bindActionClient(web.host.homeActionClient(), () => ({ actor_id: "runtime:codex", project_id: null, audience: "mcp" as const, permissions: [...MEMORY_PERMISSIONS] }));
-  assert.equal((await mcp.invoke(memoryActions.recall, { query: "周报", scopes: ["personal"] })).state, "off");
+  assert.equal((memoryData(await mcp.invoke(memoryActions.recall, { query: "周报", scopes: ["personal"] }))).state, "off");
   const response = await web.request("/api/memory/recall", { method: "POST", body: { query: "周报", scopes: ["personal"] } });
   assert.equal(response.status, 200); assert.equal((await response.json()).items[0].text, "周报先写风险");
   const untrusted = await web.request("/api/memory/recall", { method: "POST", authorized: false, body: { query: "周报" } });

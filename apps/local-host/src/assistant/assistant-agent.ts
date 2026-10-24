@@ -139,15 +139,15 @@ export const ASSISTANT_AGENT: AgentManifest = {
   // (25–33k with its capability lookups) paid for a compaction it did not need.
   compaction: { prompt_id: "assistant-compaction", above_tokens: 48_000 },
   ending_review: { prompt_id: "assistant-ending-review" },
-  // A round's frozen record names its role and version, so the version moves with what the role carries: 2 since
-  // `BUSINESS_HOST_TOOLS` added board-wait (#661) and acknowledge-inputs (#713).
+  // Version 3 separates read from formation and changes list-memories to same-Run expansion receipts.
+  // A frozen role version describes the actual offered tools, including read-only memory settings.
   roles: [{ role_id: "thread-reply", version: 1, name: "评论中的个人助理", workspace: "business", execution: "read-only", prompts: ["assistant-thread"], host_tools: [] }, {
-    role_id: ASSISTANT_ROLE_ID, version: 2, name: "个人工作助理", workspace: "business", execution: "operate",
+    role_id: ASSISTANT_ROLE_ID, version: 3, name: "个人工作助理", workspace: "business", execution: "operate",
     prompts: ["assistant-base", "assistant-work"], host_tools: [...BUSINESS_HOST_TOOLS],
   }, {
     // Delegating one level deep, and keeping or forgetting on the person's words, are the Host's checks on the work itself
     // (`assistant-delegation.ts`, `assistant-memory-tools.ts`); this role carries only what being delegated means for the reply.
-    role_id: ASSISTANT_DELEGATED_ROLE_ID, version: 2, name: "委派的子任务", workspace: "business", execution: "operate",
+    role_id: ASSISTANT_DELEGATED_ROLE_ID, version: 3, name: "委派的子任务", workspace: "business", execution: "operate",
     prompts: ["assistant-base", "assistant-delegated"], host_tools: [...BUSINESS_HOST_TOOLS],
   }],
   // A Character the person published in the work's project may carry a round: exact version, their own, this project only.

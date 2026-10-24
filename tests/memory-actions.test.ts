@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import { AgentHost, createPrologueNodeAdapter, type PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-agent-host";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -119,21 +120,16 @@ test("memory is one system.memory provider in the shared directory: the person m
   const suggested = await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" });
   assert.deepEqual([suggested.outcome, suggested.memory, suggested.candidate?.text, suggested.candidate?.basis], ["candidate", null, "回答用要点列表", "inferred"]);
   assert.match(suggested.reason, /没有保存/);
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, [], "nothing was recorded as the person's words");
+  assert.deepEqual((memoryData(await asPerson.invoke(memoryActions.list, {}))).items, [], "nothing was recorded as the person's words");
   // It becomes a memory when the person accepts it: the local person's personal memory, as accepted.
   const kept = await asPerson.invoke(memoryActions.accept, { candidate_id: suggested.candidate!.candidate_id, expected_version: suggested.candidate!.version });
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source]), [["回答用要点列表", "accepted"]]);
+  assert.deepEqual((memoryData(await asPerson.invoke(memoryActions.list, {}))).items.map(item => [item.text, item.source]), [["回答用要点列表", "accepted"]]);
   // The person's page recalls as the interface consumer; an agent as Agent work.
-  const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下", used_for: "Coding 工作" });
-  assert.deepEqual(recalled.items.map(item => item.text), ["回答用要点列表"]);
-  const agentList = await asAgent.invoke(memoryActions.list, {});
-  assert.deepEqual(agentList.items.map(item => item.text), ["回答用要点列表"]);
-  assert.deepEqual(agentList.counts, { personal: 1, project: 0, auto_this_week: null, pending: null });
+  await assert.rejects(asAgent.invoke(memoryActions.recall, { query: "总结一下", used_for: "Coding 工作" }), /记忆展开控制/);
+  await assert.rejects(asAgent.invoke(memoryActions.list, {}), /记忆展开控制/, "a fabricated Session context cannot obtain unmetered memory text");
   const personalPrefs = await asPerson.invoke(memoryActions.prefs, { scope: "personal" });
   await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { ...personalPrefs.prefs.consumers, agent: false } } });
-  const off = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
-  assert.equal(off.state, "off");
-  assert.match(off.reason ?? "", /Agent 工作/);
+  await assert.rejects(asAgent.invoke(memoryActions.recall, { query: "总结一下" }), /记忆展开控制/);
   // Management is the person's own: an agent cannot reach it at all.
   await assert.rejects(client.invoke(agent, memoryActions.change, { memory_id: kept.memory!.memory_id, expected_version: kept.memory!.version, action: "remove" }));
   // Undo and history by the person.
@@ -154,7 +150,7 @@ test("memory is one system.memory provider in the shared directory: the person m
   const removed = await asPerson.invoke(memoryActions.change, { memory_id: kept.memory!.memory_id, expected_version: kept.memory!.version, action: "remove" });
   assert.equal(removed.memory, null);
   assert.equal("operation_id" in removed.change, false); assert.equal("applied_version" in removed.change, false);
-  assert.equal((await asPerson.invoke(memoryActions.list, {})).items.length, 0);
+  assert.equal((memoryData(await asPerson.invoke(memoryActions.list, {}))).items.length, 0);
   // The Assistant keeps and reads memories only through its own tools, under its own switches: its gateway never offers these.
   const assistant = assistantAuthority(host, { work_id: "work-1", session_id: null, project_ref: null } as never, () => new Set());
   const gateway = await (await assistant.actions!("prologue")).discover();
@@ -179,11 +175,10 @@ test("an agent can propose and deduplicate with reads closed, but only the perso
   assert.ok(result.candidate);
   const candidate = result.candidate;
   assert.deepEqual((await asPerson.invoke(memoryActions.candidates, {})).candidates.map(item => item.candidate_id), [candidate.candidate_id]);
-  const personList = await asPerson.invoke(memoryActions.list, {});
+  const personList = memoryData(await asPerson.invoke(memoryActions.list, {}));
   assert.deepEqual(personList.items, []);
   assert.deepEqual(personList.counts, { personal: 0, project: 0, auto_this_week: 0, pending: 1 });
-  assert.deepEqual(await asAgent.invoke(memoryActions.list, {}), { items: [],
-    counts: { personal: 0, project: 0, auto_this_week: null, pending: null } }, "task lists do not query candidate management counts");
+  await assert.rejects(asAgent.invoke(memoryActions.list, {}), /记忆展开控制/, "task lists cannot borrow candidate management access or a fabricated Session");
   await assert.rejects(asAgent.invoke(memoryActions.write, input), /已经建议过/);
   assert.deepEqual((await asPerson.invoke(memoryActions.candidates, {})).candidates.map(item => item.candidate_id), [candidate.candidate_id]);
   await assert.rejects(asAgent.invoke(memoryActions.candidates, {}));
@@ -191,18 +186,17 @@ test("an agent can propose and deduplicate with reads closed, but only the perso
   await assert.rejects(asAgent.invoke(memoryActions.discard, { candidate_id: candidate.candidate_id, expected_version: candidate.version }));
   const kept = await asPerson.invoke(memoryActions.accept, { candidate_id: candidate.candidate_id, expected_version: candidate.version });
   assert.ok(kept.memory);
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source]), [[input.text, "accepted"]]);
-  assert.deepEqual(await asAgent.invoke(memoryActions.list, {}), { items: [],
-    counts: { personal: 0, project: 0, auto_this_week: null, pending: null } }, "formal counts respect the original read restriction");
-  assert.deepEqual((await asAgent.invoke(memoryActions.recall, { query: "总结一下" })).items, [], "candidate context grants no formal read access");
+  assert.deepEqual((memoryData(await asPerson.invoke(memoryActions.list, {}))).items.map(item => [item.text, item.source]), [[input.text, "accepted"]]);
+  await assert.rejects(asAgent.invoke(memoryActions.list, {}), /记忆展开控制/);
+  await assert.rejects(asAgent.invoke(memoryActions.recall, { query: "总结一下" }), /记忆展开控制/, "candidate context grants no Run read control");
 
   await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { class_restrictions: [{ ...readOff, form: "off" }] } });
   const before = { candidates: await asPerson.invoke(memoryActions.candidates, {}), changes: await asPerson.invoke(memoryActions.changes, {}),
-    items: (await asPerson.invoke(memoryActions.list, {})).items };
+    items: (memoryData(await asPerson.invoke(memoryActions.list, {}))).items };
   await assert.rejects(asAgent.invoke(memoryActions.write, { ...input, text: "回复先说结论", said: "回复先说结论" }));
   assert.deepEqual(await asPerson.invoke(memoryActions.candidates, {}), before.candidates);
   assert.deepEqual(await asPerson.invoke(memoryActions.changes, {}), before.changes);
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, before.items);
+  assert.deepEqual((memoryData(await asPerson.invoke(memoryActions.list, {}))).items, before.items);
 });
 
 test("memory.recall cancelled while it waits for the store settles nothing: no receipts, nothing shown as 最近用于", { timeout: 60_000 }, async t => {
@@ -211,10 +205,9 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const service = memoryHostFor(host)!.service;
   const client = host.homeActionClient();
-  const agent = await agentCaller(host);
-  const asAgent = bindActionClient(client, () => agent), asPerson = bindActionClient(client, () => person);
+  const asPerson = bindActionClient(client, () => person);
   await asPerson.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表" });
-  const recallRef = { capability_id: memoryActions.recall.capability_id, version: 2, provider_id: MEMORY_PROVIDER_ID };
+  const recallRef = { capability_id: memoryActions.recall.capability_id, version: memoryActions.recall.version, provider_id: MEMORY_PROVIDER_ID };
 
   // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.
   const controller = new AbortController();
@@ -225,13 +218,13 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
   t.mock.method(sdk, "withCaller", (caller: Parameters<AgentMemoryCapability["withCaller"]>[0]) => observedMemory(withCaller(caller), {
     afterList: async () => { reads++; controller.abort(); },
   }));
-  try { await assert.rejects(client.invoke({ ...agent, signal: controller.signal }, recallRef, { query: "总结一下" })); }
+  try { await assert.rejects(client.invoke({ ...person, signal: controller.signal }, recallRef, { query: "总结一下" })); }
   finally { t.mock.restoreAll(); }
   assert.equal(reads, 1, "the cancellation reached the actual bound store read");
   assert.deepEqual(service.uses({}), [], "a stopped recall leaves no 最近用于");
 
   // Not stopped: the receipt is written as before.
-  const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
+  const recalled = memoryData(await asPerson.invoke(memoryActions.recall, { query: "总结一下" }));
   assert.deepEqual(service.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["returned"]);
 });
 
@@ -242,7 +235,7 @@ test("an agent without its original memory snapshot is refused without changing 
   const client = host.homeActionClient(), asPerson = bindActionClient(client, () => person);
   const agent = await agentCaller(host), service = memoryHostFor(host)!.service;
   await asPerson.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表" });
-  const before = { items: (await asPerson.invoke(memoryActions.list, {})).items,
+  const before = { items: (memoryData(await asPerson.invoke(memoryActions.list, {}))).items,
     candidates: await asPerson.invoke(memoryActions.candidates, {}), changes: await asPerson.invoke(memoryActions.changes, {}), uses: service.uses({}) };
   const missingSnapshot = { ...agent }; delete missingSnapshot.runtime_memory;
   const missingSession = { ...agent }; delete missingSession.runtime_session_id;
@@ -252,7 +245,7 @@ test("an agent without its original memory snapshot is refused without changing 
     await assert.rejects(client.invoke(caller, memoryActions.recall, { query: "总结一下" }), unavailable);
     await assert.rejects(client.invoke(caller, memoryActions.write, { scope: "personal", text: "回答更简短", said: "回答更简短" }), unavailable);
   }
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, before.items);
+  assert.deepEqual((memoryData(await asPerson.invoke(memoryActions.list, {}))).items, before.items);
   assert.deepEqual(await asPerson.invoke(memoryActions.candidates, {}), before.candidates);
   assert.deepEqual(await asPerson.invoke(memoryActions.changes, {}), before.changes);
   assert.deepEqual(service.uses({}), before.uses);

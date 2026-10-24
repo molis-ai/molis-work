@@ -10,6 +10,7 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
       ...(caller.plugin_id ? { plugin_id: caller.plugin_id } : {}), ...(caller.person !== undefined ? { person: caller.person } : {}),
       ...(caller.session_id ? { session_id: caller.session_id } : {}),
       ...(caller.class_restrictions ? { class_restrictions: structuredClone(caller.class_restrictions) } : {}),
+      ...(caller.run_explicit ? { run_explicit: true as const } : {}),
       ...(caller.source_use ? { source_use: caller.source_use } : {}),
       ...(caller.character ? { character_id: caller.character.id } : {}),
       current_scene: caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common"), purpose: caller.purpose ?? "management" });

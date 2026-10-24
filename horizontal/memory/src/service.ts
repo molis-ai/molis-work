@@ -35,7 +35,6 @@ import {
   type MemoryPreset,
   type MemoryRecallRequest,
   type MemoryRecallResponse,
-  type MemoryRecalled,
   type MemoryRevision,
   type MemoryScope,
   type MemorySignalReport,
@@ -46,7 +45,7 @@ import {
   type MemoryWriteRequest,
   type MemoryWriteResult,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
+import { consumerAccess } from "./prefs.js";
 import { memoryRunRecipe, type MemoryRunRecipe } from "./run-recipe.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations, type MemoryPurgeTarget } from "./operations.js";
@@ -56,10 +55,10 @@ import { MemoryUpkeep } from "./upkeep.js";
 import { memoryUses } from "./usage.js";
 import { assertFormationFacts, automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
-import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
-import { MAX_TEXT, candidateView, changeView, pairKey, useTitle } from "./shapes.js";
+import { disownAutomatic, personOnly, placeOf } from "./places.js";
+import { MAX_TEXT, candidateView, changeView, pairKey } from "./shapes.js";
 import { UNCHECKED, UNSAID, theirWords } from "./spoken.js";
-import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, sameWords, similarity } from "./text.js";
+import { looksLikeInstruction, looksLikeSecret, sameText, sameWords, similarity } from "./text.js";
 import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
 import { MemoryEdits } from "./edits.js";
 import { newMemoryClassification } from "./classification.js";
@@ -72,11 +71,13 @@ import type { AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory, Agent
 export { applies, characterOwner } from "./places.js";
 
 export type { MemoryBackendEntry, MemoryBackendPort, MemoryBackendCandidate, MemoryCandidatePort } from "./backend.js";
-import type { MemoryBackendEntry, MemoryBackendPort, MemoryBackendCandidate } from "./backend.js";
+import type { MemoryBackendEntry, MemoryBackendPort } from "./backend.js";
 
 /** Who is asking, from the trusted Host context. Never read from input. */
 export interface MemoryCaller {
-  /** Host-owned policy of the original Run; never accepted from an Action input. */
+  /** Set only by the trusted Run frame or its controlled Memory selector, never query input. */
+  readonly run_explicit?: true;
+  /** Original Run policy, supplied by Host rather than query input. */
   readonly class_restrictions?: AgentRecalledMemory["class_restrictions"];
   actor_id: string;
   /** A trusted logical invocation; retries retain it and any persisted child operation identities. */
@@ -141,10 +142,7 @@ const REDACTED_CREDENTIAL = "[redacted]";
 const AUTOMATIC_SOURCES: readonly MemorySource[] = ["auto", "plugin"];
 /** Two memories at least this alike (character pairs) may be about the same thing: upkeep's bar for putting the pair to the person. */
 const RELATED_TEXT = 0.3;
-const KIND_WEIGHT: Record<MemoryFormalKind, number> = { preference: 1, convention: 1, habit: 1, "project-decision": 1, experience: 0.85, fact: 0.75 };
-const SOURCE_WEIGHT: Record<MemorySource, number> = { said: 1, manual: 1, accepted: 0.95, imported: 0.9, auto: 0.85, plugin: 0.8 };
-/** How much a memory counts even when no keyword of the request is in it: ways of working apply to most work. */
-const STANDING: Record<MemoryFormalKind, number> = { preference: 0.45, convention: 0.45, habit: 0.45, "project-decision": 0.45, experience: 0.15, fact: 0.05 };
+
 
 
 export class MemoryService {
@@ -183,7 +181,7 @@ export class MemoryService {
     this.edits = new MemoryEdits({ backend: ports.backend, ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands, now: this.now,
       beforeEffect: () => ports.beforeEffect?.(),
       record: (caller, input) => this.recordChange(caller, input) });
-    this.queries = new MemoryQueries({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, now: this.now,
+    this.queries = new MemoryQueries({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, now: this.now, newId: this.newId, beforeEffect: () => ports.beforeEffect?.(),
       limits: ports.managementPages, candidates: (caller, request) => this.candidates(caller, request) });
     this.duplicates = new MemoryDuplicates({ ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
       promotions: this.promotions, beforeEffect: ports.beforeEffect,
@@ -218,75 +216,18 @@ export class MemoryService {
   /* ---- reading ---- */
 
   list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> { return this.queries.list(caller, request); }
+
+  /** Host-only selection for this Run; query ownership and final control stay together. */
+  expand(caller: MemoryCaller, request: { list: MemoryListRequest } | { recall: MemoryRecallRequest },
+    control: import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadControl): Promise<import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadResult> {
+    return this.queries.expand(caller, request, control);
+  }
   page(caller: MemoryCaller, request: MemoryPageRequest = {}): Promise<MemoryPageResponse> { return this.queries.page(caller, request); }
 
   history(caller: MemoryCaller, memoryId: string): Promise<MemoryHistoryResponse> { return this.queries.history(caller, memoryId); }
 
-  /**
-   * Memories that bear on a situation, for one consumer (spec §7.1): active, not expired, applicable, allowed for this
-   * consumer by the person's switches, ranked by keywords × kind × recency × source, within a limit and a budget.
-   * Every returned and omitted memory is recorded against the receipt.
-   */
-  async recall(caller: MemoryCaller, request: MemoryRecallRequest = {}, options: { beforeEffect?: () => void | Promise<void>; readMode?: "explicit" | "task" } = {}): Promise<MemoryRecallResponse> {
-    const receipt_id = `recall-${this.newId()}`;
-    const limit = Math.max(1, Math.min(20, request.limit ?? 8)), budget = Math.max(100, Math.min(4000, request.budget_chars ?? 2000));
-    const scopes = this.scopeCommands.scopesFor(caller, request.scopes);
-    const keywords = recallKeywords([request.query ?? "", request.situation?.task ?? ""].join(" "));
-    const now = this.now();
-    const offScopes: string[] = [];
-    const ranked: Array<{ located: Located; score: number }> = [];
-    for (const where of scopes) {
-      const access = consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, options.readMode);
-      if (!access.allowed) { offScopes.push(where.scope === "personal" ? "个人记忆" : where.scope === "character" ? "角色记忆" : "项目记忆"); continue; }
-      for (const located of await this.scopeCommands.located(caller, where.scope, where.owner)) {
-        const meta = located.meta;
-        if (meta.state !== "active" || isExpired(meta, now) || !visibleTo(caller, meta)) continue;
-        if (access.kinds && !access.kinds.some(kind => kind === meta.kind)) continue;
-        if (request.kinds?.length && !request.kinds.some(kind => kind === meta.kind)) continue;
-        if (!applies(meta.applies, request.situation, now)) continue;
-        const hits = keywordScore(keywords, `${located.entry.text} ${meta.applies.task ?? ""}`);
-        if (keywords.length && hits === 0 && STANDING[meta.kind] < 0.2) continue;
-        const ageDays = meta.updated_at === null ? Infinity : Math.max(0, (now.getTime() - Date.parse(meta.updated_at)) / 86_400_000);
-        const recency = ageDays <= 30 ? 1 : Math.max(0.7, 1 - (ageDays - 30) / 300);
-        const score = (STANDING[meta.kind] + (keywords.length ? hits : 0.3) * 0.55) * KIND_WEIGHT[meta.kind] * recency * SOURCE_WEIGHT[meta.source];
-        ranked.push({ located, score: Math.round(score * 1000) / 1000 });
-      }
-    }
-    if (!ranked.length && offScopes.length && offScopes.length === scopes.length)
-      return { state: "off", reason: `你关掉了“${CONSUMER_LABELS[caller.consumer]}”使用${offScopes.join("和")}`, items: [], omitted: [], method: "keyword-cjk", receipt_id };
-    ranked.sort((a, b) => b.score - a.score || (b.located.meta.updated_at ?? "").localeCompare(a.located.meta.updated_at ?? ""));
-    const items: MemoryRecalled[] = [], omitted: MemoryRecallResponse["omitted"] = [];
-    // Two that contradict each other (a pair the person has not settled yet): only the stronger one goes in, the other is named.
-    const explicit = (one: Located) => EXPLICIT_SOURCES.includes(one.meta.source) ? 1 : 0;
-    for (const pair of this.ports.ledger.pairs(caller.actor_id).filter(item => item.state === "pending" && item.kind === "conflict")) {
-      const a = ranked.find(one => one.located.entry.memory_id === pair.a.memory_id), b = ranked.find(one => one.located.entry.memory_id === pair.b.memory_id);
-      if (!a || !b) continue;
-      const loser = explicit(a.located) !== explicit(b.located) ? (explicit(a.located) > explicit(b.located) ? b : a) : ((a.located.meta.updated_at ?? "") >= (b.located.meta.updated_at ?? "") ? b : a);
-      ranked.splice(ranked.indexOf(loser), 1);
-      omitted.push({ memory_id: loser.located.entry.memory_id, scope: loser.located.scope, reason: "conflict" });
-    }
-    let used = 0;
-    for (const { located, score } of ranked) {
-      const scope = located.scope;
-      if (items.length >= limit) { omitted.push({ memory_id: located.entry.memory_id, scope, reason: "limit" }); continue; }
-      const cost = located.entry.text.length + located.entry.origin.length + 8;
-      if (used + cost > budget) { omitted.push({ memory_id: located.entry.memory_id, scope, reason: "budget" }); continue; }
-      used += cost;
-      items.push({ memory_id: located.entry.memory_id, version: located.entry.version, scope, kind: located.meta.kind, text: located.entry.text, source: located.meta.source,
-        origin: located.entry.origin, applies: located.meta.applies, score });
-    }
-    const title = useTitle(caller, request.used_for);
-    const at = now.toISOString(), work_id = caller.work?.work_id ?? null;
-    // The receipts are this call's only effect, and it waited for the store: a call stopped or revoked meanwhile records none.
-    await options.beforeEffect?.();
-    if (ranked.some(({ located }) => !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, located), caller.consumer, caller.plugin_id, options.readMode).allowed))
-      throw memoryErrors.off("读取期间记忆开关已改变，请按当前设置重试");
-    this.ports.ledger.recordUses([
-      ...items.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, memory_version: item.version, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "returned" })),
-      ...omitted.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "omitted" })),
-    ]);
-    const partlyOff = offScopes.length ? `你关掉了“${CONSUMER_LABELS[caller.consumer]}”使用${offScopes.join("和")}` : null;
-    return { state: "ok", reason: partlyOff, items, omitted, method: "keyword-cjk", receipt_id };
+  recall(caller: MemoryCaller, request: MemoryRecallRequest = {}, options: { beforeEffect?: () => void | Promise<void>; readMode?: "explicit" | "task"; selectionOnly?: boolean } = {}): Promise<MemoryRecallResponse> {
+    return this.queries.recall(caller, request, options);
   }
 
   /** What one recall or one work used and left out, for 用到的记忆. Deleted memories are not listed. */
@@ -459,7 +400,7 @@ export class MemoryService {
       approved_by: input.approved_by, plugin_id: input.retainedMeta?.namespace ?? (caller.consumer === "plugin" ? caller.plugin_id ?? null : null) };
     // Learned content needs promotion; a trusted plugin's own namespace uses its existing save grant.
     const creation = this.operations.begin(caller, "append", { kind: "append", scope: input.scope, owner: where.owner });
-    const candidate = requiresPromotion ? await this.policyCandidate(caller, input.candidate_id, where) : undefined;
+    const candidate = requiresPromotion ? await this.queries.policyCandidate(caller, input.candidate_id, where) : undefined;
     const condition = candidate ? this.operations.condition(caller, `promote:${candidate.candidate_id}`, { kind: "promote", scope: input.scope, owner: where.owner,
       candidate_id: candidate.candidate_id, expected_version: input.candidate_version ?? candidate.version }) : undefined;
     const entry = candidate
@@ -971,16 +912,10 @@ export class MemoryService {
 
   /* ---- internals ---- */
 
-  private async policyCandidate(caller: MemoryCaller, candidateId: string | undefined, where: { scope: MemoryScope; owner: string }): Promise<MemoryBackendCandidate> {
-    const existing = candidateId ? await this.ports.backend.withCaller({ ...caller, purpose: "management", source_use: "learning" }).candidates.get({ ...where, candidate_id: candidateId, ...(caller.signal ? { signal: caller.signal } : {}) }) : undefined;
-    if (!existing) throw memoryErrors.not_found("没有这条建议的当前原件");
-    return existing;
-  }
-
   /** Both the formal replacement and candidate association use the SDK's single conditional decision. */
   private async settleByPolicy(caller: MemoryCaller, input: { candidate_id?: string; candidate_version?: number; policy: { policy: string; version: number } }, where: { scope: MemoryScope; owner: string },
     entry: MemoryBackendEntry, text: string, meta: MemoryMetaRecord): Promise<{ entry: MemoryBackendEntry; change_id: string }> {
-    const candidate = await this.policyCandidate(caller, input.candidate_id, where);
+    const candidate = await this.queries.policyCandidate(caller, input.candidate_id, where);
     if (candidate.replacement && candidate.replacement.memory_id !== entry.memory_id) throw memoryErrors.conflict("形成时的替换目标不能改变");
     const mark = this.operations.begin(caller, `policy-settle:${candidate.candidate_id}`, { kind: "settleInto", ...where,
       candidate_id: candidate.candidate_id, memory_id: entry.memory_id, expected_version: candidate.replacement?.expected_version ?? entry.version,

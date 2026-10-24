@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -99,7 +100,7 @@ test("a new Home is reviewed; manual saving and reading work, and a later saved 
     await env.close(); env = await open(home);
     assert.equal((await env.actions.invoke(memoryActions.prefs, { scope: "personal" })).prefs.auto, true);
     assert.equal((await env.service.recall(worker, { query: "周报风险" })).items.length, 0);
-    assert.equal((await env.actions.invoke(memoryActions.list, { scope: "personal" })).items.length, 1);
+    assert.equal((memoryData(await env.actions.invoke(memoryActions.list, { scope: "personal" }))).items.length, 1);
   } finally { await env.close(); }
 });
 

@@ -3,7 +3,7 @@ import type { AssistantMemoryCandidate } from "@molis-ai/molis-work-contracts/se
 import type { AgentMemoryExecutionControl, AgentMemorySourceSnapshot, AgentMemoryTools, AgentRecalledMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isDeepStrictEqual } from "node:util";
-import { characterOwner, consumerAccess, memoryErrors, theirWords, type MemoryCaller, type MemoryService, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
+import { characterOwner, consumerAccess, memoryClassReadPossible, memoryErrors, theirWords, type MemoryCaller, type MemoryService, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import type { memorySources } from "../memory/memory-sources.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
@@ -115,8 +115,8 @@ async function memoryInvocation(input: AssistantMemoryToolsInput & { caller: Mem
 }
 
 /**
- * The round's memory tools, or none when forming memories is off everywhere this work could keep something (the stop
- * check reads a round without them as “memory is off”). Every call goes through the platform's write gate. Keeping and
+ * The round's independently allowed read, formation and disabling tools. A read-only round can still expand
+ * memories through its own Run control; every change goes through the platform's write gate. Keeping and
  * forgetting rest on the person's own words and wishes, so a delegated sub-task (whose only words are the delegating
  * work's brief) is given neither: it can read what is kept, and suggest.
  */
@@ -127,7 +127,13 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
     current_scene: recipe.current_scene, class_restrictions: structuredClone(recipe.class_restrictions) };
   const prepared = { ...input, caller };
   const personal = memory.prefsFor(input.actorId, "personal", null), project = projectId ? memory.prefsFor(input.actorId, "project", projectId) : null;
-  if (!(personal.enabled && personal.form) && !(project?.enabled && project.form)) return undefined;
+  const readable = (prefs: typeof personal, scope: "personal" | "project", mode: "explicit" | "task") => consumerAccess(prefs, "assistant", undefined, mode).allowed
+    && memoryClassReadPossible([...prefs.class_restrictions, ...recipe.class_restrictions[scope]], { consumer: "assistant", current_scene: recipe.current_scene }, mode);
+  const mayRead = readable(personal, "personal", "explicit") || !!project && readable(project, "project", "explicit");
+  const mayForm = (personal.enabled && personal.form) || (!!project?.enabled && project.form);
+  // The existing change owner locates targets under task-read; explicit expansion grants no write lookup.
+  const mayForget = readable(personal, "personal", "task") || !!project && readable(project, "project", "task");
+  if (!mayRead && !mayForm && !mayForget) return undefined;
   // Suggesting is its own switch per scope: a project's work suggests for that project only where the person allows it.
   const mayPropose = (personal.enabled && personal.form && personal.learn_from_work) || (!!project?.enabled && project.form && project.learn_from_work);
   const propose: AgentMemoryTools["propose"] = async (request, call) => {
@@ -140,7 +146,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
   };
   return {
     ...(mayPropose ? { propose } : {}),
-    ...(work.delegated_by ? {} : { remember: async (request: Parameters<NonNullable<AgentMemoryTools["remember"]>>[0], call: ToolControl) => {
+    ...(work.delegated_by || !mayForm ? {} : { remember: async (request: Parameters<NonNullable<AgentMemoryTools["remember"]>>[0], call: ToolControl) => {
       if (request.scope === "project" && !projectId) throw assistantErrors.scope("这是个人工作，没有项目；只能记为个人偏好");
       if (request.scope === "character" && !caller.character) throw assistantErrors.scope("这一轮不是由某个角色承担的，不能记为角色记忆");
       // “You said” is the person's only when the text is the whole of a message they typed in this work: the gate judges it against these saved messages (not against the quote the model gives), and what is kept
@@ -161,15 +167,13 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
         return { memory_id: result.memory!.memory_id, scope: request.scope, applies: result.applies_text, ...(result.outcome === "duplicate" ? { note: result.reason } : {}) };
       } finally { invocation.dispose(); }
     } }),
-    list: async call => {
+    ...(mayRead ? { list: async (call: ToolControl) => {
+      if (!call.memory_read) throw memoryErrors.unavailable("这一轮没有记忆展开控制");
       const invocation = await memoryInvocation(prepared, call);
-      try {
-        const items = (await invocation.memory.list(invocation.caller, { scope: "all" })).items;
-        call.signal.throwIfAborted();
-        return items.map(item => ({ memory_id: item.memory_id, scope: item.scope, text: item.state === "active" ? item.text : `（已停用）${item.text}`, origin: item.origin }));
-      } finally { invocation.dispose(); }
-    },
-    ...(work.delegated_by ? {} : { forget: async (memoryId: string, call: ToolControl) => {
+      try { return await invocation.memory.expand(invocation.caller, { list: { scope: "all" } }, call.memory_read); }
+      finally { invocation.dispose(); }
+    } } : {}),
+    ...(work.delegated_by || !mayForget ? {} : { forget: async (memoryId: string, call: ToolControl) => {
       // Forgetting is switching off, in the Assistant's name: it is no longer used, stays the person's to switch back on or delete in settings.
       const invocation = await memoryInvocation(prepared, call);
       try { await invocation.memory.change(invocation.caller, { memory_id: memoryId, action: "disable" }); return { forgotten: true, note: "已停用：以后不会再用到这条；它还在用户的记忆设置里，用户可以重新启用或彻底删除。" }; }

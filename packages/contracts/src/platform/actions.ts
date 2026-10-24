@@ -118,6 +118,8 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly delegated_by?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
+  /** Host-only, same-Run read intent. Stripped from plugin callback views; never accepted from input. */
+  readonly runtime_memory_read?: import("../services/memory.js").MemoryRunReadControl;
   /** Original Run policy bound by Host with its owning plugin; never business input or a lookup of the latest Run. */
   readonly runtime_memory?: { readonly plugin_id: string; readonly current_scene: string;
     readonly class_restrictions: import("../services/agent-host.js").AgentMemoryClassPolicy };

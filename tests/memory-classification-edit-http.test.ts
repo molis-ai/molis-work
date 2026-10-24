@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -16,7 +17,7 @@ test("classification HTTP commits one version, safely projects history and rejec
     { classification: { scenes: ["common"], lifecycle: "session" } }, { kind: undefined }, { classification: undefined } ]) {
     const refused = await post({ ...request, ...injected }); assert.notEqual(refused.status, 200, JSON.stringify(await refused.json()));
   }
-  assert.equal((await client.invoke(memoryActions.list, {})).items[0]!.version, saved.version);
+  assert.equal((memoryData(await client.invoke(memoryActions.list, {}))).items[0]!.version, saved.version);
   assert.equal((await client.invoke(memoryActions.history, { memory_id: saved.memory_id })).revisions.length, 1);
   const agent = bindActionClient(env.host.homeActionClient(), () => ({ ...person(MEMORY_PERMISSIONS), audience: "agent", actor_kind: "runtime" }));
   await assert.rejects(agent.invoke(memoryActions.change, request as never));
@@ -47,7 +48,7 @@ test("classification request identity rejects an HTTP retry with another memory 
   assert.notEqual(changedAction.status, 200, JSON.stringify(await changedAction.json()));
   const retried = await post(body), replay = await retried.json() as MemoryChangeResult;
   assert.equal(retried.status, 200, JSON.stringify(replay)); assert.equal(replay.memory!.version, firstResult.memory!.version);
-  const items = (await client.invoke(memoryActions.list, {})).items;
+  const items = (memoryData(await client.invoke(memoryActions.list, {}))).items;
   assert.equal(items.find(one => one.memory_id === b.memory_id)!.version, b.version);
   assert.equal((await client.invoke(memoryActions.history, { memory_id: a.memory_id })).revisions.length, 2);
   assert.equal((await client.invoke(memoryActions.history, { memory_id: b.memory_id })).revisions.length, 1);

@@ -1,5 +1,11 @@
 # 本地应用装配中心
 
+## Run 记忆展开装配（实施中，未验证）
+
+依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，助理 list-memories 与 Coding/通用 Agent 已允许的 Memory read Actions 共用 AgentHost 的同 Run 展开。Host 绑定身份、scope 和原分类限制，运行中 Action 在 Memory owner 边界只回无正文引用/排队结果；正文经下一真实模型请求与原 Context receipt。助理的 read 与 form 分别装配，form=false 不遮掉已允许的 list；manual/skip automatic 可显式读，off/角色禁读仍零读。可信 explicit 用途只在固定 Run 展开时建立，不能给 caller 伪造 person 或从工具输入取得 owner/session。
+
+可配与可换：沿现 Action、MemoryService 和 Adapter；原产品设置与 Run 预算继续生效，不加 UI 或配置。私有 Run control 在内部 Action 转发保留，在插件可见上下文剥离。源码已接入，未跑真实 Host 或最终产品验证。
+
 ## Memory 设置页的有界读取
 
 依 memory spec §9.4，`memory.page@1` 是本人管理 query；`GET /api/memory/page?input=<JSON>` 接收同一请求（无 owner），返回页字段及仅本页 Goal 名称。`/api/memory/overview` 保留 prefs/candidates/changes/last_upkeep，pairs:null 明确尚未读取；配对区由用户打开时单独 GET `/api/memory/pairs?scope=...` 调现有 Action，其查询不声称有界。正式记忆改为相同首 page，不调用全量 list，也不对未读正文收集 labels。前端筛选、搜索和下一页使用同一 page Action；cursor、unknown 和取消按 Service/SDK 原结果传回，不伪造总数。管理权限经当前 Action 和 Memory owner 求交，off 可管理不等于恢复任务召回。验证：`tests/memory-management-page-http.test.ts`。

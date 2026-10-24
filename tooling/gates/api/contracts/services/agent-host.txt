@@ -16,7 +16,7 @@ export interface AgentActionClient {
     }>;
     check?(reference: ExactActionReference, input: unknown): Promise<void>;
     direct?(view: ActionView): boolean;
-    invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
+    invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal, memoryRead?: import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadControl): Promise<unknown>;
 }
 
 export interface AgentActionOffer {
@@ -442,6 +442,7 @@ export interface AgentMcpToolRef {
 }
 
 export interface AgentMemoryCaller {
+    readonly run_explicit?: true;
     readonly class_restrictions?: AgentMemoryClassPolicy;
     actor_id: string;
     character_id?: string;
@@ -1036,12 +1037,7 @@ export interface AgentMemoryTools {
         applies: string;
         note?: string;
     }>;
-    list(control: AgentMemoryToolControl): Promise<Array<{
-        memory_id: string;
-        scope: "personal" | "project" | "character";
-        text: string;
-        origin: string;
-    }>>;
+    list?(control: AgentMemoryToolControl): Promise<import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadResult>;
     forget?(memoryId: string, control: AgentMemoryToolControl): Promise<{
         forgotten: boolean;
         note?: string;
@@ -2141,6 +2137,7 @@ type AgentMemoryLocation = {
 };
 
 interface AgentMemoryToolControl {
+    readonly memory_read?: import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadControl;
     readonly operation_id: string;
     readonly signal: AbortSignal;
 }

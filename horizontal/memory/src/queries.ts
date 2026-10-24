@@ -1,15 +1,23 @@
 import { MEMORY_KINDS, MEMORY_SOURCES, type MemoryCandidate, type MemoryCandidateRecord, type MemoryScope, type MemoryItem, type MemoryLedgerPort,
   type MemoryListRequest, type MemoryListResponse, type MemoryManagementItem, type MemoryManagementKind,
-  type MemoryChange, type MemoryHistoryResponse, type MemoryPageRequest, type MemoryPageResponse } from "@molis-ai/molis-work-contracts/services/memory";
-import type { MemoryBackendEntry, MemoryBackendPort } from "./backend.js";
+  type MemoryChange, type MemoryHistoryResponse, type MemoryPageRequest, type MemoryPageResponse, type MemoryRecallRequest, type MemoryRecallResponse,
+  type MemoryRecalled, type MemoryUseRecord, type MemoryFormalKind, type MemorySource } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryBackendEntry, MemoryBackendPort, MemoryBackendCandidate } from "./backend.js";
 import type { MemoryCaller } from "./service.js";
-import { MemoryScopeCommands } from "./scope-commands.js";
+import { MemoryScopeCommands, type Located } from "./scope-commands.js";
 import { fromEntryMeta } from "./facts.js";
-import { consumerAccess } from "./prefs.js";
-import { formationReferenceAllowed, type FormationSnapshot } from "./formation.js";
-import { isExpired, personOnly, visibleTo } from "./places.js";
-import { changeView, revisionView } from "./shapes.js";
+import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
+import { formationReadPossible, formationReferenceAllowed, type FormationSnapshot } from "./formation.js";
+import { applies, isExpired, personOnly, visibleTo } from "./places.js";
 import { memoryErrors } from "./errors.js";
+import { keywordScore, recallKeywords } from "./text.js";
+import { changeView, revisionView, useTitle } from "./shapes.js";
+import { EXPLICIT_SOURCES } from "./duplicates.js";
+
+const KIND_WEIGHT: Record<MemoryFormalKind, number> = { preference: 1, convention: 1, habit: 1, "project-decision": 1, experience: 0.85, fact: 0.75 };
+const SOURCE_WEIGHT: Record<MemorySource, number> = { said: 1, manual: 1, accepted: 0.95, imported: 0.9, auto: 0.85, plugin: 0.8 };
+/** How much a memory counts even when no keyword of the request is in it: ways of working apply to most work. */
+const STANDING: Record<MemoryFormalKind, number> = { preference: 0.45, convention: 0.45, habit: 0.45, "project-decision": 0.45, experience: 0.15, fact: 0.05 };
 
 /** App workload configuration; scan slots do not bound Node directory enumeration. */
 export interface MemoryPageLimits { defaultLimit: number; maxLimit: number; scanLimit: number }
@@ -17,6 +25,8 @@ const DEFAULT_PAGE_LIMITS: MemoryPageLimits = { defaultLimit: 40, maxLimit: 100,
 interface QueryPorts {
   backend: MemoryBackendPort; ledger: MemoryLedgerPort; scopes: MemoryScopeCommands; now: () => Date;
   limits?: Partial<MemoryPageLimits>;
+  newId(): string;
+  beforeEffect?(): void | Promise<void>;
   candidates(caller: MemoryCaller, request: { scope: NonNullable<MemoryListRequest["scope"]> }): Promise<MemoryCandidate[]>;
 }
 interface Continuation { version: 1; binding: string; index: number; cursor?: string }
@@ -50,8 +60,8 @@ export class MemoryQueries {
     let personal = 0, project = 0;
     for (const where of scopes) {
       if (!caller.person) {
-        const access = consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id);
-        if (!access.allowed) continue;
+        const access = consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, caller.run_explicit ? "explicit" : "task");
+        if (!access.allowed || !formationReadPossible(caller, this.ports.scopes.prefsAt(caller.actor_id, where), where.scope)) continue;
       }
       readScopes.push(where);
       for (const located of await this.ports.scopes.located(caller, where.scope, where.owner)) {
@@ -76,12 +86,109 @@ export class MemoryQueries {
       pending = (await this.ports.candidates(caller, { scope: request.scope ?? "all" })).length;
     }
     caller.signal?.throwIfAborted();
-    if (!caller.person && (readScopes.some(where => !consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed)
+    if (!caller.person && (readScopes.some(where => !consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, caller.run_explicit ? "explicit" : "task").allowed)
       || readTargets.some(({ where, target }) => !formationReferenceAllowed(caller, this.ports.scopes.prefsAt(caller.actor_id, where), where.scope, target, "read"))))
       throw memoryErrors.forbidden("记忆读取权限已变化，请重新查看");
     return { items, counts: { personal, project, auto_this_week, pending } };
   }
 
+
+  /** Host-only selection for this Run. Bodies never leave this owner; only real Context receipts record use. */
+  async expand(caller: MemoryCaller, request: { list: MemoryListRequest } | { recall: MemoryRecallRequest },
+    control: import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadControl): Promise<import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadResult> {
+    return control.read(async allowed => {
+      const reader: MemoryCaller = { ...caller, person: false, purpose: "task", run_explicit: true };
+      const requested = "recall" in request ? request.recall.scopes : request.list.scope && request.list.scope !== "all" ? [request.list.scope] : undefined;
+      const scopes = this.ports.scopes.scopesFor(reader, requested).filter(where => allowed.some(scope =>
+        scope.scope === (where.scope === "personal" ? "user" : where.scope) && scope.owner === where.owner)
+        && formationReadPossible(reader, this.ports.scopes.prefsAt(reader.actor_id, where), where.scope));
+      if (!scopes.length) return [];
+      const items = "recall" in request
+        ? (await this.recall(reader, { ...request.recall, scopes: scopes.map(where => where.scope) }, { readMode: "explicit", selectionOnly: true })).items
+        : (await Promise.all(scopes.map(where => this.list(reader, { ...request.list, scope: where.scope })))).flatMap(page => page.items);
+      await this.ports.beforeEffect?.();
+      reader.signal?.throwIfAborted();
+      // Recheck the exact selected scopes after the asynchronous reads; SDK rechecks every ref/version again.
+      if (scopes.some(where => !formationReadPossible(reader, this.ports.scopes.prefsAt(reader.actor_id, where), where.scope)))
+        throw memoryErrors.forbidden("记忆读取权限已变化");
+      return items.map(item => {
+        const where = scopes.find(where => where.scope === item.scope)!;
+        return { scope: where.scope === "personal" ? "user" as const : where.scope, owner: where.owner, memory_id: item.memory_id, version: item.version };
+      });
+    }, caller.signal);
+  }
+  /**
+   * Memories that bear on a situation, for one consumer (spec §7.1): active, not expired, applicable, allowed for this
+   * consumer by the person's switches, ranked by keywords × kind × recency × source, within a limit and a budget.
+   * Every returned and omitted memory is recorded against the receipt.
+   */
+  async recall(caller: MemoryCaller, request: MemoryRecallRequest = {}, options: { beforeEffect?: () => void | Promise<void>; readMode?: "explicit" | "task"; selectionOnly?: boolean } = {}): Promise<MemoryRecallResponse> {
+    const receipt_id = `recall-${this.ports.newId()}`;
+    const limit = Math.max(1, Math.min(20, request.limit ?? 8)), budget = Math.max(100, Math.min(4000, request.budget_chars ?? 2000));
+    const scopes = this.ports.scopes.scopesFor(caller, request.scopes);
+    const keywords = recallKeywords([request.query ?? "", request.situation?.task ?? ""].join(" "));
+    const now = this.ports.now();
+    const offScopes: string[] = [];
+    const ranked: Array<{ located: Located; score: number }> = [];
+    for (const where of scopes) {
+      const access = consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, options.readMode);
+      if (!access.allowed || caller.run_explicit && !formationReadPossible(caller, this.ports.scopes.prefsAt(caller.actor_id, where), where.scope)) { offScopes.push(where.scope === "personal" ? "个人记忆" : where.scope === "character" ? "角色记忆" : "项目记忆"); continue; }
+      for (const located of await this.ports.scopes.located(caller, where.scope, where.owner)) {
+        const meta = located.meta;
+        if (meta.state !== "active" || isExpired(meta, now) || !visibleTo(caller, meta)) continue;
+        if (access.kinds && !access.kinds.some(kind => kind === meta.kind)) continue;
+        if (request.kinds?.length && !request.kinds.some(kind => kind === meta.kind)) continue;
+        if (!applies(meta.applies, request.situation, now)) continue;
+        const hits = keywordScore(keywords, `${located.entry.text} ${meta.applies.task ?? ""}`);
+        if (keywords.length && hits === 0 && STANDING[meta.kind] < 0.2) continue;
+        const ageDays = meta.updated_at === null ? Infinity : Math.max(0, (now.getTime() - Date.parse(meta.updated_at)) / 86_400_000);
+        const recency = ageDays <= 30 ? 1 : Math.max(0.7, 1 - (ageDays - 30) / 300);
+        const score = (STANDING[meta.kind] + (keywords.length ? hits : 0.3) * 0.55) * KIND_WEIGHT[meta.kind] * recency * SOURCE_WEIGHT[meta.source];
+        ranked.push({ located, score: Math.round(score * 1000) / 1000 });
+      }
+    }
+    if (!ranked.length && offScopes.length && offScopes.length === scopes.length)
+      return { state: "off", reason: `你关掉了“${CONSUMER_LABELS[caller.consumer]}”使用${offScopes.join("和")}`, items: [], omitted: [], method: "keyword-cjk", receipt_id };
+    ranked.sort((a, b) => b.score - a.score || (b.located.meta.updated_at ?? "").localeCompare(a.located.meta.updated_at ?? ""));
+    const items: MemoryRecalled[] = [], omitted: MemoryRecallResponse["omitted"] = [];
+    // Two that contradict each other (a pair the person has not settled yet): only the stronger one goes in, the other is named.
+    const explicit = (one: Located) => EXPLICIT_SOURCES.includes(one.meta.source) ? 1 : 0;
+    for (const pair of this.ports.ledger.pairs(caller.actor_id).filter(item => item.state === "pending" && item.kind === "conflict")) {
+      const a = ranked.find(one => one.located.entry.memory_id === pair.a.memory_id), b = ranked.find(one => one.located.entry.memory_id === pair.b.memory_id);
+      if (!a || !b) continue;
+      const loser = explicit(a.located) !== explicit(b.located) ? (explicit(a.located) > explicit(b.located) ? b : a) : ((a.located.meta.updated_at ?? "") >= (b.located.meta.updated_at ?? "") ? b : a);
+      ranked.splice(ranked.indexOf(loser), 1);
+      omitted.push({ memory_id: loser.located.entry.memory_id, scope: loser.located.scope, reason: "conflict" });
+    }
+    let used = 0;
+    for (const { located, score } of ranked) {
+      const scope = located.scope;
+      if (items.length >= limit) { omitted.push({ memory_id: located.entry.memory_id, scope, reason: "limit" }); continue; }
+      const cost = located.entry.text.length + located.entry.origin.length + 8;
+      if (used + cost > budget) { omitted.push({ memory_id: located.entry.memory_id, scope, reason: "budget" }); continue; }
+      used += cost;
+      items.push({ memory_id: located.entry.memory_id, version: located.entry.version, scope, kind: located.meta.kind, text: located.entry.text, source: located.meta.source,
+        origin: located.entry.origin, applies: located.meta.applies, score });
+    }
+    const title = useTitle(caller, request.used_for);
+    const at = now.toISOString(), work_id = caller.work?.work_id ?? null;
+    // The receipts are this call's only effect, and it waited for the store: a call stopped or revoked meanwhile records none.
+    await options.beforeEffect?.();
+    if (ranked.some(({ located }) => !consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, located), caller.consumer, caller.plugin_id, options.readMode).allowed))
+      throw memoryErrors.off("读取期间记忆开关已改变，请按当前设置重试");
+    if (!options.selectionOnly) this.ports.ledger.recordUses([
+      ...items.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, memory_version: item.version, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "returned" })),
+      ...omitted.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "omitted" })),
+    ]);
+    const partlyOff = offScopes.length ? `你关掉了“${CONSUMER_LABELS[caller.consumer]}”使用${offScopes.join("和")}` : null;
+    return { state: "ok", reason: partlyOff, items, omitted, method: "keyword-cjk", receipt_id };
+  }
+
+  async policyCandidate(caller: MemoryCaller, candidateId: string | undefined, where: { scope: MemoryScope; owner: string }): Promise<MemoryBackendCandidate> {
+    const existing = (await this.ports.backend.withCaller(caller).candidates.list(where.scope, where.owner)).find(item => item.candidate_id === candidateId);
+    if (!existing) throw memoryErrors.not_found("没有这条建议的当前原件");
+    return existing;
+  }
 
   async page(caller: MemoryCaller, request: MemoryPageRequest = {}): Promise<MemoryPageResponse> {
     personOnly(caller, "只有本人能查看记忆管理页");

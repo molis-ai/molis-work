@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
@@ -167,8 +168,8 @@ test("a Host whose runtime has already started clears the memory step itself, wh
     // Reuse the public fixed project identity only after cleanup, so current-authority reads can inspect the old scope.
     await catalog.createProject({ project_id: gone, display_name: "重新建立的项目", actor_id: "test-user" });
     ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
-    assert.deepEqual((await client(host).invoke(memoryActions.list, { scope: "project" })).items, []);
-    assert.deepEqual((await client(host).invoke(memoryActions.list, { scope: "personal" })).items.map(item => item.text), ["个人回答使用短段落"]);
+    assert.deepEqual((memoryData(await client(host).invoke(memoryActions.list, { scope: "project" }))).items, []);
+    assert.deepEqual((memoryData(await client(host).invoke(memoryActions.list, { scope: "personal" }))).items.map(item => item.text), ["个人回答使用短段落"]);
   } finally { await host.close(); }
 });
 

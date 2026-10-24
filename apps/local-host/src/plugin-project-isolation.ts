@@ -22,9 +22,9 @@ export function isolatedProjectStatements(processes: ProjectStatementProcess, de
   const permitRead = () => permit(declaration.read_permission);
   const permitWrite = () => { permit(declaration.write_permission); assertPluginActionCurrent(instance); };
   return {
-    async get(sql, parameters, signal) {
+    async get(sql, parameters, limits, signal) {
       permitRead(); assertReadStatement(sql);
-      const row = await processes.get(sql, parameters, signal);
+      const row = await processes.get(sql, parameters, limits, signal);
       permitRead();
       return row;
     },
@@ -37,7 +37,6 @@ export function isolatedProjectStatements(processes: ProjectStatementProcess, de
     async transaction(beforeEffect, statements, signal) {
       permitWrite();
       await beforeEffect();
-      permitWrite();
       return await processes.transaction(signal, async transaction => {
         const results: Array<{ changes: number }> = [];
         for (const statement of statements) {
@@ -47,12 +46,12 @@ export function isolatedProjectStatements(processes: ProjectStatementProcess, de
         signal.throwIfAborted(); permitWrite();
         try { await transaction.commit(); } catch (error) { throw committing(error, signal); }
         return results;
-      });
+      }, permitWrite);
     },
   };
 }
 
-const ENDED_BY_THE_HOST = new Set(["plugin.project_database.statement_timeout", "plugin.project_database.statement_memory", "plugin.project_database.process_failed"]);
+const ENDED_BY_THE_HOST = new Set(["plugin.project_database.statement_timeout", "plugin.project_database.statement_memory", "plugin.project_database.process_failed", "actions.plugin_unavailable"]);
 
 /**
  * A COMMIT that SQLite itself refused is a refusal: nothing was written. A COMMIT the Host cut short (killed for its time or

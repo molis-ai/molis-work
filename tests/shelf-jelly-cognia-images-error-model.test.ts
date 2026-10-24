@@ -1,14 +1,12 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
+import ts from "typescript";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-import * as host from "@molis-ai/molis-work-app-local-host";
-import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
 import * as shelfModule from "@molis-ai/molis-work-module-shelf";
 import * as cogniaPlugin from "@molis-ai/molis-work-plugin-cognia";
@@ -94,51 +92,29 @@ interface Answer { readonly status: number; readonly body: Record<string, unknow
 async function failingEdge(owner: Owner, t: TestContext) {
   if (owner === "cognia") return failingCogniaRuntime(t);
   if (owner === "jelly" || owner === "images") return failingMigratedRuntime(owner, t);
-  const failure: { current: unknown } = { current: undefined };
-  // The shelf route that catches a failed job asks for the shelf again to send it back with the error: that call must work.
-  const snapshotId = shelfPlugin.shelfActions.snapshot.capability_id;
-  const actions: BoundActionClient = {
-    discover: async () => [],
-    invoke: (async (definition: ActionDefinition<unknown, unknown>) => {
-      if (owner === "shelf" && definition.capability_id === snapshotId) return { materials: [], results: [], running_jobs: [], marker: "the shelf" };
-      throw failure.current;
-    }) as BoundActionClient["invoke"],
-  };
-  const handle = (request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> => {
-    const handler = (host as Record<string, unknown>)[`handle${owner[0]!.toUpperCase()}${owner.slice(1)}NativePluginHttp`] as
-      ((request: IncomingMessage, response: ServerResponse, url: URL, ports: unknown) => Promise<boolean>) | undefined;
-    assert.equal(typeof handler, "function", `the Host exports handle${owner[0]!.toUpperCase()}${owner.slice(1)}NativePluginHttp`);
-    return handler!(request, response, url, { actions });
-  };
+  return failingShelfRuntime(t);
+}
+
+/** Shelf S3: the shelf's routes are its Home instance's, so its failures cross the actual Runtime action and route too. */
+async function failingShelfRuntime(t: TestContext) {
+  let failure: unknown;
+  const methods = [t.mock.method(shelfModule.ShelfStore.prototype, "seedSample", async () => { throw failure; }),
+    t.mock.method(shelfModule.ShelfStore.prototype, "runJob", async () => { throw failure; })];
+  const f = await serveHomeRuntime(t);
   // A route of the plugin whose handler calls one action first, so the failure comes out of the action and goes through the edge.
-  const route = ["POST", "/api/shelf/sample"] as const;
-  const body = {};
-  const server = createServer((request, response) => {
-    handle(request, response, new URL(request.url ?? "/", "http://127.0.0.1")).then(handled => {
-      if (!handled) { response.statusCode = 404; response.end("{}"); }
-    }, (error: unknown) => {
-      // A handler that rejects instead of answering is reported as 599, so "the error escaped the edge" is a wrong status and not a hung request.
-      response.statusCode = 599;
-      response.end(JSON.stringify({ escaped: error instanceof Error ? error.message : String(error) }));
-    });
-  });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const send = async (method: string, path: string, payload?: string): Promise<Answer> => {
-    const response = await fetch(base + path, { method, headers: { "content-type": "application/json" }, ...(payload === undefined ? {} : { body: payload }) });
+  const root = "/api/plugins/io.molis.work.shelf/sample";
+  const send = async (verb: string, path: string, payload?: string): Promise<Answer> => {
+    const response = await f.request(path, { method: verb, raw: payload });
     const text = await response.text();
-    let parsed: Record<string, unknown> = {};
-    try { parsed = JSON.parse(text) as Record<string, unknown>; } catch { /* a streamed answer is read through `text` */ }
-    return { status: response.status, body: parsed, text };
+    let body: Record<string, unknown> = {};
+    try { body = JSON.parse(text) as Record<string, unknown>; } catch { /* a streamed answer is read through `text` */ }
+    return { status: response.status, text, body };
   };
   return {
-    /** The route runs and its action fails with `error`. */
-    async fail(error: unknown): Promise<Answer> { failure.current = error; return await send(route[0], route[1], JSON.stringify(body)); },
-    /** The request body itself cannot be read. */
-    rawBody: (payload: string) => send(route[0], route[1], payload),
-    send,
-    setFailure(error: unknown) { failure.current = error; },
-    close: () => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }),
+    fail: (error: unknown) => { failure = error; return send("POST", root, "{}"); },
+    rawBody: (payload: string) => send("POST", root, payload), send,
+    setFailure(error: unknown) { failure = error; },
+    close: async () => { for (const method of methods) method.mock.restore(); },
   };
 }
 
@@ -263,13 +239,16 @@ test("Images reads its body with the shared reader: too large is 413 actions.inp
   } finally { await edge.close(); }
 });
 
-test("a failure with no code of ours is a 500 actions.execution_failed, and Images keeps its own generic sentence for the unexpected", async t => {
+test("unknown failures keep each owner contract: Shelf uses the Host generic sentence and Images its own", async t => {
   for (const owner of ["shelf", "jelly", "cognia"] as const) {
     const edge = await failingEdge(owner, t);
     try {
       for (const error of [new Error("没有码的失败"), Object.assign(new Error("系统错误"), { code: "ENOENT" })]) {
         const answer = await edge.fail(error);
-        assert.deepEqual([answer.status, answer.body.code, answer.body.error], [500, "actions.execution_failed", error.message], owner);
+        // BL-404: Shelf's Runtime routes pass unknown failures to the Host, which hides the raw exception.
+        const message = owner === "shelf" ? "请求未能完成，请重试。" : error.message;
+        assert.deepEqual([answer.status, answer.body.code, answer.body.error], [500, "actions.execution_failed", message], owner);
+        if (owner === "shelf") assert.ok(!JSON.stringify(answer.body).includes(error.message), "Shelf does not expose the raw exception");
       }
     } finally { await edge.close(); }
   }
@@ -292,8 +271,9 @@ test("a failed Shelf job comes back with the shelf beside the error, and the sta
     ];
     for (const [error, status, code] of cases) {
       edge.setFailure(error);
-      const answer = await edge.send("POST", "/api/shelf/jobs", JSON.stringify({ recipe: "summarize", item_id: "item-1" }));
-      assert.deepEqual([answer.status, answer.body.code, (answer.body.snapshot as { marker?: string } | undefined)?.marker], [status, code, "the shelf"], code);
+      const answer = await edge.send("POST", "/api/plugins/io.molis.work.shelf/jobs", JSON.stringify({ recipe: "extract_text", item_id: "item-1" }));
+      // The shelf comes back as it is (the first-run sample on it), beside the error.
+      assert.deepEqual([answer.status, answer.body.code, Array.isArray((answer.body.snapshot as { materials?: unknown } | undefined)?.materials)], [status, code, true], code);
       assert.equal(typeof answer.body.error, "string");
     }
   } finally { await edge.close(); }
@@ -355,13 +335,32 @@ function sourceFiles(directory: string): string[] {
 }
 const read = (path: string): string => readFileSync(join(REPOSITORY, path), "utf8");
 
-/** The owners' server-side sources: their plugin, module and the Host files that serve them (the browser programs are strings inside `*client*.ts` and are not read). */
+/** The owners' server-side sources: their plugin, module and the Host files that serve them (the browser programs, strings inside `*client*.ts` or typed files under `src/browser/`, are not read). */
 function ownerSources(): string[] {
   const hostFiles = readdirSync(join(REPOSITORY, "apps/local-host/src")).filter(name => /^(?:shelf|jelly|cognia|images|material)-.*\.ts$/u.test(name))
     .map(name => `apps/local-host/src/${name}`);
   return [...["plugins/native/shelf/src", "modules/shelf/src", "plugins/native/jelly/src", "plugins/native/cognia/src", "plugins/native/images/src"]
-    .flatMap(directory => sourceFiles(join(REPOSITORY, directory)).map(path => relative(REPOSITORY, path))).filter(path => !/client/u.test(path.split("/").at(-1)!)), ...hostFiles];
+    .flatMap(directory => sourceFiles(join(REPOSITORY, directory)).map(path => relative(REPOSITORY, path))).filter(path => !/client/u.test(path.split("/").at(-1)!) && !/^plugins\/native\/[^/]+\/src\/browser\//u.test(path)), ...hostFiles];
 }
+
+// RAC-143: only standalone plugin browser programs can be omitted from the server error-model checks.
+test("RAC-143 excluded plugin browser files stay outside the actual server TypeScript program, including transitive imports and exports", () => {
+  for (const owner of OWNERS) {
+    const root = join(REPOSITORY, "plugins/native", owner);
+    const browserFiles = sourceFiles(join(root, "src")).filter(path => relative(root, path).startsWith("src/browser/"));
+    if (!browserFiles.length) continue;
+    const configPath = join(root, "tsconfig.json");
+    const config = ts.readConfigFile(configPath, ts.sys.readFile);
+    assert.equal(config.error, undefined, `${owner} config is readable`);
+    const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root, undefined, configPath);
+    assert.deepEqual(parsed.errors, [], `${owner} config parses with its real extends and exclude`);
+    const roots = new Set(parsed.fileNames);
+    for (const file of browserFiles) assert.ok(!roots.has(file), `${file} is excluded from the server's root files`);
+    const program = ts.createProgram({ rootNames: parsed.fileNames, options: parsed.options });
+    const loaded = new Set(program.getSourceFiles().map(file => file.fileName));
+    for (const file of browserFiles) assert.ok(!loaded.has(file), `${file} cannot enter server code through a transitive import or export`);
+  }
+});
 
 test("no error class, no route-error mapper, no mapError and no readBody is left in the owners' sources", () => {
   const removed = ["JellyError", "CogniaError", "ImagesError", "ShelfError", "isShelfError", "JellySourceError", "JellyMaterialError", "MaterialExtractionError",
@@ -371,7 +370,7 @@ test("no error class, no route-error mapper, no mapError and no readBody is left
     const text = read(path);
     for (const name of removed) assert.ok(!new RegExp(`\\b${name}\\b`, "u").test(text), `${path} still mentions ${name}`);
   }
-  for (const path of ["apps/local-host/src/shelf-native-plugin-http.ts", "plugins/native/jelly/src/plugin-routes.ts", "plugins/native/images/src/routes.ts"]) {
+  for (const path of ["plugins/native/shelf/src/route-handlers.ts", "plugins/native/jelly/src/plugin-routes.ts", "plugins/native/images/src/routes.ts"]) {
     const text = read(path);
     assert.ok(!/\bmapError\b/u.test(text), `${path} passes no mapError: the dispatcher answers through the SDK`);
     assert.ok(!/\breadBody\b/u.test(text), `${path} reads its body with the shared reader`);

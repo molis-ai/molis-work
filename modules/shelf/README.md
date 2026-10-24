@@ -15,14 +15,15 @@ Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files
 | 文件 | 用途 |
 | --- | --- |
 | [src/store.ts](src/store.ts) | 架子目录、进货、隐藏/删除、任务 |
+| [src/copy-checks.ts](src/copy-checks.ts) | 副本的内容 Hash；任务开始前与每次写入前核对原件 |
 | [src/extract.ts](src/extract.ts) | 提取结果的产品 Markdown 与文件名 |
 | [src/pdf.ts](src/pdf.ts) | 示例 PDF 的生成与已知正文 |
 
 ## 接入与边界
 
-不写项目数据库，不发布 Artifact。原路径只用于事后 Hash 校验，不进入 Prompt 或 API 展示。
+不写项目数据库，不发布 Artifact。原件的路径只在平台那里：放入文件的请求经 `claimOriginal` 登记，Module 不存也不读路径；任务开始前和每次写入前经 `materials.readOriginal` 按 item 重新比对 Hash，原件不进入 Prompt 或 API 展示。
 
-目录只读当前版本 1 和当前 item/job/clipboard 形状；错版或旧字段缺失明确拒绝并保留原文件，不在读取或后续保存时补齐历史字段。单项任务的现行 API 输入仍可使用 `item_id`。
+目录只读当前版本 2 和当前 item/job/clipboard 形状；错版或旧字段缺失明确拒绝并保留原文件，不在读取或后续保存时补齐历史字段。单项任务的现行 API 输入仍可使用 `item_id`。
 
 网页材料通过 Host 注入的 `ShelfMaterialPorts.readWebsite` 读取，Module 只保存标题、链接和产品 Markdown。纯 Module 调用未注入时只保留链接，不隐式联网；抓取失败同样保留链接并注明没有正文。异步入库传递 `ShelfExecutionControl`，取消/撤权不入库，剪贴板在最终写入前重新核对来源。HTML 通用解析不由 Shelf 导出。
 
@@ -48,7 +49,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖 contracts/modules、contracts/services 与 plugin-sdk（执行生命周期）；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不写回原件；原路径只用于事后 Hash 校验，不进 Prompt 或 API。
-  - 架子上的文件只经注入的文件客户端读写（没有 `node:fs` 的路径）；每个逻辑操作是一次 `files.write(run)`，`run` 同步完成、先读现行目录再改，所以同时开始的两个操作不会互相覆盖目录行。`events.jsonl` 按整文件替换追加一行。仍直接用 `node:fs` 的只有：事后核对原件 Hash（`assertOriginUntouched`，原路径来自入库时的输入）和运行时探测（`runtimes.ts`）；另外交给模型的冻结 `input/` 是一条真实目录路径（模型读它），Module 自己不用 fs 去碰它。
+  - 架子上的文件只经注入的文件客户端读写（没有 `node:fs` 的路径）；每个逻辑操作是一次 `files.write(run)`，`run` 同步完成、先读现行目录再改，所以同时开始的两个操作不会互相覆盖目录行。`events.jsonl` 按整文件替换追加一行。仍直接用 `node:fs` 的只有运行时探测（`runtimes.ts`）；原件 Hash 的核对经平台读原件（`copy-checks.ts` 的 `assertOriginsUntouched`），不碰路径；另外交给模型的冻结 `input/` 是一条真实目录路径（模型读它），Module 自己不用 fs 去碰它。
   - 不写项目数据库、不自动发布 Artifact；同项目、同成果、同版本再次接收返回已有副本并保留编辑。
   - 首次读取快照时，若 `seeded_sample` 为假且架子为空，放入一份「试用示例.pdf」（`ensureSample` → `seedSample`，真实可抽字的 PDF，由 `src/pdf.ts` 生成，经 `admit` 上架）。这是有意的首次使用引导，不是演示数据：任何材料入库或示例放入后 `seeded_sample` 为真，之后删除、隐藏都不会自动放回；用户可在设置的「使用指南」主动再放一份；不写项目库。
   - 自动任务只通过注入的 ShelfAiPorts，冻结 input 副本只读；领域模块不启动模型或终端进程。

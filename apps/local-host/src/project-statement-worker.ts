@@ -1,21 +1,74 @@
-import { failure, openStatementEngine, type StatementEngine } from "./project-statement-engine.js";
-import type { StatementReply, StatementRequest } from "./project-statement-protocol.js";
+import { Worker } from "node:worker_threads";
+import type { StatementFatal, StatementMemoryLimits, StatementReply, StatementRequest } from "./project-statement-protocol.js";
 
-// The entry of the process that runs a sandboxed plugin's statements (`project-statement-process.ts` starts it with `fork`). It
-// answers one request at a time over the IPC channel and leaves when the Host's end closes. It holds no secrets and reads no
-// environment; the Host kills it whenever a statement runs too long or grows it past its memory.
+// This process's main thread never runs SQLite. Its timers and disconnect handler remain runnable while the SQL Worker is in
+// a native call or the Host is blocked in its own synchronous writer. Ending the entire process releases SQLite's locks.
+let engine: Worker | undefined;
+let pending: StatementRequest | undefined;
+let requestTimer: NodeJS.Timeout | undefined;
+let transaction: { id: number; deadline: number; timer: NodeJS.Timeout } | undefined;
+let ending = false;
 
-let engine: StatementEngine | undefined;
+function end(fatal: StatementFatal): void {
+  if (ending) return;
+  ending = true;
+  const kill = () => { process.kill(process.pid, "SIGKILL"); };
+  // Delivery is diagnostic, never a prerequisite for releasing the lock when the Host is blocked or gone.
+  setTimeout(kill, 20);
+  if (!process.connected) { kill(); return; }
+  try { process.send?.(fatal, kill); } catch { kill(); }
+}
+
+function timeout(): void { end({ fatal: "timeout", message: "项目库的语句或事务已超过截止时间，已终止" }); }
+
+function clearTransaction(): void {
+  clearTimeout(transaction?.timer);
+  transaction = undefined;
+}
+
+function startEngine(limits: StatementMemoryLimits): Worker {
+  const worker = new Worker(new URL("./project-statement-sql-worker.js", import.meta.url), {
+    resourceLimits: { maxOldGenerationSizeMb: limits.heapMb },
+  });
+  worker.on("message", (reply: StatementReply) => {
+    const request = pending;
+    if (ending || !request || request.id !== reply.id) return;
+    if (Date.now() >= request.deadline || (transaction && Date.now() >= transaction.deadline)) { timeout(); return; }
+    clearTimeout(requestTimer);
+    if ((request.op === "begin" && !reply.ok) || ((request.op === "commit" || request.op === "rollback") && reply.ok)) clearTransaction();
+    pending = undefined;
+    try { process.send?.(reply, error => { if (error) end({ fatal: "process", message: "宿主通道已经关闭" }); }); }
+    catch { end({ fatal: "process", message: "宿主通道已经关闭" }); }
+  });
+  worker.on("error", error => end({ fatal: "process", message: `项目库 SQL Worker 出错：${error.message.slice(0, 1024)}` }));
+  worker.on("exit", code => end({ fatal: "process", message: `项目库 SQL Worker 意外退出（${code}）` }));
+  const sampling = setInterval(() => {
+    // rss() includes all isolates and native allocations in this process, unlike the Worker's V8 heap limit.
+    if ((pending || transaction) && process.memoryUsage.rss() > limits.rssMb * 1024 * 1024) {
+      end({ fatal: "memory", message: `项目库的语句用掉的内存超过 ${limits.rssMb} MB，已终止` });
+    }
+  }, limits.sampleMs);
+  sampling.unref();
+  return worker;
+}
 
 process.on("message", (request: StatementRequest) => {
-  let reply: StatementReply;
-  try {
-    if (request.op === "open") {
-      engine?.close();
-      engine = openStatementEngine(request.path, request.record);
-      reply = { id: request.id, ok: true };
-    } else reply = engine ? engine.handle(request) : failure(request.id, new Error("项目库还没有打开"));
-  } catch (error) { reply = failure(request.id, error); }
-  process.send?.(reply);
+  if (ending) return;
+  if (pending) { end({ fatal: "process", message: "项目库进程一次只处理一个请求" }); return; }
+  if (Date.now() >= request.deadline || (transaction && Date.now() >= transaction.deadline)) { timeout(); return; }
+  if (request.op === "open") {
+    if (engine) { end({ fatal: "process", message: "项目库已经打开" }); return; }
+    engine = startEngine(request.limits);
+  }
+  if (!engine) { end({ fatal: "process", message: "项目库还没有打开" }); return; }
+  if (request.op === "begin" && !transaction) {
+    const { id, transactionDeadline: deadline } = request;
+    if (Date.now() >= deadline) { timeout(); return; }
+    const timer = setTimeout(() => { if (transaction?.id === id) timeout(); }, deadline - Date.now());
+    transaction = { id, deadline, timer };
+  }
+  pending = request;
+  requestTimer = setTimeout(() => { if (pending?.id === request.id) timeout(); }, request.deadline - Date.now());
+  engine.postMessage(request);
 });
-process.on("disconnect", () => { engine?.close(); process.exit(0); });
+process.on("disconnect", () => end({ fatal: "process", message: "宿主已经退出" }));

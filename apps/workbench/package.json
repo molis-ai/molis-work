@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./terminal": {
+      "types": "./dist/terminal/index.d.ts",
+      "import": "./dist/terminal/index.js"
     }
   },
   "files": [

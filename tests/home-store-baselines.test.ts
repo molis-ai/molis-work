@@ -19,10 +19,11 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
 /**
  * The registered libraries with no schema fixture taken from a real Home: the Home Runtime's is checked against its own v2
  * fixture below; Issues and the discussion store had no real-Home schema taken when the fixtures were; project knowledge's cards
- * (specs/project-knowledge K1) and the original-file registrations plugins keep (plugin-originals, 2026-10-20) are new, so no Home
- * has them yet. A new library either comes with a fixture or is named here.
+ * (specs/project-knowledge K1), the original-file registrations plugins keep (plugin-originals, 2026-10-20) and the installations'
+ * remembered Agent declarations (agent-declarations, PG-051 2026-10-23) are new, so no Home has them yet. A new library either
+ * comes with a fixture or is named here.
  */
-const WITHOUT_REAL_HOME_FIXTURE = ["plugin-runtime", "plugin-originals", "knowledge", "server", "issues"];
+const WITHOUT_REAL_HOME_FIXTURE = ["plugin-runtime", "agent-declarations", "plugin-originals", "knowledge", "server", "issues"];
 const libraries = homeStores().stores.flatMap(store => store.library ? [[store.path, store.library.baseline] as const] : []);
 test("every library in the Home's store registry has a schema fixture or is named as having none", () => {
   const fixtures = new Set(readdirSync(new URL("./fixtures/home-store-schemas/", import.meta.url)).filter(file => file.endsWith(".sql")).map(file => file.slice(0, -4)));

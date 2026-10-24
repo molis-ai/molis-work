@@ -29,9 +29,11 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 **授权与交付。** 一骏明确「#1162、#1198 这俩也帮忙处理merge掉」。这份已接受WO替代重复文件spec；目标是这两项既有修复在最新主线工程/受管浏览器验证并各原PR实际MERGED，原生窗口/本人验收单列。已有授权覆盖必要同步、修复、普通push、转Ready、独立审验和正常队列，不再申请同一权限。当前1112最近fixed点已到并交审验，唯一writer已实际转1162，Root/TEST不并写。
 
-**顺序/真依赖。** 1162先一次合开工时fresh main；固定source交REVIEW/TEST并释放，不为空等CI占源。只有1162实际合入后1198才能一次sync真正最新base并重测共享资产；不在旧base预刷1198，不建替代批后只关原PR。间隙可由流水线给已有独立短片，1198真前置满足优先归槽，保持一writer/一build/一browser。
+**顺序/真依赖（Root按当前新头收窄）。** 1162固定edace已Ready/双独立PASS，先等正常CI/原PR实际merge。1198当前真正固定输入为290d79904dbff1061cdbd45fa780ad70a96d44f2（产品/test与旧5d6同，新内容含c609同步/精确额度/正式视觉诊断）。等待runner期间允许唯一FIX2在自有预备树用当前290d与冻结edace合成、wholebuild/24态与原零阈值66图/22样式一次正式比较；基准明确只是1162候选，不是已落地main，不touch1162树、不提前push/Ready1198。1162实际merge后再fresh main一次真正同步，只有实际main全tree/生产源/依赖/源与产物指纹均同预备基准才沿用，否则按实际差异增量补验，最终预算/静态门重核。Root取消的是旧5d6预备输入，不是禁止独立可复用准备；不forcelink原作者更新，remote若再变先停push核新差异。保持一writer/一build/一browser，不建替代批后仅关原PR，不等整条W5 full。
 
 **1162范围。** 原head0ec7d8d6dc0662860387c16d8573b6515d63653b、merge-baseacc71。只原6路径：Pages README、import-client.ts/styles.ts/ui.ts、pages-import-entry.e2e、page-assets.json；最新612仅资产表冲突。保现有mw-dialog--form内容区滚动/footer固定及真正命中后click，不借同步重做UI/导入/删除/持久化。资产表先取主线，正确wholebuild后按实测更新下降，不以旧137B绝对数覆盖新主线。当前包README13必要及样式/导入定向、pages-import-entry/相关dialog浏览器（公共槽/专用Chrome/临时Home）与准确base health/resources/secrets，固定head/真实diff/raw/未验证边界→Ready→直接独立审验→原PR正常队列真merge。
+
+**1198正式视觉合同。** 当前VUX spec明确原零容忍正式66图/22样式完成门。原c609 Todo390浅色11px与同头A/A11点、readiness无异常/原因UNKNOWN均保留；原raw在原作者/Users/oreal机器，本机不可读就不冒亲核/自动豁免。新准确候选基准上按原参数/零阈值/零retry只做一次正式66/22+24态；自然过可按新组合证据核收，不宣称旧根因已修；再红据实定点，不循环碰运气、不加sleep/阈值/像素豁免或私改shared harness。三CSS各+7语义及最终actual base精确from/to合同不变。
 
 **1198范围与额度。** 原head5d6d536d5685f9174c9226563b099e0c6b772601/basef586，6路径为design-system README、styles/toast.ts、scripts/gates/page-assets.mjs、VUX spec、request-failure-call-id.e2e、page-assets.json；原产品只toast选择器补既有.mw-btn。当前真实冲突README/一次性批准表/资源表，双方有效条目保留；用户原批准仅arrival/settings/workbench三个CSS各+7B语义，按真正最新merge-base测准确from/to、清已耗旧额度，不保旧705676/995810/1614247高上限、不改通用门禁/不扩额外增长。若>7或其他资产变先查真实原因/范围，不默放。旧tmp-summary/approved/repair当前缺失，不能凭PRbody算亲读；新的wholebuild、当前README定向、原3浏览器case、真实404/复制与1440/1024/390×浅深×normal/hover/active/keyboard24态建立当前证据。Memory删除helper按当时正式现行合同（当前仍remove）适配且保持原真实断言；source fixed/Ready后独立审验/普通队列真merge。
 

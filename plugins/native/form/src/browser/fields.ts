@@ -59,7 +59,7 @@ export const buildFields = (L: Translate, container: Element, questions: readonl
   questions.forEach((question) => {
     const field = make("div", "form-field");
     const title = document.createElement(["singleChoice", "multiChoice", "rating"].includes(question.type) ? "span" : "label");
-    title.id = "form-question-" + crypto.randomUUID(); title.textContent = question.title + (question.required ? "（" + L("必填") + "）" : "");
+    title.id = "form-question-" + crypto.randomUUID(); title.textContent = question.title + (question.required ? "（" + L("form.question.required") + "）" : "");
     field.setAttribute("role", ["singleChoice", "rating"].includes(question.type) ? "radiogroup" : "group"); field.setAttribute("aria-labelledby", title.id);
     if (field.getAttribute("role") === "radiogroup") field.setAttribute("aria-required", String(question.required)); field.append(title);
     field.append(answerField(question));
@@ -101,7 +101,7 @@ export const renderPreview = (page: FormPage, record: FormRecord) => {
   const submitBtn = page.previewForm.querySelector<HTMLElement>("[data-form-submit]");
   if (submitBtn) submitBtn.hidden = !(record.questions || []).length;
   if (!(record.questions || []).length) {
-    const emptyPreview = make("p", "form-preview-empty", page.L("还没有题目。回到编辑加一题。"));
+    const emptyPreview = make("p", "form-preview-empty", page.L("form.preview.empty"));
     page.previewEl.append(emptyPreview);
     return;
   }

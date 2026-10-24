@@ -1058,8 +1058,10 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 
 现已准备只将 ci.yml/full-suite.yml 的11个浮动 Node24改为24.14.0的具体补丁，`git apply --check`通过，文件 `/private/tmp/molis-memory-1064-node-runtime-pin-proposal-20261024.patch`。按 AGENTS 的 CI 修改审批与 PARALLEL-DEVELOPMENT 的独立 PR 要求，已请用户决定，未获答复前未应用。任何测试、断言、重试、隔离、作业和合并门保持原值；如获批准，独立交付后在最终候选执行原完整全量，再按结果处理，不把版本固定提案当作失败关闭。其余独立 Memory 切片继续。
 
-### #1064 主干集成 f586496e4（2026-10-24，验证中）
+### #1064 主干集成 f586496e4（2026-10-24，定向集成验证通过，最终全量待完成）
 
 本次以已推送 333189df3 合入准确 main f586496e463308995319499f836bb8cfeb654898。三处冲突限于安全不变量记录和资源账：同时保留 Memory 可信原件/晋升控制与主干 PG-047 的模型结果最终校验；原 Memory 资源净增仍为 workbench +3,193 B、Coding +717 B，按主干新基数复核，不新增额度。其余主干改动按原合同保留。验收为整体构建、受影响授权/形成/页面路径、精确父 health 与原静态/实际资源门通过；零自动重试，失败保留。尚未得到该合并候选的最终全量或 CI 结果，不将旧绿色结果移用。Node CI 固定版本补丁仍待此前独立审批，未应用。
 
 本合并树冻结离线安装、整体 build、根与工作区类型、10 个受影响非浏览器文件及 8 个浏览器文件首轮通过，jobs2/browser1/retries0。API/Action、boundary、secrets 与 diff 通过；独立静态深审未发现确定 P1/P2，确认原件与 PG-047 最终检查未互相覆盖。首次资源检查因合并尚未提交，git merge-base 仍落在 4e17c3d1，错误比较旧主干基数而拒绝 Todo/灵光和工作台；失败日志保留。先完成合并提交，再以 f586496e4 重新跑 health、实际资源和提交级 secrets，不能将该首轮 health 当成已按新主干验证。其余已通过内容不变，不重复构建或浏览器全批。日志索引 `/private/tmp/molis-memory-1064-main-integration-f586-20261024.results.json`。
+
+合并产品提交 `601deca0b` 后，以准确 main f586496e4 重跑 health、资源和提交级 secrets 全部通过；实际27项资源7,792,484 B，workbench 1,193,899 B、Coding 376,999 B，只保留原批准净增。该 SDK #94 分支原晋升12/12补验通过；不混同后续SDK #96/#99的取消修复切片。当前源码与先前10非浏览器/8浏览器验证一致，未再构建或重复全批。提交后结果 `/private/tmp/molis-memory-1064-main-integration-f586-final-20261024.results.json`；首轮因未提交导致比较旧merge-base的失败日志仍保留。新候选仍须最终正常CI与完整Full suite；此前Node固定版本审批未答复，未修改工作流。

@@ -158,6 +158,7 @@ export { readJudgeRequest, readLanding } from "./contextual/contextual-request.j
 export { handleContextualHttp } from "./contextual/contextual-http.js";
 export { draftRequest } from "./contextual/contextual-draft.js";
 export { createChosen, undoCreated, type ContextualCreated, type UndoOwner } from "./contextual/contextual-create.js";
+export { intakeKey } from "./contextual/contextual-choice.js";
 export { draftIntake, type DraftInput, type DraftModel, type DraftPorts } from "./drafting/draft-service.js";
 export type { DraftTarget } from "./drafting/draft-data.js";
 export { scheduleServiceFor } from "./project-clock.js";

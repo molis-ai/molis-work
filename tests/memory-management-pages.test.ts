@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryPageRequest, MemoryPageResponse } from "@molis-ai/molis-work-contracts/services/memory";
-import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { memoryRuntimePolicy } from "@molis-ai/molis-work-app-local-host";
 import { openPrologueMemoryAdoption } from "@molis-ai/molis-work-service-agent-host";
 import { memoryServiceHome, observeMemoryBackend } from "./fixtures/memory-service-home.js";
@@ -54,6 +54,10 @@ test("project pages include each current Character once; scope and query changes
   assert.deepEqual(result.flatMap(page => page.items.map(item => item.text)).sort(), ["Project only", "Role reviewer", "Role writer"]);
   assert.ok(result.every(page => page.items.length <= 1 && page.total.kind === "unknown"));
   assert.equal(result[0]!.items[0]!.scope, "project");
+  assert.equal(result[0]!.items[0]!.owner, "project-a");
+  for (const item of result.flatMap(page => page.items).filter(item => item.scope === "character"))
+    assert.equal(item.owner, characterOwner("project-a", item.character_id!));
+  assert.ok(result.flatMap(page => page.items).every(item => item.owner !== item.character_title));
   const first = result[0]!;
   await assert.rejects(service.page(person, { scope: "project", limit: 1, cursor: first.cursor, query: "changed" }), { code: "memory.conflict" });
   await assert.rejects(service.page({ ...person, project_id: "project-b" }, { scope: "project", limit: 1, cursor: first.cursor }), { code: "memory.conflict" });

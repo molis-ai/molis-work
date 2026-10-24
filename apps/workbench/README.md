@@ -180,3 +180,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 首屏的 `pairs:null` 表示尚未读取，保留“查看可能重复或冲突”入口，不当成零条。仅点击后请求原配对 Action；打开后业务变更/重新读取可刷新，普通筛选和翻页不触发。配对处理与失败后重读保留，不把这个原查询宣称成有界分页。
 
 定向验证：`tests/memory-settings-cas.e2e.test.ts` 保留协议故障、原命令回放、迟到响应与未穷尽空页的受控反例；`tests/memory-settings-pages.e2e.test.ts` 覆盖实际隔离 Home 的非空分页、筛选、配对入口与旧编辑路径。另跑 `tests/client-script-undeclared.test.ts`、`tests/i18n.test.ts` 与本包上述必跑项。真实生产分页与协议反例分别标明证据范围；资源和响应式/明暗布局按现门禁实测，不据 UI 接通宣称完整 M3 或用户验收。
+
+固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面测试待统筹构建槽验证；未跑不算通过。合同见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
+
+页面以 localStorage 保存绑定当前项目路径的 preview_id/action，不存正文、选集或执行进度；新页面与 App 重启可重试原预览。该引用不授权，Host 重核 actor/project/scope/owner 与原选集；完成或本人明确放弃才清理，部分失败/未知/取消保留。

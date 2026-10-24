@@ -699,7 +699,7 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 - **MEM-PAGE-02**：同一查询有至少两页；过滤和全文搜索共享扫描预算，零命中未穷尽可继续，游标换查询/范围被拒。取消、撤权、重启与并发变更不扩大权限；exact 仅在可证明时给出，跨页/过滤未知保持 unknown。
 - **MEM-PAGE-03**：隔离非空 Home 的真实设置页完成选择分类、翻页、改变过滤、空页继续、到期/未分类展示，并确认网络不下发全库。现历史、撤销、导入导出、候选与失败重试入口仍可用。renderer/HTTP 夹具仅作定向回归，不替代生产链实操；资源沿已批准逐文件额度实测，不自动放宽。
 
-后续两个紧随切片仍是 P0：其一按所见版本改类/场景/生命周期/期限，并把分类 read/form 限制接入现 prefs 与当前权限；其二通过 SDK 固定 preview/mutateBatch 与现 marker/history/forget 清理完成选中条目的批量停用/遗忘、逐项结果及原操作恢复。改类不得改 owner/namespace、自动续期或恢复；批量不得重跑动态查询追删后来新增项。旧格式导入、历史撤销、候选管理及完整 Coding/助理旅程继续沿原承诺完成，本片通过不代表完整 M3/P0 验收。
+后续两个紧随切片仍是 P0：其一按所见版本改类/场景/生命周期/期限，并把分类 read/form 限制接入现 prefs 与当前权限；其二通过 SDK 固定 preview 校验原选集，执行复用现 Service.change 唯一写链和 marker/history/forget 清理，完成选中条目的批量停用/遗忘、逐项结果及原操作恢复；不先 mutateBatch 再 change，避免重复执行或清理前报告完成。改类不得改 owner/namespace、自动续期或恢复；批量不得重跑动态查询追删后来新增项。旧格式导入、历史撤销、候选管理及完整 Coding/助理旅程继续沿原承诺完成，本片通过不代表完整 M3/P0 验收。
 
 #### M3 第二片：逐条纠正正式分类
 
@@ -926,3 +926,19 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 交付按可独立验收部分拆 PR：C0/Q0 合同、工具与冻结结果先行；S1 第一片单独交付版本检查、并发写入与恢复；M1 第一片单独交付有效配置采用与启动保护。两仓实现 PR 分别依赖各自 C0/Q0 父 PR，后续分类、形成、召回和界面按 §9.3 依赖继续拆分；父 PR 进入 main 后再合并子 PR，不将 stacked 分支合并视为进入 main。此处持续补充 PR 和最终 head 的验证结果；未操作真实 Home，也未发布。
 
 下一批继续沿现有任务分片：S1 已交付业务 key 与 SDK 分类管理分页，条目级 disabled/恢复已由 #67 交付；跨候选及 Molis 历史的完整遗忘仍须收束；分类计数遵守 MEM-08：能证明完整的查询给 exact，跨页或扫描未完成明确 unknown，不伪造完整统计。S2 首片先闭合可信来源到持久待审候选，S3 接有界召回与最终回执。Molis 采用新 SDK 前必须提高下一严格格式基线：当前 ledger 3 无法阻止同样识别 3 的 M1 旧程序。管理调用复用现有可信执行上下文，后台 Run 复用 Session owner index，缺绑定拒绝；不创建全局 currentCaller。真实生产切换仍依赖 S1～S3 与 M1 完整产物，界面分页/统计不得先用前端切片代替 SDK 查询。
+
+### M3 固定分类选集批量管理短合同（2026-10-24，实现中）
+
+本人在分类筛选页逐条勾选所见 scope/owner/memory_id/expected_version，最多 100 条，跨页选择仍保持原身份和版本。管理分页投影实际 owner，新增必填输出使 memory.page 升为 v2；DTO 不是授权，Host 重新验证当前 actor/project/合法 scope。只支持 disable/remove，不续期、不移动、不新增候选批处理。
+
+公开 memory.batch.preview 接收 action/items，经 backend.previewMutation→SDK preview 逐条验证具体命令；全部通过后在既有 ledger marker 冻结无正文的选集、原项目与稳定 child operation_id，返回 preview_id/action/items/max_items。预览写 marker 前执行现 beforeEffect/current 守卫。memory.batch.apply 仅接 preview_id，同 actor/原项目恢复，逐条绑定原 scope/owner/version 的 change-request 再调用 Service.change。SDK 与 App 各自保留原写主人，不新增表、正文快照、SDK 批处理接口或执行核。上限由 App 明确配置且 Host 最大 100，不从分页大小推导权限。
+
+completed 只来自原子项 change 回执：遗忘须完成来源抑制、候选 SDK/投影、正式删除、历史/uses/pairs/正文投影清理。重试据原 durable change 回执跳过完成项，不能覆盖后继人工版本；缺回执沿原子操作继续，unknown 不猜成功。待执行子项仍过当前授权/CAS，跨项目或合法 scope 改变拒绝；完成项只返回既有事实。冲突/拒绝逐项显示，unknown/取消停止后续；失败不承诺此前零副作用。HTTP 200/incomplete 不报全完成，保留原预览重试；Host 重开沿同 preview/child 恢复，页面只持久化 preview_id/原项目，不存正文。
+
+复杂度取舍：SDK mutateBatch 不拥有 App 来源/ledger 清理，因此执行复用 Service.change；整范围 scope.clear 不适用。batches.ts 只拥有选集预览与恢复，现 Queries 接回 history/changes 读取以保持 Service 粒度。允许 memory README/src service/operations/batches/queries、contracts README/services memory、memory-queries与agent-host-memory、local-host README/memory-host、workbench README/settings-memory及必要样式/翻译、相关测试及本 spec；不改 SDK 包/锁文件、资源/health 门或生成快照。
+
+依赖分类纠正父 452e753084（含 #1064 删除恢复）、SDK preview/CAS 与 Action/ledger 守卫。真实验收：后加不入集、编辑冲突、跨身份拒绝、中途撤权/取消/unknown 停后续、清源/SDK/账本/回执故障后关开恢复不重复、completed 后候选/历史/uses/pairs 无正文且同源不重学；页面实际选择/预览/确认、分项反馈和原预览重试。当前禁止 build/浏览器/全量，真实测试待槽；未跑不记通过，资源/API/health 与集成由统筹验证。
+
+批量遗忘的预览使用现有 SDK `purge`，不以 `remove` 墓碑命令的许可替代实际删除许可。现 `AgentMemoryPreviewMutation` 仅补该取值，不新增 Port。
+
+页面以 localStorage 保存绑定当前项目路径的 preview_id/action，不存正文、选集或执行进度；新页面与 App 重启可重试原预览。该引用不授权，Host 重核 actor/project/scope/owner 与原选集；完成或本人明确放弃才清理，部分失败/未知/取消保留。

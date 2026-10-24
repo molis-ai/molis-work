@@ -202,3 +202,63 @@ test("nonempty memory settings page through authorized storage, preserve old dec
     assert.equal(fullLists, 0);
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test("selected category batch keeps the original preview through partial failure and page reload", { timeout: 90_000 }, async t => {
+  const executable = locateTestChrome(); assert.ok(executable);
+  const env = await serveHomeRuntime(t), client = bindActionClient(env.host.homeActionClient(), () => person(MEMORY_PERMISSIONS));
+  const add = async (text: string) => (await client.invoke(memoryActions.write, { scope: "personal", text, kind: "convention" }) as MemoryWriteResult).memory!;
+  const a = await add("First explicitly selected convention"), b = await add("Second explicitly selected convention");
+  let interrupted = false;
+  const change = MemoryService.prototype.change;
+  t.mock.method(MemoryService.prototype, "change", function(this: MemoryService, ...args: Parameters<MemoryService["change"]>) {
+    if (args[1].action === "disable" && !interrupted && args[1].memory_id === b.memory_id) {
+      interrupted = true; throw new Error("Unavailable until the person retries");
+    }
+    return change.apply(this, args);
+  });
+  const directory = await mkdtemp(join(tmpdir(), "memory-selected-browser-"));
+  const browser = await ChromeHarness.start(directory, { executable });
+  try {
+    let page = await browser.page(); await page.viewport(1024, 900);
+    const visit = async () => {
+      await page.command("Page.navigate", { url: env.origin + "/settings/memory" });
+      await page.wait("document.readyState === 'complete' && [...document.querySelectorAll('[data-memory-settings]')].some(root => root.checkVisibility())");
+      await page.evaluate("[...document.querySelectorAll('[data-memory-settings]')].filter(root => root.checkVisibility()).forEach(root => root.setAttribute('data-memory-test-active', ''))");
+      await ready(page);
+    };
+    const part = (name: string) => "[data-memory-test-active] [data-memory-" + name + "]";
+    await visit(); await filter(page, "kind", "convention");
+    for (const item of [a, b]) await page.click("[data-memory-test-active] [data-memory-id=" + JSON.stringify(item.memory_id) + "] [data-memory-select]");
+    assert.match(await page.evaluate<string>("document.querySelector(" + JSON.stringify(part("selected")) + ").textContent"), /2 \/ 100/);
+    await page.click(part("batch-disable"));
+    await page.wait("document.querySelector('.memory-confirm[open]')");
+    const confirmation = await page.evaluate<string>("document.querySelector('.memory-confirm[open]').textContent");
+    assert.ok(confirmation.includes(a.text)); assert.ok(confirmation.includes(b.text)); assert.match(confirmation, /v1/);
+    const later = await add("Added after the original preview");
+    await page.click("[data-memory-confirm-yes]");
+    await page.wait("document.querySelector(" + JSON.stringify(part("batch-status")) + ")?.textContent.includes('尚未完成')");
+    await ready(page);
+    const partial = await page.evaluate<string>("document.querySelector(" + JSON.stringify(part("batch-results")) + ").textContent");
+    assert.match(partial, /结果未知/); assert.doesNotMatch(partial, /Added after/);
+    const saved = await page.evaluate<string>("localStorage.getItem('memory-selection:/api/memory')");
+    assert.ok(saved); assert.equal(saved.includes(a.text), false); assert.equal(saved.includes(b.text), false);
+    page = await browser.page(); await page.viewport(1024, 900);
+    await visit();
+    await page.click(part("batch-retry"));
+    await page.wait("document.querySelector(" + JSON.stringify(part("batch-status")) + ")?.textContent.includes('全部处理完成')");
+    await ready(page);
+    assert.equal(await page.evaluate("localStorage.getItem('memory-selection:/api/memory')"), null);
+    const state = await client.invoke(memoryActions.page, { scope: "personal" });
+    for (const item of [a, b]) assert.equal(state.items.find(row => row.memory_id === item.memory_id)!.state, "disabled");
+    assert.equal(state.items.find(row => row.memory_id === later.memory_id)!.state, "active");
+    // Forget uses the same visible selection and asks again; it cannot silently include the later item.
+    for (const item of [a, b]) await page.click("[data-memory-test-active] [data-memory-id=" + JSON.stringify(item.memory_id) + "] [data-memory-select]");
+    await page.click(part("batch-remove")); await page.wait("document.querySelector('.memory-confirm[open]')");
+    await page.click("[data-memory-confirm-yes]");
+    await page.wait("document.querySelector(" + JSON.stringify(part("batch-status")) + ")?.textContent.includes('全部处理完成')");
+    await ready(page);
+    const remaining = await client.invoke(memoryActions.page, { scope: "personal" });
+    assert.deepEqual(remaining.items.map(item => item.memory_id), [later.memory_id]);
+    assert.doesNotMatch(await page.evaluate<string>("document.querySelector(" + JSON.stringify(part("batch-results")) + ").textContent"), /explicitly selected/);
+  } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
+});

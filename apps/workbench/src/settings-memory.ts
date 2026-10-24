@@ -47,6 +47,15 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
         ${filter("expired", "到期情况", [["", "全部期限"], ["true", "已到期"], ["false", "未到期"]])}
         <input class="mw-input memory-search" type="search" maxlength="400" data-memory-filter="query" placeholder="${L("搜索记忆")}" aria-label="${L("搜索记忆")}">
       </div>
+      <div class="memory-toolbar" role="group" aria-label="${L("管理所选记忆")}">
+        <span data-memory-selected aria-live="polite">${L("已选")} 0 / 100</span>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-batch-disable disabled>${L("预览批量停用")}</button>
+        <button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-batch-remove disabled>${L("预览批量遗忘")}</button>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-batch-retry hidden>${L("重试原预览")}</button>
+        <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-selection-reset>${L("清除选择")}</button>
+      </div>
+      <p class="settings-muted" data-memory-batch-status aria-live="polite" hidden></p>
+      <ul class="memory-list" data-memory-batch-results hidden></ul>
       <div class="memory-editor-slot" data-memory-new hidden></div>
       <ul class="memory-list" data-memory-list><li class="settings-muted">${L("正在读取…")}</li></ul>
       <nav class="memory-toolbar" aria-label="${L("记忆分页")}">
@@ -160,6 +169,63 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
     const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
     const pendingCommands = new Map();
+    const selected = new Map(), selectionKey = item => JSON.stringify([item.scope, item.owner, item.memory_id]);
+    const batchStorageKey = "memory-selection:" + base;
+    let batchPreview = null, batchRequest = null;
+    try {
+      const saved = JSON.parse(localStorage.getItem(batchStorageKey) || "null");
+      if (saved && typeof saved.preview_id === "string" && ["disable", "remove"].includes(saved.action)) batchPreview = saved;
+    } catch { /* Selection recovery is optional when browser storage is unavailable. */ }
+    const paintSelection = () => {
+      part("selected").textContent = L("已选") + " " + selected.size + " / 100";
+      part("batch-disable").disabled = part("batch-remove").disabled = !selected.size || !!batchPreview || busy || reading || readFailed;
+      part("batch-retry").hidden = !batchPreview; part("batch-retry").disabled = busy;
+      root.querySelectorAll("[data-memory-select]").forEach(input => { input.disabled = busy || !!batchPreview; });
+      part("selection-reset").textContent = L(batchPreview ? "结束本次操作，重新选择" : "清除选择");
+    };
+    const showBatch = (done) => {
+      const status = part("batch-status"), list = part("batch-results");
+      status.hidden = list.hidden = false;
+      status.textContent = L(done.complete ? "所选记忆已全部处理完成" : "本次操作尚未完成；重试只处理原预览，已完成项不会重复执行。");
+      list.replaceChildren();
+      const labels = { completed: "已完成", conflict: "版本冲突", refused: "当前权限拒绝", unknown: "结果未知，可能已有部分清理", "not-executed": "尚未执行" };
+      done.items.forEach(item => {
+        const original = selected.get(selectionKey(item));
+        list.append(el("li", "memory-row", (done.action === "remove" ? item.memory_id : original?.text || item.memory_id) + " · v" + item.expected_version + " · " + L(labels[item.outcome])));
+      });
+    };
+    const applyBatch = async () => {
+      part("batch-status").hidden = false;
+      part("batch-status").textContent = L("正在处理原预览；若中断，请重试原预览。");
+      const done = await api("/batch/apply", { preview_id: batchPreview.preview_id, operation_id: crypto.randomUUID() });
+      showBatch(done);
+      if (done.complete) { batchPreview = null; selected.clear(); localStorage.removeItem(batchStorageKey); }
+      paintSelection();
+    };
+    const previewBatch = (action) => run(async () => {
+      const values = [...selected.values()];
+      const items = values.map(({ text, ...item }) => item);
+      const signature = JSON.stringify({ action, items });
+      if (!batchRequest || batchRequest.signature !== signature) batchRequest = { signature, body: { action, items, operation_id: crypto.randomUUID() } };
+      const preview = await api("/batch/preview", batchRequest.body);
+      const summary = values.map(item => "· " + item.text + " (v" + item.expected_version + ")").join("\n");
+      if (!await ask(L(action === "remove" ? "遗忘这些记忆？" : "停用这些记忆？"),
+        preview.items.length + " " + L("条已选记忆；后来新增不进入本次操作。") + "\n" + summary, L("确认执行"))) return;
+      batchPreview = { preview_id: preview.preview_id, action: preview.action };
+      localStorage.setItem(batchStorageKey, JSON.stringify(batchPreview));
+      paintSelection(); await applyBatch();
+    });
+    part("batch-disable").addEventListener("click", () => previewBatch("disable"));
+    part("batch-remove").addEventListener("click", () => previewBatch("remove"));
+    part("batch-retry").addEventListener("click", () => run(applyBatch));
+    part("selection-reset").addEventListener("click", () => {
+      if (busy) return;
+      selected.clear(); batchPreview = batchRequest = null; localStorage.removeItem(batchStorageKey);
+      part("batch-status").hidden = part("batch-results").hidden = true;
+      paintItems(); paintSelection();
+    });
+    paintSelection();
+
     const commandTitle = (path, payload) => {
       const actions = { reclassify: "纠正分类", update: "修改", disable: "停用", enable: "启用", remove: "删除", move: "改范围", restore: "回到旧版本", items: "添加", import: "导入", undo: "撤销", accept: "认可", discard: "不用" };
       const title = L(actions[payload.action || path.split("/").at(-1)]);
@@ -199,10 +265,10 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     };
     const run = async (work, message) => {
       if (busy) return;
-      busy = true; error.hidden = true;
+      busy = true; error.hidden = true; paintSelection();
       try { await work(); await load(); if (message) toast(L(message)); }
       catch (failure) { fail(failure); }
-      finally { busy = false; }
+      finally { busy = false; paintSelection(); }
     };
     const pageInput = (cursor) => {
       const filter = {};
@@ -243,7 +309,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       part("previous").disabled = reading || readFailed || !previous.length;
       const next = part("next"); next.disabled = reading || readFailed || !data?.cursor || data.exhausted;
       next.textContent = L(data && !data.items.length && !data.exhausted ? "继续查找" : "下一页");
-      part("reload").disabled = reading;
+      part("reload").disabled = reading; paintSelection();
       part("page-status").textContent = reading ? L("正在读取…") : readFailed ? L("读取未完成，请重新读取。") : !data ? ""
         : L("本页显示") + " " + data.items.length + " · " + L(data.exhausted ? "已查完" : "尚未查完，可以继续查找。");
     }
@@ -456,9 +522,21 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         return;
       }
       items.forEach((item) => {
-        const row = el("li", "memory-row" + (item.state !== "active" || item.expired ? " is-off" : "")), submit = mutation();
+        const row = el("li", "memory-row memory-row--selectable" + (item.state !== "active" || item.expired ? " is-off" : "")), submit = mutation();
         const change = values => submit("/change", { ...values, memory_id: item.memory_id, expected_version: item.version });
         row.dataset.memoryId = item.memory_id;
+        const checkbox = el("input"); checkbox.type = "checkbox"; checkbox.dataset.memorySelect = "";
+        checkbox.setAttribute("aria-label", L("选择") + "：" + item.text);
+        checkbox.checked = selected.has(selectionKey(item)); checkbox.disabled = !!batchPreview;
+        checkbox.addEventListener("change", () => {
+          const key = selectionKey(item);
+          if (checkbox.checked && !selected.has(key)) {
+            if (selected.size >= 100) { checkbox.checked = false; toast(L("一次最多选择 100 条")); return; }
+            selected.set(key, { scope: item.scope, owner: item.owner, memory_id: item.memory_id, expected_version: item.version, text: item.text });
+          } else selected.delete(key);
+          batchRequest = null; paintSelection();
+        });
+
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", item.text));
         const meta = el("div", "memory-meta");
@@ -503,7 +581,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         }, true);
         more.append(summary, menu);
         actions.append(edit, toggle, more);
-        row.append(copy, actions);
+        row.append(checkbox, copy, actions);
         list.append(row);
       });
     }

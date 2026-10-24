@@ -1,7 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
- * The Artifacts plugin's own error codes, every one `artifacts.<reason>`. The kind is the sort of failure, and the Host's edge turns it
+ * The Artifacts plugin's own error codes (the plugin-facing client's, `plugin_denied` and `plugin_incompatible`, are the module's `pluginArtifactErrors`), every one `artifacts.<reason>`. The kind is the sort of failure, and the Host's edge turns it
  * into the status (SDK `actionHttpStatus`), so the plugin keeps no status of its own. (The document import's codes are `artifacts.document.<reason>`,
  * declared next to the import: `documentErrors` in document-import.ts; they become `artifacts.*` with the rest of the owner's prefixes, W3-02 R4b.)
  */
@@ -16,8 +16,4 @@ export const artifactsErrors = defineErrorCodes("artifacts", {
   continue_unavailable: "invalid",
   /** A `project://` reference needs the project's workspace, and the project has none the Host can confirm. */
   workspace_unconfirmed: "conflict",
-  /** The installation or actor may not use this artifact client. */
-  plugin_denied: "forbidden",
-  /** The declared artifact type/schema or exchange identity does not match. */
-  plugin_incompatible: "invalid",
 });

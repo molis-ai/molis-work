@@ -161,7 +161,9 @@ function addProjectGoal(
 ): void {
   const store = new LocalProjectDatabase(project.database_path);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(
+    const application = new GoalProjectApplication(store);
+    application.projectOpened(project.project_id); // S8b: a new project's board is made by Goals when the project is first opened, as the Host does
+    application.goals.commands.createGoal(
       project.project_id,
       {
         goal_id: goalId,
@@ -263,7 +265,9 @@ function addProjectAcceptedGoal(
 ): void {
   const store = new LocalProjectDatabase(project.database_path);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(
+    const application = new GoalProjectApplication(store);
+    application.projectOpened(project.project_id); // S8b: a new project's board is made by Goals when the project is first opened, as the Host does
+    application.goals.commands.createGoal(
       project.project_id,
       {
         goal_id: goalId,

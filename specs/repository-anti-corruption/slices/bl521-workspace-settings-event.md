@@ -4,6 +4,8 @@
 
 本轮按 REVIEW6387490072 在同一 PR 修复 `project-opened` 的失败重试与缺能力入口边界，并补 S-54 的 RAC-463 测试引用，已完成下述本地验证；独立二轮、CI 与实际合入另行核收。首次插件路由等待 `drain()` 的顺序和时限不变，大目录首次打开耗时仍按原评审观察处理。
 
+#1241 的 full-34 随后暴露两个公共测试宿主缺少正式 Web 的目录装配。此轮按 Root 重裁 A 补齐夹具和可查诊断回归（6.4），已完成下述定向验证，待独立复审与批次合入；不改变生产操作编号、补发或 HTTP 错误合同，原有验收与未验证项继续保留。
+
 ## 1. 现状
 
 `host.workspace.changed@1` 目前只在两种情况发：人批准的插件工作区操作结算（`plugin-operation`），Agent 自己经人批准的写入结算（`agent-change`，BL-366）。项目设置里换了或移除了工作目录既不经审查结算，也不发事件，所以换目录后消费 Files 输出的插件会读到旧目录的快照。今天的补救是 `coding-surface.ts` 里的「先让 Files 刷新」钩子（#1191 把它改名 `filesOutputsRefresh`，搬到 `project-plugin-input-refresh.ts`）。
@@ -66,3 +68,19 @@
 ### 6.3 仍在的一个窄口（原来就有，不是本片带来的）
 
 `filesBrowsing().confirm` 先记下新目录再逐个作废输出：作废做到一半被拒、随后进程重启，下次启动读到的记录已经是新目录，剩下没作废的输出不会再作废。同一激活里由下一次调用重试，不受影响（`S18-FILES-RETRY`）。要关掉它得把顺序改成「先作废、后记录」，会动 `S18-FILES-RETRY` 对「只留下做完的持久化」的断言，另算一片。
+
+### 6.4 公共测试宿主供给真实目录依赖，保留操作的可查编号
+
+full-34 的 `pages-import` 与 `document-plugins-error-model` 持续失败：首个插件路由补发前读取浏览目录，公共夹具 `serveHomeRuntime`、`openTestHome` 自建的 Host 未提供 `workspacesFor`，因而该能力未注册；失败实际记入诊断后，后续 HTTP 拒绝带本次操作编号。正式 Web 默认 Host 从真实 Catalog 的 `listWorkspaceDirectory` 提供此依赖。现行 kernel 合同是同一页请求引起的调用共号，只有实际落行才附号；不能据此把补发单独编号或抹掉诊断。
+
+只补 `tests/fixtures/home-runtime.ts`、`tests/fixtures/test-home.ts` 的默认装配：按正式 Web 从同一临时 Home 的 Catalog 读取目录。显式 `workspacesFor`（包括刻意给 `undefined`）仍覆盖默认；只给 `workspaceFor` 时，列表从这个单目录入口读取，空值返回空列表，抛错或拒绝继续向上传递，不能让默认 Catalog 覆盖原授权和选择。生产 kernel、HTTP、补发与权限均不改，原两失败文件的严格断言保持原样。
+
+- **RAC-463-FIXTURE-01**：两个公共夹具的冷启动分别遇到超限体和坏 JSON，仍准确返回原 413/400 的严格错误正文；准备读取成功且没有其它落行时，正文与响应头均不造编号，日志不多出失败记录。真实空目录及通过设置页路径关联、选定的目录各被正确读取和补发，后续路由成功去重。
+- **RAC-463-FIXTURE-02**：两个夹具保留显式多目录、单目录、单目录空值与失败的原意；真实文件读取仍受所给目录授权约束，不被默认 Catalog 的列表替换。
+- **RAC-463-FIXTURE-03**：刻意缺目录依赖或读取失败时，真实 HTTP 仍返回原拒绝状态与错误码、不写 Pages 内容；正文编号与响应头一致，公开 `host.callLog.find` 能查到当前项目、能力与失败码对应的实际行。同请求后续真正业务调用落行仍用同号，下一独立请求使用新号；准备故障不可因最后的解析拒绝而被抹去。
+
+以上在 `tests/project-opened-home-fixtures.test.ts` 验证，并保留原 RAC-463 的失败重试、并发等待、投递顺序与平台隔离回归。冷树先整体构建；定向命令：`node scripts/run-tests.mjs tests/pages-import.test.ts tests/document-plugins-error-model.test.ts tests/security-invariants-workspace-settings-events.test.ts tests/project-opened-home-fixtures.test.ts tests/workspace-read-actions.test.ts --jobs 2 --verbose`。本轮不另起 full，固定增量交独立复审、测试和唯一批次 owner 吸收；旧完整动线、大目录与 6.3 的边界不冒称补齐。
+
+本轮验证（固定 `838dd20c` 独立树）：离线安装与整体构建通过。旧夹具下新增回归 6/12 失败，实际检出冷请求多出的可查故障号、目录选择与单目录列表缺能力；显式覆盖和真实故障可查的 6 条正例通过。补装配后，原两持续红文件未经修改首跑分别 10/10、21/21，原 RAC-463 文件 8/8、显式目录与授权用例 1/1 通过。新增回归首跑 11/12；剩下一条误把同项目后台 Feed 的独立成功调用算进了 HTTP 请求。测试改为只读取补发现场已有的 `currentCallId`，经公开 `callLog.find` 核验该请求（不创建编号或作用域、不屏蔽后台记录），随后 12/12 通过。全部初败与复跑原件保留；生产与原两 HTTP 文件未改，不机械重跑其已通过证据。未另跑 full、浏览器、安装或用户验收。
+
+Lint、基于本树新构建的包边界检查、对照 `origin/main` 的健康门禁均通过；共享 baseline、公开 API、动作快照和页面预算未改。

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { diffHeaderPath, isAllowed, parseAllowlist, printablePath, redact, scanLine, unquoteGitPath } from "../scripts/check-secrets.mjs";
 
-// Secret scan (repository-anti-corruption §4.18): the lines a branch adds are checked for credential shapes, and a value
+// S-19 secret scan (repository-anti-corruption §4.18): the lines a branch adds are checked for credential shapes, and a value
 // that is known test data can be allow-listed. Every credential below is assembled at run time from harmless pieces, so
 // this file never contains a key shape itself and the scan can read it like any other file in the branch.
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "..", "scripts", "check-secrets.mjs");

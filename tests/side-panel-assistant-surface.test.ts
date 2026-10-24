@@ -1,3 +1,4 @@
+// S-16: the side panel's browser surface follows the Home's site policy — every page-changing action asks the person first.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";

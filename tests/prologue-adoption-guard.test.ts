@@ -9,7 +9,7 @@ import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { endingReviewAnswer } from "./fixtures/ending-review.js";
 
-// specs/prologue-adoption §4.6.10 (P3a): a yield is the SDK's — dispatch, the step waits on the child's step, the run
+// S-23 (PA-23), specs/prologue-adoption §4.6.10 (P3a): a yield is the SDK's — dispatch, the step waits on the child's step, the run
 // ends — and the step goes on only when the Host starts the session's next round, through the same start checks.
 
 function reply(tool?: { name: string; input: object }, text = "done"): string {

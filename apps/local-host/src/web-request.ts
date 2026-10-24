@@ -5,13 +5,12 @@ import { builtinRegistrations } from "./agent-definitions/builtin-registrations.
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-artifacts";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -29,7 +28,7 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
-import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
+import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
@@ -192,21 +191,6 @@ const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient())) },
 ];
 
-/** The remaining build-time plugins' own HTTP, each under its own permissions. */
-const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost, userActions }) => Boolean(serverOptions.homeDirectory)
-    && await handlePersonalNativePluginHttp(request, response, url, {
-      alchemist: { projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
-        actions: { invoke: async (definition, input, signal) => {
-          if (!signal) throw new ActionError("actions.forbidden", "缺少请求生命周期");
-          const control = pluginRouteControl(signal, () => {
-            if (localHost.lifecycle() !== "running") throw new ActionError("actions.unavailable", "宿主已停止");
-          });
-          return userActions(ALCHEMIST_ACTION_PERMISSIONS).invoke(definition, input, control);
-        } } },
-    }) },
-];
-
 /** Inbox and Schedule render into the project page and drop its cached view when they change it. */
 const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "inbox", handle: ({ request, response, url, localHost, hostReference, webViewCache, options, composition, readWebView }) =>
@@ -286,7 +270,18 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   agentReviewsRoute,
   boardRoute,
   ...directoryRoutes,
-  ...nativePluginRoutes,
+  // Alchemist's Studio and its own HTTP under `/api/alchemist`, under the plugin's permissions. The old `personal`
+  // alias (`/api/plugins/<id>/` rewritten to `/api/<id>/`) is gone (W6-01); this is the plugin's own address.
+  { id: "alchemist", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost, userActions }) => Boolean(serverOptions.homeDirectory)
+    && await handleAlchemistNativePluginHttp(request, response, url, {
+      projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
+      actions: { invoke: async (definition, input, signal) => {
+        if (!signal) throw new ActionError("actions.forbidden", "缺少请求生命周期");
+        const control = pluginRouteControl(signal, () => {
+          if (localHost.lifecycle() !== "running") throw new ActionError("actions.unavailable", "宿主已停止");
+        });
+        return userActions(ALCHEMIST_ACTION_PERMISSIONS).invoke(definition, input, control);
+      } } }) },
   ...projectAssistantRoutes,
   ...pageOwnerRoutes,
   feedRoute,

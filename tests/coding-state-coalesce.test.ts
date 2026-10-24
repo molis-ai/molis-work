@@ -22,6 +22,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
   }
   let reads = 0, inFlight = 0, most = 0; const batches: string[][] = [];
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, _args: Input): Promise<Output> {
+    if (definition.capability_id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
     if (definition.capability_id === agent.listRuntimes.capability_id) {
       reads++; inFlight++; most = Math.max(most, inFlight);
       // Each directory read is slow, as it is with many sessions behind one project queue.
@@ -111,6 +112,7 @@ async function harness(initial: Entry[]) {
     calls.push([id, args]);
     // Every call that names a Runtime says which one, so a test can tell where each went.
     if (id === agent.listRuntimes.capability_id) return world.runtimes as Output;
+    if (id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
     // Each answer carries the Runtime it was asked of in a field of its own contract (a method's name, a server's label).
     if (id === agent.listSkills.capability_id) return [{ skill_id: "from", name: input[0] }] as Output;
     if (id === agent.listMcp.capability_id) return [{ id: "from", label: input[0] }] as Output;

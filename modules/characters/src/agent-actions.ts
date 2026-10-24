@@ -1,18 +1,21 @@
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
+import { resolveProjectRuntime, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-/** What Characters asks the built-in Agent about: which engines exist and which actions each may call, as the platform answers it. */
+/** What Characters asks the built-in Agent about: which engines exist and which actions an engine may call, as the platform answers it. */
 export interface CharactersAgentCatalog {
-  listRuntimes(): Promise<ReadonlyArray<{ readonly runtime_id: string; readonly supports_action_tools?: boolean }>>;
-  listActions(): Promise<readonly ActionView[]>;
+  listRuntimes(): Promise<readonly AgentRuntimeDescriptor[]>;
+  /** The Runtime the person picked in the project's settings, or null for the Home default. */
+  pickedRuntime(): Promise<string | null> | string | null;
+  listActions(runtimeId: string): Promise<readonly ActionView[]>;
 }
 
-/** The actions the built-in Agent may be given; empty when its engine does not take action tools. */
+/** The actions the built-in Agent may be given: those of the project's engine (its pick, else the Home default); empty when it does not take action tools or none can host a session, and when the pick is gone: no other engine's actions stand in for it. */
 export async function agentActionCatalog(agent: CharactersAgentCatalog | undefined): Promise<readonly ActionView[]> {
   if (!agent) throw new Error("内置 Agent 能力目录尚未接通");
-  const runtimes = await agent.listRuntimes();
-  if (!runtimes.some(runtime => runtime.runtime_id === "prologue" && runtime.supports_action_tools)) return [];
-  return agent.listActions();
+  const { runtime } = resolveProjectRuntime(await agent.listRuntimes(), await agent.pickedRuntime());
+  if (!runtime?.supports_action_tools) return [];
+  return agent.listActions(runtime.runtime_id);
 }
 
 /** A draft's chosen actions must still be in the built-in Agent's catalog, offered to the Agent and available now. */

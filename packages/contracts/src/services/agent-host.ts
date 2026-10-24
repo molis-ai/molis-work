@@ -10,12 +10,13 @@ import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView
 import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
 import type { AgentSkillDefinition } from "../platform/plugin-agent.js";
 // Declared by domain in the agent-host-*.ts files beside this one (W5-09); this subpath exports all of them.
-export { AGENT_RUNTIME_CAPABILITIES, isTerminalAgentPhase } from "./agent-host-runtime.js";
+export { AGENT_RUNTIME_CAPABILITIES, defaultAgentRuntime, hostsAgentSessions, isTerminalAgentPhase, resolveProjectRuntime } from "./agent-host-runtime.js";
 export type {
   AgentRuntimeCapability,
   AgentCapabilitySupport,
   AgentRuntimeCapabilityMatrix,
   AgentRuntimeDescriptor,
+  ProjectRuntimeResolution,
   AgentRuntimeHealthStatus,
   AgentRuntimeHealth,
   AgentSessionRef,
@@ -314,7 +315,7 @@ const subagentOutput = { type: "object", required: ["subagent_id", "parent_run",
 /** A directory the Host granted, a fixed Artifact version: what a start names, never a raw path or a live object. */
 const runtimeOutput = { type: "object", required: ["runtime_id", "display_name", "provider_version", "capabilities"], additionalProperties: false, properties: {
   runtime_id: { type: "string" }, display_name: { type: "string" }, provider_version: { type: "string" }, capabilities: object,
-  supports_action_tools: { type: "boolean" }, supports_workspace_none: { type: "boolean" }, supports_workspace_business: { type: "boolean" } } } as const;
+  supports_action_tools: { type: "boolean" }, supports_workspace_none: { type: "boolean" }, supports_workspace_business: { type: "boolean" }, supports_character_limits: { type: "boolean" } } } as const;
 const actionViewOutput = { type: "object", required: ["capability_id", "version", "operation", "action", "provider", "availability"], additionalProperties: false, properties: {
   capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" }, operation: { enum: ["query", "command"] }, action: object, provider: object, availability: object } } as const;
 const skillProperties = { skill_id: { type: "string" }, version: { type: "integer" }, name: { type: "string" }, summary: { type: "string" }, tools: strings } as const;
@@ -372,7 +373,7 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string], readonly ActionView[]>,
   /** Which Runtimes exist and what each one really supports: this machine's configuration, the same for every plugin. */
   listRuntimes: {
-    capability_id: "agent.runtimes.v1", version: 1, operation: "query",
+    capability_id: "agent.runtimes.v1", version: 2, operation: "query",
     action: { title: "列出运行时", description: "本机有哪些 Agent 运行时，各自真正支持什么。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", maxItems: 0 }, output_schema: { type: "array", items: runtimeOutput } },
   } as ActionDefinition<[], AgentRuntimeDescriptor[]>,

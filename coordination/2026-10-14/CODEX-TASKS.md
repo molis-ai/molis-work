@@ -1,6 +1,6 @@
 # 交给 Codex 的独立开发片
 
-> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「专职｜防腐流水线与合并执行 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，用户最新指定gpt-6.1-sol/max，06:45:56UTC实际回合已核；root/REVIEW保留gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；每10分钟兜底接续。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献和仍在途的review-pr-fixer认领、Claude开发owner及唯一full组批职责分别保留；Codex侧协调不替代Claude总统筹。
+> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「专职｜防腐流水线与合并执行 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，用户最新指定gpt-6.1-sol/max，06:45:56UTC实际回合已核；root/REVIEW保留gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；每10分钟兜底接续。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献、Claude开发owner及唯一full组批职责分别保留；review-pr-fixer旧认领已由Claude6381877118明确释放并交FIX2接续；Codex侧协调不替代Claude总统筹。
 
 状态：2026-10-23 起生效。用户 10-23 定：独立的开发任务可以派给 Codex，不必都在 Claude 子会话里做。统筹（本机 Claude）在这里派片、排序；Codex 做完一片在本表写 PR 号，再接下一片。
 
@@ -17,13 +17,17 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 > C2 S行具体落点已由root按当前事实裁定：main安全表最大58、沙箱顶1144/61a0da5df真实包含59/60，B1以S61为集成候选（非永久占号），不造占位、不放宽连续门禁；当前独立head只缺前序须如实记health红。C2完成必要源修后立即固定非DraftPR/head及原始证据直发REVIEW/TEST/流水线、释放source；拿固定候选才向Claude申请加入当前26或下一安全批，Claude决定冻结/最终编号/唯一full，不为编号等着不开发，也不要求各片再次机械sync main。当前26计划已变为沙箱顶＋1181 e70160a6e＋1188 d6d1da98a；同批编号随实际顺序一次一致调整。C2 B2/A/快照/恢复及真实HomeR41边界保持。
 
 
-> **流水线当前接续（10-24 08:46UTC）**：#1169已08:32:42Z真合1ae1e41a，#1183同时真合f586496e，已核实际SHA并移MERGE-QUEUE§3，只关RAC113本片不关C1。C2 B1非Draft#1190原58bc独立REVIEW发现维护敏感work清理P1，原作者已实际修至bc0160f06（四文件+54/-8，真实rm/SIGKILL/marker拒绝恢复，旧5pass1fail→6/6），增量REVIEW6382074609通过，TEST/统一批仍待。S61仅候选/独立health缺59/60如实红，root/Claude§1a统一定号，不加占位/不author sync或刷baseline。
+> **流水线当前接续（10-24 09:55UTC，取代下方旧快照）**：FIX2已交非Draft#1200固定82fd235e（basef586）U10产品红绿，源码冻结明确release；已即刻START C2 B2为唯一Codex writer，C2实际回执开始Runtime备份密封/恢复与SecretStore只读预检，B1头不动，A/快照恢复完整范围继续。#1200 REVIEW6382734693主修复过、P2真正重排焦点归FIX2后续；资源Coding376282→377227+945B已6382757918专项认可，实际共享批准/生成与独立TEST/Linux当前Security待核，full=[]按Claude最短正常落地，不等批号空占writer。
 >
-> 1190固定bc/tree clean明确release后，已实际START修复2在自有1114树一次合最新main f586（真实包含1167/1169），迁真正打包客户端locator/正确公开目录类型，保留main共用预算/批准，交新base22133与实测Y给Claude batch27统一更新；不止读预案。当前source writer=FIX2，C2只读B2准备，FIX1无写。新固定头作者直发REVIEW/TEST/流水线、源码固定释放后接既有1112短片/独立C2后续，不为等CI/browser/full占writer；mustfix随到随排同owner串行。
+> #1114已真修3aae65461（Cognia打包迁locator/正确公开目录类型），REVIEW6382204940与作者58项/必要门禁通过；准确资源22133→22157+24B已6382529211认可，具体共享patch在/tmp/molis-verify-2026-10-24/shared-ci-fixes且apply --check过、尚未应用。6382718895要求Claude实际batch27 writer现在准备/报分支commit，budget/APPROVED/已解决BL568一次处理；09:44远端无27，不能写已启动/CI已修。TEST4项UI已过，必要model-ready1项待接，不重复源sync。
 >
-> full25固定df598实际含4e17+1166/1178/1179/1182。当前最终失败为session-workspace（goals.board.not_found，0/2且retry仍红）与PG026-S4-03 reset视口外；interaction-no-crosstalk首红但文件retry过，非最终失败。Claude6382047968已将两故障交原ac-sc3，Fix1只读诊断已6382084983交接止，不重开writer。最新批25按Claude现行§1a去1182、纳1157顶层（含1130）与1166/1178/1179一次落地，最终full适用与冲突证据由TEST按实际树核，不把旧df598全量直接冒充新批全绿。1190依最新Claude排27或之后；不自起或取消full/CI。
+> #1190 bc016已独立REVIEW6382074609/TEST6382352957通过，实际包含batch26 db4f3a154（已核ancestor），S59/60/61批内统一。run40080895158已完13片成功3失败：#1181 companion正式fake actions漏迁、effect-control两个动作目录分裂，#1188 follow缺browsingWorkspace响应；TEST/root代码因果核定，真实Host登记存在，交原ac-kernel，未改拒绝/原断言。#1181第一处真实新头f8ee00ec2/6382658774已交并立即增量REVIEW，剩两处6382746649/6382763989实际接续；不是仍等27/未定因/笼统flaky，不另起full或取消CI。
 >
-> TEST正按Claude6381702011将W5-06 SYS15U10根因置最高：已实际跑8d revision-first真实回执/刷新受控观测1/1，receipt-first与f4df对照接续，保留所有原断言，不用本机单绿冒充Linux归因。1178/1179必要补证分别68项/112项及各自CI原始复用已公开；1190修后证据、1114新头按风险接，既有有效证据不机械重跑。完整逐项owner/claim/依赖与真实闭环以ROLES当前段和MERGE-QUEUE实际记录为准。
+> #1194/33c58拟先落地：REVIEW6382492610已核组合，常规workflow40079207827后来success、原Security红及retry来源保留；原full40079338049失败/取消不改写。按Claude6382519949核batch26同内容的三目标，已公示6382774152：VUX33首125.7ms而内置retry1过（不称首次/唯一负载因果）；U10首1/1；PG026首5/5。TEST正在核既定适用与可入队条件，后续R8/1188夹具红不应无关互挡，真实CI/认领/merge SHA齐后才关原片。
+>
+> #1107旧review-pr-fixer认领已Claude6381877118明确释放（不是继续等DeepSeek），真代码同步实际owner FIX2，从远端b8b5一次合新main，原本地064cf2/贡献不动；C2本独立片源码释放后排该阻塞窗口。新头交原ac-coding接#1191一次，1098/1107/1112/1191 W5专批由Claude唯一组，pure共享文件不作者反复sync。1112三nonblock和1200焦点P2未实施，原FIX2 owner保留。
+>
+> #784开发方Shelf行与main成果库验收行BL400重号交FIX1最小文档修，先有界只读提案核空号/引用，不删除任何真实待做、不关闭QA/不标本人验收、不变PR状态。**BL595暂预留给此修复**（BL585–594按Claude原ac-coding预留保持）；实际落代码前FIX1仍须鲜核无新占用。当前C2源码独占，无第二writer。全仓新审计只读且不构成合并等待门槛。完整实际owner/待做、已合SHA以ROLES当前段和QUEUE为准。
 
 > **最新调度接单（10-24 07:31UTC）**：已收Claude的S号按实际合并顺序规则，C2已直达：S71仅临时标识，落PR/入队时按main＋前置队列的下一空号连续定号，S59/60原归属保持，不等待未实现设计占号。main已知红已随1174清空，未来失败重新归因；旧批次原始证据不改。Claude新增#1182/6381371024的恢复actor规格勘误现由修复1实际承接并已在原PR公开认领，按原PR顺序插空，当前未实现、不阻1182。C2 B1仍唯一writer。batch25=沙箱叠层＋1166，batch26=1178/1179/1182/1181，W5链仍等U10根因；均Claude唯一组批，不另起。
 

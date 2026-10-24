@@ -24,6 +24,17 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 合入以后：在本表把那一行挪到 §3「已合」，写合并提交。`privileges.md`、spec 链接和登记册由统筹改。
 
+## 1a. 同路径一起落地（用户 2026-10-24 09:0x UTC：「反复处理 Conflict 浪费时间和 runner，把同路径的合并一下」）
+
+评审仍按片一个 PR；**落地**按路径成组，避免每合一个就让后面的同步一次、再跑一遍 CI。
+
+1. **批 PR**：`full` 非空的片照旧进集成批。批跑绿（或只红已知红）后，统筹把集成分支本身开成一个 PR（标题「batch-NN：#a #b #c」，正文逐个列片、固定头、评审结论与全量 run），只这一个 PR 进合并队列；合入后统筹关掉各片 PR，评论写「已随批 PR #X 合入 main `<SHA>`」。privileges.md 与登记册按片记，同时写批 PR 号。
+2. **组批按路径**：同批的片优先是改同一批文件的（页面资源 `page-assets.json`/`APPROVED_CEILINGS` 一组、`SECURITY-INVARIANTS` 的 S 号一组、巨大单元 `baseline.json` 一组、同一插件包一组）。共用文件的冲突统筹在批分支里**只解一次**：BACKLOG 两边并列；`baseline.json` 跑一次 `check-health-gates --update --base origin/main`；页面资源在批分支上 `pnpm workspace:build` 后 `page-assets.mjs --update --base origin/main` 重量；S 号按合并顺序在批里一次排定。
+3. **叠层整条落地**：叠着的 PR（如沙箱 #1119→#1139→#1143→#1144、#1130→#1157）不逐层改 base、逐层同步，而是顶层（或批 PR）一次落地，下层合入后关掉并注明。
+4. **作者不为共用文件同步**：BACKLOG、`baseline.json`、`page-assets.json`/`APPROVED_CEILINGS`、S 号、`pnpm-lock.yaml` 这几类冲突，作者不合 main、不推；只有真代码冲突（同一函数、同一测试）才由原作者合一次 main。功能 PR 不再提交 `baseline.json --update`（CI 不读它，批 PR 里统一刷新）。
+5. **还走单个入队的**：`full` 空、和队列里别的 PR 试合不冲突的小 PR（文档、单文件修复）照旧单个认领入队；入队前统筹用 `git merge-tree` 按队列顺序试合，冲突的就并进下一个批 PR，不入队等着被踢。
+6. 合并队列本身已是「最多 5 个一起建、一起合、全绿才合」（ALLGREEN），不改仓库设置。
+
 ## 2. 顺序与现状
 
 「就绪」只在 1～5 条全满足时写「可合」。
@@ -164,3 +175,4 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 - 10-24 08:2x UTC：合入 #1164 `3e96b40ea`（BL-385）、#1165 `531e43fbb`（PG-047）、#1167 `21257170d`（Cognia W5-04）。`ac-clients-1` 空出名额开 Dataset PR；`ac-sc3` 开 S9-0（S 号按合并顺序）。privileges.md 状态第 6 批要收 PG-047（#1165）等，待 #1168、#1130、沙箱叠层合入后一起写。
 - 10-24 08:3x UTC：#1114 在队列里变 UNMERGEABLE（#1167 Cognia 客户端改写后 `plugins/native/cognia/src/client.ts`、`page-assets.json` 冲突，要真解）。改顺序：#1169（`d586db646`，试合当前 main 与 main+#1168 都干净）先认领入队（第 6 位），#1114 等 #1169 合入后由修复 2 一次合 main、两处一起解，统筹 remerge-diff 核完重新入队。#1175 上 root 选的 R-41 口径（代码与脚本隔离演练过就合，真实 Home 切换等用户统一维护计划）已备案同意。
 - 10-24 08:5x UTC：#1185 二轮可合（`8fd671224`，6381730749：v3 维护 SQL 同一事务改 `assistant_requests.result`，RAC-447/448 钉住无旧形状、中途失败整笔回滚）；进 batch-27（同批 #1186、#1187、#1180 改 base 后）。
+- 10-24 09:0x UTC：按用户要求改成 §1a「同路径一起落地」。立即生效：#1130 与 #1157 不再逐个同步——#1157 改 base 为 main、#1130 关掉自动合并，由 `ac-sc3` 只在 #1157 合一次 main（BACKLOG、`baseline.json` 共用文件 + `tests/project-deletion-declarations.test.ts` 与 #1164 的真冲突），#1157 一次落地后关 #1130。batch-25（#1166、#1178、#1179、#1182）跑完开成一个批 PR；沙箱叠层进 batch-26 也开批 PR 一次落地；batch-27 按页面资源一组排（#1180、#1186、#1185，加 #1187）。

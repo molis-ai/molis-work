@@ -55,7 +55,8 @@ test("FI-1 RAC-482 binding a published rule reads stable identities without buil
       await assert.rejects(scene.ports.writeJudgment!(key, caller), { code: "actions.binding_invalid" });
       assert.deepEqual(service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id), binding);
     }
-    await assert.rejects(scene.ports.writeJudgment!(target.function_key, { ...caller, permissions: [] }), { code: "actions.forbidden" });
+    const readOnlyCaller = { ...caller, permissions: caller.permissions.filter(permission => permission !== "inbox:write") };
+    await assert.rejects(scene.ports.writeJudgment!(target.function_key, readOnlyCaller), { code: "actions.forbidden" });
     assert.deepEqual(service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id), binding);
     await assert.rejects(scene.ports.writeJudgment!("system_admit_inbox", caller), { code: "actions.scene_incompatible" });
     assert.deepEqual(service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id), binding);

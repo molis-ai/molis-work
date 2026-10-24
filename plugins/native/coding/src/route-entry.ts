@@ -33,7 +33,7 @@ export function codingJobWrite(control: PluginJobControl): CodingBeforeWrite {
 // These commands can replace the fixed business original/binding or start/steer execution. Fixed artifacts and ratings remain available.
 const SESSION_COMMANDS = new Set(["coding.update-session", "coding.compact-next", "coding.start-run", "coding.queued-round", "coding.priority",
   "coding.control-run", "coding.select-goal", "coding.save-plan", "coding.confirm-plan", "coding.delegate", "coding.delegation-action",
-  "coding.delegation-deliver", "coding.delegation-decide", "coding.control-subagent", "coding.recover-run", "coding.prepare-rewind",
+  "coding.delegation-deliver", "coding.delegation-decide", "coding.plan-amendments", "coding.recover-run", "coding.prepare-rewind",
   "coding.message-cancel", "coding.background-stop", "coding.card-run", "coding.commit-draft"]);
 type Handler = (request: PluginRouteRequest, api: PluginCapabilityClient, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
 /** What an action with no route of its own runs with. `routed` answers through one of the routes' handlers, under this action's fence. */

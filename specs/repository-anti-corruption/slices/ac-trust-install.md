@@ -2,7 +2,7 @@
 
 状态：设计稿，等统筹审定（2026-10-24）；只写设计，不改代码。实现要等 #1098（带来 `plugin-settings-catalog.ts`）合入。
 
-验收编号：RAC-380～399。待办号：BL-555～564。安全不变量先写 S-67、S-68，合入时由统筹核连续。管 `privileges.md` 的 PG-001、PG-004、PG-005，并给 PG-049 提供它要用的同意账本；与 PG-002、PG-013、PG-015、PG-016 的衔接写在 §3.8。本片不改 `privileges.md` 状态列。
+验收编号：RAC-380～399，另加一段 RAC-400～409（实现片也用它）。待办号：BL-555～564。安全不变量先写 S-67、S-68，合入时由统筹核连续。管 `privileges.md` 的 PG-001、PG-004、PG-005，并给 PG-049 提供它要用的同意账本；与 PG-002、PG-013、PG-015、PG-016 的衔接写在 §3.8。本片不改 `privileges.md` 状态列。
 
 方向来自用户 2026-10-18「插件不分官方、个人、创作台生成还是第三方，待遇一样，只有安装信任按发布者签名区分」，和统筹 2026-10-23 的口径：安装确认对所有插件一条路；`always_on` 与默认连线只认 Manifest 声明，不认「是不是内置」；没签名的插件声明了，要用户在安装确认里同意；内置插件默认同意、不打扰；同意可撤回。
 
@@ -100,7 +100,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 #### 3.4.1 Goals 不在项目里时要核的地方（T1/T3 的验收）
 
-常开同意都可撤，所以 Goals 也可能被撤掉常开后从某个项目里移除。按插件同等待遇，别的部分本来就不该假定 Goals 在；实现片逐处核，每处写一条「Goals 不在时」的用例（RAC-386a），不留隐患：
+常开同意都可撤，所以 Goals 也可能被撤掉常开后从某个项目里移除。按插件同等待遇，别的部分本来就不该假定 Goals 在；实现片逐处核，每处写一条「Goals 不在时」的用例（RAC-400），不留隐患：
 
 | 地方 | 现状 | 要的结果 |
 | --- | --- | --- |
@@ -110,6 +110,10 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 | 标签页与分屏 | `tab-workspace.ts`、`frame-container.ts`、`editing-graph.ts` 里对 `goals` 的特判 | 没有 Goals 时不尝试打开 Goal 视图，恢复旧布局时跳过丢掉的标签 |
 | 宿主动作 | `goals-actions.ts` 的 `readProjectGuidance`、`goal-project-application.ts` | 项目里没有 Goals 时返回「没有」，不抛错 |
 | 调 Goal 动作的插件 | Coding、Work 等经动作目录调 Goal 动作 | 动作目录里没有时按「能力不可用」处理，不崩 |
+| MCP 与命令行的 goal 工具 | MCP 默认工具与 Runtime 工具里的 goal 相关工具、`molis-work` 命令行里的 goal 命令、`goal-advance` Skill | 项目没有 Goals 时工具列表不列、调用得到「能力不可用」的明确答复，不是内部错误；Skill 文字不假定 Goals 在 |
+| 新建项目与引导 | 新建项目流程与项目上手引导里对 Goal 的假定（默认第一个 Goal、引导步骤、导入材料后建 Goal） | 没有 Goals 时跳过这些步骤，引导仍能完成，不出现空步骤 |
+| 项目页渲染 | 项目首页、项目页的服务端渲染与客户端脚本里对 Goal 列表、Goal 画布的假定（`shell-page-renderer.ts` 的 `goal-canvas-shell` 等） | Goals 不显示时页面照常渲染，不留空画布和失效的入口 |
+| Feed、成果库等挂 Goal 的地方 | Feed 条目、成果库、过程项、动量与回执里「挂到某个 Goal」的字段和入口 | 没有 Goals 时这些入口不显示；已有挂着 Goal 的记录原样保留、只读，不报错、不丢 |
 
 这些是现状的调用点，不是完整清单；T1 开工时用 `git grep` 补全，补出来的也归这一条验收。
 
@@ -230,7 +234,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | RAC-383 | 非 `host` 等级只在沙箱：`execution` 与等级不一致被拒；映射不了沙箱形态的 Manifest 安装时拒绝 | Runtime 单元测试 |
 | RAC-384 | `unsigned` 声明 `always_on` 且没有同意：装得上、不生效（不在常开名单，可移除，依据统筹 10-24 定的待定 1）；有同意则生效（S-34 新语义） | 重写后的 `tests/security-invariants-always-on.test.ts` |
 | RAC-385 | 同意不分等级都可撤（用户 2026-10-24）：`host` 等级的 `always_on` 默认同意、不弹窗；撤回后它不再出现在常开名单里，能被隐藏、移除；`pinned` 同意后可撤 | 同上 |
-| RAC-386a | Goals 不在项目里（常开被撤回后移除）时，首页、建项目流程、Dock、搜索、Inbox/Feed/Sessions 等照常工作，不报错、不出空白；清单见 §3.4.1 | 新增非浏览器用例加两个浏览器冒烟（少量） |
+| RAC-400 | Goals 不在项目里（常开被撤回后移除）时，首页、建项目与引导、Dock、搜索、项目页渲染、标签页、MCP/命令行的 goal 工具、Feed/成果库挂 Goal 的入口、Inbox/Sessions 等照常工作，不报错、不出空白；清单见 §3.4.1，T1/T3 逐处补用例 | 新增非浏览器用例加两个浏览器冒烟（少量） |
 | RAC-386 | 常开从记录生成：外部常开插件对已有项目立刻生效；撤回后立刻不强制；服务端拒绝卸载、停用、移除（V-01）；Goals 与 Shelf 常开仍然成立，建项目不再写死 `"goals"` | `tests/project-plugins.test.ts` 扩展 |
 | RAC-387 | 没签名的包经 `plugin install` 被拒（`plugin.signature_invalid`），不会得到 `unsigned` 等级；`unsigned` 只有开发目录和创作台产物两个来源 | `tests/plugin-package.test.ts` 扩展 |
 | RAC-388 | 默认连线：`unsigned`/`pinned` 声明的 `default_source` 没有同意不绑，有同意才绑；`host` 等级的行为与今天一致 | `tests/plugin-default-bindings.test.ts` 扩展 |

@@ -7,6 +7,7 @@ import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-eve
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { dispatchRuntimePluginRoute } from "./plugin-route-operations.js";
 import { ensureProjectPlugins, type ProjectPluginPorts } from "./project-plugins.js";
+import { announceProjectOpened } from "./workspace-settings-events.js";
 import { sendLocalWebJson } from "./web-http.js";
 
 /**
@@ -46,6 +47,7 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
     return true;
   }
   const pluginId = pluginRoute![1]!, platform = record.platform;
+  await announceProjectOpened(platform, ports);
   const abort = new AbortController(), pageAuthority = pluginPageRequest(request);
   const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));
   request.once("aborted", stop); response.once("close", stop);

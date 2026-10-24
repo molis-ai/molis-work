@@ -66,6 +66,9 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
   const address = server.address(); assert.ok(address && typeof address !== "string");
   try {
     const platform = (await ensureProjectPlugins(host())).platform!;
+    // The platform's first web route announces the project as opened (BL-521), which makes Files and Git read again once; open it
+    // before the revisions below are taken, so they measure what the follower does.
+    await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.files/state`);
     const beforeFiles = platform.viewRevision("io.molis.work.files"), beforeGit = platform.viewRevision("io.molis.work.git");
     const body = { task: "改一个文件", intent: "execute", workspace_id: "work", provider_id: "p", model_id: "m" };
     if (interruptedReceipt) {

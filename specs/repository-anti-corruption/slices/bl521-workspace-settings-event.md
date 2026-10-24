@@ -32,7 +32,7 @@
 
 ## 6. 第二片：删 `filesOutputsRefresh`（BL-366、BL-521 完成）
 
-状态：已实现、本地验证，叠在第一片（#1230）上，未开 PR（每线最多两个在开的 PR，等位置）。
+状态：已实现、本地验证，叠在第一片（#1230）上，未开 PR（每线最多两个在开的 PR，等位置）；用户 10-24 定：补上窗口再合（6.2，试过 start() 里读，行不通，改成平台被网页入口打开时补发）。
 
 - 删 `apps/local-host/src/project-plugin-input-refresh.ts`（`filesOutputsRefresh`、`readsFilesOutputs`）及 `apps/local-host` 的两处导出；`handleProjectPluginHttp` 不再收 `hooks` 参数，`ProjectPluginRouteHooks` 类型删除；`RuntimePluginRouteHooks.beforeDispatch` 没有调用方了，一并删（只剩 `afterDispatch`，入口自己用它等输入图落定）。
 - 约 20 个测试里传给 `handleProjectPluginHttp` 的第五个参数去掉；`RAC-439` 由「钩子只为读 Files 产物的插件读 Files」改成「钩子不在了、宿主里没有文件再点它的名字」；`RAC-438` 的 Files 导入者只剩监督器；`PG062-13`、`PG037-01` 等读源码的断言跟着改。
@@ -42,8 +42,20 @@
 
 两段合起来：项目设置里换目录 → 第一片发 `workspace-settings`（RAC-461）→ Files 收到后重新确认浏览目录、换了就作废旧目录的快照（RAC-332，`tests/files-plugin.test.ts`）。Agent 批准的写入同理（`agent-change`，RAC-331）。这两个测试各证明一半，没有一条把整条链接在真实平台上走通的用例。
 
-### 6.2 删掉之后留下的一个窗口（没有补，需要统筹定）
+### 6.2 设置变化时平台没在运行：平台被网页入口打开时补发一次（用户 10-24 定）
 
-钩子是每个消费方路由前都读一次 Files，所以「设置变化时项目平台没在运行」也被它兜住；事件只发给**正在运行**的平台（第一片就是这样定的，不为发事件启动平台），Files 的 `start()` 也不确认浏览目录。所以：平台没在运行时换了工作目录，下次启动后，到 Files 的第一个动作（`files.state`、读目录、打开、固定）或下一个工作区事件之前，读 Files 输出的插件（Diff、Text Stats 等）会读到旧目录的快照。典型路径是宿主重启或项目换出再换回时设置变过；人在项目页里改设置时平台一般在运行，走事件。
+钩子是每个消费方路由前都读一次 Files，所以「设置变化时项目平台没在运行」也被它兜住；事件只发给**正在运行**的平台（第一片就是这样定的，不为发事件启动平台）。删钩子会留下一个窗口：平台没在运行时换了工作目录，下次启动后到 Files 的第一个动作之前，读 Files 输出的插件（Diff、Text Stats 等）会读到旧目录的快照。
 
-可选的补法（都不在本片）：Files 在 `start()` 里确认一次浏览目录（要改 `S18-FILES-RETRY` 对持久化次数的断言，且 start 内的写入要核对启动期间被撤权的不变量）；或设置变化的发送方在平台没在运行时也把它起来（要给 `project-workspace-actions` 带上起平台所需的端口）。
+**试过、行不通的：Files 在 `start()` 里确认一次浏览目录。** 它会让五个测试文件变红——`companion-actions`、`files-git-actions`、`project-plugin-startup`、`security-invariants-plugin-pages`、`workspace-read-one-id`——它们守的是「注册、发现、启动不读业务能力」（启动时的读还没有调用方上下文，插件页面权限也过不去）。这些断言不放宽，Files 的 `start()` 不读。
+
+**做的（本片）：** `apps/local-host/src/workspace-settings-events.ts` 的 `announceProjectOpened(platform, ports)`，由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 在一个插件路由派发之前调：每个平台一次（`WeakMap` 记 promise，并发的头几条路由等同一个），读项目当时的浏览目录（`projectSettingsCapabilities.browsingWorkspace`），广播 `host.workspace.changed@1`，`cause: "project-opened"`，`workspace_id` 是那个目录（项目没有就是空串），再 `hostEvents.drain()` 等投递结束，然后这条路由才继续，所以读 Files 输出的插件不会在 Files 作废旧快照之前读到它们。失败只写日志，不让路由失败。
+
+- 只有这个网页入口调它：无头启动平台（MCP、桌面壳为发现动作而 `ensureProjectPlugins`）不读不发，`project-plugin-startup` 等五个文件不动一条断言。
+- 合同：`HostWorkspaceChangedPayload.cause` 再多一个取值 `"project-opened"`（API 快照已刷新）；订阅方对每个 `cause` 一视同仁，Files、Git 不用改。
+- 代价：每个平台头一次被打开时 Files 读一次浏览目录、Git 重读一次（没变时 Files 什么也不作废）。
+- **RAC-463**（`tests/security-invariants-workspace-settings-events.test.ts`，两条）：平台头一次被打开时只发一次、名字是空串（项目没有目录）、订阅者排到了；再开路由不再发，另一个项目各发各的；链了目录并选定之后宿主重启，新平台的补发名字是那个目录；`announceProjectOpened` 只在 `project-plugin-http.ts` 里被调。
+- 没有一条把「设置变化 → 平台没在运行 → 重启 → 消费方读到的快照」在真实平台上走通的用例；事件的一半（RAC-461）、补发的一半（RAC-463）、收到后的一半（RAC-332）各有测试。
+
+### 6.3 仍在的一个窄口（原来就有，不是本片带来的）
+
+`filesBrowsing().confirm` 先记下新目录再逐个作废输出：作废做到一半被拒、随后进程重启，下次启动读到的记录已经是新目录，剩下没作废的输出不会再作废。同一激活里由下一次调用重试，不受影响（`S18-FILES-RETRY`）。要关掉它得把顺序改成「先作废、后记录」，会动 `S18-FILES-RETRY` 对「只留下做完的持久化」的断言，另算一片。

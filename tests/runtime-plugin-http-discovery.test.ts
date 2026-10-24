@@ -202,6 +202,9 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
     const request = (path: string, body?: unknown) => fetch(`${origin}/api/plugins/${pluginId}/${path}`, body === undefined ? {} : {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
     });
+    // The platform's first web route announces the project as opened (BL-521), which reads the folder Files browses once; open it
+    // with a route nothing answers, so the next one is measured for what only it causes.
+    assert.equal((await request("undeclared", {})).status, 404);
     dependencyCalls = 0;
     let response = await request("persist", { value: 7 });
     assert.equal(response.status, 200);

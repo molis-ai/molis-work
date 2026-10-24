@@ -1,7 +1,8 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { PluginHostEvents } from "@molis-ai/molis-work-plugin-runtime";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { mkdtemp, mkdir, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { type TestContext } from "node:test";
@@ -34,12 +35,21 @@ async function fixture(t: TestContext) {
     heard.push({ workspace_id: payload.workspace_id, cause: payload.cause, queued });
     return queued;
   });
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  let server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN }), origin = "";
+  const listen = async () => {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    origin = `http://127.0.0.1:${address.port}`;
+  };
+  await listen();
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await rm(directory, { recursive: true, force: true }); });
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
+  /** The Host stops and starts again on the same Home: every project's plugin platform is a new one, and opens again on its first plugin route. */
+  const restart = async () => {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
+    await listen();
+  };
   let key = 0;
   const call = (project: string, pathname: string, method: string, body?: Record<string, unknown>) => fetch(`${origin}/projects/${encodeURIComponent(project)}${pathname}`, {
     method, headers: { origin, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": `settings-events-${key++}` }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -50,7 +60,7 @@ async function fixture(t: TestContext) {
     assert.ok(response.status === 200 || response.status === 400 && body.includes("files.invalid"), body);
   };
   const settings = () => heard.filter(item => item.cause === "workspace-settings");
-  return { folders, first: first.project_id, second: second.project_id, call, startPlatform, heard, settings };
+  return { folders, first: first.project_id, second: second.project_id, call, startPlatform, restart, heard, settings };
 }
 
 test("RAC-461 BL-521 S-54 linking, repairing and unlinking a folder, and choosing the browsing folder, are announced once each as a workspace-settings change", async t => {
@@ -76,7 +86,7 @@ test("RAC-461 BL-521 S-54 linking, repairing and unlinking a folder, and choosin
 
   // One announcement per change, each naming its folder, and the other project's platform heard none of them.
   assert.deepEqual(f.settings().map(item => item.workspace_id), [alpha.workspace_id, beta.workspace_id, gamma.workspace_id, alpha.workspace_id, gamma.workspace_id]);
-  assert.deepEqual(f.heard.filter(item => item.cause !== "workspace-settings"), [], "nothing else was announced");
+  assert.deepEqual(f.heard.filter(item => item.cause !== "workspace-settings" && item.cause !== "project-opened"), [], "nothing else was announced");
 });
 
 test("RAC-462 BL-521 S-54 a refused or unchanged settings change sends no workspace change", async t => {
@@ -104,4 +114,37 @@ test("RAC-462 BL-521 S-54 a refused or unchanged settings change sends no worksp
   const never = await f.call(f.first, `/api/workspaces/${encodeURIComponent(foreign.workspace_id)}/unlink`, "POST", { user_confirmed: true });
   assert.ok(never.status === 404 || (await never.json() as { changed?: boolean }).changed === false, "another project's folder is not unlinked by this project");
   assert.equal(f.settings().length, settled, "a folder this project never linked is not announced");
+});
+
+test("RAC-463 BL-521 S-54 a project's platform, opened through the web entry, tells its plugins once what they could not hear while none ran", async t => {
+  const f = await fixture(t);
+  const opened = () => f.heard.filter(item => item.cause === "project-opened");
+  assert.deepEqual(opened(), [], "starting the Host announces nothing: no platform is open");
+
+  // The first plugin route of a project opens its platform; it has no folder yet, so the event names none. Later routes announce nothing.
+  await f.startPlatform(f.first);
+  assert.equal(opened().length, 1);
+  assert.equal(opened()[0]!.workspace_id, "");
+  assert.ok(opened()[0]!.queued > 0, "a subscriber of the project (Files, Git) was queued the event");
+  await f.startPlatform(f.first); await f.startPlatform(f.first);
+  assert.equal(opened().length, 1, "once per platform");
+  await f.startPlatform(f.second);
+  assert.equal(opened().length, 2, "each project's platform announces for itself");
+
+  // A folder is linked and chosen while the platform runs, then the Host restarts: the new platform names the folder the project browses.
+  const added = await f.call(f.first, "/api/workspaces", "POST", { workspace_path: f.folders[0], user_confirmed: true });
+  const { workspace } = await added.json() as { workspace: { workspace_id: string } };
+  assert.equal((await f.call(f.first, "/api/project-settings/workspaces", "POST", { workspace_id: workspace.workspace_id })).status, 200);
+  await f.restart();
+  const before = opened().length;
+  await f.startPlatform(f.first);
+  assert.deepEqual(opened().slice(before).map(item => item.workspace_id), [workspace.workspace_id]);
+  assert.ok(opened().at(-1)!.queued > 0);
+});
+
+test("RAC-463 BL-521 only the web route entry announces a project as opened: starting the platform to discover actions reads and sends nothing", async () => {
+  const dir = path.join(process.cwd(), "apps/local-host/src");
+  const callers = (await readdir(dir)).filter(file => file.endsWith(".ts")
+    && /announceProjectOpened\(/.test(readFileSync(path.join(dir, file), "utf8")));
+  assert.deepEqual(callers.sort(), ["project-plugin-http.ts", "workspace-settings-events.ts"]);
 });

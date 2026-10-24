@@ -1,11 +1,11 @@
 import { pluginPagesFor } from "./plugin-page-authority.js";
-import { createLocalImServer } from "./im-server.js";
 import { projectOrNull } from "./catalog-lookup.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleManagementActionHttp } from "./management-action-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
-import { webProjectDeletion } from "./project-deletion-service.js";
+import { webProjectDeletion, webProjectDeletionPorts } from "./project-deletion-service.js";
+import { handleMcpContextHttp } from "./mcp-context-gateway.js";
 import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import fs from "node:fs";
@@ -33,19 +33,15 @@ import { assistantServiceFor } from "./assistant/assistant-http.js";
 import { installedPagesPort } from "./assistant/assistant-pages.js";
 import { attachWebAssistant } from "./web-assistant.js";
 import { trackHostListener } from "./host-endpoints.js";
-import { lazyBrowserHost } from "./browser/browser-host.js";
 import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 import { handleBrowserHttp } from "./browser/browser-http.js";
-import { BrowserSiteDecisions, registerBrowserSurfaces } from "./browser/browser-surfaces.js";
-import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
-import { installComputerDesk } from "./computer/computer-surfaces.js";
-import { locateBrowser } from "./browser/locate.js";
-import { createWebCatalogAccess } from "./web-catalog-access.js";
+import { createWebStorageResources } from "./web-storage-resources.js";
+import type { createWebCatalogAccess } from "./web-catalog-access.js";
+import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { closeHostResourceSteps, retainHomeStorageResources } from "./home-storage-lifetime.js";
 import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
-import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { awaitWebServerShutdown } from "./web-server-close.js";
-import { startWebProjectSchedulers } from "./web-project-schedulers.js";
 import { hostLog } from "./host-log.js";
 
 function loopbackWebOrigin(server: http.Server): string {
@@ -66,10 +62,8 @@ function nativeTerminal() {
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
     const storageHome = path.resolve(options.homeDirectory ?? resolveMolisWorkHome());
-    const catalogAccess = platform.openCatalog ? options.localHost
-      ? options.localHost.ensureWebCatalog(storageHome, platform.openCatalog)
-      : createWebCatalogAccess(storageHome, platform.openCatalog) : undefined;
-    const withCatalog = catalogAccess?.withCatalog ?? platform.withCatalog;
+    let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
+    const withCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
     const catalogAvailability = projectActionAvailability(withCatalog, storageHome);
@@ -83,12 +77,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       snapshotForDiscovery: async (caller: Parameters<typeof catalogAvailability>[0]) =>
       fixture && caller.project_id === fixture.projectId
         ? () => ({ available: true as const }) : catalogAvailability.snapshotForDiscovery(caller),
-    });
-    const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({
-      homeDirectory: serverOptions.homeDirectory,
-    });
-    const webService = serverOptions.webServiceManager ?? new MolisWorkWebServiceManager({
-      homeDirectory: serverOptions.homeDirectory,
     });
     const pty = nativeTerminal();
     const localHost = serverOptions.localHost ?? createMolisWorkLocalHost({
@@ -107,8 +95,17 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         return withCatalog({ homeDirectory: storageHome }, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
       },
     });
-    localHost.configurePersonalPlanning(storageHome, withCatalog);
     const ownsLocalHost = !serverOptions.localHost;
+    const completed = new Set<string>(), resources: Array<readonly [string, () => unknown]> = [];
+    const cleanup = () => closeHostResourceSteps(completed, resources);
+    let shutdown: (() => Promise<void>) | undefined;
+    // The Host, including a borrowed one, cannot relinquish its lease while this transport still owns storage.
+    localHost.configurePersonalPlanning(storageHome, withCatalog);
+    const releaseTransport = retainHomeStorageResources(localHost, () => shutdown ? shutdown() : cleanup());
+    try {
+    if (platform.openCatalog) catalogAccess = localHost.ensureWebCatalog(storageHome, platform.openCatalog);
+    const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });
+    const webService = serverOptions.webServiceManager ?? new MolisWorkWebServiceManager({ homeDirectory: storageHome });
     const agents = ensureSystemAgentService(localHost, storageHome, withCatalog);
     const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome);
     const { serveWorkbenchAsset } = composition;
@@ -117,37 +114,10 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const webViewCache: MolisWorkWebViewCache = new Map();
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const { periodicTasks: periodic } = composition;
-    const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, periodic,
-      changed: databasePath => webViewCache.delete(databasePath), onError: error => hostLog.warn("schedule", "project_schedulers_not_started", error) });
-    const feedSchedulers = projectSchedulers.runtimes;
-    const im = createLocalImServer(storageHome, async id => {
-      if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
-      return withCatalog({homeDirectory:storageHome}, catalog => {
-        const project = projectOrNull(catalog, id);
-        return project ? { id: project.project_id, title: project.display_name } : null;
-      });
+    resources.push(["periodic", () => periodic.stop()]);
+    const { im, browserHost, sites, computer, projectExists, feedSchedulers } = createWebStorageResources({
+      home: storageHome, localHost, withCatalog, fixture, periodic, webViewCache, resources, server: () => server,
     });
-    // The browser service refuses this owner server, which carries the control token.
-    const browserHost = lazyBrowserHost(storageHome, () => server);
-    // One Assistant driver per project; site decisions stay beside the browser profile.
-    const sites = new BrowserSiteDecisions(storageHome);
-    const drivers = new Map<string, HostSurfaceDriver>();
-    const computer = installComputerDesk(localHost, storageHome, periodic); // the Assistant's desktop: desk, helper, providers, sweep, HTTP, socket (specs/computer-use)
-    const unregisterSurfaces = registerBrowserSurfaces(localHost, {
-      siteDecisions: () => sites.list(),
-      driverFor: async projectId => {
-        // The person can turn the Assistant's use of the browser off altogether; rounds then get no browser tools.
-        if (!sites.assistantEnabled || !locateBrowser()) return null;
-        const known = fixture && projectId === fixture.projectId
-          || await withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId));
-        if (!known) return null;
-        let driver = drivers.get(projectId);
-        if (!driver) drivers.set(projectId, driver = createBrowserSurfaceDriver(browserHost().page(projectId), origin => sites.blocked(origin), () => sites.assistantEnabled));
-        return driver;
-      },
-    });
-    const projectExists = async (projectId: string) => (fixture && projectId === fixture.projectId)
-      || await withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId) !== null);
     const server = trackHostListener(http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
@@ -177,6 +147,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
         await runWithLocale(locale, async () => {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
+          if (localHost.lifecycle() !== "running") throw new Error("Local Host is closing");
           await pluginPagesFor(storageHome).bind(request, url, response);
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
             const ready = server.listening && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
@@ -190,6 +161,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await computer.handleHttp(request, response, url)) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
+          if (await handleMcpContextHttp(request, response, url, { home: storageHome, host: localHost, withCatalog,
+            deletion: webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }) })) return;
           if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
@@ -217,9 +190,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     }))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    awaitWebServerShutdown(server, () => { void projectSchedulers.stop().catch(() => undefined); im.stop(); void browserHost.current()?.close(); }, async () => {
-      await projectSchedulers.stop();
-      if (ownsLocalHost) { try { await localHost.close(); } finally { await catalogAccess?.close(); } }
+    shutdown = awaitWebServerShutdown(server, () => { im.stop(); }, cleanup, async () => {
+      releaseTransport();
+      if (ownsLocalHost) await localHost.close();
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     computer.attach(server, controlToken);
@@ -230,15 +203,13 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null), pages: installedPagesPort(withCatalog, storageHome) }).service;
     attachWebAssistant(server, storageHome, assistant, agents, periodic);
-    server.once("close", () => {
-      void periodic.stop();
-      im.close();
-      void browserHost.current()?.close();
-      unregisterSurfaces();
-      void projectSchedulers.stop().catch(() => undefined);
-    });
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
     return server;
+    } catch (error) {
+      void (async () => { await (shutdown ? shutdown() : cleanup()); releaseTransport(); if (ownsLocalHost) await localHost.close(); })()
+        .catch(failure => hostLog.warn("host", "web_initialization_cleanup_failed", failure));
+      throw error;
+    }
   }
 
 }

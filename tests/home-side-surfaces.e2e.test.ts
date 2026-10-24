@@ -94,14 +94,15 @@ test("VUX-16 (fallback): the fields on the Home Issue page, the Issue side view 
 
   const lingguang = await pluginFrameBrowser(t, browser, "lingguang");
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/lingguang/side` }, sessionId));
-  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]')", 30_000);
+  // VUX-16: markup can precede the client binding; the Host's ready reply means the actual controls are usable.
+  await browser.waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.uiClientState === 'ready'", 30_000);
   // The one data-fit field on the side view is the chat's composer; it appears once an idea is jotted down and the
   // conversation pane is opened. That is the path a person takes: 记下 → 头脑风暴.
-  await lingguang.evaluate("(() => { const button = [...document.querySelectorAll('[data-lingguang-capture]')].find(button => button.getClientRects().length); button.click(); })()");
+  await lingguang.click("[data-lingguang-capture]");
   await lingguang.waitFor("document.querySelector('[data-lingguang-title]')?.getClientRects().length", 20_000);
   await lingguang.evaluate("(() => { const title = document.querySelector('[data-lingguang-title]'); title.focus(); title.value = '侧栏里的一条灵光'; title.dispatchEvent(new Event('input', { bubbles: true })); })()");
   await lingguang.waitFor("document.querySelector('[data-lingguang-save-status]')?.textContent === '已保存'", 20_000);
-  await lingguang.evaluate("(() => { const button = [...document.querySelectorAll('[data-lingguang-brainstorm-current]')].find(button => button.getClientRects().length); button.click(); })()");
+  await lingguang.click("[data-lingguang-brainstorm-current]");
   await lingguang.waitFor("!document.querySelector('[data-lingguang-pane=chat]').hidden && document.querySelector('textarea[data-lingguang-chat-input][data-fit]')?.getClientRects().length", 30_000);
   await growsAndFallsBack(browser, lingguang, "textarea[data-lingguang-chat-input][data-fit]");
 });

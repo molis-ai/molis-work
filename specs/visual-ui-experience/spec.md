@@ -428,6 +428,8 @@ Coding 的流式状态、节点身份与恢复以 [CHO-14](../coding-harness-opt
 
 ## 7. 验证与证据
 
+2026-10-23，VUX-16 的 Home/侧视图验收接续：batch22 与 batch23 的 `home-side-surfaces.e2e.test.ts` 在灵光阶段分别出现点击后等不到标题、可见按钮尚未出现的失败。固定 main `8aa62a65b2a3644fc8be69ff50b748a53317ec34` 的受控迟到客户端验证显示，页面和按钮可以先于实际客户端绑定出现，此时脚本点击不会创建灵光。该验收先等现行宿主的 `uiClientState=ready` 回执，再用既有严格指针助手操作「记下」「头脑风暴」；标题保存、输入框长高与清空回落的原断言及等待上限保留。不新增生产就绪状态，不加固定等待，不改页面布局；同文件的固定 main、集成候选与修后结果分别记录，相关命令为 `node scripts/run-tests.mjs tests/home-side-surfaces.e2e.test.ts`。
+
 本轮仅有文档与隔离测量，不修改产品源码、公共合同、门禁或真实数据。初始基线使用现有生产 Host、生产构建和隔离样例数据；模型或流式数据若模拟，明确只证明渲染路径。原始测量落在本目录 evidence，截图只进忽略的 `.impeccable/qa/review/`。
 
 实际测量命令与环境见 [baseline.md](baseline.md)。文档检查运行 `node scripts/check-spec-coverage.mjs`、相关链接与索引检查。产品实现后按包 README 选择定向测试，改共享核心按 [并行规范](../../docs/system/PARALLEL-DEVELOPMENT.md) 合并验证，不能在全量运行中改源码、脚本或 Skill。

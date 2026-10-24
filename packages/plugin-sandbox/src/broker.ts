@@ -52,12 +52,17 @@ export class SandboxBroker {
   private readonly calls: RateBudget;
   private readonly events: RateBudget;
   /** The executions this broker accepted and that have not ended: the only ones its package can cancel. */
-  private readonly executions = new Map<string, PluginBackgroundExecution<SandboxJson>>();
+  private readonly executions = new Map<string, { target: string; execution: PluginBackgroundExecution<SandboxJson> }>();
   private accepting = 0;
+  private stopped = false;
   constructor(private readonly identity: Readonly<SandboxIdentity>, private readonly grants: SandboxEffects, private readonly services: SandboxServices, private readonly limits: BrokerLimits) {
     this.queue = new BoundedQueue(limits.sdkQueue); this.calls = new RateBudget(limits.sdkPerMinute); this.events = new RateBudget(limits.eventsPerMinute);
   }
-  stop(error: SandboxError): void { this.queue.close(error); for (const execution of this.executions.values()) execution.cancel(); }
+  stop(error: SandboxError): void {
+    this.stopped = true; this.queue.close(error);
+    for (const { execution } of this.executions.values()) execution.cancel();
+    this.executions.clear();
+  }
   invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs): Promise<SandboxJson> {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
@@ -178,9 +183,11 @@ export class SandboxBroker {
     if (method === 'background.cancel') {
       count(1); const id = string(0, 64);
       if (!operation.effects.background?.some(target => this.grants.background?.includes(target))) throw new SandboxError('sandbox.not_authorized', 'Undeclared or unapproved background work');
-      const execution = this.executions.get(id);
-      execution?.cancel();
-      return execution !== undefined;
+      const accepted = this.executions.get(id);
+      if (!accepted) return false;
+      permit('background', accepted.target);
+      accepted.execution.cancel();
+      return true;
     }
     if (method !== 'background.start') throw new SandboxError('sandbox.invalid_request', 'Unknown background method');
     count(2); const target = string(0, 128), input = args[1]!; permit('background', target);
@@ -192,8 +199,13 @@ export class SandboxBroker {
     let execution: PluginBackgroundExecution<SandboxJson>;
     try { execution = await background.client.start(control => background.lane.run(target, input, { signal: control.signal, beforeEffect: control.beforeEffect })); }
     finally { this.accepting -= 1; }
+    if (this.stopped) {
+      execution.cancel();
+      void execution.result.catch(() => undefined);
+      throw new SandboxError('sandbox.stopped', 'Sandbox stopped while accepting background work');
+    }
     const id = randomUUID();
-    this.executions.set(id, execution);
+    this.executions.set(id, { target, execution });
     void execution.result.then(() => undefined, () => undefined).then(() => { this.executions.delete(id); });
     return id;
   }

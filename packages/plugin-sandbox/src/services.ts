@@ -128,6 +128,8 @@ function asksFor(definition: SandboxDeclarations, held: readonly string[], permi
  * here in the same change that gives its service, so what stays in the list is exactly what a package asking for it is refused for.
  */
 export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
+  { service: 'model_configuration', services: [], reason: 'Model settings (model_configuration in the Manifest) are not given to sandboxed plugins yet (PG-017 BL-490/491).',
+    declared: definition => definition.manifest.model_configuration !== undefined },
   { service: 'materials', services: [], reason: 'Reading a page from the network (materials:fetch) is not given to sandboxed plugins yet (PG-017 BL-492).',
     declared: (definition, held) => asksFor(definition, held, ['materials:fetch']) },
   { service: 'background', services: [], reason: 'Background jobs kept for as long as the plugin runs (background.jobs in the Manifest) are not given to sandboxed plugins until the definition can bind them to operations of the package (PG-017 BL-377); a run a command starts (background_job on an action) is.',

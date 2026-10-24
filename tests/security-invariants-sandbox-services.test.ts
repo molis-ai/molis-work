@@ -20,6 +20,10 @@ import { homeProbe } from "./fixtures/home-runtime.js";
 
 const PLUGIN_ID = "io.molis.work.example.sbxservices";
 const NOT_GIVEN = { code: "sandbox.service_not_given" } as const;
+const MODEL_CONFIGURATION: NonNullable<PluginManifest["model_configuration"]> = {
+  preference: { store_name: "sandbox-model-settings", file_name: "model.json" }, custom_provider: { provider_id: "sandbox-model", display_name: "Sandbox model" },
+  actions: { read: { capability_id: "sandbox-model.read", version: 1 }, save: { capability_id: "sandbox-model.save", version: 1 } },
+};
 
 const manifest = (extra: Partial<PluginManifest> = {}, permissions: PluginManifest["permissions"] = []): PluginManifest => ({
   schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Sandbox services probe", kind: "app",
@@ -33,6 +37,8 @@ const declaring = (extra: Partial<SandboxDeclarations> = {}, manifestExtra: Part
 
 test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not given is refused with a code, naming the service", () => {
   const asks: Array<[string, SandboxDeclarations, readonly string[]]> = [
+    ["model_configuration", declaring({}, { model_configuration: MODEL_CONFIGURATION }, [permission("model:invoke", false)]), []],
+    ["model_configuration", declaring({}, { model_configuration: MODEL_CONFIGURATION }, [permission("model:invoke", true)]), ["model:invoke"]],
     ["materials", declaring({}, {}, [permission("materials:fetch", true)]), []],
     ["materials", declaring({}, {}, [permission("materials:fetch", false)]), ["materials:fetch"]],
     ["background", declaring({}, { background: { jobs: [{ job_id: "probe" } as never] } }), []],
@@ -129,8 +135,8 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   const runtime = new PluginRuntime(undefined, executor);
   t.after(async () => { await local.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const started: string[] = [];
-  const definition = (id: string, execution: PluginDefinition["execution"]): PluginDefinition => ({
-    manifest: { ...manifest({}, [permission("directory:read", true)]), plugin_id: id }, ...(execution ? { execution } : {}),
+  const definition = (id: string, execution: PluginDefinition["execution"], modelConfiguration = false): PluginDefinition => ({
+    manifest: { ...manifest(modelConfiguration ? { model_configuration: MODEL_CONFIGURATION } : {}, [permission(modelConfiguration ? "model:invoke" : "directory:read", true)]), plugin_id: id }, ...(execution ? { execution } : {}),
     async start(context: PluginStartContext) { started.push(context.plugin_id); return { kind: "app" }; },
   });
   const grants = ["storage:private", "directory:read"];
@@ -140,6 +146,10 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   await assert.rejects(runtime.start(sandboxed.install_id), { code: "plugin.executor_failed" });
   assert.deepEqual({ state: runtime.get(sandboxed.install_id).state, code: runtime.get(sandboxed.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
   assert.deepEqual(started, [], "the sandboxed plugin's start never ran");
+  const configured = runtime.install({ definition: definition(`${PLUGIN_ID}.configured`, "sandbox", true), deployment: "local", grants: ["storage:private", "model:invoke"] }).install;
+  await assert.rejects(runtime.start(configured.install_id), { code: "plugin.executor_failed" });
+  assert.equal(runtime.get(configured.install_id).last_error_code, NOT_GIVEN.code, "model_configuration is refused with the S-60 code before services are built");
+  assert.deepEqual(started, [], "a model_configuration declaration cannot silently start without its port");
   await runtime.start(hosted.install_id);
   assert.deepEqual(started, [`${PLUGIN_ID}.hosted`]);
   await runtime.stop(hosted.install_id);
@@ -159,6 +169,12 @@ test("S-60 RAC-238 the Home Runtime stops a sandboxed installation that asks for
   await assert.rejects(runtime.start(install.install_id), { code: "plugin.executor_failed" });
   assert.deepEqual({ state: runtime.get(install.install_id).state, code: runtime.get(install.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
   assert.equal(boxed.contexts.length, 0, "the sandboxed plugin's start never ran");
+  const configured = homeProbe("sbxmodelconfiguration");
+  configured.definition.manifest.model_configuration = { ...MODEL_CONFIGURATION, actions: { read: configured.state, save: configured.save } };
+  const modelInstall = runtime.install({ definition: { ...configured.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke"] }).install;
+  await assert.rejects(runtime.start(modelInstall.install_id), { code: "plugin.executor_failed" });
+  assert.equal(runtime.get(modelInstall.install_id).last_error_code, NOT_GIVEN.code, "Home uses the same refusal instead of a later generic declaration error");
+  assert.equal(configured.contexts.length, 0, "the model_configuration plugin's start never ran");
   assert.equal(host.installation(hosted.id)?.state, "running");
   assert.equal(hosted.contexts.length, 1, "a plugin the Host runs itself is not stopped");
 });

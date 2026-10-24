@@ -11,9 +11,9 @@ import { BACKGROUND_EXECUTIONS, DEFAULT_SANDBOX_LIMITS, SANDBOX_BACKGROUND_LIMIT
 // S-67 for `services.background` (PG-017 P3): a sandboxed plugin starts a run of one of its own commands in the background. Three gates in series:
 // the broker (the declared and approved `background` effect naming the operation, a command for anything that starts or cancels work, the input checked
 // before the Host accepts, a bound on the runs outstanding), the Host's client (the plugin's own concurrent command with `background_job`, the original
-// caller's authority; asserted by S-18) and the lane, a second process of the package that runs one operation at a time, so a long run never holds up
-// the first process. A run is not replayed when its process dies. RAC-236 is this slice's. The Host's client is a stand-in here (it runs the work
-// under its own signal); the processes are real Seatbelt processes.
+// caller's authority; asserted with the real client in security-invariants-sandbox-background-host.test.ts) and the lane, a second process of the
+// package that runs one operation at a time, so a long run never holds up the first process. A run is not replayed when its process dies. RAC-236
+// is this slice's. The Host's client is a stand-in in this file (it runs the work under its own signal); the processes are real Seatbelt processes.
 
 const mac = { skip: process.platform !== "darwin" };
 const IDENTITY: SandboxIdentity = { projectId: "p", installationId: "install-bg", pluginId: "bgprobe", namespace: "installed" };
@@ -110,6 +110,43 @@ test("S-67 RAC-236 a contract cannot declare background work for a query, for a 
     ["a target that is a query", [op("a", "command", { background: ["b"] }), op("b", "query", {})]],
     ["a target that starts runs of its own", [op("a", "command", { background: ["b"] }), op("b", "command", { background: ["a"] })]],
   ] as const) assert.throws(() => assertContract(contract([...operations])), code("sandbox.invalid_contract"), what);
+});
+
+test("S-67 RAC-236 cancelling a run requires its actual target in both the operation's declaration and the person's approval", async t => {
+  const f = rig(), grants: SandboxEffects = { background: ["work", "spin"] }, b = f.broker(grants);
+  t.after(() => b.stop(new SandboxError("sandbox.stopped", "test finished")));
+  const id = (await b.invoke(OPERATIONS[1]!, new AbortController().signal, "background.start", ["spin", "x"])) as string;
+  assert.deepEqual(await f.call(b, OPERATIONS[0]!, "background.cancel", [id]), { error: "sandbox.not_authorized" }, "declaring work cannot cancel spin");
+  assert.equal(f.host.executions[0]!.cancelled, false, "the declared-target refusal did not cancel the Host execution");
+  grants.background = ["work"];
+  assert.deepEqual(await f.call(b, OPERATIONS[3]!, "background.cancel", [id]), { error: "sandbox.not_authorized" }, "approval of work cannot cancel spin");
+  assert.equal(f.host.executions[0]!.cancelled, false, "the approved-target refusal did not cancel the Host execution");
+  grants.background = ["work", "spin"];
+  assert.deepEqual(await f.call(b, OPERATIONS[1]!, "background.cancel", [id]), { ok: true }, "the declared and approved target can be cancelled");
+  await f.host.executions[0]!.execution.result.catch(() => undefined);
+});
+
+test("S-67 RAC-236 stopping during acceptance cancels the late handle and refuses it and subsequent requests", { timeout: 10_000 }, async t => {
+  const f = rig(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const client: SandboxBackground["client"] = { async start(work, options) {
+    const execution = await f.host.client.start(work, options);
+    entered.resolve(); await release.promise;
+    return execution;
+  } };
+  const b = f.broker(GRANTS, { background: { client, lane: f.lane } });
+  t.after(() => { release.resolve(); b.stop(new SandboxError("sandbox.stopped", "test finished")); });
+  const refused = assert.rejects(b.invoke(OPERATIONS[0]!, new AbortController().signal, "background.start", ["work", "x"]), code("sandbox.stopped"));
+  try {
+    await entered.promise;
+    assert.equal(f.host.executions.length, 1, "the Host accepted but has not returned the handle");
+    b.stop(new SandboxError("sandbox.stopped", "stopped while accepting"));
+  } finally { release.resolve(); }
+  await refused;
+  await f.host.executions[0]!.execution.result.catch(() => undefined);
+  assert.equal(f.host.executions[0]!.cancelled, true, "the late handle cannot outlive the broker");
+  assert.equal(f.host.executions[0]!.settled, true, "the accepted execution has ended");
+  assert.deepEqual(await f.call(b, OPERATIONS[0]!, "background.start", ["work", "after"]), { error: "sandbox.stopped" });
+  assert.equal(f.host.executions.length, 1, "nothing was accepted after stop");
 });
 
 test("S-67 RAC-236 the sandbox is given the Host's background client only with a lane, and kept jobs of the Manifest are still refused", () => {

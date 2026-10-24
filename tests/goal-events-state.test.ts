@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, LocalHost, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { goalsRoutes, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
@@ -3119,21 +3119,42 @@ test("the management caller factory acts as the person on this machine, builds t
   assert.equal(seen.length, 1);
 });
 
-test("RAC-337: with no provider, or more than one, the Host's call to a Goals action is refused with a code and reaches no one", async () => {
+test("RAC-337: with no Goals the Host's call to a Goals action is refused with a code and reaches no one; beside another provider it reaches Goals alone", async () => {
   const reference = { project_id: BOARD, storage_key: "fixture" };
-  for (const [providers, code] of [[[], "actions.dependency_missing"], [[GOALS_PLUGIN_ID, REPLACEMENT], "actions.provider_ambiguous"]] as const) {
-    const seen: unknown[] = [];
-    const client: ActionClient = { discover: goalsDirectory(...providers), invoke: async (_caller, action) => { seen.push(action); return {} as never; } };
-    await assert.rejects(bindGoalsManagementActions(client, reference).invoke(goalsActions.snapshot, {}), { code }, `management: ${code}`);
-    await assert.rejects(readProjectGuidance(client, reference), { code }, `guidance: ${code}`);
-    assert.deepEqual(seen, [], "the Host guesses no provider");
+  const none: unknown[] = [];
+  const empty: ActionClient = { discover: goalsDirectory(), invoke: async (_caller, action) => { none.push(action); return {} as never; } };
+  await assert.rejects(bindGoalsManagementActions(empty, reference).invoke(goalsActions.snapshot, {}), { code: "actions.dependency_missing" }, "management");
+  await assert.rejects(readProjectGuidance(empty, reference), { code: "actions.dependency_missing" }, "guidance");
+  assert.deepEqual(none, [], "the Host guesses no provider");
+  const read = goalsActions.guidanceRead, snapshot = goalsActions.snapshot;
+  for (const providers of [[GOALS_PLUGIN_ID], [GOALS_PLUGIN_ID, REPLACEMENT], [REPLACEMENT, GOALS_PLUGIN_ID]]) {
+    const seen: Array<{ caller: ActionCallContext; action: ActionReference }> = [];
+    const client: ActionClient = { discover: goalsDirectory(...providers), invoke: async (caller, action) => { seen.push({ caller, action }); return {} as never; } };
+    await readProjectGuidance(client, reference);
+    await bindGoalsManagementActions(client, reference).invoke(snapshot, {});
+    assert.deepEqual(seen.map(({ caller, action }) => [action.capability_id, action.provider_id, caller.allowed_actions]), [
+      [read.capability_id, GOALS_PLUGIN_ID, [{ capability_id: read.capability_id, version: read.version, provider_id: GOALS_PLUGIN_ID }]],
+      [snapshot.capability_id, GOALS_PLUGIN_ID, [{ capability_id: snapshot.capability_id, version: snapshot.version, provider_id: GOALS_PLUGIN_ID }]],
+    ], `${providers.join(" + ")}: both calls reach Goals, pinned, and another provider is never called`);
   }
-  const seen: Array<{ caller: ActionCallContext; action: ActionReference }> = [];
-  const client: ActionClient = { discover: goalsDirectory(GOALS_PLUGIN_ID), invoke: async (caller, action) => { seen.push({ caller, action }); return {} as never; } };
-  await readProjectGuidance(client, reference);
-  const read = goalsActions.guidanceRead;
-  assert.deepEqual(seen.map(({ caller, action }) => [action.capability_id, action.provider_id, caller.allowed_actions]),
-    [[read.capability_id, GOALS_PLUGIN_ID, [{ capability_id: read.capability_id, version: read.version, provider_id: GOALS_PLUGIN_ID }]]], "the guidance read reaches the provider found, pinned");
+});
+
+test("RAC-342: in the real assembly a second goals.*@v cannot stand beside Goals: the Host's one registry refuses it in the project and at the Home, and another project's never shows", async () => {
+  // Every provider, the Host's own, a project's Plugin Runtime and the Home's, registers into the one CapabilityRegistry of LocalHost,
+  // which refuses the same capability_id@version in an overlapping scope (a project's and the Home's overlap; two projects do not).
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
+  const project = { project_id: "a", storage_key: "a" }, other = { project_id: "b", storage_key: "b" }, read = goalsActions.guidanceRead;
+  const offer = (provider_id: string) => ({ provider: { provider_id, plugin_id: provider_id, title: provider_id, kind: "plugin" as const },
+    definitions: [read], handlers: [{ ...read, handle: () => ({}) as never }] });
+  try {
+    host.actionRegistry(project).registerProvider(offer(GOALS_PLUGIN_ID));
+    assert.throws(() => host.actionRegistry(project).registerProvider(offer(REPLACEMENT)), { code: "kernel.capability_duplicate" }, "in the same project");
+    assert.throws(() => host.actionRegistry().registerProvider(offer(REPLACEMENT)), { code: "kernel.capability_duplicate" }, "at the Home");
+    host.actionRegistry(other).registerProvider(offer(REPLACEMENT));
+    const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: read.action.permissions };
+    assert.deepEqual((await host.actionClient(project).discover(caller)).filter(view => view.capability_id === read.capability_id).map(view => view.provider.provider_id),
+      [GOALS_PLUGIN_ID], "the project's directory shows its own Goals only");
+  } finally { await host.close(); }
 });
 
 test("RAC-341: a third-party installation that registers Goals' capabilities while Goals is away receives neither the person's management call nor the guidance read", async () => {

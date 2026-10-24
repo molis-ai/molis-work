@@ -1,6 +1,6 @@
 # 交给 Codex 的独立开发片
 
-> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「专职｜防腐流水线与合并执行 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，用户最新指定gpt-6.1-sol/max，06:45:56UTC实际回合已核；root/REVIEW保留gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；Root负责唯一定时巡检；原五类职责和交付驱动接续保持。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献、Claude开发owner及唯一full组批职责分别保留；review-pr-fixer旧认领已由Claude6381877118明确释放并交FIX2接续；Codex侧协调不替代Claude总统筹。
+> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「专职｜防腐流水线与合并执行 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，用户最新指定gpt-6.1-sol/max，06:45:56UTC实际回合已核；root/REVIEW保留gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；Root负责唯一定时巡检；原五类职责和交付驱动接续保持。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。独立树允许多writer，真实同文件/合同/候选重叠串行，公共build/browser槽保持；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献、Claude开发owner及唯一full组批职责分别保留；review-pr-fixer旧认领已由Claude6381877118明确释放并交FIX2接续；Codex侧协调不替代Claude总统筹。
 
 状态：2026-10-23 起生效。用户 10-23 定：独立的开发任务可以派给 Codex，不必都在 Claude 子会话里做。统筹（本机 Claude）在这里派片、排序；Codex 做完一片在本表写 PR 号，再接下一片。
 
@@ -11,6 +11,9 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 ```
 
 ## 0a. 现行模式（用户 2026-10-24 晚；最高优先，覆盖本文以下所有不一致的旧说法）
+
+**多writer现行规则（Root转达人类最新明确：“可以提升writer数量，不局限1个，不影响速度”）**：不同独立工作树、不同明确问题/实现项、真实依赖已满足且无重复owner时可以同时写，不设整个Codex协作组只有1人的上限。同一文件/合同、同一候选及有真实代码依赖的部分仍串行；公共冲突/生成物由当前carrier owner统一。每个FIX仍一次专注一个问题、gpt-6.1-sol/max，未收尾不塞无关任务。公共build一个、browser批一个、full仅Claude唯一排期不变，等资源不等于停止独立编码；只有Root周期巡检，原交付直接接续与现有角色不变。此条覆盖以下旧“单writer/唯一writer/串行轮换”上限，仅改变并行数量，不凭共享一处文字取消已有授权或在途owner。
+
 
 全文见 `MERGE-QUEUE.md` §0。用户原话：「在 claude：组织好合并顺序，进行开发和 review。在 codex：review 问题修复，修复后的二轮 review，以及有独立任务可以交付 Codex 执行」。
 
@@ -23,7 +26,7 @@ Codex 做的：
 
 Codex 不再做的：一轮评审（统一由 `ac-review` 做）；组批、起 full、批 PR 入队（统筹做）。
 
-唯一 writer 的先后：下一批要进的 PR 的修复 → 其余 PR 的修复 → C1 → C2 → C3 → C4。
+优先级：下一批要进的 PR 的修复 → 其余 PR 的修复 → C1 → C2 → C3 → C4；不同独立工作树/问题在依赖满足后可并行，此顺序不再表示全组只有一个writer。
 
 PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR 占位（草稿也跑 CI）。落后 main 不同步，共用文件冲突统筹在批分支里解。
 
@@ -46,7 +49,7 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 >
 > **版本P2已交原批统筹并实际固定**：6387272636认领在carrier升version2（不改id/受众/strictschema），ac-coding不再写。共同本地clean固定 `331cd096cd78981ba90a8755b511094f7f95ec84`：fd009补两现有测试的MCPv3记录、fa68合真实main006、594aed合ade、331版本/共用生成物；已直送独立REVIEW薄复核/TEST现成raw，尚不冒远端eae已前进或批PR已发布。原foreman raw在 `/private/tmp/claude-501/-Users-yijunwang-code-goalboard/a8d0c51f-3071-4520-b7e1-548f6ca97ad6/scratchpad/`；b33-gen2明确v1→v2/API无变化，旧35文件/旧build0与更晚全树构建区分。最终选择器单/双Runtime、改选/重载、消失不回退/恢复默认真实浏览器、准确组合build/资源门禁/必要full及CI仍须按Claude统一排期核；另一c0b integration/40112466492不冒此同头，也不取消或另起重复full。最终actual包含后才关最后3源。
 >
-> **源码接续**：C1 #1231/bf09cc3已完全fixed/RELEASED，REVIEW6386882837 PASS；FIX2无源码占用。原已accepted的C2 B2b独立合同已实际START交实现2 `01a16c97-5b6a-7343-b245-dc63b65e1e11`，从actual006鲜核去重/5CLI blobs、同一slice红绿实现，不转给FIX2、不抢旧3原writer或公共build/browser、不起full。B2b/A/完整Home恢复仍未完成。#1198 actual191acc及旧正式exit1/6px/UNKNOWN、Root非回归裁定与验收边界见§3，均不改写历史。
+> **源码并行接续**：当前已实际派单：实现1/C1接 assistant-http 两处结构错误日志剩余（该文件/该slice）；实现2/C2已START B2b原后端密钥绑定及受管CLI私有态，隔离树 `w5-16-cli-private-state/goalboard`、base006；FIX1接 #1212 REVIEW6384912989 的 Images README 恢复/回收权限单问题；FIX2接 #1216 REVIEW6384484840 的 ImCtx 分阶段类型单问题。四项互不转派，开工各自鲜核真实文件/认领；carrier331原Claude owner与审验保持。共享logger、App index追加、共同assets/actions/API/S/baseline及实际候选冲突先协调，不并写同文件。 C1 #1231/bf09已release与6386882837原PASS保留；四项仅START/实施，不冒已交付、已合或完整C1/C2/Home恢复完成。#1198 actual191acc及旧视觉裁定/验收边界见§3。
 
 > 2026-10-24 16:35 UTC **最新人类指令覆盖下列旧source排期**
 >

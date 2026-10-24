@@ -41,7 +41,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 25 | [#1127](https://github.com/molis-ai/molis-work/pull/1127) | 评审修复线（合并 Agent 派）：隔离页 link 通道不再导航宿主文档（#1018）、SYS-15-U10 等回执修 flake（#1090） | — | `full` 为空 | 头 `6cdf4a15b`；统筹一轮**可合**，0 条挡合并（[评论](https://github.com/molis-ai/molis-work/pull/1127#issuecomment-6378661297)）；改了安全不变量，合前看 Security 两片作业；对 main 冲突，合并 Agent 机械同步（S-47 行仍点名本 PR 的用例、S 号连续）后入队 |
 | 26 | [#1125](https://github.com/molis-ai/molis-work/pull/1125) | 评审修复线（合并 Agent 派）：复审报告剩余风险登记进防腐 spec（#1018 Todo 私路） | — | `full` 为空 | 草稿；头 `21d4b3719`；等 `ac-review` 一轮；负责人 review-fix-owner |
 | 27 | [#1128](https://github.com/molis-ai/molis-work/pull/1128) | 评审修复线（合并 Agent 派）：翻译门禁盲区写进文档（#958） | — | `full` 为空 | 草稿；头 `f26d7f8b8`；等 `ac-review` 一轮；负责人 review-fix-owner |
-| 25 | [#1137](https://github.com/molis-ai/molis-work/pull/1137) | W5-03/04 Images 片：客户端打包成 TS；`images.js` 21,670→19,915 B | 和 #1129、#1132 在 `page-assets.json` 撞相邻行，后合的解 | `full` 非空（deletes-code），进下一批 | 头 `6849fb942`（机械同步，二轮可合 `728a80dbb`，batch-17 绿）；10-24 02:15 统筹入队，02:18 合并 Agent 手动取出、未写原因，[已在 PR 上问](https://github.com/molis-ai/molis-work/pull/1137#issuecomment-6378675610)；等回复 |
 | 27 | [#1139](https://github.com/molis-ai/molis-work/pull/1139) | PG-017 P0：`sandboxServicesFor` 一张映射；不给的服务一声明就以 `sandbox.service_not_given` 拒绝（项目与 Home 执行器共用）；S-60 一行 | **叠在 #1119 上**；S 号连续要 #1117、#1119 先合；#1134 合入后作者把切片文件改动并进来 | `full` 为空 | 头 `2a6d905c6`（并入切片文件改动）；`ac-review` **二轮：可合**；合前和 #1119 解 `SECURITY-INVARIANTS.md` 冲突；Security invariants 要看 |
 | 28 | ~~#1140~~ | SC-4 残留：BL-485/486/488 | 作者已关闭（第三层）；分支 `migrate/sessions-sc4b-runtime-leftovers`（`259a5fc84`）留着，#1113 已合，作者改开 [#1157](https://github.com/molis-ai/molis-work/pull/1157)（叠在 #1130 上，第 39 行） | — | 不在队里 |
 | 29 | [#1143](https://github.com/molis-ai/molis-work/pull/1143) | PG-017 P2a：连接经 broker 给沙箱插件 | 叠在 #1139→#1119（第三层）；**草稿**，#1119 合入、#1139 改投 main 后再转 ready | 待重算 | 统筹转了草稿，先不审 |
@@ -87,5 +86,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1132 | `1dedc1f5c` | 10-24 01:42 UTC |
 | #1158 | `8f3fa138c` | 10-24 02:44 UTC（统筹入队） |
 | #1156 | `dd7df26e4` | 10-24 02:46 UTC（统筹入队） |
+| #1137 | `4e5f91a19` | 10-24 02:48 UTC |
+| #1142 | `1cc9cfee7` | 10-24 02:48 UTC（统筹入队） |
 
 | 39 | [#1157](https://github.com/molis-ai/molis-work/pull/1157) | `ac-sc3` SC-4b：清 SC-4 三项残留（BL-485 Codex 会话适配器、BL-486 `session_id`、BL-488 依赖） | **叠在 #1130 上**（第二层），#1130 合入后改投 main | `full` 非空（shared-core），进下一批 | 头 `782af05ed`；二轮可合；在 **batch-1024-19**（统筹起，10-24 03:35，run [40054696653](https://github.com/molis-ai/molis-work/actions/runs/40054696653)：main `aa4de404f` + #1157 `782af05ed`（含 #1130 `f7fb96ed6`）+ #1148 `2a8eec5d8`）；#1130 合入、改投 main 后合 |

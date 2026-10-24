@@ -15,7 +15,7 @@
 - `src/en.ts` 从 304 条减到 202 条（BL-464）：删掉的 102 条都是页面自己的词（现在是键）；保留编辑器内核的标签（仍按中文原文查）、服务端标签与错误、模板的标题与摘要（模板文档本身用）、别的主人在查或提到的词。
 - `tests/pages-client-bundle.test.ts`：两条验收（同 Dataset、PPT、Form、Workflows）；`tests/fixtures/pages-host.ts`：给 Pages 客户端的测试宿主（真实的 `molisWorkRequest` 加中文翻译器）。
 
-不动：`manifest.ts`、`actions.ts`、`plugin.ts`、`store.ts`、`comments-store.ts`、`styles.ts`、`import-styles.ts` 的内容（只从原 `import-client.ts` 里搬出来）、编辑器内核的节点视图与命令、服务端页面的结构（`ui.ts` 只换翻译调用的参数）；也不改工作台与别的主人的文件、别片的规格。
+不动：`manifest.ts`、`actions.ts`、`plugin.ts`、`store.ts`、`comments-store.ts`、`styles.ts`、`import-styles.ts` 的内容（只从原 `import-client.ts` 里搬出来）、编辑器内核的节点视图与命令、服务端页面的结构（`ui.ts` 只换翻译调用的参数）；不改工作台与别的主人的生产实现、别片的规格。本轮 CI 与评审修正只补下述两个现有测试及本片证据。
 
 ## 英文显示的变化（逐条）
 
@@ -41,6 +41,26 @@
 - 页面资源：`/assets/molis-work-plugins/pages.js` 由 49,137 降到 38,751 字节，`/assets/molis-work-pages-editor.js` 由 710,405 降到 709,628 字节（`tooling/gates/page-assets.json` 同步）。
 - 浏览器用例里模拟传输的两处原先包 `window.fetch`，页面的请求现在走帧内的 `molisWorkRequest`（`fetch` 在帧启动时已被它捕获），改成包 `molisWorkRequest`：`tests/pages-import-entry.e2e.test.ts` 的 413 替身与删除被拒的替身（照共享助手报告被拒请求的样子抛出带状态、代码和说明的 Error）、`tests/content-editing-regressions.e2e.test.ts` 的 `holdReply`（等真实答复回来后扣住解析好的内容）；断言一条没有改。
 - 行为不变：README「改动后必跑」的单元用例全部通过；本机已跑的浏览器用例全部通过：`tests/pages-assistant-surfaces.e2e.test.ts`（1/1）、`tests/pages-actions.e2e.test.ts`（3/3）、`tests/pages-import-entry.e2e.test.ts`（6/6，含合并 main 后新增的短窗口用例）、`tests/pages-publication.e2e.test.ts`（2/2）、`tests/workbench-deferred-clients.e2e.test.ts`（3/3）、`tests/contextual-pages-goals.e2e.test.ts`（3/3）、`tests/content-editing-regressions.e2e.test.ts`（9/9）、`tests/plugin-small-ux.e2e.test.ts`（16/16）、`tests/missing-item-feedback.e2e.test.ts`（3/3）、`tests/workbench-async-targets.e2e.test.ts`（6/6）、`tests/goal-event-document.e2e.test.ts`（6/6）、`tests/security-invariants-plugin-pages.e2e.test.ts`（5/5）。其余见 PR 说明里的「待测（交 Codex 测试专职）」。
+
+## 本轮 CI 与评审修正（PR #1232，2026-10-24）
+
+负责人：Codex。固定起点 `3525a67dc284f365b0547bfbf7890d784ee5714b`；Product 1/2 实际 checkout `b41e3497f3f272697ee4a00c59bc5f796821bfa7` 与它的完整树相同（`fc56ac9681b92f75244729cd2dc2fd73f5090fdf`）。复用已完成的 REVIEW 6387465387、6387505760，不重做 Pages 首轮评审。只处理 TEST 6387620017 的项目设置 HTML 负断言、灵光 `clientServed` 测试名单及导入测试计数；BL-464 与完整英文界面走查保留原范围。
+
+- RAC-159-CI：用原项目设置输入和真实 renderer 确认原负断言唯一命中内嵌词典 `pages.import.existing` 的“导入已有文档”。项目迁移入口、文案、对话框的原三类禁止项改查脚本以外的设置标记，并正向确认仍包含 `data-project-manager`；以真实 renderer 输出中注入入口、文案、对话框标记的定向检查证明仍会拒绝回归。项目设置生产实现无须修改，不豁免或隔离测试。证明位置：`tests/project-settings-accordion.test.ts`。
+- RAC-159-SERVED：`tests/plugin-client-served.test.ts` 的名单同时覆盖 Schedule 与 `registration.workbench.clientServed: true` 的灵光，两者都核对实际 served 程序与源脚本等价、无整行注释和缩进。Schedule 的字节减少、源脚本仍带说明的原断言保留；灵光的工厂已由 esbuild 压缩，额外断言发送内容与源脚本逐字节相同，不把无效的再次压缩写成变小。注释说明这两类来源。
+
+证据与验证：用准确源码上的原始日志对齐 `pages-import-entry` 的 PR 正文与本片记录，区分本轮实测和既有报告。定向验证使用 `node scripts/run-tests.mjs tests/project-settings-accordion.test.ts tests/plugin-client-served.test.ts tests/pages-client-bundle.test.ts tests/i18n.test.ts` 及单独的 `tests/pages-import-entry.e2e.test.ts`；需要构建/浏览器时走公共 machine-slot、专用测试浏览器和临时 Home。再跑实际 merge-base 的 health、boundary、secret 检查；不另起 full，不改全局门禁或公共 baseline/assets。
+
+本轮实测（2026-10-24，产品源码保持上述固定起点）：
+
+- 整体 `pnpm build` 退出 0。受管工作树核对同源后复用产物，`build-workspace --dry-run` 确认 70/70 包的输入与输出均未变，重新生成本树构建清单。
+- 原项目设置测试稳定复现为 1/2；完整 HTML 长度 444,777，唯一匹配在 offset 74,057 的词典脚本。修正后 2/2。临时向实际构建的 renderer 分别注入迁移按钮属性、中文迁移文案、迁移对话框，原用例三次均正确失败；恢复精确构建产物后再次 2/2。
+- `plugin-client-served` 修正后 2/2；灵光实际发送与源脚本均为 23,209 字节且逐字节相同。首次补名单时发现“已压缩脚本必须再次缩小”的不适用前提，按上述两类来源修正，Schedule 原断言均保留。`pages-client-bundle` 2/2、`i18n` 11/11 复用本轮首批中已通过且源码未再变的记录，不把首批 3/4 文件写成整批通过。
+- `pages-import-entry` 本轮 6/6，0 失败、取消、跳过，覆盖 1440/1024/390 像素导入、短窗口长预览与取消、其他确认操作和 413 重试；PR 原 3/3 据此改为 6/6。公共浏览器槽、专用测试浏览器与独立临时 Home，正常完成清理。
+- health 对实际 merge-base `2dd53591276982b6947369e345ddfcffcc21afd2` 退出 0；已整体构建后的 boundary 检查退出 0。日志为 `health-origin-main.log`、`boundary.log`。提交后的 secret 检查与最终固定 head 交接记录在原 PR，不改公共 baseline/assets。
+- 原始记录目录：`/tmp/molis-pr1232-fix4-20261024/`。实际命中见 `render-match-3525a67dc.log` 与完整 `project-settings-3525a67dc.html`；原失败见 `project-settings-red-3525a67dc.log`；首批、最终定向与浏览器分别为 `targeted-first.log`、`targeted-final.log`、`pages-import-entry.log`；注入与恢复见 `migration-mutation-summary.log` 及三份 `mutation-*.log`。完整构建与复用核对分别为 `build-3525a67dc.log`、`managed-build-reuse-check.log`。
+
+本轮不替代统筹集成全量、BL-464、完整英文界面走查或用户验收；固定新 head 交既有 REVIEW/TEST 做修后增量复核。
 
 ## 合并提示
 

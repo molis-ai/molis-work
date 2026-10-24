@@ -3559,3 +3559,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 01:30：R8 第 4 批按裁定改完（`06603d6c6`），待确认 BL-471 已改。日志读取统筹再裁：不加 Manifest 字段、不复用 `events.subscribes`，只读自己命名空间；Goals 要别的插件的活动改走事件总线订阅或对方的查询动作，S9 slice 逐条列出。
 
 - 10-24 01:40：R8 第 4 批含 BL-471 与 collaboration.control 收紧（`dc697c287`，只认自己会话的等待），BL-364 全清，R8 在分支上做完、等 #1121→#1148→第 3 批→第 4 批依次开 PR。`ac-kernel` 改号段 RAC-330～349，开始 agent-host 巨大单元。`ac-sc3` S9-0b（`1f4c8318c`）与维护设计（`973621b5d`）已推送，接着 S9 存储三片。
+
+- 10-24 01:55：#1117（R7，S-58）已合（`acb8941b0`）；PG-029、030 待写进 privileges。#1119（S-59）可以跟上。

@@ -97,8 +97,10 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
         <button class="mw-btn mw-btn--ghost" type="button" data-todo-batch-action="unplan">${p.text("todo.batch.unplan")}</button>
         <details class="todo-batch-more">
           <summary class="mw-btn mw-btn--ghost">${p.text("todo.batch.move")}</summary>
+          <!-- 菜单项是 menuitem；打开 details 不会触发共享 roving 的 MutationObserver（它只观察 hidden/aria-*/role 变化，
+               不看 open），所以初始的单一 Tab 停点直接写进 markup，焦点进入后由共享 roving 接管方向键与停点。 -->
           <div class="mw-menu" role="menu">
-            ${PLACEMENTS.map(([value, label]) => `<button class="mw-menu__item" type="button" data-todo-batch-placement="${value}">${p.text(label)}</button>`).join("")}
+            ${PLACEMENTS.map(([value, label], index) => `<button class="mw-menu__item" type="button" role="menuitem" tabindex="${index === 0 ? 0 : -1}" data-todo-batch-placement="${value}">${p.text(label)}</button>`).join("")}
           </div>
         </details>
         <button class="mw-btn mw-btn--ghost" type="button" data-todo-batch-action="archive" hidden>${p.text("todo.action.archive")}</button>

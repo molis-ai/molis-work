@@ -1,6 +1,4 @@
 import type { ProjectDataDeclaration } from "../modules/projects.js";
-import type { InstructionPrompt } from "./model-prompts.js";
-import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 import type { HomeStoreDeclaration } from "./plugin-database.js";
 import type { PluginDefinition, PluginManifest } from "./plugin.js";
 import type { UiContribution } from "./ui.js";
@@ -128,10 +126,5 @@ export interface PluginRegistration {
   readonly home_store?: HomeStoreDeclaration;
   /** Owner-scoped UI words, projected into the page language by the common translator. */
   readonly messages?: Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
-  /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
-  readonly instructions?: readonly InstructionPrompt[];
-  readonly agent?: { readonly prompts: readonly AgentPromptText[]; readonly skills?: readonly AgentSkillDefinition[] };
-  /** Bodies of the Manifest's `methods` (offered to other Agents for business work); the package ships them. */
-  readonly methods?: readonly AgentSkillDefinition[];
   readonly workbench: PluginWorkbenchRegistration;
 }

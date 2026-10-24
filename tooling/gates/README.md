@@ -85,6 +85,19 @@
 
 **第一天的数字**（在 A 片 `feat/action-error-model` 之后；A 合入 `origin/main` 之前，与 `origin/main` 的合并基点上的数字是 110 / 543 / 226 / 1538，因为 A 的 Todo 转换和平台表还没进去）：`errorSubclasses` 108、`errorCodeShape` 543（82 个文件）、`errorStatusDecisions` 222（56 个文件）、`errorCodeOwner` 1162（181 个文件）。改名 PR（W3-02 R1–R6、J1–J7）每改一处就让后两项变小。**这两项归零不等于码都改好了**：它们只数上面读得到的写法，写成 `code:` 属性的那约 300 处和选项对象构造函数、历史工厂里不带点的 49 处（Alchemist 复用码在 J5C 迁为现行点码；官方集成目录 `catalog_integration` 的文档导入此前已收口）、类字段 `code = "…"` 的 4 处，归零与否它们都不知道。所以 W3-02 的收尾要另外清点这三类（在源码里找 `code: "`、工厂调用里不带点的第一个参数、`code = "`，分清错误码和键盘码等别的 `code`），或者先加一项数它们的新数字再说做完；把这两项换成没有基线的规则，要等那之后，由评审决定。
 
+## 界面翻译（`scripts/gates/translations.mjs`）
+
+翻译门禁在 `pnpm health:check` 里，CI 的 Health gates 步骤带 `--base` 跑它；它扫源码树（`apps`、`plugins`、`packages`、`modules`、`horizontal`、`server`、`tooling` 下的 `.ts`，不含测试与构建产物），认翻译调用里的中文字面量。规则细节、稳定键方案与迁移步骤见 `apps/workbench/README.md` 的「界面文字」一节，这里只记这个门禁的边界。
+
+| 项 | 结果 |
+| --- | --- |
+| 缺英文（翻译调用里的中文字面量，在所有词典里都没有） | 失败；头上必须为零 |
+| 词典没接上（某本 `*_EN` 没被 `src/i18n/en.ts` 的 `EN` 引用） | 失败；头上必须为零 |
+| 冲突（同一句中文有两条译文不同的条目） | 冻结在 `tooling/gates/baseline.json` 的 `translationConflicts`，只许减少 |
+| 无用键（词典里的键，源码里没有字面量出现） | 只报告，不挡 |
+
+**看不到的（已知盲区，#958 → #990）**：服务端固定 prompt 里的中文常量。它经模型往返后是运行时的动态字符串（页面用 `L(动态值)` 显示），门禁只按字面量认翻译调用，所以删掉它的英文条目时「缺英文」仍是零。#958 删掉 Issue 的固定追问句（`plugins/native/issues/src/prompts.ts` 的 `ISSUE_ASK`）的英文后门禁放行，由 `tests/issue-naming.test.ts` 的 `PRR-08` 断言拦下，#990 恢复。补偿是给每一条这类固定句子钉一条测试：断言英文词典含该确切字符串（`PRR-08` 的写法）。要自动扫这类常量，得先定「哪些服务端常量算用户可见文案、从哪些文件读」，那属于改门禁本身，先问用户。
+
 ## 公开 API 快照
 
 `api/` 下每个 contracts 的 subpath（`packages/contracts/package.json` 的 `exports`）和插件 SDK 各一个文件，如 `api/contracts/platform/plugin.txt`、`api/plugin-sdk/index.txt`。

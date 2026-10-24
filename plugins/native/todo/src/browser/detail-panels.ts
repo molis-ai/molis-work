@@ -46,8 +46,11 @@ export function renderSources(page: TodoPage, item: TodoItem): void {
   for (const source of item.sources) {
     const entry = make("div", "todo-source");
     const head = make("div", "todo-source-head");
-    // The original opens where it lives: an Inbox entry or 灵光 belongs to the project the todo was made in.
-    const here = source.open && page.projectId() && item.project_id === page.projectId() ? source.open : null;
+    // The original opens where it lives, in the project the person is looking at: a todo of another project keeps its source as text,
+    // and an unassigned todo (a fragment offer leaves placement to the person) opens it here. Where the source names only the object,
+    // the workbench says which surface opens that kind of object; none or several, and it stays text.
+    const { open, subject } = source, id = (open ?? subject)?.id, surface = open ? open.surface : subject && page.host.surfaceFor(subject.kind);
+    const here = id && surface && page.projectId() && (!item.project_id || item.project_id === page.projectId()) ? { surface, id } : null;
     const name = here ? make("button", "mw-btn mw-btn--link", source.title) : make("strong", "", source.title);
     if (here && name instanceof HTMLButtonElement) {
       name.type = "button";

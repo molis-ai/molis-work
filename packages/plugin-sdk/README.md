@@ -117,11 +117,11 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 ### 为事项提供上下文
 
-需要让首页或其他消费者围绕插件对象发消息时，用 `defineSubjectContextAction(capabilityId, subjectKind, title, permissions)` 声明查询，把定义放入 Manifest 的 `actions`，并在 `start()` 返回对应处理器。处理器从插件自己的数据读取当前对象，以 `subjectContext({ subject: { kind, id }, revision, title, content, goal_ids, session_id })` 返回正文快照和真实关联。`goal_ids` 只填实际关联；没有明确 Session 时用 `null`，不能猜测或选择最近会话。正文超过上限会标记节选；转述其他对象时传入原 `truncated`，不要丢掉节选标记。
+需要让首页或其他消费者围绕插件对象发消息时，用 `defineSubjectContextAction(capabilityId, subjectKind, title, permissions)` 声明查询，把定义放入 Manifest 的 `actions`，并在 `start()` 返回对应处理器。处理器从插件自己的数据读取当前对象，以 `subjectContext({ subject: { kind, id }, revision, title, content, goal_ids })` 返回正文快照和真实关联。`goal_ids` 只填实际关联，不能猜测。正文超过上限会标记节选；转述其他对象时传入原 `truncated`，不要丢掉节选标记。
 
 消费者使用 `resolveActionSubject(client, caller, subject)`，从同一个能力目录按语义类型与对象类型发现查询，并以原调用者、固定提供方调用。无需在 Home 增加插件白名单；合同不一致会在注册时拒绝，多个可用提供方则要求消除歧义。权限、安装 grant、停用及升级仍走共同服务。对象查询只提供事实，不授予消息发送权限；首页随后从 Work 目录选择关联会话，没有关联时要求用户明确选择。
 
-这个协议负责读取已知对象的上下文；首页事件贡献和其他可执行动作仍须分别实现，不能把上下文声明当成自动创建首页事件。正式 Runtime 与原业务数据的验证见 [home-talk-actions.test.ts](../../tests/home-talk-actions.test.ts)。
+这个协议负责读取已知对象的上下文；首页事件贡献和其他可执行动作仍须分别实现，不能把上下文声明当成自动创建首页事件。
 
 首页与能力库的本地用户入口会读取原 Plugin Runtime 安装记录中的 grants；未知权限名不需要加入 Home 权限名单。仅已运行、身份匹配且实际授予所需权限的安装可扩展本地用户调用范围，权限绑定准确的能力版本和提供方，不能借给另一个只声明同名权限的提供方。停用、撤权、重启后重新读取当前状态；其他入口（包括 MCP）的独立授权不受影响。声明不等于安装授权，缺 grant 时仍不可用。真实 Web 接线见 [local-web-actions.test.ts](../../tests/local-web-actions.test.ts)。
 
@@ -177,7 +177,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 操作卡给人读的样子只有一份：`actionCardView`（`src/action-cards.ts`），助理和保管卡的插件都用它，插件再交给 `services.interaction.cardHtml` 画（PG-062）。
   - `/diff-view` 只加载 SDK 自己的文件与合同包，不带词；`renderDiff` 不自己转义、翻译或画图标，三样都由调用方的 `primitives` 给，每个标签用调用方自己的键（`labels`），仓库里只有它一份比较画法（PG062-08、PG062-10）。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
-  - 宿主自己运行的插件调模型用 `context.services.model`（类型 `PluginModelClient`、`PluginModelRequest`、`PluginModelResult`，限额 `PLUGIN_MODEL_LIMITS`），指令用 SDK 导出的 `defineInstructionPrompt`、`instructed`（W3-06 E）；`PluginDefinition.instructions` 是没有目录条目的插件登记自己指令的地方。规则和错误码在 `packages/plugin-runtime` 与 `docs/platform/PROLOGUE-AI.md` 第 4 节，这里只导出类型和两个帮手。
+  - 宿主自己运行的插件调模型用 `context.services.model`（类型 `PluginModelClient`、`PluginModelRequest`、`PluginModelResult`，限额 `PLUGIN_MODEL_LIMITS`），指令用 SDK 导出的 `defineInstructionPrompt`、`instructed`（W3-06 E）；插件在 `PluginDefinition.instructions` 里声明自己的指令，由 Host 在插件运行时统一登记，内置与安装的插件走同一条路。规则和错误码在 `packages/plugin-runtime` 与 `docs/platform/PROLOGUE-AI.md` 第 4 节，这里只导出类型和两个帮手。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
 - 改动后必跑：`node scripts/run-tests.mjs tests/material-upload.test.ts tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts tests/action-cross-references.test.ts tests/action-artifact-references.test.ts tests/diff-plugin.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts tests/question-rules-consistency.test.ts tests/form-draft-questions.test.ts tests/action-cards.test.ts tests/assistant-card-outcomes.test.ts tests/assistant-interaction-html.test.ts tests/assistant-business-gateway.test.ts tests/plugin-sdk-subpaths.test.ts tests/feed-rich-content.test.ts tests/code-incremental-colour.test.ts tests/git-porcelain.test.ts tests/diff-patch.test.ts tests/companion-state-html.test.ts tests/coding-change-html.test.ts`
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。

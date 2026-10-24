@@ -34,16 +34,18 @@ function codingHostFixture(root: string) {
   const everything = Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(capability => [capability, "supported"])) as AgentRuntimeCapabilityMatrix;
   host.registerCapability(agent.listRuntimes, () => [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", capabilities: everything }]);
   host.registerCapability(agent.listActions, () => []);
-  host.registerCapability(agent.createSession, () => ({ runtime_id: "prologue", session_id: `sdk-${++sdkSessions}` }));
-  host.registerCapability(agent.startRun, (_runtime, [, input]) => {
+  // Sessions and rounds are actions Coding calls as itself (R8 batch 3).
+  host.registerAction(agent.createSession, () => ({ runtime_id: "prologue", session_id: `sdk-${++sdkSessions}` }));
+  host.registerAction(agent.startRun, (_runtime, [, input]) => {
     starts.push(structuredClone(input));
     const run: AgentRunView = { ref: { session_id: input.session.session_id, run_id: `run-${runs.length + 1}` }, phase: "completed", started_at: "2026-09-22T00:00:00Z", ended_at: "2026-09-22T00:00:01Z",
       frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", directory: input.directory, budget: null, skills: [], prompts: [], mcp_tools: [], host_tools: [], text_materials: (input.text_materials ?? []).map(({ text: _text, ...material }) => material) },
       turns: [{ turn_id: "u", kind: "user", text: input.task, at: null }, { turn_id: "a", kind: "assistant", text: "只读取了本轮目标", at: null }], activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [], command_outputs: [] };
     runs.push(run); return { ref: run.ref, frozen: run.frozen } as any;
   });
-  host.registerCapability(agent.readSession, (_runtime, [session]) => ({ runs: runs.filter(run => run.ref.session_id === session.session_id).map(run => run.ref) }) as any);
-  host.registerCapability(agent.readRun, (_runtime, [, runRef]) => structuredClone(runs.find(run => run.ref.run_id === runRef.run_id)!));
+  host.registerAction(agent.readSession, (_runtime, [session]) => ({ session, owner: { project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", install_id: "fixture" }, title: "", latest_run: null,
+    runs: runs.filter(run => run.ref.session_id === session.session_id).map(run => run.ref) }));
+  host.registerAction(agent.readRun, (_runtime, [, runRef]) => structuredClone(runs.find(run => run.ref.run_id === runRef.run_id)!));
   return { host, starts, runs, sessionCount: () => sdkSessions, codingCaller: () => captured, holdProgress() {
     const entered = Promise.withResolvers<void>(), released = Promise.withResolvers<void>();
     heldProgress = { enter: () => entered.resolve(), wait: released.promise };

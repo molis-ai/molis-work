@@ -40,12 +40,6 @@ export interface PluginRegistration {
         readonly zh: string;
         readonly en: string;
     }>>;
-    readonly instructions?: readonly InstructionPrompt[];
-    readonly agent?: {
-        readonly prompts: readonly AgentPromptText[];
-        readonly skills?: readonly AgentSkillDefinition[];
-    };
-    readonly methods?: readonly AgentSkillDefinition[];
     readonly workbench: PluginWorkbenchRegistration;
 }
 

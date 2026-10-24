@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, pagesProjectData } from "./index.js";
+import { PAGES_PROJECT_PLUGIN_ID, pagesManifest, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, pagesProjectData } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -9,8 +9,6 @@ export const registration: PluginRegistration = {
   project_plugin_id: PAGES_PROJECT_PLUGIN_ID, catalog_order: 15,
   manifest: pagesManifest,
   project_data: pagesProjectData,
-  instructions: PAGES_INSTRUCTIONS,
-  methods: pagesMethods,
   personal: true,
   summary: "写文档，可导出 Markdown / PDF。",
   workbench: {

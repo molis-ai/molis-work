@@ -39,6 +39,8 @@ export const CODING_PANELS_MESSAGES = {
   "coding.board.subagent": { zh: "子代理 · {role}", en: "Subagent · {role}" },
   "coding.board.held-subagent": { zh: "子代理 {role}", en: "subagent {role}" },
   "coding.board.holder": { zh: "负责：{holder}", en: "Held by: {holder}" },
+  "coding.board.holder-subtask": { zh: "子任务「{title}」", en: "Subtask “{title}”" },
+  "coding.board.holder-other": { zh: "其他负责人", en: "Other holder" },
   "coding.board.this-session": { zh: "本会话", en: "this session" },
   "coding.board.you": { zh: "你", en: "You" },
   "coding.board.group.run": { zh: "执行", en: "Execution" },

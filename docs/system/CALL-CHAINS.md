@@ -143,8 +143,8 @@
 - 卸载时保留了私有数据、重装的新版本又不能从旧版本升级，现在直接拒绝；已定「重装时让人选：丢弃旧数据或取消」（#3、#60）。
 - 构建期内置插件的停用靠宿主层可用性检查，而不是注销动作，所以目录里它们仍在，只是标为不可用。成员关系是项目目录库里的事实（`project.plugin_added`、`project.plugin_removed` 事件），不是 Runtime 的状态。
 - 没有一个可移除的探针插件把 undo、到期提醒、`background_job`、情境片段、`methods`、放置走完「安装 → 发现 → 调用 → 停用 → 撤权 → 卸载 → 升级」；这些合同的生产方都是构建期插件（W4-01，台账见 [PLUGIN-PLATFORM §9](../platform/PLUGIN-PLATFORM.md)）。
-- Manifest 的 `methods` 通过校验，但只有构建期内置插件会被登记：`builtinRegistrations`（`apps/local-host/src/agent-definitions/builtin-agents.ts`）遍历 `BUILTIN_PLUGIN_CATALOG`，现有的声明方是 Pages 与 Todo；Runtime 插件和已安装插件的宿主都不登记它，声明了也不生效。已定（决定 18）：和内置插件一样注册，启动时登记，停用、卸载、升级时收回（W4-02）。
-- 已定（决定 9）：个人插件装在一个 Home 级的 Runtime 实例里，按项目启用照旧，数据文件留在 `{home}/<id>/<id>.db`、由平台库服务打开；Goals、Artifacts、Sessions 和插件创作台列为批准的构建期例外，其余构建期插件逐族迁到 Runtime（W5-01）。（2026-10-18 改：四个例外取消，Goals 按标准迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理；见防腐 spec §1。）Issue 已复用唯一 Home Runtime；安装/发行物/KV 在 v2 Home 库，其他个人插件仍按迁移次序逐个接入。Home/project 重复身份被实际启动名单拒绝，业务库不搬入 Runtime；新工程证据按 spec §10.2 记录。
+- Manifest 的 `methods` 由插件运行时的定义登记（`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，内置、Runtime 与已安装插件同一条路，PG-051）：启动时登记，停下后不再给别的 Agent，卸载时删，升级登记新版本的（决定 18、W4-02）。现有的声明方是 Pages、Todo 与 Issues。
+- 已定（决定 9）：个人插件装在一个 Home 级的 Runtime 实例里，按项目启用照旧，数据文件留在 `{home}/<id>/<id>.db`、由平台库服务打开；Goals、Artifacts、Sessions 和插件创作台列为批准的构建期例外，其余构建期插件逐族迁到 Runtime（W5-01）。（2026-10-18 改：四个例外取消，Goals 按标准迁，插件创作台并进平台能力，成果库归平台事实；Sessions 已在 SC-4 删除，重做见 BL-177；见防腐 spec §1。）Issue 已复用唯一 Home Runtime；安装/发行物/KV 在 v2 Home 库，其他个人插件仍按迁移次序逐个接入。Home/project 重复身份被实际启动名单拒绝，业务库不搬入 Runtime；新工程证据按 spec §10.2 记录。
 - 已做（决定 26，CHR-1，2026-10-22）：Characters 不再是插件，没有 Manifest、`registration` 和监督器条目。动作声明、处理器与归属绑定在 `modules/characters`，宿主为每个项目注册它的动作提供方（`apps/local-host/src/characters-host.ts`），页面的地址由宿主的 `apps/local-host/src/characters-http.ts` 接，界面是「设置 › 角色」这一节（`apps/workbench/src/settings-sections.ts` 的 `HOST_SECTIONS`），不再是上表的任何一种。项目库里可能还留着旧的安装记录 `io.molis.work.characters`：监督器只启动自己的条目，不会碰它；清掉它是维护项，见 `docs/releases/CHECKLIST.md`。
 
 ## 6. 链 5：后台——调度与监听 → Feed → Inbox → 提醒与通知

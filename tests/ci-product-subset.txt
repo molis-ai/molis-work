@@ -50,7 +50,6 @@ tests/plugin-platform-composition.test.ts
 tests/project-plugins.test.ts
 tests/runtime-integration.test.ts
 tests/schedule-actions.test.ts
-tests/session-messages.test.ts
 tests/shelf-actions.test.ts
 tests/todo-plugin.test.ts
 tests/workspace-project-actions.test.ts
@@ -328,16 +327,7 @@ tests/prologue-subagents.test.ts
 tests/prologue-taskboard.test.ts
 
 # session
-tests/session-adapters.test.ts
-tests/session-associations-atomic.test.ts
-tests/session-content-privacy.test.ts
-tests/session-content.test.ts
-tests/session-handoff-recovery.test.ts
-tests/session-project-actions.test.ts
 tests/session-project-binding-router.test.ts
-tests/session-registry.test.ts
-tests/session-resume.test.ts
-tests/session-tui-capture.test.ts
 
 # Other areas
 tests/alchemist-actions.test.ts
@@ -354,7 +344,6 @@ tests/capsule.test.ts
 tests/catalog-connectors.test.ts
 tests/chrome-inner-scroll.test.ts
 tests/cli-protocol.test.ts
-tests/codex-transport.test.ts
 tests/cognia-ai.test.ts
 tests/cognia-runtime.test.ts
 tests/cognia-workbench.test.ts
@@ -382,7 +371,6 @@ tests/git-plugin.test.ts
 tests/github-device-flow.test.ts
 tests/governance-collaboration-module.test.ts
 tests/governance-provenance.test.ts
-tests/handoff-ledger.test.ts
 tests/home-flow.test.ts
 tests/home-offer-actions.test.ts
 tests/host-inference-completion.test.ts
@@ -410,7 +398,6 @@ tests/planning-engine.test.ts
 tests/plugin-interaction-answer.test.ts
 tests/ppt-subject-kind.test.ts
 tests/primitives.test.ts
-tests/private-work-context-module.test.ts
 tests/projects-module.test.ts
 tests/question-rules-consistency.test.ts
 tests/prompt-registration.test.ts
@@ -425,9 +412,12 @@ tests/scheduler.test.ts
 tests/search-evidence-runtime.test.ts
 tests/search-references.test.ts
 tests/secret-store-format.test.ts
+tests/server-cli.test.ts
 tests/server-database-baseline.test.ts
 tests/shelf-cli-probe.test.ts
 tests/shelf-job-runner.test.ts
+# PG-026-S1-S3-8: original registration failure keeps the copy; changed originals refuse processing.
+tests/shelf-original-feedback-http.test.ts
 tests/shelf-settings.test.ts
 tests/shelf-terminal-recovery.test.ts
 tests/soft-workbench-refinement.test.ts
@@ -450,7 +440,6 @@ tests/web-mutation-key-settle.test.ts
 tests/web-route-table.test.ts
 tests/web-service-settings-client.test.ts
 tests/work-placement.test.ts
-tests/work-session-ui.test.ts
 tests/work-terminal-client.test.ts
 tests/workbench-asset-cache.test.ts
 tests/served-script-text.test.ts

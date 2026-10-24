@@ -1,16 +1,17 @@
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
-import { BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILDER_CHOICE_INSTRUCTIONS, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
+import { ALCHEMIST_INSTRUCTIONS } from "../alchemist-prologue.js";
 
 /**
- * Every instruction a built-in model call uses. A Plugin's live in its package and come from the shared composition; the Host's own
- * sit beside the code that calls the model. `tests/prompt-registration.test.ts` fails when a call's instructions are
- * not in this list, or when a call sends a raw prompt string.
+ * Every instruction a model call the Host makes itself uses: its own modules', which sit beside the code that calls the model, Plugin
+ * Builder's (a platform capability, PG-051 Q2) and Alchemist's (served by the Host, not run by the Plugin Runtime). A running plugin's
+ * come with its definition (`PluginDefinition.instructions`, PG-051). `tests/prompt-registration.test.ts` fails when a call's
+ * instructions are in neither, or when a call sends a raw prompt string.
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
-  ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.instructions ?? []), ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY,
+  ...BUILDER_CHOICE_INSTRUCTIONS, ...ALCHEMIST_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY,
   CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT, KNOWLEDGE_ORGANIZE, KNOWLEDGE_LOCATE,
 ];
 
@@ -39,8 +40,12 @@ export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role:
 export const UNREGISTERED_MODEL_CALLS: ReadonlyArray<{ owner_id: string; title: string; reason: string }> = [
 ];
 
-/** Built-in Plugins whose manifest Agent block is not what their runs use; their real prompts are registered above instead. */
-export const UNUSED_MANIFEST_AGENTS: ReadonlySet<string> = new Set([BUILDER_PLUGIN_ID]);
-
-/** The Host's own modules that call a model directly, by the owner id their instructions use. */
-export const SYSTEM_INSTRUCTION_SOURCES: Readonly<Record<string, string>> = { "system:onboarding": "项目上手", "system:information": "信息助手", "system:memory": "记忆", "system:contextual": "选区推荐" };
+/**
+ * The platform's own owners of instructions and Agents, by owner id: the Host's modules, and Plugin Builder, which keeps its plugin id as
+ * owner so the person's edits stay theirs (PG-051 Q2).
+ */
+export const SYSTEM_INSTRUCTION_SOURCES: Readonly<Record<string, { module: string; title: string }>> = {
+  "system:onboarding": { module: "onboarding", title: "项目上手" }, "system:information": { module: "information", title: "信息助手" },
+  "system:memory": { module: "memory", title: "记忆" }, "system:contextual": { module: "contextual", title: "选区推荐" },
+  [BUILDER_PLUGIN_ID]: { module: "plugin-builder", title: "插件创作工作台" },
+};

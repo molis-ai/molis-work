@@ -154,7 +154,7 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   assert.deepEqual(store.snapshot(projectId!).runs, before.runs);
 });
 
-test("Home opens original Inbox items and source groups, completes Inbox, and keeps an empty message unsent", { timeout: 90_000 }, async t => {
+test("Home opens original Inbox items and source groups and completes Inbox", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
@@ -202,9 +202,6 @@ test("Home opens original Inbox items and source groups, completes Inbox, and ke
   })`);
   if (!inboxId) assert.fail(await evaluate(dumpHome));
   await waitFor("document.querySelector('[data-work-surface=home]').dataset.event==='on' && document.querySelector('[data-home-open-target]') && [...document.querySelectorAll('[data-home-offer]')].some(button=>button.textContent==='做完了' && !button.disabled)");
-  const dock = await evaluate<{ wrap: boolean; talkRight: boolean }>("(()=>{const act=document.querySelector('.home-detail__primary');const buttons=[...act.querySelectorAll('.mw-btn')];const tops=buttons.map(b=>Math.round(b.getBoundingClientRect().y));const talk=act.querySelector('[data-home-open-talk]');const last=buttons.at(-1);return {wrap:new Set(tops).size!==1,talkRight:last===talk && talk.getBoundingClientRect().left>buttons[0].getBoundingClientRect().left}})()");
-  assert.equal(dock.wrap, false, "open and talk controls stay on one row below plugin actions");
-  assert.equal(dock.talkRight, true, "say-something sits on the right");
   await click("[data-home-open-target]");
   await waitFor("document.body.dataset.desktopSurface === 'feed'");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
@@ -234,11 +231,6 @@ test("Home opens original Inbox items and source groups, completes Inbox, and ke
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await evaluate("document.querySelector('[data-home-open-event]')?.click()");
-  await waitFor("document.querySelector('[data-home-open-talk]')");
-  await click("[data-home-open-talk]");
-  await waitFor("document.querySelector('[data-work-surface=home]').dataset.dock==='open'");
-  assert.equal(await evaluate("document.querySelector('[data-home-talk-form] [type=submit]').disabled"), true);
-  await evaluate("document.querySelector('[data-home-talk-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });
 

@@ -100,7 +100,7 @@ export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "
     pickDirectory: () => pickLocalDirectory() }) };
 
 /**
- * The after-write checkers of the project's authorized workspaces (specs/prologue-adoption §6.0p.12): the person's own two
+ * The after-write checkers of the project's authorized workspaces (specs/prologue-adoption §6.0p.13): the person's own two
  * actions, called as the person. This route only adapts the form: it checks nothing itself and answers a refusal with the
  * action's own code, so a stale version is a 409 and an invalid checker a 400 with the action's words.
  */
@@ -147,15 +147,6 @@ export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runti
         catalog => availableProjectPluginIds(catalog.listProjectPlugins(options.project!.project_id)).has(runtimeEntry.project_plugin_id))));
   if (!enabled) { const refusal = actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件")); sendJson(response, refusal.status, refusal.body); return true; }
   return handleProjectPluginHttp(request, response, url, pluginPorts, codingRouteHooks);
-} };
-
-/** The old addresses of the sessions page open the project page at its sessions. */
-export const sessionsAddressRoute: WebRoute<ProjectRuntimeContext> = { id: "sessions-address", handle: ({ request, response, url, options, composition }) => {
-  if (request.method !== "GET" || !/^\/(sessions|workspaces)$/.test(url.pathname)) return false;
-  const desktopQuery = composition.isDesktopShellRequest(request, url) ? "?desktop=1" : "";
-  response.writeHead(302, { location: `${options.routePrefix}/${desktopQuery}#sessions`, "cache-control": "no-store" });
-  response.end();
-  return true;
 } };
 
 /** Small reads the shell and the desktop app poll: health, which runtimes exist, the terminal client, the board cursor. */

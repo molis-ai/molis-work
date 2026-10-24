@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { TODO_INSTRUCTIONS, TODO_MESSAGES, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution, todoProjectData, createTodoPlugin } from "./index.js";
+import { TODO_MESSAGES, TODO_PROJECT_PLUGIN_ID, todoManifest, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution, todoProjectData, createTodoPlugin } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -11,11 +11,8 @@ export const registration: PluginRegistration = {
   messages: TODO_MESSAGES,
   runtime: { scope: "home", create: createTodoPlugin, package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" },
   project_data: todoProjectData,
-  instructions: TODO_INSTRUCTIONS,
   personal: true,
   summary: "记下要做的事，分清今天、在等谁。",
-  agent: { prompts: todoPrompts },
-  methods: todoMethods,
   workbench: {
     order: 14,
     contributions: [todoUiContribution],

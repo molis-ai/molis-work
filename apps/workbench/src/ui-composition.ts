@@ -35,7 +35,6 @@ import {
 import { UiHost, createSurfaceRenderer, createSurfaceRenderers } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
-import { createWorkSessionRenderer } from "./work-ui.js";
 
 export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
 import { WORKBENCH_UI_SLOTS } from "./document-shell.js";
@@ -76,8 +75,6 @@ export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost
 export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiPrimitives) {
   return (value: string, label = value): string => renderWorkbenchContribution(ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, "reference", { value, label, primitives });
 }
-
-export const renderProjectOperations = createWorkSessionRenderer(workbenchUiHost);
 
 /** Mount one surface of a registered contribution in the slot the contribution declares for it. */
 export function renderWorkbenchContribution(contributionId: string, surface: string, model: unknown): string {

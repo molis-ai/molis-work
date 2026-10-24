@@ -173,7 +173,9 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 
 通用 Agent Memory Action 和 SDK 内置工具共用同轮 recipe。AgentHost 在创建 action tools / gateway 前捕获快照，经现 actions Port 交 Host 绑定原插件与 Session；缺快照时 Memory 拒绝，不从 Session 最新 attempt 补权。真实生产组合回归见 `tests/agent-memory-action-class-policy.test.ts`。
 
+分类控制接入 R8 后，`agent.session.read.v1`、`agent.run.read.v1`、`agent.run.wait.v1` 的 Action version 为 2：严格输出允许该轮冻结的 `class_restrictions` 与 `memory_scene`，分别位于 `latest_run`、直接 Run view 与 `view`。只登记现版本；插件固定旧版本时以 `actions.dependency_missing` 拒绝，不能自动换版。Coding 与 plugin-builder 的消费声明沿公开定义同步；公开插件 `actions.discover()` 仍只列本安装自身动作，已声明依赖由 `invoke` 按版本与提供方发现。`startRun` 业务输入不收 `memory_context`、`class_restrictions` 或冻结 `role`，由 Host 生成。回归为 `tests/agent-host-actions.test.ts`、`tests/agent-host-composition.test.ts` 与真实 Coding HTTP/SDK 的 `tests/agent-memory-action-class-policy.test.ts`。
+
 
 ### 明确续期（2026-10-24，实现中）
 
-Memory renew 经现可信 caller、ExecutionControl 和 formal ref 解析直接调用公开 SDK memory.renew；Adapter 只映射 expires_at_ms，不修改状态、分类或来源，不补 Session 绑定。依赖 SDK #96 交付包；干净包与真实测试未运行前不称已采用。
+Memory renew 经现可信 caller、ExecutionControl 和 formal ref 解析直接调用公开 SDK memory.renew；Adapter 只映射 expires_at_ms，不修改状态、分类或来源，不补 Session 绑定。本片保留已采用的 SDK #96 交付包；接入新父后的验证结果见 Memory spec，不将旧父证据冒充本轮通过。

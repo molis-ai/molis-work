@@ -5,8 +5,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
+import { ArtifactsModule, ProcessItemsModule, createPluginArtifactClient } from "@molis-ai/molis-work-module-artifacts";
 import { assertPluginActionCurrent } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { CALLERS_READ as READ, CALLERS_WRITE as WRITE, callAs, callerPlugin, issuedCaller, probeActions, registerProbe, startProjectPlugins, type CallerPlugin, type CallerScope } from "./fixtures/plugin-callers.js";

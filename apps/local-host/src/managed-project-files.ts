@@ -6,7 +6,7 @@ import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
 import type { CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
-import { initializeProjectDatabase, validateManagedBoard } from "./managed-project-database.js";
+import { initializeProjectDatabase, validateManagedProject } from "./managed-project-database.js";
 
 /** Own recoverable file staging; formal Project records stay with Projects. */
 export class ManagedProjectFiles {
@@ -45,7 +45,7 @@ async provisionCreatedProject<T>(
       if (error.code === "ENOENT") return false;
       throw error;
     })) {
-      validateManagedBoard(record.database_path, record.project_id);
+      validateManagedProject(record.database_path, record.project_id);
       return this.commit(() => commit(record));
     }
     let promoted = false;
@@ -54,16 +54,15 @@ async provisionCreatedProject<T>(
       await initializeProjectDatabase(
         path.join(stagingDirectory, "molis-work.db"),
         record.project_id,
-        input.actorId,
       );
-      await validateManagedBoard(path.join(stagingDirectory, "molis-work.db"), record.project_id);
+      await validateManagedProject(path.join(stagingDirectory, "molis-work.db"), record.project_id);
       try {
         await fs.rename(stagingDirectory, projectDirectory);
         promoted = true;
       } catch (error) {
         if (!input.projectId || !["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
         // A competing stable request owns the promoted directory. Adopt only its validated database.
-        validateManagedBoard(record.database_path, record.project_id);
+        validateManagedProject(record.database_path, record.project_id);
         await fs.rm(stagingDirectory, { recursive: true, force: true });
       }
       return await this.commit(() => commit(record));

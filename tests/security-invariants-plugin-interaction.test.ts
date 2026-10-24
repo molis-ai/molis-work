@@ -121,6 +121,14 @@ test("S-56 a value of another shape is refused, not drawn half", async () => {
     await assert.rejects(interaction.nextStepsHtml(raw<PluginInteractionNextSteps>(null)), invalid);
     await assert.rejects(interaction.nextStepsHtml(raw<PluginInteractionNextSteps>({ questions: [], cards: [{}] })), invalid);
     await assert.rejects(interaction.nextStepsHtml(raw<PluginInteractionNextSteps>({ questions: [], cards: [], follow_ups: [{ id: "again", label: 1, source: "Probe" }] })), invalid);
+    // Nested fields are where a top-level check would let a value through and the drawing would throw or draw half (the P3).
+    await assert.rejects(interaction.cardHtml(raw<AssistantCard>({ ...card(), fields: [{ key: "name", label: "Name", value: "Plan", editable: "yes" }] })), invalid);
+    await assert.rejects(interaction.cardHtml(raw<AssistantCard>({ ...card(), fields: [{ ...card().fields[0]!, options: [{ value: "a", label: 1 }] }] })), invalid);
+    await assert.rejects(interaction.cardHtml(raw<AssistantCard>({ ...card(), missing: [{ field: "name" }] })), invalid);
+    await assert.rejects(interaction.cardHtml(raw<AssistantCard>({ ...card(), status: "done", presentation: { summary: "Renamed", link: { label: "Open" } } })), invalid);
+    await assert.rejects(interaction.questionHtml(raw<AgentPendingQuestion>({ ...question(), options: [{ value: "a", label: 1 }] })), invalid);
+    await assert.rejects(interaction.questionHtml(raw<AgentPendingQuestion>({ ...question(), questions: [{ prompt: "Which?" }] })), invalid);
+    await assert.rejects(interaction.nextStepsHtml(raw<PluginInteractionNextSteps>({ questions: [], cards: [], finished: "yes" })), invalid);
   });
 });
 

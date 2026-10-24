@@ -106,7 +106,7 @@ test("production Coding memory.list keeps the old Run restriction after reopenin
 
   // Coding's HTTP entry carries its real running activation into composeAgentHost/startAuthority (PG-051).
   // A direct Host client has no plugin declaration and must not borrow the bundled reader role.
-  const composition = ensureSystemAgentService(host, home);
+  ensureSystemAgentService(host, home);
   const coding = `/projects/${project.project_id}/api/plugins/${CODING}`;
   const { session } = await served.web.post<{ session: { session_id: string } }>(`${coding}/sessions`, { title: "Memory action snapshot" });
   const web = served.web;
@@ -114,19 +114,32 @@ test("production Coding memory.list keeps the old Run restriction after reopenin
     intent: "discuss", task: "请调用所选能力查看项目记忆。", workspace_id: workspaces.workspaces[0]!.workspace_id,
     action_tools: [action], provider_id: "fixture", model_id: "fixture-model",
   })).run;
+  // Coding's real routes call the plugin-only readSession/readRun/wait Actions, including their strict output schemas.
+  const read = async (ref: AgentRunRef) => {
+    const timeline = await web.get<{ runs: AgentRunView[] }>(`${coding}/sessions/${session.session_id}`);
+    const view = timeline.runs.find(item => item.ref.run_id === ref.run_id);
+    assert.ok(view, "the public timeline must contain the started Run");
+    return view;
+  };
   const finish = (ref: AgentRunRef): Promise<AgentRunView> => until(async () => {
-    const view = await composition.agentHost.adapter("prologue").read(ref);
+    const result = await web.get<{ version: string; runs: AgentRunView[] }>(`${coding}/sessions/${session.session_id}/runs/${ref.run_id}/live?timeout=0`);
+    assert.ok(result.version, "the public wait returns its original observation version");
+    const view = result.runs.find(item => item.ref.run_id === ref.run_id);
+    assert.ok(view, "the public wait must return the requested Run");
     return ["completed", "failed", "stopped", "cancelled"].includes(view.phase) ? view : undefined;
   });
   const old = await start();
   await firstRequest.promise;
   assert.deepEqual(providerErrors, []);
-  const captured = await composition.agentHost.adapter("prologue").read(old.ref);
+  const captured = await read(old.ref);
+  assert.equal(captured.memory_scene, "coding");
   assert.deepEqual(captured.class_restrictions?.project, [restriction], "the barrier is after this Run froze its original policy");
   await memory.invoke(memoryActions.savePrefs, { scope: "project", prefs: { class_restrictions: [] } });
   releaseFirst.resolve();
   const oldView = await finish(old.ref);
   assert.equal(oldView.phase, "completed", oldView.stop_reason ?? undefined);
+  assert.deepEqual(oldView.class_restrictions?.project, [restriction], "the public wait keeps the original Run policy after settings reopen");
+  assert.equal(oldView.memory_scene, "coding");
   assert.ok(oldView.activity.some(item => item.name === toolNames[0]), "the old Run really invoked its selected action");
   const toolResults = (index: number) => requests[index]!.flatMap(request => request.messages.flatMap(message =>
     Array.isArray(message.content) ? message.content.filter(block => block.type === "tool_result") : []));

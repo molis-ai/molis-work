@@ -42,7 +42,7 @@ export function createImagesSearchHandlers(service: () => ImagesService): Action
         throw error;
       }
       return subjectContext({ subject: { kind: "image_job", id: job.id }, revision: revisionOf(job), title: titleOf(job), content: [job.prompt, summaryOf(job)].filter(Boolean).join("\n"),
-        goal_ids: [], session_id: null, open: { surface: IMAGES_PROJECT_PLUGIN_ID, id: job.id } });
+        goal_ids: [], open: { surface: IMAGES_PROJECT_PLUGIN_ID, id: job.id } });
     } },
   ];
 }

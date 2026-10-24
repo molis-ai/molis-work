@@ -33,5 +33,6 @@ export const agentErrors = defineErrorCodes("agent", {
   runtime_unknown: "invalid",
   session_busy: "invalid",
   session_unknown: "invalid",
+  wait_limit_reached: "rate_limited",
   write_checker_invalid: "invalid",
 });

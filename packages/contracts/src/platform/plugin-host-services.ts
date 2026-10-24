@@ -76,9 +76,15 @@ export interface PluginHostServices {
   /**
    * The plugin's own tables in this project's library, present when its Manifest declares `databases.project`. Every statement is
    * checked against the tables the platform made for it (and the project's root row, which it may read); a statement that reaches
-   * any other table, a schema step or a pragma is refused (specs/plugin-project-database).
+   * any other table, a schema step or a pragma is refused (specs/plugin-project-database). `journal` is the project's event log and
+   * idempotency records, for a plugin granted `PROJECT_JOURNAL_PERMISSION` (PG-094 S9-0).
    */
-  readonly project_database?: import("./plugin-database.js").PluginDatabase;
+  readonly project_database?: import("./plugin-database.js").PluginProjectDatabase;
+  /**
+   * The same tables for a plugin the Host runs outside its own process (`execution: "sandbox"`): the host entry that carries the
+   * plugin's code gets this in place of `project_database`, so its statements run in a process the controller can kill.
+   */
+  readonly project_statements?: import("./plugin-database.js").PluginProjectStatements;
   /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
   readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
   /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */

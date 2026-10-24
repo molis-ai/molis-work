@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, localWebActionContext, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
@@ -51,7 +51,7 @@ async function openDual(t: TestContext) {
   const validate = (context: ActionCallContext, definition: ActionDefinition<Record<string, never>, string>) =>
     context.validate_authority!({ ...definition, provider_id: offered(context)[definition.capability_id] });
   return { host, reference, runtime, installId, homeInstall, projectInstall: () => runtime.get(installId), setHomeGrants, setProjectGrants, offered, call, validate,
-    context: () => localWebActionContext(host, reference, []) };
+    context: () => host.localPersonContext(reference) };
 }
 
 test("DUAL-06 the Home instance and the project instance share one install_id, hold their own generations, and each instance's actions are accepted on its own record", async t => {

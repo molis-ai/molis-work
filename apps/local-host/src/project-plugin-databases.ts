@@ -1,4 +1,5 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openPluginProjectDatabase, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
@@ -38,19 +39,46 @@ export function openPluginTables(db: PluginRuntimeDatabase, path: string, manife
 
 /** Open each plugin's tables in the library at `path`; what happened to each is kept with the connection. */
 export function openProjectPluginDatabases(db: PluginRuntimeDatabase, path: string,
-  manifests: readonly PluginManifest[] = projectDatabasePlugins()): ReadonlyMap<string, ProjectPluginDatabaseOutcome> {
+  manifests: readonly PluginManifest[] = projectDatabasePlugins(),
+  open: typeof openPluginTables = openPluginTables): ReadonlyMap<string, ProjectPluginDatabaseOutcome> {
   const opened = new Map<string, ProjectPluginDatabaseOutcome>();
   for (const manifest of manifests) {
     if (!manifest.databases?.project) continue;
-    try {
-      opened.set(manifest.plugin_id, { plugin_id: manifest.plugin_id, record: openPluginTables(db, path, manifest) });
-    } catch (error) {
-      hostLog.warn("project_database", "plugin_database_refused", error, { plugin_id: manifest.plugin_id });
-      opened.set(manifest.plugin_id, { plugin_id: manifest.plugin_id, error: error instanceof Error ? error : new Error(String(error)) });
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        opened.set(manifest.plugin_id, { plugin_id: manifest.plugin_id, record: open(db, path, manifest) });
+        break;
+      } catch (error) {
+        // SQLITE_BUSY/LOCKED while another writer holds the library is not the declaration's answer: try again a bounded
+        // number of times before surfacing it, so a moment of contention does not refuse a plugin or hide the error.
+        if (attempt < 3 && isTransientProjectDatabaseError(error)) continue;
+        if (!isProjectPluginDatabaseRefusal(error)) {
+          hostLog.error("project_database", "plugin_database_failed", error, { plugin_id: manifest.plugin_id });
+          throw error;
+        }
+        hostLog.warn("project_database", "plugin_database_refused", error, { plugin_id: manifest.plugin_id });
+        opened.set(manifest.plugin_id, { plugin_id: manifest.plugin_id, error });
+        break;
+      }
     }
   }
   outcomes.set(db, opened);
   return opened;
+}
+
+// The platform's one open function names its own refusals `plugin.project_database.<reason>`; everything else (SQLITE_BUSY while
+// another writer holds the library, a broken connection) is not a refusal: it must surface as an error, never be recorded as one.
+const PROJECT_DATABASE_REFUSAL_PREFIX = "plugin.project_database.";
+
+/** Whether this is the declaration's own refusal, the only kind that stops one plugin and lets the library open. */
+export function isProjectPluginDatabaseRefusal(error: unknown): error is ActionError {
+  return error instanceof ActionError && error.code.startsWith(PROJECT_DATABASE_REFUSAL_PREFIX);
+}
+
+/** Whether SQLite asked us to try again later (another writer, a lock), rather than answering the declaration. */
+const TRANSIENT_DATABASE_ERROR = /SQLITE_BUSY|SQLITE_LOCKED|database (?:table )?is locked/i;
+export function isTransientProjectDatabaseError(error: unknown): boolean {
+  return error instanceof Error && TRANSIENT_DATABASE_ERROR.test(error.message);
 }
 
 /** The refusal recorded for this plugin when the library opened, if any. */

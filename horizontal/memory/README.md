@@ -2,7 +2,7 @@
 
 ## M3 到期正式记忆的明确续期（实现中）
 
-短合同见现策略 spec 的「M3 到期正式记忆的明确续期」。`memory.change@4` 的 renew 仅本人明确选择新绝对期限，复用 MemoryEdits、现 change-request/子操作 marker 与 SDK renew；原操作同时固定目标/所见版本/期限，原 SDK 结果补入同一历史事务。 SDK 返回后、历史事务前重跑本次 `beforeEffect`，随后同步检查公开 `caller.signal`，直接构造 Service 也不能在取消后补账；Action 的实际 SQL 继续核同步的存活、取消与当前授权；SDK 已提交后的拒绝保留原操作补账，不虚称零正式写入。后继版本不覆盖，paused/disabled 不恢复，来源/分类/未知事实保持，Session 管理本片明确拒绝。SDK 新包与真实回归待统筹接入，不据源码声称可用。
+短合同见现策略 spec 的「M3 到期正式记忆的明确续期」。`memory.change@4` 的 renew 仅本人明确选择新绝对期限，复用 MemoryEdits、现 change-request/子操作 marker 与 SDK renew；原操作同时固定目标/所见版本/期限，原 SDK 结果补入同一历史事务。 SDK 返回后、历史事务前重跑本次 `beforeEffect`，随后同步检查公开 `caller.signal`，直接构造 Service 也不能在取消后补账；Action 的实际 SQL 继续核同步的存活、取消与当前授权；SDK 已提交后的拒绝保留原操作补账，不虚称零正式写入。后继版本不覆盖，paused/disabled 不恢复，来源/分类/未知事实保持，Session 管理本片明确拒绝。本片保持原已采用 SDK96；准确父 c10 的集成验证按策略 spec 记录，不据源码声称本轮通过。
 
 ## M3 正式记忆管理页
 

@@ -176,9 +176,10 @@ test("services.model is for a plugin the Host runs itself that declares model:in
 
     const sandboxed = platformIn(directory), boxed = probe({ name: "boxed", execution: "sandbox" });
     try {
-      await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }]);
-      assert.equal(boxed.started.length, 1, "the sandboxed plugin started");
-      assert.equal(boxed.started.at(-1)?.model, undefined, "the model is a service of the Host's own process, not of sandboxed code");
+      // The model is a service of the Host's own process, not of sandboxed code: a sandboxed package that declares it does not start (S-60).
+      assert.deepEqual((await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }])).running, []);
+      assert.equal(boxed.started.length, 0, "the sandboxed plugin's code never ran");
+      assert.equal(sandboxed.platform.runtime.get(sandboxed.installId(boxed.id)).last_error_code, "sandbox.service_not_given");
     } finally { sandboxed.store.close(); }
 
     const homeless = platformIn(directory, null), alone = probe({ name: "alone" });
@@ -625,7 +626,15 @@ test("S-18 RAC-50 RAC-53 background execution needs its declaration and active a
     if (kind === "sandbox") probe.definition.execution = "sandbox";
     if (kind === "undeclared") for (const action of probe.definition.manifest.actions ?? []) delete action.action.background_job;
     try {
-      assert.deepEqual((await item.platform.start([{ definition: probe.definition, grants: probe.permissions }])).running, [probe.id]);
+      const started = await item.platform.start([{ definition: probe.definition, grants: probe.permissions }]);
+      if (kind === "sandbox") {
+        // Background jobs are not given to sandboxed code (S-60, PG-017 P3): a package that declares them does not start.
+        assert.deepEqual(started.running, []);
+        assert.equal(probe.contexts.length, 0, "the sandboxed plugin's code never ran");
+        assert.equal(item.platform.runtime.get(item.installId(probe.id)).last_error_code, "sandbox.service_not_given");
+        continue;
+      }
+      assert.deepEqual(started.running, [probe.id]);
       const services = probe.contexts.at(-1)!.services!;
       assert.equal(services.model, undefined);
       if (kind !== "declared") assert.equal(services.background, undefined);

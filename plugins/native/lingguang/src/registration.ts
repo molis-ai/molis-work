@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution, lingguangProjectData, LINGGUANG_HOME_STORE } from "./index.js";
+import { LINGGUANG_MESSAGES, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution, lingguangProjectData, LINGGUANG_HOME_STORE } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -10,6 +10,7 @@ export const registration: PluginRegistration = {
   home_store: LINGGUANG_HOME_STORE,
   manifest: lingguangManifest,
   project_data: lingguangProjectData,
+  messages: LINGGUANG_MESSAGES,
   personal: true,
   summary: "先记下想法，再决定留下或丢掉。",
   workbench: {

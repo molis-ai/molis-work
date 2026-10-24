@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, filesOutputsRefresh, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_REPORT_TYPE, CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, agentTextMaterialContent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
@@ -66,7 +66,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     return { status: res.status, body: await res.json() };
   };
   try {
-    new Function(`return (${CODING_CLIENT_FACTORY_SCRIPT})`);
+    new Function(`return (${CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT})`);
     assert.equal((await request("other", "failed", "POST")).status, 400);
     assert.equal((await request("app", "pending", "POST")).status, 400);
     assert.equal((await request("missing-session", "failed", "POST")).status, 404);

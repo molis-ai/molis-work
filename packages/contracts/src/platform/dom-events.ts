@@ -120,7 +120,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.",
   },
   coding: {
-    files: ["plugins/native/coding/src/client.ts"],
+    files: ["plugins/native/coding/src/browser/main/page.ts", "plugins/native/coding/src/browser/main/mount-events.ts"],
     state: "The Coding surface: its sessions, the open session and its composer.",
   },
   "character-terminal": {

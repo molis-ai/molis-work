@@ -44,7 +44,7 @@ export interface ActionPorts extends PagePorts {
  */
 export function actionsClient(ports: ActionPorts) {
   const L = ports.translate;
-  const { lifetime, q, api, current, selections, save, controls, status, make, sessionPath, readCurrent, interaction } = ports;
+  const { lifetime, q, api, current, selections, save, controls, status } = ports;
   const dialog = q<HTMLDialogElement>('[data-coding-actions-dialog]'), list = q('[data-coding-actions-list]'), error = q('[data-coding-actions-error]'), submit = q<HTMLButtonElement>('[data-coding-actions-save]');
   const key = (ref: ActionRef) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id]);
   let session = '', ticket = 0, busy = false;
@@ -132,7 +132,13 @@ export function actionsClient(ports: ActionPorts) {
       enabled.forEach(input => input.disabled = false);
     }
   };
-  const renderCards = (block: Element, run: CardRun) => {
+  return { renderCards: cardRenderer(ports) };
+}
+
+/** Draws the operation cards of one run in its block: a card whose html is unchanged stays (and keeps its edits), the others are made again and bound. */
+function cardRenderer(ports: ActionPorts) {
+  const { lifetime, api, current, make, sessionPath, readCurrent, interaction } = ports;
+  return (block: Element, run: CardRun) => {
     let box = block.querySelector<HTMLElement>(':scope > [data-coding-cards]');
     if (!run.cards?.length) {
       box?.remove();
@@ -195,5 +201,4 @@ export function actionsClient(ports: ActionPorts) {
       }
     return box;
   };
-  return { renderCards };
 }

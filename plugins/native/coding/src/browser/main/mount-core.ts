@@ -21,8 +21,9 @@ function phaseWords(L: Page["L"]): Record<string, string> {
 /** What each role is called where the page names a round's or a subtask's role. */
 function roleNames(L: Page["L"]): Record<string, string> {
   return {
-    planner: L("规划者"), reader: L("阅读者"), reviewer: L("评审者"), coordinator: L("协作"), writers: L("并行写入"), builder: L("构建者"), writer: L("改写者"),
-    "coding-reader": L("代码调查"), "coding-reviewer": L("独立评审"), "coding-builder": L("独立实现"),
+    planner: L("coding.role.planner"), reader: L("coding.role.reader"), reviewer: L("coding.role.reviewer"), coordinator: L("coding.role.coordinator"), writers: L("coding.role.writers"),
+    builder: L("coding.role.builder"), writer: L("coding.role.writer"), "coding-reader": L("coding.role.coding-reader"), "coding-reviewer": L("coding.role.coding-reviewer"),
+    "coding-builder": L("coding.role.coding-builder"),
   };
 }
 

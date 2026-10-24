@@ -1,6 +1,6 @@
 /**
- * Private files whose root and top-level entries are fixed by the trusted Home start list. 2026-10-18 改: declared in the Manifest
- * and granted like any plugin's, initial files as declared seeds (PG-102, PG-103 in specs/repository-anti-corruption/privileges.md); until then, as above.
+ * A plugin's own files in the Home: the root and top-level entries are what its Manifest declares (`owner_files`, PG-102), like any
+ * plugin's; the Host gives the service only to a definition on its start list, whose root its store registry holds as this plugin's.
  */
 export type PluginOwnerFileInfo = { readonly kind: "file"; readonly byte_length: number } | { readonly kind: "directory" };
 export interface PluginOwnerFileEntry { readonly name: string; readonly kind: "file" | "directory" }

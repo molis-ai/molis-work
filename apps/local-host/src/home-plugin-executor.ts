@@ -20,7 +20,7 @@ import { pluginConnectionsFor } from "./plugin-connections-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
-import type { PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
+import { ownerFilesGiven, type PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
@@ -102,7 +102,7 @@ export class HomePluginExecutor implements PluginExecutor {
       else if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context);
       const fileDeclaration = this.options.files(definition);
       if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context);
-      const owned = this.options.ownerFiles(definition);
+      const owned = ownerFilesGiven(definition, this.options.ownerFiles(definition));
       const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
         { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: authorize }, join(realpathSync(this.options.home), owned.declaration.store_name)) : undefined;
       if (owned?.initialize && context.grants.includes("storage:private") && context.grants.includes(owned.declaration.write_permission)) ownerFiles!.initializeTrusted(owned.initialize);

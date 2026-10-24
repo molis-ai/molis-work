@@ -82,7 +82,7 @@ export function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]):
   const registry = homeStores(), own = new Map<string, HomeStore>();
   for (const fixture of [...fixtures?.project ?? [], ...fixtures?.home ?? []]) {
     const entry = "manifest" in fixture ? { definition: fixture } : fixture, database = entry.definition.manifest.databases?.home;
-    const names = new Set([database?.store_name, "files" in entry ? entry.files?.store_name : undefined, "owner_files" in entry ? entry.owner_files?.store_name : undefined]);
+    const names = new Set([database?.store_name, "files" in entry ? entry.files?.store_name : undefined, entry.definition.manifest.owner_files?.store_name]);
     for (const name of names) {
       if (!name || registry.get(name) || own.has(name) || !PLUGIN_LIBRARY_NAME.test(name)) continue;
       own.set(name, { path: name, owner: entry.definition.manifest.plugin_id,

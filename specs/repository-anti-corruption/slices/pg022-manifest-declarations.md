@@ -1,6 +1,6 @@
 # PG-022 / PG-102 / PG-103 / PG-104：宿主条目上的声明搬进 Manifest
 
-状态：统筹已裁（2026-10-24，见 §6「统筹 10-24 裁」）；P1（Home 库）已在分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，已推送，PR 排在 §8 列的在途 PR 和本线 #1119、#1139 合入之后；顺序 P1 → P1b → P2 → P3，P1b、P2、P3 还没写代码。代码按 main `abc052bcb` 核过。
+状态：统筹已裁（2026-10-24，见 §6「统筹 10-24 裁」）；P1（Home 库）已在分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，已推送，PR 排在 §8 列的在途 PR 和本线 #1119、#1139 合入之后；顺序 P1 → P1b → P2 → P3；P2 拆成 P2a（`owner_files` 进 Manifest，已在同一分支实现）和 P2b（`files` 合并、Images 迁移、删 `initialize_owner_files`，等 R1～R3 的裁定）；P1b 等统筹答 A/B；P3 还没写代码。代码按 main `abc052bcb` 核过。
 
 ## 1. 现状
 
@@ -75,6 +75,27 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 - Manifest 增 `model_configuration`（偏好存放、自定义提供方、读与存两个动作）和 `image_generation`（动作与权限）；形状取自现有 `PluginModelConfigurationDeclaration`、`PluginImageGenerationDeclaration`，宿主两处条目检查改读 Manifest，权限要安装时批准。
 - 这两项会把宿主的模型凭据引用交给插件的服务对象（不是明文），所以动作作用域与花钱的口径照 `services.model`：只在本插件自己的并发动作里调用。
 
+### 5.1 P2 开工后查到的（2026-10-24）
+
+开工前核对（§8）没看到、写代码时才露出来的三件事，和审定稿的假设不符：
+
+1. **`initialize_owner_files` 有生产使用者：Shelf**（`initializeShelfFiles`，`modules/shelf/src/store.ts`）往新架子里放「试用示例.pdf」并写 `catalog.json`。`catalog.json` 里是条目 id、哈希、时间，静态的 Manifest 种子（路径加字节）写不出来。
+2. **Images 的 `files` 读写权限都是 `storage:private`**，而 ownerFiles 要求调用它的**动作**自己声明文件权限（`owner-files-service.ts` 的 `scope.definition.action.permissions.includes(permission)`）。Images 的动作带的是 `images:read`、`images:generate`、`images:delete`，所以直接迁移过去，写文件的动作都被拒。
+3. **Images 在 `start` 里恢复**（`ImagesService.recover` 列出并删除没人引用的图片文件）。start 里没有动作作用域，而 ownerFiles 在动作之外一律拒绝。
+
+待统筹裁（推荐在前，已发给统筹）：
+
+- **R1 动作之外怎么办（管 1 和 3）。** 推荐：ownerFiles 在动作之外（`start`、定时器）也开，条件是安装的现行授权覆盖 `storage:private` 与文件权限，这是其他服务（`assertPluginActionCurrent`）一贯的规矩；动作里不变；不再有 `control` 参数。这样 Shelf 在自己的 `start` 里放示例，Images 在自己的 `start` 里回收，钩子删掉。另一条路是写仍只在动作里：Shelf 在第一个动作里才放示例，Images 把回收挪进 `jobs.start`，两者都改行为。
+- **R2 Images 的权限（管 2）。** 推荐：加一项 Images 权限 `images:files:write`（Manifest 里，可选），加进 `images.jobs.start`（版本 2→3）与 `images.jobs.delete`（1→2）；读用每个读动作本来就有的 `images:read`。这改两个动作合同：动作快照、升版本、MCP 客户端要重新授权。另一条是只对 Images 去掉「动作要声明文件权限」这一检查，我不想自己削弱 S-15。
+- **R3 名字。** 留 `ownerFiles` / Manifest `owner_files`，删 `files`：GLOSSARY 里没有这个词，文档已把另一套叫「旧 files」，所有 S 行和测试已经叫 owner files。要改叫 `files` 是机械改名。
+
+我自己定的两点：
+
+- 项目插件的 Manifest 声明了 `owner_files`：除非它是 Home 那一半的双实例的项目一半（与 Home 一半共用 Manifest，不拿服务），一律以 `plugin.declaration_invalid` 拒绝启动。这也关掉了 PG-104 说的「项目执行器的 files 不按项目分区」：项目实例拿不到文件，就无从谈分区；真要给项目实例分区的文件是以后的功能，要先定。
+- 文件根可以和同一个插件自己的库共用（Images 的 `images.db` 与 `assets/` 都在 `images` 下），条目决定服务能碰哪些，不然 Images 要搬真实 Home 里已有的图片。到 P2b 才用得上，现在 `assertOwnerFilesEntries` 仍拒绝共根。
+
+P2a（已做）：`PluginManifest.owner_files`（SDK `ownerFilesDeclarationProblems` 查形状）；`plugin-owner-files-entries.ts` 的 `assertOwnerFilesEntries` 读 Manifest，`ownerFilesGiven` 对「声明了却不在名单上」以 `plugin.declaration_invalid` 拒绝；条目与 `PluginRegistration.runtime` 去掉 `owner_files`；Shelf 把 `SHELF_OWNER_FILES` 搬进 `owner-files.ts` 并写进自己的 Manifest；`setAccess` 的权限位收紧（V-30）。`initialize_owner_files` 和旧 `files` 还在，等 R1～R3。
+
 ## 6. 要统筹定的
 
 - **Q1 非内置插件的 Home 库（P1b）什么时候做？** 推荐：P1 合入后紧接着做，不等沙箱。做法：登记从已安装插件的 Manifest 推出（卸载并清理用户数据时才清得到），首次打开在库文件里记一张账本表（`plugin_id`、发布者签名、版本、基线哈希），换了发布者、版本或形状就拒，这与项目库账本同一种规则。P1 先把「只有内置定义」写成带码的拒绝，不留静默缺席。
@@ -104,6 +125,16 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 | RAC-304 | 不在宿主启动名单上的定义（装进来的、带着内置插件的 `plugin_id` 与同样的 `databases.home`）被拒，码 `plugin.declaration_invalid`，什么都没运行，打不开别人的库 | `tests/plugin-project-database.test.ts` |
 | RAC-305 | 分区库的 `project_data` 清理仍成立（读 Manifest 的 `partition`）；删项目时库被清 | `tests/plugin-database-partition.test.ts`（PART-03）、`tests/plugin-database-partition-deletion.test.ts` |
 | PLIB-11 | Home 库的声明只在 Manifest 的 `databases.home`，可信条目上不再有 `database:` | `tests/home-library-declaration.test.ts`（读源码断言条目类型没有 `database`） |
+
+P2a：
+
+| 编号 | 断言 | 测试 |
+| --- | --- | --- |
+| RAC-306 | V-30：新建的文件和目录、`setAccess` 的只读与读写，都只有 Host 的用户有权限位（0o600/0o700、0o400/0o500），umask 为 0 也一样 | `tests/security-invariants-plugin-owner-files.test.ts` |
+| RAC-307 | 同 `plugin_id` 的另一个定义声明了文件、不在名单上：升级被拒，码 `plugin.declaration_invalid`，它的代码没运行、原来的继续运行；不声明文件的不继承服务 | `tests/security-invariants-plugin-owner-files-lifecycle.test.ts` |
+| RAC-308 | 装在名单之外、声明了 `owner_files` 的定义：启动被拒，安装记录的 `last_error_code` 是 `plugin.declaration_invalid`，没读没写，没建根目录 | `tests/owner-files-declaration.test.ts` |
+| RAC-309 | Manifest 的 `owner_files` 形状逐条拒绝：不认的字段、根名、没有条目、带路径或重名的条目、不认的种类、不在 permissions 里的权限、没有 `storage:private` | 同上 |
+| RAC-310 | Shelf 的文件声明在它自己的 Manifest 里，登记里没有；内置插件里只有它声明 | 同上；`tests/dual-instance-services.test.ts`（双实例的项目一半不拿服务）、`tests/security-invariants-plugin-owner-files-registration.test.ts`（项目插件声明被拒） |
 
 ## 8. 开工前核对（2026-10-23，`gh pr list` 的文件清单）
 

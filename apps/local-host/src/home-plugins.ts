@@ -22,7 +22,6 @@ export interface HomePluginEntry {
   readonly manifest: PluginManifest;
   readonly create: () => PluginDefinition;
   readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
-  readonly owner_files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesDeclaration;
   readonly initialize_owner_files?: (writer: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesWriter) => void;
   readonly model_configuration?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration;
   readonly image_generation?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration;
@@ -113,12 +112,12 @@ export class HomePluginHost {
     const identity = pluginEntryIdentity();
     const shipped = this.options.entries.map(entry => {
       const definition = entry.create();
-      return { definition, bundled: true, files: entry.files, owner_files: entry.owner_files, initialize_owner_files: entry.initialize_owner_files,
+      return { definition, bundled: true, files: entry.files, initialize_owner_files: entry.initialize_owner_files,
         model_configuration: entry.model_configuration, image_generation: entry.image_generation, project_data: entry.project_data, dual_instance: entry.dual_instance,
         releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => {
           const released = factory();
           identity.remember([{ definition: released, bundled: true, files: identity.filesFor(definition),
-            owner_files: identity.ownerFilesFor(definition)?.declaration, initialize_owner_files: identity.ownerFilesFor(definition)?.initialize,
+            initialize_owner_files: identity.ownerFilesFor(definition)?.initialize,
             model_configuration: identity.modelConfigurationFor(definition), image_generation: identity.imageGenerationFor(definition), project_data: identity.projectDataFor(definition),
             dual_instance: entry.dual_instance }]);
           return released;

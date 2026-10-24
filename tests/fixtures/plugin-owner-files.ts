@@ -25,7 +25,7 @@ export function ownerFilesProbe(name = "ownerprobe", scope: "home" | "project" =
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version, name, kind: "app",
     publisher: { publisher_id: "example", signature: `owner-files-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "Own files" })),
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [readAction, writeAction, queryWrite, undeclared],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [readAction, writeAction, queryWrite, undeclared], owner_files,
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } },
     start(context) {
       contexts.push(context); behavior.start(context);
@@ -37,7 +37,9 @@ export function ownerFilesProbe(name = "ownerprobe", scope: "home" | "project" =
     }, stop: context => behavior.stop(context), validateUpgrade: ({ context }) => { preflight.push(context); },
   };
   return { id, definition, owner_files, permissions, read, write, contexts, preflight, behavior, readAction, writeAction, queryWrite, undeclared,
-    entry: (initialize_owner_files?: (writer: PluginOwnerFilesWriter) => void) => ({ definition, owner_files, ...(initialize_owner_files ? { initialize_owner_files } : {}) }),
+    entry: (initialize_owner_files?: (writer: PluginOwnerFilesWriter) => void) => ({ definition, ...(initialize_owner_files ? { initialize_owner_files } : {}) }),
+    /** The same definition with no files in its Manifest: what a plugin that asks for none is. */
+    withoutFiles: (): PluginDefinition => ({ ...definition, manifest: (({ owner_files: _, ...rest }) => rest)(definition.manifest) }),
     client: (): PluginOwnerFilesClient => contexts.at(-1)?.services?.ownerFiles ?? assert.fail("no owner files service"),
     caller: (projectId: string | null = null): ActionCallContext => person(permissions, projectId) };
 }

@@ -9,6 +9,7 @@ import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
+import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
@@ -78,6 +79,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
   const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions);
   if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
+  const ownerFilesProblems = ownerFilesDeclarationProblems(manifest.owner_files, permissions);
+  if (ownerFilesProblems.length > 0) invalid(ownerFilesProblems.join("；"));
   const capabilities = record(manifest.capabilities, "capabilities");
   strings(capabilities.provides, "capabilities.provides");
   strings(capabilities.consumes, "capabilities.consumes");

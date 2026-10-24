@@ -481,9 +481,9 @@ await caller.beforeEffect(); // 写业务记录之前
 
 ## Home 主人的私有文件树
 
-可信 Home 条目可声明 `owner_files` 与可选的 `initialize_owner_files`，根目录沿唯一 HomeStoreRegistry 验证 owner；同一根不能同时被 database、旧 files 或第二份 owner_files 占用，完整声明校验在受管开库和初始化之前完成。声明绑定实际 definition 并深复制冻结。项目、沙箱、升级预检以及 Manifest 自报字段均不能获得服务。它是平台前置，现 Shelf owner 和正式装配保持现状。
+插件在自己的 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（PG-102，和 `databases.home` 一样写在 Manifest、不写在宿主条目上；读写权限和 `storage:private` 都要在 Manifest 的 permissions 里）。Home 条目另可带 `initialize_owner_files`。根目录沿唯一 HomeStoreRegistry 验证 owner；同一根不能同时被 database、旧 files 或第二份 owner_files 占用，完整声明校验在受管开库和初始化之前完成。声明绑定宿主启动名单上的实际 definition 并深复制冻结：声明了文件却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明文件被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱、升级预检不能获得服务。Shelf 用它。
 
-`services.ownerFiles.stat/read/list(relative)` 需要本安装正在执行的真实动作读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。可信 initializer 在有效 activation 与写 grant 下获得同样的短 writer，完成后才 start/register；它不进入插件 services。
+`services.ownerFiles.stat/read/list(relative)` 需要本安装正在执行的真实动作读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。可信 initializer 在有效 activation 与写 grant 下获得同样的短 writer，完成后才 start/register；它不进入插件 services。新建文件和目录只有 Host 的用户可读写（0o600/0o700），`setAccess` 的只读是 0o400/0o500、读写是 0o600/0o700，不留组和其他人的权限位（V-30）。
 
 路径是已声明顶层下的严格相对路径，可包含 Unicode；软硬链接、特殊节点和不安全子树均拒绝。create/copy 独占，replace 要已有文件；replaceFileAtomic 使用同目录独占临时文件，rename 前失败保留原字节并清本次临时文件。removeTree 先预检且不删除声明目录顶层。读写无额外32MiB限制，仍受运行环境字节上限约束。没有多文件事务、掉电持久或同 OS 用户并发替换父目录防护的承诺；同步成功后又抛错不会回滚此前合法写入。
 

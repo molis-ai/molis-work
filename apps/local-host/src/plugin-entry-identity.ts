@@ -26,6 +26,7 @@ export function pluginEntryIdentity() {
     dualInstance: (definition: PluginDefinition) => dual.has(definition),
     /** Whether this Manifest object is the one a bundled definition on the Host's start list carries. */
     shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && bundledManifests.has(manifest),
+    /** The files its Manifest declares, for a definition object the Host's start list holds, with the initializer the list gave it. */
     remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean; files?: PluginFilesDeclaration;
       model_configuration?: PluginModelConfigurationDeclaration; image_generation?: PluginImageGenerationDeclaration; project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
@@ -33,8 +34,9 @@ export function pluginEntryIdentity() {
         if (entry.dual_instance) dual.add(entry.definition);
         listed.add(entry.definition);
         if (entry.files) files.set(entry.definition, Object.freeze({ ...entry.files }));
-        if (entry.owner_files) ownerFiles.set(entry.definition, Object.freeze({
-          declaration: Object.freeze({ ...entry.owner_files, entries: Object.freeze(entry.owner_files.entries.map(item => Object.freeze({ ...item }))) }),
+        const owned = entry.definition.manifest.owner_files;
+        if (owned) ownerFiles.set(entry.definition, Object.freeze({
+          declaration: Object.freeze({ ...owned, entries: Object.freeze(owned.entries.map(item => Object.freeze({ ...item }))) }),
           initialize: entry.initialize_owner_files,
         }));
         const config = entry.model_configuration;

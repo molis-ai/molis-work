@@ -59,7 +59,7 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
  * One entry of the Host's own start list. A plugin on it is given the library in the Home its Manifest declares
  * (`databases.home`, as `services.database`); `assertDatabaseEntries` says what a list may declare.
  */
-export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "owner_files" | "initialize_owner_files" | "dual_instance"> {
+export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "initialize_owner_files" | "dual_instance"> {
   readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
 }
 

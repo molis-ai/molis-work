@@ -3155,6 +3155,7 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
+    owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];

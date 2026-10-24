@@ -32,7 +32,7 @@ test("SHF-IO-S01 all trusted declaration failures precede managed Home stores an
     if (invalid === "duplicate-name") Object.assign(probe.owner_files, { entries: [{ name: "same", kind: "file" }, { name: "same", kind: "directory" }] });
     if (invalid === "nested-name") Object.assign(probe.owner_files, { entries: [{ name: "parent/child", kind: "file" }] });
     if (invalid === "kind") Object.assign(probe.owner_files.entries[0]!, { kind: "socket" });
-    const bad = invalid === "initializer-only" ? { definition: probe.definition, initialize_owner_files: () => { seeds++; } } : { ...entry, files };
+    const bad = invalid === "initializer-only" ? { definition: probe.withoutFiles(), initialize_owner_files: () => { seeds++; } } : { ...entry, files };
     const entries = [good.entry(() => { seeds++; }), bad, ...(invalid === "duplicate-store" ? [{ ...entry, definition: { ...probe.definition } }] : [])];
     try {
       assert.throws(() => new MolisWorkLocalHost({ ...(invalid === "no-home" ? {} : { homeDirectory: home }), completeText: null,
@@ -90,8 +90,9 @@ test("SHF-IO-S07 actual project platform refuses ownerFiles declarations and ord
   t.after(async () => { await project.close(); rmSync(home, { recursive: true, force: true }); });
   await assert.rejects(project.platform.start([probe.entry()]), /项目插件/u);
   assert.equal(probe.contexts.length, 0); assert.equal(existsSync(join(home, probe.owner_files.store_name)), false);
-  assert.deepEqual((await project.platform.start([{ definition: probe.definition }])).running, [probe.id]);
-  assert.equal(probe.contexts.at(-1)!.services?.ownerFiles, undefined);
-  const plain = ownerFilesProbe("plainowner"), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [plain.definition] } });
+  const bare = ownerFilesProbe("project-owner", "project");
+  assert.deepEqual((await project.platform.start([{ definition: bare.withoutFiles() }])).running, [bare.id]);
+  assert.equal(bare.contexts.at(-1)!.services?.ownerFiles, undefined);
+  const plain = ownerFilesProbe("plainowner"), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [plain.withoutFiles()] } });
   await host.homePlugins!.ready(); assert.equal(plain.contexts.at(-1)!.services?.ownerFiles, undefined);
 });

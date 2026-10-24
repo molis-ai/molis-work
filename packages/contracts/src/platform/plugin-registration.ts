@@ -101,15 +101,14 @@ export interface PluginRegistration {
   readonly companions?: readonly string[];
   /**
    * Explicit Runtime activation in the Home; personal visibility alone never migrates an existing plugin. Trusted, as above.
-   * Its library is the Manifest's `databases.home` (PG-022). 2026-10-18 改: the files, model settings and image generation it
-   * names are declared in the Manifest and granted like any plugin's too (PG-102 in specs/repository-anti-corruption/privileges.md);
-   * until then, as here.
+   * Its library is the Manifest's `databases.home` (PG-022). Its files are the Manifest's `owner_files` (PG-102). 2026-10-18 改: the old files,
+   * model settings and image generation it names are declared in the Manifest and granted like any plugin's too (PG-102 in
+   * specs/repository-anti-corruption/privileges.md); until then, as here.
    */
   readonly runtime?: {
     readonly scope: "home";
     readonly create: () => PluginDefinition;
     readonly files?: PluginFilesDeclaration;
-    readonly owner_files?: import("./plugin-owner-files.js").PluginOwnerFilesDeclaration;
     readonly initialize_owner_files?: (writer: import("./plugin-owner-files.js").PluginOwnerFilesWriter) => void;
     readonly model_configuration?: PluginModelConfigurationDeclaration;
     readonly image_generation?: PluginImageGenerationDeclaration;

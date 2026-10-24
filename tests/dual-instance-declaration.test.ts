@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, localWebActionContext, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, homeAgentDefinitions, localWebActionContext, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
 
@@ -58,6 +58,22 @@ test("DUAL-12 DUAL-05 a Home half marked on the Host's list and its project half
   const client = host.actionClient(reference);
   assert.equal((await client.invoke(context, dual.actions.home, {})).half, "home");
   assert.equal((await client.invoke(context, dual.actions.project, {})).half, "project");
+});
+
+test("RAC-198 PG-051 a dual-instance plugin's Home and project halves are one installation: its Agent definitions carry no “多个安装” notice", { timeout: 60_000 }, async t => {
+  // Shelf runs this way. Two installations of one plugin (two signatures) still carry the notice: RAC-198 in tests/plugin-methods-runtime.test.ts.
+  const dual = dualPlugin("dualagent");
+  const manifest = { ...dual.manifest, agent: { roles: [{ role_id: "sorter", version: 1, name: "整理员", workspace: "none" as const, prompts: ["dual-role"] }], prompts: [{ prompt_id: "dual-role", version: 1 }] } };
+  const withAgent = (half: typeof dual.home) => ({ ...half, manifest, agent_prompts: [{ prompt_id: "dual-role", version: 1, body: "两半共用的做法" }] });
+  const { home, host, reference } = await openHost(t, { home: [{ definition: withAgent(dual.home), dual_instance: true }], project: [withAgent(dual.project)] });
+  await host.homePlugins!.ready();
+  assert.equal(host.homePlugins!.installation(dual.id)?.state, "running");
+  await localWebActionContext(host, reference, []);
+  const projectRecord = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list().find(record => record.plugin_id === dual.id));
+  assert.equal(projectRecord?.state, "running", "both halves run");
+  const rows = homeAgentDefinitions(home).registrations().filter(row => row.owner_id === dual.id);
+  assert.deepEqual(rows.map(row => [row.source.kind === "plugin" && row.source.state, row.roles.map(role => role.role_id)]), [["enabled", ["sorter"]]]);
+  assert.ok(!(rows[0]!.notes ?? []).some(note => note.includes("多个安装")), JSON.stringify(rows[0]!.notes));
 });
 
 test("DUAL-12 the same plugin on both start lists without the mark is refused before anything starts", async t => {

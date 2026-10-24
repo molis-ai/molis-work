@@ -8,6 +8,7 @@ import type { AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/moli
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeAgentDefinitions, homeStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { pagesManifest, pagesMethods } from "@molis-ai/molis-work-plugin-pages";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 /**
@@ -117,24 +118,24 @@ test("W4-02-03 an upgrade that starts while another project still runs the earli
     } finally { first.store.close(); second.store.close(); }
   }));
 
-test("W4-02-04 a definition's methods for an owner the catalog registers for are refused; one that carries no bodies starts; a sandboxed definition that carries them does not start", { timeout: 60_000 },
+test("W4-02-04 RAC-192 RAC-194 a built-in plugin's methods come with its running definition and only then; a definition for an owner the platform registers itself is refused; a sandboxed definition that carries methods does not start", { timeout: 60_000 },
   withHome(async home => {
-    // A catalog plugin's own definition (Issues on the Home Runtime) shares the Manifest that declares the methods and carries no
-    // bodies: the catalog registers them, and the plugin starts as before.
-    const catalogOwn = platformIn(home), own = probe({ pluginId: "io.molis.work.pages", methods: [declared("meeting-notes", 2)], bodies: [] });
+    // Pages is built in, and nothing of it is offered until it runs (PG-051): no catalog registers it at start.
+    assert.deepEqual(listed(home, "io.molis.work.pages"), [], "not running: no method for other Agents");
+    const pages = platformIn(home), own = probe({ pluginId: "io.molis.work.pages", methods: [...pagesManifest.methods ?? []], bodies: [...pagesMethods] });
     try {
-      assert.deepEqual((await catalogOwn.platform.start([{ definition: own.definition }])).running, ["io.molis.work.pages"]);
+      assert.deepEqual((await pages.platform.start([{ definition: own.definition }])).running, ["io.molis.work.pages"]);
       assert.equal(own.started(), 1);
-      assert.match(homeAgentDefinitions(home).method("io.molis.work.pages", "meeting-notes", 2).body, /待定问题/, "the catalog's body, not replaced");
-    } finally { catalogOwn.store.close(); }
-    // Pages' methods are the catalog's: a second source for the same owner would replace them in the register, so it does not start.
-    const project = platformIn(home), shadow = probe({ pluginId: "io.molis.work.pages" });
+      assert.match(homeAgentDefinitions(home).method("io.molis.work.pages", "meeting-notes", 2).body, /待定问题/, "the body its definition ships");
+    } finally { pages.store.close(); }
+    // Plugin Builder's Agents and instructions are the platform's own (PG-051 Q2): a definition naming that owner does not start.
+    const project = platformIn(home), shadow = probe({ pluginId: "io.molis.work.plugin-builder" });
     try {
       const refused = await project.platform.start([{ definition: shadow.definition }]);
       assert.deepEqual(refused.running, []);
-      assert.deepEqual(refused.failed.map(entry => entry.plugin_id), ["io.molis.work.pages"]);
+      assert.deepEqual(refused.failed.map(entry => entry.plugin_id), ["io.molis.work.plugin-builder"]);
       assert.equal(shadow.started(), 0, "the plugin never started");
-      assert.ok(homeAgentDefinitions(home).methods().some(method => method.key === "io.molis.work.pages/meeting-notes"), "the catalog's method is still there");
+      assert.equal(homeAgentDefinitions(home).prompts().find(view => view.owner_id === "io.molis.work.plugin-builder")?.source.kind, "system", "the platform's registration is untouched");
     } finally { project.store.close(); }
     // A method's body goes into another Agent's round: only a plugin the Host runs itself registers one, and a sandboxed package that carries methods
     // does not start until an install can show the person what it adds (S-60, PG-017 BL-493).
@@ -196,6 +197,9 @@ test("RAC-193 PG-051 two installations side by side: one stopping leaves the oth
       const ids = (platform: ReturnType<typeof platformIn>) => platform.platform.runtime.list().filter(record => record.plugin_id === AGENT_PROBE).map(record => record.install_id);
       assert.equal(new Set([...ids(first), ...ids(second)]).size, 2, "two installations, one per signature");
       const registry = homeAgentDefinitions(home);
+      // RAC-198: two installations are what the “多个安装” notice is for (one plugin's Home and project halves are one: tests/dual-instance-declaration.test.ts).
+      const notes = () => registry.registrations().find(row => row.owner_id === AGENT_PROBE)?.notes ?? [];
+      assert.ok(notes().some(note => note.includes("此插件有多个安装")), JSON.stringify(notes()));
       const [view] = registry.prompts().filter(item => item.owner_id === AGENT_PROBE);
       registry.save(view!.key, "先列出缺的", null, "tester");
       await first.platform.runtime.stop(ids(first)[0]!);

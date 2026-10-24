@@ -16,6 +16,8 @@ interface SessionActionPorts<C extends Call> {
   pluginFor(call: C): HostPluginCaller | undefined;
   adapter(call: C, runtimeId: string): AgentRuntimeAdapter;
   projectId(call: C): string;
+  /** The session is in the caller's project and is the caller's own (its plugin, installation and person). */
+  ownsSession(call: C, session: AgentSessionRef): Promise<boolean>;
   /** The round belongs to this session, and the session to the caller's project and plugin; gives the session's owner. */
   requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<{ owner: { actor_id: string } }>;
   /** The actions the plugin's rounds are granted through this runtime, as that grant reads now, carrying the session the Host checked; absent when it grants none. */
@@ -32,16 +34,24 @@ const sameReference = (a: ExactActionReference, b: ExactActionReference) => a.ca
 export function registerSessionActions<C extends Call>(register: Register<C>, ports: SessionActionPorts<C>): Array<() => void> {
   const fresh = async (call: C) => { await call.invocation.beforeEffect(); call.invocation.assertAuthorityCurrent(); };
   return [
-    // The task graph keeps the waits and continuations; these only read and ask it.
+    // The task graph keeps the waits and continuations; these only read and ask it, for the caller's own sessions alone (R8 rules 3, 4).
     register(agentCollaborationActions.read, async (call, input) => {
-      ports.pluginFor(call);
       const adapter = ports.adapter(call, input.runtime_id);
-      return { sessions: adapter.collaboration ? await adapter.collaboration.read(ports.projectId(call), input.session_id) : [] };
+      if (input.session_id && !await ports.ownsSession(call, { runtime_id: input.runtime_id, session_id: input.session_id })) throw agentErrors.session_unknown("当前项目找不到这条会话");
+      if (!adapter.collaboration) return { sessions: [] };
+      const sessions = [];
+      for (const view of await adapter.collaboration.read(ports.projectId(call), input.session_id))
+        if (await ports.ownsSession(call, { runtime_id: input.runtime_id, session_id: view.session_id })) sessions.push(view);
+      await fresh(call);
+      return { sessions };
     }),
     register(agentCollaborationActions.control, async (call, input) => {
       const caller = ports.pluginFor(call);
       const adapter = ports.adapter(call, input.runtime_id);
       if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
+      // Only a wait in one of the caller's own sessions; another's is refused as a wait this project does not have.
+      const waiting = (await adapter.collaboration.read(ports.projectId(call))).find(view => view.wait?.wait_id === input.wait_id);
+      if (!waiting || !await ports.ownsSession(call, { runtime_id: input.runtime_id, session_id: waiting.session_id })) throw agentErrors.collaboration_unknown("这个等待不属于这个项目");
       await fresh(call);
       const { runtime_id: _runtime, ...control } = input;
       return { session: await adapter.collaboration.control(ports.projectId(call), control, caller?.actor_id ?? "user") };

@@ -222,14 +222,14 @@ const AMENDMENT = { oneOf: [
 export const agentCollaborationActions = {
   read: {
     capability_id: "agent.collaboration.read.v1", version: 1, operation: "query",
-    action: { title: "读取会话的等待与接续", description: "读取这个项目的会话在等什么、等到哪了，以及等完之后怎样接着做；只读。", kind: "query", scope: "project", scheduling: "concurrent",
+    action: { title: "读取会话的等待与接续", description: "读取调用插件自己在这个项目里的会话在等什么、等到哪了，以及等完之后怎样接着做；只读，别的插件的会话不在回答里。", kind: "query", scope: "project", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id"], additionalProperties: false, properties: { runtime_id: { type: "string", minLength: 1 }, session_id: { type: "string", minLength: 1 } } },
       output_schema: SESSION_VIEWS_OUTPUT },
   } as ActionDefinition<AgentCollaborationReadInput, { sessions: AgentCollaborationSessionView[] }>,
   control: {
     capability_id: "agent.collaboration.control.v1", version: 1, operation: "command",
-    action: { title: "取消等待或提前接着做", description: "用户放弃一个会话的等待，或不等了直接接着做；只改等待与接续，不碰它在等的那件事。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
+    action: { title: "取消等待或提前接着做", description: "用户放弃调用插件自己一个会话的等待，或不等了直接接着做；只改等待与接续，不碰它在等的那件事。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "kind", "wait_id"], additionalProperties: false, properties: {
         runtime_id: { type: "string", minLength: 1 }, kind: { enum: ["cancel-wait", "continue-now"] }, wait_id: { type: "string", minLength: 1 },

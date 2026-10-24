@@ -61,7 +61,7 @@ test("RAC-144 the Cognia words keep the English the page showed before they beca
   runWithLocale("en", () => {
     for (const [key, expected] of Object.entries(shown)) assert.equal(L(key), expected, key);
     assert.equal(L("cognia.selection.count", { count: 2 }), "Selected 2 / 5");
-    assert.equal(L("cognia.import.domain-line", { name: "Tools" }), "Domain：Tools");
+    assert.equal(L("cognia.import.domain-line", { name: "Tools" }), "Domain: Tools");
   });
   runWithLocale("zh", () => assert.equal(L("cognia.selection.count", { count: 2 }), "已选 2 / 5"));
 });

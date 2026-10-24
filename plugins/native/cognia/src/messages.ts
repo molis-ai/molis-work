@@ -114,5 +114,5 @@ export const COGNIA_MESSAGES = {
   "cognia.ai.generate": { zh: "生成草稿", en: "Generate draft" },
   "cognia.ai.max": { zh: "最多选择 5 份材料", en: "Select up to 5 materials" },
   "cognia.selection.count": { zh: "已选 {count} / 5", en: "Selected {count} / 5" },
-  "cognia.import.domain-line": { zh: "领域：{name}", en: "Domain：{name}" },
+  "cognia.import.domain-line": { zh: "领域：{name}", en: "Domain: {name}" },
 } as const;

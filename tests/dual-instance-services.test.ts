@@ -36,12 +36,13 @@ function servicesProbe() {
     action: { title: half, description: `双实例服务探针的 ${half} 一半`, kind: "operation", scope: half, audiences: ["user"], permissions: USED,
       scheduling: "concurrent", subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } });
   const actions = { home: action("home"), project: action("project") };
+  const owner_files: PluginOwnerFilesDeclaration = { store_name: NAME, entries: [{ name: "notes", kind: "directory" }], read_permission: FILES_READ, write_permission: FILES_WRITE };
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: NAME, kind: "app",
     publisher: { publisher_id: "example", signature: `dual-${NAME}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", FILES_READ, FILES_WRITE, DATA_READ, DATA_WRITE, ...USED].map(permission => ({ permission, required: true, reason: "双实例服务探针" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: Object.values(actions),
-    databases: { project: { store_name: NAME, version: 1, read_permission: DATA_READ, write_permission: DATA_WRITE, schema: `CREATE TABLE ${NAME}_notes (text TEXT NOT NULL);` } } };
-  const owner_files: PluginOwnerFilesDeclaration = { store_name: NAME, entries: [{ name: "notes", kind: "directory" }], read_permission: FILES_READ, write_permission: FILES_WRITE };
+    databases: { project: { store_name: NAME, version: 1, read_permission: DATA_READ, write_permission: DATA_WRITE, schema: `CREATE TABLE ${NAME}_notes (text TEXT NOT NULL);` } },
+    owner_files };
   const services: Partial<Record<Half, PluginHostServices>> = {};
   let next: Use | undefined;
   const half = (which: Half): PluginDefinition => ({ manifest, start(context) {
@@ -61,7 +62,7 @@ function servicesProbe() {
 async function open(t: TestContext) {
   const probe = servicesProbe();
   const home = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: {
-    home: [{ definition: probe.home, dual_instance: true, owner_files: probe.owner_files }], project: [probe.project] } } });
+    home: [{ definition: probe.home, dual_instance: true }], project: [probe.project] } } });
   await home.host.homePlugins!.ready();
   const project = await home.createProject("双实例服务");
   const context = await home.host.localPersonContext(project.reference), client = home.host.actionClient(project.reference);

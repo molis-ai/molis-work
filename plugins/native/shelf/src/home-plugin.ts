@@ -4,7 +4,7 @@ import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopb
 import type { PluginDefinition, PluginMaterialsClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
 import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { openShelfStore, shelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { initializeShelfFiles, openShelfStore, shelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfActionHandlers, createShelfProjectActionHandlers, SHELF_PROJECT_ACTIONS, shelfActions, type ShelfActionPorts } from "./actions.js";
 import { shelfAiPorts } from "./ai.js";
 import { shelfManifest } from "./manifest.js";
@@ -73,7 +73,9 @@ export function shelfStorePorts(store: () => ShelfStore, availability: (selectio
 export function createHomeShelfPlugin(): PluginDefinition {
   return { manifest: shelfManifest, instructions: SHELF_INSTRUCTIONS, async start(context) {
     for (const grant of shelfManifest.permissions) if (grant.required) context.requireGrant(grant.permission);
-    const { store, model, actions } = shelfServices(context);
+    const { store, model, actions, files } = shelfServices(context);
+    // The sample goes on a shelf that has never held anything, once: the instance writes it itself, under its own current grants.
+    await files.write(initializeShelfFiles);
     const handlers = createShelfActionHandlers(shelfStorePorts(store, selection => model.availability(selection ?? undefined)));
     return { kind: "app", views: [shelfUiContribution, shelfSettingsUiContribution], actions: [...handlers,
       { ...shelfActions.terminal, async handle(caller) {
@@ -120,5 +122,5 @@ function shelfServices(context: PluginStartContext) {
   const services = context.services, files = services?.ownerFiles, model = services?.model, materials = services?.materials, actions = services?.actions;
   if (!files || !model || !materials?.extract || !materials.readSource || !materials.readLocalPage || !actions?.dependencies) throw new ActionError("actions.unredeemed", "Shelf 需要公共文件、模型、材料与动作服务");
   const readers = shelfMaterialPorts(materials), ai = shelfAiPorts(model, readers);
-  return { actions, model, store: () => openShelfStore(files.rootPath(), files, shelfRuntimeProbe(), readers, ai) };
+  return { actions, model, files, store: () => openShelfStore(files.rootPath(), files, shelfRuntimeProbe(), readers, ai) };
 }

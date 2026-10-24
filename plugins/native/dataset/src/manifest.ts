@@ -7,6 +7,7 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { DATASET_UI_CONTRIBUTION_ID } from "./ui.js";
 import { datasetActions, datasetContentActions, DATASET_ACTION_PERMISSIONS } from "./actions.js";
+import { DATASET_DATABASE } from "./database.js";
 
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID };
 
@@ -30,6 +31,7 @@ export const datasetManifest: PluginManifest = {
       .map(permission => ({ permission, required: permission !== "model:invoke", reason: "数据表动作使用的读取、编辑或显式模型调用" })),
   ],
   actions: [...Object.values(datasetActions), ...Object.values(datasetContentActions)],
+  databases: { home: DATASET_DATABASE },
   routes: [
     { route_id: "dataset.list", method: "GET", path: "/datasets" },
     { route_id: "dataset.create", method: "POST", path: "/datasets", max_body_bytes: DATASET_BODY_BYTES },

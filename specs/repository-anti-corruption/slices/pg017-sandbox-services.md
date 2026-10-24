@@ -1,6 +1,6 @@
 # PG-017：沙箱插件经 broker 拿到宿主服务（设计稿）
 
-状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
+状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
 
 ## 1. 现状
 
@@ -72,8 +72,10 @@
 材料服务里的 `readSource`/`extract(url)`/`readLocalPage` 是**宿主替插件去抓网页**。沙箱的网络是“精确批准的域名、443、不跟重定向”（`createHttpsProxy`），如果把材料抓取原样开给沙箱，就绕过了这道门。设计：
 
 - **第一批只给不联网的部分**：`imageTextAvailable()`（只读状态）和 `readDocuments`（字节来自沙箱已有的存储/成果，不联网）。
-- **联网的 `readSource`/`extract(url)`**：只在 broker 额外对 URL 的主机做 `permit("networkDomains", host)` 之后放行，**且**材料读取器要接受“允许域名列表、不跟出列表外的重定向”这个选项（现在没有，要在 `material-source-providers` 里加）——这个宿主侧改动做完才开，登记为 BL-492。
-- **不给**：`fetch_local`（读本机页面，等于让沙箱探本机网络）和 `original`（原文件登记表，句柄是宿主文件）——理由写进拒绝的码里。
+- **联网的 `readSource`/`extract(url)`**：只在 broker 额外对 URL 的主机做 `permit("networkDomains", host)` 之后放行，**且**材料读取器要接受“允许域名列表、不跟出列表外的重定向”这个选项（现在没有，要在 `material-source-providers` 里加）——这个宿主侧改动做完才开，登记为 BL-492（分片叫 P2e）。
+- **`fetch_local`**（P2d，S-65，用户 2026-10-24 定：给）：沙箱拿不到 socket 和地址，所以不是“让沙箱探本机网络”：插件把一个地址当数据交给 broker，宿主用已有的规则（`material-local-page.ts`：只有 `http://` 的 loopback 名、没有凭据、不是宿主自己的端口、每次重定向再查）判断并去取，回给插件的只有抽出的文字，不带地址、头和 cookie。效果键 `materials: ["fetch_local"]`，只在命令操作里。规则是宿主的一份，沙箱这边不另写 loopback 判断（S-09）。
+- **`original`**（P2d，S-65）：句柄是宿主登记表里的一行（插件、安装、项目、插件自己起的键），不是路径，路径不出宿主。认领只能在人驱动的调用里、带着宿主入口交给本安装的那个文件（和宿主内的插件一样）。读取分段：沙箱通道一次带不了 32 MiB，所以宿主客户端加了 `readOriginalRange`（起点、长度至多 1 MiB，broker 只要 256 KiB 一段，返回文件大小和不透明的 `revision`），每一段都是一次完整的宿主读取（动作作用域、授权、`beforeEffect`、路径与文件身份在读前读后各查一遍），第一段的 `revision` 在后面每段带回去，文件中途变了就拒绝，不读成混合内容。我没选“broker 里读一次整份、按段发”：那样后面的段不再过宿主的闸门，撤权后还会继续发。沙箱 SDK 的 `readOriginal(key, { maxBytes })` 是 worker 里对这个方法的循环，和宿主内插件同名同形。
+- **仍不给**：联网的 `readSource`（`materials:fetch`，BL-492，P2e）。
 - 授权：broker `permit("materials", "read"|"fetch")` + 上面的域名门；宿主 `createPluginMaterialsClient` 的权限与 `assertActive`。字节结果 base64、有界。
 
 ### 3.5 后台作业（`background.*`）
@@ -88,7 +90,10 @@
 ### 3.6 私有文件（`files.*`）、主人文件（`ownerFiles`）
 
 - **`files`**：形状是字节读写（`list/read/create/remove`），可以做成 base64 且有上限的 broker 方法；**但声明只在条目上**（PG-102），且有两套服务要合成一套（PG-104、§4 n）。所以：等 PG-102/104 把声明放进 Manifest、文件服务合成一套之后，沙箱经 broker 拿同一套（BL-491）；这一组里不给。
-- **`ownerFiles`**：**不给，也不打算给**。它的合同是把宿主文件系统里的一个根目录**路径**（`rootPath()`）和一个对 writer 的回调（`write(run)`）交给插件，插件自己在那个目录里读写；沙箱没有文件写权、也不该知道宿主路径，这两样都不能变成 JSON。PG-103 又要把它的初始化钩子删掉、`owner_files` 进 Manifest。沙箱要存文件走 `files`（字节接口）。拒绝：沙箱定义声明 `owner_files` 以带码的错误拒绝启动。
+- **`ownerFiles`**（P2c，S-64，用户 2026-10-24 定：给，有界）：沙箱包在 Manifest 里声明 `owner_files`，经 broker 读写自己的文件。**不**把宿主的 `rootPath()` 和 writer 回调递进去：沙箱 SDK 只有 `stat`、`list`、`read`（一个文件，至多 256 KiB，没有就是 `null`）、`write`（至多 16 步，每步是 `mkdir`、`write`、`replace_atomic`、`copy`、`remove`、`set_access` 之一，字节是 base64，每个文件 ≤ 256 KiB，一次调用合计 ≤ 512 KiB，`list` 至多 1000 项），路径一律是相对路径，由宿主已有的 port 按声明的顶层条目查（越界、链接、硬链接、特殊节点、非严格相对路径全部拒绝）。效果键 `ownerFiles: ["read"]` / `["read", "write"]`，查询不能写；写在 broker 一侧先等这次调用的 `beforeEffect()`，宿主客户端自己再查一遍授权与动作作用域。
+  - **根放哪里**（统筹 10-24 认可）：宿主内的插件根在 Home 里按插件的店名登记；沙箱包是装进来的，没有登记项，所以根是这个安装自己的目录，`<store_name>`（Manifest 的）是里面的一层。**项目里**：`<Home>/projects/<项目>/plugin-files/<安装>/<store_name>/`——按项目、按安装各一份，删项目时随项目目录一起删。**Home Runtime 里**（统筹 10-24 追加：用户定沙箱插件有主人文件，Home 级的也有）：`<Home>/plugin-files/<安装>/<store_name>/`，`plugin-files` 登记为宿主的 Home 库（`home-stores.ts`，owner `apps/local-host`），所以 `uninstall --purge-user-data` 覆盖它。项目 ID 与安装 ID 只许是普通目录名（`plugin-sandbox-owner-files.ts`）；没有 Home 的平台启动即拒。沙箱包不经启动名单，只走 `runtime.install`，所以 `assertHomeOnlyDeclarations` 与启动名单上对沙箱条目的拒绝（`assertOwnerFilesEntries`）与它无关；Home 执行器对沙箱定义不走 `ownerFilesGiven`（那是启动名单给的），走 `sandboxOwnerFilesFor`。
+  - **卸载时的清理**（统筹 10-24 要求二选一，选“平台清理”：两个执行器的 `uninstalled` 钩子，不是创作台生命周期里的一行）：运行时存下卸载这一行之后调执行器的 `uninstalled(record)`，沙箱安装且这次卸载不留私有数据（`retain_private_data: false`，含装到一半失败被收回）就删这个安装的目录，只删这一个；留数据的卸载留着目录，重装沿用同一个安装 ID，找回的就是它，和私有数据同口径。重装时放弃上次卸载保留的数据（`discard_kept_data`）：运行时存下新的安装行之后调新增的可选钩子 `keptDataDiscarded(earlier)`（`PluginExecutor`，合同里多一个可选成员），执行器删目录，在新代码启动之前。删除前父目录解析到 Home 之外就拒，符号链接不跟（只解开链接本身）。不靠插件自己交 `purge`（RAC-239 的口径）。
+  - **和宿主内同样待遇**：同一份 `PluginOwnerFilesClient`、同一个 port，所以 R1（动作之内凭动作与原调用者、动作之外凭安装现行授权）、`beforeEffect`、模式 0600/0700 都不另写一套。
 
 ### 3.7 Home 库、模型设置、生图、项目清理
 
@@ -102,8 +107,6 @@
 
 | 项 | 为什么 | 什么时候再看 |
 | --- | --- | --- |
-| `ownerFiles` | 合同是宿主路径 + 回调，不能变成 JSON；沙箱没有文件写权 | 不打算给 |
-| 材料 `fetch_local`、`original` | 前者探本机，后者句柄是宿主文件 | 不打算给，除非有新的形状 |
 | 方法与角色的正文 | 进别的 Agent 的一轮，没有安装确认页能列出 | 外部插件安装确认（PG-001）之后，BL-493 |
 | Home 库、`files`、模型设置、生图、项目清理的 `purge` | 声明只在宿主条目上，沙箱插件没有条目 | PG-022/102 之后，BL-490/491 |
 | `model.complete` 的 `onText`/`images`、材料的字节输入大对象 | 回调/大字节过不了有界 JSON | 第二批，视需要 |
@@ -124,7 +127,9 @@
 2. **P1 模型 + 指令**（V-20 的指令部分，排 PG-051 P2 后）：3.1、3.2。
 3. **P2 连接 + 材料（不联网部分）**：3.3、3.4 第一批。
 4. **P3 后台**：3.5，runner 多一条道。
-5. 之后：材料联网（BL-492）、PG-022/102 之后的 Home 库/文件/模型设置/生图（BL-490/491）、方法与角色（BL-493）。
+4a. **P2c 主人文件**（S-64，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
+4b. **P2d 本机页面与原文件**（S-65，本地分支，叠在 P2c 上）：3.4 的 `fetch_local` 与 `original`，验收见下面「P2d 验收」。
+5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库/文件/模型设置/生图（BL-490/491）、方法与角色（BL-493）。
 
 ## 5. 验收与安全不变量
 
@@ -137,12 +142,42 @@
 | RAC-232 | 模型：在声明了 `model` 效果的操作所对应的并发动作里 `complete` 成功；在路由里调用被拒 `model_action_required`；`kind: "query"` 声明 `model.invoke` 的合同被拒；没登记的指令 id / 别的主人的指令被拒；沙箱代码不能送进自带文字的提示词 |
 | RAC-233 | 指令（V-20）：沙箱定义登记本插件的指令成功，登记别的主人的指令拒绝启动；角色与方法正文按 Q2 的结论（默认不登记）有拒绝本身的断言 |
 | RAC-234 | 连接：槽位没在这次操作声明的效果里、人没批准、批准成别的槽拒；非 GET/HEAD 的请求在查询操作里拒；槽位没绑定账号不是拒，是匿名发出（S-57）；凭据头由宿主的真实端口按固定头集合滤掉（S-57 的测试），沙箱一侧的用例用假端口，只断言答复在 broker 一侧重建成纯 JSON；响应超上限拒 |
-| RAC-235 | 材料：`fetch_local`、`original` 被拒；联网读取的主机不在批准域名里拒（BL-492 之后补重定向离开域名拒） |
+| RAC-235 | 材料：联网读取（`materials:fetch`）被拒（`fetch_local` 与 `original` 已由 P2d 给，见下面「P2d 验收」）；联网读取的主机不在批准域名里拒（BL-492 之后补重定向离开域名拒） |
 | RAC-236 | 后台：受理的沙箱操作在卸载、删项目、取消时被停，之后不写业务记录；进程死后不重放 |
 | RAC-237 | 同一份 Manifest 声明，宿主内运行和沙箱运行，对同一输入得到同一个拒绝码（同等待遇，抽样每项服务各一例） |
 | RAC-238（Manifest 一半，#1139 已做） | 现在不给的、由 Manifest 或定义声明的项（模型、指令、连接、材料、后台作业、角色/提示词/技能/方法、目录、唤醒、运行 Agent、通知、已装插件、调用别人的动作、项目成果/过程项/端口/事件）在沙箱定义里声明时，启动以 `sandbox.service_not_given` 拒绝，指明是哪一项、为什么，代码一行不跑；项目平台与 Home 执行器各一例；宿主认的每个权限名要么被给、要么有一行拒绝（完整性测试），没归类的变红 |
-| RAC-238（条目一半，PG-022/PG-102 之后） | 现在只在宿主条目上声明的项（`ownerFiles`、Home 库、`files`、模型设置、生图）：声明搬进 Manifest 之后，沙箱定义里声明它们时同样带码拒绝或给出，不再是六处无码的 `Error`；在那之前它们在沙箱里根本没有入口，这一半不算做完 |
+| RAC-238（条目一半，PG-022/PG-102 之后；`ownerFiles` 已由 P2c 给） | 现在只在宿主条目上声明的项（`ownerFiles`、Home 库、`files`、模型设置、生图）：声明搬进 Manifest 之后，沙箱定义里声明它们时同样带码拒绝或给出，不再是六处无码的 `Error`；在那之前它们在沙箱里根本没有入口，这一半不算做完 |
 | RAC-239 | 声明式清理对沙箱插件成立：删项目时它的私有存储、项目库里的表、后台执行被平台清掉，不需要它交 `purge` |
+
+**P2c 验收**（S-64，统筹 10-24 给 RAC-350～369：本片 RAC-350～359，P2d 用 RAC-360～369）：`tests/security-invariants-sandbox-owner-files.test.ts`
+
+| 编号 | 断言 |
+| --- | --- |
+| RAC-350 | 沙箱包在项目里这个安装的目录里写、读、列、复制、删自己声明的文件，别处没有 |
+| RAC-351 | 操作合同没声明、人没批准、批准成别的、只声明读却要写、查询要写，一律 `sandbox.not_authorized` 且没到宿主；宿主客户端自己的码（查询动作、动作没声明写权限、停用）照常在 |
+| RAC-352 | 形状与大小逐项拒绝（路径、步数、字段、base64、单文件 256 KiB、一次 512 KiB），没到宿主的客户端；恰在上限内的通过 |
+| RAC-353 | 宿主 port 的拒绝逐项断言：`..`、绝对路径、空段与点段、反斜杠、盘符、未声明的条目、文件条目带子路径、符号链接、硬链接、管道；根之外的文件不读不改 |
+| RAC-354 | 服务对象只有 `stat`、`read`、`list`、`write` 四个成员，broker 对 `rootPath`、writer 等一律 `sandbox.invalid_request`，答复里没有宿主路径 |
+| RAC-355 | 大文件（256 KiB 加一字节）不读进宿主，目录超 1000 项即拒；调用被取消、`beforeEffect` 拒绝，什么都不写 |
+| RAC-356 | 各安装各一份目录；平台没有 Home 时启动即拒 |
+| RAC-357 | 项目里：不留数据的卸载删这个安装的目录，同项目里别的安装的不动；留数据的卸载留着目录，同一个安装 ID 重装找回它；重装时放弃保留的数据（`discard_kept_data`）在新代码启动之前删目录；重装后是空的。清理时父目录解析到 Home 之外（`plugin-files` 是指向外面的链接）即拒，链接指向的东西不动 |
+| RAC-358 | Home Runtime 里：沙箱包得到 `<Home>/plugin-files/<安装>/<store_name>/`，同一个有界服务、同样的拒绝（未声明的效果、查询写、根之外的路径、错误形状、`rootPath`）；没有项目目录、没有按登记的 Home 库建目录 |
+| RAC-359 | Home Runtime 里各安装各一份；留数据的卸载留着，不留的删掉，别的安装的不动；`plugin-files` 登记为宿主的 Home 库（purge 覆盖，`homeStores()` 与钉死的清单一致） |
+
+**P2d 验收**（S-65，RAC-360～369，统筹 10-24 分配）：`tests/security-invariants-sandbox-local-original.test.ts`
+
+| 编号 | 断言 |
+| --- | --- |
+| RAC-360 | 本机页面由宿主取，回给插件的只有抽出的文字（没有地址、端口、头、cookie），宿主发出的请求不带 cookie 与凭据 |
+| RAC-361 | 宿主的地址规则逐项断言它自己的码：公网、内网、链路本地、198.18/15、`0.0.0.0`、IPv6 本地与映射地址、https、ftp、file、带凭据、仿 localhost 的名字都是 `material.local_page.not_local`，宿主自己的端口是 `own_endpoint`；被拒的地址没被连过；重定向到内网不跟 |
+| RAC-362 | 页面大过通道即 `sandbox.response_too_large`，不截断；地址的形状（个数、类型、长度、控制字符）错的请求没到宿主 |
+| RAC-363 | 认领后按 256 KiB 一段读回，整份与原文件逐字节相同；结尾与任意起点；释放后读不到；人的文件不动 |
+| RAC-364 | 没有交来的文件、交给别的安装、不是人的调用都不能认领；路径当第二个参数、形状不对的键被拒；没认领的键读不到；像路径的键只是一个键 |
+| RAC-365 | 登记按安装和项目分开：别的安装、别的项目读不到同一个键，也释放不了 |
+| RAC-366 | 两段之间文件变了、路径换成链接、文件被移走、变成目录或管道、超过 32 MiB 逐项被拒 |
+| RAC-367 | 一段至多 256 KiB，起点在 32 MiB 内，版本只认宿主给过的形状；没到宿主 |
+| RAC-368 | 四个方法各自：没声明、只声明读、声明另一种效果、没批准、只批准读、批准另一种效果、批准别的，都是 `sandbox.not_authorized`；查询声明任一效果则合同不载入；没有按整份读和路径的方法 |
+| RAC-369 | 宿主没建服务答 `sandbox.service_unavailable`；动作之外一律被宿主客户端拒；停用、撤权、取消、守卫拒绝之后什么都不取、不登记、不释放 |
 
 **安全不变量**：建议新增 S-60（沙箱经 broker 使用宿主服务的总规则：两道门、有界 JSON、撤权后不写、不给的拒绝）一行，承接 S-15 里“沙箱进程没有……”的那句和 S-59 的数据库一条；各项服务的测试挂在这一行的“拒绝测试”里。如果统筹希望每片各占一行（S-60 模型、S-61 连接与材料、S-62 后台），也可以，**请定**。S-15、S-46 里描述“沙箱没有这些服务”的话要同时改成现状。
 

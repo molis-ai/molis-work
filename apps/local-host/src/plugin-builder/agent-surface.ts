@@ -163,7 +163,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     const previewFor = (): SandboxServices => ({ ...previewServices(storage), capability, network });
     // W7: pictures of proposals through the images plugin's own actions, as the person, when an image service is set up.
     const imageAction = async <T,>(capability: string, input: unknown): Promise<T> => {
-      const caller = { actor_id: options.actorId ?? 'web-user', project_id: actions.project_id, audience: 'user' as const, permissions: ['images:connections:read', 'images:generate', 'images:read'] };
+      const caller = { actor_id: options.actorId ?? 'web-user', project_id: actions.project_id, audience: 'user' as const, permissions: ['images:connections:read', 'images:generate', 'images:files:write', 'images:read'] };
       const view = (options.actions?.inspect ? await options.actions.inspect(caller) : []).find(item => item.capability_id === capability);
       if (!view) throw new Error('这个项目里没有图片功能');
       return await actions.client.invoke(caller, { capability_id: capability, version: view.version, provider_id: view.provider.provider_id }, input) as T;

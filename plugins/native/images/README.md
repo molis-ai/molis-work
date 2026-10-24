@@ -12,11 +12,11 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 
 连接列表 `images.connections.list@2` 的账号记录带 `enabled`，停用保留已选账号与凭据但拒绝生成；重新启用后沿用同一引用。调用方从共同目录取当前版本，旧版精确引用须重选。
 
-生成动作 `images.jobs.start@2` 使用 Runtime 并发后台受理并要求 `model:invoke`；输入输出保持，旧固定版本须重新选择，MCP 当前工具为 `images.jobs.start__v2`。
+生成动作 `images.jobs.start@3` 使用 Runtime 并发后台受理并要求 `model:invoke` 与 `images:files:write`；删除动作 `images.jobs.delete@2` 要求 `images:delete` 与 `images:files:write`。输入输出保持，旧固定版本须重新选择，MCP 当前工具为 `images.jobs.start__v3`、`images.jobs.delete__v2`。已授权给 MCP 客户端、工作流步骤的调用方要补授 `images:files:write`（内置安装默认同意）。
 
 插件声明统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。配置操作遵守 Home 权限，任务和图片遵守项目权限；模型参数不能改变调用者的项目。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
 
-数据：`{home}/images/images.db` 与 `{home}/images/assets/`。一个 Home Runtime 实例拥有配置与任务，Web、MCP 通过同一个动作服务调用；原表结构保持版本 1。数据库、文件和生图由宿主注入的有限服务提供，插件不持有 Home 路径或凭据解析器。任务在后台保留原调用者的可撤销授权，普通请求断开不取消已受理任务；撤权、停用和项目删除后不写晚到结果或失败记录。停止不写业务状态，下次启动把遗留 running 标为 interrupted，清理所有项目均未引用的图片文件，不重新调用厂商。
+数据：`{home}/images/images.db` 与 `{home}/images/assets/`。一个 Home Runtime 实例拥有配置与任务，Web、MCP 通过同一个动作服务调用；原表结构保持版本 1。数据库、文件和生图由宿主注入的有限服务提供，插件不持有 Home 路径或凭据解析器；文件声明在 Manifest 的 `owner_files`（`IMAGES_OWNER_FILES`：根 `images`，顶层目录 `assets`，读 `images:read`、写 `images:files:write`，根与自己的库同在），动作之内由动作和原调用者的权限决定，启动恢复在动作之外按安装当前的授权（`storage:private` 与 `images:files:write`）决定。任务在后台保留原调用者的可撤销授权，普通请求断开不取消已受理任务；撤权、停用和项目删除后不写晚到结果或失败记录。停止不写业务状态，下次启动把遗留 running 标为 interrupted，清理所有项目均未引用的图片文件，不重新调用厂商。
 
 此版不包含图生图、蒙版、多图批处理、异步厂商私有协议或 Artifact 发布。完整产品验收仍须覆盖真实 Host、MCP 和浏览器路径。
 

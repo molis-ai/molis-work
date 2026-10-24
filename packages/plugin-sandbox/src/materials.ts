@@ -56,6 +56,31 @@ export function plainJson(value: unknown): SandboxJson {
   return JSON.parse(JSON.stringify(value ?? null));
 }
 
+/** The most one part of an original file carries over the channel: 256 KiB, a base64 string of about 342 KB, inside half a megabyte for a result. */
+export const ORIGINAL_PART_BYTES = 256 * 1024;
+const ORIGINAL_FILE_BYTES = 32 * 1024 * 1024;
+const ADDRESS = 2048;
+
+/** The address of a page on this machine as the plugin sent it: a printable string. Whether it is a loopback address is the Host's judgment alone (S-09). */
+export function materialLocalUrl(value: SandboxJson | undefined): string {
+  if (typeof value !== 'string' || !value || value.length > ADDRESS || /[\u0000-\u001f\u007f]/.test(value)) throw invalid('An address is a printable string of at most 2048 characters');
+  return value;
+}
+
+/** The plugin's own key for a saved original file, bounded the way the Host's client bounds it; what it names is the Host's registration, never a path. */
+export function originalRecordKey(value: SandboxJson | undefined): string {
+  if (typeof value !== 'string' || !value || value.length > 200 || /[\u0000-\u001f\u007f]/.test(value)) throw invalid('A record key is a printable string of at most 200 characters');
+  return value;
+}
+
+/** Which part of the file: a start inside the Host's cap, a length of at most 256 KiB, and the revision an earlier part answered (`null` for the first). */
+export function originalPart(offset: SandboxJson | undefined, length: SandboxJson | undefined, revision: SandboxJson | undefined): { offset: number; length: number; revision?: string } {
+  if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0 || offset > ORIGINAL_FILE_BYTES) throw invalid('A start is a whole number of bytes inside the 32 MiB cap');
+  if (typeof length !== 'number' || !Number.isSafeInteger(length) || length < 1 || length > ORIGINAL_PART_BYTES) throw invalid('A part is 1 byte to 256 KiB');
+  if (revision !== null && (typeof revision !== 'string' || !/^[0-9a-f]{32}$/.test(revision))) throw invalid('A revision is the one an earlier part answered');
+  return { offset, length, ...(revision !== null ? { revision } : {}) };
+}
+
 /** The answers cross as what the sandbox's declarations promise: a Host reader whose result no longer fits `SandboxMaterial*` fails to compile here. */
 export const documentBatchJson = (batch: SandboxMaterialDocumentBatch): SandboxJson => plainJson(batch);
 export const extractionJson = (extraction: SandboxMaterialExtraction): SandboxJson => plainJson(extraction);

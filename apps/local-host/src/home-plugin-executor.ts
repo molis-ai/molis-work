@@ -10,9 +10,12 @@ import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
+import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
+import { homeLibraryFor } from "./plugin-database-entries.js";
+import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
-import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
+import { givenService } from "./plugin-declared-services.js";
 import { forgetPluginAgentDefinitions, registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
@@ -20,7 +23,7 @@ import { pluginConnectionsFor } from "./plugin-connections-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
-import type { PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
+import { ownerFilesGiven, type PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
@@ -38,7 +41,6 @@ export class HomePluginExecutor implements PluginExecutor {
   constructor(private readonly options: {
     home: string; actorId: string; client: ActionClient;
     database(definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined;
-    files(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
     ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
     modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
@@ -81,7 +83,6 @@ export class HomePluginExecutor implements PluginExecutor {
       { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active() });
     let database: ReturnType<typeof openPluginDatabase> | undefined;
     let partitions: PartitionedPluginDatabase | undefined;
-    let files: ReturnType<typeof openPluginFiles> | undefined;
     let background: ReturnType<typeof pluginBackgroundFor>;
     let terminal: ReturnType<typeof pluginTerminalFor>;
     let withdrawAgentDefinitions: (() => void) | undefined;
@@ -90,31 +91,34 @@ export class HomePluginExecutor implements PluginExecutor {
     const dispose = () => {
       active = false; stopped = true; withdrawPages?.(); terminal?.dispose(); directory?.dispose(); background?.close(); withdrawCaller?.();
       const failures: unknown[] = [];
-      for (const release of [() => database?.close(), () => partitions?.close(), () => files?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
+      for (const release of [() => database?.close(), () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
     };
     try {
       const home = pluginHomeFor(this.options.home);
-      const declaration = this.options.database(definition);
+      const library = homeLibraryFor(definition, this.options.database(definition), this.options.record(context.install_id));
+      const declaration = library?.declaration;
       if (declaration?.partition === "project") {
         partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));
       }
-      else if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context);
-      const fileDeclaration = this.options.files(definition);
-      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context);
-      const owned = this.options.ownerFiles(definition);
+      else if (library) {
+        const open = () => openPluginDatabase(this.options.home, library.declaration, authorize, context);
+        database = library.installed ? openInstalledPluginLibrary(this.options.home, library.installed, library.declaration, home.stores, open) : open();
+      }
+      // A sandboxed package is installed, not on the start list: its files are its installation's folder of the Home (S-64), the same client over the same port.
+      const owned = definition.execution === "sandbox" ? undefined : ownerFilesGiven(definition, this.options.ownerFiles(definition));
       const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
-        { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: authorize }, join(realpathSync(this.options.home), owned.declaration.store_name)) : undefined;
-      if (owned?.initialize && context.grants.includes("storage:private") && context.grants.includes(owned.declaration.write_permission)) ownerFiles!.initializeTrusted(owned.initialize);
+        { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: authorize }, join(realpathSync(this.options.home), owned.declaration.store_name))
+        : sandboxOwnerFilesFor({ home: { directory: this.options.home }, project_id: null }, definition, { install_id: context.install_id, installation_generation: context.installation_generation, requireGrant: authorize }, assertActive);
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
       withdrawCaller = issuePluginCaller(caller, heldPermissions(manifest, context.grants));
       const authorized = { ...context, requireGrant: authorize };
-      const model = pluginModelFor(home, definition, authorized, assertActive, this.options.modelConfiguration(definition));
-      const imageGeneration = pluginImageGenerationFor(home, definition, authorized, this.options.imageGeneration(definition), assertActive);
+      const model = pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.model_configuration, this.options.modelConfiguration(definition), "模型设置"));
+      const imageGeneration = pluginImageGenerationFor(home, definition, authorized, givenService(definition, manifest.image_generation, this.options.imageGeneration(definition), "图片生成"), assertActive);
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
       const connections = pluginConnectionsFor(home, definition, authorized, assertActive);
       directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
@@ -126,7 +130,7 @@ export class HomePluginExecutor implements PluginExecutor {
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       terminal = pluginTerminalFor(this.options.home, manifest, authorized, ownerFiles?.client, assertActive);
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
+        ui: ui.client, interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });
@@ -177,7 +181,13 @@ export class HomePluginExecutor implements PluginExecutor {
   }
 
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }
-  uninstalled(record: PluginInstanceRecord): void { forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id); }
+  uninstalled(record: PluginInstanceRecord): void {
+    forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
+    if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
+  }
+  keptDataDiscarded(record: PluginInstanceRecord): void {
+    if (record.execution === "sandbox") removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
+  }
   restorePrivateData(installId: string, snapshot: unknown): void {
     this.options.storage.restoreInstallationData(installId, snapshot as ReturnType<SqlitePluginPrivateStorage["snapshotInstallationData"]>);
   }

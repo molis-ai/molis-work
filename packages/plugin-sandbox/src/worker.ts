@@ -1,7 +1,10 @@
 // This file is copied alone to a .mjs file. No host modules or credentials enter the sandbox.
-import type { SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxOperations, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const write = process.stdout.write.bind(process.stdout);
+/** The Host's cap for one original file, and the part the channel carries at a time (the broker holds the same two numbers). */
+const ORIGINAL_FILE_BYTES = 32 * 1024 * 1024;
+const ORIGINAL_PART_BYTES = 256 * 1024;
 const send = (value: unknown) => write(JSON.stringify(value) + '\n');
 const pending = new Map<string, { resolve: (value: SandboxJson) => void; reject: (error: Error) => void }>();
 let sequence = 0;
@@ -44,6 +47,31 @@ function sdk(callId: string): SandboxSdk {
       imageTextAvailable: () => answer<boolean>(invoke('materials.imageTextAvailable', [])),
       readDocuments: (files, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['readDocuments']>>>(invoke('materials.readDocuments', [json(files), json(request ?? {})])),
       extract: (file, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['extract']>>>(invoke('materials.extract', [json(file), json(request ?? {})])),
+      readLocalPage: url => answer<Awaited<ReturnType<SandboxSdk['materials']['readLocalPage']>>>(invoke('materials.readLocalPage', [url])),
+      claimOriginal: async recordKey => { await invoke('materials.claimOriginal', [recordKey]); },
+      releaseOriginal: async recordKey => { await invoke('materials.releaseOriginal', [recordKey]); },
+      // The whole file in parts of at most 256 KiB, each one a call the Host answers on its own; the revision of the first part is passed back with
+      // every later one, so a file that changes in between is refused by the Host, not read as a mixture of two files.
+      readOriginal: async (recordKey, request) => {
+        const limit = request?.maxBytes ?? ORIGINAL_FILE_BYTES;
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > ORIGINAL_FILE_BYTES) throw Object.assign(new Error('maxBytes is 1 byte to 32 MiB'), { code: 'sandbox.invalid_request' });
+        const parts: Buffer[] = [];
+        let offset = 0, revision: string | null = null;
+        for (;;) {
+          const part: SandboxOriginalPart = await answer<SandboxOriginalPart>(invoke('materials.readOriginalRange', [recordKey, offset, ORIGINAL_PART_BYTES, revision]));
+          if (part.size > limit) throw Object.assign(new Error('The original file is larger than the limit'), { code: 'material.original.too_large' });
+          revision = part.revision;
+          if (part.byte_length) parts.push(Buffer.from(part.data_base64, 'base64'));
+          offset += part.byte_length;
+          if (!part.byte_length || offset >= part.size) return { bytes: Buffer.concat(parts) };
+        }
+      },
+    },
+    ownerFiles: {
+      stat: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['stat']>>>(invoke('ownerFiles.stat', [path])),
+      list: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['list']>>>(invoke('ownerFiles.list', [path])),
+      read: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['read']>>>(invoke('ownerFiles.read', [path])),
+      write: async changes => { await invoke('ownerFiles.write', [json(changes)]); },
     },
     interaction: {
       questionHtml: (question, options) => invoke('interaction.questionHtml', [json(question), json(options ?? {})]) as Promise<string>,

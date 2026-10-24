@@ -2,6 +2,7 @@ import type { PluginDefinition, PluginHostServices, PluginPrivateStorage, Plugin
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxServices } from './broker.js';
 import { sandboxDatabase } from './database.js';
+import { sandboxOwnerFiles } from './owner-files.js';
 import { SandboxError } from './schema.js';
 
 // Which of the Host's services one sandboxed activation's broker may reach (PG-017, specs/repository-anti-corruption/slices/pg017-sandbox-services.md).
@@ -39,7 +40,7 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 
 type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
-export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections' | 'materials'>;
+export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
 export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'>;
 
@@ -62,6 +63,8 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
     ...(host.connections ? { connections: host.connections } : {}),
     // The readers the Host built for the activation from its Manifest's `materials:*` permissions; the broker has methods for the reads of bytes only.
     ...(host.materials ? { materials: host.materials } : {}),
+    // The plugin's own declared files: the Host's client reduced to the four members the channel can carry (no location, no writer callback).
+    ...(host.ownerFiles ? { ownerFiles: sandboxOwnerFiles(host.ownerFiles) } : {}),
   };
 }
 
@@ -78,9 +81,9 @@ export type SandboxDeclarations = Pick<PluginDefinition, 'manifest' | 'instructi
  */
 export type SandboxServiceFate = 'given' | 'refused' | 'entry' | 'replaced' | 'drawn';
 export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServices]-?: SandboxServiceFate } = Object.freeze({
-  storage: 'given', project_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given',
+  storage: 'given', project_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given', ownerFiles: 'given',
   project_database: 'replaced', ui: 'drawn',
-  database: 'entry', files: 'entry', ownerFiles: 'entry', terminal: 'entry', imageGeneration: 'entry',
+  database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
   model: 'refused', background: 'refused', agents: 'refused', scheduler: 'refused', directory: 'refused',
   notifications: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
@@ -119,8 +122,6 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: definition => !!definition.instructions?.length },
   { service: 'materials', services: [], reason: 'Reading a page from the network (materials:fetch) is not given to sandboxed plugins yet (PG-017 BL-492).',
     declared: (definition, held) => asksFor(definition, held, ['materials:fetch']) },
-  { service: 'materials', services: [], reason: 'Reading a page on this machine (materials:fetch_local) and the Host\'s saved original files (materials:original) are never given to sandboxed plugins (PG-017).',
-    declared: (definition, held) => asksFor(definition, held, ['materials:fetch_local', 'materials:original']) },
   { service: 'background', services: ['background'], reason: 'Background jobs are not given to sandboxed plugins yet (PG-017 P3).',
     declared: definition => !!definition.manifest.background?.jobs.length || !!definition.manifest.actions?.some(item => item.action.background_job) },
   { service: 'agent', services: [], reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',

@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, createImagesPlugin, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION } from "./index.js";
+import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, createImagesPlugin } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -7,7 +7,7 @@ import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiCont
  */
 export const registration: PluginRegistration = {
   project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, catalog_order: 4,
-  runtime: { scope: "home", create: createImagesPlugin, database: IMAGES_DATABASE, files: IMAGES_FILES, image_generation: IMAGES_IMAGE_GENERATION,
+  runtime: { scope: "home", create: createImagesPlugin,
     package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" },
   manifest: imagesManifest,
   messages: IMAGES_MESSAGES,

@@ -238,11 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Aggregate the 14 already approved Memory slices against exact parent 1c2ddcbe.
-  // Actual integrated bodies only: WB +28826 (approved maximum +28830), CSS +680 each, Coding +570.
+  // Aggregate the 14 already approved Memory slices against exact parent 93b76797.
+  // Main toast CSS is in the baseline; retain WB +28826, CSS +680 each, Coding +570.
   "/assets/molis-work-workbench.js": [1133257, 1162083],
-  "/assets/molis-work-settings.css": [983223, 983903],
-  "/assets/molis-work-workbench.css": [1552477, 1553157],
+  "/assets/molis-work-settings.css": [983230, 983910],
+  "/assets/molis-work-workbench.css": [1552484, 1553164],
   "/assets/molis-work-plugins/coding.js": [377944, 378514],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

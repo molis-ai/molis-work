@@ -5,6 +5,7 @@ import { StoppedServiceCalls, type PluginCapabilityPort, type PluginEventBus, ty
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
+import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -20,9 +21,9 @@ export interface PluginHostExecutorOptions {
   /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
   home?: PluginPlatformHome | null;
   /**
-   * The library in the Home the Host's start list declared for a definition (`PluginPlatformEntry.database`), looked up by the
-   * definition object the Host listed. None for any other definition (a developed plugin that carries a built-in plugin's id,
-   * a generated one), whatever its Manifest asks for; the plugin never names a library. Needs `home`.
+   * The library in the Home that a definition's Manifest declares (`databases.home`), given only to a definition object the Host's
+   * start list holds. None for any other definition (a developed plugin that carries a built-in plugin's id, a generated one): a
+   * Manifest that declares a library for one of those is refused (`homeLibraryFor`). Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
   /**
@@ -32,7 +33,6 @@ export interface PluginHostExecutorOptions {
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
   installations?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
-  filesFor?(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
    * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions
@@ -92,6 +92,12 @@ export class PluginHostExecutor implements PluginExecutor {
 
   uninstalled(record: PluginInstanceRecord): void {
     forgetPluginAgentDefinitions(this.options.home, record.install_id);
+    // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
+    if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
+  }
+
+  keptDataDiscarded(record: PluginInstanceRecord): void {
+    if (record.execution === "sandbox") removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
   }
 
   /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */

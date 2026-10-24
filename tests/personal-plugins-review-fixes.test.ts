@@ -94,10 +94,10 @@ async function listenDispatcher(
 
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
-  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
+  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "plugin-libraries", "assistant",
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
-    "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
+    "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
 });
 
@@ -112,6 +112,17 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
       await mkdir(dirname(file), { recursive: true });
       await writeFile(file, "personal-store\n");
     }
+    // The ledger of installed plugins' libraries is read at purge to name them (PG-022 P1b), so it is a real one, with a library in it.
+    const ledger = homeStores().get("plugin-libraries")!;
+    await rm(homeStores().libraryPath(home, ledger));
+    const ledgerDb = new DatabaseSync(homeStores().libraryPath(home, ledger));
+    ledgerDb.exec(ledger.library!.baseline.schema);
+    ledgerDb.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, ?)").run("example.installed", "signature", "installed-notes", "digest", "2026-10-24T00:00:00.000Z");
+    ledgerDb.close();
+    const installedLibrary = join(home, "installed-notes");
+    await mkdir(installedLibrary, { recursive: true });
+    await writeFile(join(installedLibrary, "installed-notes.db"), "an installed plugin's rows\n");
+    written.push(join(installedLibrary, "installed-notes.db"));
     const service = new MolisWorkUninstallService({
       homeDirectory: home,
       projects: {
@@ -137,6 +148,7 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
         `purge 计划要包含 ${store.path}`,
       );
     }
+    assert.ok(plan.changes.some((change) => change.target === installedLibrary), "purge 计划要包含装进来的插件的库");
     const result = await service.confirm({
       plan_id: plan.plan_id,
       decision: "confirmed",

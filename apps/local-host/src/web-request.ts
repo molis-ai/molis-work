@@ -175,7 +175,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
           return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
     } catch (error) { optional(error); }
     const homeStages = await renderHomePluginStages(localHost.homePlugins);
-    return { ...view, plugin_stages: homeStages.html, ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
+    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
   };
 }
 

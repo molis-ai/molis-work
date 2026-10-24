@@ -36,6 +36,15 @@
 | `island` | 个人常驻入口：底栏右侧，项目圆钮旁 | 灵光 |
 | `side` | 侧栏里的一个标签：在工作旁边打开，与讨论、浏览器、文件并列（specs/archive/side-panel） | 需要边工作边看的小工具面 |
 
+视图上还有几项可选的声明，宿主照着放，不另写名单（W5-06 第 2b 片，合同在 `packages/contracts/src/platform/ui.ts`）：
+
+- `icon`：图标名（设计系统里登记的名字）。`settings` 视图的 `icon` 是设置目录里这一页的图标；没写、或宿主不认识这个名字，就用 `settings`。
+- `group`（只用于 `navigator`、`island`）：插件切换列表里归哪一组，取 `advance`（推进）、`make`（写与做）、`personal`（个人）、`research`（研究）、`code`（编码）之一。组名和组的顺序归宿主；组内先是 `island` 视图，再按视图的 `order`、同 `order` 按插件 id 排。不写就在「更多」里。
+- `creates`（只用于 `navigator`、`island`）：`{ station, title }`，在目标的「材料」里给一个「新建」入口。`station` 必须是本 Manifest 里一个能新建的工作流内容站（`defineWorkflowContentActions({ …, create: true })` 的 `id`）；新建出来的默认标题是「未命名」加 `title`（如「未命名文档」）。不写就没有新建入口。
+- `start`（只用于 `navigator`、`island`）：`{ title, hint, icon? }`，项目首页当天没有事件时给的一个起点，点了打开这个插件；`icon` 不写就用视图的 `icon`。不写就不出现在首页。
+
+写错的（不认识的组、`creates` 指向本 Manifest 没有的站或不能新建的站、缺 `title` 或 `hint`、用在别的槽上）`parsePluginManifest` 当场拒绝（`molis-work-plugin validate` 同一套检查），每一种都有拒绝用例（`tests/view-placement-declarations.test.ts`）。工作台读这些声明的函数在 `apps/workbench/src/plugin-catalog.ts`。
+
 全局只有一处导航与对话入口：底部常驻栏（左侧 Dock 菜单与常驻插件，中间插件切换 + Assistant 输入，右侧 Shelf、灵光、侧栏按钮与项目）。侧栏在工作右边打开，放讨论、浏览器、文件和插件声明的 `side` 标签。插件不要再做全局侧栏、第二个对话入口或自己的顶栏导航；插件内部的目录、树、列表与详情可以分栏。
 
 Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side`。不能往未声明 Slot 塞 HTML。舞台页照 Manifest 挂：打开舞台的那个视图（有 `stage` 视图就是它，否则是 `navigator` 入口）用 `contribution_id` 指向一个贡献，工作台把这个贡献的 `workbench` surface 挂到它声明的 `workbench.main`（`apps/workbench/src/declared-stages.ts`），model 是 `{ primitives: { escape, text } }`；没有这个 surface 就没有舞台，宿主和工作台里不另写按插件名的行。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。

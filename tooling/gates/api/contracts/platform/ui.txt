@@ -4,6 +4,8 @@
 
 export declare const UI_COMMAND_INPUT_KINDS: readonly ["current", "object", "agent-session", "artifacts"];
 
+export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
+
 export declare const UI_VIEW_SLOTS: readonly ["navigator", "stage", "settings", "island", "side"];
 
 export interface UiClientScope extends UiRequestScope {
@@ -344,6 +346,11 @@ export interface UiToastTarget extends UiFailureTarget {
     addEventListener(type: string, listener: () => void): void;
 }
 
+export interface UiViewCreateEntry {
+    readonly station: string;
+    readonly title: string;
+}
+
 export interface UiViewDeclaration {
     readonly view_id: string;
     readonly slot: UiViewSlot;
@@ -354,7 +361,12 @@ export interface UiViewDeclaration {
     readonly context_binding?: "focused-object";
     readonly objects?: readonly string[];
     readonly order?: number;
+    readonly group?: UiViewGroup;
+    readonly creates?: UiViewCreateEntry;
+    readonly start?: UiViewStartEntry;
 }
+
+export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
 
 export interface UiViewObjectRef {
     readonly view_id: string;
@@ -362,6 +374,12 @@ export interface UiViewObjectRef {
 }
 
 export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
+
+export interface UiViewStartEntry {
+    readonly title: string;
+    readonly hint: string;
+    readonly icon?: string;
+}
 
 export interface UiWorkspaceCommand {
     readonly plugin_id: string;

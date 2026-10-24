@@ -238,9 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Category read/formation controls reuse the settings components, saving 347 B before the final measurement.
-  // The user approved #1153's remaining +3024 B on 2026-10-24, only against classification parent #1111.
-  "/assets/molis-work-workbench.js": [1202990, 1206014],
+  // Explicit expiry renewal reuses the editor, native date input, confirmation and original-operation retry.
+  // The user approved #1154's +1680 B on 2026-10-24, only against category-controls parent #1153.
+  "/assets/molis-work-workbench.js": [1206014, 1207694],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

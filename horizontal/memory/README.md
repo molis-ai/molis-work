@@ -1,5 +1,11 @@
 # 平台记忆
 
+## 同一 Run 按需读取（实施中，未验证）
+
+依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，本人管理读取继续返回已授权内容；运行中 Agent 的 list/recall 则由 owner 选择可见固定引用，交 Host 绑定的同 Run 展开窄口，输出仅为无正文回执和 memory_id/version。scope/owner 由可信 caller 解析，工具输入只能收窄；无 Run 控制不得回落普通正文结果。最终 canonical 读取、预算、去重、状态及派发前权限仍归 SDK，本包不另排注入循环。
+
+可配与可换：沿现 backend 和产品配方；read/form 独立、当前与冻结许可求交、取消及无正文结果是硬边界。用户继续用现设置，没有新配置项。源码按此合同接入，尚未运行验证。
+
 ## M3 到期正式记忆的明确续期（实现中）
 
 短合同见现策略 spec 的「M3 到期正式记忆的明确续期」。`memory.change@4` 的 renew 仅本人明确选择新绝对期限，复用 MemoryEdits、现 change-request/子操作 marker 与 SDK renew；原操作同时固定目标/所见版本/期限，原 SDK 结果补入同一历史事务。 SDK 返回后、历史事务前重跑本次 `beforeEffect`，随后同步检查公开 `caller.signal`，直接构造 Service 也不能在取消后补账；Action 的实际 SQL 继续核同步的存活、取消与当前授权；SDK 已提交后的拒绝保留原操作补账，不虚称零正式写入。后继版本不覆盖，paused/disabled 不恢复，来源/分类/未知事实保持，Session 管理本片明确拒绝。SDK 新包与真实回归待统筹接入，不据源码声称可用。
@@ -148,6 +154,7 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 | 文件 | 用途 |
 | --- | --- |
 | [src/service.ts](src/service.ts) | `MemoryService`：列出、召回、写入门、修改与移动、候选、最近变动与撤销、界面信号、整理与维护 |
+| [src/queries.ts](src/queries.ts) | 列表、管理分页、候选原件读取与召回；Run 展开在同一查询主人内选择引用，保留读取后权限复核，使用回执仍由真实 Context 决定 |
 | [src/run-recipe.ts](src/run-recipe.ts) | `forRun` 的可信 recipe 构造：当前场景、读取预检、分类限制快照、事实、使用标题及预算；不读正文、不记使用 |
 | [src/scope-commands.ts](src/scope-commands.ts) | 授权范围读取与视图、固定清空、当前格式导出/导入；导入复用 Service 写门 |
 | [src/prefs.ts](src/prefs.ts) | 开关的默认值、四预设配方、补全与使用方权限 |

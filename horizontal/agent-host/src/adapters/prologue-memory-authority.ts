@@ -22,9 +22,9 @@ export interface PrologueMemoryOptions {
     resolve(caller: AgentMemoryCaller, request: AgentMemorySourceRequest & { refs: readonly AgentMemorySourceRef[] }): Promise<readonly AgentMemorySourceSnapshot[]>;
     check(caller: AgentMemoryCaller, request: AgentMemorySourceRequest & { identities: readonly AgentMemorySourceIdentity[] }): Promise<boolean>;
   };
-  authorize(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0]): Promise<boolean>;
+  authorize(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0], operation?: "disable"): Promise<boolean>;
   /** Tighten this exact authorized request from live synchronous facts immediately before commit or dispatch. */
-  assertCurrent?(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0]): boolean;
+  assertCurrent?(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0], operation?: "disable"): boolean;
   authorizeRecall(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeRecall"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeRecall"]>>;
   authorizeManagement(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeManagement"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeManagement"]>>;
   /** Resolve a current trusted caller from the persistent owner, never from Agent query fields. */
@@ -35,7 +35,7 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
   forAttempt<T>(sessionId: string, attemptIndex: number, work: () => Promise<T>): Promise<T>;
   authority: MemoryAuthority; binding: PrologueMemoryBinding; sources?: MemorySourcePort; promotion?: MemoryPromotionLatch; extractor?: MemoryExtractor;
 } {
-  const calls = new AsyncLocalStorage<{ caller: AgentMemoryCaller; formation?: AgentMemoryFormationContext; validateContext?: () => Promise<void> }>();
+  const calls = new AsyncLocalStorage<{ caller: AgentMemoryCaller; formation?: AgentMemoryFormationContext; validateContext?: () => Promise<void>; operation?: "disable" }>();
   // The SDK context names only a Session. Its actual start/drive async chain owns this fixed attempt;
   // a later attempt or another Session can never supply the policy for an earlier request.
   type RunFrame = Pick<SessionIndex, "ref" | "owner"> & { attempt: SessionIndex["attempts"][number]; caller?: AgentMemoryCaller };
@@ -56,7 +56,7 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
     if (!current || !memory || !policy || policy.policy_version !== 2 || policy.taxonomy_version !== 1
       || !isMemoryClassRestrictions(policy.personal) || !isMemoryClassRestrictions(policy.project)
       || memory.consumer !== current.consumer || memory.current_scene !== current.current_scene) return undefined;
-    const caller: AgentMemoryCaller = { ...current, class_restrictions: structuredClone(policy),
+    const caller: AgentMemoryCaller = { ...current, run_explicit: true, class_restrictions: structuredClone(policy),
       ...(memory.facts ? { facts: structuredClone(memory.facts) } : {}),
       ...(attempt.frozen.character ? { character_id: attempt.frozen.character.reference.artifact_id } : {}) };
     if (caller.purpose !== "task" || caller.session_id !== frame.ref.id) return undefined;
@@ -97,8 +97,9 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
       const bound = calls.getStore()?.caller;
       return requested ? callerFor(requested) : Promise.resolve(bound);
     }, effects) } : {}),
-    binding: { context, run: (caller, work, formation, validateContext) => calls.run({ caller: Object.freeze(structuredClone(caller)),
-      ...(formation ? { formation: structuredClone(formation) } : {}), ...(validateContext ? { validateContext } : {}) }, work) },
+    binding: { context, run: (caller, work, call) => calls.run({ caller: Object.freeze(structuredClone(caller)),
+      ...(call?.formation ? { formation: structuredClone(call.formation) } : {}), ...(call?.validateContext ? { validateContext: call.validateContext } : {}),
+      ...(call?.operation ? { operation: call.operation } : {}) }, work) },
     ...(sourcePort ? { sources: {
       async resolve(request: Parameters<MemorySourcePort["resolve"]>[0]) {
         const caller = await callerFor(request.context);
@@ -120,18 +121,18 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
         if (requests.length === 0) return true;
         const caller = await callerFor(requests[0]!.context);
         if (!caller || requests.some(request => !isDeepStrictEqual(request.context, requests[0]!.context))) return false;
-        return options.authorize(caller, requests);
+        return options.authorize(caller, requests, boundCaller(requests[0]!.context) ? calls.getStore()?.operation : undefined);
       },
       assertCurrent(requests) {
         effects.assertCurrent();
         if (requests.length === 0) return;
         const requested = requests[0]!.context;
-        const caller = boundCaller(requested) ?? runFor(requested)?.caller;
+        const bound = boundCaller(requested), caller = bound ?? runFor(requested)?.caller;
         if (!options || !caller || !isDeepStrictEqual(context(caller), requested)
           || requests.some(request => !isDeepStrictEqual(request.context, requested))) {
           throw createPrologueError("MEMORY_SCOPE_DENIED", "记忆最终检查缺少本次可信身份");
         }
-        const allowed = options.assertCurrent?.(caller, requests);
+        const allowed = options.assertCurrent?.(caller, requests, bound ? calls.getStore()?.operation : undefined);
         requireSynchronous(allowed, "记忆最终授权检查必须同步完成");
         if (allowed === false) throw createPrologueError("MEMORY_SCOPE_DENIED", "记忆权限已变更");
       },

@@ -13,5 +13,6 @@ export function pluginCallbackContext<C extends ActionCallContext>(caller: C): C
   };
   Reflect.deleteProperty(view, "host_plugin");
   Reflect.deleteProperty(view, "runtime_memory");
+  Reflect.deleteProperty(view, "runtime_memory_read");
   return view;
 }

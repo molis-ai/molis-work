@@ -139,10 +139,22 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     control => prologueMemoryBackend(store, control), () => !closed);
   const caller = memoryCaller;
   const input = <T>(value: unknown) => (value ?? {}) as T;
+  // Internal Agent identity follows memoryCaller; external MCP runtime Sessions keep their granted non-Run reads.
+  const read = async (context: ActionExecutionContext, request: { list: MemoryListRequest } | { recall: MemoryRecallRequest }) => {
+    if (context.actor_id.startsWith("agent:")) {
+      if (!context.runtime_memory_read) throw memoryErrors.unavailable("这一轮没有记忆展开控制");
+      await context.beforeEffect();
+      return forCall(context).expand(caller(context), request, context.runtime_memory_read);
+    }
+    const service = forCall(context), identity = caller(context);
+    return "recall" in request
+      ? service.recall(identity, request.recall, { beforeEffect: () => context.beforeEffect(), readMode: context.memory_read_mode ?? "task" })
+      : service.list(identity, request.list);
+  };
   const bindings: ActionHandlerBinding[] = [
-    { ...memoryActions.recall, handle: (context, value) => forCall(context).recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect(), readMode: context.memory_read_mode ?? "task" }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
+    { ...memoryActions.recall, handle: (context, value) => read(context, { recall: input<MemoryRecallRequest>(value) }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
     { ...memoryActions.page, handle: (context, value) => forCall(context).page(caller(context), input<MemoryPageRequest>(value)) },
-    { ...memoryActions.list, handle: (context, value) => forCall(context).list(caller(context), input<MemoryListRequest>(value)) },
+    { ...memoryActions.list, handle: (context, value) => read(context, { list: input<MemoryListRequest>(value) }) },
     { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(caller(context), input<MemoryWriteRequest>(value)); } },
     { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(caller(context), input<MemoryChangeRequest>(value)); } },
     { ...memoryActions.history, handle: (context, value) => forCall(context).history(caller(context), String(input<{ memory_id: string }>(value).memory_id)) },

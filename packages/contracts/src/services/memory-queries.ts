@@ -2,6 +2,28 @@ import type { ActionDefinition } from "../platform/actions.js";
 import type { MemoryItem, MemoryKind, MemoryFormalKind, MemoryScope, MemorySource, MemoryState } from "./memory.js";
 import type { AgentMemoryMeta, AgentMemoryPage } from "./agent-host-memory.js";
 
+/** Host-only Run read control. The selector belongs to the Memory owner, never a plugin or model input. */
+export interface MemoryRunReference {
+  readonly scope: "user" | "project" | "character";
+  readonly owner: string;
+  readonly memory_id: string;
+  readonly version: number;
+}
+export interface MemoryRunReadResult {
+  readonly mode: "run-expansion";
+  readonly receipt_id: string;
+  readonly outcome: "queued" | "none" | "unavailable" | "failed" | "timeout" | "cancelled";
+  readonly error_code?: string;
+  readonly queued: readonly { readonly memory_id: string; readonly version: number }[];
+  readonly omitted: readonly { readonly memory_id: string; readonly version: number }[];
+  readonly tokens: number;
+  readonly basis: "provider-reported" | "conservative-estimate";
+  readonly remaining_tokens: number;
+}
+export interface MemoryRunReadControl {
+  read(select: (scopes: readonly Pick<MemoryRunReference, "scope" | "owner">[]) => Promise<readonly MemoryRunReference[]>, signal?: AbortSignal): Promise<MemoryRunReadResult>;
+}
+
 export interface MemoryListRequest {
   scope?: MemoryScope | "all";
   kinds?: MemoryKind[];
@@ -43,6 +65,12 @@ export interface MemoryPageRequest {
 export interface MemoryPageResponse extends Omit<AgentMemoryPage, "items"> { items: MemoryManagementItem[] }
 
 const text = { type: "string" };
+const runMemoryRefSchema = { type: "object", properties: { memory_id: text, version: { type: "integer", minimum: 1 } }, required: ["memory_id", "version"], additionalProperties: false };
+export const runMemoryReadSchema = { type: "object", properties: { mode: { const: "run-expansion" }, receipt_id: text,
+  outcome: { enum: ["queued", "none", "unavailable", "failed", "timeout", "cancelled"] }, error_code: text,
+  queued: { type: "array", items: runMemoryRefSchema }, omitted: { type: "array", items: runMemoryRefSchema },
+  tokens: { type: "number", minimum: 0 }, basis: { enum: ["provider-reported", "conservative-estimate"] }, remaining_tokens: { type: "number", minimum: 0 } },
+  required: ["mode", "receipt_id", "outcome", "queued", "omitted", "tokens", "basis", "remaining_tokens"], additionalProperties: false };
 const identifiers = { type: "array", maxItems: 20, items: { type: "string", minLength: 1, maxLength: 200 } };
 const measured = { anyOf: [{ type: "integer", minimum: 0 }, { const: "unknown" }] };
 const cost = { type: "object", properties: { directory_entries: measured, directory_enumerations: measured,

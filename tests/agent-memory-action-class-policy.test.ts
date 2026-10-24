@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
@@ -32,8 +33,8 @@ async function until<T>(read: () => T | Promise<T>): Promise<NonNullable<T>> {
   }
 }
 
-// MEM-CLASS-02: a normal Agent action must retain the same recipe as the Run's SDK memory.
-test("production Coding memory.list keeps the old Run restriction after reopening and the next Run can read", { timeout: 60_000 }, async t => {
+// MEM-CLASS-02 / MEM-33: both supported read Actions retain this Run's recipe and queue body-free expansion.
+for (const readAction of [memoryActions.list, memoryActions.recall]) test(`production Coding ${readAction.capability_id} keeps the old Run restriction after reopening and the next Run can read`, { timeout: 60_000 }, async t => {
   const home = await realpath(await mkdtemp(join(tmpdir(), "agent-memory-actions-"))), directory = join(home, "work");
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
@@ -47,11 +48,11 @@ test("production Coding memory.list keeps the old Run restriction after reopenin
       seen.push(input);
       let reply: Response;
       if (seen.length === 1) {
-        const tool = input.tools?.find(item => item.name.startsWith("molis-action-") && item.description?.includes(memoryActions.list.action.title));
-        assert.ok(tool, "the granted production memory.list action must actually be offered to this Run");
+        const tool = input.tools?.find(item => item.name.startsWith("molis-action-") && item.description?.includes(readAction.action.title));
+        assert.ok(tool, "the granted production read action must actually be offered to this Run");
         toolNames[round] = tool.name;
         if (round === 0) { firstRequest.resolve(); await releaseFirst.promise; }
-        reply = cogniaScriptedResponse({ name: tool.name, input: { scope: "project" } });
+        reply = cogniaScriptedResponse({ name: tool.name, input: readAction.capability_id === "memory.list" ? { scope: "project" } : { scopes: ["project"], query: "项目约定" } });
       } else reply = cogniaScriptedResponse(undefined, "检查完成。");
       response.writeHead(200, { "content-type": "text/event-stream" }); response.end(await reply.text());
     } catch (error) {
@@ -89,7 +90,7 @@ test("production Coding memory.list keeps the old Run restriction after reopenin
   await served.web.post(`/projects/${project.project_id}/api/workspaces`, { workspace_path: directory, user_confirmed: true });
   const workspaces = await served.web.get<{ workspaces: Array<{ workspace_id: string }> }>(`/projects/${project.project_id}/api/project-settings/workspaces`);
   assert.ok(workspaces.workspaces[0]);
-  const action = { capability_id: memoryActions.list.capability_id, version: memoryActions.list.version, provider_id: MEMORY_PROVIDER_ID };
+  const action = { capability_id: readAction.capability_id, version: readAction.version, provider_id: MEMORY_PROVIDER_ID };
   await grantMcpAction(served.web, { clientId: "agent:prologue", projectId: null, action });
 
   const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [...MEMORY_PERMISSIONS] };
@@ -98,7 +99,7 @@ test("production Coding memory.list keeps the old Run restriction after reopenin
   assert.equal(written.outcome, "written"); assert.ok(written.memory);
   const restriction: MemoryClassRestriction = { selector: { consumer: "agent", current_scene: "coding", kind: "convention" }, read: "off", form: "inherit" };
   await memory.invoke(memoryActions.savePrefs, { scope: "project", prefs: { class_restrictions: [restriction] } });
-  const before = await memory.invoke(memoryActions.list, { scope: "project" });
+  const before = memoryData(await memory.invoke(memoryActions.list, { scope: "project" }));
   assert.ok(before.items.some(item => item.text.includes(SENTINEL)), "the person can read the actual persisted source before starting either Run");
 
   // This service is the Home's real composeAgentHost/startAuthority assembly. No handcrafted authority/client/caller replaces it.
@@ -127,13 +128,18 @@ test("production Coding memory.list keeps the old Run restriction after reopenin
   assert.ok(!JSON.stringify(requests[0]).includes(SENTINEL), "reopening must not disclose a memory forbidden by the old Run snapshot");
   assert.ok(!JSON.stringify(oldView).includes(SENTINEL), "the old Run's visible tool output must not disclose the source either");
 
+  await memory.invoke(memoryActions.savePrefs, { scope: "project", preset: "manual" });
+  await memory.invoke(memoryActions.savePrefs, { scope: "personal", preset: "manual" });
   round = 1;
   const next = await start(), nextView = await finish(next.ref);
   assert.deepEqual(providerErrors, []);
   assert.equal(nextView.phase, "completed", nextView.stop_reason ?? undefined);
   assert.deepEqual(nextView.class_restrictions?.project, []);
+  assert.ok(!JSON.stringify(requests[1]![0]).includes(SENTINEL), "manual settings do not automatically recall before the tool intent");
   assert.ok(nextView.activity.some(item => item.name === toolNames[1] && item.state === "completed"), "the new Run must execute the same granted action successfully");
-  assert.ok(JSON.stringify(toolResults(1)).includes(SENTINEL), "the new Run can read the actual memory through the tool, not merely automatic recall");
-  const after = await memory.invoke(memoryActions.list, { scope: "project" });
+  assert.ok(!JSON.stringify(toolResults(1)).includes(SENTINEL), "the read Action returns no memory body");
+  assert.ok(JSON.stringify(toolResults(1)).includes("run-expansion"), "the read Action queues through the same Run");
+  assert.ok(JSON.stringify(requests[1]).includes(SENTINEL), "the real next HTTP context carries the authorized memory");
+  const after = memoryData(await memory.invoke(memoryActions.list, { scope: "project" }));
   assert.deepEqual(after.items.map(item => [item.memory_id, item.text, item.version]), before.items.map(item => [item.memory_id, item.text, item.version]), "reading neither replaces nor deletes the formal memory");
 });

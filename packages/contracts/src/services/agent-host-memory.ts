@@ -218,7 +218,9 @@ export type AgentMemoryPreviewMutation = { kind: "update"; change: AgentMemoryCh
   | { kind: "pause" | "disable"; reason: string } | { kind: "resume" | "remove" };
 /** Supplied only by trusted App/Host code, independently of business/model input. */
 export interface AgentMemoryCaller {
-  /** Trusted Run snapshot; absent callers cannot recover a Run memory grant. */
+  /** Set only by the trusted Run frame or its controlled Memory selector, never query input. */
+  readonly run_explicit?: true;
+  /** Original Run policy, supplied by Host rather than query input. */
   readonly class_restrictions?: AgentMemoryClassPolicy;
   actor_id: string;
   character_id?: string;

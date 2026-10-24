@@ -14,6 +14,7 @@ import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
 const person: AgentMemoryCaller & { consumer: "ui"; current_scene: string } = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "ui", person: true, current_scene: "common", purpose: "management" };
 const task: AgentMemoryCaller & { consumer: "agent"; current_scene: string } = { ...person, consumer: "agent", person: false, purpose: "task" };
+const assistantManagement: AgentMemoryCaller = { ...task, consumer: "assistant", purpose: "management" };
 const meta: AgentMemoryMeta = { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } };
 
 async function fixture(t: TestContext) {
@@ -59,6 +60,106 @@ test("off keeps personal management and deletion but refuses new saves, candidat
   await assert.rejects(memory.candidates.accept({ scope: "user", owner: person.actor_id, candidate_id: candidate.candidate_id, expected_version: candidate.version, operation_id: "off-accept" }));
   await memory.remove({ scope: "user", owner: person.actor_id, memory_id: entry.memory_id, expected_version: disabled.version, operation_id: "delete" });
   await f.reopen(); assert.deepEqual(await f.bound(caller).list("user", person.actor_id), []);
+});
+
+test("MEM-33 disable is independent of formation, while disabled-entry edits and forged operation fields remain refused", async t => {
+  const f = await fixture(t), original = await f.save("disable-without-formation");
+  f.service.savePrefs(person, "project", { form: false });
+  const input = { scope: "project" as const, owner: "a", memory_id: original.memory_id,
+    expected_version: original.version, operation_id: "disable-once", reason: "No longer useful" };
+  const disabled = await f.bound(assistantManagement).disable(input);
+  assert.equal(disabled.version, original.version + 1); assert.equal(disabled.disabled?.reason, input.reason);
+  assert.equal(disabled.text, original.text); assert.deepEqual(disabled.meta, original.meta);
+  const spoofed = { ...assistantManagement, operation: "disable" }, memory = f.bound(spoofed);
+  const target = { ...input, expected_version: disabled.version };
+  await assert.rejects(memory.write({ scope: "project", owner: "a", text: "Not a disable", origin: "person", meta, operation_id: "ordinary-write" }), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(memory.update({ ...target, operation_id: "ordinary-update", change: { text: "Changed while disabled" } }), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(memory.setMeta({ ...target, operation_id: "ordinary-meta", meta: { ...meta, basis: "repeated" } }), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(memory.resume({ ...target, operation_id: "ordinary-resume" }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.deepEqual(await f.bound().list("project", "a"), [disabled]);
+  await f.reopen(); assert.deepEqual(await f.bound().list("project", "a"), [disabled]);
+  assert.deepEqual(await f.bound(assistantManagement).disable(input), disabled, "the original operation does not advance the version again");
+  await f.reopen(); assert.deepEqual(await f.bound().list("project", "a"), [disabled]);
+});
+
+test("MEM-33 disable retains current task-read, frozen classification and scope grants", async t => {
+  const f = await fixture(t), original = await f.save("disable-denied");
+  const input = { scope: "project" as const, owner: "a", memory_id: original.memory_id,
+    expected_version: original.version, operation_id: "denied-disable", reason: "No longer useful" };
+  const restriction = { selector: { consumer: "assistant" as const, current_scene: "common" as const, kind: "convention" as const },
+    read: "explicit-only" as const, form: "inherit" as const };
+  f.service.savePrefs(person, "project", { form: false, task_recall: false });
+  await assert.rejects(f.bound({ ...assistantManagement, run_explicit: true }).disable(input), { code: "MEMORY_SCOPE_DENIED" });
+  f.service.savePrefs(person, "project", { task_recall: true, class_restrictions: [restriction] });
+  await assert.rejects(f.bound(assistantManagement).disable(input), { code: "MEMORY_SCOPE_DENIED" });
+  const recipe = await f.service.forRun(assistantManagement, { scopes: ["project"] }); assert.ok(recipe);
+  f.service.savePrefs(person, "project", { class_restrictions: [] });
+  await assert.rejects(f.bound({ ...assistantManagement, class_restrictions: recipe.class_restrictions }).disable(input), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(f.bound({ ...assistantManagement, project_id: "b" }).disable(input));
+  await assert.rejects(f.bound({ ...assistantManagement, consumer: "plugin", plugin_id: "example.plugin" }).disable(input), { code: "MEMORY_SCOPE_DENIED" });
+  assert.deepEqual(await f.bound().list("project", "a"), [original]);
+  await f.reopen(); assert.deepEqual(await f.bound().list("project", "a"), [original]);
+});
+
+test("MEM-33 disable rechecks task-read in the final synchronous fence", async t => {
+  const f = await fixture(t), original = await f.save("disable-fence");
+  f.service.savePrefs(person, "project", { form: false });
+  const authorize = f.options.authorize, assertCurrent = f.options.assertCurrent!; let revoked = false, fenced = false;
+  f.options.authorize = async (caller, requests, operation) => {
+    const allowed = await authorize(caller, requests, operation);
+    if (!revoked && operation === "disable" && requests.some(request => request.action === "save")) {
+      assert.equal(allowed, true); revoked = true; f.service.savePrefs(person, "project", { task_recall: false });
+    }
+    return allowed;
+  };
+  f.options.assertCurrent = (caller, requests, operation) => {
+    const allowed = assertCurrent(caller, requests, operation);
+    if (operation === "disable" && requests.some(request => request.action === "save") && !allowed) fenced = true;
+    return allowed;
+  };
+  await f.reopen();
+  await assert.rejects(f.bound(assistantManagement).disable({ scope: "project", owner: "a", memory_id: original.memory_id,
+    expected_version: original.version, operation_id: "fenced-disable", reason: "No longer useful" }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.equal(revoked, true); assert.equal(fenced, true);
+  await f.reopen(); assert.deepEqual(await f.bound().list("project", "a"), [original]);
+});
+
+test("MEM-33 a waiting disable cannot lend its operation to a concurrent disabled-entry update", { timeout: 30_000 }, async t => {
+  const f = await fixture(t), original = await f.save("waiting-disable"), other = await f.save("already-disabled");
+  const disabledOther = await f.bound().disable({ scope: "project", owner: "a", memory_id: other.memory_id,
+    expected_version: other.version, operation_id: "person-disable", reason: "Person disabled" });
+  f.service.savePrefs(person, "project", { form: false });
+  let enter!: () => void, release!: () => void, intercepted = false;
+  const entered = new Promise<void>(done => { enter = done; }), gate = new Promise<void>(done => { release = done; });
+  const authorize = f.options.authorize;
+  f.options.authorize = async (caller, requests, operation) => {
+    if (!intercepted && operation === "disable" && requests.some(request => request.action === "save")) {
+      intercepted = true; enter(); await gate;
+    }
+    if (requests.some(request => request.action === "save" && request.target.ref.id === other.memory_id)) assert.equal(operation, undefined);
+    return authorize(caller, requests, operation);
+  };
+  await f.reopen();
+  const pending = f.bound(assistantManagement).disable({ scope: "project", owner: "a", memory_id: original.memory_id,
+    expected_version: original.version, operation_id: "waiting-disable", reason: "No longer useful" });
+  let rejected: Promise<void> | undefined, disabled: Awaited<typeof pending>;
+  try {
+    await Promise.race([entered, pending.then(() => assert.fail("disable completed without reaching the authorization barrier"))]);
+    rejected = assert.rejects(f.bound(assistantManagement).update({ scope: "project", owner: "a", memory_id: other.memory_id,
+      expected_version: disabledOther.version, operation_id: "parallel-update", change: { text: "Must remain unchanged" } }), { code: "MEMORY_SCOPE_DENIED" });
+    // Both mutations use the SDK owner's queue; release its first entry before awaiting the queued update.
+    release();
+    [disabled] = await Promise.all([pending, rejected]);
+  } finally {
+    release();
+    await Promise.allSettled(rejected ? [pending, rejected] : [pending]);
+  }
+  assert.equal(disabled.version, original.version + 1); assert.deepEqual(disabled.meta, original.meta);
+  await f.reopen();
+  const stored = await f.bound().list("project", "a");
+  assert.equal(stored.length, 2);
+  assert.deepEqual(stored.find(item => item.memory_id === other.memory_id), disabledOther);
+  assert.deepEqual(stored.find(item => item.memory_id === original.memory_id), disabled);
 });
 
 test("mixed on/off scope queries remain admitted while canonical task reads use current consumer switches", async t => {

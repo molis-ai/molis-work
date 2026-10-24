@@ -1454,8 +1454,8 @@ export class AssistantService {
         `和这一轮相关的记忆里，${budget ? `有 ${budget} 条因为篇幅没有带上` : ""}${budget && conflicts ? "，" : ""}${conflicts ? `有 ${conflicts} 条和另一条互相矛盾、带上的是用户明确说过的那条` : ""}。`));
     }
     // Forming memories switched off: the round is told, and where the person turns it on (the work layer says what follows).
-    if (this.ports.memory?.() && !this.memoryTools(work)) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
-      "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能长期记住或忘掉任何事。"));
+    if (this.ports.memory?.() && !this.memoryTools(work)?.remember && !work.delegated_by) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
+      "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能长期记住新内容；读取和停用是否可用，以本轮提供的工具为准。"));
     // Changes a stopped round left running, and how each ended (the base says not to submit an unsettled one again blindly).
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     if (unsettled.length) {

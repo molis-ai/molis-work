@@ -1,5 +1,13 @@
 # Agent Host
 
+## 同一 Run 按需展开（实施中，未验证）
+
+依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，Adapter 将 SDK 现有 `started.memory.expand` 交现 `RunRecord` 持有。启动前的一次性可取消等待解决首工具早于 start 返回的时序，绑定成功才释放，启动失败拒绝；不新增 registry、不按 Session 最新 Run 找 control，历史恢复不补造控制。每次展开复用原 attempt authority 与当前派发检查，无正文回执保留 ref/version、预算和 queued/omitted 事实，正文只走下一实际模型请求的 Context。工具与现 Action client 传递同一可信窄口。
+
+可配与可换：沿现 Runtime Adapter 装配和原 Run 预算；身份、授权、同 Run 预算/去重、取消/终态不能关闭。不新增 SDK API 或配置。源码按此合同接入，尚未运行验证。
+
+专项验证：`node scripts/run-tests.mjs tests/memory-run-expansion.test.ts`。新增场景使用正式 SDK 的公开 Node Adapter、隔离存储和本机 HTTP：两个活跃 Run 交错读取时各自保留 scope、attempt authority、去重与预算，正文只进所属 Run 的后续请求；在真实 Host `storage.commit` 的本 Session `afterStart` 索引写入处设置异步屏障，验证首工具早于 App start 返回、正常释放、持久失败取消原工具信号及读取信号取消。屏障只延迟/拒绝该次提交，其余提交原样执行，不替换 SDK start/drive；原 fake Runtime 用例只证明 Adapter 窄口。SDK #96 既有 `memory-run-expand.live.test.ts` 已有预算、去重、撤权、版本、compaction 与 queued 取消场景，本片不复制其全矩阵。这些新增 App 场景目前只准备源码，正式依赖安装及运行结果待集成验证。
+
 ## Memory 有界管理查询
 
 `AgentMemoryCapability.page` 只将当前 caller/ExecutionControl 下的 scope、owner、分类/状态/来源/期限过滤与 cursor 交 SDK `memory.page`，不先 hydrate/list。返回 canonical 条目、停止原因、exact/unknown 计数及真实/隐藏成本；snake_case 只作字段转换。查询范围许可与条目最终复核由 SDK 和现 App authority 承担，缺管理许可不查库，普通 task/explicit 许可不能冒充管理查询权。该页不写记忆、不增加索引。对应公开 Node 回归：`tests/memory-management-pages.test.ts`、`tests/memory-management-page-authority.test.ts`。
@@ -34,6 +42,8 @@ adapter 只报告事实并执行已批准的工作。
 ## 记忆晋升与可信原件桥
 
 `AgentMemoryTools` 的保存、建议、查询与停用回调必须接收本次可信执行控制。gateway 保留实际工具/Run 的取消信号，并为一次执行生成固定操作号；模型参数或 tool-call id 不授予操作身份。LocalHost 将此控制贯穿实际 Host 提交与 ledger，未提供控制的旧直接调用拒绝；不新增跨重启工具重放保证。
+
+Adapter 的实际 disable 调用在原 ALS 帧携带 operation=disable，作为 `PrologueMemoryOptions.authorize/assertCurrent` 可选第三参数交 App。它只说明这次调用的动作，不授予权限；caller/模型自报字段不能设置，普通写入及并发调用不继承。App 可将停用与形成分别授权，同操作重试仍核当前权限、固定输入和版本。公开 Node 回归 `tests/memory-runtime-policy.test.ts` 覆盖关闭形成后的停用/重启重试、普通编辑拒绝及并发隔离；助理真实调用另由 `tests/assistant-memory.test.ts` 覆盖。
 
 形成沿 `memory.candidates.form` 委托同一 SDK 候选主人；Host extractor 只在既有 `memory-extractor` 槽执行一次提炼。固定 slots、replacement 原版本与 canonical 来源由 SDK 校验，Adapter 仅投影 snake case，不产生候选或批准。已有记忆（最多 30）及待审候选（最多 20）的授权展示快照随这次 ALS 调用传给 extractor，正文只传一次，不成为来源证明，不存第二份账；快照不能替代后续来源、权限、期限与目标 CAS。进程内 `validate_context` 与 caller/context 分开保存在本次 ALS 中，在真实模型 before_dispatch 前复核原 ref/version 与当前读取许可，不序列化、不落盘、不发模型；`none` 零调用。逐项 created/replayed/rejected/unknown、部分成功、取消和未知用量完整返回。正常返回的 reported usage 先交 SDK，再由来源与实际存储门拒绝迟到写入；Host 自身拒绝结果或取消竞速尚未交回结果时，usage 保持 unknown，不推算为零。`trigger:none` 委托 SDK 零来源/模型读取；缺 extractor 明确 unavailable。验证使用公开 Adapter、真实 Node 存储与本机 HTTP，不宣称真实模型质量已验收。
 

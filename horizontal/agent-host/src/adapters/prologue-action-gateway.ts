@@ -7,7 +7,7 @@ import { CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
 /** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
 export const DELEGATION_TOOLS = { start: "delegate-work", check: "check-delegated-work", follow: "follow-up-delegated-work", stop: "stop-delegated-work" } as const;
-/** The person's memory, present only where the caller lets this round form memories. */
+/** The person's memory, independently offered under the current read and change permissions. */
 export const MEMORY_TOOLS = { remember: "remember", list: "list-memories", forget: "forget-memory", propose: "suggest-memory" } as const;
 const PACK_ID = "molis-action-gateway";
 /**
@@ -36,12 +36,12 @@ const describe = (view: ActionView, direct = false) => {
 
 /** A memory tool is offered where the round was given memory, and remember, forget and suggest-memory only where it was given that one. */
 const memoryToolOffered = (name: string, memory: AgentActionClient["memory"]): boolean => !(Object.values(MEMORY_TOOLS) as string[]).includes(name)
-  || (!!memory && (name !== MEMORY_TOOLS.remember || !!memory.remember) && (name !== MEMORY_TOOLS.forget || !!memory.forget) && (name !== MEMORY_TOOLS.propose || !!memory.propose));
+  || (!!memory && (name !== MEMORY_TOOLS.list || !!memory.list) && (name !== MEMORY_TOOLS.remember || !!memory.remember) && (name !== MEMORY_TOOLS.forget || !!memory.forget) && (name !== MEMORY_TOOLS.propose || !!memory.propose));
 
 /** The person's memory tools; each refuses when the round was not given memory, or not that tool. */
 type GatewayToolRun = (args: Record<string, unknown>, signal: AbortSignal, operationId: string) => Promise<string>;
 function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: GatewayToolRun) => ToolRunner): Record<string, ToolRunner> {
-  const available = () => { if (!given) throw new ActionError("actions.forbidden", "Forming memories is switched off here; tell the person you did not keep it."); return given; };
+  const available = () => { if (!given) throw new ActionError("actions.forbidden", "This round has no authorized memory tools; nothing was read or changed."); return given; };
   const without = (tool: string): never => { throw new ActionError("actions.forbidden", `This work has no ${tool} tool (a work handed to you by another work cannot keep or forget memories); tell the person or the work that handed it to you that nothing was kept or forgotten.`); };
   const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
   return {
@@ -54,7 +54,7 @@ function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: Gate
       return JSON.stringify(await remember({ text: text(args.text, "text", 400), scope, said: text(args.said, "said", 400),
         ...(kind ? { kind } : {}), ...(args.replaces !== undefined ? { replaces: text(args.replaces, "replaces", 200) } : {}) }, { signal, operation_id }));
     }),
-    [MEMORY_TOOLS.list]: guarded(async (_args, signal, operation_id) => JSON.stringify({ memories: await available().list({ signal, operation_id }) })),
+    [MEMORY_TOOLS.list]: guarded(async (_args, signal, operation_id) => JSON.stringify(await (available().list ?? without(MEMORY_TOOLS.list))({ signal, operation_id }))),
     [MEMORY_TOOLS.forget]: guarded(async (args, signal, operation_id) => { const forget = available().forget ?? without(MEMORY_TOOLS.forget); return JSON.stringify(await forget(text(args.memory_id, "memory_id", 200), { signal, operation_id })); }),
     [MEMORY_TOOLS.propose]: guarded(async (args, signal, operation_id) => {
       const scope = args.scope === "project" ? "project" : args.scope === "personal" ? "personal" : null;
@@ -290,7 +290,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
         kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference: how they like things done; convention: a project's agreed way; fact: background about their work; experience: a lesson from how work went. Default: preference (personal) or convention (project)." },
         replaces: { type: "string", description: "The id (from list-memories) of an earlier memory this one corrects." },
       } }, "mutate-external"),
-    tool(MEMORY_TOOLS.list, "List what you keep for the person here (personal and this project's), with ids and where each came from. Use it when they ask what you remember, or before forgetting something.",
+    tool(MEMORY_TOOLS.list, "Request remembered items for this Run (personal and this project). The result contains only ids, versions and a queue receipt. Authorized text is provided as memory context on the next model request, within this Run's remaining budget. Queued does not mean sent. Use the ids when correcting or forgetting an item; do not invent omitted text.",
       { type: "object", additionalProperties: false, properties: {} }, "safe-read"),
     tool(MEMORY_TOOLS.forget, "Switch off one remembered item when the person asks you to forget it or it is no longer true (find its id with list-memories). It is no longer used anywhere, but it is not deleted: it stays in their memory settings, where they can switch it back on or delete it for good. Say it was switched off, not deleted. A newer explicit request corrects an older one with remember and replaces, not with this.",
       { type: "object", additionalProperties: false, required: ["memory_id"], properties: { memory_id: { type: "string" } } }, "mutate-external"),

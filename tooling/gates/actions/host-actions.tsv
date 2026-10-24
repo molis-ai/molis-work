@@ -110,13 +110,13 @@ memory.changes.undo	1	system.memory	command	operation	home	write	-	user	memory:w
 memory.export	2	system.memory	query	query	home	read	-	user	memory:export	-	-	-	fa7432c0eaf4	7ffbdcc0ada2	-
 memory.history	2	system.memory	query	query	home	read	-	user	memory:read	-	-	-	d5966af3318e	baa4e90fb824	-
 memory.import	2	system.memory	command	operation	home	write	-	user	memory:export	-	-	-	7800d94ff697	a0809c153e83	-
-memory.list	4	system.memory	query	query	home	read	-	agent,user	memory:read	-	-	-	1ac220317487	449edb041d22	5e0374458cf9
+memory.list	5	system.memory	query	query	home	read	-	agent,user	memory:read	-	-	-	1ac220317487	17179a00f3e2	5e0374458cf9
 memory.page	1	system.memory	query	query	home	read	concurrent	user	memory:read	-	-	-	618c5b548a9d	1909c4cd7bd4	5e0374458cf9
 memory.pairs.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	8fae6285b822	983c812a2083	-
 memory.pairs.resolve	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	29218ac07da5	8cee623341f8	-
 memory.prefs.read	3	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	f0c071b0cd86	192b3d5adac1	-
 memory.prefs.write	3	system.memory	command	operation	home	write	-	user	memory:configure	-	-	-	180044f1f196	192b3d5adac1	-
-memory.recall	2	system.memory	query	query	home	read	concurrent	agent,mcp,user,workflow	memory:recall	-	-	-	11820371c2c9	54b0cb3f9f67	5e0374458cf9
+memory.recall	3	system.memory	query	query	home	read	concurrent	agent,mcp,user,workflow	memory:recall	-	-	-	11820371c2c9	30ef965501fa	5e0374458cf9
 memory.scope.clear	2	system.memory	command	operation	home	irreversible	-	user	memory:configure	-	-	-	52e3e9d11900	4c2011f5c863	-
 memory.scope.preview	1	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	fa7432c0eaf4	ea5329a82ead	-
 memory.signals.report	1	system.memory	command	operation	home	write	concurrent	user	memory:write	-	-	-	80ee41256b15	414a99299b4d	-

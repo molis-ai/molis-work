@@ -1,5 +1,11 @@
 # Plugin 安装与生命周期
 
+## Run 记忆控制的上下文边界（实施中，未验证）
+
+依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，Host 的 transient Run 展开 control 与 runtime_memory 一样不进入插件回调可见上下文。内部 Action 授权转发保留原调用身份与控制，不能从插件参数建立或替换。普通插件的 Memory Action 消费许可仍关闭，本片不开放新消费者。此边界不可配置关闭，沿现 callback-context 投影，不新增运行状态或 registry；源码已接入，尚未验证。
+
+专项验证：`node scripts/run-tests.mjs tests/security-invariants-plugin-callers.test.ts tests/security-invariants-plugin-action-delegation.test.ts`。沿现真实插件 Action/scene 回调和同插件 invoke→directory 委托通路，断言 callback 不可见 `runtime_memory_read`、自报同名字段不能替换 Host 保留的原控制，目标 Action 的独立授权拒绝仍阻止实际执行。这里的控制标记仅验证身份透传与隔离；真实 SDK 展开、正文派发及取消由 `tests/memory-run-expansion.test.ts` 覆盖。新增断言尚未运行。
+
 管理 Plugin 定义、安装身份、权限授予、启动、崩溃恢复和卸载，让 Host 能追踪一次安装的状态与访问权。
 
 包名：`@molis-ai/molis-work-plugin-runtime`。工作区内部包，通过仓库构建和 Host 装配使用。

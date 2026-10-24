@@ -1,5 +1,11 @@
 # 公共类型与协议
 
+## Run 记忆展开合同（实施中，未验证）
+
+依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，`AgentMemoryTools.list` 改为无正文展开回执，保留纠正所需 memory_id/version。Agent Action 调用控制与 Host 私有 `ActionCallContext` 携带仅供同 Run 的展开窄口，不可从业务输入建立，不序列化或暴露给插件回调。`memory.list@5` / `memory.recall@3` 用明确输出 union 区分既有非 Run 查询与运行中 Agent 的无正文展开；按当前开发阶段同步所有消费者，不增加兼容层。SDK 类型只留 AgentHost Adapter 边界，contracts 只提供本仓 DTO。具体字段已按核对合同接入；快照由统筹统一生成，尚未验证。
+
+最小输出变化：共享 `mode: "run-expansion"` DTO，仅含 receipt_id/outcome/可选错误码、queued/omitted memory_id/version、tokens/basis/remaining_tokens；list@5 和 recall@3 分别将它与原响应组成 union，原管理分支不加必填字段。list 工具直接返回此 DTO。输入不增加任何授权字段，Host 仅为已校验的现有 Memory 读取意图建立 explicit 用途；任意 runtime Action 不凭身份自动获得。当前 role/install/read/场景和原冻结权限仍要重新求交。
+
 ## Memory 管理分页合同
 
 `memory.list@4` 保留合法可见正式项及 personal/project 数；pending 与 auto_this_week 为 number|null。null 明确表示该调用未查询管理计数：非本人调用不读取候选或旁账统计，本人管理仍返回实际数值。不以零替代未知，也不为计数提升非本人权限。助理工具与工作轨迹只消费 items，现设置页使用独立 page/candidates/changes。

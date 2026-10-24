@@ -386,10 +386,10 @@ test("memory switches hold the same when a Character carries the round; turning 
     service.saveMemoryPrefs({ form: false, use_personal: false });
     // It says it kept the rule anyway (as MiniMax-M3 did): held once, told that forming memories is off.
     script.push(() => reply(undefined, "这是长期规则，我用 remember 记到项目「项目甲」里：以后标题都不超过十个字。"),
-      body => { assert.match(JSON.stringify(body.messages), /switched off forming memories/); return reply(undefined, "这项工作里标题都不超过十个字；没有长期记下，需要的话可以在设置里打开“允许记住”。"); });
+      body => { assert.match(JSON.stringify(body.messages), /no authorized tool for the memory change|no authorized memory tools/); return reply(undefined, "这项工作里标题都不超过十个字；没有长期记下，需要的话可以在设置里打开“允许记住”。"); });
     const off = await round({ text: "我写方案时，标题都不超过十个字。再看一遍", request_id: "req-mc-3", work_id: on.work.work_id }, 3);
     assert.match(JSON.stringify(off.first), /每次回答先列出三处可改进的地方/);
-    assert.ok(!tools(off.first).includes("remember") && !tools(off.first).includes("suggest-memory"), "no memory tools under the Character either");
+    assert.ok(!tools(off.first).includes("remember") && !tools(off.first).includes("suggest-memory"), "no formation tools under the Character either");
     assert.doesNotMatch(JSON.stringify(off.first.messages), /回答用要点列表/, "nothing personal is recalled under the Character either");
     assert.match(JSON.stringify(off.first.messages), /先列问题再给改法/, "its Character memory follows the project's switch, which is still on");
     assert.match(JSON.stringify(off.first.messages), /关闭了“允许记住”/, "the round is told forming memories is off");
@@ -538,11 +538,14 @@ test("remember takes 'you said' only from the person's own messages in this work
     const [item] = (await memory.list(person)).items;
     assert.deepEqual([item!.text, item!.source, item!.evidence.map(evidence => evidence.text)], ["以后周报都先写风险，别放最后", "said", ["以后周报都先写风险，别放最后"]]);
 
-    // Forget is a reversible switch-off attributed to the Assistant; the permanent delete stays in settings.
-    assert.deepEqual(await tools.forget!("no-such-memory", memoryToolControl()), { forgotten: false });
-    assert.equal((await tools.forget!(kept.memory_id, memoryToolControl())).forgotten, true);
+    // MEM-33: disabling is independent of formation; the existing task-read target lookup remains required.
+    for (const scope of ["personal", "project"] as const) memory.savePrefs(person, scope, { form: false, task_recall: true });
+    const readOnly = await preparedMemoryTools(service, work);
+    assert.ok(readOnly.list && readOnly.forget); assert.equal(readOnly.remember, undefined);
+    assert.deepEqual(await readOnly.forget("no-such-memory", memoryToolControl()), { forgotten: false });
+    assert.equal((await readOnly.forget(kept.memory_id, memoryToolControl())).forgotten, true);
     assert.deepEqual((await service.memories("project-a")).map(entry => [entry.text, entry.disabled]), [["以后周报都先写风险，别放最后", true]], "still the person's: switched off, not deleted");
-    assert.deepEqual((await tools.list(memoryToolControl())).map(entry => entry.text), ["（已停用）以后周报都先写风险，别放最后"]);
+    await assert.rejects(tools.list!(memoryToolControl()), /记忆展开控制/, "direct callers cannot obtain unmetered text without the original Run control");
     const [change] = memory.changes(person, { scope: "project" });
     assert.deepEqual([change!.kind, change!.by, change!.undoable, change!.work?.work_id], ["disabled", "assistant", true, work.work_id]);
   } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
@@ -744,7 +747,7 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
     assert.equal(store.rounds(child.work.work_id)[0]!.written_by, "assistant", "the brief is the Assistant's words, marked when the round is written");
     assert.equal((await preparedMemoryTools(service, store.get(LOCAL_PERSON_ACTOR_ID, child.work.work_id))).remember, undefined);
     assert.equal((await preparedMemoryTools(service, store.get(LOCAL_PERSON_ACTOR_ID, child.work.work_id))).forget, undefined);
-    assert.match(JSON.stringify(childReplies[0].messages), /no tools to keep or forget memories/, "the held claim says it cannot, instead of telling it to call a tool it was not given");
+    assert.match(JSON.stringify(childReplies[0].messages), /no authorized tool for the memory change/, "the held claim says it cannot, instead of telling it to call a tool it was not given");
     assert.doesNotMatch(JSON.stringify(childReplies[0].messages), /Call remember now/);
     assert.deepEqual(await service.memories("project-a"), [], "nothing the brief said was kept as the person's");
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
@@ -1079,7 +1082,10 @@ test("Assistant list and suggest tools keep their own Run's class policy when se
       memory.savePrefs(person, "project", { class_restrictions: [] });
       return { name: "list-memories", input: {} };
     }
-    if (turn === 2 || turn === 5) { results.push(latestResult(body)); return { name: "suggest-memory", input: suggestion }; }
+    if (turn === 2 || turn === 5) {
+      if (turn === 5) assert.match(JSON.stringify(body), new RegExp(keptText), "authorized memory reaches the real next HTTP request");
+      results.push(latestResult(body)); return { name: "suggest-memory", input: suggestion };
+    }
     if (turn === 3 || turn === 6) { results.push(latestResult(body)); return "已检查。"; }
     if (turn === 4) return { name: "list-memories", input: {} };
     throw new Error(`Unexpected model turn ${turn}`);
@@ -1111,10 +1117,11 @@ test("Assistant list and suggest tools keep their own Run's class policy when se
     await sendAsPerson(service, { work_id: first.work.work_id, text: "再检查一次并提出建议", request_id: "frozen-tools-2" }, {});
     await until(async () => { const view = await service.read(first.work.work_id); return view.rounds.length === 2 && view.work.state === "completed"; }, "reopened tool round");
     assert.equal(results.length, 4);
-    assert.match(results[2]!, new RegExp(keptText));
+    assert.doesNotMatch(results[2]!, new RegExp(keptText), "tool result carries references, never memory text");
+    assert.match(results[2]!, /run-expansion/);
     assert.doesNotMatch(results[3]!, /MEMORY_SCOPE_DENIED/);
     assert.deepEqual((await memory.candidates(person)).map(candidate => candidate.text), [suggestion.text]);
-    assert.deepEqual(await oldTools.list(memoryToolControl()), [], "an old bound tool cannot borrow the later Run's unrestricted snapshot");
+    await assert.rejects(oldTools.list!(memoryToolControl()), /记忆展开控制/, "an old tool cannot borrow a later Run or fall back to text");
     await assert.rejects(oldTools.propose!({ ...suggestion, scope: "project", text: "项目周报改为先列进度" }, memoryToolControl()));
     assert.deepEqual((await memory.candidates(person)).map(candidate => candidate.text), [suggestion.text]);
 
@@ -1147,11 +1154,47 @@ test("Assistant list and suggest tools keep their own Run's class policy when se
     } finally { observeControlled = undefined; release(); for (const restore of restoreObserved) restore(); }
     const persisted = await memory.candidates(person);
     for (const input of inputs) assert.equal(persisted.find(candidate => candidate.text === input.text)?.candidate_id, committed.get(input.text));
-    assert.deepEqual(await currentTools.list(memoryToolControl()), [{ memory_id: seed.memory!.memory_id, scope: "project", text: keptText,
-      origin: seed.memory!.origin }], "the read-off personal class stays hidden after its proposals commit");
+    await assert.rejects(currentTools.list!(memoryToolControl()), /记忆展开控制/, "standalone read cannot bypass the Run after proposals commit");
     memory.savePrefs(person, "personal", { class_restrictions: [{ ...restriction,
       selector: { ...restriction.selector, kind: "preference" } }] });
     await assert.rejects(currentTools.propose!({ ...suggestion, scope: "personal", text: "账单按月份汇总" }, memoryToolControl()));
     assert.deepEqual(await memory.candidates(person), persisted, "closing formation leaves all committed candidates unchanged");
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("manual Assistant keeps list available with formation off and injects only through the next real model request", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "assistant-memory-read-only-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const host = new AgentHost(), { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const text = "MANUAL_ASSISTANT_MEMORY_TEXT", person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
+  const model = await scriptedModelServer(t, (body, turn) => {
+    const tools = body.tools as Array<{ name: string }>;
+    if (turn === 1) {
+      assert.ok(tools.some(tool => tool.name === "list-memories"));
+      assert.ok(!tools.some(tool => ["remember", "suggest-memory", "forget-memory"].includes(tool.name)));
+      assert.doesNotMatch(JSON.stringify(body), new RegExp(text));
+      return { name: "list-memories", input: {} };
+    }
+    const messages = body.messages as Array<{ content?: unknown }>;
+    const results = messages.flatMap(message => Array.isArray(message.content) ? message.content : []).filter(block => block.type === "tool_result");
+    assert.match(JSON.stringify(results), /run-expansion/);
+    assert.doesNotMatch(JSON.stringify(results), new RegExp(text));
+    assert.match(JSON.stringify(body), new RegExp(text));
+    return "检查完成。";
+  });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), memory: memoryPolicy, reviewQueue: host.reviews,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: model.base + "/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
+  host.register(adapter);
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, () => service.memoryTools(work)),
+      memory: task => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
+  try {
+    await memory.write(person, { scope: "project", kind: "convention", text });
+    for (const scope of ["personal", "project"] as const) memory.savePrefs(person, scope, { form: false, auto: false, task_recall: false });
+    const sent = await sendAsPerson(service, { text: "查看记忆", request_id: "manual-read" }, { project_ref: { project_id: "project-a", storage_key: "memory:a" } });
+    await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");
+    assert.equal(model.requests.length, 2);
+    assert.deepEqual(await memory.candidates(person), []);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

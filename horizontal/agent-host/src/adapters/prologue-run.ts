@@ -115,10 +115,10 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   const changesDone = client ? { client, invoked: [] as ExactActionReference[] } : undefined;
   if (changesDone) state.changeRounds.set(input.session_id, changesDone); else state.changeRounds.delete(input.session_id);
   const gatewayForRun = input.action_gateway && client ? { ...input.action_gateway, client: { ...client,
-    invoke: async (reference: ExactActionReference, value: unknown, signal?: AbortSignal) => { const result = await client.invoke(reference, value, signal); changesDone!.invoked.push(reference); return result; },
+    invoke: async (...args: Parameters<typeof client.invoke>) => { const [reference] = args; const result = await client.invoke(...args); changesDone!.invoked.push(reference); return result; },
     ...(memory ? { memory: {
       ...(memory.remember ? { remember: async (...args: Parameters<NonNullable<typeof memory.remember>>) => { const kept = await memory.remember!(...args); memoryDone.keep += 1; return kept; } } : {}),
-      list: memory.list.bind(memory),
+      ...(memory.list ? { list: memory.list.bind(memory) } : {}),
       ...(memory.forget ? { forget: async (...args: Parameters<NonNullable<typeof memory.forget>>) => { const result = await memory.forget!(...args); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),
@@ -536,6 +536,19 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
     void deps.index.update(input.session_id, index => { Object.assign(index.attempts[at.attemptIndex]!, { stop_intent: "stopped", stop_reason: reason }); }).catch(() => undefined);
   };
   return {
+    memory: {
+      expand: (references, signal) => deps.memoryAuthority.forAttempt(input.session_id, at.attemptIndex, async () => {
+        await input.beforeDispatch?.();
+        signal?.throwIfAborted();
+        const receipt = await started.memory.expand({ references: references.map(({ memory_id, ...reference }) => ({ ...reference,
+          ref: { kind: "memory" as const, id: memory_id, revision: 1 as const } })), ...(signal ? { signal } : {}) });
+        return { mode: "run-expansion" as const, receipt_id: receipt.receiptId, outcome: receipt.outcome,
+          ...(receipt.errorCode ? { error_code: receipt.errorCode } : {}),
+          queued: receipt.queued.map(({ ref, version }) => ({ memory_id: ref.id, version })),
+          omitted: receipt.omitted.map(({ ref, version }) => ({ memory_id: ref.id, version })),
+          tokens: receipt.tokens, basis: receipt.basis, remaining_tokens: receipt.remainingTokens };
+      }),
+    },
     run: {
       ref: { id: started.run.ref.id },
       subscribe: (listener: (event: PrologueEvent) => void) =>

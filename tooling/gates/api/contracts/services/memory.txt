@@ -494,6 +494,35 @@ export interface MemoryRevisionView extends Omit<MemoryRevision, "snapshot"> {
     snapshot_available: boolean;
 }
 
+export interface MemoryRunReadControl {
+    read(select: (scopes: readonly Pick<MemoryRunReference, "scope" | "owner">[]) => Promise<readonly MemoryRunReference[]>, signal?: AbortSignal): Promise<MemoryRunReadResult>;
+}
+
+export interface MemoryRunReadResult {
+    readonly mode: "run-expansion";
+    readonly receipt_id: string;
+    readonly outcome: "queued" | "none" | "unavailable" | "failed" | "timeout" | "cancelled";
+    readonly error_code?: string;
+    readonly queued: readonly {
+        readonly memory_id: string;
+        readonly version: number;
+    }[];
+    readonly omitted: readonly {
+        readonly memory_id: string;
+        readonly version: number;
+    }[];
+    readonly tokens: number;
+    readonly basis: "provider-reported" | "conservative-estimate";
+    readonly remaining_tokens: number;
+}
+
+export interface MemoryRunReference {
+    readonly scope: "user" | "project" | "character";
+    readonly owner: string;
+    readonly memory_id: string;
+    readonly version: number;
+}
+
 export type MemoryScope = "personal" | "project" | "character";
 
 export interface MemoryScopePreview {
@@ -626,8 +655,8 @@ export declare function isMemoryClassRestrictions(value: unknown): value is Memo
 
 export declare const memoryActions: {
     page: ActionDefinition<import("services/memory-queries").MemoryPageRequest, import("services/memory-queries").MemoryPageResponse>;
-    recall: ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>;
-    list: ActionDefinition<MemoryListRequest, MemoryListResponse>;
+    recall: ActionDefinition<MemoryRecallRequest, MemoryRecallResponse | MemoryRunReadResult>;
+    list: ActionDefinition<MemoryListRequest, MemoryListResponse | MemoryRunReadResult>;
     write: ActionDefinition<MemoryWriteRequest, MemoryWriteResult>;
     change: ActionDefinition<MemoryChangeRequest, MemoryChangeResult>;
     history: ActionDefinition<{

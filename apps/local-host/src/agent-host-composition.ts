@@ -246,7 +246,7 @@ async function startAuthority(
         });
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
-        invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
+        invoke: async (action, input, signal, memoryRead) => { const authorized = await current(signal); return authorized.service.invoke({ ...authorized.context, ...(memoryRead ? { runtime_memory_read: memoryRead } : {}) }, action, input); },
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },

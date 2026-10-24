@@ -385,12 +385,20 @@ test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued call
     class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [],
       project: [{ selector: { consumer: "agent", current_scene: "common", kind: "convention" }, read: "off", form: "off" }] } };
   const originalPolicy = structuredClone(runtimeMemory), protectedCallbacks = new Set<string>();
+  const runtimeMemoryRead: NonNullable<ActionCallContext["runtime_memory_read"]> = {
+    read: async () => { throw new Error("The Host control is not a plugin callback API"); },
+  };
+  let forgedReads = 0;
+  const forgedRead: typeof runtimeMemoryRead = { read: async () => { forgedReads++; throw new Error("Forged control executed"); } };
   let checkingPolicy = false, judgments = 0;
   const check = (name: string, caller: ActionCallContext) => {
     assert.equal(Object.hasOwn(caller, "host_plugin"), false, `${name}: no issued identity property reaches plugin code`);
     assert.equal(caller.host_plugin, undefined, `${name}: the upstream identity is unavailable`);
     assert.equal(Object.hasOwn(caller, "runtime_memory"), false, `${name}: no Host Run policy property reaches plugin code`);
     assert.equal(caller.runtime_memory, undefined, `${name}: the original policy is unavailable`);
+    assert.equal(Object.hasOwn(caller, "runtime_memory_read"), false, `${name}: no live Run control reaches plugin code`);
+    assert.equal(caller.runtime_memory_read, undefined, `${name}: the live capability is unavailable`);
+    Reflect.set(caller, "runtime_memory_read", forgedRead);
     // A plugin can edit its callback view, including adding a lookalike field, but cannot alter the Host's policy.
     const replacement = structuredClone(runtimeMemory);
     replacement.class_restrictions.project[0]!.read = "inherit";
@@ -427,6 +435,7 @@ test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued call
     definitions: [judge], handlers: [{ ...judge, handle: caller => {
       assert.equal(caller.host_plugin, original, "the Host retains the real upstream identity for authorization");
       assert.equal(caller.runtime_memory, runtimeMemory, "the Host judgment retains the same original Run snapshot object");
+      assert.equal(caller.runtime_memory_read, runtimeMemoryRead, "callback lookalikes cannot replace the Host's original control");
       assert.deepEqual(caller.runtime_memory, originalPolicy, "plugin callbacks cannot relax the Host judgment's policy");
       judgments++;
       if (fail) throw new Error("identity judgment failed");
@@ -435,7 +444,7 @@ test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued call
   assert.equal(await sender.actions().invoke(accept, {}), null, "A reaches B, and B reaches its declared Host query");
   assert.equal(receiver.context().services!.storage!.get("accepted"), "yes");
   assert.equal(probe.state.callers.at(-1)!.plugin_id, receiver.id, "B's SDK uses B's own issued identity");
-  const caller = callAs(original, [READ], { runtime_memory: runtimeMemory }), scenes = host.sceneClient();
+  const caller = callAs(original, [READ], { runtime_memory: runtimeMemory, runtime_memory_read: runtimeMemoryRead }), scenes = host.sceneClient();
   checkingPolicy = true;
   assert.equal(await host.homeActionClient().invoke(caller, accept, {}), null, "the Host-bound caller traverses the actual plugin action boundary");
   assert.equal(caller.runtime_memory, runtimeMemory, "the plugin action cannot replace the original Host binding");
@@ -452,4 +461,6 @@ test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued call
   assert.deepEqual([...protectedCallbacks].sort(), [...seen].sort(), "every callback was exercised with the Host policy present upstream");
   assert.equal(judgments, 2, "both successful and failed Host judgments retained their original policy");
   assert.deepEqual(caller.runtime_memory, originalPolicy);
+  assert.equal(caller.runtime_memory_read, runtimeMemoryRead);
+  assert.equal(forgedReads, 0, "no callback-created control ran through an action or scene");
 });

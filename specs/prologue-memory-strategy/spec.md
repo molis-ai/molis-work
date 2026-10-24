@@ -1051,3 +1051,9 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 上述主干合并树实测完成：整体 build、根类型、六个相关浏览器文件全部通过（受控 readiness、原 Home side、Home locale、安全请求、placement 导航及嵌入设置，零重试），health 对准确主干 `4e17c3d1b`、boundary、API/Action、实际资源、secrets/diff 全通过。结果 `/private/tmp/molis-memory-1064-main-conflicts-20261024.results.json`。此为冲突合并后的相关验证，既有 27 个本机平台文件与未变化生产路径证据保留；最终 CI/共享全量仍独立要求。
 
 旧候选 `4f29f878e` 正常 CI 已通过，但全量 `40070963767` shard 14 出现 45/86 文件失败，原生堆栈共同落在 Node `RemoveEnvironmentCleanupHook` 的 env 空断言与 better-sqlite3 `Statement` 析构。成功 shard 5/13 与失败分片均使用 Node 24.21.0，不能据此归因单纯版本不同；尚在比对原生安装与调用链，不宣称基线或偶发，也不放宽断言/隔离/超时。原始日志 `/private/tmp/molis-memory-1064-full-suite-40070963767-shard14.log` 保留，其余分片继续跑完以收集完整结果；该全量不能计作通过。
+
+#1064 原生失败缩小与当前 CI（2026-10-24）：`bc953e907` 正常 CI [40075234652](https://github.com/molis-ai/molis-work/actions/runs/40075234652) 已完成，必需 Verify 及本次运行的非必需作业全部成功；Linux 定时 probe 按原触发条件跳过，不计通过。旧候选 full-suite 40070963767 的16个分片全部完成：15成功、第14片失败。失败片源码构建 better-sqlite3 12.8.0 时用了 Node24.21 headers，成功的5/13片安装预编译件；不是单凭版本名作归因。
+
+隔离 Darwin arm64 的最小 ObjectWrap、实际 better-sqlite3 同49文件源码及同一生产 QA command 均完成有界 A/B。固定 Node24.21 runtime、编译器和依赖源码，只换 headers：24.14构建件通过；24.21构建件在自然 GC 的 Statement 析构触发相同 env-null 原生断言。原 cross-device-launcher 第二用例的完整 HTTP、回执与重启断言亦在24.14件通过；24.21件捕获同类 UND_ERR_SOCKET，同时保存 QA 子进程原生断言与 SIGABRT。后者仅在临时诊断子进程用窄加载钩子选择已记录二进制，未改仓库、实际 node_modules 或测试；没有增加 GC 压力或重复全量。记录见 `/private/tmp/molis-memory-1064-native-darwin-ab-20261024/sqlite-ab/results.json`、`/private/tmp/molis-memory-1064-qa-socket-ab-20261024/results.json` 及同目录 README/child-stderr。此证据证明本机同一生产链的机制，支持 Linux 失败同源的推断；没有原 Linux child stderr，不能替代原平台复验或宣称 CI 修复。
+
+现已准备只将 ci.yml/full-suite.yml 的11个浮动 Node24改为24.14.0的具体补丁，`git apply --check`通过，文件 `/private/tmp/molis-memory-1064-node-runtime-pin-proposal-20261024.patch`。按 AGENTS 的 CI 修改审批与 PARALLEL-DEVELOPMENT 的独立 PR 要求，已请用户决定，未获答复前未应用。任何测试、断言、重试、隔离、作业和合并门保持原值；如获批准，独立交付后在最终候选执行原完整全量，再按结果处理，不把版本固定提案当作失败关闭。其余独立 Memory 切片继续。

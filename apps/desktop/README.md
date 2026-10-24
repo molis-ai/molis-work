@@ -33,6 +33,8 @@ Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位�
 
 `launchers/` 保存 CLI、MCP、Web 的最终产品启动装配；它使用根产品 manifest 的依赖，由根 `tsconfig.json` 编译到原来的 `dist/cli`、`dist/mcp`、`dist/web`。协议实现仍在 CLI/MCP App，业务装配仍在 Local Host。
 
+CLI 的正常回答与退出码由原命令分发器负责；入口之外的意外拒绝只写现有 Host 的安全日志并退出 1。Web 收到 SIGINT/SIGTERM 后只发起一次关闭，HTTP 与 Host 清理完成才退出 0；关闭拒绝或原 2 秒界限内没有完成则写安全诊断并退出 1，不宣称剩余清理已经完成。相关真实构建入口回归见 [desktop-entry-failures.test.ts](../../tests/desktop-entry-failures.test.ts)。
+
 桌面 Rust 入口为 `adapters/tauri/src/main.rs`，`src-tauri/Cargo.toml` 指向它。仓库根运行 `pnpm desktop` 启动开发版，`pnpm desktop:build:macos` 构建 App/DMG；后者会准备本地 Runtime 资源，但不会自动安装应用。
 
 主窗口将系统文件拖放交给 WebKit 的 HTML5 拖放处理（`dragDropEnabled: false`），由页面现有的 drop 入口接收图片与文件；不得让 Tauri 的原生拖放接管后丢弃事件。胶囊与 Shelf 的原生拖拽路径不变。macOS 截图浮动缩略图、Finder 图片以及保存后重开需要用实际 App 验证，浏览器用例不能替代。

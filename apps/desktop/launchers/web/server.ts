@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { hostLog } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -43,9 +44,28 @@ if (isMain) {
     const server = createMolisWorkWebServer({
       ...(homeArgument ? { homeDirectory: path.resolve(homeArgument) } : {}),
     });
+    let shutdownStarted = false;
     const shutdown = () => {
-      server.close(() => process.exit(0));
-      setTimeout(() => process.exit(0), 2000).unref();
+      if (shutdownStarted) return;
+      shutdownStarted = true;
+      const deadline = setTimeout(() => {
+        hostLog.error("web", "shutdown_timed_out", undefined, { deadline_ms: 2000, remaining_cleanup_skipped: true });
+        process.exit(1);
+      }, 2000);
+      try {
+        server.close((error) => {
+          clearTimeout(deadline);
+          if (error) {
+            hostLog.error("web", "shutdown_failed", error);
+            process.exit(1);
+          }
+          process.exit(0);
+        });
+      } catch (error) {
+        clearTimeout(deadline);
+        hostLog.error("web", "shutdown_failed", error);
+        process.exit(1);
+      }
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);

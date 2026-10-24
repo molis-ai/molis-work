@@ -39,6 +39,17 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 > **下一独立片已具合同，尚未START**：C2 B2b具体 `/tmp/molis-verify-2026-10-24/c2-b2/b2b-next-contract.md` 已Root接受为UI自然fixed/release后的安排：现行初始化链不变，既存v2 vault即使entries=0仍绑定原backend/master，受管CLI `.home` 只读密封/完整恢复预检owner。只依赖含e20已验生产行为的准确固定base，不把1222新deadline/CI/full/真merge或后续earlylease当开发前置；START前鲜核1222/1210实际代码去重及基准。C2仅/tmp准备、未动repo/spec/branch；完整bookmark/A/全Home恢复仍同owner，C1正只读核完整余项，不为无关等待空占writer。
 
+### 下一唯一 writer 接续合同（2026-10-24 16:03 UTC，Root已同意；当前均未START）
+
+**实际顺序**：FIX2 #1198真实fixed且明确release → C1有界RAC115 → C2 B2b。前片fixed/release即可接下一独立片，不等review/CI/merge/旧full；这两下一片不增加1198合并前置。原main红/在途必须修优先，保持一Codex writer和公共资源槽；START仍鲜核实际head/路径认领。
+
+**C1 RAC115，owner实现1**：当前BrowserPage.input的四类Input.*共用send吞掉CDP拒绝，现有socket外层错误出口因此到不了；本轮只是源码证据，尚未动态复现。仅browser-host.ts共用失败出口、既side-panel-browser.e2e、唯一w5-13-browser-input slice及必要README。保四类成功参数/顺序/接手先停Assistant，失败用现hostLog仅固定method+error name/code，沿现browser.load_failed中性提示“无法确认这次输入是否完成，请检查页面”给已有socket出口；不重发、不称未执行、不泄露输入/URL/CDP正文，不改全局CDP/API/schema/权限/存储。冻结巨大类443行45方法不得增，用模块级最小helper；既public/dist测试边界。先真实协议拒绝的旧红→修后error/只一次/恢复下一输入/日志无canary，专用test-kit浏览器+临时Home/PID清理，再正确整建/README必要/定向/health/boundary/secrets/准确affected；full仅申请Claude。不夹assistant-http console或desktop launch_args未决，C1整体不关。
+
+**C2 B2b，owner实现2**：同一`/tmp/molis-verify-2026-10-24/c2-b2/b2b-next-contract.md`及b2b-dependency-blobs.json，Root已接受。已鲜核1210b6fb/1212d266/1222-2d：P2c plugin-owner-files与P2d材料未改受管CLI setup/install/authorization或SecretStore，五CLI生产blob同e20；空entries依hasPersistedEntries选backend/原key的真实缺口277–338尚在，HOME-DATA承诺不是实现。START用准确固定含e20生产行为base（实际main已含则main，否则当时fresh公开依赖头），不等1222计时CI/full/真merge或earlylease。保prepare/start/bind/finish初始化、既v2空vault仍绑原backend/master；不加pre-master/dummy/第二key；只读密封/解封复用AES，受管CLI .home认证密文与完整内存预检，无活vault写/明文暂存。仅storage SecretStore+index、新connector-private-state owner+App index、同slice/必要回归文档；不动P2c/CLI初始化/contractsSDK/homeStores。先真实空库新进程换env及原filekey缺失两红，再最小修/二进制mode/错key篡改路径links零写。bookmark/A/完整snapshot+restore仍后续，不以owner roundtrip关整Home或碰真实Home。
+
+**当前1198与1222边界**：1198远端原作者docs-only20e9bef81213c6c79607a1e0c6c83bc5411eeef2/parent290d，两行历史UNKNOWN/RED保留，6386367670已公开当前FIX2及请此轮原分支/spec不并写；普通merge/新head guard，不等私有release/新审批。UI仍Root已批真实ready红绿及一次原66/22中，未Ready/push/合入。1222/2d原2500计时P1核心已修，REVIEW6386273574余P2真实t.signal/pre-aborted/stop后late-ready未闭，Root亲核同意仅原两test内返当前Claude批作者；不以2d四7/7或旧b99CI绿关此项，后需新头独立审验/Linux，旧Linux原因未知。
+
+
 ### ACA005 accepted WO：在途Search最终披露前核原精确授权（确认P1，实际owner FIX1）
 
 本节是当前唯一实施工单；FIX1开写前把同一合同落入 `specs/repository-anti-corruption/slices/aca-005-search-authority.md`，随后本节以该spec为行为来源，只维护owner/依赖/证据，不另造第二方案。root已正式接受工程修复，常规最小技术方案由owner沿现有授权边界决定，无需新用户审批。
@@ -246,7 +257,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | 序 | 片 | 号段 | 现状 |
 | --- | --- | --- | --- |
 | C0 | **main 的 macOS 红（先于 C1）**：自 #1079（S-56）起 `SandboxSdk.interaction` 写成 `import('./plugin-interaction.js')` 的相对导入，发给生成项目的 `developer/sdk.d.ts` 解析不了，`tests/agent-built-plugins-checks.test.ts`（创作台 G2）与 `tests/agent-built-plugins-workflow.test.ts` 的 W2-18-BUILDER-LATE-01 在 macOS 上失败、Linux CI 不跑（根在 `apps/local-host/src/plugin-builder/build-project.ts` 的 `sdkDeclaration()` 只拷 plugin-sandbox 一份声明，#1147 作者 10-23 核过）。修法：让发出去的 SDK 声明自包含（内联该类型或在生成时一并带上），断言不放宽；创作台本轮不删只绕过，但 main 的红要修。写进 `known-red-main.md` 直到修好 | — | **已完成**：#1136 合入 main（`15b656648`，10-23）。`known-red-main.md` 里这条由 Codex 移除 |
-| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 实际owner实现1 `01a16c97-0dde-7d82-9244-097a93f50770`。server+CLI #1151/ee2958于03:42:05Z已合；RAC113卸载预检随1183/f586已合；RAC114失败收据随1215/1712于12:52:01Z已合且双审验/产品子集已核。当前UI占源时只读对齐完整C1 WO，给下一独立实际余项/真依赖/允许路径或逐项覆盖证据，不以三个切片未经对照关整项，不虚造余项；source窗口按main红/阻塞→C1→C2接续 |
+| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 实际owner实现1。1151/ee2958、1183/f586、1215/1712已真实落地并核；完整余项未关。下一独立RAC115人工Input.*吞错已具合同且Root同意UI真fixed/release后实际START；不增巨大类/不泄露输入/不自动重发，详§0。assistant-http在途冲突及desktop launch_args恢复行为另列，不混此片，不长期只读 |
 | C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 实际owner实现2 `01a16c97-5b6a-7343-b245-dc63b65e1e11`。B1随1202/645已合；B2a e20双独立PASS但1222尚未实际merge，S12新b99测试deadline P1返当前原批作者、不另C2同修。B2b/早期Home lease(A)/全库与非SQLite snapshot/restore仍原完整目标；A/B现行root裁定已接受，不复活旧待批/online quiesce限制。C2正只读鲜核下一独立片与1210/P2c真实重叠，具备合同/依赖且UI release即实际接source，不长期准备、不碰真实Home |
 | C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | 待开工 |
 

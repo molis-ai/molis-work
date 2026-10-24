@@ -1166,8 +1166,15 @@ M1 原件证明隔离补充短合同（2026-10-24，修改前）：独立审查�
 精确父 health、boundary、API/Action、资源、secrets、diff 均通过；结果索引 `/private/tmp/molis-memory-classification-parent7c-20261024.results.json`。实际27资源共7,801,556 B，workbench.js为1,202,971 B，恰为父1,197,336 B加原批准5,635 B，其余26项相同。SDK94/vendor/lock沿父，无额外包切换或额度。父 Home 侧栏修复已通过本片实际浏览器；toast悬停对比度独立修复为 Draft #1198，资源各7 B待批准。#1064完整全量及CI固定版本问题仍未关闭，以上为本片工程与覆盖路径验证，不代表 main、完整P0或用户验收。
 
 
-### #1111 接入准确分页父 f27f62263（2026-10-25，验证中）
+### #1111 接入准确分页父 f27f62263（2026-10-25，本地定向工程验证通过）
 
 本轮只将分类纠正 head `825bedbf088d145067e3dde2bc270dd8fe333603` 合入已独立评审的 #1101 `f27f62263f21cbd3ba4e8ef374ae5debcce6147b`。沿 §9.3 M3 第二片短合同保留六类、期限三态、未知值和真实停用状态、SDK CAS、原操作身份及失败补账；不扩到续期、Session 管理、purge 或分类矩阵。沿父通用 WorkExecutor/R8 与 MCP v3 受保护设置写主人、generation 授权代际，同时保留本片 memory.recall@2 及原拒绝/授予/撤权/回执断言；不恢复旧 MCP 配置直写，不加入新兼容路径。SDK/vendor/lock 九项逐 blob 对齐准确父，不另采用 SDK，不从其他脏树取补丁。
 
 资源仅保留本片原批准 workbench +5,635 B：准确父实测 1,136,694 B，允许上限 1,142,329 B，其他资源不增长；此处仅为批准边界，子片结果须实际构建测量，不能复用父 +3,437 B 或其他历史额度。允许路径为本次父合并及必要冲突修复、现 spec/README、实际生成的 API/Action/health/资源登记；不改无关生产语义或门禁。固定 Node 24.14.0，冻结离线安装、独占整体 build；三包 README 与分类核心去重 53 个非浏览器及分类/分页/CAS 三个浏览器文件，jobs2/browser1/retries0；再以准确父核类型、边界、快照、资源、health、secrets/diff。首败保留，不以局部通过替代完整全量/CI、独立 Toast #1198 或用户验收。本轮允许本地 merge/fix commit，不 push、不合并 PR。
+
+
+本轮短合同先提交 `38ebb8e00`，本地合并为 `571368b24`，merge-base 精确等于分页父 `f27f62263f21cbd3ba4e8ef374ae5debcce6147b`。实际四处冲突为 spec、两处资源登记及 memory-mcp 测试；分类生产源码无冲突。MCP 测试相对准确父只将工具名、grant 与发现断言的 recall 版本由 1 改为 2，父受保护设置写主人、generation 撤权/同值重授和原回执断言完整保留。第一次暂存区 diff-check 对旧 HEAD 包含父带入的 context-owner-isolation/home-backup-recovery 末尾空行，保留该检查失败事实；两文件与准确父无差异，未为本片改它们，相对准确父检查通过。
+
+固定 Node 24.14.0/pnpm 11.9.0，使用现有 pnpm store 的冻结离线安装与整体 build 首轮退出 0；根与 workspace 类型、boundary、API/Action 实际生成、health 对准确父 update 和资源实际 update 均退出 0。53 个非浏览器文件 894 例及分类/分页/CAS 三个浏览器文件 26 例首轮全通过，jobs2/browser1/retries0；没有自动重试、调整超时或修改断言。真实隔离非空 Home、Node/SQLite/HTTP/Chrome 覆盖分类纠正、期限输入/关闭重开、未知值保留、冲突及原操作恢复。SDK/vendor/lock 九项在构建与验证后仍逐 blob 等于准确父，未改 SDK 或新采用版本。
+
+实际 27 项资源从父 7,649,311 B 到 7,654,946 B，唯一增量 workbench 1,136,694 → 1,142,329 B，恰为本片原批准 +5,635 B，其余 26 项不变。API/Action 生成没有额外变化；health 快查仅收紧 MemoryService 文件 1106→1084 行、类 966→940 行，方法仍 47。逐步命令及退出码为 `/private/tmp/molis-memory-classification-parent-f27-20261025-build.results.json` 与 `-validation.results.json`，各项日志同 stem，最终提交门另记 `-final-gates.results.json`。本轮只作本地集成与测量提交，未 push、未合并 PR；未跑真实外部模型或本片完整 Full suite/CI，不宣称独立 Toast #1198、完整 P0 或用户验收完成。

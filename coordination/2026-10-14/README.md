@@ -3551,3 +3551,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 00:50：`ac-kernel` R8 第 4 批已推送（`550207dd4`，叠第 3 批，BL-364 清完）；统筹要求 BL-471（collaboration.read 不带 session_id 给全项目会话）在第 4 批里一并改掉，之后做 agent-host 巨大单元。`ac-sandbox-sched` PG-022 P1 本地完成（`db05ccf03`）；统筹裁：立即推送分支；拒绝码要传到 `last_error_code`（照 #1139），不从宿主入口导出测试缝；P1b 的发布者取安装记录；`services.files` 与 `ownerFiles` 合并后只留一个名字；模型设置与生图不等 broker；拆 4 个 PR；号段 RAC-300～329、BL-525～534。
 
 - 10-24 01:05：#1147 合 main（`10d814fda`），`ac-review` 快看。PG-022 P1b 统筹选 A（Home 库账本取安装记录的发布者、只保证装上后不可换），记 R-36（宿主不调 `verifyPluginPackage`，归 PG-001/`ac-trust`）。S9-0b 命名空间已做；统筹裁：日志读取只许自己命名空间加 Manifest 声明消费的事件类型；BL-506（id 互为前缀）归 `ac-trust`，记 R-37；Goals 旧名加前缀的存量改写要用户定，和 W5-17 放同一维护时段（ASK-USER 第二节）。
+
+- 10-24 01:10：#1152（privileges 状态 3）已合；`ac-priv3` 工作树与本地分支已删。

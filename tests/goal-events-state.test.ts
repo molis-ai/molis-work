@@ -3064,8 +3064,8 @@ const REPLACEMENT = "io.molis.work.example.goals-provider";
 
 test("the management caller factory acts as the person on this machine, builds the authority of a decision itself, and pins the one provider its directory shows", async () => {
   const seen: Array<{ caller: ActionCallContext; action: ActionReference; input: unknown }> = [];
-  // RAC-336: the provider is whichever plugin the directory shows for the action, not Goals by name.
-  const client: ActionClient = { discover: goalsDirectory(REPLACEMENT), invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
+  // RAC-336: the provider is the one the directory shows for the action, pinned exactly.
+  const client: ActionClient = { discover: goalsDirectory(GOALS_PLUGIN_ID), invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
   const management = bindGoalsManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
   assert.equal(management.project_id, BOARD);
   const decision = { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "event-1" };
@@ -3075,9 +3075,9 @@ test("the management caller factory acts as the person on this machine, builds t
   assert.deepEqual([pointed!.caller.actor_id, pointed!.caller.actor_kind, pointed!.caller.audience, pointed!.caller.project_id], [LOCAL_PERSON_ACTOR_ID, "user", "user", BOARD]);
   assert.deepEqual(pointed!.caller.user_action, { source: "management", conversation_ref: "conversation://x", message_ref: "message://y" }, "the decision points at its conversation, and says nothing of who decides");
   assert.deepEqual(pointed!.caller.permissions, goalsActions.decide.action.permissions, "only what that action asks");
-  assert.deepEqual(pointed!.caller.allowed_actions, [{ capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: REPLACEMENT }],
+  assert.deepEqual(pointed!.caller.allowed_actions, [{ capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: GOALS_PLUGIN_ID }],
     "the provider found is pinned exactly: the call reaches it and no other");
-  assert.equal(pointed!.action.provider_id, REPLACEMENT);
+  assert.equal(pointed!.action.provider_id, GOALS_PLUGIN_ID);
   assert.deepEqual(pointed!.input, decision, "the input is the caller's, untouched");
   assert.equal("call_id" in pointed!.caller, false, "the call number is the operation's (the scope the entry runs in), not made here");
 
@@ -3129,11 +3129,23 @@ test("RAC-337: with no provider, or more than one, the Host's call to a Goals ac
     assert.deepEqual(seen, [], "the Host guesses no provider");
   }
   const seen: Array<{ caller: ActionCallContext; action: ActionReference }> = [];
-  const client: ActionClient = { discover: goalsDirectory(REPLACEMENT), invoke: async (caller, action) => { seen.push({ caller, action }); return {} as never; } };
+  const client: ActionClient = { discover: goalsDirectory(GOALS_PLUGIN_ID), invoke: async (caller, action) => { seen.push({ caller, action }); return {} as never; } };
   await readProjectGuidance(client, reference);
   const read = goalsActions.guidanceRead;
   assert.deepEqual(seen.map(({ caller, action }) => [action.capability_id, action.provider_id, caller.allowed_actions]),
-    [[read.capability_id, REPLACEMENT, [{ capability_id: read.capability_id, version: read.version, provider_id: REPLACEMENT }]]], "the guidance read reaches the provider found, pinned");
+    [[read.capability_id, GOALS_PLUGIN_ID, [{ capability_id: read.capability_id, version: read.version, provider_id: GOALS_PLUGIN_ID }]]], "the guidance read reaches the provider found, pinned");
+});
+
+test("RAC-341: a third-party installation that registers Goals' capabilities while Goals is away receives neither the person's management call nor the guidance read", async () => {
+  const reference = { project_id: BOARD, storage_key: "fixture" };
+  const seen: unknown[] = [];
+  // The only provider of `goals.*@v` is someone else's installation: the lookup finds it uniquely, and the Host still refuses it.
+  const client: ActionClient = { discover: goalsDirectory(REPLACEMENT), invoke: async (_caller, action) => { seen.push(action); return {} as never; } };
+  const decision = { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "third-party" };
+  await assert.rejects(bindGoalsManagementActions(client, reference).invoke(goalsActions.decide, decision), { code: "actions.dependency_missing" }, "management");
+  await assert.rejects(bindGoalsManagementActions(client, reference).invoke(goalsActions.snapshot, {}), { code: "actions.dependency_missing" }, "management read");
+  await assert.rejects(readProjectGuidance(client, reference), { code: "actions.dependency_missing" }, "guidance");
+  assert.deepEqual(seen, [], "nothing reaches the third-party provider");
 });
 
 

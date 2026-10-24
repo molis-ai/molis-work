@@ -4,7 +4,7 @@ import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
-import { pluginActionProvider } from "./plugin-action-provider.js";
+import { pluginActionView } from "./plugin-action-provider.js";
 import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { PlanningMethodPack, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -80,11 +80,16 @@ export async function readProjectGuidance(client: ActionClient, reference: Local
 }
 
 /**
- * Calls `definition` as `caller` on its one provider in the project's directory (BL-501): the Host names no plugin of its own; it pins the
- * provider it found, and the call reaches that provider and no other. None, or more than one, refuses with a code and calls nothing.
+ * Calls `definition` as `caller` on its one provider in the project's directory (BL-501), pinned: the call reaches that provider and no
+ * other. These calls carry the person's decision (management) or put what they read into prompts (guidance), and a capability id belongs
+ * to no publisher (R-45): with Goals away, a third-party installation could register `goals.*` and receive them. So the provider found is
+ * accepted only if it is the Goals that ships with the Host, by the provider id only the Host assigns (`plugin-entry-identity.ts`);
+ * accepting a trusted publisher's installation instead is ac-trust's (BL-555 onwards). None, several, or another: refused, nothing called.
  */
 async function invokeOneProvider<Input, Output>(client: ActionClient, caller: ActionCallContext, definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> {
-  const provider_id = await pluginActionProvider(client, caller, definition);
+  const { provider } = await pluginActionView(client, caller, definition);
+  if (provider.provider_id !== GOALS_PLUGIN_ID) throw new ActionError("actions.dependency_missing", "目标动作只接受随宿主发布的 Goals 提供，目录里的提供方不是它");
+  const provider_id = provider.provider_id;
   return await client.invoke({ ...caller, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id }] },
     { ...definition, provider_id }, input) as Output;
 }

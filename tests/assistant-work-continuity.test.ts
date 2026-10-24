@@ -63,7 +63,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
       { ...subject, handle(_c, input) {
         const id = (input as { subject_id: string }).subject_id, value = notes.get(id);
         if (!value) throw new ActionError("notes.not_found", "没有这条笔记");
-        return subjectContext({ subject: { kind: "note", id }, revision: String(value.version), title: value.text.slice(0, 20), content: value.text, goal_ids: [], session_id: null, open: { surface: "notes", id } });
+        return subjectContext({ subject: { kind: "note", id }, revision: String(value.version), title: value.text.slice(0, 20), content: value.text, goal_ids: [], open: { surface: "notes", id } });
       } },
     ] });
   const requests: any[] = [];
@@ -238,7 +238,7 @@ test("an object the person moved to another project is named where it went, not 
   const todoReader = defineSubjectContextAction("fixture.todo.subject.read", "todo", "待办", ["notes:read"], "home");
   f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.todo", kind: "plugin", title: "Todo" }, definitions: [todoReader],
     handlers: [{ ...todoReader, handle: () => subjectContext({ subject: { kind: "todo", id: "t1" }, revision: "1", title: "Ship it", content: todoProject === "project" ? "ship" : "secret plan of the other project",
-      goal_ids: [], session_id: null, project_id: todoProject }) }] });
+      goal_ids: [], project_id: todoProject }) }] });
   try {
     f.notes.set("bg", { text: "background", version: 4 });
     f.notes.set("old", { text: "old note", version: 1 });

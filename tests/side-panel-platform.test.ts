@@ -24,8 +24,6 @@ import {
   bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, definePlugin, fileContentOf, fileEntriesPage, FILE_CONTENT_MAX_BYTES,
 } from "@molis-ai/molis-work-plugin-sdk";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { browserAddress } from "../apps/local-host/dist/browser/browser-host.js";
 import { renderSidePanel } from "../apps/workbench/dist/side-panel.js";
 
@@ -110,7 +108,7 @@ test("real Host: the file tab lists and previews plugin files through the action
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   let runtime: PluginRuntime | undefined;
   try {
-    const owner = await localWebActionContext(host, ref, LOCAL_OWNER_PERMISSIONS);
+    const owner = await host.localPersonContext(ref);
     await host.actionClient(ref).invoke(owner, pagesActions.create, { title: "周报草稿", markdown: "# 本周\n\n- 完成侧栏" });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");

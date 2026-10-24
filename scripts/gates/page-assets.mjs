@@ -238,9 +238,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Classification correction retains the approved +5635 B on the updated paging parent.
-  // Parent 7c3bb8794 measures 1197336 B; the integrated child must be measured before delivery.
-  "/assets/molis-work-workbench.js": [1197336, 1202971],
+  // Classification correction retains its existing +5635 B approval on the exact paging parent.
+  // Parent f27f62263 freezes 1136694 B; no other resource growth is authorized.
+  // Measure the integrated build before updating its budget.
+  "/assets/molis-work-workbench.js": [1136694, 1142329],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

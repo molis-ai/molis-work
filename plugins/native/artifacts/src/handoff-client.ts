@@ -19,7 +19,7 @@ export const ARTIFACT_HANDOFF_CLIENT_SCRIPT = String.raw`
       message_id: crypto.randomUUID(), purpose: "delegate", source: { surface: "artifacts", title: L("成果") },
       object: { kind: "artifact", id: row.dataset.artifactSubject, title, version },
       materials: [{ title: L("成果「{title}」第 {version} 版").replace("{title}", title).replace("{version}", String(version)), text }],
-      ...(button.dataset.artifactHand === "coding" ? { executor: "coding" } : {}),
+      ...(button.dataset.artifactHand === "coding" ? { executor: "io.molis.work.coding" } : {}),
     } }));
   });
 `;

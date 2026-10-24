@@ -125,3 +125,5 @@ Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插�
 ### 补充输入的作者边界
 
 `agent.inputs.send.v3` / `coding.runs.control` v8 的业务输入不收 `original`，自报 `source: person` 不授予本人身份。本人 HTTP 发送由 Host 以 `use: supplement` 证明绑定当前安装、动作与 `send.<input_id>`；附材料或选区只改变外层模型 text，raw 原话沿同一 SDK 输入记录保存，不能拆标记推断。无证明的 Action 输入按 Host 处理；初始原件证明与补充证明不能互换。
+
+初始原件与接续通过正式 `agent.run.start.v1` 输入，字段只表达草稿与来源引用，不能带 project/plugin/install/actor 或冻结角色。Host 校验原件证明，`readRun`、`readSession.latest_run` 与 `waitRun.view` 保留 canonical 原件；新增字段必须同步严格 Action schema。助理通用执行方的补充经所选插件精确 `run.control` Action 与当前安装转交证明，不把协议角色本身当作本人授权。

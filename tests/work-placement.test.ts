@@ -60,7 +60,7 @@ function notesPlugin(actions: ActionService, notes: Map<string, Note>, projects:
       definitions: [reader, mover, copier, ...Object.values(station)],
       handlers: [
         { ...reader, handle: (caller, input) => { const note = get((input as { subject_id: string }).subject_id, caller.project_id);
-          return subjectContext({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title, content: note.body, goal_ids: [], session_id: null, open: { surface: "notes", id: note.id } }); } },
+          return subjectContext({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title, content: note.body, goal_ids: [], open: { surface: "notes", id: note.id } }); } },
         bindObjectMoveHandler(mover, input => { const note = get(input.subject.id, input.from_project_id); note.project = input.to_project_id; note.version += 1;
           return { subject: input.subject, project_id: note.project, revision: String(note.version) }; }),
         bindObjectCopyHandler(copier, input => {
@@ -109,7 +109,7 @@ function fixture(projects = ["personal", "q4", "interview"], hooks?: {
   let clips = new Map<string, string>([["clip-1", "竞品定价表"]]);
   actions.registerProvider({ provider: { provider_id: "clips", plugin_id: "clips", title: "剪藏", kind: "plugin" }, definitions: [homeReader],
     handlers: [{ ...homeReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const title = clips.get(id);
-      if (!title) throw new ActionError("clips.not_found", "已删除"); return subjectContext({ subject: { kind: "clip", id }, revision: "1", title, content: title, goal_ids: [], session_id: null, open: { surface: "clips", id } }); } }] });
+      if (!title) throw new ActionError("clips.not_found", "已删除"); return subjectContext({ subject: { kind: "clip", id }, revision: "1", title, content: title, goal_ids: [], open: { surface: "clips", id } }); } }] });
   const db = new DatabaseSync(":memory:");
   const ledger = createContextLedger(ledgerDatabase(db), { authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id });
   if (hooks?.failPut) {
@@ -244,7 +244,7 @@ test("LOGIC-06 a cancelled move of a Home-kept object is undone by the Home move
   f.actions.registerProvider({ provider: { provider_id: "todos", plugin_id: "todos", title: "待办", kind: "plugin" }, definitions: [todoReader, homeMover],
     handlers: [{ ...todoReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
       if (!todo) throw new ActionError("todos.not_found", "待办不存在");
-      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: "回访", content: "", goal_ids: [], session_id: null, open: { surface: "todo", id },
+      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: "回访", content: "", goal_ids: [], open: { surface: "todo", id },
         project_id: todo.belongs === "personal" ? null : todo.belongs }); } },
       // The person's own Home call can move a todo wherever it belongs, as Todo's handler does.
       bindHomeObjectMoveHandler(homeMover, input => { const found = todos.get(input.subject.id)!; found.belongs = input.to_project_id;
@@ -326,7 +326,7 @@ test("an object keeps showing the Goals it serves after it moves out of their pr
       handlers: [...createGoalsInputActionHandlers(project, inputs, id => id === project + "-goal"),
         { ...goalReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id;
           if (id !== project + "-goal") throw new ActionError("goals.not_found", "目标不存在");
-          return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: project === "q4" ? "Q4 发布评审" : "整理访谈", content: "", goal_ids: [id], session_id: null, open: { surface: "goals", id } }); } }] });
+          return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: project === "q4" ? "Q4 发布评审" : "整理访谈", content: "", goal_ids: [id], open: { surface: "goals", id } }); } }] });
   }
   f.notes.set("n1", { id: "n1", project: "q4", title: "发布说明", body: "", version: 1 });
   await f.service.bindGoal({ kind: "note", id: "n1", project_id: "q4" }, "q4", "q4-goal");
@@ -430,7 +430,7 @@ test("a plugin that keeps its objects at Home moves them through its own Home-sc
     // Like Todo: a project's todos are not visible from outside that project.
     handlers: [{ ...todoReader, handle: (caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
       if (!todo || todo.belongs !== "personal" && caller.project_id !== todo.belongs) throw new ActionError("todos.not_found", "待办不存在");
-      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: todo.title, content: "", goal_ids: [], session_id: null, open: { surface: "todo", id },
+      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: todo.title, content: "", goal_ids: [], open: { surface: "todo", id },
         project_id: todo.belongs === "personal" ? null : todo.belongs }); } },
       bindHomeObjectMoveHandler(homeMover, (input, caller) => { const found = todos.get(input.subject.id)!;
         if (found.belongs !== "personal" && caller.project_id !== found.belongs) throw new ActionError("todos.not_found", "待办不存在");
@@ -470,7 +470,7 @@ test("the person finds what is in their personal space from any project; a proje
         title: note.title, summary: "", updated_at: null, content: "context" as const, open: { surface: "notes", id } }))),
         { ...reader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const note = notes.get(id);
           if (!note || note.project !== project) throw new ActionError("notes.not_found", "笔记不存在");
-          return subjectContext({ subject: { kind: "note", id }, revision: "1", title: note.title, content: note.body, goal_ids: [], session_id: null, open: { surface: "notes", id } }); } }] });
+          return subjectContext({ subject: { kind: "note", id }, revision: "1", title: note.title, content: note.body, goal_ids: [], open: { surface: "notes", id } }); } }] });
   }
   const search = new SearchService({ index, budgetMs: 5_000, personalSpace: "personal", indexer: async project_id => ({ client: actions, caller: owner(project_id) }) });
   t.after(async () => { await search.close(); index.close(); await rm(home, { recursive: true, force: true }); });

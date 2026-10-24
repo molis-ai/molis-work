@@ -25,11 +25,11 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
     }
     return out;
   })()`);
-  assert.ok(homeRail.goals && homeRail.feed && homeRail.sessions && homeRail.inbox && homeRail.market, "demo rail has work plugins and market: " + JSON.stringify(homeRail));
+  assert.ok(homeRail.goals && homeRail.feed && homeRail.inbox && homeRail.market, "demo rail has work plugins and market: " + JSON.stringify(homeRail));
   // Colour says selection, not identity: the current entry reads darker, every idle glyph shares one neutral.
   assert.notEqual(homeRail.goals, homeRail.home, "the current entry reads darker than the rest");
   assert.equal(homeRail.goals, homeRail.feed, "idle glyphs stay neutral; position and name say which tool it is");
-  assert.equal(homeRail.sessions, homeRail.inbox);
+  assert.equal(homeRail.feed, homeRail.inbox);
   assert.equal(homeRail.goals, homeRail.market);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
@@ -54,10 +54,8 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').dataset.workMode"), "terminal");
   await evaluate("window.__terminalInstance=document.querySelector('[data-tui-terminal]')");
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
-  await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-work-surface=sessions]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-session-stage-list]') != null"), true);
+  await click('[data-plugin-strip] [data-plugin-id="feed"]');
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]:not([hidden])')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')"), true);

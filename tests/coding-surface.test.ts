@@ -1,4 +1,4 @@
-import { fakeGoalDirectory, pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeAgentHostActions, fakeGoalDirectory, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -138,13 +138,15 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "app", "sdk", "2026-09-20T00:00:00Z");
   const report = { session_id: "sdk", blockers: [], runs: [{ run_id: "run", version: 1, live: false, waiting: 0,
     can_close: true, blockers: [], operations: [{ effect_id: "effect", kind: "edit", summary: "cart.mjs", outcome: "not-dispatched" }] }] };
-  const host = { ...ports(store), capabilities: {
+  const agentHost = {
     async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       assert.equal(definition.capability_id, agentHostCapabilities.inspectRecovery.capability_id);
       assert.deepEqual(args, [{ runtime_id: "prologue", session_id: "sdk" }]);
       return structuredClone(report) as Output;
     },
-  } };
+  };
+  const host = { ...ports(store), capabilities: agentHost };
+  fakeAgentHostActions(host.actions, (definition, input) => agentHost.invoke(definition, input));
   const server = createServer((request, response) => {
     void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host, codingRouteHooks).catch(error => {
       response.writeHead(500); response.end(String(error));

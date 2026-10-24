@@ -14,8 +14,6 @@ import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-instructions.js";
 import { homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
@@ -86,8 +84,8 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     scopeActions: async work => {
       const ref = work.project_ref;
       const scoped = ref ? local.actionClient(ref) : local.homeActionClient();
-      return { discover: async () => scoped.discover(await localWebActionContext(local, ref, LOCAL_OWNER_PERMISSIONS)),
-        invoke: async (action, input) => scoped.invoke(await localWebActionContext(local, ref, LOCAL_OWNER_PERMISSIONS), action, input) };
+      return { discover: async () => scoped.discover(await local.localPersonContext(ref)),
+        invoke: async (action, input) => scoped.invoke(await local.localPersonContext(ref), action, input) };
     },
     methods: { list: () => registry.methods(), read: (owner, skill, version) => registry.method(owner, skill, version) },
     projectTitle: async () => project.display_name, timeZone: "Asia/Shanghai" }, "web-user");

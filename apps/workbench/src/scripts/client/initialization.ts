@@ -92,10 +92,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,
       api,
-      messageApi: async (pathname,method,body) => {
-        try { return await api(pathname,method,body); }
-        catch(error) { if(error.status===409 && error.body?.state==='failed')return error.body;throw error; }
-      },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
       openTarget: (target) => {

@@ -39,8 +39,9 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
       const identity = { client_id: clientId, project_id: projectId, capability_id: input.capability_id, version: input.version as number, provider_id: input.provider_id };
       const previous = preference.action_grants?.find(grant => actionGrantKey(grant) === actionGrantKey(identity));
       if (!input.enabled && previous) {
-        await writeMcpActionGrant(homeDirectory, { ...previous, enabled: false });
-        sendJson(response, 200, { ...previous, enabled: false });
+        const grant = { ...identity, permissions: previous.permissions, enabled: false };
+        await writeMcpActionGrant(homeDirectory, grant);
+        sendJson(response, 200, grant);
         return true;
       }
     }

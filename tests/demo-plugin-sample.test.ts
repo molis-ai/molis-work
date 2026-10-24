@@ -15,10 +15,8 @@ import { DEMO_PROJECT_ID,
   LocalProjectDatabase,
   
   createLocalFeedApplication,
-  openWorkSessionRegistry,
   seedDemoBoard,
   seedDemoPluginSurfaces,
-  seedDemoProjectExtras,
   openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-feed";
 import { renderFeedWorkbenchFragment } from "./workbench-renderer-fixture.js";
@@ -90,16 +88,6 @@ async function assertDemoPluginFacts(input: {
     assert.ok(artifacts.some((artifact) => artifact.artifact_type_id === FEED_CAPTURE_ARTIFACT_TYPE_ID));
   } finally {
     store.close();
-  }
-  const registry = await openWorkSessionRegistry({ homeDirectory: input.homeDirectory });
-  try {
-    const sessions = registry.list({ project_id: input.projectId })
-      .filter((session) => session.metadata.regenerable_demo === true);
-    assert.ok(sessions.length >= 2);
-    assert.ok(sessions.every((session) => registry.eventCount(session.session_id) > 0));
-    assert.ok(sessions.every((session) => !session.native_runtime_session_id));
-  } finally {
-    registry.close();
   }
   // The Shelf sample is Shelf's: the resident Host puts it back through `shelf.sample.seed` (shelf-actions.test.ts), the catalog does not.
   assert.equal(existsSync(join(input.homeDirectory, "shelf")), false, "making the demo writes nothing into Shelf's files");
@@ -175,7 +163,7 @@ test("creating the demo project seeds every built-in plugin surface", async () =
       assert.equal(created.status, "created");
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),
-        ["artifacts", "coding", "feed", "goals", "inbox", "schedule", "sessions"],
+        ["artifacts", "coding", "feed", "goals", "inbox", "schedule"],
       );
       await assertDemoPluginFacts({
         databasePath: created.project.database_path,
@@ -193,7 +181,7 @@ test("creating the demo project seeds every built-in plugin surface", async () =
       assert.equal(reset.status, "reset");
       assert.deepEqual(
         catalog.listProjectPlugins(reset.project.project_id),
-        ["artifacts", "coding", "feed", "goals", "inbox", "schedule", "sessions"],
+        ["artifacts", "coding", "feed", "goals", "inbox", "schedule"],
       );
       await assertDemoPluginFacts({
         databasePath: reset.project.database_path,

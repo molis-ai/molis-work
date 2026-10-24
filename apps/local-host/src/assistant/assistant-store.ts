@@ -21,10 +21,15 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
  *
  * `assistant_jobs` is no longer written: a job a work follows is a step on its graph (specs/prologue-adoption §6.0o).
- * It stays in version 2 so every Home has the same schema, and a work's rows in it still go with the work. Dropping
- * it is version 3 with a maintenance step on existing Homes, which is not done here.
+ * It stays so every Home has the same schema, and a work's rows in it still go with the work. Dropping it is a later
+ * version with a maintenance step on existing Homes, which is not done here.
+ *
+ * Version 3: the work body's executor is `{ kind: "plugin", plugin_id, … }` and a round's `executor` is `"plugin"`, where
+ * version 2 wrote the old Coding-only kind (PG-036, C8-3). The tables are the same; a version 2 store is refused until a maintenance step
+ * rewrites those two fields and the work in each finished Send's stored result (`assistant_requests.result`), because a read does not
+ * translate them.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 3, schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -75,7 +80,7 @@ ${CONTEXT_LEDGER_SCHEMA}` };
 export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"> {
   actor_id: string;
   thread_round?: AssistantThreadRound;
-  /** What the next Coding round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */
+  /** What the next plugin round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */
   handover_brief?: string;
   /** Present for project work: the project it was started in, never the page it is later viewed from. */
   project_ref?: LocalHostProjectReference;
@@ -106,8 +111,8 @@ interface StoredNotice extends Omit<AssistantNotice, "held"> { state: "new" | "s
 
 export interface StoredRound {
   run_id: string;
-  /** Set for a round run in the work's Coding session; the others ran in the Assistant's own session. */
-  executor?: "coding";
+  /** Set for a round run in the work's plugin session; the others ran in the Assistant's own session. */
+  executor?: "plugin";
   /** The Character that carried it, as frozen at its start. */
   character?: AssistantCharacter;
   /** Who wrote `text` when it was not the person: the Host (a timed round: its wrapper and the standing request), the Assistant (a sub-task's brief, a follow-up to it) or a page (what the bottom bar composes itself, or a plugin's page sends for them). Absent: the person typed it. Only what they typed is their words (memory's “you said”, what learning draws on). */

@@ -18,7 +18,6 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
-  runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
   webOptions: Pick<WebServerOptions, "chooseDirectory"> = {},
   pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[]) {
@@ -90,7 +89,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     seed(databasePath);
   }
   store = new LocalProjectDatabase(databasePath);
-  localHost = completion === undefined && !runtimeSessionTransport && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions, workspaceFor, pluginFixtures,
+  localHost = completion === undefined && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: CONTROL_TOKEN, ...webOptions });
@@ -198,7 +197,11 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         if (!element || element.contains(hit)) return null;
         const style = getComputedStyle(element), rect = element.getBoundingClientRect();
         return (hit?.outerHTML.slice(0, 400) ?? 'nothing') + ' (target: pointer-events ' + style.pointerEvents + ', visibility ' + style.visibility
-          + ', rect ' + [rect.x, rect.y, rect.width, rect.height].map(Math.round).join(',') + ', viewport ' + innerWidth + 'x' + innerHeight + ')'; })()`);
+          + ', rect ' + [rect.x, rect.y, rect.width, rect.height].map(Math.round).join(',') + ', viewport ' + innerWidth + 'x' + innerHeight
+          // Where the target sits in its scroll boxes: a click that scrolled nothing says which ancestor could not.
+          + ', ancestors ' + (() => { const boxes = []; for (let box = element.parentElement; box && boxes.length < 12; box = box.parentElement) {
+              const box_style = getComputedStyle(box); boxes.push(String(box.className || box.tagName).split(' ')[0] + '[overflow-y ' + box_style.overflowY + ', client ' + box.clientHeight + ', scroll ' + box.scrollHeight + ', top ' + Math.round(box.scrollTop) + ']'); }
+            return boxes.join(' > '); })() + ')'; })()`);
       if (hit !== null) throw new Error("Click target " + selector + " is covered by " + hit);
     }
     await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);

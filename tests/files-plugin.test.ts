@@ -272,3 +272,44 @@ test("BL-379 any person-approved workspace operation makes Files' pages read aga
   assert.equal(invalidated, 1, "a delivery no longer current moves nothing");
   await plugin.stop!(context);
 });
+
+test("RAC-332 BL-366 a workspace change makes Files look again at the folder it browses: a switch withdraws the old folder's snapshots, a stale delivery withdraws nothing", async () => {
+  const stored = new Map([["last-workspace", "old"]]), withdrawn: string[] = [];
+  let selected: { workspace_id: string; display_name: string } | null = { workspace_id: "old", display_name: "Old" }, invalidated = 0;
+  const context: PluginStartContext = { install_id: "files-recheck", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+    deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user", requireGrant: () => {}, services: {
+      ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } },
+      capabilities: { availability: () => ({ available: true }), invoke: async <Input, Output>(_capability: unknown, _input: Input) => selected as Output },
+      storage: { get: key => stored.get(key) ?? null, set: (key, value) => { stored.set(key, value); }, delete: key => stored.delete(key) },
+      outputs: { publish: () => assert.fail("no publish"), select: () => assert.fail("no select"), reference: () => null, retain: () => assert.fail("no retain"), read: () => null,
+        invalidate: port => { withdrawn.push(port); } },
+    } };
+  const plugin = createFilesPlugin({ readable: () => true }), contribution = await plugin.start(context);
+  const record: PluginEventRecord = { event_id: "host-changed-agent", project_id: "project", sequence: 0, event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1,
+    source_plugin_id: HOST_EVENT_SOURCE, source_install_id: HOST_EVENT_SOURCE, payload: { workspace_id: "old", cause: "agent-change" } satisfies HostWorkspaceChangedPayload,
+    correlation_id: null, occurred_at: new Date(0).toISOString() };
+  const delivery = (beforeEffect: () => void): PluginEventDeliveryContext => ({ project_id: "project", plugin_id: filesManifest.plugin_id,
+    install_id: context.install_id, installation_generation: "1", actor_id: `plugin:${filesManifest.plugin_id}`, signal: new AbortController().signal, beforeEffect });
+
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.deepEqual(withdrawn, [], "the same folder: its snapshots stay");
+  assert.equal(invalidated, 1);
+
+  // The folder was switched while the delivery was being read: the delivery is refused before anything is withdrawn.
+  selected = { workspace_id: "next", display_name: "Next" };
+  let checks = 0;
+  const stale = new Error("the subscriber's installation is no longer current");
+  await assert.rejects(async () => contribution.onEvent!(record, delivery(() => { if (++checks > 1) throw stale; })), error => error === stale);
+  assert.deepEqual(withdrawn, [], "a delivery no longer current withdraws nothing");
+  assert.equal(stored.get("last-workspace"), "old");
+  assert.equal(invalidated, 1);
+
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.deepEqual(withdrawn, ["files", "before", "after", "selection"], "a switch withdraws every snapshot of the old folder");
+  assert.equal(stored.get("last-workspace"), "next");
+  assert.equal(invalidated, 2);
+  withdrawn.length = 0;
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.deepEqual(withdrawn, [], "a switch is withdrawn once");
+  await plugin.stop!(context);
+});

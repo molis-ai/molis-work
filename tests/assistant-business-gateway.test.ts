@@ -1175,7 +1175,7 @@ test("W3-A3a: a page's card goes into the named work only when it is the person'
     const refused: Array<[string, string, string]> = [
       ["someone else's", work("someone-else").work_id, "assistant.not_found"],
       ["archived", f.store.update("web-user", work("web-user").work_id, null, { archived: true }).work_id, "assistant.state"],
-      ["Coding's", work("web-user", { executor: { kind: "coding", title: "Coding", session_id: null } }).work_id, "assistant.unsupported"],
+      ["a plugin-carried", work("web-user", { executor: { kind: "plugin", plugin_id: "io.molis.work.fixture-agent", title: "样例 Agent", session_id: null } }).work_id, "assistant.unsupported"],
       ["another project's", work("web-user", { scope: { kind: "project", project_id: "elsewhere" }, project_ref: { project_id: "elsewhere", storage_key: "memory:elsewhere" } }).work_id, "assistant.scope"],
     ];
     for (const [label, workId, code] of refused) {

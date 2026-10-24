@@ -41,18 +41,6 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
         <div class="home-detail__act" data-home-detail-act></div>
       </aside>
     </div>
-    <div class="home-talk paper" data-home-talk role="dialog" aria-label="${L("对着这件事说一句")}" hidden>
-      <div class="home-talk__head">
-        <b>${L("说一句")}</b>
-        <span data-home-talk-ctx></span>
-        <button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-home-close-talk aria-label="${L("收起对话")}">${icon("x")}</button>
-      </div>
-      <div class="home-talk__body" data-home-talk-body></div>
-      <form class="home-talk__compose" data-home-talk-form>
-        <textarea class="mw-textarea" name="say" data-fit rows="2" maxlength="20000" aria-label="${L("消息文本")}" placeholder="${L("带着这件事说一句")}"></textarea>
-        <button class="mw-btn mw-btn--primary mw-btn--icon-only" type="submit" aria-label="${L("发送消息")}" disabled>${icon("send")}</button>
-      </form>
-    </div>
     <template data-home-shortcut-template><li class="home-shortcut"><a class="home-shortcut-main" target="_blank" rel="noopener noreferrer" data-home-shortcut-link data-home-external><span class="home-shortcut-icon">${icon("link")}</span><span data-home-shortcut-name></span></a><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only home-shortcut-edit" data-home-shortcut-edit>${icon("more")}</button></li></template>
     <dialog class="mw-dialog home-shortcut-dialog" data-slot="dialog" data-home-shortcut-dialog aria-labelledby="home-shortcut-title">
       <form data-home-shortcut-form novalidate>

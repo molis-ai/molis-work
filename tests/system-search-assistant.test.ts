@@ -13,8 +13,6 @@ import { SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/sear
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -40,7 +38,7 @@ test("an Assistant round on the real Host finds the capability, searches unopene
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "助理检索实操", actor_id: "owner" }));
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const owner = await localWebActionContext(local, reference, LOCAL_OWNER_PERMISSIONS);
+  const owner = await local.localPersonContext(reference);
   const form = (await local.actionClient(reference).invoke(owner, formActions.create, { title: "供应商准入问卷" }) as { form: { id: string; version: number } }).form;
   await local.actionClient(reference).invoke(owner, formActions.update, { id: form.id, expected_version: form.version, description: "准入前需要核对营业执照与银行账户" });
 

@@ -1898,3 +1898,57 @@ main191 的合并候选 `05e4c1b09` 及准确基线均已整体构建；类型�
 增量计划`/private/tmp/molis-memory-p0-aggregate-20261025-parent93b.plan.json`按实际交叉影响选择15非browser+1browser，16/16文件通过，jobs2/browser1/retries0。新版toast原3例在聚合分页/分类管理页直接通过，无需夹具修正；颜色、指针、键盘、诊断和原页面CAS断言均保留。父32中23条未交错路径与此前聚合有效路径复用，不机械重跑整批；MEM-SOURCE-01本轮通过仍不解释先前UNKNOWN。索引`-parent93b-gates.results.json`、`-parent93b-delta.results.json`，原首败全部保留。
 
 后继Assistant整合短合同（2026-10-25，修改前）：仅cherry已独立提交的231bd698e05a323dd2a2904a5bdc918c9f1ae434，不重复f6编译修复；完整AST-MEM-ARCH短合同随该提交保留。新父Characters公开发现、惰性memoryTools、3cad精确candidate.get和MEMORY_SCENES不覆盖；SDK100/lock/资源不动。归档/恢复仍只管理Assistant自有Session，旧archived-only请求拒绝，线程恢复同一原决定，取消/撤权/follow-up CAS及已发生部分结果如实。合并后整体build，按真实生命周期/线程/通用执行方/委托/定时/原件与Memory接缝和README两browser去重补验，再核准确93b静态/资源；原73批两项聚合失败已有3cad修复证据，不冒称Assistant独立批全绿。无UI、purge、项目删除、新PR或推送。
+### M4 后继：Assistant 自有 Session 归档与恢复（AST-MEM-ARCH，2026-10-24；2026-10-25 已实现并完成指定路径工程验证，聚合集成待验）
+
+本片落实 §8.3、MEM-03/20/34 中业务主人接入 SDK 生命周期的既定 P0，独立闭合现 HTTP `works/:id/archive` 与 `threads.start` 自动恢复。本人归档静止 Work 时，其 `StoredWork.session_id` 指向的 Assistant Session 先经 AgentHost 公开 lifecycle 完成，再以现 Store revision 同步提交业务 archived；恢复走相同链。没有自有 Session 的 Work 只改业务记录，不造 Session。`executor.session_id` 属任意插件执行方，委托子 Work 各有自己的主人；保留现归档前子 Work busy 检查，但不隐式级联。UI、Coding/purge/项目删除/旧 Home 恢复仍是各自后继范围，不据此宣称完整 P0 完成。
+
+HTTP 增加纯读 `GET works/:id/archive-preview?archived=true|false`，返回原 Work revision、自有 Session 绑定、目标 archived 与 SDK 原决定（若有）；调用方保存完整请求，POST 原 archive 路由必须交回该原件。新请求使用 SDK read 的 canonical 版本，恢复已开始决定只复用 Index operation，不从当前版本重造原决定。读无修复副作用，不自动恢复离页请求。SDK 完成但 Work 提交失败时，原请求可继续；后来的相反决定、Work 绑定或 revision 变化明确冲突，不补偿已发生的 SDK 效果，不报告零写或假成功。纯业务重复请求无 SDK 回执时沿原 revision 冲突。`threads.start` 的恢复使用原上下文 message.request_id 固定身份；先受控恢复，再写新回复轮次，移除直接 archived:false 旁路；失败不启动模型。
+
+不可配边界：当前本人/项目/插件/install 与自有 Session 绑定、原决定、忙碌/未决屏障、取消及最终提交授权；SDK 状态只有 SDK 写，Work 只由 Store 写，不复制第二状态机。可替换项沿现 AgentRuntimeAdapter lifecycle/withEffect，缺装配明确不可用；App 传原请求及可信执行控制，用户沿现请求决定归档/恢复。没有新增开关、阈值、槽或用户决策。短暂串行保护复用 continuation blockStart 及现 Store revision；不用新 CAS 版本、持久账本或通用 registry。归档停用原 follow-up 的写入遵守同次控制，恢复不重新启用；不顺带改其余定时错误语义。
+
+允许路径：`apps/local-host/src/assistant/` 中生命周期完整职责及 service/http/threads/followups/continuations 必要接线、现 `apps/local-host/README.md`、本 spec、直接相关 tests。必要公开 Contract 先记本合同并交统筹维护全局快照。不得改 SDK/vendor/锁/CI/资源额度、Coding/UI，巨类方法数不得增加；不新增前端资源。
+
+AST-MEM-ARCH-01 正常：真实 Node/SQLite、SDK100 与本机模型 stub 下归档/恢复、历史可读、Session-bound 记忆及期限不变；无 Session 零 SDK 创建，其他 owner/子 Work/插件执行方保持。
+AST-MEM-ARCH-02 拒绝：本人/项目/绑定改变、忙碌子 Work、SDK prepared/后台/未知未决、缺 lifecycle/withEffect，核持久状态无越权写，不用 mock 通过冒充 Host 证据。
+AST-MEM-ARCH-03 失败：SDK 写前、SDK 已提交/Index 未完成、SDK 完成/Work 写前及 follow-up 等待故障；原请求继续，只一次原效果；已发生部分结果可观察。
+AST-MEM-ARCH-04 交错：同 Work 相反命令、启动与归档、旧请求晚到、等待后请求引用变化；最终状态、绑定及副作用符合原决定，不追新 revision。
+AST-MEM-ARCH-05 取消/权限：等待前后和最终 Host/SQLite 提交检查取消及当前授权，已提交事实保留，后续副作用停止；HTTP 断连和 Host 关闭覆盖。
+AST-MEM-ARCH-06 恢复：真实关闭重开及独立 Node 进程，以保存的原请求恢复；threads.start 自动恢复同语义且失败不产生新轮次/模型调用。离页重建请求、真实 Home、付费模型与用户验收不在本片；工程证据按实际运行记录。
+
+实施先做语法与 diff；安装/构建/正式 runner 遵守机器槽，后续须跑直接相关行为、README 必需影响面及静态门，由统筹组织独立并发/权限审查及最终集成验收，当前不计通过。
+
+实施修订（2026-10-25，写代码前）：准确聚合父为 `2c970e823529e10551f7f042ba50442db07c84fa`，原脏候选只读保留，本单元在独立树实现并作为 Memory 管理大 PR 的后续 commit，不另开 PR。沿用 HTTP archive 路由但改收完整原件，并新增纯读 preview；这是阶段一的明确请求合同变更，不接受 archived-only 旧写，不新增 Action/SDK 公共合同或兼容口。HTTP 边界实际解码，不以 unknown 双重断言代替校验。
+
+启动保护只覆盖 Assistant Session 创建与 Work 绑定间隙，不包整轮 dispatch；已有 prepared/final 当前授权屏障保留。终态 stopped 可归档，其余实际进行中/未知未决仍拒绝。generic plugin executor 只通过现公开协议检查忙碌状态，生命周期 owner 唯一来自 StoredWork.session_id，不拿 executor.session 作自有 Session 或级联。最终 Work CAS 前除异步 beforeEffect 外再同步 assert_current。threads.start 在 SDK 恢复成功且 Work CAS 失败后不能以新 Work revision 重造恢复；先用真实 Node/SQLite 红例缩小，再复用现 operation 身份绑定原 revision，不增加账本。follow-up 停用核实际局部结果、失败与原操作恢复，不顺手改变其他定时语义。
+
+本次验收补充：线程恢复后/Work 提交前故障与 Work revision 改变的原消息重试；同步最后提交微任务撤权/取消；早期启动等待可归档并拒绝迟到开始、绑定间隙不可穿越、SDK prepared 仍拒；已 stopped 和任意插件 Session 不级联；HTTP preview 持久零写、旧/错误原件、断连及 Host 关闭；follow-up 真实取消/保存故障的部分状态与重试。既有六个候选测试只作待验证输入，不算本聚合父已通过；记录首败与真实存储/模型次数，源码定型整体构建后才执行正式定向测试，完整集成验收由统筹。UI、purge、项目删除、SDK/vendor/锁、CI、资源门与真实 Home/付费模型不改。
+
+首次真实红例（2026-10-25）：已在聚合父加编译修复 `817aa497b` 后整体构建成功，再运行原 `assistant-thread-reply` PAS-04/05/10 的真实 HTTP/SDK100/SQLite 路径。SDK 恢复完成、Work 触发器拒绝保存后，本人修改 title 增加 revision，原 message 再试仍返回 200；新增「原请求不能采用新 Work revision」断言 actual true / expected false。日志 `/private/tmp/molis-memory-assistant-thread-revision-red-20261025.log`，原断言时限未变。最小修复沿 `thread:<原 message.request_id>:<原 Work revision>` 的既有 SDK operation 身份；同版本原请求继续，版本变化不能匹配已持久原决定，不加存储。Pages 公开 request_id 上限 160；前缀、分隔和安全整数 revision 后仍在 lifecycle operation 200 字符界内。
+
+follow-up 局部结果合同补充（修改前）：仅归档停用路径不再吞掉 schedule 查找/取消异常；已取消/停用项保留，尚未确认取消的记录保持原 enabled/next_at，Work 不先报归档成功。真实队列返回 running 时明确拒绝，已终态或不存在可继续原停用。原 archive operation 重试跳过已停用项并继续未完成项；恢复不重新启用。remove/tick 与其他定时错误处理不变。
+
+定向首轮与接缝决定（2026-10-25）：新增 HTTP 两项首败为测试漏 import，线程 HTTP 错误码应按现公共出口顶层 code 精确断言；仅修测试后 lifecycle 12 项与 threads 3 项均通过。原 delegation 首轮 14/16，暴露已归档子 Work 旧 follow_up 旁路，以及 sdk-prepared 用例直接改 Work archived 的故障注入与真实 SDK state 不一致。统筹确认：归档后 follow_up 明确拒绝并检查零新 SDK/业务轮；本人显式 restore 后保留原 usage/6-slot/parent-stop 验证，不让委托隐式恢复。prepared 用例补真实 archive 拒绝/无副作用，再由 fixture 复原其业务注入后继续原同步 guard/接续断言。消费者必须交原 archive preview，归档子任务的追加不再绕过恢复。
+
+精确父 health 发现 Service 文件 +3 行、类 +2 行；不改门或压缩源码。将 Session 创建、当前身份检查、Work 绑定与 finally 释放的完整责任移入本刀已有 AssistantWorkLifecycle，Service 只交入现 role/authority 和原开始检查；不改锁持有区间，不新增转发层或持久状态。父生命周期 API 快照由聚合维护，本刀不重写其生成文件。
+
+通用执行方启动交错补充合同（2026-10-25，修改前，经统筹确认纳入原闭环）：插件执行方不取得 Assistant 的 Session owner。只把本 Work 当前仍未归档/未被生命周期占用的同步检查合入既有 executor dispatchControl，沿真实 ActionService 在等待后及最终 effect 核验；不包住整轮 dispatch，不锁插件 Session，不新增授权口或持久状态。先以已安装任意插件的公开六角色协议、真实 ActionService beforeEffect 屏障复现 idle 读取后迟到 run.start；对已结束 Run 的迟到输入同样不得因原 Work 已归档而继续转交。保存原失败，再最小修复；已提交的插件效果不补偿，不声称零历史效果。非对象 JSON 的新增 archive 请求在本 HTTP 边界拒绝为 assistant.invalid/400，而不是内部500，不改变其他原路由解码。
+
+归档定时竞争补充（2026-10-25，修改前，经统筹确认）：原 stopForArchive 在 cancel 等待后无条件 save，另一请求已删除的定时会被旧快照 INSERT 复活。复用现 AssistantFollowUpRecords.save(expected) 的原记录 CAS；失败明确 conflict，不重建、覆盖或重复取消已删除记录。SDK 归档和实际队列取消已发生的部分保留，原 archive 请求重开后只补 Work，删除记录仍不存在。权限与新记录主体不变，不新增 owner/版本/表；先真实 queue cancel 屏障交错公开 remove 的红例，再实现和验证。README 两个 browser 尚仅 FIFO 排队，按已知自有 PID 停止并保留日志，待本次最终构建后重新排队，不计算为已执行。
+
+上述排队处置的实际结果更正：执行核对时 root32 已释放，原两 browser 已自行完整运行并 exit0；已知 PID35439 已结束，kill 仅返回 No such process，未停止其他进程。因此该日志是 CAS 修改前原两 browser 的通过证据，不是“仅排队后成功终止”。本次 CAS 源码改动后仍按原两文件重新 FIFO 验证，不把较早结果计为最终状态。日志 `/private/tmp/molis-memory-assistant-lifecycle-browser-20261025.log` 保留全部排队与实际执行记录。
+
+定时删除有效红例已确认：原 SDK 归档完成后，实际 schedule.cancel 屏障中通过公开 followUps.remove 删除原项并取消真实队列；释放归档后旧实现仍成功，拒绝断言 Missing expected rejection。日志 `/private/tmp/molis-memory-assistant-archive-followup-delete-red-20261025.log`。实现只在原记录保存时交回原 snapshot 给现 CAS，失败停止本次 Work 提交；绿色回归继续核持久不存在、已取消队列、原 SDK 完成决定保持及真实重开原请求不再 cancel。
+
+AST-MEM-ARCH 本刀收束（2026-10-25）：本机实现冻结在准确聚合父 `2c970e823529e10551f7f042ba50442db07c84fa`，先采用父编译修复 f6d267046（本树为 817aa497b），没有追后来 main。原脏候选保持只读；本刀15文件中新增仅 assistant-work-lifecycle.ts、assistant-lifecycle-http.ts、assistant-work-lifecycle.test.ts。另两份 API/Action 生成文件逐字采用统筹指定 20e162416 的 agent-host.txt 与 host-actions.tsv；没有 cherry 整个提交，实际源码/Host 目录检查匹配。SDK/vendor、锁、CI、前端资源和额度均未改，未推送到远端或另开 PR；本地窄提交供统筹归并。
+
+指定行为的工程证据成立：归档/恢复只作用 Assistant 自有 Session；任意插件 Session 与子 Work 不级联；stopped 可归档；真实 SDK prepared 拒绝；创建与业务绑定间隙互斥，早期授权等待仍可取消，保留原最终护栏；HTTP 完整原件/非对象 JSON 明确解码，旧 archived-only 请求拒绝；最终 Work CAS 前同步撤权、HTTP 断连与 Host 关闭均不提交 Work。SDK 已完成而 SQLite 失败的原请求在独立 Node 进程补账成功，另有关闭重开与原请求恢复。真实 Session-bound formal memory 的正文、ref/version 与原 TTL 在 archive/restore 及重开后完整保持。真实线程 revision 红例、安装插件 run.start/run.control 迟到红例和定时删除复活红例均已转绿，不通过新 ledger 或完整 dispatch 锁处理。
+
+固定 Node24.14.0/pnpm11.9.0，offline frozen install 与所有构建均经授权本机缓存/机器槽。最终源码构建日志 `/private/tmp/molis-memory-assistant-lifecycle-followup-cas-build-20261025.log` exit0。最后直接受 CAS 影响的三文件 lifecycle14、followups3、followup-deletion7 全通过，日志 `...-followup-cas-green-20261025.log`；同源码行为未再改变的 thread3、executor17、original-inputs2 等精确调用链已通过，日志 `...-final-core-20261025.log`（该批仅新 Memory fixture 初始化失败，见下文，随后完整生命周期14已复验）。委托完整16项通过 `...-delegation-recheck-20261025.log`，保留原 usage/6-slot/parent-stop/最终 SDK 接受与接续断言。最终构建后 README 原两 browser 以 jobs1/browser1/retries0 完整首轮通过（runtime-plugin-http-discovery20、assistant-page-written2），日志 `...-final-browser-20261025.log`；不把较早的排队/执行结果混作最终状态。
+
+README 与实际影响面精确去重77普通+2browser，文件/分类/命令输入保留 `/private/tmp/molis-memory-assistant-lifecycle-plan-20261025.json`；剩余73普通 jobs2/retries0 首轮71文件通过，日志 `...-readme-20261025.log`。两个未改路径首败没有删断言或归因环境：memory-learning 两例期望 written 实际空，已交聚合 Memory owner 对照；S62 RAC-443 的源码扫描命中父 assistant-memory-tools 中 taxonomy 场景字面量 coding，已交聚合 owner 复用共同 MEMORY_SCENES 处理，扫描门未放宽。该批不计全绿，也不能称本聚合完整验收完成；后续针对实际源码变化只补直接影响文件，不机械重跑整批。
+
+最终根类型、Local Host 包类型、boundary（70包/2734源文件/12470 imports，零错误）、精确父 health、API与真实Host Action快照、diff 检查均通过；日志分别为 `...-cas-final-root-types-20261025.log`、`...-cas-final-package-types-20261025.log`、`...-boundary-20261025.log`、`...-cas-final-health-20261025.log`、`...-api-20261025.log`、`...-actions-20261025.log`（相同前缀均为 `/private/tmp/molis-memory-assistant-lifecycle`）。health 未改 baseline/门，巨大单元低于父。API 72份/3010 declarations 与真实目录584 Manifest actions+307 Host actions 匹配；这些是聚合父已有生命周期/Memory公开合同的生成补齐，不是本刀新 SDK 入口。
+
+首败与诊断全部保留：最初新增 HTTP 测试漏 randomUUID/误读 error.code，以及 prepared 预览在 assert.rejects 参数外抛出，均仅修测试到真实当前合同；绑定职责移动后两旧常量 unused 的构建首败保留 `...-bind-build-20261025.log`，清理旧导入后整体重建成功。通用等待 fixture 初次未声明 concurrent，实际同项目串行队列导致2项60s超时；日志 `/private/tmp/molis-memory-assistant-executor-late-red-20261025.log` 单列为夹具首败，不称产品红；修为现公开等待动作的 concurrent 后才取得两项 Missing expected rejection 的有效红。新增 Memory 保留 fixture 初次选 assisted 却未装 promotion，实际立即 RUNTIME_OPTIONS_INVALID，且初始化后才注册清理导致进程未退；仅改现 manual preset 与初始化前清理，未改 SDK/断言/产品，也未称 SDK archive 挂起。其首轮与 `/private/tmp/molis-memory-assistant-session-memory-diagnosis-20261025.log` 保留；最终真实 Memory/TTL 用例通过。
+
+完成边界：这是隔离 Home、真实 Node/SQLite/SDK、真实本地 HTTP 模型 stub 与两条 Chrome 工程路径的证据。独立 Node 进程恢复与进程内重开分别标明；未触真实 Home、未付费调用模型、未做 UI 归档入口或完整最终 App 旅程，也未作用户验收。UI、purge、项目删除与完整大 PR 的新主干集成/最终全量/资源实测由统筹继续，两个未改路径失败不得在归并时抹掉。

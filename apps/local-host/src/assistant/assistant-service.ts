@@ -1,3 +1,4 @@
+import { AssistantWorkLifecycle, type AssistantArchiveRequest } from "./assistant-work-lifecycle.js";
 import { threadReplyMaterials } from "./assistant-thread-types.js";
 import { assistantFailure } from "./assistant-error.js";
 import { isDeepStrictEqual } from "node:util";
@@ -18,7 +19,6 @@ import { roundModel, workView } from "./assistant-work-view.js";
 import { AssistantOffers } from "./assistant-offers.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
-  ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID,
   type AssistantActivity, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantMaterialText,
@@ -347,6 +347,7 @@ export class AssistantService {
   private readonly delegations: AssistantDelegations;
   readonly offers: AssistantOffers;
   readonly continuations: AssistantContinuations;
+  readonly lifecycle: AssistantWorkLifecycle;
   /** Background work this person's works started, followed on their graphs. */
   readonly jobs: AssistantJobs;
   /** The reminders, timed rounds and attention rules of this person. */
@@ -369,6 +370,8 @@ export class AssistantService {
         return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),
       host: () => ports.host(), state: (host, work) => this.stateFor(host, work), schedule: () => this.schedule(),
       send: (work, text, request_id, stillCurrent) => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent) });
+    this.lifecycle = new AssistantWorkLifecycle({ store, actorId, host: () => ports.host(), state: (host, work) => this.stateFor(host, work),
+      blockStart: id => this.continuations.blockStart(id), stopFollowUps: (id, control) => this.followUps.stopForArchive(id, control) });
     this.delegations = new AssistantDelegations({ store, actorId, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),
       stateOf: (host, work) => this.stateFor(host, work), latestRun: (host, work) => this.latestRun(host, work), chooseCharacter: (work, choice) => this.chooseCharacter(work, choice),
       lastReply: async work => [...((await this.assistantPart(work)).rounds.at(-1)?.turns ?? [])].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim(),
@@ -678,6 +681,7 @@ export class AssistantService {
     if (input.executor_session_id !== undefined && (input.work_id || choice?.kind !== "plugin" || typeof input.executor_session_id !== "string" || !input.executor_session_id)) {
       throw assistantErrors.invalid("只有交给执行方插件的新工作可以接着一个已有的会话");
     }
+    if (input.work_id) this.lifecycle.assertStart(this.store.get(this.actorId, input.work_id));
     const claim = this.store.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined;
@@ -1214,16 +1218,9 @@ export class AssistantService {
     return this.publicWork(work, await this.stateSafely(work));
   }
 
-  /** Put away (or back). Putting away is quiet: it waits for no round in progress here or in what it handed out, and takes its timed rounds with it. */
-  async archive(workId: string, archived: boolean): Promise<AssistantWork> {
-    if (archived) {
-      const host = await this.ports.host(), own = this.store.get(this.actorId, workId), group = [own, ...this.store.delegatedBy(this.actorId, own, "any")];
-      if ((await Promise.all(group.map(item => this.stateFor(host, item)))).some(state => ["running", "paused", "waiting-input", "waiting-review"].includes(state))) {
-        throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
-      }
-      await this.followUps.stopForArchive(workId);
-    }
-    const work = this.store.update(this.actorId, workId, null, { archived });
+  /** SDK first, then the Work projection, under the same current authority. */
+  async archive(workId: string, request: AssistantArchiveRequest, control: AgentMemoryExecutionControl): Promise<AssistantWork> {
+    const work = await this.lifecycle.change(workId, request, control);
     return this.publicWork(work, await this.stateSafely(work));
   }
 
@@ -1242,6 +1239,7 @@ export class AssistantService {
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
+
   /** The executor a work is kept with (or the plugin named), found again in the project's directory as the person; refused, not replaced, when it is not there. */
   private async executorOf(work: Pick<StoredWork, "project_ref" | "executor"> | Pick<StoredWork, "project_ref">, pluginId?: string, dispatch?: { control?: ExecutorControl; original?: SendIntent["original_input"] }): Promise<WorkExecutor> {
     if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用执行方插件");
@@ -1258,7 +1256,8 @@ export class AssistantService {
   /** A work carried by a plugin: its round starts, continues or is answered in the plugin's own session. */
   private async executorDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("这项工作的执行方暂时不能带图片；可以把图里的要点写成文字再发");
-    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
+    const current = () => { assertSendCurrent(stillCurrent); this.lifecycle.assertStart(work); };
+    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: dispatchControl(current) });
     if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
     // The mode chosen before the first Send is saved on the session, where the plugin's page reads it too.
     if (!work.executor.session_id) work = await openSession(this.store, this.actorId, work, executor, mode);
@@ -1286,19 +1285,17 @@ export class AssistantService {
     const adapter = host.adapter(RUNTIME);
     let base = await this.ports.authority(work);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
-    const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart ? { ...base, beforeStart: async () => {
-      await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent);
+    const startAuthority = () => ({ ...base, beforeStart: async () => {
+      await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent); this.lifecycle.assertStart(work);
     }, assertBeforeStart: () => {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
-      requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent);
-    } } : base), original_input });
+      requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); this.lifecycle.assertStart(work);
+    }, original_input });
     let authority = startAuthority();
     const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
-      const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
-        actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
-      work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
-      // Action ownership includes the newly created session, also on the very first round.
+      work = await this.lifecycle.bindSession(host, work, { title: work.title, workspace: "business", role_id: role }, authority, () => assertSendCurrent(stillCurrent));
+      // Action ownership includes the newly bound session; later preparation is fenced without holding the binding gap.
       base = await this.ports.authority(work); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);

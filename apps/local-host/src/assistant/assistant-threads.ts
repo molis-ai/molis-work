@@ -52,7 +52,20 @@ export class AssistantThreads {
     }
     if (!work) work = this.store.create({ actor_id: this.ports.actorId, title: `${context.title} · 评论`,
       scope: { kind: "project", project_id: project.project_id }, project_ref: project, origin: { surface: "discussion", plugin_id: input.target.provider_id, title: context.title } });
-    work = this.store.update(this.ports.actorId, work.work_id, work.revision, { archived: false,
+    if (work.archived) {
+      const request = await this.service.lifecycle.preview(work.work_id, false, `thread:${context.message.request_id}:${work.revision}`);
+      work = await this.service.lifecycle.change(work.work_id, request, {
+        beforeEffect: () => caller.beforeEffect(), assert_current: () => {
+          if (!this.ports.alive()) throw assistantErrors.cancelled("原助理服务已关闭");
+          caller.signal?.throwIfAborted();
+          requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成");
+        },
+      });
+    }
+    this.service.lifecycle.assertStart(work);
+    caller.signal?.throwIfAborted();
+    requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成");
+    work = this.store.update(this.ports.actorId, work.work_id, work.revision, {
       reply_target: { ...input.target, title: context.title }, thread_round: { request_id: context.message.request_id, attempt_id: randomUUID(),
         message_id: input.message_id, run_id: null, state: "starting", context, reader, writer } });
     return this.dispatch(work, caller);

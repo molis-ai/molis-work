@@ -1,3 +1,4 @@
+import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -140,11 +141,20 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   }
 
   /** The work is put away: its timed rounds stop with it, each saying why. */
-  async stopForArchive(workId: string): Promise<void> {
-    const { ports } = this, schedule = await ports.schedule().catch(() => null), at = ports.now().toISOString();
-    for (const { next_at, ...rest } of this.list(workId).filter(item => item.enabled)) {
-      if (next_at) await schedule?.cancel(followUpTask({ ...rest, next_at }, "").key).catch(() => null);
-      ports.records.save(ports.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: "这项工作已归档，定时已停用" } });
+  async stopForArchive(workId: string, control: AgentMemoryExecutionControl): Promise<void> {
+    await control.beforeEffect(); control.assert_current();
+    const { ports } = this, schedule = await ports.schedule(), at = ports.now().toISOString();
+    for (const original of this.list(workId).filter(item => item.enabled)) {
+      const { next_at, ...rest } = original;
+      await control.beforeEffect(); control.assert_current();
+      if (next_at) {
+        const task = await schedule.cancel(followUpTask({ ...rest, next_at }, "").key);
+        if (task?.state === "running") throw assistantErrors.state("这项工作的定时轮次已经开始，先停止或处理它再归档");
+      }
+      await control.beforeEffect(); control.assert_current();
+      if (!ports.records.save(ports.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: "这项工作已归档，定时已停用" } }, original)) {
+        throw assistantErrors.conflict("原定时安排已经改变，请核对当前状态后继续归档");
+      }
     }
   }
 

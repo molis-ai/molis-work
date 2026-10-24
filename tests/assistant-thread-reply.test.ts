@@ -222,8 +222,47 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
       assert.equal(delivered.messages.length, 2);assert.equal(delivered.messages[1]!.body, "只在原评论里的答复");
       assert.deepEqual((await api<{ threads: PagesCommentThread[] }>(path(b.id))).threads, []);assert.equal(requests.length, 1);
       const next = await api<{ thread: PagesCommentThread }>(path(a.id), { thread_id: thread.thread_id, request_id: "next", body: "继续解释这一点", reply_to: delivered.messages[1]!.message_id });
+      const archivePath = `/api/assistant/works/${started.work_id}/archive`;
+      const previewDb = openHomeSqliteDatabase(home, "assistant"), previewStore = new AssistantStore(previewDb);
+      const beforePreview = previewStore.get("web-user", started.work_id);
+      const original = await api<{ revision: number; session_id: string; archived: boolean; decision: { operation_id: string; expected_version: number; expected_state: string } }>(archivePath + "-preview?archived=true");
+      assert.deepEqual(previewStore.get("web-user", started.work_id), beforePreview, "preview never archives or updates the Work");
+      for (const body of [null, [], true, "invalid", { archived: true }, { ...original, revision: 0 }, { ...original, session_id: "" }, { ...original, extra: true },
+        { ...original, decision: { ...original.decision, expected_version: 0 } }, { ...original, decision: { ...original.decision, extra: true } }]) {
+        const rejected = await fetch(prefix + archivePath, { method: "POST", headers: { "content-type": "application/json", origin,
+          "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
+        const result = await rejected.json(); assert.equal(rejected.status, 400); assert.equal(result.code, "assistant.invalid");
+        assert.deepEqual(previewStore.get("web-user", started.work_id), beforePreview, "HTTP rejects malformed originals before any Work effect");
+      }
+      previewDb.close();
+      const archived = await api<{ work: { archived: boolean } }>(archivePath, original);
+      assert.equal(archived.work.archived, true);
+      const assistantDb = openHomeSqliteDatabase(home, "assistant"), assistantStore = new AssistantStore(assistantDb);
+      try {
+        const before = assistantStore.get("web-user", started.work_id), beforeModels = requests.length;
+        assistantDb.exec("CREATE TRIGGER refuse_restore BEFORE UPDATE ON assistant_works WHEN OLD.archived=1 AND NEW.archived=0 BEGIN SELECT RAISE(ABORT, 'restore commit refused'); END");
+        const failed = await fetch(prefix + "/api/assistant/threads/start", { method: "POST", headers: { "content-type": "application/json", origin,
+          "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ target, message_id: next.thread.messages.at(-1)!.message_id }) });
+        assert.equal(failed.ok, false); await failed.json();
+        assert.deepEqual(assistantStore.get("web-user", started.work_id), before, "SDK restore failure at the business commit creates no reply round");
+        assert.equal(requests.length, beforeModels, "failed restoration cannot start another model request");
+        assistantDb.exec("DROP TRIGGER refuse_restore");
+        const revised = assistantStore.update("web-user", started.work_id, before.revision, { title: "恢复期间由本人修改的工作" });
+        hold = true;
+        const changedRetry = await fetch(prefix + "/api/assistant/threads/start", { method: "POST", headers: { "content-type": "application/json", origin,
+          "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ target, message_id: next.thread.messages.at(-1)!.message_id }) });
+        const changedResult = await changedRetry.json();
+        assert.equal(changedRetry.ok, false, "the original thread restore cannot adopt a new Work revision");
+        assert.equal(changedResult.code, "assistant.conflict");
+        assert.deepEqual(assistantStore.get("web-user", started.work_id), revised, "a stale restore does not rebind or create a reply round");
+        assert.equal(requests.length, beforeModels, "revision drift starts no model request");
+      } finally { assistantDb.close(); }
+      const restore = await api<object>(archivePath + "-preview?archived=false");
+      await api(archivePath, restore);
       hold = true;
       await api<Status>("/api/assistant/threads/start", { target, message_id: next.thread.messages.at(-1)!.message_id });
+      assert.equal((await api<{ work: { archived: boolean } }>(`/api/assistant/works/${started.work_id}`)).work.archived, false);
+
       await until(async () => pending !== null, Boolean);
       await api<Status>("/api/assistant/threads/stop", { work_id: started.work_id });
       const response = pending as ServerResponse | null;

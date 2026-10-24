@@ -1,3 +1,4 @@
+import { assistantLifecycleHttp } from "./assistant-lifecycle-http.js";
 import { executorInputActions } from "./assistant-executor-input.js";
 import { pageRelatedWorks } from "./assistant-page-related.js";
 import { AssistantThreads } from "./assistant-threads.js";
@@ -314,6 +315,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "POST" && parts.length === 2 && parts[0] === "followups" && parts[1] === "remove") return { status: 200, body: { removed: await service.followUps.remove(String(body.followup_id ?? "")) } };
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
+      const lifecycle = await assistantLifecycleHttp(request, response, url, parts, body, ports, service, store); if (lifecycle) return lifecycle;
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };
       // The page follows a live work by waiting for its view to change (closing the request ends the wait).
       if (method === "GET" && parts.length === 3 && parts[2] === "wait") {
@@ -342,7 +344,6 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.handover(workId, { to: body.to as AssistantHandover["to"], ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };
       if (parts.length === 3 && parts[2] === "recovery") return { status: 200, body: typeof body.run_id === "string"
         ? await service.closeInterrupted(workId, { run_id: body.run_id, version: Number(body.version) }) : await service.recovery(workId) };
-      if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await service.archive(workId, body.archived !== false) } };
       if (parts.length === 4 && parts[2] === "reviews") return { status: 200, body: await service.decide(workId, { review_id: parts[3]!, decision: body.decision as "approve" | "reject", ...(typeof body.note === "string" ? { note: body.note } : {}) }) };
       return null;
     },

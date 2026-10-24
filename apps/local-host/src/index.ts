@@ -4,6 +4,7 @@ export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWork
 export { computeBuildSourceDigest, writeMolisWorkBuildManifest, digestPaths } from "./installer/fingerprint.js";
 export type { MolisWorkBuildManifest } from "./installer/fingerprint.js";
 export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
+export { readRuntimeConfigBackup, sealRuntimeConfigBackup, RUNTIME_CONFIG_BACKUP_OWNER, type RuntimeConfigBackupReference } from "./installer/runtime-config-backups.js";
 export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
 export { openWorkSessionRegistry } from "./session-registry.js";

@@ -1,5 +1,5 @@
 import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginCapabilityClient, PluginJobControl, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginActionClient, PluginCapabilityClient, PluginJobControl, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingInteractionHtml } from "./interaction-html.js";
 import { codingPageHtml } from "./rich-html.js";
@@ -12,6 +12,18 @@ type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_
 /** Carry the original route fence to a formal dependency action just as the typed adapter does. */
 export function codingActionControl(beforeWrite: CodingBeforeWrite): Control {
   return { signal: beforeWrite.signal, beforeEffect: beforeWrite, assert_authority_current: beforeWrite.assert_current };
+}
+/** Formal actions keep the same request/job fence as typed calls, as well as any control supplied by their caller. */
+export function codingActions(context: PluginStartContext, beforeWrite: CodingBeforeWrite): PluginActionClient {
+  const actions = context.services!.actions!;
+  return { ...actions, invoke: (definition, input, control, transport) => actions.invoke(definition, input, { ...control,
+    signal: beforeWrite.signal && control?.signal ? AbortSignal.any([beforeWrite.signal, control.signal]) : beforeWrite.signal ?? control?.signal,
+    beforeEffect: async () => { await control?.beforeEffect(); await beforeWrite(); },
+    assert_authority_current: () => {
+      requireSynchronous(control?.assert_authority_current?.(), "最终授权检查必须同步完成");
+      beforeWrite.assert_current();
+    },
+  }, transport) };
 }
 /** A job's writes answer to the job (PG-038): it still runs, the activation is live, and the installation still grants what the job needs. */
 export function codingJobWrite(control: PluginJobControl): CodingBeforeWrite {

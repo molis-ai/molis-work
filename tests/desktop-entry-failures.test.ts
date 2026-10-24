@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import { request } from "node:http";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
+import { openEntryEventStream, openEntryTerminal, seedEntryProject, entryRequestHeaders } from "./fixtures/desktop-entry-streams.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const cliEntry = join(root, "dist/cli/main.js");
@@ -17,6 +19,8 @@ const flags = ["--no-warnings", "--unhandled-rejections=strict", "--experimental
 interface Observed {
   transport: number; transportClosed: boolean; host: number; hostClosed: boolean;
   args: string[]; order: string[];
+  pendingClosed?: boolean;
+  socketCloseDropped?: boolean;
 }
 interface Exit { code: number | null; signal: NodeJS.Signals | null }
 
@@ -51,8 +55,10 @@ async function message(child: ChildProcess, exited: Promise<Exit>): Promise<Reco
   }
 }
 
-async function web(t: TestContext, mode: string) {
+async function web(t: TestContext, mode: string, prepare?: (directory: string) => Promise<void>) {
   const directory = mkdtempSync(join(tmpdir(), "molis-desktop-entry-")), report = join(directory, "observed.json");
+  try { await prepare?.(directory); }
+  catch (error) { rmSync(directory, { recursive: true, force: true }); throw error; }
   const child = spawn(process.execPath, [...flags, "--import", preload, webEntry, "--home", directory, "--port", "0"], {
     cwd: root, stdio: ["ignore", "pipe", "pipe", "ipc"],
     env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "",
@@ -129,6 +135,59 @@ test("RAC-119 Desktop Web normal signal waits for real HTTP and Host cleanup, th
   assert.ok(f.stdout().includes("项目列表（网页不会修改 Runtime Session 绑定）"));
 });
 
+test("RAC-119 Desktop Web stops live SSE and upgraded PTY connections with real cleanup and exit 0", async t => {
+  let projectId = "";
+  const f = await web(t, "live-streams", async directory => { projectId = await seedEntryProject(directory); });
+  const stream = await openEntryEventStream(t, f.origin, f.directory, projectId);
+  const terminal = await openEntryTerminal(t, f.origin, f.directory);
+  const revision = await fetch(`${f.origin}/projects/${projectId}/api/plugins/io.molis.work.files/view-revision`);
+  assert.equal(revision.status, 200);
+  assert.equal(typeof (await revision.json() as { revision: string }).revision, "string", "view-revision answers JSON rather than holding a poll");
+  assert.equal(stream.ended(), false);
+  assert.equal(terminal.socket.readyState, terminal.socket.OPEN);
+  assert.equal(f.child.kill("SIGTERM"), true);
+  assert.deepEqual(await f.exited, { code: 0, signal: null }, JSON.stringify({ stderr: f.stderr(), observed: f.observed() }));
+  await Promise.all([stream.closed, terminal.closed, terminal.stopped()]);
+  assert.equal(f.observed().transport, 1);
+  assert.equal(f.observed().transportClosed, true);
+  assert.equal(f.observed().hostClosed, true);
+  assert.doesNotMatch(f.stderr(), /"level":"error"|shutdown_timed_out|shutdown_failed/);
+});
+
+test("RAC-119 Desktop Web ends a real SSE whose owner has not ended it before HTTP close", async t => {
+  let projectId = "";
+  const f = await web(t, "live-sse", async directory => { projectId = await seedEntryProject(directory); });
+  const stream = await openEntryEventStream(t, f.origin, f.directory, projectId);
+  assert.equal(stream.ended(), false);
+  assert.equal(f.child.kill("SIGTERM"), true);
+  assert.deepEqual(await f.exited, { code: 0, signal: null }, JSON.stringify({ stderr: f.stderr(), observed: f.observed() }));
+  await stream.closed;
+  assert.equal(f.observed().transportClosed, true);
+  assert.equal(f.observed().hostClosed, true);
+  assert.doesNotMatch(f.stderr(), /"level":"error"|shutdown_timed_out|shutdown_failed/);
+});
+
+test("RAC-119 Desktop Web disconnects an unfinished authorized HTTP request before successful exit", async t => {
+  const f = await web(t, "live-http");
+  const entered = message(f.child, f.exited);
+  let answered = false;
+  const pending = request(`${f.origin}/api/settings/projects`, { method: "POST", headers: { ...entryRequestHeaders(f.directory, f.origin), "content-length": "128" } }, response => { answered = true; response.resume(); });
+  const disconnected = new Promise<void>(resolve => { pending.once("close", resolve); });
+  pending.on("error", () => { /* Shutdown may reset a request whose body has not finished. */ });
+  t.after(() => { pending.destroy(); });
+  pending.write('{"display_name":');
+  assert.equal((await entered).type, "pending-request");
+  assert.equal(pending.destroyed, false);
+  assert.equal(answered, false);
+  assert.equal(f.child.kill("SIGTERM"), true);
+  assert.deepEqual(await f.exited, { code: 0, signal: null }, JSON.stringify({ stderr: f.stderr(), observed: f.observed() }));
+  await disconnected;
+  assert.equal(f.observed().pendingClosed, true, JSON.stringify({ stderr: f.stderr(), observed: f.observed() }));
+  assert.equal(f.observed().transportClosed, true);
+  assert.equal(f.observed().hostClosed, true);
+  assert.doesNotMatch(f.stderr(), /"level":"error"|shutdown_timed_out|shutdown_failed/);
+});
+
 test("RAC-119 Desktop Web reports callback or Host cleanup failure without claiming success", async t => {
   for (const mode of ["transport-reject", "host-reject"]) await t.test(mode, async t => {
     const f = await web(t, mode);
@@ -149,8 +208,12 @@ test("RAC-119 Desktop Web synchronous close refusal is diagnosed once without ra
 });
 
 test("RAC-119 Desktop Web unfinished cleanup keeps its deadline alive and repeated signals never repeat close", async t => {
-  for (const mode of ["transport-blocked", "host-blocked"]) await t.test(mode, async t => {
+  for (const mode of ["transport-blocked", "host-blocked", "socket-close-blocked"]) await t.test(mode, async t => {
     const f = await web(t, mode);
+    if (mode === "socket-close-blocked") {
+      const response = await fetch(`${f.origin}/health`);
+      assert.equal(response.status, 200); await response.text();
+    }
     const closing = message(f.child, f.exited);
     const started = Date.now();
     assert.equal(f.child.kill("SIGTERM"), true);
@@ -160,8 +223,9 @@ test("RAC-119 Desktop Web unfinished cleanup keeps its deadline alive and repeat
     assert.ok(Date.now() - started >= 1800, "unfinished cleanup must retain the real two-second deadline");
     const observed = f.observed();
     assert.equal(observed.transport, 1);
-    assert.equal(observed.host, mode === "host-blocked" ? 1 : 0);
-    assert.equal(observed.hostClosed, mode === "host-blocked");
+    assert.equal(observed.host, mode === "transport-blocked" ? 0 : 1);
+    assert.equal(observed.hostClosed, mode !== "transport-blocked");
+    if (mode === "socket-close-blocked") assert.equal(observed.socketCloseDropped, true);
     assert.deepEqual(log(f.stderr(), f.directory, "shutdown_timed_out", "web", false).fields, {
       deadline_ms: 2000, remaining_cleanup_skipped: true,
     });

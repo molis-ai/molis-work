@@ -10,7 +10,6 @@ export interface ActionSubjectContext {
   content: string;
   truncated: boolean;
   goal_ids: string[];
-  session_id: string | null;
   /** Where the person opens it: the workbench surface and item. Absent when the object has no page of its own. */
   open?: { surface: string; id: string };
   /**
@@ -33,7 +32,7 @@ const position = { type: "integer", minimum: 0 };
 export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
 export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subject_id: id, offset: position }, required: ["subject_id"], additionalProperties: false };
 const properties = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: SUBJECT_CONTEXT_PAGE_CHARS },
-  truncated: { type: "boolean" }, goal_ids: { type: "array", items: id, uniqueItems: true }, session_id: { type: ["string", "null"] } };
+  truncated: { type: "boolean" }, goal_ids: { type: "array", items: id, uniqueItems: true } };
 const paging = { offset: position, length: position };
 const open = { type: "object", properties: { surface: { ...id, pattern: "^[a-zA-Z0-9_-]+$" }, id }, required: ["surface", "id"], additionalProperties: false };
 const belongsTo = { type: ["string", "null"], maxLength: 120 };

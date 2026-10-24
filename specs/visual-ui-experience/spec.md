@@ -13,6 +13,10 @@
 资源门仍红：arrival.css 705,669→705,676 B、settings.css 995,803→995,810 B、workbench.css 1,614,240→1,614,247 B，分别+7 B，其余24路径不变。修复在同一条规则复用已有按钮类，没有新增规则、token或抽象；去掉诊断标记会扩大匹配面，压行删注释不作为节约方式。本片未写任何资源额度、预算、CI或快照，增量交统筹单独处理。结果索引 `/private/tmp/molis-toast-contrast-20261024-summary.json`，红例及CSS匹配 `/private/tmp/molis-toast-contrast-20261024-red-evidence/`；绿例24状态JSON/截图在当前树 `.impeccable/qa/review/toast-call-id-states/`。
 
 
+2026-10-24 准确主干集成短合同：统筹已授权将本片原 head `5d6d536d5` 合入 main `afabfcbef41cfb99993cdf4a3ecd4ed34d36f423`，允许本地合并提交、不推送。产品仍只有上述 toast 选择器；资源只把同一已批准的三份 CSS 各 +7 B 换到准确新父（arrival 694,936→694,943、settings 983,223→983,230、workbench 1,552,614→1,552,621 B），不是新额度，其余主干产品与资源变化保留。冲突仅现资源放行表和预算；健康基线无冲突，沿主干。复用现构建/FIFO/真实 Host/Chrome 验证，不新增机制或配置；人的真实触屏与主观观感继续由 App/用户验收。完成门为准确父整体 build、design-system README 与 toast 定向回归、types/边界/API/Action/health/资源/secrets，以及原零容忍的 66 图/22 样式正式对照；不放宽覆盖、断言或时限。
+
+原版本视觉证据：首轮 base 12/12、head 因四个 `window.__visualStyles(1000)` 的 15 秒 CDP 超时只得 50/66 图与16/22样式，原日志 `/private/tmp/molis-toast-main-visual-compare-20261024.log` 保留。经只读 send/receive/dispatch 观测的一次正式原 head capture 12/12、66/22，官方零容忍比较 0/66 图、0/22样式差；1041请求全部有reply，零观测丢弃，最长样式reply1053.9ms。原两处29/4像素微差在新capture均不再出现，新图与旧base逐像素一致，已逐项观察裁图；不能据此归因原超时或称其已修。临时探针已撤回原blob，未改共享harness。报告 `/private/tmp/molis-toast-visual-style-diagnosis-20261024.md`。这些是旧5d6/f586证据，不能代替本次afab集成后验证。
+
 ## 1. 目标与体验要求
 
 Molis Work 保留自己的色彩、工作台与导航结构，让阅读更耐久、操作更跟手、信息更清楚；个人助理能说明工作范围、上下文、连接、产出、变更和任务，长内容与持续使用仍然顺畅。真实工作台、现存插件、生成插件、组件板与后续开发消费同一套共有表达。

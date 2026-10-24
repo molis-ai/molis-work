@@ -195,7 +195,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       try { document = store.get(input.subject_id, project(caller)); }
       catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? pagesErrors.not_found("文档不存在或已删除") : error; }
       return subjectContext({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
-        content: actionFieldValue("body", document.body), goal_ids: document.goal_id ? [document.goal_id] : [], session_id: null, open: { surface: "pages", id: document.id } }, input);
+        content: actionFieldValue("body", document.body), goal_ids: document.goal_id ? [document.goal_id] : [], open: { surface: "pages", id: document.id } }, input);
     })),
     bindSearchEntriesHandler(pagesActions.searchEntries, caller => ports.read(store => store.list(project(caller)).map(document => ({
       subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档", summary: "",

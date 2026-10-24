@@ -264,7 +264,7 @@ export type MolisWorkIcon = keyof typeof ICONS;
  * The Manifests are the source; a test holds this map to them and keeps every glyph unique.
  */
 export const PLUGIN_ICON = {
-  home: "home", goals: "target", sessions: "terminal", inbox: "inbox", feed: "rss", schedule: "timer",
+  home: "home", goals: "target", inbox: "inbox", feed: "rss", schedule: "timer",
   workflows: "workflow", pages: "note", form: "clipboard", dataset: "database", ppt: "presentation",
   artifacts: "package", images: "image", jelly: "calendar", cognia: "book", shelf: "library", lingguang: "idea",
   coding: "code", characters: "user", alchemist: "zap", "plugin-builder": "wand", market: "grid",

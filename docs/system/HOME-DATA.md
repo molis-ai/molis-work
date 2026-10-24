@@ -25,7 +25,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
 | `PRAGMA user_version`，经 `applySqliteBaseline` | 26 | 项目库（8）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（3）、11 个个人插件库、Home Runtime 安装库、server、characters |
-| 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，22）、`sessions/sessions.db`（`session_meta`，7） |
+| 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，22）、`sessions/sessions.db`（`session_meta`，7；已下线，无代码打开） |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
 
@@ -42,8 +42,8 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
-| `sessions/sessions.db` | `modules/private-work-context`；`src/session-registry.ts:72` 打开，`src/session-schema.ts` 建表（4.3） | SQLite 自带版本 · WAL · `session_meta.schema_version` = 7（`modules/private-work-context/src/session-schema.ts:9`） | 必备份，与 `sessions/content/` 同一时点 | purge（`installer/uninstall.ts:51`） |
-| `sessions/content/blobs/**` 与 `sessions/content/content.key` | `modules/private-work-context/src/content-store.ts:34-35`，由 `modules/private-work-context/src/session-registry.ts:79` 创建 | 加密文件（AES-256-GCM，每个 blob 封套 `v: 1`）；密钥是一个 32 字节文件 | blobs 必备份；`content.key` 是密钥：有 blob 而缺密钥时拒绝写入（`modules/private-work-context/src/content-store.ts:51`），不会换新密钥 | purge（`installer/uninstall.ts:51`，整个 `sessions/`） |
+| `sessions/sessions.db` | `apps/local-host`（只在 `src/home-stores.ts` 登记；Sessions 插件已下线，没有代码打开或建表，见 4.3） | SQLite 自带版本 · WAL · `session_meta.schema_version` = 7（留在旧库里，不再有代码读它） | 必备份，与 `sessions/content/` 同一时点 | purge（`installer/uninstall.ts:51`） |
+| `sessions/content/blobs/**` 与 `sessions/content/content.key` | `apps/local-host`（只在 `src/home-stores.ts` 登记；写入它们的实现已随 Sessions 插件删除） | 加密文件（AES-256-GCM，每个 blob 封套 `v: 1`）；密钥是一个 32 字节文件 | blobs 必备份；`content.key` 是密钥：没有密钥 blob 读不出，不能换新密钥 | purge（`installer/uninstall.ts:51`，整个 `sessions/`） |
 
 ### 3.2 助理与平台服务（Home 级）
 
@@ -157,11 +157,11 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 各插件的库版本记在账本行里，发版时按 `docs/releases/CHECKLIST.md` §3 各一行核对。`boards` 的 `project_id` 指向 `project_root`，不再存项目名（名字的主人是目录库）。`modules/goals` 与 `modules/governance-collaboration` 仍用自己的 SQL 读写 Goals 的这些表，登记在 `tooling/gates/table-owners.json` 的 `shared`，S9 把存储搬进插件时删除。
 
-### 4.3 `sessions/sessions.db`（v7）
+### 4.3 `sessions/sessions.db`（v7，已下线）
 
-`session_meta`、`sessions`、`session_messages`、`session_events`、`session_handoffs` 归 `modules/private-work-context`（`src/session-schema.ts`）；`context_edges` 归 `modules/context-ledger`，由 `apps/local-host/src/session-registry.ts` 的 `createSessionLedger` 注入（`openWorkSessionRegistry` 与删除项目时 Sessions 所有者的清理都用它；行号不写，用符号名定位）。
+Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions.db` 或 `sessions/content/`：库里的表（`session_meta`、`sessions`、`session_messages`、`session_events`、`session_handoffs`）与加密内容块是旧数据，留在原处，不读、不迁移、不转换。它们仍登记在 `apps/local-host/src/home-stores.ts`（owner 是 `apps/local-host`），所以备份照旧包含、`uninstall --purge-user-data` 照旧删除整个 `sessions/`。
 
-项目被删除时这个库里属于它的 Session 由 `modules/private-work-context` 自己清（`src/project-data.ts` 的 `sessionsProjectData`，回执里的所有者 id 是 `sessions`）：Session 靠 Ledger 边 `work.project` 属于项目（由 Ledger 的查询找出），一个事务经 Ledger 取消这些 Session 与交接包的关联边（Ledger 只追加：取消的边作为历史留在 `context_edges`，只有 id，没有内容），删这些 Session 的事件、交接、消息请求，提交；提交之后再开第二个写事务，持着写锁把 `sessions/content/blobs/` 里所有没有行引用的内容块删掉（不只是这个项目的行引用过的那几块；文件删除不在第一个事务里，所以提交失败不会留下指着已删内容的行；在写锁里核对，所以不会删掉另一个进程刚存进去引用的块；写入方都在这把锁里存块并在同一个事务里写引用它的行，所以没有行引用的块就是垃圾，不论原来是哪个项目的）。删某一块失败、或两个事务之间进程中断、或第二个事务拿不到写锁时，清理报错、回执保持 pending：已删的行不会回来，留下的块没有行引用它，但重试会把它收走——重试时这个项目的行已不在，第二个事务照样扫描全部内容块，所以收敛；同一个事务里别的块照删，不被一块删不掉拖住。别的项目的 Session、移到别处的 Session 不动，库不存在时不创建。示例项目的「重建」（`demo reset`）不清它们：重建保留项目的面板与 Runtime 绑定，它们指着的 Session 跟着留下（所有者声明 `survivesRebuild`，`apps/local-host/src/project-deleted-hooks.ts`）；删除示例项目、以及删除后用同一个固定 id 重新创建时才清。
+删除项目不再有 `sessions` 所有者：旧库里属于被删项目的 Session 记录不会被清（已接受的遗留，随旧库留到 SC-5）。SC-5 才会在备份副本上清理 `<home>/sessions/`，需要用户逐步批准；真实 Home 不在本片动。Sessions 重做时的数据形状另议（BL-177），不沿用这个库。
 
 ### 4.4 `placement/placement.db`、`assistant/assistant.db`、`server/server.sqlite`
 
@@ -258,7 +258,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | 组 | 成员 | 为什么要同一时点 |
 | --- | --- | --- |
 | A 目录与项目 | `projects/catalog.db`、全部 `projects/<id>/molis-work.db`（带 `-wal`、`-shm`） | 目录库存项目库的绝对路径，只能恢复到原路径 |
-| B 会话 | `sessions/sessions.db`、`sessions/content/blobs/`、`sessions/content/content.key` | blob 没有密钥读不出，密钥不能换新 |
+| B 会话（旧 Sessions，已下线） | `sessions/sessions.db`、`sessions/content/blobs/`、`sessions/content/content.key` | blob 没有密钥读不出，密钥不能换新；没有代码再读它们，备份照旧收 |
 | C Agent 与记忆 | `agent-runtime/`（`records/`、`checkpoints/`、`storage.key`）、`git-operation-details.json`、`memory/memory.db`、`assistant/assistant.db`、`agent-definitions/`、`agent-declarations/` | 记忆正文在 Prologue 条目，账本在 `memory.db`；Git 审查回执与细节分在两处 |
 | D 凭据 | `feed/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `feed/secrets.key`）、`feed/evidence*/`、`alchemist/projects/*/search-content*/` 加同目录的 `search.sqlite`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；证据索引 `search.sqlite` 和它指向的 `search-content*` 要取同一时点；主密钥不在 Home 里 |
 | E 个人内容 | 10 个个人插件库、`images/assets/`、`lingguang/imports/`、`shelf/`、`jelly/preferences.json`、`plugin-builder/`、Alchemist 工作室库、`characters/`、`server/`（讨论库 `server.sqlite`，带 `-wal`、`-shm`；含明文房间邀请令牌，副本按密钥对待，见 3.4）、`placement/`、`functions/`、`context-onboarding/` | 彼此独立；按 `project_id` 分区的行引用 A 里的项目 |

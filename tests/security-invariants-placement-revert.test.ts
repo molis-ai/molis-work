@@ -57,7 +57,7 @@ function world({ lieTo, opening, authority, moving }: WorldOptions = {}) {
       handlers: [
         { ...reader, handle: caller => {
           if (note.project !== caller.project_id) throw new ActionError("notes.not_found", "笔记不存在");
-          return subjectContext({ subject: { kind: "note", id: "n1" }, revision: String(note.version), title: "检查清单", content: "", goal_ids: [], session_id: null, open: { surface: "notes", id: "n1" } });
+          return subjectContext({ subject: { kind: "note", id: "n1" }, revision: String(note.version), title: "检查清单", content: "", goal_ids: [], open: { surface: "notes", id: "n1" } });
         } },
         bindObjectMoveHandler(mover, async (input, caller) => {
           if (moving) { await moving(input.to_project_id); await caller.beforeEffect(); }

@@ -117,11 +117,11 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 ### 为事项提供上下文
 
-需要让首页或其他消费者围绕插件对象发消息时，用 `defineSubjectContextAction(capabilityId, subjectKind, title, permissions)` 声明查询，把定义放入 Manifest 的 `actions`，并在 `start()` 返回对应处理器。处理器从插件自己的数据读取当前对象，以 `subjectContext({ subject: { kind, id }, revision, title, content, goal_ids, session_id })` 返回正文快照和真实关联。`goal_ids` 只填实际关联；没有明确 Session 时用 `null`，不能猜测或选择最近会话。正文超过上限会标记节选；转述其他对象时传入原 `truncated`，不要丢掉节选标记。
+需要让首页或其他消费者围绕插件对象发消息时，用 `defineSubjectContextAction(capabilityId, subjectKind, title, permissions)` 声明查询，把定义放入 Manifest 的 `actions`，并在 `start()` 返回对应处理器。处理器从插件自己的数据读取当前对象，以 `subjectContext({ subject: { kind, id }, revision, title, content, goal_ids })` 返回正文快照和真实关联。`goal_ids` 只填实际关联，不能猜测。正文超过上限会标记节选；转述其他对象时传入原 `truncated`，不要丢掉节选标记。
 
 消费者使用 `resolveActionSubject(client, caller, subject)`，从同一个能力目录按语义类型与对象类型发现查询，并以原调用者、固定提供方调用。无需在 Home 增加插件白名单；合同不一致会在注册时拒绝，多个可用提供方则要求消除歧义。权限、安装 grant、停用及升级仍走共同服务。对象查询只提供事实，不授予消息发送权限；首页随后从 Work 目录选择关联会话，没有关联时要求用户明确选择。
 
-这个协议负责读取已知对象的上下文；首页事件贡献和其他可执行动作仍须分别实现，不能把上下文声明当成自动创建首页事件。正式 Runtime 与原业务数据的验证见 [home-talk-actions.test.ts](../../tests/home-talk-actions.test.ts)。
+这个协议负责读取已知对象的上下文；首页事件贡献和其他可执行动作仍须分别实现，不能把上下文声明当成自动创建首页事件。
 
 首页与能力库的本地用户入口会读取原 Plugin Runtime 安装记录中的 grants；未知权限名不需要加入 Home 权限名单。仅已运行、身份匹配且实际授予所需权限的安装可扩展本地用户调用范围，权限绑定准确的能力版本和提供方，不能借给另一个只声明同名权限的提供方。停用、撤权、重启后重新读取当前状态；其他入口（包括 MCP）的独立授权不受影响。声明不等于安装授权，缺 grant 时仍不可用。真实 Web 接线见 [local-web-actions.test.ts](../../tests/local-web-actions.test.ts)。
 

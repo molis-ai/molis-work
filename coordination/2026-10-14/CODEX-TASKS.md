@@ -24,7 +24,13 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 **允许边界/依赖。** 最小Search owner及实际MCP/Host授权传递/最终读取边界、必要正式回归与同一slice；先鲜核现实现及1207 BL501/1208撤public context等在途真实diff，已有owner覆盖则接同一人不重复开线。新增共享合同/owner交互若必要先给具体最小输入输出/信任边界证据交root技术裁定，不先造通用平台。当前FIX1只读准备，不改repo源/spec；源码START在C2 #1209短修固定release→C1 RAC114现有有界片自然固定release后，实际接入优先于普通文档nonblock/W5长同步；若真实依赖变化由流水线重排。保护主checkout/4207/真实Home/Keychain，公共槽与临时Home，不自行full。
 
-**验收。** ACA005-01 未撤对照走同一真实生产路径正常返回正确结果；ACA005-02 source与reader各独立在真实owner等待期间撤精确授权，撤权完成且原query仍在途，最终响应须拒绝或不含该已撤内容/正文；ACA005-03 peer共享permission/新增同能力授权不能复活旧调用，后续新合法查询按新授权正常；ACA005-04 本人owner仍能查索引，撤权不以删索引/篡改业务数据实现；ACA005-05 原身份/精确提供方/取消与失败语义不放宽、相关负例仍拒。正式回归进入既有正确生产路径并带编号，tmp probe是复现输入而非唯一测试替身。
+**root已裁定的最小授权实例事实（方案已接受，非source START）。** MCP管理owner给现有grant增加单条非敏感generation，config/mcp-tools.json当前v2升v3；代次只是身份不授予权限，输入/请求不能选择，原atomic writer内生成并必要时区分输入与持久类型。首次显式记录、enabled切换、权限集合语义改变换新代；同内容幂等写保原代（顺序无关），无关grant更新不影响，多条仍原子保存，重复/坏记录failclosed不静默去重，不用整文件epoch/revision误杀。受理时原精确ref确无记录则捕获absence，最终仍无该记录且默认开放仍满足才可；现writer撤/重开保留disabled/newenabled，不新增reset/delete默认事实，absence→撤→显式重授不能救旧call。若实际有删除回absence入口，先给root精确路径再补最小同owner事实，不猜全局epoch。
+
+authorizeMcpActions入口捕获原代次/absence，复用现validate_authority与同步assert_authority_current；Search全部真实await后、正文/locator披露前实核所使用的原source+reader精确授权，尾检至披露间无未覆盖await；peer permission、新reader/新grant不能替原授权。原来多个合法reader可按现合同选仍有效的原reader，合法查询/owner索引保留。同hook的retained/background等直接消费者一致沿原授权实例，不建新callback/权限平台。可信client/project、精确version/provider、permissions/availability仍同时核，工具名/action业务语义不改。root已核1207/1208未改grant schema，作者开工仍鲜核有无更晚协议；新测试用最新public context入口，不引1208正删的出口。
+
+**配置版本/维护前置。** runtime只认v3，v2显式拒绝且零写；一次性v2→v3依已有离线维护合同，只在临时Home/副本list/apply，原client/ref/permissions/enabled全部保留，owner为各条生成新代次，外置原件备份、失败可恢复、重复不换代，不把迁移放正常读路径、不加兼容格式。将此配置维护前置交现有W5-17/统一发布维护线并更新HOME-DATA/说明，不改产品发布版本，不操作真实Home/4207/Keychain；必要配置合同变化root已按授权裁定，不新增用户审批。若Claude有更晚同文件协议先对齐。该方案是同一ACA005范围，不把1207 management取消诊断夹带进来。
+
+**验收。** ACA005-01 未撤对照走同一真实生产路径正常返回正确结果；ACA005-02 source与reader各独立在真实owner等待期间撤精确授权，撤权完成且原query仍在途，最终响应须拒绝或不含该已撤内容/正文；ACA005-03 peer共享permission/新增同能力授权不能复活旧调用，后续新合法查询按新授权正常；ACA005-04 本人owner仍能查索引，撤权不以删索引/篡改业务数据实现；ACA005-05 原身份/精确提供方/取消与失败语义不放宽、相关负例仍拒；ACA005-06 撤→同值重授旧拒新成、默认开放撤/重开、无关grant编辑/权限排序幂等重存不打断；ACA005-07 跨进程重读与坏/v2旧配置零写拒绝，临时副本v2→v3 list/apply原事实/外部原件/失败恢复/幂等不换代验证。正式回归进入既有正确生产路径并带编号，tmp probe是复现输入而非唯一测试替身。
 
 **交付/闭环。** 新非Draft PR/精确head、scoped diff、唯一spec、原始红绿/命令/退出与验证边界，DIRECT REVIEW/TEST/流水线/root；TEST按同一真实MCP交错独立验修后不披露，不机械重跑无变化full。独立复审/验证及真实merge SHA齐后才关闭，认领/BL/作者自报不等于修复。本新P1不增加无关#1206/#1209等临时合并门，未修完不得宣称防腐整线完成。
 

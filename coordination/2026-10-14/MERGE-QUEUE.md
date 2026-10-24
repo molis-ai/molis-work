@@ -47,6 +47,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1166](https://github.com/molis-ai/molis-work/pull/1166) | #1138非阻塞遗留：卸载清理失败可重试完成 | — | shared-core，须统一集成 | head `beb065b34b6bc2a870c3b982d4a445d63353f50b`；修复2交6文件/28文件572项并释放，root已核实际diff，已立即派独立正式review和原始日志核验；CI/full待，不自起批 |
 | 新 | [#1164](https://github.com/molis-ai/molis-work/pull/1164) | `ac-sc3` BL-385（R-17）：删除项目时清该项目的 Characters 原生执行记录 | — | `full` 非空（shared-core、storage、spans-packages，137 文件），进批 | `ac-review` 一轮**可合**（[6379997417](https://github.com/molis-ai/molis-work/pull/1164#issuecomment-6379997417)）。合并时机统筹定：可以合——真实 Home 的 characters v1→v2 本来就在维护八里，4207 换新 main 前必须先做（R-41），本 PR 不额外加约束；进下一批 |
 | 新 | [#1165](https://github.com/molis-ai/molis-work/pull/1165) | `ac-kernel` PG-047：模型结果的 `validateResult()` 由平台强制 | — | `full` 非空（63 个单元文件，无浏览器），进批 | 一轮可合；作者补完两条（RAC-334、RAC-335、S-18、`slices/pg047-held-model-results.md`），新头 `01de2cb48`；待 `ac-review` diff 复核，进 batch-22 |
+| 新 | [#1168](https://github.com/molis-ai/molis-work/pull/1168) | W6-01 / PG-058：删 `personal` 旧短名路由桥，alchemist HTTP 改显式直连（审计 AC-AUDIT-06） | — | 草稿；改枢纽文件 `web-request.ts`，转 ready 时算 `full` | 审计流程（Codex 侧）开的草稿；Alchemist 不删、行为不变（保留 `/api/alchemist` 直连）。转 ready 后交 `ac-review` 一轮 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 新开的开发片 PR 由统筹按依赖插进本表。

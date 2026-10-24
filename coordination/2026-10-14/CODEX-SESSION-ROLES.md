@@ -23,7 +23,7 @@
 
 | 来源 | 具体问题 | 当前认领与状态 | 完成条件 |
 | --- | --- | --- | --- |
-| [#805 原评审6295899361](https://github.com/molis-ai/molis-work/pull/805#issuecomment-6295899361) | projectWriteCheckersRoute注释仍指A2-2章节，A2-3设置页的规格引用错号 | 修复1已交[#1161](https://github.com/molis-ai/molis-work/pull/1161) a6621a7ea并释放；正式评审6379702002及独立文档核验通过，原生单job重试已绿，统筹6380103666已正常入队，实际合入另核 | 正确引用的小修PR、独立复核、必要检查及真实合入；行为不变，不新建运行测试 |
+| [#805 原评审6295899361](https://github.com/molis-ai/molis-work/pull/805#issuecomment-6295899361) | projectWriteCheckersRoute注释仍指A2-2章节，A2-3设置页的规格引用错号 | 修复1已交[#1161](https://github.com/molis-ai/molis-work/pull/1161) a6621a7ea并释放；正式评审6379702002及独立文档核验通过，原生单job重试已绿；2026-10-24 05:12:22UTC实际合入a934251d35dae6907fb2de75c3fb9f91735218e0，回执6380246527，本具体问题闭环 | 正确引用的小修PR、独立复核、必要检查及真实合入；行为不变，不新建运行测试 |
 | [#1119 非阻塞评审6379124613](https://github.com/molis-ai/molis-work/pull/1119#issuecomment-6379124613) | BL-377仍引用已被本片删除的BL-480；本片也完成BL-395，须指现行spec/S-59 | 统筹[6379661439](https://github.com/molis-ai/molis-work/pull/1119#issuecomment-6379661439)明确派给本PR在途作者ac-sandbox-sched；不加第二writer | 作者最终提交更正、保留创作台原决定与边界、文档检查/增量复核 |
 | [#1121 原评审6372440411建议1](https://github.com/molis-ai/molis-work/pull/1121#issuecomment-6372440411) | 同项目插件操作其他插件会话、消息及后台命令，需按可信归属限制并保留合法委派/收信 | 用户本轮点名；统筹[6379753664](https://github.com/molis-ai/molis-work/pull/1121#issuecomment-6379753664)认领，修复1已完成只读方案，统筹6379819152裁定；等#1148实际合入，当前先修阻挡该链的main issue-home-locale；与BL-541不同 | 明确现行授权/资源归属、最小spec、真实动作拒绝及正向回归、独立评审/测试、实际合入。原PR已合入aa4de404f不等于此遗留完成 |
 | [#1147 原二轮6375272439建议1](https://github.com/molis-ai/molis-work/pull/1147#issuecomment-6375272439) | SDK README仍把instructions登记描述为仅无目录条目的插件 | 修复2已交#1163 fd7c64a0e并释放；正式评审6379896345和独立文档核验通过，CI全部必要项完成；统筹6380163092已匹配head正常入队，实际合入另核 | 准确统一登记文案、必要文档检查及独立复核/合入 |
@@ -109,3 +109,5 @@
 本轮心跳接续（2026-10-23洛杉矶）：#1166 beb065b34修复卸载失败重试已交付，6文件、作者28文件572项，已立即派评审专职正式一轮与测试专职核红绿/门禁/全量边界；root读实际diff，需shared-core统一集成，不自行起批。修复2已释放，修复1现唯一writer，优先处理main issue-home-locale（#1127评论6380003167，root认领6380097295），保留S47并完整验证英文错误/Retry/真实加载/关闭。#1121归属修复等待1148真实合入，owner不变。batch20报告仅main已知红，测试专职独立核20/21；1119/1139/1148修复main之前不合。#1161重试已绿并正常入队；#1163尚余Security1，其他含Verify已绿。无须用户介入。
 
 最新裁定（2026-10-23洛杉矶）：#1127 main已知红查出真实独立Home设置入口失效，不能再记作单纯旧选择器。root核home-plugin-page/parent/home-model-settings代码，公开6380173758裁定修复1在现有Home设置宿主消费受限同源三路径事件，复用原dialog/Retry/草稿/关闭，保留S47与工作台设置面；无导航旁路。修复1仍唯一writer，须重新构建和核实际affected full。#1166首轮6380139209发现旧卸载重放await期间同版本重装的新definition被删除，必须修；root6380162886保留修复2owner，当前只读准备等writer释放。独立测试已核原28文件572/572及U1/U2有效红绿，不能代替新增交错和共享核心full。#1163已正常入队，#1161仍队内，未记录实际合入。
+
+22:13洛杉矶更新：#1161已实际合入a934251d3，#1163仍队首检查中。main设置入口修复已收到作者关键红绿：原红例保留，Home4/4、S47含新拒绝5/5，拒绝放进现行安全CI文件；作者32文件544项、build/boundary/资源无增长，最终health及提交后secrets待交，尚未独立核原始证据。contracts/dom-events说明同步使真实affected触发full；等最终PR立即交独立review/test，Claude统筹唯一集成批，修复1仍唯一writer。

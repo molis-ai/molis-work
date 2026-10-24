@@ -623,15 +623,22 @@ for (const scheme of ["light", "dark"] as const) {
     await w.start();
 
     // A phone. Three screens carry every control: the project's home, a plugin's page (its plugin tab), and the project's
-    // settings (a cover chip with its close mark, and the directory toggle: the widest the bar gets). The bar's second row
-    // is an exact sum: when it cannot hold every target the Dock drops its "+N" button and keeps 项目首页 (a decision of the
-    // Dock's round four), and the switcher lists what the Dock dropped. SC-4b took the Sessions plugin — and the Dock pin it
-    // kept — offline, so the Dock row is one button shorter than when those sums were written: the widest row (the project's
-    // settings) now holds every pin at 390, 375 and 360px, and only 350 and 320px fold it into the "+N".
+    // settings (a cover chip with its close mark, and the directory toggle: the widest the bar gets, eight 44px targets in its
+    // second row). The row's targets touch one another, so it is an exact sum: eight need 375px as they are. Narrower than 375px
+    // the bar's column gap and side padding give way, which holds eight from 356px and seven from 312px; below that a window
+    // neither overlaps the targets, shrinks one nor pushes one off the edge: the Dock drops its "+N" button and keeps 项目首页
+    // (a decision of the Dock's round four), and the switcher lists what the Dock dropped. 390, 375 and 360px keep the "+N";
+    // 350 and 320px are the windows that cannot.
     const seen = new Set<string>();
     const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]')"] as const;
     const SETTINGS = ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"] as const;
     const moreShown: Record<string, boolean> = {};
+    // SC-4b took the Sessions plugin, and the Dock pin it had by default, offline: the default row is one button shorter than the
+    // widths below were written for, and at 390px it holds every pin, so no "+N" button would be drawn and the checks that hold it
+    // next to 项目首页 on the widest row would pass over nothing. The Dock keeps what a person pinned in the page's storage, so the
+    // test pins one more plugin and the row is as long as it was; the assertions below are the ones that were written for it.
+    await w.open(390, 844, HOME[1], HOME[2]);
+    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(['goals', 'inbox', 'feed', 'todo']))`);
     for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
       for (const [name, path, ready] of [HOME, PLUGIN, SETTINGS]) {
         const controls = await w.open(width, height, path, ready);
@@ -652,15 +659,11 @@ for (const scheme of ["light", "dark"] as const) {
         moreShown[`${width} ${name}`] = dock.more;
       }
     }
-    // The widest row is the only one that still runs short at a phone's width: with the Sessions pin gone the project's
-    // settings holds every Dock pin at 390px, folds the two that do not fit into the "+N" at 320px, and the checks above
-    // hold whatever it folds to the "+N" list. Home and a plugin's page hold every pin down to 320px.
-    assert.equal(moreShown["390 the project's settings"], false, "390px holds every Dock pin on the widest row");
-    assert.equal(moreShown["320 the project's settings"], true, "320px folds the widest row's Dock pins into the \"+N\" button");
-    for (const width of [390, 375, 360, 350, 320]) {
-      assert.equal(moreShown[`${width} home`], false, `${width}px home holds every Dock pin`);
-      assert.equal(moreShown[`${width} a plugin's page`], false, `${width}px a plugin's page holds every Dock pin`);
-    }
+    // One button at the bar's end instead of three (side-shelf §3.1) leaves every width room for 项目首页 and the "+N" button,
+    // even beside the directory button at 320px. Should the row ever run short, the "+N" gives way and the check above holds
+    // the dropped buttons to the switcher's list.
+    for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
+    assert.equal(moreShown["320 home"], true, "without the directory button the row holds the \"+N\" button even at 320px");
     assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
 
     // The Assistant line stays a 44px input with room to type, and its attach and send keep their size while typing.

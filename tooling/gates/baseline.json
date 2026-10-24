@@ -1,9 +1,9 @@
 {
   "giantUnits": 96,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1829,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1826,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1472,
+      "lines": 1469,
       "methods": 89
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {

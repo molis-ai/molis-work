@@ -238,14 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // SYS-15-U10 (#1200): the Git list keeps a row's identity and the pending click across a revision refresh, so a refresh
-  // no longer drops what the person was pressing: 376282 → 377227 (+945). Reviewed in #1200 (Codex 6382757918).
-  "/assets/molis-work-plugins/coding.js": [376282, 377227],
-  // #1114: Cognia's directory rows get a stable locator for the real-code sync path: 22133 → 22157 (+24). Reviewed in #1114 (Codex 6382529211).
-  "/assets/molis-work-plugins/cognia.js": [22133, 22157],
-  // PG-036 C8-3 (#1185): the bar and the side panel render the executors the Host lists (`GET /api/assistant/executors`, modes by
-  // `plugin_id`) instead of a table naming Coding: 1129753 → 1130064 (+311). Reviewed in #1185 (ac-review 6381652434 (d)).
-  "/assets/molis-work-workbench.js": [1129753, 1130064],
+  // VUX-TOAST-01: existing button qualifier keeps diagnostic links readable on hover/active.
+  // User approved #1198 on 2026-10-24: each stylesheet grows exactly 7 B from actual #1162 merge 2b253d45.
+  "/assets/molis-work-arrival.css": [694936, 694943],
+  "/assets/molis-work-settings.css": [983223, 983230],
+  "/assets/molis-work-workbench.css": [1552477, 1552484],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

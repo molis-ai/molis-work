@@ -4,13 +4,13 @@
 
 目录里现在有这些东西：
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,365,058 字节），SHA-256 `1ce7089030708da3be43e0801802fff6bf87cf8d5a06a8f6504c2016971ac752`。来源为已合并的 Prologue [#99](https://github.com/molis-ai/molis-prologue/pull/99) `ca0de1c60c248b83c79d49f064f725ecb97664ee`；实际打包自干净 head `1c4cb31a4811b9c2d46c7fe19adf1d8cd788f4dd`，两者整树相同，无本地补丁。包含 #96 续期、#97 本人显式分类采用、#98 Session purge 与 #99 离线采用清理公开入口。此树已替换 vendor；锁文件、依赖安装及 M1 集成验证待统筹完成。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,365,058 字节），SHA-256 `1ce7089030708da3be43e0801802fff6bf87cf8d5a06a8f6504c2016971ac752`。来源为已合并的 Prologue [#99](https://github.com/molis-ai/molis-prologue/pull/99) `ca0de1c60c248b83c79d49f064f725ecb97664ee`；实际打包自干净 head `1c4cb31a4811b9c2d46c7fe19adf1d8cd788f4dd`，两者整树相同，无本地补丁。包含 #96 续期、#97 本人显式分类采用、#98 Session purge 与 #99 离线采用清理公开入口。此树已接入该 vendor 并同步锁文件；依赖安装、构建及 M1 分批定向验证结果见下方 Memory spec，不代表最终集成全量或产品验收。
 - 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `f4bbbd88` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 33 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
+- `patch-history.json`：已删除的 26 份历史补丁和 33 个没有补丁的历史包版本的记录（32 个命名条目，加上 notes 里的同名 #96 版本；大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
-SDK 验证记录：Memory 专项 42 文件 / 734 项通过；quality 测试阶段先为 717/718，唯一失败是公开名称快照，同步后该文件 4/4 通过，其余后续 quality 步骤通过。不能描述为整条 quality 一次通过。干净安装包的公开 types 与真实磁盘行为通过。制包环境 macOS arm64、Node 24.14.0、pnpm 11.9.0；干净 head 重打包与已测试归档逐字节一致，781 个非 manifest 文件与构建树一致，未作独立重复构建。上述为上游 SDK 证据；Molis 本树尚未安装、更新锁、构建或运行 M1 回归，不宣称 Molis 工程通过、最终 App 实操或用户验收。集成状态见 [Memory spec](../../specs/prologue-memory-strategy/spec.md) 的 M1 短合同。
+SDK 验证记录：Memory 专项 42 文件 / 734 项通过；quality 测试阶段先为 717/718，唯一失败是公开名称快照，同步后该文件 4/4 通过，其余后续 quality 步骤通过。不能描述为整条 quality 一次通过。干净安装包的公开 types 与真实磁盘行为通过。制包环境 macOS arm64、Node 24.14.0、pnpm 11.9.0；干净 head 重打包与已测试归档逐字节一致，781 个非 manifest 文件与构建树一致，未作独立重复构建。上述为上游 SDK 证据。Molis 接入准备时尚未安装、更新锁、构建或运行 M1 回归；后续已完成这些步骤及分批定向验证，仍不代表最终 App 实操或用户验收。实际集成范围与结果见 [Memory spec](../../specs/prologue-memory-strategy/spec.md) 的 M1 短合同。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 
@@ -394,6 +394,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：32 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
 - `upstream`：41 个 Prologue 提交于 2026-10-23 对 main `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`（上游仓库已改名 `molis-ai/molis-prologue`）逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
+- 后续核查：`commitsChecked` 现共 43 个 Prologue 提交，在上述 41 个历史记录之外，2026-10-24 补入 #94 原包来源 `f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512` 与 #96 原包来源 `15c38aed0bde2f8f0540a3e390f2e03033cdb717`。#94 head 与 squash merge `d94a99fb3d3cd33c95cd97393c4d1949366ffa81` 整树相同，后者是 #95 来源的祖先；#96 head 与 merge `d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11` 整树相同，后者是 #99 来源 `ca0de1c60c248b83c79d49f064f725ecb97664ee` 的祖先。原 head 不因此被描述为 main 祖先，也不改写 2026-10-23 的核查时点。`packagesWithoutPatch` 按文件名保留 32 个条目，memory-p0 的 #94 版本在其中；同名 #96 版本的完整来源记在 `notes`，合计 33 个历史包版本。
 
 怎么取回并核对：
 

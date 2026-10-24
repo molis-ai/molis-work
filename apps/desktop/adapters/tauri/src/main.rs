@@ -623,15 +623,29 @@ fn shelf_find_files_blocking(query: String) -> Vec<ShelfFoundFile> {
         .collect()
 }
 
+/// Leave feedback in the existing main WebView without opening it or changing focus.
+fn shelf_notice(app: &tauri::AppHandle, message: &str, partial: bool, delay_ms: u64) {
+    if let Some(window) = app.get_webview_window("main") {
+        let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
+        let notice = format!("globalThis.molisWorkShelfNotice?.({encoded},{partial});");
+        let script = if delay_ms == 0 {
+            notice
+        } else {
+            format!("setTimeout(()=>{{{notice}}},{delay_ms});")
+        };
+        let _ = window.eval(script);
+    }
+}
+
 /// Add local files by path; the bytes never travel through the WebView.
 #[tauri::command]
-async fn shelf_admit_paths(paths: Vec<String>) -> Result<usize, String> {
-    tauri::async_runtime::spawn_blocking(move || shelf_admit_paths_blocking(paths))
+async fn shelf_admit_paths(app: tauri::AppHandle, paths: Vec<String>) -> Result<usize, String> {
+    tauri::async_runtime::spawn_blocking(move || shelf_admit_paths_blocking(&app, paths))
         .await
         .map_err(|error| format!("文件导入未完成：{error}"))?
 }
 
-fn shelf_admit_paths_blocking(paths: Vec<String>) -> Result<usize, String> {
+fn shelf_admit_paths_blocking(app: &tauri::AppHandle, paths: Vec<String>) -> Result<usize, String> {
     // A second invocation must not interleave this command's original ordered batch.
     static ADMISSIONS: Mutex<()> = Mutex::new(());
     let _admission = ADMISSIONS
@@ -640,7 +654,8 @@ fn shelf_admit_paths_blocking(paths: Vec<String>) -> Result<usize, String> {
     let mut added = 0;
     for path in paths {
         let candidate = std::path::Path::new(&path);
-        shelf_http::admit_file(candidate)?;
+        shelf_http::admit_file(candidate)?
+            .into_item_id(|message| shelf_notice(app, message, true, 0));
         added += 1;
     }
     Ok(added)

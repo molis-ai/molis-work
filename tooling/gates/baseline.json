@@ -458,7 +458,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 115,
+  "emptyCatchesInScriptsTotal": 113,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -501,7 +501,6 @@
     "plugins/native/git/src/client.ts": 3,
     "plugins/native/goals/src/event-document-client.ts": 1,
     "plugins/native/goals/src/project-policy-client.ts": 1,
-    "plugins/native/images/src/client.ts": 2,
     "plugins/native/plugin-builder/src/agent-studio.ts": 3,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/reading-client.ts": 1,
@@ -613,7 +612,7 @@
     "plugins/native/shelf/src/settings-client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 46,
+  "rawFetchInScriptsTotal": 45,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
@@ -625,7 +624,6 @@
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
     "plugins/native/coding/src/client.ts": 1,
     "plugins/native/dataset/src/client.ts": 1,
-    "plugins/native/images/src/client.ts": 1,
     "plugins/native/lingguang/src/client.ts": 1,
     "plugins/native/pages/src/client.ts": 1,
     "plugins/native/pages/src/import-client.ts": 1,
@@ -680,7 +678,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 140,
+  "typedCapabilitiesTotal": 126,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 1,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -693,8 +691,8 @@
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,
-    "packages/contracts/src/services/agent-host.ts#type-refs": 37,
-    "packages/contracts/src/services/agent-host.ts#without-action": 37,
+    "packages/contracts/src/services/agent-host.ts#type-refs": 30,
+    "packages/contracts/src/services/agent-host.ts#without-action": 30,
     "packages/kernel/src/action-service.ts#register-calls": 1,
     "packages/kernel/src/index.ts#type-refs": 5,
     "packages/kernel/src/index.ts#register-calls": 2,
@@ -1247,11 +1245,10 @@
     "tests/workspace-plugin-graph.test.ts": 2,
     "tests/writer-integration-host.test.ts": 1
   },
-  "consoleCallsTotal": 28,
+  "consoleCallsTotal": 21,
   "consoleCalls": {
     "apps/local-host/src/assistant/assistant-http.ts": 2,
     "apps/local-host/tooling/pack-npm.mjs": 1,
-    "apps/server/src/main.ts": 7,
     "examples/seed-demo.mts": 3,
     "server/public/preview.mjs": 1,
     "tests/cli-protocol.test.ts": 1,

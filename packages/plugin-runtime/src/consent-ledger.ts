@@ -125,7 +125,13 @@ export class SqlitePluginConsentLedger implements PluginConsentLedger {
   }
 }
 
-/** The consents an install gives, written once its record is: a failed write leaves the plugin installed with no consent in effect. A Runtime without a ledger records none. */
+/**
+ * The installation record and grants are already saved when this runs. Project installs and the Home consent ledger can be in
+ * different databases, so they share no atomic transaction: a ledger failure propagates unchanged and leaves the installation
+ * saved without the missing consents. An unavailable Home ledger can therefore fail startup; the next supervisor replay retries
+ * the install and the missing ledger writes. This does not roll back the install or grant consent after a failed ledger write.
+ * A Runtime intentionally composed without a ledger records none.
+ */
 export function recordInstallConsents(ledger: PluginConsentLedger | undefined, record: PluginInstanceRecord, trust: PluginTrust, grants: readonly PluginConsentGrant[], at: string): void {
   if (!ledger || grants.length === 0) return;
   ledger.record({ plugin_id: record.plugin_id, publisher_signature: record.publisher_signature, manifest_digest: record.manifest_digest, granted_by: consentGranter(trust), grants, at });

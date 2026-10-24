@@ -230,6 +230,19 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 - C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）留给 T2：开发目录、宿主的测试夹具和 Feed 的官方集成今天仍在宿主进程里跑，T1 给它们 `unsigned`（官方集成给 `host`，与今天一致），不改它们的执行方式。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2。
 - 已装插件不能换信任等级（`plugin.definition_conflict`）；卸载后重装可以。存量记录按 `execution` 补等级的维护见 §6 与检查清单第 4 节。
 
+### 7.1 #1250 本轮首评修复（2026-10-24，实施中）
+
+本轮只处理固定 `d4dee51fa` 的首评 `6390022295`：移除 `tests/plugin-trust-rules.test.ts` 新增的双重断言，用 `Object.assign` 保留 Manifest 自称等级的真实额外字段和原拒绝断言；补包信封拒绝、T1 调用点、维护后真实临时 Host 启动的证据，并补齐 S-34 既有测试引用和同意跨库写入的说明。完成标准是本片修后必要定向及门禁通过、独立增量审验通过；不以作者原 334 项摘要代替本轮实跑，也不冒称整条 ac-trust 或实际合入完成。
+
+- **RAC-382-T1**：`tests/plugin-package.test.ts` 通过公开函数验证未签名包带公钥、签名包缺少或带非法公钥均准确拒为 `plugin.package_invalid`，随包公钥指纹不符和 signer 身份与公钥不符准确拒为 `plugin.signer_mismatch`；保留真实 Ed25519 的合法签名、解析和验签对照。这是 T1 的 C9 信封检查，完整 RAC-382 的安装、升级、回滚验签仍随 T2。
+- **RAC-381-T1**：`tests/plugin-install-trust-call-sites.test.ts` 找到生产代码中实际解析为 `PluginRuntime.install` 的调用，检查传入类型有必填、非空的 `trust` 且没有 `bundled`；不写固定调用数或调用点白名单。它与 `tests/plugin-trust-rules.test.ts` 的 Runtime 缺信任拒绝、`tests/plugin-runtime-maintenance-v3.test.ts` 的真实 Host 启动一起证明 T1，不新增全局门禁。§8 RAC-381 的完整目标保留：所有来源经 `resolvePluginTrust` 的安装服务、预览和确认属于 T2，本轮不以编号或文字改成已经实现。
+- **RAC-397-HOST**：维护后的隔离 Home 经真实 `MolisWorkLocalHost` 启动后，Shelf 的 `always_on` 同意实际落账，发布者、Manifest 与 `host_build` 来源正确；关闭后再次启动不重复，持久撤回后再次启动不复活。不因此声明 T3 的常开名单与移除限制、T5 的撤回入口已实现。
+- **RAC-398-T1**：S-34 仅补现有 `plugin.state_invalid`、`plugin.grant_denied`、`plugin.definition_conflict` 的文件与真实测试名引用，不新增 S 号；在 `recordInstallConsents` 旁说明安装记录与 Home 同意可能跨库部分成功、账本失败原样传播及下一次 replay 补账，失败策略与权限不变。
+
+官方集成的 `host`/`unsigned` 矛盾先保留为唯一待裁定 hunk：当前 `official-integrations.ts` 与 `trust-rules.ts` 注释及本节口径不一致，Root 已交统筹按 T1、R-48、W5-11 确认；决定返回后代码、注释与本稿一起统一，不自行选等级或提前实现 T2/W5-11。项目库 9→10、与 #1245 的真实 owner 结构/四份 SQL 组合仍由唯一 carrier 处理，本轮不改版本或维护 SQL；#1246 的重装先清文件后清 KV、清完才发布新安装保持原样。
+
+验证先做一次独立树整体构建，按 Plugin Runtime README 必跑用例及上述精确定向运行，保留初败、复跑与未跑范围；共享核心的 full 仍由唯一 Claude 批次排期，禁止在真实 Home 演练。
+
 ## 8. 验收
 
 | 编号 | 内容 | 证据（测试文件待实现片定，名字里写编号） |

@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { pluginManifestDigest, SqlitePluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 
 // ac-trust T1: the Home Runtime's store gains the consent ledger, the pinned publishers and the Host's evidence for each installation
 // record, which makes it version 3. A version 2 store is refused, never upgraded in place; the offline maintenance is
@@ -23,6 +24,25 @@ function read(file: string) {
   finally { db.close(); }
 }
 const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync(file); try { db.exec(sql); } finally { db.close(); } };
+
+const SHELF = "io.molis.work.shelf";
+function shelfAlwaysOnConsents(file: string) {
+  const db = new DatabaseSync(file, { readOnly: true });
+  try { return new SqlitePluginConsentLedger(db).consents(SHELF).filter(row => row.kind === "always_on"); } finally { db.close(); }
+}
+async function startShelf(home: string) {
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  try {
+    await host.homePlugins!.ready();
+    const install = host.homePlugins!.installation(SHELF), manifest = host.homePlugins!.manifest(SHELF);
+    assert.ok(install && manifest, "the real Home supervisor installed Shelf");
+    assert.equal(manifest.always_on, true);
+    assert.equal(install.publisher_trust, "host");
+    assert.equal(install.publisher_signature, manifest.publisher.signature);
+    assert.equal(install.manifest_digest, pluginManifestDigest(manifest));
+    return install;
+  } finally { await host.homePlugins!.close(); await host.close(); }
+}
 
 /** A Home this build made, then taken back to what version 2 had: no trust column or tables, no evidence inside the records. */
 async function versionTwoHome(t: TestContext) {
@@ -59,9 +79,27 @@ test("RAC-397: a version 2 Home Runtime store is refused untouched; the maintena
     original.installs.map(row => ({ ...JSON.parse(row.record_json as string), publisher_trust: undefined })), "nothing else of a record changed");
   assert.deepEqual(after.values, original.values, "private values are not touched");
 
-  const opened = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  try { await opened.homePlugins!.ready(); } finally { await opened.homePlugins!.close(); await opened.close(); }
+  // RAC-397-HOST / RAC-381-T1: actual Host startup supplies trust and fills the maintenance's empty Home ledger.
+  assert.deepEqual(shelfAlwaysOnConsents(file), []);
+  const shelf = await startShelf(home), first = shelfAlwaysOnConsents(file);
   assert.equal(read(file).version, 3);
+  assert.equal(first.length, 1, "Shelf's declaration became one persisted consent");
+  assert.deepEqual(first.map(({ plugin_id, publisher_signature, kind, subject, manifest_digest, granted_by, revoked_at }) =>
+    ({ plugin_id, publisher_signature, kind, subject, manifest_digest, granted_by, revoked_at })), [{
+    plugin_id: SHELF, publisher_signature: shelf.publisher_signature, kind: "always_on", subject: "always_on",
+    manifest_digest: shelf.manifest_digest, granted_by: "host_build", revoked_at: null,
+  }]);
+  assert.match(first[0]!.granted_at, /^\d{4}-\d\d-\d\dT/u);
+  assert.equal((await startShelf(home)).install_id, shelf.install_id);
+  assert.deepEqual(shelfAlwaysOnConsents(file), first, "restarting the real Host preserves the row, its id and its grant time");
+
+  // T1 has no revocation action yet: persist the same revocation fixture as the ledger unit tests, then really restart.
+  const revokedAt = "2026-10-24T00:00:00.000Z", db = new DatabaseSync(file);
+  try { db.prepare("UPDATE plugin_consents SET revoked_at = ? WHERE consent_id = ?").run(revokedAt, first[0]!.consent_id); } finally { db.close(); }
+  const revoked = first.map(row => ({ ...row, revoked_at: revokedAt }));
+  assert.deepEqual(shelfAlwaysOnConsents(file), revoked);
+  await startShelf(home);
+  assert.deepEqual(shelfAlwaysOnConsents(file), revoked, "the Host cannot restore a revoked host_build consent on its next start");
 });
 
 test("RAC-397: the Home Runtime maintenance stops and changes nothing unless the store is version 2 and every record's execution is one it can name", async t => {

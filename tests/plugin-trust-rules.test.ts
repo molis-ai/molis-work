@@ -30,9 +30,10 @@ test("RAC-380 the evidence is checked by shape: no level, an unknown level, extr
 });
 
 test("RAC-380 an install is made with the Host's evidence, and a Manifest or a missing trust cannot stand for it", () => {
+  // RAC-381-T1: the production install boundary still rejects a caller that omits its Host-supplied evidence.
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
   // A Manifest cannot name its own level: the install reads only the argument.
-  const claimed = definition({ ...manifest(), trust: { level: "host" }, publisher_trust: "host", bundled: true } as unknown as PluginManifest);
+  const claimed = definition(Object.assign(manifest(), { trust: { level: "host" }, publisher_trust: "host", bundled: true }));
   assert.throws(() => runtime.install({ definition: claimed, deployment: "local", grants: [] } as never), code("plugin.state_invalid"), "no evidence, no install");
   assert.equal(runtime.install({ definition: claimed, deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
   assert.equal(new PluginRuntime().install({ definition: definition(manifest()), deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");

@@ -50,7 +50,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1167](https://github.com/molis-ai/molis-work/pull/1167) | `ac-clients-1` Cognia（W5-04，RAC-144～145）：稳定翻译键与打包、类型检查的页面客户端 | — | `full` 非空（assembly、spans-packages，97 个用例），进 batch-23 | 一轮可合、作者改完两条，二轮**可合**（[6380313426](https://github.com/molis-ai/molis-work/pull/1167#issuecomment-6380313426)），头 `4097bbd1d`；进 batch-23；**07:4x UTC 统筹认领入队**（头 `4097bbd1d`，排在 #1174 后，队列按 main+#1174+本 PR 跑 Verify，即 merge-only） ；07:19队列第4位，原认领已入队，不重复操作；仍核实际merge SHA |
 | 新 | [#1114](https://github.com/molis-ai/molis-work/pull/1114) | DeepSeek复审成果、Codex过期资源放行清理及BACKLOG机械sync | #1167谁先好谁先合；后合搬locator/重算 | full/storage为空 | 最终`7733c554140f7d25e3aa8436ba2af4ae2c8c82e8`已交，REVIEW6381135401与TEST独立核验通过；原二轮6380826646保留。最终health对d287/affected/secrets有效，307项和27assets为9df未变部分复用。CI40071861128已有7项成功、其他适用job运行/排队无新红；沿Claude6381041047原合并认领/auto-merge，不重复入队。修复2已释放，修复1接1173 |
 | 新 | [#1173](https://github.com/molis-ai/molis-work/pull/1173) | DeepSeek原稿与Codex CI Chrome/S47文档修复 | #1171已合；沙箱叠层之后sync/合并 | full/storage为空 | 最终`f45abe4e8a46c12722f5cb3194410df56439dab4`已普通push，47cf后两doc+4/-3；REVIEW增量6381248620通过，TEST作者直交独立核证也已通过；最后workflow_runs=[]，DIRTY，非CI排队/已绿。S31/S38/四测试/门禁逐字保留，BL569仅登记，实际后续owner修复1；不新增nonblock合并门槛。不先merge main，作者已释放，C1已实际接writer |
-| **先** | [#1174](https://github.com/molis-ai/molis-work/pull/1174) | Codex：main红修复——VUX16真实ready/严格pointer、AC3/4点击前监听导航 | — | full/storage为空，不进批 | 精确`5bbb4318697dbef4631e5db3870691c27fff2e94`；正式6380942452、TEST独立核证及ac-review6380946827通过，CI40070310777的Verify/两Security/两Product及适用项全部成功。沿Claude合并认领6380951820，07:19实际queue第1/AWAITING_CHECKS（合并头4e17c3d1门禁/合同已绿，Verify排队），不重复入队。BL544实际writer修复1已接队列；R44仍未定因。真合后按Claude让1167/1164/1165/1119/1139/1148/1130→1157合main走merge-only |
 | 新 | [#1175](https://github.com/molis-ai/molis-work/pull/1175) | `ac-giants` 代做：ac-artifacts 设计稿（PG-077～079、096、097、107） | — | 纯文档（设计稿不占 15 个名额） | 头 `b3e7443a5`（合 main，remerge-diff 只有 BACKLOG 并列）；ac-review 可合；**10-24 07:05 UTC 统筹认领、设自动合并** |
 | 新 | [#1176](https://github.com/molis-ai/molis-work/pull/1176) | 统筹：BACKLOG 加 BL-543（设置地址只转声明参数，R-42）、BL-544（侧视图加载守护） | — | 纯文档 | 头 `cb8795f57`（合 main 解 BACKLOG 冲突，两边并列）；自动合并已设 |
 | 新 | [#1178](https://github.com/molis-ai/molis-work/pull/1178) | `ac-giants` W5-10 R4a：设计系统 4 个巨大单元纯搬移 | — | 进下一批（改 `packages/design-system`，有 full） | 头 `203dd7679`；**ac-review 一轮可合**（6381232708：拼出的样式逐字相同、导出与 API 快照不变、巨大单元 113→109、`plugin-builder.js` +2540 字节一次性放行数字对）；等进下一批全量 |
@@ -59,6 +58,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1181](https://github.com/molis-ai/molis-work/pull/1181) | `ac-kernel` R8 第 3 批：agent-host typed 改动作 | 叠在 #1148（base `ac-kernel/r8-agent-typed-to-actions-2`）；#1148 合入后改 base 为 main | 进下一批（full: true） | 头 `132bc0cb6`；**ac-review 一轮可合**（6381277540，只看 #1148 之外：14 条首登动作 v1、身份只从调用者取、waitRun concurrent+beforeEffect）；非阻塞 1 条交 Codex 修复队列；base 不是 main、CI 没跑，#1148 合入改 base 后以 CI 与全量为准；第 4 批等 #1148 合入再开 |
 | 待开 | `ac-clients-dataset`（未开 PR） | `ac-clients-1` W5-03/04 Dataset 页面客户端 | — | 进批（affected-tests 建议全量，assembly） | 头 `ffaa656f0`（已合 main d28794061）；本机门禁与 6 个浏览器文件过；`ac-clients-1` 在审已满两个（#1167、#1180），其中一个合入后再开 |
 | 新 | [#1182](https://github.com/molis-ai/molis-work/pull/1182) | `ac-sc3` refactor(local-host): 项目库的身份只由根行决定，看板由 Goals 在打开项目时建（Goals S | — | 进 batch-26（`full` = assembly，427 个） | 头 `70343d004`；**ac-review 一轮可合**（6381371024，库身份只由根行定、存量不动已核）；非阻塞 1 条（接续恢复的 board.created 行为人）交 Codex 修复队列 |
+| 新 | [#1183](https://github.com/molis-ai/molis-work/pull/1183) | Codex C1 RAC113：卸载预检仅ENOENT正常缺失，其余读取错误原样拒绝 | 无产品前置；C1整体不止本片 | full/storage为空；77 unit建议，作者实际4文件18项 | 最终`7bbb014c48974b23ead5d1d28b58466b9a33ab5c`/base d287，3文件+153/-2，作者固定源码已释放给C2；REVIEW作者直发已active，TEST直接收到按现有任务接续，CI40073797867排队。原始红绿/门禁证据在/tmp/molis-verify-2026-10-24/c1-rac113/，无内部导出/浏览器/真实Home；不把作者自测写独立通过 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 
@@ -68,6 +68,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | PR | 合并提交 | 日期 |
 | --- | --- | --- |
+| #1174 | `4e17c3d1bef043d2565189fe5776bc515b39497b` | 2026-10-24T07:21:50Z（GitHub实际合入；final5bbb43186，原Claude6380951820认领；BL544/R44后续保留） |
 | #1171 | `d28794061a189aea2d4e5ebfe74b558ed9a8e169` | 2026-10-24T06:39:30Z（GitHub实际合入；独立Home设置入口修复，原统筹认领6380903089；沙箱/SC4接续依Claude安排） |
 | #1172 | `6f638ad734ce68e6c2b78b3a5ad209f10a711ffd` | 2026-10-24T06:37:01Z（GitHub实际合入；信任设计稿，ac-trust实现仍等1098） |
 | #1170 | `61bfc2b8ad28ddd64304e89a3862e2e51d18b37a` | 2026-10-24T06:25:24Z（GitHub实际合入；最终head4010b747d，沿原认领正常队列） |

@@ -317,6 +317,7 @@ BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
 - §11.3① Characters（统筹 10-23 裁）：`AgentHostComposition.charactersCatalog(runtime)` 给 Characters 宿主一个宿主内部的端口，运行时列表照 `descriptors()`，动作照 Characters 自己的声明算；`characters-host.ts` 不再经 typed 客户端。
 - §11.3② 删掉（统筹 10-23 裁）`agent.reviews.list.v1`（描述符、处理器、包描述与 `scripts/workspace-packages.mjs` 的登记）。
 - `agentHostCapabilities` 里不再有 typed 条目；`AgentCapabilityRegistrar.register` 只收 `ActionDefinition`，组合根与 6 处测试的「按 `action` 分两边」与转型一起删。BL-364 删行。
+- 等待与接续的读与控（`agent.collaboration.read`、`agent.collaboration.control`，原已是动作，统筹 10-23 要求随这一批改）：读不带 `session_id` 时只回调用者自己会话的，带别人的 `session_id` 按 `agent.session_unknown` 拒；控只认调用者自己会话里的等待，别人的按 `agent.collaboration_unknown`（与项目里没有的等待一样）拒，到不了运行时（规矩 3、4）。原来不带会话的读把项目里所有会话都给出去，控也不看等待是谁的。
 - Coding：所有调用经 `codingActions(…).invoke(agent.X, [runtimeId, …])`，不带插件名；`wake-loop.ts` 经 `services.actions` 等接续，带本轮的 `signal` 与 `beforeEffect`；`codingCardPorts`、`landRoundOffers`、`runsWithCards` 去掉不再用的 `api` 参数。
 
 ### 11.5 验收（RAC-182～187）
@@ -324,13 +325,12 @@ BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
 - **RAC-182** 运行时列表、角色、动作只给消费它们的插件；角色按调用者自己的声明答；输入里多带插件名一律 `actions.input_invalid`；不消费的插件、人、Agent、工作流、MCP、宿主自己的客户端一律 `actions.forbidden`；被拒的调用没问到运行时。
 - **RAC-183** 方法库按调用插件的 `method_owner` 列、读、装；授权工作区之外的目录按 `agent.directory_unauthorized` 拒、没问到运行时；开始后、写之前被取消的安装是 `actions.cancelled`，方法库没被写。
 - **RAC-184** MCP 服务器按调用插件列、存、控；每次列只重登调用插件自己的工具，没变时再列不新登记；授权工作区之外的本地进程按 `agent.directory_unauthorized` 拒；写之前被取消的保存什么也没存；列到一半被取消的列表，不管停在读服务器时还是读工具时，都不重登项目的 MCP 目录；读工具时插件被停用，调用被拒、什么也没登记。
-- **RAC-185** 等接续是 `concurrent` 查询；别的插件会话的接续不在回答里、不提前结束等待；等满时间回空表算成功、不留调用记录行；调用方取消留一行只有 `actions.cancelled` 的诊断行；与 `waitRun` 共用名额：任一种占满 8 个，另一种的第 9 个 `agent.wait_limit_reached`、什么也没问，让出后再等成功；`timeoutMs` 越界、`exclude` 超 200 条 `actions.input_invalid`。
+- **RAC-185** 等接续是 `concurrent` 查询；别的插件会话的接续不在回答里、不提前结束等待；等满时间回空表算成功、不留调用记录行；调用方取消留一行只有 `actions.cancelled` 的诊断行；与 `waitRun` 共用名额：任一种占满 8 个，另一种的第 9 个 `agent.wait_limit_reached`、什么也没问，让出后再等成功；`timeoutMs` 越界、`exclude` 超 200 条 `actions.input_invalid`。等待与接续的读只回调用者自己会话的，点名别人的会话按找不到拒；控别人会话的等待按项目里没有这个等待拒，运行时零调用。
 - **RAC-186** 没有 `wait` 这种能力：内核拒绝登记，调用方也不能把命令说成等待。
 - **RAC-187** `agent.reviews.list.v1` 不再登记，调它是 `actions.dependency_missing`。
 - 测试：RAC-182～185 在 `tests/agent-host-actions.test.ts`；RAC-186 在 `tests/local-host.test.ts`；RAC-187 在 `tests/agent-host-wiring.test.ts`；RAC-182 另有 `tests/agent-host-composition.test.ts`、`tests/agent-plugin-identity.test.ts` 的输入拒绝。
 
 ### 11.6 没改的、留给后面的
 
-- **BL-471** `agent.collaboration.read`（已是动作）不带 `session_id` 时回答项目里所有会话的等待与接续，不只调用者自己的，违背规矩 3。不在 BL-364 的 12 条里，这一批不动。
 - typed 定义顶层的 `scheduling` 字段（`HostCapabilityDefinition`）还在，宿主里别的 typed 条目还在用；随 typed 登记口整体删除时一起去。
 

@@ -6,6 +6,7 @@ import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
 
@@ -457,7 +458,7 @@ async function librarySetup(t: TestContext, home = false) {
   const composition = home ? localHost.ensureAgentService(directory, () => composeAgentHost({ localHost, homeDirectory: directory, workspaceFor }))
     : composeAgentHost({ localHost, workspaceFor });
   // What the Runtime was asked, with the owner it was asked for; whose each session is; which continuations are ready.
-  const seen: Array<[string, unknown]> = [], sessions = new Map<string, Record<string, string>>(), ready: Array<ReturnType<typeof continuation>> = [], excluded: string[][] = [];
+  const seen: Array<[string, unknown]> = [], controlled: string[] = [], sessions = new Map<string, Record<string, string>>(), ready: Array<ReturnType<typeof continuation>> = [], excluded: string[][] = [];
   const listing: { current?: Promise<void> } = {}, tooling: { current?: Promise<void> } = {}, toolVersion = { current: 1 }, observers = new Set<unknown>();
   // Every MCP provider the Host registers in the project's directory, by provider id: what a list republished.
   const mcpRegistrations: string[] = [], registryOf = localHost.actionRegistry.bind(localHost);
@@ -494,7 +495,10 @@ async function librarySetup(t: TestContext, home = false) {
       live: () => false, call: unused,
     },
     collaboration: {
-      read: async () => [], control: unused, revise: unused,
+      // Every session in the project waits on something; what the Runtime answers is the whole project's, or the one session's.
+      read: async (_project: string, sessionId?: string) => [...sessions.keys()].filter(id => !sessionId || id === sessionId).map(id => ({ session_id: id, wait: { wait_id: `wait-${id}`, session_id: id } })) as never,
+      control: async (_project: string, control: { wait_id: string }) => { controlled.push(control.wait_id); return { session_id: control.wait_id.slice(5) }; },
+      revise: unused,
       async awaitReady(_project: string, timeoutMs: number, exclude: string[] = [], signal?: AbortSignal) {
         excluded.push([...exclude]);
         const found = ready.filter(view => !exclude.includes(view.continuation.request_key));
@@ -505,7 +509,7 @@ async function librarySetup(t: TestContext, home = false) {
     },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
-  const consumes = [...DIRECTORY, ...METHODS, ...MCP, agent.awaitContinuations, agent.waitRun].map(definition => definition.capability_id);
+  const consumes = [...DIRECTORY, ...METHODS, ...MCP, agent.awaitContinuations, agent.waitRun, collaboration.read, collaboration.control].map(definition => definition.capability_id);
   const consumer = callerPlugin("library", "project", {}, consumes), other = callerPlugin("library-other", "project", {}, consumes), bystander = callerPlugin("library-bystander", "project");
   consumer.definition.manifest.agent = READER;
   consumer.definition.agent_prompts = [{ prompt_id: "reader", version: 1, body: "Answer from the supplied context only.", layer: "role" }];
@@ -516,7 +520,7 @@ async function librarySetup(t: TestContext, home = false) {
   const ownerOf = (plugin: typeof consumer) => ({ project_id: PROJECT, plugin_id: plugin.id, install_id: plugin.context(PROJECT).install_id, actor_id: "web-user" });
   sessions.set("mine", ownerOf(consumer)); sessions.set("theirs", ownerOf(other));
   t.after(async () => { if (!home) composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
-  return { localHost, reference, seen, ready, excluded, gate, listing, tooling, toolVersion, mcpRegistrations, observers, consumer, other, bystander, consumerRuntime: started[0]!, methodOwner: (plugin: typeof consumer) => ({ project_id: PROJECT, plugin_id: plugin.id }) };
+  return { localHost, reference, seen, controlled, ready, excluded, gate, listing, tooling, toolVersion, mcpRegistrations, observers, consumer, other, bystander, consumerRuntime: started[0]!, methodOwner: (plugin: typeof consumer) => ({ project_id: PROJECT, plugin_id: plugin.id }) };
 }
 
 /** A call stopped while the Host reads its authority, after it started and before it writes: `stop` ends it, `gate` lets the read go on. */
@@ -669,3 +673,23 @@ test("RAC-185 the wait for a continuation answers the caller's own sessions only
     await assert.rejects(actions.invoke(agent.awaitContinuations, [LIBRARY, timeoutMs, []]), { code: "actions.input_invalid" }, String(timeoutMs));
   await assert.rejects(actions.invoke(agent.awaitContinuations, [LIBRARY, 0, Array.from({ length: 201 }, (_, index) => `key-${index}`)]), { code: "actions.input_invalid" });
 });
+
+test("RAC-185 the waits a plugin reads or controls are its own sessions' alone: another's are not listed, and naming one is refused", async t => {
+  const { localHost, reference, controlled, consumer, other, bystander } = await librarySetup(t), actions = consumer.actions(PROJECT);
+  // Without a session the answer is the caller's own sessions only, though the Runtime answered the whole project.
+  assert.deepEqual((await actions.invoke(collaboration.read, { runtime_id: LIBRARY })).sessions.map(view => view.session_id), ["mine"]);
+  assert.deepEqual((await other.actions(PROJECT).invoke(collaboration.read, { runtime_id: LIBRARY })).sessions.map(view => view.session_id), ["theirs"]);
+  assert.deepEqual((await actions.invoke(collaboration.read, { runtime_id: LIBRARY, session_id: "mine" })).sessions.map(view => view.session_id), ["mine"]);
+  // Naming another plugin's session, or one that is not there, is refused as unknown.
+  for (const session_id of ["theirs", "nowhere"])
+    await assert.rejects(actions.invoke(collaboration.read, { runtime_id: LIBRARY, session_id }), { code: "agent.session_unknown" }, session_id);
+  // Only a wait in the caller's own session can be given up or gone on from; another's is a wait this project does not have.
+  await actions.invoke(collaboration.control, { runtime_id: LIBRARY, kind: "cancel-wait", wait_id: "wait-mine" });
+  for (const kind of ["cancel-wait", "continue-now"] as const) for (const wait_id of ["wait-theirs", "wait-nowhere"])
+    await assert.rejects(actions.invoke(collaboration.control, { runtime_id: LIBRARY, kind, wait_id }), { code: "agent.collaboration_unknown" }, `${kind} ${wait_id}`);
+  assert.deepEqual(controlled, ["wait-mine"], "no refused control reached the Runtime");
+  await assert.rejects(bystander.actions(PROJECT).invoke(collaboration.read, { runtime_id: LIBRARY }), { code: "actions.forbidden" });
+  for (const audience of ["user", "agent", "workflow", "mcp"] as const)
+    await assert.rejects(localHost.actionClient(reference).invoke(person(audience), collaboration.read, { runtime_id: LIBRARY }), { code: "actions.forbidden" }, audience);
+});
+

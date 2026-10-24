@@ -91,9 +91,33 @@ S8b 不依赖平台前置，可以现在做。S9 存储搬迁按表组拆三个�
 | 8 | PG-087 的 attention、context-ledger 服务 | 由本线做，原先在 ac-sandbox-sched 的 Feed/Inbox 批里，现移来，作 **S9-0b**，在存储搬迁之前完成；Feed 与 Inbox 之后复用 |
 | 9 | 编号 | 本线 **RAC-260～299**（BL-384 用 RAC-260）、**BL-505～519**、**S-62**（`user_action` 由入口上下文给）、**S-63**（journal 端口在取消、撤权之后不写） |
 
+另（统筹 10-24）：命名空间改名与存量维护见第 6a 节。
+
 另：`/api/goals/:id/advance-prompt` 现在不动，S9 时和别的 Goals 路由一起进 Goals Manifest 声明的路由。
 
 **顺序**（全部本地做，PR 按序在 #1130 或 #1146 合入后开，同时最多开两个；每片做完就推分支）：sc4b → BL-385 → SC-5 → BL-383 → BL-384 → S8b → S9-0 journal 端口 → S9-0b PG-087 服务 → S9 存储搬迁 ×3 → 个人规划 → 切到 Runtime。
+
+## 6a. 统筹 10-24 裁：命名空间改名与存量维护
+
+**起因**：S9-0、S9-0b（RAC-280、281）定了插件写进项目共享表的名字都以 `<plugin_id>.` 开头：日志事件的 `type`、`objectType`，幂等记录的 `operation`，关联边的 key；日志的读也只看自己命名空间的事件。Goals 现有的名字不带前缀（事件类型如 `board.created`、`goal.created`、`goal_tree_proposal.decided`、`relation.added`，对象类型如 `goal`、`relation`、`project_guidance`、`goal_work_event`、`board`，还有幂等操作名和输入绑定用的关联边 key），Goals 经 `services.project_database` 写它们之前必须改成带前缀的，已有的行要一并改。
+
+**这会改真实 Home 里的存量数据，要用户确认。** 统筹把它与 W5-17 的目录维护并成同一批问题，建议同一个维护窗口。用户确认之前，本线只做设计（下）和在一次性 Home 里的实现与演练，不碰真实 Home，也不对真实 Home 的库做拷贝演练（那也要问）。
+
+**落在哪一片**：随 S9 存储搬迁里「事件与治理」那一组（第二个 PR）：Goals 的事件、幂等记录改走日志端口的同一个版本，名字改成带前缀的，维护在这个版本发布前后的窗口跑。代码只认现行名字（不兜底旧名，`CONTRACT-CHANGES.md`、AGENTS 的「合同读写都只认现行取值」），所以数据和代码同一个版本。
+
+**维护脚本的设计**（`scripts/maintenance/` 下，开工时定名；先读后写，默认只列不写）：
+
+| 项 | 做法 |
+| --- | --- |
+| 映射 | 一份映射表：旧名 → `io.molis.work.goals.` + 旧名，类型、对象类型、幂等操作名、关联边 key 各一栏；映射表由 Goals 代码里实际写过的名字生成并和库里扫出来的名字对照，**不凭记忆列**（上面的例子只是例子） |
+| 涉及的列 | `events.type`、`events.object_type`、`idempotency_records.operation`、`context_edges` 的 key（含这个 key 的所有历史行）、以及引用这些名字的 Goals 自己的列（如 `goal_input_bindings.source_edge_key`、事件状态表里存的类型名）；`list` 模式扫全库里 Goals 的表，找出所有存着这些名字的列，漏的列比多的列危险 |
+| `list` | 只读：按表、按列、按旧名统计行数，列出会冲突的项，列出库里**不在映射里**的名字（不属于 Goals 的平台名如 `inbox_entry.*` 不动；Goals 的表里出现映射外的名字当作冲突） |
+| 冲突即整体不写 | 以下任一项就退出码非 0、**一行都不写**：新名已存在（同一条记录新旧两份都在）；Goals 的表里有映射外的名字；同一个 key 的历史行里新旧混用；库正被别的进程占用（4207/4208 的 Home 锁，必须先停服务）。已经带前缀的行跳过，所以重跑是空操作 |
+| 一个事务 | `BEGIN IMMEDIATE`，所有 `UPDATE` 在一个事务里，之后在同一事务里校验：旧名行数为 0、各表总行数与前相等、被改的只有名字列（其余列的校验和不变）、`PRAGMA integrity_check` 与 `foreign_key_check` 通过；任一项不过就 `ROLLBACK`。写之前先 `VACUUM INTO` 出一份备份放在库旁边，脚本打印它的路径 |
+| 演练测试 | `tests/goals-names-prefix-maintenance.test.ts`，一次性 Home（`seedDemoBoard` 加覆盖每张表每个名字的合成行）：`list` → `rewrite` → 再 `list` 为空；行数不变、除名字外内容不变；第二次运行不写；冲突（新名已存在、映射外的名、新旧混用、库被占用）都整体不写且库文件逐字节相同；在第 N 个 `UPDATE` 之后注入故障，回滚后库逐字节相同；新构建的 Goals 用改后的库读写通过 |
+| 不做 | 不在启动时自动跑（用户确认的窗口里手动跑）；不留旧名兼容读 |
+
+**待用户确认的问题**（统筹汇总）：是否做这次改名；与 W5-17 同窗口；是否允许先对真实 Home 的备份拷贝演练一次。回答之前 S9「事件与治理」那一组的名字改动不合入。
 
 ## 7. 门禁与风险
 

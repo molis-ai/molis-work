@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { bindActionClient, ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -30,10 +31,13 @@ export function offerRoutedOriginalFile(control: PluginExecutionControl, file: H
  * the Host's action client for that project (the Home client refuses a caller that names one), and `current` checks again, before
  * each write, that the project is still there and still shows the plugin. The project lasts as long as the request: once `end` is called,
  * a call with this control is refused, never run as the person's own.
+ * With the person's `caller`, this is the page's entry (PG-029): the plugin's own actions it calls carry `user_action` with source `web`,
+ * one message per request, given here and nowhere else; what the caller or the route's body says about it is not read.
  */
 export function projectRouteControl(control: Omit<PluginExecutionControl, "project_id">, projectId: string | null, client: ActionClient,
   current: () => Promise<void>, caller?: ActionCallContext): { control: PluginExecutionControl; end(): void } {
-  const state = { client, caller, ended: false };
+  const state = { client, caller: caller && { ...caller, user_action: { source: "web", conversation_ref: `web:${projectId ?? "home"}`, message_ref: `web:request:${randomUUID()}` } },
+    ended: false };
   const routed: PluginExecutionControl = Object.freeze({ ...control, ...(projectId ? { project_id: projectId } : {}),
     beforeEffect: async () => {
       if (state.ended) throw ended();

@@ -405,13 +405,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
     readonly actor_kind?: "user" | "runtime" | null;
-    readonly user_action?: {
-        readonly source: string;
-        readonly conversation_ref: string;
-        readonly message_ref: string;
-        readonly whole_confirmation_prompted?: boolean;
-        readonly prompted_subject_id?: string;
-    };
+    readonly user_action?: ActionUserAction;
     readonly project_id: string | null;
     readonly audience: ActionAudience;
     readonly plugin_install_id?: string;
@@ -470,6 +464,7 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
+    readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
         readonly audience?: "workflow";
     }) => RetainedActionAuthority;
@@ -765,6 +760,14 @@ export interface ActionUsage {
 
 export interface ActionUsagesInput {
     action: ActionReference;
+}
+
+export interface ActionUserAction {
+    readonly source: string;
+    readonly conversation_ref: string;
+    readonly message_ref: string;
+    readonly whole_confirmation_prompted?: boolean;
+    readonly prompted_subject_id?: string;
 }
 
 export interface ActionView extends ActionReference {
@@ -4875,9 +4878,7 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
     reader: ActionReference;
 }>;
 
-export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference & {
-    provider_id: string;
-}, beforeEffect?: () => Promise<void>): Context;
+export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 

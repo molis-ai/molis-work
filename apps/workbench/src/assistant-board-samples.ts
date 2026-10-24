@@ -1,4 +1,4 @@
-import type { AssistantActivity, AssistantNotice, AssistantRecovery, AssistantRound, AssistantWork, AssistantWorkSurroundings, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantActivity, AssistantExecutorOffer, AssistantNotice, AssistantRecovery, AssistantRound, AssistantWork, AssistantWorkSurroundings, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import {
   BOARD_PROJECT, act, boardAnswered, boardDelegatedWorks, boardFinishedWorks, boardInterruptedWork, boardNotices, boardView, boardWork, round, type Iso,
 } from "./assistant-board-works.js";
@@ -17,6 +17,8 @@ export interface AssistantBoardSamples {
   works: AssistantWork[];
   views: Record<string, AssistantWorkView>;
   surroundings: Record<string, AssistantWorkSurroundings>;
+  /** The plugins that can carry a work in the project (`GET /api/assistant/executors`): the island takes a work's modes and its page's action ids from here. */
+  executors: AssistantExecutorOffer[];
   /** What the board's 「推进一步」 shows next for a running work: its following views, in order. */
   next: Record<string, AssistantWorkView[]>;
   /** What a work becomes once the person answers its question, or closes its interrupted round after checking it. */
@@ -140,6 +142,9 @@ export function assistantBoardSamples(now: number, text: BoardSampleText = "zh")
     views: Object.fromEntries(views.map((view) => [view.work.work_id, view])),
     surroundings: { [plan.view.work.work_id]: plan.surroundings, [coding.views[0]!.work.work_id]: coding.surroundings,
       ...Object.fromEntries(others.map((view) => [view.work.work_id, { ...plan.surroundings, connections: [], tools: { executor: "assistant" as const, callable: [], unavailable: [] } }])) },
+    executors: [{ plugin_id: "io.molis.work.coding", title: "Coding", default_mode: "execute", session_kind: "coding_session",
+      modes: [{ id: "discuss", title: "讨论" }, { id: "plan", title: "规划" }, { id: "edit", title: "修改" }, { id: "execute", title: "执行" }, { id: "review", title: "评审" }],
+      capability_ids: { "session.update": "coding.executor.session.update", "run.start": "coding.executor.run.start" } }],
     next: { [coding.views[0]!.work.work_id]: coding.views.slice(1) },
     answered: { [rest[0]!.work.work_id]: boardAnswered(at, rest[0]!) },
     closed: { [cut.view.work.work_id]: cut.closed },

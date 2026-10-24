@@ -280,6 +280,70 @@ test("AST-MEM-ARCH: preparation can be cancelled by archive; only the real Sessi
   assert.ok(f.store.get(actor, work.work_id).session_id);
 });
 
+test("AST-MEM-ARCH: a follow-up awaiting the real schedule cannot join an already archived Work", async t => {
+  const entered = deferred(), release = deferred(); let armed = false;
+  const f = await fixture(t, ports => ({ ...ports, host: async () => {
+    const host = await ports.host();
+    if (armed) { armed = false; entered.resolve(); await release.promise; }
+    return host;
+  } }));
+  const work = await f.create(), request = await f.service.lifecycle.preview(work.work_id, true);
+  const enqueued: string[] = [], enqueue = f.adapter.schedule!.enqueue.bind(f.adapter.schedule!);
+  t.mock.method(f.adapter.schedule!, "enqueue", async task => { enqueued.push(task.key); return enqueue(task); });
+  armed = true;
+  const pending = f.service.followUps.save({ work_id: work.work_id, label: "迟到定时", text: "不可新增", at: new Date(Date.now() + 3600_000).toISOString() })
+    .then(value => ({ value, error: undefined }), error => ({ value: undefined, error }));
+  try { await entered.promise; await f.service.archive(work.work_id, request, control); }
+  finally { release.resolve(); }
+  const result = await pending;
+  assert.equal(f.store.get(actor, work.work_id).archived, true);
+  assert.deepEqual(f.service.followUps.list(work.work_id), [], "no enabled record is saved after archive");
+  assert.equal(result.error?.code, "assistant.conflict"); assert.equal(result.value, undefined);
+  assert.deepEqual(enqueued, [], "no queue submission follows the completed archive");
+  await f.reopen(); assert.deepEqual(f.service.followUps.list(work.work_id), []); assert.equal(f.requests, 0);
+});
+
+test("AST-MEM-ARCH: a new follow-up cannot escape the archive cancellation snapshot", async t => {
+  const f = await fixture(t), work = await f.create(), entered = deferred(), release = deferred(), at = new Date(Date.now() + 3600_000).toISOString();
+  const first = await f.service.followUps.save({ work_id: work.work_id, label: "原定时", text: "原安排", at });
+  const key = `fu-${first.followup_id}-${Date.parse(at)}`, request = await f.service.lifecycle.preview(work.work_id, true);
+  const schedule = f.adapter.schedule!, cancel = schedule.cancel.bind(schedule), enqueued: string[] = [], enqueue = schedule.enqueue.bind(schedule);
+  t.mock.method(schedule, "enqueue", async task => { enqueued.push(task.key); return enqueue(task); });
+  t.mock.method(schedule, "cancel", async target => {
+    if (target === key) { entered.resolve(); await release.promise; }
+    return cancel(target);
+  });
+  const archiving = f.service.archive(work.work_id, request, control);
+  let saved: Awaited<ReturnType<typeof f.service.followUps.save>> | undefined, failure: { code?: string } | undefined;
+  try {
+    await entered.promise;
+    await f.service.followUps.save({ work_id: work.work_id, label: "快照后新增", text: "不可漏停", at }).then(value => { saved = value; }, error => { failure = error; });
+  } finally { release.resolve(); }
+  await archiving;
+  assert.equal(f.store.get(actor, work.work_id).archived, true);
+  assert.deepEqual(f.service.followUps.list(work.work_id).map(item => item.enabled), [false], "archive leaves no new enabled follow-up outside its snapshot");
+  assert.equal(schedule.find(key)?.state, "cancelled");
+  if (saved) assert.notEqual(schedule.find(`fu-${saved.followup_id}-${Date.parse(at)}`)?.state, "queued");
+  assert.equal(failure?.code, "assistant.busy"); assert.equal(saved, undefined); assert.equal(f.requests, 0);
+  assert.deepEqual(enqueued, [], "the competing save never submits another queue entry");
+  await f.reopen(); assert.deepEqual(f.service.followUps.list(work.work_id).map(item => item.enabled), [false]);
+});
+
+test("AST-MEM-ARCH: an enqueue completed after archive is cancelled using its disabled original record", async t => {
+  const f = await fixture(t), work = await f.create(), entered = deferred(), release = deferred(), schedule = f.adapter.schedule!;
+  const enqueue = schedule.enqueue.bind(schedule), request = await f.service.lifecycle.preview(work.work_id, true);
+  t.mock.method(schedule, "enqueue", async task => { entered.resolve(); await release.promise; return enqueue(task); });
+  const pending = f.service.followUps.save({ work_id: work.work_id, label: "已保存待入队", text: "保留已发生事实", at: new Date(Date.now() + 3600_000).toISOString() });
+  try { await entered.promise; await f.service.archive(work.work_id, request, control); }
+  finally { release.resolve(); }
+  const saved = await pending, key = `fu-${saved.followup_id}-${Date.parse(saved.next_at!)}`;
+  assert.equal(f.store.get(actor, work.work_id).archived, true);
+  assert.equal(f.service.followUps.list(work.work_id)[0]!.enabled, false);
+  assert.equal(schedule.find(key)?.state, "cancelled", "the real late queue commit is cancelled, not left for tick");
+  await f.reopen(); assert.equal(f.adapter.schedule!.find(key)?.state, "cancelled");
+  assert.equal(f.service.followUps.list(work.work_id)[0]!.enabled, false); assert.equal(f.requests, 0);
+});
+
 test("AST-MEM-ARCH: queue and SQLite failures retain exact partial follow-up results for the original request", async t => {
   const f = await fixture(t), work = await f.create(), schedule = f.adapter.schedule!, cancel = schedule.cancel.bind(schedule);
   const at = new Date(Date.now() + 3600_000).toISOString();

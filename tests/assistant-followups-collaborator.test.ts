@@ -37,6 +37,7 @@ function harness(start = "2026-10-15T08:00:00.000Z") {
   const ports: AssistantFollowUpPorts<Work> = {
     actorId: "person", records: new AssistantFollowUpRecords(db, workId => changed.push(workId)), now: () => now, timeZone: "Asia/Shanghai",
     work: id => { const work = works.get(id); if (!work) throw new Error("gone"); return work; },
+    assertCanSchedule: work => { assert.equal(works.get(work.work_id)?.archived, false, "the fixture owner admits only active Work"); },
     notify: (notice, dedupe) => { if (told.has(dedupe)) return false; told.add(dedupe); notices.push({ text: notice.text, dedupe }); return true; },
     setting: key => settings.get(key) ?? null, setSetting: (key, value) => { settings.set(key, value); },
     rules: () => rules, setRules: next => { rules = [...next]; }, pages: async () => ["home"],
@@ -74,7 +75,7 @@ test("W4-05-01 a follow-up removed before its time does not run, and archiving s
   const second = await h.followUps.save({ work_id: "w1", text: "b", at: "2026-10-15T09:30:00.000Z", repeat: "weekly", label: "每周" });
   assert.equal(await h.followUps.remove(first.followup_id), true);
   assert.equal(h.tasks.size, 1, "its queued task is cancelled with it");
-  await h.followUps.stopForArchive("w1");
+  await h.followUps.stopForArchive("w1", { beforeEffect: async () => {}, assert_current: () => {} });
   const [stopped] = h.followUps.list("w1");
   assert.equal(stopped?.followup_id, second.followup_id);
   assert.equal(stopped?.enabled, false);

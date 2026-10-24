@@ -8,6 +8,7 @@ import test from "node:test";
 import { createDesktopWebHost, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { AssistantStore, MolisWorkLocalHost, resolveWebControlToken, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { openHomeSqliteDatabase, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { asideReply } from "./fixtures/ending-review.js";
@@ -15,13 +16,23 @@ import { isKnowledgeOrganize, organizedCard } from "./fixtures/knowledge-organiz
 
 interface Status { work_id: string; revision: number; state: string; error?: string }
 
-for (const race of ["reply-last-wait", "stop-post-start-reader"] as const)
-test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") + ": real thread " + race + " refuses the late write", { timeout: 90_000 }, async t => {
+for (const race of ["reply-last-wait", "stop-post-start-reader", "create-return-revoked"] as const)
+test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : race === "stop-post-start-reader" ? "PAS-10 S-18-102-03" : "AST-MEM-ARCH") + ": real thread " + race + " refuses the late write", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "thread-final-fence-"));
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let current = true, armed = race === "reply-last-wait", intercepted = false, priorRounds = 0;
   const pending: ServerResponse[] = [];
+  let created: Awaited<ReturnType<AgentHost["createSession"]>> | undefined, creatingHost: AgentHost | undefined, modelRequests = 0;
+  if (race === "create-return-revoked") {
+    const create = AgentHost.prototype.createSession;
+    t.mock.method(AgentHost.prototype, "createSession", async function (this: AgentHost, ...args: Parameters<typeof create>) {
+      const session = await create.apply(this, args);
+      if (args[1].role_id === "thread-reply") { created = session; creatingHost = this; entered.resolve(); await release.promise; }
+      return session;
+    });
+  }
   const model = createServer(async (req, res) => {
+    modelRequests++;
     let raw = ""; for await (const chunk of req) raw += chunk;
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
@@ -118,7 +129,22 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
           observedStart.then(value => { if (value.status !== 200) throw new Error("Thread start refused before the barrier: " + JSON.stringify(value)); return new Promise<never>(() => {}); }),
           new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("the real thread barrier was not reached")), 15_000); })]);
       } finally { if (timer) clearTimeout(timer); }
-      const accepted = readOwner()!; assert.ok(accepted.rounds.length > priorRounds);
+      const accepted = readOwner()!;
+      if (race === "create-return-revoked") {
+        assert.equal(accepted.work.session_id, null); assert.equal(accepted.rounds.length, 0);
+        assert.ok(created && creatingHost);
+        current = false; release.resolve();
+        const refused = await observedStart;
+        assert.equal(refused.body.code, "actions.revoked");
+        const storedSession = await creatingHost.adapter("prologue").readSession(created);
+        assert.equal(storedSession.session.session_id, created.session_id, "the completed SDK Session remains observable");
+        assert.deepEqual(storedSession.runs, []);
+        assert.equal(readOwner()!.work.session_id, null, "revoked thread authority cannot bind its already-created Session");
+        assert.equal(readOwner()!.rounds.length, 0); assert.equal(modelRequests, 0);
+        assert.deepEqual((await request(path)).body.threads, before);
+        return;
+      }
+      assert.ok(accepted.rounds.length > priorRounds);
       if (race === "reply-last-wait") current = false;
       else assert.equal((await request("/api/assistant/threads/stop", { work_id: accepted.work.work_id })).status, 200);
       release.resolve(); await observedStart;

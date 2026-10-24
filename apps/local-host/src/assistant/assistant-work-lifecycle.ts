@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentCreateSessionInput, AgentMemoryExecutionControl, AgentSessionDecision, AgentSessionOwner, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -50,7 +51,7 @@ export class AssistantWorkLifecycle {
     const release = this.holdStart(work);
     try {
       const session = await host.createSession("prologue", { ...input, ...owner(work) }, authority);
-      assertCurrent(); this.assertStart(work);
+      assertCurrent(); this.assertStart(work); requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成");
       return this.ports.store.update(this.ports.actorId, work.work_id, null, { session_id: session.session_id });
     } finally { release(); }
   }

@@ -362,7 +362,7 @@ export class AssistantService {
       readSubject: (work, subject) => this.readSubject(work, subject), authority: work => ports.authority(work, { source: "card" }), jobs: this.jobs,
       createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
-      work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
+      work: workId => store.get(actorId, workId), assertCanSchedule: work => this.lifecycle.assertStart(work), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
       setting: key => store.setting(actorId, key), setSetting: (key, value) => store.setSetting(actorId, key, value),
       rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules), pages: () => ports.pages(),
       // Each look at the Plugins is bounded in time, so one that does not answer cannot hold the sweep.

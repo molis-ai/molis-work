@@ -7,8 +7,8 @@
 | 职责 | 会话 | chat id | 负责 | 边界 |
 | --- | --- | --- | --- | --- |
 | 防腐线总统筹 | Claude现行统筹 | 共享CODEX-TASKS/LINES/README现行派单 | 整线范围、优先级、跨线依赖、任务分配和唯一full组批；Codex从其共享派单或明确回执领取独立任务 | 原开发与有效认领保留 |
-| 总目标与用户沟通 | 统筹｜Work 全线进度 · Codex | 01a12a80-ede2-7b81-93ea-521a5abcc35c | 完整目标、跨线范围、需要用户决定的事项与汇报 | 日常派单和合并已交给下行，不重复操作 |
-| 流水线与合并 | 统筹｜防腐流水线与合并 · Codex | 01a16c88-7956-7e10-a5f4-5baf476c3634 | gpt-6-astra / xhigh；听Claude总统筹，领取独立任务；Codex侧派单、证据核验、按Claude顺序正常合并与共享状态；每10分钟接续 | 不写实现、不代替独立评审/测试或Claude总统筹；1–2个独立实现chat由原root建立后接入 |
+| 总目标与用户沟通 | 统筹｜Work 全线进度 · Codex | 01a12a80-ede2-7b81-93ea-521a5abcc35c | gpt-6-astra/xhigh；完整目标、复杂裁决、跨线范围、需要用户决定的事项与汇报 | 日常派单和合并已交给下行，不重复操作 |
+| 流水线与合并执行 | 专职｜防腐流水线与合并执行 · Codex | 01a16c88-7956-7e10-a5f4-5baf476c3634 | gpt-6.1-sol/max（后继回合设置已提交，待实际核验）；按Claude已定合同接单、派单、证据与CI/队列接续、正常合并、共享状态和10分钟兜底 | Claude总统筹，root管复杂裁决/用户沟通；不自行改产品、架构、安全或授权决定；不写实现、不替代独立审验 |
 | 评审 | 专职｜防腐 PR 评审与复审 · Codex | 01a16bc4-68fe-71d3-af0e-83523232c1ea | 核spec、精确diff和全部有效意见，修后复审、给正式结论 | 只读、不构建/测试、不合并；block与non-block分别记录 |
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
 | 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | 已派评审问题、CI失败及机械冲突；必要红绿自测；交精确head和日志 | 不自主领新片、不独立评审或统筹测试、不合并 |
@@ -30,11 +30,11 @@
 
 ## 当前流水线（2026-10-23 23:41 洛杉矶／10-24 06:41 UTC）
 
-- 模型已按实际运行核验：本统筹本轮`01a16c9f-7583-7cb2-bf49-1b26308c0090`（06:39:20.278UTC）的turn_context为gpt-6-astra/xhigh；root另核全部八个相关Codex会话符合用户分工，统筹/REVIEW为Astra/xhigh，TEST/修复/实现为6.1-sol/max。无需再为模型重启回合。
+- 最新用户补充「处理Merge的也是sol6.1就够」：本执行chat后继设置已由root提交为gpt-6.1-sol/max；当前06:39:20轮实际仍gpt-6-astra/xhigh，保存交接后安全结束，下一轮核实际再记生效。root与REVIEW保留Astra/xhigh；TEST/FIX/C1/C2保留6.1-sol/max。原有任务、CI与子chat继续，不取消或重开重复入口。
 - Claude最新CODEX-TASKS §0已明确单writer顺序：#1114资源清理→#1173文档→C1 RAC-113卸载预检→C2 slice/B1/B2/快照/恢复→C3；nonblock在C片等审/CI时插空，不永久挤掉实现。修复2当前完成1114构建/定向/资源核验，正交付；修复1的1173两文档精确准备完成，待明确交槽。C1准备有效，随后启动。C2已收到Claude裁定并只读差异准备：离线持现有Home独占锁，常驻Host运行时snapshot/restore拒绝且零写，不做在线quiesce/resume；B1 server邀请token哈希/receipt无原文独立前置PR，B2逐库与非SQLite秘密清单及引用化/派生排除，真实Home维护另排；完整快照/恢复目标保留。
 - Claude是整条防腐线总统筹；本chat负责Codex侧按其范围、优先级、跨线依赖与全量排期接续。C1/C2两个实现chat已收到入口并开始只读准备，完整目标未缩小；不重复建chat，全部Codex修复/实现仍单writer。DeepSeek历史贡献与review-pr-fixer在途认领分别保留。
 - 修复1已交非Draft[#1174](https://github.com/molis-ai/molis-work/pull/1174) `5bbb4318697dbef4631e5db3870691c27fff2e94`，4文件+12/-5，仅两e2e同步与两原spec；已释放writer/build/browser。统筹已读真实bundle延迟旧点击0次→ready后严格pointer1次、旧document等待精确红→navigate-before-click完整AC4绿；完整main后续5+3/8及batch23同patch8/8保留。首次main-fixed7/8的Pages后段failed/Missing frame仍未归因，TEST接现有批次观察，不能称已修。原日志 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/handoff.md`；实际affected full=[]/storage=[]。REVIEW6380942452与TEST独立核原始diff/两有效探针/完整文件/门禁及最终affected均通过，无需重复本机运行；精确头CI40070310777待齐；Claude已公开合并认领6380951820，不重复入队。ac-review6380946827补充BL544侧视图加载守护（当前仅ac-shell领域归属，需具体实施接续）和R44；10s期限/负载只是候选解释，缺少原始mount失败原因，未定因。
-- 修复2现唯一Codex writer：按Claude[6380810029](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380810029)，接[#1114/6380924207](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380924207)过期APPROVED_CEILINGS机械删除，只留本片cognia批准；不改算法或预算。DeepSeek `6bac03b45`正文/locator成果及二轮6380826646有效，#1167/#1169谁后合谁按main解冲突。交付即派增量审验。
+- 修复2唯一Codex writer：#1114资源清理已交`9df80415b41d0b3979ba63a59a3beefe2e5e898b`（父6bac），23行删除，统筹已读实际diff/交接；作者build/307项/真实27assets7792605B等通过，REVIEW/TEST已接增量核验，原ac-review二轮保留。Claude6381041047已合并认领/auto-merge；最新6381044113要求只解决BACKLOG相邻BL555–562/565–568冲突，现已明确再次启动修复2机械合main，其他无冲突不得扩改。最终新头/remerge-diff交付释放后立即启动修复1#1173，再C1；1173现在仍未开写。证据 `/tmp/molis-verify-2026-10-23/pr1114-resource-ceilings/handoff.md`。
 - #1107原review-pr-fixer仅收尾[6380813962](https://github.com/molis-ai/molis-work/pull/1107#issuecomment-6380813962)机械同步，本机`064cf2c5e7`尚未交远端；禁止第二writer重做。#1098远端`91e096524`对main冲突，修复2已只读准备，按Claude顺序及新交付衔接。
 - #1112 `8d700173c`正式二轮[6380756955](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380756955)通过；Security2/2 SYS-15-U10仍不能归已知flaky。TEST核f4df/8d700九个相关文件相同，候选装配间接影响仍未排除；下一明确owner修复2，1114后按统筹固定范围：真实回执/revision/精确行重新点击交错观测，复用SYS50/51响应屏障；不加sleep/重试或关轮询，修后Linux同文件和现有CI复验。三项non-block（技能文档构建期范围、PG060/RAC映射、Files侧栏打开后实际选中）仍由修复2接续准备；Files采用现有openAuditBrowser的A/B冷/热两态真实路径。W5统一full仍缺，不入队。
 - #1166冻结`02299dad3`：二轮6380547913及独立29文件585项/红绿有效，CI40066180122的Verify/Security/Product全绿；非batch22/23。已在[6380905002](https://github.com/molis-ai/molis-work/pull/1166#issuecomment-6380905002)向Claude交固定候选请求下一统一full，尚未入队。#1138两项目v1带声明/v2无声明交错与重启、旧模型测试注释:553尚未补，:492已修不重复。
@@ -153,3 +153,10 @@
 - #1171原评审6380338601的url.search意见／R-42（BL-543）：目前只有ac-platform领域登记，不视为具体实现已认领。已派评审专职只读核真实消费者、现行S-47合同、有效参数与是否存在实际错误/越权路径，区分缺陷修复与新增加严设计；结论后root给明确修复owner或保留待决证据，不凭“拿不准”盲改。
 - #1157非空Dock菜单44px覆盖仍待原ac-sc3交付；#1119悬空引用、#1139三项建议保持原作者认领，未因全量没有新增失败而关闭。#1114正文与页面locator验证由现作者按6380457245补，#1170已有作者合并认领6380309249；保留，不重复入队。
 - 两个Codex修复会话当前没有实施writer；修复1保留#1121及#1148后续认领，等#1148实际合入。专职评审、测试和修复2只读准备均已启动；C1后续/C2/C3未被这些局部交付记为完成。
+
+
+### 本轮明确后续实施与裁定入口
+
+- 纯文档遗留E22（PG035当前typed/BL365台账）及AC12–15/17（SSOT计数、server/Goals事实归属）实际实施owner为修复2；RUNTIME-MIGRATION:150旧文档族路由/客户端数量为修复1。两者已直派队列，按Claude非阻塞插空规则，实施前鲜核其他文档批/最终main避免重叠，当前不占writer；不以文档修正冒称迁移完成。
+- AC05/PG088与PG031跨线归属、BL544侧视图加载守护：只有ac-shell/ac-platform领域标签且对应线尚待建，无具体writer；已交Claude在CODEX-TASKS §0裁定实际执行人，未记已在修。R44诊断仍TEST+修复1，10秒期限/负载未定因。#1174评论中首个隐藏按钮误选担忧不适用：实际plugin-frame-browser helper挑首个可见元素，无需派修。
+- C2新裁定后的只读核验发现两个必要合同选择：现Home锁只在lazy Agent启动时取得，闲置Host可能未锁，完全不接Host启动不能保证离线互斥；邀请原文只存哈希后，现GET invite取回原链接/rotate receipt精确重放合同必须明确改变。详细提案已写CODEX-TASKS §0并交root/Claude，C2不擅碰禁止的Host入口、不先带错合同实现。

@@ -238,9 +238,12 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Explicit adoption of old history text reuses the history panel, confirmation and update/CAS retry.
-  // The user approved #1155's +480 B on 2026-10-24, only against expiry-renewal parent #1154.
-  "/assets/molis-work-workbench.js": [1207694, 1208174],
+  // Import adoption reuses the existing editor, classification, confirmation and command-retry controls.
+  // The user approved #1177's +8,035 B and shared editor CSS +192 B per sheet on 2026-10-24,
+  // only against history-text adoption parent #1155 (66f32c4a69ab0cdf542e7accaa217be0679de10e).
+  "/assets/molis-work-workbench.js": [1208174, 1216209],
+  "/assets/molis-work-settings.css": [996117, 996309],
+  "/assets/molis-work-workbench.css": [1614554, 1614746],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

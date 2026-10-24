@@ -187,7 +187,9 @@ export class MemoryQueries {
   }
 
   async policyCandidate(caller: MemoryCaller, candidateId: string | undefined, where: { scope: MemoryScope; owner: string }): Promise<MemoryBackendCandidate> {
-    const existing = (await this.ports.backend.withCaller(caller).candidates.list(where.scope, where.owner)).find(item => item.candidate_id === candidateId);
+    if (!candidateId) throw memoryErrors.not_found("没有这条建议的当前原件");
+    const existing = await this.ports.backend.withCaller({ ...caller, purpose: "management", source_use: "learning" }).candidates.get({
+      ...where, candidate_id: candidateId, ...(caller.signal ? { signal: caller.signal } : {}) });
     if (!existing) throw memoryErrors.not_found("没有这条建议的当前原件");
     return existing;
   }

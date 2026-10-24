@@ -93,7 +93,7 @@ test("Coding archives a nonempty conversation after cancel and lost response, re
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
-  const browser = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, undefined, { processServer: true }); if (!browser) return;
+  const browser = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, { processServer: true }); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "coding");
   const { command, sessionId, evaluate, click, navigate, origin, projectId, homeDirectory } = browser;
   assert.ok(projectId); assert.ok(browser.restartServer);

@@ -1,4 +1,4 @@
-import type { MemoryCandidate, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_SCENES, type MemoryCandidate, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import type { AssistantMemoryCandidate } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentMemoryExecutionControl, AgentMemorySourceSnapshot, AgentMemoryTools, AgentRecalledMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -186,7 +186,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
 /** A platform memory candidate as the Assistant's work view has always shown it. */
 export function assistantCandidate(candidate: MemoryCandidate): AssistantMemoryCandidate {
   return { candidate_id: candidate.candidate_id, work_id: candidate.work?.work_id ?? "", work_title: candidate.work?.title ?? "", scope: candidate.scope,
-    ...(!candidate.classification?.scenes.length || candidate.classification.scenes.some(scene => !["coding", "assistant", "common"].includes(scene))
+    ...(!candidate.classification?.scenes.length || candidate.classification.scenes.some(scene => !MEMORY_SCENES.some(allowed => allowed === scene))
       || !["long-term", "short-term"].includes(candidate.classification.lifecycle) || candidate.formal_expires_at === undefined ? { needs_formal_decision: true } : {}),
     ...(candidate.project_id ? { project_id: candidate.project_id } : {}), text: candidate.text, why: candidate.why, applies: candidate.applies.task ?? "",
     state: candidate.state, created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}),

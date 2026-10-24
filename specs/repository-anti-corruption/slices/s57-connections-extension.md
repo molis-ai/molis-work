@@ -133,7 +133,7 @@ binding: "installation" | "per_record"
 | X1 | 登记表扩展：多来源、`refresh` 字段；第一批服务（GitHub、Gmail 加目录里以 `Bearer` 发到固定来源的 24 个）。租户来源拆成 BL-595（见 §4.1） | 本稿已定（用户 2026-10-24） |
 | X2 | `per_record` 槽：SDK 声明检查、Runtime 客户端（`request` 带记录键、`describe`、`release`）、宿主的绑定键加项目和记录键（存法见 §4.1）、`connectors.plugin_slot.bind@2`（只认声明过的槽，即 BL-350 的绑定核对一半） | X1；叠在 X3 上，免得同改宿主端口时冲突 |
 | X3 | 401 后刷新一次再重发一次（BL-350 的刷新一半），过期前预先刷新沿用各服务已有的做法；令牌端点明确拒绝时在宿主进程里标 `reauth_required`（见 §4.1） | X1 |
-| X4 | 卸载、丢弃数据时按安装删绑定（BL-356 的连接那一半，两种槽都删）；删项目时删该项目的 `per_record` 绑定（由 `ProjectDeletionService` 调 connector-host 导出的按项目删的函数） | X2 |
+| X4 | 项目里卸载时删这个安装在本项目的 `per_record` 绑定，删项目时删该项目的 `per_record` 绑定（项目删除钩子，`ProjectDeletionService` 的删除跑）；按安装的绑定卸载时不删，见 §4.1 与 BL-596 | X2 |
 | X5 | Feed 迁 Runtime 时改走 `services.connections`，删宿主的 `resolveConnection`、`defaultProviderFor` 里取钥匙的分支和 `catalog-connector.ts`；`sources` 建库基线改为第 3 节的形状 | X2、X3；随 PG-093 |
 | — | 人选账号的界面（S0b-2b） | X2；归界面线 |
 
@@ -153,6 +153,7 @@ binding: "installation" | "per_record"
   2. 查找只做精确匹配。卸载时按安装删：`scope_id = 'plugin-installation:<安装>'`，或带分隔符的前缀 `'plugin-installation:<安装>/'`（`substr` 比较，不用 `LIKE`），安装 `abc` 不会删到 `abcd`；测试里放一对互为前缀的安装 id。
   3. 删项目时删该项目的 `per_record` 绑定：connector-host 导出按项目删的函数，同样带分隔符锚定（`/project:<项目>/record:`），由 `ProjectDeletionService` 调；测试里放一对互为前缀的项目 id。放在 X4，和卸载一起做。
   4. 编码写在这里和 `connection-store.ts` 的注释里；表的主人不变。以后真要拆成列，再走维护时段，这轮不做。
+- **卸载时删哪些绑定（X4，统筹 2026-10-24 裁 ①）**：安装编号在每个项目和 Home 里都一样，按安装的绑定由各处的同一安装共用。所以项目里卸载只删这个安装在本项目的 `per_record` 绑定（前缀锚定到 `plugin-installation:<安装>/project:<项目>/record:`），删项目删该项目所有插件的 `per_record` 绑定（项目删除钩子 `plugin-connections`）。按安装的那条本应在「最后一处也卸载」时删，但 Home 目录库的 `project_plugins` 只收内置插件，第三方与创作台生成的插件只记在各项目库，宿主问不到；不开全部项目库去扫，这条留到人解除，记 BL-596。
 - **刷新被拒的标记（X3，统筹裁）**：不改库、不删密钥，在宿主进程里标。只在令牌端点明确拒绝时标（OAuth `invalid_grant`、`invalid_client`，或 HTTP 400、401）；网络错误、超时、5xx 不标，只拒这一次。标了之后连接列表、插件连接槽的读取（X2 起还有 `describe`）显示 `reauth_required`，带它的请求在发出之前就以 `connection_unavailable` 拒，不再每次打令牌端点。标记跟着连接的版本（`updated_at`）走：人重连或强制刷新成功就清，宿主重启后没有，下次请求再试一次刷新、被拒再标。它是从令牌端点的回答推出来的状态，不是存下来的事实；以后要持久化再走维护时段。
 
 ## 5. 安全不变量与验收编号（暂定）

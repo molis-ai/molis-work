@@ -1029,3 +1029,6 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 沿用现输入助手，把坐标交给 click 消费后再清理临时回执；最终 guard 重核当前矩形、命中和 disabled，并在原 10 秒定位期限内只允许按下前重新定位。按下/抬起始终一次，trusted down/up 必须匹配本次收到 pointermove 的目标；CDP dispatch 与最后 guard 不是原子操作，最后缝隙发生位移会明确失败，不补点。原三个错路由/合成/旧回执断言保持；新增两个真实浏览器布局交错在旧实现均失败，修复后五例全部通过，含全部临时监听清理、零或一次 Store 副作用。最终 `/private/tmp/molis-frame-click-guard-green-final.log`；原受影响三文件另一次 9/9 通过、零重试/跳过，日志 `/private/tmp/molis-frame-click-guard-affected-three.log`。这些只是定向工程证据，AC-08 历史根因仍未确定，未改原业务断言/等待/隔离/产品代码，最终全量仍待执行。
 
 统筹复核 CI：head `92a671c75` 对应 run `40055930035` 的适用 jobs 已全部成功，Linux probe 为原配置跳过；产品两片各 218/218，并集 436、交集 0，与所测 manifest 一致，attempts 全为 1，无失败、跳过、未执行、flaky 或隔离。实际测试的是合并提交 `a9211c4e8`（parents `1cc9cfee7` + `92a671c75`），不是 head 的相同树；证据 `/private/tmp/molis-ci1064-92a-product-assessment.json`。后续主干已到 `f4df5b471`，含隔离页 link 通道修复，必须整合后重新检查相应影响，不能继承这次绿色为最终通过。
+
+
+统筹最终集成预检（2026-10-24）：点击修复 2474bfc42 合入 main f4df5b471 后为 4fe2c24c6。唯一文本冲突为资源批准表，主干已有额度保留在实际基线，Memory 仍只用原批准净增，未增加额度。离线 frozen 安装、整体构建、根类型、health 对该精确 main、boundary、API/Action 快照、实际资源、secret、diff 全部通过；12 个相关文件（含原三个失败、5 个 receipt 场景和主干 link 权限/页面生命周期）全部通过，jobs=2/browser=1/retries=0。完整结果 /private/tmp/molis-memory-1064-final-integration-20261024.results.json。该结果支持冻结新源码进入必要共享全量，不能将旧 1397/1400 改写为通过；AC-08 历史具体触发仍 UNKNOWN，后续新全量和当前 head CI 分别记录。

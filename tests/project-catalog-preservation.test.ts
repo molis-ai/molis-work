@@ -16,12 +16,14 @@ async function withHome(run: (home: string) => Promise<void>) {
 }
 function snapshot(project: ProjectRecord) {
   const store = new LocalProjectDatabase(project.database_path);
-  try { return store.snapshot(project.project_id); } finally { store.close(); }
+  try { new GoalProjectApplication(store).projectOpened(project.project_id); return store.snapshot(project.project_id); } finally { store.close(); } // S8b: Goals makes the board when the project is first opened
 }
 function mark(project: ProjectRecord) {
   const store = new LocalProjectDatabase(project.database_path);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(project.project_id, {
+    const application = new GoalProjectApplication(store);
+    application.projectOpened(project.project_id);
+    application.goals.commands.createGoal(project.project_id, {
       goal_id: "retained-content", title: "已保存的正文", outcome: "故障恢复后仍可读", why: "验证数据保留",
       business_logic: "使用真实项目写入", definition_state: "draft", decomposition_state: "abstract", acceptance_criteria: [],
     }, { actor_id: "user", idempotency_key: "retained-content" });

@@ -67,7 +67,7 @@ export * from "./web-locale.js";
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
 export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
-export { initializeProjectDatabase, readManagedBoard, validateManagedBoard } from "./managed-project-database.js";
+export { initializeProjectDatabase, validateManagedProject } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";

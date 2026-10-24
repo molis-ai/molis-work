@@ -9,3 +9,6 @@
 
 - #1130：PG-081、082 收口（含 PG-082 证据列）；PG-053、086 按 SC 收尾核。
 - #1139：PG-017 加 P0 一句（仍进行中）。
+
+- PG-099：Git 部分已做（GS/G0）；余下只有 Alchemist 的 cookie/Origin 守卫。不做理由：用户 2026-10-18「Alchemist 和插件创作台不删，但是可以绕过先不理会，后续重做」——随 Alchemist 重做处理。下一批 privileges 状态 PR 写进去。
+- PG-054：#844 部分；余项 BL-372 由 `ac-coding` 做（统筹 10-24 产品裁定见 README 08:4x）。

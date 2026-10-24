@@ -140,3 +140,5 @@ Coding数据库声明升到2，只加nullable lifecycle_json；旧版严格拒�
 当前阻塞：非空真实恢复会让归档期间已按Knowledge既有合同删除的自动卡重建，后台新增一次knowledge.organize，违反“恢复不启模型”的既定验收。普通重启对照无此调用；不能按aside过滤后宣称通过。跨owner暂归档保留协议尚未批准，未改搜索可见性/Knowledge规则，候选不可作为恢复完整交付。配对证据与范围决定记录在同Memory spec及会话临时提案。
 
 持久prepared尚未complete时，同Session原件/绑定与新执行写入明确拒绝；准入沿原调用control进入SDK/model之前，Store普通会话写在最终事务同turn重验。纯读及原archive/unarchive请求可继续，观察/wake不投影、不启动pending Session，另一Session保持独立。此准入只复用当前lifecycle记录，跨Node/SQLite及激活重开仍生效，不创建新锁表或journal。
+
+计划修订与其补充输入属于执行写入，pending期间同样拒绝，跨读取等待仍过同一最终门。子任务入口按职责区分：stop受Session准入；对已完成子任务的本人评价及步骤评价仍可用，继续检查原Run/child、当前评价revision和授权，评价不改变执行状态或完成生命周期。

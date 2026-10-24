@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
@@ -8,7 +8,7 @@ import { join } from "node:path";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID as project } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentSessionLifecycleActions as lifecycle, type AgentSessionDecision, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentSessionLifecycleActions as lifecycle, type AgentRunRef, type AgentSessionDecision, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { noEffect } from "./fixtures/coding-sessions.js";
@@ -508,4 +508,99 @@ test("COD-MEM-RESTORE-PENDING a write already awaiting authorization rechecks th
   await rejected;
   assert.deepEqual(f.sessions.get(project, "transaction"), before);
   assert.equal((await archive(f, "transaction", original))?.status, 200);
+});
+
+
+/** Real planning, confirmation and execution; only model transport uses fixed responses. */
+async function lifecyclePlan(t: TestContext) {
+  let storage!: PluginPrivateStorage;
+  const f = await codingSdkRuntime(t, { wrapCoding: definition => ({ ...definition, start: context => {
+    storage = context.services!.storage!; return definition.start(context);
+  } }) });
+  const model = t.mock.method(globalThis, "fetch", async () => cogniaModelResponse(JSON.stringify({ title: "Pending original plan",
+    steps: [{ title: "Original step", acceptance: "Keep evidence" }], blockers: "", change_reason: "" })));
+  await f.create("pending-plan");
+  const start = async (intent: string, more: object = {}) => {
+    const response = await f.call(path("pending-plan") + "/runs", { workspace_id: "work", provider_id: "fixture", model_id: "fixture", intent, task: "Keep the confirmed plan.", ...more });
+    assert.equal(response?.status, 200, JSON.stringify(response?.body));
+    for (const deadline = Date.now() + 15_000; f.sessions.get(project, "pending-plan").state !== "done";) {
+      assert.ok(Date.now() < deadline, "the real Coding follower must finish"); await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    return (response!.body as { run: { ref: AgentRunRef } }).run.ref;
+  };
+  const planning = await start("plan");
+  assert.equal((await f.call(path("pending-plan") + "/plan", { run_id: planning.run_id, expected_revision: 0 }))?.status, 200);
+  const confirmed = await f.call(path("pending-plan") + "/plan/confirm", { expected_revision: 1 }); assert.equal(confirmed?.status, 200);
+  model.mock.mockImplementation(async () => cogniaModelResponse("The run ended with its original plan preserved."));
+  const ref = await start("execute", { plan_revision: (confirmed!.body as { plan: { revision: number } }).plan.revision });
+  assert.ok((await f.adapter.read(ref)).step_board?.nodes.length, "the real SDK board must be nonempty");
+  return { f, ref, model, storage };
+}
+
+async function beforeSdkArchive(t: TestContext, f: Fixture, original: Decision) {
+  const fault = t.mock.method(f.adapter.sessionLifecycle!, "archive", async () => { throw new Error("interrupted after Coding prepare, before SDK archive"); });
+  try { assert.ok((await archive(f, "pending-plan", original))!.status >= 400); } finally { fault.mock.restore(); }
+  const pending = f.sessions.lifecycle.current(project, "pending-plan"); assert.equal(pending?.completed, false);
+  assert.ok(original.mode === "runtime");
+  assert.equal((await f.adapter.sessionLifecycle!.read(original.binding, owner(f))).state, "active");
+  return pending;
+}
+
+for (const when of ["already-pending", "pending-during-read"] as const) test(`COD-MEM-RESTORE-PENDING-P2 plan amendment ${when} cannot revise the real board or send supplemental input`, { timeout: 60_000 }, async t => {
+  const { f, ref, model } = await lifecyclePlan(t), original = await preview(f, "pending-plan");
+  assert.ok(original.mode === "runtime");
+  const sessionBefore = await f.adapter.readSession(original.binding); assert.ok(Array.isArray(sessionBefore.queued_inputs));
+  const before = await f.adapter.read(ref), board = before.step_board!, row = f.sessions.get(project, "pending-plan"), modelCalls = model.mock.callCount();
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let held = false;
+  const read = f.adapter.read.bind(f.adapter);
+  const hook = t.mock.method(f.adapter, "read", async (...args) => {
+    const view = await read(...args);
+    if (when === "pending-during-read" && !held && args[0].run_id === ref.run_id) { held = true; entered.resolve(); await release.promise; }
+    return view;
+  });
+  const amend = () => f.call(path("pending-plan") + `/runs/${ref.run_id}/plan-amendments`, { amendment: { kind: "insert", after: board.nodes[0]!.id,
+    title: "Must not enter the pending board", acceptance: "No new step or input" }, expected_version: board.version });
+  let result: Awaited<ReturnType<Fixture["call"]>>, pending;
+  try {
+    if (when === "already-pending") { pending = await beforeSdkArchive(t, f, original); result = await amend(); }
+    else {
+      const writing = amend();
+      await Promise.race([entered.promise, writing.then(() => { throw new Error("amendment never reached the actual Run read barrier"); })]);
+      pending = await beforeSdkArchive(t, f, original); release.resolve(); result = await writing;
+    }
+  } finally { release.resolve(); hook.mock.restore(); }
+  const after = await f.adapter.read(ref), sessionAfter = await f.adapter.readSession(original.binding), saved = f.sessions.lifecycle.current(project, "pending-plan");
+  assert.equal((await archive(f, "pending-plan", original))?.status, 200, "the original archive remains recoverable, even in the independent red example");
+  assert.equal(result?.status, 409, JSON.stringify(result?.body));
+  assert.deepEqual(after, before, "board nodes/version must not change through the omitted route");
+  assert.deepEqual(sessionAfter, sessionBefore, "the actual Session and its known queued inputs must remain unchanged");
+  assert.deepEqual(saved, pending); assert.deepEqual(f.sessions.get(project, "pending-plan"), { ...row, archived: true, updated_at: pending!.at });
+  assert.equal(model.mock.callCount(), modelCalls); assert.equal(f.sessions.lifecycle.current(project, "pending-plan")?.completed, true);
+});
+
+test("COD-MEM-RESTORE-PENDING-P2 completed-child rating remains available while execution stop is refused", { timeout: 60_000 }, async t => {
+  const { f, ref, model, storage } = await lifecyclePlan(t);
+  // Only the completed-child query is an adapter fixture; route, lifecycle and private SQLite writes are production.
+  let state: "completed" | "running" = "completed";
+  const children = t.mock.method(f.adapter.subagents!, "list", async run => run.run_id === ref.run_id
+    ? [{ subagent_id: "completed-child", parent_run: ref, role_id: "coding-reader", task: "Review evidence", state, result: "Completed evidence", workspace_path: f.home }] : []);
+  const cancelled = t.mock.method(f.adapter.subagents!, "cancel", async () => { throw new Error("pending must refuse before child execution control"); });
+  const ratingPath = path("pending-plan") + `/runs/${ref.run_id}/subagents/completed-child`, key = `subagent-verdict:pending-plan:${ref.run_id}:completed-child`;
+  assert.equal((await f.call(ratingPath, { action: "accepted", expected_revision: 0, notes: "Initial opinion" }))?.status, 200);
+  const original = await preview(f, "pending-plan"), pending = await beforeSdkArchive(t, f, original);
+  const before = await f.adapter.read(ref), row = f.sessions.get(project, "pending-plan"), modelCalls = model.mock.callCount(), reads = children.mock.callCount();
+  const rated = await f.call(ratingPath, { action: "needs-work", expected_revision: 1, notes: "A later human opinion" });
+  assert.equal(rated?.status, 200, JSON.stringify(rated?.body)); assert.equal(children.mock.callCount(), reads + 1);
+  const verdict = JSON.parse(String(storage.get(key))); assert.equal(verdict.revision, 2); assert.equal(verdict.status, "needs-work");
+  assert.equal(verdict.notes, "A later human opinion"); assert.equal(verdict.actor, "web-user");
+  assert.equal((await f.call(ratingPath, { action: "stop" }))?.status, 409); assert.equal(cancelled.mock.callCount(), 0);
+  assert.equal((await f.call(ratingPath, { action: "accepted", expected_revision: 1 }))?.status, 400, "stale evaluation revision remains refused");
+  state = "running";
+  assert.equal((await f.call(ratingPath, { action: "accepted", expected_revision: 2 }))?.status, 400, "only a completed child may be evaluated");
+  state = "completed";
+  const denied = await f.call(ratingPath, { action: "accepted", expected_revision: 2 }, "POST", { beforeEffect: async () => { throw new ActionError("actions.forbidden", "rating grant revoked"); } });
+  assert.equal(denied?.status, 403);
+  assert.deepEqual(JSON.parse(String(storage.get(key))), verdict); assert.deepEqual(await f.adapter.read(ref), before);
+  assert.deepEqual(f.sessions.get(project, "pending-plan"), row); assert.deepEqual(f.sessions.lifecycle.current(project, "pending-plan"), pending);
+  assert.equal((await archive(f, "pending-plan", original))?.status, 200); assert.equal(model.mock.callCount(), modelCalls);
 });

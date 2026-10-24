@@ -316,3 +316,43 @@
 ### 9.3 下一轮
 
 主题 e（lead 队列）：**页面资源 / 冻结名单收口** —— `web-assets.ts` 路由唯一性第 1 轮已 PASS，本轮重点：`NATIVE_PLUGIN_HTTP_FILES` 5→4（task-13 合入后）、页面资源预算（`tooling/gates/page-assets.json`、`APPROVED_CEILINGS` 现状与 2026-10-18 规则）、独立整页门禁与例外清单、`scripts/gates/assembly.mjs` 各计数（hostPluginFiles/registerProviderSites/hybridPlugins/pluginOutsideMentions）现状复核。
+
+## 10. 第 6 轮（主题 e：页面资源 / 整页例外 / 冻结名单收口）
+
+- 基准：origin/main `89c9a7194`（第 5 轮以来无新提交）。只读门禁 `node scripts/check-health-gates.mjs --report` 退出 0（全部结构数字对照已提交基线无增长）。
+- 结论：**PASS，无 blocker**。1 条 non-blocker 门禁卫生发现（AC-AUDIT-07）。
+
+### 10.1 AC-AUDIT-07 | page-assets 门禁里有两处「用完的」一次性放行条目，其中一条是重复键死代码
+
+| 项 | 内容 |
+| --- | --- |
+| 违反需求 | spec §5a「页面资源预算」+ AGENTS.md「功能确需的增长经评审一次性放行；一次涨超过 10 KB 或新增资源先问用户」+ `scripts/gates/page-assets.mjs:5` 自述「admitted once through APPROVED_CEILINGS … after review」 |
+| 证据 | `scripts/gates/page-assets.mjs:240-262` 的 `APPROVED_CEILINGS` 共 4 个键，其中 `"/assets/molis-work-plugin-frame.js"` 出现两次：`:250` `[191104, 191192]`、`:258` `[191192, 191455]`。对象字面量后键覆盖前键 → **`:250` 是死条目**，`:258` 生效。`scripts/gates/page-assets.mjs:270-271` 的 `APPROVED_NEW_ASSETS` 仍有 `"/assets/molis-work-plugin-frame.js": 187120`（该资源已有预算，条目不再生效）。当前 `tooling/gates/page-assets.json` 27 条资产，plugin-frame.js=191455、workbench.js=1191104、coding.js=376282、issues.js=27806，正是放行后的数值。脚本 `:5`/`:240` 注释要求「下一次改这个门禁时删掉用完的条目」，实际未删；`tooling/gates/page-assets.json` 的 note 仍写「raising a number or adding an asset here is refused」，没提 2026-10-18 用户决定 #17 的「确需增长可一次性放行、>10 KB 或新增资源先问用户」，与 AGENTS.md 不一致 |
+| 影响 | 不削弱判定（后键覆盖前键、批准只匹配 merge-base 精确字节），但属「门禁自身清洁/只许变严」的债；死键与陈旧放行会让后续维护者误读哪条有效，note 与决定不一致会误导 PR 说明 |
+| 严重度 | non-blocker |
+| 证据强度 | code-read + gate-script |
+| 建议 owner | ac-shell（门禁维护）或统筹；不要单独开片，下一次改 page-assets 门禁时一起清理 |
+| 修复建议 | 删 `scripts/gates/page-assets.mjs:250` 那条死键（连同注释），删 `APPROVED_NEW_ASSETS` 的 plugin-frame 行，把 `tooling/gates/page-assets.json` 的 note 改成与 AGENTS.md 一致；`--check --base origin/main` 应仍绿 |
+| 已有 PR/任务 | 无（UNVERIFIED 是否有人已在改该门禁） |
+
+### 10.2 页面资源（PASS 部分）
+
+- 唯一路由：`apps/local-host/src/web-assets.ts` 的 `serveWorkbenchAsset` 是 `/assets/` 唯一 responder；其它宿主文件只有 `apps/local-host/src/web-project-platform-routes.ts:263` 的 `!url.pathname.startsWith("/assets/")` 放行判断（不是路由）。`apps/local-host/src/web-server.ts:118,201` 把请求交给 `web-assets.ts`；`web-composition.ts:44` 创建。工作台客户端代码里的 `/assets/` 字符串是引用 URL，不是路由。
+- `web-assets.ts` 只有 11 个 `"/assets/` 字面量，但预算文件有 27 条资产：插件客户端由正则 `/assets/molis-work-plugins/([a-z0-9-]+)\.js` 动态映射到 `pluginWorkbenchClientAsset`（每个插件包一条），其余是 workbench.css/js、frame、capabilities、knowledge、characters（host 页，CHR-1）、arrival.css、settings.css、pages-editor.js、字体；预算文件把动态发现的每条都记上。→ 与 spec §5a 一致；spec 已自述「别的宿主文件新增 /assets/ 路由看不到」的限制保留。
+- 审批机制实现：`page-assets.mjs` 的 `baseErrors`（新增资源无预算即失败）、`approvedCeiling`（merge-base 字节精确等于 `[0]` 时给 `[1]`，一次性）、`missErrors`（发了没预算/预算没发都失败）、`growthErrors`（`:233` 涨了报错并提示走 APPROVED_CEILINGS）→ CI 路径与 AGENTS.md 一致。
+
+### 10.3 整页例外（PASS）
+
+- `specs/shell-page-exceptions/spec.md` 存在（1983 字节；状态「现行规范（2026-10-21，从 `specs/archive/artifact-positioning/spec.md` §4 原样拆出，规则未改）」；`AGENTS.md:35` 的例外清单指向它。
+- 表 8 行：进入页 `/`（项目工作台）、onboarding、无项目时的设置页；桌面菜单栏胶囊 `/desktop/capsule`；开发规格板 `/__ui/catalog`、`/__ui/catalog/bar`；宿主排版的侧栏文档 `/projects/<id>/side/<插件>/<视图>`；导出、打印与下载（文件/图片/PDF，不新开页面）；沙箱框里的文档预览（框内不带品牌/返回链接/自带导航）；协作服务 `/continuity`、`/im`；外部链接（侧栏浏览器或新标签页）。
+- `tests/shell-page-gate.test.ts` 的 `EXCEPTIONS` 数组 7 条正则与表一一对应：`/^\/$/`、onboarding、`/settings/`、capsule、catalog、`/side/`、`/(continuity|im)/` + `frame=workbench`；变更规则要求改表必须同改 EXCEPTIONS，否则门禁失败。→ PASS。
+
+### 10.4 冻结名单与结构数字（PASS）
+
+- `tests/builtin-plugin-assembly-gate.test.ts`：RUNTIME_ASSEMBLED 13 条；BUILD_TIME_ASSEMBLED 7 条（alchemist、artifacts、feed、goals、inbox、plugin-builder、sessions）；NATIVE_PLUGIN_HTTP_FILES 5 条（alchemist、artifact、feed、inbox、personal）；磁盘 `apps/local-host/src/*-native-plugin-http.ts` 5 份、`plugins/native/*/src/registration.ts` 25 份、目录 25 条 → 与名单双向一致。
+- 结构数字（`--report`，均未超已提交基线）：typed capabilities 126（17 文件）、registerProvider 调用 17（12 文件，project-host.ts 4 条）、hybrid Runtime 插件 1（coding）、非插件包点名该插件的文件 309（25 个内置插件：goals 47、feed 35、artifacts 20、plugin-builder 18、work 18、inbox 17、coding 12、pages 12、shelf 12、alchemist 11、schedule 11，其余 4–8）、hostPluginFiles 8、root entries 0。→ 与 privileges.md PG-068 与 EXTENSION-POINTS W5-02（目标 7→0）一致，仍靠 W5-02/W6-01 收口。
+- 在途影响：#1130 Sessions 下线合入后，BUILD_TIME_ASSEMBLED 的 sessions 与 work 包、work-*.ts 宿主文件要同 PR 删除并更新名单（装配名单只许减，门禁会拦）。
+
+### 10.5 下一轮
+
+- 主题队列 a–e 已完成；等待 lead 新指令。默认做「全表复核 + task-13 复核」：`git ls-remote --heads origin | grep personal-http` 返回空（且当时 GitHub 连通性异常，需重试确认），PR 出现后按审计文件 §6.2 v2 复核：删 `personal-native-plugin-http.ts` + 删 `/api/plugins/<id>` 别名重写、保留 alchemist 显式直连路由、冻结名单 5→4、assembly 路由条数净不变；跑五个测试文件（assembly-gate、personal-plugins-review-fixes、security-invariants-plugin-pages、alchemist-host、security-invariants-alchemist-resumption）+ 两个 alchemist e2e。

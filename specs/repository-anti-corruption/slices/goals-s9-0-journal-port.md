@@ -30,10 +30,12 @@ Goals 搬进 Plugin Runtime 之后，它的动作仍要写项目的 `events`（�
 - **RAC-270**：项目号是库的：输入里带别的 `projectId` 也落在本项目；读只看本项目的事件，游标与按对象类型的游标正确。（同上）
 - **RAC-271**：日志写和插件自己的行同事务：幂等键重复使该次事务整体回滚。（同上）
 - **RAC-272**：`tooling/gates/table-owners.json` 不变，`apps/local-host` 里没有对 `events`、`idempotency_records` 的 SQL；`pnpm boundary:check`、`pnpm health:check --base origin/main` 通过。（门禁）
+- **RAC-294**：只读自己的：两个插件（同一个项目库、都有 `journal:project`）各自 `appendEvent`，`readEventsDescending` 只返回自己的、是裸名，`eventCursor`（有无 `objectType`）只数自己的；一个插件读不到另一个的 payload；库里别的名字（宿主写的无前缀事件）同样不在答案里。（`tests/security-invariants-plugin-project-journal.test.ts`）
+- **RAC-295**：幂等操作名带主人的命名空间：两个插件用同一个 `operation` 和 `key` 各存一条记录互不冲突，各自只取回自己的 `request_hash` 与结果；一个插件取另一个已经存过的 `operation`/`key` 得到 `null`；表里存的是「`plugin_id`、点、名字」。（同上）
 
 ## 4. 不做、留给 S9
 
-- 事件类型与对象类型的命名空间：现有事件类型是不带前缀的词（`board.created`），不能在不迁移数据的前提下要求插件只写自己前缀的事件。所以 `journal:project` 是一项要明示授予的高权限，授予它的插件能写项目日志里任何类型的事件（行为人仍不能伪造）。S9 把 Goals 的事件类型登记成 Manifest 声明后，再按声明收紧（需先经用户确认，因为会改合同）。
+- 命名空间现在就做（统筹 10-24 评审裁定，「不留隐患」：还没有 Manifest 声明它，现在改不花代价）：日志是项目里所有主人共用的，所以端口替每个插件加自己的命名空间。`appendEvent` 的 `type`、`objectType` 和 `putIdempotency`/`getIdempotency` 的 `operation` 由平台存成「`plugin_id`、一个点、名字」（与 S9-2 对 Goals 存量改的前缀同一个写法），读 `readEventsDescending`、数 `eventCursor` 只看类型与对象类型都在自己名下的事件，读回来去掉前缀；命名空间取自装配的安装，不是参数。所以别的主人（含存量里还没有前缀的事件，它们归宿主里的 Governance 等）的事件读不到、算不进游标，同一个操作名在两个主人名下是两条互不相干的记录；要别的主人的事件，调那个主人的动作。Goals 的存量事件在 S9-2 的维护改名之后才落在自己的命名空间里（S9-2 的 `GOALS_JOURNAL_NAMESPACE` 就由本端口给，Goals 的仓库不再自己加）。已知的限制：命名空间是前缀，`plugin_id` 若恰好是另一个插件 `plugin_id` 的点分段前缀（`a.b` 与 `a.b.c`），`a.b` 名下的裸名 `c.x` 与 `a.b.c` 名下的裸名 `x` 存成同一个字符串；跨发布者的这种 id 由 BL-506（ac-trust T6）在安装时拒绝，同发布者的不在其内，需要时在安装处另加同样的检查。
 - 沙箱桥转发 `journal`：沙箱里的插件目前没有；有需要时在桥上加。
 - Governance 的事件仍由 `modules/governance` 经 `LocalSqliteJournal` 写，不经这个端口。
 - Goals 本体的迁移（S9 三个 PR）与 PG-087 的注意力、上下文账本服务（S9-0b）。

@@ -42,7 +42,11 @@ export interface PluginJournalEvent {
   readonly at: string;
 }
 
-/** An event to append. The project is the library's, never the plugin's to name; `actorId` must be the original caller's (see `PluginJournalWriter`). */
+/**
+ * An event to append. The project is the library's, never the plugin's to name; `actorId` must be the original caller's (see
+ * `PluginJournalWriter`). `type` and `objectType` are the plugin's own bare names: the platform stores them under the plugin's id
+ * and gives them back bare, and nothing the plugin passes can name another owner's part of the log.
+ */
 export interface PluginJournalAppend {
   readonly eventId: string;
   readonly actorId: string;
@@ -61,6 +65,7 @@ export interface PluginIdempotencyRecord {
 
 export interface PluginIdempotencyPut {
   readonly actorId: string;
+  /** The plugin's own bare operation name: stored under the plugin's id, so two owners using the same name never meet in one record. */
   readonly operation: string;
   readonly key: string;
   readonly requestHash: string;
@@ -68,7 +73,11 @@ export interface PluginIdempotencyPut {
   readonly at: string;
 }
 
-/** What a read of the journal shows: this project's events, newest first, and where its log ends. */
+/**
+ * What a read of the journal shows: this plugin's own events in the project, newest first, and where its log ends. The journal is
+ * shared by every owner of the project, but an owner reads and counts only what it wrote; whoever needs another owner's events asks
+ * that owner's action.
+ */
 export interface PluginJournalReader {
   eventCursor(objectType?: string): number;
   readEventsDescending(): PluginJournalEvent[];

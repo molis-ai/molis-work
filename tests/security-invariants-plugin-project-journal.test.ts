@@ -16,9 +16,10 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // S-61 (PG-094 S9-0): a plugin reaches the project's journal (the events and the idempotency records of its actions) only through
 // `services.project_database.journal`, which asks, on every call, what a statement of its own tables asks: the grants, and the
 // original caller of the action it runs for. A call cancelled, revoked or moved to another provider writes nothing there either,
-// and the actor of a row is the caller's, never the plugin's to choose.
+// and the actor of a row is the caller's, never the plugin's to choose. The journal is shared by every owner of the project, so
+// each plugin has its own part of it: what it writes is stored under its plugin id, and it reads, counts and looks up only that.
 
-const HOST_ACTOR = "tester", OWNER = "owner", AT = "2026-10-23T00:00:00.000Z", JOURNAL = "journal:project";
+const HOST_ACTOR = "tester", OWNER = "owner", AT = "2026-10-23T00:00:00.000Z", JOURNAL = "journal:project", NAMESPACE = "io.molis.work.example.";
 type Method = "appendEvent" | "putIdempotency" | "getIdempotency" | "eventCursor" | "readEventsDescending";
 const METHODS: readonly Method[] = ["appendEvent", "putIdempotency", "getIdempotency", "eventCursor", "readEventsDescending"];
 const WRITES: readonly Method[] = ["appendEvent", "putIdempotency"];
@@ -113,11 +114,16 @@ async function platform(t: TestContext) {
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
   const event = (name: string) => store.db.prepare("SELECT seq, project_id, actor_id, type, object_id FROM events WHERE event_id = ?").get(`ev-${name}`) as
     { seq: number; project_id: string; actor_id: string; type: string; object_id: string } | undefined;
-  const record = (name: string) => store.db.prepare("SELECT project_id, actor_id, request_hash FROM idempotency_records WHERE operation = 'probe.note' AND idempotency_key = ?")
+  const record = (name: string) => store.db.prepare("SELECT project_id, actor_id, request_hash FROM idempotency_records WHERE operation LIKE '%.probe.note' AND idempotency_key = ?")
     .get(name) as { project_id: string; actor_id: string; request_hash: string } | undefined;
+  const records = (key: string) => (store.db.prepare("SELECT operation, request_hash FROM idempotency_records WHERE idempotency_key = ? ORDER BY operation").all(key) as
+    Array<{ operation: string; request_hash: string }>);
+  /** An event the Host's own code wrote, in the bare name the journal's other owners (Governance, the native modules) use. */
+  const hostEvent = (name: string) => store.appendEvent({ eventId: `host-${name}`, projectId: DEMO_PROJECT_ID, actorId: HOST_ACTOR, type: "board.noted",
+    objectType: "board", objectId: name, reason: "测试", payload: { name }, at: AT });
   /** Nothing of this name in the plugin's table, the events or the idempotency records. */
   const nothing = (short: string, name: string) => !noted(short, name) && event(name) === undefined && record(name) === undefined;
-  return { client: actions.client, main, peer, bare, noted, event, record, nothing, stop: (item: { id: string }) =>
+  return { client: actions.client, main, peer, bare, noted, event, record, records, hostEvent, nothing, stop: (item: { id: string }) =>
     running.runtime.stop(running.runtime.list().find(install => install.plugin_id === item.id)!.install_id) };
 }
 
@@ -266,4 +272,48 @@ test("S-61 a journal write joins the plugin's transaction: an idempotency record
   await assert.rejects(client.invoke(caller(main.write).context, main.act, { name: "twice", step: "plain", method: "putIdempotency" }));
   assert.equal(noted(main.short, "twice"), true, "the first call's row stays");
   assert.equal(Number(main.services().project_database!.all("SELECT count(*) AS n FROM journalmain_notes")[0]!.n), 1, "the second call's row did not stay");
+});
+
+// RAC-294
+test("S-61 a plugin reads and counts only its own events: another owner's events, and the Host's, are not in its answer or its cursor, and the names it gets back are its own bare ones", async t => {
+  const { client, main, peer, event, hostEvent } = await platform(t);
+  assert.equal(await client.invoke(caller(main.write).context, main.act, { name: "main-note", step: "both" }), true);
+  peer.reset();
+  assert.equal(await client.invoke(caller(peer.write).context, peer.act, { name: "peer-note", step: "both" }), true);
+  hostEvent("later");
+  const mainSeq = event("main-note")!.seq, peerSeq = event("peer-note")!.seq;
+  assert.ok(peerSeq > mainSeq, "the other owner's event is the newer one, so a cursor that counted it would be higher");
+  assert.equal(event("main-note")!.type, `${NAMESPACE}journalmain.probe.noted`, "stored under the plugin's id");
+  const mine = main.services().project_database!.journal, theirs = peer.services().project_database!.journal;
+  assert.deepEqual(mine.readEventsDescending().map(item => `${item.object_id} ${item.type} ${item.object_type}`), ["main-note probe.noted probe"], "main: its own event, bare");
+  assert.deepEqual(theirs.readEventsDescending().map(item => `${item.object_id} ${item.type} ${item.object_type}`), ["peer-note probe.noted probe"], "peer: its own event, bare");
+  assert.deepEqual(mine.readEventsDescending().filter(item => JSON.stringify(item.payload).includes("peer")), [], "no payload of another owner's");
+  assert.equal(mine.eventCursor(), mainSeq, "main's cursor ends at its own last event, not the project's");
+  assert.equal(mine.eventCursor("probe"), mainSeq);
+  assert.equal(theirs.eventCursor(), peerSeq);
+  assert.equal(mine.eventCursor("board"), 0, "the Host's object type is nobody's but the Host's");
+  // A name that already carries another owner's namespace is only a longer name of this one's: it lands in main's part, not in the peer's.
+  await main.services().project_database!.transaction(async () => {}, tx => tx.journal.appendEvent({ eventId: "ev-impersonated", actorId: HOST_ACTOR, type: `${NAMESPACE}journalpeer.probe.noted`,
+    objectType: `${NAMESPACE}journalpeer.probe`, objectId: "impersonated", reason: "测试", payload: {}, at: AT }));
+  assert.deepEqual(theirs.readEventsDescending().map(item => item.object_id), ["peer-note"], "the peer still sees only its own");
+  assert.equal(theirs.eventCursor(), peerSeq);
+  assert.equal(mine.readEventsDescending()[0]?.object_id, "impersonated", "and the impersonating event is the plugin's own");
+});
+
+// RAC-295
+test("S-61 an idempotency operation is the plugin's own: two owners using the same operation and key keep two records, and neither gets the other's", async t => {
+  const { main, peer, records } = await platform(t);
+  const put = (item: typeof main, hash: string) => item.services().project_database!.transaction(async () => {}, tx => tx.journal.putIdempotency({
+    actorId: HOST_ACTOR, operation: "probe.note", key: "shared", requestHash: hash, outcome: { by: hash }, at: AT }));
+  const get = (item: typeof main, key = "shared") => item.services().project_database!.transaction(async () => {}, tx => tx.journal.getIdempotency(HOST_ACTOR, "probe.note", key));
+  await put(main, "main-hash");
+  await put(peer, "peer-hash");
+  assert.deepEqual(records("shared"), [{ operation: `${NAMESPACE}journalmain.probe.note`, request_hash: "main-hash" },
+    { operation: `${NAMESPACE}journalpeer.probe.note`, request_hash: "peer-hash" }], "two records, each under its owner's id");
+  assert.deepEqual(await get(main), { request_hash: "main-hash", outcome: { by: "main-hash" } });
+  assert.deepEqual(await get(peer), { request_hash: "peer-hash", outcome: { by: "peer-hash" } });
+  await main.services().project_database!.transaction(async () => {}, tx => tx.journal.putIdempotency({ actorId: HOST_ACTOR, operation: "probe.note", key: "only-main",
+    requestHash: "x", outcome: null, at: AT }));
+  assert.equal(await get(peer, "only-main"), null, "a key one owner stored is not found by another");
+  await assert.rejects(put(main, "main-again"), "the same owner repeating its own operation and key is still the conflict it was");
 });

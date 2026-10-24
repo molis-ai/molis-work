@@ -44,7 +44,7 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
     const reader: PluginDatabaseConnection = storage.db;
     const reads = pluginStatementGuard(reader, record), writes = pluginStatementGuard(library.db, record);
     const journal = library.journal
-      ? projectJournalBinding({ ...library.journal, reader: storage }, authorize, instance) : noJournal;
+      ? projectJournalBinding({ ...library.journal, reader: storage }, authorize, instance, manifest.plugin_id) : noJournal;
     const client = pluginDatabaseClient({ reader, writer: library.db, inTransaction: () => library.db.inTransaction === true,
       check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, instance, () => closed, journal);
     return { client, reader, close() { if (!closed) { closed = true; storage.close(); } } };

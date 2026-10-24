@@ -10,6 +10,10 @@ import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
  * are the Host's to say, and the two journals are the storage package's own, one on each connection the plugin's tables use.
  * `events` and `idempotency_records` stay the storage package's tables (`tooling/gates/table-owners.json` is unchanged): a plugin
  * reaches them only through these methods, never by a statement.
+ *
+ * The journal is shared by every owner of the project, so each plugin has its own part of it: the names it writes (an event's type
+ * and object type, an idempotency operation) are stored under its `plugin_id` and a dot, and it reads, counts and looks up only
+ * those. The plugin passes and gets back bare names; it never sees, and cannot pass, the namespace.
  */
 export interface ProjectJournalPorts {
   readonly project_id: string;
@@ -38,13 +42,24 @@ function assertActor(instance: PluginInstance, host_actor: string, actorId: stri
   if (!allowed.includes(actorId)) throw new ActionError("actions.forbidden", "日志只记调用者本人的事件和幂等记录");
 }
 
-export function projectJournalBinding(ports: ProjectJournalPorts, authorize: (permission: string) => void, instance: PluginInstance): ProjectJournalBinding {
+/**
+ * `owner` is the `plugin_id` of the installation this binding was made for. Inside an action the handle is only usable by the call of
+ * the same installation (`check` refuses any other, and `assertActor` runs under the same instance), so the owner of a call is the plugin
+ * it runs in; outside every action it is the installation's own. It is never an argument of a journal call.
+ */
+export function projectJournalBinding(ports: ProjectJournalPorts, authorize: (permission: string) => void, instance: PluginInstance, owner: string): ProjectJournalBinding {
   const { project_id: projectId } = ports;
+  const namespace = `${owner}.`;
+  const named = (name: string) => namespace + name;
+  const bare = (name: string) => name.slice(namespace.length);
   const permit = (check: () => void) => () => { check(); authorize(PROJECT_JOURNAL_PERMISSION); };
   const actor = (actorId: string) => assertActor(instance, ports.actor_id, actorId);
   const reads = (journal: LocalSqliteJournal, ask: () => void): PluginJournalReader => ({
-    eventCursor(objectType) { ask(); return journal.eventCursor(projectId, objectType); },
-    readEventsDescending() { ask(); return journal.readEventsDescending(projectId); },
+    eventCursor(objectType) { ask(); return journal.ownedEventCursor(projectId, namespace, objectType === undefined ? undefined : named(objectType)); },
+    readEventsDescending() {
+      ask();
+      return journal.readOwnedEventsDescending(projectId, namespace).map(event => ({ ...event, type: bare(event.type), object_type: bare(event.object_type) }));
+    },
   });
   return {
     reader: check => reads(ports.reader, permit(check)),
@@ -52,9 +67,12 @@ export function projectJournalBinding(ports: ProjectJournalPorts, authorize: (pe
       const ask = permit(check);
       const writer: PluginJournalWriter = {
         ...reads(ports.writer, ask),
-        appendEvent(input) { ask(); actor(input.actorId); return ports.writer.appendEvent({ ...input, projectId }); },
-        getIdempotency(actorId, operation, key) { ask(); actor(actorId); return ports.writer.getIdempotency(projectId, actorId, operation, key); },
-        putIdempotency(input) { ask(); actor(input.actorId); ports.writer.putIdempotency({ ...input, projectId }); },
+        appendEvent(input) {
+          ask(); actor(input.actorId);
+          return ports.writer.appendEvent({ ...input, projectId, type: named(input.type), objectType: named(input.objectType) });
+        },
+        getIdempotency(actorId, operation, key) { ask(); actor(actorId); return ports.writer.getIdempotency(projectId, actorId, named(operation), key); },
+        putIdempotency(input) { ask(); actor(input.actorId); ports.writer.putIdempotency({ ...input, projectId, operation: named(input.operation) }); },
       };
       return Object.freeze(writer);
     },

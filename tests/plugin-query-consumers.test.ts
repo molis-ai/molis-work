@@ -110,6 +110,8 @@ for (const phase of ["dispatch", "response"] as const) {
       disabled = false; pause = false;
       const result = await actions.invoke(informationActions.plan, { prompt: "整理" });
       assert.equal(result.action, null); assert.equal(result.context.project_id, reference.project_id);
+      // RAC-340: the Feed and Inbox dependencies are named by capability only; the directory supplies the one provider of each.
+      assert.ok(informationActions.plan.action.required_actions!.every(dependency => dependency.provider_id === undefined));
       assert.equal(dispatched, phase === "dispatch" ? 1 : 2);
       const runtime = await host.withProject(reference, r => r);
       assert.equal(createLocalFeedApplication(runtime.store.db).snapshot(DEMO_PROJECT_ID).feed_items.length, 0);

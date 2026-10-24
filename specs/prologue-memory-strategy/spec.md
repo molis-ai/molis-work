@@ -1032,3 +1032,9 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 
 
 统筹最终集成预检（2026-10-24）：点击修复 2474bfc42 合入 main f4df5b471 后为 4fe2c24c6。唯一文本冲突为资源批准表，主干已有额度保留在实际基线，Memory 仍只用原批准净增，未增加额度。离线 frozen 安装、整体构建、根类型、health 对该精确 main、boundary、API/Action 快照、实际资源、secret、diff 全部通过；12 个相关文件（含原三个失败、5 个 receipt 场景和主干 link 权限/页面生命周期）全部通过，jobs=2/browser=1/retries=0。完整结果 /private/tmp/molis-memory-1064-final-integration-20261024.results.json。该结果支持冻结新源码进入必要共享全量，不能将旧 1397/1400 改写为通过；AC-08 历史具体触发仍 UNKNOWN，后续新全量和当前 head CI 分别记录。
+
+**#1064 全量收尾与独立 Home 设置入口短合同（2026-10-24）。** 冻结 clean head `1bc28b5e2` 本机全量结束，1,410 文件中 1,409 文件无失败，唯一失败是 `issue-home-locale.e2e.test.ts` 的设置弹窗等待（3/4）；需要凭据的 live 跳过仍未验证。原始日志、文件清单和结束时 clean head 回执在 `/private/tmp/molis-memory-1064-final-fullsuite-20261024.{log,manifest.json,exit.json}`。合入 main `89c9a7194` 的候选 `ea3563d8c` 完整构建通过，同一文件零重试再次失败；结果在 `/private/tmp/molis-memory-1064-main-resource-integration-20261024.results.json`。源码确认主干 #1127 将隔离插件链接改为既有 `molis-work:open-settings-path` 请求，独立 Home 的设置脚本只监听旧 DOM click，尚无事件消费者；干净 main 同用例运行归因另记。
+
+本修复只使独立 Home 的模型/账号设置弹窗消费现有请求，复用原加载、取消、重试和缓存，不增加事件合同、通用路由或导航权限。允许修改 `home-model-settings.ts`、相关 Workbench README、原 Home locale 浏览器回归及本记录；URL 仍须同源且属于现有三个允许路径，非法请求不开窗、不请求、不导航，插件 iframe/令牌/草稿不变。HOME-SET-01 原真实 iframe 点击→失败提示→重试→关闭→手工保存链通过；HOME-SET-02 非法请求零作用且原父文档连接管理往返保留未保存模型输入。最终验证包含原安全边界、嵌入设置、包 README 必跑、实际资源与当前 head CI/全量；不修改原等待/断言/重试门，不把定向通过拼成一次全量通过。
+
+收尾实测：干净 main `89c9a7194` 整体构建后同文件同位置 3/4 失败，记录 `/private/tmp/molis-home-settings-baseline-20261024-validation.results.json`，完成主干归因。修复后原 Home 文件 4/4 通过；同一产品源码的另 4 个安全/嵌入文件与其余 49 个影响面及 README 必跑文件均通过，jobs=2、browser=1、retries=0。初次新增草稿断言因夹具未创建模型草稿、随后未创建连接而失败，保留两次原日志；最终经真实本地 API 创建连接和真实添加模型入口补齐前提，未改生产分支或放宽等待。最终定向记录 `/private/tmp/molis-memory-1064-home-fix-connection-20261024.results.json`；根类型、health（基于 main `89c9a7194`）、boundary、API/Action、实际资源、secrets、diff 均通过，27 个资源共 7,796,487 B，沿用原一次性净增，无新增额度。独立源码评审无确定 P1/P2。此为定向工程证据，最终提交 CI 全量与本机 27 个排除文件仍待执行；真实模型 live 路径及用户验收仍未验证。

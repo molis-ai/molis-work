@@ -8,6 +8,8 @@
 
 ## Memory 设置页的有界读取
 
+候选 Action 局部失败时，overview 的 `candidates:null` 表示尚未读到候选结果，不能当作空列表；已成功的正式分页、设置和变动仍返回。候选失败保留 Action 诊断，请求取消仍传出。读取不重放候选原决定，重开后跨等待 TTL 的 before-finish 故障由 `tests/memory-candidate-adoption.test.ts` 验证。
+
 依 memory spec §9.4，`memory.page@1` 是本人管理 query；`GET /api/memory/page?input=<JSON>` 接收同一请求（无 owner），返回页字段及仅本页 Goal 名称。`/api/memory/overview` 保留 prefs/candidates/changes/last_upkeep，pairs:null 明确尚未读取；配对区由用户打开时单独 GET `/api/memory/pairs?scope=...` 调现有 Action，其查询不声称有界。正式记忆改为相同首 page，不调用全量 list，也不对未读正文收集 labels。前端筛选、搜索和下一页使用同一 page Action；cursor、unknown 和取消按 Service/SDK 原结果传回，不伪造总数。管理权限经当前 Action 和 Memory owner 求交，off 可管理不等于恢复任务召回。验证：`tests/memory-management-page-http.test.ts`。
 
 

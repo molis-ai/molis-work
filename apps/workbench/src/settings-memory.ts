@@ -377,8 +377,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
 
     function paintCandidates() {
       const list = part("candidates"), candidates = data.candidates || [];
-      part("candidates-section").hidden = !candidates.length;
+      part("candidates-section").hidden = data.candidates !== null && !candidates.length;
       list.replaceChildren();
+      if (data.candidates === null) list.append(el("li", "settings-muted", L("读取未完成，请重新读取。")));
       candidates.forEach((candidate) => {
         const row = el("li", "memory-row memory-row--candidate"), submit = mutation();
         row.dataset.memoryCandidate = candidate.candidate_id;

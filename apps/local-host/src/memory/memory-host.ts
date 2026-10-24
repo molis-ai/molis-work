@@ -312,7 +312,11 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
         const wanted = scope(url.searchParams.get("scope")) ?? (ports.projectRef ? "project" : "personal");
         const [page, prefs, candidates, changes] = await Promise.all([
           call(memoryActions.page, { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
-          call(memoryActions.candidates, { scope: wanted }), call(memoryActions.changes, { scope: wanted, limit: 30 }),
+          call(memoryActions.candidates, { scope: wanted }).catch(error => {
+            if (abort.signal.aborted) throw error;
+            // The failed Action keeps its diagnostic; null means unread, never an empty candidate list.
+            return { candidates: null };
+          }), call(memoryActions.changes, { scope: wanted, limit: 30 }),
         ]);
         return { status: 200, body: { scope: wanted, ...(page as object), ...(prefs as object), ...(candidates as object), ...(changes as object), pairs: null,
           labels: await pageLabels(page as MemoryPageResponse), last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };

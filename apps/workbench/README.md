@@ -1,5 +1,7 @@
 # Web 产品界面与页面组合
 
+记忆管理 overview 的 `candidates:null` 单独显示候选区“读取未完成”，保留正式条目的查看、修改与筛选；全页重新读取成功后才清除此状态。沿现组件和文案，不新增候选自动重放。协议浏览器回归在 `tests/memory-settings-cas.e2e.test.ts`，实际 SDK 故障及重开路径在 `tests/memory-candidate-adoption.test.ts`。
+
 工作台外壳：底栏、插件选择、按 Manifest 派生的导航、设置，以及进入工作台之前的页面，让每个插件的内容挂在同一个工作区里。
 
 包名：`@molis-ai/molis-work-app-workbench`。工作区内部包，通过仓库构建和 Host 装配使用。

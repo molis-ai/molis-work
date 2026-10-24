@@ -366,7 +366,7 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string], readonly ActionView[]>,
   /** Which Runtimes exist and what each one really supports: this machine's configuration, the same for every plugin. */
   listRuntimes: {
-    capability_id: "agent.runtimes.v1", version: 1, operation: "query",
+    capability_id: "agent.runtimes.v1", version: 2, operation: "query",
     action: { title: "列出运行时", description: "本机有哪些 Agent 运行时，各自真正支持什么。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", maxItems: 0 }, output_schema: { type: "array", items: runtimeOutput } },
   } as ActionDefinition<[], AgentRuntimeDescriptor[]>,

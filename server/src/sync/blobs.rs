@@ -235,7 +235,7 @@ pub(crate) async fn handle(
     space: &str,
 ) -> ApiResult<Response> {
     let path = req.url()?.path().to_owned();
-    let bucket = env.bucket("BLOBS")?;
+    let bucket = env.bucket("FILES")?;
     if path == "/v1/blobs/status" {
         require(req.method() == Method::Get, 405, "METHOD_NOT_ALLOWED")?;
         let url = req.url()?;

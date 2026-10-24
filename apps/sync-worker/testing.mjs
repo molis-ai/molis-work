@@ -7,7 +7,7 @@ import {personalStorageSpace} from '@molis-ai/molis-work-storage';
 export async function cloudFixture(t,{authOrigin='https://auth.example.test',mode='cloud',schema=true}={}) {
   const {Miniflare,Response,convertV4MiniflareOptions}=await import(process.env.MOLIS_SYNC_MINIFLARE_MODULE||'miniflare');
   const requests=[];
-  const options={modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,r2Persist:false,r2Buckets:{BLOBS:"isolated-blobs"},d1Databases:{DB:'cloud-quota-test'},bindings:{DEPLOYMENT_MODE:mode,AUTH_ORIGIN:authOrigin,APPLICATION_ID:'work'},outboundService:async request=>{
+  const options={modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,r2Persist:false,r2Buckets:{FILES:"isolated-blobs"},d1Databases:{DB:'cloud-quota-test'},bindings:{DEPLOYMENT_MODE:mode,AUTH_ORIGIN:authOrigin,APPLICATION_ID:'work'},outboundService:async request=>{
     requests.push(request.url);assert.equal(new URL(request.url).origin,new URL(authOrigin).origin);
     const user=request.headers.get('Authorization')?.replace('Bearer ','');
     if(user==='redirect')return new Response(null,{status:302,headers:{Location:'https://other.example.test/token-leak'}});
@@ -16,7 +16,7 @@ export async function cloudFixture(t,{authOrigin='https://auth.example.test',mod
   }};
   const mf=new Miniflare(convertV4MiniflareOptions(options));
   t.after(()=>mf.dispose());
-  let db=await mf.getD1Database('DB'),bucket=await mf.getR2Bucket('BLOBS');
+  let db=await mf.getD1Database('DB'),bucket=await mf.getR2Bucket('FILES');
   if(schema){
     const sql=readFileSync(new URL('../../server/migrations/sync/0001_sync.sql',import.meta.url),'utf8');
     for(const [statement] of sql.matchAll(/CREATE TRIGGER[\s\S]*?\nEND;|CREATE (?:TABLE|INDEX)[\s\S]*?;|INSERT INTO sync_schema[\s\S]*?;/g))await db.prepare(statement).run();
@@ -30,6 +30,6 @@ export async function cloudFixture(t,{authOrigin='https://auth.example.test',mod
   };
   const write=(operation,key,value,{user='alice',base=0,policyRevision=1,attachments=[]}={})=>call('/v1/changes',user,{namespace,policyRevision,mutation:{operationId:operation,key,base,value},attachments});
   const transport=(url,options={})=>{const headers=new Headers(options.headers);if(options.body instanceof Uint8Array)headers.set('Content-Length',String(options.body.byteLength));return mf.dispatchFetch(String(url),{...options,headers});};
-  const writeMode=async value=>{options.bindings.SYNC_WRITE_MODE=value;await mf.setOptions(convertV4MiniflareOptions(options));db=await mf.getD1Database('DB');bucket=await mf.getR2Bucket('BLOBS');};
+  const writeMode=async value=>{options.bindings.SYNC_WRITE_MODE=value;await mf.setOptions(convertV4MiniflareOptions(options));db=await mf.getD1Database('DB');bucket=await mf.getR2Bucket('FILES');};
   return {get db(){return db;},call,space,namespace,selection,enable,write,requests,transport,writeMode,get bucket(){return bucket;},scheduled:async()=>{const worker=await mf.getWorker();return worker.scheduled({cron:'17 * * * *',scheduledTime:Date.now()});}};
 }

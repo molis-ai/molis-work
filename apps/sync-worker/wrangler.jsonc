@@ -7,6 +7,6 @@
   "triggers": {"crons":["17 * * * *"]},
   "build": {"command": "node build.mjs", "watch_dir": ["src", "../../server/src/sync"]},
   "d1_databases": [{"binding":"DB","database_name":"molis-work-sync-local","database_id":"00000000-0000-0000-0000-000000000000","migrations_dir":"../../server/migrations/sync"}],
-  "r2_buckets": [{"binding":"BLOBS","bucket_name":"molis-work-sync-local"}],
+  "r2_buckets": [{"binding":"FILES","bucket_name":"molis-work-sync-local"}],
   "vars": {"DEPLOYMENT_MODE":"local","AUTH_ORIGIN":"http://127.0.0.1:8787","APPLICATION_ID":"configure-molis-work-application-id","SYNC_WRITE_MODE":"read-write"}
 }

@@ -136,7 +136,7 @@ pub(crate) async fn sweep(env: &Env, scope: Option<&str>) -> ApiResult<Value> {
     db.prepare("DELETE FROM sync_rate_windows WHERE window<unixepoch()/60-1440")
         .run()
         .await?;
-    let bucket = env.bucket("BLOBS")?;
+    let bucket = env.bucket("FILES")?;
     prune(&db, scope).await?;
     enqueue(&db, scope).await?;
     if scope.is_none() {

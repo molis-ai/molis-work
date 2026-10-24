@@ -481,3 +481,73 @@
 ### 建议（non-blocking，交统筹/W6-01 文档片，不阻塞本 PR）
 
 A. 文件删除后两处活文档仍把它写成现存接线：`skills/molis-plugin-dev/host.md:104`「Alchemist 再挂进 `personal-native-plugin-http.ts` 的 handler 列表」、`docs/system/RUNTIME-MIGRATION.md:86`「`personal-native-plugin-http.ts` 只剩 Alchemist」。建议同 PR 顺手改成「Alchemist 由 `web-request.ts` 的显式直连条目服务」；`host.md:93` 的「不要往 `personal-native-plugin-http.ts` 加条目」可保留历史语但建议改指新写法。`specs/action-architecture/migration.md:245,433`、archive 规格与 roadmap 属历史记录，不用改。记为 **AC-AUDIT-16**（non-blocker、文档准确性）。
+
+## 13. 收尾报告（2026-10-24，主题 a–g + task-13 复核完结）
+
+### 13.1 基准与方法
+
+- 基准：origin/main **89c9a7194**（#1126）。审计期间 main 前进两次已刷新（c59172ffe→1756f9842→89c9a7194）；末轮复核时 `git log 89c9a7194..HEAD -- specs/repository-anti-corruption/privileges.md docs/SSOT-MATRIX.md docs/system/SECURITY-INVARIANTS.md` 为空——E1–E22 与 AC-AUDIT-12..16 的 edit 目标在 main 上仍原样，未与统筹的批量写撞车。
+- 全部只读：读取在 `/tmp/ac-audit-main`（detached origin/main 的临时 worktree，node_modules 软链），PR 复核用 `/tmp/ac-review-1168`；未改主检出、未 push、未开/评 PR、未跑 build/全量/浏览器。协作留痕经 gh contents API 写在 `coordination/handoff-2026-10-14` 的 `coordination/2026-10-14/ANTICORRUPTION-AUDIT.md`。
+- 末轮复核的只读命令（main 89c9a7194）：`node scripts/gates/package-inventory.mjs --check` exit 0（holds 71 packages）；`node scripts/workspace-packages.mjs --check` exit 0（contractSubpaths 67, errors []）；`node scripts/package-owners.mjs` exit 0（owners ok: 71 packages，CODEOWNERS 与 SSOT 一致）；`node scripts/check-health-gates.mjs --report` exit 0（本机 main 与 PR #1168 head 各一次）；`node scripts/gates/dom-events.mjs --report`（8 条已知差距，均已记录在 UI-PLATFORM.md「现状与例外」并由 tests/dom-events-contract.test.ts 核对）。
+
+### 13.2 覆盖矩阵
+
+| 范围 | 检查点 | 结果 |
+| --- | --- | --- |
+| 基线清单（§1，50 条） | 需求→检查点→证据 | 48 条 PASS/存量已知（PASS/存量），2 条 FAIL（=AC-AUDIT-01..04 文档漂移），1 条 UNVERIFIED（第 48 条：MCP 作用域/S-43 directory/S-57 connections 合同与测试，未单独取证） |
+| 主题 a | `@prologue/sdk` 边界、模型调用只经 horizontal/agent-host | PASS（唯一实现 77 处/31 文件，agent-host 外 0；15 个测试为 fixture 观察项） |
+| 主题 b | privileges.md 136 条 PG 行 ↔ 代码现状 | 14 条行号/文件失效 + 计数过时，产出 **E1–E22** 精确 edit（待统筹批量写） |
+| 主题 c | typed capability/HostCapabilityDefinition 是否新增 | PASS（total 338→126、without-action 100→31、文件 44→17，无新增文件；30 typed 全部冻结前，8 条已动作化；唯一登记点 agent-host-composition.ts:115） |
+| 主题 d | 表 owner 零基线、跨包 SQL、动态 SQL 盲区 | PASS（table-owners 双向绿；same_name workspaces/jobs；assistant purge、Artifacts 注入表名、plugin-runtime wiring/memory-ledger 均为同包/声明式；PG-102/103/104 的「只给内置」方向已记录待做） |
+| 主题 e | 页面资源路由/整页例外/冻结名单收口 | PASS + AC-AUDIT-07（page-assets 门禁两处用完的放行条目含重复键死代码；不削弱判定） |
+| 主题 f | SECURITY-INVARIANTS.md 58 行 ↔ 代码/测试/CI | 机械一致性 PASS（每行有测试、195 文件存在、标题片段全中）；4 条 non-blocker 文档/门禁问题 AC-AUDIT-08..11 |
+| 主题 g | SSOT-MATRIX.md 事实主人/包清单/owner/成熟度 | owner 列 PASS；4 条 non-blocker 文档漂移 AC-AUDIT-12..15 |
+| task-13 | PR #1168 按 §6.2 v2 复核 | PASS（20/20 清单项，独立 health:check exit 0）；1 条文档建议 AC-AUDIT-16 |
+
+### 13.3 发现清单（AC-AUDIT-01..16）
+
+| ID | 主题 | 严重度 | 状态 / 建议 owner |
+| --- | --- | --- | --- |
+| 01 | privileges PG-058 九份 HTTP 文件/别名表过时 | non-blocker | 并入 E14；统筹批量写 |
+| 02 | privileges PG-065「26 条手写目录/26 registration」过时 | non-blocker | 并入 E15；统筹批量写 |
+| 03 | privileges.md:5 引 spec 508–517（实际 1154–1168） | non-blocker | E1；统筹批量写 |
+| 04 | privileges §7 第 9 条 SSOT 128/133/152/216 已过时 | non-blocker | E19；统筹批量写 |
+| 05 | context-onboarding-service.ts 直接 import pages/artifacts/todo；PG-088 只记 Pages | P2 存量 | **HANDOFF-TO-CODEX**（转 ac-platform；补 PG-088/PG-031 位置） |
+| 06 | personal 旧短名路由桥（PG-058/W6-01） | P3 | **已实现**：PR #1168 复核 PASS，待 CI 绿后由 Codex 合入；合入后 §6.2 标 done、E14 九→4 份 |
+| 07 | page-assets 一次性放行条目的死键/过期项 | non-blocker | 转 ac-shell/统筹，下次改该门禁时清理（需评审） |
+| 08 | security-invariants 门禁正则漏 `.e2e.test.ts`，plugin-drafts e2e 未被表点名 | non-blocker | 安全线/Codex：S-47 加引用 + 扩正则（`(?:\.e2e)?`） |
+| 09 | S-38 代码位置列 4 条 Prologue 仓库路径（本仓不存在） | non-blocker | 安全线/统筹：标注「Prologue 仓库（#44）」或改 Molis 侧可核位置 |
+| 10 | 文档对 CI 覆盖的叙述与 ci.yml/probe 实际不符（secret-scan、dual-instance 只在别的作业；probe 不跑 browser；本机列语义） | non-blocker | 安全线/Codex 文档：改 §1 前言 |
+| 11 | S-16/S-19/S-22/S-23 的测试无 S 编号（PA-22/PA-23） | non-blocker | 安全线：补注释或表内注明 PA 号 |
+| 12 | SSOT 包数/分类过时（70→71、8→9 horizontal、69→70 partial；:50/:174） | non-blocker | 统筹批量写（与 package-owners 维护者同改；#1130 合入后 71→70 同片再改一次） |
+| 13 | SSOT contracts subpath 63→67 | non-blocker | 统筹批量写 |
+| 14 | SSOT server 行「宿主还直接读 mw_* 表」已完成（W2-06） | non-blocker | 统筹批量写：改「已完成」或删句 |
+| 15 | SSOT modules/goals(96)/governance(102) 缺「2026-10-18 改」注，与 Goals 事实单一主人冲突 | non-blocker | 统筹批量写 + ac-platform |
+| 16 | #1168 删除文件后 host.md:104、RUNTIME-MIGRATION.md:86 仍描述它现存 | non-blocker | W6-01 文档片/统筹（可同 PR 顺手改） |
+
+### 13.4 待统筹批量写的 edit 清单
+
+- **privileges.md：E1–E22**（§7 有每条的原文→新文/行号，基准 89c9a7194；含 E14 合入后九→4 份、E22 PG-035 30 条 typed + BL-365 已关）。
+- **SSOT-MATRIX.md：AC-AUDIT-12..15**（:50/:67/:103/:174 与 modules/goals、governance 行加 10-18 注）。
+- **skills/molis-plugin-dev/host.md:93,104、docs/system/RUNTIME-MIGRATION.md:86：AC-AUDIT-16**。
+- 以上都是纯文档，不涉及权限/行为/门禁判定；建议合成一次「文档批量写」提交，由统筹过评审。
+
+### 13.5 已合待写 / 在途 / 防重复
+
+- 已合但 privileges 状态未写（SLICE-RULES 内，不算缺陷）：PG-051(#1147 1756f9842)、PG-010(#1120 47c780644)、PG-056/070/071(#1137 4e5f91a19、#1145、#1132)——E10/E2/进度列已给新文案。
+- 在途不写：PG-017（#1139/#1143/#1144）、PG-081/082（#1130）、PG-060（#1098/#1107/#1112）、S-59/PLIB-10（#1119）。
+- #1130 合入后 SSOT 计数与 §7 work 行、assembly 冻结名单 sessions 需同片更新（71→70、native 25→24），已交统筹。
+- #1114（复审报告与文档债）可能覆盖部分 E/AC 文档条目，UNVERIFIED；派修前先看其范围。
+
+### 13.6 未核与局限（明确边界）
+
+- 只读、无 build/全量/浏览器：动作数类断言（Jelly「53 动作」、Coding「19 项 coding.* 动作」）UNVERIFIED，未计入缺陷。
+- 仓库外调用方不可静态核：`/api/plugins/<alchemist>`、`/api/personal` 等旧 URL 的外部硬编码（#1168 已在说明里写明风险与「不留兼容期」决策）。
+- 门禁自述盲区未重复计缺陷：非字面量表名/拼接 SQL/非 TS SQL（table-owners）、同文件 typed 净额与按 id 字符串调用（typed-capabilities）、其它宿主文件新增 `/assets/` 路由（page-assets）、「测试是否真断言拒绝」（security-invariants，靠 security-invariants-doc.test.ts 的 mutation 验证）。
+- coordination/handoff-2026-10-14 是协作工作区，不是主仓；审计文件以 gh contents API 维护，行号以 main 89c9a7194 为准。
+
+### 13.7 结论
+
+- **无 blocker。** 存量代码与防腐要求的实质不一致集中在已知在治的迁移片（PG 状态待做/PG-007 stage4/PG-020/PG-021 等）与已记录的门禁盲区；本次新增的全是 non-blocker 文档/门禁卫生问题（AC-AUDIT-01..16，除 05 为 P2 存量 HANDOFF、06 已实现待合）。
+- 建议下一步只做一批低风险收口：统筹批量写 E1–E22 + AC-AUDIT-12..16（纯文档），ac-shell 顺手清 AC-AUDIT-07，安全线清 AC-AUDIT-08/10（门禁+文档），其余按原路线；#1168 等 CI 绿后合入并把 §6.2/E14 标 done。
+- 后续若 main 前进：刷新基准后复跑 13.1 的 5 条只读命令，再复核受影响的 E/AC 条目（尤其 privileges/SSOT 若被批量写过，E 清单按 PG 编号定位而非行号）。

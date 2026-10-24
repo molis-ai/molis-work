@@ -6,7 +6,6 @@ import type { RuntimeIntegrationService } from "./installer/runtime-integration.
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
-import type { SessionRuntimeResources } from "./web-session.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 
 /**
@@ -38,7 +37,6 @@ export interface WebRequestContext {
   readonly feedSchedulers: Map<string, FeedSchedulerRuntime>;
   readonly ptyHost: MolisWorkPtyHost;
   readonly webUrl: string;
-  readonly sessionResources: Promise<SessionRuntimeResources>;
   readonly localHost: MolisWorkLocalHost;
   readonly composition: LocalWebComposition;
   readonly agentHost: AgentHost;

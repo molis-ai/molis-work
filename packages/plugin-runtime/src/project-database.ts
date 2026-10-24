@@ -30,6 +30,14 @@ export const pluginProjectDatabaseErrors = defineErrorCodes("plugin.project_data
   shape_mismatch: "conflict",
   /** A statement that reaches past the plugin's own tables, or does more than read or change rows (`project-database-statements.ts`). */
   statement_refused: "forbidden",
+  /** A sandboxed plugin's statement ran past its time, and the process it ran in was killed (`apps/local-host` `project-statement-process.ts`). */
+  statement_timeout: "timeout",
+  /** The process a sandboxed plugin's statement ran in grew past its memory and was killed. */
+  statement_memory: "too_large",
+  /** A sandboxed plugin's read gave more rows or bytes than one answer carries. */
+  result_too_large: "too_large",
+  /** The process that runs a sandboxed plugin's statements would not start, or ended on its own. */
+  process_failed: "unavailable",
 });
 
 /** One entry of a database's schema table, as storage's `listSqliteObjects` gives it. */

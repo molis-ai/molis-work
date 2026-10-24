@@ -109,7 +109,8 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
     environment: d.querySelector('[data-assistant-block=environment]').textContent.replace(/\\s+/g, ' '), tools: d.querySelector('[data-assistant-block=tools]').textContent.replace(/\\s+/g, ' ') };`);
   assert.equal(codingText.input, "", "the Coding work has its own (empty) draft");
   assert.match(codingText.environment, /~\/code\/molis-auth.*molis-ai\/molis-auth · feature\/session-cookie.*领先 2 · 3 处未提交 · 1 处冲突/);
-  assert.match(codingText.tools, /Coding Agent.*GitHub MCP.*3 项可用.*create_issue.*Linear MCP · 服务未连接/);
+  // The card is titled by the executor's own name (the sample's executor is "Coding"), not by a label the Assistant wrote for it.
+  assert.match(codingText.tools, /Coding.*自己的读写与命令.*GitHub MCP.*3 项可用.*create_issue.*Linear MCP · 服务未连接/);
 
   // 推进一步 (simulated): the Host's long wait answers with the next view; the step changes in its own line, the group the person opened stays open.
   const moved = await inFrame<{ same: boolean; open: boolean; line: string; summary: string; path: string }>(`

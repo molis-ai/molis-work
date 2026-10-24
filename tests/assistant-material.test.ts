@@ -21,9 +21,9 @@ test("new material that shares a Goal with a live work raises one merged notice;
   const itemReader = defineSubjectContextAction("fixture.item.read", "feed_item", "Feed 条目", []);
   const events = defineHomeEventsAction("fixture.feed.events", ["feed_item"], "Feed 首页事项", []);
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.feed", kind: "plugin", title: "Feed" }, definitions: [goalReader, noteReader, itemReader, events], handlers: [
-    { ...goalReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: goals.get(id)!, content: "", goal_ids: [id], session_id: null }); } },
-    { ...noteReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "note", id }, revision: "1", title: id, content: "", goal_ids: notes.get(id) ?? [], session_id: null }); } },
-    { ...itemReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; const item = feed.find(row => row.subject.id === id)!; return subjectContext({ subject: { kind: "feed_item", id }, revision: "1", title: item.title, content: "", goal_ids: item.goal_ids, session_id: null }); } },
+    { ...goalReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: goals.get(id)!, content: "", goal_ids: [id] }); } },
+    { ...noteReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "note", id }, revision: "1", title: id, content: "", goal_ids: notes.get(id) ?? [] }); } },
+    { ...itemReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; const item = feed.find(row => row.subject.id === id)!; return subjectContext({ subject: { kind: "feed_item", id }, revision: "1", title: item.title, content: "", goal_ids: item.goal_ids }); } },
     { ...events, handle: (_c, input) => { const window = input as { from: string; to: string };
       return { source: { surface: "feed", title: "Feed", icon: "rss" }, events: feed.filter(item => item.occurred_at >= window.from && item.occurred_at < window.to).map(({ goal_ids: _goals, ...event }) => event) }; } },
   ] });

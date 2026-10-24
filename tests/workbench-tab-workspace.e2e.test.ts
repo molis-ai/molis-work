@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("project workbench adds tabs without replacing existing ones and keeps split panes", { timeout: 90_000 }, async (t) => {
@@ -9,20 +8,10 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, openGoalFrame, origin, projectId, homeDirectory } = browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["sessions", "feed", "inbox", "artifacts"] as const) {
+  for (const plugin_id of ["feed", "inbox", "artifacts"] as const) {
     catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "tab-workspace" });
   }
   catalog.close();
-  const registry = await openWorkSessionRegistry({ homeDirectory });
-  const session = registry.createSession({
-    runtime_id: "codex",
-    project_id: projectId!,
-    current_goal_id: "CORE",
-    title: "分栏核对 Session",
-    user_confirmed: true,
-    actor_id: "tab-workspace",
-  });
-  registry.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
@@ -78,14 +67,14 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", windowsVirtualKeyCode: 46 }, sessionId);
   await waitFor("!document.querySelector('.tab-item[data-tab-kind=item][data-item-id=CORE]')");
   await click('[data-titlebar-tabs] [data-tab-add]');
-  await click('[data-tab-menu-action=open-sessions]');
-  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('.tab-item[aria-current][data-tab-kind=plugin][data-plugin=sessions]')");
-  await waitFor("Boolean(document.querySelector('[data-operation-select=\"" + session.session_id + "\"]'))");
-  await click('[data-operation-select="' + session.session_id + '"]');
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=item][aria-current][data-plugin=sessions]')");
-  assert.equal(await evaluate("document.querySelector('.tab-item[data-plugin=sessions][data-tab-kind=mother]')"), null);
+  await click('[data-tab-menu-action=open-feed]');
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('.tab-item[aria-current][data-tab-kind=plugin][data-plugin=feed]')");
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
+  await openGoalFrame('.tree-node[data-select-goal="INTERFACES"]');
+  await waitFor("document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=INTERFACES]')");
   assert.equal(await evaluate("document.querySelector('.tab-group[data-tab-group]')"), null);
-  await click('[data-titlebar-tabs] .tab-item[data-plugin=sessions][data-tab-kind=item] .tab-item-trigger');
+  await click('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-tab-kind=item] .tab-item-trigger');
   assert.equal(await evaluate("(() => { const hist = document.querySelector('.workspace-history')?.getBoundingClientRect(); const rail = document.querySelector('[data-titlebar-tabs] [data-tab-scroll]')?.getBoundingClientRect(); if (!hist || !rail) return false; const hit = document.elementFromPoint(hist.left + hist.width / 2, hist.top + hist.height / 2); if (!hit?.closest('.workspace-history') || hit.closest('.tab-item')) return false; return [...document.querySelectorAll('[data-titlebar-tabs] .tab-item')].every((tab) => { const box = tab.getBoundingClientRect(); if (box.width < 1) return true; const hangingLeft = box.left < rail.left - 1 && box.right > rail.left + 1; const visibleOverHistory = box.right > Math.max(hist.left, rail.left) + 1 && box.left < hist.right - 1; return !hangingLeft && !visibleOverHistory; }); })()"), true, "history buttons stay above scrolled tabs");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "F10", code: "F10", windowsVirtualKeyCode: 121, modifiers: 8 }, sessionId);
   await waitFor("document.querySelector('[data-workspace-tab-menu]').matches(':popover-open')");

@@ -54,7 +54,7 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name: "Awaited Agent", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "awaited-agent" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [grant, "storage:private"].map(permission => ({ permission, required: true, reason: "Run the declared role and store its answer" })),
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [run, serial, denied, query],
+    capabilities: { provides: [], consumes: [agentHostCapabilities.readSession.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [run, serial, denied, query],
     agent: { roles: [{ role_id: "reader", version: 1, name: "Reader", workspace: interaction ? "business" : "none", execution: interaction ? "operate" : "read-only", host_tools: interaction ? ["ask-user"] : [], prompts: ["reader"] }], prompts: [{ prompt_id: "reader", version: 1 }] },
     databases: { project: { store_name: "awaited-agent", version: 1, read_permission: "storage:private", write_permission: "storage:private", schema: "CREATE TABLE awaited_agent_results (text TEXT NOT NULL);" } } },
     agent_prompts: [{ prompt_id: "reader", version: 1, layer: "role", body: "Return only a concise answer from the supplied task." }],
@@ -82,7 +82,8 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
 test("SYS-15-A1: public plugin Agent uses its actual installation and the Home runtime, then persists its completed result", { timeout: 60_000 }, async t => {
   const f = await fixture(t), result = await f.invoke();
   assert.equal(result.text, "Owned plugin result"); assert.equal(f.count(), 1); assert.equal(f.requests(), 1);
-  const session = await f.host.client(f.project.reference).invoke(agentHostCapabilities.readSession, [result.session]);
+  // Reading a session is the owning plugin's own action (R8 batch 3): the plugin reads back the session its Agent ran in.
+  const session = await f.context.services!.actions!.invoke(agentHostCapabilities.readSession, [result.session]);
   assert.deepEqual(session.owner, { project_id: f.project.project_id, plugin_id: id, install_id: f.installation().install_id, actor_id: LOCAL_PERSON_ACTOR_ID });
   assert.equal(session.latest_run?.phase, "completed");
 });

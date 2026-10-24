@@ -60,7 +60,7 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
 
 Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控制绑定到生成插件的公开操作；嵌套调用不借用上游插件的安装身份，取消和撤权仍沿原调用检查。
 
-动作可用性在同步只读作用域读取插件自己的设置，按原调用者权限检查；写入、模型执行与回调结束后的访问均拒绝。插件动作、动作可用性和全部场景回调共用隔离后的上下文视图，视图不含 Host 签发的 `host_plugin`；Runtime 内部保留原上下文检查授权，插件继续经自己的 SDK 服务调用。
+动作可用性在同步只读作用域读取插件自己的设置，按原调用者权限检查；写入、模型执行与回调结束后的访问均拒绝。插件动作、动作可用性和全部场景回调共用隔离后的上下文视图，视图不含 Host 签发的 `host_plugin`；Runtime 内部保留原上下文检查授权，插件继续经自己的 SDK 服务调用。 `original_input` 含嵌套 Action 引用也必须独立复制，插件修改自己的视图不能改变 Host 留存的本人原件证明；回归沿用 S-18 callback mutations。已受理后台执行保留原调用身份与授权控制，但明确剥离只属于当次操作的 `original_input`，由 RAC-53 同时验证正常后台结果仍提交。
 
 ## 开发要求
 
@@ -86,7 +86,7 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
   - 场景回调由 `scene-provider.ts` 放进同一执行作用域，记录真实场景声明及读写用途；`currentPluginInvocation` 供服务和嵌套调用保存原调用者，`currentPluginAction` 仍只返回动作。只读场景不能经存储、事件、成果或嵌套调用写入，写回调结束后也不能留后台写入（`tests/security-invariants-plugin-scenes.test.ts`）。
   - 模型选择（W5-01）：`availability(selection?)` 与请求的 `selection` 只接供应商/模型 ID；Runtime 在首次等待前校验并复制，Host 解析当前已配置模型。明确选择失败不改用默认；`plugin.model_selection_invalid` 表示缺少或无效的 ID 形状，配置不可用仍按 Host 原错误返回。
   - `bundled` 只给宿主自己运行的代码（W3-06 D）：`install` 对 `bundled` 加 `execution: "sandbox"` 一律以 `plugin.grant_denied` 拒绝，不论带不带 `grants`。沙箱插件的权限是人确认的那一份，不会因为启动名单误标 `bundled` 就在全新安装时拿到 Manifest 声明的全部（`bundledGrants` 的前提）。
-  - 卸载仅对当前进程的活实例执行 stop；冷安装无需加载代码。成功卸载释放已加载实现，后续确认重装可重新登记同版本实现，运行中仍拒绝重复注册。
+  - 卸载仅对当前进程的活实例执行 stop；冷安装无需加载代码。先撤销激活并保存卸载状态，再调用幂等的宿主清理；清理失败报错，再次卸载继续清理，不重写卸载记录和数据保留选择、不恢复权限或再次 stop。记录已卸载、同安装的生命周期队列仍未结束时，同步 `install()` 在写入前以 `plugin.state_invalid` 拒绝重装；没有后续排队操作时，等待卸载返回即可立即重新安装同版本新实现并启动。失败不阻断后续排队操作，旧操作完成只释放自己的队尾标记，后续队尾仍保护未结束的队列。成功清理后释放已加载实现，运行中仍拒绝重复注册。回归见 `tests/plugin-methods-runtime.test.ts`（RAC-196-U1）与 `tests/plugin-lifecycle-states.test.ts`（RAC-196-U2～U4）。
   - 条件写入是单 key CAS（`expected: null` 表示仅在不存在时创建），不是多 key 事务。
   - Host 不提供原子方法时，需要原子更新的插件必须明确拒绝，不能用先读后写冒充。
   - 路由器自己的拒绝答平台的码和动作层已有的句子（W3-02-C）：没有路由要的权限 `actions.forbidden`（403），本项目没有启用该插件 `actions.plugin_disabled`（403），插件未运行 `actions.plugin_unavailable`（503），声明了路由却没有处理器 `actions.execution_failed`（500，插件自身的错）；响应体是 `{ error, code }`。状态由 SDK 的 `actionErrorResponse` 按 kind 给，路由器不写状态数字。

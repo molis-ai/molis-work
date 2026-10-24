@@ -10,7 +10,7 @@ import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlu
 import { CODING_CLIENT_FACTORY_SCRIPT, HISTORY_DIGEST_MARKER, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 import { agentHostCapabilities as agent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -59,7 +59,7 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
   });
   const server = createServer((request, response) => {
     const locale = request.headers["x-page-locale"] === "en" ? "en" : "zh";
-    void runWithLocale(locale, () => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host())).catch(error => {
+    void runWithLocale(locale, () => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host()))).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });

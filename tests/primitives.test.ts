@@ -171,13 +171,13 @@ test("directory add can sit above the list", () => {
   });
   assert.ok(html.indexOf("data-feed-add-toggle") < html.indexOf('data-feed-task="all"'));
   const defaultHtml = renderDirectoryPanel({
-    pluginId: "sessions",
-    listLabel: "会话",
+    pluginId: "inbox",
+    listLabel: "收件",
     listRole: "none",
-    body: `<button data-session>runtime</button>`,
-    add: { label: "新建 Session" },
+    body: `<button data-entry>entry</button>`,
+    add: { label: "新建条目" },
   });
-  assert.ok(defaultHtml.indexOf("新建 Session") > defaultHtml.indexOf("data-session"));
+  assert.ok(defaultHtml.indexOf("新建条目") > defaultHtml.indexOf("data-entry"));
 });
 
 test("hint trigger escapes copy and keeps a popover tooltip", () => {

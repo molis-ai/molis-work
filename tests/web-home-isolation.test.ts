@@ -17,7 +17,7 @@ const controlToken = "home-isolation-test-control-token-0123456789";
 /** A secret in the default Home's store; no other Home may read or replace it. */
 const defaultOnlyRef = "connector:github:client_id";
 
-test("Web resolves environment Home once for Catalog, Sessions, control token and Feed", async (t) => {
+test("RAC-212: Web resolves environment Home once for Catalog, control token and Feed without creating the retired Sessions database", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "molis-work-web-env-home-"));
   const envHome = join(root, "configured");
   const defaultHome = join(root, "default-user");
@@ -49,7 +49,7 @@ test("Web resolves environment Home once for Catalog, Sessions, control token an
     });
     assert.equal(response.status, 201, await response.text());
     assert.ok(existsSync(join(envHome, "connectors/connectors.db")));
-    assert.ok(existsSync(join(envHome, "sessions/sessions.db")));
+    assert.equal(existsSync(join(envHome, "sessions/sessions.db")), false, "First startup must not create the retired Sessions database");
     assert.ok(existsSync(join(envHome, "feed/secrets.json")));
     await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
     resetSecretStoreCache();
@@ -60,6 +60,7 @@ test("Web resolves environment Home once for Catalog, Sessions, control token an
     response = await fetch(origin + "/api/settings/connectors/connections?service_id=github", { headers: { "x-molis-work-control-token": token } });
     assert.deepEqual((await response.json()).connections.map((row: { display_name: string }) => row.display_name), ["Env Home GitHub"]);
     assert.equal(readFileSync(join(envHome, "config/web-control-token"), "utf8").trim(), token);
+    assert.equal(existsSync(join(envHome, "sessions/sessions.db")), false, "Service recreation must not create the retired Sessions database");
     assert.equal(existsSync(defaultHome), false, "No service resource may fall back to the default user Home");
   } finally {
     if (server?.listening) await new Promise<void>(resolve => server!.close(() => resolve()));

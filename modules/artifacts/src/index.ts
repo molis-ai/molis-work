@@ -75,6 +75,44 @@ export class ProcessItemsModule implements ProcessItemsApplicationApi {
   }
 }
 
+/** The 成果库 and the process items of one project library. */
+export interface ProjectVersionStores {
+  readonly artifacts: ArtifactsModule;
+  readonly processItems: ProcessItemsModule;
+}
+
+const openStores = new WeakMap<object, { stores: ProjectVersionStores; ports: ArtifactsModuleOptions }>();
+
+/**
+ * The one pair of stores a project library has: the same library gives the same pair however many callers ask (the project runtime,
+ * the installed-plugin host, Feed), so no two copies keep their own event hooks or checks. The first caller's ports stay; a later
+ * caller only fills in a port the earlier ones left out (the clock, the declared-type check).
+ */
+export function projectVersionStores(options: ArtifactsModuleOptions): ProjectVersionStores {
+  const open = openStores.get(options.db);
+  if (open) {
+    Object.assign(open.ports, Object.fromEntries(Object.entries(options).filter(([key, value]) => value !== undefined && Reflect.get(open.ports, key) === undefined)));
+    return open.stores;
+  }
+  const ports = { ...options };
+  const late: Omit<ArtifactsModuleOptions, "db" | "homeOwner"> = {
+    now: () => (ports.now ?? (() => new Date().toISOString()))(),
+    appendEvent: event => ports.appendEvent(event),
+    eventCursor: projectId => ports.eventCursor(projectId),
+    declared: (producer, type, kind) => ports.declared?.(producer, type, kind) ?? null,
+  };
+  const stores = {
+    artifacts: new ArtifactsModule({ db: options.db, ...(options.homeOwner === undefined ? {} : { homeOwner: options.homeOwner }), ...late }),
+    processItems: new ProcessItemsModule({ db: options.db, ...late }),
+  };
+  openStores.set(options.db, { stores, ports });
+  return stores;
+}
+
+export { createPluginArtifactClient } from "./plugin-client.js";
+export { createPluginArtifactOperations, type PluginArtifactOperationsInput } from "./plugin-operations.js";
+export { pluginArtifactErrors } from "./plugin-errors.js";
+
 export {
   artifactContentDigest,
   artifactContentSize,

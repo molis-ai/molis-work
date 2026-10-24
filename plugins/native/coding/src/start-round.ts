@@ -47,7 +47,9 @@ const follow = (a: CodingActivation, execution: CodingExecution, sessionId: stri
     const api = context.services!.capabilities!, { run } = round;
     let since: string | null = null;
     for (;;) {
-      const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000], { signal: control.signal });
+      // As the installation (R8): the job's signal ends the wait, and its check drops an answer that arrives after the job lost its authority.
+      const waited: { version: string; view: AgentRunView } = await context.services!.actions!.invoke(agent.waitRun, [session, run, since, 25_000],
+        { signal: control.signal, beforeEffect: control.beforeEffect });
       control.signal.throwIfAborted();
       const view = waited.view;
       since = waited.version;
@@ -105,7 +107,7 @@ function continuedOriginal(body: Record<string, unknown>, sessionId: string | nu
  * Start a round in a session: from the person's send, or later from a queued round when the work it waited for is
  * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
  */
-export const startRound = async (a: CodingActivation, record: CodingSessionRecord, body: Record<string, unknown>, actorId: string,
+export const startRound = async (a: CodingActivation, record: CodingSessionRecord, body: Record<string, unknown>,
   // A round woken by the activation's own loop (an answer arrived, a wait ended) answers to that loop's job (wake-loop.ts).
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
@@ -121,9 +123,9 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
   if (plan && record.runtime_session_id && continueOf === undefined) {
     const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-    const snapshot = await api!.invoke(agent.readSession, [session]);
+    const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
     for (const ref of snapshot.runs) {
-      const existing = await api!.invoke(agent.readRun, [session, ref]);
+      const existing = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]);
       if (existing.frozen.text_materials.some(item => item.source_artifact_id === plan.confirmed!.artifact_id && item.source_version === plan.confirmed!.version)) return { run: { ref: existing.ref, frozen: existing.frozen }, existing: true };
     }
     if (snapshot.recovery || snapshot.checkpoint_busy) throw codingFailure("coding.server.check-before-plan");
@@ -152,7 +154,6 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     task += "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n" + JSON.stringify(tasks, null, 2);
     if (task.length > 100_000) throw codingFailure("coding.server.task-too-long");
   } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw codingFailure("coding.server.parallel-only");
-  const identity = { project_id: projectId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: actorId };
   // The one model list the platform keeps (`services.model`, PG-047): the chosen model must be on it and able to run now.
   const model = execution.models.list().find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
   const modelRefusal = model ? execution.models.unavailable(model) : MODEL_UNAVAILABLE;
@@ -175,18 +176,18 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   if (goal) text_materials.unshift(goal.material);
   if (plan) text_materials.unshift(planMaterial(plan));
   // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.
-  if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, api!));
+  if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, codingActions(context, beforeWrite)));
   if (text_materials.length > 30) throw codingFailure("coding.server.materials-30");
   const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, record.session_id, codingActionControl(beforeWrite));
   if (catalog) text_materials.push(catalog);
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
-    : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
+    : await codingActions(a.context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory, title: record.title }]);
   if (!record.runtime_session_id) await execution.sessions.setRuntimeSession(beforeWrite, projectId, record.session_id, session.session_id, new Date().toISOString());
   // A long session carries its earlier rounds as a digest once replaying them verbatim would crowd out this round,
   // or when the person asked for it; if the runtime still finds the replay too large, the round starts from the digest.
   let earlier: AgentRunView[] | undefined;
-  const earlierRuns = async () => earlier ??= await Promise.all((await api!.invoke(agent.readSession, [session])).runs.map(ref => api!.invoke(agent.readRun, [session, ref])));
+  const earlierRuns = async () => earlier ??= await Promise.all((await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session])).runs.map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])));
   let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
   // A session given its runtime session before it ran (a delegation's letters need one) still starts with its first round.
   const firstRound = !record.runtime_session_id || !(await earlierRuns()).length;
@@ -201,8 +202,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
       context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
         tokens: { input: spent.tokens.input + usage.input, output: spent.tokens.output + usage.output } }));
     });
-  const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? (await digestFor()).text : task,
-    ...(original_input ? { original_input } : {}), ...(continued_from ? { continued_from } : {}), role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+  const start = async (mode: "session" | "digest") => codingActions(a.context, beforeWrite).invoke(agent.startRun, [record.runtime_id, { session, directory, task: mode === "digest" ? (await digestFor()).text : task, ...(original_input ? { original_input } : {}), ...(continued_from ? { continued_from } : {}), role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
     ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
     ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
     // A round that waited for other work takes over the item it waited as.
@@ -253,19 +253,19 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
 
 /**
  * The next round after the person answered a round parked at a restart (BL-156): started the way the parked round was
- * (`last-start:<session>`) by the one who answered (`actorId`, from the call), it takes the answer from the session's queue. Refused, the answer stays queued and the reason is
+ * (`last-start:<session>`) by the one who answered (the caller, as the Host knows it from the call), it takes the answer from the session's queue. Refused, the answer stays queued and the reason is
  * returned; 「从断点继续」 starts it later. A session still being recovered is read once and the round tried once more.
  */
-export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string }, actorId: string,
+export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string },
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
   const saved = (() => { try { return JSON.parse(a.context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as Record<string, unknown> | null; } catch { return null; } })();
   if (!saved) return { started: false, reason: codingText(execution.locale)("coding.server.start-unknown") };
   const body = continuedBody(saved, "服务重启前你问我的问题，我已经回答，回答附在后面。");
-  const start = () => startRound(a, record, body, actorId, api, execution, beforeWrite);
+  const start = () => startRound(a, record, body, api, execution, beforeWrite);
   const reason = (error: unknown) => error instanceof Error ? error.message : String(error);
   try { return { started: true, run_id: (await start()).run.ref.run_id }; } catch (error) {
     if ((error as { code?: unknown }).code !== "agent.session_busy") return { started: false, reason: reason(error) };
   }
-  await api.invoke(agent.inspectRecovery, [session]).catch(() => undefined);
+  await codingActions(a.context, beforeWrite).invoke(agent.inspectRecovery, [session]).catch(() => undefined);
   try { return { started: true, run_id: (await start()).run.ref.run_id }; } catch (error) { return { started: false, reason: reason(error) }; }
 };

@@ -7,6 +7,7 @@ import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-cont
 import type { AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeAgentDefinitions, homeStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pagesManifest, pagesMethods } from "@molis-ai/molis-work-plugin-pages";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -118,7 +119,7 @@ test("W4-02-03 an upgrade that starts while another project still runs the earli
     } finally { first.store.close(); second.store.close(); }
   }));
 
-test("W4-02-04 RAC-192 RAC-194 a built-in plugin's methods come with its running definition and only then; a definition for an owner the platform registers itself is refused; a sandboxed definition's are not registered", { timeout: 60_000 },
+test("W4-02-04 RAC-192 RAC-194 a built-in plugin's methods come with its running definition and only then; a definition for an owner the platform registers itself is refused; a sandboxed definition that carries methods does not start", { timeout: 60_000 },
   withHome(async home => {
     // Pages is built in, and nothing of it is offered until it runs (PG-051): no catalog registers it at start.
     assert.deepEqual(listed(home, "io.molis.work.pages"), [], "not running: no method for other Agents");
@@ -137,12 +138,14 @@ test("W4-02-04 RAC-192 RAC-194 a built-in plugin's methods come with its running
       assert.equal(shadow.started(), 0, "the plugin never started");
       assert.equal(homeAgentDefinitions(home).prompts().find(view => view.owner_id === "io.molis.work.plugin-builder")?.source.kind, "system", "the platform's registration is untouched");
     } finally { project.store.close(); }
-    // A method's body goes into another Agent's round: only a plugin the Host runs itself registers one.
+    // A method's body goes into another Agent's round: only a plugin the Host runs itself registers one, and a sandboxed package that carries methods
+    // does not start until an install can show the person what it adds (S-60, PG-017 BL-493).
     const sandboxed = platformIn(home), generated = probe({ pluginId: "io.molis.work.example.generated", execution: "sandbox" });
     try {
-      assert.deepEqual((await sandboxed.platform.start([{ definition: generated.definition, grants: [] }])).running, ["io.molis.work.example.generated"]);
-      assert.equal(generated.started(), 1);
-      assert.deepEqual(listed(home, "io.molis.work.example.generated"), [], "it runs, and its methods are not registered");
+      assert.deepEqual((await sandboxed.platform.start([{ definition: generated.definition, grants: [] }])).running, []);
+      assert.equal(generated.started(), 0, "the plugin never started");
+      assert.equal(sandboxed.platform.runtime.get(sandboxed.platform.runtime.list()[0]!.install_id).last_error_code, "sandbox.service_not_given");
+      assert.deepEqual(listed(home, "io.molis.work.example.generated"), [], "its methods are not registered");
     } finally { sandboxed.store.close(); }
   }));
 
@@ -221,6 +224,38 @@ function promptsAfterRestart(home: string) {
     return { prompts: promptsOf(restarted), roles: homeAgentDefinitions(restarted).roles().filter(role => role.owner_id === AGENT_PROBE).map(role => role.role_id) };
   } finally { rmSync(restarted, { recursive: true, force: true }); }
 }
+
+test("RAC-196-U1 an uninstall whose declaration cleanup hits a database lock finishes that cleanup on retry", { timeout: 60_000 },
+  withHome(async home => {
+    const project = platformIn(home), definition = agentProbe();
+    try {
+      assert.deepEqual((await project.platform.start([{ definition }])).running, [AGENT_PROBE]);
+      const id = project.installId(AGENT_PROBE), runtime = project.platform.runtime;
+      await runtime.stop(id);
+      assert.deepEqual(promptsOf(home), ["probe-role:disabled"]);
+      const blocker = openHomeSqliteDatabase(home, "agent-declarations");
+      try {
+        blocker.exec("BEGIN IMMEDIATE");
+        await assert.rejects(runtime.uninstall(id, { retain_private_data: true }), /database is locked/);
+      } finally { blocker.close(); }
+      const uninstalled = runtime.get(id);
+      assert.equal(uninstalled.state, "uninstalled", "the installation fact was saved before the failed cleanup");
+      assert.equal(uninstalled.retain_private_data, true);
+      assert.equal(runtime.contribution(id), null);
+      assert.deepEqual(listed(home, AGENT_PROBE), [], "failed cleanup never restores an Agent method");
+      assert.deepEqual(promptsOf(home), ["probe-role:disabled"], "the failed delete left the remembered declaration");
+      assert.deepEqual(promptsAfterRestart(home).prompts, ["probe-role:disabled"], "it is still persisted, not just cached");
+
+      const retried = await runtime.uninstall(id, { retain_private_data: false });
+      assert.equal(retried.replayed, true);
+      assert.deepEqual(retried.install, uninstalled, "retry preserves the original data choice, generation and timestamps");
+      assert.deepEqual(runtime.get(id), uninstalled);
+      assert.deepEqual(promptsOf(home), [], "retry really removed the in-memory declaration");
+      assert.deepEqual(promptsAfterRestart(home), { prompts: [], roles: [] }, "retry really removed the persisted declaration");
+      assert.deepEqual((await runtime.uninstall(id)).install, uninstalled, "completed cleanup is safe to repeat");
+      assert.doesNotThrow(() => runtime.register({ ...definition }), "successful retry releases the old implementation too");
+    } finally { project.store.close(); }
+  }));
 
 test("RAC-196 PG-051 Q1 b the last instance out leaves the installation's newest version, not the one it started with", { timeout: 60_000 },
   withHome(async home => {

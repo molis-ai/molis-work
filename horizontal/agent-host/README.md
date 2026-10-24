@@ -171,3 +171,5 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 `inputs.read(ref)` 先由 SDK 同 Session 的有界 InputBook 定位，再读该 Run 的原输入回执。当前 queued/withdrawn 优先于旧回执；未落定的直接补充仅可检查该 Session 唯一当前活跃 Run，记录缺失或已裁剪保持未知，不扫描历史。该定位不赋予读取或形成许可，产品 SourcePort 仍逐次核当前来源主人和用途。
 
 通用 Agent Memory Action 和 SDK 内置工具共用同轮 recipe。AgentHost 在创建 action tools / gateway 前捕获快照，经现 actions Port 交 Host 绑定原插件与 Session；缺快照时 Memory 拒绝，不从 Session 最新 attempt 补权。真实生产组合回归见 `tests/agent-memory-action-class-policy.test.ts`。
+
+分类控制接入 R8 后，`agent.session.read.v1`、`agent.run.read.v1`、`agent.run.wait.v1` 的 Action version 为 2：严格输出允许该轮冻结的 `class_restrictions` 与 `memory_scene`，分别位于 `latest_run`、直接 Run view 与 `view`。只登记现版本；插件固定旧版本时以 `actions.dependency_missing` 拒绝，不能自动换版。Coding 与 plugin-builder 的消费声明沿公开定义同步；公开插件 `actions.discover()` 仍只列本安装自身动作，已声明依赖由 `invoke` 按版本与提供方发现。`startRun` 业务输入不收 `memory_context`、`class_restrictions` 或冻结 `role`，由 Host 生成。回归为 `tests/agent-host-actions.test.ts`、`tests/agent-host-composition.test.ts` 与真实 Coding HTTP/SDK 的 `tests/agent-memory-action-class-policy.test.ts`。

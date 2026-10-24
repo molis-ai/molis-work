@@ -156,6 +156,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
+    if (current?.state === "uninstalled" && this.operations.has(installId)) throw pluginErrors.state_invalid("Plugin 卸载尚未完成，请等待卸载完成后再安装");
     if (input.definition.execution === "sandbox" && (input.grants === undefined || input.bundled === true)) throw pluginErrors.grant_denied("生成插件安装需要明确授权清单，且不能当作随宿主发布的插件授予全部权限");
     if (current && current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能改变已安装插件的执行信任边界");
     const digest = pluginManifestDigest(manifest);
@@ -601,7 +602,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     restore?: PluginInstanceRecord,
   ): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
-    if (current.state === "uninstalled" && (!restore || restore.installation_generation === current.installation_generation)) return this.receipt("uninstall", current, true);
+    const replayed = current.state === "uninstalled" && (!restore || restore.installation_generation === current.installation_generation);
     if (current.state === "running" && this.hasLiveInstance(installId)) {
       const definition = this.requireDefinition(current);
       const live = this.liveContext(installId);
@@ -616,7 +617,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     this.revokeContext(installId);
     const at = this.now();
-    const updated = restore ? cloneRecord(restore) : {
+    const updated = replayed ? current : restore ? cloneRecord(restore) : {
       ...current,
       state: "uninstalled" as const,
       retain_private_data: options.retain_private_data ?? current.retain_private_data,
@@ -624,13 +625,13 @@ export class PluginRuntime implements PluginRuntimeApi {
       updated_at: at,
       uninstalled_at: at,
     };
-    this.repository.save(updated);
+    if (!replayed) this.repository.save(updated);
     await this.executor.uninstalled?.(updated);
     // No implementation survives its installation. A later explicit reinstall may supply a new in-memory object.
     for (const [key, definition] of this.definitions) {
       if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) this.definitions.delete(key);
     }
-    return this.receipt("uninstall", updated, false);
+    return this.receipt("uninstall", updated, replayed);
   }
 
   get(installId: string): PluginInstanceRecord {
@@ -693,10 +694,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     const run = previous.then(operation, operation);
     const tail = run.then(() => undefined, () => undefined);
     this.operations.set(installId, tail);
-    void tail.finally(() => {
+    return run.finally(() => {
       if (this.operations.get(installId) === tail) this.operations.delete(installId);
     });
-    return run;
   }
 
   private hasLiveInstance(installId: string): boolean {

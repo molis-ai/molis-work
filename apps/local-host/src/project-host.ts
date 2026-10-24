@@ -316,6 +316,14 @@ export class MolisWorkLocalHost {
       (caller, action, error) => refuseCall(this.settleAction, caller, action, error));
   }
 
+  /**
+   * The person at this computer's call context for one request, as a page makes it: what the Host registers itself by the person's
+   * own permissions, a Runtime plugin's actions by its running installation's grants. Make a new one per request.
+   */
+  localPersonContext(reference?: LocalHostProjectReference, signal?: AbortSignal): Promise<ActionCallContext> {
+    return localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS, signal);
+  }
+
   /** Local management inspects registered metadata without borrowing execution permissions. */
   /** Registered declarations only: no Runtime preparation, availability policy or execution authority. */
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectActionMetadata(caller, reference); }

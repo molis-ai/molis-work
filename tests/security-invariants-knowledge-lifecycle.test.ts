@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { localWebActionContext } from "@molis-ai/molis-work-app-local-host";
 import { homeSqlitePath, openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { knowledgeActions, type KnowledgeCardsResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -46,7 +45,7 @@ for (const change of ["exclude", "delete"] as const) {
     const model = await heldModel(t, home.home);
     const cards = openKnowledgeCards({ homeDirectory: home.home });
     try {
-      const caller = await localWebActionContext(home.host, project.reference, ["knowledge:read", "artifacts:read"]);
+      const caller = await home.host.localPersonContext(project.reference);
       await home.host.actionClient(project.reference).invoke(caller, { ...knowledgeActions.read, provider_id: "system.knowledge" }, { subject: listed.cards[0]!.subject });
       assert.equal(cards.receipts(project.project_id, { limit: 10, offset: 0 }).total, 1, "deletion must clear an actual read receipt");
       await home.web.post(prefix + "/api/knowledge/organize", {});

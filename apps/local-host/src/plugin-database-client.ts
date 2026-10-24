@@ -2,9 +2,11 @@ import { bindPluginTransaction } from "./plugin-transaction.js";
 import { hostLog } from "./host-log.js";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
-  PluginDatabase, PluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlRow, PluginSqlValue,
+  PluginDatabase, PluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction, PluginProjectDatabase, PluginProjectDatabaseTransaction,
+  PluginSqlRow, PluginSqlValue,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertPluginActionCurrent, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import type { ProjectJournalBinding } from "./plugin-project-journal.js";
 import { assertReadStatement, assertWriteStatement } from "./project-statement-protocol.js";
 
 /** One SQLite connection as both drivers show it: node:sqlite's `DatabaseSync` (a library in the Home), better-sqlite3's `Database` (the project's). */
@@ -37,9 +39,19 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
  * `BEGIN`, before every statement and before `COMMIT`: a call cancelled or revoked at any of these points writes nothing, whatever
  * `beforeEffect` the plugin handed in. A write body that is not synchronous is rolled back and refused, and the transaction's
  * handle is refused once the transaction is over. Once `closed()` says so, every call is refused.
+ *
+ * The project's library also gives the project's journal (`journal`, PG-094 S9-0): its reads ask what a read of the plugin's own
+ * tables asks, and its writes exist only on the transaction handle and ask what a statement of it asks, so the same cancel, revoke
+ * or provider change that stops a statement stops them (S-63).
  */
 export function pluginDatabaseClient<Connection extends PluginDatabaseConnection>(connections: PluginDatabaseConnections<Connection>,
-  declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, instance: PluginInstance, closed: () => boolean): PluginDatabase {
+  declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, instance: PluginInstance, closed: () => boolean): PluginDatabase;
+export function pluginDatabaseClient<Connection extends PluginDatabaseConnection>(connections: PluginDatabaseConnections<Connection>,
+  declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, instance: PluginInstance, closed: () => boolean,
+  journal: ProjectJournalBinding): PluginProjectDatabase;
+export function pluginDatabaseClient<Connection extends PluginDatabaseConnection>(connections: PluginDatabaseConnections<Connection>,
+  declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, instance: PluginInstance, closed: () => boolean,
+  journal?: ProjectJournalBinding): PluginDatabase | PluginProjectDatabase {
   const { reader, writer } = connections;
   const permit = (permission: string) => {
     connections.refuse?.();
@@ -57,9 +69,10 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
     get(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => (db.prepare(sql).get(...parameters) as PluginSqlRow | undefined) ?? null); },
     all(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => db.prepare(sql).all(...parameters) as PluginSqlRow[]); },
   });
-  const client: PluginDatabase = Object.freeze({
+  const client: PluginProjectDatabase | PluginDatabase = Object.freeze({
     ...reads(reader, () => permit(declaration.read_permission)),
-    async transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T> {
+    ...(journal ? { journal: journal.reader(() => permit(declaration.read_permission)) } : {}),
+    async transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T> {
       permitWrite();
       await beforeEffect();
       permitWrite();
@@ -70,7 +83,8 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         if (!active) throw new ActionError("actions.forbidden", "事务已结束，不能继续访问");
         permitWrite();
       };
-      const handle: PluginDatabaseTransaction = Object.freeze({ ...reads(writer, check),
+      const handle: PluginDatabaseTransaction | PluginProjectDatabaseTransaction = Object.freeze({ ...reads(writer, check),
+          ...(journal ? { journal: journal.writer(check) } : {}),
           run(sql: string, parameters: readonly PluginSqlValue[] = []) {
             check();
             assertWriteStatement(sql);
@@ -81,7 +95,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
       const binding = bindPluginTransaction(handle, client, check);
       let result: T;
       try {
-        result = write(handle);
+        result = write(handle as PluginProjectDatabaseTransaction);
         requireSynchronous(result, "插件数据库事务必须同步完成，不能包含异步等待");
         check();
         writer.exec("COMMIT");

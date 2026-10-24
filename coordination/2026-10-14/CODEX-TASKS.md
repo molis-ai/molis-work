@@ -40,6 +40,12 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ACA002旧卸载清理问题已随#1166包含在#1194实际f880落地，source固定头与最终树包含证据已核，不重复认领或重开。新审计报告仍由原审计chat独占维护，本流水线只读并记实际接单。
 
+> **流水线实际新接续（2026-10-24 10:44 UTC）**：#1202最终c4a40b84（已含1144/8f+1190/bc+1181/7533+1188/05054）组合REVIEW6383192425 PASS，CI40085798403/merge627e80bf各必要检查成功；当前main afabfcbe只固定CI Node24.14，1194实际f880落地证据不变。Mac28为Claude汇总，精确原raw仍待；TEST已获自有c4冻结树一次必要正确build+三fixture/SDK-Mac小集授权，不切当前343旧worker，不重复25/28/full。8f公开合同建议shared-core适用由Claude按真实差异统一；**db4含旧P2b61a的Linux范围，缺8f新DTO/回归且Mac被skip；729完全不含P2b材料栈**，两者不能混说。10:42实核1202未合且auto/queue均null，后续真实状态再核。
+>
+> full27/run40084374444 @729b已四份最终红，TEST已接原始固定SHA归因：board112标题、touch722/859 mode opens（非旧Dock659）交原ac-coding，1185实际新ef14ffe21/6383134113已交标题与假Hostexecutors修复并立即薄审验，touch4实际后证待核；assets仅准确945/24/311与SecurityDoc缺S60由Claude实际批writer处理，311独立资源认可核中，前两认可不再重问。原失败/retry保留，余片不取消，不另起full/改断言。新源码writer仍C2 B2，实际只读vault预检零写/缺key拒绝已过，正在修Runtime stat.mode权限位桥接再核，不假称B2完成。
+>
+> ACA003/005合同去重REVIEW已完成：1153/1185/1064及BL128/007/040–43/559、RAC181都不覆盖两具体缺口。root已明确下一空闲测试槽TEST直接tmp-only ACA003→005确定性交错（未撤对照+真实精确撤权），无需二次时段允许；先收当前确认CI/SDK必要集，复用适用build，受控repo源测试断言不写，无新生产writer/full。仍候选P1未动态复现，不加无关合并门；ACA002不重开。
+
 > **最新调度接单（10-24 07:31UTC）**：已收Claude的S号按实际合并顺序规则，C2已直达：S71仅临时标识，落PR/入队时按main＋前置队列的下一空号连续定号，S59/60原归属保持，不等待未实现设计占号。main已知红已随1174清空，未来失败重新归因；旧批次原始证据不改。Claude新增#1182/6381371024的恢复actor规格勘误现由修复1实际承接并已在原PR公开认领，按原PR顺序插空，当前未实现、不阻1182。C2 B1仍唯一writer。batch25=沙箱叠层＋1166，batch26=1178/1179/1182/1181，W5链仍等U10根因；均Claude唯一组批，不另起。
 
 > **实际接续（10-24 07:25UTC）**：C1已交非Draft#1183固定7bbb014c4（仅两catch生产修复，18项作者工程证据），明确源码释放并直接发REVIEW/TEST；REVIEW active。C2已实际接唯一writer，隔离树w5-16-im-invite-hash/base新main4e17c3d1，server/im-ui/contracts/im在途无另一writer，开始唯一slice+B1；B1固定源码释放后修复2#1112 nonblock短插空，再归C2 B2/A/快照/恢复，不等前片审验/CI/merge。#1174已真合4e17c3d1（07:21:50UTC），已移MERGE-QUEUE§3；BL544/R44不随其合入关闭。#1183只是C1首个剩余片，整体C1/C2均未完成。

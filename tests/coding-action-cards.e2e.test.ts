@@ -64,8 +64,8 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
   }));
   // The person granted the built-in Agent one action in this project (the capability service's own grant file).
   await mkdir(join(homeDirectory, "config"), { recursive: true });
-  await writeFile(join(homeDirectory, "config", "mcp-tools.json"), JSON.stringify({ version: 2, action_grants: [{ client_id: "agent:prologue", project_id: projectId,
-    capability_id: "goals.create", version: 1, provider_id: "io.molis.work.goals", permissions: ["goals:write"], enabled: true }] }));
+  await writeFile(join(homeDirectory, "config", "mcp-tools.json"), JSON.stringify({ version: 3, action_grants: [{ client_id: "agent:prologue", project_id: projectId,
+    capability_id: "goals.create", version: 1, provider_id: "io.molis.work.goals", permissions: ["goals:write"], enabled: true, generation: "grant-1" }] }));
   const workspace = join(homeDirectory, "coding-card-fixture");
   await mkdir(workspace, { recursive: true });
   const fill = (selector: string, value: string, page: Pick<typeof child, "evaluate"> = child) => page.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);

@@ -55,7 +55,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | **先** | [#1174](https://github.com/molis-ai/molis-work/pull/1174) | Codex：main 红修复——`home-side-surfaces`（VUX-16 灵光侧栏等客户端 ready）与 `work-placement-journeys`（跨项目点击前先听导航） | — | `full` 空，不进批 | 头 `5bbb43186`，交 `ac-review` 优先审；合入后 #1167、#1164、#1165、#1119、#1139、#1148、#1130→#1157 合 main 走 merge-only |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
-| 新 | [#1174](https://github.com/molis-ai/molis-work/pull/1174) | Codex：VUX16真实ready/严格指针和AC3/4点击前导航监听；仅两测试与原spec | main红同步修复，按Claude顺序独立推进 | actual full=[]/storage=[]，不自行全量 | 冻结`5bbb4318697dbef4631e5db3870691c27fff2e94`；正式评审6380942452通过，TEST独立核原日志/完整文件/Pages后段未归因信号中，CI待。修复1已释放；无产品、fixture、断言或超时放宽。Pages旧信号明确TEST/修复1跟进，不列已归因 |
+| 新 | [#1174](https://github.com/molis-ai/molis-work/pull/1174) | Codex：VUX16真实ready/严格指针和AC3/4点击前导航监听；仅两测试与原spec | main红同步修复，按Claude顺序独立推进 | actual full=[]/storage=[]，不自行全量 | 冻结`5bbb4318697dbef4631e5db3870691c27fff2e94`；正式评审6380942452与TEST独立核证通过，CI40070310777待齐；最终重算full/storage/uncovered均空，无需追加本机或全量。修复1已释放；无产品、fixture、断言或超时放宽。Pages旧信号明确TEST/修复1跟进，不列已归因 |
 
 新开的开发片 PR 由统筹按依赖插进本表。
 

@@ -1,10 +1,10 @@
 {
   "giantUnits": 99,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1837,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1829,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1480,
-      "methods": 90
+      "lines": 1472,
+      "methods": 89
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -68,9 +68,9 @@
       "lines": 361,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1084,
+    "file horizontal/memory/src/service.ts": 1082,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 940,
+      "lines": 934,
       "methods": 47
     },
     "class horizontal/placement/src/index.ts#PlacementService": {

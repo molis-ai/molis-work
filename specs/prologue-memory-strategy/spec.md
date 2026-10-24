@@ -1192,3 +1192,14 @@ M3 分类策略跟进最新分类纠正父（2026-10-24）：已合入 #1111 `85
 本轮安装、整体构建、根与工作区类型通过；77/77 普通文件（803/803 项）及16/16浏览器文件（66/66项）零重试通过，含实际Coding HTTP分类策略、当前权限、分类形成、非空分页、分类纠正、CAS23项、Home侧栏与frame就绪及工作台README动线。SDK95来源回归78/78通过；本轮未出现新的测试失败，父链原失败记录保留。boundary、API/Action快照与diff通过。实际27资源共7,804,580 B，只有workbench从父1,202,971 B增至1,205,995 B，恰为原批准3,024 B，另外26项逐项等于父；没有额外资源额度。结果 `/private/tmp/molis-memory-category-parent-integration-20261024.results.json`。合并提交后再跑准确父health、资源与提交级secrets，避免未提交合并仍使用旧merge-base；未运行共享全量或真实付费模型，不代表完整P0或用户验收。
 
 合并产品提交 `1bf858e0e27ef0e7c1338d1d95844412d2c5d7e0` 后，health、资源、提交级secrets及diff均通过，工具确认merge-base正是`825bedbf088d145067e3dde2bc270dd8fe333603`；最终门索引 `/private/tmp/molis-memory-category-parent-integration-final-20261024.results.json`。SDK95 archive、SHA、provenance与patch-history逐blob保持合并前一致，锁文件只有父Cognia新增esbuild的4行。本轮源码没有额外产品修复，来源测试只同步已确认事实。上述是当前切片工程与已覆盖Chrome路径证据，未运行完整共享全量、真人使用或用户验收；toast独立修复不包含在此树。
+
+
+### #1153 接入准确分类父 59cd2caec（2026-10-25，集成验证中）
+
+本轮从已推送 `d148215dca8b44afb6d141770fb6ed941085f735` 合入 #1111 `59cd2caec89acdb79c7db61568983cdb0ec52928`，只完成既有 M3 第三片与新主干的合同接线。保留 generic WorkExecutor/R8 的 owner 从调用上下文派生、MCP v3 设置写主人及本片 recall@2，保留 callback original_input 深复制、后台清除原件证明，同时保留 callback 不暴露 runtime_memory、本轮 memory_context 冻结与当前规则只收紧原许可。设置页仍独立保存 read/form，并保留成功 POST 的真实 prefs，后续刷新失败不能覆盖先保存的规则；不扩分类功能、Session 生命周期或其它 P0 片。
+
+本片已采用 SDK95，不回退新父的 SDK94，也不升到96及以后。保留原 d148 的 vendor 包及全部来源记录；锁文件沿父其余依赖，仅保留本片已存在的 SDK95 integrity。已核现 artifact 为 1,357,865 B、SHA256 `01366516fc80127028d6faeeec0f081fa947e896da74bdcd89d723504e5bd225`，sha512 与 provenance 一致；上游 #95 已合，head `a875be89c2186e79ecf35bf0867a8bac20da1887` 与 merge `00e424b401b97aa16ae3151b146b0eadafef2ecb` 的 Git tree 相同。此处是原已批准依赖的保留，不是新采用。
+
+新父 R8 的严格 runViewOutput 需列出本片既有公开 AgentRunView.class_restrictions 和 memory_scene，供正式 readSession/readRun/wait 返回原 Run 投影；只补已有 DTO，不开放任意字段。正式 AgentStartInput 不含 memory_context/role.memory/class_restrictions，仍拒绝调用方伪造；Host 在调用 adapter 前从 authority.memory 固定 recipe，随后沿既有 memory_context 持久化，不应把可信字段新增为插件输入。回归走正式 AgentHost Actions 与实际 Node SDK 路径，验证发起后 read/wait 保留字段以及身份/冻结策略伪造被拒；原 owner、版本、取消断言不删。API/Action 快照实际生成。
+
+资源只保留本片原批准 workbench +3,024 B，新父基点 1,142,329 B，上限 1,145,353 B，构建后按实测收紧，其他26项不得增长。固定 Node24.14/pnpm11.9 与现缓存 store；构建/浏览器按统筹时段运行，普通 jobs2/browser1/retries0，仅受影响调用链与包README必要定向，不跑全量、不调用真实模型、不操作真实Home。允许本地 merge/fix commit，不push或合并PR；首败保留，工程结果不代替完整P0、独立Toast视觉或用户验收。

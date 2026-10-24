@@ -139,3 +139,36 @@
 ## 5. 下一轮主题
 
 **直接 `import "@prologue/sdk"` 与「模型调用只经 horizontal/agent-host」的存量核对**：包依赖面已抽核（只有 agent-host 依赖 @prologue/sdk，PASS），下一轮做代码级：源码里 `@prologue/sdk` 的 import 分布、vendored 包的使用边界、agent-host 之外是否有绕过（含 vendored 注释/类型引用）、以及 `@prologue/sdk` 公开 API 快照与 `vendor/prologue-sdk` 一致性。若 lead 有新指令则按指令切换。
+
+---
+
+## 6. 第 2 轮（主题 a：`@prologue/sdk` 边界 + AC-AUDIT-06 落实）
+
+> 基准刷新：origin/main `89c9a7194`（#1126，2026-10-23 晚）。`1756f9842..89c9a7194` 只改 `plugins/native/coding/**`、`scripts/gates/page-assets.mjs`、`tooling/gates/page-assets.json` 等 11 个文件，第 1 轮结论不受影响。
+
+### 6.1 主题 a 结论：PASS（无 blocker）
+
+- `@prologue/sdk` 的源码 import 全部在 `horizontal/agent-host`（77 处，覆盖 `src/inference.ts` 与 `src/adapters/prologue-*.ts` 共 31 个文件）；**agent-host 之外 0 个产品源码文件 import**。
+- 依赖声明：唯一声明 `@prologue/sdk` 的 `package.json` 是 `horizontal/agent-host/package.json:29`（`file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz`）；`scripts/workspace-packages.mjs:65` 的 agent-host 条目 `extraDependencies` 是同一条记录；`vendor/prologue-sdk/` 只有 1 份 tgz + `.sha256` + `.provenance.json`（≤2 限制、provenance 相符由 health 门禁覆盖，第 1 轮 `--report` exit 0）。
+- 测试（15 个 `tests/*.test.ts`）直接 import `@prologue/sdk` 构造 fixture：测试不是产品包，不违反「唯一依赖包」硬约束；`tests/test-imports` 门禁只管内部包 → 记为观察，不算违规。
+- 直接模型端点：`plugins/native/images/src/browser/connections.ts:5-6` 的 OpenAI/Gemini 端点只是图片服务的 UI 预置配置（`PRESETS`），插件内无 fetch/HTTP 调用；全仓无 `chat/completions` 等直接调用（tests 里只有 1.1.1.1 fixture 假端点）→ 「模型调用只经 horizontal/agent-host」成立（code-read）。
+- `packages/plugin-sdk/src` 未 re-export `@prologue/sdk` 或任何私有包（grep 0；`packages/plugin-sdk/src/index.ts:83` 只是自己的 packageName 声明）；SDK deps 仅 contracts（第 1 轮 PASS）。
+
+### 6.2 AC-AUDIT-06 复核修正 + 精确删除清单（只读确认，未改代码）
+
+- **更正第 1 轮描述**：不存在 `/api/personal` 路由；`personal` 只是 `apps/local-host/src/web-request.ts` 路由表条目的 id。该条目实际作用：对 build-time 且 `personal: true` 的目录项，把 `/api/plugins/<id>/…` 经 `withRewrittenPluginApi` 重写为 `/api/<id>/…` 后交给 **alchemist** handler；alchemist handler 只认 `/api/alchemist` 前缀（`apps/local-host/src/alchemist-native-plugin-http.ts:18`）。Runtime 插件的 `/api/plugins/<runtime id>/…` 由更早的 `runtimePluginsRoute`（`project-plugin-http.ts`）处理，不经过此桥。
+- **调用方核实**：`handlePersonalNativePluginHttp` 仅被 `apps/local-host/src/web-request.ts:34,206` 与 `tests/personal-plugins-review-fixes.test.ts:46,71,77` 使用；`/api/plugins/<alchemist|plugin-builder>` 前缀在 `apps/workbench`、`apps/desktop`、`apps/local-host`、`plugins/`、`tests/` 中无构造（静态 grep）；`/api/personal` 除 archive spec 的 `/api/personal-assistant` 外无引用。`withRewrittenPluginApi` / `rewriteNativePluginApiPath` 仍被 `apps/local-host/src/functions-http.ts:1,22` 使用（`/api/plugins/functions` ↔ `/api/functions`），测试也钉住其行为 → **`native-plugin-api.ts` 必须保留**。
+- **精确删除清单（PG-058 / W6-01 片，供派修子代理执行）**：
+  1. 删文件 `apps/local-host/src/personal-native-plugin-http.ts`（薄壳：2 个 import + `handlePersonalNativePluginHttp`）。
+  2. `apps/local-host/src/web-request.ts`：删 `:7` `pluginRouteControl` import、`:8` `ActionError` import、`:14` `ALCHEMIST_ACTION_PERMISSIONS` import（三者仅被该路由块使用：grep 计数 2/3/2）；删 `:34` personal handler import；删 `:203-215` 注释 + `const nativePluginRoutes = [ { id: "personal", … } ]`；删 `:298` `...nativePluginRoutes,`。
+  3. `tests/builtin-plugin-assembly-gate.test.ts:55-58`：`NATIVE_PLUGIN_HTTP_FILES` 删 `"personal"`（剩 alchemist/artifact/feed/inbox；名单只减，合法）。
+  4. `tests/personal-plugins-review-fixes.test.ts`：删 `:46` import；`:69-71` `listenDispatcher` 的 `ports` 参数与 `:77` 的 `handlePersonalNativePluginHttp(...)` 调用改为只走 `handleFunctionsHttp`；`:184-189` 的 `rewriteNativePluginApiPath` 断言保留。
+  5. 不需要改 `apps/local-host/src/index.ts`（未导出该文件；grep 确认）。
+  6. 验证：`node scripts/run-tests.mjs tests/builtin-plugin-assembly-gate.test.ts tests/personal-plugins-review-fixes.test.ts tests/security-invariants-plugin-pages.test.ts`；`node scripts/check-health-gates.mjs --base origin/main`（数字只减；必要时同 PR `--update --base origin/main` 刷新 `tooling/gates/baseline.json`）。
+- **预期收益**：冻结名单 −1、宿主 `*-native-plugin-http.ts` 5→4、assembly `hostPluginFiles`/路由表 −1；无对外 API 变化（无客户端调用）。
+- **风险**：仓库外（第三方/用户脚本）若硬编码 `/api/plugins/<alchemist>` 会 404；本仓静态不可见 → 标 **UNVERIFIED（外部调用方）**，建议删除 PR 说明里写明。
+- **HANDOFF-TO-CODEX**：AC-AUDIT-05（context-onboarding-service 直接 import pages/artifacts/todo）按 lead 指示本轮不派修，由统筹转 ac-platform 线处理；本轮只在审计文件保留证据。
+
+### 6.3 下一轮
+
+主题 b（lead 队列）：**privileges/SSOT 全表漂移核对** —— 逐 PG 行对照 main 代码现状，输出「PG 行 → 精确 edit（改状态/改描述/删行）」给统筹批量写；覆盖 PG 状态与代码矛盾、SSOT 矩阵旧描述（128/133/152/216 类）、§7 冲突清单过时项；同时把第 1 轮 4 条文档漂移合并成一份可直接贴的 edit 清单。

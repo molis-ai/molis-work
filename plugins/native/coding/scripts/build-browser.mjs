@@ -13,6 +13,7 @@ const pieces = [
   { out: "writers-bundle.js", module: "writers", create: "writerDirectories" },
   { out: "writer-integration-bundle.js", module: "writer-integration", create: "writerIntegration" },
   { out: "subagent-cards-bundle.js", module: "subagent-cards", create: "subagentCards" },
+  { out: "commands-bundle.js", module: "commands", create: "commandsClient" },
 ];
 
 const shared = { bundle: true, format: "iife", platform: "browser", minify: true, charset: "utf8", logLevel: "warning" };

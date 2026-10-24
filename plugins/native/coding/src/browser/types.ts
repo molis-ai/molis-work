@@ -6,7 +6,7 @@ export type Translate = UiClientTranslate;
 export interface Lifetime {
   readonly alive: boolean;
   readonly visible: boolean;
-  listen(target: EventTarget, name: string, callback: (event: Event) => void): void;
+  listen(target: EventTarget, name: string, callback: (event: Event) => void, options?: boolean | AddEventListenerOptions): void;
   timeout(job: () => void, delay: number): number;
   clearTimeout(timer: number | undefined): void;
   observe<Observer extends MutationObserver | ResizeObserver | IntersectionObserver>(observer: Observer, target: Element, options?: MutationObserverInit): Observer;

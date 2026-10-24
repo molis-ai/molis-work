@@ -49,6 +49,8 @@
 - [prologue-context-strategy](prologue-context-strategy/spec.md)：Prologue Context 的来源预算、trace、新鲜度与压缩剖面；独立需求，需求已整理，待评审后实施。
 - [quiet-home-refresh](quiet-home-refresh/spec.md)：项目首页后台刷新停在当前画面上，日期条和标题没变就不重画，也不先换成「正在读取事项…」；第一次进入和点「重新读取」仍显示加载。2026-10-22，待验收。
 
+- [qa-acceptance-2026-10](qa-acceptance-2026-10/spec.md)：已合入 main 的七条线独立 QA；首轮报告与逐编号判定，待修复复验和用户验收，只报告、不修复。
+
 ## 现行规范
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。

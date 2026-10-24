@@ -14,7 +14,7 @@ import { L } from "../web-locale.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { actionEffect, bindActionClient, type ActionCallContext, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, bindActionClient, type ActionCallContext, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
@@ -40,6 +40,7 @@ import { cancelConnectorAuthorizationsForSession, holdConnectorAuthorizationsFor
 import { retainConnectorSetupsForSession } from "../connector-setup-retain.js";
 import { assistantSetupMaterial } from "./assistant-setup-material.js";
 import { pageChoices } from "./assistant-pages.js";
+import { hostLog } from "../host-log.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -124,7 +125,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     learnFromRound: ({ work, sources, run_id }) => {
       if (!work.session_id) return;
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
-        .catch(error => console.warn("[memory] 没有排上提炼", error));
+        .catch(error => hostLog.warn("memory", "learning_not_queued", error));
     },
     authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
@@ -180,7 +181,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory, assistantThreadRegistration(threads)); }
-  catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }
+  catch (error) { hostLog.warn("assistant", "rule_actions_registration_failed", error); }
   return entry;
 }
 
@@ -196,7 +197,7 @@ export async function assistantNotices(ports: AssistantHttpPorts, surface: strin
   // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
   await service.list();
   // What the person already acted on in its plugin is not news any more.
-  await service.settleHandledNotices().catch(() => 0);
+  await service.settleHandledNotices().catch(error => { hostLog.warn("assistant", "handled_notices_settlement_failed", error); return 0; });
   return service.notices(surface);
 }
 
@@ -377,7 +378,10 @@ async function threadWorkRoute(workId: string, parts: string[], body: Record<str
 function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result: NativePluginJsonResult): void {
   const { service, store } = assistantServiceFor(ports);
   drawAssistantReply(result.body, { say: L, card: card => service.offers.html(card, L),
-    drafts: workId => { try { return questionDrafts(store).read(workId); } catch { return {}; } } });
+    drafts: workId => { try { return questionDrafts(store).read(workId); } catch (error) {
+      if (!(error instanceof ActionError && error.code === "assistant.not_found")) hostLog.warn("assistant", "question_drafts_read_failed", error);
+      return {};
+    } } });
   writeNativePluginJsonResponse(response, result);
 }
 
@@ -398,7 +402,10 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
       // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
       if (error?.code !== "agent.answer_invalid") throw error;
       // Read back with the questions it answered, so each line can name the limit it crossed.
-      const asked = (await service.read(workId).catch(() => undefined))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
+      const asked = (await service.read(workId).catch(error => {
+        if (!(error instanceof ActionError && error.code === "assistant.not_found")) hostLog.warn("assistant", "answer_context_read_failed", error);
+        return undefined;
+      }))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
       throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L, asked) } : undefined);
     });
     drafts.drop(workId, String(body.pending_id ?? ""));

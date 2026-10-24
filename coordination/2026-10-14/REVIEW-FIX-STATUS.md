@@ -262,3 +262,13 @@ lead 对审计结论抽查确认（读 main `8aa62a65b` 的原始文件，GitHub
 - **task-17**（review-fix-owner）：进行中，AC-AUDIT-08/09/10/11 纯文档 PR。
 - **task-16**（plugin-frame-fixes）：#1168 按 ac-review 修别名表收口 + 反向断言 + 正文 affected-tests，进行中。
 - **AC-AUDIT-07 去向（据 MERGE-QUEUE #1169 行）**：统筹已让 #1169 作者删除 `APPROVED_CEILINGS` 里用完的 `issues.js`、`plugin-frame.js` 等条目（与本审计条目同源），本线无需另开清理 PR；`security-invariants.mjs` 正则扩展（AC-AUDIT-08 门禁侧）仍等用户批准。
+
+## #1168 评审修项已推（2026-10-24 07:0x UTC）
+
+- 新 head **`98906bfad`**（普通 push，agent plugin-frame-fixes，task-16）：
+  - `apps/local-host/src/native-plugin-api.ts`：`nativePluginHttpAliases` 只剩 `functions` / `io.molis.work.functions`，删掉按 `BUILTIN_PLUGIN_CATALOG` 的目录循环；导出与 `functions-http.ts` 行为不变。
+  - `tests/personal-plugins-review-fixes.test.ts`：form/pages 两条改反向断言（原样不变），functions 改写断言保留。
+  - PR 正文补 affected-tests（`full` 命中 `apps/local-host/src/web-request.ts`，90 unit，uncovered 空）、删「保持 draft」过时说法。
+- 验证：build、6 个定向 unit 文件全过、2 个浏览器用例、boundary、health --base、secrets 全过；CI run `40068914495` 排队；旧头 run 40065546050 已 success（含 Verify）。
+- 待：新头 Verify 绿 → 请 ac-review 复核该段 diff → 统筹进下一批（审计 AC-AUDIT-06/16 待合入后标 done）。
+- #1114：task-18 修评审项中（正文两句 + locator 测试）；旧头 CI run 40067187885 仍排队，新头会重跑。

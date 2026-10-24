@@ -426,7 +426,7 @@ export declare function definePlugin(definition: PluginDefinition): PluginDefini
 
 export declare function definePollingIntegrationPlugin(input: {
     manifest: PluginManifest;
-    createProvider(context: PluginStartContext): IntegrationProviderPort;
+    createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
     now?: () => Date;
 }): PluginDefinition;
 

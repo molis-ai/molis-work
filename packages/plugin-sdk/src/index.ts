@@ -80,6 +80,7 @@ import type {
   PluginManifest,
   PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-sdk",
@@ -99,9 +100,13 @@ export function definePlugin(definition: PluginDefinition): PluginDefinition {
   return Object.freeze(definition);
 }
 
+/**
+ * An integration plugin that polls a provider. It starts once; `createProvider` is asked again for every source's binding, so what
+ * differs between sources (the connection they hold, their settings) arrives as references and a change needs no restart.
+ */
 export function definePollingIntegrationPlugin(input: {
   manifest: PluginManifest;
-  createProvider(context: PluginStartContext): IntegrationProviderPort;
+  createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
   now?: () => Date;
 }): PluginDefinition {
   if (input.manifest.kind !== "integration") {
@@ -110,10 +115,12 @@ export function definePollingIntegrationPlugin(input: {
   return definePlugin({
     manifest: input.manifest,
     async start(context) {
-      const provider = input.createProvider(context);
       const now = input.now ?? (() => new Date());
       return {
         kind: "integration",
+        bind(binding) {
+          const provider = input.createProvider(context, binding);
+          return {
         connector_driver: {
           driver_id: `${input.manifest.plugin_id}:connector`,
           async health() {
@@ -183,6 +190,8 @@ export function definePollingIntegrationPlugin(input: {
               },
             };
           },
+        },
+          };
         },
       };
     },

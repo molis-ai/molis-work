@@ -38,6 +38,9 @@ function assertKind(manifest: PluginManifest, contribution: PluginContribution):
   if (manifest.kind === "integration" && contribution.kind !== "integration") {
     throw pluginErrors.contribution_kind_invalid("Integration Plugin 必须返回 Integration contribution");
   }
+  if (contribution.kind === "integration" && typeof contribution.bind !== "function") {
+    throw pluginErrors.contribution_kind_invalid("Integration contribution 必须提供 bind(binding)");
+  }
   if (manifest.kind === "app" && contribution.kind !== "app") {
     throw pluginErrors.contribution_kind_invalid("app Plugin 必须返回 app contribution");
   }

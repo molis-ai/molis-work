@@ -124,7 +124,10 @@ export * from "./gmail-oauth.js";
 export { createGithubConnector } from "./github-connector.js";
 export { createGmailConnector } from "./gmail-connector.js";
 export { createCatalogConnector } from "./catalog-connector.js";
-export { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./official-integrations.js";
+export { IntegrationRegistry } from "./integration-registry.js";
+export { homeIntegrationRegistry } from "./builtin-integrations.js";
+export { connectorDirectory } from "./connector-directory.js";
+export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
 

@@ -20,7 +20,7 @@ createGmailIntegrationPlugin 注册 Provider/Adapter；OAuth 处理配置、pend
 | [src/provider.ts](src/provider.ts) | 邮件更新读取 |
 | [src/history-cursor.ts](src/history-cursor.ts) | 历史游标 |
 
-可对照现有调用方 [apps/local-host/src/official-integrations.ts](../../../apps/local-host/src/official-integrations.ts) 阅读装配方式。
+可对照现有调用方 [apps/local-host/src/builtin-integrations.ts](../../../apps/local-host/src/builtin-integrations.ts) 阅读装配方式。
 
 ## 接入与边界
 

@@ -482,7 +482,7 @@ test("a Host start can follow a bundled upgrade that made a required permission 
     type: "x", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
   };
-  const original = createGithubIntegrationPlugin({ provider });
+  const original = createGithubIntegrationPlugin({ providerFor: () => provider });
   const v1: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "1.0.0" } };
   const v2: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "2.0.0",
     permissions: original.manifest.permissions.map((permission, index) => index === 0 ? { ...permission, required: false } : permission) } };

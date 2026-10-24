@@ -82,8 +82,11 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
   kind: "integration";
-  connector_driver: ConnectorDriver;
-  signal_adapter: RawEventAdapter;
+  /**
+   * The driver and the adapter for one source. The plugin is started once and serves every source of its integrations; what
+   * differs between sources arrives here as references (`IntegrationBinding`), so a source's change needs no restart.
+   */
+  bind(binding: import("./plugin-integrations.js").IntegrationBinding): { connector_driver: ConnectorDriver; signal_adapter: RawEventAdapter };
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
 }

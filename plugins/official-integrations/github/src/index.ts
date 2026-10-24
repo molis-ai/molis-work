@@ -3,6 +3,7 @@ import type {
   PluginDefinition,
   PluginManifest,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 
 export { createGithubProvider, githubWhoami, type GithubFetch, type GithubWhoamiResult } from "./provider.js";
@@ -23,7 +24,8 @@ export const githubIntegrationManifest = {
   schema_version: 2,
   plugin_id: "io.molis.work.integration.github",
   // 1.2.0: the account check moved to the connector action `connectors.account.read`.
-  version: "1.2.0",
+  // 1.3.0: declares its connection service and its Feed source (`connection_services`, `integrations`).
+  version: "1.3.0",
   name: "GitHub",
   kind: "integration",
   publisher: {
@@ -42,18 +44,38 @@ export const githubIntegrationManifest = {
   },
   artifacts: { produces: [], consumes: [] },
   ui: { contributions: ["settings.integration.github"] },
+  connection_services: [{
+    service_id: "github",
+    title: "GitHub",
+    group_id: "code",
+    summary: "本机账号。Feed 拉未读通知，可在连接设置中检查账号。",
+    auth_kind: "github",
+    auth: { methods: [{ kind: "oauth" }] },
+    capabilities: [
+      { label: "Feed 拉未读通知", fulfillment: "live" },
+      { label: "在连接设置中检查当前账号", fulfillment: "live" },
+    ],
+    outbound_note: "连接设置可检查当前 GitHub 账号。Agent 可用能力以能力库为准。",
+    // The catalog package keeps the same links for its connection methods until those move into the plugins (W5-11).
+    setup_links: [
+      { label: "创建 Personal Access Token", url: "https://github.com/settings/tokens/new?scopes=notifications,read:user&description=Molis%20Work" },
+      { label: "注册 OAuth App", url: "https://github.com/settings/applications/new" },
+    ],
+  }],
+  integrations: [{ integration_id: "github", kind: "source", service_id: "github" }],
 } as const satisfies PluginManifest;
 
 export function createGithubIntegrationPlugin(input: {
-  provider: IntegrationProviderPort;
+  /** The provider for one source's binding; the Host decides where the credential comes from. */
+  providerFor(binding: IntegrationBinding): IntegrationProviderPort;
   now?: () => Date;
 }): PluginDefinition {
   return definePollingIntegrationPlugin({
     manifest: githubIntegrationManifest,
-    createProvider(context) {
+    createProvider(context, binding) {
       context.requireGrant("network:github.com");
       context.requireGrant("secret:github");
-      return input.provider;
+      return input.providerFor(binding);
     },
     now: input.now,
   });

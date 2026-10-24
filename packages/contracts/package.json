@@ -281,6 +281,10 @@
     "./platform/plugin-connections": {
       "types": "./dist/platform/plugin-connections.d.ts",
       "import": "./dist/platform/plugin-connections.js"
+    },
+    "./platform/plugin-integrations": {
+      "types": "./dist/platform/plugin-integrations.d.ts",
+      "import": "./dist/platform/plugin-integrations.js"
     }
   },
   "files": [

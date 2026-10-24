@@ -80,8 +80,7 @@ export class FeedConnectorSync {
       const updatedAt = new Date().toISOString();
       const errorCode = error instanceof ActionError && error.code.startsWith("listener.")
         && Object.hasOwn(listenerErrors, error.code.slice("listener.".length)) ? error.code : safeErrorCode(error);
-      await this.ports.reportCrash(source.source_id, errorCode);
-      await beforeEffect();
+      // A source's failure is that source's: it is recorded on the source below and never stops the plugin for the others.
       const latest = this.feed.getSource(this.projectId, sourceId);
       this.feed.upsertSource({
         ...latest,

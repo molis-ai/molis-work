@@ -30,10 +30,10 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   }));
-  const base = createGithubIntegrationPlugin({ provider: {
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  } });
+  }) });
   const definition: PluginDefinition = { ...base,
     manifest: { ...base.manifest, plugin_id: "io.molis.work.example.protected-adapter",
       capabilities: { ...base.manifest.capabilities, consumes: [protectedEntry.capability_id] } },
@@ -73,10 +73,10 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
   let failStart = false;
   let failStop = false;
   const contexts: PluginStartContext[] = [];
-  const base = createGithubIntegrationPlugin({ provider: {
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  } });
+  }) });
   const id = "io.molis.work.example.hosted";
   // The 成果 type the plugin pins is named and has a preview of its own (specs/artifact-positioning A1/A7).
   const preview = artifactPreview(id);
@@ -164,7 +164,7 @@ test("compatible Host execution and crash recovery use the implementation versio
     artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) });
   const contexts: PluginStartContext[] = [];
   let failStart = false;
-  const base = createGithubIntegrationPlugin({ provider: { type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; }, async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; } } });
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({ type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; }, async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; } }) });
   const preview = artifactPreview(base.manifest.plugin_id);
   const make = (version: string): PluginDefinition => ({
     ...base,

@@ -1,6 +1,6 @@
 # FI-3 集成登记设计稿（PG-046）
 
-状态：设计稿（2026-10-24），统筹审过方向、提了六条必改（冲突规则、声明不给连接权、C4 的地址校验、`integrationKeyOf` 的位置、四张宿主卡、过渡口），已改入各节，等统筹核一眼；审过再实现，本稿不改代码。事实在 `origin/main` `584112c65` 上读代码核的，没跑过。父稿 [feed-inbox-runtime.md](feed-inbox-runtime.md) §3 D3 定了方向，本稿把它写成能照做的形状，并写清 OAuth 放哪里，让 Codex C4（W5-11）照这份做。号段 RAC-488～491，另有补充条 RAC-519（统筹 10-24 定：Feed/Inbox 组 RAC-480～499 再加 500～519；补充条从 500 段末尾倒着取，免得挤 FI-6 的连号）。
+状态：统筹 10-24 审过（`336fbb6de`「可以照做」），实现已在分支 `claude/ac-feed-inbox-designs` 上写好、未开 PR（PR 排在 BL-490 与 FI-2 之后）；实现与本稿的差别记在 §7。事实在 `origin/main` `584112c65` 上读代码核的，没跑过。父稿 [feed-inbox-runtime.md](feed-inbox-runtime.md) §3 D3 定了方向，本稿把它写成能照做的形状，并写清 OAuth 放哪里，让 Codex C4（W5-11）照这份做。号段 RAC-488～491，另有补充条 RAC-519（统筹 10-24 定：Feed/Inbox 组 RAC-480～499 再加 500～519；补充条从 500 段末尾倒着取，免得挤 FI-6 的连号）。
 
 ## 1. 现状
 
@@ -56,7 +56,7 @@ integrations?: readonly {
 - 一个服务可以被两个集成用：notion 既是 Feed 来源（`notion`，`source`）也是文档导入（`notion-documents`，`document_import`）；`google-docs` 是文档导入，用 `google-drive` 的账号。这就是 D3 说的「用 `kind` 区分」。
 - 只在目录里出现、没有 Feed 来源也没有导入的服务（今天 `feed_available:false` 的那些）只声明 `connection_services`，不声明 `integrations`。
 - 声明服务的插件就是这张目录卡的主人；「连接器目录」不再是单独的主人，`CONNECTOR_DIRECTORY_BASE` 的 `...CATALOG_CONNECTORS.map` 展开消失，改由已装插件的声明拼。
-- 平台自己消费的连接服务（今天的 model-api、typesafe、image-api、mcp-bearer 四张宿主自带卡）写成**平台的一份声明列表**，与插件声明同形、进同一个登记（持有者记为 `platform`），不按名字分支。Catalog 保持**一个**插件，声明 39 个服务和相应的集成；Manifest 的这几十条由包里的描述（`catalog.ts` 的 `spec(...)`）生成，`manifest.json` 与生成结果逐字相等由构建检查，不手抄。
+- 平台自己消费的连接服务（今天的 model-api、typesafe、image-api、mcp-bearer 四张宿主自带卡）写成**平台的一份声明列表**，与插件声明同形、进同一个登记（持有者记为 `platform`），不按名字分支。Catalog 包今天给**每个连接器**出一份自己的 Manifest（`catalogIntegrationManifest(connectorId)`，`plugin_id` 为 `io.molis.work.integration.<连接器>`），各自声明自己的服务和集成，由包里的描述（`catalog.ts` 的 `spec(...)`）生成，不手抄；`google-docs` 的文档导入归 `google-drive` 的那份 Manifest 声明（用它的账号）。（初稿写成「一个插件声明 39 个服务」，与代码不符，已按实际改。）
 
 ### 3.2 登记：一个 Home 一份
 
@@ -133,3 +133,11 @@ C4 的验收号由它自己定，本稿 §3.4 的六条是它的前置约定。
 - Home 监督器或共用 Runtime 装 `kind: "integration"` 的方式（3.3 末条）。
 - 九处 `createLocalFeedApplication` 构造点里，哪些会各自 `new` 登记；改成取同一份 Home 登记后，测试夹具里注入 `providerFactory` 的写法怎么保留（`tests/plugin-runtime-integration.test.ts`、`tests/connector-reconnect-regressions.test.ts`）。
 - `plugin-sdk` 的 `definePollingIntegrationPlugin` 与 `PluginIntegrationContribution.bind` 的合同影响写进 PR（API 快照、`docs/system/CONTRACT-CHANGES.md`）。
+
+## 7. 实现记录（与本稿的差别）
+
+- **`help` 提到服务一级**：Manifest 里 `auth_help` 写在 `connection_services[]` 上，不放在 `token` 方式里。Loom 没有令牌可填、只走 MCP，它的帮助文字没有地方放；目录卡的 `auth_help` 本来也是整张卡的。`token` 方式只剩 `label`、`placeholder`。
+- **Loom 的卡**：声明 `auth.methods: [{ kind: "mcp" }]`，不再有空的 `token_label`/`token_placeholder`（目录里这两个字段从 `""` 变成没有；界面用 `card.token_label || 默认文字`，显示不变）。目录其余 45 张卡与改前逐字相同（改前目录的 JSON 快照比对）。
+- **方式数据的回退**：`connectorMethodsOf(声明)`：平台的表（宿主自带卡、目录包的官方方式表）有这个服务就用表；没有的服务（外部插件声明的）只给声明里的 `token` 方式，没有声明 `token` 就没有方式。OAuth、MCP、CLI 的数据仍在平台表里，等 W5-11。
+- **外部插件的定义怎么进登记**：`IntegrationRegistry.enable(定义)` 对内置与外部一视同仁，目前只有内置清单（`builtin-integrations.ts`）调它；已装的外部集成插件定义从哪里加载进 Home 登记，是安装路径的事，不在本片（BL-530）。
+- **留在宿主里的按名字分支**：`feed-connector-sync.ts` 的 `sourceMetadata` 仍按 `sync_kind` 选账号展示函数（BL-528）；`artifact-document-import.ts` 里 CLI 登录只对 `feishu` 放行的一句（BL-529）；`integration-providers.ts` 的三选一是点名的过渡口（PG-045 后删，主人 ac-kernel）。

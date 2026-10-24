@@ -20,7 +20,6 @@ export interface FeedConnectorSyncPorts {
     signal: Pick<SignalRecord, "signal_id" | "revision">,
     occurredAt: string,
   ) => void | Promise<void>): Promise<FeedConnectorListener>;
-  reportCrash(sourceId: string, errorCode: string): Promise<void>;
   sourceMetadata(source: FeedSourceRecord, cursor: unknown): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never>;
   transaction<T>(operation: () => T): T;
   appendEvent(projectId: string, sourceId: string, type: string, reason: string, payload: Record<string, unknown>): void;

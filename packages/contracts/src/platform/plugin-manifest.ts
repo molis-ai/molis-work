@@ -161,6 +161,10 @@ export interface PluginManifest {
   image_generation?: import("./plugin-image-generation.js").PluginImageGenerationDeclaration;
   /** v2: places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
   connections?: import("./plugin-connections.js").PluginConnectionsDeclaration;
+  /** v2: the services whose accounts this plugin works with and the cards shown for them (PG-046). Declaring one gives no right to any connection. */
+  connection_services?: readonly import("./plugin-integrations.js").PluginConnectionServiceDeclaration[];
+  /** v2: what this plugin does with those services: pull a Feed source, or import a document (PG-046). */
+  integrations?: readonly import("./plugin-integrations.js").PluginIntegrationDeclaration[];
   /** v2: kept jobs and commands the platform may wake for this installation. */
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** Complete, callable capabilities registered with the system action service. */

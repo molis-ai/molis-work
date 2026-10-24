@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import test, { after, type TestContext } from "node:test";
@@ -69,12 +70,17 @@ test("the service lets go of the project's runtime before the directory moves, a
   await assert.rejects(service.deleteProject(home, { ...deletion(project.project_id), delete_confirmed: false }), { code: "catalog.delete_confirmation_required" });
   assert.deepEqual(ports.released, [], "an unconfirmed request does not touch the runtime");
 
+  // The project's Runtime pick (BL-372) is a row in the project's own database: deleting the project takes it with the file, and the Home keeps no copy.
+  const database = new DatabaseSync(project.database_path);
+  database.exec(`CREATE TABLE project_runtime_settings (project_id TEXT PRIMARY KEY, runtime_id TEXT); INSERT INTO project_runtime_settings VALUES ('${project.project_id}', 'picked-engine')`);
+  database.close();
+
   const result = await service.deleteProject(home, deletion(project.project_id));
   assert.equal(result.deletion.cleanup_state, "complete");
   assert.equal(result.deletion.actor_id, "test-user", "the receipt records the actor the door gave");
   assert.deepEqual(ports.released, [project.database_path]);
   assert.deepEqual(observed, [true], "the runtime was released while the project still existed");
-  assert.equal(existsSync(project.database_path), false);
+  assert.equal(existsSync(project.database_path), false, "the file, with the Runtime pick in it, is gone");
 
   // A project that is already deleted replays its receipt: nothing is asked of the terminals or the runtime again.
   const asked = ports.asked.length;

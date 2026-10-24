@@ -1,5 +1,6 @@
 import { bindCharactersActions, CHARACTERS_ACTIONS, createCharactersActionHandlers, openCharacters, type CharacterCallGuard, type CharactersActionPorts, type CharactersActionRuntime, type CharactersAgentCatalog, type CharactersService } from "@molis-ai/molis-work-module-characters";
 import { hostLog } from "./host-log.js";
+import { ProjectRuntimeSettings } from "./project-runtime-settings.js";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, characterErrors, parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ArtifactsQueryApi, ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { agentHostCapabilities, type AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -26,6 +27,7 @@ export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSp
 export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, capabilities: () => Pick<LocalHostProjectClient, "invoke">): ActionProviderRegistration {
   return charactersProvider(runtime, characterActionPorts(options, LOCAL_PERSON_ACTOR_ID, runtime.project_id, runtime.artifacts.query), {
     listRuntimes: () => capabilities().invoke(agentHostCapabilities.listRuntimes, []),
+    pickedRuntime: () => new ProjectRuntimeSettings(runtime.store.db).read(runtime.project_id),
     listActions: runtimeId => capabilities().invoke(agentHostCapabilities.listActions, [runtimeId, CHARACTER_PLUGIN_ID]),
   });
 }

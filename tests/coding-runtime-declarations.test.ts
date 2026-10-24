@@ -46,7 +46,7 @@ async function environment(runtimes: AgentRuntimeDescriptor[], catalog?: Charact
     content: { kind: "inline", payload: content as never } }));
   const sessions = codingSessions(store);
   for (const runtime of runtimes) await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: runtime.runtime_id, title: runtime.runtime_id, runtime_id: runtime.runtime_id, at: new Date().toISOString() });
-  const starts: AgentStartRequest[] = []; let created = 0;
+  const starts: AgentStartRequest[] = []; let created = 0, picked: string | null = null;
   const project = pluginActions(store, DEMO_PROJECT_ID);
   project.registry.registerProvider(charactersProvider({ project_id: DEMO_PROJECT_ID, artifacts: library, processItems: new ProcessItemsModule(ports) }, {
     actorId: "web-user", drafts: personal.service, publish: (id, revision, publisher) => personal.service.publish(id, revision, publisher),
@@ -55,6 +55,7 @@ async function environment(runtimes: AgentRuntimeDescriptor[], catalog?: Charact
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === agent.listRuntimes.capability_id) return runtimes as Output;
+      if (definition.capability_id === projectSettingsCapabilities.runtime.capability_id) return picked as Output;
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }] as Output;
       if (definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id || definition.capability_id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "reader", available: true }] as Output;
@@ -72,7 +73,11 @@ async function environment(runtimes: AgentRuntimeDescriptor[], catalog?: Charact
       method, ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) });
     return { status: result.status, body: await result.json() };
   };
-  return { project, request, starts, created: () => created, ref: { artifact_id: `character:${DEMO_PROJECT_ID}:${draft.character_id}`, version: 1 },
+  return { project, request, starts, created: () => created, pick: (runtimeId: string | null) => { picked = runtimeId; },
+    post: (path: string, body: unknown) => fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+      .then(async result => ({ status: result.status, body: await result.json() })),
+    newSession: () => fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "新会话" }) })
+      .then(async result => ({ status: result.status, body: await result.json() })), ref: { artifact_id: `character:${DEMO_PROJECT_ID}:${draft.character_id}`, version: 1 },
     start: (id: string, character: unknown) => request(id, "/runs", "POST", { task: "做点什么", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", character }),
     close: async () => { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); personal.close(); store.close(); rmSync(home, { recursive: true, force: true }); } };
 }
@@ -80,7 +85,7 @@ async function environment(runtimes: AgentRuntimeDescriptor[], catalog?: Charact
 test("RAC-451 Characters' action catalog is the Home default Runtime's, asked by its id; no engine that takes action tools means no actions", async () => {
   const view = { capability_id: "fixture.act" } as ActionView, asked: string[] = [];
   let engines: AgentRuntimeDescriptor[] = [];
-  const env = await environment([runtime("any-engine")], { listRuntimes: async () => engines, listActions: async id => { asked.push(id); return [view]; } });
+  const env = await environment([runtime("any-engine")], { listRuntimes: async () => engines, pickedRuntime: () => null, listActions: async id => { asked.push(id); return [view]; } });
   const context = { actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: [...charactersActions.actions.action.permissions] };
   const catalog = async () => ((await env.project.client.invoke(context, charactersActions.actions, {})) as { actions: unknown[] }).actions;
   try {
@@ -125,4 +130,46 @@ test("RAC-453 the state names the Runtime a new session runs on, and no source o
     }
   }
   assert.deepEqual(found, []);
+});
+
+test("RAC-455 a project that picked a Runtime runs new sessions on it; when it is no longer offered a new session is refused naming it, nothing is recorded, and going back to the default recovers", async () => {
+  const runtimes = [runtime("first-engine", {}, ["skills", "mcp"]), runtime("second-engine", {}, ["skills", "mcp"])];
+  const env = await environment(runtimes);
+  try {
+    const sessions = async () => ((await env.request("", "")).body.sessions as unknown[]).length;
+    const base = await sessions();
+    assert.equal((await env.newSession()).body.session.runtime_id, "first-engine", "no pick: the Home default");
+    env.pick("second-engine");
+    assert.equal((await env.newSession()).body.session.runtime_id, "second-engine", "the project's pick, though it is not the Home default");
+    assert.equal((await env.request("", "")).body.project_runtime_id, "second-engine");
+    const before = await sessions();
+    runtimes.splice(1, 1);
+    const refused = await env.newSession();
+    assert.equal(refused.status, 503, JSON.stringify(refused.body));
+    assert.match(JSON.stringify(refused.body), /second-engine.*项目设置/, "it names the Runtime and points to the project's settings");
+    assert.equal(await sessions(), before, "the refusal left no session behind"); assert.equal(env.created(), 0);
+    assert.equal((await env.request("", "")).body.project_runtime_id, null, "no other Runtime stands in for it");
+    assert.equal((await env.post("/mcp", {})).status, 503, "the project's MCP servers are refused the same way");
+    env.pick(null);
+    assert.equal((await env.newSession()).body.session.runtime_id, "first-engine", "the default again");
+    assert.equal(await sessions(), before + 1); assert.ok(before > base);
+  } finally { await env.close(); }
+});
+
+test("RAC-456 Characters' action catalog follows the project's pick, and is empty when the pick is gone: no other engine's actions stand in for it", async () => {
+  const view = { capability_id: "fixture.act" } as ActionView, asked: string[] = [];
+  let picked: string | null = null;
+  const engines = [runtime("first-engine", { supports_action_tools: true }), runtime("second-engine", { supports_action_tools: true })];
+  const env = await environment([runtime("any-engine")], { listRuntimes: async () => engines, pickedRuntime: () => picked, listActions: async id => { asked.push(id); return [view]; } });
+  const context = { actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: [...charactersActions.actions.action.permissions] };
+  const catalog = async () => ((await env.project.client.invoke(context, charactersActions.actions, {})) as { actions: unknown[] }).actions;
+  try {
+    picked = "second-engine";
+    assert.deepEqual(await catalog(), [view]);
+    picked = "gone-engine";
+    assert.deepEqual(await catalog(), []);
+    picked = null;
+    assert.deepEqual(await catalog(), [view]);
+    assert.deepEqual(asked, ["second-engine", "first-engine"], "the pick, then the Home default; the gone pick asked nobody");
+  } finally { await env.close(); }
 });

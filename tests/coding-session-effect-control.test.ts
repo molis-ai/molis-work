@@ -7,6 +7,7 @@ import test from "node:test";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginCapabilityClient, PluginDatabase, PluginHostServices, PluginPrivateStorage, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PROJECT_DATABASE, CodingSessionStore, createCodingPlugin, type CodingBeforeEffect } from "@molis-ai/molis-work-plugin-coding";
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
@@ -139,6 +140,7 @@ const runtimes = () => [{ runtime_id: "prologue", display_name: "prologue", capa
 const directory = (): PluginCapabilityClient => ({
   availability: () => ({ available: true }),
   async invoke<Input, Output>(definition: { capability_id: string }): Promise<Output> {
+    if (definition.capability_id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
     if (definition.capability_id !== agent.listRuntimes.capability_id) throw new Error(`unexpected capability ${definition.capability_id}`);
     return runtimes() as Output;
   },

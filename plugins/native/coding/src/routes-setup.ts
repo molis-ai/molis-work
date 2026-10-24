@@ -6,7 +6,7 @@ import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import { codingActionControl } from "./route-entry.js";
 import { text } from "./run-inputs.js";
-import { libraryRuntime, limitsCharacters } from "./runtime-choice.js";
+import { libraryRuntime, limitsCharacters, runtimeDirectory } from "./runtime-choice.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -42,7 +42,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.save-mcp", async (request, api) => {
       const body = bodyOf(request);
       // The project's Runtime holds its MCP servers; one whose matrix offers none refuses before anything is read or kept (PG-054).
-      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "mcp");
+      const runtime = libraryRuntime(await runtimeDirectory(api!), "mcp");
       const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
         transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
       if (input.transport === "stdio") {
@@ -59,7 +59,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.control-mcp", async (request, api) => {
       const action = bodyOf(request).action;
       if (!["connect","disconnect","cancel","remove"].includes(String(action))) throw codingFailure("coding.server.mcp-action");
-      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "mcp");
+      const runtime = libraryRuntime(await runtimeDirectory(api!), "mcp");
       await api!.invoke(agent.controlMcp, [runtime.runtime_id, context.plugin_id, text(request.params.serverId,"coding.field.mcp-server"), action as "connect" | "disconnect" | "cancel" | "remove"]);
       return { accepted: true };
     });
@@ -68,7 +68,7 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.discover-methods", async (request, api) => {
       const body = bodyOf(request);
-      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "skills");
+      const runtime = libraryRuntime(await runtimeDirectory(api!), "skills");
       const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
       const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
       if (!workspace?.realpath_verified) throw codingFailure("coding.server.pick-workspace");
@@ -79,14 +79,14 @@ const ROUTES: RouteMaker[] = [
   (a) => {
     const { context, route } = a;
     return route("coding.install-method", async (request, api) => {
-      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "skills");
+      const runtime = libraryRuntime(await runtimeDirectory(api!), "skills");
       return { method: await api!.invoke(agent.installSkill, [runtime.runtime_id, context.plugin_id, text(bodyOf(request).candidate_id, "coding.field.candidate")]) };
     });
   },
   (a) => {
     const { context, route } = a;
     return route("coding.read-method", async (request, api) => {
-      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "skills");
+      const runtime = libraryRuntime(await runtimeDirectory(api!), "skills");
       const ref = methodSelection([{skill_id: request.params.skillId, version: Number(request.params.version)}])[0]!;
       return { method: await api!.invoke(agent.readSkill, [runtime.runtime_id, context.plugin_id, ref]) };
     });

@@ -167,9 +167,20 @@ test("folder membership and the browsing choice are project settings: they work 
     assert.equal((await (await call("/api/project-settings/workspaces", "GET")).json() as { selected: string | null }).selected, workspace.workspace_id);
     const unknown = await call("/api/workspaces/workspace-unknown/unlink", "POST", { user_confirmed: true });
     assert.equal(unknown.status, 404);
+    // BL-372: the project's Runtime pick is the same kind of setting. No pick is the Home default; a pick that is not offered is kept and
+    // reported with its name, so it can be changed or put back; only a Runtime id or null is a pick.
+    const picked = async (body?: Record<string, unknown>) => (await call("/api/project-settings/runtime", body ? "POST" : "GET", body)).json() as Promise<{ runtimes: Array<{ runtime_id: string }>; selected: string | null; problem: string | null }>;
+    const initial = await picked();
+    assert.deepEqual([initial.selected, initial.problem], [null, null]);
+    assert.ok(initial.runtimes.length >= 1, "the Runtimes that can host a session are listed");
+    const gone = await picked({ runtime_id: "gone-engine" });
+    assert.equal(gone.selected, "gone-engine");
+    assert.match(gone.problem ?? "", /gone-engine.*项目设置/);
+    assert.equal((await call("/api/project-settings/runtime", "POST", { runtime_id: 5 })).status, 400);
+    assert.deepEqual([(await picked({ runtime_id: null })).selected, (await picked()).problem], [null, null]);
     // The capability library lists them for the person who may run them, like any other action.
     const library = await (await fetch(`${origin}/capabilities/library?project=${encodeURIComponent(project.project_id)}`)).text();
-    for (const title of ["关联工作目录", "修复工作目录路径", "解除工作目录", "选择浏览工作区"]) assert.ok(library.includes(title), `${title} is in the library`);
+    for (const title of ["关联工作目录", "修复工作目录路径", "解除工作目录", "选择浏览工作区", "选择项目运行时"]) assert.ok(library.includes(title), `${title} is in the library`);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });

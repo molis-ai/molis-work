@@ -8,7 +8,7 @@ import { codingError, codingFailure, codingText } from "./words.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { nextConfiguration, runControl, text } from "./run-inputs.js";
-import { projectRuntime, requireProjectRuntime, supports } from "./runtime-choice.js";
+import { projectRuntime, requireProjectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
 import { roundAfterParkedAnswer, startRound } from "./start-round.js";
 import type { CodingSessionRecord } from "./store.js";
@@ -26,10 +26,10 @@ const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found",
 // The directory reads current facts without changing any persistent record or starting background execution.
 const readState = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context } = a;
-  const runtimes = await api.invoke(agent.listRuntimes, []);
+  const directory = await runtimeDirectory(api), { runtimes } = directory;
   const sessions = await readCodingSessions(a, execution, beforeWrite);
   // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
-  const { runtime: library } = projectRuntime(runtimes);
+  const { runtime: library } = projectRuntime(directory);
   const methods = library && supports(library, "skills") ? await api.invoke(agent.listSkills, [library.runtime_id, context.plugin_id]) : [];
   const mcp = library && supports(library, "mcp") ? await api.invoke(agent.listMcp, [library.runtime_id, context.plugin_id]) : [];
   return { sessions, methods, mcp, models: execution.models.list(),
@@ -86,8 +86,8 @@ const ROUTES: RouteMaker[] = [
     const { projectId, route } = a;
     return route("coding.create-session", async (request, api, execution, beforeWrite) => {
       const body = bodyOf(request);
-      // The first Runtime in the platform's directory that can host a session; with none, the session is refused and nothing is created.
-      const runtime = requireProjectRuntime(await api!.invoke(agent.listRuntimes, []));
+      // The project's picked Runtime, else the first one in the platform's directory that can host a session; with none, the session is refused and nothing is created.
+      const runtime = requireProjectRuntime(await runtimeDirectory(api!));
       const record = await execution.sessions.create(beforeWrite, { project_id: projectId, session_id: crypto.randomUUID(),
         title: text(body.title ?? DEFAULT_SESSION_TITLE, "coding.field.session-title"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
       return { session: record };

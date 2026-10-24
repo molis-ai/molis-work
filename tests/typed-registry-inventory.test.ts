@@ -12,8 +12,10 @@ import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-a
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
+// The project's Runtime pick (BL-372) is registered for every project, whether or not the Host knows folders.
+const runtimeEntries = [projectSettingsCapabilities.runtime, projectSettingsCapabilities.selectRuntime];
 const workspaceEntries = [projectsCapabilities.listWorkspaces, projectsCapabilities.readWorkspace,
-  ...Object.values(projectSettingsCapabilities)];
+  ...Object.values(projectSettingsCapabilities).filter(entry => !runtimeEntries.includes(entry as never))];
 const internalServices = [...Object.values(agentHostCapabilities)];
 // Git's and the parallel writers' Host side: eight plugin-only actions (PG-035), no longer typed entries.
 const gitHostActions = [prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
@@ -62,6 +64,7 @@ test("W3-07-9-01: absent workspace wiring registers none of its five actions and
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "unopened-project.db"), projectId: DEMO_PROJECT_ID });
   try {
     assert.deepEqual(keys(host.status().capabilities), keys(internalServices));
+    for (const definition of runtimeEntries) assert.ok(host.status().capabilities.find(entry => entry.capability_id === definition.capability_id)?.action, definition.capability_id);
     for (const definition of workspaceEntries) {
       assert.ok(!host.status().capabilities.some(entry => entry.capability_id === definition.capability_id), definition.capability_id);
       const availability = host.client(ref).availability(definition);

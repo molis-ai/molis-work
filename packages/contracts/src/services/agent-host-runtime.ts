@@ -65,6 +65,22 @@ export const hostsAgentSessions = (runtime: AgentRuntimeDescriptor): boolean =>
 /** The Home default Runtime: the first one in the Runtime directory's order that hosts sessions, or none. A project that picks its own Runtime overrides it. */
 export const defaultAgentRuntime = (runtimes: readonly AgentRuntimeDescriptor[]): AgentRuntimeDescriptor | null => runtimes.find(hostsAgentSessions) ?? null;
 
+/** The Runtime a project's sessions run on: the one the person picked in the project's settings, else the Home default; with none, why. */
+export type ProjectRuntimeResolution =
+  | { readonly runtime: AgentRuntimeDescriptor; readonly picked: boolean }
+  | { readonly runtime: null; readonly picked: boolean; readonly reason: string };
+
+/** A pick the directory no longer offers, or that cannot host a session, resolves to none and says so: it is never replaced by another Runtime. */
+export function resolveProjectRuntime(runtimes: readonly AgentRuntimeDescriptor[], pickedId: string | null): ProjectRuntimeResolution {
+  if (pickedId === null) {
+    const first = defaultAgentRuntime(runtimes);
+    return first ? { runtime: first, picked: false } : { runtime: null, picked: false, reason: "宿主还没有可用的运行时" };
+  }
+  const picked = runtimes.find(runtime => runtime.runtime_id === pickedId);
+  if (picked && hostsAgentSessions(picked)) return { runtime: picked, picked: true };
+  return { runtime: null, picked: true, reason: `项目选定的运行时「${picked?.display_name ?? pickedId}」现在不可用，请在项目设置里改选，或恢复为默认运行时` };
+}
+
 export interface AgentRuntimeHealth {
   ok: boolean;
   status: AgentRuntimeHealthStatus;

@@ -93,6 +93,7 @@ export const codingManifest: PluginManifest = {
       workspaceReadActions.git.capability_id,
       projectSettingsCapabilities.workspaces.capability_id,
       projectSettingsCapabilities.browsingWorkspace.capability_id,
+      projectSettingsCapabilities.runtime.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
     ],

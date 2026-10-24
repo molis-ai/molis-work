@@ -46,7 +46,7 @@ import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import {
   agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
-  projectProbeRoutes, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
+  projectProbeRoutes, projectRuntimeRoute, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
   workspaceMembershipRoute,
 } from "./web-project-platform-routes.js";
 
@@ -265,6 +265,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 /** Inside the project's open runtime, tried in this order; the last entry answers every address the project does not have. */
 const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   projectWorkspacesRoute,
+  projectRuntimeRoute,
   projectWriteCheckersRoute,
   pluginStudioRoute,
   // Characters is the Host's own surface (CHR-1) under its old plugin prefix, so it answers before the Runtime's plugin routes.

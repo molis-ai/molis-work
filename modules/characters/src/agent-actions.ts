@@ -1,17 +1,19 @@
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
-import { defaultAgentRuntime, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { resolveProjectRuntime, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** What Characters asks the built-in Agent about: which engines exist and which actions an engine may call, as the platform answers it. */
 export interface CharactersAgentCatalog {
   listRuntimes(): Promise<readonly AgentRuntimeDescriptor[]>;
+  /** The Runtime the person picked in the project's settings, or null for the Home default. */
+  pickedRuntime(): Promise<string | null> | string | null;
   listActions(runtimeId: string): Promise<readonly ActionView[]>;
 }
 
-/** The actions the built-in Agent may be given: those of the Home default engine; empty when it does not take action tools or none can host a session. */
+/** The actions the built-in Agent may be given: those of the project's engine (its pick, else the Home default); empty when it does not take action tools or none can host a session, and when the pick is gone: no other engine's actions stand in for it. */
 export async function agentActionCatalog(agent: CharactersAgentCatalog | undefined): Promise<readonly ActionView[]> {
   if (!agent) throw new Error("内置 Agent 能力目录尚未接通");
-  const runtime = defaultAgentRuntime(await agent.listRuntimes());
+  const { runtime } = resolveProjectRuntime(await agent.listRuntimes(), await agent.pickedRuntime());
   if (!runtime?.supports_action_tools) return [];
   return agent.listActions(runtime.runtime_id);
 }

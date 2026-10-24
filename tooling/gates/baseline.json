@@ -1,5 +1,5 @@
 {
-  "giantUnits": 101,
+  "giantUnits": 99,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1842,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -176,17 +176,12 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1094,
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 225,
     "class plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow": {
       "lines": 654,
       "methods": 40
     },
     "file plugins/native/shelf/src/client.ts": 1641,
-    "class plugins/native/todo/src/store.ts#TodoStore": {
-      "lines": 378,
-      "methods": 28
-    },
     "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 233,
     "file plugins/native/workflows/src/client.ts": 1329,
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013,
@@ -196,7 +191,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 435,
+  "testInternalImports": 423,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -231,8 +226,7 @@
     "tests/assistant-followups.test.ts": 2,
     "tests/assistant-island-script.test.ts": 1,
     "tests/assistant-memory.test.ts": 1,
-    "tests/assistant-mentions.test.ts": 2,
-    "tests/assistant-methods.test.ts": 3,
+    "tests/assistant-methods.test.ts": 1,
     "tests/assistant-tool-words.test.ts": 3,
     "tests/assistant-turns.test.ts": 1,
     "tests/assistant-undo.test.ts": 1,
@@ -383,13 +377,11 @@
     "tests/shelf-settings.test.ts": 1,
     "tests/side-panel-assistant-surface.test.ts": 2,
     "tests/side-panel-browser.e2e.test.ts": 3,
-    "tests/side-panel-platform.test.ts": 5,
+    "tests/side-panel-platform.test.ts": 3,
     "tests/soft-workbench-refinement.test.ts": 2,
     "tests/system-agent-service.test.ts": 1,
     "tests/system-functions-actions.test.ts": 2,
-    "tests/system-search-assistant.test.ts": 2,
-    "tests/system-search-host.test.ts": 2,
-    "tests/system-search-lifecycle.test.ts": 4,
+    "tests/system-search-lifecycle.test.ts": 2,
     "tests/tab-reorder.test.ts": 5,
     "tests/tab-split-drop.test.ts": 5,
     "tests/tab-strip-share.test.ts": 3,
@@ -907,7 +899,7 @@
     "packages/im-ui/src/browser/controller.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 160,
+  "unknownCastsTotal": 156,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -957,7 +949,6 @@
     "plugins/native/ppt/src/artifact-preview.ts": 1,
     "plugins/native/ppt/src/store.ts": 1,
     "plugins/native/todo/src/organize.ts": 1,
-    "plugins/native/todo/src/store.ts": 4,
     "plugins/native/workflows/src/store.ts": 1,
     "scripts/contextual-slice/client.ts": 2,
     "server/src/im/reads.ts": 6,

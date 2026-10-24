@@ -2,7 +2,7 @@ import { ACTION_REFERENCE_SCHEMA, ACTION_SCENE_TARGETS_SCHEMA, withActionEffect 
 import type { ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord, FunctionDraftPatch, FunctionRecord, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsActionPorts } from "./actions.js";
-import { assertReadyToPublish } from "./store.js";
+import { assertReadyToPublish } from "./record-rules.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };

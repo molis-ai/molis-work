@@ -139,18 +139,18 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
   // card offers 「打开」 and 「撤销」, whose undo stays on the Host behind a token. Without an undo it comes back as a draft, shown
   // as a card. Choosing it again for the same thing sends the same request, which its owner makes once.
   const made = new Map();
-  const create = (focus, candidate) => {
-    const id = focus.context_id + "\n" + candidate.key, held = made.get(id) || { request_id: newRequestId() };
+  const create = (focus, candidate, requestId) => {
+    const id = focus.context_id + "\n" + candidate.key, held = made.get(id) || { request_id: requestId || newRequestId() };
     if (held.busy) return;
     made.set(id, held); held.busy = true;
     if (made.size > 20) made.delete(made.keys().next().value);
-    post("/api/contextual/create", { focus, ...landing.with(focus), key: candidate.key, request_id: held.request_id }).then((out) => {
+    post("/api/contextual/create", { focus, ...landing.with(focus), ...(candidate.intake_id ? { intake_id: candidate.intake_id } : { key: candidate.key }), request_id: held.request_id }).then((out) => {
       if (!out.created) { made.delete(id); return suggestCard(focus, candidate, out.draft); }
       const place = globalThis.molisPlacement, title = out.draft.summary || "", actions = [];
       if (out.subject) actions.push({ label: L("打开"), primary: true, run: () => place.describe({ ...out.subject, project_id: document.body.dataset.projectId || null }, true).then((view) => view.open && place.openObject(view.open)) });
       if (out.undo_token) actions.push({ label: L("撤销"), run: () => post("/api/contextual/undo", { undo_token: out.undo_token })
         .then(() => { made.delete(id); place.card(L("已撤销"), title, [], "done"); }, (error) => place.card(L("没能撤销"), error, [], "error")) });
-      place.card(L("已{verb}", { verb: candidate.title }), title, actions, "done");
+      place.card(L("已{verb}", { verb: candidate.title || out.draft.title }), title, actions, "done");
     }).catch((error) => { made.delete(id); bar.error(error); }).finally(() => { held.busy = false; });
   };
   const suggestCard = async (focus, candidate, offer) => {
@@ -225,6 +225,31 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       if (prepared) void deliver(focus, { ...candidate, scope: "object" }).then(fallback => { if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback)); });
     },
   };
+  // A control on a plugin's page that names a creation entry (data-context-intake="todo") puts the object that page shows
+  // into it: the surface says which plugin and which kind it opens (what the plugins declare as their search sources), the control
+  // gives the object's id, title and words, and the entry's own provider drafts and makes it, as for a choice on the bar. The same
+  // object asks the same request, which the entry's owner makes once, so a second click finds the first.
+  document.addEventListener("molis:context-intake", (event) => {
+    const detail = event.detail || {}, surface = event.target instanceof Element ? event.target.closest("[data-work-surface]") : null;
+    const intake = typeof detail.intake_id === "string" ? detail.intake_id : "", id = typeof detail.id === "string" ? detail.id : "";
+    if (!surface || !intake || !id) return;
+    const title = String(detail.title || "").trim().slice(0, 200), text = String(detail.text || "").slice(0, 4000);
+    known().then((declared) => {
+      const entry = declared[surface.getAttribute("data-work-surface")];
+      if (!entry) throw new Error(L("这个页面还没有声明它的对象，不能放进去"));
+      const focus = starters.focusFor({ plugin_id: entry.plugin_id, object: { kind: entry.kind, id, ...(title ? { title } : {}) }, draft_text: text || title });
+      if (!focus) throw new Error(L("没有可以放进去的内容"));
+      // The Host finds the creation entry by its declared id among what is offered for exactly this object, and refuses when it is gone.
+      create(focus, { key: "intake:" + intake, intake_id: intake, title: "" }, ("intake:" + intake + ":" + entry.kind + ":" + id).slice(0, 120));
+    }).catch((error) => bar.error(error));
+  });
+  document.addEventListener("click", (event) => {
+    const control = event.target instanceof Element ? event.target.closest("[data-context-intake]") : null;
+    if (!control || control.disabled || event.defaultPrevented) return;
+    event.preventDefault();
+    const data = control.dataset;
+    control.dispatchEvent(new CustomEvent("molis:context-intake", { bubbles: true, detail: { intake_id: data.contextIntake, id: data.contextId, title: data.contextTitle, text: data.contextText } }));
+  });
   document.addEventListener("molis:assistant-starters-request", (event) => {
     const detail = event.detail || {};
     starters.request(detail.context, typeof detail.request_id === "string" ? detail.request_id : "");

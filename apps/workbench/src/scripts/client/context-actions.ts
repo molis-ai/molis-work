@@ -118,11 +118,12 @@ const PANE_PART = String.raw`  const L = host.translate;
 
   if (host.surfaceOnly) return;
 
+  // What the plugins declare as their search sources: surface → the one kind it opens and the plugin that owns it. Read once.
+  let surfaces = null;
+  const known=()=>surfaces||(surfaces=molisWorkRequest(host.route("/api/contextual/surfaces")).then(value=>value.surfaces||{}).catch(()=>{surfaces=null;return {};}));
   // A surface opened an item (the workbench's molis-work:select-item) but did not name it: name it from what the
   // plugins declare as their search sources (surface → kind), so its text can be acted on like any declared object.
   (() => {
-    let surfaces = null;
-    const known=()=>surfaces||(surfaces=molisWorkRequest(host.route("/api/contextual/surfaces")).then(value=>value.surfaces||{}).catch(()=>{surfaces=null;return {};}));
     const read = (node) => { try { return JSON.parse(node.getAttribute("data-assistant-context") || "null"); } catch { return null; } };
     const namedItself = (context) => Boolean(context && context.object && context.named_by !== "workbench");
     // Items a surface said it could not read (molis-work:item-unreadable): never named after the tab, so the Assistant

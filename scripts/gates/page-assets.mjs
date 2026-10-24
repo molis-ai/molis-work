@@ -238,6 +238,12 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
+  // R11 (RAC-135/136): Inbox and 灵光 hand the object to Todo's creation entry instead of Todo-shaped attributes, so the source no
+  // longer carries its own `open`; Todo asks the host which surface opens the source's object kind (+102 bytes, 53955 → 54057),
+  // and 灵光's button carries the words on screen as one text (+24 bytes, 26094 → 26118). Trimmed once to the smallest equivalent.
+  // The workbench side fell by 398 bytes, the shared frame by 1146 and the stylesheets by 314 each.
+  "/assets/molis-work-plugins/todo.js": [53955, 54057],
+  "/assets/molis-work-plugins/lingguang.js": [26094, 26118],
   // Shelf S4: keep a partial-success warning and refresh link visible when sample restoration fails.
   // Shared success text and button handling reduce duplication; reviewed growth is 1190725 → 1191104 (+379).
   "/assets/molis-work-workbench.js": [1190725, 1191104],

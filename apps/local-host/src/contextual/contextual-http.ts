@@ -14,7 +14,7 @@ import { resolvePrologueInference } from "../prologue-inference-host.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
 import { prepareAttach, runAttach, type ConfirmReferences } from "./contextual-attach.js";
-import { chosenCandidate } from "./contextual-choice.js";
+import { chosenCandidate, intakeKey } from "./contextual-choice.js";
 import { createChosen, undoCreated } from "./contextual-create.js";
 import { draftRequest } from "./contextual-draft.js";
 import { contextualErrors, invalid, readJudgeRequest, readString } from "./contextual-request.js";
@@ -186,8 +186,13 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     // A creation entry chosen on the bar: created at once when its owner declared how it is undone, else drafted for a card.
     if (route === "create") {
       const actions = ports.actions(), { focus, landing } = readJudgeRequest(body);
-      sendJson(response, 200, await whileWaited(response, async signal => createChosen({ project: ports.scope, actor: ports.actor_id }, await actions.discover(), focus, landing,
-        readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), { actions, ports: draftPorts(ports.homeDirectory), signal })));
+      // A page that names the entry by the id its owner declared (`intake_id`) instead of a key it never saw listed.
+      sendJson(response, 200, await whileWaited(response, async signal => {
+        const views = await actions.discover();
+        const key = body.intake_id === undefined ? readString(body.key, "key", 80) : intakeKey(views, focus, landing, readString(body.intake_id, "intake_id", 80));
+        return createChosen({ project: ports.scope, actor: ports.actor_id }, views, focus, landing, key, readString(body.request_id, "request_id", 120),
+          { actions, ports: draftPorts(ports.homeDirectory), signal });
+      }));
       return true;
     }
     // The page only hands back the token: a body that names anything else (an undo, its input) is refused (S-40).

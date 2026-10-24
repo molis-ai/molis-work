@@ -189,6 +189,7 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
     projectTitle(): string;
     route(path: string): string;
     pluginRoute(path: string): string;
+    surfaceFor(kind: string): string | null;
     readRefusal(status: number, code: unknown): string;
     confirmBox(dialog: Dialog, ok: Element, run?: () => Promise<unknown>): Promise<boolean>;
     interaction(card: Element, options: {

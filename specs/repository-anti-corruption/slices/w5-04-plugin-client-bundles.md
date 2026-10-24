@@ -42,11 +42,11 @@
 
 | 片 | 验收编号 | 备注 |
 | --- | --- | --- |
-| Todo R11（Inbox/灵光转待办走通用交接，工作台不再认识 Todo 的输入） | RAC-135～137 | 在灵光片之前 |
+| Todo R11（Inbox/灵光转待办走通用交接，工作台不再认识 Todo 的输入） | RAC-135～137 | 在灵光片之前；见 [r11-intake-generic-handoff.md](r11-intake-generic-handoff.md) |
 | Issues | RAC-138～139 | |
 | Jelly | RAC-140～141 | |
 | Images | RAC-142～143 | 翻译半边 #751 已做，只补 W5-04 的打包 |
 | Cognia | RAC-144～145 | 不动 `*actions.ts`（#1117） |
-| 灵光 | RAC-146～147 | 不动 `*actions.ts`（#1117）；其客户端碰 `data-make-todo`，排在 R11 之后 |
+| 灵光 | RAC-146～147 | 不动 `*actions.ts`（#1117）；其客户端原先碰 `data-make-todo`，R11 已改成通用的创作入口按钮，排在 R11 之后 |
 
 积压编号：BL-455～459。BL-455 只保留 Todo 宿主动态翻译的来源，按字体皮肤语言书 §6.1 的真实合同接通后逐类删除；10 条跨主人借词、1 条死键及核实无 Todo 翻译调用的 8 条旧键在本片清理。

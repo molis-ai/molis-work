@@ -37,7 +37,9 @@ export interface FrameConfig {
   recordRow?: FramePack["recordRow"];
   surface: string;
   pluginId: string;
-  nativeFiles: boolean; todoAvailable: boolean;
+  nativeFiles: boolean;
+  /** Object kind → the one surface that opens it, from what the plugins declare; a kind that is not unique is left out. */
+  subjectSurfaces: Readonly<Record<string, string>>;
   stage: { title: string; description: string };
   shortcuts: string[];
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
@@ -63,7 +65,7 @@ export type FrameUp =
   | { type: "embed-close"; id: number }
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
   | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number } | { type: "refresh-shell" }
-  | { type: "make-todo"; id: number; input: {title: string; sources: Array<{kind: string; title: string; excerpt: string; reason: string; subject: {kind: string; id: string}; open: {surface: string; id: string}}> } }
+  | { type: "context-intake"; intake_id: string; id: string; title: string; text: string }
   | { type: "copy"; id: number; text: string }
   | { type: "draft"; id: number; key: string; value?: string | null }
   | { type: "shortcut"; keys: string } | { type: "close-side" }
@@ -84,7 +86,6 @@ export type FrameDown =
   | { type: "embedded"; id: number; error?: string }
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "document"; id: number; html?: string; error?: string }
-  | { type: "todo-made"; id: number; item?: {id: string; title: string}; replayed?: boolean; error?: string }
   | { type: "copied"; id: number; error?: string }
   | { type: "draft-result"; id: number; value?: string | null; error?: string }
   | { type: "native-files-done"; id: number; error?: string }

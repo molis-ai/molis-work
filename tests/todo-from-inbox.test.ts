@@ -16,28 +16,25 @@ const entry = (status: InboxUiEntry["status"]): InboxUiEntry => ({
   available: true, open: { kind: "feed", item_id: "item-1" }, attention_rank: 1, suggested_behavior_ids: [],
 } as InboxUiEntry);
 
-test("an Inbox entry offers 转为待办 whether or not it is handled, carrying what the todo keeps; the status line is where the result shows", () => {
+test("RAC-135 an Inbox entry offers 转为待办 whether or not it is handled, naming the creation entry and the entry itself; nothing names Todo's own input", () => {
   for (const status of ["open", "done"] as const) {
     const html = renderInboxWorkbench({ route_prefix: "", entries: [entry(status)], filter: "active" as never,
       primitives: { escape, icon: () => "", text: value => value, formatDate: value => value } });
-    const button = /<button[^>]*data-make-todo="inbox"[^>]*>/u.exec(html)?.[0] ?? "";
+    const button = /<button[^>]*data-context-intake="todo"[^>]*>/u.exec(html)?.[0] ?? "";
     assert.ok(button, status);
-    assert.match(button, /data-make-todo-id="entry-1"/u);
-    assert.match(button, /data-make-todo-subject="inbox_entry"/u);
-    assert.match(button, /data-make-todo-surface="inbox"/u);
-    assert.match(button, /data-make-todo-title="回复&quot;供应商&quot;报价"/u, "标题转义后放进属性");
-    assert.match(button, /data-make-todo-reason="你从 Inbox 转为待办"/u);
-    assert.match(html, /data-inbox-detail="entry-1"[^>]*data-make-todo-scope/u);
-    assert.match(html, /data-inbox-action-status data-make-todo-status/u);
+    assert.match(button, /data-context-id="entry-1"/u);
+    assert.match(button, /data-context-title="回复&quot;供应商&quot;报价"/u, "标题转义后放进属性");
+    assert.doesNotMatch(html, /data-make-todo/u, "页面不再写待办的来源格式");
   }
 });
 
-test("灵光 offers 转为待办 from its editor; its client script parses (the button is filled from what is on screen)", () => {
+test("RAC-135 灵光 offers 转为待办 from its editor; its client script parses (the button is filled from what is on screen)", () => {
   const html = renderLingguangWorkbench({ primitives: { escape, text: value => value } });
-  assert.match(html, /data-make-todo-scope/u);
-  assert.match(html, /<button[^>]*data-lingguang-todo data-make-todo="lingguang" data-make-todo-subject="lingguang_spark" data-make-todo-surface="lingguang" data-make-todo-reason="你从灵光转为待办">转为待办<\/button>/u);
-  assert.match(html, /data-lingguang-note data-make-todo-status/u);
+  assert.match(html, /<button[^>]*data-lingguang-todo data-context-intake="todo">转为待办<\/button>/u);
+  assert.doesNotMatch(html, /data-make-todo/u);
   assert.doesNotThrow(() => new Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT});`));
+  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /dataset\.contextId = selected\.id/u, "the button carries the spark that is on screen");
+  assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /makeTodo/u);
 });
 
 test("a todo made from an Inbox entry or a 灵光 keeps it as its source; converting the same one again finds that todo; unknown kinds are refused", async t => {

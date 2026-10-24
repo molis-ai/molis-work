@@ -280,6 +280,14 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ plugin_id, object: { kind, id } }; ASSISTANT_SURFACE_CHANGED_EVENT (services/assistant)";
     readonly summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.";
 }, {
+    readonly name: "molis:context-intake";
+    readonly kind: "request";
+    readonly owner: "context-actions";
+    readonly on: "element";
+    readonly bubbles: true;
+    readonly detail: "{ intake_id, id, title, text }";
+    readonly summary: "A control on a plugin's page (`data-context-intake`) asks to put the object it holds into the creation entry `intake_id`. Sent on the control, or on the surface that holds the plugin's frame; the surface says which plugin and which kind of object it is, and the entry's own provider drafts and makes it.";
+}, {
     readonly name: "molis:context-panel-open";
     readonly kind: "request";
     readonly owner: "context-toolbar";

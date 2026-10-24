@@ -1,6 +1,6 @@
 # 防腐 PR 专职会话分工
 
-状态：2026-10-24 21:42 UTC 交付接续核实。顶部当前角色/合同覆盖下方带日期的历史快照；源码以固定PR/head、公开认领和原始证据为准。
+状态：2026-10-24 22:48 UTC 交付接续核实。顶部当前角色/合同覆盖下方带日期的历史快照；源码以固定PR/head、公开认领和原始证据为准。
 
 一骏最新纠偏：“整体还是听Claude统筹，可以从他那领取独立任务处理，不一定只解决问题和review问题，可以与他组织好领取独立任务，分配1-2个独立任务实现的session。”此前组织合并、持续接续评审与全部有效意见修复的要求保留。Claude是整条防腐线的总统筹，决定任务范围、优先级、跨线依赖和全量排期；下表Codex流水线职责只在Codex侧执行，不能替代Claude。
 
@@ -13,10 +13,10 @@
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
 | 修复1 | 专职修复1 · Codex，gpt-6.1-sol/max | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | 9a已双PASS/吸入931；当前Root START1250/d4 blocker+6nonblock，唯一6390172876，独立pr1250-trust-fixes已落六项、公共build中 | 仅官方host/unsigned hunk待Claude6390190197，R48另属FI3工厂；其余照做，不启T2/W5-11，不覆盖1245 schema/1246清理，固定后直双核 |
 | 修复2 | 专职修复2 · Codex，gpt-6.1-sol/max | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | 1246/d428已双PASS待carrier；Root接回1112三P2，完整新PR1253/22537bd078fabda259b751d18134b287b42be55e，6files70/-10，已原非UI FIRST6390374472/TEST直交 | Skill构建期范围/PG060→RAC84映射/真实Files冷热证据，不启BL388/不重开1112/不重复六图；1250 elements27与本题60独立hunk，C2五MCP消费者避让，不泛停 |
-| 修复3 | Root单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | 1248 actual/1249-516双PASS交35；当前Root START resident UUID单题，独立931树受控红3/4已取，CLI真management号正确，后续discover可把观察尾项冲掉 | 只test/原spec10.7观察归属修，保无号management必须失败/目录无号对照，不过滤undefined/不先改ALS或造scope；不混C2新fallback，固定后直双核/Claude自然结束吸收安排 |
-| 修复4（源码/独立阶段已交） | Root单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | 1244/07f5双PASS/源CI14绿，流水线6390299069一次普通队列40138486257接actual | full=[]，原53有效并集与首败/HTTP真缺口范围保留；恢复树仅07 detached clean/无依赖dist热缓存，不为恢复额外build；完整C1未关 |
+| 修复3（本题source/独立阶段已交） | Root单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | resident观察候选6b35734d9264be5f36257467b33d4d82ac52918d(parent931)已REVIEW6390493503/TEST6390527348双PASS，2files34/-5 | 真实management来源归属保无号必须失败，红3/4→绿4/4，fixture/production/kernel零改；旧CI因果UNKNOWN，不混C2。唯一Claude吸收/CI/适用full待，不推carrier/新PR/full |
+| 修复4（本片actual已闭） | Root单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | 1244 fixed07已22:31:33Z actual52560f32c5dec529315d11eff95932c2ea1d7dff，queue40138486257/Verify121006218732成功；7源路径actual零diff/tree0d0b=真实trial | 原53有效并集和首败范围保留。F4已官方归档恢复cold树/目录条目均无，保/tmp证据/原C1-b0d未动；完整C1未关，可由Root派下一明确题 |
 | 修复5（本题source/定向双核已交） | Root单题专职，gpt-6.1-sol/max | 01a16f24-7a33-76f2-80b4-f20c55006d09 | 1245修后e34b9130681e9d803c343d090fb958493d939f85，27files1048/-128，REVIEW6390234023/TEST6390259895定向PASS/source冻结释放 | 严格helper3诊断未过且无old基线；剩余Feed/Goals/Host/full及真实维护/S9-2保留。1250/1245真实schema/四dump/维护版本同carrier保两方，不冒整S9或防腐完成 |
-| 修复6 | Root单题专职，gpt-6.1-sol/max | 01a16fa8-53d9-7622-8169-0c424357366c | 1247/a7双PASS已35吸收；当前1251四nonblock已一次push267ffa225ea1630fe3a9a50bf34559068ce2f4c5，9files42/-38，16unique122作者绿，REVIEW6390380705 PASS/TEST最终待 | 原123归因/3browser未认证，需PR正文同步删旧文件/归因措辞，原作者不返修；同hunkcarrier解、不动C2 argv/A6/gate，首boundary执行失序保留不采最终 |
+| 修复6（本题source/独立阶段已交） | Root单题专职，gpt-6.1-sol/max | 01a16fa8-53d9-7622-8169-0c424357366c | 1251固定267f四项双PASS6390380705/6390400572，16unique122，最终正文纯metadata重写已实际fetch比对一致；source冻结释放 | 原123归因/raw未认证/3browser与组成full保留，mergeable=true非Ready/actual，真实carrier保C2/1241等hunk，不启A6/新full |
 | 两来源最终闭环（已交付归档） | 专职合并｜PR 1109、1112 收尾 · Codex | 01a16f02-8e7e-7a92-8976-fb7befe916fd | #1236已actual bde02c59；实际树/包含核实后仅1109/1112已19:05关闭，6388316807/6388317402；本人已向Root交付并官方归档该专职 | 未重复queue/full、未动原树；1223已原Claude6388301030关闭，旧三nonblock现FIX2新1253待首评/TEST，不因专职完成关闭整线 |
 | 独立实现 C1 / C3 / C4准备 | 专职实现1（完整原owner保持）· Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | Gmail516已35吸收；横向1252固定8abab965c1f75bfb1ae1f695530a5d1a1312309f，15files533/-412/source释放，TEST6390184579 PASS/Claude FIRST6390137797待接 | C4原授权短准备已完，基FI3现实现缩3项WO待Claude6390280424，收到即实施不等旧CI/full/不自定信任，C1/C3完整未关 |
 | 独立实现 C2 | 专职实现2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | 原337自然328/9、原raw保留；62files暂存/重建后目标20+真实MCP等已过，正修memory preflight同步失败尚无业务资源时异步释放引起下一入口busy，仅相关复验 | 技术presence/原Alchemist立即closing+其余链并行等、Memory→SDK/全成功后lease守住；五MCP fixture转resident/无fallback、错误码提前storage busy按A更新；未提交PR/不当完整A/C2通过，不碰真Home |

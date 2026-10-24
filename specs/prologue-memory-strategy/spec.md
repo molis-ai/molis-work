@@ -2175,3 +2175,16 @@ DB维护只在隔离非空副本：会话`/private/tmp/molis-coding-lifecycle-ma
 根类型、boundary、API/Action快照实核、精确702b health均exit0，日志同`/private/tmp/molis-memory-coding-restore-{root-types,boundary,contract-check,health-final}-20261025.log`；API未变，仅actions.tsv五项预期变更（三新增及两旧升版）。首health仅缺DB既有维护表单行登记，统筹扩入allowlist后补记录通过，不改门。准确702b实测27资源7,676,659→7,677,992 B，仅Coding.js378,514→379,847 B（+1,333）；其余26逐项相同，JSON `...-assets-head-20261025.json`及父原`/private/tmp/molis-assistant-archive-ui-final-assets-20261025.json`。正式资源门exit1保留`...-assets-gate-first-20261025.log`：新Coding+1333，另父Workbench+4064已获用户批准但本树未登记；不挪额度、不放行。统筹在最新聚合准确父重测后统一处理。本树仅本地可审查候选，根会话决定后续协议范围与合入；不得把局部通过或维护演练当完整交付。
 
 本地候选源码/失败记录提交 `980194bb0aa34f17aca4fa4740aac92c0ea1ba4e`，准确父702b；22允许路径、唯一新文件session-lifecycle.ts，提交后520新增行secret扫描exit0（`...-secrets-committed-20261025.log`）、提交态根类型再次exit0（`...-root-types-committed-20261025.log`）、diff check0。最后Local接线状态下effect-control/actions两整文件14/14通过（`...-direct-final-20261025.log`），此前21/21、两DB各6/6与未变README有效证据分层复用，不重跑42批或新增browser。按实际唯一文件去重共47：45个通过，两个失败如上，不能称全部工程门或恢复闭环通过。未push/新PR，build/browser槽已释放；仅交统筹可审查候选与尚未批准的临时协议提案。
+
+
+### #1101 项目删除与 Coding 恢复候选集中集成（2026-10-25）
+
+聚合生产提交 `b244d2202` 已接入基础 `71d345f5f`、项目删除候选 `b603fdb68` 和 Coding 恢复候选 `980194bb0`/结果 `ac0a4e30f`，继续同一 #1101，不另开微型 PR。仅本 spec 追加和库维护表两条独立记录冲突，双方均保留；装配中的 projectDeletion、当前 Runtime/Character 入口、Coding lifecycle/public actions 自动合并后已核实际调用链。Catalog 22→23、Coding 自有库 1→2 的严格拒旧与隔离维护证据保留，不自动维护真实 Home。
+
+固定 Node24.14/pnpm11.9 整体构建、根类型、准确基础71d health（含API与库版本登记）、boundary 和真实临时Host动作快照通过。初次 build 仅被 Swift 模块缓存权限拒绝；原日志保留，在取得缓存访问后同命令通过，未改构建参数。15份定向交叉回归143/143首轮通过，jobs2/browser1/retries0，覆盖项目删除固定计划/恢复、SDK生命周期、Coding归档/恢复、原件、动作和两库严格版本。文件级结果 `/private/tmp/molis-memory-p0-consolidated-delta-results-20261025.json`，原日志同前缀 `-delta-20261025.log`，构建与静态日志同前缀保存。此前 Coding 原件夹具首败已在聚合正确冻结策略后通过；不能据此消除以下独立反例或原失败。
+
+实际27资源7,678,780 B，workbench.js仍1,166,999 B，coding.js为379,783 B；相对已验5cba只有Coding增加1,333 B，其余26相同。已有Assistant +4,064 B批准与登记保留；新Coding增长尚未获批准，资源门保持失败，不借旧额度放行。测量 `/private/tmp/molis-memory-p0-consolidated-assets-report-20261025.json`。本轮未再跑已知红的Demo owner及Coding恢复浏览器，保留各自原证据，等真实修复后复验；未触发新的应用Full suite。
+
+新增独立恢复反例必须关闭：真实Coding完成Run后，SDK archive已成功但响应丢失，业务仍active且当前生命周期决定pending；新title PATCH却返回200，随后原确认retry和preview均409，业务archived=false/pending=true。最小公开入口诊断 `/private/tmp/molis-coding-lifecycle-pending-independent-red-20261025.log` 明确失败，探针 `/private/tmp/molis-coding-lifecycle-pending-independent-probe-20261025.ts` 仅在/tmp保留、未入正式测试集。不得删除原observed字段或忽略变更来恢复；须由业务owner用已有持久pending事实保护会改变原决定的后续写入/启动，修复后验证同原件重试与他Session独立性。
+
+当前仍为可审查候选：项目删除 raw SDK orphan（P1）和 Demo skip-all（P2）未关闭；新SDK在线预览的独立评审另复现损坏metadata.scope被Registry.scan跳过、正文仍在却报完整空页，需修复并重新验包后才能采用。Coding恢复会触发额外Knowledge整理的因果反例仍阻塞零模型验收，跨模块最小合同提案等待用户决定，不擅自缩窄模型计数或保留规则。上述已知失败、未批准资源及完整P0验收未关闭，因此保持Draft，尚不可合并。

@@ -33,3 +33,15 @@
 ## 本会话边界
 
 - 不入队/不取出/不写 MERGE-QUEUE §3（本状态文件除外）；修复者只动各自 PR 分支；不取消 CI、不 force push、不改门禁脚本、不跑全量。
+
+## 巡查结果（review-pr-fixer 只读扫全 23 个 open 非 draft PR，2026-10-24 03:20Z）
+
+- **A 无人认领待修（4）**：
+  1. #1112 `0c0c0039d` DIRTY — 一轮「修后可合」2 条 + 规格板 (b) + RAC-80～84 + 合 main；Codex 17:57Z 认领后无推送（>2h）。已在本 PR 询问统筹是否收回改派（[6379225105](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6379225105)）。
+  2. #1107 `b8b5e3304` CLEAN — 二轮可合，但试合 batch-19 与 main 冲突 3 文件（web-goals-read.ts / renderer-gap-en.ts / baseline.json）；统筹 02:34Z 要求作者按 #1098→#1107 顺序合 main，至今无认领/推送。属 W5-06 叠放链，归作者/Codex。
+  3. #1109 `8921d80b2` DIRTY — 零评论零结论、12h 无活动；需先合 main 再排队评审（拟报统筹安排评审，修复线不擅动）。
+  4. #1157 `782af05ed` — batch-1024-19 shard 7/16 唯一红 `tests/web-home-isolation.test.ts:53`（断言 `sessions/sessions.db` 存在，SC-4b 已删该库建表；确定性失败）；已评论上报（[6379181179](https://github.com/molis-ai/molis-work/pull/1157#issuecomment-6379181179)），**已派 ci-failure-owner 认领修该测试**。
+- **B 等评审派单**：0。
+- **C 有人在修**：#1130（Codex 专职修复1，机械同步认领 03:16Z）、#1147（ac-review 可合，统筹要求 Codex 先认领再同步）。
+- **D 等队列/叠放/草稿**：#1098/#1151/#1150/#1119/#1139/#1120/#1148/#1159 等入队或批；#784 最后收尾；#1143/#1144 仍 ready 但按统筹要求应转草稿（提醒）。
+- 本会话修复线：#1114 `11649e983` CI 排队（run 40056381607）；#1141 `034056a26` CI 排队（run 40056614086）；#1126/#1127 已有「专职增量评审可合」结论（#1127 Codex 已入队）；#1125/#1128 等 ac-review 一轮；#1135 draft 待一轮结论。

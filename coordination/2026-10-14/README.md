@@ -3590,3 +3590,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24：#1158 合入（privileges.md 第 4 批）；PRIVILEGES-PENDING 清空已写的行；工作树 ac-priv4 与分支已删。
 - 10-24：#1156（BL-394）合入 `dd7df26e4`。
 - 10-24：#1137（Images 客户端）合入 `4e5f91a19`，#1142（Todo 激活声明测试）合入 `1cc9cfee7`。
+- 10-24：#1116 合入 `585b15979`。

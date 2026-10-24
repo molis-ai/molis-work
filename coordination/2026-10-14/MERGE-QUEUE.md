@@ -88,5 +88,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1156 | `dd7df26e4` | 10-24 02:46 UTC（统筹入队） |
 | #1137 | `4e5f91a19` | 10-24 02:48 UTC |
 | #1142 | `1cc9cfee7` | 10-24 02:48 UTC（统筹入队） |
+| #1116 | `585b15979` | 10-24 03:02 UTC（统筹入队；产品运营事实基线，非防腐线） |
 
 | 39 | [#1157](https://github.com/molis-ai/molis-work/pull/1157) | `ac-sc3` SC-4b：清 SC-4 三项残留（BL-485 Codex 会话适配器、BL-486 `session_id`、BL-488 依赖） | **叠在 #1130 上**（第二层），#1130 合入后改投 main | `full` 非空（shared-core），进下一批 | 头 `782af05ed`；二轮可合；在 **batch-1024-19**（统筹起，10-24 03:35，run [40054696653](https://github.com/molis-ai/molis-work/actions/runs/40054696653)：main `aa4de404f` + #1157 `782af05ed`（含 #1130 `f7fb96ed6`）+ #1148 `2a8eec5d8`）；#1130 合入、改投 main 后合 |

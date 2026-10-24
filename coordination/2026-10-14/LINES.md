@@ -17,6 +17,15 @@
 | `ac-review`（Sonnet xhigh，只读） | 一轮评审 | — | — |
 | Codex | 修复、二轮、测试与集成批；C1 W5-13 | C2 W5-16 → C3 W5-10 官方集成与横向服务 | — |
 
+> **10-24 晚派单（统筹，以此为准，上表是旧写法）**：
+> - `ac-coding` → **ac-trust 实现**：先 BL-563，再 T1（合同、规则、新表、基线升版本、S-34 改写），之后 T3→T6→T2→T4→T5→T8；T7 的界面统筹排。PG-037、PG-044 已核过、随 batch-34 标已做。
+> - `ac-giants` → **ac-artifacts 实现**：A2→A4→A7 的非目录部分；A3、A6 等 ac-registry 的 PG-024 片；A5 和 A7 的目录部分等用户的维护时段。
+> - `ac-sandbox-sched` → **Feed/Inbox 迁到 Runtime**（`slices/feed-inbox-runtime.md`，RAC-480～499）：FI-1 #1247 在修；FI-2 等 #1242 合入；FI-3、FI-4 先写设计稿交统筹审（D3 按插件 Manifest 声明集成；D4 用 Feed 的 Home 一半记引用账）；BL-490 等 #1241 合入。
+> - `ac-clients-1` → **W5-04 第三组**（Coding、Diff、text-stats 的客户端，样式按需加载），之后写 PG-055 设计稿（SDK 公开界面部件）。
+> - `ac-kernel` → S-57 X1～X4 合成一个 PR（等 #1242 二轮、#1241 合入后合 main、S 号排 S-68～70）；然后 R-38 第 2 片。
+> - `ac-sc3` → Goals S9-0b #1245（统筹把对象种类隔离升为挡合并，Codex 在修）；S9-1 等 #1245 过一轮；S9-2 等维护时段。
+> - 待开线：`ac-registry`（W5-02，PG-024 片挡着 ac-artifacts 的 A3/A6），下一条线空出来就开。
+
 ## 1a. 在途但不在上表任何一条线里的 PR
 
 | PR | 谁在推 | 管的 PG 行 |

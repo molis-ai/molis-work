@@ -1,8 +1,8 @@
 import { defineErrorCodes, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginCapabilityClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, agentOfferActions, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { draftActionCard, type ActionCard, type ActionCardPorts, type ActionCardRefusal, type CardStore } from "@molis-ai/molis-work-plugin-sdk";
-import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
+import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import type { CodingSessionRecord } from "./store.js";
 
 /**
@@ -66,13 +66,13 @@ function cardStore(context: PluginStartContext, sessionId: string, beforeWrite: 
 }
 
 /** What a session's card runs and is checked with: the round's suggestions, as the Agent Host runs them. */
-export function codingCardPorts(context: PluginStartContext, api: PluginCapabilityClient, record: CodingSessionRecord, card: Pick<CodingActionCard, "offer_id" | "run_id">,
+export function codingCardPorts(context: PluginStartContext, record: CodingSessionRecord, card: Pick<CodingActionCard, "offer_id" | "run_id">,
   beforeWrite: CodingBeforeWrite, timeZone?: string): ActionCardPorts<CodingActionCard> {
   const runtimeSession = record.runtime_session_id ?? "";
   return { store: cardStore(context, record.session_id, beforeWrite), readSubject: async () => null, now: () => new Date(), ...(context.project_id ? { projectId: context.project_id } : {}), ...(timeZone ? { timeZone } : {}),
     refuse: (reason, message) => codingCardErrors[REFUSALS[reason]](message),
     authority: async () => ({
-      discover: () => api.invoke(agent.listActions, [record.runtime_id, context.plugin_id]),
+      discover: () => codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]),
       // The Agent Host checks the input against the action's own contract in `agent.offers.run`, before anything runs.
       check: () => {},
       invoke: async (reference, input) => (await context.services!.actions!.invoke(agentOfferActions.run, { runtime_id: record.runtime_id, session_id: runtimeSession,
@@ -85,13 +85,13 @@ export function codingCardPorts(context: PluginStartContext, api: PluginCapabili
  * now, written only after the call's own check (`beforeWrite`). A suggestion whose action is no longer offered (access
  * revoked, the action switched off) lands nothing; a later read tries it again.
  */
-export async function landRoundOffers(context: PluginStartContext, api: PluginCapabilityClient, record: CodingSessionRecord, runs: readonly AgentRunView[],
+export async function landRoundOffers(context: PluginStartContext, record: CodingSessionRecord, runs: readonly AgentRunView[],
   beforeWrite: CodingBeforeWrite, persist = false): Promise<CodingActionCard[]> {
   const held = sessionCards(context, record.session_id), known = new Set(held.map(card => card.offer_id));
   const offers = runs.flatMap(run => (run.offers ?? []).filter(offer => !known.has(offer.offer_id)).map(offer => ({ offer, run_id: run.ref.run_id })));
   if (!offers.length) return held;
   let views: readonly ActionView[];
-  try { views = await api.invoke(agent.listActions, [record.runtime_id, context.plugin_id]); } catch { return held; /* Nothing offered to this round now: nothing lands. */ }
+  try { views = await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]); } catch { return held; /* Nothing offered to this round now: nothing lands. */ }
   const drafted: CodingActionCard[] = [];
   for (const { offer, run_id } of offers) {
     try {
@@ -110,8 +110,8 @@ export async function landRoundOffers(context: PluginStartContext, api: PluginCa
 }
 
 /** The rounds read, each with its own cards beside it (landed first), so a card that changed resends its round to the page. */
-export async function runsWithCards(context: PluginStartContext, api: PluginCapabilityClient, record: CodingSessionRecord, runs: readonly AgentRunView[],
+export async function runsWithCards(context: PluginStartContext, record: CodingSessionRecord, runs: readonly AgentRunView[],
   beforeWrite: CodingBeforeWrite): Promise<Array<AgentRunView & { cards: CodingActionCard[] }>> {
-  const cards = await landRoundOffers(context, api, record, runs, beforeWrite);
+  const cards = await landRoundOffers(context, record, runs, beforeWrite);
   return runs.map(run => Object.assign({ ...run }, { cards: cards.filter(card => card.run_id === run.ref.run_id) }));
 }

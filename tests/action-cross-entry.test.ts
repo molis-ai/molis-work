@@ -107,7 +107,7 @@ test("W3-09-1-01 T1: page, actual MCP tool and the bound plugin SDK action clien
   for (const result of results) assert.ok(persisted.tasks.some(task => task.task_id === result.task.task_id && task.title === input.title && task.clock_label === time && task.enabled));
 });
 
-test("W3-09-1-01 T4: the actual typed service records refusals, requires its original plugin identity and leaves successful reads unrecorded", { timeout: 60_000 }, async t => {
+test("W3-09-1-01 T4: the Agent service records each entry's refusal, takes no identity from its input and leaves successful reads unrecorded", { timeout: 60_000 }, async t => {
   let client: PluginCapabilityClient | undefined;
   const definition: PluginDefinition = {
     manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.cross-entry-service", version: "1.0.0", name: "Typed service fixture", kind: "app",
@@ -121,21 +121,23 @@ test("W3-09-1-01 T4: the actual typed service records refusals, requires its ori
   await home.host.inspectActions({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] }, project.reference);
   assert.ok(client, "the production executor opened the fixture's declared service port");
   const changed = t.mock.method(home.host.search!, "changed");
-  const directId = newCallId();
   const forged = ["prologue", { project_id: "foreign", plugin_id: "io.molis.work.other", install_id: "foreign", actor_id: "foreign", title: "refused" }] as never;
+  // RAC-182: the Agent service is plugin-only actions (R8 batch 4). The Host's own client is refused before the Agent Host is
+  // asked, and the plugin's own client cannot name an owner; each refusal is a row of its call.
+  const directId = newCallId();
   await withCallId(directId, () => assert.rejects(home.host.client(project.reference).invoke(service.createSession, forged),
-    { code: "agent.session_unknown" }));
+    { code: "actions.forbidden" }));
   const direct = row(home, directId, service.createSession.capability_id);
-  assert.deepEqual([direct.path, direct.actor_id, direct.ok, direct.code], ["typed", "local-host", false, "agent.session_unknown"]);
+  assert.deepEqual([direct.actor_id, direct.ok, direct.code], ["local-host", false, "actions.forbidden"]);
   const native = client, missingId = newCallId();
   await withCallId(missingId, () => assert.rejects(native.invoke(service.createSession, forged),
-    { code: "agent.session_unknown" }));
+    { code: "actions.input_invalid" }));
   const missing = row(home, missingId, service.createSession.capability_id);
-  assert.deepEqual([missing.path, missing.ok, missing.code], ["typed", false, "agent.session_unknown"]);
+  assert.deepEqual([missing.ok, missing.code], [false, "actions.input_invalid"]);
   const readId = newCallId();
   assert.ok(Array.isArray(await withCallId(readId, () => native.invoke(service.listRuntimes, []))));
-  assert.deepEqual(home.host.callLog!.find(readId), [], "a successful typed query is not a platform command");
-  assert.equal(changed.mock.calls.length, 0, "the typed service creates no plugin owner-change signal");
+  assert.deepEqual(home.host.callLog!.find(readId), [], "a successful query is not a platform command");
+  assert.equal(changed.mock.calls.length, 0, "the Agent service creates no plugin owner-change signal");
 });
 
 test("W3-09-1-01 T2: an owner refusal preserves its literal error and each page/MCP/SDK action diagnostic row without changing tasks", { timeout: 60_000 }, async t => {

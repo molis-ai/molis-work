@@ -5,10 +5,12 @@
 # its Manifest, the row moves to actions.tsv; a row with no Manifest is a contract nothing in the plugin's package carries.
 capability_id	version	provider	operation	kind	scope	effect	scheduling	audiences	permissions	subjects	input_type	output_type	input	output	traits
 actions.usages.read	1	system.action-usages	query	query	home	read	concurrent	agent,mcp,user	-	-	-	-	8fc50332e9ea	d71b99ccedeb	-
+agent.actions.list.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	c10e53292545	-
 agent.background.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	2510ec27afeb	365c34b555c3	-
 agent.background.stop.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	bf58ebfac373	7cb541e84f22	-
 agent.checkpoints.list.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	19a16bfbd1e4	-
 agent.checkpoints.prepare-rewind.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	f6bb363ae891	2dbbb8357c18	-
+agent.collaboration.await.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	f612561cc3c7	a96ec18f8989	046efc93b6ac
 agent.collaboration.control.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	c68b8987c37d	b16327ef33ed	-
 agent.collaboration.read.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	d0bfd70f551b	7cfc6db4ee5d	-
 agent.collaboration.revise.v2	2	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	9f29e12ebc0a	516b9424763a	-
@@ -16,6 +18,9 @@ agent.command-output.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	cfe
 agent.draft-text.v1	1	platform	command	operation	project	write	concurrent	plugin	model:invoke	-	-	-	7cf8de6a3f00	139a601cb87e	613063238287
 agent.inputs.send.v2	2	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	b6b41fbf8db7	fcdd65c576a7	-
 agent.inputs.withdraw.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	197c6a2226e7	b7688d6d45cd	-
+agent.mcp.control.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	2b225db1a52e	-	-
+agent.mcp.list.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	711e110bc491	-
+agent.mcp.save.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	60f840143bb0	b11fb4901b8a	-
 agent.messages.act.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	8ffddf8d3d64	6647a3e1d6d8	-
 agent.messages.cancel.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	bf58ebfac373	-	-
 agent.messages.prioritize.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	bf58ebfac373	4fc3b695ab73	-
@@ -25,16 +30,22 @@ agent.offers.run.v1	1	platform	command	operation	project	write	concurrent	plugin
 agent.project-work.queue.v1	2	platform	command	operation	project	write	-	plugin	-	-	-	-	b6d6dc6b9669	7ff3d00aaec2	-
 agent.project-work.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	721b7d646a52	70b692bc5ff1	-
 agent.project-work.release.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	21673f095f49	-	-
+agent.roles.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	cb50ef7c59b1	-
 agent.run.control.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	632a0ef3732c	-	-
 agent.run.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	2a082b3c41ad	-
 agent.run.reviews.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	710c08a0c3d9	-
 agent.run.start.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	a135c67e7581	0fdb50912f18	-
 agent.run.wait.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	3ae8db7426c4	1830d589b7cb	046efc93b6ac
+agent.runtimes.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	9cecb8ebe607	2d71ed8711cd	-
 agent.session.create.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	36c1b12fe97d	8237effa9721	-
 agent.session.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	307d132bdd42	-
 agent.session.recover.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	d6b6b8bc631d	6f8c8fdfd5a3	-
 agent.session.recovery.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	6f8c8fdfd5a3	-
 agent.sessions.status.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	b1def1398a94	d41ff5436dd7	-
+agent.skills.discover.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	6c6a0609eedf	f37ffced5f3d	-
+agent.skills.install.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	bf58ebfac373	60f683aa155a	-
+agent.skills.list.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	6727f8321ca8	-
+agent.skills.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	17cfc98dafec	a63d8363c888	-
 agent.subagents.cancel.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	a6e720313ceb	-	-
 agent.subagents.list.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	eafbd5e47835	-
 agent.write_checkers.list.v1	2	platform	query	query	project	read	-	user	-	project	-	-	99334726611c	26cb7ff8df01	-

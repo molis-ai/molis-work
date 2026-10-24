@@ -5,7 +5,7 @@ import type { TestContext } from "node:test";
 import { LocalHost, LocalProjectDatabase, createPluginPlatform, homeStores, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
@@ -30,7 +30,7 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
   let adapter = await makeAdapter(), agentHost = new AgentHost({ reviews }); agentHost.register(adapter);
   const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } }), reference = { project_id: DEMO_PROJECT_ID, storage_key: file };
   const service = { ...local.actionRegistry(reference), ...local.actionClient(reference), ...local.syncActionClient(reference) };
-  registerAgentHostCapabilities({ register: (definition, handler) => definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler) }, {
+  registerAgentHostCapabilities({ register: (definition, handler) => local.registerAction(definition, handler) }, {
     agentHost: () => agentHost, projectId: () => DEMO_PROJECT_ID, authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], method_owner: { project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding" } }),
   });
   local.registerAction(projectSettingsCapabilities.workspaces, () => [{ workspace_id: "work", canonical_path: home, display_name: "Fixture", realpath_verified: true }]);

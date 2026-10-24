@@ -89,8 +89,8 @@ function snapshotCaller(caller: ActionCallContext): ActionCallContext {
 }
 
 /** Long calls outside the project queue are cancelled before close waits for their cleanup. */
-function callSignal(definition: { operation: string; scheduling?: string; action?: { scheduling?: string } }, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
-  if (definition.operation !== "wait" && definition.scheduling !== "concurrent" && definition.action?.scheduling !== "concurrent") return signal ? { signal } : {};
+function callSignal(definition: { scheduling?: string; action?: { scheduling?: string } }, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
+  if (definition.scheduling !== "concurrent" && definition.action?.scheduling !== "concurrent") return signal ? { signal } : {};
   const closing = entry().observing.signal;
   return { signal: signal ? AbortSignal.any([signal, closing]) : closing };
 }
@@ -438,7 +438,7 @@ export class LocalHost<Runtime> {
     options?: HostCapabilityCallOptions,
   ): Promise<Output> {
     const registered = this.capabilities.descriptor(capability, reference.project_id);
-    const caller = typedCapabilityCaller(reference.project_id, () => callSignal(registered ?? { operation: capability.operation }, () => this.ensureEntry(reference), options?.signal), options);
+    const caller = typedCapabilityCaller(reference.project_id, () => callSignal(registered ?? {}, () => this.ensureEntry(reference), options?.signal), options);
     if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
     // A typed identity may omit the activation scope; only the bound Host supplies it.
     const scoped = { ...capability, action_provider: registered?.action_provider };
@@ -510,7 +510,7 @@ export class LocalHost<Runtime> {
 
   private async checkActionAvailability(caller: ActionCallContext, capability: Pick<HostCapabilityDefinition, "capability_id" | "version">): Promise<void> {
     const definition = this.capabilities.descriptor(capability, caller.project_id);
-    if (!definition?.action || !definition.action_provider || definition.operation === "wait") return;
+    if (!definition?.action || !definition.action_provider) return;
     admitPluginCall(caller, definition.capability_id, definition.action);
     const availability = this.capabilities.availability(caller, definition);
     if (!availability.available) return;
@@ -550,13 +550,13 @@ export class LocalHost<Runtime> {
     // except a scene run (`step`), which is part of the call that triggered it and takes that call's place.
     const parent = this.executionScope.getStore();
     if (parent?.active && parent.entry === entry && (parent.holdsQueue || step)) return run(parent.holdsQueue);
-    // Registered concurrent actions own their short transactions, a wait only observes (following a live round), and a
+    // Registered concurrent actions own their short transactions or only observe (following a live round), and a
     // capability registered as concurrent touches no project state (a model draft): held in line, each would keep every
     // later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
     // waiting; callSignal cancels these executions as closing starts, before waiting for their cleanup.
-    // The registry still refuses a caller claiming "wait" for another operation; concurrency is read from the registered descriptor.
+    // Concurrency is read from the registered descriptor, never from the caller.
     const registered = this.capabilities.descriptor(capability, capability.action_provider?.project_id);
-    if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, () => run(false));
+    if (registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, () => run(false));
     const operation = entry.operationTail.then(heldInLine);
     entry.operationTail = operation.then(() => undefined, () => undefined);
     return await operation;

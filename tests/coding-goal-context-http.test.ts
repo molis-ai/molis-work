@@ -29,12 +29,12 @@ function codingHostFixture(root: string) {
   const composed = host.ensureAgentService(root, () => { throw new Error("a Host with a Home has composed its Agent service by now"); });
   const released = composed.dispose();
   composed.dispose = () => released;
-  host.registerCapability(agent.availableRoles,() => [{ role_id: "reader", available: true }] as any);
+  host.registerAction(agent.availableRoles, () => [{ role_id: "reader", available: true }]);
   // The runtime directory a new session is made from (PG-054): one Runtime that offers everything.
   const everything = Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(capability => [capability, "supported"])) as AgentRuntimeCapabilityMatrix;
-  host.registerCapability(agent.listRuntimes, () => [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", capabilities: everything }]);
-  host.registerCapability(agent.listActions, () => []);
-  // Sessions and rounds are actions Coding calls as itself (R8 batch 3).
+  host.registerAction(agent.listRuntimes, () => [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", capabilities: everything }]);
+  host.registerAction(agent.listActions, () => []);
+  // Sessions, rounds, runtimes, roles and actions are actions Coding calls as itself (R8 batches 3 and 4).
   host.registerAction(agent.createSession, () => ({ runtime_id: "prologue", session_id: `sdk-${++sdkSessions}` }));
   host.registerAction(agent.startRun, (_runtime, [, input]) => {
     starts.push(structuredClone(input));

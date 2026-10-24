@@ -16,12 +16,13 @@ test("one unreadable runtime history does not hide other sessions or lose its dr
   await sessions.setRuntimeSession(noEffect, "board", "broken", "sdk-broken", at);
   await sessions.setState(noEffect, "board", "broken", "done", at);
   const drafts = new Map([["draft:broken", "不要丢掉未提交的要求"]]);
+  // The Agent Host's actions and the Host's other entries answer alike here: an empty list, but the broken session's history cannot be read.
+  const answer = { invoke: async (definition: { capability_id: string }) => {
+    if (definition.capability_id === agent.readSession.capability_id) throw new Error("SESSION_HISTORY_UNAVAILABLE");
+    return [];
+  } };
   const context = { project_id: "board", plugin_id: "io.molis.work.coding", services: {
-    storage: { get: (key: string) => drafts.get(key) },
-    capabilities: { invoke: async (definition: { capability_id: string }) => {
-      if (definition.capability_id === agent.readSession.capability_id) throw new Error("SESSION_HISTORY_UNAVAILABLE");
-      return [];
-    } },
+    storage: { get: (key: string) => drafts.get(key) }, capabilities: answer, actions: answer,
   } } as unknown as PluginStartContext;
   const routes = codingRoutes(context, sessions);
   const call = async (id: string, params = {}) => {

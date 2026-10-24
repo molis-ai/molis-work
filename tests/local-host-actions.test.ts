@@ -315,25 +315,6 @@ test("every route into an action or a typed capability is settled exactly once, 
   } finally { await host.close(); store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test("a typed wait only observes: it runs but is not settled, while the typed query and command around it are", async () => {
-  const { rows, actionSettled } = settlements();
-  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });
-  const project = ref("observe"), followed: string[] = [];
-  const peek: HostCapabilityDefinition<Record<string, never>, string> = { capability_id: "host.notes.peek", version: 1, operation: "query" };
-  const follow: HostCapabilityDefinition<{ after: number }, string> = { capability_id: "host.notes.follow", version: 1, operation: "wait" };
-  host.register(peek, () => "peeked");
-  host.register(follow, (_runtime, input) => { followed.push(`after ${input.after}`); return `followed ${input.after}`; });
-  host.register(note, (_runtime, input) => input.text);
-  try {
-    assert.equal(await host.client(project).invoke(peek, {}), "peeked");
-    assert.equal(await host.client(project).invoke(follow, { after: 3 }), "followed 3");
-    assert.equal(await host.client(project).invoke(note, { text: "after the wait" }), "after the wait");
-    assert.deepEqual(followed, ["after 3"], "the wait ran");
-    assert.deepEqual(rows.map(row => [row.capability_id, row.operation, row.path]), [[peek.capability_id, "query", "typed"], [note.capability_id, "command", "typed"]],
-      "the wait left no settlement, so it can never reach the call log");
-  } finally { await host.close(); }
-});
-
 test("a typed call made while an action is handled belongs to the same operation", async () => {
   const { rows, actionSettled } = settlements();
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });

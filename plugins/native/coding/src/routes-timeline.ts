@@ -114,7 +114,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, projectId, summaries, route } = a;
-    return route("coding.read-session", async (request, api, execution, beforeWrite) => {
+    return route("coding.read-session", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       // The Goal's title as Goals has it now (the page shows it in the session header); read through Goals' action, kept for the directory.
       if (record.goal_id) await execution.goalTitles.read([record.goal_id], beforeWrite);
@@ -143,7 +143,7 @@ const ROUTES: RouteMaker[] = [
         const size = request.query?.window === undefined ? undefined : Number(request.query.window);
         if (size !== undefined && (!Number.isSafeInteger(size) || size < 1 || size > 50)) throw codingFailure("coding.server.page-size");
         const offset = size === undefined ? 0 : Math.max(0, snapshot.runs.length - size);
-        const runs = await runsWithCards(context, api!, record, await Promise.all(snapshot.runs.slice(offset).map((run) => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, run]))), beforeWrite);
+        const runs = await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset).map((run) => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, run]))), beforeWrite);
         // A round the page already holds unchanged travels as its fingerprint alone.
         const known = new Set(String(request.query?.known ?? "").split(",").filter(Boolean));
         const shown = size === undefined ? runs : runs.map(run => { const display = codingRunForDisplay(run); return known.has(display.fingerprint) ? { ref: display.ref, fingerprint: display.fingerprint, unchanged: true } : display; });
@@ -173,20 +173,20 @@ const ROUTES: RouteMaker[] = [
   // A live round, as it happens: answers as soon as it changes from what the page holds (or after the wait).
   (a) => {
     const { route } = a;
-    return route("coding.live", async (request, api, execution, beforeWrite) => {
+    return route("coding.live", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const since = typeof request.query?.since === "string" && request.query.since ? request.query.since : null;
       const wait = Math.min(Math.max(Math.trunc(Number(request.query?.timeout ?? 20_000)) || 0, 0), 25_000);
       const result = await codingActions(a.context, beforeWrite).invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run", 200) }, since, wait]);
-      return { version: result.version, runs: (await runsWithCards(a.context, api!, record, [result.view], beforeWrite)).map(codingRunForDisplay) };
+      return { version: result.version, runs: (await runsWithCards(a.context, record, [result.view], beforeWrite)).map(codingRunForDisplay) };
     });
   },
   // Scrolling back reads earlier rounds a page at a time, with what the timeline shows beside them.
   (a) => {
     const { context, route } = a;
-    return route("coding.read-runs", async (request, api, execution, beforeWrite) => {
+    return route("coding.read-runs", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) return { runs: [], runs_offset: 0, subagents: [], taskboard_plans: [] };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -194,7 +194,7 @@ const ROUTES: RouteMaker[] = [
       const before = Number(request.query?.before ?? snapshot.runs.length), limit = Number(request.query?.limit ?? SESSION_PAGE);
       if (!Number.isSafeInteger(before) || before < 0 || before > snapshot.runs.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw codingFailure("coding.server.read-range");
       const offset = Math.max(0, before - limit);
-      const runs = await runsWithCards(context, api!, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]))), beforeWrite);
+      const runs = await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]))), beforeWrite);
       return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
     });
   },

@@ -65,10 +65,10 @@ const reasonOf = (outcome: Extract<CallOutcome, { ok: false }>): string =>
   /^actions\.(input|output)_invalid/.test(outcome.code ?? "") ? outcome.message.split("：")[0]! : outcome.message;
 const ranCommand = (row: ActionCallRecord) => row.operation === "command" && row.refused !== true;
 
-/** Which kind of row a call leaves, if any: every command; a read (or a call to an id nobody has) only when it failed; a wait never. */
+/** Which kind of row a call leaves, if any: every command; a read (or a call to an id nobody has) only when it failed. */
 function recordedOperation(operation: string, outcome: CallOutcome): ActionCallRecord["operation"] | undefined {
   if (operation === "command") return "command";
-  if (operation === "wait" || outcome.ok) return undefined;
+  if (outcome.ok) return undefined;
   return operation === "query" ? "query" : "unknown";
 }
 

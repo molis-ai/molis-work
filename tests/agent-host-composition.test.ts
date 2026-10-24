@@ -23,9 +23,8 @@ import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/service
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { callerPlugin, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 
-/** 产品装配真的构造了 Agent Host，插件经 Capability 够得到它。 */
+/** 产品装配真的构造了 Agent Host，插件经动作够得到它。 */
 
-const CODING = "io.molis.work.coding";
 /** A test-only Runtime that, like any Runtime without a Host approval bridge, can read but not write or run commands. */
 const READ_ONLY = "fixture-read-only";
 
@@ -66,6 +65,17 @@ async function roundStarter(localHost: MolisWorkLocalHost, reference: Parameters
 /** The SDK actions of a plugin started in the fixture's project, which opens sessions there. */
 async function opener(item: Awaited<ReturnType<typeof fixture>>) {
   return (await roundStarter(item.localHost, item.reference, item.store, "opener")).actions;
+}
+
+/**
+ * A plugin started in the fixture's project that reads the Agent Host's runtimes and roles as itself (R8 batch 4); `agent` is its
+ * own Agent declaration, none when left out.
+ */
+async function directoryReader(item: Pick<Awaited<ReturnType<typeof fixture>>, "localHost" | "reference" | "store">, name: string, agent?: NonNullable<ReturnType<typeof callerPlugin>["definition"]["manifest"]["agent"]>) {
+  const plugin = callerPlugin(name, "project", {}, [agentHostCapabilities.listRuntimes.capability_id, agentHostCapabilities.availableRoles.capability_id]);
+  if (agent) plugin.definition.manifest.agent = agent;
+  await startPlugin(item.localHost, item.reference, item.store, plugin);
+  return plugin.actions(item.reference.project_id);
 }
 
 async function close(item: Awaited<ReturnType<typeof fixture>>) {
@@ -194,22 +204,25 @@ test("装配不带任何默认 Runtime：命令行 Runtime 已删除，没给 Pr
   const directory = await mkdtemp(join(tmpdir(), "agent-composition-empty-"));
   const localHost = new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "project-a" });
-  const composition = composeAgentHost({ localHost, workspaceFor: () => null });
+  const composition = composeAgentHost({ localHost, workspaceFor: () => null }), store = new LocalProjectDatabase(join(directory, "starters.db"));
   try {
     assert.deepEqual(composition.agentHost.descriptors(), [], "a Host registers only what its owner supplied");
-    assert.deepEqual(await localHost.client(reference).invoke(agentHostCapabilities.listRuntimes, []), []);
+    assert.deepEqual(await (await directoryReader({ localHost, reference, store }, "empty")).invoke(agentHostCapabilities.listRuntimes, []), []);
+    // RAC-182: the runtime directory is offered to plugins only; the Host's own client is not one.
+    await assert.rejects(localHost.client(reference).invoke(agentHostCapabilities.listRuntimes, []), { code: "actions.forbidden" });
   } finally {
     await composition.dispose();
+    store.close();
     await localHost.closeProject(reference);
     await localHost.close();
     await rm(directory, { recursive: true, force: true });
   }
 });
 
-test("装配之后，运行时列表经 Capability 就能拿到", async () => {
+test("装配之后，插件经动作就能拿到运行时列表", async () => {
   const item = await fixture(null);
   try {
-    const runtimes = await item.client.invoke(agentHostCapabilities.listRuntimes, []);
+    const runtimes = await (await directoryReader(item, "runtimes")).invoke(agentHostCapabilities.listRuntimes, []);
     assert.deepEqual(runtimes.map((entry) => entry.runtime_id), [READ_ONLY]);
     // 没有接宿主审批的 Runtime 只读：写入与命令如实报不支持
     assert.equal(runtimes[0]?.capabilities["text-edit"], "unsupported");
@@ -219,11 +232,13 @@ test("装配之后，运行时列表经 Capability 就能拿到", async () => {
   }
 });
 
-test("Coding 的角色从它自己的 Manifest 解析；只读的可用，会写的不可用", async () => {
+test("插件的角色从它自己的 Manifest 解析；只读的可用，会写的不可用", async () => {
   const item = await fixture(null);
   try {
-    const roles = await item.client.invoke(agentHostCapabilities.availableRoles,
-      [READ_ONLY, CODING]);
+    const roles = await (await directoryReader(item, "roles", { roles: [
+      { role_id: "reader", version: 1, execution: "read-only", prompts: ["reader"], host_tools: [] },
+      { role_id: "writer", version: 1, execution: "text-edit", prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }] }))
+      .invoke(agentHostCapabilities.availableRoles, [READ_ONLY]);
     const reader = roles.find((role) => role.role_id === "reader");
     const writer = roles.find((role) => role.role_id === "writer");
     assert.equal(reader?.available, true);
@@ -237,9 +252,10 @@ test("Coding 的角色从它自己的 Manifest 解析；只读的可用，会写
 test("没有声明 Agent 的插件，一个角色都拿不到", async () => {
   const item = await fixture(null);
   try {
-    assert.deepEqual(
-      await item.client.invoke(agentHostCapabilities.availableRoles, [READ_ONLY, "io.molis.work.feed"]),
-      [], "没声明就是没有，不是给个默认角色");
+    const plain = await directoryReader(item, "no-agent");
+    assert.deepEqual(await plain.invoke(agentHostCapabilities.availableRoles, [READ_ONLY]), [], "没声明就是没有，不是给个默认角色");
+    // RAC-182: 也不能点名别的插件来读它的角色（输入里没有插件这一项）
+    await assert.rejects(plain.invoke(agentHostCapabilities.availableRoles, [READ_ONLY, "io.molis.work.coding"] as never), { code: "actions.input_invalid" });
   } finally {
     await close(item);
   }

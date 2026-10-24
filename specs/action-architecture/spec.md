@@ -199,7 +199,7 @@ flowchart TB
 
 Host 的既有 typed capability 与新动作服务共用同一个 Kernel registry。项目调用继续使用现有 Runtime 生命周期、串行调用和关闭等待；可信身份与业务 Runtime 由 Host 在调用期间关联，不能放入模型参数。相同插件在不同项目的激活允许复用公开能力 ID/版本，注册实例以可信项目作用域区分；全局与项目同名能力不得互相遮蔽。项目关闭或插件停用时撤回对应实例，其他项目不受影响。旧的内部客户端默认没有额外授权；需要权限的能力必须由 Host 调用方显式提供可信上下文。
 
-Host 上一种东西只有一个登记口（PG-035）：动作只走 `registerAction`（进动作服务，按动作声明检查，声明不全是 `actions.definition_invalid`），`register` / `registerCapability` 只收 typed 条目，拿到带 `action` 的定义直接拒绝（`host.registration_seam`）；组合根按定义上有没有 `action` 分到两边。新能力只登记成动作，不再加 typed 条目。模型起草 `agent.draft-text.v1` 是第一个转过来的宿主能力：只给插件、要 `model:invoke`，插件经 `services.actions.invoke` 调；宿主为每个项目登记的工作区读取与浏览选择（7 条）也只在动作这一边。agent 其余的 typed 条目记在 BL-364，scheduler 的 4 条在 BL-365。
+Host 上一种东西只有一个登记口（PG-035）：动作只走 `registerAction`（进动作服务，按动作声明检查，声明不全是 `actions.definition_invalid`），`register` / `registerCapability` 只收 typed 条目，拿到带 `action` 的定义直接拒绝（`host.registration_seam`）；组合根按定义上有没有 `action` 分到两边。新能力只登记成动作，不再加 typed 条目。模型起草 `agent.draft-text.v1` 是第一个转过来的宿主能力：只给插件、要 `model:invoke`，插件经 `services.actions.invoke` 调；宿主为每个项目登记的工作区读取与浏览选择（7 条）也只在动作这一边。agent 宿主的能力已全部转成动作（R8 第 1～4 批，`specs/repository-anti-corruption/slices/r8-agent-host-actions.md`），scheduler 的 4 条在 BL-365。
 
 ### 动作：一项有明确输入和结果的操作
 

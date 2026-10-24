@@ -135,7 +135,7 @@ async function world(t: TestContext) {
   /** The latest round's model suggests an action, with its contract as the Host reads it now; the input is the person's at the click. */
   const suggest = async (offer_id: string, capability_id: string) => {
     const round = held[held.length - 1]!, ref = reference(capability_id);
-    const view = (await capabilities.invoke(agentHostCapabilities.listActions, [RUNTIME, owner.plugin_id])).find(row =>
+    const view = (await capabilities.invoke(agentHostCapabilities.listActions, [RUNTIME])).find(row =>
       row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
     assert.ok(view, `${capability_id} is offered to the round`);
     round.offers.push({ offer_id, offered_at: "2026-10-20T08:00:00.000Z", title: view.action.title, summary: view.action.description, reference: ref, input: {}, action_digest: actionDigest(view) });

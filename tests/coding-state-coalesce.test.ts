@@ -111,13 +111,14 @@ async function harness(initial: Entry[]) {
     calls.push([id, args]);
     // Every call that names a Runtime says which one, so a test can tell where each went.
     if (id === agent.listRuntimes.capability_id) return world.runtimes as Output;
-    if (id === agent.listSkills.capability_id) return [{ skill_id: "from", runtime: input[0] }] as Output;
-    if (id === agent.listMcp.capability_id) return [{ id: "from", runtime: input[0] }] as Output;
-    if (id === agent.saveMcp.capability_id) return { id: "saved", runtime: input[0] } as Output;
+    // Each answer carries the Runtime it was asked of in a field of its own contract (a method's name, a server's label).
+    if (id === agent.listSkills.capability_id) return [{ skill_id: "from", name: input[0] }] as Output;
+    if (id === agent.listMcp.capability_id) return [{ id: "from", label: input[0] }] as Output;
+    if (id === agent.saveMcp.capability_id) return { id: "saved", label: input[0] } as Output;
     if (id === agent.controlMcp.capability_id) return undefined as Output;
-    if (id === agent.discoverSkills.capability_id) return [{ candidate_id: "c1", runtime: input[0] }] as Output;
-    if (id === agent.installSkill.capability_id) return { skill_id: "installed", runtime: input[0] } as Output;
-    if (id === agent.readSkill.capability_id) return { skill_id: "read", runtime: input[0] } as Output;
+    if (id === agent.discoverSkills.capability_id) return [{ candidate_id: "c1", source_label: input[0] }] as Output;
+    if (id === agent.installSkill.capability_id) return { skill_id: "installed", name: input[0] } as Output;
+    if (id === agent.readSkill.capability_id) return { skill_id: "read", name: input[0] } as Output;
     if (id === agent.createSession.capability_id) return { runtime_id: input[0], session_id: `rt-${++world.created}` } as Output;
     if (id === agent.readMessages.capability_id) return [] as Output;
     if (id === agent.sendPeopleMessage.capability_id) {
@@ -158,16 +159,16 @@ test("PG-054 with only Prologue in the directory a new session, the methods and 
     assert.equal(created.body.session.runtime_id, "prologue");
     const state = await h.call("/state");
     assert.equal(state.status, 200, JSON.stringify(state.body));
-    assert.deepEqual(state.body.methods, [{ skill_id: "from", runtime: "prologue" }]);
-    assert.deepEqual(state.body.mcp, [{ id: "from", runtime: "prologue" }]);
+    assert.deepEqual(state.body.methods.map((method: { skill_id: string; name: string }) => [method.skill_id, method.name]), [["from", "prologue"]]);
+    assert.deepEqual(state.body.mcp.map((server: { id: string; label: string }) => [server.id, server.label]), [["from", "prologue"]]);
     const saved = await h.call("/mcp", { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
-    assert.equal(saved.body.server.runtime, "prologue");
+    assert.equal(saved.body.server.label, "prologue");
     assert.equal((await h.call("/mcp/s1/control", { action: "connect" })).status, 200);
     assert.equal(h.made(agent.controlMcp)[0]![0], "prologue");
-    assert.equal((await h.call("/methods/discover", { workspace_id: "work", path: "skills" })).body.candidates[0].runtime, "prologue");
-    assert.equal((await h.call("/methods/install", { candidate_id: "c1" })).body.method.runtime, "prologue");
-    assert.equal((await h.call("/methods/review-change/1")).body.method.runtime, "prologue");
+    assert.equal((await h.call("/methods/discover", { workspace_id: "work", path: "skills" })).body.candidates[0].source_label, "prologue");
+    assert.equal((await h.call("/methods/install", { candidate_id: "c1" })).body.method.name, "prologue");
+    assert.equal((await h.call("/methods/review-change/1")).body.method.name, "prologue");
   } finally { await h.close(); }
 });
 
@@ -178,10 +179,10 @@ test("PG-054 a Runtime listed earlier that cannot host a session is skipped: a n
     assert.equal(created.status, 200, JSON.stringify(created.body));
     assert.equal(created.body.session.runtime_id, "beta", "the first two in the directory cannot host a session; the third can");
     const state = await h.call("/state");
-    assert.deepEqual(state.body.methods, [{ skill_id: "from", runtime: "beta" }]);
-    assert.deepEqual(state.body.mcp, [{ id: "from", runtime: "beta" }]);
+    assert.deepEqual(state.body.methods.map((method: { skill_id: string; name: string }) => [method.skill_id, method.name]), [["from", "beta"]]);
+    assert.deepEqual(state.body.mcp.map((server: { id: string; label: string }) => [server.id, server.label]), [["from", "beta"]]);
     const saved = await h.call("/mcp", { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } });
-    assert.equal(saved.body.server.runtime, "beta");
+    assert.equal(saved.body.server.label, "beta");
     // The directory's order is the only rule: when the earlier ones can host a session again, they are the ones used.
     h.world.runtimes = [runtime("reader"), runtime("beta"), runtime("prologue")];
     assert.equal((await h.call("/sessions", {})).body.session.runtime_id, "reader");
@@ -213,7 +214,7 @@ test("PG-054 a Runtime whose matrix offers no MCP shows no MCP servers and refus
   try {
     const state = await h.call("/state");
     assert.deepEqual([state.status, state.body.mcp], [200, []]);
-    assert.deepEqual(state.body.methods, [{ skill_id: "from", runtime: "prologue" }], "methods are not tied to MCP");
+    assert.deepEqual(state.body.methods.map((method: { skill_id: string; name: string }) => [method.skill_id, method.name]), [["from", "prologue"]], "methods are not tied to MCP");
     assert.equal(h.made(agent.listMcp).length, 0, "no MCP list is asked of a Runtime that has none");
     const input = { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } };
     const save = await h.call("/mcp", input);

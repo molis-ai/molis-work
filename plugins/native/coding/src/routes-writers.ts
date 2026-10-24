@@ -26,10 +26,10 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return [false, true].map(prepare => route(prepare ? "coding.prepare-integration" : "coding.read-integration", async (request, api, execution, beforeWrite) => {
+    return [false, true].map(prepare => route(prepare ? "coding.prepare-integration" : "coding.read-integration", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       // The atomic tasks are a Runtime's sub-agents: its own matrix says whether it has any (PG-054).
-      const runtime = (await api!.invoke(agent.listRuntimes, [])).find(entry => entry.runtime_id === record.runtime_id);
+      const runtime = (await codingActions(context, beforeWrite).invoke(agent.listRuntimes, [])).find(entry => entry.runtime_id === record.runtime_id);
       if (!record.runtime_session_id || !runtime || !supports(runtime, "subagents")) throw codingFailure("coding.server.no-subtasks");
       const source = { session_id: record.runtime_session_id, run_id: text(request.params.runId, "coding.field.original-run"), subagent_id: text(request.params.childId, "coding.field.subtask") };
       const actions = context.services!.actions!, control = codingActionControl(beforeWrite);

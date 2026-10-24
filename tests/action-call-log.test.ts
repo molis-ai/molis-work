@@ -367,12 +367,10 @@ test("a contract failure keeps the fact and not the fields: a record keyed by wh
   } finally { await host.close(); }
 }));
 
-test("a read is recorded only when it failed, a wait never, and a row says which kind of call it was", () => logOf("operations", (_home, log) => {
+test("a read is recorded only when it failed, and a row says which kind of call it was", () => logOf("operations", (_home, log) => {
   log.record(callBy(), action("r.ok", "query"), { ok: true });
   log.record(callBy(), action("r.failed", "query"), { ok: false, code: "r.failed", message: "读取失败" });
   log.record(callBy(), action("r.refused", "query"), refusal("actions.forbidden", "无权"));
-  log.record(callBy(), action("w.ok", "wait"), { ok: true });
-  log.record(callBy(), action("w.failed", "wait"), { ok: false, message: "等待失败" });
   log.record(callBy(), action("missing.id", "unknown"), refusal("actions.missing", "没有这项能力"));
   log.record(callBy(), action("c.ok"), { ok: true });
   assert.deepEqual(log.list(null).map(row => [row.capability_id, row.operation]), [["c.ok", "command"], ["missing.id", "unknown"], ["r.refused", "query"], ["r.failed", "query"]]);

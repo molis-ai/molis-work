@@ -116,7 +116,7 @@ export interface HostCapabilityInvocation extends ActionCallOrigin {
     assertAuthorityCurrent(): void;
 }
 
-export type HostCapabilityOperation = "query" | "command" | "wait";
+export type HostCapabilityOperation = "query" | "command";
 
 export type HostCapabilityOutput<Capability> = Capability extends HostCapabilityDefinition<unknown, infer Output> ? Output : never;
 

@@ -4,12 +4,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { MolisWorkLocalHost, seedDemoBoard, DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 test("background startup shares its instance with later UI execution adapters and closing revokes providers", async () => {
@@ -17,14 +16,12 @@ test("background startup shares its instance with later UI execution adapters an
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
-  // The Agent service is attached to the Host after the project's plugins start; until it is, the Host's capability client answers
-  // what it answers for any capability nobody has registered (the kernel's own error).
-  let agentService = false, capabilityCalls = 0;
+  // The Agent service is attached to the Host after the project's plugins start; until it is, nothing provides its actions, and a
+  // call to one is refused as a call to any action nobody provides is.
+  let agentCalls = 0, capabilityCalls = 0;
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", homeDirectory: home, actions,
     capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
       capabilityCalls++;
-      if (!agentService) throw new ActionError("kernel.capability_missing", `Capability 未注册: ${definition.capability_id}`);
-      if (definition.capability_id === agentHostCapabilities.listRuntimes.capability_id) return [] as O;
       if (definition.capability_id === projectsCapabilities.readWorkspace.capability_id) return null as O;
       return { workspaces: [], selected: null } as O;
     } },
@@ -35,16 +32,20 @@ test("background startup shares its instance with later UI execution adapters an
     assert.equal(first, concurrent); assert.equal(first.platform?.supervisor.state("io.molis.work.coding")?.status, "running", first.error); assert.ok(first.platform);
     assert.equal(capabilityCalls, 0, "discovery must not read business capabilities");
     const invokeState = () => first.platform!.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.coding/state", actor_id: ports.actorId });
-    // Before the Agent service is attached: the first capability call is the one that fails, with the capability-not-registered error.
-    // Coding has no `ready` gate of its own to answer first any more, and the Agent capabilities initialize themselves when called.
+    // Before the Agent service is attached: the first call, to its runtime directory, is the one that fails, as an action nobody provides.
+    // Coding has no `ready` gate of its own to answer first any more, and the Agent actions initialize themselves when called.
     const refused = await invokeState();
     assert.notEqual(refused!.status, 200);
-    assert.match(JSON.stringify(refused!.body), /kernel\.capability_missing|Capability 未注册/);
-    assert.equal(capabilityCalls, 1, "the first capability call was the refused one; nothing was waited on before it");
+    assert.match(JSON.stringify(refused!.body), /actions\.dependency_missing/);
+    assert.equal(capabilityCalls + agentCalls, 0, "the first call was the refused one; nothing was waited on before it");
     // The model list is not a port a later caller attaches: it is the Home's own provider catalog through `services.model`, so a model
     // configured now is listed as soon as the Agent service answers, by the same plugin instance.
     await seedConfiguredModels(home, [{ provider_id: "late", model_id: "chosen" }]);
-    agentService = true;
+    fakeAgentHostActions(actions, definition => {
+      agentCalls++;
+      if (definition.capability_id === agentHostCapabilities.listRuntimes.capability_id) return [];
+      throw new Error(`Unexpected agent action ${definition.capability_id}`);
+    });
     const later = await ensureProjectPlugins(ports);
     assert.equal(later.platform, first.platform);
     const response = await invokeState();

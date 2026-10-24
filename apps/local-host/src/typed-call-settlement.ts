@@ -17,7 +17,7 @@ const describeTyped = (reference: TypedReference): CallDescription =>
 
 /**
  * A call through the Host's typed port to an entry that has no action never passes the action service, so it is settled
- * here, once, like any other. A wait only observes (it follows a live round) and is not a call to record.
+ * here, once, like any other.
  */
 export function settleTyped<T>(settled: CallSettled | undefined, caller: CallContext, reference: TypedReference, run: () => Promise<T>): Promise<T> {
   const invoke = async () => {
@@ -29,5 +29,5 @@ export function settleTyped<T>(settled: CallSettled | undefined, caller: CallCon
       throw error;
     }
   };
-  return reference.operation === "wait" ? invoke() : settleCall(settled, caller, () => describeTyped(reference), invoke);
+  return settleCall(settled, caller, () => describeTyped(reference), invoke);
 }

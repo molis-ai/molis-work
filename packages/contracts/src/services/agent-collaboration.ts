@@ -218,7 +218,7 @@ const AMENDMENT = { oneOf: [
     properties: { kind: { const: "resolve" }, node: STEP, state: { enum: ["succeeded", "failed"] }, note: WORDS(500) } },
 ] } as const;
 
-/** Read and control the project's waits; the long wait for a continuation to be ready is `agentHostCapabilities.awaitContinuations`. */
+/** Read and control the project's waits; waiting for a continuation to be ready is the `agentHostCapabilities.awaitContinuations` action. */
 export const agentCollaborationActions = {
   read: {
     capability_id: "agent.collaboration.read.v1", version: 1, operation: "query",

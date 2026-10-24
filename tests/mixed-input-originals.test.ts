@@ -96,7 +96,7 @@ for (const executor of ["assistant", "coding"] as const) test(`MIX-IN-01: protec
     return cogniaModelResponse("已读完补充。");
   });
   await writeFile(join(f.directory, "note"), "read-only input fixture");
-  const start = await f.call<AssistantSendResult>(f.project.project_id, "/api/assistant/send", { executor, scope: { kind: "project", project_id: f.project.project_id },
+  const start = await f.call<AssistantSendResult>(f.project.project_id, "/api/assistant/send", { executor: executor === "assistant" ? { kind: "assistant" } : { kind: "plugin", plugin_id: "io.molis.work.coding" }, scope: { kind: "project", project_id: f.project.project_id },
     text: "先阅读说明", request_id: randomUUID() });
   assert.equal(start.status, 200, JSON.stringify(start.body));
   const sent = start.body; assert.ok(sent.run_id);
@@ -111,7 +111,8 @@ for (const executor of ["assistant", "coding"] as const) test(`MIX-IN-01: protec
   const repeated = await f.call<AssistantSendResult>(f.project.project_id, "/api/assistant/send", command);
   assert.equal(repeated.status, 200, JSON.stringify(repeated.body)); assert.equal(repeated.body.run_id, supplemented.body.run_id);
   let ref: AgentRunRef;
-  if (sent.work.executor.kind === "coding") {
+  if (sent.work.executor.kind === "plugin") {
+    assert.equal(sent.work.executor.plugin_id, "io.molis.work.coding");
     const view = await f.call<{ runs: Array<{ ref: AgentRunRef }> }>(f.project.project_id, `${path}/sessions/${sent.work.executor.session_id}`);
     assert.equal(view.status, 200, JSON.stringify(view.body)); ref = view.body.runs.at(-1)!.ref;
   } else { assert.ok(sent.work.session_id); ref = { session_id: sent.work.session_id, run_id: sent.run_id }; }

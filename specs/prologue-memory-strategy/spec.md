@@ -1106,3 +1106,7 @@ M3 逐条分类纠正本轮验证完成（2026-10-24，本地生产 head `68564e
 分类纠正以已完成分页主路径验证的 `5d72ad69226613543fcd67ca00bf39d9614f89b9` 为父，传递 #1064/main f586 的修复。合并仅 spec 追加记录及两处资源账冲突，保留双方已有记录和主干资源变化；SDK94 与父相同，锁文件沿自动合并，不另换包。原批准 +5,635 B 绑定父实测 1,197,336 B，待构建确认 1,202,971 B；其他26项沿父，不扩额度。验收继续要求分类/期限/来源与未知字段保留、版本冲突/取消/原操作重试、真实非空页面和准确父静态门；不把父结果当子片结果。父补验发现的toast诊断链接对比度首败另在独立主干树诊断，原失败与复验均保留，不以本片隐藏。
 
 #1064 最新普通 CI 已核：head `71ec9c7a76e3ed2c63c6b80f20b73e6b04dcf9d4` 的 run `40080130222` 全部适用作业成功、Verify成功，Linux probe为原条件未运行。两个产品子集实际各219/219、并集438、交集0，与清单无缺漏；fail/flaky/timeout/skipped/not-run/quarantine均为0，原15/8分钟预算不变。实际测试提交 `5f403fe35022dfb58fb6d425c6c01a0f539bc1fe` 对应该head与main f586；原artifact与覆盖核对在 `/private/tmp/molis-memory-ci71-product-subsets-20261024/`。review与threads当前为空，不等于独立评审或用户验收。旧完整全量失败及CI Node固定版本待批仍未关闭，未合并#1064。
+
+分页精确父门首败（2026-10-24）：merge `5d72ad692` 后health识别出主干Pages新引入“未分类”→Unfiled与本片Memory“未分类”→Unclassified的真实翻译冲突，资源/secrets/diff通过。保留 `/private/tmp/molis-memory-pages-parent71-final-20261024.results.json` 的失败。最小修复只将Memory同义标签消歧为“未归类”，英文保持Unclassified，更新原两处页面调用、所属词典及两个浏览器断言，不改Pages或数据/分类语义；中文键字节数相同。重新构建、i18n/脚本/翻译、非空分页与CAS浏览器及精确父门后再报告。诊断链接悬停对比度已在独立main f586树稳定复现并由独立修复片处理，不在本页增加绕过。
+
+文案消歧最终验证：整体build、i18n/脚本两文件、非空分页与CAS两浏览器均通过；health对准确父71ec9c7、实际资源及diff全部通过。资源仍为27项7,795,921 B，workbench1,197,336 B；没有新增额度。原翻译失败与toast首败保留，toast稳定悬停红例正在独立主干修复，不将本次标签验证冒称其关闭。结果 `/private/tmp/molis-memory-pages-parent71-translation-20261024.results.json`。

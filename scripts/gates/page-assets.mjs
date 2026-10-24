@@ -239,7 +239,7 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Classification correction retains the approved +5635 B on the updated paging parent.
-  // Parent 5d72ad692 measures 1197336 B; the integrated child must be measured before delivery.
+  // Parent 7c3bb8794 measures 1197336 B; the integrated child must be measured before delivery.
   "/assets/molis-work-workbench.js": [1197336, 1202971],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

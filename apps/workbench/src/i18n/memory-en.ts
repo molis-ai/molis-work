@@ -183,7 +183,7 @@ export const MEMORY_EN: Record<string, string> = {
   "下次清空会重新预览并确认当前范围。": "The next clear will preview the current scope and ask for confirmation again.",
   "全部场景": "All scenes",
   "通用": "Common",
-  "未分类": "Unclassified",
+  "未归类": "Unclassified",
   "习惯": "Habit",
   "项目决策": "Project decision",
   "此类别暂仅查看": "This category is currently read-only",

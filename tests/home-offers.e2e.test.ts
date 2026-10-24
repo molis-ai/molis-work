@@ -11,7 +11,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 const captures = reviewEvidenceUrl("home-offer-actions/");
 
-test("Home renders and executes unknown plugin offers and Inbox status through the common service", { timeout: 120_000 }, async t => {
+test("RAC-214: Home renders and executes unknown plugin offers and Inbox status without restoring the retired Talk entry", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const { localHost, store, projectId, command, sessionId, evaluate, waitFor, click, navigate, origin, reloadPage } = browser;
   assert.ok(localHost); assert.ok(projectId);
@@ -88,11 +88,11 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     await waitFor(`!!document.querySelector('[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]')`);
     await click(`[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`);
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('正在查找')");
-    const talkTop = await evaluate<number>("document.querySelector('[data-home-open-talk]').getBoundingClientRect().top");
+    assert.equal(await evaluate("!!document.querySelector('[data-home-open-talk]')"), false, "The retired Talk entry stays absent while offers load");
     releaseOffers();
     await waitFor(`!!${TAG} && !${TAG}.disabled`);
     assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(button => button.textContent)"), ["加入 Inbox", "保存为资料", "升格为 Goal", "忽略", "标记待核查"]);
-    assert.ok(Math.abs(await evaluate<number>("document.querySelector('[data-home-open-talk]').getBoundingClientRect().top") - talkTop) < 1, "async offers keep the Talk button under the pointer");
+    assert.equal(await evaluate("!!document.querySelector('[data-home-open-talk]')"), false, "Loaded offers must not restore the retired Talk entry");
     await capture("desktop-unknown-action");
     await clickTag();
     try { await waitFor(`!!document.querySelector('.home-offers-result') && !${TAG}`); }

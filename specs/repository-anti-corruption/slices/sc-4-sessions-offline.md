@@ -55,3 +55,5 @@
 统筹确认 batch-19 的 `web-home-isolation` 失败属于 RAC-212：该用例还把配置 Home 中存在 `sessions/sessions.db` 当成成功。当前合并头本机修前复现为 6/7，仅旧存在断言失败。修复只改测试名称及这一处预期，并追加服务重启后旧库仍不存在的断言；Catalog、连接、Feed 密钥、控制令牌、重启后保持和默认 Home 不回落的断言全部保留。`tests/web-home-isolation.test.ts` 现在以 RAC-212 命名，真实首次启动及重启均证明不创建退役的 Sessions 库；没有改生产实现或降低隔离要求。
 
 补修后 `web-home-isolation` 7/7、`sessions-offline` 9/9 通过。机械同步阶段已通过的 14 个非浏览器文件 110 项与 3 个浏览器文件 8 项继续适用；去重后为 18 个文件 125 项。整体构建、健康门禁、包边界、API/动作快照和资源检查已通过；这次只追加测试及验证记录，无需重复构建未变的生产源码。原始日志在本机 `/tmp/molis-verify-2026-10-23/pr1130-main-sync/`，包含 `home-isolation-before.log` 和 `home-isolation-after.log`。全量仍由统筹安排的集成批承担，本片不改 #1157、不启动或取消全量，也不碰真实 Home；新头独立评审、CI 和集成适用范围交专职会话核对。
+
+同一批次另发现 `home-offers.e2e` 仍测已删除的 Talk 按钮位置。RAC-214 补修在专用浏览器上先复现 0/1（第 91 行读取不存在按钮的 `getBoundingClientRect`），再将异步 offers 加载前后改为两次明确断言旧入口不存在；没有恢复入口，也没有另造布局参照控件。其余加载状态、五项 offer、未知插件真实写入与回执、Inbox、移动端、响应丢失及停用恢复断言原样保留。完整文件修后 1/1，通过后的有效定向证据去重为 19 个文件 126 项；红绿日志为 `home-offers-before.log`、`home-offers-after.log`。这次追加仍只改必要测试及本记录，已通过的前一轮证据继续适用。

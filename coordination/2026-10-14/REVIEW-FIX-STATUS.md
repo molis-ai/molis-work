@@ -197,3 +197,9 @@
 - **#1114**：机械同步 main `89c9a7194` 进行中（review-fix-owner，task-12，认领 6379925378）；**BL-440～448 号段与 ac-snapshot/ac-errors 分配冲突待统筹裁定**（README:3243/3402），已留评论 6379916609。
 - **task-13（AC-AUDIT-06）**：plugin-frame-fixes 进行中（删 `personal-native-plugin-http.ts` + `NATIVE_PLUGIN_HTTP_FILES` 5→4，draft PR 待出）。
 - 合并线：main `89c9a7194`，队列空；batch-1024-20 run 40061024962 in_progress、batch-1024-21 run 40061758914 queued（只读跟踪，不操作）。
+
+## 2026-10-24 05:55 UTC — #1114 机械同步完成 + 防腐审计 a–e 收官
+
+- **#1114 已机械同步**（review-fix-owner，task-12）：新 head `ed204f625a200e8d72a81660cc19cfec834882a6`（merge commit，parents `f7836be2d`+`89c9a7194`，普通 push 未 force；PR MERGEABLE/BLOCKED 等 CI）。唯一冲突 `tooling/gates/page-assets.json`（生成物）取 main 后重跑；相对 main 只差 `cognia.js 24090→24118`（本 PR 自有 +28B）；#1126/#1127 行为冲突无；diff 18 文件 +153/−30；本机 build/workspace:build/page-assets/health/boundary/contracts 47/47/secrets/verify-release 全过；affected-tests full 空；CI run 40063786843 在跑。
+- 评论 [6380128242](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380128242) 请统筹：① **BL-440～448 号段裁定**（阻塞合入，README:3402 与分支占号冲突）；② 请 ac-review 对最终头出「可合/修后可合」结论 + 确认 `cognia.js` +28B 一次性放行、`cognia.import.directory_preview` v2→v3 调用方影响。裁定后由 review-fix-owner 机械重编 9 行 + 同步 `#1125` spec §1.1 的 BL-447 引用，再重跑门禁+CI。
+- **防腐审计（ac-code-auditor）主题 a–e 全部完成**（ANTICORRUPTION-AUDIT.md §6–§10）：@prologue/sdk 边界 PASS、表 owner PASS、页面资源/冻结名单 PASS，无 blocker。AC-AUDIT-05（context-onboarding-service 直接 import pages/artifacts/todo）仍 **HANDOFF-TO-CODEX**；AC-AUDIT-06 清单已修正为 v2（保留 alchemist 直连路由、删 personal 壳与 `/api/plugins/<id>` 别名，task-13 实施中）；AC-AUDIT-07（page-assets 门禁死键/过期放行/note 过时）交 ac-shell/统筹下次动门禁时清理。下一轮 f) 安全不变量表↔代码/测试漂移。

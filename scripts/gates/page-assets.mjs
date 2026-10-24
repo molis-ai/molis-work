@@ -238,10 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Correct formal classifications and expiry in the existing editor: the user approved this slice's +5635 B on 2026-10-24.
-  // The editor, confirmation and classification display are reused. Paging 24cc645c2 and classification 68564e9ef
-  // measured 1197355 and 1202990 B; the same +5635 B admission is only against this paging parent.
-  "/assets/molis-work-workbench.js": [1197355, 1202990],
+  // Explicit adoption of old history text reuses the history panel, confirmation and update/CAS retry.
+  // The user approved #1155's +480 B on 2026-10-24, only against expiry-renewal parent #1154.
+  "/assets/molis-work-workbench.js": [1207694, 1208174],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

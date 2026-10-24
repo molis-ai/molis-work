@@ -3547,3 +3547,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 00:20：#1151 一轮修后可合（EPIPE，Codex 修）；#1152（privileges 状态 3）已开。R8 第 4 批 §11.3 统筹裁：Characters 用宿主内部端口 CharactersAgentCatalog（不给插件），记 BL（`ac-kernel` 号段 BL-520～524）；删 listReviews；listMcp 保留同步但只同步调用者自己安装的工具、幂等、beforeEffect 后、撤权取消停用不同步并测拒绝；awaitContinuations 与 waitRun 共用每安装 8 个的池。
 
 - 10-24 00:35：#1138 已合（PG-051 P2a），#1147 改投 main 有冲突，`ac-kernel` 先合 main。S 号现分：S-58 #1117、S-59 #1119、S-60 #1139、S-61 W5-17（`ac-sandbox-sched`）、S-62～S-64 `ac-sc3`；下一个空号 S-65。`ac-sc3` S9-0（`dcaf78bc3`）已推送、S9-0b 在跑测试；统筹要求事件类型与情境账键按调用者插件 id 分命名空间（跨主人读写带码拒绝），新服务在 #1139 合入后归进 `SANDBOX_SERVICE_FATE`。
+
+- 10-24 00:50：`ac-kernel` R8 第 4 批已推送（`550207dd4`，叠第 3 批，BL-364 清完）；统筹要求 BL-471（collaboration.read 不带 session_id 给全项目会话）在第 4 批里一并改掉，之后做 agent-host 巨大单元。`ac-sandbox-sched` PG-022 P1 本地完成（`db05ccf03`）；统筹裁：立即推送分支；拒绝码要传到 `last_error_code`（照 #1139），不从宿主入口导出测试缝；P1b 的发布者取安装记录；`services.files` 与 `ownerFiles` 合并后只留一个名字；模型设置与生图不等 broker；拆 4 个 PR；号段 RAC-300～329、BL-525～534。

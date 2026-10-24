@@ -1135,3 +1135,9 @@ M3 逐条分类纠正本轮验证完成（2026-10-24，本地生产 head `68564e
 本地结果：以续期父 `5e79861a8904313e889c55a242ed60a13bef711e` 为基线，仅新增现 historyPanel 的文字采用入口和四条英文词典。真实 SDK 初写后由 ledger owner 新建原本不存在的 v1 无快照 revision，再通过公开 Action 编辑为当前分类并停用；页面确认/取消、丢回应后原操作重试、原版本冲突、当前完整 meta/origin/owner/状态与重启保持，以及原 full restore，共 4/4 浏览器用例通过。workbench 必需 18 文件加 Memory classification/CAS/actions 共 21/21 文件通过（其中 12/85/23 项）；README 界面必需 10/10 浏览器文件通过。完整 build、根类型、health 对精确父、secrets 和 diff 检查通过。首轮构建因沙箱禁止 Swift cache 写入失败，日志 `/private/tmp/molis-memory-history-text-build-20261024.log` 保留；允许的本机环境重跑通过，无产品断言失败或放宽断言。结果与同 stem 日志见 `/private/tmp/molis-memory-history-text-20261024.results.json`。
 
 资源实测 27 项共 7,830,253 B；相对续期父唯一变化为 workbench 1,207,694→1,208,174 B，净增 480 B，其余 26 项相同。未改资源额度，增量未批准，资源门尚未通过。未改 API/SDK/快照/锁文件、未运行全量、未访问真实 Home 或付费模型；已覆盖临时 Home 真实浏览器路径，不代替 Session 专项、最终集成或用户验收。
+
+资源批准与登记（2026-10-24）：用户明确批准 #1153 本片 workbench.js 一次性 +3,024 B。已将原 #1111 的已用额度替换为准确父值 1,202,990→1,206,014，并由当前构建的实际资源更新预算；其余 26 项不变。`page-assets --update --base 3a11c545e` 与随后真实资源门检查均通过，日志 `/private/tmp/molis-memory-category-controls-approved-assets-20261024.log`。本次只改额度登记、实测预算和本记录，没有修改产品代码或重跑产品用例；此前资源门未通过的记录保留。仍按 #1111→#1153 依赖合并，#1064 最终全量及完整 P0 验收继续待完成。
+
+续期资源批准与登记（2026-10-24）：用户明确批准 #1154 本片 workbench.js 一次性 +1,680 B。已先合入 #1153 的额度记录，再以该父提交 `ffa831255` 的准确预算 1,206,014→1,207,694 登记；其余 26 项不变。当前构建的 `page-assets --update --base ffa831255` 与实际资源门均通过，日志 `/private/tmp/molis-memory-expiry-renewal-approved-assets-20261024.log`。仅同步门禁与记录，没有修改产品代码或重跑已有效的产品用例；保留前次未通过资源门的事实。仍等待父链和 #1064 最终全量，不宣称 P0 或用户验收完成。
+
+旧文字采用资源批准与登记（2026-10-24）：用户明确批准 #1155 本片 workbench.js 一次性 +480 B。已合入 #1154 的额度记录，以父 `a8bd07eb0` 的准确预算 1,207,694→1,208,174 登记；其余 26 项不变。当前构建的预算更新与实际资源门均通过，日志 `/private/tmp/molis-memory-history-text-approved-assets-20261024.log`。本次仅改资源登记、实测预算与记录，不改产品代码，不重复此前有效产品验证；仍等待父链、#1064 最终全量及完整 P0 验收。

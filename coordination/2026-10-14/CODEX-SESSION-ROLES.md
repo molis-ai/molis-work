@@ -26,7 +26,7 @@
 | [#805 原评审6295899361](https://github.com/molis-ai/molis-work/pull/805#issuecomment-6295899361) | projectWriteCheckersRoute注释仍指A2-2章节，A2-3设置页的规格引用错号 | 修复1已交[#1161](https://github.com/molis-ai/molis-work/pull/1161) a6621a7ea并释放；正式评审6379702002及独立文档核验通过，原生单job重试已绿；2026-10-24 05:12:22UTC实际合入a934251d35dae6907fb2de75c3fb9f91735218e0，回执6380246527，本具体问题闭环 | 正确引用的小修PR、独立复核、必要检查及真实合入；行为不变，不新建运行测试 |
 | [#1119 非阻塞评审6379124613](https://github.com/molis-ai/molis-work/pull/1119#issuecomment-6379124613) | BL-377仍引用已被本片删除的BL-480；本片也完成BL-395，须指现行spec/S-59 | 统筹[6379661439](https://github.com/molis-ai/molis-work/pull/1119#issuecomment-6379661439)明确派给本PR在途作者ac-sandbox-sched；不加第二writer | 作者最终提交更正、保留创作台原决定与边界、文档检查/增量复核 |
 | [#1121 原评审6372440411建议1](https://github.com/molis-ai/molis-work/pull/1121#issuecomment-6372440411) | 同项目插件操作其他插件会话、消息及后台命令，需按可信归属限制并保留合法委派/收信 | 用户本轮点名；统筹[6379753664](https://github.com/molis-ai/molis-work/pull/1121#issuecomment-6379753664)认领，修复1已完成只读方案，统筹6379819152裁定；等#1148实际合入，当前先修阻挡该链的main issue-home-locale；与BL-541不同 | 明确现行授权/资源归属、最小spec、真实动作拒绝及正向回归、独立评审/测试、实际合入。原PR已合入aa4de404f不等于此遗留完成 |
-| [#1147 原二轮6375272439建议1](https://github.com/molis-ai/molis-work/pull/1147#issuecomment-6375272439) | SDK README仍把instructions登记描述为仅无目录条目的插件 | 修复2已交#1163 fd7c64a0e并释放；正式评审6379896345和独立文档核验通过，CI全部必要项完成；统筹6380163092已匹配head正常入队，实际合入另核 | 准确统一登记文案、必要文档检查及独立复核/合入 |
+| [#1147 原二轮6375272439建议1](https://github.com/molis-ai/molis-work/pull/1147#issuecomment-6375272439) | SDK README仍把instructions登记描述为仅无目录条目的插件 | 修复2已交#1163 fd7c64a0e并释放；正式评审6379896345和独立文档核验通过，CI全部必要项完成；05:16:43UTC实际合入8aa62a65b2a3644fc8be69ff50b748a53317ec34，本具体建议闭环 | 准确统一登记文案、必要文档检查及独立复核/合入 |
 | 近期防腐PR评论与复审报告 | 其余P2/P3、非阻塞建议和验证缺口 | 首批及5条收尾核实均完成；明确未认领项已逐项公开认领并派给两个修复会话，见下表；现有作者的认领保留 | 统筹接清单逐项明确owner、源评论、修复范围与验收，不能仅登记后搁置 |
 
 ## 已认领的后续修复队列（2026-10-23 21:29，洛杉矶）
@@ -113,3 +113,5 @@
 22:13洛杉矶更新：#1161已实际合入a934251d3，#1163仍队首检查中。main设置入口修复已收到作者关键红绿：原红例保留，Home4/4、S47含新拒绝5/5，拒绝放进现行安全CI文件；作者32文件544项、build/boundary/资源无增长，最终health及提交后secrets待交，尚未独立核原始证据。contracts/dom-events说明同步使真实affected触发full；等最终PR立即交独立review/test，Claude统筹唯一集成批，修复1仍唯一writer。
 
 22:16洛杉矶交付：main设置修复#1171 b27b0cd8c0663cb93d074b6038ff37bdcd2de89a（base89c9a7194）已交、非Draft、7文件+75/-15；root读实际增量并已立即派专职正式review和独立原始日志核验。作者32文件544项及必要门禁通过仍待独立裁决，actual full触发，Claude唯一组批。修复1已释放writer/build/browser，保留#1121待1148依赖；修复2现在唯一writer，已明确启动#1166同版本重装交错P2，按已核拒绝+队列释放方案与真实交错红绿修，不开其他队列。#1161已实际合入，#1163仍排队。
+
+22:19洛杉矶审验收口：#1171精确b27b0cd8一轮6380293028通过、独立原始证据32文件544项与门禁有效（affected65中31已跑34延后、额外README1；浏览器4+5=9，最终后仅EOF空白），现等CI40065480866及Claude统一full，不入队。batch21最终15片绿1片红，唯一issue-home-locale首跑/重试失败，与batch20分别记录，不能当本片full。#1163已实际合入8aa62a65b；#1166修复2为当前唯一writer，P2在修，新头尚未交。

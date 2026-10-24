@@ -85,6 +85,16 @@
 | **FI-6** Feed、Inbox 进 Runtime（PG-093、PG-089 余半，并关 PG-040、PG-080、PG-045 的余项） | 两个 `PluginDefinition` 与监督器条目；`createLocalFeedApplication` 的 9 处构造点改成调公开动作；`/api/feed*`、`/api/inbox*` 边删（客户端见 FI-7）；来源 tick 用自己的唤醒；互斥用 `services.background` 的锁；成果走 `services.artifacts`；`information.plan` 并进插件；`inbox-actions.ts` 用 `services.attention` 取代 Feed 应用的拼 | FI-1、FI-2、FI-5、PG-087（D2）、FI-3（来源要走登记） | RAC-497～499 及后续（一批较大，进工作时再细拆） | `project-plugins.ts`、`web-request.ts`、`index.ts`（`export *`）、`builtin-plugin-assembly-gate.test.ts`（只减） | 等前置 |
 | **FI-7** 客户端改走公开动作（PG-057 的 `/api/feed`、`/api/inbox`） | 29 行引用逐个换成经动作网关调公开动作；Feed、Inbox 的客户端脚本进插件客户端包；`/assets/` 字节数按 `page-assets` 规则处理（预算会涨，要写明） | FI-6 的动作都已公开 | 待拆 | `apps/workbench/src/scripts/client/*`、`tooling/gates/page-assets.json` | 与 FI-6 同批或之后 |
 
+### FI-1 一轮修复：绑定只取已发布规则的稳定引用（Codex FIX6，2026-10-24）
+
+PR #1247 的一轮评审（`6389207529`、统筹 `6389275346`）指出，迁移后 `writeJudgment` 经宿主的 `publishedRules()` 为所有已发布规则构建完整动作，扩大了绑定一条规则的读取范围。目标仍是 FI-1 的行为不变：只消费已发布规则的 key、version、provider 身份，实际权限与场景相容性继续由原场景客户端校验。
+
+Functions 目前没有生成纯引用的公开入口，只有完整的 `publishedFunctionAction` 与反向的 `publishedFunctionKey`。在 Functions 既有 `actions.ts` 增加最小 `publishedFunctionReference`，由包入口导出，完整动作构造器复用它；宿主用同一入口提供 `InboxSceneRule.reference`。这比在 Host 恢复旧的字符串拼法多一个 owner helper，但引用与完整动作始终由同一个主人定义，不复制 Functions 身份规则，也不改变发布合同。允许改动仅限这两处 Functions 文件、`inbox-scene.ts`、对应回归测试和本稿；不改 Feed、事项修订、持久化、Manifest、权限、场景合同或 PG-034 的整线状态。
+
+- **RAC-482（补充）**：正常创建并发布的目标规则与无关规则共存时，绑定保持准确的 key、version、provider；宿主的 `publishedRules` 端口只读取稳定身份，不为绑定构建完整动作定义。Functions 动作目录原有的完整定义注册保持。字段访问监测只证明本端口的读取边界，不把人为损坏的记录声称成正常产品入口能产生的数据。
+- **RAC-482（拒绝保持）**：草稿和不存在的规则不能绑定；无权或与 Inbox 场景不相容的规则仍由真实场景客户端拒绝，原绑定不变。
+- **验证**：先在 `3cd354a5` 的生产路径上运行针对性回归记录失败，再改实现并整体 `pnpm build`，跑新增回归、原 FI-1 场景用例及被改包 README 的相关必跑用例。构建走机器公共槽；本片不另起全量或浏览器批次。原 PR 跨三个包触发的全量要求继续交统筹组批，独立复查仅收本题增量。
+
 顺序（统筹 10-24 定）：**FI-1 现在做**；FI-2 等 #1242 合入后基于 main 做，等的时候写 FI-3、FI-4 的设计稿（统筹审过再实现，设计稿各一份文件：`feed-inbox-integration-registry.md`、`feed-inbox-home-reference-ledger.md`）；FI-5 在 FI-6 的其余前置排好后做；FI-6 最后，因为它依赖前面全部，且是体量最大的一片，进工作时再细拆。
 
 ## 5. 不在本稿

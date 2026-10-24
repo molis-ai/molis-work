@@ -47,20 +47,26 @@ export function publishedFunctionKey(reference: ActionReference): string | null 
     ? reference.capability_id.slice("functions.published.".length) : null;
 }
 
-export function publishedFunctionAction(record: FunctionRecord): ActionDefinition<{ content: string }, FunctionInvokeResult> {
+/** Stable identity for a published rule; callers do not need its complete action definition. */
+export function publishedFunctionReference(record: Pick<FunctionRecord, "function_key" | "status" | "version">): ActionReference {
   if (record.status !== "published" || !record.version) throw new ActionError("actions.function_unpublished", "草稿不能注册为可调用判断");
+  return { capability_id: `functions.published.${record.function_key}`, version: record.version, provider_id: provider.provider_id };
+}
+
+export function publishedFunctionAction(record: FunctionRecord): ActionDefinition<{ content: string }, FunctionInvokeResult> {
+  const reference = publishedFunctionReference(record);
   const value = record.primitive === "choice"
     ? { choice: { enum: [...(record.criteria as readonly { key: string }[]).map(item => item.key), null] } }
     : record.primitive === "noul" ? { noul: { type: "number" } }
       : { score: { type: "number" }, legend: { type: "array", items: text } };
-  const definition = define<{ content: string }, FunctionInvokeResult>(`functions.published.${record.function_key}`, record.name,
+  const definition = define<{ content: string }, FunctionInvokeResult>(reference.capability_id, record.name,
     record.instructions, { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
     { ...resultSchema, properties: { ...resultSchema.properties, function_key: { const: record.function_key }, version: { const: record.version },
       primitive: { const: record.primitive }, data: { type: "object", properties: value, required: Object.keys(value), additionalProperties: false } } }, true);
   const recommendations = record.scene_id !== AGENT_MCP_DESTINATION_ID && (!!record.scene_id || Object.keys(record.scene_map ?? {}).length > 0);
   const choices = record.primitive === "choice" ? (record.criteria as readonly { key: string }[]).map(item => record.scene_map[item.key] ?? item.key)
     : Object.values(record.scene_map ?? {});
-  return { ...definition, version: record.version, action: { ...definition.action, subject_kinds: [...record.subject_kinds],
+  return { ...definition, version: reference.version, action: { ...definition.action, subject_kinds: [...record.subject_kinds],
     ...(Object.keys(record.action_map ?? {}).length ? { required_actions: Object.values(record.action_map!) } : {}),
     ...(record.scene_id && record.scene_version && record.scene_provider_id ? { result_scene: { scene_id: record.scene_id, version: record.scene_version, provider_id: record.scene_provider_id } } : {}),
     output_type: recommendations ? "molis.behavior-recommendation.v1" : "molis.judgment.v1",

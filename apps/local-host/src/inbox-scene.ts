@@ -1,6 +1,6 @@
 import type { ActionClient, ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
-import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-functions";
+import { publishedFunctionReference, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-functions";
 import { createInboxSceneRuntime } from "@molis-ai/molis-work-plugin-inbox";
 import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -24,7 +24,7 @@ export function createLocalInboxScene(home: string, projectId: string, feed: Fee
     saveBinding: (value, options) => { read(service => service.saveActionSceneBinding(projectId, value, options?.expected_revision)); },
     publishedRules: () => read(service => service.list().filter(rule => rule.status === "published" && rule.version))
       .map(rule => ({ function_key: rule.function_key, name: rule.name,
-        reference: { capability_id: publishedFunctionAction(rule).capability_id, version: rule.version!, provider_id: "system.functions" } })),
+        reference: publishedFunctionReference(rule) })),
     functionKey: publishedFunctionKey,
     latestJudgments: sceneId => read(service => service.latestSceneJudgments(projectId, sceneId)),
     recordJudgment: input => read(service => service.recordSceneJudgment({

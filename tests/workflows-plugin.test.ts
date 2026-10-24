@@ -102,8 +102,8 @@ test("工作流程是个人插件，排在左边栏，客户端脚本能解析�
   assert.doesNotThrow(() => new Function("return " + WORKFLOWS_CLIENT_FACTORY_SCRIPT));
   assert.doesNotMatch(WORKFLOWS_CLIENT_FACTORY_SCRIPT, /window\.confirm/);
   const used = new Set<string>();
-  // The client quotes its copy with single quotes: L('…') and tx('…'), and every one of them is a stable key.
-  for (const match of WORKFLOWS_CLIENT_FACTORY_SCRIPT.matchAll(/\b(?:L|tx)\('(workflows\.[a-z.-]+)'/g)) used.add(match[1]!);
+  // The bundle carries its copy as double-quoted stable keys, and every one of them is defined.
+  for (const match of WORKFLOWS_CLIENT_FACTORY_SCRIPT.matchAll(/"(workflows\.[a-z.-]+)"/g)) used.add(match[1]!);
   assert.ok(used.size > 80, `found only ${used.size} keys; the pattern no longer matches the client`);
   assert.deepEqual([...used].filter((key) => !(key in WORKFLOWS_MESSAGES)), []);
   // Every station a run can reach opens the item handed to it, not just its list.

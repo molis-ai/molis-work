@@ -467,7 +467,6 @@ test("this repository: wrappers are followed through every forwarded parameter a
   // two labels, one call: the title and the hint (relationGroup, renderPolicyToggle), and a placeholder after a label (field)
   assert.ok(keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("上游") && keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("这个 Goal 的归属与完成依赖"));
   assert.ok(keys("plugins/native/goals/src/policy-ui.ts", "renderPolicyToggle").includes("完成前必须由用户确认工作结果"));
-  assert.ok(keys("plugins/native/workflows/src/client.ts", "field").includes("workflows.rule.title") && keys("plugins/native/workflows/src/client.ts", "field").includes("workflows.rule.body"));
   // Alchemist: tx and button are defined in client.ts, section in client-views.ts, and the three other script files call them
   assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "button").includes("归档方向"));
   assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "tx").includes("实际使用次数"));

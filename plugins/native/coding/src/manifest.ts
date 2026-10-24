@@ -239,7 +239,7 @@ export const codingManifest: PluginManifest = {
       },
     ],
     views: [
-      { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID },
+      { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID, accepts_objects: true },
       {
         view_id: "directory",
         slot: "navigator",

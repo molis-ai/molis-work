@@ -172,3 +172,51 @@
 ### 6.3 下一轮
 
 主题 b（lead 队列）：**privileges/SSOT 全表漂移核对** —— 逐 PG 行对照 main 代码现状，输出「PG 行 → 精确 edit（改状态/改描述/删行）」给统筹批量写；覆盖 PG 状态与代码矛盾、SSOT 矩阵旧描述（128/133/152/216 类）、§7 冲突清单过时项；同时把第 1 轮 4 条文档漂移合并成一份可直接贴的 edit 清单。
+
+---
+
+## 7. 第 3 轮（主题 b：privileges / SSOT 全表漂移核对）
+
+> 基准：`origin/main` = `89c9a7194`（`1756f9842..89c9a7194` 只改 coding 插件与 page-assets；`git log -- specs/repository-anti-corruption/privileges.md` 自 `1756f9842` 起为空 → privileges.md 内容与第 1 轮读取一致）。方法：解析 136 条 `| PG-` 表行（含 §6/§8 重复行），用 5689 文件索引把 bare basename / 包内相对路径解析到真实文件，再校验 `path:line` 是否越界；状态列与已合 PR 对照（#1120 `47c780644`、#1126、#1132、#1137 `4e5f91a19`、#1145、#1147 `1756f9842`）。`node scripts/gates/package-inventory.mjs --check` 退出 0（spec §5.1 与代码一致）。
+
+### 7.1 结论（无 blocker）
+
+- **代码状态与 privileges 状态列的矛盾只剩「已合未写」的流程滞后**（SLICE-RULES 内，不算缺陷）：PG-051 已由 #1147（P2a+P2b，已在 main 1756f9842）做完，行里仍写「待做」；PG-010 已由 #1120（2026-10-24）做完「不点插件 id」，行里仍写「待做」；PG-056/070/071 的进度（Jelly #1145、Issues #1132、Images #1137）已写进行内，其他插件片未合，状态可不动。**需统筹批量写**：PG-051（→已做）、PG-010（→已做）。
+- **在途 PR 覆盖的 PG 暂不改**：PG-017（#1139/#1143/#1144）、PG-081/PG-082（#1130）——等合入后随批量写一起改，避免和 PR 冲突。
+- **机械漂移共 21 处**（下面 §7.2）：主要是 `path:line` 越界（生成器改造后 `builtin-plugins.ts` 只剩 58 行；客户端打包后 `client.ts` 只剩 9 行加载器；`schedule-runtime.ts`、`schedule-reminders.ts`、`builtin-plugin-callers.ts`、`capture-client.ts` 已删）与计数过时（26 条目录条目→25、rawFetch 85→45、宿主 HTTP 文件 9→5、SSOT 行号）。
+- **PASS（无需改）**：`package-inventory --check`；`plugins/native/**/registration.ts` 25 个且目录由生成器写（PR-1a #840）；`@prologue/sdk` 唯一依赖（第 2 轮）；`native-plugin-api.ts` 别名表已从目录计算（非手写）；第 1 轮「已做」判断与当前 privileges 一致（PG-003/018/019/027/039/041/042/048/050/052/012/088/089 均已更新，STATUS-MATRIX-2026-10-23 的「状态过时」清单已过时）。
+
+### 7.2 「PG 行 → 精确 edit」清单（行号基于 89c9a7194；按 PG 编号定位更稳）
+
+| # | 行 | 现状（问题） | 改为 |
+| --- | --- | --- | --- |
+| E1 | privileges.md:5 | 「§1 的 2026-10-18 各行，第 508–517 行」「第 506、507、518、519 行不是特权行」 | 「第 1154–1168 行」「第 1152、1153、1169、1170 行」（2026-10-23 复核：spec 增行后旧行号失效） |
+| E2 | 134（PG-006） | 代码位置 `action-contract.ts:11-21`（现 9 行）、`goals-actions.ts:17-19`、`builtin-plugin-callers.ts:1-13`（已删） | 「`plugins/native/goals/src/action-contract.ts`（现 9 行，已无内置调用者检查）、`goals-actions.ts`（原 :17-19 已删）、`builtin-plugin-callers.ts`（已删，随 #812）」 |
+| E3 | 138（PG-010） | 状态「待做」；代码位置 `functions-host.ts:13-18` | 状态→「已做（#1120，2026-10-24：首页规则的选项目标按声明找，不再点插件 id）」；位置→「`modules/functions/src/builtin.ts`（默认规则仍在，不再点插件 id）、`apps/local-host/src/functions-host.ts:17-31`（`declaredRuleTargets` 按声明找）」 |
+| E4 | 175（PG-102） | `apps/workbench/src/builtin-plugins.ts:76-80,140,157` | 同文件「（生成物，现 58 行；原行号已随 PR-1a 生成器失效）」，字段实际在各自 `src/registration.ts` |
+| E5 | 176（PG-103） | `apps/workbench/src/builtin-plugins.ts:77-78` | 同上（生成物，现 58 行） |
+| E6 | 178（PG-106） | `packages/contracts/src/platform/plugin.ts:385-386` | 「`packages/contracts/src/platform/plugin.ts`（现 304 行；原 :385-386 的 `onProjectDeleted` 已随 C4 删）」 |
+| E7 | 204（PG-037） | `coding-surface.ts:173-232`（现 148 行）；`ensureStarted` 已不存在 | 「`coding-surface.ts`（现 148 行，原 :173-232 越界；分发已挪 `project-plugin-http.ts:45 handleProjectPluginHttp`）」 |
+| E8 | 211（PG-044） | `project-plugin-ports.ts:46`（现 43 行） | `project-plugin-ports.ts:40-43`（review settlements 端口） |
+| E9 | 219（PG-047） | `project-plugin-ports.ts:49`（现 43 行） | 「`project-plugin-ports.ts`（现 43 行，原 :49 越界；模型列表端口已删）」 |
+| E10 | 223（PG-051） | 状态「待做」；`plugin-instructions.ts:26-49`、`agent-definitions/builtin-instructions.ts:13`、`todo/src/plugin.ts:15-31` | 状态→「已做（#1147，P2a+P2b，2026-10-24 合入 main：Agent 定义只由运行中的定义登记，删目录那条与回落）」；位置→「`plugin-instructions.ts:34-38,63-67`（现在唯一登记路）、`agent-definitions/builtin-instructions.ts`（目录那条已删）」 |
+| E11 | 225（PG-053） | `plugins/native/shelf/src/terminal-client.ts:90,95`（现 65 行） | 「`plugins/native/shelf/src/terminal-client.ts`（现 65 行，原 :90,95 越界）」 |
+| E12 | 234（PG-056） | 基线「rawFetchInScripts 共 85 处」；`todo/src/client.ts:97`、`issues/src/client.ts:34`（均 9 行加载器） | 「rawFetchInScripts 共 45 处/25 文件（`tooling/gates/baseline.json`，2026-10-23 复核）」；位置→「`plugins/native/todo/src/browser/request.ts`、`plugins/native/issues/src/browser/request.ts`（client.ts 已变打包脚本加载器）」 |
+| E13 | 235（PG-057） | `issues/src/capture-client.ts:37-38,48,71,73`（不存在）、`todo/src/client.ts:783,788`（9 行） | 「`plugins/native/issues/src/browser/capture.ts`（capture-client.ts 已不存在）、`plugins/native/todo/src/browser/**`（client.ts 现为 9 行加载器）」 |
+| E14 | 236（PG-058） | 描述「每个插件配一份宿主 HTTP 文件」；位置「还在的宿主 HTTP 文件：alchemist、artifact、feed、inbox、pages、personal、schedule、shelf、workflows 各一份」；受影响列含 Pages/Schedule/Workflows；状态「待做（T0 已核）」 | 描述→「剩下的构建期插件各有一份宿主 HTTP 文件（现只剩 5 份：alchemist、artifact、feed、inbox、personal；`personal` 是 alchemist 的旧短名桥）」；位置→「alchemist/artifact/feed/inbox/personal 五份；`native-plugin-api.ts:4-13` 的别名表现从 `BUILTIN_PLUGIN_CATALOG` 计算（跳过 `personal===true` 与 Runtime，另加 functions 两条），非手写表」；受影响→「Feed、Inbox、Goals、Alchemist、Shelf、成果库（Pages、Dataset、PPT、Workflows、Form、Cognia、Jelly、Images 已迁走）」；状态→「部分（2026-10-23 复核：Pages/Dataset/PPT/Workflows/Form 已迁；Goals 路由已声明 S7b、宿主仍按旧地址改写；Shelf #1076 在途；Feed/Inbox/成果库/Sessions 未动）；Alchemist 不迁…」 |
+| E15 | 249（PG-065） | 「26 条手写的目录条目」「`src/registration.ts`（26 个…」 | 「25 条目录条目（原 26；Characters 已并入 `modules/characters`，CHR-1 #1008）」「`src/registration.ts`（25 个…」 |
+| E16 | 274（PG-084） | `apps/workbench/src/builtin-plugins.ts:118-131`（现 58 行） | 「`apps/workbench/src/builtin-plugins.ts`（生成物，现 58 行，原 :118-131 越界；plugin-builder 条目由 `plugins/native/plugin-builder/src/registration.ts` 生成）」 |
+| E17 | 284（PG-089） | `schedule-runtime.ts:50-78`、`schedule-reminders.ts:1-2,30-36`（均已删） | 两处前缀加「（已删，#1018）」；其余 Inbox 引用不变 |
+| E18 | 289（PG-094） | `plugins/native/goals/src/index.ts:120-121`（现 114 行） | `plugins/native/goals/src/index.ts:110-114`（现导出口） |
+| E19 | 392–404（§7 第 9 条） | 「SSOT 第 128、133、152、216 行…还把成果库、创作台、Sessions 写成插件」 | 整条改为「已解决（2026-10-23 复核）：SSOT 129（artifacts）、152（plugin-builder）、155（work/Sessions）、216（plugin-builder 工作台节）均已加「2026-10-18 改」注；原列 128、133 不是问题行（goals、workbench/functions）」 |
+| E20 | 405（§7 第 10 条） | `schedule-reminders.ts:34` 的注释 | 整条改为「已随 #1018 删（文件不存在），闭环」 |
+| E21 | 439（§8 PG-058 复核行） | 「还剩 native-plugin-api.ts 的别名表和九份 `*-native-plugin-http.ts`；原表漏了 workflows 和成果库（artifact）两份」 | 在句末追加「（2026-10-23 复核：磁盘只剩 5 份 alchemist/artifact/feed/inbox/personal；别名表已改为从目录计算；「九份」与「漏列」随迁移过时）」 |
+
+### 7.3 需 lead 派修 / 转统筹
+
+- **无需派修**：本轮全是文档 edit，建议交统筹（Codex）在下一批 privileges.md/spec.md 更新里一次写入；E1/E14/E15/E19/E21 同时覆盖第 1 轮的 4 条文档漂移。
+- **供 task-13 复核**（PR 出来后我第 4 轮顺手看）：删除清单对应 PG-058 的 `personal` 一份；本轮 E14 已按「剩 5 份」写，task-13 合入后应为「剩 4 份（alchemist/artifact/feed/inbox）」，届时再改一次。
+
+### 7.4 下一轮
+
+主题 c（lead 队列）：**typed capability / 宿主能力注册是否仍在新增**。方法：`scripts/gates/typed-capabilities.mjs` 的 type-refs / without-action / register-calls 三项基线、`HostCapabilityDefinition` grep、`registerCapability`/`register(` 调用面，对照 privileges PG-035（剩 agent 37 条 BL-364、scheduler 4 条 BL-365）与 W5-08 typed 140 处；输出「是否还有新增入口 / 存量清单与 owner」。

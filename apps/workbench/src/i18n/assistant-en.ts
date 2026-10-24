@@ -2,6 +2,12 @@ import { INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
 
 /** The resident Assistant in the bottom bar, with the supplement receipt it shares with every plugin. */
 export const ASSISTANT_EN: Record<string, string> = {
+  "归档工作": "Archive work",
+  "恢复工作": "Restore work",
+  "停止这项工作的定时，保留历史和记忆。执行方会话与子任务不会一起归档。": "Stop this work’s schedules and keep its history and memory. Executor sessions and subtasks stay as they are.",
+  "恢复这项工作，保留原历史和记忆。不会重新启用旧定时，也不会自动开始一轮。": "Restore this work with its history and memory. Old schedules stay disabled and no round starts automatically.",
+  "工作已变化，请关闭后重新核对。": "This work has changed. Close this dialog and review it again.",
+  "按原决定重试": "Retry the same decision",
   "周日": "Sun",
   "周一": "Mon",
   "周二": "Tue",

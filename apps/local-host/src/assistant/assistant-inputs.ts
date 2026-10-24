@@ -101,6 +101,12 @@ export function queuedInputs(session: AgentSessionView | null): Pick<AssistantWo
   return session?.queued_inputs ? { queued_inputs: session.queued_inputs } : {};
 }
 
+/** The existing Work list's archive filter, checked before storage reads. */
+export function checkArchiveFilter(value: boolean | "any"): boolean | "any" {
+  if (value !== false && value !== true && value !== "any") throw assistantErrors.invalid("归档筛选不合法");
+  return value;
+}
+
 /** The revision an answer names: the first one given. An answer to a question no one numbered is not sent. */
 export function exactRevision(...revisions: Array<number | undefined>): number {
   const revision = revisions.find(value => value !== undefined);

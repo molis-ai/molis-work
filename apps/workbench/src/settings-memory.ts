@@ -8,8 +8,7 @@ export const MEMORY_SETTINGS_NAVIGATION_FACTORY_SCRIPT = String.raw`(projectFor,
   const project = projectFor();
   if (target.scope === "character" && !target.project_id) throw new Error(L("角色建议缺少项目，无法打开设置"));
   const scoped = target.scope === "character" ? target.project_id : target.scope === "project" ? target.project_id || project?.id : "";
-  const handled = scoped === (project?.id || "") && !window.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: "memory" }, cancelable: true }));
-  if (!handled) location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
+  location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
 }`;
 
 /**

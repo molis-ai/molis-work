@@ -214,7 +214,11 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
       const thread = await handleThreadHttp(parts, method, url, body, ports);
       if (thread) return thread;
-      if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "works") {
+        const archived = url.searchParams.get("archived");
+        if (archived !== null && !["false", "true", "any"].includes(archived)) throw assistantErrors.invalid("归档筛选不合法");
+        return { status: 200, body: { works: await service.list(archived === "any" ? "any" : archived === "true") } };
+      }
       // The works that relate to one object here: for that object's own page ("belongs to …", continue it).
       if (method === "GET" && parts.length === 1 && parts[0] === "related") {
         const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";

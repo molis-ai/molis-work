@@ -82,6 +82,26 @@ test("AST-MEM-ARCH: SDK archive/restore precedes the Work commit; history reads 
   assert.equal((await f.adapter.sessionLifecycle!.read(ref(work.session_id!), owner)).state, "active");
 });
 
+test("AST-MEM-ARCH-UI-04: archived list uses the same actor and never replays its notices, observations or queue", async t => {
+  const f = await fixture(t), work = await f.create(), active = await f.create(false);
+  await f.service.archive(work.work_id, await f.service.lifecycle.preview(work.work_id, true), control);
+  const foreign = f.store.create({ actor_id: "another-person", title: "别人的归档", scope: { kind: "personal" }, origin: null });
+  f.store.update("another-person", foreign.work_id, foreign.revision, { archived: true });
+  f.store.observe(actor, work.work_id, "running");
+  f.store.raiseNotice(actor, { kind: "needs-decision", work_id: work.work_id, work_title: work.title, text: "原等待通知" }, "archive-list-original");
+  const snapshot = () => ({ work: f.store.get(actor, work.work_id), observed: f.store.observed(actor, work.work_id),
+    notices: f.db.prepare("SELECT * FROM assistant_notices WHERE work_id=? ORDER BY notice_id").all(work.work_id), queue: f.adapter.schedule!.list() });
+  const before = snapshot(), session = await f.adapter.readSession(ref(work.session_id!));
+  assert.deepEqual((await f.service.list(true)).map(item => item.work_id), [work.work_id]);
+  assert.deepEqual(new Set((await f.service.list("any")).map(item => item.work_id)), new Set([work.work_id, active.work_id]));
+  assert.deepEqual(snapshot(), before);
+  assert.deepEqual(await f.adapter.readSession(ref(work.session_id!)), session);
+  assert.deepEqual((await f.service.list()).map(item => item.work_id), [active.work_id]);
+  assert.equal(f.store.observed(actor, active.work_id), "idle", "ordinary lists retain their existing observation behavior");
+  await assert.rejects(Reflect.apply(f.service.list, f.service, ["invalid"]), { code: "assistant.invalid" });
+  assert.equal(f.requests, 0);
+});
+
 test("AST-MEM-ARCH: changed owner/binding, omitted original, missing adapter and current-authority denial do not mutate stored work", async t => {
   const f = await fixture(t), work = await f.create(), other = await f.create();
   const request = await f.service.lifecycle.preview(work.work_id, true);

@@ -42,7 +42,7 @@ import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryService, MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import { WorkExecutor, dispatchControl, executorProviders, offerExecutors, type ExecutorControl, type PersonActions } from "./assistant-executor.js";
-import { AssistantInputs, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, checkArchiveFilter, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
 import { memoryInputSnapshots, memoryInputSource } from "../memory/memory-source-identity.js";
 import type { memorySources } from "../memory/memory-sources.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
@@ -386,13 +386,13 @@ export class AssistantService {
       } });
   }
 
-  async list(): Promise<AssistantWork[]> {
-    const works = this.store.list(this.actorId);
+  async list(archived: boolean | "any" = false): Promise<AssistantWork[]> {
+    const works = this.store.list(this.actorId, { archived: checkArchiveFilter(archived) });
     if (!works.length) return [];
     const host = await this.ports.host();
     return Promise.all(works.map(async work => {
       const state = await this.stateFor(host, work);
-      this.notice(work, state);
+      if (!work.archived) this.notice(work, state);
       return this.publicWork(await this.named(work), state);
     }));
   }

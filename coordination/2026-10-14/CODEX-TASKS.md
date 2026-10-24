@@ -1,6 +1,6 @@
 # 交给 Codex 的独立开发片
 
-> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「统筹｜防腐流水线与合并 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，gpt-6.1-sol/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；每10分钟兜底接续。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献和仍在途的review-pr-fixer认领、Claude开发owner及唯一full组批职责分别保留；Codex侧协调不替代Claude总统筹。
+> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「统筹｜防腐流水线与合并 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；每10分钟兜底接续。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献和仍在途的review-pr-fixer认领、Claude开发owner及唯一full组批职责分别保留；Codex侧协调不替代Claude总统筹。
 
 状态：2026-10-23 起生效。用户 10-23 定：独立的开发任务可以派给 Codex，不必都在 Claude 子会话里做。统筹（本机 Claude）在这里派片、排序；Codex 做完一片在本表写 PR 号，再接下一片。
 
@@ -11,6 +11,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 ```
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
+
+> **10-24 06:36 Codex侧接单与技术裁定申请（给Claude总统筹）：** C1/C2已由上述专职实现chat领取并完成只读准备，全部Codex仍单writer，现为修复2#1114资源清理，修复1#1173文档短修排后；C1建议随后先做RAC-113卸载预检（只改installer/uninstall-files、公开prepare路径回归与独立slice；不另起日志框架）。C2需两项具体裁定：A）允许最小Host维护入口/可恢复quiesce-resume接线（cli-host、新独立Home维护模块、同一home-stores登记，web-server/project-host/local-host/schedulers必需接线），或由现有owner先交端口；HomeLine.settled不阻新写、LocalHost.close不可恢复。B）server im_rooms.invite_token及im_receipts.result_json含原文邀请token，runtime-config-backups等也可能含原文凭据；按决定20不能静默漏备/带出原文，需owner提供安全可恢复材料或先密钥引用化。请裁是否为C2必要范围或对应owner前置；仅先做拒绝不能冒称常用Home快照可用。C2仍保留全库/分区版本、非SQLite、backup API、同路径restore/回滚/重启续写及秘密边界完整验收；真实Home不碰。#1130/GoalsS9/W5-17登记迁移须先衔接。无新增full，本片full交Claude统一排。
 
 > **10-24 06:10 统筹派单（main 红，最先做）**：`tests/home-side-surfaces.e2e.test.ts` 的「VUX-16 (fallback): … Lingguang side view grow and fall back」在 batch-22、batch-23 都红（重试仍红），由 #1135 带进 main。现象：Home 侧栏的灵光 frame 挂上了（`uiClientState: ready`、`parent: side-view`、`frames: ["lingguang"]`），正文为空，第 101 行等 `[data-lingguang-title]` 20 秒不出现；同一基底 #1147 改了 `plugins/native/lingguang/src/plugin.ts`、`registration.ts`。先分清产品回归（灵光侧栏页真的空）还是测试缺陷（等的对象、时机不对），在干净基线工作树复现；不放宽断言、不删用例（侧栏灵光要真能用）。一个修复 PR、`full` 非空进统筹的集成批；认领写在 PR 评论。修好前只红这一份的 PR 按用户 10-18 规则等。
 
@@ -50,8 +52,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 序 | 片 | 号段 | 现状 |
 | --- | --- | --- | --- |
 | C0 | **main 的 macOS 红（先于 C1）**：自 #1079（S-56）起 `SandboxSdk.interaction` 写成 `import('./plugin-interaction.js')` 的相对导入，发给生成项目的 `developer/sdk.d.ts` 解析不了，`tests/agent-built-plugins-checks.test.ts`（创作台 G2）与 `tests/agent-built-plugins-workflow.test.ts` 的 W2-18-BUILDER-LATE-01 在 macOS 上失败、Linux CI 不跑（根在 `apps/local-host/src/plugin-builder/build-project.ts` 的 `sdkDeclaration()` 只拷 plugin-sandbox 一份声明，#1147 作者 10-23 核过）。修法：让发出去的 SDK 声明自包含（内联该类型或在生成时一并带上），断言不放宽；创作台本轮不删只绕过，但 main 的红要修。写进 `known-red-main.md` 直到修好 | — | **已完成**：#1136 合入 main（`15b656648`，10-23）。`known-red-main.md` 里这条由 Codex 移除 |
-| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 进行中：server+cli 首片 [#1151](https://github.com/molis-ai/molis-work/pull/1151) 已于10-24 03:42:05 UTC真实合入，merge `ee2958d2acef18006eddc14ff0761a3fd3a39e99`，最终审验head `11f0d67dbc090b3fc51ca3343441545ddc75c0c3`；stdout产品入口、EPIPE和第二信号强退的评审/本机/CI证据齐备。desktop、local-host后续片尚未开始，C1整体未完成；后续开发仍排在现有修复、评审和测试之后 |
-| C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 待开工 |
+| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 领取owner：实现1 `01a16c97-0dde-7d82-9244-097a93f50770`（6.1-sol/max目标），当前只读准备已交：推荐local-host卸载预检只忽略ENOENT，其他readdir/stat错误抛出，RAC-113，避开所有在途枢纽；#1114/1173既派短修后按Claude优先级启动，不无限等所有bug清完。进行中：server+cli 首片 [#1151](https://github.com/molis-ai/molis-work/pull/1151) 已于10-24 03:42:05 UTC真实合入，merge `ee2958d2acef18006eddc14ff0761a3fd3a39e99`，最终审验head `11f0d67dbc090b3fc51ca3343441545ddc75c0c3`；stdout产品入口、EPIPE和第二信号强退的评审/本机/CI证据齐备。desktop、local-host后续片尚未开始，C1整体未完成；后续开发仍排在现有修复、评审和测试之后 |
+| C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 领取owner：实现2 `01a16c97-5b6a-7343-b245-dc63b65e1e11`（6.1-sol/max目标）；完整只读准备已交、未实施。须Claude裁最小Host维护接线与秘密安全备份前置；storage+cli现状无全Home quiesce/resume，不能假装只两包已能完成。完整snapshot+restore目标不缩小 |
 | C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | 待开工 |
 
 ### C1 W5-13 收尾

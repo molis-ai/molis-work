@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { IntegrationProviderPort, PluginDefinition, PluginExecutor, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationProviderPort, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MemoryPluginEventsRepository,
   MemoryPluginRuntimeRepository,
@@ -18,7 +19,7 @@ import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-
  */
 const ID = "io.molis.work.lifecycle-probe";
 
-test("RAC-196-U2 uninstall cleanup retries stay revoked, serialized and replayable across a Runtime restart", async t => {
+test("RAC-196-U2 RAC-357-U1 uninstall cleanup retries stay revoked, serialized and replayable across a Runtime restart", async t => {
   for (const restart of [false, true]) await t.test(restart ? "new Runtime" : "same Runtime", async () => {
     const repository = new MemoryPluginRuntimeRepository(), native = new NativePluginExecutor();
     const contexts: PluginStartContext[] = [];
@@ -48,6 +49,7 @@ test("RAC-196-U2 uninstall cleanup retries stay revoked, serialized and replayab
     assert.equal(saved.state, "uninstalled");
     assert.equal(original.contribution(id), null);
     assert.throws(() => contexts[0]!.requireGrant("storage:private"), { code: "plugin.grant_denied" });
+    assert.doesNotThrow(() => original.register({ ...definition }), "failed Host cleanup has already released the earlier implementation");
 
     const runtime = restart ? new PluginRuntime(repository, executor) : original;
     const receipts = await Promise.all([runtime.uninstall(id, { retain_private_data: false }), runtime.uninstall(id)]);
@@ -57,6 +59,58 @@ test("RAC-196-U2 uninstall cleanup retries stay revoked, serialized and replayab
     assert.deepEqual(repository.get(id), saved, "retries do not rewrite the uninstall or change the person's data choice");
     assert.equal(starts, 1); assert.equal(stops, 1, "cleanup retries do not reactivate or stop code again");
     assert.throws(() => contexts[0]!.requireGrant("storage:private"), { code: "plugin.grant_denied" });
+    assert.doesNotThrow(() => runtime.register({ ...definition }));
+  });
+});
+
+test("RAC-357-U1 reinstall requires a synchronous cleanup capability, also after restart; a Native executor without external cleanup stays usable", async t => {
+  for (const restart of [false, true]) await t.test(restart ? "new Runtime" : "same Runtime", async () => {
+    const stored = new MemoryPluginRuntimeRepository();
+    let writes = 0, cleanups = 0;
+    const repository = { get: (id: string) => stored.get(id), list: () => stored.list(), save(record: PluginInstanceRecord) { writes++; stored.save(record); } };
+    const executor = Object.assign(new NativePluginExecutor(), { async uninstalled() { cleanups++; } });
+    const before = new PluginRuntime(repository, executor), definition = probe("1.0.0");
+    const id = before.install({ definition, deployment: "local" }).install.install_id;
+    await before.start(id); await before.uninstall(id, { retain_private_data: false });
+    const saved = before.get(id), count = writes, runtime = restart ? new PluginRuntime(repository, executor) : before;
+    assert.throws(() => runtime.install({ definition: { ...definition }, deployment: "local" }), { code: "plugin.state_invalid" });
+    assert.equal(writes, count, "the missing synchronous capability does not create an installation or rewrite the old row");
+    assert.deepEqual(runtime.get(id), saved);
+    assert.equal(cleanups, 1, "a synchronous install must not start another asynchronous hook and leave it running");
+    assert.equal(runtime.contribution(id), null);
+    assert.doesNotThrow(() => runtime.register({ ...definition }), "a refused reinstall did not register its definition");
+  });
+  const native = new PluginRuntime(), definition = probe("1.0.0");
+  const first = native.install({ definition, deployment: "local" }).install;
+  await native.start(first.install_id); await native.uninstall(first.install_id, { retain_private_data: false });
+  const again = native.install({ definition: { ...definition }, deployment: "local" }).install;
+  assert.notEqual(again.installation_generation, first.installation_generation);
+  await native.start(again.install_id);
+  assert.equal(native.get(again.install_id).state, "running");
+  await native.stop(again.install_id);
+});
+
+test("RAC-357-U1 reinstall validates grants before cleaning, preserves ActionError and maps an ordinary Host cleanup failure", async t => {
+  for (const failure of [new ActionError("plugin.declaration_invalid", "unsafe owner-files path"), new Error("KV deletion unavailable")])
+  await t.test(failure.name + ": " + failure.message, async () => {
+    const stored = new MemoryPluginRuntimeRepository();
+    let writes = 0, cleanups = 0;
+    const repository = { get: (id: string) => stored.get(id), list: () => stored.list(), save(record: PluginInstanceRecord) { writes++; stored.save(record); } };
+    const executor = Object.assign(new NativePluginExecutor(), { uninstalled() {}, keptDataDiscarded(record: PluginInstanceRecord) {
+      cleanups++; assert.deepEqual(record, removed); throw failure;
+    } });
+    const runtime = new PluginRuntime(repository, executor), definition = probe("1.0.0");
+    const id = runtime.install({ definition, deployment: "local" }).install.install_id;
+    await runtime.uninstall(id, { retain_private_data: false });
+    const removed = runtime.get(id), count = writes;
+    assert.throws(() => runtime.install({ definition, deployment: "local", grants: ["undeclared"] }), { code: "plugin.grant_denied" });
+    assert.equal(cleanups, 0, "bad grants cannot trigger deletion");
+    assert.throws(() => runtime.install({ definition: { ...definition }, deployment: "local" }), (error: unknown) =>
+      failure instanceof ActionError ? error === failure : error instanceof ActionError && error.code === "plugin.executor_failed");
+    assert.equal(cleanups, 1);
+    assert.equal(writes, count);
+    assert.deepEqual(runtime.get(id), removed);
+    assert.equal(runtime.contribution(id), null);
     assert.doesNotThrow(() => runtime.register({ ...definition }));
   });
 });

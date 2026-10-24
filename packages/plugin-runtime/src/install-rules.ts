@@ -22,6 +22,29 @@ export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest:
   return `卸载时保留了 ${previous.version} 的数据，${manifest.version} 没有声明能读取它：可以放弃这些数据后全新安装，或者先重新安装 ${previous.version}，再升级到 ${manifest.version}`;
 }
 
+/** Validate grants before a reinstall can remove data; existing compatible-version calls keep their original grants default. */
+export function installationGrants(current: PluginInstanceRecord | null, manifest: PluginManifest, bundled: boolean, requested?: string[]): string[] {
+  if (bundled) return bundledGrants(manifest, current?.state === "uninstalled" ? undefined : current?.grants);
+  const held = current && current.state !== "uninstalled" && current.version !== manifest.version ? current.grants : undefined;
+  return normalizeGrants(manifest, requested ?? held ?? []);
+}
+
+/** A non-retaining uninstall must finish its Host cleanup before another installation can see that installation id's data. */
+export function prepareInstallationData(executor: PluginExecutor, previous: PluginInstanceRecord | null, manifest: PluginManifest, bundled: boolean, discard: boolean): void {
+  const refusal = keptDataRefusal(previous, manifest, bundled, discard);
+  if (refusal) throw pluginErrors.kept_data_incompatible(refusal);
+  if (previous?.state !== "uninstalled" || previous.retain_private_data) return;
+  if (!executor.keptDataDiscarded) {
+    if (executor.uninstalled) throw pluginErrors.state_invalid("Plugin 的宿主没有同步数据清理能力，暂不能重装这个不保留数据的安装");
+    return;
+  }
+  try { executor.keptDataDiscarded(previous); }
+  catch (error) {
+    if (error instanceof ActionError) throw error;
+    throw pluginErrors.executor_failed("Plugin 已卸载数据清理失败，暂不能重装，请重试清理");
+  }
+}
+
 /**
  * Saves a new installation's row. When the person's word drops the data an uninstall kept (`discard`, `replaced` the uninstalled row that
  * held it), the Host is told once the row is saved, so what it kept beside that data goes too, before anything starts.

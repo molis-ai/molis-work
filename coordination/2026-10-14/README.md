@@ -3581,3 +3581,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 02:50：#1151 二轮可合；统筹更正裁定：给人看的入口地址算产品输出，`serve` 第一行留在 stdout（计数仍 21），Codex 改一行后入队。
 - 10-24 02:55：#1157 二轮可合（等 #1130）；#1130 合 main 的解冲突（换了 S4-04 的故障注入点）交 `ac-review` 核；#1116 一轮交 `ac-review`。
 - 10-24 03:05：用户弹窗三项：真实 Home 维护走同一个时段（先在拷贝上跑 `list` 交用户，时段由用户定）；沙箱的 `ownerFiles` 与材料 `fetch_local`/`original` 都**做**（不按推荐），经 broker 给有界版本，归 `ac-sandbox-sched` 的 PG-017 P2c、P2d。
+- 10-24 03:20：开 #1159（BACKLOG 加 BL-540～542，纯文档，CI 绿即由统筹入队）。batch-18（#1147）只红 `onboarding-goals-actions.test.ts`（`agent.role_not_declared`），合并 Agent 已把测试改成经运行中插件起轮（`36f137eaa`），交 `ac-review` 核有没有人直接以插件角色起轮的产品路径；cognia-actions 重试后过（flaky）。

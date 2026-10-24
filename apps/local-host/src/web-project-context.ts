@@ -27,7 +27,6 @@ export interface ProjectRequestContext extends WebRequestContext {
 /** The same request inside the project's open runtime: the stores, and the ports the project's surfaces are given. */
 export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly store: MolisWorkProjectRuntime["store"];
-  readonly coordinator: MolisWorkProjectRuntime["coordinator"];
   readonly feedOptions: ReturnType<typeof projectFeedOptions>;
   /** Home shows and runs what any plugin offers the person here: native plugins by their manifests, Runtime plugins by their installed grants. */
   readonly homeActions: ReturnType<typeof bindLocalWebActions>;

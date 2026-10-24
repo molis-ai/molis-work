@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { createFunctionsService, createTypeSafeProvider, openFunctionsStore, functionsActionProvider,
+import { createFunctionsService, createTypeSafeProvider, functionsActionProvider,
   functionsActions, publishedFunctionProvider } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 test("W2-18-FUNCTION-CHOICE-01 raw out-of-enum answers cannot save a preview, publish, or persist a successful judgment", async () => {
-  const home = mkdtempSync(join(tmpdir(), "function-choice-")), store = openFunctionsStore(home);
+  const home = mkdtempSync(join(tmpdir(), "function-choice-"));
   let choice: string | null = "outside", calls = 0;
-  const service = createFunctionsService({ store, credential: () => "fixture", provider: createTypeSafeProvider(async request => {
+  const service = createFunctionsService({ home, credential: () => "fixture", provider: createTypeSafeProvider(async request => {
     calls++; return { model: request.model, answers: { [Object.keys(request.questions)[0]!]: { type: "choice", choice, probabilities: {} } } };
   }) });
   const owner: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:invoke", "functions:manage"] };
@@ -46,5 +46,5 @@ test("W2-18-FUNCTION-CHOICE-01 raw out-of-enum answers cannot save a preview, pu
       assert.equal(valid.status, "ok"); assert.equal(valid.data.choice, "no");
       assert.deepEqual(service.listJudgments().map(row => row.outcome).sort(), ["needs_review", "ok"]);
     } finally { dispose(); }
-  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+  } finally { service.close(); rmSync(home, { recursive: true, force: true }); }
 });

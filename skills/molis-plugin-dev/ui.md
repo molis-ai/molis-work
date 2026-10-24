@@ -98,6 +98,8 @@ renderPluginStageShell({
 
 ## 浏览器客户端
 
+打包的 TypeScript 客户端使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，用 `Pick` 只取需要的字段，不另写一套宿主接口；DOM 类型由浏览器消费者传入泛型。`molisWorkRequest` 的形状也来自该合同；全局声明由 Plugin SDK 公共入口提供，浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk"` 纳入，页面不重复声明、不另建请求实现。用 `host.pluginRoute(relativePath)` 请求自己的路由，用 `host.route(platformPath)` 请求已获准的平台路径；`host.pluginId` 来自 Manifest，仅作展示，授权仍由宿主绑定。生命周期 `scope.fetch` 与 `assertCurrent` 保留取消及迟到回应拒绝。打包器作为包的直接开发依赖，与根目录同版；词典和测试写法见 [逐插件客户端方案](../../specs/repository-anti-corruption/slices/w5-04-plugin-client-bundles.md)。
+
 Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在包 `registration` 里声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 
 Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps/workbench/src/scripts/client/navigation-feed.ts`、`navigation-inbox.ts`、`events-primary.ts`。抄 Pages 的 client 到 Feed 不会接到现有画面。

@@ -80,8 +80,8 @@ export const PAGE_STATE_OWNERS = {
     state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
-    files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
-    state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it.",
+    files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
+    state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it, including the standalone Home settings host.",
   },
   attention: {
     files: ["apps/workbench/src/scripts/client/attention.ts"],
@@ -264,7 +264,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:open-settings-path", kind: "request", owner: "settings-directory", on: "document",
     detail: "{ href }",
-    summary: "Open the settings page at a settings address, global or of the project.",
+    summary: "Open the settings page at a settings address, global or of the project. The standalone Home host accepts only same-origin /settings/models, /settings/connectors and /capabilities/connections in its existing dialog; invalid detail, foreign origins and other paths open nothing, send no request and never navigate the owner document.",
   },
   {
     name: "molis-work:open-settings-section", kind: "request", owner: "settings-directory", on: "document",
@@ -373,6 +373,11 @@ export const DOM_EVENTS = [
     name: "molis:assistant-surface-changed", kind: "request", owner: "assistant", on: "window",
     detail: "{ plugin_id, object: { kind, id } }; ASSISTANT_SURFACE_CHANGED_EVENT (services/assistant)",
     summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.",
+  },
+  {
+    name: "molis:context-intake", kind: "request", owner: "context-actions", on: "element", bubbles: true,
+    detail: "{ intake_id, id, title, text }",
+    summary: "A control on a plugin's page (`data-context-intake`) asks to put the object it holds into the creation entry `intake_id`. Sent on the control, or on the surface that holds the plugin's frame; the surface says which plugin and which kind of object it is, and the entry's own provider drafts and makes it.",
   },
   {
     name: "molis:context-panel-open", kind: "request", owner: "context-toolbar", on: "element", bubbles: true, cancelable: true,

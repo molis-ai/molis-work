@@ -156,6 +156,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
+    if (current?.state === "uninstalled" && this.operations.has(installId)) throw pluginErrors.state_invalid("Plugin 卸载尚未完成，请等待卸载完成后再安装");
     if (input.definition.execution === "sandbox" && (input.grants === undefined || input.bundled === true)) throw pluginErrors.grant_denied("生成插件安装需要明确授权清单，且不能当作随宿主发布的插件授予全部权限");
     if (current && current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能改变已安装插件的执行信任边界");
     const digest = pluginManifestDigest(manifest);
@@ -445,7 +446,6 @@ export class PluginRuntime implements PluginRuntimeApi {
       return this.receipt("start", updated, false);
     } catch (error) {
       this.revokeContext(installId);
-      this.contributions.delete(installId);
       const updated = {
         ...current,
         state: "crashed" as const,
@@ -469,7 +469,6 @@ export class PluginRuntime implements PluginRuntimeApi {
     // Nothing in this process was activated. Do not grant a context just to stop it.
     if (!this.hasLiveInstance(installId)) {
       this.revokeContext(installId);
-      this.contributions.delete(installId);
       const updated = {
         ...current,
         state: preserveEnabled ? "installed" as const : "disabled" as const,
@@ -483,7 +482,6 @@ export class PluginRuntime implements PluginRuntimeApi {
     const live = this.liveContext(installId);
     // Cleanup may await user code; withdraw the activation before yielding to it.
     this.revokeContext(installId);
-    this.contributions.delete(installId);
     try {
       if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
     } catch (error) {
@@ -526,7 +524,6 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
     }
     this.revokeContext(installId);
-    this.contributions.delete(installId);
     const updated = {
       ...current,
       state: "crashed" as const,
@@ -570,7 +567,6 @@ export class PluginRuntime implements PluginRuntimeApi {
       return this.receipt("recover", updated, false);
     } catch (error) {
       this.revokeContext(installId);
-      this.contributions.delete(installId);
       const quarantined = releaseQuarantine || recoveryCount >= maxAttempts;
       const updated = {
         ...current,
@@ -606,25 +602,22 @@ export class PluginRuntime implements PluginRuntimeApi {
     restore?: PluginInstanceRecord,
   ): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
-    if (current.state === "uninstalled" && (!restore || restore.installation_generation === current.installation_generation)) return this.receipt("uninstall", current, true);
+    const replayed = current.state === "uninstalled" && (!restore || restore.installation_generation === current.installation_generation);
     if (current.state === "running" && this.hasLiveInstance(installId)) {
       const definition = this.requireDefinition(current);
       const live = this.liveContext(installId);
       this.revokeContext(installId);
-      this.contributions.delete(installId);
       try {
         if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
       } catch (error) {
         this.revokeContext(installId);
-        this.contributions.delete(installId);
         this.repository.save({ ...current, state: "crashed", last_error_code: safeErrorCode(error), updated_at: this.now() });
         throw pluginErrors.executor_failed("Plugin 停止失败，已撤销权限并记录为 crashed，可重试卸载");
       }
     }
     this.revokeContext(installId);
-    this.contributions.delete(installId);
     const at = this.now();
-    const updated = restore ? cloneRecord(restore) : {
+    const updated = replayed ? current : restore ? cloneRecord(restore) : {
       ...current,
       state: "uninstalled" as const,
       retain_private_data: options.retain_private_data ?? current.retain_private_data,
@@ -632,12 +625,13 @@ export class PluginRuntime implements PluginRuntimeApi {
       updated_at: at,
       uninstalled_at: at,
     };
-    this.repository.save(updated);
+    if (!replayed) this.repository.save(updated);
+    await this.executor.uninstalled?.(updated);
     // No implementation survives its installation. A later explicit reinstall may supply a new in-memory object.
     for (const [key, definition] of this.definitions) {
       if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) this.definitions.delete(key);
     }
-    return this.receipt("uninstall", updated, false);
+    return this.receipt("uninstall", updated, replayed);
   }
 
   get(installId: string): PluginInstanceRecord {
@@ -700,10 +694,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     const run = previous.then(operation, operation);
     const tail = run.then(() => undefined, () => undefined);
     this.operations.set(installId, tail);
-    void tail.finally(() => {
+    return run.finally(() => {
       if (this.operations.get(installId) === tail) this.operations.delete(installId);
     });
-    return run;
   }
 
   private hasLiveInstance(installId: string): boolean {
@@ -718,7 +711,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     this.actionDisposers.get(installId)?.();
     this.actionDisposers.delete(installId);
     this.contexts.get(installId)?.revoke();
-    if (!retainForCleanup) this.contexts.delete(installId);
+    // Kept for a queued cleanup hook, the context and the contribution stay until it runs; otherwise both go now.
+    if (!retainForCleanup) { this.contexts.delete(installId); this.contributions.delete(installId); }
   }
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {

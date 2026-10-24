@@ -1,4 +1,6 @@
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pluginWorkbenchClientAsset } from "@molis-ai/molis-work-app-workbench";
@@ -29,5 +31,31 @@ test("RAC-43: the Host keeps one Cognia Runtime surface and loads its registered
   const client = pluginWorkbenchClientAsset("cognia");
   assert.ok(client, "the registered surface must have a loadable client asset");
   assert.match(client, /data-cognia=workbench/);
-  assert.match(client, /\/api\/plugins\/io\.molis\.work\.cognia\/library/);
+  // The built client asks the Host for its route and never names the plugin; the form of the call is read from the source, not from
+  // what the minifier made of it.
+  assert.match(client, /\.pluginRoute\(/);
+  assert.doesNotMatch(client, /io\.molis\.work\.cognia/);
+  const browser = "plugins/native/cognia/src/browser";
+  assert.match(readFileSync(join(browser, "request.ts"), "utf8"), /host\.pluginRoute\(\s*"\/library"/, "library requests are built from the Host's own plugin route");
+  assert.deepEqual(readdirSync(browser).filter(file => /io\.molis\.work|\/api\/plugins/u.test(readFileSync(join(browser, file), "utf8"))), [], "no browser module writes the plugin id or a plugin route");
+});
+
+test("directory_preview@3: the Cognia page sends the granted directory root as a stable local: locator", () => {
+  // ac-review 6380443185: the action contract alone does not guard this line — the page is the only caller that
+  // sends a locator. It asks the Host for a directory grant, then previews the grant's root as `local:<root>` so the
+  // imported source keeps its identity across grants. Assert the served client asset (the inline script today, the
+  // bundled client after #1167): dropping the line has to go red.
+  const client = pluginWorkbenchClientAsset("cognia");
+  assert.ok(client, "the Cognia surface must have a loadable client asset");
+  assert.match(client, /\/api\/host\/directory-grants/, "the page asks the Host for a directory grant first");
+  assert.match(
+    client,
+    /locator\s*:\s*["']local:["']\s*\+\s*[A-Za-z_$][\w$.]*\.root/,
+    "the preview request carries the grant root as a stable local: locator",
+  );
+  assert.match(
+    client,
+    /grant_id\s*:[^,}]*,\s*path\s*:\s*["']\.["']\s*,\s*locator\s*:/,
+    "the directory preview request carries grant_id, path and locator together",
+  );
 });

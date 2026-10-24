@@ -16,12 +16,14 @@ async function withHome(run: (home: string) => Promise<void>) {
 }
 function snapshot(project: ProjectRecord) {
   const store = new LocalProjectDatabase(project.database_path);
-  try { return store.snapshot(project.project_id); } finally { store.close(); }
+  try { new GoalProjectApplication(store).projectOpened(project.project_id); return store.snapshot(project.project_id); } finally { store.close(); } // S8b: Goals makes the board when the project is first opened
 }
 function mark(project: ProjectRecord) {
   const store = new LocalProjectDatabase(project.database_path);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(project.project_id, {
+    const application = new GoalProjectApplication(store);
+    application.projectOpened(project.project_id);
+    application.goals.commands.createGoal(project.project_id, {
       goal_id: "retained-content", title: "已保存的正文", outcome: "故障恢复后仍可读", why: "验证数据保留",
       business_logic: "使用真实项目写入", definition_state: "draft", decomposition_state: "abstract", acceptance_criteria: [],
     }, { actor_id: "user", idempotency_key: "retained-content" });
@@ -114,17 +116,43 @@ test("demo reset lock timeout restores the original body and catalog record, and
   });
 });
 
-test("a failure in demo post-initialization restores the previous database before any reset receipt", async () => {
+test("PG-026-S4-04 a failure in demo post-initialization restores the previous database before any reset receipt", async t => {
   await withHome(async home => {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const created = (await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true })).project;
       catalog.removeProjectPlugin({ project_id: created.project_id, plugin_id: "pages", actor_id: "user" });
       const project = catalog.getProject(created.project_id), before = mark(project), plugins = catalog.listProjectPlugins(project.project_id);
-      await fs.rename(join(home, "shelf"), join(home, "shelf-preserved"));
-      await fs.writeFile(join(home, "shelf"), "fixture: storage temporarily unavailable");
-      // Shelf keeps its files through the owner-files port now, which refuses a plain file where its folder should be.
-      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), { code: "host.owner_file_unsafe" });
+      const projectDirectory = join(home, "projects", project.project_id);
+      const rename = fs.rename;
+      const countReceipts = () => {
+        const db = new Database(catalog.databasePath, { readonly: true });
+        try { return db.prepare("SELECT count(*) FROM project_events WHERE type='project.demo_reset'").pluck().get(); } finally { db.close(); }
+      };
+      let backupDirectory: string | undefined, atPromotion: { official: unknown; aside: unknown; record: unknown; plugins: unknown; receipts: unknown } | undefined;
+      t.mock.method(fs, "rename", async (...args: Parameters<typeof fs.rename>) => {
+        await rename(...args);
+        const from = String(args[0]), to = String(args[1]);
+        if (from === projectDirectory && to.startsWith(join(home, "projects", `.reset-backup-${project.project_id}-`))) backupDirectory = to;
+        if (to === projectDirectory && from.startsWith(join(home, "projects", `.resetting-${project.project_id}-`)) && backupDirectory) {
+          atPromotion = { official: snapshot(project), aside: snapshot({ ...project, database_path: join(backupDirectory, "molis-work.db") }),
+            record: catalog.getProject(project.project_id), plugins: catalog.listProjectPlugins(project.project_id), receipts: countReceipts() };
+        }
+      });
+      // The failure comes after the promotion and before the reset receipt: refusing that receipt in the catalog is the first thing the
+      // rebuild writes once the new database is in place (no Sessions registry opens after promotion since SC-4, which was this test's seam).
+      const refusal = "fixture: demo post-initialization storage unavailable";
+      const writer = new Database(catalog.databasePath);
+      try { writer.exec(`CREATE TRIGGER fixture_refuse_demo_reset BEFORE INSERT ON project_events WHEN NEW.type = 'project.demo_reset' BEGIN SELECT RAISE(ABORT, '${refusal}'); END`); }
+      finally { writer.close(); }
+      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), new RegExp(refusal, "u"));
+      assert.ok(atPromotion, "the new database was promoted before the failure");
+      assert.ok(backupDirectory, "the original database was moved aside before the new one was promoted");
+      assert.equal((atPromotion.official as ReturnType<typeof snapshot>).goals.some(goal => goal.goal_id === "retained-content"), false, "the official path held the newly seeded database");
+      assert.deepEqual(atPromotion.aside, before);
+      assert.deepEqual(atPromotion.record, project);
+      assert.deepEqual(atPromotion.plugins, plugins);
+      assert.equal(atPromotion.receipts, 0);
       assert.deepEqual(catalog.getProject(project.project_id), project);
       assert.deepEqual(snapshot(project), before);
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), plugins);

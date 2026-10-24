@@ -10,22 +10,16 @@ import { join } from "node:path";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
 } from "@molis-ai/molis-work-contracts/services/scheduler";
-import {
-  PluginWakeupIndex,
-  createScheduleService,
-} from "@molis-ai/molis-work-service-scheduler";
+import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 
 function service(clock: { now: Date }, calls: Array<Record<string, string>> = []) {
   const db = new Database(":memory:");
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async (input) => {
+  const installation = wakeupInstallation("io.molis.work.test.owner");
+  installation.action("test.wakeup", async (input) => {
     calls.push({ ...input });
   });
-  const schedule = createScheduleService(db, {
-    wakeupIndex,
-    now: () => clock.now,
-  });
-  return { db, wakeupIndex, schedule, calls };
+  const schedule = installation.scheduler(db, { now: () => clock.now });
+  return { db, installation, schedule, calls };
 }
 
 test("long wakeups renew through a second database connection without another owner tick", async t => {
@@ -35,12 +29,12 @@ test("long wakeups renew through a second database connection without another ow
   const released = Promise.withResolvers<void>();
   const clock = { now: new Date("2026-09-22T00:00:00Z") };
   let calls = 0;
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async (_input, control) => {
+  const installation = wakeupInstallation("io.molis.work.test.owner");
+  installation.action("test.wakeup", async (_input, control) => {
     calls++; await released.promise; control.beforeEffect();
   });
-  const owner = createScheduleService(db, { wakeupIndex, now: () => clock.now, leaseMs: 300 });
-  const other = createScheduleService(observer, { wakeupIndex, now: () => clock.now, leaseMs: 300 });
+  const owner = installation.scheduler(db, { now: () => clock.now, leaseMs: 300 });
+  const other = installation.scheduler(observer, { now: () => clock.now, leaseMs: 300 });
   const job = owner.register({ plugin_id: "io.molis.work.test.owner", capability_id: "test.wakeup", object_ref: "slow",
     title: "slow", due_at: clock.now.toISOString(), recurrence: { kind: "interval", interval_ms: MIN_SCHEDULE_INTERVAL_MS } });
   const running = owner.tick();
@@ -59,11 +53,11 @@ for (const afterExpiry of ["commit", "renew", "return"] as const) test(`expired 
   const db = new Database(join(home, "jobs.sqlite")), observer = new Database(join(home, "jobs.sqlite"));
   const released = Promise.withResolvers<void>();
   const clock = { now: new Date("2026-09-22T00:00:00Z") };
-  const wakeupIndex = new PluginWakeupIndex();
+  const installation = wakeupInstallation("io.molis.work.test.owner");
   db.exec("CREATE TABLE test_effects (call INTEGER NOT NULL)");
   const effects = () => (observer.prepare("SELECT call FROM test_effects ORDER BY call").all() as { call: number }[]).map(row => row.call);
   let calls = 0, firstSignal: AbortSignal | undefined;
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async (_input, control) => {
+  installation.action("test.wakeup", async (_input, control) => {
     const call = ++calls;
     if (call === 1) {
       firstSignal = control.signal;
@@ -72,8 +66,8 @@ for (const afterExpiry of ["commit", "renew", "return"] as const) test(`expired 
     }
     db.transaction(() => { control.beforeEffect(); db.prepare("INSERT INTO test_effects VALUES (?)").run(call); }).immediate();
   });
-  const owner = createScheduleService(db, { wakeupIndex, now: () => clock.now, leaseMs: 300 });
-  const other = createScheduleService(observer, { wakeupIndex, now: () => clock.now, leaseMs: 300 });
+  const owner = installation.scheduler(db, { now: () => clock.now, leaseMs: 300 });
+  const other = installation.scheduler(observer, { now: () => clock.now, leaseMs: 300 });
   const job = owner.register({ plugin_id: "io.molis.work.test.owner", capability_id: "test.wakeup", object_ref: "expired",
     title: "expired", due_at: clock.now.toISOString(), recurrence: { kind: "interval", interval_ms: MIN_SCHEDULE_INTERVAL_MS } });
   const running = owner.tick();
@@ -97,10 +91,10 @@ for (const afterExpiry of ["commit", "renew", "return"] as const) test(`expired 
 
 for (const operation of ["pause", "cancel", "replace"] as const) test(`scheduler ${operation} fences the handler's late business effect`, async () => {
   const clock = { now: new Date("2026-09-22T00:00:00Z") };
-  const { db, wakeupIndex, schedule } = service(clock);
+  const { db, installation, schedule } = service(clock);
   const released = Promise.withResolvers<void>();
   const effects: string[] = [];
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async (_input, control) => {
+  installation.action("test.wakeup", async (_input, control) => {
     await released.promise; control.beforeEffect(); effects.push("late");
   });
   const input = { plugin_id: "io.molis.work.test.owner", capability_id: "test.wakeup", object_ref: "late", title: "late", due_at: clock.now.toISOString() };
@@ -161,13 +155,13 @@ test("interval 漏打只叫醒一次，并跳到现在之后的下一拍", async
 test("重叠 tick 不会把还在执行的 job 再叫醒一次", async () => {
   const clock = { now: new Date("2026-09-20T03:00:00.000Z") };
   const db = new Database(":memory:");
-  const wakeupIndex = new PluginWakeupIndex();
+  const installation = wakeupInstallation("io.molis.work.test.owner");
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async () => {
+  installation.action("test.wakeup", async () => {
     await gate;
   });
-  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const schedule = installation.scheduler(db, { now: () => clock.now });
   schedule.register({
     plugin_id: "io.molis.work.test.owner",
     capability_id: "test.wakeup",
@@ -182,9 +176,9 @@ test("重叠 tick 不会把还在执行的 job 再叫醒一次", async () => {
   assert.deepEqual(await first, { invoked: 1, failed: 0, skipped: 0 });
 });
 
-test("未注册 handler 不能登记；tick 时缺失写下 plugin_unavailable", async () => {
+test("没有安装提供的叫醒动作不能登记；提供者不在时，到点的任务原样留着，不记失败", async () => {
   const clock = { now: new Date("2026-09-20T03:00:00.000Z") };
-  const { schedule, wakeupIndex } = service(clock);
+  const { schedule } = service(clock);
   assert.throws(
     () => schedule.register({
       plugin_id: "io.molis.work.missing",
@@ -211,13 +205,11 @@ test("未注册 handler 不能登记；tick 时缺失写下 plugin_unavailable",
     title: "会卸掉",
     due_at: "2026-09-20T03:00:00.000Z",
   });
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async () => undefined)();
-  assert.equal(wakeupIndex.has("io.molis.work.test.owner", "test.wakeup"), false);
+  schedule.disconnect();
   clock.now = new Date("2026-09-20T03:00:01.000Z");
-  const result = await schedule.tick();
-  assert.equal(result.invoked, 1);
-  assert.equal(result.failed, 1);
-  assert.equal(schedule.get(job.job_id)?.last_wakeup?.status, "plugin_unavailable");
+  assert.deepEqual(await schedule.tick(), { invoked: 0, failed: 0, skipped: 1 }, "an installation that is gone is not woken, and not recorded as failed");
+  assert.equal(schedule.get(job.job_id)?.last_wakeup, null);
+  assert.equal(schedule.get(job.job_id)?.enabled, true);
 });
 
 test("绝对路径和 .. 的 object_ref 被拒", () => {
@@ -304,15 +296,15 @@ test("长执行在租约到期前持续续租，同一服务不重叠且下一�
   let started = 0;
   let active = 0;
   let maxActive = 0;
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async () => {
+  const installation = wakeupInstallation("io.molis.work.test.owner");
+  installation.action("test.wakeup", async () => {
     started += 1;
     active += 1;
     maxActive = Math.max(maxActive, active);
     if (started === 1) await gate;
     active -= 1;
   });
-  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const schedule = installation.scheduler(db, { now: () => clock.now });
   const job = schedule.register({
     plugin_id: "io.molis.work.test.owner",
     capability_id: "test.wakeup",
@@ -329,7 +321,7 @@ test("长执行在租约到期前持续续租，同一服务不重叠且下一�
   assert.equal(started, 1);
   assert.equal(maxActive, 1);
   const held = leaseOf(db, job.job_id);
-  assert.equal(held.next_due_at, "2026-09-22T00:00:05.000Z");
+  assert.equal(held.next_due_at, "2026-09-22T00:00:00.000Z", "the due point is kept until the action answers; the lease, not the timestamp, keeps it exclusive");
   assert.equal(held.lease_until, "2026-09-22T00:01:01.000Z");
   release();
   assert.deepEqual(await first, { invoked: 1, failed: 0, skipped: 0 });
@@ -347,13 +339,13 @@ test("执行者消失后过期租约可以接管，旧结束不能清掉新租�
   const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
   const nextGate = new Promise<void>((resolve) => { releaseNext = resolve; });
   let started = 0;
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async () => {
+  const installation = wakeupInstallation("io.molis.work.test.owner");
+  installation.action("test.wakeup", async () => {
     started += 1;
     if (started === 1) await firstGate;
     else await nextGate;
   });
-  const running = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const running = installation.scheduler(db, { now: () => clock.now });
   const job = running.register({
     plugin_id: "io.molis.work.test.owner",
     capability_id: "test.wakeup",
@@ -364,12 +356,12 @@ test("执行者消失后过期租约可以接管，旧结束不能清掉新租�
   });
   const first = running.tick();
   clock.now = new Date("2026-09-22T00:00:31.000Z");
-  const recovered = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const recovered = installation.scheduler(db, { now: () => clock.now });
   const takeover = recovered.tick();
   assert.equal(started, 2);
   const held = leaseOf(db, job.job_id);
   assert.equal(held.lease_until, "2026-09-22T00:01:01.000Z");
-  assert.equal(held.next_due_at, "2026-09-22T00:00:35.000Z");
+  assert.equal(held.next_due_at, "2026-09-22T00:00:00.000Z");
   assert.ok(held.lease_token);
   releaseFirst();
   await first;
@@ -385,6 +377,7 @@ test("执行者消失后过期租约可以接管，旧结束不能清掉新租�
   releaseNext();
   assert.equal((await takeover).invoked, 1);
   assert.equal(recovered.get(job.job_id)?.enabled, true);
+  assert.equal(recovered.get(job.job_id)?.next_due_at, "2026-09-22T00:00:35.000Z", "the next beat is the first one after the takeover's own clock");
   assert.equal(recovered.get(job.job_id)?.last_wakeup?.status, "ok");
 });
 
@@ -394,12 +387,12 @@ test("取消或停止后，迟到的执行结果不能把任务复活", async ()
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let started = 0;
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async () => {
+  const installation = wakeupInstallation("io.molis.work.test.owner");
+  installation.action("test.wakeup", async () => {
     started += 1;
     await gate;
   });
-  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const schedule = installation.scheduler(db, { now: () => clock.now });
   const paused = schedule.register({
     plugin_id: "io.molis.work.test.owner",
     capability_id: "test.wakeup",
@@ -419,7 +412,7 @@ test("取消或停止后，迟到的执行结果不能把任务复活", async ()
 
   let releaseCancel!: () => void;
   const cancelGate = new Promise<void>((resolve) => { releaseCancel = resolve; });
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async () => {
+  installation.action("test.wakeup", async () => {
     started += 1;
     await cancelGate;
   });
@@ -449,12 +442,12 @@ test("超长执行仍不重叠", async () => {
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let started = 0;
-  const wakeupIndex = new PluginWakeupIndex();
-  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async () => {
+  const installation = wakeupInstallation("io.molis.work.test.owner");
+  installation.action("test.wakeup", async () => {
     started += 1;
     await gate;
   });
-  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const schedule = installation.scheduler(db, { now: () => clock.now });
   schedule.register({
     plugin_id: "io.molis.work.test.owner",
     capability_id: "test.wakeup",
@@ -473,32 +466,42 @@ test("超长执行仍不重叠", async () => {
 
 
 // W2-18-SCHEDULE-02: a dispatched one-shot may have committed an owner effect before its response is lost.
-test("W2-18-SCHEDULE-02: close revokes waits before SQLite release and never automatically replays a dispatched one-shot", async () => {
+// The Scheduler keeps the due point until the action answers, so it redelivers; the action's own ledger keeps the effect single.
+test("W2-18-SCHEDULE-02: close revokes waits before SQLite release; a dispatched one-shot is redelivered and its action's ledger keeps the effect single", async () => {
   const home = mkdtempSync(join(tmpdir(), "schedule-close-")), file = join(home, "project.sqlite");
-  const db = new Database(file), wakeups = new PluginWakeupIndex(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const db = new Database(file), installation = wakeupInstallation("io.molis.work.test.owner"), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   db.exec("CREATE TABLE owner_results (job_id TEXT PRIMARY KEY, value TEXT NOT NULL)");
   let lateRejected = false;
-  wakeups.register("io.molis.work.test.owner", "test.wakeup", async (input, control) => {
+  installation.action("test.wakeup", async (input, control) => {
     control.beforeEffect(); db.prepare("INSERT INTO owner_results VALUES (?, ?)").run(input.job_id, "accepted owner result"); entered.resolve();
     await release.promise;
     try { control.beforeEffect(); db.prepare("INSERT INTO owner_results VALUES (?, ?)").run("late", "must not happen"); }
     catch { lateRejected = true; }
   });
-  const service = createScheduleService(db, { wakeupIndex: wakeups, leaseMs: 300 });
+  const service = installation.scheduler(db, { leaseMs: 300 });
   const job = service.register({ plugin_id: "io.molis.work.test.owner", capability_id: "test.wakeup", object_ref: "once", title: "Once",
     due_at: new Date(Date.now() - 1000).toISOString(), recurrence: { kind: "once" } });
   const running = service.tick(); await entered.promise;
   try {
     await service.close(); await running;
     const stopped = db.prepare("SELECT enabled, lease_token, lease_until, next_due_at FROM schedule_jobs WHERE job_id=?").get(job.job_id);
-    assert.deepEqual(stopped, { enabled: 0, lease_token: null, lease_until: null, next_due_at: job.next_due_at });
+    assert.deepEqual(stopped, { enabled: 1, lease_token: null, lease_until: null, next_due_at: job.next_due_at }, "no answer came, so the due point is still there");
     db.close(); release.resolve(); await new Promise<void>(resolve => setImmediate(resolve)); assert.equal(lateRejected, true);
     const reopened = new Database(file);
     try {
-      const next = createScheduleService(reopened, { wakeupIndex: wakeups });
-      assert.deepEqual(await next.tick(), { invoked: 0, failed: 0, skipped: 0 });
-      assert.deepEqual(reopened.prepare("SELECT * FROM owner_results").all(), [{ job_id: job.job_id, value: "accepted owner result" }]);
+      let redelivered = 0;
+      const after = wakeupInstallation("io.molis.work.test.owner");
+      after.action("test.wakeup", async (input, control) => {
+        control.beforeEffect(); redelivered++;
+        reopened.prepare("INSERT OR IGNORE INTO owner_results VALUES (?, ?)").run(input.job_id, "replayed owner result");
+      });
+      const next = after.scheduler(reopened);
       assert.equal(next.get(job.job_id)?.last_wakeup, null, "a lost response does not become a false success receipt");
+      assert.deepEqual(await next.tick(), { invoked: 1, failed: 0, skipped: 0 });
+      assert.equal(redelivered, 1);
+      assert.deepEqual(reopened.prepare("SELECT * FROM owner_results").all(), [{ job_id: job.job_id, value: "accepted owner result" }]);
+      assert.equal(next.get(job.job_id)?.last_wakeup?.status, "ok", "the receipt comes from the answer that followed");
+      assert.equal(next.get(job.job_id)?.enabled, false);
       await next.close();
     } finally { reopened.close(); }
   } finally { release.resolve(); await service.close(); if (db.open) db.close(); rmSync(home, { recursive: true, force: true }); }

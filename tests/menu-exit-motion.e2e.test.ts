@@ -20,7 +20,7 @@ test("VUX-36 VUX-22 menus remain drawn while closing, open immediately, and leav
   // and an unknown parent class; dynamic menus keep the existing child-based recognition after page load.
   for (const [host, body] of [
     ["mw-motion-menu", "mw-menu"], ["mw-menu-host", "mw-menu"], ["navigator-project-menu", "navigator-project-menu-popover"],
-    ["dynamic-menu-parent", "mw-menu"], ["project-record-filter-menu", ""], ["todo-batch-more", "mw-menu"], ["todo-reminder-later", "mw-menu"], ["session-more", "mw-menu"],
+    ["dynamic-menu-parent", "mw-menu"], ["todo-batch-more", "mw-menu"], ["todo-reminder-later", "mw-menu"],
   ]) for (const phase of ["finished", "early", "late"] as const) {
     const opening = await evaluate<{ visible: boolean; content: string; entry: { properties: string[]; time: number; duration: number }[] }>(`(async () => {
       const source = document.querySelector('.mw-motion-menu'), d = source.cloneNode(true); d.id = 'menu-close-probe'; d.className = ${JSON.stringify(host)};

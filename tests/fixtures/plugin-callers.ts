@@ -51,7 +51,8 @@ export type CallerProbe = ReturnType<typeof registerProbe>;
  * A plugin fixture that consumes the probe and `consumes`. `permissions` maps each permission its Manifest declares to whether it is
  * required; a fixture is granted only what it requires. It always requires its private storage and reading the probe.
  */
-export function callerPlugin(name: string, scope: CallerScope, permissions: Readonly<Record<string, boolean>> = {}, consumes: readonly string[] = []) {
+export function callerPlugin(name: string, scope: CallerScope, permissions: Readonly<Record<string, boolean>> = {}, consumes: readonly string[] = [],
+  agent?: Pick<PluginDefinition, "agent_prompts" | "agent_skills"> & { block: NonNullable<PluginDefinition["manifest"]["agent"]> }) {
   const { peek, note } = probeActions(scope);
   const contexts: PluginStartContext[] = [];
   const declared = { "storage:private": true, [CALLERS_READ]: true, ...permissions };
@@ -59,7 +60,8 @@ export function callerPlugin(name: string, scope: CallerScope, permissions: Read
     publisher: { publisher_id: "example", signature: `callers-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: Object.entries(declared).map(([permission, required]) => ({ permission, required, reason: "动作网关探针" })),
     capabilities: { provides: [], consumes: [peek.capability_id, note.capability_id, ...consumes] }, artifacts: { produces: [], consumes: [] },
-    ui: { contributions: [] }, routes: [] },
+    ui: { contributions: [] }, routes: [], ...(agent ? { agent: agent.block } : {}) },
+    ...(agent?.agent_prompts ? { agent_prompts: agent.agent_prompts } : {}), ...(agent?.agent_skills ? { agent_skills: agent.agent_skills } : {}),
   async start(context) { contexts.push(context); return { kind: "app" }; } };
   const context = (projectId?: string) => {
     const found = contexts.filter(item => (item.project_id ?? undefined) === projectId).at(-1);
@@ -70,6 +72,13 @@ export function callerPlugin(name: string, scope: CallerScope, permissions: Read
 }
 
 export type CallerPlugin = ReturnType<typeof callerPlugin>;
+
+/** `plugin`, declaring one read-only `reader` role: a plugin a test starts rounds as, since starting one is a plugin's own action. */
+export function withReaderRole(plugin: CallerPlugin): CallerPlugin {
+  plugin.definition.manifest.agent = { roles: [{ role_id: "reader", version: 1, execution: "read-only", prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }] };
+  plugin.definition.agent_prompts = [{ prompt_id: "reader", version: 1, body: "Answer from the supplied context only.", layer: "role" }];
+  return plugin;
+}
 
 /** A project's plugins start when its actions are first looked at, as the workbench does when the person opens the project. */
 export async function startProjectPlugins(host: { inspectActions(caller: ActionCallContext, reference: LocalHostProjectReference): Promise<unknown> }, reference: LocalHostProjectReference) {

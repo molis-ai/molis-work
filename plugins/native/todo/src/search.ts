@@ -66,7 +66,7 @@ export function createTodoSearchHandlers(read: <T>(run: (store: TodoStore) => T)
       if (item.archived_at) throw todoErrors.not_found("这件待办已归档");
       // Todos live in the person's Home; one that belongs to a project says which (personal and unplaced leave it empty).
       return subjectContext({ subject: { kind: TODO_SUBJECT_KIND, id: item.id }, revision: String(item.revision), title: item.title,
-        content: todoText(item), goal_ids: goals(item), session_id: null, open: open(item.id), project_id: item.placement === "project" ? item.project_id : null });
+        content: todoText(item), goal_ids: goals(item), open: open(item.id), project_id: item.placement === "project" ? item.project_id : null });
     }) },
   ];
 }

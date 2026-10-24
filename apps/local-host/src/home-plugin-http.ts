@@ -1,9 +1,8 @@
-import { pageTodoInput } from "./plugin-page-todo.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
-import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, sideOpenedPlugins, stageContributionId } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -119,7 +118,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       stop,
       readBody: async (request, maxBytes) => {
         // The route's own limit when it declares one; otherwise bounded for image-bearing Home actions. Each plugin also validates its input.
-        try { return pageTodoInput(request, pluginId, operation, await readLocalWebBody(request, maxBytes ?? 12 * 1024 * 1024)); }
+        try { return await readLocalWebBody(request, maxBytes ?? 12 * 1024 * 1024); }
         catch (error) { if (error instanceof ActionError) throw error; throw new ActionError(error instanceof RangeError ? "actions.input_too_large" : "actions.input_invalid",
           error instanceof Error ? error.message : "请求读取失败"); }
       },
@@ -177,21 +176,23 @@ function homeViewModel() {
  * drawn here, the unavailable shell included, is reported by the contribution that would draw it, so the shell's declared
  * stages do not draw it again.
  */
-export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ html: string[]; ids: string[] }> {
-  if (!host) return { html: [], ids: [] };
+export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ html: string[]; ids: string[]; unavailable: UnavailablePluginStage[] }> {
+  if (!host) return { html: [], ids: [], unavailable: [] };
   let platform: HomePluginPlatform | undefined, failure: string | undefined;
   try { platform = await host.ready(); }
   catch (error) { failure = error instanceof Error ? error.message : String(error); }
   const ids: string[] = [], sideOnly = sideOpenedPlugins();
-  const html = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home" && !Object.hasOwn(sideOnly, entry.project_plugin_id)).map(entry => {
+  const unavailable: UnavailablePluginStage[] = [];
+  const html = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home" && !Object.hasOwn(sideOnly, entry.project_plugin_id)).flatMap(entry => {
     const stage = stageContributionId(entry.manifest);
     if (stage) ids.push(stage);
     const install = host.installation(entry.manifest.plugin_id);
     const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
     const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
-    if (view) return view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: homeViewModel() });
-    return renderPluginStageShell({ surface: entry.project_plugin_id, label: entry.manifest.name, dataset: "home-plugin-unavailable",
-      body: `<div class="mw-empty" role="alert"><h2>${escapeHtml(entry.manifest.name)} 暂不可用</h2><p>${escapeHtml(failure ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message ?? "插件已停用")}</p><a class="mw-btn mw-btn--secondary" href="/plugins/${encodeURIComponent(entry.project_plugin_id)}">查看插件状态</a></div>` });
+    if (view) return [view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: homeViewModel() })];
+    unavailable.push({ surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
+      reason: L(failure ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message ?? (install?.state === "running" ? "插件页面未注册" : "插件已停用")) });
+    return [];
   });
-  return { html, ids };
+  return { html, ids, unavailable };
 }

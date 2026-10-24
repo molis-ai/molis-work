@@ -15,7 +15,7 @@
 //                      aliases (including assignment/destructuring/bind), call/apply. browser-programs.mjs expands named
 //                      SCRIPT/CLIENT declarations, inline HTML scripts, constant concatenations/joins and function ASTs
 //                      used by toString. Relative/workspace imports retain original source attribution. Typed browser
-//                      entry dependencies include Workbench terminal-client and Work's terminal subpath. Three exact
+//                      entry dependencies include Workbench terminal-client and its terminal modules. Three exact
 //                      transport roles in ui-host admit only one original call site per role, not a directory. Unknown
 //                      recognized program syntax is a failure, never zero. Workbench is absolutely zero, including update;
 //                      plugin and other browser sites are per-file ratchets. See browser-fetch.mjs and the CLI tests.

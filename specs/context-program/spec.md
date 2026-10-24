@@ -563,7 +563,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 - 右栏记住上次那一格用的是 `localStorage` 的 `molis:side-tab`，格 id（`discussion`、`browser`、`files`、`plugin:<插件>/<视图>`）不改，所以不用迁移旧值。
 - 删除底部动作条、`BAR_RESIDENT_IDS`、Pages 的「AI」按钮与写作菜单时，都不留兜底分支。
 
-**旧路径插件名单**（`tests/builtin-plugin-assembly-gate.test.ts`）：Shelf 还在名单里，`apps/local-host/src/shelf-native-plugin-http.ts` 仍在。本设计只改 Shelf 的视图，不碰它的 HTTP，也不新增旧路径文件。
+**旧路径插件名单**（`tests/builtin-plugin-assembly-gate.test.ts`）：写这段时 Shelf 还在名单里、`apps/local-host/src/shelf-native-plugin-http.ts` 仍在；Shelf S3 已删掉这个文件，路由改为插件自己的 `/api/plugins/io.molis.work.shelf/…`。本设计只改 Shelf 的视图，不碰它的 HTTP，也不新增旧路径文件。
 
 ### 15.4 六项待核对的结果
 

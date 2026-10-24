@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { fork } from 'node:child_process';
 import { once } from 'node:events';
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { createScheduleService, PluginWakeupIndex } from '@molis-ai/molis-work-service-scheduler';
 import { createScheduledOperationManagement, createScheduledOperations, getScheduledOperation, listScheduledOperations, listScheduledOperationOccurrences,
   prepareScheduledOperation, reconcileScheduledOperations, runScheduledOperation, setScheduledOperationEnabled,
   SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, scheduledOperationActions, type ScheduledOperation, type ScheduledOperationOutcome } from '@molis-ai/molis-work-plugin-schedule';
@@ -16,6 +15,7 @@ import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import type { ScheduleWakeupControl } from '@molis-ai/molis-work-contracts/services/scheduler';
 import { bindPluginNotificationFeed } from '../apps/local-host/dist/plugin-notification-service.js';
 import { scheduleRuntimeFixture } from './fixtures/schedule-runtime.js';
+import { wakeupInstallation } from './fixtures/scheduler-owner.js';
 import { captureHostLog, createLocalFeedApplication, type HostLogEntry } from '@molis-ai/molis-work-app-local-host';
 
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
@@ -29,12 +29,13 @@ const descriptor = (generation = 'first') => ({ installationId: identity.install
 /** Domain state-machine fixture: production stores/reconciliation/leases, an external executor and a transactional delivery sink. */
 async function harness(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), 'schedule-operations-')), path = join(home, 'project.db'); seedDemoBoard(path, identity.projectId);
-  const store = new LocalProjectDatabase(path), clock = { now: new Date(at) }, index = new PluginWakeupIndex();
+  const store = new LocalProjectDatabase(path), clock = { now: new Date(at) }, wake = wakeupInstallation(SCHEDULE_PLUGIN_ID);
   store.db.exec('CREATE TABLE schedule_test_deliveries(summary TEXT, url TEXT)');
   const repository = new SqlitePluginRuntimeRepository(store.db); repository.save(installation());
   type Executor = { describe(): ReturnType<typeof descriptor>; call(run: ScheduledOperation, control: ScheduleWakeupControl): Promise<ScheduledOperationOutcome> };
   let executor: { port: Executor; controller: AbortController } | undefined;
-  index.register(SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, (input, control) => runScheduledOperation(store.db, input, control, {
+  // The action prepares its occurrence itself, as Schedule's own wakeup action does, then runs it.
+  wake.action(SCHEDULE_OPERATION_WAKEUP, async (input, control) => { prepareScheduledOperation(store.db, input); return runScheduledOperation(store.db, input, control, {
     now: () => clock.now,
     currentInstallation: run => { const record = repository.get(run.installationId!); return !!record && record.state !== 'uninstalled' && record.plugin_id === run.pluginId && record.installation_generation === run.installationGeneration; },
     executor: run => {
@@ -42,8 +43,8 @@ async function harness(t: TestContext) {
       return captured ? { signal: captured.controller.signal, beforeEffect: () => captured.controller.signal.throwIfAborted(), invoke: current => captured.port.call(run, current) } : null;
     },
     deliver: (run, _dueAt, _outcome, text) => { store.db.prepare('INSERT INTO schedule_test_deliveries VALUES (?, ?)').run(text, run.link); },
-  }), { prepare: input => prepareScheduledOperation(store.db, input) });
-  const base = createScheduleService(store.db, { wakeupIndex: index, now: () => clock.now });
+  }); });
+  const base = wake.scheduler(store.db, { now: () => clock.now });
   const schedule = { ...base, async tick() { reconcileScheduledOperations(store.db, base); const result = await base.tick(); reconcileScheduledOperations(store.db, base); return result; } };
   t.after(async () => { executor?.controller.abort(); await base.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const describe = () => descriptor(repository.get(identity.installationId)!.installation_generation);
@@ -175,20 +176,24 @@ test('installation generation, Home isolation, quotas and real write failures gu
   assert.equal(h.schedule.list().length, 0); assert.equal(listScheduledOperations(h.store.db).length, 0);
 });
 
-test('lease preparation rolls back together and a failed result commit leaves unknown work, never duplicate side effects', async t => {
-  const h = await harness(t), index = new PluginWakeupIndex(); let calls = 0;
-  index.register(SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, async (input, control) => runScheduledOperation(h.store.db, input, control, {
-    currentInstallation: () => true,
-    executor: () => ({ signal: control.signal, beforeEffect() {}, async invoke() { calls++; return { state: 'succeeded', value: 'saved externally' }; } }),
-    deliver() { h.store.db.prepare('INSERT INTO scheduled_test_delivery VALUES (1)').run(); throw new Error('delivery-failed'); },
-  }), { prepare(input) { prepareScheduledOperation(h.store.db, input); if (failPrepare) throw new Error('prepare-failed'); } });
-  const schedule = createScheduleService(h.store.db, { wakeupIndex: index, now: () => h.clock.now });
-  let failPrepare = true;
+test('a failed preparation rolls back with its own write, and a failed result commit leaves unknown work, never duplicate side effects', async t => {
+  const h = await harness(t), wake = wakeupInstallation(SCHEDULE_PLUGIN_ID); let calls = 0, failPrepare = true;
+  wake.action(SCHEDULE_OPERATION_WAKEUP, async (input, control) => {
+    h.store.db.transaction(() => { prepareScheduledOperation(h.store.db, input); if (failPrepare) throw new Error('prepare-failed'); }).immediate();
+    return runScheduledOperation(h.store.db, input, control, {
+      currentInstallation: () => true,
+      executor: () => ({ signal: control.signal, beforeEffect() {}, async invoke() { calls++; return { state: 'succeeded', value: 'saved externally' }; } }),
+      deliver() { h.store.db.prepare('INSERT INTO scheduled_test_delivery VALUES (1)').run(); throw new Error('delivery-failed'); },
+    });
+  });
+  const schedule = wake.scheduler(h.store.db, { now: () => h.clock.now });
   const id = h.operations.add(identity, { at, operation: 'summarize', inbox: true }).scheduleId, job = schedule.get(h.get(id).jobId)!;
-  await assert.rejects(schedule.tick(), /prepare-failed/);
-  assert.deepEqual(schedule.get(job.job_id), job); assert.equal(schedule.isExecuting(job.job_id), false);
-  assert.equal(h.occurrences(id).length, 0); assert.equal(calls, 0);
+  assert.deepEqual(await schedule.tick(), { invoked: 1, failed: 1, skipped: 0 });
+  assert.equal(schedule.get(job.job_id)?.last_wakeup?.detail, 'prepare-failed'); assert.equal(schedule.isExecuting(job.job_id), false);
+  assert.equal(h.occurrences(id).length, 0, 'the occurrence was written in the transaction that failed'); assert.equal(calls, 0);
+  // The person re-enables the operation that did not run; nothing was dispatched, so nothing is replayed.
   failPrepare = false; h.store.db.exec('CREATE TABLE scheduled_test_delivery(n INTEGER)');
+  setScheduledOperationEnabled(h.store.db, schedule, job.job_id, true);
   await schedule.tick(); reconcileScheduledOperations(h.store.db, schedule);
   assert.equal(calls, 1); assert.equal(h.get(id).state, 'needs_review');
   assert.equal(h.occurrences(id)[0]?.state, 'unknown');
@@ -208,13 +213,13 @@ for (const mode of ['before-dispatch', 'after-dispatch', 'after-commit'] as cons
     assert.equal(phase, mode === 'before-dispatch' ? 'prepared' : mode === 'after-dispatch' ? 'dispatched' : 'committed');
   } finally { child.kill('SIGKILL'); await exited; }
   const clock = new Date(Date.parse(at) + 60_000), reopened = new LocalProjectDatabase(h.path); t.after(() => reopened.close());
-  const index = new PluginWakeupIndex(); let replays = 0;
-  index.register(SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, (input, control) => runScheduledOperation(reopened.db, input, control, {
+  const wake = wakeupInstallation(SCHEDULE_PLUGIN_ID); let replays = 0;
+  wake.action(SCHEDULE_OPERATION_WAKEUP, async (input, control) => { prepareScheduledOperation(reopened.db, input); return runScheduledOperation(reopened.db, input, control, {
     currentInstallation: () => true, now: () => clock,
     executor: () => ({ signal: control.signal, beforeEffect() {}, async invoke() { replays++; reopened.db.prepare('UPDATE scheduled_test_effects SET n = n + 1').run(); return { state: 'succeeded', value: 'restored' }; } }),
     deliver() { assert.fail('Inbox not requested'); },
-  }), { prepare: input => prepareScheduledOperation(reopened.db, input) });
-  const schedule = createScheduleService(reopened.db, { wakeupIndex: index, now: () => clock });
+  }); });
+  const schedule = wake.scheduler(reopened.db, { now: () => clock });
   reconcileScheduledOperations(reopened.db, schedule); await schedule.tick(); reconcileScheduledOperations(reopened.db, schedule); await schedule.tick();
   assert.equal(replays, mode === 'before-dispatch' ? 1 : 0);
   assert.equal((reopened.db.prepare('SELECT n FROM scheduled_test_effects').get() as { n: number }).n, 1);

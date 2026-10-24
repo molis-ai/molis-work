@@ -1,0 +1,261 @@
+# R8：agent 宿主的 typed 能力分批改登记成动作（PG-035、BL-364、BL-365）
+
+状态：第 1 批评审修复已完成本地验证（2026-10-23，防腐线 ac-kernel 片，Codex 接续修复），第 2 批（§8）已实现、在评审；验收 RAC-188～190、RAC-197 的定向回归通过，共享核心全量与浏览器验证留统一集成窗口，未宣称整线完成。
+
+## 1. 目标
+
+- **BL-364 第 1 批**：`agentHostCapabilities` 里 37 条 typed 宿主能力，先转其中 7 条，按 PG-035 的写法（`specs/repository-anti-corruption/privileges.md` PG-035 行；设计短稿在协调分支 `coordination/2026-10-14/notes/pg035-typed-to-action-design.md` 第 Q2 节）。
+- **BL-365**：scheduler 的 4 条 typed 能力 #1018 已删（`schedule.register/cancel/setEnabled/list`，插件现经 `services.scheduler`），这一片只删掉还写着它们的待办行和三处文档。
+
+## 2. 这一批选哪几条
+
+选「只有 Coding 用、不要权限、输入里不读身份」的 7 条，转了不用新定信任边界：
+
+| 描述符 | id | 种类 |
+| --- | --- | --- |
+| `readMessages` | `agent.messages.read.v1` | 查询 |
+| `prioritizeSession` | `agent.messages.prioritize.v1` | 命令 |
+| `sendPeopleMessage` | `agent.messages.send.v1` | 命令 |
+| `actOnPeopleMessage` | `agent.messages.act.v1` | 命令 |
+| `cancelMessage` | `agent.messages.cancel.v1` | 命令 |
+| `readBackground` | `agent.background.read.v1` | 查询 |
+| `stopBackground` | `agent.background.stop.v1` | 命令 |
+
+留到后面的批：
+
+- `listRuntimes`、`listActions`：Characters 的宿主提供方以 `user` 受众调它们，改成只给插件就会拒掉它，先要统筹定谁能调。
+- `listActions`、`availableRoles`、`pluginFor` 从输入读 `pluginId` 的那一支：转的时候删掉，身份改从调用者取，单独一批。
+- 两个 `wait`（`awaitContinuations`、`waitRun`）：动作只有 query / command，先定等待怎样表达。
+- 其余读会话、跑轮次的 20 余条：调用点多（Coding 十几个文件），按主人再分批。
+
+## 3. 写法
+
+1. **描述符**（`packages/contracts/src/services/agent-host.ts`）：类型从 `HostCapabilityDefinition` 换成 `ActionDefinition`，带 `action` 元数据。id 与版本不变（「改形态不改名」），输入仍是原来的元组。
+   - 谁能调：`scope: "project"`、`audiences: ["plugin"]`、`permissions: []`、`subject_kinds: []`——只有 Manifest `capabilities.consumes` 列了它的插件经自己的动作客户端调得到，人、Agent、工作流、MCP 看不到也调不了。
+   - 输入的 schema（draft-07 元组：`items: [...]` 加 `additionalItems: false`）：Runtime id 1～200 字，会话、信、命令的 id 1～500 字；一封信的字段照 `AgentPeopleMessageInput` 列全、不收别的字段，正文 1～1,000,000 字，`kind` 只收 `request`、`reply`，附件至多 50 件；处理一封信的步骤只收六个，`detail` 只收 `event`（≤200 字）、`note`（≤100,000 字）、附件。处理器里原有的检查留作纵深。
+   - 输出：按 `AgentSessionMessage` 和 `AgentBackgroundTask` 的真实映射约束读取列表、发送和处理结果，包含附件、历史和可选字段；不套输入长度上限。`prioritizeSession`、`stopBackground` 保留现有输出 schema，`cancelMessage` 仍返回 void、不改成 null。
+2. **登记**：不改。`apps/local-host/src/agent-host-composition.ts` 的适配器已经按定义上有没有 `action` 分到 `registerAction`，`horizontal/agent-host/src/capability-registration.ts` 的处理器原样复用。
+3. **调用方**：Coding 从 `services.capabilities.invoke` 换成 `services.actions.invoke(definition, input)`（`background-state.ts`、`delegation-dispatch.ts`、`routes-delegations.ts`、`routes-timeline.ts`、`routes-sessions.ts`、`session-observation.ts`、`start-round.ts`、`wake-loop.ts`）。Manifest 的 consumes 不变（已是 `Object.values(agentHostCapabilities)`）。受控动作客户端合并请求/作业与调用点自己的 signal，先调用点自己的 beforeEffect 再原 beforeWrite，同步检查也两边保留；透传其他 control 与 transport。委派所有读写、timeline 的信和后台命令、priority、startDelegation、失败发送后的读、后台观察和 wake cancel 均携带各自已有的 beforeWrite；后台观察用作业控制。wake cancel 的 beforeWrite 改必传，api 当时仍用于 releaseProjectRound（第 2 批把它也转成动作后删掉，见 §8）。
+4. **测试夹具**：`tests/fixtures/plugin-actions.ts` 加 `fakeAgentHostActions`，把这 7 条动作交给测试原有的 agent 宿主假实现应答，五个 Coding 测试改用它。真实 SDK 集成夹具 `tests/fixtures/coding-sdk-runtime.ts` 则直接共用 LocalHost 的动作登记和调用服务：原夹具把正式动作登记到 LocalHost，却让插件借用另一份只有 knowledge 的目录；修正这处测试接线，真实路由验证经过 LocalHost 的调用上下文与 action handler。
+
+## 4. 验收
+
+- **RAC-188** 这 7 条是只给插件、不要权限的项目动作；消费它的插件经自己的动作客户端调得到每一条，处理器在宿主启动它的那个项目里运行。
+- **RAC-189** 没有消费它的插件调不到（`actions.forbidden`）；人、Agent、工作流、MCP 都看不到也调不了；被拒的调用到不了 Runtime。非动作写入路由的请求在入口检查后撤销时，正式动作在后续副作用前拒绝，Runtime cancel/stop 零调用；正常请求可完成，取消信号也保留。
+- **RAC-190** schema 拒绝的输入（空或超长的 id、元组多一项或少一项、信里多出的字段、空正文、只有 Runtime 发的 `kind`、51 件附件、没有的步骤、超长的说明、步骤不收的字段）是 `actions.input_invalid`，到不了 Runtime；上限本身（50 件附件、100,000 字说明）收下。Runtime 返回不符合 message/background 输出合同的结果时，由真实动作派发拒绝：查询是 `actions.output_invalid`，已执行的发送/处理命令是 `actions.output_invalid_after_effect`，保留不可盲目重试的错误语义；合法可选输出和超出输入限制的已存正文仍可读。
+
+## 5. 门禁与合同
+
+- typed 能力的计数：`packages/contracts/src/services/agent-host.ts` 的 `#type-refs` 少 7。
+- 公开 API 快照（`tooling/gates/api/contracts/services/agent-host.txt`）与动作快照（`tooling/gates/actions/`）随这一片刷新：多 7 个只给插件的动作，调用方只有 Coding。
+- 对调用方的影响：只有 Coding；它的 Manifest 不变。外部插件若经 `services.capabilities` 调这 7 条，要换成 `services.actions.invoke` 并在 Manifest consumes 里列出（现在没有外部插件调它们）。
+
+
+## 6. 评审范围与后续边界
+
+- 本次认领修复：恢复原 typed 请求/作业控制（挡合并 1），准确输出合同（建议 2），删除真实无用参数而保留仍使用的 api（建议 3）。不新增授权模型，不修改总 spec 或 privileges。
+- 建议 1：同项目消费插件可操作其他插件的会话、信和后台任务，是原 typed 路径已有的归属缺口；主会话已交统筹 stage43 分配 BL 和 owner，目前待回复，本片不自取编号或改变该信任设计。
+- 调度结论：保留默认串行。`prologue-node-port.ts` 的 priority 最多向 5 个活动会话调用 steer；已安装 SDK 的 control 只排队并等本地 prompt 回执持久化，不等模型消费或回复。background stop 经 `prologue-waits.ts` 到 SDK 的 background.stop，再到 NodeHost.cancelCommand，对进程组发 SIGKILL 后返回，不等待进程退出或外部服务。没有长等待需要新增 concurrent。
+- 已核 main `c68071cdc` 仍将这 7 条登记为 typed；正式动作及其输出 schema 首次在本 PR 声明，保留 version 1，并随实际构建更新 API/动作快照。
+- 定向验证：原 5 个 Coding 文件、`tests/agent-host-actions.test.ts` 和真实路由控制拒绝用例，jobs 2；构建、API/动作快照、boundary、health、页面资源、secrets、affected。共享核心 full-suite 留下一统一集成窗口，不启动全量或浏览器批。
+
+## 7. 本地验证记录（2026-10-23）
+
+- 固定集成基线 main `c68071cdc`；整体 `pnpm build`、boundary、health（`--base origin/main`，merge-base 仍为该提交）、页面资源门禁通过。页面仍 27 个资源、7,811,882 字节，无新增或放宽。
+- 定向 13 文件、57 用例通过（jobs 2）：agent-host-actions、coding-session-effect-control、原 5 个 Coding 文件，以及 SDK 夹具 7 个直接读者的去重集合。独立只读复核未发现 Blocker/P1。
+- 首轮发现并修正 3 处测试问题：新命令输出拒绝断言应为 `actions.output_invalid_after_effect`；state-coalesce 的假消息漏两个必填标题；真实 SDK 夹具接入 LocalHost 后还须组合其公开同步动作客户端。生产控制、输出合同和原成功/拒绝断言未放宽；失败文件定向复跑通过。
+- API 刷新无新增变化；动作快照仅 readMessages/sendPeopleMessage/actOnPeopleMessage/readBackground 的四个输出哈希变化。7 条描述符迁移使 typed 类型引用和无 action 登记各少 7，更新本地快查；不修改门禁规则。
+- affected 对整条 PR 与 main 的差异命中 shared-core 全量要求。主会话安排统一集成，当前未跑全量、README 的其他非直接用例和浏览器用例；真实安装与一骏验收不在本片证据内。
+
+## 8. 第 2 批：项目里的工作与会话状态（RAC-197）
+
+叠在第 1 批上，写法同 §3（描述符换 `ActionDefinition`、只给插件、登记不改、Coding 改走 `services.actions`）。选的 4 条同样只有 Coding 用、不要权限、输入里不读身份：
+
+| 描述符 | id | 种类 | Coding 调用点 |
+| --- | --- | --- | --- |
+| `readSessionStatuses` | `agent.sessions.status.v1` | 查询 | `session-observation.ts`（目录与后台观察） |
+| `readProjectWork` | `agent.project-work.read.v1` | 查询 | `routes-sessions.ts` 的 `overlapsFor`（发送前与「等它完成后再开始」） |
+| `queueProjectRound` | `agent.project-work.queue.v1`（版本 2 不变） | 命令 | `routes-sessions.ts` 的 `coding.start-run` |
+| `releaseProjectRound` | `agent.project-work.release.v1` | 命令 | `wake-loop.ts` 的 `cancel` |
+
+- **输入 schema**：Runtime id 与 §3 相同；会话列表至多 1000 条、每条 1～500 字（处理器原有的同一检查留作纵深）；探查的 `directory` 1～4096 字、`text` 至多 1,000,000 字；排队的 `session` 只收 `session_id`、`runtime_id`，`task` 1～1,000,000 字，`title` 至多 2000 字，不收别的字段（`actor_id` 之类带不进来，排给谁仍由处理器从调用者取）；放下的说明至多 2000 字。
+- **输出 schema**：按 `AgentProjectWork`、`AgentProjectWorkOverlap`、`AgentSessionStatus` 列全字段；会话状态是「状态」与「这条读不了、带原因」二选一（`oneOf`），阶段只收 `AgentRunPhase` 的取值或 `null`。
+- **调用方**：四处都用调用点已有的 `beforeWrite` 包一层 `codingActions`（读也一样，取消信号与作业控制随之传下）；`overlapsFor` 与 `coding.scope-check` 因此多传 `beforeWrite`。转完以后 `readCodingSessions` 与 `wake-loop` 的 `cancel` 不再用 typed 客户端，删掉这个参数（第 1 批 §3 说「api 仍用于 releaseProjectRound」，现在不再用）。
+- **测试**：`tests/agent-host-actions.test.ts` 的 RAC-197；三个 Coding 测试（`coding-queued-round`、`coding-message-wait`、`coding-state-coalesce`）已经经 `fakeAgentHostActions` 应答全部带 `action` 的描述符，不用改。
+
+- **归属（统筹 10-23 裁，R8 规矩 3、4，这一片一起关，不另记 BL）**：原 typed 路径上 `readProjectWork` 读整个项目的工作、`releaseProjectRound` 只按工作 id 放下，都不核这项工作是不是调用者的会话的。现在两条都只认调用者自己的会话（同一项目、插件、安装、actor，核法同 `readSessionStatuses`；`horizontal/agent-host/src/project-work-scope.ts`）：
+  - `readProjectWork` 只返回调用者自己会话的工作与重叠；探查里点名的会话不是调用者的就拒绝。
+  - `releaseProjectRound` 先在项目的工作里找到这一项，不在、或属于别人的会话，就按「找不到」拒绝（`agent.session_unknown`），Runtime 不被要求放下。放下别人卡住的一轮不是插件该有的能力，以后真需要，做成平台或本人的动作。
+  - 没有调用者需要知道项目里别人的工作：唯一的调用者 Coding 用它找自己各会话之间的重叠、在自己的另一项工作完成后再开始。所以不给摘要，只返回自己的。以后若要不同插件的 Agent 互相避开文件，再按统筹的口径只给不含内容的摘要（id、状态、主人插件的显示名、开始时间），并在这里写明是谁要、为什么。
+  - 排队另核元组里的 Runtime 与会话所在的 Runtime 一致（评审建议 1，同 `startRun`）。
+- **调度**：同 §6，四条都不等模型、不等外部服务，保持默认串行；排队、放下在写之前各过一次 `beforeEffect`。
+
+**RAC-197** 这 4 条是只给插件、不要权限的项目动作，只作用于调用者自己的会话：放下与探查交给 Runtime 的项目和放下的人来自调用；项目里别的插件会话的工作不出现在读到的工作与重叠里，放下它或不在的工作被拒，探查别人的会话被拒；另一个项目的会话，以及同一项目里别的插件、别的安装、别的人的会话，状态单独回原因，排队被拒（`agent.session_unknown`），它们的工作读不到、放不下，Runtime 没有被要求排队或放下；自己的会话排给插件自己的 actor；排到另一个 Runtime 的被拒。没有消费它的插件、人、Agent、工作流、MCP 调不到；schema 拒绝空会话 id、排队里多出的 `actor_id`、少一项的元组，被拒的调用到不了 Runtime。
+
+剩 26 条：`listActions`、`listRuntimes`、`availableRoles`（谁能调、`pluginId` 从输入读）、两个 `wait`、`listSkills` 等 7 条从输入读 `pluginId` 的、`cancelSubagent`（`actorId` 从输入读）、`listReviews`（`projectId` 从输入读），以及读会话、跑轮次的其余各条。
+
+## 9. 第 3 批：读会话、跑轮次（计划，待统筹在这里裁定 §9.3）
+
+统筹 10-23 定了剩下 26 条的五条规矩，这一批按它们做：
+1. 身份（调用者、项目、安装）一律从调用上下文取，输入里的不当身份。
+2. 等待声明 `scheduling: "concurrent"`，带上限、可取消、写前 `beforeEffect`。
+3. 列表读只给调用者看得见的。
+4. 取消只许取消自己发起的。
+5. 先做读会话、跑轮次这一组。
+
+PR 等 #1121 合入再开，不开第三层。
+
+### 9.1 范围（13 条）与归到哪条规矩
+
+| 描述符 | 输入里的身份 | 规矩 | 改法 |
+| --- | --- | --- | --- |
+| `createSession` | `AgentCreateSessionInput` 带 `project_id`、`plugin_id`、`install_id`、`actor_id`，处理器 `assertInputOwner` 比对 | 1 | 动作输入去掉这四个字段，处理器只从调用者取；Coding 三处调用（`routes-sessions.ts`、`start-round.ts`、`routes-delegations.ts`）不再拼 `identity` |
+| `startRun` | `AgentStartRequest` 同样带四个字段 | 1 | 同上；处理器原来「请求与会话归属一致」的检查改成「会话归属与调用者一致」，`start-round.ts` 一处 |
+| `readSession`、`readRun`、`readRunReviews`、`listSubagents`、`readCommandOutput`、`inspectRecovery`、`listCheckpoints` | 只有会话、轮次引用 | 照 §3 | 处理器已经按项目与调用者核会话归属（`readScopedSession`、`requireRun`） |
+| `controlRun`、`recoverRun`、`prepareRewind` | 只有会话、轮次引用 | 照 §3 | 命令，处理器已有 `beforeEffect` 与归属检查 |
+| `cancelSubagent` | 输入第 4 项 `actorId` | 1、4 | 去掉 `actorId`；取消的人从调用者取；只许取消调用者自己会话里发起的子任务（`requireRun` 已核会话归属），补拒绝用例 |
+
+`waitRun` 属规矩 2，不在这一批：先定成一条 `concurrent` 的动作，还是拆成「开始等」加「查结果」，单独一批。
+
+### 9.2 每条要补的拒绝用例
+
+- 另一个项目的会话或轮次：拒绝，Runtime 没被调用。
+- 同项目里别的插件的会话：拒绝（`actions.forbidden` 一类）。
+- 不消费它的插件，人、Agent、工作流、MCP：调不到。
+- 输入里带回身份字段（`plugin_id`、`actor_id`……）：schema 拒绝（`actions.input_invalid`）。
+- `cancelSubagent`：取消别人会话里的子任务被拒。
+
+### 9.3 规矩没盖到的（统筹 10-23 裁）
+
+1. **大视图的输出 schema。**
+   - 顶层字段列全、`required`、`additionalProperties: false`。
+   - 嵌套对象只列仓库里调用方（Coding 与其他调用点）真读的字段，其余只约束 `object`。
+   - 只约束 `object` 的地方，动作合同快照看不出形状变化，所以只列真用的，不把没人读的字段塞进 schema。
+   - 收紧记为 BL-470。去掉的条件：仓库外第一个插件读嵌套字段，或 `validateResult`（PG-047）开启。
+   - 小而稳的类型照第 1 批写全：`AgentSessionRef`、`AgentRunHandle`、`AgentCheckpoint`、`AgentRecoveryReport`、命令输出。
+2. **身份字段拆开。**
+   - 插件给的 `*Input` 不带身份字段，就是动作的输入 schema。
+   - 宿主补全后的 `Request` 只在宿主与适配器之间用，不进 SDK 公开 API。
+   - 公开 API 有变化就 `pnpm api:update`，在 PR 里写对调用方的影响。
+3. **plugin-builder 的 Manifest** 点名的 `createSession`、`readSession`、`startRun`、`readRun`、`controlRun` 这一批不动。
+   - 这是用户 10-21 定的「创作台先绕开、以后重做」（BL-377）。
+   - Manifest 里这 5 行 consumes 随创作台重做或删除一起去掉。这 5 条描述符照样转成动作（id 不变，consumes 仍然合法，Coding 照常用）；typed 计数只降不升，门禁不受影响。
+
+先做不受这三条影响的：`readCommandOutput`、`listCheckpoints`、`inspectRecovery`、`recoverRun`、`controlRun`、`cancelSubagent`。
+
+### 9.4 第 3 批第一段（6 条，已做）
+
+- **合同**：这 6 条换成 `ActionDefinition`，只给插件（`pluginOnly`），输入是定长元组：会话引用、轮次引用（`run_id`、`session_id`）、各自的参数。
+  - `controlRun` 的控制是 `oneOf`：暂停、继续、停下、取消；换模型（`provider_id`、`model_id`）；回答（`pending_id`，可选 `pending_revision`、`text`、`answers`）。补充与撤回早已走 `agent.inputs.*`，不在这里。
+  - `cancelSubagent` 的输入去掉第 4 项 `actorId`。
+  - 输出照 §9.3① 写全：命令回执、`AgentRecoveryReport`（`recoverRun` 与 `inspectRecovery` 共用）、`AgentCheckpoint[]`。动作服务会核对输出，所以宿主把运行时给的操作记录逐字段拷出，不整个展开，免得运行时多带的字段让结果被拒。
+- **处理器**：`cancelSubagent` 停下子任务的人只从调用者取；没有插件调用者就拒绝（规矩 1、4）。另外 5 条的处理器不变：`readScopedSession`、`requireRun` 已经按项目、插件、安装、actor 核会话归属。
+- **Coding**：9 个调用点改经 `codingActions(context, beforeWrite).invoke`，带上路由的写前栅栏。涉及 `routes-sessions.ts`、`routes-changesets.ts`、`routes-timeline.ts`（5 处）、`routes-writers.ts`、`start-round.ts`。
+- **测试**：
+  - `tests/agent-host-actions.test.ts` 的 RAC-199 覆盖：只给插件；取消子任务的人是调用者；别的插件、别的项目、别的人的会话都按「找不到」拒绝，Runtime 没被问到；别处的轮次被拒；不消费的插件与人、Agent、工作流、MCP 调不到；输入带身份字段、未知控制、缺字段、非整数版本被 schema 拒绝。
+  - 改过的旧用例：`coding-subagents-http`（取消不再带人）、`coding-report-persistence`、`coding-surface`、`coding-session-recovery`（假的 Agent 宿主也应答动作）、`agent-plugin-identity`（命令引用补上 `run_id`，拒绝仍是会话归属那一条）。
+
+### 9.5 第 3 批第二段（7 条，已做）
+
+- **合同**：`createSession`、`startRun`、`readSession`、`readRun`、`readRunReviews`、`listSubagents`、`prepareRewind` 换成只给插件的 `ActionDefinition`。
+- **身份拆开（§9.3②）**：
+  - 插件给的 `AgentCreateSessionInput`、`AgentStartInput` 不带项目、插件、安装、actor，`AgentStartInput` 也不带 `role`。它们就是动作的输入 schema，`additionalProperties: false`，带回这些字段的被拒。
+  - 宿主补全后的 `AgentCreateSessionRequest`、`AgentStartRequest` 只在宿主与运行时适配器之间用（`AgentRuntimeAdapter.createSession`、`start`），插件 SDK 不转出。
+  - 归属 `AgentSessionOwner` 一处定义，`AgentSessionView.owner` 用它。
+  - 原来的 `assertInputOwner`（输入里的身份与调用者比对）删掉：处理器只从调用者取归属，没有插件调用者就拒绝。`startRun` 另核元组里的 Runtime 与会话所在的一致，会话归属仍由 `readScopedSession` 核。
+- **输出（§9.3①）**：会话视图、一轮的视图、审批、子任务、回退请求的顶层字段列全，`required` 加 `additionalProperties: false`。嵌套对象（`frozen`、`turns`、`activity`、`usage`、`step_board`、审批的 `document` 等）只约束 `object`，收紧见 BL-470。
+- **输入**：开始一轮的每个嵌套字段都列了形状和上限（材料、计划、工具引用、预算等），宿主原有的检查（材料长度、预算、目录授权、角色）照旧在后面。
+- **Coding**：
+  - 50 处调用改经 `codingActions(context, beforeWrite)`。`subagentGroups`、`reaskMaterial` 改收动作客户端或 `beforeWrite`；`coding.taskboard`、`coding.prepare-rewind` 两条路由多接 `beforeWrite`。
+  - 新建会话与开始一轮不再拼 `identity`。`startRound`、`roundAfterParkedAnswer`、`runtimeSessionOf`、`goOn` 和唤醒循环不再收 actor 参数：一轮替谁开始，由宿主从调用上下文定。原来写在 `wake-loop.ts` 里「名字必须与调用者一致」的说明改成「不点名」。
+  - `roundReport` 不再用 typed 客户端，删掉这个参数。
+- **plugin-builder**：Manifest 里点名的 5 条 consumes 不动（§9.3③）。描述符 id 不变，consumes 仍然合法；创作台没有代码调用它们。
+- **测试**：
+  - RAC-180（`tests/agent-host-actions.test.ts`）：读会话、读一轮、读审批、列子任务、准备回退只给消费它们的插件；别的插件、项目、安装、人的会话一律按「找不到」拒，运行时什么也没被问到；不属于这条会话的一轮按 `agent.run_unknown` 拒；人、Agent、工作流、MCP 一律 `actions.forbidden`；输入里带身份的被 schema 拒。
+  - 建会话与开始一轮的拒绝在 `tests/agent-plugin-identity.test.ts`（也标 RAC-180）：输入里伪造的归属被 schema 拒；别的插件拿到会话引用也开不了一轮。
+  - S-17（RCPT-391）原来证明「开始请求里多带的会话与作者字段不进工具」，现在这些字段在 schema 就被拒，测试改成先断言拒绝、再用干净的请求证明工具只拿到宿主核过的会话。拒绝提前了，没有放宽。
+  - AC-07 原来断言下一轮「以回答者的 actor 开始」是看输入里的 `actor_id`；现在输入不点名任何人，测试改成断言输入里没有 actor、也没带上被搁置那轮发起人的任何东西，替谁开始由宿主从调用上下文定。
+  - `agent-plugin-identity` 里三处拒绝换了把关的地方，都还是拒绝：调用选项里伪造的 `plugin_caller` 被插件 SDK 丢掉，会话建成插件自己的（测试改成断言归属是自己的）；宿主没绑定安装的 SDK 没有调用者，由动作服务按 `actions.forbidden` 拒；停止中的安装，调用由 SDK（「已停止」）或动作服务（「没有宿主发出的有效身份」）拒。
+  - 测试夹具：`withFakeAgentHost` 让 Coding 测试的假 Agent Host 同时回答这些动作；动作服务两头都校验，所以假回答缺的顶层字段由夹具补中性值（`completeView`）。
+
+BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
+
+## 10. `waitRun` 一批（统筹 10-23 裁定，已做）
+
+`agent.run.wait.v1` 是第 3 批留下的唯一一条读会话、跑轮次的 typed 条目，归规矩 2：等待要么是 `concurrent` 的动作，带上限、可取消、写前 `beforeEffect`，要么拆成「开始等」加「查结果」。验收编号 RAC-181。
+
+### 10.1 现在的样子（2026-10-23 看代码）
+
+- **描述符**：`operation: "wait"`，没有 `action`。输入 `[session, run, since, timeoutMs]`，输出 `{ version, view }`。
+- **处理器**（`capability-registration.ts` 的 `waitRun`）：
+  - 先 `requireRun`，已经按项目与调用者核会话归属。
+  - `timeoutMs` 被悄悄夹到 0～25 000。`observe` 一轮，第一次变化后再收 40 ms 的变化，回答最新的视图。视图里有待回答的问题时，再完整读一次。
+  - 调用的 `signal` 取消时，放开观察并拒绝。
+  - 注册外壳在处理器返回后调 `assertAuthorityCurrent()`，所以等待期间被撤权的调用拿不到视图。
+- **宿主里 `wait` 的特殊待遇**：
+  - 不进动作目录（`kernel/src/action-metadata.ts`）。
+  - 不排进项目队列，关项目时先被取消（`local-host.ts` 的 `callSignal`、`withRuntime`）。
+  - 调用记录里永远不留行（`action-call-log.ts` 的 `recordedOperation`）。
+  - `checkActionAvailability` 遇到 `wait` 直接返回，不走 `admitPluginCall`。
+- **调用方**：Coding 只有两处。
+  - `routes-timeline.ts` 的 `coding.live`：页面的长轮询，每次最多 25 秒，路由自己先夹一次上限。
+  - `start-round.ts` 的 `follow`：后台作业 `background.keep("follow")` 里一轮一轮地等，用安装自己的权限、作业的 `signal`。
+- **测试**：`agent-run-wait`（直接调处理器）、`coding-message-wait`、`coding-material-consumption`、`coding-session-follow`、`coding-queued-round`。
+
+### 10.2 推荐：一条 `concurrent` 的查询动作，不拆
+
+- **为什么不拆**：现在的等待不在宿主留任何状态，「从哪个版本起等」由调用方带着 `since`。拆成「开始等」加「查结果」，就要在宿主里新存一份观察：谁开的、什么时候过期、别人能不能取消（规矩 4）、关项目时怎么收。换来的东西，长轮询本来就有。不拆，规矩 4 自然满足：没有可被别人取消的东西，取消就是调用方中止自己的调用。
+- **写法**：
+  - `operation: "query"`、`action.kind: "query"`、`...pluginOnly`、`scheduling: "concurrent"`，排在项目队列之外，跟现在一样。
+  - `execution: { timeout_ms: 30_000 }`：处理器自己最多等 25 秒，加 40 ms 收集和一次完整读取，30 秒是宿主替它兜底的上限，超了就是 `actions.timeout`。
+  - **输入**：`[sessionRef, runRef, since: string | null（maxLength 200）, timeoutMs: integer 0～25 000]`，`additionalItems: false`。超出范围由 schema 拒，不再悄悄夹；Coding 两处调用本来就先夹到 25 000，没有影响。
+  - **输出**：`{ version: string, view: runViewOutput }`，顶层 `required` 加 `additionalProperties: false`，`view` 沿用第 3 批的 `runViewOutput`（BL-470）。
+  - **处理器**：
+    - 照旧先 `requireRun`。
+    - 解出视图之后、回答之前，调 `invocation.beforeEffect()` 和 `assertAuthorityCurrent()`。这是读，没有副作用，这一步只为「撤了权就不给」：调用者在等待期间被停用或撤权，答复丢掉。注册外壳返回后已有一次 `assertAuthorityCurrent()`，这里提前到解出视图时就查，把撤权与回答放进同一个同步段。
+    - 取消：调用的 `signal`（动作服务合进了宿主关项目的信号）一到就放开观察并拒绝，不再读运行时。
+- **Coding**：
+  - `coding.live` 改经 `codingActions(context, beforeWrite)`，`signal` 用路由调用自己的。
+  - `follow` 改经 `context.services.actions`，带作业的 `signal` 和 `control.beforeEffect`。作业持有的是安装的权限，插件停用时作业的 `signal` 结束等待，和现在一样。
+- **夹具**：`withFakeAgentHost` 自动多答这一条，Coding 测试里的假 `waitRun` 回答由 `completeView` 补齐顶层字段。
+
+### 10.3 统筹 10-23 裁
+
+整体形状照 §10.2：一条只给插件的 `concurrent` 查询，不拆。
+
+1. **调用记录不开例外。**
+   - 调用方自己取消的 `waitRun` 照平台对取消调用的通用规则办，留一行只有错误码的诊断行。不为一条动作在调用记录里开例外：会悄悄漏掉一些调用的记录本身就是隐患。
+   - 防噪声靠语义：等满 `timeoutMs` 回答的是正常的「还在跑」，回最新的视图，算成功、不算取消，所以只有真被调用方取消的才留行。这一点要有测试钉住。
+2. **`wait` 分支在转 `awaitContinuations` 的 PR 里删，不留兼容期。**
+   - 统筹原裁「同 PR 删」。实现时发现 `agent.collaboration.await.v1`（`awaitContinuations`）也是 `operation: "wait"`，`waitRun` 转完以后平台的 `wait` 分支仍有人用，§10.2 原稿「没有 `wait` 条目了」的前提不对。
+   - 统筹 10-23 改裁（①）：这个 PR 保留这些分支，第 3 批不并入 `awaitContinuations`。转 `awaitContinuations` 的同一个 PR 删掉它们，记在 BL-364，去掉的条件是「collaboration.await 已转成动作，`operation: "wait"` 没有使用者了」。
+3. **并发不留隐患。**
+   - 动作服务对 `concurrent` 动作没有按调用者或按安装的同时进行数上限，只有每分钟次数（`max_calls_per_minute`）。
+   - 所以 `waitRun` 自己限：每个安装同时最多 8 个等待，再来的按 `agent.wait_limit_reached` 拒（`defineErrorCodes("agent", …)`，种类 `rate_limited`），带拒绝用例。等待结束（回答、取消、出错）就让出名额。
+
+### 10.4 验收（RAC-181）
+
+- 描述符是只给插件的 `concurrent` 查询，带 `execution.timeout_ms` 上限。
+- 拒绝用例，每条都断言运行时的 `observe` 没被调用：
+  - 别的插件、项目、安装、人的会话：按「找不到」拒（`agent.session_unknown`）。
+  - 不属于这条会话的一轮：`agent.run_unknown`。
+  - 不消费它的插件，人、Agent、工作流、MCP：`actions.forbidden`。
+  - 输入里带身份字段，`timeoutMs` 超过 25 000、为负数或不是整数：`actions.input_invalid`。
+- 等待中被取消：拒绝，观察被放开（`agent-run-wait` 已有的放开断言改走动作），调用记录留一行只有错误码的诊断行。
+- 等满 `timeoutMs`：正常回答最新的视图，调用记录不留行。
+- 同一个安装同时第 9 个等待：`agent.wait_limit_reached`，运行时没被观察；前面一个结束后再等，成功。
+- 等待中被撤权：拿不到视图。
+- `coding.live` 与 `follow` 的现有用例照旧通过。
+
+### 10.5 做了什么
+
+- **合同**：`waitRun` 是只给插件的 `concurrent` 查询，带 `execution: { timeout_ms: 30_000 }`。输入 `[sessionRef, runRef, since, timeoutMs]`，`timeoutMs` 是 0～25 000 的整数，超出由 schema 拒；输出 `{ version, view }`，`view` 用 `runViewOutput`。
+- **宿主**：
+  - 等待本身搬到 `horizontal/agent-host/src/run-wait.ts`（`waitForRunChange`、`runViewVersion`），每个安装的并发名额也在这里（`installationWaits(8)`，超了 `agent.wait_limit_reached`，种类 `rate_limited`）。
+  - 处理器：没有插件调用者就拒 → `requireRun` → 占名额 → 等 → `beforeEffect()` 与 `assertAuthorityCurrent()` → 回答；不管怎样结束都让出名额。
+- **Coding**：`coding.live` 改经 `codingActions(context, beforeWrite)`，`timeout` 先取整再夹到 25 000；`follow` 改经 `services.actions`，带作业的 `signal` 与 `beforeEffect`。
+- **`wait` 分支**：`awaitContinuations` 还在用，这个 PR 不删（§10.3②，统筹 10-23 改裁①），随转它的 PR 一起删。
+- **测试**：
+  - RAC-181（`tests/agent-host-actions.test.ts`）：等满时间回答原样、调用记录不留行；调用方取消，调用记录留一行只有 `actions.cancelled` 的诊断行；第 9 个等待被拒、没观察任何东西，让出一个名额后再等成功；别的插件、项目、安装、人的会话按「找不到」拒；不属于这条会话的一轮按 `agent.run_unknown` 拒；人、Agent、工作流、MCP 一律 `actions.forbidden`；`timeoutMs` 超上限、为负、不是整数，以及多带身份项，都是 `actions.input_invalid`；被拒的等待没碰运行时。
+  - `agent-run-wait` 的两条照旧，调用改带插件调用者。
+  - 夹具 `fakeAgentHostActions` 把调用的 `signal` 交给假回答，`coding-session-follow` 的「插件停用即取消等待」靠它照旧成立。

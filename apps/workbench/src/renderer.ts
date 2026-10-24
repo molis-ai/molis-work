@@ -49,10 +49,9 @@ import {
   createWorkbenchGoalsRelationRenderer,
   createWorkbenchGoalsStatusRenderer,
   createWorkbenchGoalsTreeRenderer,
-  renderProjectOperations,
   renderWorkbenchDocument,
-  renderWorkTerminal,
 } from "./ui-composition.js";
+import { renderTerminalPane } from "./terminal/pane.js";
 import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } from "./side-view-document.js";
 export interface WorkbenchRendererPorts {
   locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "dateTimeLocale" | "listJoin" | "localeSwitchHref" | "clientI18nScript"> & { currentLocale(): WebLocale };
@@ -72,13 +71,12 @@ const { renderGoalTreeProposalDecision, renderGoalTreeProposalList } = createWor
 const { buildFeedNativePluginModel, renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L, dateTimeLocale });
 const { buildInboxNativePluginModel, renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
 const { buildScheduleNativePluginModel, renderScheduleNativePluginSurface } = createWorkbenchScheduleProjectionRenderer({ L, dateTimeLocale });
-// Feed, Inbox and Schedule still draw their stage from this page's view, not from a running instance; every other declared
-// stage gets the shared primitives.
+// Feed, Inbox and Schedule still draw their stage from this page's view; every other declared stage gets the shared primitives.
+// The same model whoever draws the stage: the shell from the catalog, or the Host from the running instance (W5-06).
 const stageModels: ReadonlyMap<string, (view: MolisWorkWebView) => unknown> = new Map<string, (view: MolisWorkWebView) => unknown>([
-  ["feed", view => buildFeedNativePluginModel(view, "feed", [], false)],
-  ["inbox", buildInboxNativePluginModel],
-  ["schedule", buildScheduleNativePluginModel],
-]);
+  ["feed", view => buildFeedNativePluginModel(view, "feed", [], false)], ["inbox", buildInboxNativePluginModel], ["schedule", buildScheduleNativePluginModel]]);
+const declaredStageModel = (projectPluginId: string, view: MolisWorkWebView): unknown =>
+  stageModels.get(projectPluginId)?.(view) ?? { primitives: { escape: escapeHtml, text: L } };
 
 const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
 
@@ -269,7 +267,7 @@ function renderTuiPane(
   view: MolisWorkWebView,
   cliAvailability: Record<string, boolean> = {},
 ): string {
-  return renderWorkTerminal({
+  return renderTerminalPane({
     selected: selected ? {
       ...selected.goal,
       event_work: selected.event_work === true,
@@ -313,9 +311,8 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderIconSprite, clientI18nScript, dataJson, prefixLocalLinks, renderWorkbenchDocument,
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals: (view) => renderGoalTreeProposalList(view.snapshot.goal_tree_proposals, view),
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
-    renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, stageModel: (pluginId, view) => stageModels.get(pluginId)?.(view),
+    renderFeedNativePluginSurface, stageModel: declaredStageModel,
   });
   return {
     renderMolisWorkProjectIndex,
@@ -341,6 +338,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderMolisWorkWorkbenchClientScript: (): string => renderWorkbenchClient(),
     renderMolisWorkWeb,
     renderMolisWorkRefreshFragment,
+    declaredStageModel,
     /** One plugin tab of the side panel, or null when that view is not declared by a plugin enabled here. */
     renderSideViewDocument: (input: Omit<SideViewDocumentInput, "lang" | "headHtml" | "clientI18nScript" | "themeBootstrapScript" | "translate"> & { controlToken: string }): string | null =>
       renderSideView({ ...input, lang: htmlLang(), headHtml: controlTokenMeta(input.controlToken), clientI18nScript: clientI18nScript(), themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, translate: L }),

@@ -1,4 +1,5 @@
-import { createTerminalConnection, createTerminalScreens } from "@molis-ai/molis-work-plugin-work/terminal";
+import { createTerminalConnection } from "./terminal/connection.js";
+import { createTerminalScreens } from "./terminal/screens.js";
 import type { PtySpawnRequest } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 /** Character terminals share Runtime Host PTYs; what they print is shown, not recorded. Reconnect never launches. */

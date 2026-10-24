@@ -8,8 +8,6 @@ export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";
 export type { ArtifactBrowserUiModel } from "@molis-ai/molis-work-plugin-artifacts";
 export { isProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
-export { PROJECT_OPERATIONS_STYLES, PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-work";
-export type { ProjectOperationsProject, ProjectOperationsData, ProjectOperationsSlice, ProjectSessionRecord, ProjectWorkspaceRecord } from "@molis-ai/molis-work-plugin-work";
 export {
   activeOutgoingDependsOn,
   allGoalViews,
@@ -108,6 +106,7 @@ export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
 export type { CallRowView } from "./call-row.js";
 export { renderMcpAccess, renderMcpAccessRows, mcpAccessEntryKey, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView } from "./page-view.js";
+export type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 export * from "./i18n.js";
 export * from "./ui-composition.js";
 export { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
@@ -123,7 +122,7 @@ export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js"
 export type * from "./capsule-view.js";
 export { ALWAYS_ON_PLUGIN_IDS, availableProjectPluginIds, catalogProblems, shownProjectPlugins, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts } from "./plugin-catalog.js";
 export type { PluginCreatableKind, PluginHomeStart, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
-export { stageContributionId } from "./declared-stages.js";
+export { declaredStageContributionId, stageContributionId } from "./declared-stages.js";
 export { pluginWorkbenchPacks } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export {
@@ -144,7 +143,7 @@ export {
   type ModelTemplateChoice,
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
-export { BUILTIN_PLUGIN_AGENTS, HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer, type HostArtifactProducer } from "./plugin-catalog.js";
+export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer, type HostArtifactProducer } from "./plugin-catalog.js";
 
 export { deferredSurfaceClients, pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";

@@ -414,20 +414,20 @@ test("W3-10-4-01: the computer tab posts the record text and its latest screensh
   const json = (value: unknown, ok = true, status = ok ? 200 : 500) => ({ ok, status, json: async () => value, arrayBuffer: async () => png });
   const textOnly = await run((url, init) => {
     if (url.endsWith("/api/computer/records/rec-1")) return json({ record });
-    if (init?.method === "POST" && url === "/api/shelf/items") return json({}, false, 500);
+    if (init?.method === "POST" && url === "/api/plugins/io.molis.work.shelf/items") return json({}, false, 500);
     return json({});
   });
-  assert.equal(textOnly.calls.filter(call => call.url === "/api/shelf/items").length, 1);
+  assert.equal(textOnly.calls.filter(call => call.url === "/api/plugins/io.molis.work.shelf/items").length, 1);
   assert.deepEqual(textOnly.said, ["没能放进 Shelf。"]);
   const thrown = await run((url, init) => {
     if (url.endsWith("/api/computer/records/rec-1")) return json({ record });
-    if (init?.method === "POST" && url === "/api/shelf/items" && init.body?.includes("\"text\"")) return json({ item: { item_id: "shelf-1" } });
+    if (init?.method === "POST" && url === "/api/plugins/io.molis.work.shelf/items" && init.body?.includes("\"text\"")) return json({ item: { item_id: "shelf-1" } });
     if (url.endsWith("/001.png")) return "throw";
     return json({});
   });
   assert.equal(thrown.calls.some(call => call.url.endsWith("/001.png")), true);
-  assert.equal(thrown.calls.some(call => call.url === "/api/shelf/items" && call.body?.includes("bytes_base64")), false);
-  assert.equal(thrown.calls.filter(call => call.url === "/api/shelf/items/shelf-1/delete").length, 1);
+  assert.equal(thrown.calls.some(call => call.url === "/api/plugins/io.molis.work.shelf/items" && call.body?.includes("bytes_base64")), false);
+  assert.equal(thrown.calls.filter(call => call.url === "/api/plugins/io.molis.work.shelf/items/shelf-1/delete").length, 1);
   assert.deepEqual(thrown.said, ["连不上 Molis Work 服务，请稍后重试"]);
   let deletes = 0;
   const retried = await run((url, init) => {
@@ -473,6 +473,6 @@ test("W3-10-4-01: the computer tab posts the record text and its latest screensh
     if (init?.method === "POST") return json({ item: { item_id: "shelf-3" } });
     return json({});
   });
-  assert.equal(busy.calls.filter(call => call.url === "/api/shelf/items/shelf-3/delete").length, 1);
+  assert.equal(busy.calls.filter(call => call.url === "/api/plugins/io.molis.work.shelf/items/shelf-3/delete").length, 1);
   assert.deepEqual(busy.said, ["没能放进 Shelf。"]);
 });

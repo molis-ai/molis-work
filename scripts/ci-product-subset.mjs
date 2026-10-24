@@ -10,6 +10,7 @@
 //     --root <dir>                      repository root (default: this repository)
 //     --out <dir>                       where the two files go (default: <tmp>/molis-product-subset)
 //     --only <regex>                    only the listed files whose path matches, e.g. 'e2e' (default: all); for trying the job out by hand
+//     --shard <k/n>                     run one disjoint part of the validated list (after --only); all n parts cover the list once
 //     --jobs <n>                        non-browser files at once (default 2); the browser smokes always run one at a time
 //     --timeout-seconds <n>             per attempt of a non-browser file (default 180); a timeout is not retried
 //     --browser-timeout-seconds <n>     per attempt of a browser smoke (default 240)
@@ -33,7 +34,7 @@ import { runAll, stopRunning } from "./ci-linux-probe/run.mjs";
 import { datingProblems, dayNumber, LIST_FILE, readPlan, resolvePlan } from "./ci-product-subset/plan.mjs";
 import { failing, STATUSES, totals, writeSubsetReport } from "./ci-product-subset/report.mjs";
 
-const USAGE = "usage: ci-product-subset.mjs [--list] [--root <dir>] [--out <dir>] [--only <regex>] [--jobs <n>] [--timeout-seconds <n>] [--browser-timeout-seconds <n>] [--retries <n>] [--budget-minutes <n>] [--browser-budget-minutes <n>] [--expect-platform <p>] [--today <YYYY-MM-DD>]";
+const USAGE = "usage: ci-product-subset.mjs [--list] [--root <dir>] [--out <dir>] [--only <regex>] [--shard <k/n>] [--jobs <n>] [--timeout-seconds <n>] [--browser-timeout-seconds <n>] [--retries <n>] [--budget-minutes <n>] [--browser-budget-minutes <n>] [--expect-platform <p>] [--today <YYYY-MM-DD>]";
 const die = (message) => { console.error(`ci-product-subset: ${message}`); process.exit(2); };
 
 // option -> [key, whole number, smallest value]
@@ -41,7 +42,7 @@ const NUMBERS = {
   "--jobs": ["jobs", true, 1], "--timeout-seconds": ["timeoutSeconds", false, 0.001], "--browser-timeout-seconds": ["browserTimeoutSeconds", false, 0.001],
   "--retries": ["retries", true, 0], "--budget-minutes": ["budgetMinutes", false, 0.001], "--browser-budget-minutes": ["browserBudgetMinutes", false, 0.001],
 };
-const STRINGS = ["--root", "--out", "--only", "--expect-platform", "--today"];
+const STRINGS = ["--root", "--out", "--only", "--shard", "--expect-platform", "--today"];
 const options = { list: false, jobs: 2, timeoutSeconds: 180, browserTimeoutSeconds: 240, retries: 1, budgetMinutes: Infinity, browserBudgetMinutes: Infinity };
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
@@ -58,6 +59,15 @@ for (let index = 0; index < args.length; index++) {
   } else options[name.slice(2).replace(/-(\w)/g, (_, letter) => letter.toUpperCase())] = value;
 }
 
+let shard = null;
+if (options.shard !== undefined) {
+  const parts = /^(\d+)\/(\d+)$/.exec(options.shard);
+  const index = Number(parts?.[1]);
+  const total = Number(parts?.[2]);
+  if (!parts || !Number.isSafeInteger(index) || !Number.isSafeInteger(total) || index < 1 || total < 1 || index > total) die('--shard needs k/n with whole numbers 1 <= k <= n');
+  shard = { index, total };
+}
+
 const root = path.resolve(options.root ?? path.join(path.dirname(fileURLToPath(import.meta.url)), ".."));
 if (options.expectPlatform && options.expectPlatform !== process.platform) die(`this machine is ${process.platform}, the run is meant for ${options.expectPlatform}; nothing was run`);
 const today = options.today ?? new Date().toISOString().slice(0, 10);
@@ -72,10 +82,14 @@ let only = null;
 try { only = options.only ? new RegExp(options.only) : null; } catch (error) { die(`--only needs a regular expression: ${error.message}`); }
 if (only) plan.entries = plan.entries.filter((entry) => only.test(entry.file));
 if (!plan.entries.length) die(`no file of ${LIST_FILE} matches ${options.only}`);
+if (shard) {
+  plan.entries = plan.entries.filter((_, index) => index % shard.total === shard.index - 1);
+  if (!plan.entries.length) die(`shard ${shard.index}/${shard.total} has no files; nothing was run`);
+}
 const { counted, held, expired } = resolvePlan(plan, today);
 const smokes = counted.filter((entry) => entry.browser);
 const others = counted.filter((entry) => !entry.browser);
-const overview = `${plan.entries.length} files in ${LIST_FILE}: ${smokes.length} browser smokes and ${others.length} other files count, ${held.length} quarantined${expired.length ? `, ${expired.length} whose quarantine ended (they count again)` : ""}`;
+const overview = `${shard ? `shard ${shard.index}/${shard.total}: ` : ""}${plan.entries.length} files in ${LIST_FILE}: ${smokes.length} browser smokes and ${others.length} other files count, ${held.length} quarantined${expired.length ? `, ${expired.length} whose quarantine ended (they count again)` : ""}`;
 
 if (options.list) {
   for (const entry of smokes) console.log(`smoke    ${entry.file}${entry.expiredQuarantine ? `  [quarantine ended ${entry.expiredQuarantine.expires}, ${entry.expiredQuarantine.owner}: counts again]` : ""}`);
@@ -104,7 +118,7 @@ const decorate = (entry, result) => ({
   ...(entry.quarantine ? { quarantine: entry.quarantine } : {}), ...(entry.expiredQuarantine ? { expiredQuarantine: entry.expiredQuarantine } : {}),
 });
 const meta = (endedBy) => ({
-  platform: process.platform, arch: process.arch, node: process.version, commit, today,
+  platform: process.platform, arch: process.arch, node: process.version, commit, today, ...(shard ? { shard } : {}),
   jobs: options.jobs, timeoutSeconds: options.timeoutSeconds, browserTimeoutSeconds: options.browserTimeoutSeconds, retries: options.retries,
   budgetMinutes: finite(options.budgetMinutes), browserBudgetMinutes: finite(options.browserBudgetMinutes),
   minutes: tenth(Date.now() - started), phases: { ...phases }, endedBy,

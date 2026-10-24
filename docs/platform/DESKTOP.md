@@ -33,7 +33,7 @@ Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开�
 
 - Projects Module 只拥有 Project 身份和正式事实；Desktop Panel 是 App control state，不进入 Projects Module。
 - Private Work Context 拥有 Session 和 Runtime workspace 关联；Desktop 只保存面板到稳定 work context 的别名。
-- Runtime Host 拥有通用 Runtime stream、重连和中断；当前工作台终端的连接在 `plugins/native/work/src/terminal/connection.ts`，接 `apps/local-host/src/pty-socket.ts`。Tauri 仍登记原生 PTY 命令，其消费用途与 IPC 可达范围另待实探，不能以登记代替现行动线。
+- Runtime Host 拥有通用 Runtime stream、重连和中断；当前工作台终端的连接在 `apps/workbench/src/terminal/connection.ts`，接 `apps/local-host/src/pty-socket.ts`。Tauri 仍登记原生 PTY 命令，其消费用途与 IPC 可达范围另待实探，不能以登记代替现行动线。
 - Workbench 提供共享页面壳；Desktop Capsule presentation 由 Desktop App 提供，Workbench 组合 read model，Local Host 注入主题与语言。
 - Feed Native Plugin 拥有外部内容脱敏规则；Desktop 推进提示直接调用其公开 API，不复制一份规则。
 

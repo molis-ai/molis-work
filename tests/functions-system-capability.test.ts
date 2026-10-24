@@ -12,7 +12,6 @@ import {
   FEED_SAVE_BEHAVIOR_ID,
   HOME_CONTINUE_BEHAVIOR_ID,
   HOME_DOCK_SCENE_ID,
-  HOME_TALK_BEHAVIOR_ID,
   INBOX_ADMIT_BEHAVIOR_ID,
   INBOX_DONE_BEHAVIOR_ID,
   INBOX_DISMISS_BEHAVIOR_ID,
@@ -29,7 +28,6 @@ import {
 import {
   functionsErrors,
   createFunctionsService,
-  openFunctionsStore,
   publishedFunctionAction,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
@@ -43,15 +41,6 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-
-function memorySecrets(initial: Record<string, string> = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    put(ref: string, value: string) { map.set(ref, value); },
-    get(ref: string) { return map.get(ref) ?? null; },
-    delete(ref: string) { return map.delete(ref); },
-  };
-}
 
 function fixtureProvider(choice: string | null): TypeSafeProvider {
   return {
@@ -83,10 +72,9 @@ async function publishChoice(
   home: string,
   input: { name: string; function_key: string; keys: readonly string[]; provider?: TypeSafeProvider },
 ) {
-  const store = openFunctionsStore(home);
   const service = createFunctionsService({
-    store,
-    secrets: memorySecrets(),
+    home,
+    credential: () => null,
     env: { TYPESAFE_API_KEY: "sk-test" },
     provider: input.provider ?? fixtureProvider(input.keys[0] ?? null),
   });
@@ -98,7 +86,7 @@ async function publishChoice(
   });
   await service.preview(created.id, "样例");
   const published = service.publish(created.id);
-  return { store, service, published };
+  return { service, published };
 }
 
 test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plus unknowns", () => {
@@ -116,10 +104,6 @@ test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plu
       [HOME_CONTINUE_BEHAVIOR_ID],
       "not-a-behavior",
     ),
-    [],
-  );
-  assert.deepEqual(
-    filterSuggestedBehaviorIds([HOME_TALK_BEHAVIOR_ID], [HOME_TALK_BEHAVIOR_ID], HOME_TALK_BEHAVIOR_ID),
     [],
   );
 });
@@ -155,27 +139,26 @@ test("Feed disposition defaults are offered until a valid choice selects them", 
 
 test("historical judgments retain original object, project and scene scope", async () => {
   await withHome(async home => {
-    const store = openFunctionsStore(home);
+    const functions = createFunctionsService({ home, credential: () => null });
     try {
-      const write = (scene: string, project: string, result: string) => store.recordJudgment({ function_key: "old-rule", function_version: 1,
+      const write = (scene: string, project: string, result: string) => functions.recordSceneJudgment({ function_key: "old-rule", function_version: 1,
         subject: { kind: "inbox_entry", id: "same-object", project_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
       const inbox = write(INBOX_NEXT_SCENE_ID, "first", INBOX_DONE_BEHAVIOR_ID);
       const home = write(HOME_DOCK_SCENE_ID, "first", HOME_CONTINUE_BEHAVIOR_ID);
       const foreign = write(INBOX_NEXT_SCENE_ID, "other", INBOX_DISMISS_BEHAVIOR_ID);
-      assert.deepEqual(store.latestJudgment("inbox_entry", "same-object", "first", INBOX_NEXT_SCENE_ID), inbox);
-      assert.deepEqual(store.latestJudgment("inbox_entry", "same-object", "first", HOME_DOCK_SCENE_ID), home);
-      assert.deepEqual(store.latestJudgment("inbox_entry", "same-object", "other", INBOX_NEXT_SCENE_ID), foreign);
-      assert.deepEqual(store.latestSceneJudgments("first", INBOX_NEXT_SCENE_ID), [inbox]);
-    } finally { store.close(); }
+      assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "first", INBOX_NEXT_SCENE_ID), inbox);
+      assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "first", HOME_DOCK_SCENE_ID), home);
+      assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "other", INBOX_NEXT_SCENE_ID), foreign);
+      assert.deepEqual(functions.latestSceneJudgments("first", INBOX_NEXT_SCENE_ID), [inbox]);
+    } finally { functions.close(); }
   });
 });
 
 test("system module can publish using the existing rule store", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
     const service = createFunctionsService({
-      store,
-      secrets: memorySecrets(),
+      home,
+      credential: () => null,
       env: { TYPESAFE_API_KEY: "sk-test" },
       provider: fixtureProvider("yes"),
     });
@@ -193,7 +176,7 @@ test("system module can publish using the existing rule store", async () => {
       assert.equal(published.status, "published");
       assert.equal(published.version, 1);
     } finally {
-      store.close();
+      service.close();
     }
   });
 });
@@ -274,20 +257,20 @@ test("Home preserves declared navigation and bound suggestions without inventing
 
 test("built-in function keys exist in the Module store", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
+    const functions = createFunctionsService({ home, credential: () => null });
     try {
-      const keys = store.list().map((row) => row.function_key);
+      const keys = functions.list().map((row) => row.function_key);
       assert.ok(keys.includes(SYSTEM_HOME_DOCK_FUNCTION_KEY));
       assert.ok(keys.includes(SYSTEM_INBOX_ADMIT_FUNCTION_KEY));
       assert.ok(keys.includes(SYSTEM_INBOX_NEXT_FUNCTION_KEY));
-      const homeDock = store.requirePublishedByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY);
+      const homeDock = functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)!;
       assert.equal(homeDock.status, "published");
       assert.ok(
         Array.isArray(homeDock.criteria)
         && homeDock.criteria.some((row) => "key" in row && row.key === INBOX_DISMISS_BEHAVIOR_ID),
       );
     } finally {
-      store.close();
+      functions.close();
     }
   });
 });
@@ -310,22 +293,21 @@ test("a judgment's choice follows the rule's scene map", () => {
 
 test("the built-in Home rule is seeded for the Home scene and Inbox entries", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
+    const functions = createFunctionsService({ home, credential: () => null });
     try {
-      assert.equal(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, HOME_DOCK_SCENE_ID);
-      assert.deepEqual(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds, ["inbox_entry"]);
+      assert.equal(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, HOME_DOCK_SCENE_ID);
+      assert.deepEqual(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds, ["inbox_entry"]);
     } finally {
-      store.close();
+      functions.close();
     }
   });
 });
 
 test("agent.mcp functions are plain judgments, never a site scene's recommendation", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
     const service = createFunctionsService({
-      store,
-      secrets: memorySecrets(),
+      home,
+      credential: () => null,
       env: { TYPESAFE_API_KEY: "sk-test" },
       provider: fixtureProvider("molis_work_v1_form_create"),
     });
@@ -344,7 +326,7 @@ test("agent.mcp functions are plain judgments, never a site scene's recommendati
       const published = service.publish(created.id);
       assert.equal(publishedFunctionAction(published).action.output_type, "molis.judgment.v1");
     } finally {
-      store.close();
+      service.close();
     }
   });
 });

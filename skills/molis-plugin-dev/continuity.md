@@ -13,7 +13,7 @@
    defineSubjectContextAction("<plugin>.subject.read", "<kind>", "<对象名>", ["<plugin>:read"], "home"); // 个人范围的对象
    ```
 
-   handler 用 `subjectContext({ subject, revision, title, content, goal_ids, session_id, open }, input)` 返回：当前正文（一次最多 32000 字；把读取器收到的 `input` 作第二个参数传进去，就能从 `input.offset` 起一页页读长文，项目资料按页读到全文；不传只给第一页并标 `truncated`）、`revision`（你自己的版本号或令牌，内容一变它就变）、关联的 Goal、所在会话，以及 `open: { surface, id }`——工作台打开它的位置（与 `host.openItem(surface, id)` 一致）。对象不存在时抛 `<plugin>.not_found`：助理据此显示“已不存在”，而不是“暂时读不到”。一种对象只能有一个提供方。
+   handler 用 `subjectContext({ subject, revision, title, content, goal_ids, open }, input)` 返回：当前正文（一次最多 32000 字；把读取器收到的 `input` 作第二个参数传进去，就能从 `input.offset` 起一页页读长文，项目资料按页读到全文；不传只给第一页并标 `truncated`）、`revision`（你自己的版本号或令牌，内容一变它就变）、关联的 Goal、所在会话，以及 `open: { surface, id }`——工作台打开它的位置（与 `host.openItem(surface, id)` 一致）。对象不存在时抛 `<plugin>.not_found`：助理据此显示“已不存在”，而不是“暂时读不到”。一种对象只能有一个提供方。
 
 2. **修改类动作说清改了哪个对象、改成了哪个版本。** `subject_kinds` 只写一种；在 `result_subject` 里声明输出中对象标识与新版本的位置，例如 `{ id: "document.id", revision: "document.version" }`（不声明时按“输出里唯一带 id 与 version 的记录”推断）。修改已有对象的动作接受 `expected_version`（或 `expected_revision`），不一致就拒绝。助理修改已有对象时必须带上读取时的版本，否则在请用户确认之前就被拒绝。
 
@@ -47,5 +47,5 @@
 ## 样例与验证
 
 - 完整样例：Pages（`plugins/native/pages`：`pages.subject.read`、`result_subject`、`expected_version`、页面声明与刷新）和 Coding（`plugins/native/coding`：`coding.subject.read` 路由、页面声明、方式同步、两个入口同一会话）。
-- 测试：`tests/assistant-work-continuity.test.ts`（关系、手动修改被感知、版本前提、相关工作查询、Home 作用域声明）、`tests/assistant-coding-executor.test.ts`（两个入口、接续会话、交接与回到助理）。
+- 测试：`tests/assistant-work-continuity.test.ts`（关系、手动修改被感知、版本前提、相关工作查询、Home 作用域声明）、`tests/assistant-executor.test.ts`（两个入口、接续会话、交接与回到助理）。
 - 需求与验收：`specs/archive/system-assistant/spec.md` 第 10.4 节、AC46—AC51。

@@ -1,4 +1,5 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { schedulerErrors } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type { ScheduleWakeupControl, ScheduleWakeupInput, ScheduleWakeupReply } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type { ScheduleSqliteDatabase } from "./index.js";
 
@@ -69,8 +70,10 @@ export function createActionWakeups(db: ScheduleSqliteDatabase, executions: Read
       return !binding || !!ownerFor(binding, input.plugin_id, input.capability_id);
     },
     invoke(input: ScheduleWakeupInput, control: ScheduleWakeupControl) {
-      const binding = bindingFor(input.job_id), owner = binding && ownerFor(binding, input.plugin_id, input.capability_id);
-      if (!binding || !owner) throw new DOMException("Scheduled action authorization ended", "AbortError");
+      const binding = bindingFor(input.job_id);
+      if (!binding) throw schedulerErrors.handler_missing("叫醒对象还没有提供执行接口");
+      const owner = ownerFor(binding, input.plugin_id, input.capability_id);
+      if (!owner) throw new DOMException("Scheduled action authorization ended", "AbortError");
       return owner.invoke({ capability_id: input.capability_id, version: binding.action_version }, input, control);
     },
   };

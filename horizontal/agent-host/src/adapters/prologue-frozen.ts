@@ -1,5 +1,5 @@
 import { agentErrors } from "../errors.js";
-import { AGENT_REASONING_EFFORTS, agentTextMaterialContent, type AgentCreateSessionInput, type AgentImageMaterial, type AgentRunView, type AgentStartRequest, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { AGENT_REASONING_EFFORTS, agentTextMaterialContent, type AgentCreateSessionRequest, type AgentImageMaterial, type AgentRunView, type AgentStartRequest, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { type PrologueModelConfiguration } from "./prologue.js";
 
@@ -72,7 +72,7 @@ export function validateRunAttachments(request: AgentStartRequest, supportsImage
   return { textMaterials, imageMaterials };
 }
 
-export function assertSessionCreation(input: AgentCreateSessionInput, workspaceNone: boolean | undefined, workspaceBusiness: boolean | undefined): void {
+export function assertSessionCreation(input: AgentCreateSessionRequest, workspaceNone: boolean | undefined, workspaceBusiness: boolean | undefined): void {
   if (input.workspace === "none" && (!workspaceNone || input.directory !== undefined || !input.actor_id?.trim())) {
     throw agentErrors.capability_unavailable("当前运行时不能创建此无工作区会话");
   }

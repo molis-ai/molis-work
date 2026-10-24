@@ -18,7 +18,7 @@ export function createWorkspaceOperations(d: ApiDependencies) {
         .map(idea => d.ideas.getVersion(idea.id, idea.currentVersion)?.content.title || "未命名 Idea");
       const content = [direction.description, direction.status === "archived" ? "状态：已归档" : "", ...lines("已保留的 Idea", ideas)].filter(Boolean).join("\n");
       return { ...subjectContext({ subject: { kind: "alchemist-direction", id: direction.id }, revision: direction.updatedAt, title: direction.title,
-        content, goal_ids: [], session_id: null }), open: { surface: "alchemist", id: direction.id } };
+        content, goal_ids: [] }), open: { surface: "alchemist", id: direction.id } };
     },
     // An Idea reads as its current version: who it is for, the problem, the mechanism, why it may work, and the MVP cut.
     ideaContext: (input: AlchemistOperationInput<"ideaContext">) => {
@@ -33,7 +33,7 @@ export function createWorkspaceOperations(d: ApiDependencies) {
         `阶段：${idea.lifecycle} · 第 ${idea.currentVersion} 版`,
       ].filter(Boolean).join("\n");
       return { ...subjectContext({ subject: { kind: "alchemist-idea", id: idea.id }, revision: `${idea.currentVersion}:${idea.lifecycle}:${idea.updatedAt}`,
-        title: c.title || "未命名 Idea", content, goal_ids: [], session_id: null }), open: { surface: "alchemist", id: idea.id } };
+        title: c.title || "未命名 Idea", content, goal_ids: [] }), open: { surface: "alchemist", id: idea.id } };
     },
     playbookContext: (input: AlchemistOperationInput<"playbookContext">) => {
       const rule = d.memory.getPlaybookRule(input.subject_id);
@@ -41,7 +41,7 @@ export function createWorkspaceOperations(d: ApiDependencies) {
       return subjectContext({ subject: { kind: "alchemist-playbook", id: rule.id }, revision: String(rule.version) + ":" + rule.status,
         title: rule.methodChange.slice(0, 120), content: JSON.stringify({ version: rule.version, status: rule.status, method: rule.methodChange,
           applicableExamples: rule.positiveExamples, invalidExamples: rule.negativeExamples, scope: rule.scope, source: rule.source,
-          originalFeedback: rule.originalFeedback, limitation: "仅在明确确认后沿用；停用方法不可用于新任务。" }), goal_ids: [], session_id: null });
+          originalFeedback: rule.originalFeedback, limitation: "仅在明确确认后沿用；停用方法不可用于新任务。" }), goal_ids: [] });
     },
     conversationList: () => ({ messages: d.conversations.list(d.workspaceId) }),
     conversationSend: (input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal, control?: AlchemistEffectControl) => sendConversationMessage(d, input, signal, control),

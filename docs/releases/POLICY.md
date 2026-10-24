@@ -52,6 +52,8 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 产品版本不能告诉你一个 Home 能不能被某个构建打开，库版本才能。每个库只认一个当前版本，不符就拒绝（只有搜索索引这种可重建的派生库重建，角色库只拒绝更高的版本，MCP 授权文件读成空，密钥文件 `feed/secrets.json` 拒绝读取）；怎么记、记在哪、不符时怎样，都在检查清单的「各库版本表」里，并由脚本对照代码核对：改了某个库的版本而没改表、或新增了一个以 `SqliteBaseline` 常量声明的库而没列进表，CI 都会失败（脚本找不到的情况写在检查清单第 3 节）。每个库、每类文件的 owner、备份与卸载规则在 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。这套「版本不符就拒绝、老 Home 先维护」只到第一个装到开发机之外的版本为止（用户 2026-10-08 的决定 #15，`specs/repository-anti-corruption/spec.md` §1）：发布那个版本的 PR 把起点写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md)（检查清单第 1 节第 2 项），从那以后库的版本变更要带升级路径，不再靠拒绝加一次性维护；升级机制现在还没有，方案见 `specs/repository-anti-corruption/c-end-readiness.md` §3.2（C-2）。
 
+W5-16 B1 的讨论库 1 → 2 按这条规则执行：运行时只认 2，维护在离线副本上先 list，保留旧链接、业务事实与敏感原件后再重建；中断标记存在时拒绝启动业务库。真正维护仍与 W5-17、Goals S9 的同一个授权窗口执行，当前功能 PR 不操作真实 Home。产品发布版本不因本片提前修改。
+
 ## 6. 交付状态与尚缺项
 
 - 内置插件 Manifest 版本跟宿主版本（W5-15）已在 0.3.0 发布候选中完成；正式发布仍取决于检查清单和发行物。
@@ -125,7 +127,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 - 降到 0.3.0：开发机现有 Home 里，这 7 个插件悄悄停在重置之前的旧代码上（存档在时），或者启动失败（存档不在时）。
 - 重置之后：全新的 Home 第一次启动时没有记录，没有问题；但它之后每换到一个清单有改动的同版本构建，都会碰到情形二。「全新的 Home 没有问题」只在第一个改了内置清单的合并之前成立。
-- 重置后新写入的成果记的 `producer_plugin_version`（例如 `publishShelfMaterial` 写的 `producer.plugin_version`，`apps/local-host/src/shelf-actions.ts:67`）是较低的数字，已存的记录保持原值（该列的定义，`modules/artifacts/src/repository.ts:65`）。
+- 重置后新写入的成果记的 `producer_plugin_version`（成果库登记固定版本时记下的 `producer_plugin_version`，`modules/artifacts/src/registration.ts:91`）是较低的数字，已存的记录保持原值（该列的定义，`modules/artifacts/src/repository.ts:66`）。
 
 ### 7.5 选项（用户 2026-10-08 选 A，第 7.6 节）
 

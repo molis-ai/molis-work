@@ -9,7 +9,7 @@ import { ActionError, type ActionDefinition, type ActionExecutionContext, type A
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { inspectActionDeclarations, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
-import { FunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { FunctionsService } from "@molis-ai/molis-work-module-functions";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 
 /*
@@ -93,7 +93,7 @@ test("S-49 PG-043 the Home calls only declared read-only queries, one call per o
   assert.deepEqual(open(), [a, b, off].map(reference => reference.project_id).sort());
 
   const status = t.mock.method(LocalHost.prototype, "status", () => { throw new Error("aggregation must not copy the full capability directory"); });
-  const functionsClosed = t.mock.method(FunctionsStore.prototype, "close");
+  const functionsClosed = t.mock.method(FunctionsService.prototype, "close");
   const result = await collectHomeAggregate<{ project: string }>(homeAggregatePorts(host), TYPE, { nest: true });
   assert.equal(status.mock.callCount(), 0);
   assert.equal(functionsClosed.mock.callCount(), 0);

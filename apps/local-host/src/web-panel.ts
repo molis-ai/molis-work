@@ -2,16 +2,15 @@ import { optionalPluginQuery } from "./web-view.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handleWorkPanelHttp, type WorkPanelHttpContext } from "@molis-ai/molis-work-plugin-work";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
-import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { type MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { L } from "./web-locale.js";
+import { handlePanelHttp, type PanelHttpContext } from "./web-panel-routes.js";
 
-interface PanelHttpPorts extends Pick<WorkPanelHttpContext, "isRuntimeKind" | "launchSpec" | "advancePrompt"> {
+interface PanelHttpPorts extends Pick<PanelHttpContext, "isRuntimeKind" | "launchSpec" | "advancePrompt"> {
   withCatalog: LocalWebCatalogRunner;
   panelEnv(input: {
     homeDirectory: string; runtimeId: string;
@@ -55,7 +54,7 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
     webUrl: string,
     actions: BoundActionClient,
   ): Promise<boolean> {
-    return handleWorkPanelHttp({
+    return handlePanelHttp({
       method: request.method, url, projectId, text: L,
       readBody: () => readBody(request),
       respond: (status, value) => sendJson(response, status, value),
@@ -92,7 +91,6 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
       launchSpec: ports.launchSpec,
       advancePrompt: ports.advancePrompt,
       kill: (panelId) => ptyHost.kill(panelId),
-      classifyError: (error) => error instanceof ActionError ? actionHttpStatus(error) : null,
     });
   }
 

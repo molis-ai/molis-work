@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, homeAgentDefinitions, localWebActionContext, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, homeAgentDefinitions, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
 
@@ -44,7 +44,7 @@ test("DUAL-12 DUAL-05 a Home half marked on the Host's list and its project half
   }
 
   // Looking at the project's actions starts its Plugin Runtime, and with it the project half.
-  const context = await localWebActionContext(host, reference, []);
+  const context = await host.localPersonContext(reference);
   const projectRecord = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()
     .find(record => record.plugin_id === dual.id));
   assert.ok(projectRecord);
@@ -68,7 +68,7 @@ test("RAC-198 PG-051 a dual-instance plugin's Home and project halves are one in
   const { home, host, reference } = await openHost(t, { home: [{ definition: withAgent(dual.home), dual_instance: true }], project: [withAgent(dual.project)] });
   await host.homePlugins!.ready();
   assert.equal(host.homePlugins!.installation(dual.id)?.state, "running");
-  await localWebActionContext(host, reference, []);
+  await host.localPersonContext(reference);
   const projectRecord = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list().find(record => record.plugin_id === dual.id));
   assert.equal(projectRecord?.state, "running", "both halves run");
   const rows = homeAgentDefinitions(home).registrations().filter(row => row.owner_id === dual.id);

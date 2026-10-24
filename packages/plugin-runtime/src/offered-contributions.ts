@@ -46,7 +46,8 @@ const stoppedAnswer = () => actionErrorResponse(new ActionError("actions.forbidd
 
 function offer(contribution: PluginContribution, manifest: PluginManifest): Offer {
   if (contribution.kind !== "app" || !contribution.routes?.length) return { contribution, withdraw: () => undefined };
-  const streamed = new Set((manifest.routes ?? []).filter(route => route.stream === "ndjson").map(route => route.route_id));
+  // The router's own test for a streamed route (`routes.ts`), so a second kind of stream is never raced against the 403 and cut short.
+  const streamed = new Set((manifest.routes ?? []).filter(route => route.stream !== undefined).map(route => route.route_id));
   const waiting = new Set<() => void>();
   let withdrawn = false;
   const answer = (binding: PluginRouteBinding, request: PluginRouteRequest): Promise<PluginRouteResponse> => {
@@ -56,6 +57,8 @@ function offer(contribution: PluginContribution, manifest: PluginManifest): Offe
     const ended = new Promise<PluginRouteResponse>(resolve => { answerStopped = resolve; });
     const end = () => { endPluginRoute(route); answerStopped(stoppedAnswer()); };
     waiting.add(end);
+    // After a withdrawal the 403 has answered: an uncoded error the handler's tail throws then reaches only the race, and is dropped on
+    // purpose. The request was answered and the tail's service calls do nothing (BL-411); no Host log records it yet.
     const handled = new Promise<PluginRouteResponse>(resolve => resolve(runInPluginRoute(route, () => binding.handle(request)))).catch(codedAnswer);
     return (streamed.has(binding.route_id) ? handled : Promise.race([handled, ended])).finally(() => waiting.delete(end));
   };

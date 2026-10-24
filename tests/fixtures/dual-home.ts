@@ -1,5 +1,4 @@
 import type { TestContext } from "node:test";
-import { localWebActionContext } from "@molis-ai/molis-work-app-local-host";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { dualPlugin } from "./dual-plugin.js";
@@ -21,7 +20,7 @@ export async function openDualHome(t: TestContext, projectHalf: (dual: Dual) => 
   await home.host.homePlugins!.ready();
   const project = await home.createProject("双实例"), projectId = project.project_id;
   /** The local person's call context in the project; reading it starts the project's plugins, and with them the project half. */
-  const page = () => localWebActionContext(home.host, project.reference, []);
+  const page = () => home.host.localPersonContext(project.reference);
   /** Each half's installation record, from its own database. */
   const records = async () => ({ home: home.host.homePlugins!.installation(dual.id),
     project: await home.host.withProject(project.reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()

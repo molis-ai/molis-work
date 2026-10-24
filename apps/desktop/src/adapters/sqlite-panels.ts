@@ -97,6 +97,12 @@ export class SqliteDesktopPanelRepository implements DesktopPanelRepository {
     return (rows as Array<Record<string, unknown>>).map(mapDesktopPanel);
   }
 
+  listIds(projectId: string): string[] {
+    const rows = this.db.prepare("SELECT panel_id FROM goal_desktop_panels WHERE project_id = ? ORDER BY panel_id")
+      .all(projectId) as Array<{ panel_id: string }>;
+    return rows.map(row => row.panel_id);
+  }
+
   get(panelId: string): DesktopPanelRecord | null {
     const row = this.db.prepare("SELECT * FROM goal_desktop_panels WHERE panel_id = ?")
       .get(panelId) as Record<string, unknown> | undefined;

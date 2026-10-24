@@ -7,7 +7,19 @@ export const desktopLaunchErrors = defineErrorCodes("desktop", {
   launch_command_required: "invalid",
   /** Stored arguments are damaged: refuse the complete-record read as internal (500), without exposing its contents. */
   launch_args_invalid: "internal",
+  /** Caller-supplied arguments must be strings; reject before preparing a launch or writing a panel. */
+  launch_args_input_invalid: "invalid",
 });
+
+/** Both launch preparation and direct panel writes check the same external argument boundary. */
+export function desktopLaunchArgs(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (Array.isArray(value)) {
+    const args: unknown[] = [...value];
+    if (args.every((arg): arg is string => typeof arg === "string")) return args;
+  }
+  throw desktopLaunchErrors.launch_args_input_invalid("终端启动参数必须是字符串数组。");
+}
 
 export const DESKTOP_RUNTIME_KINDS = [
   "codex",
@@ -51,9 +63,10 @@ const DESKTOP_RUNTIME_RECIPES: Record<NamedDesktopRuntimeKind, DesktopRuntimeRec
 export function desktopLaunchSpec(input: {
   runtime_kind: string;
   command?: string;
-  args?: string[];
+  args?: unknown;
   resume_session_id?: string | null;
 }): DesktopLaunchSpec {
+  const args = desktopLaunchArgs(input.args);
   const resume = input.resume_session_id?.trim() || null;
   if (isNamedDesktopRuntimeKind(input.runtime_kind)) {
     const recipe = DESKTOP_RUNTIME_RECIPES[input.runtime_kind];
@@ -61,13 +74,13 @@ export function desktopLaunchSpec(input: {
     return {
       runtime_kind: input.runtime_kind,
       command: input.command?.trim() || recipe.command,
-      args: resume ? recipe.resumeArgs(resume) : [...(input.args ?? [])],
+      args: resume ? recipe.resumeArgs(resume) : args,
       title: resume ? `${title} · ${resume.slice(0, 8)}` : title,
     };
   }
   const command = input.command?.trim();
   if (!command) throw desktopLaunchErrors.launch_command_required("自定义终端需要提供启动命令");
-  return { runtime_kind: "generic", command, args: [...(input.args ?? [])], title: command };
+  return { runtime_kind: "generic", command, args, title: command };
 }
 
 export function desktopPanelEnv(input: {

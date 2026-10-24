@@ -1072,3 +1072,8 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 用户已明确批准普通CI/Full suite共11处Node固定24.14.0。独立#1201的原59项CI合同回归、整体build与准确父各门通过，普通CI40083494609全部适用作业成功；按仓库强制合并队列，merge-group40084867644的Verify及适用门成功后合入main `afabfcbef41cfb99993cdf4a3ecd4ed34d36f423`。未更改测试、断言、时限、重试或门槛。旧Node24.21原生崩溃、Linux推断及socket首败仍保留，尚未由此宣称#1064完整全量通过。
 
 本次从本片71ec9c7合入准确main afab，其中主干已含#1194的旧Sessions/Work下线、设计系统和Pages纯拆分及卸载修复；保留主干删除的旧产品能力，不把它们与SDK可信Runtime Session混淆。生产Memory源码和SDK94包不改，锁文件继承主干移除的旧依赖。三处冲突仅资源脚本、实际预算及本地快查baseline：预算沿新主干，workbench基点1,129,753仅加原批准收紧后的3,193，Coding376,282仅加717；这是待实际构建确认的数字，不新增额度。baseline先采用主干干净输入，合并提交后用现门禁对准确父重新生成，不手拼或抬高数字。需要整体build、受影响调用链/主干清理回归、准确父健康/边界/API/Action/实际资源，以及最终普通CI和完整全量；独立toast修复#1198的视觉对照仍待诊断，未在此时冒称关闭。
+
+
+本次准确合并头 `f71e843b3bca316901125d477fa8353593e7f341` 已完成离线冻结安装、整体构建、根与工作区类型、API/Action、boundary、secrets/diff及准确父health。独立深审未发现明确P1/P2：主干下线的是旧产品Sessions/Work，SDK Session owner、本人原件与当前安装授权不受影响，项目删除仍保留Memory、助理与原件清理主人。10文件首轮9通过，唯一 `sessions-offline` 的RAC-210在本地 `plugins/native/work` 目录存在性上失败；逐项检查其142文件均为Git忽略的dist/依赖链接，无跟踪或未忽略文件。完整目录原样保留移动到 `/private/tmp/molis-memory-1064-retired-work-build-20261024-2106` 后，仅原文件复验9/9通过，未改产品/测试/断言。其余文件覆盖助理原件、形成中断、遗忘撤权、来源owner、项目删除、助理续接及真实QA child回执/重启、SDK边界与晋升。首批失败与分批复验均保留，不改写成首次全绿。
+
+准确主干afab的本地快查基线由现health `--update --base` 实际重算，未手拼数字；真实资源27项共7,649,078 B，workbench 1,132,946 B、Coding 376,999 B，与主干相比只含原批准+3,193/+717 B。原始逐步命令和结果 `/private/tmp/molis-memory-1064-afab-integration-20261024.results.json`；目录残留原失败在同stem的unit日志，针对复验 `/private/tmp/molis-memory-1064-afab-sessions-artifacts-recheck-20261024.log`。这些是本机定向工程证据，原Linux全量失败仍保留；最终head的正常CI/完整Full suite待运行，不把24.14本机QA通过当Linux修复。独立toast片在原f586基点的66图/22样式完整对照已通过，最新main上的冲突对齐及最终验证另行进行，尚未混入本合并头。

@@ -151,7 +151,8 @@ test("RAC-437 a companion whose page is not there gets the unavailable shell wit
 test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is gone, Coding is no hybrid, and only the supervisor starts the companions", () => {
   assert.equal(existsSync(join(repoRoot, "apps/local-host/src/coding-surface.ts")), false);
   const gate = readFileSync(join(repoRoot, "tests/builtin-plugin-assembly-gate.test.ts"), "utf8");
-  assert.match(gate, /HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set\(\["shelf"\]\)/);
+  // Shelf left the hybrid list with S4, so Coding's exit empties it.
+  assert.match(gate, /HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>\(\);/);
   const dir = join(repoRoot, "apps/local-host/src");
   const importers = (pluginName: string) => readdirSync(dir).filter(file => file.endsWith(".ts"))
     .filter(file => new RegExp(`from "@molis-ai/molis-work-plugin-${pluginName}"`).test(readFileSync(join(dir, file), "utf8")));

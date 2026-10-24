@@ -207,6 +207,17 @@ export interface GoalTreeProposalItemRecord {
 
 export type GoalTreeProposalItemState = "pending" | "conflict" | "superseded" | "approved" | "applied" | "rejected" | "dismissed";
 
+export interface GoalTreeProposalListQuery {
+    project_id: string;
+    proposal_id?: string;
+    root_goal_id?: string;
+}
+
+export interface GoalTreeProposalListResult {
+    observed_event_cursor: number;
+    proposals: GoalTreeProposalRecord[];
+}
+
 export interface GoalTreeProposalNarrative {
     why_now: string;
     problem: string;

@@ -4,14 +4,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { LOCAL_OWNER_PERMISSIONS } from "@molis-ai/molis-work-app-local-host";
 import {
   LocalProjectDatabase, MolisWorkLocalHost, createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference, resolveWebControlToken, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/todo";
+import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
@@ -61,7 +63,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     const directory = await (await fetch(`${origin}/capabilities/library?project=${project.project_id}&action=${definition.capability_id}&version=1`)).text();
     assert.ok(directory.includes("原始插件标题") === false, "capability metadata does not execute the object reader");
     assert.ok(directory.includes("新插件事项")); assert.ok(directory.includes(definition.capability_id)); assert.ok(!directory.includes(imposter.capability_id));
-    const local = await localWebActionContext(host, reference, HOME_ACTION_PERMISSIONS);
+    const local = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
     assert.equal(local.locale, undefined, "a context no page asked for names no language: the handler keeps its own default (VUX-40)");
     await assert.rejects(host.actionClient(reference).invoke(local, imposter, { subject_id: "note" }), { code: "actions.forbidden" });
     await assert.rejects(host.actionClient(reference).invoke({ actor_id: "external-client", project_id: project.project_id, audience: "mcp", permissions: [] }, definition, { subject_id: "note" }), { code: "actions.forbidden" });
@@ -256,18 +258,42 @@ test("S-15 with todo:write revoked from its installation, Todo's web route refus
   await assert.rejects(host.homeActionClient().invoke(revoked, create, { title: "经动作网关也记不下" }), { code: "actions.forbidden" });
   assert.equal(await listed(), before);
 
-  // A provider the Host registers itself, with no installation behind it, is still reached with the person's own permissions.
+  // PG-007 stage 4 (RAC-338): over a provider the Host registers itself, the person holds only what is declared for that provider. The
+  // person holds artifact:write over Characters; a Host provider that is not Characters and asks for it is neither offered nor reached.
   const { reference } = await project("宿主自己的提供方");
-  const hostRead: ActionDefinition<Record<string, never>, string> = { capability_id: "hostowned.read", version: 1, operation: "query", action: { title: "宿主读取",
-    description: "宿主自己登记的动作", kind: "query", scope: "project", audiences: ["user"], permissions: ["hostowned:read"], subject_kinds: [],
+  let handled = 0;
+  const hostWrite: ActionDefinition<Record<string, never>, string> = { capability_id: "hostowned.write", version: 1, operation: "query", action: { title: "宿主写入",
+    description: "宿主自己登记、要成果写入权限的动作", kind: "query", scope: "project", audiences: ["user"], permissions: ["artifact:write"], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };
   const withdraw = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "host-owned", plugin_id: "io.molis.work.example.host-owned", title: "宿主", kind: "plugin", project_id: reference.project_id },
-    definitions: [hostRead], handlers: [{ ...hostRead, handle: () => "host" }] });
+    definitions: [hostWrite], handlers: [{ ...hostWrite, handle: () => { handled += 1; return "host"; } }] });
   try {
-    const person = await localWebActionContext(host, reference, ["hostowned:read"]);
-    await person.validate_authority!({ ...hostRead, provider_id: "host-owned" });
-    assert.equal(await host.actionClient(reference).invoke(person, hostRead, {}), "host");
+    assert.ok(LOCAL_OWNER_PERMISSIONS.includes("artifact:write"), "the permission is one the person may carry");
+    const person = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+    const views = await host.actionClient(reference).discover(person);
+    assert.ok(views.some(view => view.provider.provider_id === CHARACTER_PLUGIN_ID && view.action.permissions.includes("artifact:write")), "it is held over Characters");
+    assert.ok(!(person.allowed_actions ?? []).some(entry => entry.provider_id === "host-owned"), "the other Host provider is not offered");
+    await assert.rejects(person.validate_authority!({ ...hostWrite, provider_id: "host-owned" }), { code: "actions.forbidden" });
+    await assert.rejects(host.actionClient(reference).invoke(person, hostWrite, {}), { code: "actions.forbidden" });
+    assert.equal(handled, 0, "the handler never ran");
   } finally { withdraw(); }
+});
+
+// PG-007 stage 4 (RAC-339): moving the person's permissions onto each Host provider takes nothing away from a provider the Host
+// registers today. Every Host-registered action whose permissions the person may carry is still offered, in a project and at Home.
+test("RAC-339 every action a Host provider registers today is still the person's after the owner permissions move onto providers", { timeout: 90_000 }, async t => {
+  const { host, project } = await serveHomeRuntime(t);
+  const { reference } = await project("宿主提供方的全部动作");
+  for (const scope of [reference, undefined]) {
+    const base = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: scope?.project_id ?? null, audience: "user" as const, permissions: LOCAL_OWNER_PERMISSIONS };
+    const hostOwned = (await host.inspectActions(base, scope)).filter(view => view.provider.plugin_install_id === undefined
+      && (!view.provider.project_id || view.provider.project_id === scope?.project_id) && (view.action.scope === "home" || scope)
+      && view.action.permissions.every(permission => LOCAL_OWNER_PERMISSIONS.includes(permission)));
+    assert.ok(hostOwned.length > 10, "the Host's own providers are there to check");
+    const offered = new Set(((await localWebActionContext(host, scope, LOCAL_OWNER_PERMISSIONS)).allowed_actions ?? []).map(entry => `${entry.provider_id} ${entry.capability_id}@${entry.version}`));
+    const missing = hostOwned.map(view => `${view.provider.provider_id} ${view.capability_id}@${view.version}`).filter(key => !offered.has(key));
+    assert.deepEqual(missing, [], scope ? "in a project" : "at Home");
+  }
 });
 
 // VUX-35: a bound client shares one authority snapshot across its calls. It is meant for one request: a grant revoked meanwhile is still

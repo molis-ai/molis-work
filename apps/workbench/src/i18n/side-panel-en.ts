@@ -52,6 +52,7 @@ export const SIDE_PANEL_EN: Record<string, string> = {
   "文件列表": "File list",
   "筛选文件": "Filter files",
   "刷新文件列表": "Refresh files",
+  "正在读取资料…": "Loading materials…",
   "正在读取文件…": "Reading files…",
   "文件预览": "File preview",
   "返回文件列表": "Back to files",

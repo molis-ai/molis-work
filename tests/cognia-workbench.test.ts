@@ -29,5 +29,6 @@ test("RAC-43: the Host keeps one Cognia Runtime surface and loads its registered
   const client = pluginWorkbenchClientAsset("cognia");
   assert.ok(client, "the registered surface must have a loadable client asset");
   assert.match(client, /data-cognia=workbench/);
-  assert.match(client, /\/api\/plugins\/io\.molis\.work\.cognia\/library/);
+  assert.match(client, /\.pluginRoute\("\/library"\+/, "the client asks the Host for its own plugin route instead of writing the plugin id");
+  assert.doesNotMatch(client, /io\.molis\.work\.cognia/);
 });

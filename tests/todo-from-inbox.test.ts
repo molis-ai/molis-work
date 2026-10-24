@@ -62,3 +62,19 @@ test("a todo made from an Inbox entry or a 灵光 keeps it as its source; conver
   assert.equal(afresh.replayed, false);
   assert.notEqual(afresh.item.id, first.item.id);
 });
+
+test("RAC-135 a whole object made into a todo lands where the call comes from; a selected passage and the personal space are left as they are", async t => {
+  const home = mkdtempSync(join(tmpdir(), "todo-offers-"));
+  const store = openTodoStore(home);
+  const service = new ActionService();
+  service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
+    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)) }) });
+  t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
+  const from = (project: string) => bindActionClient(service, () => ({ actor_id: "web-user", project_id: project, audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
+  const object = { kind: "inbox_entry", id: "entry-9", title: "回复报价" };
+  const asked = (granularity: "object" | "range", project: string) => from(project).invoke(todoActions.fragmentOffers, { request_id: "r", fragment: { object, granularity,
+    targets: [{ kind: granularity === "object" ? "object" : "text_range", text: "回复报价" }] } }).then(out => (out.offers[0]!.input as { placement?: string }).placement);
+  assert.equal(await asked("object", "project-a"), "project", "the project is the caller's; nothing in the input names it");
+  assert.equal(await asked("object", "personal"), "personal");
+  assert.equal(await asked("range", "project-a"), undefined, "a passage leaves the place to the person");
+});

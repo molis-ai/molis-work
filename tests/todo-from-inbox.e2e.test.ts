@@ -46,8 +46,7 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   await waitFor(`Boolean(${CARD("已记成待办")})`, 10_000);
   const [fromInbox] = todos();
   assert.equal(fromInbox!.title, "供应商报价需要回复");
-  // The creation entry leaves placement to the person (its create contract); the source names the object, not where it opens.
-  assert.deepEqual([fromInbox!.placement, fromInbox!.project_id], ["unassigned", null]);
+  assert.deepEqual([fromInbox!.placement, fromInbox!.project_id], ["project", projectId], "Inbox 属于项目，转成的待办也在这个项目");
   assert.deepEqual([fromInbox!.sources[0]!.kind, fromInbox!.sources[0]!.title, fromInbox!.sources[0]!.subject, fromInbox!.sources[0]!.open], ["material", "供应商报价需要回复", { kind: "inbox_entry", id: entry.entry_id }, null]);
   assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "open", "转为待办不替你处理 Inbox 条目");
   assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "不横向滚动");
@@ -87,6 +86,7 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   await waitFor(`Boolean(${CARD("已记成待办")})`, 10_000);
   const spark = todos().find(todo => todo.title === "给新人写一页入门");
   assert.ok(spark, "灵光转成的待办");
+  assert.deepEqual([spark.placement, spark.project_id], ["project", projectId], "灵光属于项目，转成的待办也在这个项目");
   assert.deepEqual([spark.sources[0]!.kind, spark.sources[0]!.excerpt, spark.sources[0]!.subject?.kind, spark.sources[0]!.open], ["material", "给新人写一页入门\n先列常见问题，再配截图。", "lingguang_spark", null]);
   assert.ok(await lingguang.evaluate("Boolean(document.querySelector('[data-lingguang-id]'))"), "灵光还在");
   assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth") && await lingguang.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "不横向滚动");

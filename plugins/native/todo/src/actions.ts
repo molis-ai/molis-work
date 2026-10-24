@@ -145,17 +145,20 @@ export const todoActions = {
 export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions)];
 
 /**
- * The complete `todo.items.create` input for a fragment of anything (specs/archive/contextual-interaction §10 P2); pure. The
+ * The complete `todo.items.create` input for a fragment of anything (specs/archive/contextual-interaction §10 P2); pure over the fragment and the caller's project. The
  * todo remembers where it came from (the object and the words), and the same request creates it once.
  */
-function prepareTodoFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
+function prepareTodoFragmentOffers(input: FragmentOffersInput, project: string | null): FragmentActionOffer[] {
   const text = input.fragment.targets.map(target => target.text.trim()).filter(Boolean).join("\n");
   if (!text) return [];
   const first = (text.split(/[。！？\n]/u)[0] ?? text).trim() || text;
   const title = first.length > 80 ? first.slice(0, 79) + "…" : first;
   const { object } = input.fragment;
+  // A whole object (an Inbox entry, a 灵光) is made into a todo where that object lives, as its page does: the project the call comes from, else
+  // the personal space. The project is the caller's, never read from the input. A passage leaves the place to the person.
+  const placement = input.fragment.granularity === "object" ? { placement: project ? "project" : "personal" } : {};
   return [{ offer_id: "todo", title: "记成待办", action: { capability_id: "todo.items.create", version: 1 }, input: {
-    title, ...(text !== title ? { notes: text.slice(0, 10_000) } : {}), request_id: input.request_id.slice(0, 160),
+    title, ...(text !== title ? { notes: text.slice(0, 10_000) } : {}), ...placement, request_id: input.request_id.slice(0, 160),
     sources: [{ kind: "material", title: (object.title || "选中的内容").slice(0, 200), excerpt: text.slice(0, 2000), reason: "从选中的内容记成待办",
       subject: { kind: object.kind, id: object.id }, open: null }] },
     summary: `记一条待办：「${title}」（记下它出自${object.title ? `「${object.title}」` : "选中的内容"}）`, editable: ["title", "notes", "due_date"] }];
@@ -205,7 +208,7 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
       return { item: entry, flags: todoFlags(entry, today()), history: store.history(input.id, access),
         backlinks: store.backlinks(input.id, access).map(({ item: other, link: back }) => ({ item_id: other.id, title: other.title, relation: back.relation })) };
     })),
-    bind(todoActions.fragmentOffers, input => ({ offers: prepareTodoFragmentOffers(input) })),
+    bind(todoActions.fragmentOffers, (input, caller) => ({ offers: prepareTodoFragmentOffers(input, todoCallerProject(caller)) })),
     bind(todoActions.create, (input, caller) => write(caller, store => store.create(input, todoAccess(caller)))),
     bind(todoActions.update, (input, caller) => write(caller, store => {
       const { id: target, expected_revision, ...patch } = input;

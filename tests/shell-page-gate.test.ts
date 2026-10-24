@@ -159,7 +159,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",
   "plugins/native/jelly/src/markdown.ts": "导出：Jelly 的 HTML 文件",
-  "plugins/native/pages/src/client-document.ts": "导出：Pages 的 HTML 文件",
+  "plugins/native/pages/src/browser/document.ts": "导出：Pages 的 HTML 文件",
   "plugins/native/ppt/src/client.ts": "打印：PPT 打印框",
 };
 

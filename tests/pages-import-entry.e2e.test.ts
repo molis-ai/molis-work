@@ -65,15 +65,17 @@ test("Pages import: a 413 clears the submission, so the retry carries a new requ
   const {evaluate,waitFor,click}=child;
   await openImportPreview(browser, child, 1440);
   // The first import request is answered 413 by a stand-in for the Host; the second one reaches the real Host and imports.
+  // The page asks through the frame's molisWorkRequest (it captured fetch when the frame started), so the stand-in wraps that helper
+  // and refuses the way the helper reports a refused request: an Error with the Host's status, code and words.
   await evaluate(`(() => {
-    const real = window.fetch.bind(window); window.__importRequestIds = [];
-    window.fetch = (input, init) => {
-      if (init && init.method === "POST" && /\\/api\\/plugins\\/io\\.molis\\.work\\.pages\\/pages\\/import\\?/.test(String(input && input.url || input))) {
-        window.__importRequestIds.push(JSON.parse(init.body).request_id);
-        if (window.__importRequestIds.length === 1) return Promise.resolve(new Response(JSON.stringify({ error: "请求内容过大", code: "actions.input_too_large" }), { status: 413, headers: { "content-type": "application/json" } }));
+    const real = window.molisWorkRequest; window.__importRequestIds = [];
+    window.molisWorkRequest = Object.assign((url, init = {}) => {
+      if (init.method === "POST" && /\\/api\\/plugins\\/io\\.molis\\.work\\.pages\\/pages\\/import(\\?|$)/.test(String(url))) {
+        window.__importRequestIds.push(init.body.request_id);
+        if (window.__importRequestIds.length === 1) return Promise.reject(Object.assign(new Error("请求内容过大"), { status: 413, code: "actions.input_too_large" }));
       }
-      return real(input, init);
-    };
+      return real(url, init);
+    }, real);
   })()`);
   await click("[data-pages-import-submit]");
   await waitFor("document.querySelector('[data-pages-import-status]').textContent.includes('请求内容过大')", 15_000);

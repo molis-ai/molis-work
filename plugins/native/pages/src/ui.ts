@@ -49,14 +49,35 @@ export const pagesUiContribution: UiContribution<PagesUiModel> = {
   },
 };
 
+/**
+ * The words on a template card, by the template's id: the card says them in the person's language, the template's own Chinese is what its
+ * document is made from. A template without words of its own shows its own title and summary as written.
+ */
+function templateWords(p: PagesUiPrimitives, item: { id: string; title: string; summary: string }): { title: string; summary: string } {
+  switch (item.id) {
+    case "meeting-notes": return { title: p.text("pages.template.meeting-notes.title"), summary: p.text("pages.template.meeting-notes.summary") };
+    case "weekly-report": return { title: p.text("pages.template.weekly-report.title"), summary: p.text("pages.template.weekly-report.summary") };
+    case "project-plan": return { title: p.text("pages.template.project-plan.title"), summary: p.text("pages.template.project-plan.summary") };
+    case "prd": return { title: p.text("pages.template.prd.title"), summary: p.text("pages.template.prd.summary") };
+    case "sprint-retro": return { title: p.text("pages.template.sprint-retro.title"), summary: p.text("pages.template.sprint-retro.summary") };
+    case "user-interview": return { title: p.text("pages.template.user-interview.title"), summary: p.text("pages.template.user-interview.summary") };
+    case "okr": return { title: p.text("pages.template.okr.title"), summary: p.text("pages.template.okr.summary") };
+    case "postmortem": return { title: p.text("pages.template.postmortem.title"), summary: p.text("pages.template.postmortem.summary") };
+    case "tech-design": return { title: p.text("pages.template.tech-design.title"), summary: p.text("pages.template.tech-design.summary") };
+    case "competitor": return { title: p.text("pages.template.competitor.title"), summary: p.text("pages.template.competitor.summary") };
+    default: return { title: p.escape(item.title), summary: p.escape(item.summary) };
+  }
+}
+
 export function renderPagesWorkbench(model: PagesUiModel): string {
   const { primitives: p } = model;
-  const templates = PAGES_TEMPLATES.map((item) => (
-    `<button class="mw-btn mw-btn--ghost pages-template-item" type="button" data-pages-template="${p.escape(item.id)}">
+  const templates = PAGES_TEMPLATES.map((item) => {
+    const words = templateWords(p, item);
+    return `<button class="mw-btn mw-btn--ghost pages-template-item" type="button" data-pages-template="${p.escape(item.id)}">
       <span class="pages-template-mark">${icon(item.icon)}</span>
-      <span><strong>${p.text(item.title)}</strong><em>${p.text(item.summary)}</em></span>
-    </button>`
-  )).join("");
+      <span><strong>${words.title}</strong><em>${words.summary}</em></span>
+    </button>`;
+  }).join("");
   return renderPluginStageShell({
     surface: "pages",
     label: "Pages",
@@ -65,62 +86,62 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-pages="directory">
       <header class="plugin-stage-chrome pages-stage-chrome">
         <div class="pages-create">
-          <button class="mw-btn mw-btn--ghost tree-create" type="button" data-pages-new>${icon("plus")}<span>${p.text("新建文档")}</span></button>
-          <button class="mw-btn mw-btn--ghost pages-create-more" type="button" data-pages-create-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("更多新建")}" title="${p.text("更多新建")}">${icon("chevron-down")}</button>
+          <button class="mw-btn mw-btn--ghost tree-create" type="button" data-pages-new>${icon("plus")}<span>${p.text("pages.action.new-doc")}</span></button>
+          <button class="mw-btn mw-btn--ghost pages-create-more" type="button" data-pages-create-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("pages.action.more-new")}" title="${p.text("pages.action.more-new")}">${icon("chevron-down")}</button>
           <div class="mw-menu pages-create-menu" data-pages-create-menu hidden>
-            <button class="mw-menu__item" type="button" data-pages-templates>${icon("library")}${p.text("从模板新建")}</button>
-            <button class="mw-menu__item" type="button" data-pages-new-folder>${icon("folder")}${p.text("新建文件夹")}</button>
+            <button class="mw-menu__item" type="button" data-pages-templates>${icon("library")}${p.text("pages.action.from-template")}</button>
+            <button class="mw-menu__item" type="button" data-pages-new-folder>${icon("folder")}${p.text("pages.folder.new")}</button>
           </div>
         </div>
-        <button class="mw-btn mw-btn--ghost pages-import-trigger" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入")}</span></button>
+        <button class="mw-btn mw-btn--ghost pages-import-trigger" type="button" data-pages-import>${icon("upload")}<span>${p.text("pages.import.open")}</span></button>
       </header>
       <label class="pages-search mw-input-group">
         ${icon("search")}
-        <input class="mw-input" data-pages-search type="search" autocomplete="off" placeholder="${p.text("搜索文档")}" aria-label="${p.text("搜索文档")}">
+        <input class="mw-input" data-pages-search type="search" autocomplete="off" placeholder="${p.text("pages.list.search")}" aria-label="${p.text("pages.list.search")}">
       </label>
       <div class="mw-empty" data-pages-empty>
         <span class="mw-empty__mark">${icon("note")}</span>
-        <strong>${p.text("还没有文档")}</strong>
-        <p>${p.text("先建一篇，在纸面上写。刷新之后还在。")}</p>
+        <strong>${p.text("pages.list.empty")}</strong>
+        <p>${p.text("pages.list.empty-hint")}</p>
         <p data-placement-target></p>
         <div class="mw-empty__actions">
-          <button class="mw-btn mw-btn--secondary" type="button" data-pages-templates>${icon("library")}<span>${p.text("从模板新建")}</span></button>
-          <button class="mw-btn mw-btn--secondary" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入已有文档")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-pages-templates>${icon("library")}<span>${p.text("pages.action.from-template")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-pages-import>${icon("upload")}<span>${p.text("pages.import.existing")}</span></button>
         </div>
       </div>
       <p class="pages-placement-line" data-placement-target></p>
-      <p class="pages-search-empty" data-pages-search-empty hidden>${p.text("没有匹配的文档")}</p>
-      <div data-pages-rows role="listbox" aria-multiselectable="true" aria-label="${p.text("文档")}"></div>
+      <p class="pages-search-empty" data-pages-search-empty hidden>${p.text("pages.list.no-match")}</p>
+      <div data-pages-rows role="listbox" aria-multiselectable="true" aria-label="${p.text("pages.doc.name")}"></div>
     </div>
     <div class="plugin-stage-workspace" data-pages-stage-workspace data-floating-stage hidden>
       <div class="plugin-stage-detail-bar">
-        <button class="plugin-stage-back" type="button" data-pages-back aria-label="${p.text("返回文档列表")}" title="${p.text("返回文档列表")}">${icon("chevron-right")}</button>
-        <h1 data-pages-editor-title>${p.text("文档")}</h1>
+        <button class="plugin-stage-back" type="button" data-pages-back aria-label="${p.text("pages.doc.back")}" title="${p.text("pages.doc.back")}">${icon("chevron-right")}</button>
+        <h1 data-pages-editor-title>${p.text("pages.doc.name")}</h1>
         <span data-pages-editor-status></span>
         <span data-placement-slot data-placement-saved="off"></span>
         <div class="pages-editor-tools">
-          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-comments-open aria-label="${p.text("文档评论")}" title="${p.text("文档评论")}">${icon("message")}</button>
-          <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar title="${p.text("把当前内容存成不会再变的一版，放进这个位置的成果（Artifacts）")}">${p.text("存为固定版本")}</button>
-          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${p.text("收藏")}" title="${p.text("收藏")}">${icon("star")}</button>
-          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("更多")}" title="${p.text("更多")}">${icon("more")}</button>
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-comments-open aria-label="${p.text("pages.comments.label")}" title="${p.text("pages.comments.label")}">${icon("message")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar title="${p.text("pages.version.save-hint")}">${p.text("pages.version.save")}</button>
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${p.text("pages.star.add")}" title="${p.text("pages.star.add")}">${icon("star")}</button>
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("pages.action.more")}" title="${p.text("pages.action.more")}">${icon("more")}</button>
           <div class="mw-menu pages-more-menu" data-pages-more-menu hidden>
-            <label class="pages-more-field">${p.text("挂到 Goal")}
-              <select class="mw-select pages-folder-select" data-pages-goal aria-label="${p.text("挂到 Goal")}"></select>
+            <label class="pages-more-field">${p.text("pages.goal.attach")}
+              <select class="mw-select pages-folder-select" data-pages-goal aria-label="${p.text("pages.goal.attach")}"></select>
             </label>
             <hr>
-            <button class="mw-menu__item" type="button" data-pages-extract>${icon("sparkles")}${p.text("抽取")}</button>
-            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${p.text("存为固定版本")}</button>
+            <button class="mw-menu__item" type="button" data-pages-extract>${icon("sparkles")}${p.text("pages.action.extract")}</button>
+            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${p.text("pages.version.save")}</button>
             <hr>
-            <button class="mw-menu__item" type="button" data-pages-export="md">${icon("download")}${p.text("导出 Markdown")}</button>
-            <button class="mw-menu__item" type="button" data-pages-export="html">${icon("download")}${p.text("导出网页（HTML）")}</button>
-            <button class="mw-menu__item" type="button" data-pages-print>${icon("download")}${p.text("打印或存为 PDF")}</button>
+            <button class="mw-menu__item" type="button" data-pages-export="md">${icon("download")}${p.text("pages.export.markdown")}</button>
+            <button class="mw-menu__item" type="button" data-pages-export="html">${icon("download")}${p.text("pages.export.html")}</button>
+            <button class="mw-menu__item" type="button" data-pages-print>${icon("download")}${p.text("pages.export.print")}</button>
             <hr>
-            <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete>${icon("trash")}${p.text("删除")}</button>
+            <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete>${icon("trash")}${p.text("pages.action.delete")}</button>
           </div>
         </div>
       </div>
       <div class="pages-workspace" data-pages-pane="editor">
-        <input class="pages-title" data-pages-title data-plain-field autocomplete="off" placeholder="${p.text("无标题")}">
+        <input class="pages-title" data-pages-title data-plain-field autocomplete="off" placeholder="${p.text("pages.doc.untitled")}">
         <div class="pages-editor-host" data-pages-editor></div>
       </div>
       <p class="pages-note" data-pages-note hidden></p>
@@ -129,8 +150,8 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       <form class="creative-confirm-form" method="dialog">
         <p data-confirm-text></p>
         <div class="creative-confirm-actions">
-          <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("取消")}</button>
-          <button class="mw-btn mw-btn--primary" value="ok" data-confirm-ok>${p.text("删除")}</button>
+          <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("pages.action.cancel")}</button>
+          <button class="mw-btn mw-btn--primary" value="ok" data-confirm-ok>${p.text("pages.action.delete")}</button>
         </div>
       </form>
     </dialog>
@@ -140,52 +161,52 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <input class="mw-input" data-name-input autocomplete="off" aria-labelledby="pages-name-label">
         <div class="mw-field__error" data-name-error role="alert" hidden></div>
         <div class="creative-confirm-actions">
-          <button class="mw-btn mw-btn--ghost" type="button" data-name-cancel>${p.text("取消")}</button>
-          <button class="mw-btn mw-btn--primary" value="ok" data-name-ok>${p.text("确定")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-name-cancel>${p.text("pages.action.cancel")}</button>
+          <button class="mw-btn mw-btn--primary" value="ok" data-name-ok>${p.text("pages.action.ok")}</button>
         </div>
       </form>
     </dialog>
     <div class="mw-menu pages-move-menu" data-pages-move-menu hidden role="menu"></div>
     <dialog class="mw-dialog pages-import-dialog" data-pages-import-dialog aria-labelledby="pages-import-title">
       <div class="pages-import-content">
-        <header><h2 id="pages-import-title">${p.text("导入文档")}</h2><p>${p.text("把已有文档带进 Pages，导入后可继续编辑。")}</p></header>
-        <label class="pages-import-field">${p.text("文档来自")}
+        <header><h2 id="pages-import-title">${p.text("pages.import.title")}</h2><p>${p.text("pages.import.lead")}</p></header>
+        <label class="pages-import-field">${p.text("pages.import.from")}
           <select class="mw-select" data-pages-import-source>
             <option value="notion">Notion</option>
-            <option value="feishu">${p.text("飞书 / Lark")}</option>
-            <option value="other">${p.text("Word、语雀及其他工具")}</option>
+            <option value="feishu">${p.text("pages.import.feishu")}</option>
+            <option value="other">${p.text("pages.import.other")}</option>
           </select>
         </label>
         <p class="pages-import-help" data-pages-import-help></p>
         <label class="pages-import-drop" data-pages-import-drop>
-          ${icon("upload")}<strong>${p.text("选择文件，或拖到这里")}</strong>
+          ${icon("upload")}<strong>${p.text("pages.import.choose")}</strong>
           <span>ZIP · DOCX · Markdown · HTML · TXT · CSV</span>
-          <small>${p.text("支持多选，总计不超过 10 MB；每次最多 100 篇。")}</small>
-          <input type="file" data-pages-import-files multiple accept=".zip,.docx,.md,.markdown,.html,.htm,.txt,.csv" aria-label="${p.text("选择要导入的文件")}">
+          <small>${p.text("pages.import.limits")}</small>
+          <input type="file" data-pages-import-files multiple accept=".zip,.docx,.md,.markdown,.html,.htm,.txt,.csv" aria-label="${p.text("pages.import.files-label")}">
         </label>
-        <p class="pages-import-limit">${p.text("图片和附件会转为链接或文字说明；评论、权限和历史版本不导入。")}</p>
+        <p class="pages-import-limit">${p.text("pages.import.not-imported")}</p>
         <p class="pages-import-status" data-pages-import-status role="status" aria-live="polite"></p>
         <div data-pages-import-preview hidden>
           <div class="pages-import-options">
-            <label><input type="checkbox" data-pages-import-all checked> ${p.text("全选")}</label>
-            <label class="pages-import-field">${p.text("导入到")}<select class="mw-select" data-pages-import-folder aria-label="${p.text("导入到")}"></select></label>
+            <label><input type="checkbox" data-pages-import-all checked> ${p.text("pages.import.all")}</label>
+            <label class="pages-import-field">${p.text("pages.import.to")}<select class="mw-select" data-pages-import-folder aria-label="${p.text("pages.import.to")}"></select></label>
           </div>
           <ul class="pages-import-warnings" data-pages-import-warnings></ul>
           <div class="pages-import-documents" data-pages-import-documents></div>
         </div>
         <footer class="creative-confirm-actions">
-          <button class="mw-btn mw-btn--ghost" type="button" data-pages-import-close>${p.text("取消")}</button>
-          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-submit disabled>${p.text("导入所选文档")}</button>
-          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-open hidden>${p.text("打开文档")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-import-close>${p.text("pages.action.cancel")}</button>
+          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-submit disabled>${p.text("pages.import.submit")}</button>
+          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-open hidden>${p.text("pages.import.open-doc")}</button>
         </footer>
       </div>
     </dialog>
     <dialog class="mw-dialog pages-template-dialog" data-pages-template-dialog>
       <form class="creative-confirm-form" method="dialog">
-        <p>${p.text("从模板新建")}</p>
+        <p>${p.text("pages.action.from-template")}</p>
         <div class="pages-template-list" data-pages-template-list>${templates}</div>
         <div class="creative-confirm-actions">
-          <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("取消")}</button>
+          <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("pages.action.cancel")}</button>
         </div>
       </form>
     </dialog>

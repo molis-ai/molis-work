@@ -1,6 +1,7 @@
 import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
+import { zh as pagesZh } from "./fixtures/pages-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -36,7 +37,8 @@ const primitives = {
 };
 
 test("四个创作插件的列表和顶栏都有存为固定版本（放进 Artifacts）", () => {
-  const pages = renderPagesWorkbench({ primitives });
+  // Pages' words are stable keys: the page is shown in the person's language, as the Host would.
+  const pages = renderPagesWorkbench({ primitives: { ...primitives, text: (key: string, values?: Record<string, string | number>) => pagesZh(key, values) } });
   assert.match(pages, /data-pages-artifact-bar/);
   // Named by what the person gets: a version that no longer changes, kept in this location's Artifacts.
   assert.match(pages, /存为固定版本/);

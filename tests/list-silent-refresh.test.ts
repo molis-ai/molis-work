@@ -12,7 +12,6 @@ import {
   createInboxRouteHandlers,
 } from "@molis-ai/molis-work-plugin-inbox";
 import { ALCHEMIST_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-alchemist";
-import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-ppt";
 import {
   SCHEDULE_CLIENT_FACTORY_SCRIPT,
@@ -26,12 +25,12 @@ import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixtu
 // Forms' page is TypeScript bundled and minified into its client pack (W4-04): what its code does is read in the sources.
 const lingguangSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
 const datasetSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
+const pagesSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/pages/src/browser/${file}`, import.meta.url)), "utf8");
 const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
 
 const csrClients = {
   ppt: PPT_CLIENT_FACTORY_SCRIPT,
   functions: FUNCTIONS_CLIENT_FACTORY_SCRIPT,
-  pages: PAGES_CLIENT_FACTORY_SCRIPT,
 } as const;
 
 function sliceFn(script: string, startToken: string, endToken: string): string {
@@ -65,6 +64,13 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(sliceFn(datasetCommands, "export async function deleteTable", "\n}\n"), /\/delete[\s\S]{0,250}await page\.loadList\(\)/, "dataset 删除后要重新拉列表");
   assert.match(sliceFn(datasetCommands, "export async function backToList", "export async function pinFixed"), /await page\.loadList\(\)/, "dataset 返回后要重新拉列表");
   assert.match(datasetSource("commands.ts"), /always\("\[data-dataset-back\]", \(page\) => record\.backToList\(page\)\)/, "dataset 的返回按钮走 backToList");
+  // Pages is TypeScript bundled into its client pack too: the list keeps its scroll on every repaint (read before the rows are
+  // replaced, written back after), and deleting a document or a folder and going back each load the list again.
+  const pagesList = sliceFn(pagesSource("list.ts"), "export const renderList", "const paintList");
+  assert.match(pagesList, /const top = page\.list\?\.scrollTop[\s\S]*paintList\(page\)[\s\S]*page\.list\.scrollTop = top/, "pages 要保住列表滚动，画完写回 scrollTop");
+  const pagesClick = pagesSource("click.ts");
+  assert.match(pagesClick, /\/delete[\s\S]{0,500}await loadList\(page\)/, "pages 删除后要重新拉列表");
+  assert.match(pagesClick, /data-pages-back[\s\S]{0,400}await loadList\(page\)/, "pages 返回后要重新拉列表");
   // Forms: the list keeps its scroll on every repaint (read before the rows are replaced, written back after), and creating,
   // deleting and going back each load the list again.
   // CLN-04: these helpers are internal; the scroll contract does not depend on an export modifier.
@@ -75,7 +81,6 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(formCommands, /\/delete[\s\S]{0,500}await loadList\(page\)/, "form 删除后要重新拉列表");
   assert.match(formCommands, /data-form-back[\s\S]{0,400}await loadList\(page\)/, "form 返回后要重新拉列表");
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /data-ppt-back[\s\S]{0,400}await loadList\(\)/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(lingguangCommands, /data-lingguang-back\]"\)\) \{ await back\(\)/, "灵光 的返回按钮走 back()");
   // Alchemist Studio is not a list-and-editor plugin; its content re-render keeps the reader's scroll position.

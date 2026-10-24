@@ -317,10 +317,10 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
 | `catalog` | `src/catalog.ts` | 文件 1,015 行 | 例外 · 静态数据 | 39 个连接器的声明表，条目互相独立（`CATALOG` 834 行），所以不为拆而拆。但文件冻结在现有行数，不能直接往里加：新增连接器要先把已有条目挪进各自的文件、腾出行数，再加新的。 | 1 |
-| `gmail` | `src/oauth-pending.ts` | `createGmailPendingSessions` 函数 178 行 | 拆 · W5-10 | `createGmailPendingSessions` 把 `validatePendingGmailOAuthSession`（72）、`prunePendingIndex`（35）、`parsePending`（17）等做成内嵌函数；提到模块级，依赖显式传入。 | 1 |
-| `gmail` | `src/oauth-token-lifecycle.ts` | `createGmailTokenLifecycle` 函数 170 行 | 拆 · W5-10 | 只超 20 行。`resolveUsableGmailAccessToken` 98 行等内嵌函数提到模块级。 | 1 |
-| `gmail` | `src/oauth.ts` | `createGmailOAuth` 函数 177 行 | 拆 · W5-10 | 只超 27 行。`completeGmailOAuthFlow`（92）、`startGmailOAuthFlow`（65）两个内嵌函数提到模块级。 | 1 |
-| `gmail` | `src/provider.ts` | 文件 957 行<br>`createGmailProvider` 函数 198 行 | 拆 · W5-10 | 文件 957 行：同步（`runFullSync` 61、`runIncremental` 120、`fetchBoundedDetails` 65、`fetchMessagesList`）、消息映射（`mapMessageDetailToItem` 53、`classifyGmailPath`）、夹具数据 `FIXTURE_MAIL` 分三个文件；`createGmailProvider` 198 行返回的 141 行对象里各操作抽成函数。 | 2 |
+| `gmail` | `src/oauth-pending.ts` | `createGmailPendingSessions` 函数 8 行 | 已拆 · W5-10 | 基线实测 178 → 8 行；存取、清理与校验提到同文件模块级，显式传入实例 Ports 与捕获的配置函数。最大函数 72 行，保留 state/时间/身份校验、Secret 方法接收者与每次实例的独立会话。 | 1 |
+| `gmail` | `src/oauth-token-lifecycle.ts` | `createGmailTokenLifecycle` 函数 8 行 | 已拆 · W5-10 | 基线实测 168 → 8 行（原表 170 为旧值）；同文件模块级函数处理凭据读取、刷新与写入，最大 101 行。保留 refresh-token 复查、原 opts 的同步 `beforePersist` 与连续凭据写入。 | 1 |
+| `gmail` | `src/oauth.ts` | `createGmailOAuth` 函数 14 行 | 已拆 · W5-10 | 基线实测 177 → 14 行；start/complete 操作提到模块级，按实例绑定原 Ports 与函数引用，最大 93 行。先消耗 state 再交换，先核邮箱、解析 refs 再同步提交；公开参数与返回保持。 | 1 |
+| `gmail` | `src/provider.ts` | 文件 263 行<br>`createGmailProvider` 函数 63 行 | 已拆 · W5-10 | 基线实测文件 910 → 263、factory 177 → 63 行（原表 957/198 为旧值）；health/sync 操作留在本文件模块级，实例 resolver 保留原 opts 接收者。私有 `provider-sync.ts` 446 行（最大函数 93）、`provider-message.ts` 176 行（最大函数 53）、`provider-fixture.ts` 38 行。分页、详情界限、映射与游标进度不变，无新增公开出口或例外。 | 2 |
 
 ## 4. 维护
 

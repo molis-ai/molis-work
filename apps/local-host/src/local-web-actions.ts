@@ -3,6 +3,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { pageLocale } from "./web-locale.js";
+import { localOwnerPermissionsOver } from "./local-owner-permissions.js";
 
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
@@ -26,10 +27,14 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const inProject = (provider: ActionProvider) => Boolean(provider.project_id);
   const installOf = (provider: ActionProvider) => provider.plugin_install_id === undefined ? undefined
     : (inProject(provider) ? projectRecords : homeRecords).get(provider.plugin_install_id);
-  // The person's own permissions reach only what the Host registers itself. A provider the Plugin Runtime registered, built in
-  // or not, names its installation, and is reached through that installation's grants alone.
-  const ownerReaches = (view: ActionView) => view.provider.plugin_install_id === undefined
-    && view.action.permissions.every(permission => builtinPermissions.includes(permission));
+  // The person's own permissions reach only what the Host registers itself, and over each such provider only what the person holds
+  // over that provider (PG-007): a permission held over Characters is not held over another Host action that asks for it. A
+  // provider the Plugin Runtime registered, built in or not, names its installation, and is reached through its grants alone.
+  const ownerReaches = (view: ActionView) => {
+    if (view.provider.plugin_install_id !== undefined) return false;
+    const held = localOwnerPermissionsOver(view.provider.provider_id);
+    return view.action.permissions.every(permission => builtinPermissions.includes(permission) && held.includes(permission));
+  };
   const scopeMatches = (provider: ActionProvider, scope: "home" | "project") =>
     (!provider.project_id || provider.project_id === reference?.project_id) && (scope === "home" || !!reference);
   const accepted = catalog.filter(view => {

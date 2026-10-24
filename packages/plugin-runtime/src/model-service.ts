@@ -1,7 +1,7 @@
 import { ActionError, defineErrorCodes, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isInstructedPrompt, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PLUGIN_MODEL_LIMITS, pluginErrors, type PluginManifest, type PluginModelClient, type PluginModelAvailability, type PluginModelRequest, type PluginModelResult, type PluginModelSelection, type PluginModelImage, type PluginModelChoice, type PluginModelFailure } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
+import { currentPluginAction, holdPluginModelResult, inPluginInstance, type PluginInstance } from "./action-scope.js";
 
 /** Sending a request to the model: the action declares it, the installation holds it. */
 const MODEL_INVOKE = "model:invoke";
@@ -112,14 +112,20 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
       const images = copiedImages(request.images);
       const checked = checkRequest(manifest.plugin_id, prompt, request);
       const signal = AbortSignal.any([caller.signal, request.signal].filter(item => item !== undefined)), onText = request.onText;
-      const validateCall = () => {
-        if (currentPluginAction() !== scope) throw pluginModelErrors.model_action_required("结果只能由原模型调用提交");
+      const validateAuthority = () => {
         signal.throwIfAborted();
         gate.assertActive(); gate.requireGrant(MODEL_INVOKE);
         if (!caller.permissions.includes(MODEL_INVOKE)) throw new ActionError("actions.forbidden", "这次调用没有模型调用权限");
         requireSynchronous(caller.assert_authority_current?.(), "最终模型授权检查必须同步完成");
       };
+      const validateCall = () => {
+        if (currentPluginAction() !== scope) throw pluginModelErrors.model_action_required("结果只能由原模型调用提交");
+        validateAuthority();
+      };
       const guarded = (validateHost: () => void) => () => { validateCall(); validateHost(); };
+      // The platform checks the answer again itself before the call commits anything (PG-047): from inside the call's own checks,
+      // which a nested dispatch may run in another scope, so the scope identity is the plugin's own call's to check.
+      const hold = (validateHost: () => void) => holdPluginModelResult(scope, () => { validateAuthority(); validateHost(); });
       await authority(caller);
       validateCall();
       let receiving = true;
@@ -146,6 +152,7 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
         const source = error instanceof Error ? error as PluginModelFailure : undefined;
         const validateResult = guarded(source?.validateResult ?? (() => {}));
         validateResult();
+        hold(source?.validateResult ?? (() => {}));
         if (source?.execution) Object.defineProperty(failure, "execution", { value: structuredClone(source.execution), configurable: true });
         throw Object.defineProperty(failure, "validateResult", { value: validateResult, configurable: true });
       } finally { receiving = false; }
@@ -153,6 +160,7 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
       await authority(caller);
       const validateResult = guarded(answer.validateResult);
       validateResult();
+      hold(answer.validateResult);
       const result = { text: answer.text, ...(answer.usage ? { usage: answer.usage } : {}),
         ...(answer.execution ? { execution: structuredClone(answer.execution) } : {}), validateResult };
       if (checked.output === "text") return result;

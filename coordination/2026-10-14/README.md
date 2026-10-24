@@ -3555,3 +3555,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 01:10：#1152（privileges 状态 3）已合；`ac-priv3` 工作树与本地分支已删。
 
 - 10-24 01:20：#1147 合 main 后仍可合。PG-022 P2 统筹裁：R1 ownerFiles 可在动作外按安装当前授权调用（停用/卸载/撤权即拒、只限声明的条目），删钩子；R2 Images 加**必需**权限 `images:files:write`，jobs.start 2→3、jobs.delete 1→2，PR 写对 MCP 与工作流步骤的影响，不放宽 S-15；R3 留 `ownerFiles` 名、删 `files`、GLOSSARY 记旧称；P2 拆 P2a/P2b。
+
+- 10-24 01:30：R8 第 4 批按裁定改完（`06603d6c6`），待确认 BL-471 已改。日志读取统筹再裁：不加 Manifest 字段、不复用 `events.subscribes`，只读自己命名空间；Goals 要别的插件的活动改走事件总线订阅或对方的查询动作，S9 slice 逐条列出。

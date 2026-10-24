@@ -2419,3 +2419,14 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 本刀局部工程结果：准确父866028dd的隔离树原 `pnpm build` 通过；真实维护桥34/34、LocalHost28/28、ledger9/9分批通过（jobs2/retries0），两改动测试strict TS通过。真实子进程在SDK关闭后、ledger提交前后均因原owner仍持有而busy，释放后取得owner时读取ledger4；真实SDK清钥关闭故障保adopting/owner，真实owner DB.close故障发生于提交后时保ledger4且API拒绝。另覆盖发布抛错、非undefined/thenable、取消/撤权、COMMIT拒绝、回调缺失/重复和后页verify抛错，失败后沿原Home重开。
 
 首轮新测试误把LocalHost open输入直接传AgentHost，遗漏storageRoot/appVersion/policy；strict TS与8条运行失败均保留，按现生产接线修正后重跑该失败文件，未改生产或断言。离线安装首次store登记symlink被沙箱EPERM拒绝、正式权限原命令通过。日志前缀 `/private/tmp/molis-memory-mem40-publication-`：`build-20261025.log`、`core-20261025.log`（含首败与另两文件通过）、`core-corrected-20261025.log`、`types-corrected-20261025.log`。资源只读report仍27项共7,678,780B，与前桥相同；coding.js相对资源账本既有+1,333B待用户，未修改资源门或视为已放行。此刀修补完成发布互斥窗口，不替代完整MEM-40或产品/用户验收。
+
+
+### 维护桥与归属校验聚合复验（2026-10-25）
+
+统筹将86e维护桥、fdde归属校验及acef持锁发布集中在同一个#1101，生产冻结99c4948b217f17fefd1bc18b93a21e6355870b2a。仅两处README/spec文字冲突，保留新发布顺序和Character权限说明，生产无冲突。原完整pnpm build通过；首次启动因旧SDK依赖触发pnpm无TTY安装拒绝，按原锁文件、既有store离线安装后，仅Swift缓存写权限受限，获准运行原build通过。没有改门禁、源码、锁文件、时限或重试来通过。日志 /private/tmp/molis-memory-maintenance-aggregate-{build,install,build-installed,build-final}-20261025.log 分别保留这些结果。
+
+根会话在最终聚合构建上重验7文件104项（维护桥34、LocalHost采用28、ledger9、角色权限25、角色提议3、历史项目清除3、不可重绑定2）全部通过，jobs2/retries0。首命令另误写了不存在的prologue-sdk-provenance文件名，8文件批次因此exit1；保留 ...-direct-20261025.log，不称一次8文件全绿。定位实际vendor-provenance后仅补该文件78/78通过，日志 ...-vendor-20261025.log。准确消费路径horizontal/agent-host的796个SDK安装文件与4ac受控归档逐字节相同；最初检查根node_modules不存在的SDK路径没有形成有效比较，已按真实包依赖修正，结果 ...-sdk-match-20261025.json。
+
+根类型、相对准确基础9e055220的health、boundary、API、真实临时Host动作快照及全分支秘密扫描通过，日志均同 ...-types/health/boundary/api/actions/secrets-20261025.log 前缀。27项实际资源逐项等于前一聚合，共7,678,780B；workbench.js1,166,999B、coding.js379,783B。本轮净增0B；正式资源门仍仅拒绝未获答复的Coding+1,333B，...-assets-gate-20261025.log exit1原样保留，Assistant+4,064B已批准不扩用。
+
+推送前远端main更新至52560f32c（新增#1244桌面启动拒绝/关闭失败修复），本头未合入该新main；三方检查无冲突，不能把此检查称为最终合并结果CI。新App完整CI/Full suite、Coding零模型恢复决定、历史owner覆盖接线、业务永久清除与完整MEM-40仍未闭合。SDK新覆盖候选22d的三个独审P2已由0b33在本地修补并待独立复核，尚未替换本App的4ac包。本轮只推进既有#1101可审查交付，不新增PR、不代签产品实操或用户验收。

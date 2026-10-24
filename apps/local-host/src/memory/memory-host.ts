@@ -139,50 +139,49 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const service = new MemoryService(servicePorts);
   const forCall = (context: ActionExecutionContext) => memoryCallService(context, servicePorts,
     control => prologueMemoryBackend(store, control), () => !closed);
-  const caller = memoryCaller;
   const input = <T>(value: unknown) => (value ?? {}) as T;
   // Internal Agent identity follows memoryCaller; external MCP runtime Sessions keep their granted non-Run reads.
   const read = async (context: ActionExecutionContext, request: { list: MemoryListRequest } | { recall: MemoryRecallRequest }) => {
     if (context.actor_id.startsWith("agent:")) {
       if (!context.runtime_memory_read) throw memoryErrors.unavailable("这一轮没有记忆展开控制");
       await context.beforeEffect();
-      return forCall(context).expand(caller(context), request, context.runtime_memory_read);
+      return forCall(context).expand(memoryCaller(context), request, context.runtime_memory_read);
     }
-    const service = forCall(context), identity = caller(context);
+    const service = forCall(context), identity = memoryCaller(context);
     return "recall" in request
       ? service.recall(identity, request.recall, { beforeEffect: () => context.beforeEffect(), readMode: context.memory_read_mode ?? "task" })
       : service.list(identity, request.list);
   };
   const bindings: ActionHandlerBinding[] = [
     { ...memoryActions.recall, handle: (context, value) => read(context, { recall: input<MemoryRecallRequest>(value) }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
-    { ...memoryActions.page, handle: (context, value) => forCall(context).page(caller(context), input<MemoryPageRequest>(value)) },
+    { ...memoryActions.page, handle: (context, value) => forCall(context).page(memoryCaller(context), input<MemoryPageRequest>(value)) },
     { ...memoryActions.list, handle: (context, value) => read(context, { list: input<MemoryListRequest>(value) }) },
-    { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(caller(context), input<MemoryWriteRequest>(value)); } },
-    { ...memoryActions.batchPreview, handle: (context, value) => forCall(context).batches.preview(caller(context), input<MemoryBatchRequest>(value)) },
-    { ...memoryActions.batchApply, handle: (context, value) => forCall(context).batches.apply(caller(context), input<{ preview_id: string }>(value).preview_id) },
-    { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(caller(context), input<MemoryChangeRequest>(value)); } },
-    { ...memoryActions.history, handle: (context, value) => forCall(context).history(caller(context), String(input<{ memory_id: string }>(value).memory_id)) },
-    { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await forCall(context).candidates(caller(context), input(value)) }; } },
+    { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(memoryCaller(context), input<MemoryWriteRequest>(value)); } },
+    { ...memoryActions.batchPreview, handle: (context, value) => forCall(context).batches.preview(memoryCaller(context), input<MemoryBatchRequest>(value)) },
+    { ...memoryActions.batchApply, handle: (context, value) => forCall(context).batches.apply(memoryCaller(context), input<{ preview_id: string }>(value).preview_id) },
+    { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(memoryCaller(context), input<MemoryChangeRequest>(value)); } },
+    { ...memoryActions.history, handle: (context, value) => forCall(context).history(memoryCaller(context), String(input<{ memory_id: string }>(value).memory_id)) },
+    { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await forCall(context).candidates(memoryCaller(context), input(value)) }; } },
     { ...memoryActions.accept, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryCandidateDecision>(value);
-      return forCall(context).accept(caller(context), request.candidate_id, request); } },
+      return forCall(context).accept(memoryCaller(context), request.candidate_id, request); } },
     { ...memoryActions.discard, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryCandidateDecision>(value);
-      return forCall(context).discard(caller(context), request.candidate_id, request.expected_version); } },
-    { ...memoryActions.changes, handle: (context, value) => ({ changes: forCall(context).changes(caller(context), input(value)) }) },
-    { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).undo(caller(context), input<{ change_id: string }>(value).change_id); } },
-    { ...memoryActions.prefs, handle: (context, value) => forCall(context).prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope) },
+      return forCall(context).discard(memoryCaller(context), request.candidate_id, request.expected_version); } },
+    { ...memoryActions.changes, handle: (context, value) => ({ changes: forCall(context).changes(memoryCaller(context), input(value)) }) },
+    { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).undo(memoryCaller(context), input<{ change_id: string }>(value).change_id); } },
+    { ...memoryActions.prefs, handle: (context, value) => forCall(context).prefs(memoryCaller(context), input<{ scope?: MemoryScope }>(value).scope) },
     { ...memoryActions.savePrefs, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryPrefsWriteRequest>(value);
-      return forCall(context).savePrefs(caller(context), request.scope, request.preset ?? request.prefs); } },
-    { ...memoryActions.signal, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).signal(caller(context), input<MemorySignalReport>(value)); } },
-    { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await forCall(context).pairs(caller(context), input(value)) }; } },
+      return forCall(context).savePrefs(memoryCaller(context), request.scope, request.preset ?? request.prefs); } },
+    { ...memoryActions.signal, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).signal(memoryCaller(context), input<MemorySignalReport>(value)); } },
+    { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await forCall(context).pairs(memoryCaller(context), input(value)) }; } },
     { ...memoryActions.resolvePair, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
-      return forCall(context).resolvePair(caller(context), request.pair_id, request.keep); } },
+      return forCall(context).resolvePair(memoryCaller(context), request.pair_id, request.keep); } },
     { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw memoryErrors.forbidden("只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(forCall(context)); } },
-    { ...memoryActions.preview, handle: async (context, value) => { return forCall(context).previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
+    { ...memoryActions.preview, handle: async (context, value) => { return forCall(context).previewScope(memoryCaller(context), input<{ scope: MemoryScope }>(value).scope); } },
     { ...memoryActions.clear, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
-      return forCall(context).clearScope(caller(context), request.scope, request.fingerprint); } },
-    { ...memoryActions.export, handle: async (context, value) => { return { package: await forCall(context).exportScope(caller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
+      return forCall(context).clearScope(memoryCaller(context), request.scope, request.fingerprint); } },
+    { ...memoryActions.export, handle: async (context, value) => { return { package: await forCall(context).exportScope(memoryCaller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
     { ...memoryActions.import, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; package: unknown }>(value);
-      return forCall(context).importScope(caller(context), request.scope, request.package); } },
+      return forCall(context).importScope(memoryCaller(context), request.scope, request.package); } },
   ];
   const dispose = ports.localHost.actionRegistry().registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: "记忆", kind: "system" },
     definitions: Object.values(memoryActions), handlers: bindings });
@@ -253,7 +252,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       projectExists: projectId => ports.projectExists?.(projectId) ?? Promise.resolve(null),
       deletingProject: deletion.deletingProject,
     },
-    caller,
+    caller: memoryCaller,
     learnLater: async request => {
       await ports.ready();
       const key = `memory-learn:${request.work_id}:${request.run_id}`, payload = { ...request };

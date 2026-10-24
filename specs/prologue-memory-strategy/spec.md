@@ -1353,3 +1353,6 @@ boundary、API/Action与diff通过；实际27资源共7,806,260 B，只有workbe
 本轮日志前缀 `/private/tmp/molis-memory-renewal-parentc10-20261025`：`-build.results.json` 为安装构建，`-static.results.json` 为类型/快照/资源报告/health/boundary，`-assets.results.json` 为实际资源登记，`-unit.results.json` 为90非浏览器，`-browser.log`及`-browser.results.json`保留首轮失败，`-authorized-browser.log`及`-authorized-browser.results.json`记录获准本机运行；最终提交门记录于`-final-gates.results.json`。未运行全量、真实付费模型、新main112及其后提交；不能将工程证据写成完整P0或用户验收。
 
 获准本机浏览器组7/7文件、36/36项通过，83.66秒，零重试；覆盖续期、分类控制、分类纠正、分页、CAS、Home侧栏及frame就绪。首批原生断言本轮未复现，根因仍UNKNOWN；旧父18文件70/72及CDP未知失败记录保留，不能改写首次全绿。本轮实际97个不同文件1248项通过，仅支持所覆盖隔离Home和Chrome路径的工程结论。
+
+
+#1154 原操作恢复的期限边界复核（2026-10-25）：现续期短合同已规定新期限在等待或重试时到期仍失败；App 和 SDK96 均按当前期限检查。因此 SDK 已提交而 ledger 尚未补齐的原操作，也只有在新期限仍有效时可继续补账，跨期限的 pending 账本不会自动完成。本次只明确现合同和实际调用链，不放宽权限或恢复语义；现测试分别覆盖提交后补账与过期重试拒绝，尚未直接实跑两者组合，不将其记为已验证。若后续要求跨期限只补原账，须先调整 SDK 已提交恢复合同，不能只移除 App 检查。

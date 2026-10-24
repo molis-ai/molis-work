@@ -8,7 +8,12 @@
 
 2026-10-23 20:40 UTC：batch-1023-13（run40013259093，6cff3977e）16片1341/1341文件最终通过；3份重试通过记入偶发。Linux跳过的macOS C0仍未验证，保留当前已知红。
 
-## 当前已知红（0 个文件）
+## 当前已知红（1 个文件）
+
+| 文件 | 带进来的 PR | 原因类别 | 谁修 | 依据 |
+| --- | --- | --- | --- | --- |
+| `tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01） | #1127（`c0b48111b`，10-24 03:33 合入；隔离页 link 通道的设置地址改为发 `molis-work:open-settings-path` 打开设置面） | 断言过期，或产品回归（待定：插件页里点 `/settings/models` 原先打开首页模型设置弹窗，加载失败时有英文「Can't reach…」和 Retry；现在改开设置面，用例等的 `[data-home-model-settings]` 不再出现） | Codex（#1127 的作者线），统筹 10-24 05:40 派 | batch-1024-20 分片 10 两次都红（run 40061024962）；统筹在 main `04435950a` 本机复现同一处超时；batch-19（基底 `aa4de404f`，不含 #1127）这份是绿的 |
+
 
 2026-10-23：[C0修复 #1136](https://github.com/molis-ai/molis-work/pull/1136) 已于21:33:38 UTC合入 main `15b6566486282aef7fa4543251f6555bcf139510`，Codex现场核对GitHub合并状态及main历史；按统筹CODEX-TASKS的已完成裁定移除两条macOS已知红及机读项。创建/G1/G2现共用完整SDK声明集合，解决checks与workflow的W2-18-BUILDER-LATE-01同一声明依赖缺失。作者报告macOS checks17/17、workflow42/42；Codex核过实际diff与全部CI，未独立读取作者本机原始日志，不把Linux跳过说成macOS实测。
 
@@ -81,6 +86,7 @@
 ## 机读清单（当前已知红 + 间歇红）
 
 ```
+tests/issue-home-locale.e2e.test.ts
 tests/workbench-deferred-clients.e2e.test.ts
 ```
 

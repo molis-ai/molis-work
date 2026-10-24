@@ -16,6 +16,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | PR | 要做的 | 说明 |
 | --- | --- | --- |
+| **main 红（最先做）**：`tests/issue-home-locale.e2e.test.ts` W2-18-HOME-LOCALE-01 | #1127（`c0b48111b`）把隔离页里的设置地址改成打开设置面，用例还在等首页模型设置弹窗 `[data-home-model-settings]`，第 69 行超时。统筹裁定：**不回退 #1127**（S-47：隔离页不能导航宿主文档）；照新行为改用例，用例原意保留——英文界面、设置文档第一次加载失败时显示共用请求助手的「Can't reach the Molis Work service. Try again in a moment.」与 Retry，点 Retry 后用真实宿主加载出模型设置，再关掉。设置面若没有「加载失败 → 重试」，就是产品缺口，在设置面补上，不删这几条断言。从 main 开 `fix/main-red-issue-home-locale`，`full` 应为空就直接入队 | 已记进 `known-red-main.md`；batch-1024-20 只红这一份，照用户 10-18 的规矩：main 修好前 #1119、#1139、#1148 不合，修好后合 main 走 merge-only、不重跑全量 |
 | #1143、#1144 | **不接**：一轮修后可合的两处（S-57/S-39 旧行与 S-60 一致、正文补四节）由作者 `ac-sandbox-sched` 修（统筹 10-24 05:25 派，作者空闲） | 改完 `ac-review` diff 对 diff 复核；#1119、#1139 在 batch-20 里别推 |
 | 并发规矩（10-24 05:00 起） | 只在 PR 对 main **DIRTY** 时机械同步，单纯 BEHIND 不同步（合并队列在合并结果上验；每推一次占一轮 CI）；集成批只由 Claude 统筹起、同一时间一批 | 细则见 `LINES.md` 末尾：全量 40～67 分钟、一次只够跑一批；合并队列一小时 3～5 个 |
 | #1147 | `ac-review` 已核 `36f137eaa` 可合 | 又对 main 冲突（DIRTY），机械同步后 Verify 绿即入队，不再跑全量 |

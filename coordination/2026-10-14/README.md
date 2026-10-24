@@ -3600,3 +3600,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 04:45：R11 取舍（`ac-clients-1` 问）定 **B**：Todo 来源只有 subject 时由工作台按运行中的声明找打开入口（不写 kind→插件表、不点插件 id；拿不准只显示文字），不升 fragment 输入 v2；「点来源回原条目」两条 e2e 断言保留。A（丢链接、删断言）与 C（升 v2）不做。
 - 10-24 05:00：#1126、#1147 合入。用户说积压已回正常水位，**放开开 PR**，并发规矩写进 `LINES.md` 末尾与 `SLICE-RULES.md`：一次只跑一批（每批 3～5 个）、合计最多 15 个非草稿 PR、每线最多两个在评审中的、只落后不同步。batch-1024-20 分片 10 的 `issue-home-locale.e2e`（W2-18-HOME-LOCALE-01）重试仍红，不在已知红里，统筹在 main `04435950a` 上本机复现定性中。
 - 10-24 05:10：`ac-sc3` 开 #1164（BL-385）。它发现共用仓库被别的会话做成了浅克隆（origin/main 只剩 2 个提交，会让 `--base` 的 merge-base 算不出），已 `git fetch --unshallow origin` 恢复；以后各会话不要 `--depth` fetch 共用仓库。
+- 10-24 05:40：main 红：`issue-home-locale.e2e`（W2-18-HOME-LOCALE-01）由 #1127（隔离页设置地址改开设置面）带进来，#1127 没进批就入了队。统筹在 main `04435950a` 本机复现；记进 `known-red-main.md`，派 Codex 修（不回退 #1127，照新行为改用例、保留失败与重试的断言，设置面缺重试就补产品）。

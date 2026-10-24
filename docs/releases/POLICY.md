@@ -125,7 +125,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 - 降到 0.3.0：开发机现有 Home 里，这 7 个插件悄悄停在重置之前的旧代码上（存档在时），或者启动失败（存档不在时）。
 - 重置之后：全新的 Home 第一次启动时没有记录，没有问题；但它之后每换到一个清单有改动的同版本构建，都会碰到情形二。「全新的 Home 没有问题」只在第一个改了内置清单的合并之前成立。
-- 重置后新写入的成果记的 `producer_plugin_version`（例如 `publishShelfMaterial` 写的 `producer.plugin_version`，`apps/local-host/src/shelf-actions.ts:67`）是较低的数字，已存的记录保持原值（该列的定义，`modules/artifacts/src/repository.ts:65`）。
+- 重置后新写入的成果记的 `producer_plugin_version`（成果库登记固定版本时记下的 `producer_plugin_version`，`modules/artifacts/src/registration.ts:91`）是较低的数字，已存的记录保持原值（该列的定义，`modules/artifacts/src/repository.ts:66`）。
 
 ### 7.5 选项（用户 2026-10-08 选 A，第 7.6 节）
 

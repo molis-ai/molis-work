@@ -29,3 +29,5 @@ export const REFLOW_CLIENT_SCRIPT = readFileSync(new URL("../dist/reflow-client.
 export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/overflow-fade-client.js", import.meta.url), "utf8").trim();
 /** `window.molisCopy`, the one copy feedback (`browser/copy-feedback.ts`, VUX-19). */
 export const COPY_FEEDBACK_CLIENT_SCRIPT = readFileSync(new URL("../dist/copy-feedback-client.js", import.meta.url), "utf8").trim();
+/** The component board's demo behaviour (`browser/catalog.ts`): overlay specimens, motion and craft demos, composition menus. */
+export const CATALOG_CLIENT_SCRIPT = readFileSync(new URL("../dist/catalog-client.js", import.meta.url), "utf8").trim();

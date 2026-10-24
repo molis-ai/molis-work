@@ -256,6 +256,11 @@ const APPROVED_CEILINGS = {
   // 1dedc1f5c while the PR merged main: the merge-base budget is 191192 (RAC-132 的 +88 已烘焙), this PR's +263 is
   // measured on top, 191455 bytes, gzip 61743.
   "/assets/molis-work-plugin-frame.js": [191192, 191455],
+  // W5-10 (R4a): the generated-plugin renderer (design-system `createPluginComponentClient`, 753 lines) is cut into layers so no
+  // unit is over the function limit: 116132 → 118672 (+2540). The layers are sent as source (`toString`), and the
+  // object keys of the shared state they destructure and return survive minification (about 1.6 KB of the growth); the rest is the
+  // layer wrappers. Positional hand-over would win ~1.2 KB back at the cost of unreadable layer signatures; not taken.
+  "/assets/molis-work-plugins/plugin-builder.js": [116132, 118672],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -45,7 +45,8 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 | [src/typeface.ts](src/typeface.ts)、[fonts/](fonts) | `FONT_STACK`（系统无衬线优先，Inter / Noto Sans SC 仅作离线后备）、`MONO_FONT_STACK`、字重角色变量 |
 | [src/visual-foundation.ts](src/visual-foundation.ts) | 主题/密度/分层样式入口 |
 | [src/styles/](src/styles) | 工作台、设置、标题栏等表面层 |
-| [src/styles/craft-finish.ts](src/styles/craft-finish.ts) | Soft Workbench 终层（模块名沿用）：珍珠灰桌面与连续白色工作面、底栏几何（Dock、统一对话栏、常驻与项目按钮）、抬升/圆角/动效 token、提示气泡、`molisCraft` 完成与落地时刻 |
+| [src/styles/craft-finish.ts](src/styles/craft-finish.ts) | Soft Workbench 终层（模块名沿用）：珍珠灰桌面与连续白色工作面、底栏几何（Dock、统一对话栏、常驻与项目按钮）、抬升/圆角/动效 token、提示气泡、`molisCraft` 完成与落地时刻。规则按小节切在 `craft-finish-bar.ts`、`craft-finish-assistant.ts`、`craft-finish-pages.ts`（级联顺序就是三份相接的顺序），共用的选择器片段在 `craft-finish-selectors.ts`；`craft-finish.ts` 把它们接起来，并带着 `CRAFT_FINISH_CLIENT_SCRIPT` |
+| [src/plugin-component-client.ts](src/plugin-component-client.ts) 与 `plugin-component-{kit,records,controls,output,part,types}.ts` | 创作台生成的插件在浏览器里的渲染器（`createPluginComponentClient`）。按层拆成函数：`pcKit`（不碰状态的助手）、`pcRelations`/`pcRecords`（从当前视图读出的关系与记录）、`pcDetail`/`pcControls`/`pcOutput`/`pcQuery`/`pcSubmit`/`pcPart`、`pcLifecycle`。每层是「共享状态加前面各层」的函数，返回自己新加的函数；可变的 `view`、`selection`、`epoch`、`fresh` 等放在 `plugin-component-types.ts` 的 `State` 上，各层读 `c.view` 而不是闭包变量。整套函数用 `toString` 拼成 `PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT`，所以层函数里不能用模块级的 import，只能用参数和 DOM |
 | [src/styles/touch-targets.ts](src/styles/touch-targets.ts) | 底栏的触控尺寸，跟在 craft-finish 后面：手机宽度或 `pointer: coarse` 的窗口里底栏与助理输入条是 44px 目标；挤满的助理输入条由岛标记 `data-crowded` 并分步让位（选择器、工作条的清除标记、材料与通知并入「+」菜单） |
 | [src/monogram.ts](src/monogram.ts) | 项目徽标：首字母 + 由项目 id 决定的色相 |
 | [src/interaction.ts](src/interaction.ts)、[src/styles/interaction.ts](src/styles/interaction.ts) | AI 交互部件：问卷（混合字段、推荐理由、逐字段错误）、选项组、操作卡（作用对象与版本、参数预览、状态、结果）、输入框旁的下一步。只收展示参数（`Interaction*View`），用 `data-ix-*` 钩子接行为；样式 `INTERACTION_STYLES` 单独导出，不在共享页面样式表里 |

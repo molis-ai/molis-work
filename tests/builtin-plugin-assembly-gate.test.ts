@@ -123,13 +123,14 @@ test("the frozen lists name exactly what exists: no id, route file or Runtime pl
  * 2026-10-08; a plugin leaves this list when its Host code is gone, and none joins.
  *  - shelf: shelf-native-plugin-http.ts and shelf-actions.ts (its actions, Home and project alike, and its model calls are the
  *    plugin's Runtime instance since S2)
- *  - coding: the workspace surface adapters in the Host (coding-*.ts), the part R-03 asks to move behind declarations
+ * PG-036 C9: Coding left with coding-surface.ts. Its page and its Files/Git/Diff/Text stats companion stages are the plugins' own
+ * contributions, which the Host draws through the generic stage channel (project-plugin-stages.ts).
  * W5-01-GIT-04: Git left with G5. What ran git for it in the Host is the platform's workspace Git service (workspace-git*.ts,
  * the projects.workspace.git.* and projects.workspace.writers.* actions only plugins call); the next test pins what is left.
  * RAC-70: Characters left with CHR-1: it is no plugin any more; its handlers are in modules/characters and its page is a section of
  * the Host's Settings.
  */
-const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set(["coding", "shelf"]);
+const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set(["shelf"]);
 
 test("Runtime plugins that the Host also assembles by hand are named, and no plugin joins them", async () => {
   const sources = await hostSourceFiles();
@@ -153,10 +154,9 @@ test("Runtime plugins that the Host also assembles by hand are named, and no plu
 test("W5-01-GIT-01..03: the Host keeps no Git wiring of its own; its workspace Git service imports no plugin and registers actions only", async () => {
   const sources = await hostSourceFiles();
   const text = new Map(await Promise.all(sources.map(async file => [file, await readFile(join(repoRoot, file), "utf8")] as const)));
-  // W5-01-GIT-01: only the supervisor starts Git. coding-surface.ts still draws Git's companion stage for Coding (T1, PG-091);
-  // Coding's C9 deletes that file and this list shrinks to the supervisor alone.
+  // W5-01-GIT-01: only the supervisor starts Git; its companion stage in Coding's page is Git's own contribution (PG-036 C9).
   const importsGit = sources.filter(file => /["']@molis-ai\/molis-work-plugin-git["']/.test(text.get(file)!));
-  assert.deepEqual(importsGit, ["apps/local-host/src/coding-surface.ts", "apps/local-host/src/project-plugins.ts"],
+  assert.deepEqual(importsGit, ["apps/local-host/src/project-plugins.ts"],
     "a Host file imports the Git plugin; Git is started by the supervisor and reached through its declarations");
   const supervisor = text.get("apps/local-host/src/project-plugins.ts")!;
   assert.deepEqual([...supervisor.matchAll(/createGitPlugin\(([^)]*)\)/g)].map(match => match[1]), [""], "the supervisor starts Git with no Host ports");

@@ -72,6 +72,10 @@ export interface UiMountResult {
     readonly html: string;
 }
 
+export interface UiNestedContentModel {
+    readonly nested?: Readonly<Record<string, string>>;
+}
+
 export interface UiOpenedObjectView {
     readonly ref: UiViewObjectRef;
     readonly title: string;

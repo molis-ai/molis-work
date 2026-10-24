@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "./index.js";
+import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, codingManifest, codingPrompts, codingMethods, codingSettingsContribution, codingUiView } from "./index.js";
 import { CODING_MESSAGES } from "./messages.js";
 import { codingBoardSpecimens } from "./board-specimens.js";
 
@@ -16,7 +16,8 @@ export const registration: PluginRegistration = {
   agent: { prompts: codingPrompts, skills: codingMethods },
   workbench: {
     order: 20,
-    contributions: [codingSettingsContribution],
+    // The stage as the shell draws it when no instance runs (no session directory); a running instance draws its own (plugin.ts).
+    contributions: [codingUiView(() => []), codingSettingsContribution],
     clientFactory: CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT,
     clientUses: ["git", "files"],
     specimens: codingBoardSpecimens,

@@ -8,7 +8,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { bindGoalsWebActions } from "./goals-actions.js";
 import { molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "./project-host.js";
 import type { projectFeedOptions } from "./workflow-feed-options.js";
-import type { CodingSurfacePorts } from "./coding-surface.js";
+import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import type { ContextualHttpPorts } from "./contextual/contextual-http.js";
 import type { ResolvedWebBoardOptions } from "./web-types.js";
 import type { WebRequestContext } from "./web-route-table.js";
@@ -33,12 +33,12 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly homeActions: ReturnType<typeof bindLocalWebActions>;
   readonly goalActions: ReturnType<typeof bindGoalsWebActions>;
   readonly pluginServices: ProjectPluginServices;
-  readonly pluginPorts: CodingSurfacePorts;
+  readonly pluginPorts: ProjectPluginSurfacePorts;
   readonly readWebView: () => Promise<MolisWorkWebView>;
 }
 
 /** The services every project plugin surface is given: the unified action client, the Home and settled reviews. */
-type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "observeReviewSettlements">;
+type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "observeReviewSettlements">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;

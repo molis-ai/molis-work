@@ -88,6 +88,7 @@ export {
 } from "./palette.js";
 export * from "./primitives/index.js";
 export { renderPluginStageShell } from "./plugin-stage-shell.js";
+export { renderCompanionBrowserStage, renderCompanionListStage, type CompanionStageModel } from "./companion-stage.js";
 export * from './plugin-components.js';
 export * from './plugin-component-client.js';
 export * from './plugin-presentation.js';

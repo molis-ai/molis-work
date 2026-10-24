@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, filesOutputsRefresh, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
@@ -29,7 +29,7 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
       if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } } });
-  const server = createServer((req, res) => { void handleProjectPluginHttp(req, res, new URL(req.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { res.writeHead(500); res.end(String(error)); }); });
+  const server = createServer((req, res) => { void handleProjectPluginHttp(req, res, new URL(req.url!, "http://localhost"), host(), filesOutputsRefresh).catch(error => { res.writeHead(500); res.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const prefix = '/api/plugins/io.molis.work.coding/sessions/app/runs/r/changeset';

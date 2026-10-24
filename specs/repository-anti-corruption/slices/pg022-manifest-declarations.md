@@ -1,6 +1,6 @@
 # PG-022 / PG-102 / PG-103 / PG-104：宿主条目上的声明搬进 Manifest
 
-状态：设计待统筹审（2026-10-23，防腐线 ac-sandbox-sched 片）；P1（Home 库）已在本地分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，未推送、PR 排在 §8 列的在途 PR 合入之后；P2、P3 只有设计，审定前不写代码。代码按 main `abc052bcb` 核过。
+状态：统筹已裁（2026-10-24，见 §6「统筹 10-24 裁」）；P1（Home 库）已在分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，已推送，PR 排在 §8 列的在途 PR 和本线 #1119、#1139 合入之后；顺序 P1 → P1b → P2 → P3，P1b、P2、P3 还没写代码。代码按 main `abc052bcb` 核过。
 
 ## 1. 现状
 
@@ -50,7 +50,7 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 - `plugin-entry-identity.ts`：`databases` 的 `WeakMap` 换成「名单上列出的定义对象」的 `WeakSet`；`databaseFor(definition)` 对名单上的定义返回它自己 Manifest 的 `databases.home`，对其他定义返回空。这还是原来「按定义对象记」那道防线：没有它，任何装进来的插件拿一个内置插件的 `plugin_id` 与基线写同样的 `databases.home` 就能开别人的库。
 - `plugin-database-entries.ts`：`assertDatabaseEntries(entries, home, scope)` 改读 `definition.manifest.databases?.home`。检查项不变（库名、Home 在、登记在、主人是它、基线相同、分区一致、同名不重复、两个权限在 Manifest 里、沙箱定义拒绝）。新增 `homeLibraryFor(definition, given)`：Manifest 没声明就不给；声明了而名单没给它（`given` 为空），以 `plugin.declaration_invalid` 拒绝启动，不是静默没有这项服务。
 - 执行器（项目的 `openDeclaredLibrary`、Home 的 `HomePluginExecutor`）：库 = `homeLibraryFor(definition, options.databaseFor(definition))`。
-- 为什么拒绝码只在 `homeLibraryFor` 上观察得到：Runtime 把启动失败统一报成 `plugin.executor_failed`，原因只落在日志里，所以测试直接问这条规则（`homeLibraryFor` 从宿主入口导出，仅此一处是测试缝）。
+- 为什么拒绝码只在 `homeLibraryFor` 上观察得到：Runtime 的 `start` 把启动失败对外报成 `plugin.executor_failed`，但安装记录的 `last_error_code` 存的是拒绝本身的码；测试走 #1139 的路：装一个不在名单上的定义、启动、读 `platform.runtime.get(install_id).last_error_code`，不给宿主入口加测试缝（统筹 10-24 裁）。
 - `home-stores.ts`：插件的库登记从 `entry.manifest.databases?.home` 推，替掉 `entry.runtime?.database` 和 `home_store.library` 两处；`home_store` 只留路径（`{ path }`），库的基线不再写第二遍。
 - `plugin-project-cleanup.ts`、`project-deleted-owners.ts`：读 Manifest 的 `databases.home.partition`（后者只对 Home 级的 `runtime` 条目算分区）。
 - 十一个插件：`databases: { home: X_DATABASE }` 加进各自 Manifest（常量原样不动，`verify-release-versions.mjs` 认得它们），从 `registration.ts` 与 `project-plugins.ts` 删 `database`、`home_store` 里的 `library`。
@@ -78,21 +78,31 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 ## 6. 要统筹定的
 
 - **Q1 非内置插件的 Home 库（P1b）什么时候做？** 推荐：P1 合入后紧接着做，不等沙箱。做法：登记从已安装插件的 Manifest 推出（卸载并清理用户数据时才清得到），首次打开在库文件里记一张账本表（`plugin_id`、发布者签名、版本、基线哈希），换了发布者、版本或形状就拒，这与项目库账本同一种规则。P1 先把「只有内置定义」写成带码的拒绝，不留静默缺席。
-- **Q2 文件合成一套，`services.files` 保留名字还是删掉？** 推荐：保留名字，作为 `ownerFiles` 的薄委托，Images 不改调用，只改声明。理由：一次改一处；调用方改名另算一片。
+- **Q2 文件合成一套，`services.files` 保留名字还是删掉？** 原推荐：保留名字作薄委托。**统筹 10-24 裁推翻：不留第二个名字、不做薄委托**，见下。
 - **Q3 `model_configuration` 与 `image_generation` 要不要等 PG-017 的模型 broker 方法？** 推荐：不等。声明搬位置与沙箱拿服务是两件事（PG-017 §3.7）。
 - **Q4 拆几个 PR？** 推荐 P1、P2、P3 各一个，P1b 单独一个。P1 改动面大（十一个插件的 Manifest、十来个测试夹具）但都是搬位置，没有行为改动。
-- **Q5 验收编号。** 本稿先用 `PG022-NN`（P1）；若统筹要 `RAC-NNN` 号段请给，我改。PLIB-11 由本稿的测试证明。
+- **Q5 验收编号。** 已改成 RAC-300～305（本线号段 RAC-300～329、BL-525～534）。PLIB-11 由本稿的测试证明。
+
+### 统筹 10-24 裁
+
+- 推送：`claude/ac-pg022-manifest-declarations` 和此后每个本地分支都推到远端；PR 暂不开，等本线 #1119、#1139 合入。
+- 号段：本线用 RAC-300～329、BL-525～534；PG022-NN 已改成 RAC-300～305；要 S 号先问统筹。
+- `homeLibraryFor` 不从宿主入口导出。拒绝启动要落到安装记录的 `last_error_code`，码是它自己的 `plugin.declaration_invalid`，不被压成 `plugin.executor_failed`（#1139 对 `sandbox.service_not_given` 已是这样）；Runtime 若压平，在本 PR 里修传递。RAC-304 现在装一个不在名单上的定义、启动、断言 `last_error_code`。
+- Q1 / P1b：同意，紧接 P1。发布者身份取自安装记录（签名或发布者字段），不取自 Manifest 自述；换发布者拒绝。安装记录里若没有可信的发布者字段，停下来问统筹（连着 ac-trust 线的 PG-001）。
+- Q2：文件合成一套之后只留一个名字、一个服务（名字按 `docs/system/GLOSSARY.md`），同一个 PR 改所有调用方，不留兼容期、不做薄委托（别名反正在 W6-01 删）。沙箱永远拿不到 `ownerFiles`（这条「不做」在等用户确认）。
+- Q3：同意，不等模型 broker。Q4：同意，四个 PR：P1、P1b、P2、P3。
+- 顺序：P1 修正（错误码传递、去掉导出、RAC 号）→ 推送 → P1b → P2 → P3，全部本地并推送；本线两个在途 PR（#1119、#1139）合入后才开 PR。
 
 ## 7. 验收（P1）
 
 | 编号 | 断言 | 测试 |
 | --- | --- | --- |
-| PG022-01 | Manifest 的 `databases.home` 形状逐条拒绝：名字、版本、`schema`、权限不在 `permissions`、不认的字段、`partition` 不是 `"project"`；`databases.project` 带 `partition` 被拒 | `tests/plugin-project-database-ledger.test.ts` |
-| PG022-02 | 十一个内置插件的库都在 Manifest 的 `databases.home`；启动名单、目录条目与入口类型上不再有 `database`；读写同原来一样 | `tests/home-library-declaration.test.ts`、`tests/home-plugin-platform.test.ts`、`tests/dataset-promote-authority.test.ts` |
-| PG022-03 | 存储登记的插件库全部从 Manifest 推出，与迁移前逐项相同（路径、主人、基线、分区），目录条目的 `home_store` 不再带 `library` | `tests/plugin-project-database.test.ts` |
-| PG022-04 | 拒绝：声明了库名但登记在别人名下、基线与登记不同、分区与登记不同、登记里没有这个库、Home 里别的条目名（`feed`、`config`）、沙箱定义、没有 Home 的平台——都拒绝启动，一个库都不建 | `tests/plugin-project-database.test.ts`、`tests/plugin-database-partition.test.ts`（PART-01） |
-| PG022-05 | 不在宿主启动名单上的定义（装进来的、带着内置插件的 `plugin_id` 与同样的 `databases.home`）被拒，码 `plugin.declaration_invalid`，什么都没运行，打不开别人的库 | `tests/plugin-project-database.test.ts` |
-| PG022-06 | 分区库的 `project_data` 清理仍成立（读 Manifest 的 `partition`）；删项目时库被清 | `tests/plugin-database-partition.test.ts`（PART-03）、`tests/plugin-database-partition-deletion.test.ts` |
+| RAC-300 | Manifest 的 `databases.home` 形状逐条拒绝：名字、版本、`schema`、权限不在 `permissions`、不认的字段、`partition` 不是 `"project"`；`databases.project` 带 `partition` 被拒 | `tests/plugin-project-database-ledger.test.ts` |
+| RAC-301 | 十一个内置插件的库都在 Manifest 的 `databases.home`；启动名单、目录条目与入口类型上不再有 `database`；读写同原来一样 | `tests/home-library-declaration.test.ts`、`tests/home-plugin-platform.test.ts`、`tests/dataset-promote-authority.test.ts` |
+| RAC-302 | 存储登记的插件库全部从 Manifest 推出，与迁移前逐项相同（路径、主人、基线、分区），目录条目的 `home_store` 不再带 `library` | `tests/plugin-project-database.test.ts` |
+| RAC-303 | 拒绝：声明了库名但登记在别人名下、基线与登记不同、分区与登记不同、登记里没有这个库、Home 里别的条目名（`feed`、`config`）、沙箱定义、没有 Home 的平台——都拒绝启动，一个库都不建 | `tests/plugin-project-database.test.ts`、`tests/plugin-database-partition.test.ts`（PART-01） |
+| RAC-304 | 不在宿主启动名单上的定义（装进来的、带着内置插件的 `plugin_id` 与同样的 `databases.home`）被拒，码 `plugin.declaration_invalid`，什么都没运行，打不开别人的库 | `tests/plugin-project-database.test.ts` |
+| RAC-305 | 分区库的 `project_data` 清理仍成立（读 Manifest 的 `partition`）；删项目时库被清 | `tests/plugin-database-partition.test.ts`（PART-03）、`tests/plugin-database-partition-deletion.test.ts` |
 | PLIB-11 | Home 库的声明只在 Manifest 的 `databases.home`，可信条目上不再有 `database:` | `tests/home-library-declaration.test.ts`（读源码断言条目类型没有 `database`） |
 
 ## 8. 开工前核对（2026-10-23，`gh pr list` 的文件清单）

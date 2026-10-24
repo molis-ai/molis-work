@@ -9,7 +9,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("PLIB-11 PG022-02 a Home library is declared only in the Manifest's databases.home: no start entry type, catalog entry or registration carries a database, and every shipped library is the Manifest's", () => {
+test("PLIB-11 RAC-301 a Home library is declared only in the Manifest's databases.home: no start entry type, catalog entry or registration carries a database, and every shipped library is the Manifest's", () => {
   for (const file of ["apps/local-host/src/plugin-platform.ts", "apps/local-host/src/home-plugins.ts", "apps/local-host/src/plugin-owner-files-entries.ts",
     "apps/local-host/src/plugin-database-entries.ts", "apps/local-host/src/plugin-project-cleanup.ts", "packages/contracts/src/platform/plugin-registration.ts"]) {
     assert.doesNotMatch(source(file), /readonly database\??:/u, `${file}: an entry type with a database`);

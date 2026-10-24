@@ -14,7 +14,7 @@ import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, captureHostLog, createPluginPlatform, homeLibraryFor, homeStores, molisWorkHostProjectReference, seedDemoBoard,
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, captureHostLog, createPluginPlatform, homeStores, molisWorkHostProjectReference, seedDemoBoard,
   type HostLogEntry,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -151,7 +151,7 @@ test("beforeEffect decides the write: a transaction whose beforeEffect refuses w
     } finally { item.store.close(); }
   }));
 
-test("PG022-05 only a definition the Host's start list holds is given a library: one listed whose Manifest declares none has none, and another definition that carries the same plugin id and asks for the library in its Manifest is refused with plugin.declaration_invalid and runs nothing, installed over the declared one",
+test("RAC-304 only a definition the Host's start list holds is given a library: one listed whose Manifest declares none has none, and another definition that carries the same plugin id and asks for the library in its Manifest is refused with plugin.declaration_invalid and runs nothing, installed over the declared one",
   withDirectory(async directory => {
     const first = platformIn(directory), declared = probe(), undeclared = probe({ name: "plainprobe" }), lookalike = probe({ version: "1.1.0" });
     try {
@@ -164,12 +164,14 @@ test("PG022-05 only a definition the Host's start list holds is given a library:
       await assert.rejects(first.platform.runtime.upgrade({ install_id: first.installId(declared.id), definition: withLibrary(asking.definition, DECLARATION),
         grants: [STORAGE.permission, READ.permission, WRITE.permission] }), /启动失败/u);
       assert.deepEqual(first.platform.runtime.list().map(record => [record.state, record.version]), [["running", "1.0.0"], ["running", "1.0.0"]], "the refused version left the plugin as it was");
-      // The Runtime reduces a start failure to one generic error, so the refusal itself is asked of the Host's rule.
-      const asked = withLibrary(asking.definition, DECLARATION);
-      assert.throws(() => homeLibraryFor(asked, undefined), { code: "plugin.declaration_invalid", message: /没有把这个库给它/u });
-      assert.equal(homeLibraryFor(asked, DECLARATION), DECLARATION, "the list's own answer is what a listed definition is given");
-      assert.equal(homeLibraryFor(asking.definition, undefined), undefined, "a Manifest that asks for none is given none");
       assert.equal(asking.started.length, 0, "it ran nothing, so it read and wrote nothing of the library");
+      // A definition installed beside the list is refused the same way, and the Runtime's record says why under the refusal's own code.
+      const installed = probe({ name: "askprobe" });
+      const { install } = first.platform.runtime.install({ definition: withLibrary(installed.definition, DECLARATION), deployment: "local",
+        grants: [STORAGE.permission, READ.permission, WRITE.permission] });
+      await assert.rejects(first.platform.runtime.start(install.install_id), /启动失败/u);
+      assert.equal(installed.started.length, 0, "the installed plugin's code never ran");
+      assert.equal(first.platform.runtime.get(install.install_id).last_error_code, "plugin.declaration_invalid", "not the Runtime's generic executor failure");
       // The entry is about the definition object the Host listed. A different one with the same plugin id, here a version put over
       // the declared plugin, is not it.
       await first.platform.runtime.upgrade({ install_id: first.installId(declared.id), definition: lookalike.definition,
@@ -291,7 +293,7 @@ test("a library is the plugin's only while the plugin runs: after stop, after a 
 
 // W4-11: each shipped plugin's library is registered to that plugin, so only it (or the Runtime plugin that replaces it under
 // the same id) is given it; the refusals above show every other owner's library is refused to anyone else.
-test("PG022-03 every shipped plugin's Home library is registered to that plugin, at the baseline its Manifest declares (databases.home), and a catalog entry's home_store never carries a library of its own", () => {
+test("RAC-302 every shipped plugin's Home library is registered to that plugin, at the baseline its Manifest declares (databases.home), and a catalog entry's home_store never carries a library of its own", () => {
   const shipped = BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
     const library = entry.manifest.databases?.home;
     assert.equal(entry.home_store?.library, undefined, `${entry.project_plugin_id}: its library is the Manifest's, written once`);

@@ -136,7 +136,7 @@ test("PLIB-03 tried on the scratch database, a declaration may make only its own
     "CREATE TABLE notes_items (project_id TEXT REFERENCES project_root, note_id TEXT PRIMARY KEY); CREATE TABLE notes_tags (note_id TEXT REFERENCES notes_items);" } }).created, true);
 });
 
-test("PLIB-03 PG022-01 the Manifest's databases declare a project library and a Home library, each with a store name, a positive version, statements and declared permissions; only the Home one may be partitioned by project", () => {
+test("PLIB-03 RAC-300 the Manifest's databases declare a project library and a Home library, each with a store name, a positive version, statements and declared permissions; only the Home one may be partitioned by project", () => {
   const manifest = (databases: unknown) => ({
     schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
     publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],

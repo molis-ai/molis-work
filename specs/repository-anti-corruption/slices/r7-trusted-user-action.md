@@ -57,3 +57,9 @@
 - 故障有效性：临时让 `projectRouteControl` 沿用调用者而不写可信出处，重建 local-host 后 RAC-184 退出 1，实际出处 `undefined` 不等于 `web`。恢复完整生产文件并整体构建后，本文件 8 项测试全部通过；故障不在提交里。
 - 定向：`security-invariants-trusted-user-action` 8、`security-invariants-doc` 1、`action-authority-tail` 10、`action-before-effect` 23、`action-retained-authority` 6、`action-authorship-dispatch` 2，共 6 文件 50 项通过。整体 `pnpm build`、包边界、API 快照、健康门禁通过；健康与资源检查基点为 `acc71ae473`。27 个页面资源共 7,811,882 字节，未增加额度，API 保持本片原有两个快照变化。
 - `affected-tests` 仍要求共享核心全量：按统筹安排交下一统一验证窗口，本次未跑全量、未作用户验收。长生命周期入口是否在处理器域内创建仍在该窗口核实；发现拒绝先查作用域，不放宽安全断言。
+
+## 7. 入口竞争回归夹具补修（2026-10-23）
+
+`tests/host-entry-consistency.test.ts` 要模拟独立管理入口与 MCP 读取竞争；旧夹具在读取处理器的同步 hook 里直接发管理写入，因此实际继承处理器的 AsyncLocalStorage，新增 `user_action` 应由 RAC-180 拒绝。其 finally 再次等待已拒绝的写入，使后面的 Host/HTTP 关闭被跳过，失败进程无法退出。只修夹具：在任何动作处理器外创建独立 AsyncResource，hook 当场经其作用域发起管理调用，保留原竞争时机、first/later 列表、幂等重放与 Session 审计断言；清理逐项等待并收集失败，任一拒绝也继续关闭剩余资源。不改生产身份检查或任何门禁。原样与清理诊断用独立临时目录、独立进程组、60 秒上限；超时只回收本次进程组与目录。
+
+验证：源提交 `2304389cd388362835d275a90ffb714346a3fea9` 整体构建后，原样首条在约 2.7 秒报 `kernel.user_action_untrusted` / forbidden，进程仍活到 60 秒被本次有界运行回收。仅修清理的中间诊断保留同一拒绝，约 7.7 秒自行退出 1、没有超时或取消，证明清理不再被拒绝短路。加入独立入口作用域后，原文件 2/2 通过、约 9.5 秒退出 0；三次独立临时目录都已删除。已有 `security-invariants-trusted-user-action` 8 条与 `action-authorship-dispatch` 2 条全部通过，含处理器内及返回后伪造拒绝。最终改动仅测试和本规格，不为夹具改动重复整体构建或浏览器验证；全量继续交统一集成批次。

@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
-import { createLocalFeedApplication, createLocalFeedSourceService, openHostShelfStore } from '@molis-ai/molis-work-app-local-host';
+import { createLocalFeedApplication, createLocalFeedSourceService } from '@molis-ai/molis-work-app-local-host';
+import { openTestShelfStore } from './shelf-direct-actions.js';
 
 test('real browser creates a Feed → Shelf action workflow, maps fields, and writes the original material', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
@@ -68,7 +69,7 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   await b.waitFor("!document.querySelector('iframe[data-plugin-embedded]')");
   await waitFor("[...document.querySelectorAll('.wf-vstep .mw-state-ring')].length === 2 && [...document.querySelectorAll('.wf-vstep .mw-state-ring')].every(node => node.dataset.mwState === 'done')");
   assert.equal(await evaluate("document.querySelector('.wf-vlink__label .mw-state-ring')?.dataset.mwState"), 'done');
-  const shelf = openHostShelfStore(b.homeDirectory, { disabled: true });
+  const shelf = openTestShelfStore(b.homeDirectory, { disabled: true });
   const saved = (await shelf.snapshot()).materials.filter(row => row.name.includes('端到端工作流验证'));
   assert.equal(saved.length, 1);
   assert.match(shelf.readFile(saved[0]!.item_id).bytes.toString('utf8'), /这是端到端字段映射的原始正文/);

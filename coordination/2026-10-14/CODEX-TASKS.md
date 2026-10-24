@@ -37,21 +37,21 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | PR | 一轮评论 | 要修 | 二轮 |
 | --- | --- | --- | --- |
 | #1228 | 6387362602 | 提供方 id 常量与权限来源；RAC-339 证据范围 | FIX3已修固定 `ed3985f188856e829fd5233aa23ada80cd8a26b5`；二轮6388105405、TEST6388119074 PASS。Assistant线程本来需model:invoke，原“多给”仅该子结论不成立并保留实际权限；旧Search fixture只迁合法身份。80唯一文件706项有效，CI40121335561/最终批仍另核；源码释放后FIX3按Root转#1226 |
-| #1226 | 6387391426 | settleReview保持readDecision的this receiver，补真实端口回归 | FIX3已一次正常push `1d400d25408544e5ab28c645630fcfe80afca4bb`（ef71后4文件+200/-82，生产+3/-2）；公开6388517999，真实旧1/3→新3/3，24唯一文件180有效/两build及门禁通过。已直交二轮/TEST，结论待；只Receiver单轮，不重复巨大单元原首评/不改SDK和断言，新头CI/批full另核 |
+| #1226 | 6387391426 | settleReview保readDecision的this receiver | FIX3固定1d400d25408544e5ab28c645630fcfe80afca4bb，二轮6388570552 PASS；真实旧1/3→新3/3、24文件180有效，原fixture校准失败保留。TEST当前优先核此窄增量，尚未正式结论；原巨大单元一轮复用，新头CI/批34完整full/actual另核 |
 | #1229 | 6387428971 | `translation-check:467` 的过时注释 | FIX2固定 `c2a66516784bb1c6341ccecdd2b6eec5de343bc4`，仅注释+2/-1，断言不变、去注释JS逐字相同、语法/diff/secrets0；二轮6388272667 PASS。整个Workflows原PR待最终批，不能把注释修复当全PR已合 |
 | #1232 | ac-review6387465387 / Codex6387505760复用 | 页面真实DOM负断言与灵光已minify的served源码检查，文档范围写准 | FIX4固定 `887b8ee76361289cd46eec27a0e85569776c5243`，二轮6387989321、TEST6388063111 PASS。实际词只在i18n脚本，3种真实UI变异仍拒绝；灵光保内容/字节23209一致。原首败保留，未改生产/门禁；整条#1229→#1232进最终批。FIX4已转#1239 |
 | #1230 | 6387490072 | S-54补RAC-463；opened失败能重试，缺能力不误播空workspace | FIX1固定 `c887e11c985632b1f5add9a3f83a4dd503bf0f8d`，二轮6388234113、TEST6388250799 PASS；修复真实3红→新8/8，62唯一文件563项有效。仅S54引用、不动drain契约，CI40122537049/整功能最终批另核；FIX1源码已释放 |
 | #1227 | 6387370902 | 无，直接进批 | 不需要 |
-| #1238 | 6388105657 | 同一文件三处catch分清回答与失败，精确not_found安静，其余安全hostLog | FIX5已一轮齐修并正常push固定 `55fc9f14715a574d122c87da479e516215748d55`（相对c72仅3文件+183/-15）；真实HTTP/SQLite/SDK三红→日志5PASS，6文件37有效，旧23+19按范围复用。源码clean/released，已直交二轮/TEST，尚待正式结论/新头CI；原c72绿不跨推。C1作者只做独立desktop，不同时改此文件 |
+| #1238 | 6388105657 | 同文件三catch按真实正常/失败分类 | FIX5已固定释放55fc；二轮6388469609与TEST6388652106 PASS，6文件37项有效、原fixture首败保留。新CI40124435473十四适用成功/probe skip，CI树43a=bde+55fc非裸树，Product206+206首过；README56仅24本scope适用、余32明确未齐。Root已排TEST先1226窄增量，再按公共资源补确缺32，旧3ce不白跑；不得借bf09/331或把scoped PASS写整体验证齐。public候选6388726367，适用证据齐再依Claude路径排期/正常队列，未actual不关C1 |
 | #1239 | 6388031418 / 6388049535 | B2b用途隔离、采集限额、S12与严格原后端恢复文档 | 唯一修复owner FIX4 `01a16f15-e025-71a3-adac-2e84f0e83fdd`，以冻结b9af98fd430e7451ad0a267e3fc2bc9aab1d7944接同轮全意见；C2已18:53:15Z明确零改动释放认领6388158312，不开第二writer。payload加用途/owner/Home绑定且不改既有vault格式，限额拒绝不截断/跳cache；恢复只找回原file/env/Keychain后端钥匙，不凭新ENV切后端。具体行为/额度按Root现行裁定；新头后修后复审/TEST。旧Functions首次超时、Keychain候选/干净006各8/8证据保留，不能判负载或首全绿 |
 | #1234 | 6387698407 | **挡合并**：`SECURITY-INVARIANTS.md:81` S-67 正文的「操作 id + 输入」换别的引号（S-20 把「」当测试名，Security invariants 1/2 红，同 #1187）。不挡合并：①受理期间 broker 停止，那条运行逃过取消；②cancel 不查被取消运行的目标；③S-67 三条真进程用例只在 mac 跑，挪到「只在本机跑」那栏，S-66 行补缺的一栏；④S-67 第②道门（宿主客户端）在沙箱路径补测试 |专职FIX5 `01a16f24-7a33-76f2-80b4-f20c55006d09` 已Root实际START，原71e4d059分支一轮齐修 |
-| #1240 | 6388577861 | **统筹升为挡合并**：①一条坏记录会让项目删不掉——`ProjectDeletionService` 查终端存活时走完整读取 `listDesktopPanels`，删除返回 500，而列表和关闭也都拒，产品里没有路径清掉它；存活检查只读 `panel_id`，补测试：带坏记录的项目能删，记录随项目清掉。②写入侧 `panels.ts:42` 的 `map(String)` 改成用 `desktop.launch_args_invalid` 拒绝，就在本 PR 改，不排后续 | |
+| #1240 | 6388577861 / 统筹6388582397 | 挡合并：坏launch_args不能卡整项目删除；写侧强转同PR收口 | FIX1 sole已Root START/公开6388670438，基于冻结3ce独立树；owner窄ID查询+真实删除/非法写入红绿。Root后续B细化：原坏读launch_args_invalid/internal500不变，写入新launch_args_input_invalid/invalid400，HTTP去coercion原样交owner。新head/二轮/TEST尚待，C1原作者不并写，未actual不关 |
 
 | 序 | 独立片 | 状态 |
 | --- | --- | --- |
 | C1 | W5-13 收尾：宿主日志与吞掉的错误（§2） | #1231 bf09已逐片审验，README缺32补齐；#1238现55fc同轮修后待二轮；作者独立RAC117 desktop完整PR收尾，不算C1整线完成 |
 | C2 | W5-16 B2b：Home 快照与恢复（§2） | B2a随1222/006已合；#1239 b9已一轮，当前FIX4唯一同轮修复，C2原writer零修改释放。完整A/快照恢复仍原owner未完成 |
-| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元（§2） | 待开工 |
+| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元（§2） | Root已给实现1明确接续：先核C1未实现缺口，有独立项沿C1继续；若源码全覆盖只待三个PR落地，直接START Gmail首区域纯拆（4现存源码/5单元），鲜核实际claim，不等前片merge。当前实际选择/新head待作者交付 |
 | C4 | W5-11：OAuth 移进官方集成插件（统筹 10-23 定） | 待开工，接在 C3 后（同一块代码）；号段开工前问统筹 |
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
@@ -68,9 +68,15 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 >
 > **当前独立接续**：#1237固定7eb已19:27:04Z actual `87ebba4c769557f9548d66310d76eb4e30b68bc9`；parent bde/tree1f9b385babfa64ae94d01ac436ef1d7fd56a4450等真实试合，12路径源→实际零diff/main包含。二轮6387881227/TEST6388153277、PRCI40120148369十四成功及唯一正常queue40124785872/Verify120965005904成功（10成功3条件skip）均核；6388559742及原1216/6388559951实际关闭该P2，首导航红/唯一恢复/六uncovered映射边界原样保留。FIX2现#1229注释c2已二轮PASS，其余固定候选按§0a接Claude下一批。
 >
-> **C1 RAC117完整交付**：非Draft #1240 固定 `3ce6270b7297382a9e07051c35959b4b89d882bf`，直接parent fe285283172e025abf05e671052b83687d0ee9cc、实际merge-base7a2；6文件+259/-10/clean，最终仅CI一行+slice说明，生产/业务test逐字同已测fe285。Root已定严格A，11唯一文件143/143/0skip含必要CI-list19，真实公开Catalog/SQLite/Desktop HTTP红绿、两整体build/native真实Rust及必要门禁有效；Linux/同头CI/独立TEST另核。流水线6388538710已公开交ac-review一轮，Root确认本轮用户已停止Claude UI，流水线不再操作或重启该应用，不派Codex代首评；尚待既有非UI链路自然实际认领，绝不把公开请求当已开始。TEST已直收准确头，作者source释放，不阻C2/其他修复。原件 `/tmp/molis-verify-2026-10-24/c1-rac117/handoff.md`。
+> **C1 RAC117当前修复（替代旧待认领状态）**：#1240冻结 `3ce6270b7297382a9e07051c35959b4b89d882bf` 已ac-review6388577861；原统筹6388582397将坏参数阻塞整项目删除升为挡合并，写侧强转同PR收口。Root已START FIX1 sole，公开认领6388670438，独立 `desktop-launch-args-fix/goalboard`，C1原作者保持冻结/source释放。Root细化B：原坏存量 `desktop.launch_args_invalid/internal500` 保留，非法写入新 `desktop.launch_args_input_invalid/invalid400`，不改SDK类别映射。窄panel-ID owner查询保live-terminal/确认/幂等/删除清理；DesktopPanelCatalogApi/Repository只补listIds，生产HTTP入口去map(String)原样交owner严格校验。修后固定头直二轮/TEST，原143项仅旧头边界。已给F1下一空闲build一次原3ce红例前整建，实际machine-slot取得后运行，browser现有Claude批不碰。不是新权限/人类待批，不再催首评，不操作/重启已停Claude UI。
+>
+> **C1其余实际证据/下一片**：#1231固定bf09cc3a76d406e9ab84a0a223a8f53221368b30，正式TEST6388585347核原CI24+新32文件238/238无重合，README基本56齐；原Cookie基线红/TS2531保留，未冒整个C1/实际merge。#1238状态见§0a，旧c72那32未起，不借bf09。实现1新片按Root C1缺口核查→条件满足才Gmail C3接续，不把计划写START。
+>
+> **FIX2新实际START**：#1237 actual后Root已将原1210/6384193830第2项交FIX2独立实施：uninstalled hook失败会跳过definition清理，当前main87eb runtime/index628–632仍真实存在；Root已分页核14在途无该文件。保失败/真实链接拒绝/其他安装/权限/重放，只此一题新树与红绿，完整PR后ac-review一轮；1210 actual006依赖已满足，不再等旧单writer/真merge窗口。原1112三P2不混本题。
 >
 > **C2 A实际START**：RAC105既有A合同内，独立actual-main-bde树的新 `packages/storage/src/adapters/storage-owner.ts` 与真实公开入口跨进程回归/fixtures已明确给实现2实际编码，不等B2b/Memory整体merge。Root已直接定清同锁上提/opaque父借用与stdio转发可信context、常驻Host薄入口合同；不再泛称等待Root安全裁定。生产stdio/contextTools等实际Catalog写入口须随A最小完整接线闭合，不能先合Host独占留下绕行；保Origin/token/nonce/数字回环/Host instance/取消，身份取可信context而非用户arguments，不新权限/锁/通用RPC/本地写回退。FIX4当前公共出口/README/同一slice/S12按实际hunk固定释放后串行追加A，不等CI/merge；Memory只协调真实同hunk，不将整条Memory当前置。完整A/快照恢复未完成，不把新模块半成品另开PR；本次无需build/browser/full，真实Home不动。
+>
+> **A已核的具体窗口**：远端Memory #1064固定93b76797a3e13f561e18dd72994b39f717746cd1，#1101现21c549d3aaea84286b7335e3b892ce18f0671283（Draft保持，不能沿旧dd）。已亲读三路径diff及A0当前树：node owner wrapper/createNodeHost storageRoot+exclusiveOwner段同actual bde，A0未提交1232/1321/1379非此段，不能把A0老HEAD差异当当前main冲突。已给C2仅wrapper父借用、node-kit storageRoot邻接proof、system-agent-service对应owner字段的窄窗，公开1064/6388622538；保Memory authority/observer/业务关闭顺序、不动他人树。后续composition.dispose缓存失败清disposal窄段也纳A窗，disposed仍true/不自动重试/全部关闭成功才还lease。Root另定Molis adapter storageRoot必需显式绝对，现生产两入口已有root，缺省前置拒绝，同步类型/真实调用方与隔离回归，不动上游SDK默认。#1240 FIX1只删除ID检查/desktop写侧/Catalog窄接口，C2明确不碰；MCP删除仍薄转唯一owner。FIX4公共index/spec/README/S12按实际hunk释放后串行追加，不等整PR合入；公共生成物在真实组合树统一。
 
 > 2026-10-24 16:35 UTC **最新人类指令覆盖下列旧source排期**
 >
@@ -333,7 +339,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | C0 | **main 的 macOS 红（先于 C1）**：自 #1079（S-56）起 `SandboxSdk.interaction` 写成 `import('./plugin-interaction.js')` 的相对导入，发给生成项目的 `developer/sdk.d.ts` 解析不了，`tests/agent-built-plugins-checks.test.ts`（创作台 G2）与 `tests/agent-built-plugins-workflow.test.ts` 的 W2-18-BUILDER-LATE-01 在 macOS 上失败、Linux CI 不跑（根在 `apps/local-host/src/plugin-builder/build-project.ts` 的 `sdkDeclaration()` 只拷 plugin-sandbox 一份声明，#1147 作者 10-23 核过）。修法：让发出去的 SDK 声明自包含（内联该类型或在生成时一并带上），断言不放宽；创作台本轮不删只绕过，但 main 的红要修。写进 `known-red-main.md` 直到修好 | — | **已完成**：#1136 合入 main（`15b656648`，10-23）。`known-red-main.md` 里这条由 Codex 移除 |
 | C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 实现1保持完整owner。1151/ee2958、1183/f586、1215/1712已合；1231 bf09单片及32README缺例有效，1238日志55fc由FIX5修后待二轮，desktop RAC117按Root严格A已实际收尾及CI唯一行。固定PR后ac-review一轮，实际merge前各片不关闭，C1整体未完成 |
 | C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 实现2保持完整owner。B1随1202/645、B2a e20随1222/006实际合；B2b #1239 b9已完整交付一轮，FIX4接全部有效意见且C2已零改动释放，避免重复writer。A早期同Home lease、全库/非SQLite完整snapshot/restore与真实Home R41未完成；沿已接受A/B合同，不复活online quiesce或旧待批限制 |
-| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | 待开工 |
+| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | Root已给实现1C1核全后可直接START官方Gmail首区域纯拆；4源码/5单元、HUGE-CLASS-MIGRATION现行行，API/行为不变，一个完整区域PR，公共baseline留批，ac-review一轮/Claude唯一full。不碰静态catalog例外、Memory、design-system或OAuth搬迁；实际START/选择尚待回执 |
 
 ### C1 W5-13 收尾
 

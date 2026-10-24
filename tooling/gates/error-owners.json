@@ -92,12 +92,6 @@
       ],
       "reason": "The Characters module and the Host files that assemble, serve and run it (the plugin was removed in CHR-1); character.* becomes characters.* (spec W3-02 R4c)."
     },
-    "coding": {
-      "paths": [
-        "apps/local-host/src/coding-*"
-      ],
-      "reason": "The Coding plugin's Host side (surface, background tasks, shelf material); its codes start with coding."
-    },
     "computer": {
       "paths": [
         "apps/local-host/src/computer/"

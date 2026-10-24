@@ -44,6 +44,6 @@ export const imagesManifest: PluginManifest = {
   artifacts: { produces: [], consumes: [] },
   ui: {
     contributions: [IMAGES_UI_CONTRIBUTION_ID],
-    views: [{ view_id: "directory", slot: "navigator", title: "图片", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", order: 60 }],
+    views: [{ view_id: "directory", slot: "navigator", title: "图片", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", order: 60, group: "make" }],
   },
 };

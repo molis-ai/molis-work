@@ -60,4 +60,7 @@ export const FILES_MESSAGES = {
   "文件已改变，请刷新并查看后再固定快照": { zh: "文件已改变，请刷新并查看后再固定快照", en: "The file has changed. Refresh and look again before pinning it." },
   "选区已经失效，请重新选择": { zh: "选区已经失效，请重新选择", en: "The selection no longer holds. Select it again." },
   "内容超过快照上限，请选择较小的文本片段": { zh: "内容超过快照上限，请选择较小的文本片段", en: "That's over the snapshot limit. Select a smaller passage." },
+  "files.stage.manage": { zh: "工作目录设置", en: "Working folder settings" },
+  "files.stage.empty-title": { zh: "打开文件，开始阅读", en: "Open a file to start reading" },
+  "files.stage.empty-body": { zh: "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。", en: "Choose a file from the folder to read it, save a selection, or pin two snapshots to compare." },
 } as const;

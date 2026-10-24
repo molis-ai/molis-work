@@ -6,13 +6,14 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, molisWorkHostProjectReference, releaseProjectPlugins, scheduleServiceFor, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, releaseProjectPlugins, scheduleServiceFor, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
 import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID, reminderActions, scheduledOperationActions } from "@molis-ai/molis-work-plugin-schedule";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { scheduledOwnerPlugin } from "./fixtures/schedule-runtime.js";
+import { codingView } from "./fixtures/coding-view.js";
 
 /**
  * PLIB-04 (the Host half, L1b; specs/plugin-project-database/spec.md §2.3): when the Host opens a project's library, a plugin
@@ -69,10 +70,10 @@ async function pluginsInDirectory(home: string, projectId: string, databasePath:
 async function codingPanel(databasePath: string, projectId: string): Promise<string> {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    const surface = await codingDirectoryPanel({ store, ...openProjectVersionStores(store), projectId, actions: pluginActions(store, projectId), actorId: "web-user",
-      escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), translate: value => value });
+    const panel = await codingView({ store, ...openProjectVersionStores(store), projectId, actions: pluginActions(store, projectId), actorId: "web-user",
+      escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") });
     await releaseProjectPlugins(store, projectId);
-    return surface?.panel ?? "";
+    return panel;
   } finally { store.close(); }
 }
 

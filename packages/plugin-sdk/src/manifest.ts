@@ -13,6 +13,7 @@ import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
 import { imageGenerationDeclarationProblems, modelConfigurationDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
+import { createStations, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
 
@@ -249,6 +250,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
   if (!Array.isArray(ui.views)) return ["ui.views 必须为数组"];
   const problems: string[] = [];
   const contributions = new Set(parsed.ui.contributions);
+  const stations = createStations(parsed);
   const seen = new Set<string>();
   for (const view of views) {
     if (!text(view.view_id)) {
@@ -271,6 +273,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     if (!contributions.has(contributionId)) {
       problems.push(`视图 ${view.view_id} 的 contribution ${contributionId} 未在 ui.contributions 声明`);
     }
+    problems.push(...viewPlacementProblems(view, stations));
   }
   return problems;
 }

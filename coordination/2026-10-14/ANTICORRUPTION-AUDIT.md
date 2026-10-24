@@ -462,3 +462,22 @@
 - 未核（需 build/运行）：Jelly「Home Runtime 注册全部 53 动作」与 Coding「19 项 coding.* 动作」——只读 grep 不足以数动作快照，标 UNVERIFIED，不阻塞。
 - **协同备注（防重复）**：#1130（Sessions 下线 SC-4）合入会删 `plugins/native/work` 包、目录条目与冻结名单 "sessions"；届时 SSOT:50/174 计数（71→70、native 25→24）、§7 work 行（155）、§8 说明需同一片更新——建议统筹在 #1130 合入时一并写，不另派。
 - 下一轮：全表复核（§3 基线清单 + 各轮 PASS/未关闭项）+ task-13 复核（分支仍未出现）+ 收尾报告。
+
+## 6.3 复核 task-13 PR #1168（2026-10-24，只读）
+
+- 复核对象：PR **#1168**（draft、base `main`、head `8d748bd3b9d35c0171e4b07b09dae778a374685d`、`MERGEABLE`、5 files、+18/−44）：`apps/local-host/src/personal-native-plugin-http.ts`（整文件删除 −17）、`apps/local-host/src/web-request.ts`（+18/−33）、`tests/builtin-plugin-assembly-gate.test.ts`（−1）、`tests/personal-plugins-review-fixes.test.ts`（7 行）、`tooling/gates/baseline.json`（2 键、只降）。未改 `privileges.md`，diff 只含预期文件。
+- **结论：按 §6.2 v2 清单复核通过（PASS），可等 CI 全绿后合入**；1 条 non-blocking 文档建议（下方 A）。
+
+### 逐项核对（对应 §6.2 六步）
+
+1. **个人桥删除**：`personal-native-plugin-http.ts` 整文件删；PR head 上 `git grep handlePersonalNativePluginHttp` 为空、`git grep nativePluginRoutes` 为空。
+2. **alchemist 显式直连**：`web-request.ts` 删除 `nativePluginRoutes` 数组（原唯一 `personal` 条目）与 `...nativePluginRoutes`，替换为一条内联 `{ id: "alchemist", handle: … handleAlchemistNativePluginHttp(request, response, url, { projectId, routePrefix, actions: { invoke } }) }`，不经 `withRewrittenPluginApi`；保留 `pluginRouteControl`（import :8，路由内生命周期检查）、`ActionError`（合并进 `@molis-ai/molis-work-contracts/platform/actions` 的 import，继续抛 `actions.forbidden`「缺少请求生命周期」/`actions.unavailable`「宿主已停止」）、`ALCHEMIST_ACTION_PERMISSIONS` 与 `userActions(...).invoke` 端口；`Boolean(serverOptions.homeDirectory)` 条件保留。路由条数净不变（原 1 条 spread → 1 条内联）。
+3. **冻结名单**：`NATIVE_PLUGIN_HTTP_FILES` 5→4（只删 "personal"）；`BUILD_TIME_ASSEMBLED`/`RUNTIME_ASSEMBLED`/`HYBRID_RUNTIME_PLUGINS` 未改；assembly gate 其余断言未改。
+4. **测试与基线**：`personal-plugins-review-fixes.test.ts` 删 `handlePersonalNativePluginHttp` import、`listenDispatcher` 的 `ports` 参数与调用链；删两条别名断言（pages/form），保留 `rewriteNativePluginApiPath`、functions adapter、shelf 断言；`baseline.json` 仅 `testInternalImports` 444→443、该测试文件 6→5，均只降。
+5. **验证证据**：PR 描述列出 `pnpm build` exit 0、5 个定向文件全绿（8/8、16/16、18/18、9/9、8/8）、2 个 alchemist e2e 各 1/1、`pnpm boundary:check` exit 0。本审计在 PR head 工作树（`/tmp/ac-review-1168`）独立跑 `node scripts/check-health-gates.mjs --report` → **exit 0**（含 assembly/结构/文档引用门禁，「Document references: none broken」），门禁面无回归。
+6. **产品路径**：`plugins/native/alchemist/src/client.ts:25`（`/api/alchemist/studio/api/v1`）与 `registration.ts:17`（`/api/alchemist/studio`）仍由直连路由服务；仓库内无 `/api/plugins/<alchemist>` 构造；PR 已写明仓库外硬编码旧短名 URL 会 404（UNVERIFIED，符合「不留兼容期」决策）。CI 快照：Action contracts、Secret scan、Rust/Swift、Shell/Python SUCCESS；Gates/Health gate rules/Package boundaries/Security invariants/Product subset 在跑或排队；Linux probe 非必需 skipped。
+7. **修正后的 E14 口径**：合入后 PG-058 的宿主 HTTP 文件由「九份」→**4 份**（alchemist、artifact、feed、inbox），`NATIVE_PLUGIN_HTTP_FILES` 同步 5→4；`personal` 相关描述可一并删。
+
+### 建议（non-blocking，交统筹/W6-01 文档片，不阻塞本 PR）
+
+A. 文件删除后两处活文档仍把它写成现存接线：`skills/molis-plugin-dev/host.md:104`「Alchemist 再挂进 `personal-native-plugin-http.ts` 的 handler 列表」、`docs/system/RUNTIME-MIGRATION.md:86`「`personal-native-plugin-http.ts` 只剩 Alchemist」。建议同 PR 顺手改成「Alchemist 由 `web-request.ts` 的显式直连条目服务」；`host.md:93` 的「不要往 `personal-native-plugin-http.ts` 加条目」可保留历史语但建议改指新写法。`specs/action-architecture/migration.md:245,433`、archive 规格与 roadmap 属历史记录，不用改。记为 **AC-AUDIT-16**（non-blocker、文档准确性）。

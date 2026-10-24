@@ -138,3 +138,5 @@ Coding 的目标目录、当前约定/状态、进展保存和回执使用 `@mol
 Coding数据库声明升到2，只加nullable lifecycle_json；旧版严格拒绝。全局项目基线9不变。维护仅按spec在隔离副本演练，真实Home需另获采用授权。本职责持久接线在session-lifecycle.ts，SDK编排在session-archive.ts，无新增服务/表/journal。改动另必跑coding-session-archive、project-database-baseline、project-plugin-database-refusal，README原要求仍适用。
 
 当前阻塞：非空真实恢复会让归档期间已按Knowledge既有合同删除的自动卡重建，后台新增一次knowledge.organize，违反“恢复不启模型”的既定验收。普通重启对照无此调用；不能按aside过滤后宣称通过。跨owner暂归档保留协议尚未批准，未改搜索可见性/Knowledge规则，候选不可作为恢复完整交付。配对证据与范围决定记录在同Memory spec及会话临时提案。
+
+持久prepared尚未complete时，同Session原件/绑定与新执行写入明确拒绝；准入沿原调用control进入SDK/model之前，Store普通会话写在最终事务同turn重验。纯读及原archive/unarchive请求可继续，观察/wake不投影、不启动pending Session，另一Session保持独立。此准入只复用当前lifecycle记录，跨Node/SQLite及激活重开仍生效，不创建新锁表或journal。

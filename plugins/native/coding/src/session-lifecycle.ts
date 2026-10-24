@@ -2,6 +2,7 @@ import type { PluginDatabase, PluginDatabaseReader } from "@molis-ai/molis-work-
 import type { AgentSessionDecision, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { CodingSessionRecord, CodingBeforeEffect } from "./store.js";
+import type { CodingBeforeWrite } from "./route-entry.js";
 import { codingStoreErrors } from "./store-errors.js";
 
 export type CodingLifecycleObserved = Pick<CodingSessionRecord, "session_id" | "title" | "state" | "archived" | "goal_id" | "updated_at">;
@@ -25,6 +26,19 @@ const read = (reader: PluginDatabaseReader, projectId: string, sessionId: string
   return typeof value === "string" ? JSON.parse(value) as CodingLifecycleRecord : null;
 };
 
+/** The same durable fact fences routes, jobs and the final business transaction. */
+export const assertCodingSessionWritable = (reader: PluginDatabaseReader, projectId: string, sessionId: string): void => {
+  const current = read(reader, projectId, sessionId);
+  if (current && current.completed !== true) throw conflict();
+};
+
+/** Keep the caller's original authority and add admission; callers never regain an unfenced write control. */
+export function codingSessionWrite(beforeWrite: CodingBeforeWrite, store: CodingSessionLifecycleStore, projectId: string, sessionId: string): CodingBeforeWrite {
+  const assert_current = () => { beforeWrite.assert_current(); store.assertWritable(projectId, sessionId); };
+  return Object.assign(async () => { await beforeWrite(); assert_current(); }, { assert_current,
+    signal: beforeWrite.signal, original_input: beforeWrite.original_input });
+}
+
 /** Coding owns one current lifecycle original alongside its availability, over the same business transaction. */
 export class CodingSessionLifecycleStore {
   constructor(private readonly db: PluginDatabase,
@@ -38,6 +52,15 @@ export class CodingSessionLifecycleStore {
   current(projectId: string, sessionId: string): CodingLifecycleRecord | null {
     this.session(this.db, projectId, sessionId);
     return read(this.db, projectId, sessionId);
+  }
+
+  pending(projectId: string, sessionId: string): boolean {
+    const current = this.current(projectId, sessionId);
+    return current !== null && current.completed !== true;
+  }
+
+  assertWritable(projectId: string, sessionId: string): void {
+    assertCodingSessionWritable(this.db, projectId, sessionId);
   }
 
   async prepare(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, expected: CodingLifecycleRecord | null,
@@ -66,6 +89,7 @@ export class CodingSessionLifecycleStore {
   async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string,
     guard?: (current: CodingSessionRecord) => void, options?: { allowAlreadyArchived: true }): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
+      assertCodingSessionWritable(tx, projectId, sessionId);
       const current = this.session(tx, projectId, sessionId);
       guard?.(current);
       if (current.archived) {

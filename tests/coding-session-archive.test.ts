@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { join } from "node:path";
@@ -10,10 +12,19 @@ import { agentSessionLifecycleActions as lifecycle, type AgentSessionDecision, t
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { noEffect } from "./fixtures/coding-sessions.js";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 
 type Fixture = Awaited<ReturnType<typeof codingSdkRuntime>>;
 type Decision = { observed: { session_id: string; title: string; state: string; archived: boolean; goal_id: string | null; updated_at: string }; previous_operation_id: string | null } &
   ({ mode: "local"; runtime_id: string; operation_id: string } | { mode: "runtime"; binding: AgentSessionRef; decision: AgentSessionDecision });
+const settingsEdits = [
+    { title: "Renamed" }, { action_tools: [] },
+    { configuration: { intent: "discuss", provider_id: "fixture", model_id: "fixture", workspace_id: "work" } },
+    { mcp_sources: [] }, { mcp_tools: [] }, { methods: [] }, { character: null }, { character_skill_ids: [] },
+    { question_drafts: {} }, { draft: "New draft" }, { budget: { tokens: 2000 } }, { budget: null }, { materials: [] },
+  ];
+const settingsKeys = ["actions", "configuration", "mcp-sources", "mcp", "methods", "character", "character-skills", "question-drafts", "draft", "budget", "materials"];
+
 const path = (id: string) => `/sessions/${id}`;
 async function responds<T>(call: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
@@ -259,20 +270,13 @@ test("concurrent archive leaves another Session editable and refuses every same-
   const realArchive = f.adapter.sessionLifecycle!.archive.bind(f.adapter.sessionLifecycle);
   t.mock.method(f.adapter.sessionLifecycle!, "archive", async (...args) => { entered.resolve(); await release.promise; return realArchive(...args); });
   const writing = archive(f, "editing", original);
-  const edits = [
-    { title: "Renamed" }, { action_tools: [] },
-    { configuration: { intent: "discuss", provider_id: "fixture", model_id: "fixture", workspace_id: "work" } },
-    { mcp_sources: [] }, { mcp_tools: [] }, { methods: [] }, { character: null }, { character_skill_ids: [] },
-    { question_drafts: {} }, { draft: "New draft" }, { budget: { tokens: 2000 } }, { budget: null }, { materials: [] },
-  ];
-  const keys = ["actions", "configuration", "mcp-sources", "mcp", "methods", "character", "character-skills", "question-drafts", "draft", "budget", "materials"];
   try {
     await Promise.race([entered.promise, writing.then(() => { throw new Error("archive barrier not reached"); })]);
-    const before = f.sessions.get(project, "editing"), values = keys.map(key => storage.get(`${key}:editing`));
-    for (const edit of edits) {
+    const before = f.sessions.get(project, "editing"), values = settingsKeys.map(key => storage.get(`${key}:editing`));
+    for (const edit of settingsEdits) {
       assert.ok((await responds(f.call(path("editing"), edit, "PATCH")))!.status >= 400, JSON.stringify(edit));
       assert.deepEqual(f.sessions.get(project, "editing"), before);
-      assert.deepEqual(keys.map(key => storage.get(`${key}:editing`)), values);
+      assert.deepEqual(settingsKeys.map(key => storage.get(`${key}:editing`)), values);
       const other = await responds(f.call(path("independent"), edit, "PATCH"));
       assert.equal(other?.status, 200, JSON.stringify(other?.body));
     }
@@ -391,4 +395,117 @@ for (const stop of ["cancel", "revoke"] as const) test(`COD-MEM-RESTORE ${stop} 
   assert.deepEqual(f.sessions.get(project, "restore-stop"), archived);
   assert.equal(f.sessions.lifecycle.current(project, "restore-stop")?.completed, false);
   gate.mock.restore(); assert.equal((await restore(f, "restore-stop", original))?.status, 200);
+});
+
+
+test("COD-MEM-RESTORE-PENDING lost archive response preserves the original across activation and Node/SQLite reopen; unrelated writes and new Runs are refused", { timeout: 60_000 }, async t => {
+  let storage!: PluginPrivateStorage, watchObservation = false, observedLists = 0;
+  const observed = Promise.withResolvers<void>();
+  const f = await codingSdkRuntime(t, { hostActions: true, wrapCoding: definition => ({ ...definition, start: context => {
+    storage = context.services!.storage!;
+    const database = context.services!.project_database!;
+    return definition.start({ ...context, services: { ...context.services, project_database: { ...database, all: (sql, params) => {
+      const rows = database.all(sql, params);
+      if (watchObservation && sql.includes("archived = 0") && ++observedLists === 2) queueMicrotask(() => observed.resolve());
+      return rows;
+    } } } });
+  } }) });
+  const model = t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("A real completed Coding Run."));
+  await f.create("pending"); await f.create("independent");
+  assert.equal((await f.call(path("pending"), { configuration: { intent: "discuss", workspace_id: "work", provider_id: "fixture", model_id: "fixture" } }, "PATCH"))?.status, 200);
+  await completed(f, "pending");
+  const original = await preview(f, "pending"), before = f.sessions.get(project, "pending"), history = (await f.call(path("pending")))!.body;
+  const realArchive = f.adapter.sessionLifecycle!.archive.bind(f.adapter.sessionLifecycle);
+  const fault = t.mock.method(f.adapter.sessionLifecycle!, "archive", async (...args) => {
+    await realArchive(...args); throw new Error("archive response lost after the real SDK commit");
+  });
+  assert.ok((await archive(f, "pending", original))!.status >= 400); fault.mock.restore();
+  const pending = f.sessions.lifecycle.current(project, "pending"); assert.equal(pending?.completed, false);
+  const values = settingsKeys.map(key => storage.get(`${key}:pending`)), calls = model.mock.callCount();
+  assert.deepEqual(await preview(f, "pending"), original);
+  for (const edit of settingsEdits) {
+    const refused = await f.call(path("pending"), edit, "PATCH");
+    assert.equal(refused?.status, 409, JSON.stringify(refused?.body));
+    assert.equal((await f.call(path("independent"), edit, "PATCH"))?.status, 200);
+  }
+  const sdkStart = t.mock.method(f.adapter, "start", async () => { throw new Error("pending original must refuse before starting a Run"); });
+  const sdkCreate = t.mock.method(f.adapter, "createSession", async () => { throw new Error("pending original must refuse before binding another Session"); });
+  const refusedRun = await f.call(path("pending") + "/runs", { task: "Must not run", intent: "discuss", workspace_id: "work", provider_id: "fixture", model_id: "fixture" });
+  assert.equal(refusedRun?.status, 409);
+  const caller = { actor_id: "web-user", project_id: project, audience: "user" as const, permissions: ["artifact:read", "storage:private"] };
+  for (const [id, input] of [["coding.executor.session.update", { session_id: "pending", mode: "review" }],
+    ["coding.executor.run.start", { session_id: "pending", task: "Must not execute through the generic protocol" }]] as const) {
+    const definition = codingManifest.actions!.find(row => row.capability_id === id)!;
+    await assert.rejects(f.service.invoke(caller, definition, input), { code: "actions.conflict" });
+  }
+  assert.equal(sdkStart.mock.callCount(), 0); assert.equal(sdkCreate.mock.callCount(), 0);
+  assert.deepEqual(settingsKeys.map(key => storage.get(`${key}:pending`)), values);
+  assert.deepEqual(f.sessions.get(project, "pending"), before); assert.deepEqual(f.sessions.lifecycle.current(project, "pending"), pending);
+  const draft = { revision: 1, content: { title: "Plan", steps: [], blockers: "", change_reason: "" }, source: { session_id: "pending", run_id: "r", task: "task", workspace_path: f.home }, confirmed: null };
+  const writes = [() => f.sessions.rename(noEffect, project, "pending", "Changed", before.updated_at),
+    () => f.sessions.setGoal(noEffect, project, "pending", "later", before.updated_at),
+    () => f.sessions.setRuntimeSession(noEffect, project, "pending", "another-binding", before.updated_at),
+    () => f.sessions.setState(noEffect, project, "pending", "running", before.updated_at),
+    () => f.sessions.roundStarted(noEffect, project, "pending", before.updated_at, null),
+    () => f.sessions.setSteps(noEffect, project, "pending", { mine: 1, subtasks: 0, unowned: 0 }),
+    () => f.sessions.setBackground(noEffect, project, "pending", [{ task_id: "late", summary: "late", started_at_ms: 1 }]),
+    () => f.sessions.savePlan(noEffect, project, "pending", 0, draft), () => f.sessions.confirmPlan(noEffect, project, "pending", draft),
+    () => f.sessions.archive(noEffect, project, "pending", before.updated_at)];
+  for (const write of writes) await assert.rejects(write(), { code: "actions.conflict" });
+  assert.equal(f.sessions.plan(project, "pending"), null); assert.equal(f.sessions.stepsOf(project, "pending"), null);
+  assert.equal(f.sessions.backgroundOf(project, "pending"), null);
+  // A separate Node process opens the same nonempty SQLite library through Coding's public Store, not an in-memory marker.
+  const child = await promisify(execFile)(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `
+    import assert from 'node:assert/strict';
+    import { LocalProjectDatabase, openPluginProjectLibrary } from '@molis-ai/molis-work-app-local-host';
+    import { CodingSessionStore, codingManifest } from '@molis-ai/molis-work-plugin-coding';
+    const db = new LocalProjectDatabase(process.argv[1]);
+    try {
+      const sessions = new CodingSessionStore(openPluginProjectLibrary({db:db.db,path:db.path},codingManifest,()=>{}, {install_id:'pending-reopen',installation_generation:'1'}).client);
+      assert.equal(sessions.lifecycle.current(process.argv[2], 'pending').completed, false);
+      await assert.rejects(sessions.rename(async()=>{}, process.argv[2], 'pending', 'After process reopen', 'same-at'), {code:'actions.conflict'});
+      console.log('persisted pending refused in independent Node');
+    } finally { db.close(); }
+  `, f.store.path, project]);
+  assert.match(child.stdout, /persisted pending refused/);
+  const install = f.platform.supervisor.state("io.molis.work.coding")!.install_id!;
+  await f.platform.runtime.stop(install); await f.reopenSdk();
+  const waits = t.mock.method(f.adapter.collaboration!, "awaitReady", async () => { throw new Error("pending must not enroll its runtime consumer"); });
+  await f.platform.runtime.start(install); watchObservation = true;
+  let timer: ReturnType<typeof setTimeout>;
+  try { await Promise.race([observed.promise, new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("the actual observation iteration was not reached")), 8_000);
+  })]); } finally { clearTimeout(timer!); watchObservation = false; }
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(waits.mock.callCount(), 0, "a completed observation must not re-enroll a runtime that only has a pending business original");
+  assert.equal((await f.call(path("pending"), { title: "After activation reopen" }, "PATCH"))?.status, 409);
+  assert.equal((await f.call(path("independent"), { title: "Still independent" }, "PATCH"))?.status, 200);
+  assert.equal((await f.call("/state"))?.status, 200);
+  assert.deepEqual(f.sessions.get(project, "pending"), before, "observation/wake must not rewrite the pending business original");
+  assert.deepEqual(f.sessions.lifecycle.current(project, "pending"), pending);
+  assert.deepEqual(await preview(f, "pending"), original);
+  assert.equal((await archive(f, "pending", original))?.status, 200, "the exact original remains resumable");
+  assert.equal(f.sessions.get(project, "pending").archived, true); assert.equal(f.sessions.lifecycle.current(project, "pending")?.completed, true);
+  assert.deepEqual(((await f.call(path("pending")))!.body as { runs: unknown }).runs, (history as { runs: unknown }).runs);
+  assert.equal(model.mock.callCount(), calls, "pending admission and original recovery create no model calls");
+});
+
+test("COD-MEM-RESTORE-PENDING a write already awaiting authorization rechecks the durable pending fact inside the Store transaction", { timeout: 60_000 }, async t => {
+  const f = await codingSdkRuntime(t, { hostActions: true });
+  t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("Completed before archive."));
+  await f.create("transaction"); await completed(f, "transaction");
+  const original = await preview(f, "transaction"), before = f.sessions.get(project, "transaction");
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const renaming = f.sessions.rename(async () => { entered.resolve(); await release.promise; }, project, "transaction", "Late title", before.updated_at);
+  const rejected = assert.rejects(renaming, { code: "actions.conflict" });
+  const real = f.adapter.sessionLifecycle!.archive.bind(f.adapter.sessionLifecycle);
+  const fault = t.mock.method(f.adapter.sessionLifecycle!, "archive", async (...args) => { await real(...args); throw new Error("lost archive receipt"); });
+  try {
+    await entered.promise;
+    assert.ok((await archive(f, "transaction", original))!.status >= 400);
+    assert.equal(f.sessions.lifecycle.current(project, "transaction")?.completed, false);
+  } finally { release.resolve(); fault.mock.restore(); }
+  await rejected;
+  assert.deepEqual(f.sessions.get(project, "transaction"), before);
+  assert.equal((await archive(f, "transaction", original))?.status, 200);
 });

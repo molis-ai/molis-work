@@ -1,3 +1,4 @@
+import { codingSessionWrite } from "./session-lifecycle.js";
 import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -112,6 +113,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // A round woken by the activation's own loop (an answer arrived, a wait ended) answers to that loop's job (wake-loop.ts).
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
+  beforeWrite = codingSessionWrite(beforeWrite, execution.sessions.lifecycle, projectId, record.session_id);
+  beforeWrite.assert_current();
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
   const original_input = originalForStart(body, beforeWrite), continued_from = continuedOriginal(body, record.runtime_session_id);
   const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "coding.field.continued-run", 200);

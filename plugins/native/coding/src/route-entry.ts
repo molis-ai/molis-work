@@ -3,6 +3,7 @@ import type { PluginActionClient, PluginCapabilityClient, PluginJobControl, Plug
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingInteractionHtml } from "./interaction-html.js";
 import { codingPageHtml } from "./rich-html.js";
+import { codingSessionWrite } from "./session-lifecycle.js";
 import { codingRouteActions } from "./route-actions.js";
 import type { CodingExecution } from "./routes.js";
 import { codingError, codingErrorIn } from "./words.js";
@@ -29,6 +30,11 @@ export function codingActions(context: PluginStartContext, beforeWrite: CodingBe
 export function codingJobWrite(control: PluginJobControl): CodingBeforeWrite {
   return Object.assign(() => control.beforeEffect(), { assert_current: () => control.assert_authority_current(), signal: control.signal });
 }
+// These commands can replace the fixed business original/binding or start/steer execution. Fixed artifacts and ratings remain available.
+const SESSION_COMMANDS = new Set(["coding.update-session", "coding.compact-next", "coding.start-run", "coding.queued-round", "coding.priority",
+  "coding.control-run", "coding.select-goal", "coding.save-plan", "coding.confirm-plan", "coding.delegate", "coding.delegation-action",
+  "coding.delegation-deliver", "coding.delegation-decide", "coding.control-subagent", "coding.recover-run", "coding.prepare-rewind",
+  "coding.message-cancel", "coding.background-stop", "coding.card-run", "coding.commit-draft"]);
 type Handler = (request: PluginRouteRequest, api: PluginCapabilityClient, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
 /** What an action with no route of its own runs with. `routed` answers through one of the routes' handlers, under this action's fence. */
 export interface CodingActionCall {
@@ -73,8 +79,18 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
   /** What a route answers Coding's own page: the words and the change drawn (`rich-html.ts`), the cards and the next-step row (`interaction-html.ts`). */
   const page = (body: unknown, request: PluginRouteRequest, route_id: string, locale: ActionLocale | undefined) =>
     codingInteractionHtml(codingPageHtml(body, { route_id, query: request.query }, locale), context.services?.interaction, locale);
-  const handlers = new Map<string, Handler>();
-  const route = (route_id: string, handle: Handler): PluginRouteBinding => {
+  const handlers = new Map<string, (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite, locale: ActionLocale | undefined) => Promise<unknown>>();
+  const route = (route_id: string, handler: Handler): PluginRouteBinding => {
+    const handle = async (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite, locale: ActionLocale | undefined) => {
+      const id = request.params.sessionId;
+      const original = route_id === "coding.update-session" && (request.body as { archive?: unknown } | undefined)?.archive === true;
+      if (id && SESSION_COMMANDS.has(route_id) && !original) {
+        beforeWrite = codingSessionWrite(beforeWrite, execution.sessions.lifecycle, context.project_id!, id);
+      }
+      // Construct both formal and capability clients with this same Session fence, including executor.routed calls.
+      const controlled = await execute(request, beforeWrite, locale);
+      return handler(request, controlled.api, controlled.execution, beforeWrite);
+    };
     handlers.set(route_id, handle);
     const action = codingRouteActions[route_id];
     if (action) {
@@ -82,8 +98,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
       // What the route says goes back in its caller's language (the page's, which the Host put on the call).
       actions.push({ ...binding, handle: async (caller, input) => { try { return await bindOwnerPluginAction(context, action.definition, async (value, ownerCheck) => {
         const request = { ...action.toRequest(value), pathname: "", actor_id: context.actor_id! };
-        const beforeWrite = check(caller, ownerCheck, action.definition.action.permissions), { api, execution } = await execute(request, beforeWrite, caller.locale);
-        return handle(request, api, execution, beforeWrite);
+        return handle(request, check(caller, ownerCheck, action.definition.action.permissions), caller.locale);
       }).handle(caller, input); } catch (error) { throw codingErrorIn(error, caller.locale); } } });
     }
     return { route_id, async handle(request) {
@@ -94,8 +109,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
           // A route answers Coding's own page: what it shows travels drawn, which a call of the action alone does not get.
           return { status: 200, body: await page(await context.services.actions.invoke(action.definition, action.toInput(request), request.execution), request, route_id, request.execution?.locale) };
         }
-        const beforeWrite = check(request.execution), { api, execution } = await execute(request, beforeWrite, request.execution?.locale);
-        return { status: 200, body: await page(await handle(request, api, execution, beforeWrite), request, route_id, execution.locale) };
+        return { status: 200, body: await page(await handle(request, check(request.execution), request.execution?.locale), request, route_id, request.execution?.locale) };
       } catch (error) { return failure(codingErrorIn(error, request.execution?.locale)); }
     } };
   };
@@ -110,7 +124,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
       const routed: CodingActionCall["routed"] = (route_id, request) => {
         const handler = handlers.get(route_id);
         if (!handler) throw new ActionError("actions.unredeemed", `Coding 没有 ${route_id} 的处理`);
-        return handler({ ...request, pathname: "", actor_id: context.actor_id! }, api, execution, beforeWrite);
+        return handler({ ...request, pathname: "", actor_id: context.actor_id! }, beforeWrite, caller?.locale);
       };
       return handle(value, { api, execution, beforeWrite, routed });
     });

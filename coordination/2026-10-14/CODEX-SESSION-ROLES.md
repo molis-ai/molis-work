@@ -14,6 +14,9 @@
 | 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | 已派评审问题、CI失败及机械冲突；必要红绿自测；交精确head和日志 | 不自主领新片、不独立评审或统筹测试、不合并 |
 | 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | 与修复1串行轮换；无写入安排时做已派只读准备 | 同上；两个修复会话互不代派，不并写 |
 
+| 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | 从Claude的C1领取desktop/local-host后续片，保留server+CLI已合1151 | 当前只读准备；与修复chat合计单writer，不自行启动full |
+| 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | 从Claude的C2领取全库/非SQLite状态快照恢复，密钥不外带 | 当前只读准备；不碰真实Home；按Claude顺序获明确writer后实施 |
+
 已有角色 owner 与有效技术裁定保持。用户明确授权新统筹组织四个专职会话；专职交付回新统筹，由其接续。修复与新增独立实现chat合计最多一个Codex实现writer；可同时只读准备，实施顺序听Claude；整机仍是一份build、一批浏览器，公共machine-slot排队。旧文中由root日常派单/合并之处自本次交接起均由新流水线统筹承担。
 
 ## 流水线接续合同
@@ -26,17 +29,18 @@
 6. 活跃期间收到交付即接续，不等待下一次定时唤醒。每10分钟heartbeat只作遗漏/停滞兜底；每轮有可行动任务就做具体动作，无变化则安静。普通完成与内部可解决失败只写共享记录，只有必须用户决定或补充权限/信息才通知。
 7. 当前完整防腐范围和C1/C2/C3、W5/W6未缩小；不限定只修bug/review。按Claude当前共享派单或明确回执领取独立任务，分给1–2个专职实现chat；原root创建并交入口，本chat不重复建。未明确更改并发上限前，全部Codex实现chat仍串行占writer。流水线建立不代表全线开发、真实Home或用户验收完成。
 
-## 当前流水线（2026-10-23 23:24 洛杉矶／10-24 06:24 UTC）
+## 当前流水线（2026-10-23 23:31 洛杉矶／10-24 06:31 UTC）
 
-- 正式接管已由原root发出，随后一骏明确整线听Claude总统筹；本chat只协调Codex侧任务、核证据并按Claude顺序合并、维护共享状态，已收四专职交接，等待root交1–2个独立实现chat入口。DeepSeek历史贡献与review-pr-fixer认领保留；Claude原开发与唯一full组批职责另行保留，不以同一GitHub账户猜执行者。
-- 修复1为当前唯一Codex writer，`feature/home-side-ci-recovery`固定main `8aa62a65b`，候选参考 `74606d5e2`。原样两边各8/8本机通过未被归环境；统筹已读真实bundle延迟/ready+pointer恰好一次创建、旧document导航等待红/点击前navigate监听绿原日志。补丁仅两e2e和原spec、+12/-5；完整修后复跑home-side5/5、placement2/3，后段Pages挂载failed正由同一writer定位，尚未交PR、未宣称完成。公开防重复接续[#1164/6380869187](https://github.com/molis-ai/molis-work/pull/1164#issuecomment-6380869187)；原始日志位于 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/`。交付即并派REVIEW/TEST。
-- 修复2当前只读准备W5链依赖和#1112遗留。#1107原review-pr-fixer仍在[6380813962](https://github.com/molis-ai/molis-work/pull/1107#issuecomment-6380813962)收尾机械同步，本机`064cf2c5e7`尚未交远端；禁止第二writer重做。#1098远端`91e096524`对main冲突。明确核原认领后再派同步；不无限等待已停用的旧合并Agent。#1158 Feed自引用provider方案已备，排在W5阻塞后；不关闭PG-031/BL-501。
-- #1112 `8d700173c`正式二轮[6380756955](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380756955)通过；Security2/2的SYS-15-U10仍未归因。统筹[6380847528](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380847528)已公开保留红灯，TEST明确接固定`f4df5b47`/候选Linux回执、刷新、选择状态比较，不另起重复build/browser/full。三项non-block（技能文档构建期范围、PG060/RAC映射、Files打开后实际选中验证）由修复2准备并排入下一串行写入，不因二轮通过丢弃。W5统一full仍缺。
-- #1166冻结`02299dad3`：二轮6380547913及独立29文件585项/红绿有效，CI40066180122现Verify/Security/Product全绿；未在batch22/23，沿6380633773请求Claude下一统一full，尚未入队。#1138另存的两项目v1带声明/v2无声明交错与重启验收尚未补；模型测试旧注释:492已修、:553待修，不能算入#1166完成。
-- batch22固定`e76380003`已结束失败：issue-home-locale、home-side-surfaces、work-placement-journeys；batch23固定`74606d5e2`16分片15成功/1失败（home-side），汇总待。TEST核shard12 Home4/4、S475/5、85/85文件无重试；#1171目标通过且自身CI全绿，整批仍不称通过。Memory40068141974先前queued，仅核状态、不取消。
-- #1170 `4010b747d`正常队首AWAITING_CHECKS，原公开认领保持，核实际merge后才移§3；#1172 `e25131d78`沿6380681712认领已开auto-merge，必要CI未完，不重复入队。
-- Home连接A→B/back-all复用A缓存是确定既存功能缺陷，具体后续owner修复1；保留同目标草稿、取消仅B、全部连接和宿主/Issue状态验收。R42/BL543的query意见未证越权，合法provider/new/template/setup/connector及反馈/返回参数不能全剥离，不阻#1171既有结论。
-- #1168 must-fix仍由plugin-frame-fixes6380681837；#1157非空Dock44px、#1119引用、#1139三项建议保留原在途owner。#1114最新`6bac03b45`正文+locator已有二轮6380826646，仍缺6380810029要求的过期资源放行清理及该头CI；原DeepSeek仅收尾#1107的冻结边界须保留，不能默认为#1114仍在写。
+- Claude是整条防腐线总统筹；本chat负责Codex侧按其范围、优先级、跨线依赖与全量排期接续。C1/C2两个实现chat已收到入口并开始只读准备，完整目标未缩小；不重复建chat，全部Codex修复/实现仍单writer。DeepSeek历史贡献与review-pr-fixer在途认领分别保留。
+- 修复1已交非Draft[#1174](https://github.com/molis-ai/molis-work/pull/1174) `5bbb4318697dbef4631e5db3870691c27fff2e94`，4文件+12/-5，仅两e2e同步与两原spec；已释放writer/build/browser。统筹已读真实bundle延迟旧点击0次→ready后严格pointer1次、旧document等待精确红→navigate-before-click完整AC4绿；完整main后续5+3/8及batch23同patch8/8保留。首次main-fixed7/8的Pages后段failed/Missing frame仍未归因，TEST接现有批次观察，不能称已修。原日志 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/handoff.md`；实际affected full=[]/storage=[]。已立即并派REVIEW正式评审与TEST独立核证据，精确头CI待。
+- 修复2现唯一Codex writer：按Claude[6380810029](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380810029)，接[#1114/6380924207](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380924207)过期APPROVED_CEILINGS机械删除，只留本片cognia批准；不改算法或预算。DeepSeek `6bac03b45`正文/locator成果及二轮6380826646有效，#1167/#1169谁后合谁按main解冲突。交付即派增量审验。
+- #1107原review-pr-fixer仅收尾[6380813962](https://github.com/molis-ai/molis-work/pull/1107#issuecomment-6380813962)机械同步，本机`064cf2c5e7`尚未交远端；禁止第二writer重做。#1098远端`91e096524`对main冲突，修复2已只读准备，按Claude顺序及新交付衔接。
+- #1112 `8d700173c`正式二轮[6380756955](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380756955)通过；Security2/2 SYS-15-U10仍不能归已知flaky。TEST核f4df/8d700九个相关文件相同，候选装配间接影响仍未排除；下一明确owner修复2，1114后按统筹固定范围：真实回执/revision/精确行重新点击交错观测，复用SYS50/51响应屏障；不加sleep/重试或关轮询，修后Linux同文件和现有CI复验。三项non-block（技能文档构建期范围、PG060/RAC映射、Files侧栏打开后实际选中）仍由修复2接续准备；Files采用现有openAuditBrowser的A/B冷/热两态真实路径。W5统一full仍缺，不入队。
+- #1166冻结`02299dad3`：二轮6380547913及独立29文件585项/红绿有效，CI40066180122的Verify/Security/Product全绿；非batch22/23。已在[6380905002](https://github.com/molis-ai/molis-work/pull/1166#issuecomment-6380905002)向Claude交固定候选请求下一统一full，尚未入队。#1138两项目v1带声明/v2无声明交错与重启、旧模型测试注释:553尚未补，:492已修不重复。
+- batch22固定`e76380003`结束失败3份（Home locale、home-side、placement）；batch23固定`74606d5e2`16分片15绿/1红home-side，汇总未作为全绿。TEST核shard12 Home4/4、S475/5、85/85文件无重试。Claude已在[#1171/6380903089](https://github.com/molis-ai/molis-work/pull/1171#issuecomment-6380903089)明确main红修复不等另一份无关main红，冻结`b27b0cd8c`已正常入队；#1167仍等home-side修复再merge-only，不擅自移除队列或把batch写全绿。
+- #1170已于06:25:24UTC实际合入`61bfc2b8ad28ddd64304e89a3862e2e51d18b37a`，MERGE-QUEUE已移§3，[回执6380898230](https://github.com/molis-ai/molis-work/pull/1170#issuecomment-6380898230)。#1172 `e25131d78`沿6380681712认领在队首，#1171随后；核merge SHA才记合入，不重复入队。
+- Home连接A→B/back-all复用A缓存是确定既存功能缺陷，具体后续owner修复1；保留同目标草稿、取消仅B、全部连接和宿主/Issue状态。R42/BL543的query意见未证越权，合法参数不能全剥离，不阻#1171现结论。
+- #1168 must-fix仍由plugin-frame-fixes6380681837；#1157非空Dock44px、#1119引用、#1139三项建议保留原在途owner。新增DeepSeek审核/防腐遗留授权由原root核源后交清单，现不重开在途#1107或推定未验证项已完成。
 
 
 ## 未闭环评审问题的认领与修复

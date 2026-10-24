@@ -1010,6 +1010,7 @@ export interface AgentRuntimeDescriptor {
     supports_action_tools?: boolean;
     supports_workspace_none?: boolean;
     supports_workspace_business?: boolean;
+    supports_character_limits?: boolean;
     runtime_id: string;
     display_name: string;
     provider_version: string;
@@ -1604,6 +1605,10 @@ export declare const agentWriteCheckerActions: {
     }>;
     readonly save: ActionDefinition<AgentWriteCheckerSave, AgentWriteCheckerList>;
 };
+
+export declare const defaultAgentRuntime: (runtimes: readonly AgentRuntimeDescriptor[]) => AgentRuntimeDescriptor | null;
+
+export declare const hostsAgentSessions: (runtime: AgentRuntimeDescriptor) => boolean;
 
 export declare function isTerminalAgentPhase(phase: AgentRunPhase): boolean;
 

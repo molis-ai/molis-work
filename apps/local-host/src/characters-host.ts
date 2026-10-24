@@ -26,7 +26,7 @@ export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSp
 export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, capabilities: () => Pick<LocalHostProjectClient, "invoke">): ActionProviderRegistration {
   return charactersProvider(runtime, characterActionPorts(options, LOCAL_PERSON_ACTOR_ID, runtime.project_id, runtime.artifacts.query), {
     listRuntimes: () => capabilities().invoke(agentHostCapabilities.listRuntimes, []),
-    listActions: () => capabilities().invoke(agentHostCapabilities.listActions, ["prologue", CHARACTER_PLUGIN_ID]),
+    listActions: runtimeId => capabilities().invoke(agentHostCapabilities.listActions, [runtimeId, CHARACTER_PLUGIN_ID]),
   });
 }
 

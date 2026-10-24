@@ -48,6 +48,8 @@ export interface AgentRuntimeDescriptor {
   supports_workspace_none?: boolean;
   /** Runs business roles: no directory, the unified actions given at start and the root-free host tools. */
   supports_workspace_business?: boolean;
+  /** Has verified a Character's tool limits (its host tools and its actions) against the Runtime's own tool gates; a Runtime without this refuses a Character instead of running it unlimited. */
+  supports_character_limits?: boolean;
   runtime_id: string;
   display_name: string;
   provider_version: string;
@@ -55,6 +57,13 @@ export interface AgentRuntimeDescriptor {
 }
 
 export type AgentRuntimeHealthStatus = "ready" | "needs_setup";
+
+/** A session can be made on this Runtime and a round can run in it: neither capability is declared unsupported. */
+export const hostsAgentSessions = (runtime: AgentRuntimeDescriptor): boolean =>
+  runtime.capabilities["session.create"] !== "unsupported" && runtime.capabilities["run.start"] !== "unsupported";
+
+/** The Home default Runtime: the first one in the Runtime directory's order that hosts sessions, or none. A project that picks its own Runtime overrides it. */
+export const defaultAgentRuntime = (runtimes: readonly AgentRuntimeDescriptor[]): AgentRuntimeDescriptor | null => runtimes.find(hostsAgentSessions) ?? null;
 
 export interface AgentRuntimeHealth {
   ok: boolean;

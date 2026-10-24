@@ -33,6 +33,8 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   const methods = library && supports(library, "skills") ? await api.invoke(agent.listSkills, [library.runtime_id, context.plugin_id]) : [];
   const mcp = library && supports(library, "mcp") ? await api.invoke(agent.listMcp, [library.runtime_id, context.plugin_id]) : [];
   return { sessions, methods, mcp, models: execution.models.list(),
+    // The Runtime a new session runs on; the page reads the role matrix of the open session's Runtime, or this one when none is open.
+    project_runtime_id: library?.runtime_id ?? null,
     // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
     // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
     // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.

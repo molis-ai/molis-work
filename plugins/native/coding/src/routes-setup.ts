@@ -6,7 +6,7 @@ import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import { codingActionControl } from "./route-entry.js";
 import { text } from "./run-inputs.js";
-import { libraryRuntime } from "./runtime-choice.js";
+import { libraryRuntime, limitsCharacters } from "./runtime-choice.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -165,9 +165,11 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.characters", async (request, _api, execution, beforeWrite) => {
+    return route("coding.characters", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      return { characters: await execution.characters.list(codingActionControl(beforeWrite)), selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), runtime_id: record.runtime_id };
+      // Whether the session's Runtime has verified a Character's tool limits is the Runtime's own declaration; the page offers Characters only then.
+      const limited = limitsCharacters(await api!.invoke(agent.listRuntimes, []), record.runtime_id);
+      return { characters: await execution.characters.list(codingActionControl(beforeWrite)), selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), limits_verified: limited };
     });
   },
   // The files a person can name with @: read through the Host's read-only workspace file action, briefly remembered.

@@ -11,6 +11,7 @@ import { generatePagesFromMaterials, openPagesStore, ownPagesStores, type PagesS
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFeedContentHandlers, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
@@ -181,7 +182,11 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
 
     const receive = createFeedContentHandlers(feed, DEMO_PROJECT_ID, item => item).find(handler => handler.capability_id === feedContentActions.receive.capability_id)!;
     const caller: ActionCallContext = { actor_id: "workflow-user", project_id: DEMO_PROJECT_ID, audience: "workflow", permissions: ["feed:write"] };
-    const received = await receive.handle(caller, { title: "工作流交来的内容", body: "正文", request_id: "workflow:queue-test:1" }) as { item_id: string };
+    const actions = new ActionService();
+    actions.registerProvider({ provider: { provider_id: "feed", title: "Feed", kind: "system", project_id: DEMO_PROJECT_ID },
+      definitions: [feedContentActions.receive], handlers: [receive] });
+    // Retained judgment authority comes from the real dispatch, including its current action and provider.
+    const received = await actions.invoke(caller, feedContentActions.receive, { title: "工作流交来的内容", body: "正文", request_id: "workflow:queue-test:1" });
     const ownEntry = feed.listInboxEntries(DEMO_PROJECT_ID).find(entry => entry.subject_id === received.item_id)!;
     assert.ok(ownEntry, "the delivery was admitted to the Inbox by the rule");
     assert.equal(feed.getFeedItem(DEMO_PROJECT_ID, received.item_id).source_label, "工作流程", "W4-6-05 a workflow audience files under 「工作流程」");

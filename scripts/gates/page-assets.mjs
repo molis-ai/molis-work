@@ -238,15 +238,20 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Shelf S3: the host's /api/shelf is gone, so the computer-use panel uses the plugin's own route.
-  // The previously approved +31 bytes are rebased onto main after #1115: 1190694 → 1190725.
-  "/assets/molis-work-workbench.js": [1190694, 1190725],
-  // Shelf S3: the folder cap is 32 MB (was 64); the panel explains it before uploading. 76264 → 76438 (+174).
-  "/assets/molis-work-plugins/shelf.js": [76264, 76438],
+  // Shelf S4: keep a partial-success warning and refresh link visible when sample restoration fails.
+  // Shared success text and button handling reduce duplication; reviewed growth is 1190725 → 1191104 (+379).
+  "/assets/molis-work-workbench.js": [1190725, 1191104],
+  // RAC-138/139: typed Issue client 24145 → 27806 (+3661), reviewed 2026-10-23.
+  // Object state keeps property names (the original +3605); malformed write receipts and same-id recovery add 56.
+  // Combining the failure branches saved 5 bytes; retain the necessary recovery and read-refusal behavior.
+  "/assets/molis-work-plugins/issues.js": [24145, 27806],
+  // RAC-132: carry the Manifest id into the opaque frame and supply its own plugin route (+88 bytes).
+  // Reviewed 2026-10-23: direct fields/path construction; no smaller equivalent without changing surrounding behavior.
+  "/assets/molis-work-plugin-frame.js": [191104, 191192],
   // A holder the Host labels in its own words (本会话, 子任务「…」, 用户, 没人认领…) is said on the English page with page
   // words (P3 #928, 2026-10-23): the two client helpers that read a holder by kind, and two catalog keys, 375409 → 376282
   // (+873). The served pack is tightened, so comments do not count there; the words and the reading are the cost. Rebased
-  // onto main abc052bcb while the PR merged main: the merge-base budget is 375409, the measured pack is 376282.
+  // onto main 1dedc1f5c while the PR merged main: the merge-base budget is 375409, the measured pack is 376282.
   "/assets/molis-work-plugins/coding.js": [375409, 376282],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

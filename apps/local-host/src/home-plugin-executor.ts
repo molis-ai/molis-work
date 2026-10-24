@@ -12,6 +12,7 @@ import { openPluginDatabase } from "./plugin-database.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
+import { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { pluginHomeFor } from "./home-side.js";
@@ -82,6 +83,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const ui = createPluginUiClient(new UiHost(), context, manifest,
       { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active() });
     let database: ReturnType<typeof openPluginDatabase> | undefined;
+    let sandboxLibrary: ReturnType<typeof openSandboxHomeLibrary> | undefined;
     let partitions: PartitionedPluginDatabase | undefined;
     let background: ReturnType<typeof pluginBackgroundFor>;
     let terminal: ReturnType<typeof pluginTerminalFor>;
@@ -91,7 +93,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const dispose = () => {
       active = false; stopped = true; withdrawPages?.(); terminal?.dispose(); directory?.dispose(); background?.close(); withdrawCaller?.();
       const failures: unknown[] = [];
-      for (const release of [() => database?.close(), () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
+      for (const release of [() => database?.close(), () => sandboxLibrary?.close(), () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
@@ -100,7 +102,11 @@ export class HomePluginExecutor implements PluginExecutor {
       const home = pluginHomeFor(this.options.home);
       const library = homeLibraryFor(definition, this.options.database(definition), this.options.record(context.install_id));
       const declaration = library?.declaration;
-      if (declaration?.partition === "project") {
+      if (library && definition.execution === "sandbox") {
+        // The package's code is not in this process: its statements run in a process the Host can kill, over a library the ledger made for it (BL-490).
+        sandboxLibrary = openSandboxHomeLibrary(this.options.home, library.installed!, library.declaration, home.stores, authorize, context);
+      }
+      else if (declaration?.partition === "project") {
         partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));
       }
       else if (library) {
@@ -130,7 +136,7 @@ export class HomePluginExecutor implements PluginExecutor {
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       terminal = pluginTerminalFor(this.options.home, manifest, authorized, ownerFiles?.client, assertActive);
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
+        ui: ui.client, interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });

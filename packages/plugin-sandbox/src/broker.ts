@@ -23,6 +23,8 @@ export interface SandboxServices {
   resource?: { read(context: SandboxServiceContext, name: string): Promise<string> };
   /** The plugin's own tables in the project's library (`sandboxDatabase` over `services.project_database`). */
   projectDatabase?: SandboxDatabaseService;
+  /** The plugin's own library in the Home (`sandboxDatabase` over `services.database_statements`, BL-490); only the Home Runtime builds it. */
+  homeDatabase?: SandboxDatabaseService;
   /** The activation's `services.interaction`: drawing only, so no effect is declared or granted for it (S-56). */
   interaction?: PluginInteractionClient;
   /** The activation's `services.connections`: requests through the account the person bound to a slot (S-57, S-60). */
@@ -161,18 +163,20 @@ export class SandboxBroker {
         return null;
       });
     }
-    if (method.startsWith('projectDatabase.')) {
-      const database = this.services.projectDatabase;
-      if (method === 'projectDatabase.transaction') {
-        count(1); permit('projectDatabase', 'write');
+    for (const key of ['projectDatabase', 'homeDatabase'] as const) {
+      if (!method.startsWith(`${key}.`)) continue;
+      // The same statements over two libraries (the project's, the Home's): the effect names which, the Host's service is the one it built for it.
+      const database = this.services[key];
+      if (method === `${key}.transaction`) {
+        count(1); permit(key, 'write');
         const statements = sandboxStatements(args[0]);
         return database ? database.transaction(context, statements) : missing();
       }
-      if (method !== 'projectDatabase.get' && method !== 'projectDatabase.all') throw new SandboxError('sandbox.invalid_request', 'Unknown project database method');
-      count(2); permit('projectDatabase', 'read');
+      if (method !== `${key}.get` && method !== `${key}.all`) throw new SandboxError('sandbox.invalid_request', 'Unknown database method');
+      count(2); permit(key, 'read');
       const statement = sandboxStatement(args[0], args[1]);
       if (!database) return missing();
-      return method === 'projectDatabase.get' ? database.get(context, statement) : database.all(context, statement);
+      return method === `${key}.get` ? database.get(context, statement) : database.all(context, statement);
     }
     if (method === 'connections.request') {
       // The slot is the Manifest's, the account is the person's: the plugin names neither the origin nor a credential. The Host's client

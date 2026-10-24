@@ -22,7 +22,7 @@
 | 连接 `services.connections`（协调的清单里没列，同一批排除，S-57） | `plugin-connections-service.ts:14` | Manifest `connections:use` + 槽位 | Manifest ✔ |
 | 后台作业 `services.background` | `plugin-background-service.ts:8` | Manifest `actions[].background_job` 或 `background.jobs` | Manifest ✔ |
 | 插件指令与方法（V-20） | `plugin-instructions.ts:33` | `PluginDefinition.instructions`/`methods`（正文），Manifest `methods`/`agent`（声明） | 定义 + Manifest；PG-051 P2 归到唯一登记口 |
-| Home 库 `services.database` | `plugin-database-entries.ts:34` | 宿主启动名单的 `databaseFor` | **只在条目上**（PG-022） |
+| Home 库 `services.database` | `plugin-database-entries.ts:34` | Manifest `databases.home`（PG-022） | Home Runtime 里给（BL-490，S-66）；项目里拒 |
 | 私有文件 `services.files` | `plugin-files-entries.ts:12` | 条目 `files` | **只在条目上**（PG-102、PG-104） |
 | 主人文件 `ownerFiles` | `plugin-owner-files-entries.ts:40` | 条目 `owner_files` | **只在条目上**（PG-102、PG-103） |
 | 模型设置 `services.model.configuration` | `model-configuration-entries.ts:11` | 条目 `model_configuration` | **只在条目上**（PG-102） |
@@ -99,7 +99,7 @@
 
 这四项都属于“**Home 级**”：库在 Home、偏好文件在 Home、连接绑定在 Home、清理由宿主在删项目时调函数。沙箱插件今天只会作为项目里的实例运行（创作台的第二个平台 `home: null`，PG-083）。设计：
 
-- **Home 库（`database`）**：项目库已经给了（`projectDatabase`，S-59）。Home 库要等 PG-022 把声明搬进 Manifest；之后沿用 S-59 的子进程语句执行（它只认“库文件路径 + 账本记录”，路径换成 Home 里的库即可），不另写一套（BL-490）。
+- **Home 库（`database`）**（BL-490，S-66，已做）：项目库已经给了（`projectDatabase`，S-59）。PG-022 把声明搬进 Manifest 之后，Home Runtime 里的沙箱包按 `databases.home` 拿账本里的库（`openInstalledPluginLibrary`，和装进来的任何插件一样），语句沿用 S-59 的子进程（`ProjectStatementProcess` 的 `record` 为空即 Home 库，引擎换 node:sqlite 的两条连接，没有 S-46 的记录检查，因为整个文件都归这个插件），不另写一套；宿主只做出文件就放手，不留连接。broker 多 `homeDatabase` 效果（和 `projectDatabase` 同一段检查），服务多 `database_statements`。项目里运行的沙箱包不能声明 Home 库（`plugin.declaration_invalid`）。
 - **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64），但声明只在条目上（PG-102）。等 Manifest 能声明之后，沿 3.1 的办法给；`generate` 是花钱的，只给 `command`。生图的字节结果有大小上限（BL-491）。
 - **项目清理**：`purge` 是宿主调的函数，沙箱插件没有。设计：沙箱插件的数据（私有存储、项目库里它自己的表、`files`）都归平台按安装和声明清掉（删项目时平台先停它的后台，再关库、清分区，§4 a），不需要它交一个函数。这一项不是“给沙箱一项服务”，而是确认**声明式清理对沙箱插件同样成立**，测试里补一条；`assertProjectCleanupEntries` 里对沙箱的拒绝改成带码的错误并写明理由。
 
@@ -129,7 +129,7 @@
 4. **P3 后台**：3.5，runner 多一条道。
 4a. **P2c 主人文件**（S-64，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
 4b. **P2d 本机页面与原文件**（S-65，本地分支，叠在 P2c 上）：3.4 的 `fetch_local` 与 `original`，验收见下面「P2d 验收」。
-5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库/文件/模型设置/生图（BL-490/491）、方法与角色（BL-493）。
+5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库（BL-490，S-66，已做）/ 模型设置/生图（BL-491）、方法与角色（BL-493）。
 
 ## 5. 验收与安全不变量
 
@@ -148,6 +148,19 @@
 | RAC-238（Manifest 一半，#1139 已做） | 现在不给的、由 Manifest 或定义声明的项（模型、指令、连接、材料、后台作业、角色/提示词/技能/方法、目录、唤醒、运行 Agent、通知、已装插件、调用别人的动作、项目成果/过程项/端口/事件）在沙箱定义里声明时，启动以 `sandbox.service_not_given` 拒绝，指明是哪一项、为什么，代码一行不跑；项目平台与 Home 执行器各一例；宿主认的每个权限名要么被给、要么有一行拒绝（完整性测试），没归类的变红 |
 | RAC-238（条目一半，PG-022/PG-102 之后；`ownerFiles` 已由 P2c 给） | 现在只在宿主条目上声明的项（`ownerFiles`、Home 库、`files`、模型设置、生图）：声明搬进 Manifest 之后，沙箱定义里声明它们时同样带码拒绝或给出，不再是六处无码的 `Error`；在那之前它们在沙箱里根本没有入口，这一半不算做完 |
 | RAC-239 | 声明式清理对沙箱插件成立：删项目时它的私有存储、项目库里的表、后台执行被平台清掉，不需要它交 `purge` |
+
+**BL-490 验收**（S-66，RAC-240～249 本片 240～246）：`tests/security-invariants-sandbox-home-database.test.ts`
+
+| 编号 | 断言 |
+| --- | --- |
+| RAC-240 | 沙箱包的 Home 库经账本做出，发布者是安装记录的；写、读都在子进程里（宿主进程没有连接） |
+| RAC-241 | 别的发布者、被宿主存储或别的插件占用的名字、Home 里已有的目录、按项目分开的库：一律带码拒绝，什么库都没做、没起进程 |
+| RAC-242 | 授权被撤之后下一次读、写被拒且什么都没写；关闭库之后的调用被拒，子进程随库结束 |
+| RAC-243 | 读只认 SELECT、WITH，写只认 INSERT、UPDATE、DELETE；PRAGMA、ATTACH 都不过；以 WITH 开头的写句过了关键字也写不进只读连接 |
+| RAC-244 | 读超时的进程被杀并带码回答，宿主照常；递归查询不会被拒、由时钟截止；下一次读在新进程里跑 |
+| RAC-245 | 写超时整个事务回滚，没有任何一句留下，下一个事务照常 |
+| RAC-246 | 真沙箱里：操作没声明、人只批准读、人什么都没批准、用项目库的效果，一律 `sandbox.not_authorized`；形状错的请求 `sandbox.invalid_request`，都没到宿主 |
+| RAC-238（条目一半的 Home 库） | 沙箱定义声明 `databases.home` 不再被拒；项目里运行的沙箱包声明它启动即被拒（`plugin.declaration_invalid`），代码一行不跑 |
 
 **P2c 验收**（S-64，统筹 10-24 给 RAC-350～369：本片 RAC-350～359，P2d 用 RAC-360～369）：`tests/security-invariants-sandbox-owner-files.test.ts`
 

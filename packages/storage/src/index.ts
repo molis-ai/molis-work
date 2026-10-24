@@ -23,6 +23,7 @@ export {
   homeSqlitePartitionDirectory,
   homeSqlitePath,
   openHomeSqliteDatabase,
+  openHomeSqliteFile,
   openReadOnlyHomeSqlite,
 } from "./home-sqlite.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";

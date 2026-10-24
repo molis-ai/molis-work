@@ -60,7 +60,7 @@ export class ProjectStatementProcess {
   private idle: NodeJS.Timeout | undefined;
   private disposed = false;
 
-  constructor(private readonly path: string, private readonly record: PluginProjectDatabaseRecord, limits: Partial<StatementLimits> = {}) {
+  constructor(private readonly path: string, private readonly record: PluginProjectDatabaseRecord | null, limits: Partial<StatementLimits> = {}) {
     this.limits = Object.freeze({ ...DEFAULT_STATEMENT_LIMITS, ...limits });
   }
 

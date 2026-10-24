@@ -40,7 +40,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 序 | 片 | 号段 | 现状 |
 | --- | --- | --- | --- |
 | C0 | **main 的 macOS 红（先于 C1）**：自 #1079（S-56）起 `SandboxSdk.interaction` 写成 `import('./plugin-interaction.js')` 的相对导入，发给生成项目的 `developer/sdk.d.ts` 解析不了，`tests/agent-built-plugins-checks.test.ts`（创作台 G2）与 `tests/agent-built-plugins-workflow.test.ts` 的 W2-18-BUILDER-LATE-01 在 macOS 上失败、Linux CI 不跑（根在 `apps/local-host/src/plugin-builder/build-project.ts` 的 `sdkDeclaration()` 只拷 plugin-sandbox 一份声明，#1147 作者 10-23 核过）。修法：让发出去的 SDK 声明自包含（内联该类型或在生成时一并带上），断言不放宽；创作台本轮不删只绕过，但 main 的红要修。写进 `known-red-main.md` 直到修好 | — | **已完成**：#1136 合入 main（`15b656648`，10-23）。`known-red-main.md` 里这条由 Codex 移除 |
-| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 进行中：server+cli 首片 [#1151](https://github.com/molis-ai/molis-work/pull/1151) 已转非 Draft，最终补修 head `11f0d67dbc090b3fc51ca3343441545ddc75c0c3`；产品公开入口经 writeOutput 恢复 stdout，保留 EPIPE 与第二信号强退。作者交接 6378791977；本轮独立评审快看通过，本机 16 项及旧有效证据由测试专职核实，最终头 CI 待完成。原作者 chat 已改为专职修复 2，由本地全线统筹直接派单。desktop、local-host 后续片尚未开始，C1 整体未完成；日志 `/tmp/molis-verify-2026-10-23/pr1151-entry-guide/handoff.md` |
+| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 进行中：server+cli 首片 [#1151](https://github.com/molis-ai/molis-work/pull/1151) 已于10-24 03:42:05 UTC真实合入，merge `ee2958d2acef18006eddc14ff0761a3fd3a39e99`，最终审验head `11f0d67dbc090b3fc51ca3343441545ddc75c0c3`；stdout产品入口、EPIPE和第二信号强退的评审/本机/CI证据齐备。desktop、local-host后续片尚未开始，C1整体未完成；后续开发仍排在现有修复、评审和测试之后 |
 | C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 待开工 |
 | C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | 待开工 |
 

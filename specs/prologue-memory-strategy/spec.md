@@ -2351,3 +2351,25 @@ MEM-40桥接补充：沿原exclusive owner先取得唯一写权，再通过仅�
 资源由最终构建实测27项、7,678,780 B，与父有效产物逐项相同，本片净增0 B；资源门仍准确拒绝父已存在Coding +1,333 B，未挪用额度/修改基线。原red、build首败、最终build、green、24批、types、workspace-types、health、boundary、api、actions、assets及assets-gate日志均为 `/private/tmp/molis-memory-character-owner-first-*-20261025.*`，结果索引随交接提供。未跑浏览器/全量/真实Home/付费模型，也未宣称历史P1或完整项目清除验收通过。
 
 统筹核准将直接消费者 `tests/project-deletion-memory.test.ts` 纳入本刀：新提议应断言精确owner映射，保留全部项目删除、重开和旁项目不变断言；另复用同一真实fixture，用仅种入旧数据时抑制noteOwner的明确故障注入保留“候选账在、owner映射缺失”的历史fallback用例，不把旧状态要求施加到新提议，也不复制整条长流程。这类已存在候选账的旧状态可走原candidateOwners；SDK成功且账/映射均缺失的历史P1仍未解决。仅复验该文件，不重跑已有效24批。
+
+统筹独立检查 d11694e2ce8f379a0bb7da773e3cc6c6981dd75c 的六文件diff，候选职责抽取之外仅增加写前准确归属及调用方Character快照。按相同冻结源码的真实构建重跑新三例与项目删除整文件三例，2/2文件6/6、jobs1/retries0通过，日志 `/private/tmp/molis-memory-character-owner-first-root-final-20261025.log`；随后快进归入 #1101 本地分支，不另开PR。未将这次验证扩大成历史完整覆盖、最终App旅程或用户验收。
+
+### 清除范围与归属覆盖补齐（2026-10-25，实施前冻结合同）
+
+原P0清除承诺不缩减。首先保留上述准确映射先于新Character候选的修复；再补现映射一致性与最终写授权；随后SDK提供精确Session选择和只返回状态的owner覆盖检查，App接原业务完成门；最后实跑项目删除与单Session清除/恢复。完整设计审查 `/private/tmp/molis-memory-purge-coverage-contract-20261025.md` 只作分析依据，本节是当前施工合同。当前没有这两项SDK能力或历史P1已修复的结论。
+
+SDK复用现Memory preview/purge与Registry，增加互斥的exact-Session选择（canonical Session ref + 原parent operation），以及owner coverage操作（原operation + App可信关系派生的knownScopes）。两项分别经明确的App authority授权及最后异步后的同步current复核；缺配置在扫描前拒绝，空页/终页也检查，不以authorize([])、person/ui字段或普通manage-read代替许可。Session选择允许SDK内部解码当前App的必要原件，只返回精确绑定于原Session的有界删除身份、原版本与原candidate sources/null；source/evidence引用不算绑定，无AppIndex或Session已删不能漏掉原件。原scoped模式保持不读其他owner正文的边界。coverage只扫当前App两类registry的身份元数据，只返回覆盖状态、cursor/exhausted和有限issue，不输出全局owner/ref/正文/数量，也不授予删除权限。坏header、身份冲突、未知形状、未决reservation或不能证明已清除的行明确不完整。
+
+实际删除仍走原MemoryAccess、队列、版本/CAS及Host；exact-Session证明只附在原purge条件上，重新核对当前原件的canonical绑定、ref/version/parent与child operation。它不赋予该owner一般读写/接受/晋升权限，不能对已不存在的对象虚构Session身份或给新operation继承完成。App在原项目/Session admission hold内保存原计划、清除与复核，Memory完成之后才清Session/业务副本，最后写原完成回执；未知来源、撤权、取消、冲突和未知结果保持pending/needs-reconcile。单Session只清精确绑定项，所有纯source long/short保持；项目包含其已知Character的非绑定记忆。旧不完整计划不能在重试时悄悄扩范围，也不能沿用旧complete跳过覆盖复核。
+
+App复用memory_owners、可信候选账、原固定删除计划、Catalog全部保留项目/删除决定以及有原据的历史Character引用，派生一份只含关系的投影；由同份事实产生coverage knownScopes和目标项目scopes，不能白名单覆盖了却漏出删除计划。无新持久registry、全局owner dump或raw SQL出口。Character一般mutation对target及before均要求准确project/subject映射，映射不得重绑；现noteOwner仅在已获准准备阶段验证/补齐可信关系，不能在authority只读回调内写库。有效映射的本人accept/settleInto、automatic promote、replace与普通编辑必须照常通过，不能要求UI伪报角色。历史缺subject只在真实原可信引用可恢复时补齐；散列、正文、当前活动角色、裸operation marker都不能猜归属。历史原件没有可证明项目关系时阻断项目complete，保留待核对，不宣称不存在或默认属外项目。
+
+分页沿现Node游标，不承诺跨页快照。目标hold、最终提交检查、owner不重绑及其他项目先映射后写共同保证目标选集稳定；每页与完成前复核关系事实。合法新增mapping使knownScopes改变时丢弃累计从首页重扫，不能拿新集合接旧cursor；持续变化可retry/conflict，不能伪造完整。条目读前后版本变化需拒绝/重扫，未知历史对象不能被普通writer移动到游标前。若实际调用链不能满足这些不变量，保持unavailable/needs-reconcile，不用全App锁或新epoch掩盖。
+
+允许修改SDK现Memory/Registry窄口、公开类型及装配、模块合同/唯一队列和直接测试；App现Memory/AgentHost合同与适配、Storage归属派生查询/noteOwner一致性、Catalog项目投影及原项目/Session完成接线。无新模块、槽、Runtime恢复模式、业务UI、资源/CI门禁变化。验收必须覆盖有效Character写/接受/晋升不回退；历史双缺映射、sources:null、坏身份明确阻断真实Catalog complete；无AppIndex的bound原件可按原决定发现/清除；source-only和旁项目正文/版本不变；分页交错、撤权、取消、原版本冲突、重启原请求和同operation回执。辅助preview/apply通过不能替代实际业务完成链，所有未跑项继续保留。
+
+### SDK窄恢复入口交付边界（2026-10-25）
+
+#102候选d57c2f5055d9dcabbeb4d40591a8312203970e2f合并了source inspection与target maintenance，完整本地quality及准确6523基线门通过；4文件40项真实直接验证包括实际磁盘满路径通过。独立干净安装仅从最终tgz通过`@prologue/sdk`及`@prologue/sdk/node`公开入口实跑停写T0/T1/T2：源与备份逐文件字节不变、未选Session/Memory/board/queue字节不变、原版本冲突与非允许Session拒绝、原决定清除及重开同operation重试保持结果，1/1通过（`/private/tmp/prologue-memory-recovery-packed-public-final-20261025.log`）。首次脚本未传冷启动所需identity、第二次误以一条termination即分页exhausted的两次夹具失败均保留；前者按现精确定位合同修，后者按实际registry cursor遍历修，未改产品或断言目标。不把SDK脚本称为完整Molis MEM-40。
+
+独立深审另已实证P2：inspectMemory在cleared/absent分支的最后异步授权后撤权，仍交付状态；present同窗口正确拒绝。原最终包probe1/3通过、2/3拒绝断言失败，源字节均不变；这是合并阻塞，不由上述绿色抵销。冻结最窄修复：尚未发布的NodeRecoveryInspectionInput增加必填同步assertCurrent，与maintenance同语义，open及每次返回前在最后await后调用，非undefined/thenable拒绝；present仍保留原逐条current，取消与close仍拒绝。App桥须传原可信维护frame的真实同步屏障，不以无条件noop冒充。修复及修后独审/公开包回归待完成，#102保持Draft。

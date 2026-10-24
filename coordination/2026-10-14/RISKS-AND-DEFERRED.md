@@ -167,6 +167,7 @@
 | R-35 | 新：W5-17 把 catalog 升到 v23（删 `projects.database_path`），真实 Home（4207，主检出跑 main）在 W5-17 合入后不经维护就起不来 | 用户定维护时段；统筹在 W5-17 合入前弹窗问（`ASK-USER-NOT-DO.md` 第二节），没定之前不合 | 进行中 |
 | R-36 | 新：宿主任何地方都不调 `verifyPluginPackage`；安装记录的 `publisher_id`/`publisher_signature` 是安装时 Manifest 的自报，之后才固定（项目库账本、PG-022 P1b 的 Home 库账本都是「装上后不可换」，不保证首次可信） | `ac-trust` 线（PG-001 统一安装确认与签名校验）；该线开线前统筹盯着，未签名插件安装要用户同意 | 进行中 |
 | R-37 | 新：插件 id 互为点号前缀（如 `a` 与 `a.b`）时共用命名空间，事件总线与 S-63/S-64 的前缀检查都受影响（BL-506）；内置 27 个 id 里没有这样的一对 | `ac-trust` 线：安装时拒绝互为前缀的 id | 进行中 |
+| R-38 | 新：agent-host 五个巨大单元（`prologue.ts`、`index.ts`、`prologue-stream.ts`、`prologue-action-gateway.ts`、`capability-registration.ts`）同时在草稿 #1153、#1064（记忆线，jingxusandra）里改，纯搬移拆分会让草稿大面积冲突；`capability-registration.ts` 还在 R8 链上 | 统筹：等 #1153/#1064 合入或统筹通知再拆，`capability-registration` 等 R8 链合完；`ac-kernel` 先做不重叠的 5 个；插件创作台的巨大单元本轮不拆（绕过，只要不变大） | 进行中 |
 
 
 | 编号 | 风险 | 影响 | 现状与缓解 | 谁跟 | 何时处理 |

@@ -393,7 +393,7 @@ export class MemoryService {
     const asCandidate = async (why: string, basis: MemoryBasis | null = input.basis): Promise<MemoryWriteResult> => {
       if (!formationKind) return refused("正式扩展类别不能自动形成候选");
       if (basis === null) return refused("原记忆依据未知，不能替它生成新的候选依据");
-      const waiting = input.candidate_id ? (await this.queries.candidateRecords(caller, input.scope, where.owner)).find(item => item.note.candidate_id === input.candidate_id)?.note : undefined;
+      const waiting = input.candidate_id ? (await this.queries.candidateRecords({ ...caller, purpose: "management", source_use: "learning" }, input.scope, where.owner, { formation: true })).find(item => item.note.candidate_id === input.candidate_id)?.note : undefined;
       await this.ports.beforeEffect?.();
       if (input.candidate_id || this.operations.find(caller, "candidate-hold")) {
         const held = this.operations.holdCandidate(caller, waiting, input, why);
@@ -463,7 +463,7 @@ export class MemoryService {
     const condition = candidate ? this.operations.condition(caller, `promote:${candidate.candidate_id}`, { kind: "promote", scope: input.scope, owner: where.owner,
       candidate_id: candidate.candidate_id, expected_version: input.candidate_version ?? candidate.version }) : undefined;
     const entry = candidate
-      ? await this.ports.backend.withCaller(caller).candidates.promote({ scope: input.scope, owner: where.owner, candidate_id: candidate.candidate_id,
+      ? await this.ports.backend.withCaller({ ...caller, purpose: "management", source_use: "learning" }).candidates.promote({ scope: input.scope, owner: where.owner, candidate_id: candidate.candidate_id,
         ...condition!,
         policy: policy.policy, version: policy.version, origin, meta: toEntryMeta(facts, candidate.meta) })
       : await this.ports.backend.withCaller(caller).write({ scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind], meta: toEntryMeta(facts, input.retainedMeta ?? input.classificationMeta),
@@ -973,7 +973,7 @@ export class MemoryService {
   /* ---- internals ---- */
 
   private async policyCandidate(caller: MemoryCaller, candidateId: string | undefined, where: { scope: MemoryScope; owner: string }): Promise<MemoryBackendCandidate> {
-    const existing = (await this.ports.backend.withCaller(caller).candidates.list(where.scope, where.owner)).find(item => item.candidate_id === candidateId);
+    const existing = candidateId ? await this.ports.backend.withCaller({ ...caller, purpose: "management", source_use: "learning" }).candidates.get({ ...where, candidate_id: candidateId, ...(caller.signal ? { signal: caller.signal } : {}) }) : undefined;
     if (!existing) throw memoryErrors.not_found("没有这条建议的当前原件");
     return existing;
   }
@@ -986,7 +986,7 @@ export class MemoryService {
     const mark = this.operations.begin(caller, `policy-settle:${candidate.candidate_id}`, { kind: "settleInto", ...where,
       candidate_id: candidate.candidate_id, memory_id: entry.memory_id, expected_version: candidate.replacement?.expected_version ?? entry.version,
       candidate_expected_version: input.candidate_version ?? candidate.version });
-    const updated = await this.ports.backend.withCaller(caller).candidates.settleInto({ ...where, candidate_id: candidate.candidate_id,
+    const updated = await this.ports.backend.withCaller({ ...caller, purpose: "management", source_use: "learning" }).candidates.settleInto({ ...where, candidate_id: candidate.candidate_id,
       candidate_expected_version: mark.candidate_expected_version!, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
       target: { memory_id: entry.memory_id, expected_version: mark.expected_version!, change: { text, meta: toEntryMeta(meta, entry.meta) } },
       by: { by: "policy", policy: input.policy.policy, version: input.policy.version } });

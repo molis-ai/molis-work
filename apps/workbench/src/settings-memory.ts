@@ -54,7 +54,7 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-batch-disable disabled>${L("预览批量停用")}</button>
         <button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-batch-remove disabled>${L("预览批量遗忘")}</button>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-batch-retry hidden>${L("重试原预览")}</button>
-        <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-selection-reset>${L("清除选择")}</button>
+        <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-selection-reset>${L("取消勾选")}</button>
       </div>
       <p class="settings-muted" data-memory-batch-status aria-live="polite" hidden></p>
       <ul class="memory-list" data-memory-batch-results hidden></ul>
@@ -177,24 +177,25 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     });
     const pendingCommands = new Map();
     const selected = new Map(), selectionKey = item => JSON.stringify([item.scope, item.owner, item.memory_id]);
+    const batchStatus = part("batch-status"), batchResults = part("batch-results");
     const batchStorageKey = "memory-selection:" + base;
     let batchPreview = null, batchRequest = null, batchStorageUnread = false;
     try {
       const saved = JSON.parse(localStorage.getItem(batchStorageKey) || "null");
       if (saved && typeof saved.preview_id === "string" && ["disable", "remove"].includes(saved.action)) batchPreview = saved;
     } catch {
-      batchStorageUnread = true; part("batch-status").hidden = false;
-      part("batch-status").textContent = L("无法读取原预览。请恢复浏览器存储后重新打开页面，或明确结束本次操作。");
+      batchStorageUnread = true; batchStatus.hidden = false;
+      batchStatus.textContent = L("无法读取原预览。请恢复浏览器存储后重新打开页面，或明确结束本次操作。");
     }
     const paintSelection = () => {
       part("selected").textContent = L("已选") + " " + selected.size + " / 100";
       part("batch-disable").disabled = part("batch-remove").disabled = !selected.size || !!batchPreview || batchStorageUnread || busy || reading || readFailed;
       part("batch-retry").hidden = !batchPreview; part("batch-retry").disabled = busy;
       root.querySelectorAll("[data-memory-select]").forEach(input => { input.disabled = busy || !!batchPreview || batchStorageUnread; });
-      part("selection-reset").textContent = L(batchPreview || batchStorageUnread ? "结束本次操作，重新选择" : "清除选择");
+      part("selection-reset").textContent = L(batchPreview || batchStorageUnread ? "结束本次操作，重新选择" : "取消勾选");
     };
     const showBatch = (done) => {
-      const status = part("batch-status"), list = part("batch-results");
+      const status = batchStatus, list = batchResults;
       status.hidden = list.hidden = false;
       status.textContent = L(done.complete ? "所选记忆已全部处理完成" : "本次操作尚未完成；重试只处理原预览，已完成项不会重复执行。");
       list.replaceChildren();
@@ -207,18 +208,20 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const applyBatch = async () => {
       try { localStorage.setItem(batchStorageKey, JSON.stringify(batchPreview)); }
       catch { throw new Error(L("无法保存原预览，尚未开始执行。请恢复浏览器存储后重试原预览；关闭页面会丢失本页恢复入口。")); }
-      part("batch-status").hidden = false;
-      part("batch-status").textContent = L("正在处理原预览；若中断，请重试原预览。");
+      batchStatus.hidden = false;
+      batchStatus.textContent = L("正在处理原预览；若中断，请重试原预览。");
       const done = await api("/batch/apply", { preview_id: batchPreview.preview_id, operation_id: crypto.randomUUID() });
       showBatch(done);
       if (done.complete) {
         selected.clear();
         try { localStorage.removeItem(batchStorageKey); batchPreview = batchRequest = null; }
-        catch { part("batch-status").textContent += " " + L("处理已完成，但原预览引用未能清理；重试只核对原结果，不会重复处理。"); }
+        catch { batchStatus.textContent += " " + L("处理已完成，但原预览引用未能清理；重试只核对原结果，不会重复处理。"); }
       }
       paintSelection();
     };
     const previewBatch = (action) => run(async () => {
+      batchStatus.textContent = ""; batchResults.replaceChildren();
+      batchStatus.hidden = batchResults.hidden = true;
       const values = [...selected.values()];
       const items = values.map(({ text, ...item }) => item);
       const signature = JSON.stringify({ action, items });
@@ -238,7 +241,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       try { localStorage.removeItem(batchStorageKey); }
       catch { fail(new Error(L("无法清理原预览引用，本次操作仍保留。请恢复浏览器存储后重试。"))); return; }
       selected.clear(); batchPreview = batchRequest = null; batchStorageUnread = false;
-      part("batch-status").hidden = part("batch-results").hidden = true;
+      batchStatus.hidden = batchResults.hidden = true;
       paintItems(); paintSelection();
     });
     paintSelection();

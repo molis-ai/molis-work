@@ -225,12 +225,15 @@ test("selected category batch keeps the original preview through partial failure
   const add = async (text: string) => (await client.invoke(memoryActions.write, { scope: "personal", text, kind: "convention" }) as MemoryWriteResult).memory!;
   const a = await add("First explicitly selected convention"), b = await add("Second explicitly selected convention");
   let interrupted = false;
+  const removed: Array<{ memory_id: string; expected_version: number | undefined }> = [];
   const change = MemoryService.prototype.change;
-  t.mock.method(MemoryService.prototype, "change", function(this: MemoryService, ...args: Parameters<MemoryService["change"]>) {
+  t.mock.method(MemoryService.prototype, "change", async function(this: MemoryService, ...args: Parameters<MemoryService["change"]>) {
     if (args[1].action === "disable" && !interrupted && args[1].memory_id === b.memory_id) {
       interrupted = true; throw new Error("Unavailable until the person retries");
     }
-    return change.apply(this, args);
+    const result = await change.apply(this, args);
+    if (args[1].action === "remove") removed.push({ memory_id: args[1].memory_id, expected_version: args[1].expected_version });
+    return result;
   });
   const directory = await mkdtemp(join(tmpdir(), "memory-selected-browser-"));
   const browser = await ChromeHarness.start(directory, { executable });
@@ -284,9 +287,15 @@ test("selected category batch keeps the original preview through partial failure
     // Forget uses the same visible selection and asks again; it cannot silently include the later item.
     for (const item of [a, b]) await page.click("[data-memory-test-active] [data-memory-id=" + JSON.stringify(item.memory_id) + "] [data-memory-select]");
     await page.click(part("batch-remove")); await page.wait("document.querySelector('.memory-confirm[open]')");
+    assert.doesNotMatch(await page.evaluate<string>("document.querySelector(" + JSON.stringify(part("batch-status")) + ").textContent"), /全部处理完成/,
+      "a new unconfirmed batch cannot display the previous batch's completion");
+    assert.deepEqual(removed, [], "preview and confirmation have not removed any entry");
     await page.click("[data-memory-confirm-yes]");
     await page.wait("document.querySelector(" + JSON.stringify(part("batch-status")) + ")?.textContent.includes('全部处理完成')");
     await ready(page);
+    await page.wait("![...document.querySelectorAll(" + JSON.stringify(rows) + ")].some(row => " + JSON.stringify([a.memory_id, b.memory_id]) + ".includes(row.dataset.memoryId))");
+    assert.deepEqual(removed, [a, b].map(item => ({ memory_id: item.memory_id, expected_version: state.items.find(row => row.memory_id === item.memory_id)!.version })),
+      "the current apply completed both original selected versions through the real Service");
     const remaining = await client.invoke(memoryActions.page, { scope: "personal" });
     assert.deepEqual(remaining.items.map(item => item.memory_id), [later.memory_id]);
     assert.doesNotMatch(await page.evaluate<string>("document.querySelector(" + JSON.stringify(part("batch-results")) + ").textContent"), /explicitly selected/);

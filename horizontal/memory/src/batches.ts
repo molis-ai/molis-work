@@ -88,7 +88,7 @@ export class MemoryBatches {
         items.push({ ...item, outcome: "completed", change_id: result.change.change_id });
       } catch (error) {
         const code = error !== null && typeof error === "object" && "code" in error ? error.code : undefined;
-        const outcome = code === "memory.conflict" || code === "STORAGE_CONFLICT" ? "conflict"
+        const outcome = code === "memory.conflict" || code === "agent.memory_conflict" || code === "STORAGE_CONFLICT" ? "conflict"
           : ["memory.forbidden", "memory.scope", "MEMORY_SCOPE_DENIED"].includes(String(code)) ? "refused" : "unknown";
         items.push({ ...item, outcome });
         // A grant failure may happen after partial cleanup; it is not a zero-effect claim.

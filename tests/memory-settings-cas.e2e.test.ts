@@ -395,7 +395,8 @@ test("batch storage faults keep the original preview, block unsaved writes and r
     Storage.prototype.setItem = function(key, value) { if (key.startsWith('memory-selection:')) throw new DOMException('quota', 'QuotaExceededError'); return window.memoryStorageSet.call(this, key, value); };
   })()`);
   await page.click("[data-memory-id=active] [data-memory-select]");
-  await page.click("[data-memory-batch-remove]"); await page.click("[data-memory-confirm-yes]");
+  await page.click("[data-memory-batch-remove]"); await page.wait("document.querySelector('.memory-confirm[open]')");
+  await page.click("[data-memory-confirm-yes]");
   await page.wait("document.querySelector('[data-memory-error]').textContent.includes('尚未开始执行') && !document.querySelector('[data-memory-batch-retry]').disabled");
   assert.equal(applied, 0); assert.equal(completed, false);
   assert.equal(f.calls.filter(call => call.path.endsWith("/batch/preview")).length, 1);
@@ -430,11 +431,14 @@ test("unreadable batch storage cannot overwrite a previous preview before explic
   const f = await open(t, () => ({ body: {} })); if (!f) return;
   const key = "memory-selection:/projects/project/api/memory";
   await f.page.evaluate(`localStorage.setItem(${JSON.stringify(key)}, JSON.stringify({preview_id:'original-unread',action:'disable'}))`);
+  await f.page.command("Page.enable");
   const { identifier } = await f.page.command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `
+    window.memoryStorageReadProbe = true;
     const original = Storage.prototype.getItem;
     Storage.prototype.getItem = function(key) { if (key.startsWith('memory-selection:')) throw new DOMException('blocked', 'SecurityError'); return original.call(this, key); };
   ` });
   await f.reset();
+  assert.equal(await f.page.evaluate("window.memoryStorageReadProbe === true"), true, "the storage fault must be installed in the new document before Memory initializes");
   await f.page.wait("document.querySelector('[data-memory-batch-status]').textContent.includes('无法读取原预览')");
   assert.equal(await f.page.evaluate("document.querySelector('[data-memory-select]').disabled && document.querySelector('[data-memory-batch-disable]').disabled"), true);
   assert.equal(f.calls.length, 0);

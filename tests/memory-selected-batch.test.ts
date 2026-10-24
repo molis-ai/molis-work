@@ -52,7 +52,27 @@ test("preview binds exact owner and version; foreign caller, project, duplicate 
   const edited = (await f.service.change(caller("edit"), { action: "update", memory_id: a.memory_id, expected_version: a.version, text: "New human version" })).memory!;
   const result = await f.service.batches.apply(caller("execute"), preview.preview_id);
   assert.equal(result.complete, false); assert.deepEqual(result.items.map(one => one.outcome), ["conflict", "completed"]);
-  assert.equal((await f.raw(caller("read")).list("project", "project-a")).find(one => one.memory_id === a.memory_id)!.version, edited.version);
+  await f.close(); const reopened = await f.open();
+  assert.deepEqual(await reopened.batches.apply(caller("retry-conflict"), preview.preview_id), result);
+  const persisted = await f.raw(caller("read")).list("project", "project-a");
+  const kept = persisted.find(one => one.memory_id === a.memory_id)!, disabled = persisted.find(one => one.memory_id === b.memory_id)!;
+  assert.equal(kept.version, edited.version); assert.equal(kept.text, edited.text); assert.equal(!!kept.disabled, false);
+  assert.equal(disabled.version, b.version + 1); assert.ok(disabled.disabled);
+  assert.equal(f.ledger().changesOf(b.memory_id).filter(change => change.kind === "disabled").length, 1);
+});
+
+test("a non-conflict Agent failure remains unknown and stops the next fixed item", async t => {
+  const f = await fixture(t), a = await seed(f.service, "First unavailable"), b = await seed(f.service, "Later untouched");
+  const preview = await f.service.batches.preview(caller("preview-unavailable"), { action: "disable", items: [selected(a), selected(b)] });
+  const before = await f.raw().list("project", "project-a");
+  let calls = 0;
+  const backend = observeMemoryBackend(prologueMemoryBackend(async () => f.adapter().memory!), bound => ({ ...bound,
+    previewMutation: async () => { calls++; throw Object.assign(new Error("Memory capability unavailable"), { code: "agent.capability_unavailable" }); } }));
+  const service = new MemoryService({ backend, ledger: f.ledger() });
+  const result = await service.batches.apply(caller("apply-unavailable"), preview.preview_id);
+  assert.equal(result.complete, false); assert.deepEqual(result.items.map(item => item.outcome), ["unknown", "not-executed"]);
+  assert.equal(calls, 1); assert.deepEqual(await f.raw().list("project", "project-a"), before);
+  for (const item of [a, b]) assert.equal(f.ledger().changesOf(item.memory_id).some(change => change.kind === "disabled"), false);
 });
 
 for (const interrupted of ["candidate-response", "ledger", "receipt"] as const) test("forget interrupted at " + interrupted + " resumes the original child after restart", async t => {

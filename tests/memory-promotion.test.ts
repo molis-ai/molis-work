@@ -35,7 +35,7 @@ async function fixture(t: Parameters<typeof memoryServiceHome>[0]) {
   const learn = async (operation: string, originals: AgentMemorySourceSnapshot[], proposed = proposal(originals[0]!.text)) => {
     for (const source of originals) sources.set(source.event_id, source);
     extraction.set([proposed]);
-    const result = await memory.learnFromWork(caller(operation), { said: originals.map(source => source.text), sources: originals });
+    const result = await memory.learnFromWork({ ...caller(operation), purpose: "task", person: false }, { said: originals.map(source => source.text), sources: originals });
     if (result.recording_error || !["completed", "skipped"].includes(result.formation.outcome))
       throw new ActionError(result.recording_error?.code ?? result.formation.code ?? "memory.conflict", "Source-bound learning did not complete", { details: { formation: result.formation } });
     return result.learned;
@@ -170,7 +170,7 @@ test("MEM-09 cancellation and current automatic/formation switches are rechecked
       else env.memory().savePrefs(person, "project", { [mode]: false });
     });
     env.extraction.set([proposal(text)]);
-    const result = await env.memory().learnFromWork({ ...caller(`stop-${mode}`), signal: signal.signal }, { said: [text], sources });
+    const result = await env.memory().learnFromWork({ ...caller(`stop-${mode}`), purpose: "task", person: false, signal: signal.signal }, { said: [text], sources });
     assert.ok(result.recording_error, "the original formation receipt survives a stopped promotion");
     mocked.mock.restore();
     assert.equal((await env.raw(person).list("project", "project-a")).length, 0, mode);

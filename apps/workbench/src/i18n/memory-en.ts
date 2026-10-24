@@ -269,7 +269,7 @@ export const MEMORY_EN: Record<string, string> = {
   "预览批量停用": "Preview disabling",
   "预览批量遗忘": "Preview forgetting",
   "重试原预览": "Retry original preview",
-  "清除选择": "Clear selection",
+  "取消勾选": "Clear selection",
   "结束本次操作，重新选择": "End this operation and select again",
   "所选记忆已全部处理完成": "All selected memories have been processed",
   "本次操作尚未完成；重试只处理原预览，已完成项不会重复执行。": "This operation is incomplete. Retry uses the original preview and skips completed items.",

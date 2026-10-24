@@ -101,6 +101,8 @@ knowledge.read	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,
 knowledge.receipts	1	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	1ce2334483fc	c544c5812a1c	-
 knowledge.search	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	c67c4936298d	c4956f416fa3	-
 mcp.grants.usages	1	system.action-usages	query	query	home	read	concurrent	user	-	-	molis.action-usages.input.v1	molis.action-usages.output.v1	8fc50332e9ea	d6491f838975	-
+memory.batch.apply	1	system.memory	command	operation	home	irreversible	-	user	memory:write	-	-	-	d6f11647342f	dee7c0f511d4	-
+memory.batch.preview	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	0d1cfd0d332a	126c5c3c333c	-
 memory.candidates.accept	3	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	8cf8239eb8fe	c0a7ad9eb234	-
 memory.candidates.discard	2	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	9b895ae078a5	5e22d107e685	-
 memory.candidates.list	2	system.memory	query	query	home	read	-	user	memory:read	-	-	-	b28a55099e67	c0f9af5a16f6	-
@@ -111,7 +113,7 @@ memory.export	2	system.memory	query	query	home	read	-	user	memory:export	-	-	-	f
 memory.history	2	system.memory	query	query	home	read	-	user	memory:read	-	-	-	d5966af3318e	baa4e90fb824	-
 memory.import	2	system.memory	command	operation	home	write	-	user	memory:export	-	-	-	7800d94ff697	a0809c153e83	-
 memory.list	4	system.memory	query	query	home	read	-	agent,user	memory:read	-	-	-	1ac220317487	449edb041d22	5e0374458cf9
-memory.page	1	system.memory	query	query	home	read	concurrent	user	memory:read	-	-	-	618c5b548a9d	1909c4cd7bd4	5e0374458cf9
+memory.page	2	system.memory	query	query	home	read	concurrent	user	memory:read	-	-	-	618c5b548a9d	1c511a0f3df8	5e0374458cf9
 memory.pairs.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	8fae6285b822	983c812a2083	-
 memory.pairs.resolve	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	29218ac07da5	8cee623341f8	-
 memory.prefs.read	3	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	f0c071b0cd86	192b3d5adac1	-

@@ -126,6 +126,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     if (!root || root.dataset.memoryBound === "1") return;
     root.dataset.memoryBound = "1";
     const L = globalThis.L || ((text) => text);
+    const unread = L("读取未完成，请重新读取。");
     const scope = root.dataset.memoryScope === "project" ? "project" : "personal";
     const project = root.dataset.project || "";
     const base = (scope === "project" && project ? "/projects/" + encodeURIComponent(project) : "") + "/api/memory";
@@ -160,10 +161,10 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const day = (iso) => { const date = new Date(iso); return !iso || isNaN(date) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
     const appliesText = (applies, itemScope) => {
       const parts = [];
-      if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(L("插件") + " " + applies.plugin_ids.join("、"));
-      if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(L("对象") + " " + applies.object_kinds.join("、"));
+      if (applies?.plugin_ids?.length) parts.push(L("插件") + " " + applies.plugin_ids.join("、"));
+      if (applies?.object_kinds?.length) parts.push(L("对象") + " " + applies.object_kinds.join("、"));
       // Goals by name when their plugin can still read them; one it cannot is said so rather than shown as an id.
-      if (applies && applies.goal_ids && applies.goal_ids.length) parts.push("Goal " + applies.goal_ids.map((id) => {
+      if (applies?.goal_ids?.length) parts.push("Goal " + applies.goal_ids.map((id) => {
         const title = data && data.labels && data.labels.goals ? data.labels.goals[id] : null; return title ? "「" + title + "」" : L("（读不到的 Goal）"); }).join("、"));
       if (applies && applies.task) parts.push(applies.task);
       if (applies && applies.until) parts.push(L("到") + " " + applies.until.slice(0, 10));
@@ -326,7 +327,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       } catch (failure) {
         if (reader === active && root.isConnected) {
           readFailed = true; fail(failure);
-          part("list").replaceChildren(el("li", "memory-empty settings-muted", L("读取未完成，请重新读取。")));
+          part("list").replaceChildren(el("li", "memory-empty settings-muted", unread));
         }
       } finally {
         if (reader === active) { reading = false; paintNavigation(); }
@@ -341,7 +342,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const next = part("next"); next.disabled = reading || readFailed || !data?.cursor || data.exhausted;
       next.textContent = L(data && !data.items.length && !data.exhausted ? "继续查找" : "下一页");
       part("reload").disabled = reading; paintSelection();
-      part("page-status").textContent = reading ? L("正在读取…") : readFailed ? L("读取未完成，请重新读取。") : !data ? ""
+      part("page-status").textContent = reading ? L("正在读取…") : readFailed ? unread : !data ? ""
         : L("本页显示") + " " + data.items.length + " · " + L(data.exhausted ? "已查完" : "尚未查完，可以继续查找。");
     }
 
@@ -379,7 +380,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const list = part("candidates"), candidates = data.candidates || [];
       part("candidates-section").hidden = data.candidates !== null && !candidates.length;
       list.replaceChildren();
-      if (data.candidates === null) list.append(el("li", "settings-muted", L("读取未完成，请重新读取。")));
+      if (data.candidates === null) list.append(el("li", "settings-muted", unread));
       candidates.forEach((candidate) => {
         const row = el("li", "memory-row memory-row--candidate"), submit = mutation();
         row.dataset.memoryCandidate = candidate.candidate_id;

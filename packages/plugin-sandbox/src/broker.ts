@@ -3,7 +3,7 @@ import type { PluginConnectionMethod, PluginConnectionsClient } from '@molis-ai/
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
-import { documentBatchJson, extractionJson, materialRequest, materialSource, materialUploads } from './materials.js';
+import { documentBatchJson, extractionJson, materialRequest, materialSource, materialUploads, plainJson } from './materials.js';
 import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';

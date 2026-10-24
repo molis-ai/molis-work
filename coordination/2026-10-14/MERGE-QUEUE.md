@@ -79,7 +79,8 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 >   - PG-022 由 ac-sandbox-sched 先合一次 main 解真代码冲突，#1234 二轮可合后开 PR；BL-490/491 叠在它后面。
 >   - 远端分支 `claude/ac-pg017-p2-fetch` 等 p2e 落地再删。
 > - #1236同331 full40117579239十六worker+aggregate成功；PRCI十四适用成功。Mac原26ts+native-checks补项合27唯一文件，首红/定向恢复保留；selector七态最终attempt4 exit0/清理0，非真实Home/模型执行/本人验收。最终queue40122786015/Verify120959586844成功，10成功/3条件skip；TEST继续亲读full分母/retry/skip，不把17成功元数据说成所有case首绿。privileges/spec状态按Claude原计划随batch34一次更新，不另开状态PR。
-> - batch-34 候选：#1227（一轮可合，无修复）+ 修完二轮的 #1226 #1228 #1229 #1232 #1230 + #1231（已二轮）+ #1234（待一轮）。修复单在 CODEX-TASKS §0a。
+> - **batch-34 已开**：批 PR #1241（`batch/1024-34`@`1b2183a23`），全量 40127827015 在 `integration/carrier-1024-34`（同头）。含 #1227 #1228 #1226 #1229 #1232 #1231 #1230 #1234，另并 `privdocs/ac-kernel`@`868ab3f76`（PG-007、PG-031 状态格，S-57 扩展片 X1～X4 与 §4.1）。#1238 与其余各片没有共用路径，Codex 按 §1a.5 单独入队（6388851739，统筹同意）；它先落，#1241 合 main 时吸收。本机冲突处 13 个文件加 26 个 macOS 专属文件，39/39 通过；health、boundary、page-assets、secrets 都过。8 个源 PR 已留言「不要再推」。
+> - 下一批候选（batch-35）：#1239（C2 原作者修中，严格钉住，用户已定）、#1240（FIX1 修中，删除被坏记录挡住那项已升为挡合并）、ac-kernel「删 typed 通道」（统筹已放行开 PR）、ac-clients-1 W5-04 第 2 组（files、schedule、shelf、git，已放行开 PR）、PG-017 P2e、BL-490。
 
 
 > **当前唯一定时调度（用户最新明确、Root已官方工具读回）**：只有Root `01a12a80-ede2-7b81-93ea-521a5abcc35c` 的 `molis-work` 每10分钟周期巡检；其他定时任务维持PAUSED。本次只改变周期发现来源，原职责和交付直达接续不变：新PR交REVIEW、可合并项交流水线执行、新独立片交对应实现、有效Review问题交原作者/修复、修复新head即交REVIEW增量复查并按风险交TEST；固定头/证据直接传递并抄Root，不等heartbeat或Root二次许可。Root负责周期发现、初始派单与复杂裁决，流水线/专职不恢复自己的定时器或周期扫描全项目。Claude整线范围/优先级/唯一full排期、既有owner和单writer/公共资源槽不变。

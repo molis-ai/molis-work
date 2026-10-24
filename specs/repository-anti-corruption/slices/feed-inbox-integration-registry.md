@@ -1,6 +1,6 @@
 # FI-3 集成登记设计稿（PG-046）
 
-状态：设计稿（2026-10-24），待统筹审；审过再实现，本稿不改代码。事实在 `origin/main` `584112c65` 上读代码核的，没跑过。父稿 [feed-inbox-runtime.md](feed-inbox-runtime.md) §3 D3 定了方向，本稿把它写成能照做的形状，并写清 OAuth 放哪里，让 Codex C4（W5-11）照这份做。号段 RAC-488～491。
+状态：设计稿（2026-10-24），统筹审过方向、提了六条必改（冲突规则、声明不给连接权、C4 的地址校验、`integrationKeyOf` 的位置、四张宿主卡、过渡口），已改入各节，等统筹核一眼；审过再实现，本稿不改代码。事实在 `origin/main` `584112c65` 上读代码核的，没跑过。父稿 [feed-inbox-runtime.md](feed-inbox-runtime.md) §3 D3 定了方向，本稿把它写成能照做的形状，并写清 OAuth 放哪里，让 Codex C4（W5-11）照这份做。号段 RAC-488～491，另有补充条 RAC-519（统筹 10-24 定：Feed/Inbox 组 RAC-480～499 再加 500～519；补充条从 500 段末尾倒着取，免得挤 FI-6 的连号）。
 
 ## 1. 现状
 
@@ -52,16 +52,20 @@ integrations?: readonly {
 }[];
 ```
 
+- `integrations[].service_id` 必须是**同一份 Manifest** `connection_services` 里声明过的；引用别的插件的服务，SDK 解析时拒绝。声明只是声明，不给任何连接权（见 3.2）。
 - 一个服务可以被两个集成用：notion 既是 Feed 来源（`notion`，`source`）也是文档导入（`notion-documents`，`document_import`）；`google-docs` 是文档导入，用 `google-drive` 的账号。这就是 D3 说的「用 `kind` 区分」。
 - 只在目录里出现、没有 Feed 来源也没有导入的服务（今天 `feed_available:false` 的那些）只声明 `connection_services`，不声明 `integrations`。
 - 声明服务的插件就是这张目录卡的主人；「连接器目录」不再是单独的主人，`CONNECTOR_DIRECTORY_BASE` 的 `...CATALOG_CONNECTORS.map` 展开消失，改由已装插件的声明拼。
-- Catalog 保持**一个**插件，声明 39 个服务和相应的集成；Manifest 的这几十条由包里的描述（`catalog.ts` 的 `spec(...)`）生成，`manifest.json` 与生成结果逐字相等由构建检查，不手抄。
+- 平台自己消费的连接服务（今天的 model-api、typesafe、image-api、mcp-bearer 四张宿主自带卡）写成**平台的一份声明列表**，与插件声明同形、进同一个登记（持有者记为 `platform`），不按名字分支。Catalog 保持**一个**插件，声明 39 个服务和相应的集成；Manifest 的这几十条由包里的描述（`catalog.ts` 的 `spec(...)`）生成，`manifest.json` 与生成结果逐字相等由构建检查，不手抄。
 
 ### 3.2 登记：一个 Home 一份
 
 - 登记是平台服务（`apps/local-host/src/integration-registry.ts`，取代 `official-integrations.ts`，不含任何集成 id 字面量），从 Home 的已装插件里读 `connection_services` 和 `integrations`，插件装上、停用、卸载时更新。
-- 同一个 `integration_id` 或 `service_id` 被两个插件声明：**都不登记这个 id**，登记留一条诊断（错误码 `plugin.integration_declaration_conflict`），不猜谁对；两个插件本身的其他功能不受影响。同一个 `service_id` 被同一插件下的两个集成引用不算冲突。
+- **冲突在后来者安装或启用时拒绝，已登记的不动**：同一个 `integration_id` 或 `service_id` 已被某个插件（或平台声明）登记，后来的插件声明同一个 id，它**启用失败**，错误码 `plugin.integration_declaration_conflict`，消息写明冲突的 id 与当前持有者；已登记的集成、它的来源、它的连接一概不受影响。否则任何后装的插件（含外部插件）声明一个 `service_id: "github"` 就能把在用的 GitHub 集成打掉。
+- 两个都已装的存量情况，按安装记录的先后定：先装的持有，后装的启用失败。这是写明的规则，不是猜。平台自己的声明永远先于插件。
+- 同一个 `service_id` 被同一插件下的两个集成引用不算冲突。
 - `kind` 只认 `source`、`document_import`。Feed 只取 `source` 的集成，成果库只取 `document_import` 的；用错 kind 当场拒绝，不静默换一个。
+- **声明 `service_id` 不给任何连接权**：拥有目录卡或声明了服务，读不到这个服务已有的连接与凭据；`binding` 里的引用由宿主按**来源已绑定的那条连接**给，不是按 `service_id` 去查；插件要读连接，走 `services.connections`，按安装逐个授权（S-57）。外部插件声明一个已登记的服务，被上一条拒绝；登记成功的插件也读不到没授给它的连接（RAC-519）。
 - 集成消失（插件停用或卸载）：它的来源不崩，走现有的来源故障条目，说「这个来源的集成不可用」，不新造状态。
 
 ### 3.3 一个共用 Runtime，按绑定出实例
@@ -73,6 +77,7 @@ integrations?: readonly {
 - 来源配置变了不用重装：下一次拉取按新的绑定出新实例（`configurationFingerprint` 与它的卸载重装消失）。
 - 崩溃：**单个来源的拉取异常是这个来源的故障**（沿用来源故障条目和错误码），不再报给 Runtime；Runtime 层的崩溃只留给插件自己起不来、绑不上。这样一个坏来源不会把 GitHub 集成对所有来源都停掉。这是行为变化：`reportCrash(sourceId)` 与 `official-integrations` 里按来源的恢复删掉，相关测试要改并写明。
 - 提供方怎么拿令牌：**本片不动**。今天是宿主端口 `OfficialProviderFactory`（`defaultProviderFor` 里三选一），改成「一个端口、按绑定出提供方」，由宿主的连接层实现；它里面的三选一在 PG-045（`services.connections`，ac-kernel）落地后随之删。这是本片留下的唯一一个过渡口，在设计里点名，删除条件写清。
+- **PR 里要写明**：`reportCrash` 的行为变化（上一条），和 `OfficialProviderFactory` 这个过渡口（主人 ac-kernel，PG-045 落地后删，统筹登进风险表）。
 - 开工前核对：Home 监督器或这个共用 Runtime 装的集成插件，其 `kind: "integration"` 的贡献检查已经存在（`plugin-runtime/src/contribution.ts:38`）；若 Home 监督器不接 `integration` 类，则共用 Runtime 由登记服务自己持有，不等监督器。
 
 ### 3.4 OAuth 放在哪里（给 C4 / W5-11）
@@ -93,6 +98,7 @@ type AuthMethodDeclaration =
 3. **平台留着的**：回调路由（一条）、`state` 与待定目标存取（`connector-oauth-targets.ts`）、凭据暂存与提交（`connector-oauth-commit.ts`）、连接记录、客户端 id/secret 的引用——这些是安全边界（SECURITY-INVARIANTS S-xx 相关行），不下放。
 4. **本片只占位**：FI-3 先定 `auth.methods` 的外形，`token` 方式填全（目录卡今天就靠它），`oauth`/`mcp`/`cli` 先只写 `kind`，宿主表照旧查；C4 往这些成员里**加字段**（可选字段的增加，不改已有字段），并删三张宿主表。两片的合同改动因此不撞同一行。
 5. FI-3 不改 `connector-oauth-*`、`*-oauth.ts`、`API_OAUTH_PROVIDERS`；C4 不改 `official-integrations.ts`（FI-3 之后它不存在）。
+6. **地址校验是平台的一份**：插件声明的授权地址、令牌地址、刷新地址，走平台同一份地址校验（`SECURITY-INVARIANTS.md` 的地址规则），不由插件自己校验；声明不合规，该服务的这种接入方式不登记并留诊断。
 
 ### 3.5 文档导入并进来
 
@@ -101,25 +107,26 @@ type AuthMethodDeclaration =
 
 ### 3.6 不改的
 
-`feed_sources.sync_kind` 的 CHECK 和 `source.kind` 当连接器 id 的用法：登记用 `integrationKeyOf(source)` 一个纯函数（`github`→`github`，`gmail`→`gmail`，`connector`→`source.kind`）取键，不动表、不动存量数据。表随 FI-5 搬进 Feed 的声明时，再决定要不要把 CHECK 换成 `integration_id`；到那时按合同「只认现行取值」做维护，不在读取时兜底。
+`feed_sources.sync_kind` 的 CHECK 和 `source.kind` 当连接器 id 的用法：Feed 用 `integrationKeyOf(source)` 一个纯函数（`github`→`github`，`gmail`→`gmail`，`connector`→`source.kind`）取键，**函数放在 Feed 的来源代码里**（今天的 `modules/sources`，D1 并包后随进 `plugins/native/feed`），登记服务只按键查、不认来源行，RAC-488 的「无字面量」才成立。不动表、不动存量数据。表随 FI-5 搬进 Feed 的声明时，再决定要不要把 CHECK 换成 `integration_id`；到那时按合同「只认现行取值」做维护，不在读取时兜底。
 
 ## 4. 验收（暂定号，进实现片时定稿）
 
 | 编号 | 内容 | 证明 |
 | --- | --- | --- |
-| RAC-488 | 登记只来自已装插件的声明，内置与外部插件同一路径；宿主里没有按集成名分支：`official-integrations.ts` 删除，`integration-registry.ts` 无 `github`/`gmail`/`notion` 等字面量 | 门禁测试读源码；外部插件夹具声明的集成同样登记、同样被 Feed 取到 |
+| RAC-488 | 登记只来自已装插件的声明与平台的声明列表，内置与外部插件同一路径；宿主里没有按集成名分支：`official-integrations.ts` 删除，`integration-registry.ts` 无 `github`/`gmail`/`notion` 等字面量，取键函数在 Feed 里 | 门禁测试读源码；外部插件夹具声明的集成同样登记、同样被 Feed 取到 |
 | RAC-489 | 一个 Home 一份登记、一个共用 Runtime：同一集成的多个来源共用一次安装；改一个来源的配置不影响别的来源；单来源拉取异常只成为该来源的故障，不把集成对其他来源停掉；插件停用后其来源给出「集成不可用」故障，不崩 | 多来源夹具；注入一个来源抛错，另一个来源仍能拉；停用插件后再拉 |
-| RAC-490 | 声明冲突和非法值不猜：同一 `integration_id`、`service_id` 两处声明 → 都不登记并留诊断；`kind` 取值之外拒绝；`source` 集成不能被当文档导入用，反之亦然 | 逐个构造冲突与错用 kind，断言拒绝与错误码 |
+| RAC-490 | 冲突与非法值：后装的插件声明已登记的 `integration_id`/`service_id`，它启用失败（`plugin.integration_declaration_conflict`，写明 id 与持有者），**已登记的集成与来源照常**；存量冲突先装的持有；平台声明先于插件；`kind` 取值之外拒绝；引用别的插件的 `service_id` 拒绝；`source` 集成不能被当文档导入用，反之亦然 | 逐个构造；含「后装插件不能打掉已登记的 GitHub 集成」一例 |
 | RAC-491 | 文档导入和目录卡走登记：`CONNECTOR_IDS` 删除；目录卡由声明拼出，宿主不再展开 `CATALOG_CONNECTORS`；notion 同时是来源与文档导入、`google-docs` 用 `google-drive` 的账号 | 现有连接设置与文档导入测试原样过，加 notion 双角色与 google-docs 账号用例 |
+| RAC-519 | 声明不给连接权：外部插件声明已登记的服务被拒；登记成功的插件读不到没授给它的连接与凭据，`binding` 只含它来源已绑定的那条连接的引用 | 外部插件夹具声明 `github`，断言拒绝；拥有目录卡的插件调连接读取，断言拒绝 |
 
-C4 的验收号由它自己定，本稿 §3.4 的五条是它的前置约定。
+C4 的验收号由它自己定，本稿 §3.4 的六条是它的前置约定。
 
 ## 5. 不在本片
 
 - OAuth 的数据与处理器搬迁、三张宿主表的删除（C4，W5-11）。
 - 提供方取令牌的三选一（PG-045 的 `services.connections`，ac-kernel）；S-57 的服务登记表（服务→来源地址与写法）与 `connection_services` 是同一批服务的两面，是否合一留到 PG-045 之后。
 - `public_source`（rss、web-query、youtube）：没有账号，不进登记。
-- Model API、TypeSafe、图像 API、MCP bearer 这四张宿主自带的目录卡：它们是 Functions、Images、Coding 消费的连接服务，没有提供方；本片目录卡仍保留宿主里的这四条，等它们的消费方插件各自声明 `connection_services` 后再移走（**待统筹裁**，建议这样，不挡 FI-3）。
+- Model API、TypeSafe、图像 API、MCP bearer 这四张宿主自带的目录卡（统筹 10-24 定）：本片留在宿主，但写成平台的一份声明列表（3.1），不按名字分支；消费方成了 Runtime 插件后各自声明并移走，平台自身消费的留平台声明，登在 BL-525。
 
 ## 6. 开工前核对
 

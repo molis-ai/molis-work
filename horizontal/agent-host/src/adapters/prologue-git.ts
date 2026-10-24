@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import type { Effect, ExactRef, Runtime } from "@prologue/sdk";
-import type { AgentGitIntegrationReviewDocument, AgentGitIndexObservation, AgentGitIndexReviewDocument, AgentToolOperationReviewDocument, AgentReviewReceipt, AgentReviewRequest, AgentReviewRecoveryView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentGitIntegrationReviewDocument, AgentGitIndexReviewDocument, AgentToolOperationReviewDocument, AgentReviewReceipt, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import type { AgentReviewQueue, ReviewAuthority } from "../reviews.js";
+import { bindGitRecovery } from "./prologue-git-recovery.js";
 
 type GitReviewIntent = { project_id: string; workspace_id: string; operation_id: string } & (
   | { operation_kind?: "git-index"; document: AgentGitIndexReviewDocument }
@@ -37,6 +38,41 @@ const assertHolds = (authority: ReviewAuthority, intent: GitReviewIntent) => {
 };
 const fingerprint = (input: GitReviewIntent) => createHash("sha256").update(JSON.stringify([input.project_id, input.operation_id])).digest("hex");
 
+function requestOf(effect: Effect, saved: StoredReview): AgentReviewRequest {
+  if (!effect.pending) throw new Error("Git 操作缺少原审查等待");
+  return { review_id: `prologue-git:${effect.pending.ref.id}`, run: null,
+    operation: { kind: saved.operation_kind ?? "git-index", operation_id: saved.operation_id, workspace_id: saved.workspace_id },
+    project_id: saved.project_id, plugin_id: saved.plugin_id, kind: saved.document.kind, document: saved.document,
+    requested_at: saved.requested_at, expires_at: new Date(Date.parse(saved.requested_at) + APPROVAL_TTL).toISOString() };
+}
+/** The stored review behind a Git effect; null for an effect that is not one, an error for one whose owner cannot be read. */
+async function savedOf(ports: Ports, effect: Effect): Promise<StoredReview | null> {
+  if (effect.proposal.subject.what !== "tool" || effect.proposal.subject.name !== SUBJECT || !effect.proposal.reviewRef) return null;
+  const value = await ports.read(effect.proposal.reviewRef) as StoredReview;
+  if (value?.kind !== "molis-git-index-review" || !value.project_id || !value.workspace_id || !value.operation_id || typeof value.plugin_id !== "string" || !value.plugin_id || typeof value.install_id !== "string" || !value.install_id
+    || (value.operation_kind === "git-integration" ? value.document?.kind !== "git-integration"
+      : value.operation_kind === "git-worktree" ? value.document?.kind !== "tool-operation" || value.document.tool !== "git-worktree-create"
+      : value.operation_kind === "git-operation" ? value.document?.kind !== "tool-operation" || !GIT_OPERATION_TOOLS.test(value.document.tool)
+      : value.document?.kind !== "git-index")) throw new Error("Git 审查归属不可读，不能猜测执行结果");
+  return value;
+}
+/** Carry an effect's settled outcome onto its review; an outcome not yet known stays uncertain and is never retried. */
+async function settleReview({ runtime, queue, readDecision }: Ports, effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) {
+  const current = runtime.effects.get(effect.ref), dispatch = await runtime.effects.inspectDispatch(effect.ref);
+  if (!current || dispatch.state === "unknown" || ["dispatching", "reconcile-required"].includes(current.state)) {
+    queue.uncertain(request.review_id, "Git 操作结果尚未确定，请核对仓库；不会自动重复执行", { restored });
+    return;
+  }
+  if (queue.receipt(request.review_id)?.status === "approved") {
+    const saved = await readDecision(effect.proposal.inputFingerprint);
+    const reconciled = current.state === "failed" && dispatch.state === "not-dispatched" ? saved?.reconciliation : undefined;
+    queue.settle(request.review_id, current.state === "completed" && dispatch.state === "dispatched" && dispatch.ok === true
+      ? { ok: true } : { ok: false, error: reconciled ? "经核对，原操作未发生；不会自动重试"
+        : error instanceof Error ? error.message : saved?.failure_reason ?? "这次 Git 操作没有完成；需要时重新预览，不会自动重试" }, { restored });
+    if (reconciled) queue.recordReconciliation(request.review_id, reconciled);
+  } else if (["cancelled", "denied", "failed"].includes(current.state)) queue.cancel(request.review_id, "原操作未执行，已撤回");
+}
+
 /** SDK Effects owns dispatch/recovery. The Host retains review provenance and diagnostic text, never execution state. */
 export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
   const { runtime, queue } = ports;
@@ -44,88 +80,8 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
   const busy = new Set<string>();
   const recovering = new Set<string>();
   let closed = false;
-  const requestOf = (effect: Effect, saved: StoredReview): AgentReviewRequest => {
-    if (!effect.pending) throw new Error("Git 操作缺少原审查等待");
-    return { review_id: `prologue-git:${effect.pending.ref.id}`, run: null,
-      operation: { kind: saved.operation_kind ?? "git-index", operation_id: saved.operation_id, workspace_id: saved.workspace_id },
-      project_id: saved.project_id, plugin_id: saved.plugin_id, kind: saved.document.kind, document: saved.document,
-      requested_at: saved.requested_at, expires_at: new Date(Date.parse(saved.requested_at) + APPROVAL_TTL).toISOString() };
-  };
-  const savedOf = async (effect: Effect): Promise<StoredReview | null> => {
-    if (effect.proposal.subject.what !== "tool" || effect.proposal.subject.name !== SUBJECT || !effect.proposal.reviewRef) return null;
-    const value = await ports.read(effect.proposal.reviewRef) as StoredReview;
-    if (value?.kind !== "molis-git-index-review" || !value.project_id || !value.workspace_id || !value.operation_id || typeof value.plugin_id !== "string" || !value.plugin_id || typeof value.install_id !== "string" || !value.install_id
-      || (value.operation_kind === "git-integration" ? value.document?.kind !== "git-integration"
-        : value.operation_kind === "git-worktree" ? value.document?.kind !== "tool-operation" || value.document.tool !== "git-worktree-create"
-        : value.operation_kind === "git-operation" ? value.document?.kind !== "tool-operation" || !GIT_OPERATION_TOOLS.test(value.document.tool)
-        : value.document?.kind !== "git-index")) throw new Error("Git 审查归属不可读，不能猜测执行结果");
-    return value;
-  };
-  const settle = async (effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) => {
-    const current = runtime.effects.get(effect.ref), dispatch = await runtime.effects.inspectDispatch(effect.ref);
-    if (!current || dispatch.state === "unknown" || ["dispatching", "reconcile-required"].includes(current.state)) {
-      queue.uncertain(request.review_id, "Git 操作结果尚未确定，请核对仓库；不会自动重复执行", { restored });
-      return;
-    }
-    if (queue.receipt(request.review_id)?.status === "approved") {
-      const saved = await ports.readDecision(effect.proposal.inputFingerprint);
-      const reconciled = current.state === "failed" && dispatch.state === "not-dispatched" ? saved?.reconciliation : undefined;
-      queue.settle(request.review_id, current.state === "completed" && dispatch.state === "dispatched" && dispatch.ok === true
-        ? { ok: true } : { ok: false, error: reconciled ? "经核对，原操作未发生；不会自动重试"
-          : error instanceof Error ? error.message : saved?.failure_reason ?? "这次 Git 操作没有完成；需要时重新预览，不会自动重试" }, { restored });
-      if (reconciled) queue.recordReconciliation(request.review_id, reconciled);
-    } else if (["cancelled", "denied", "failed"].includes(current.state)) queue.cancel(request.review_id, "原操作未执行，已撤回");
-  };
-  const bindRecovery = (effect: Effect, request: AgentReviewRequest) => {
-    // Index content reconciliation cannot establish whether a worktree was created.
-    if (request.operation?.kind !== "git-index") return;
-    const inspect = async (observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView> => {
-      const current = runtime.effects.get(effect.ref), dispatch = await runtime.effects.inspectDispatch(effect.ref);
-      let observation: AgentGitIndexObservation | null = null;
-      let message = "当前内容只能用于人工核对，不能证明原操作由谁执行。无法确认时请保留未知。";
-      try { observation = await observe(); } catch (error) { message = error instanceof Error ? error.message : "当前暂存区不可读取"; }
-      const idle = !live.has(effect.ref.id) && !closed;
-      const uncertain = current?.state === "reconcile-required" && dispatch.state === "unknown";
-      if (!idle) message = "原执行方仍在处理或应用正在关闭，暂不能收口。";
-      else if (!uncertain) message = "执行记录已有确定结果；重新核对回执可刷新操作记录。";
-      else if (observation?.matches_after) message = "当前暂存区与拟执行结果一致，但这不能证明原操作已经完成；仍需原执行回执，不会重复执行。";
-      else if (observation && !observation.matches_before) message = "当前暂存区已与操作前内容不同，不能据此确认未发生；请继续核对外部改动。";
-      else if (observation) message = "当前暂存区与操作前一致。仅凭内容相同仍不能排除曾执行后又被改回；只有另有可靠依据确认未发生时才能收口。";
-      return { review_id: request.review_id, receipt: queue.receipt(request.review_id)!, observation,
-        can_confirm_not_happened: idle && uncertain && observation?.matches_before === true && observation.matches_after === false, message };
-    };
-    queue.registerRecoveryHandler(request.review_id, { inspect, async resolve(input, observe) {
-      if (closed || live.has(effect.ref.id) || recovering.has(effect.ref.id)) throw new Error("原操作仍在处理，请稍后重新核对");
-      if (input.action !== "refresh" && input.action !== "not-happened") throw new Error("核对动作无效");
-      recovering.add(effect.ref.id);
-      try {
-        const report = await runtime.effects.readRecovery();
-        if (report.unavailable.length) throw new Error("执行记录不可读，不能收口");
-        const current = runtime.effects.get(effect.ref), dispatch = await runtime.effects.inspectDispatch(effect.ref);
-        if (!current) throw new Error("原执行记录不可读");
-        if (input.action === "refresh") {
-          if (current.state === "reconcile-required" && dispatch.state !== "unknown") {
-            if (dispatch.state === "not-dispatched") await runtime.effects.reconcile(effect.ref, { kind: "known-not-happened", why: "Host dispatch record confirms the original operation was not dispatched." });
-            else if (dispatch.receiptId) await runtime.effects.reconcile(effect.ref, { kind: "host-receipt", receiptId: dispatch.receiptId });
-          }
-        } else {
-          if (current.state !== "reconcile-required" || dispatch.state !== "unknown") throw new Error("原操作已收口，不能再次改写结论");
-          const reason = input.reason?.trim();
-          if (!reason || reason.length > 2000 || !input.actor_id.trim()) throw new Error("请填写确认未发生的具体依据（最多 2000 字）");
-          const view = await inspect(observe);
-          if (!view.can_confirm_not_happened || !input.revision || view.observation?.revision !== input.revision) throw new Error("核对内容已改变或不支持确认未发生，请重新读取");
-          const value = { actor_id: input.actor_id, at: new Date().toISOString(), reason };
-          // Provenance may be saved first; it never settles the effect by itself.
-          await ports.saveReconciliation(effect.proposal.inputFingerprint, value);
-          const latest = await observe();
-          if (latest.revision !== input.revision || !latest.matches_before || latest.matches_after) throw new Error("保存核对依据期间暂存区已改变，原操作仍未收口");
-          await runtime.effects.reconcile(effect.ref, { kind: "known-not-happened", why: JSON.stringify({ ...value, revision: latest.revision }) });
-        }
-        await settle(effect, request);
-        return inspect(observe);
-      } finally { recovering.delete(effect.ref.id); }
-    } });
-  };
+  const settle = (effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) => settleReview(ports, effect, request, error, restored);
+  const bindRecovery = (effect: Effect, request: AgentReviewRequest) => bindGitRecovery({ runtime, queue, saveReconciliation: (key, value) => ports.saveReconciliation(key, value), live, recovering, closed: () => closed, settle }, effect, request);
   // Git operations from before this process are brought back once per board; every later one is registered live here,
   // so rereading the whole execution ledger on each review refresh found nothing new and cost a disk read per record.
   const settledBoards = new Set<string>();
@@ -135,7 +91,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     if (report.unavailable.length) throw new Error("执行记录暂不可读，不能发起新的 Git 操作");
     for (const effect of report.effects) {
       if (live.has(effect.ref.id) || restored.has(effect.ref.id)) continue;
-      const saved = await savedOf(effect);
+      const saved = await savedOf(ports, effect);
       if (!saved || saved.project_id !== projectId) continue;
       const request = requestOf(effect, saved), decision = await ports.readDecision(fingerprint(saved));
       queue.restoreDecision(request, decision ? { status: decision.status, decided_by: decision.decided_by, decided_at: decision.decided_at, note: decision.note } : null);
@@ -159,7 +115,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       await restore(intent.project_id);
       const existing = runtime.effects.find(key);
       if (existing) {
-        const old = await savedOf(existing);
+        const old = await savedOf(ports, existing);
         if (!old || JSON.stringify({ ...old, requested_at: undefined, kind: undefined }) !== JSON.stringify({ ...intent, plugin_id: execution.authority.plugin_id, install_id: execution.authority.install_id })) throw new Error("这次操作标识已对应另一份审查，不能替换");
         const original = queue.list(intent.project_id).find(item => item.operation?.kind === (intent.operation_kind ?? "git-index") && item.operation.operation_id === intent.operation_id);
         if (!original) throw new Error("原 Git 审查记录尚不可读，不能重新派出");

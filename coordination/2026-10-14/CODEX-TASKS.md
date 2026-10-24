@@ -29,22 +29,26 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 >
 > #784开发方Shelf行与main成果库验收行BL400重号交FIX1最小文档修，先有界只读提案核空号/引用，不删除任何真实待做、不关闭QA/不标本人验收、不变PR状态。**BL595暂预留给此修复**（BL585–594按Claude原ac-coding预留保持）；实际落代码前FIX1仍须鲜核无新占用。当前C2源码独占，无第二writer。全仓新审计只读且不构成合并等待门槛。完整实际owner/待做、已合SHA以ROLES当前段和QUEUE为准。
 
-### root全仓审计候选的验证接单（10-24 10:25UTC）
+### root全仓审计最终接单与验证（2026-10-24 10:55UTC，覆盖先前候选等级/验证顺序）
 
-来源：独立审计报告本机 `/Users/yijunwang/code/goalboard/work/anti-corruption-audit-2026-10-24/report.md` ACA003（40–48）、ACA005（57–64），root已复核对应生产从审计f586到当前mainf880无变。这是候选P1的合同/覆盖核收，未运行动态交错，未声称实际用户数据越权；不派新实现writer，不作为无关批新门槛，C2单writer/Claude唯一full照旧。
+独立报告 `/Users/yijunwang/code/goalboard/work/anti-corruption-audit-2026-10-24/report.md` 终点afabfcbef：范围71→70包/8生产链，非新增359文件逐行复审，未构建/测试或操作真实Home。最终1个P1（ACA005）、3个未修P2（ACA001/003/004），ACA002随1194/1166已修。审计已交付不等于整改完成，四原始目标均尚不能整体关闭。
 
-| 候选 | 初始要求/当前合同 | 当前去重证据 | 实际验证owner与下一动作 | 实施/闭环状态 |
-| --- | --- | --- | --- | --- |
-| ACA003：Assistant disabledActions在最后异步检查后撤销，缺同步提交尾检 | S18；防腐4.10/4.11/4.18，撤权后业务owner/事务零写；入口async validate_authority与kernel最后等待后检查要对应同原caller | 对42 OPEN PR九条目标生产/测试路径逐个精确base...head，全部对象齐；1153/d148改authority+http、1185/cf67与1064/71ec只http。1153实际目标diff为memory getter回调，不自动等同已修；REVIEW完整合同复核接单中 | REVIEW 01a16bc4-68fe-71d3-af0e-83523232c1ea实际接合同/覆盖复核；确认契约后TEST 01a16bc4-6c9f-7ca0-b47e-621727302fee用确定性屏障挂住最后Host beforeEffect→关闭精确能力→释放，核assistant.action_revoked及owner/事务零写。先收当前已确认CI修复原始证据，不以临时重试冒复现 | 未实施，未复现关闭；确认后由Claude按既定目标/实际依赖给现有修复者，不以领域标签当已认领/已修 |
-| ACA005：search.query owner catchUp等待中MCP真实授权撤source/reader，discover仍用caller快照可返摘要 | 只返caller当前有权读取来源；系统整理7/10/12与防腐4.10/4.18，索引owner有权不代替最终caller授权 | 当前42 OPEN在明确search/index、search-actions、kernel settlement、local-host、mcp-action-client及system-search测试目标路径无改动；现数组splice用例不等于真实MCP授权文件在途撤销。REVIEW核实际合同/可能间接覆盖，不把无路径命中当全球证明 | 同一REVIEW去重/合同owner；TEST在前项契约明确且资源可用时用真实Host/MCP+owner listing屏障→真实设置撤source/reader→释放，同次query不得返撤销命中/正文，索引给有权owner仍可用；tmp Home，不碰4207 | 候选P1，尚未动态复现/实施，不能抹旧测试有效范围或据代码审计宣称真实数据已越权 |
+| 项目 | 初始要求/事实与当前边界 | 实际owner与下一可执行动作 | 真实闭环 |
+| --- | --- | --- | --- |
+| ACA005 P1：search在owner catchUp后用MCP旧快照返回摘要 | 只返当前有权source/reader；系统整理7/10/12、防腐4.10/4.18。42 OPEN精确目标路径与1153/1185/1064真实diff及既有BL/RAC复核，未找到该具体修复；原splice数组/撤权后新查询不能证在途 | REVIEW已完成静态合同/去重；TEST01a16bc4-6c9f-7ca0-b47e-621727302fee先收当前CI/SDK最小集，若只等原raw且无本机批，下一测试槽直接START真实Host/MCP：未撤对照+保留search.query仅撤source/reader，owner listing实际等待→真实设置撤授权文件→同一次query不得返正文，owner仍可用索引 | 尚未动态复现/实施；不设无关批门，确认后按Claude原范围给现有修复者；不能称数据已真实泄露 |
+| ACA003 P2合同gap：Assistant缺提交同步尾检 | S18/防腐4.10/4.11/4.18；缺同步hook事实保留，但web-catalog-access缓存让不少await只是resolved Promise。仅给Host替身强加pause只能合同演示，不证真实HTTP可达；1153 memory getter等不覆盖 | 同一TEST在005后找真实生产owner/availability实际未决等待，再从真实Assistant设置入口撤精确能力，核owner/txn零写和action_revoked，保未撤对照；若003已开始自然完成不取消，清楚标合同演示/真实路径 | 从P1候选下调P2，不把旧人工barrier方案当生产越权可达；未实施/未验证，不扩大writer |
+| ACA001 P2成果自读签名隔离 | 初始4.10/4.18、系统整理4/7/10、RAC411；主线按id、现候选1197/5cd2277，未合不能称已修 | 沿1197/1199现有原owner/派单与审验，不另开线；固定实际head/签名拒绝证据与批包含由既有批核 | 未真合前保持open，不从旧D1测试绿关闭 |
+| ACA004 P2文档过时 | CALL-CHAINS154–161/180旧后台启动缺口描述，实际web-project-schedulers已列catalog/inspectActions；plugin-dev SKILL52旧Pages/灵光/Jelly装配名单。1114只添locale未覆盖；初始4.9/4.12/4.14与系统整理2/13/14/15 | FIX2 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3已明确接入E22/SSOT文档队列；后续获源码/文档窗口鲜核真正main/监督器最小修，直交REVIEW/TEST，当前不占C2 B2 | 尚无提交/独立审验/merge，不以认领闭环 |
 
-ACA002旧卸载清理问题已随#1166包含在#1194实际f880落地，source固定头与最终树包含证据已核，不重复认领或重开。新审计报告仍由原审计chat独占维护，本流水线只读并记实际接单。
+验证限本轮独占临时目录脚本，固定SHA/实际链路/完整输出/exit，隔离Home+公共槽，受控仓库源码/测试/断言不改，不起full/不碰4207、不产生第二生产writer。root已明确下一空闲测试时段无需再等时间允许；未开始时005优先于003，原日志等待不能变成完全空转。C2 B2与Claude现有批/唯一full继续，新审计报告由原chat独占，本流水线只读。
 
 > **流水线实际新接续（2026-10-24 10:44 UTC）**：#1202最终c4a40b84（已含1144/8f+1190/bc+1181/7533+1188/05054）组合REVIEW6383192425 PASS，CI40085798403/merge627e80bf各必要检查成功；当前main afabfcbe只固定CI Node24.14，1194实际f880落地证据不变。Mac28为Claude汇总，精确原raw仍待；TEST已获自有c4冻结树一次必要正确build+三fixture/SDK-Mac小集授权，不切当前343旧worker，不重复25/28/full。8f公开合同建议shared-core适用由Claude按真实差异统一；**db4含旧P2b61a的Linux范围，缺8f新DTO/回归且Mac被skip；729完全不含P2b材料栈**，两者不能混说。10:42实核1202未合且auto/queue均null，后续真实状态再核。
 >
 > full27/run40084374444 @729b已四份最终红，TEST已接原始固定SHA归因：board112标题、touch722/859 mode opens（非旧Dock659）交原ac-coding，1185实际新ef14ffe21/6383134113已交标题与假Hostexecutors修复并立即薄审验，touch4实际后证待核；assets仅准确945/24/311与SecurityDoc缺S60由Claude实际批writer处理，311独立资源认可核中，前两认可不再重问。原失败/retry保留，余片不取消，不另起full/改断言。新源码writer仍C2 B2，实际只读vault预检零写/缺key拒绝已过，正在修Runtime stat.mode权限位桥接再核，不假称B2完成。
 >
 > ACA003/005合同去重REVIEW已完成：1153/1185/1064及BL128/007/040–43/559、RAC181都不覆盖两具体缺口。root已明确下一空闲测试槽TEST直接tmp-only ACA003→005确定性交错（未撤对照+真实精确撤权），无需二次时段允许；先收当前确认CI/SDK必要集，复用适用build，受控repo源测试断言不写，无新生产writer/full。仍候选P1未动态复现，不加无关合并门；ACA002不重开。
+
+> **最终校正（2026-10-24 10:55UTC）**：以上旧10:44“003→005/两个P1候选”由本节最终等级/顺序覆盖：005 P1先真实MCP，003 P2后核真实生产等待可达，人工暂停不冒产品路径。full27最终12片成功4失败；board修ef14代码REVIEW6383220037过，touch真实Host未选择plugin的独立合法准备修复已6383326909交原ac-coding；三准确资源24/945/311均已认可（3116383290609），实际批准许/生成/S编号仍由Claude落地。此为当前执行状态，不宣称full已绿/新修已合。
 
 > **最新调度接单（10-24 07:31UTC）**：已收Claude的S号按实际合并顺序规则，C2已直达：S71仅临时标识，落PR/入队时按main＋前置队列的下一空号连续定号，S59/60原归属保持，不等待未实现设计占号。main已知红已随1174清空，未来失败重新归因；旧批次原始证据不改。Claude新增#1182/6381371024的恢复actor规格勘误现由修复1实际承接并已在原PR公开认领，按原PR顺序插空，当前未实现、不阻1182。C2 B1仍唯一writer。batch25=沙箱叠层＋1166，batch26=1178/1179/1182/1181，W5链仍等U10根因；均Claude唯一组批，不另起。
 

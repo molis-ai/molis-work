@@ -36,7 +36,6 @@ import {
   functionsActions,
   hashChoiceConfig,
   hashFunctionConfig,
-  openFunctionsStore,
   readAnswer,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
@@ -124,14 +123,14 @@ test("config hash ignores criteria order and changes when instructions change", 
 
 test("a draft Choice can be saved with empty instructions, then published only after a matching preview", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
-    const created = store.createChoice({ name: "账单分流" });
+    const functions = createFunctionsService({ home, credential: () => "sk-test", provider: fixtureProvider({ choice: "billing" }) });
+    const created = functions.createChoice({ name: "账单分流" });
     assert.equal(created.status, "draft");
     assert.equal(created.scene_id, null);
     assert.deepEqual({ ...created.scene_map }, {});
     assert.equal(created.version, null);
     assert.match(created.function_key, /^fn_|[a-z]/);
-    const updated = store.updateDraft(created.id, {
+    const updated = functions.updateDraft(created.id, {
       instructions: "这是账单吗？",
       criteria: [
         { key: "billing", description: "钱、发票、退款" },
@@ -144,46 +143,34 @@ test("a draft Choice can be saved with empty instructions, then published only a
     assert.equal(updated.scene_id, "agent.mcp");
     assert.deepEqual([...updated.subject_kinds], ["mcp_invoke"]);
     assert.equal(updated.last_preview, null);
-    assert.throws(() => store.publish(created.id), (error: unknown) => (
+    assert.throws(() => functions.publish(created.id), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.preview_required"
     ));
-    const previewed = store.savePreview(created.id, {
-      input: "请退款",
-      outcome: "ok",
-      primitive: "choice",
-      choice: "billing",
-      probabilities: { billing: 0.9, other: 0.1 },
-      confidence: 0.8,
-      noul: null,
-      score: null,
-      legend: null,
-      model: "jev-1.13.0",
-      config_hash: updated.config_hash,
-      at: "2026-09-20T00:00:00.000Z",
-    });
-    const published = store.publish(previewed.id);
+    const previewed = await functions.preview(created.id, "请退款");
+    assert.equal(previewed.last_preview?.choice, "billing");
+    const published = functions.publish(previewed.id);
     assert.equal(published.status, "published");
     assert.equal(published.version, 1);
-    assert.throws(() => store.updateDraft(published.id, { name: "改名" }), (error: unknown) => (
+    assert.throws(() => functions.updateDraft(published.id, { name: "改名" }), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.published_immutable"
     ));
-    store.close();
-    const reopenedStore = openFunctionsStore(home);
+    functions.close();
+    const reopenedService = createFunctionsService({ home, credential: () => null });
     try {
-      const reopened = reopenedStore.get(created.id);
-      assert.equal(reopened?.status, "published");
-      assert.equal(reopened?.function_key, updated.function_key);
+      const reopened = reopenedService.get(created.id);
+      assert.equal(reopened.status, "published");
+      assert.equal(reopened.function_key, updated.function_key);
     } finally {
-      reopenedStore.close();
+      reopenedService.close();
     }
   });
 });
 
 test("custom Choice options survive an Inbox destination and bind through a scene map", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
-    const created = store.createChoice({ name: "急不急" });
-    const drafted = store.updateDraft(created.id, {
+    const functions = createFunctionsService({ home, credential: () => null });
+    const created = functions.createChoice({ name: "急不急" });
+    const drafted = functions.updateDraft(created.id, {
       instructions: "这封邮件急吗？",
       criteria: [
         { key: "urgent", description: "急" },
@@ -192,7 +179,7 @@ test("custom Choice options survive an Inbox destination and bind through a scen
       subject_kinds: ["inbox_entry"],
     });
     const hash = drafted.config_hash;
-    const mapped = store.updateDraft(created.id, {
+    const mapped = functions.updateDraft(created.id, {
       scene_id: INBOX_NEXT_SCENE_ID,
       scene_map: {
         urgent: INBOX_DONE_BEHAVIOR_ID,
@@ -206,18 +193,18 @@ test("custom Choice options survive an Inbox destination and bind through a scen
       urgent: INBOX_DONE_BEHAVIOR_ID,
       later: INBOX_DISMISS_BEHAVIOR_ID,
     });
-    const noul = store.create({ primitive: "noul", name: "材料够不够" });
+    const noul = functions.create({ primitive: "noul", name: "材料够不够" });
     assert.equal(noul.scene_id, null);
-    const noulMapped = store.updateDraft(noul.id, {
+    const noulMapped = functions.updateDraft(noul.id, {
       scene_id: INBOX_NEXT_SCENE_ID,
       scene_map: { true: INBOX_DONE_BEHAVIOR_ID, false: INBOX_DISMISS_BEHAVIOR_ID },
     });
     assert.equal(noulMapped.scene_id, INBOX_NEXT_SCENE_ID);
-    const score = store.create({ primitive: "score", name: "相关程度" });
-    assert.throws(() => store.updateDraft(score.id, { scene_id: INBOX_NEXT_SCENE_ID }), (error: unknown) => (
+    const score = functions.create({ primitive: "score", name: "相关程度" });
+    assert.throws(() => functions.updateDraft(score.id, { scene_id: INBOX_NEXT_SCENE_ID }), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.invalid"
     ));
-    store.close();
+    functions.close();
   });
 });
 
@@ -225,9 +212,8 @@ test("preview uses the injected provider once, stores last_preview, and does not
   await withHome(async (home) => {
     const calls = { count: 0 };
     const credential = () => "sk-test";
-    const store = openFunctionsStore(home);
     const service = createFunctionsService({
-      store,
+      home,
       credential,
       provider: fixtureProvider({ choice: "yes" }, calls),
     });
@@ -248,7 +234,7 @@ test("preview uses the injected provider once, stores last_preview, and does not
       const published = service.publish(created.id);
       assert.equal(published.version, 1);
     } finally {
-      store.close();
+      service.close();
     }
   });
 });
@@ -257,7 +243,7 @@ test("preview without a key is a configured-state, not a TypeSafe call", async (
   await withHome(async (home) => {
     const calls = { count: 0 };
     const service = createFunctionsService({
-      store: openFunctionsStore(home),
+      home,
       credential: () => null,
       provider: fixtureProvider({ choice: "yes" }, calls),
     });
@@ -278,7 +264,7 @@ test("changing instructions invalidates the previous preview", async () => {
   await withHome(async (home) => {
     const credential = () => "sk-test";
     const service = createFunctionsService({
-      store: openFunctionsStore(home),
+      home,
       credential,
       provider: fixtureProvider(),
     });
@@ -300,7 +286,7 @@ test("TYPESAFE_API_KEY wins over the stored secret and settings JSON never inclu
   await withHome(async (home) => {
     const credential = () => "sk-stored";
     const service = createFunctionsService({
-      store: openFunctionsStore(home),
+      home,
       credential,
       env: { TYPESAFE_API_KEY: "sk-env" },
     });
@@ -319,7 +305,7 @@ test("TYPESAFE_API_KEY wins over the stored secret and settings JSON never inclu
 test("route table lists, previews, publishes, and maps missing functions to 404", async () => {
   await withHome(async (home) => {
     const service = createFunctionsService({
-      store: openFunctionsStore(home),
+      home,
       credential: () => "sk-test",
       provider: fixtureProvider({ choice: null }),
     });
@@ -649,9 +635,8 @@ test("config hash changes across primitives with the same instructions", () => {
 
 test("Noul preview stores probability without confidence, and publish pins the resolved model", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
     const service = createFunctionsService({
-      store,
+      home,
       credential: () => "sk-test",
       provider: fixtureProvider({ noul: 0.91 }),
     });
@@ -675,43 +660,29 @@ test("Noul preview stores probability without confidence, and publish pins the r
 
 test("samples do not change config_hash, drafts can be deleted, published cannot", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
-    const created = store.create({ primitive: "score", name: "相关程度" });
-    const updated = store.updateDraft(created.id, {
+    const functions = createFunctionsService({ home, credential: () => "sk-test", provider: fixtureProvider({ choice: "yes" }) });
+    const created = functions.create({ primitive: "score", name: "相关程度" });
+    const updated = functions.updateDraft(created.id, {
       instructions: "材料与主题有多相关",
       criteria: ["无关", "相关"],
     });
     const hash = updated.config_hash;
-    const withSample = store.addSample(updated.id, { label: "清楚", input: "完全对题" });
+    const withSample = functions.addSample(updated.id, { label: "清楚", input: "完全对题" });
     assert.equal(withSample.samples.length, 1);
     assert.equal(withSample.config_hash, hash);
-    store.deleteDraft(updated.id);
-    assert.equal(store.get(updated.id), null);
-    const again = store.createChoice({ name: "可发布" });
-    store.updateDraft(again.id, {
+    functions.deleteDraft(updated.id);
+    assert.throws(() => functions.get(updated.id), (error: unknown) => error instanceof ActionError && error.code === "functions.not_found");
+    const again = functions.createChoice({ name: "可发布" });
+    functions.updateDraft(again.id, {
       instructions: "急吗？",
       criteria: [{ key: "yes", description: "急" }, { key: "no", description: "不急" }],
     });
-    const ready = store.require(again.id);
-    store.savePreview(again.id, {
-      input: "三天没人回",
-      outcome: "ok",
-      primitive: "choice",
-      choice: "yes",
-      noul: null,
-      score: null,
-      legend: null,
-      probabilities: { yes: 0.9, no: 0.1 },
-      confidence: 0.8,
-      model: "jev-1.13.0",
-      config_hash: ready.config_hash,
-      at: "2026-09-20T00:00:00.000Z",
-    });
-    store.publish(again.id);
-    assert.throws(() => store.deleteDraft(again.id), (error: unknown) => (
+    await functions.preview(again.id, "三天没人回");
+    functions.publish(again.id);
+    assert.throws(() => functions.deleteDraft(again.id), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.published_immutable"
     ));
-    assert.equal(store.get(again.id)?.status, "published");
+    assert.equal(functions.get(again.id).status, "published");
   });
 });
 
@@ -719,7 +690,7 @@ test("invoke uses published config once and does not overwrite last_preview", as
   await withHome(async (home) => {
     const calls = { count: 0 };
     const service = createFunctionsService({
-      store: openFunctionsStore(home),
+      home,
       credential: () => "sk-test",
       provider: fixtureProvider({ choice: "yes" }, calls),
     });
@@ -747,7 +718,7 @@ test("HTTP invoke by key and the Functions actions hide drafts", async () => {
   await withHome(async (home) => {
     await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     const service = createFunctionsService({
-      store: openFunctionsStore(home),
+      home,
       credential: () => "sk-test",
       provider: fixtureProvider({ choice: "no" }),
     });

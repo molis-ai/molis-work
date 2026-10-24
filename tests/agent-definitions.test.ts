@@ -13,7 +13,7 @@ import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-con
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { DEFAULT_JUDGMENT_WORDING, fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
-import { codingPrompts } from "@molis-ai/molis-work-plugin-coding";
+import { codingManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { AgentDefinitions, agentDefinitionsFor, agentRegistration } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { builtinAgents, builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { handleContextualHttp, judgmentWording, judgmentWordingRevision } from "../apps/local-host/dist/contextual/contextual-http.js";
@@ -25,6 +25,9 @@ const BASE_VERSION = ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === "assi
 function registry(now = () => new Date("2026-09-28T00:00:00.000Z")) {
   const definitions = new AgentDefinitions(new DatabaseSync(":memory:"), now);
   for (const agent of builtinAgents()) definitions.register(agentRegistration(agent.owner_id, agent.source, agent.manifest, agent.prompts));
+  // A plugin's Agent comes with its running definition (PG-051): Coding's, as its definition registers it.
+  definitions.register(agentRegistration(codingManifest.plugin_id, { kind: "plugin", plugin_id: codingManifest.plugin_id, plugin_version: codingManifest.version,
+    title: codingManifest.name, state: "enabled" }, codingManifest.agent!, codingPrompts), "coding-install");
   return definitions;
 }
 
@@ -47,8 +50,8 @@ test("every built-in Agent is registered: its prompts named for the roles that u
   // Every role's prompts are registered, so nothing a role runs with escapes the settings.
   const keys = new Set(prompts.map(prompt => prompt.key));
   for (const role of roles) for (const key of role.prompt_keys) assert.ok(keys.has(key), `${role.key} → ${key}`);
-  // Every built-in Agent owner is present.
-  assert.deepEqual([...new Set(prompts.map(prompt => prompt.owner_id))].sort(), builtinAgents().map(agent => agent.owner_id).sort());
+  // The system's Agents and the running plugin's, nothing else.
+  assert.deepEqual([...new Set(prompts.map(prompt => prompt.owner_id))].sort(), [...builtinAgents().map(agent => agent.owner_id), codingManifest.plugin_id].sort());
 });
 
 const NEXT_KEY = "system:contextual/contextual.next", SURFACE_KEY = "system:contextual/contextual.surface";

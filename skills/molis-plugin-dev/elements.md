@@ -160,7 +160,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 一个插件有几种用途（规划、执行、讨论……）时，每种用途是一个角色。角色可以写 `skills: { allowed: [...], default: [...] }`：`allowed` 是这个用途能挑的方法（只能点名 agent 块 `skills` 里声明过的），`default` 是这个用途默认选上的（必须在 `allowed` 里，用户可以去掉）。每个可选方法要的 `tools` 都必须在角色的 `host_tools` 里，否则 Manifest 无效：给不了工具的方法不该出现在这个用途里。现在只有解析 Manifest 时的这些检查：宿主开新一轮时还不按 `default` 选上，也不拒绝 `allowed` 之外的方法，要等宿主那一片（#576 的后续 PR）合入后，宿主开轮时才按它选上；在那之前写了不生效。不需要按用途分方法就不写。
 
-提示词层级是 `base` | `role` | `project`，省略等于 `role`。`task` 是用户这一次写的，插件声明会被拒绝。正文在包装里的 `agent_prompts` / `agent_skills`，不进 Manifest。Host 还要把正文挂进 catalog，见 [host.md](host.md)。
+提示词层级是 `base` | `role` | `project`，省略等于 `role`。`task` 是用户这一次写的，插件声明会被拒绝。提示词正文放在 `PluginDefinition.agent_prompts`，Skill 正文放在 `PluginDefinition.agent_skills`，不进 Manifest；Manifest 声明的每段 Prompt、`compaction` 与 `ending_review` 都要在 `agent_prompts` 里有正文，否则开跑时角色是空的。运行中的非沙箱插件由 Host 从 Manifest 的 `agent` 与定义的正文登记（内置与安装的插件同一条路，PG-051），停下后按「未运行」留在设置里，作者不必再另接一份 catalog。沙箱插件的登记尚待 PG-017。正文与缺失检查见 [authoring.md](authoring.md#sdk)。
 
 `subagent_workspaces: "required"` 只放在只读父角色上（Coding 的协调者、并行写入）。工作目录是 Host 事实，候选通过 `projectSettingsCapabilities.workspaces` 读取。`directory_input_port` 不会让 Host 采信目录。
 

@@ -1,6 +1,6 @@
 # PG-051：Agent 定义只留一条登记路（设计稿）
 
-状态：设计已定、未实现（2026-10-23，防腐线 ac-kernel 片，R8 的一部分）；统筹 10-23 定了第 6 节两项（Q1 选 b、Q2 照推荐），按第 5 节分片写代码。代码按 main `acc71ae47` 核过。
+状态：已实现、在评审：P1 已合（#1124），P2a（#1138）与 P2b 在评审（2026-10-23，防腐线 ac-kernel 片，R8 的一部分）；统筹 10-23 定了第 6 节两项（Q1 选 b、Q2 照推荐），按第 5 节分片写代码。代码按 main `acc71ae47` 核过。
 
 ## 1. 现状：两条路
 
@@ -60,7 +60,8 @@ Home 有一份 Agent 定义的登记表（`apps/local-host/src/agent-definitions
 **10-23 调整**：项目级内置插件的定义只在 `apps/local-host/src/project-plugins.ts` 的监督器里造，目录读不到；Q1 选 (b) 之后，Host 启动时由登记库按「未运行」恢复，目录那条可以直接删。所以实际分片是：
 
 - **P1（#1124）**：运行中的定义登记完整——Agent 块的角色与 Agent Prompt（修 V-05）；目录已为同一主人登记的、只带 Agent 块的插件照旧交给目录；Todo 的定义补上 `agent_prompts`。
-- **P2**：登记库持久化（Q1 b 与 RAC-196）、三个字段从 `PluginRegistration` 搬到 `PluginDefinition`、删目录那条、`BUILTIN_PLUGIN_AGENTS`、`startAuthority` 回落与互斥规则；创作台按 Q2 改成平台自己的来源。
+- **P2a**：登记库持久化（Q1 b，RAC-193、RAC-196）：新 Home 库 `agent-declarations` 记住每个安装最近一次登记的声明，最后一个实例停下时改成「未运行」、Host 打开登记册时恢复、卸载时（`PluginExecutor.uninstalled`）删；未运行的主人不给方法。
+- **P2b**：三个字段从 `PluginRegistration` 搬到 `PluginDefinition`、删目录那条、`BUILTIN_PLUGIN_AGENTS`、`startAuthority` 回落与互斥规则；创作台按 Q2 改成平台自己的来源。
 
 **`startAuthority` 回落的调用方**（RAC-195 之前先列，按 main `acc71ae47` 查）：没有插件调用者时 `ports.authority` 走目录回落。生产代码里只有 Characters 的宿主提供方 `apps/local-host/src/characters-host.ts` 的 `listActions(["prologue", CHARACTER_PLUGIN_ID])`；Characters 没有 Agent 块，回落本来就是空声明。Coding 的调用都带宿主签发的调用者，助理用自己的 `authority`（`assistant/assistant-http.ts`），工作流、定时、MCP 走动作、不经这个口。所以 P2 去掉回落时，没有调用者的调用得到空声明，不报错：列动作照常，用插件角色起跑因为没有角色被拒——这才是真正没有主人的调用。
 

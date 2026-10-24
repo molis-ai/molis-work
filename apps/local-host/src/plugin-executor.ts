@@ -4,6 +4,7 @@ import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { StoppedServiceCalls, type PluginCapabilityPort, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
+import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -87,6 +88,10 @@ export class PluginHostExecutor implements PluginExecutor {
 
   restorePrivateData(installId: string, snapshot: unknown): Promise<void> | void {
     return this.options.restorePrivateData?.(installId, snapshot);
+  }
+
+  uninstalled(record: PluginInstanceRecord): void {
+    forgetPluginAgentDefinitions(this.options.home, record.install_id);
   }
 
   /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */

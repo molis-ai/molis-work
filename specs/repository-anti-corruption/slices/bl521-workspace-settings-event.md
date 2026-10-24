@@ -1,6 +1,6 @@
-# BL-521：工作目录设置的变化发 `host.workspace.changed@1`（第一片发事件，第二片删钩子）
+# BL-521：工作目录设置的变化发 `host.workspace.changed@1`，并删 `filesOutputsRefresh`（一个 PR，两部分）
 
-状态：已实现、本地验证，PR 已开（2026-10-24，防腐线 ac-coding 片；叠片的第一片，已同步 #1191 所在的 main `2dd535912`；删 `filesOutputsRefresh` 钩子的第二片叠在它上面）。
+状态：已实现、本地验证，PR #1230 已开（2026-10-24，防腐线 ac-coding 片；基于 #1191 所在的 main `2dd535912`）。发事件与删 `filesOutputsRefresh` 钩子是同一个功能，合在这一个 PR 里（用户 10-24 定一个完整功能一个 PR）。
 
 ## 1. 现状
 
@@ -27,12 +27,12 @@
 
 ## 5. 没做、没验证
 
-- 第二片（删 `filesOutputsRefresh`，连同 BL-366、BL-521 删行；`codingRouteHooks` 已随 #1191 改名）叠在这一片上。
+- 删 `filesOutputsRefresh`（连同 BL-366、BL-521 删行；`codingRouteHooks` 已随 #1191 改名）在同一个 PR 里，见第 6 节。
 - 浏览器里没有走一遍；全量没跑。
 
 ## 6. 第二片：删 `filesOutputsRefresh`（BL-366、BL-521 完成）
 
-状态：已实现、本地验证，叠在第一片（#1230）上，未开 PR（每线最多两个在开的 PR，等位置）；用户 10-24 定：补上窗口再合（6.2，试过 start() 里读，行不通，改成平台被网页入口打开时补发）。
+状态：已实现、本地验证，与第 1–5 节同在 #1230；用户 10-24 定：补上窗口再合（6.2，试过 start() 里读，行不通，改成平台被网页入口打开时补发）。
 
 - 删 `apps/local-host/src/project-plugin-input-refresh.ts`（`filesOutputsRefresh`、`readsFilesOutputs`）及 `apps/local-host` 的两处导出；`handleProjectPluginHttp` 不再收 `hooks` 参数，`ProjectPluginRouteHooks` 类型删除；`RuntimePluginRouteHooks.beforeDispatch` 没有调用方了，一并删（只剩 `afterDispatch`，入口自己用它等输入图落定）。
 - 约 20 个测试里传给 `handleProjectPluginHttp` 的第五个参数去掉；`RAC-439` 由「钩子只为读 Files 产物的插件读 Files」改成「钩子不在了、宿主里没有文件再点它的名字」；`RAC-438` 的 Files 导入者只剩监督器；`PG062-13`、`PG037-01` 等读源码的断言跟着改。

@@ -9,8 +9,8 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from "./public-https.js";
 
-// The Host's side of a plugin's `services.connections` (S0b-2, security invariant S-57): which account a slot is bound to, the
-// credential, the one origin it may reach and the transport. The runtime client (packages/plugin-runtime `createPluginConnectionsClient`)
+// The Host's side of a plugin's `services.connections` (S0b-2, security invariants S-57 and S-64): which account a slot is bound to, the
+// credential, the origins it may reach and the transport. The runtime client (packages/plugin-runtime `createPluginConnectionsClient`)
 // has already checked the call, the permission, the slot and the request's shape before anything reaches here.
 
 export const pluginRequestErrors = defineErrorCodes("connector.plugin_requests", {
@@ -43,8 +43,8 @@ export interface PluginConnectionsPortOptions {
 }
 
 /**
- * Requests reach only the slot's service origin, exactly. An unbound slot sends nothing but what the plugin wrote; a bound slot whose
- * account is gone, disabled, disconnected, of another service, for another address, or of a kind whose secret the Host cannot send,
+ * Requests reach only the slot's service origins, exactly. An unbound slot sends nothing but what the plugin wrote; a bound slot whose
+ * account is gone, disabled, disconnected, of another service, pinned to another of the service's origins, or of a kind whose secret the Host cannot send,
  * is refused rather than sent without it. The person's credential is added here and nowhere else, and redirects come back unfollowed.
  */
 export function createPluginConnectionsPort(home: string, options: PluginConnectionsPortOptions = {}): PluginConnectionsPort {
@@ -52,8 +52,9 @@ export function createPluginConnectionsPort(home: string, options: PluginConnect
     async request(target, dispatch) {
       const service = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, target.service_id) ? CONNECTOR_REQUEST_SERVICES[target.service_id]! : undefined;
       if (!service) throw pluginRequestErrors.service_unknown(`平台没有登记服务 ${target.service_id} 的请求来源`);
-      if (dispatch.url.origin !== service.origin) throw pluginRequestErrors.origin_refused(`连接槽 ${target.slot_id} 只能请求 ${service.origin}`);
-      const connection_id = boundConnection(home, target, service);
+      const origin = dispatch.url.origin;
+      if (!service.origins.includes(origin)) throw pluginRequestErrors.origin_refused(`连接槽 ${target.slot_id} 只能请求 ${service.origins.join("、")}`);
+      const connection_id = boundConnection(home, target, service, origin);
       if (connection_id === null) return send(dispatch, undefined, options);
       return withConnectorRequest(home, connection_id, dispatch.signal, async signal => {
         let token: string;
@@ -66,7 +67,7 @@ export function createPluginConnectionsPort(home: string, options: PluginConnect
 }
 
 /** The connection bound to this installation's slot, `null` when none is; refuses one that cannot be used as it is. */
-function boundConnection(home: string, target: PluginConnectionTarget, service: ConnectorRequestService): string | null {
+function boundConnection(home: string, target: PluginConnectionTarget, service: ConnectorRequestService, origin: string): string | null {
   // A Home that has never saved an account has bound nothing; reading must not create its registry.
   if (!existsSync(homeSqlitePath(home, "connectors"))) return null;
   return withConnectorConnections(home, store => {
@@ -75,7 +76,7 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
     const connection = store.get(binding.connection_id);
     const usable = connection && connection.service_id === target.service_id && store.state(connection) === "connected"
       && (service.auth_methods as readonly string[]).includes(connection.auth_method)
-      && (store.targetOrigin(connection.connection_id) ?? service.origin) === service.origin;
+      && (store.targetOrigin(connection.connection_id) ?? origin) === origin;
     if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");
     return connection.connection_id;
   });

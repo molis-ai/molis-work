@@ -273,7 +273,7 @@ HTML 解析也通过既有 Host worker 生命周期执行，不能让主线程�
 
 ### 用本人的服务账号发请求
 
-插件要以本人身份调某个服务（如读 GitHub 通知），不自己存令牌、不让人把令牌填进插件：Manifest 声明权限 `connections:use` 和 `connections.slots`（`{ slot_id, service_id, reason }`，`service_id` 只能是平台登记了固定地址的服务，现在只有 `github`），在自己声明了 `connections:use` 的并发动作里调 `context.services.connections.request(slot_id, { url, method?, headers?, body? })`，返回 `{ status, headers, body, authenticated }`。槽绑哪个账号只由人选（`connectors.plugin_slot.bind@1`，只对 `user`）；绑了的由宿主加凭据、插件看不到，没绑就不带凭据。地址只能是该服务的固定来源，不能自己写 `Authorization`、`Cookie` 一类的头，跳转原样交回，只读动作只发 GET/HEAD；拿到结果后、写业务记录之前照样 `await caller.beforeEffect()`。沙箱插件没有这项服务。写法见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#用本人的服务账号发请求servicesconnections)，规则与测试见 `docs/system/SECURITY-INVARIANTS.md` S-57。
+插件要以本人身份调某个服务（如读 GitHub 通知），不自己存令牌、不让人把令牌填进插件：Manifest 声明权限 `connections:use` 和 `connections.slots`（`{ slot_id, service_id, reason }`，`service_id` 只能是平台登记了固定地址的服务，名单是 `CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail 和目录里以 `Bearer` 发到固定地址的服务），在自己声明了 `connections:use` 的并发动作里调 `context.services.connections.request(slot_id, { url, method?, headers?, body? })`，返回 `{ status, headers, body, authenticated }`。槽绑哪个账号只由人选（`connectors.plugin_slot.bind@1`，只对 `user`）；绑了的由宿主加凭据、插件看不到，没绑就不带凭据。地址只能是该服务登记的来源之一，不能自己写 `Authorization`、`Cookie` 一类的头，跳转原样交回，只读动作只发 GET/HEAD；拿到结果后、写业务记录之前照样 `await caller.beforeEffect()`。沙箱插件没有这项服务。写法见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#用本人的服务账号发请求servicesconnections)，规则与测试见 `docs/system/SECURITY-INVARIANTS.md` S-57、S-64。
 
 ### 项目插件的闹钟、后台 Agent 与通知
 

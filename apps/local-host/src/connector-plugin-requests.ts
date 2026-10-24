@@ -46,6 +46,8 @@ export interface PluginConnectionsPortOptions {
  * Requests reach only the slot's service origins, exactly. An unbound slot sends nothing but what the plugin wrote; a bound slot whose
  * account is gone, disabled, disconnected, of another service, pinned to another of the service's origins, or of a kind whose secret the Host cannot send,
  * is refused rather than sent without it. The person's credential is added here and nowhere else, and redirects come back unfollowed.
+ * A 401 to a credential the Host can refresh (S-73 provisional: the service's `refresh: "host"` and an OAuth connection) is refreshed once
+ * and the same request sent once more; a second 401 goes back to the plugin as it is, and a refresh that fails refuses the request.
  */
 export function createPluginConnectionsPort(home: string, options: PluginConnectionsPortOptions = {}): PluginConnectionsPort {
   return {
@@ -54,20 +56,28 @@ export function createPluginConnectionsPort(home: string, options: PluginConnect
       if (!service) throw pluginRequestErrors.service_unknown(`平台没有登记服务 ${target.service_id} 的请求来源`);
       const origin = dispatch.url.origin;
       if (!service.origins.includes(origin)) throw pluginRequestErrors.origin_refused(`连接槽 ${target.slot_id} 只能请求 ${service.origins.join("、")}`);
-      const connection_id = boundConnection(home, target, service, origin);
-      if (connection_id === null) return send(dispatch, undefined, options);
+      const connection = boundConnection(home, target, service, origin);
+      if (connection === null) return send(dispatch, undefined, options);
+      const { connection_id } = connection;
       return withConnectorRequest(home, connection_id, dispatch.signal, async signal => {
-        let token: string;
-        try { token = (await resolveApiConnection(home, connection_id, target.service_id)).token; }
-        catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号需要重新授权，请在设置里检查连接"); }
-        return send({ ...dispatch, signal }, `Bearer ${token}`, options);
+        // The token, refreshed or not, stays here: a refusal names no credential, and the refreshed token is not in the answer.
+        const token = async (refresh: boolean) => {
+          try { return (await resolveApiConnection(home, connection_id, target.service_id, refresh)).token; }
+          catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号需要重新授权，请在设置里检查连接"); }
+        };
+        const sent = { ...dispatch, signal };
+        const first = await send(sent, `Bearer ${await token(false)}`, options);
+        if (first.status !== 401 || service.refresh !== "host" || connection.auth_method !== "oauth") return first;
+        // Once: the resend asks the call again after its own DNS (`beforeEffect`), so a call that ended meanwhile sends nothing more.
+        return send(sent, `Bearer ${await token(true)}`, options);
       });
     },
   };
 }
 
 /** The connection bound to this installation's slot, `null` when none is; refuses one that cannot be used as it is. */
-function boundConnection(home: string, target: PluginConnectionTarget, service: ConnectorRequestService, origin: string): string | null {
+function boundConnection(home: string, target: PluginConnectionTarget, service: ConnectorRequestService, origin: string)
+  : { connection_id: string; auth_method: string } | null {
   // A Home that has never saved an account has bound nothing; reading must not create its registry.
   if (!existsSync(homeSqlitePath(home, "connectors"))) return null;
   return withConnectorConnections(home, store => {
@@ -78,7 +88,7 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
       && (service.auth_methods as readonly string[]).includes(connection.auth_method)
       && (store.targetOrigin(connection.connection_id) ?? origin) === origin;
     if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");
-    return connection.connection_id;
+    return { connection_id: connection.connection_id, auth_method: connection.auth_method };
   });
 }
 

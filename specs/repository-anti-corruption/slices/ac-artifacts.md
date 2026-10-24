@@ -191,13 +191,13 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 
 | 片 | 内容 | 前置 | 备注 |
 | --- | --- | --- | --- |
-| A1 | PG-107 与 PG-078 的构造部分：`ownsRecord` 合一；`projectArtifacts` 工厂，三到四处构造改取工厂 | W5-06 链合完 | 不碰 Manifest 与合同导出；RAC-410～412 |
+| A1 | PG-107 与 PG-078 的构造部分：`ownsRecord` 合一；`projectArtifacts` 工厂，三到四处构造改取工厂 | W5-06 链合完 | 不碰 Manifest 与合同导出；RAC-410、411 |
 | A2 | 代码搬进 `modules/artifacts`：动作处理器、`createPluginArtifactClient`、`plugin-operations`；`plugin-host-services` 与宿主十来个文件停止 import 成果库插件包；提供方先不换 | A1 | `pnpm api:update`；RAC-413～414 |
 | A3 | 类型登记表从 Manifest 生成（碰 `plugin-catalog.ts`）；`consumes.file`；Goals 链接种类；S-69、S-70 | A2；**#1098 合入**；**ac-registry 的 PG-024 片** | `pnpm api:update`；Pages、Goals 的 Manifest；RAC-415～421 |
 | A4 | PG-096：事件前缀规则 | W5-06 链合完 | 独立，可与 A1 并行；RAC-426 |
-| A5 | 提供方换 `system.artifacts` 与维护脚本（C3）；目录条目**不删**，入口照常 | A2、A3；维护时段计划 | `pnpm actions:update`；RAC-422、423 |
+| A5 | 提供方换 `system.artifacts` 与维护脚本（C3）；目录条目**不删**，入口照常 | A2、A3；**等用户答完维护时段（B 类）再合，和维护同一时段** | `pnpm actions:update`；RAC-422、423 |
 | A6 | 「成果」入口成平台面，经 W5-06 的通用挂载器挂；5 段客户端模板随平台面发；**同一片**删目录条目与 `BUILTIN_PLUGIN_CATALOG` 里的行（C7）、删插件包 | A5；**W5-06 的挂载器**；**ac-registry 的 PG-024 片** | 页面资源字节不得变大；RAC-424、425 |
-| A7 | PG-097：环境变量改名、符号改名、客户端包路由口径与门禁；真实 Home 目录改名放维护脚本 | W5-06 链合完；目录改名按维护时段计划 | RAC-427、428；可与 A5 合一次维护 |
+| A7 | PG-097：环境变量改名、符号改名、客户端包路由口径与门禁；真实 Home 目录改名放维护脚本 | W5-06 链合完；环境变量、符号、路由部分可先合；**目录部分等用户答完维护时段（B 类）再合，和维护同一时段** | RAC-412、427、428；可与 A5 合一次维护 |
 | A8 | 文档与门禁收口：SSOT-MATRIX 两行、`privileges.md` 状态、`SECURITY-INVARIANTS.md` 的 S-69/70、门禁名单只减不增 | A5～A7 | RAC-429 |
 
 先后小结：A1、A2、A4、A5、A7 在 W5-06 链合完后可以先做；A3、A6 碰内置目录条目，排在 ac-registry 的 PG-024 片之后（A3 另等 #1098，A6 另等 W5-06 的挂载器）；A5 之前 A3 完成。
@@ -207,8 +207,8 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | 编号 | 内容 | 证据（测试文件待实现片定，名字里写编号） |
 | --- | --- | --- |
 | RAC-410 | 一个项目只有一份 `ArtifactsModule`：源码里 `new ArtifactsModule(` 只在工厂；同一项目取两次是同一个对象；删项目后释放 | 门禁式测试加单元测试 |
-| RAC-411 | 成果的 `head`、`readOwn` 同 id、不同签名被拒（`artifacts.plugin_denied`）；相同 id 与签名通过 | `tests/artifacts-actions.test.ts` 扩展 |
-| RAC-412 | 成果与过程项共用一个 `ownsRecord`；过程项仍额外比 owner | 单元测试 |
+| RAC-411 | 成果的 `head`、`readOwn` 同 id、不同签名被拒（`artifacts.plugin_denied`）；相同 id 与签名通过；成果与过程项共用一个 `ownsRecord`，过程项仍额外比 owner | `tests/artifacts-actions.test.ts` 扩展；单元测试 |
+| RAC-412 | 同源 `/assets` 路由只发宿主构建里的包，非 host 插件的客户端代码不进该路由（Runtime 插件的客户端仍走隔离框，S-47）；**这一条与目录改名无关，维护时段否了改名也保留** | 路由测试 |
 | RAC-413 | `plugin-host-services.ts` 与宿主 `artifact-*.ts` 不再 import 成果库插件包（边界规则，`pnpm boundary:check`） | 边界规则加名单只减 |
 | RAC-414 | 搬家后 17 个动作的合同快照不变（A5 前提供方仍是原值） | `tests/action-contract-snapshot.test.ts` |
 | RAC-415 | 登记表由有效安装的 Manifest 生成：安装、卸载、启用、停用后即时变化；不读 `BUILTIN_PLUGIN_CATALOG` | Runtime 集成测试 |
@@ -224,7 +224,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | RAC-425 | 客户端模板随平台面发，`plugin-workbench.ts` 里没有成果库内联模板；`pnpm page-assets:check` 不变大 | 页面资源门禁 |
 | RAC-426 | `DOM_EVENT_PREFIXES` 不含任何插件专用前缀；`molis-<owner>-` 规则：前缀与登记的 `owner` 不一致被门禁拦；Shelf 现有事件名不变 | `scripts/gates/dom-events.mjs` 与测试 |
 | RAC-427 | 代码里读不到 `MOLIS_JELLY_*`；新名生效；平台存储函数名不带 Feed、灵光 | 单元测试加 grep 门禁 |
-| RAC-428 | 目录改名（按维护时段计划的结论执行）：隔离 Home 演练旧路径→新路径；旧路径在时启动显式报错，不回退；备份可还原。同源 `/assets` 路由只发宿主构建里的包，非 host 插件的客户端不进该路由（S-47 隔离框不变） | 隔离 Home 演练记录；路由测试 |
+| RAC-428 | 目录改名（按维护时段计划的结论执行）：隔离 Home 演练旧路径→新路径；旧路径在时启动显式报错，不回退；备份可还原 | 隔离 Home 演练记录 |
 | RAC-429 | 公开 API 与动作合同快照只有 §4 列出的变化，PR 里逐项写对调用方的影响；SSOT-MATRIX、`privileges.md`、`SECURITY-INVARIANTS.md` 同步 | `pnpm api:update`、`pnpm actions:update` 的 diff；`pnpm health:check` 的文档引用检查 |
 
 ## 9. 待办

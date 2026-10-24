@@ -15,6 +15,8 @@ interface OperationIdentity {
   evidence_count?: number;
   /** An absolute retention decision, not content or a reconstructed command. */
   formal_expires_at?: string | null;
+  /** Identity of an entire normalized import, including items not yet dispatched. */
+  input_digest?: string;
 }
 interface OperationMark extends OperationIdentity {
   operation_id: string;
@@ -92,7 +94,7 @@ export class MemoryOperations {
       const existing = this.ledger.marker(caller.actor_id, `${PREFIX}${operation_id}`)?.body as OperationMark | undefined;
       if (existing) {
         if (existing.phase === "closed") throw memoryErrors.conflict("这次记忆操作已随删除关闭，不能重放");
-        for (const name of ["kind", "scope", "owner", "memory_id", "candidate_id", "formal_expires_at", "evidence_count"] as const) {
+        for (const name of ["kind", "scope", "owner", "memory_id", "candidate_id", "formal_expires_at", "evidence_count", "input_digest"] as const) {
           if (existing[name] !== identity[name]) throw memoryErrors.conflict("同一个记忆操作号不能改为另一个目标或动作");
         }
         return existing;
@@ -100,6 +102,15 @@ export class MemoryOperations {
       const mark: OperationMark = { ...identity, operation_id, at: this.now().toISOString(), phase: "pending" };
       this.ledger.setMarker(caller.actor_id, `${PREFIX}${operation_id}`, mark, mark.at);
       return mark;
+    });
+  }
+
+  /** Bind before the first child. A pre-existing child cannot prove which unstarted items belonged to its package. */
+  importPackage(caller: MemoryCaller, scope: MemoryScope, owner: string, input_digest: string): void {
+    this.ledger.transaction(() => {
+      if (!this.find(caller, "import-package") && this.find({ ...caller, operation_id: `${caller.operation_id}:import:0` }, "import"))
+        throw memoryErrors.conflict("原导入缺少整包身份，不能用本次文件继续未完成条目，请核对已提交结果");
+      this.begin(caller, "import-package", { kind: "import-package", scope, owner, input_digest });
     });
   }
 

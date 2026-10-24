@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_DEFINITIONS } from "./fixtures/builtin-definitions.js";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
 import { BUILTIN_INSTRUCTIONS, UNREGISTERED_MODEL_CALLS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
 
@@ -24,7 +24,15 @@ const PLUGINS = readdirSync(join(ROOT, "plugins/native")).flatMap(name => {
   try { return sources(`plugins/native/${name}/src`); } catch { return []; }
 });
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-const registered = () => new Set(builtinRegistrations().flatMap(owner => owner.prompts.map(prompt => `${owner.owner_id}/${prompt.prompt_id}`)));
+/** The built-in plugins' definitions, each carrying its own instructions and Agent prompts, which the Host registers while it runs (PG-051). */
+const DEFINITIONS = BUILTIN_DEFINITIONS;
+/** Every prompt that reaches the register: the Host's own at start, and what each definition carries while it runs. */
+const registeredPrompts = () => new Map([
+  ...builtinRegistrations().flatMap(owner => owner.prompts.map(prompt => [`${owner.owner_id}/${prompt.prompt_id}`, prompt] as const)),
+  ...DEFINITIONS.flatMap(definition => [...definition.instructions ?? [], ...definition.agent_prompts ?? []]
+    .map(prompt => [`${definition.manifest.plugin_id}/${prompt.prompt_id}`, prompt] as const)),
+]);
+const registered = () => new Set(registeredPrompts().keys());
 
 /**
  * Model calls that still send text the person cannot see in “Prompt 与 Character”, each with why. The list only
@@ -86,23 +94,25 @@ test("every instruction a built-in model call defines is registered where the pe
   // Shelf creates its option prompts from the recipe catalog; inspect every actual declaration too.
   defined.push(...SHELF_INSTRUCTIONS.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}`));
   assert.ok(defined.length >= 12, `只找到 ${defined.length} 段指令，检查是否漏扫`);
-  assert.deepEqual(defined.filter(key => !known.has(key)), [], "这些指令未登记到 BUILTIN_INSTRUCTIONS");
+  assert.deepEqual(defined.filter(key => !known.has(key)), [], "这些指令既不在 BUILTIN_INSTRUCTIONS，也不在任何插件定义的 instructions 里");
 });
 
-test("a Plugin's instructions reach the register through its own catalog entry, each once, and only the Host's own sit in the Host list", () => {
+test("RAC-194 a Plugin's instructions reach the register through its own definition, each once, and only the platform's own sit in the Host list", () => {
   const key = (prompt: { owner_id: string; prompt_id: string }) => `${prompt.owner_id}/${prompt.prompt_id}`;
   const keys = BUILTIN_INSTRUCTIONS.map(key);
-  assert.deepEqual(keys.filter((row, index) => keys.indexOf(row) !== index), [], "an instruction is registered once, not by the catalog and again by hand");
+  assert.deepEqual(keys.filter((row, index) => keys.indexOf(row) !== index), [], "an instruction is registered once");
   const declared = new Set<string>();
-  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const prompt of entry.instructions ?? []) {
-    assert.equal(prompt.owner_id, entry.manifest.plugin_id, `${key(prompt)} is declared on the catalog entry of another plugin`);
+  for (const definition of DEFINITIONS) for (const prompt of definition.instructions ?? []) {
+    assert.equal(prompt.owner_id, definition.manifest.plugin_id, `${key(prompt)} is carried by the definition of another plugin`);
     declared.add(key(prompt));
   }
-  const outsideCatalog = BUILTIN_INSTRUCTIONS.filter(prompt => !declared.has(key(prompt)));
-  assert.deepEqual(outsideCatalog.filter(prompt => !prompt.owner_id.startsWith("system:")).map(key), [],
-    "a plugin's instructions are declared as `instructions` on its own registration (plugins/native/<plugin>/src/registration.ts), not named in the Host list");
-  assert.ok(declared.size >= 12, `only ${declared.size} catalog instructions found, check the scan`);
-  for (const id of ["choose.capability", "choose.component"]) assert.ok(declared.has(`io.molis.work.plugin-builder/${id}`), `${id} comes from the studio's catalog entry`);
+  // The Host lists its own modules', Plugin Builder's (the platform's, PG-051 Q2) and Alchemist's (served by the Host, not run as a definition).
+  const HOST_OWNERS = new Set(["io.molis.work.plugin-builder", "io.molis.work.alchemist"]);
+  assert.deepEqual(BUILTIN_INSTRUCTIONS.filter(prompt => !prompt.owner_id.startsWith("system:") && !HOST_OWNERS.has(prompt.owner_id)).map(key), [],
+    "a plugin's instructions are carried by its definition (`PluginDefinition.instructions`), not named in the Host list");
+  assert.deepEqual(BUILTIN_INSTRUCTIONS.filter(prompt => declared.has(key(prompt))).map(key), [], "not in both");
+  assert.ok(declared.size >= 12, `only ${declared.size} definition instructions found, check the scan`);
+  for (const id of ["choose.capability", "choose.component"]) assert.ok(keys.includes(`io.molis.work.plugin-builder/${id}`), `${id} is the platform's, in the Host list`);
 });
 
 test("a Plugin's model port takes registered instructions, not a raw prompt string", () => {
@@ -162,7 +172,7 @@ const WORDING_HISTORY: Readonly<Record<string, ReadonlyArray<readonly [number, s
 const fingerprint = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 
 test("a registered judgment wording's version moves with its default text", () => {
-  const bodies = new Map(builtinRegistrations().flatMap(owner => owner.prompts.map(prompt => [`${owner.owner_id}/${prompt.prompt_id}`, prompt] as const)));
+  const bodies = registeredPrompts();
   for (const [key, history] of Object.entries(WORDING_HISTORY)) {
     const prompt = bodies.get(key);
     assert.ok(prompt, `${key} is not registered`);

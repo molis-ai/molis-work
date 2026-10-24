@@ -102,7 +102,8 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
-  await lingguang.waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
+  // The child DOM is visible before its client mounts; the trusted owner releases input only after readiness.
+  await waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.uiClientState === 'ready' && !document.querySelector('[data-work-surface=lingguang]').hidden && !document.querySelector('[data-work-surface=lingguang]').inert");
   await lingguang.evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
   await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && !!document.querySelector('[data-lingguang-id]')");
   const noteId = await lingguang.evaluate<string>("document.querySelector('[data-work-surface=lingguang] [data-lingguang-id]').dataset.lingguangId");

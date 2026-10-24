@@ -1,7 +1,6 @@
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
@@ -334,27 +333,6 @@ export function pluginTabTitles(english = false): Record<string, string> {
   const enabled = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   return Object.fromEntries([...railEntries(enabled), ...islandEntries(enabled)].map((entry) => [entry.id, pluginLabel(entry.id, entry.label, english)]));
 }
-
-/**
- * Plugins that can run an Agent, with the prompt bodies their package ships.
- *
- * The Host freezes a role from these before any Run starts, so a Runtime never
- * resolves a role or invents a prompt. A Plugin without an `agent` block simply
- * is not here — absence is how "this Plugin does not run Agents" is stated.
- */
-export const BUILTIN_PLUGIN_AGENTS: ReadonlyMap<string, {
-  readonly manifest: AgentManifest;
-  readonly prompts: readonly AgentPromptText[];
-  readonly skills: readonly AgentSkillDefinition[];
-}> = new Map(
-  BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
-    const agent = entry.manifest.agent;
-    if (agent === undefined) return [];
-    const prompts = entry.agent?.prompts ?? [];
-    const skills = entry.agent?.skills ?? [];
-    return [[entry.manifest.plugin_id, { manifest: agent, prompts, skills }] as const];
-  }),
-);
 
 /** A visible 成果 type as its owner declares it (specs/artifact-positioning A4). */
 export interface ArtifactTypeDeclaration {

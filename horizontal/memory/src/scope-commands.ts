@@ -7,7 +7,7 @@ import { MemoryPreferences } from "./preferences.js";
 import { memoryErrors } from "./errors.js";
 import { fromEntryMeta } from "./facts.js";
 import { isExpired, personOnly, placeOf, visibleTo } from "./places.js";
-import { readPackage } from "./shapes.js";
+import { packageFingerprint, readPackage } from "./shapes.js";
 
 export interface Located { scope: MemoryScope; owner: string; entry: MemoryBackendEntry; meta: MemoryMetaRecord; project?: string | null }
 interface ScopePorts {
@@ -186,11 +186,13 @@ export class MemoryScopeCommands {
    * skipped (importing twice adds nothing); each entry goes through the gate; a failure leaves committed items intact for same-operation reconciliation.
    */
   async importScope(caller: MemoryCaller, scope: MemoryScope, pack: unknown): Promise<{ written: number; skipped: number; refused: number }> {
-    caller = this.ports.operations.caller(caller);
+    const { signal, ...identity } = this.ports.operations.caller(caller);
+    caller = Object.freeze({ ...structuredClone(identity), ...(signal ? { signal } : {}) });
     personOnly(caller, "只有本人能导入记忆");
     const where = placeOf(caller, scope);
     this.ports.preferences.assertEnabled(caller.actor_id, where);
     const entries = readPackage(pack);
+    this.ports.operations.importPackage(caller, scope, where.owner, packageFingerprint(entries));
     const written: string[] = [];
     let skipped = 0, refused = 0;
     for (const [index, item] of entries.entries()) {

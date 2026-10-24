@@ -27,7 +27,7 @@ const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found",
 const readState = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context } = a;
   const runtimes = await api.invoke(agent.listRuntimes, []);
-  const sessions = await readCodingSessions(a, api, execution, beforeWrite);
+  const sessions = await readCodingSessions(a, execution, beforeWrite);
   // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
   const { runtime: library } = projectRuntime(runtimes);
   const methods = library && supports(library, "skills") ? await api.invoke(agent.listSkills, [library.runtime_id, context.plugin_id]) : [];
@@ -50,13 +50,13 @@ const directoryOf = async (api: Capabilities, workspaceId: unknown) => {
   return workspace.canonical_path;
 };
 /** Other sessions' work that overlaps what a send names: its text, and its plan's steps when it runs one. */
-const overlapsFor = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, record: CodingSessionRecord, body: Record<string, unknown>) => {
+const overlapsFor = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, record: CodingSessionRecord, body: Record<string, unknown>, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
   const directory = await directoryOf(api, body.workspace_id);
   const draft = body.plan_revision !== undefined ? execution.sessions.plan(projectId, record.session_id) : null;
   const plan = draft?.confirmed ? confirmedPlan(context, record.session_id, draft.revision) : null;
   const text = [typeof body.task === "string" ? body.task : "", plan ? plan.source.task : "", ...(plan?.content.steps ?? []).map(step => `${step.title}\n${step.acceptance}`)].join("\n");
-  const found = await api.invoke(agent.readProjectWork, [record.runtime_id, { ...(record.runtime_session_id ? { session_id: record.runtime_session_id } : {}), directory, text }]);
+  const found = await codingActions(context, beforeWrite).invoke(agent.readProjectWork, [record.runtime_id, { ...(record.runtime_session_id ? { session_id: record.runtime_session_id } : {}), directory, text }]);
   const sessions = execution.sessions.list(projectId);
   return { directory, text, overlaps: found.overlaps.map(overlap => {
     const other = sessions.find(entry => entry.runtime_session_id === overlap.work.session_id);
@@ -215,7 +215,7 @@ const ROUTES: RouteMaker[] = [
         // "等它完成后再开始": the round is held as an item waiting on the other work, and starts on its own when it is done.
         if (typeof body.wait_for === "string") {
           if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw codingFailure("coding.server.wait-round-open");
-          const { directory, overlaps } = await overlapsFor(a, api!, execution, record, body);
+          const { directory, overlaps } = await overlapsFor(a, api!, execution, record, body, beforeWrite);
           const target = overlaps.find(overlap => overlap.work_id === body.wait_for);
           if (!target) throw codingFailure("coding.server.wait-target-gone");
           const identity = { project_id: projectId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
@@ -227,7 +227,7 @@ const ROUTES: RouteMaker[] = [
           if (title !== record.title) await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date().toISOString());
           const { wait_for: _dropped, ...rest } = body;
           // The session's step waits on that work; the send is kept here, by the wait, to start when the work is done.
-          const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
+          const item = await codingActions(context, beforeWrite).invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
           if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, item.work_id);
           await execution.sessions.setState(beforeWrite, projectId, record.session_id, "queued", new Date().toISOString());
           a.waits.wakeLoop(api!, execution, record.runtime_id);
@@ -241,9 +241,9 @@ const ROUTES: RouteMaker[] = [
   // Before a send: other sessions' work under way in the same directory that names the same files.
   (a) => {
     const { route } = a;
-    return route("coding.scope-check", async (request, api, execution) => {
+    return route("coding.scope-check", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      const { overlaps } = await overlapsFor(a, api!, execution, record, bodyOf(request));
+      const { overlaps } = await overlapsFor(a, api!, execution, record, bodyOf(request), beforeWrite);
       return { overlaps };
     });
   },
@@ -255,7 +255,7 @@ const ROUTES: RouteMaker[] = [
       if (!wait) throw codingFailure("coding.server.not-waiting");
       if (action === "cancel") {
         // Giving up a wait for an answer withdraws the request; for the person's own wait, its project work item goes.
-        await a.waits.cancel(api, record, wait, beforeWrite);
+        await a.waits.cancel(record, wait, beforeWrite);
         await execution.sessions.setState(beforeWrite, projectId, record.session_id, record.runtime_session_id ? "done" : "idle", new Date().toISOString());
         return { cancelled: true };
       }

@@ -1,5 +1,6 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
+import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -58,6 +59,8 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: Array<{ id: string; data: ProjectDataDeclaration; partitioned?: string }> = [
     ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data,
       ...entry.runtime?.database?.partition === "project" ? { partitioned: entry.runtime.database.store_name } : {} }] : []),
+    // Characters keeps its native runs by project in a library of the Home; the drafts it also keeps are the person's and stay.
+    { id: "characters", data: charactersProjectData },
     { id: "functions", data: functionsProjectData },
   ];
   return declared.map((item, position) => ({ ...item, position }))

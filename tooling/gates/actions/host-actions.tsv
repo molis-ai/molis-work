@@ -19,6 +19,10 @@ agent.messages.prioritize.v1	1	platform	command	operation	project	write	-	plugin
 agent.messages.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	2510ec27afeb	a5b83c4eccb5	-
 agent.messages.send.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	2a92d6c89dc0	6647a3e1d6d8	-
 agent.offers.run.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	6fe14e4fdb6a	3f7d96ddf0df	-
+agent.project-work.queue.v1	2	platform	command	operation	project	write	-	plugin	-	-	-	-	b6d6dc6b9669	7ff3d00aaec2	-
+agent.project-work.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	721b7d646a52	70b692bc5ff1	-
+agent.project-work.release.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	21673f095f49	-	-
+agent.sessions.status.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	b1def1398a94	d41ff5436dd7	-
 agent.write_checkers.list.v1	2	platform	query	query	project	read	-	user	-	project	-	-	99334726611c	26cb7ff8df01	-
 agent.write_checkers.save.v1	2	platform	command	operation	project	write	-	user	projects:settings	project	-	-	498e1a9ea182	20465c4fd1d3	-
 characters.actions.catalog	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	character	-	-	d746974fa9af	42fe29f1a110	-

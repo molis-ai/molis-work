@@ -56,6 +56,7 @@ export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js"
 
 
 export { LocalProjectDatabase } from "./project-database.js";
+export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export * from "./goal-project-application.js";
@@ -66,7 +67,7 @@ export * from "./web-locale.js";
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
 export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
-export { initializeProjectDatabase, readManagedBoard, validateManagedBoard } from "./managed-project-database.js";
+export { initializeProjectDatabase, validateManagedProject } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";
@@ -207,7 +208,7 @@ export {
 } from "./coding-surface.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";
 export { releaseProjectPlugins } from "./project-plugins.js";
-export { observeReviewSettlements, reviewSettlementForwarder, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
+export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
 export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";
 export { draftText } from "./model-draft.js";
@@ -281,5 +282,6 @@ export { connectorLocalActions } from "./connector-local-actions.js";
 export { connectorCliActions } from "./connector-cli-actions.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
+export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 
 export { pluginPagesFor } from "./plugin-page-authority.js";

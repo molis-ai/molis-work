@@ -107,7 +107,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.subject", async (request, api, execution, beforeWrite) => {
+    return route("coding.subject", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (record.goal_id) await execution.goalTitles.read([record.goal_id], beforeWrite);
       const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
@@ -116,8 +116,8 @@ const ROUTES: RouteMaker[] = [
       let revision = "0";
       if (record.runtime_session_id) {
         const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-        const snapshot = await api!.invoke(agent.readSession, [session]);
-        const runs = await Promise.all(snapshot.runs.slice(-3).map(ref => api!.invoke(agent.readRun, [session, ref])));
+        const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
+        const runs = await Promise.all(snapshot.runs.slice(-3).map(ref => codingActions(context, beforeWrite).invoke(agent.readRun, [session, ref])));
         revision = String(snapshot.runs.length);
         for (const run of runs) {
           const task = run.turns.find(turn => turn.kind === "user")?.text ?? "";
@@ -146,7 +146,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, projectId, busy, route } = a;
-    return route("coding.update-session", async (request, api, execution, beforeWrite) => {
+    return route("coding.update-session", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       const body = bodyOf(request);
       if (body.archive === true) {
@@ -156,7 +156,7 @@ const ROUTES: RouteMaker[] = [
         notSubmitting();
         if (record.runtime_session_id) {
           const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-          const snapshot = await api!.invoke(agent.readSession, [session]);
+          const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
           if (snapshot.checkpoint_busy || snapshot.recovery || snapshot.latest_run && !isTerminalAgentPhase(snapshot.latest_run.phase)) {
             throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.stop-before-archive");
           }
@@ -218,9 +218,8 @@ const ROUTES: RouteMaker[] = [
           const { directory, overlaps } = await overlapsFor(a, api!, execution, record, body, beforeWrite);
           const target = overlaps.find(overlap => overlap.work_id === body.wait_for);
           if (!target) throw codingFailure("coding.server.wait-target-gone");
-          const identity = { project_id: projectId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
           const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
-            : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
+            : await codingActions(context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
           if (!record.runtime_session_id) await execution.sessions.setRuntimeSession(beforeWrite, projectId, record.session_id, session.session_id, new Date().toISOString());
           const task = typeof body.task === "string" && body.task.trim() ? body.task : "（按计划执行）";
           const title = record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title;
@@ -233,7 +232,7 @@ const ROUTES: RouteMaker[] = [
           a.waits.wakeLoop(api!, execution, record.runtime_id);
           return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target } };
         }
-        return await startRound(a, record, body, request.actor_id, api!, execution, beforeWrite);
+        return await startRound(a, record, body, api!, execution, beforeWrite);
       }
       finally { busy.delete(record.session_id); }
     });
@@ -263,7 +262,7 @@ const ROUTES: RouteMaker[] = [
       if (busy.has(record.session_id)) throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.busy");
       busy.add(record.session_id);
       try {
-        return await a.waits.goOn(api, execution, record, wait, request.actor_id, beforeWrite);
+        return await a.waits.goOn(api, execution, record, wait, beforeWrite);
       } finally { busy.delete(record.session_id); }
     });
   },
@@ -287,17 +286,17 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.never-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
       const body = bodyOf(request);
       const run = snapshot.runs.find((entry) => entry.run_id === body.run_id);
       if (!run) throw codingError(codingRunErrors.run_not_found, "coding.server.run-not-found");
       const control = await runControl(body, async () => execution.models.list());
       if (control.kind === "steer") return { accepted: true, receipt: await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: run.run_id, ...control.send }, codingActionControl(beforeWrite)) };
       if (control.kind === "withdraw") return { accepted: true, withdrawn: await context.services!.actions!.invoke(agentInputActions.withdraw, { ...session, run_id: run.run_id, input_id: control.input_id }, codingActionControl(beforeWrite)) };
-      const view = await api!.invoke(agent.readRun, [session, run]);
+      const view = await codingActions(context, beforeWrite).invoke(agent.readRun, [session, run]);
       if (isTerminalAgentPhase(view.phase)) throw codingError(codingRunErrors.round_ended, "coding.server.round-ended");
       const question = control.kind === "answer" ? view.awaiting_input.find(item => item.pending_id === control.pending_id) : undefined;
-      await api!.invoke(agent.controlRun, [session, run, control]).catch((error: { code?: string }) => {
+      await codingActions(context, beforeWrite).invoke(agent.controlRun, [session, run, control]).catch((error: { code?: string }) => {
         // A refused answer goes back with the questions it answered, so each field's line can name the limit it crossed.
         throw error?.code === "agent.answer_invalid" && question?.questions ? Object.assign(error, { questions: question.questions }) : error;
       });
@@ -308,7 +307,7 @@ const ROUTES: RouteMaker[] = [
       if (!question?.parked) return { accepted: true, message: say("coding.server.answered") };
       const next = busy.has(record.session_id) ? { started: false as const, reason: say("coding.server.submitting") } : await (async () => {
         busy.add(record.session_id);
-        try { return await roundAfterParkedAnswer(a, record, session, request.actor_id, api!, execution, beforeWrite); } finally { busy.delete(record.session_id); }
+        try { return await roundAfterParkedAnswer(a, record, session, api!, execution, beforeWrite); } finally { busy.delete(record.session_id); }
       })();
       return { accepted: true, next_round: next,
         message: next.started ? say("coding.server.answered-next") : say("coding.server.answered-not-next", { reason: next.reason }) };

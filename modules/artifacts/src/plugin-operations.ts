@@ -1,7 +1,7 @@
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi, ProcessItemRecord, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactLineHeadOf, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginProcessItemClient, PluginManifest, PluginProcessItemInput, PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { artifactsErrors } from "./errors.js";
+import { pluginArtifactErrors } from "./plugin-errors.js";
 import { pluginArtifactContracts, referenceInput, processInput, artifactInput } from "./plugin-action-contracts.js";
 
 export interface PluginArtifactOperationsInput {
@@ -29,7 +29,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
   const access = { api, process, project_id, actor_id };
   const manifest = structuredClone(input.manifest);
   const requirePermission = (permission: "artifact:read" | "artifact:write") => {
-    if (!manifest.permissions.some(item => item.permission === permission)) throw artifactsErrors.plugin_denied("Manifest 未声明该成果权限");
+    if (!manifest.permissions.some(item => item.permission === permission)) throw pluginArtifactErrors.plugin_denied("Manifest 未声明该成果权限");
     input.authorize(permission);
   };
   const checked = <T>(operation: keyof typeof pluginArtifactContracts, value: T): T => {
@@ -39,14 +39,13 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
   const declares = (list: PluginManifest["artifacts"]["produces"] | undefined, value: PluginProcessItemInput) =>
     (list ?? []).some(type => type.artifact_type_id === value.artifact_type_id && type.schema_version === value.schema_version);
   const unused = (other: ArtifactsApplicationApi | ProcessItemsApplicationApi, artifactId: string, what: string) => {
-    if (other.query.latestArtifactVersion(project_id, artifactId)) throw artifactsErrors.plugin_incompatible(`这个 ID 已用于${what}`);
+    if (other.query.latestArtifactVersion(project_id, artifactId)) throw pluginArtifactErrors.plugin_incompatible(`这个 ID 已用于${what}`);
   };
   const fixed = <T extends PluginProcessItemInput>(value: T) => ({ ...value, project_id, actor_id: input.author?.() ?? actor_id,
     producer: { plugin_id: manifest.plugin_id, plugin_version: manifest.version, binding_signature: manifest.publisher.signature },
     scope: "personal" as const });
   const ownProcess = (value: ProcessItemRecord | null) => {
-    if (value && (value.producer_plugin_id !== manifest.plugin_id || value.producer_binding_signature !== manifest.publisher.signature
-      || (value.scope === "personal" && value.owner_actor_id !== actor_id))) throw artifactsErrors.plugin_denied("这条过程项不是这个插件和用户的");
+    if (value && !ownsRecord(value, manifest, actor_id)) throw pluginArtifactErrors.plugin_denied("这条过程项不是这个插件和用户的");
     return value;
   };
   const issue = (value: ProcessItemRecord, kind: PluginConsumableVersion["kind"]) => consumptionIssue(access, manifest, value, kind);
@@ -54,7 +53,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     publish(value) {
       requirePermission("artifact:write");
       const projected = checked("publish", artifactInput(value));
-      if (!declares(manifest.artifacts.produces, projected)) throw artifactsErrors.plugin_incompatible("Manifest 未声明生产此成果 type/schema");
+      if (!declares(manifest.artifacts.produces, projected)) throw pluginArtifactErrors.plugin_incompatible("Manifest 未声明生产此成果 type/schema");
       unused(process, projected.artifact_id, "过程项");
       input.assertCallerCurrent();
       return api.commands.registerVersion(fixed(projected));
@@ -66,8 +65,8 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
       const artifact = pinned ?? process.query.getArtifactVersion(project_id, reference);
       if (!artifact) return null;
       const problem = issue(artifact, pinned ? "artifact" : "process_item");
-      if (problem?.kind === "denied") throw artifactsErrors.plugin_denied(problem.message);
-      if (problem) throw artifactsErrors.plugin_incompatible(problem.message, { reason: problem.reason });
+      if (problem?.kind === "denied") throw pluginArtifactErrors.plugin_denied(problem.message);
+      if (problem) throw pluginArtifactErrors.plugin_incompatible(problem.message, { reason: problem.reason });
       return artifact;
     },
     head(artifactId) {
@@ -75,13 +74,13 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
       checked("head", { artifact_id: artifactId });
       const latest = api.query.latestArtifactVersion(project_id, artifactId);
       if (!latest) return null;
-      if (latest.producer_plugin_id !== manifest.plugin_id) throw artifactsErrors.plugin_denied("这条成果线不是这个插件的");
+      if (!ownsRecord(latest, manifest, null)) throw pluginArtifactErrors.plugin_denied("这条成果线不是这个插件的");
       return artifactLineHeadOf(latest);
     },
     readOwn(value) {
       requirePermission("artifact:read");
       const pinned = api.query.getArtifactVersion(project_id, checked("own", referenceInput(value)));
-      if (pinned && pinned.producer_plugin_id !== manifest.plugin_id) throw artifactsErrors.plugin_denied("这条成果线不是这个插件的");
+      if (pinned && !ownsRecord(pinned, manifest, null)) throw pluginArtifactErrors.plugin_denied("这条成果线不是这个插件的");
       return pinned;
     },
     listConsumable() {
@@ -100,7 +99,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     record(value) {
       requirePermission("artifact:write");
       const projected = checked("record", processInput(value));
-      if (!declares(manifest.process_items?.produces, projected)) throw artifactsErrors.plugin_incompatible("Manifest 未声明记下这种过程项");
+      if (!declares(manifest.process_items?.produces, projected)) throw pluginArtifactErrors.plugin_incompatible("Manifest 未声明记下这种过程项");
       unused(api, projected.artifact_id, "成果");
       input.assertCallerCurrent();
       return process.commands.registerVersion(fixed(projected));
@@ -128,6 +127,17 @@ function consumptionIssue(input: Pick<PluginArtifactOperationsInput, "api" | "pr
     : input.process.query.consumptionCompatibility(input.project_id, value, manifest.process_items?.consumes ?? []);
   return compatibility.consumable ? null : { kind: "incompatible" as const, reason: compatibility.reason,
     message: UNCONSUMABLE_MESSAGE[compatibility.reason] ?? "这一版成果不能在这里使用" };
+}
+
+/**
+ * Whether a stored version is the caller's own: the plugin ID and the publisher signature it was bound to both match, so a plugin with the
+ * same ID and another signature never reads it (PG-107). A personal process item also belongs to the actor that recorded it (`actor`);
+ * pass `null` for the 成果库, whose personal versions belong to the Home's person, not to the recording actor.
+ */
+function ownsRecord(value: Pick<ProcessItemRecord, "producer_plugin_id" | "producer_binding_signature" | "scope" | "owner_actor_id">,
+  manifest: Pick<PluginManifest, "plugin_id" | "publisher">, actor: string | null): boolean {
+  return value.producer_plugin_id === manifest.plugin_id && value.producer_binding_signature === manifest.publisher.signature
+    && (actor === null || value.scope !== "personal" || value.owner_actor_id === actor);
 }
 
 const referenceKey = (value: ProcessItemRecord) => JSON.stringify([value.artifact_id, value.version]);

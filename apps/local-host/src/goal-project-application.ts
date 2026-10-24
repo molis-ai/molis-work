@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+import { listProjectRoots, writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { GovernanceCollaborationModule, type GovernanceSqliteDatabase } from "@molis-ai/molis-work-module-governance-collaboration";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import {
@@ -46,6 +46,7 @@ export class GoalProjectApplication {
   readonly goalTreeCheck: GoalsApplication["goalTreeCheck"];
   readonly goalTreeDecision: GoalsApplication["goalTreeDecision"];
   readonly goalDecisionAttention: GoalsApplication["goalDecisionAttention"];
+  /** Goals' own catch-up on opening, after the project has its board (S8: a library is made with its root row alone). */
   readonly projectOpened: GoalsApplication["projectOpened"];
 
   constructor(
@@ -116,15 +117,24 @@ export class GoalProjectApplication {
     this.goalTreeCheck = application.goalTreeCheck;
     this.goalTreeDecision = application.goalTreeDecision;
     this.goalDecisionAttention = application.goalDecisionAttention;
-    this.projectOpened = application.projectOpened;
+    this.projectOpened = projectId => { this.ensureBoard(projectId); application.projectOpened(projectId); };
   }
 
   /**
-   * A new project's first records: the library's root row, then Goals' board, in one transaction; a project that has its root row
-   * keeps it. The tables are Goals' own (its Manifest declares them, S8) and the platform made them when the library opened;
-   * 2026-10-18 改: the Host still writes Goals' board here because Goals is composed with the project (privileges.md, PG-021).
-   * Once Goals is installed like any plugin (S9), the project is made with its root row alone. When the library refused Goals'
-   * tables, this throws that refusal before it touches them (S-46).
+   * The board of a project the platform made with its root row alone (S8: `initializeProjectDatabase`): made when the project is
+   * opened, under the key and for the person that creating the project used to give it. A project that has its board, or that has
+   * no root row (a library `goals.board.initialize` has yet to make a project of), is left as it is.
+   * 2026-10-18 改: the Host's Goals assembly makes it until Goals is installed like any plugin (S9), whose `start()` does (PG-021).
+   */
+  private ensureBoard(projectId: string): void {
+    if (this.goalsModule.query.getBoard(projectId) || !listProjectRoots(this.store.db).some(root => root.project_id === projectId)) return;
+    this.initializeBoard({ project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, idempotency_key: `project-catalog-create-${projectId}` });
+  }
+
+  /**
+   * A project's first records through the action: the library's root row, then Goals' board, in one transaction; a project that
+   * has its root row keeps it. The tables are Goals' own (its Manifest declares them, S8) and the platform made them when the
+   * library opened. When the library refused Goals' tables, this throws that refusal before it touches them (S-46).
    */
   initializeBoard(input: {
     project_id: string;

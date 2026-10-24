@@ -248,6 +248,19 @@ const APPROVED_CEILINGS = {
   // RAC-132: carry the Manifest id into the opaque frame and supply its own plugin route (+88 bytes).
   // Reviewed 2026-10-23: direct fields/path construction; no smaller equivalent without changing surrounding behavior.
   "/assets/molis-work-plugin-frame.js": [191104, 191192],
+  // SYS-15/S-47 (#1018 review): a page's link channel no longer navigates the owner document; a settings address opens
+  // the settings surface in place through the shell's registered settings channel, and a pane keeps its one relay. The
+  // four host settings paths left the whitelist while the page's own `openSettings` and the relay stayed (+263:
+  // 191104 → 191367, gzip 61710). Packing the page smaller buys only a few dozen bytes, at the cost of the one place a
+  // page could still have moved the owner's window; the page is frozen again once this PR lands. Rebased onto main
+  // 1dedc1f5c while the PR merged main: the merge-base budget is 191192 (RAC-132 的 +88 已烘焙), this PR's +263 is
+  // measured on top, 191455 bytes, gzip 61743.
+  "/assets/molis-work-plugin-frame.js": [191192, 191455],
+  // A holder the Host labels in its own words (本会话, 子任务「…」, 用户, 没人认领…) is said on the English page with page
+  // words (P3 #928, 2026-10-23): the two client helpers that read a holder by kind, and two catalog keys, 375409 → 376282
+  // (+873). The served pack is tightened, so comments do not count there; the words and the reading are the cost. Rebased
+  // onto main 1dedc1f5c while the PR merged main: the merge-base budget is 375409, the measured pack is 376282.
+  "/assets/molis-work-plugins/coding.js": [375409, 376282],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

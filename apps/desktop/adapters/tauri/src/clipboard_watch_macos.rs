@@ -43,7 +43,7 @@ pub fn install(app: AppHandle) {
             let Some(Some(cargo)) = on_main(&app, read_pasteboard) else {
                 continue;
             };
-            take(cargo);
+            take(&app, cargo);
         }
     });
 }
@@ -64,7 +64,7 @@ struct Cargo {
     types: Vec<String>,
 }
 
-fn take(cargo: Cargo) {
+fn take(app: &AppHandle, cargo: Cargo) {
     if is_concealed(&cargo.types) {
         return;
     }
@@ -81,11 +81,10 @@ fn take(cargo: Cargo) {
     // Files copied elsewhere go straight to materials; they never take a
     // clipboard slot, same as DropAgent.
     if !cargo.files.is_empty() {
-        for path in &cargo.files {
-            if let Err(error) = shelf_http::admit_file(path) {
-                eprintln!("Molis Work 没能收下复制的文件：{error}");
-            }
-        }
+        shelf_http::notify_admissions(
+            cargo.files.iter().map(|path| shelf_http::admit_file(path)),
+            |message, partial| crate::shelf_notice(app, message, partial, 0),
+        );
         return;
     }
     let Some(text) = cargo

@@ -10,7 +10,7 @@ export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
 /**
  * What makes a catalog unusable (W5-02-REG-02): two entries with one project key, Manifest id or position, or a short id in
- * `companions`, `workbench.clientFrom` or `workbench.clientUses` that names no entry. scripts/generate-plugin-registry.mjs
+ * `companions` or `workbench.clientUses` that names no entry. scripts/generate-plugin-registry.mjs
  * refuses these in the plugins' sources; this holds the built catalog to the same, and the Host does not start on one.
  */
 export function catalogProblems(catalog: readonly PluginRegistration[]): string[] {
@@ -29,7 +29,6 @@ export function catalogProblems(catalog: readonly PluginRegistration[]): string[
   for (const entry of catalog) {
     const named: Array<readonly [string, string]> = [
       ...(entry.companions ?? []).map(id => ["companions", id] as const),
-      ...(entry.workbench.clientFrom === undefined ? [] : [["workbench.clientFrom", entry.workbench.clientFrom] as const]),
       ...(entry.workbench.clientUses ?? []).map(id => ["workbench.clientUses", id] as const),
     ];
     for (const [field, id] of named) if (!listed.has(id)) problems.push(`${entry.project_plugin_id} names ${id} in ${field}, which is not in the catalog`);

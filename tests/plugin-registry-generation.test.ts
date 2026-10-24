@@ -126,7 +126,6 @@ test("W5-02-REG-02: --check takes a catalog_order only as a positive integer lit
 test("W5-02-REG-02: --check refuses companions and client ids that are not literal short ids", () => {
   assert.match(problems(feed('companions: ["inbox"]', "companions: [INBOX_ID]")), /must give "companions" literal short ids/);
   assert.match(problems(feed('companions: ["inbox"]', 'companions: ["Inbox"]')), /must give "companions" literal short ids/);
-  assert.match(problems(feed("    order: 5,", "    order: 5,\n    clientFrom: CODING,")), /must give "clientFrom" literal short ids/);
   assert.match(problems(feed("    order: 5,", '    order: 5,\n    clientUses: "inbox",')), /must give "clientUses" literal short ids/);
 });
 
@@ -134,14 +133,12 @@ test("W5-02-REG-02: the built catalog has no repeated key, Manifest id or positi
   assert.deepEqual(catalogProblems(BUILTIN_PLUGIN_CATALOG), []);
   const feedEntry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "feed")!;
   const coding = BUILTIN_PLUGIN_CATALOG.find(entry => entry.workbench.clientUses?.length)!;
-  const lent = BUILTIN_PLUGIN_CATALOG.find(entry => entry.workbench.clientFrom !== undefined)!;
   const without = (id: string) => BUILTIN_PLUGIN_CATALOG.filter(entry => entry.project_plugin_id !== id);
   const cases: Array<[string, readonly PluginRegistration[], RegExp]> = [
     ["repeated key", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, catalog_order: 9999, manifest: { ...feedEntry.manifest, plugin_id: "io.molis.copy" } }], /two plugins have the project key feed/],
     ["repeated Manifest id", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", catalog_order: 9999 }], new RegExp(`two plugins have the Manifest id ${feedEntry.manifest.plugin_id.replaceAll(".", "\\.")}`)],
     ["repeated position", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", manifest: { ...feedEntry.manifest, plugin_id: "io.molis.copy" } }], new RegExp(`two plugins have the catalog position ${feedEntry.catalog_order}`)],
     ["dangling companion", without("inbox"), /feed names inbox in companions, which is not in the catalog/],
-    ["dangling clientFrom", without(lent.workbench.clientFrom!), new RegExp(`${lent.project_plugin_id} names ${lent.workbench.clientFrom} in workbench.clientFrom, which is not in the catalog`)],
     ["dangling clientUses", without(coding.workbench.clientUses![0]!), new RegExp(`${coding.project_plugin_id} names ${coding.workbench.clientUses![0]} in workbench.clientUses, which is not in the catalog`)],
   ];
   for (const [label, catalog, expected] of cases) assert.match(catalogProblems(catalog).join("\n"), expected, label);

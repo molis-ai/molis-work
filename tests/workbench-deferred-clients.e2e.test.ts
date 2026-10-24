@@ -70,10 +70,11 @@ test("registered clients mount on demand, retry resources and retain their origi
   await click('[data-work-surface=pages] [data-ui-client-retry]');
   await waitFor("document.querySelector('[data-work-surface=pages]').dataset.uiClientState === 'ready'");
   assert.equal(await child.evaluate("typeof window.MolisWorkPagesEditor.mount"), "function");
-  // W4-03-05: a companion (Files, Git, Diff, Text Stats) mounts with Coding's client: opening it loads no bundle of its own,
-  // and each isolated document loads that shared bundle only once, retaining it when reopened.
-  const companions: string[] = [];
-  for (const { id, bundle } of pluginSurfaceClients()) {
+  // W5-04 PG-070: every surface (Files, Git, Diff and Text Stats among them) mounts with the bundle of its own; the clients a
+  // surface uses (Coding's Git and Files) load beside it, and each isolated document loads a bundle only once, retaining it when reopened.
+  const loaded = (id: string) => `performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/assets/molis-work-plugins/${id}.js')).length`;
+  const opened: string[] = [];
+  for (const { id, bundle, assets } of pluginSurfaceClients()) {
     const link = `[data-plugin-strip] [data-plugin-id="${id}"]`;
     // Characters is a settings page; its existing dedicated browser test exercises that entry.
     if (!await evaluate(`!!document.querySelector(${JSON.stringify(link)})`)) continue;
@@ -88,13 +89,14 @@ test("registered clients mount on demand, retry resources and retain their origi
     await click('[data-plugin-strip] [data-plugin-id="home"]');
     await click(link);
     assert.equal(await evaluate(`document.querySelector(${JSON.stringify(root)}).retainedClientRoot`), true, id);
-    assert.equal(await view.evaluate(`performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/assets/molis-work-plugins/${bundle}.js')).length`), 1, id);
-    if (bundle !== id) {
-      companions.push(id);
-      assert.equal(await view.evaluate(`performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/assets/molis-work-plugins/${id}.js')).length`), 0, id);
+    assert.equal(bundle, id, `${id} has a bundle of its own`);
+    assert.equal(await view.evaluate(loaded(bundle)), 1, id);
+    for (const asset of assets.filter(asset => asset.startsWith("/assets/molis-work-plugins/"))) {
+      assert.equal(await view.evaluate(loaded(asset.slice(asset.lastIndexOf("/") + 1, -3))), 1, `${id} loads ${asset} once`);
     }
+    opened.push(id);
   }
-  assert.ok(companions.length > 0, "at least one companion surface was opened");
+  for (const id of ["files", "git", "diff", "text-stats"]) assert.ok(opened.includes(id), `${id}'s surface was opened with its own bundle`);
 });
 
 

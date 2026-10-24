@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
 import {
   AgentHost,
   emptyCapabilityMatrix,
   registerAgentHostCapabilities,
 } from "@molis-ai/molis-work-service-agent-host";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type {
   AgentManifest,
@@ -18,8 +18,8 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /**
- * C4 的接线证明：组合根用 registerCapability 把 Agent Host 接进宿主，
- * 插件经 Capability 真的够得到它。在此之前这条注册入口只有测试在调用。
+ * C4 的接线证明：组合根用 registerAction 把 Agent Host 的动作接进宿主，
+ * 插件经动作真的够得到它。在此之前这条注册入口只有测试在调用。
  */
 
 const AGENT: AgentManifest = {
@@ -59,7 +59,7 @@ function readOnlyAdapter(runtimeId: string): AgentRuntimeAdapter {
     descriptor: { runtime_id: runtimeId, display_name: runtimeId, provider_version: "1.0.0", capabilities },
     async health() { return { ok: true, status: "ready", message: "就绪" }; },
     async createSession() { return { session_id: "session-1", runtime_id: runtimeId }; },
-    async readSession(session) { return {session, owner:{project_id:"project-a",plugin_id:"io.molis.work.coding",install_id:"install-1"},title:"任务",runs:[],latest_run:null}; },
+    async readSession(session) { return {session, owner:{project_id:"project-a",plugin_id:"io.molis.work.coding",install_id:"install-1",actor_id:"user"},title:"任务",runs:[],latest_run:null}; },
     async start() { throw new Error("未使用"); },
     async read() { throw new Error("未使用"); },
     observe() { return () => {}; },
@@ -70,20 +70,21 @@ function readOnlyAdapter(runtimeId: string): AgentRuntimeAdapter {
   };
 }
 
-test("组合根把 Agent Host 接进宿主之后，插件经 Capability 够得到它", async () => {
+test("组合根把 Agent Host 接进宿主之后，插件经动作够得到它", async () => {
   const directory = await mkdtemp(join(tmpdir(), "agent-wiring-"));
   const localHost = new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({
     databasePath: join(directory, "project.db"),
     projectId: "project-a",
   });
+  const store = new LocalProjectDatabase(join(directory, "plugins.db"));
   try {
     const agentHost = new AgentHost();
     agentHost.register(readOnlyAdapter("fixture-read-only"));
 
     // 这一步就是原先缺的那一环：生产装配调用注册入口
     registerAgentHostCapabilities(
-      { register: (definition, handler) => definition.action ? localHost.registerAction(definition as typeof definition & ActionDefinition, handler) : localHost.registerCapability(definition, handler) },
+      { register: (definition, handler) => localHost.registerAction(definition, handler) },
       {
         agentHost: () => agentHost,
         authority: () => ({ manifest: AGENT, authorizedDirectories: [directory] }),
@@ -91,17 +92,20 @@ test("组合根把 Agent Host 接进宿主之后，插件经 Capability 够得�
       },
     );
 
-    const client = localHost.client(reference);
-    const runtimes = await client.invoke(agentHostCapabilities.listRuntimes, []);
+    // 插件以自己的身份调（R8 第 4 批）
+    const plugin = callerPlugin("wiring", "project", {}, [agentHostCapabilities.listRuntimes, agentHostCapabilities.availableRoles, agentHostCapabilities.awaitContinuations]
+      .map(definition => definition.capability_id));
+    await startPlugin(localHost, reference, store, plugin);
+    const client = localHost.client(reference), actions = plugin.actions(reference.project_id);
+    const runtimes = await actions.invoke(agentHostCapabilities.listRuntimes, []);
     assert.deepEqual(runtimes.map((entry) => entry.runtime_id), ["fixture-read-only"]);
 
-    const roles = await client.invoke(agentHostCapabilities.availableRoles,
-      ["fixture-read-only", "io.molis.work.coding"]);
+    const roles = await actions.invoke(agentHostCapabilities.availableRoles, ["fixture-read-only"]);
     assert.deepEqual(roles, [{ role_id: "reader", available: true }]);
 
     // W2-18-CODING-WAKE-02: a runtime without a task graph is unavailable, not an immediately successful long poll.
     await assert.rejects(
-      () => client.invoke(agentHostCapabilities.awaitContinuations, ["fixture-read-only", 25_000, []]),
+      () => actions.invoke(agentHostCapabilities.awaitContinuations, ["fixture-read-only", 25_000, []]),
       (error: unknown) => (error as { code?: string }).code === "agent.capability_unavailable",
     );
 
@@ -116,9 +120,10 @@ test("组合根把 Agent Host 接进宿主之后，插件经 Capability 够得�
       (error: unknown) => (error as { code?: string }).code === "agent.capability_unavailable",
     );
 
-    // 审查队列按 runtime 所在的 board 作用域，插件问别的 board 也只拿到自己的
-    assert.deepEqual(await client.invoke(agentHostCapabilities.listReviews, ["board-somewhere-else"]), []);
+    // RAC-187: 列项目全部审批的入口已删（插件看自己一轮的审批走 readRunReviews），宿主里没有这一项
+    await assert.rejects(() => client.invoke({ capability_id: "agent.reviews.list.v1", version: 1, operation: "query" }, ["project-a"]), { code: "actions.dependency_missing" });
   } finally {
+    store.close();
     await localHost.closeProject(reference);
     await localHost.close();
     await rm(directory, { recursive: true, force: true });
@@ -133,7 +138,10 @@ test('checkpoint capability enforces current project, authorized roots and decla
   const handlers=new Map<string,Function>();let allowed=['/allowed'];
   registerAgentHostCapabilities({register:(definition,handler)=>{handlers.set(definition.capability_id,handler);return ()=>{};}},{agentHost:()=>agentHost,projectId:(ctx:{project_id:string})=>ctx.project_id,authority:()=>({manifest:{...AGENT,roles:[...AGENT.roles,{role_id:'writer',version:1,execution:'text-edit',prompts:[],host_tools:[]}]},authorizedDirectories:allowed})});
   const session={runtime_id:'checkpoints',session_id:'session-1'},context={project_id:'project-a'};
-  const list=handlers.get(agentHostCapabilities.listCheckpoints.capability_id)!,prepare=handlers.get(agentHostCapabilities.prepareRewind.capability_id)!;
+  // Called as the session's own plugin, as every Agent Host action is (R8): authority is the caller's, never a plugin the session names.
+  const asOwner={consumer:'plugin',plugin:{project_id:'project-a',plugin_id:'io.molis.work.coding',install_id:'install-1',actor_id:'user',assertActive(){},declaration:{}},beforeEffect:async()=>{},assertAuthorityCurrent:()=>{}};
+  const listed=handlers.get(agentHostCapabilities.listCheckpoints.capability_id)!,prepared_=handlers.get(agentHostCapabilities.prepareRewind.capability_id)!;
+  const list=(ctx:object,input:unknown[])=>listed(ctx,input,asOwner),prepare=(ctx:object,input:unknown[])=>prepared_(ctx,input,asOwner);
   assert.deepEqual(await list(context,[session]),[cp]);
   await assert.rejects(list({project_id:'foreign'},[session]));
   await assert.rejects(prepare(context,[session,'cp','reader']),/当前方式不能回退/);

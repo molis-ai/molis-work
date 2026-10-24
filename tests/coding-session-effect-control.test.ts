@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginCapabilityClient, PluginDatabase, PluginHostServices, PluginPrivateStorage, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginActionClient, PluginCapabilityClient, PluginDatabase, PluginHostServices, PluginPrivateStorage, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PROJECT_DATABASE, CodingSessionStore, createCodingPlugin, type CodingBeforeEffect } from "@molis-ai/molis-work-plugin-coding";
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
@@ -116,12 +116,19 @@ const privateStorage = (): PluginPrivateStorage => {
 };
 
 /** A Coding route over a fresh in-memory library whose every write first runs `onWrite`: the moment between a handler having prepared a write and its commit. */
-function routesOver(services: { capabilities?: PluginCapabilityClient }) {
+function routesOver(services: { capabilities?: PluginCapabilityClient; agent?: Pick<PluginActionClient, "invoke"> }) {
   const database = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["board"]);
   const hooks = { onWrite: () => {} };
   const watched: PluginDatabase = { ...database, transaction: (beforeEffect, write) => { hooks.onWrite(); return database.transaction(beforeEffect, write); } };
   const sessions = new CodingSessionStore(watched);
-  const routes = codingFixtureRoutes(startContext({ storage: privateStorage(), ...services }), sessions);
+  // Coding's routes need the Host's client; one the test does not give answers nothing.
+  const capabilities = services.capabilities ?? { availability: () => ({ available: true }), invoke: async (definition: { capability_id: string }) => { throw new Error(`unexpected capability ${definition.capability_id}`); } };
+  const context = startContext({ storage: privateStorage(), capabilities });
+  const routes = codingFixtureRoutes(context, sessions);
+  // The fixture redeems Coding's own actions; the Agent Host's (R8) answer from `agent`.
+  const actions = context.services!.actions!, own = actions.invoke.bind(actions), agentHost = services.agent;
+  if (agentHost) Object.assign(actions, { invoke: (definition: { capability_id: string }, input: unknown, control?: unknown) =>
+    definition.capability_id.startsWith("agent.") ? agentHost.invoke(definition as never, input as never) : own(definition as never, input as never, control as never) });
   return { database, sessions, hooks, call: (id: string, request: Partial<PluginRouteRequest>) => routes.find(route => route.route_id === id)!.handle({ query: {}, ...request } as PluginRouteRequest) };
 }
 
@@ -136,10 +143,10 @@ function callControl() {
 
 const runtimes = () => [{ runtime_id: "prologue", display_name: "prologue", capabilities: {} }];
 /** Capabilities that answer only the runtime directory, the one read the routes below make before they write. */
-const directory = (): PluginCapabilityClient => ({
-  availability: () => ({ available: true }),
+/** The runtime directory as Coding reads it, an Agent Host action (R8 batch 4); any other action is a test error. */
+const directory = (): Pick<PluginActionClient, "invoke"> => ({
   async invoke<Input, Output>(definition: { capability_id: string }): Promise<Output> {
-    if (definition.capability_id !== agent.listRuntimes.capability_id) throw new Error(`unexpected capability ${definition.capability_id}`);
+    if (definition.capability_id !== agent.listRuntimes.capability_id) throw new Error(`unexpected action ${definition.capability_id}`);
     return runtimes() as Output;
   },
 });
@@ -147,7 +154,7 @@ const directory = (): PluginCapabilityClient => ({
 for (const stop of ["cancel", "revoke"] as const) {
   test(`W5-01-CODING-18 a session made, renamed or archived by a call that is ${stop === "cancel" ? "cancelled" : "revoked"} before the commit is not written`, async () => {
     const control = callControl();
-    const h = routesOver({ capabilities: directory() });
+    const h = routesOver({ agent: directory() });
     try {
       // The call stops after the handler has prepared its write and before the write commits.
       h.hooks.onWrite = () => control.stop(stop);
@@ -171,7 +178,7 @@ for (const stop of ["cancel", "revoke"] as const) {
 
   test(`W5-01-CODING-18 a plan saved by a call that is ${stop === "cancel" ? "cancelled" : "revoked"} before the commit is not written`, async () => {
     const control = callControl();
-    const h = routesOver({ capabilities: directory() });
+    const h = routesOver({ agent: directory() });
     try {
       await h.sessions.create(noEffect, { project_id: "board", session_id: "app", title: "计划", runtime_id: "prologue", at: AT });
       await h.sessions.savePlan(noEffect, "board", "app", 0, { ...draft(1), source: { session_id: "app", run_id: "r1", task: "任务", workspace_path: "/work" } });

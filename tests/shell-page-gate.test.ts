@@ -160,7 +160,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",
   "plugins/native/jelly/src/markdown.ts": "导出：Jelly 的 HTML 文件",
   "plugins/native/pages/src/client-document.ts": "导出：Pages 的 HTML 文件",
-  "plugins/native/ppt/src/client.ts": "打印：PPT 打印框",
+  "plugins/native/ppt/src/browser/present.ts": "打印：PPT 打印框",
 };
 
 test("only the listed source files produce a whole page", () => {

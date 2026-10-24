@@ -8,6 +8,7 @@ import {
   type FunctionDraftPatch,
   type FunctionInvokeResult,
   type FunctionRecord,
+  type FunctionSceneMap,
   type FunctionSummary,
   type FunctionsOutcome,
   type FunctionsPreviewRecord,
@@ -18,12 +19,18 @@ import {
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { functionsErrors } from "./errors.js";
-import { FunctionsStore, assertReadyToEvaluate } from "./store.js";
+import type { BuiltinRuleSubject } from "./builtin.js";
+import type { RecordJudgmentInput } from "./judgments.js";
+import { assertReadyToEvaluate } from "./record-rules.js";
+import { FunctionsStore, openFunctionsStore } from "./store.js";
 
 export type { TypeSafeProvider, TypeSafeEvaluateResult };
 
-interface FunctionsServiceOptions {
-  readonly store: FunctionsStore;
+export interface FunctionsServiceOptions {
+  /** The Home whose Functions library the service opens, and closes with `close()`. */
+  readonly home: string;
+  /** Option targets of a built-in rule that only the composition root can resolve, asked when the rule is first seeded. */
+  readonly builtinSceneMap?: (rule: BuiltinRuleSubject) => FunctionSceneMap;
   /** The TypeSafe key of the connection the Home chose for Functions; null when there is none. */
   readonly credential: () => string | null;
   readonly env?: NodeJS.Dict<string>;
@@ -43,18 +50,28 @@ export class FunctionsService {
   private readonly provider: TypeSafeProvider;
 
   constructor(options: FunctionsServiceOptions) {
-    this.store = options.store;
+    this.store = openFunctionsStore(options.home, { builtinSceneMap: options.builtinSceneMap });
     this.credential = options.credential;
     this.env = options.env ?? {};
     this.provider = options.provider ?? missingProvider;
+  }
+
+  /** Releases the library. The service is not usable afterwards. */
+  close(): void {
+    this.store.close();
   }
 
   list(): FunctionRecord[] {
     return this.store.list();
   }
 
+  /** The record under a function key, published or not; null when there is none. */
+  getByKey(functionKey: string): FunctionRecord | null {
+    return this.store.getByKey(functionKey);
+  }
+
   listPublished(): FunctionSummary[] {
-    return this.store.list()
+    return this.list()
       .filter((record) => record.status === "published" && record.version != null)
       .map((record) => ({
         function_key: record.function_key,
@@ -179,7 +196,7 @@ export class FunctionsService {
     };
   }
 
-  recordSceneJudgment(input: Parameters<FunctionsStore["recordJudgment"]>[0]): JudgmentRecord {
+  recordSceneJudgment(input: RecordJudgmentInput): JudgmentRecord {
     return this.store.recordJudgment(input);
   }
 

@@ -103,14 +103,24 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         const holder=node.owner,held=holder?.kind==='subtask'?children.find(item=>item.child.subagent_id===holder.subagent_id)?.child:null;
         // Who does this step: its holder on the graph, not whoever runs the round.
         // A claim held quiet too long by a session with no round running reads as expired, for you to reassign.
-        const short=(label)=>String(label||'').replace(/（认领已过期.*$/,''),expired=holder?.expired?{expired:true}:{};
-        const doer=!holder?executor:holder.kind==='session'?{name:executor.name,detail:L('coding.board.holder',{holder:holder.expired?holder.label:L('coding.board.this-session')})+' · '+executor.detail,...expired}
-          :holder.kind==='subtask'?{name:holder.label,detail:L('coding.board.holder',{holder:holder.label})+(held?' · '+L('coding.board.held-subagent',{role:roleName(held.role_id)||held.role_name}):'')}
+        // The Host labels a holder in the Host's language; the page says each kind with a page word, and keeps a subtask's title.
+        const holderText=(value)=>{
+          if(value.kind==='subtask'){const title=/[「“"](.+?)[」”"]/.exec(value.label||'')?.[1];return title?L('coding.board.holder-subtask',{title}):L('coding.board.subtask');}
+          return value.kind==='session'?L('coding.board.this-session'):value.kind==='person'?L('coding.board.you'):value.kind==='none'?L('coding.board.unclaimed'):L('coding.board.holder-other');
+        };
+        const byText=(by)=>{
+          if(!by)return '';
+          const title=/^子任务[「“"](.+?)[」”"]$/.exec(by)?.[1];
+          return title?L('coding.board.holder-subtask',{title}):by==='本会话'?L('coding.board.this-session'):by==='用户'?L('coding.board.you'):by==='改派'?L('coding.board.reassigned'):by==='没人认领'?L('coding.board.unclaimed'):L('coding.board.holder-other');
+        };
+        const expired=holder?.expired?{expired:true}:{},holderLabel=holder?holderText(holder):'';
+        const doer=!holder?executor:holder.kind==='session'?{name:executor.name,detail:L('coding.board.holder',{holder:holderLabel})+' · '+executor.detail,...expired}
+          :holder.kind==='subtask'?{name:holderLabel,detail:L('coding.board.holder',{holder:holderLabel})+(held?' · '+L('coding.board.held-subagent',{role:roleName(held.role_id)||held.role_name}):'')}
           :holder.kind==='person'?{name:L('coding.board.you'),detail:L('coding.board.holder-you'),person:true}
-          :holder.kind==='none'?{name:L('coding.board.unclaimed'),detail:L('coding.board.no-holder'),none:true}:{name:short(holder.label),detail:L('coding.board.holder',{holder:holder.label}),...expired};
+          :holder.kind==='none'?{name:L('coding.board.unclaimed'),detail:L('coding.board.no-holder'),none:true}:{name:holderLabel,detail:L('coding.board.holder',{holder:holderLabel}),...expired};
         const done=mine.length?mine.filter(row=>['done','accepted'].includes(row.state[2])).length:settled(node)||decided==='accepted'?1:0;
         return {key:'step-'+id+'-'+node.id,label:node.inserted?L('coding.board.inserted'):'S'+(Number(node.id.replace('step-',''))||position+1),title:step.title,
-          hint:(step.acceptance?L('coding.board.acceptance',{acceptance:step.acceptance}):'')+(holder?'\\n'+L('coding.board.holder',{holder:holder.kind==='person'?L('coding.board.you'):holder.label}):'')+(last?'\\n'+L('coding.board.last-report',{report:(last.by?(last.by==='用户'?L('coding.board.you'):last.by==='改派'?L('coding.board.reassigned'):last.by)+L('coding.timeline.colon'):'')+last.note}):''),
+          hint:(step.acceptance?L('coding.board.acceptance',{acceptance:step.acceptance}):'')+(holder?'\\n'+L('coding.board.holder',{holder:holderLabel}):'')+(last?'\\n'+L('coding.board.last-report',{report:(last.by?byText(last.by)+L('coding.timeline.colon'):'')+last.note}):''),
           state:shownState,progress:{done,total:mine.length||1},deps,executor:doer,time:last?when(last.at_ms):null,target:{kind:'step',run_id:id,step_id:node.id},children:mine,
           node,live,editable,board:entry.board,runId:id,position};
       });

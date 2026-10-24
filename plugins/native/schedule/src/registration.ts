@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "./index.js";
+import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   default_enabled: true,
   manifest: scheduleManifest,
   summary: "定时跑对话任务，也替插件准时提醒。",
-  agent: { prompts: schedulePrompts },
   workbench: {
     order: 7,
     contributions: [scheduleUiContribution],

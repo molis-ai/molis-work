@@ -13,6 +13,7 @@ import { shelfSettingsUiContribution } from "./settings-ui.js";
 import { shelfReceiveCopy, shelfRuntimeActions } from "./runtime-actions.js";
 import { createShelfRouteHandlers } from "./route-handlers.js";
 import { SHELF_HOME_ROUTES } from "./routes.js";
+import { SHELF_INSTRUCTIONS } from "./prompts.js";
 
 /** A page on this machine is read by `readLocalPage`, any other by `readSource`; the Host refuses what neither may reach. */
 function websiteReader(materials: PluginMaterialsClient): MaterialWebsiteReader {
@@ -70,7 +71,7 @@ export function shelfStorePorts(store: () => ShelfStore, availability: (selectio
 
 /** The personal Shelf uses the public services and lifecycle of a Home plugin. */
 export function createHomeShelfPlugin(): PluginDefinition {
-  return { manifest: shelfManifest, async start(context) {
+  return { manifest: shelfManifest, instructions: SHELF_INSTRUCTIONS, async start(context) {
     for (const grant of shelfManifest.permissions) if (grant.required) context.requireGrant(grant.permission);
     const { store, model, actions } = shelfServices(context);
     const handlers = createShelfActionHandlers(shelfStorePorts(store, selection => model.availability(selection ?? undefined)));

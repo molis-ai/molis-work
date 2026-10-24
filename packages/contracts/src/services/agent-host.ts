@@ -20,7 +20,6 @@ export type {
   AgentRuntimeHealthStatus,
   AgentRuntimeHealth,
   AgentSessionRef,
-  AgentSessionOwner,
   AgentSessionDecision,
   AgentSessionPurgePreview,
   AgentSessionLifecycleView,

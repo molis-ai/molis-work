@@ -36,7 +36,6 @@ import {
   type MemoryPreset,
   type MemoryRecallRequest,
   type MemoryRecallResponse,
-  type MemoryRevision,
   type MemoryScope,
   type MemorySignalReport,
   type MemorySignalResult,

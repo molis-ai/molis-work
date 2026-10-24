@@ -2,6 +2,7 @@ import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
+import { AsyncResource } from "node:async_hooks";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +12,7 @@ import { LocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } fr
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
-test("MCP Goal directory cannot be split by a queued competing Goal write, and an MCP trash is recorded under the Session", async () => {
+test("RAC-180 MCP Goal directory cannot be split by a queued competing Goal write, and an MCP trash is recorded under the Session", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-entry-consistency-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
@@ -27,6 +28,8 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
   const mcp = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
   // The MCP server below binds this Host to the Home, and a Home has one Host: the same Host serves the access settings the grant goes through.
   const served = await serveTestHost(null, { home: directory, host });
+  // Capture an independent entry outside every action handler; the hook must not forge a nested management caller.
+  const managementEntry = new AsyncResource("test-goals-management-entry");
   const makeIntent = (goalId: string) => ({
     idempotency_key: `create-${goalId}`,
     goal_id: goalId, title: goalId, outcome: "一致的入口结果",
@@ -41,7 +44,7 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
         const result = original(input);
         if (enqueue) {
           enqueue = false;
-          competingWrite = client.invoke(goalsActions.create, makeIntent("later"));
+          competingWrite = managementEntry.runInAsyncScope(() => client.invoke(goalsActions.create, makeIntent("later")));
         }
         return result;
       };
@@ -66,9 +69,14 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
       assert.equal(trashEvent?.actor_id, "runtime:entry:session");
     });
   } finally {
-    await competingWrite;
-    await mcp.close(); await served.close(); await host.close(); catalog.close();
-    rmSync(directory, { recursive: true, force: true });
+    const cleanupErrors: unknown[] = [];
+    for (const close of [
+      () => competingWrite, () => managementEntry.emitDestroy(), () => mcp.close(), () => served.close(), () => host.close(),
+      () => catalog.close(), () => rmSync(directory, { recursive: true, force: true }),
+    ]) {
+      try { await close(); } catch (error) { cleanupErrors.push(error); }
+    }
+    if (cleanupErrors.length) throw new AggregateError(cleanupErrors, "entry consistency fixture cleanup failed");
   }
 });
 

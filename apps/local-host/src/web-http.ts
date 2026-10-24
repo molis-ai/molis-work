@@ -36,6 +36,25 @@ export function sendLocalWebJson(response: ServerResponse, status: number, value
   response.end(JSON.stringify(answer.body));
 }
 
+/**
+ * A refusal answers by its kind and with its code (SDK `actionErrorResponse`), the same as every other exit. Anything that is not
+ * an ActionError is not a refusal: it goes on to the Host's unhandled answer (`sendUnhandledWebError`), logged, without its message.
+ */
+export function respondLocalWebRefusal(exit: { respond(status: number, body: unknown): void }, error: unknown): void {
+  if (!(error instanceof ActionError)) throw error;
+  const answer = actionErrorResponse(error);
+  exit.respond(answer.status, answer.body);
+}
+
+/** One part of a request path, decoded. A part that is not valid percent-encoding is the caller's mistake, so it is refused as invalid. */
+export function decodeLocalWebPathPart(part: string): string {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    throw hostErrors.request_path_invalid("请求路径里有无效的编码");
+  }
+}
+
 /** Unexpected route failures retain a diagnostic call id, never their raw message or stack. */
 export function sendUnhandledWebError(response: ServerResponse, error: unknown): void {
   hostLog.error("web", "request_failed", error);

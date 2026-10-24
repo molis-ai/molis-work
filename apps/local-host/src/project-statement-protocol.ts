@@ -6,16 +6,25 @@ import type { PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-ru
 export type StatementValue = string | number | null;
 export type StatementRow = Record<string, StatementValue>;
 
-export type StatementRequest =
-  | { readonly id: number; readonly op: "open"; readonly path: string; readonly record: PluginProjectDatabaseRecord }
-  | { readonly id: number; readonly op: "get"; readonly sql: string; readonly parameters: readonly StatementValue[] }
+export interface StatementMemoryLimits { readonly heapMb: number; readonly rssMb: number; readonly sampleMs: number }
+type StatementCommand =
+  | { readonly op: "open"; readonly path: string; readonly record: PluginProjectDatabaseRecord; readonly limits: StatementMemoryLimits }
+  | { readonly op: "get"; readonly sql: string; readonly parameters: readonly StatementValue[]; readonly bytes: number }
   /** `rows` and `bytes` are the most one answer may carry; the process stops reading at the first row past either. */
-  | { readonly id: number; readonly op: "all"; readonly sql: string; readonly parameters: readonly StatementValue[]; readonly rows: number; readonly bytes: number }
-  | { readonly id: number; readonly op: "begin" | "commit" | "rollback" }
-  | { readonly id: number; readonly op: "run"; readonly sql: string; readonly parameters: readonly StatementValue[] };
+  | { readonly op: "all"; readonly sql: string; readonly parameters: readonly StatementValue[]; readonly rows: number; readonly bytes: number }
+  | { readonly op: "begin"; readonly transactionDeadline: number }
+  | { readonly op: "commit" | "rollback" }
+  | { readonly op: "run"; readonly sql: string; readonly parameters: readonly StatementValue[] };
+
+/** Absolute deadlines are issued by the Host before dispatch; a transaction's remains active between requests. */
+export type StatementRequest = StatementCommand & { readonly id: number; readonly deadline: number };
 
 /** A request before the Host numbers it. */
-export type StatementCall = StatementRequest extends infer Request ? (Request extends unknown ? Omit<Request, "id"> : never) : never;
+export type StatementCall = StatementCommand;
+
+/** The process will end even if the Host cannot consume this notification. It also applies between two requests. */
+export interface StatementFatal { readonly fatal: "timeout" | "memory" | "process"; readonly message: string }
+export type StatementMessage = StatementReply | StatementFatal;
 
 export type StatementFailure = "refused" | "too_large" | "error";
 export type StatementReply =

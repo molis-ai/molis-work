@@ -1,6 +1,7 @@
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { AgentDeclarations, notRunning } from "./agent-declarations.js";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -143,15 +144,15 @@ export class AgentDefinitions {
     return this.view(owner, prompt);
   }
 
-  /** Methods owners offer to other Agents for business work; the body is read with `method`. */
+  /** Methods owners offer to other Agents for business work; the body is read with `method`. A plugin that is not running offers none. */
   methods(): AgentMethodView[] {
-    return [...this.owners.values()].flatMap(owner => (owner.methods ?? []).map(method => ({ key: keyOf(owner.owner_id, method.skill_id), owner_id: owner.owner_id,
+    return [...this.owners.values()].filter(offering).flatMap(owner => (owner.methods ?? []).map(method => ({ key: keyOf(owner.owner_id, method.skill_id), owner_id: owner.owner_id,
       source: structuredClone(owner.source), skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools] })));
   }
 
   /** One registered method with its body, by owner, id and (when given) exact version. */
   method(ownerId: string, skillId: string, version?: number): AgentMethodRegistration {
-    const method = this.owners.get(ownerId)?.methods?.find(item => item.skill_id === skillId);
+    const owner = this.owners.get(ownerId), method = owner && offering(owner) ? owner.methods?.find(item => item.skill_id === skillId) : undefined;
     if (!method || (version !== undefined && method.version !== version)) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
     return structuredClone(method);
   }
@@ -308,9 +309,23 @@ export function agentRegistration(ownerId: string, source: AgentDefinitionSource
 
 export interface BuiltinAgent { owner_id: string; source: AgentDefinitionSource; manifest: AgentManifest; prompts: readonly AgentPromptText[]; skills?: readonly AgentSkillDefinition[] }
 
-const registries = new Map<string, AgentDefinitions>();
+const registries = new Map<string, AgentDefinitions>(), declarations = new Map<string, AgentDeclarations>();
 
-/** One register per Home, opened once, with the system's and built-in Plugins' definitions registered. */
+/** Whether an owner's methods are offered: not while its plugin does not run (a remembered declaration, PG-051 RAC-196). */
+const offering = (owner: AgentDefinitionRegistration) => owner.source.kind !== "plugin" || owner.source.state !== "disabled";
+
+/** The Home's remembered installation declarations (PG-051 Q1 b), opened once. */
+export function agentDeclarationsFor(homeDirectory: string): AgentDeclarations {
+  const home = path.resolve(homeDirectory);
+  let opened = declarations.get(home);
+  if (!opened) { opened = AgentDeclarations.open(home); declarations.set(home, opened); }
+  return opened;
+}
+
+/**
+ * One register per Home, opened once, with the system's and built-in Plugins' definitions registered, and each installation's
+ * remembered declaration as not running until the installation starts again.
+ */
 export function agentDefinitionsFor(homeDirectory: string, registrations: () => readonly AgentDefinitionRegistration[]): AgentDefinitions {
   const home = path.resolve(homeDirectory);
   let registry = registries.get(home);
@@ -318,6 +333,7 @@ export function agentDefinitionsFor(homeDirectory: string, registrations: () => 
     registry = new AgentDefinitions(openHomeSqliteDatabase(home, AGENT_DEFINITIONS_STORE));
     registries.set(home, registry);
     for (const registration of registrations()) registry.register(registration);
+    for (const kept of agentDeclarationsFor(home).all()) registry.register(notRunning(kept.registration), kept.install_id);
   }
   return registry;
 }

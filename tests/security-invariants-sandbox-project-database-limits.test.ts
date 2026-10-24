@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, fork, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { once } from "node:events";
+import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -15,8 +17,9 @@ import { sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 // S-59 (BL-395; specs/repository-anti-corruption/slices/sandbox-project-database-limits.md): a sandboxed plugin's statements run in
 // a process the Host can kill, not on the Host's thread, because neither SQLite driver the Host has can interrupt a statement and
 // `Worker.terminate()` cannot stop a native call. What this file asserts is the refusal: a statement past its time or its memory is
-// killed and answered with a code, a result past the rows or bytes is refused and never built, a recursive query never starts, a
-// killed or cancelled or revoked write commits nothing, and after any of them the next statement runs on a clean connection. The
+// killed and answered with a code, a result past the rows or bytes is refused before crossing to the Host, a recursive query never starts,
+// a write interrupted before COMMIT leaves nothing, and a COMMIT interrupted in flight has an unknown outcome. The next independent
+// statement after a killed process runs on a clean connection. The
 // library is a real file under a temporary directory and the processes are real; nothing here opens a Home.
 
 const REFUSED = { code: "plugin.project_database.statement_refused" } as const;
@@ -63,14 +66,17 @@ async function library(t: TestContext, rows: number, size = 8, limits: NonNullab
   const directory = mkdtempSync(join(tmpdir(), "sandbox-project-limits-")), file = join(directory, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const grants = { revokeAfter: Number.POSITIVE_INFINITY, calls: 0 };
-  const authorize = () => { if (++grants.calls > grants.revokeAfter) throw new ActionError("actions.forbidden", "撤权了"); };
+  const grants: { revokeAfter: number; calls: number; onWrite?: () => void } = { revokeAfter: Number.POSITIVE_INFINITY, calls: 0 };
+  const authorize = (permission: string) => {
+    if (++grants.calls > grants.revokeAfter) throw new ActionError("actions.forbidden", "撤权了");
+    if (permission === declaration.write_permission) grants.onWrite?.();
+  };
   const opened = openPluginProjectLibrary({ db: store.db, path: file }, manifest, authorize, { install_id: "sbxlimit", installation_generation: "1" }, limits);
   t.after(() => { opened.close(); store.close(); rmSync(directory, { recursive: true, force: true }); });
   const insert = store.db.prepare("INSERT INTO sbxlimit_rows (text) VALUES (?)");
   store.db.transaction(() => { for (let n = 0; n < rows; n++) insert.run("x".repeat(size)); })();
   const count = () => Number((store.db.prepare("SELECT count(*) AS n FROM sbxlimit_rows").get() as { n: number }).n);
-  return { store, opened, grants, count, sandbox: sandboxDatabase(opened.statements) };
+  return { store, opened, grants, count, file, sandbox: sandboxDatabase(opened.statements) };
 }
 
 const read = (sandbox: ReturnType<typeof sandboxDatabase>, sql: string, parameters: Array<string | number | null> = []) => sandbox.all(context(), { sql, parameters });
@@ -95,6 +101,127 @@ test("S-59 RAC-201 a result over 512 KiB is refused, rows within the count or no
   const { sandbox } = await library(t, 6, 100 * 1024);
   await assert.rejects(read(sandbox, "SELECT text FROM sbxlimit_rows"), TOO_LARGE);
   assert.equal((await read(sandbox, "SELECT text FROM sbxlimit_rows LIMIT 4")).length, 4, "four such rows are within the bytes");
+  await assert.rejects(sandbox.get(context(), { sql: "SELECT group_concat(text, '') AS text FROM sbxlimit_rows", parameters: [] }), TOO_LARGE);
+  assert.equal((await sandbox.get(context(), { sql: "SELECT text FROM sbxlimit_rows LIMIT 1", parameters: [] }))?.text, "x".repeat(100 * 1024));
+});
+
+test("S-59 RAC-203 the child releases its transaction lock while the Host is blocked in a synchronous write", async t => {
+  const transactionMs = 600;
+  const { store, sandbox, grants, count } = await library(t, 3, 8, { transactionMs, writeMs: 2000 });
+  await read(sandbox, "SELECT 1");
+  let writes = 0, elapsed = -1;
+  grants.onWrite = () => {
+    // beforeEffect's two checks, first statement's check, then the second: the first INSERT has answered and still holds the lock.
+    if (++writes !== 4) return;
+    const started = Date.now();
+    store.db.prepare("INSERT INTO sbxlimit_rows (text) VALUES ('Host write')").run();
+    elapsed = Date.now() - started;
+  };
+  await assert.rejects(write(sandbox, add("rolled back"), add("never sent")), TIMEOUT);
+  assert.ok(elapsed >= 0 && elapsed < transactionMs + 1000, `the synchronous Host write succeeded after ${elapsed} ms`);
+  assert.equal(count(), 4, "only the Host's write remains; the sandbox's first INSERT rolled back");
+  grants.onWrite = undefined;
+  assert.deepEqual(await write(sandbox, add("next transaction")), [{ changes: 1 }]);
+});
+
+test("S-59 RAC-203 the total deadline includes gaps between short statements and does not survive a completed transaction", async t => {
+  const { sandbox, grants, count } = await library(t, 3, 8, { transactionMs: 500, writeMs: 2000 });
+  await read(sandbox, "SELECT 1");
+  let writes = 0;
+  grants.onWrite = () => { if (++writes === 4 || writes === 5) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300); };
+  await assert.rejects(write(sandbox, add("one"), add("two"), add("three")), TIMEOUT);
+  assert.equal(count(), 3);
+  grants.onWrite = undefined;
+  assert.deepEqual(await write(sandbox, add("short")), [{ changes: 1 }]);
+  const [pid] = workers();
+  await sleep(650);
+  assert.deepEqual(await read(sandbox, "SELECT count(*) AS n FROM sbxlimit_rows"), [{ n: 4 }]);
+  assert.deepEqual(workers(), [pid], "the completed transaction's old timer cannot kill a reused process");
+});
+
+test("S-59 RAC-208 a process killed between statements cannot run the rest on a replacement", async t => {
+  const { sandbox, grants, count } = await library(t, 3);
+  await read(sandbox, "SELECT 1");
+  const [pid] = workers(); assert.ok(pid);
+  let writes = 0;
+  grants.onWrite = () => {
+    if (++writes !== 4) return;
+    process.kill(pid, "SIGKILL");
+    const until = Date.now() + 1000;
+    while (live(pid) && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    assert.equal(live(pid), false, "the original statement process has actually exited");
+  };
+  await assert.rejects(write(sandbox, add("one"), add("two")), { code: "plugin.project_database.process_failed" });
+  assert.equal(count(), 3);
+  assert.deepEqual(workers(), [], "no replacement was started for the second statement");
+  grants.onWrite = undefined;
+  assert.deepEqual(await write(sandbox, add("independent transaction")), [{ changes: 1 }]);
+});
+
+function live(pid: number): boolean {
+  try { return !execFileSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" }).trim().startsWith("Z"); }
+  catch { return false; }
+}
+
+function cpuTime(pid: number): number {
+  const parts = execFileSync("ps", ["-o", "time=", "-p", String(pid)], { encoding: "utf8" }).trim().split(":").map(Number);
+  return parts.reduce((total, part) => total * 60 + part, 0);
+}
+
+test("S-59 RAC-209 killing the Host during native SQL also ends its child and releases the write lock", { timeout: 15_000 }, async t => {
+  let parent: ChildProcess | undefined, pid: number | undefined;
+  t.after(() => { parent?.kill("SIGKILL"); if (pid && live(pid)) process.kill(pid, "SIGKILL"); });
+  const { file, store, count } = await library(t, 1500);
+  parent = fork(fileURLToPath(new URL("./fixtures/project-statement-parent.ts", import.meta.url)), [], {
+    execArgv: ["--import", "tsx"], stdio: ["ignore", "ignore", "ignore", "ipc"],
+  });
+  const ready = once(parent, "message");
+  parent.send({ file, manifest, sql: SLOW_WRITE });
+  const [message] = await ready;
+  pid = (message as { pid: number }).pid; assert.ok(pid);
+  const first = cpuTime(pid);
+  parent.send("run");
+  const warming = Date.now();
+  while (cpuTime(pid) < first + 0.1 && Date.now() - warming < 1000) await sleep(30);
+  assert.ok(cpuTime(pid) >= first + 0.1, "the statement is executing native SQL before the Host is killed");
+  const ended = once(parent, "exit"); parent.kill("SIGKILL"); await ended;
+  const killed = Date.now();
+  while (live(pid) && Date.now() - killed < 3000) await sleep(25);
+  assert.equal(live(pid), false, "the orphan exits within the write deadline plus one second");
+  const started = Date.now(); store.db.prepare("INSERT INTO sbxlimit_rows (text) VALUES ('restarted Host')").run();
+  assert.ok(Date.now() - started < 1000, "the restarted Host's writer has no stale lock to wait for");
+  assert.equal(count(), 1501, "the dead Host's uncommitted INSERT did not survive");
+});
+
+test("S-59 RAC-208 closing the plugin after COMMIT was sent reports an unknown outcome", async t => {
+  const { sandbox, opened, grants, count } = await library(t, 3);
+  let writes = 0;
+  grants.onWrite = () => {
+    // The fourth grant is immediately before COMMIT. Its IPC send runs synchronously before this microtask disposes it.
+    if (++writes === 4) queueMicrotask(() => opened.close());
+  };
+  await assert.rejects(write(sandbox, add("commit may have landed")), { code: "actions.plugin_unavailable", outcome: "unknown" });
+  assert.equal(writes, 4);
+  assert.ok(count() === 3 || count() === 4, "COMMIT may have landed; a response lost during close cannot prove rollback");
+  await assert.rejects(write(sandbox, add("after close")), { code: "actions.plugin_unavailable", outcome: undefined });
+});
+
+test("S-59 RAC-208 the real statement engine refuses run and commit outside a transaction", async t => {
+  const { file, count } = await library(t, 3);
+  const child = fork(fileURLToPath(new URL("./project-statement-worker.js", import.meta.resolve("@molis-ai/molis-work-app-local-host"))), [], {
+    execArgv: ["--max-old-space-size=96"], stdio: ["ignore", "ignore", "ignore", "ipc"],
+  });
+  t.after(() => { child.kill("SIGKILL"); });
+  let id = 0;
+  const ask = async (request: object) => {
+    const response = once(child, "message");
+    child.send({ ...request, id: ++id, deadline: Date.now() + 5000 });
+    return (await response)[0] as { ok: boolean; kind?: string };
+  };
+  assert.equal((await ask({ op: "open", path: file, record, limits: { heapMb: 96, rssMb: 256, sampleMs: 50 } })).ok, true);
+  assert.deepEqual(await ask({ op: "run", ...add("must not autocommit") }).then(reply => [reply.ok, reply.kind]), [false, "refused"]);
+  assert.deepEqual(await ask({ op: "commit" }).then(reply => [reply.ok, reply.kind]), [false, "refused"]);
+  assert.equal(count(), 3);
 });
 
 test("S-59 RAC-202 a recursive query never starts, with the RECURSIVE keyword or without it, in a read, a get or a write", async t => {

@@ -16,22 +16,14 @@ import { TODO_EN } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_EN } from "@molis-ai/molis-work-plugin-alchemist";
 import { WORKFLOWS_EN } from "@molis-ai/molis-work-plugin-workflows";
 import { SCHEDULE_EN } from "@molis-ai/molis-work-plugin-schedule";
-import { GOALS_POLICY_EN, GOALS_SAFETY_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_RELATION_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_TREE_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_WORKSPACE_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_MOMENTUM_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_DOCUMENT_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_PLANNING_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_STATUS_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_DIALOGS_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_CONTEXT_EN } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_POLICY_EN, GOALS_SAFETY_EN, GOALS_RELATION_EN, GOALS_TREE_EN, GOALS_WORKSPACE_EN, GOALS_MOMENTUM_EN, GOALS_DOCUMENT_EN, GOALS_PLANNING_EN, GOALS_STATUS_EN, GOALS_DIALOGS_EN, GOALS_CONTEXT_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
 import { PLACEMENT_EN } from "./placement-en.js";
 import { CONTEXTUAL_EN } from "./contextual-en.js";
 import { SIDE_PANEL_EN } from "./side-panel-en.js";
+import { TERMINAL_EN } from "./terminal-en.js";
 import { ONBOARDING_EN } from "./onboarding-en.js";
 import { ARRIVAL_EN } from "./arrival-en.js";
 import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
@@ -1489,6 +1481,7 @@ export const EN: Record<string, string> = {
   "项目已改名为“": "Project renamed to “",
   "项目默认与当前 Goal 规则在下方独立维护": "Project defaults and extra Goal rules are maintained separately below",
   ...WORK_EN,
+  ...TERMINAL_EN,
 };
 
 Object.assign(EN, {

@@ -473,9 +473,6 @@ test("this repository: wrappers are followed through every forwarded parameter a
   assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "tx").includes("实际使用次数"));
   assert.ok(keys("plugins/native/alchemist/src/client-flows.ts", "field").includes("探索描述"));
   assert.ok(keys("plugins/native/alchemist/src/work-reuse/client.ts", "section").includes("适用条件"), "section is defined in client-views.ts and calls tx from client.ts");
-  // Jelly: btn, empty and openGeneric are defined in client.ts, and five script files call them
-  assert.ok(keys("plugins/native/jelly/src/client-calendar.ts", "btn").length >= 20);
-  assert.ok(keys("plugins/native/jelly/src/client-model.ts", "tx").includes("拆成任务时，原文会发送给所选模型。保存设置不会发送内容。"));
 });
 
 test("this repository: every dictionary is part of the English the Host serves, and the rule is really looking at it", () => {

@@ -4,7 +4,7 @@ import type {
   ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAdmitActionInput,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
+import { isHttpUrl, parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
 import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfFileContentAction, shelfFileEntriesAction, shelfSearchEntriesAction, shelfSubjectAction } from "./search.js";
 
@@ -57,19 +57,26 @@ export const shelfActions = {
     object({ name: text, mime: text, bytes_base64: text }), read, LOCAL),
   // Defined in the Shelf contract, so another plugin invokes this very definition.
   admit: SHELF_ADMIT_ACTION,
-  admitFolder: define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[]; origin_realpath?: string }, { item: ShelfItemRecord }>("items.admit-folder", "放进文件夹",
-    "把本机界面选中的整个文件夹复制进置物架", "command",
+  // Version 2 names no original folder: a folder has no 原件已变 check, and only the platform keeps a path (`original`).
+  admitFolder: { ...define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[] }, { item: ShelfItemRecord }>("items.admit-folder", "放进文件夹",
+    "把本机界面选中的整个文件夹复制进置物架，最多 32 MB", "command",
     object({ name: { type: "string", minLength: 1, maxLength: 500 }, entries: { type: "array", minItems: 1, items: object({ relative: { type: "string", minLength: 1, maxLength: 1000 },
-      bytes_base64: text, mime: { type: "string", maxLength: 200 } }, ["relative", "bytes_base64"]) }, origin_realpath: { type: "string", maxLength: 4096 } }, ["name", "entries"]),
-    object({ item }), write, LOCAL),
+      bytes_base64: text, mime: { type: "string", maxLength: 200 } }, ["relative", "bytes_base64"]) } }),
+    object({ item }), write, LOCAL), version: 2 },
+  capture: define<{ url: string }, { item: ShelfItemRecord }>("items.capture", "抓取网页放进 Shelf",
+    "抓取一个公开网页或本机网页的正文，存成置物架里的一份材料；局域网地址不抓，抓不到时只保存链接", "command",
+    object({ url: { type: "string", minLength: 1, maxLength: 4096 } }), object({ item }), [...write, "materials:fetch", "materials:fetch_local"], SHARED),
+  original: define<{ item_id: string }, { registered: true }>("items.original", "登记原件",
+    "把本机界面这次放进来的文件登记为这份副本的原件，处理前先核对原件没变；路径只由平台保存", "command",
+    itemId, object({ registered: { const: true } }), [...read, "materials:original"], LOCAL),
   sample: define<Record<string, never>, { item: ShelfItemRecord }>("sample.seed", "放一份示例", "在置物架放入示例材料", "command", object({}), object({ item }), write, LOCAL),
   hide: define<{ item_id: string }, { hidden: true }>("items.hide", "从 Shelf 收起", "从列表收起一份材料，保留副本以便再次接收", "command", itemId, object({ hidden: { const: true } }), write, SHARED),
-  delete: define<{ item_id: string }, { deleted: true }>("items.delete", "删除 Shelf 副本", "删除置物架里的副本；运行中的材料不能删除，原件不受影响", "command", itemId, object({ deleted: { const: true } }), write, SHARED),
+  delete: define<{ item_id: string }, { deleted: true }>("items.delete", "删除 Shelf 副本", "删除置物架里的副本；运行中的材料不能删除，原件不受影响", "command", itemId, object({ deleted: { const: true } }), [...write, "materials:original"], SHARED),
   useAsMaterial: define<{ item_id: string }, { item: ShelfItemRecord }>("items.use-material", "结果转为材料", "把处理结果复制为新的材料，供下一次处理", "command", itemId, object({ item }), write, SHARED),
   edit: define<{ item_id: string; text: string }, { item: ShelfItemRecord }>("items.edit", "修改 Shelf 文字", "用新的正文覆盖置物架里一份文字材料的副本，原件不受影响，旧正文不保留；只有可编辑的文字材料能改，正文最多 512 KB", "command",
     object({ item_id: id, text: { type: "string", maxLength: 2_000_000 } }), object({ item }), write, SHARED),
-  generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke", "materials:read"]),
-  extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", [...write, "materials:read"]),
+  generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke", "materials:read", "materials:original"]),
+  extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", [...write, "materials:read", "materials:original"]),
   cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", "取消 Shelf 任务", "中止一个运行中的处理任务并把它标为已取消；已经结束的任务原样返回，不报错", "command", object({ job_id: id }), object({ job }), write, SHARED),
   settings: define<Record<string, never>, ShelfDeviceSettings>("settings.read", "读取 Shelf 设置", "读取本机快捷键、动作排序与运行时设置", "query", object({}), { type: "object" }, read, LOCAL),
   saveSettings: define<Record<string, unknown>, ShelfDeviceSettings>("settings.write", "保存 Shelf 设置", "修改本机快捷键、动作排序与运行时设置", "command", { type: "object" }, { type: "object" }, write, LOCAL),
@@ -98,6 +105,8 @@ export interface ShelfActionPorts {
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings | Promise<ShelfDeviceSettings>;
   admit(input: ShelfAdmitInput, control?: ShelfExecutionControl): ShelfItemRecord | Promise<ShelfItemRecord>;
   admitText(body: string, title?: string, capture?: boolean, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
+  captureUrl(url: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
+  claimOriginal(itemId: string): Promise<void>;
   admitFolder(input: ShelfAdmitFolderInput): ShelfItemRecord | Promise<ShelfItemRecord>;
   readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer };
   seedSample(): ShelfItemRecord | Promise<ShelfItemRecord>;
@@ -138,17 +147,21 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
       return { name: file.name, mime: file.mime, bytes_base64: file.bytes.toString("base64") };
     }),
     bind(shelfActions.admit, async (input, caller) => {
-      // The store hashes the file at this path before each run; only the local interface names real paths.
-      if (input.origin_realpath && caller.audience !== "user") throw new ActionError("actions.forbidden", "只有本机界面可以登记原件路径");
+      const control = { signal: caller.signal, beforeEffect: () => caller.beforeEffect() };
+      // A link stays a link here: fetching its page is `capture`'s, under its own permissions.
       const typed = input.text?.trim();
-      if (typed) return { item: await ports.admitText(typed, input.title?.trim() || undefined, input.capture_pages !== false, { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
+      if (typed) return { item: await ports.admitText(typed, input.title?.trim() || undefined, false, control) };
       const filename = input.filename?.trim();
       if (!filename || !input.bytes_base64) throw shelfErrors.invalid("请选择要加入的文件");
-      return { item: await ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined, origin_realpath: input.origin_realpath?.trim() || null },
-        { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
+      return { item: await ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined }, control) };
     }),
-    bind(shelfActions.admitFolder, async input => ({ item: await ports.admitFolder({ name: input.name.trim(), origin_realpath: input.origin_realpath?.trim() || null,
+    bind(shelfActions.admitFolder, async input => ({ item: await ports.admitFolder({ name: input.name.trim(),
       entries: input.entries.map(entry => ({ relative: entry.relative, bytes: bytes(entry.bytes_base64), mime: entry.mime || undefined })) }) })),
+    bind(shelfActions.capture, async (input, caller) => {
+      if (!isHttpUrl(input.url.trim())) throw shelfErrors.invalid("请给出 http 或 https 网址");
+      return { item: await ports.captureUrl(input.url.trim(), { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
+    }),
+    bind(shelfActions.original, async input => { await ports.claimOriginal(input.item_id); return { registered: true as const }; }),
     bind(shelfActions.sample, async () => ({ item: await ports.seedSample() })),
     bind(shelfActions.hide, async input => { await ports.hide(input.item_id); return { hidden: true as const }; }),
     bind(shelfActions.delete, async input => { await ports.deleteCopy(input.item_id); return { deleted: true as const }; }),

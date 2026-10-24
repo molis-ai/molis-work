@@ -3,6 +3,7 @@ import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/ser
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { pluginSlotScope } from "./connector-plugin-requests.js";
+import { shownState } from "./connector-refresh-refusals.js";
 
 // Which of the person's accounts a plugin installation's connection slot uses (`services.connections`, S0b-2, S-57). Only the person
 // binds: the audience is `user`, so neither a plugin page nor an Agent nor MCP can choose the account a plugin sends requests with.
@@ -36,7 +37,7 @@ function bound(home: string, input: SlotInput): ConnectorConnectionView | null {
   return withConnectorConnections(home, store => {
     const binding = store.binding(pluginSlotScope(input.install_id), input.plugin_id, input.slot_id);
     const connection = binding && store.get(binding.connection_id);
-    return connection ? store.view(connection) : null;
+    return connection ? { ...store.view(connection), state: shownState(home, connection, store.state(connection)) } : null;
   });
 }
 

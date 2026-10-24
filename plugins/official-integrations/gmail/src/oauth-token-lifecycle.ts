@@ -13,12 +13,12 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
     }
   }
 
-  function needsAuthResult(message: string): GmailUsableTokenResult {
+  function needsAuthResult(message: string, refused = false): GmailUsableTokenResult {
     return {
       ok: false,
       status: "needs_auth",
       message,
-      action: REAUTH_ACTION,
+      action: REAUTH_ACTION, ...(refused ? { refused: true as const } : {}),
     };
   }
 
@@ -151,9 +151,8 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
 
     if (!res.ok || !json.access_token?.trim()) {
       // Never echo Google error bodies that might carry token fragments.
-      return needsAuthResult(
-        `Gmail token refresh rejected — ${RESTART_HINT}`,
-      );
+      return needsAuthResult(`Gmail token refresh rejected — ${RESTART_HINT}`,
+        res.status === 400 || res.status === 401 || json.error === "invalid_grant" || json.error === "invalid_client");
     }
 
     if (loadRefreshToken(opts.tokenRefs) !== refreshToken) return needsAuthResult("Gmail connection changed while refreshing; retry");

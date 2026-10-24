@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { completeApiOAuth, createPluginConnectionsPort, pluginSlotScope, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { completeApiOAuth, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 
 // S-65 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X3): a 401 to a credential the Host can
@@ -22,13 +22,19 @@ const target = { plugin_id: "io.molis.work.example.connectionrefresh", install_i
 /** A Home with an Asana account connected through API OAuth (access `stale-access`, refresh `refresh-1`), bound to the plugin's slot. */
 async function connected(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "connection-refresh-home-")); t.after(() => rm(home, { recursive: true, force: true }));
-  const started = await startApiOAuth(home, { serviceId: "asana", displayName: "Asana", clientId: "asana-app", clientSecret: "asana-secret", origin: ORIGIN });
+  const connection_id = await authorize(home, "stale-access");
+  withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "account", serviceId: "asana", connectionId: connection_id }));
+  return home;
+}
+
+/** The person authorizes Asana (again, when `connectionId` names the account): the token endpoint returns `access` and `refresh-1`. */
+async function authorize(home: string, access: string, connectionId?: string) {
+  const started = await startApiOAuth(home, { serviceId: "asana", displayName: "Asana", clientId: "asana-app", clientSecret: "asana-secret", origin: ORIGIN, ...(connectionId ? { connectionId } : {}) });
   const state = new URL(started.authorization_url).searchParams.get("state")!;
   await completeApiOAuth(home, { origin: ORIGIN, state, code: "code-from-provider" }, (async (url: unknown) => String(url) === ASANA_TOKEN
-    ? json({ access_token: "stale-access", refresh_token: "refresh-1", expires_in: 3600 })
+    ? json({ access_token: access, refresh_token: "refresh-1", expires_in: 3600 })
     : json({ data: { gid: "someone", name: "Someone", email: "someone@example.test" } })) as typeof fetch);
-  withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "account", serviceId: "asana", connectionId: started.connection_id }));
-  return home;
+  return started.connection_id;
 }
 
 /** The token endpoint, reached by the Host's refresh (global fetch); the plugin's own requests go to the stand-in below instead. */
@@ -118,4 +124,33 @@ test("S-65 RAC-349 a token connection is not refreshed: its 401 goes back to the
   const { seen, options } = await asana(t, ["pasted-token"]);
   const answer = await createPluginConnectionsPort(home, options).request(target, dispatch());
   assert.deepEqual([answer.status, seen.length, refreshes.length], [401, 1, 0]);
+});
+
+test("S-65 RAC-349 a refresh the token endpoint refuses marks the account for reconnecting: shown so, refused without asking again, cleared by reconnecting", { timeout: 30_000 }, async t => {
+  const home = await connected(t);
+  const refreshes = tokenEndpoint(t, () => json({ error: "invalid_grant" }, 400));
+  const { seen, options } = await asana(t, ["stale-access"]);
+  const port = createPluginConnectionsPort(home, options), [account] = listConnectorConnectionViews(home, "asana");
+  await assert.rejects(port.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "reauth_required", "the list shows it needs reconnecting");
+  // Refused before anything leaves: no request to the service, no second call to the token endpoint.
+  await assert.rejects(port.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
+  assert.deepEqual([seen.length, refreshes.length], [1, 1]);
+  // The person reconnects the same account: the mark belonged to the connection as it was, and is gone.
+  await authorize(home, "renewed-access", account!.connection_id);
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");
+  assert.equal((await port.request(target, dispatch())).status, 200);
+  assert.deepEqual(seen.at(-1), "Bearer renewed-access");
+});
+
+test("S-65 RAC-349 a network failure while refreshing refuses only this request: nothing is marked and the next request tries again", { timeout: 30_000 }, async t => {
+  const home = await connected(t);
+  const refreshes = tokenEndpoint(t, () => { throw new TypeError("fetch failed"); });
+  const { seen, options } = await asana(t, ["stale-access"]);
+  const port = createPluginConnectionsPort(home, options);
+  for (const attempt of [1, 2]) {
+    await assert.rejects(port.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
+    assert.deepEqual([seen.length, refreshes.length], [attempt, attempt], "each request asks the token endpoint once more");
+    assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");
+  }
 });

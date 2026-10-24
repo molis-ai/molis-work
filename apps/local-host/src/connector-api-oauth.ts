@@ -10,6 +10,7 @@ import { apiOAuthProvider, salesforceOrigin } from "./connector-api-oauth-provid
 import { connectorProductAuth, connectorBrokerOrigin } from "./connector-product-auth.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { tokenEndpointRefused } from "./connector-refresh-refusals.js";
 
 const CALLBACK = "/api/settings/connectors/methods/oauth/callback";
 interface OAuthConfiguration extends ConnectorProtocolConfiguration {
@@ -25,7 +26,8 @@ interface OAuthConfiguration extends ConnectorProtocolConfiguration {
   clientSource?: "product" | "custom";
 }
 export class ApiOAuthError extends Error {
-  constructor(message: string, readonly serviceId?: string) { super(message); }
+  /** `refused`: the token endpoint said no (`tokenEndpointRefused`), not a network failure or a 5xx. */
+  constructor(message: string, readonly serviceId?: string, readonly refused = false) { super(message); }
 }
 type Json = Record<string, unknown>;
 function object(value: unknown): Json { return value && typeof value === "object" && !Array.isArray(value) ? value as Json : {}; }
@@ -38,7 +40,9 @@ function localOrigin(raw: string): string {
 async function jsonRequest(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<Json> {
   const response = await fetchImpl(url, { ...init, redirect: "error", signal: AbortSignal.timeout(25_000) });
   const json = object(await response.json());
-  if (!response.ok || json.error || json.ok === false || (typeof json.code === "number" && json.code !== 0)) throw new ApiOAuthError(`授权服务拒绝请求（HTTP ${response.status}）；请检查应用配置、回调、权限或重新授权`);
+  if (!response.ok || json.error || json.ok === false || (typeof json.code === "number" && json.code !== 0)) {
+    throw new ApiOAuthError(`授权服务拒绝请求（HTTP ${response.status}）；请检查应用配置、回调、权限或重新授权`, undefined, tokenEndpointRefused(response.status, json.error));
+  }
   return json;
 }
 const queues = new Map<string, Promise<unknown>>();

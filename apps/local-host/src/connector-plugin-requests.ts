@@ -7,6 +7,7 @@ import type { PluginConnectionDispatch, PluginConnectionsPort, PluginConnectionT
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
+import { shownState } from "./connector-refresh-refusals.js";
 import { sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from "./public-https.js";
 
 // The Host's side of a plugin's `services.connections` (S0b-2, security invariants S-57 and S-64): which account a slot is bound to, the
@@ -84,7 +85,7 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
     const binding = store.binding(pluginSlotScope(target.install_id), target.plugin_id, target.slot_id);
     if (!binding) return null;
     const connection = store.get(binding.connection_id);
-    const usable = connection && connection.service_id === target.service_id && store.state(connection) === "connected"
+    const usable = connection && connection.service_id === target.service_id && shownState(home, connection, store.state(connection)) === "connected"
       && (service.auth_methods as readonly string[]).includes(connection.auth_method)
       && (store.targetOrigin(connection.connection_id) ?? origin) === origin;
     if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");

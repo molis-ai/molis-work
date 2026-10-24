@@ -2,7 +2,7 @@
 
 更新：2026-10-24 03:00Z（本会话 = 评审问题巡查/修复派单会话；合并职责已交本地 Codex 统筹，见 CODEX-TASKS.md §0、MERGE-QUEUE.md 头）
 
-## 本轮变化（03:00Z）
+## 本轮变化（03:10Z 更新）
 
 - **#1141**：`review-fix-owner` 已认领并完成机械同步 main（新 head `b50a2d1d5`，CI run 40055624200 进行中；冲突只在 `plugins/native/todo/src/ui.ts`，需其自证语义无变）。
 - **#1114**：`review-pr-fixer` 已认领并完成逐项核对——**对照 main `aa4de404f`，18 文件全部仍需要，无「已被取代」项**（含 #901 cognia.import.directory_preview v2→v3、S-56 嵌套 #1079、#867 错误分类、page-assets 28B 放行）；正在解冲突/同步，等新头。
@@ -18,8 +18,8 @@
 | #1128 | `f26d7f8b8` | 翻译门禁盲区文档（#958） | CLEAN、非草稿 |
 | #1126 | `34fb9eb99` | #955 startedAt + #928 英文 TaskBoard；page-assets coding.js +873B 一次性放行待认可 | Codex 已同步、CI 重跑 |
 | #1127 | `d461fb954` | #1018 link 通道 + #1090 flake；plugin-frame.js +263B 放行待认可；改安全不变量（条件 4 看两片 Security） | CLEAN、非草稿 |
-| #1141 | `b50a2d1d5` | #902 Todo 批量菜单语义；机械同步 head | CI 进行中 |
-| #1114 | 同步中 | 复审报告汇总（合同 v2→v3、28B 放行等） | 核对完成：全部仍需要 |
+| #1141 | `b50a2d1d5` | #902 Todo 批量菜单语义；机械同步 head | CI run 40055624200 进行中 |
+| #1114 | `11649e983` | 复审报告汇总（合同 v2→v3、28B 放行等） | 已同步，CI run 40056381607 排队；diff 18 文件 +153/−30 |
 | #1135 | `0460783c1` | tests-only VUX 审计（#894/#900/#902/#911） | draft；是否转 ready 请裁定 |
 
 ## 待确认

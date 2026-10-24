@@ -38,7 +38,7 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
     const saved = await library.save(owner, { expected_version: 0, label: "笔记服务", transport: "stdio", enabled: true, timeout_ms: 5000,
       directory: { canonical_path: home, realpath_verified: true }, executable: process.execPath, argv: ["server.mjs"] });
     await library.control(owner, saved.id, "connect");
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
 
     // The tool is discovered in the same directory, grouped under its server, with the shape the server declared.
     const view = (await client.discover(user)).find(row => isMcpToolCapability(row.capability_id) && row.action.title === "record_review_note")!;
@@ -92,14 +92,14 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
     // An enabled disconnected server stays usable on demand. Discovery starts no process, and missing authority cannot reconnect it.
     await library.control(owner, saved.id, "disconnect");
     // Sync preserves the exact discovered tool version.
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
     const offline = (await client.discover(user)).find(row => row.capability_id === ref.capability_id && row.version === ref.version)!;
     assert.equal(offline.availability.available, true);
     assert.equal((await library.list(owner))[0]?.health, "disconnected");
     await assert.rejects(client.invoke({ ...user, audience: "agent", permissions: [] }, ref, { note: "无权限不能重连" }), { code: "actions.forbidden" });
     assert.equal((await library.list(owner))[0]?.health, "disconnected");
     await library.control(owner, saved.id, "connect");
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
     assert.ok((await client.discover(user)).some(row => row.capability_id === ref.capability_id && row.version === ref.version && row.availability.available));
     assert.equal((await notes()).length, 3);
 
@@ -129,12 +129,12 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
     // Explicitly disabling the configuration refuses the old reference and starts no process.
     await library.save(owner, { id: saved.id, expected_version: saved.version, label: saved.label, enabled: false,
       transport: "stdio", timeout_ms: 5000, directory: saved.directory, executable: saved.executable, argv: saved.argv });
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
     await assert.rejects(client.invoke(assistant, ref, { note: "停用后" }), { code: "actions.connection_unavailable" });
     assert.equal((await notes()).length, 4);
     // Removing the configuration removes its entries.
     await library.control(owner, saved.id, "remove");
-    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    await directory.sync(runtime, "prologue", library, owner);
     assert.ok(!(await client.discover(user)).some(row => row.capability_id === ref.capability_id));
     // A removed server is not brought back by the next restart either.
     directory.close();
@@ -167,7 +167,7 @@ test("listing the servers again while an external tool is being called replaces 
   const directory = createExternalMcpDirectory({ localHost: host as never, homeDirectory: home });
   const runtime = { project_id: "p1", store: { path: "memory:p1" } } as MolisWorkProjectRuntime;
   const owner = { project_id: "p1", plugin_id: "coding" };
-  const sync = () => directory.sync(runtime, "coding", "prologue", library as never, owner);
+  const sync = () => directory.sync(runtime, "prologue", library as never, owner);
   const client = host.actionClient(place);
   const user: ActionCallContext = { actor_id: "web-user", project_id: "p1", audience: "user", permissions: [EXTERNAL_MCP_PERMISSION] };
   const find = async (name: string) => (await client.discover(user)).find(row => row.capability_id.endsWith(`.${name}`));

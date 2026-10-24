@@ -44,9 +44,10 @@ export interface AgentCapabilityPorts<Context> {
   projectId(context: Context): string;
   /**
    * After an owner's MCP servers were listed, saved or connected/disconnected: what they offer now may be republished
-   * (the Host's action directory follows it). A failure here never undoes the change itself.
+   * (the Host's action directory follows it), for that owner alone and idempotently. `check` is the call's final authority
+   * check, run again right before anything is written. A failure here never undoes the change itself.
    */
-  mcpChanged?(context: Context, runtimeId: string, pluginId: string, library: AgentMcpLibrary, owner: AgentSkillOwner): void | Promise<void>;
+  mcpChanged?(context: Context, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner, check: () => void): void | Promise<void>;
   /** The project's workspaces as the catalog reads them now, and where the runtime keeps their after-write checkers. */
   writeCheckers?(context: Context): Promise<{ workspaces: readonly ProjectWorkspaceRef[]; store: AgentWriteCheckerStore }>;
 }
@@ -69,11 +70,15 @@ export function registerAgentHostCapabilities<Context>(
   const ports = {
     agentHost: (call: Call) => owners.agentHost(call.source),
     projectId: (call: Call) => owners.projectId(call.source),
-    // After the call's last check, so a cancelled or revoked call republishes nothing.
+    // After the call's last check, and checked again before anything is written: a cancelled, revoked or stopped call republishes nothing.
     mcpChanged: async (call: Call, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) => {
-      await call.invocation.beforeEffect(); call.invocation.assertAuthorityCurrent();
-      try { await owners.mcpChanged?.(call.source, runtimeId, owner.plugin_id, library, owner); }
-      catch { /* The change itself succeeded; whoever follows it catches up on the next list. */ }
+      const check = () => call.invocation.assertAuthorityCurrent();
+      await call.invocation.beforeEffect(); check();
+      try { await owners.mcpChanged?.(call.source, runtimeId, library, owner, check); }
+      catch {
+        // The change itself succeeded; whoever follows it catches up on the next list. A call no longer current is refused, though.
+        check();
+      }
     },
     /** The calling plugin's own start authority: its declarations and grants, never a plugin an input names (R8 rule 1). */
     authority: async (call: Call): Promise<AgentStartAuthority> => {

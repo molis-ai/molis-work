@@ -62,7 +62,7 @@ test("real Prologue HTTP dispatch rechecks persisted action grants after DNS pre
     const saved = await library.save(owner, { expected_version: 0, label: "写笔记", transport: "http", enabled: true, timeout_ms: 5000,
       endpoint: `http://localhost:${address.port}/mcp`, auth: { kind: "none" } });
     await library.control(owner, saved.id, "connect");
-    await host.withProject(reference, runtime => directory.sync(runtime, owner.plugin_id, "prologue", library, owner));
+    await host.withProject(reference, runtime => directory.sync(runtime, "prologue", library, owner));
     const user: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [EXTERNAL_MCP_PERMISSION] };
     const view = (await host.actionClient(reference).discover(user)).find(row => isMcpToolCapability(row.capability_id) && row.action.title === "write_note")!;
     assert.ok(view?.availability.available);

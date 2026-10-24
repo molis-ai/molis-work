@@ -116,6 +116,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 2026-10-23 23:20 洛杉矶（Claude 统筹）：**batch-1024-21 结果**：只红分片 6 的 `issue-home-locale.e2e`（重试仍红），同是 main 上 #1127 的已知红；SC-4 组没带进新的红。main 修好后 #1130 → #1157（改投 main 后合一次）入队，不重跑全量。现在等 main 修复的：#1119、#1139、#1148、#1130、#1157。
 
+2026-10-23 23:40 洛杉矶（Claude 统筹）：#1165、#1143、#1144 diff 复核可合（6380163682、6380172003、6380178818）。**batch-1024-22** 起：main `89c9a7194` + #1164 `d6b867b02` + #1165 `01de2cb48`，头 `e76380003`，run [40065231630](https://github.com/molis-ai/molis-work/actions/runs/40065231630)。沙箱叠层没放进来：#1139 对新 main 冲突（`plugin-model-service.ts`、`plugin-methods-runtime.test.ts`，#1147 改的），已请 `ac-sandbox-sched` 按 #1139 → #1143 → #1144 再合一次 main，好了和 main 修复、#1167、#1169 进 batch-23。预计 batch-22 也会红 `issue-home-locale`（main 已知红）。
+
 后续更新：#1157已在6379484788确认不重复推两测试补丁，原重复认领等待已解除；现等待ac-sc3处理batch-19新增touch-targets移动端失败。测试专职只读核原始失败与产品契约，下一全量仍未启动。#1119需在后续明确集成批补全量，不能借用batch13–19。
 
 20:57 洛杉矶接续：batch-19最终16分片13绿、5/7/13失败（home-offers、web-home-isolation、touch-targets），不是通过。#1157另线b640三测试已推但尚未合入下层已审更完整修复；统筹6379553963明确由ac-sc3统一收口，候选最终交付前不启动新全量。#1119作者已答复同步在途，不再等待归属决定。

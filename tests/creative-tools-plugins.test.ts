@@ -18,7 +18,6 @@ import {
   railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
-  DATASET_CLIENT_FACTORY_SCRIPT,
   datasetActions,
   mergeDatasetDraftRows,
   openDatasetStore,
@@ -64,6 +63,8 @@ function saveFunctionSource(script: string): string {
 
 // Forms' page is TypeScript bundled into its client pack (W4-04): what its code does is read in the sources, what it ships in the bundle.
 const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
+// Dataset's page is the same: TypeScript bundled into its client pack, read here in the sources.
+const datasetSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
 const between = (text: string, from: string, to: string) => {
   const start = text.indexOf(from), end = text.indexOf(to, start);
   assert.ok(start >= 0 && end > start, `找不到 ${from}`);
@@ -205,7 +206,7 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.doesNotThrow(() => new Function(script));
   assert.ok(script.includes("const PERSONAL_PLUGIN_IDS = " + JSON.stringify([...PERSONAL_PLUGIN_IDS])));
   assert.doesNotMatch(formSource("save.ts"), /fillEditor/);
-  assert.doesNotMatch(saveFunctionSource(DATASET_CLIENT_FACTORY_SCRIPT), /fillEditor/);
+  assert.doesNotMatch(between(datasetSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(PPT_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   // Form serialization and stale-response preservation are exercised in the actual browser.
   // Dataset save ordering and conflict preservation are exercised in the real browser tests.
@@ -213,9 +214,9 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(formSource("results.ts"), /seq !== page\.resultsSeq \|\| page\.sel\?\.id !== id/); // the open questionnaire is `sel` (fa63ade24)
   assert.match(between(formSource("list.ts"), "export const fillEditor", "export const closeEditor"), /resetEditing\(page\)/);
   assert.match(between(formSource("list.ts"), "const resetEditing", "export const fillEditor"), /clearTimeout\(page\.saveTimer\)/);
-  assert.match(fillEditorSource(DATASET_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
+  assert.match(between(datasetSource("editor.ts"), "page.fillEditor = ", "page.closeEditor"), /clearTimeout\(s\.saveTimer\)/);
   assert.match(fillEditorSource(PPT_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /closest\("\[data-column-type\]"\)/);
+  assert.match(datasetSource("commands.ts"), /closest\("\[data-column-type\]"\)/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-question-move/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /mw-check/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form-preview-rating/);
@@ -226,20 +227,20 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-card-notes/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-card-empty/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(datasetSource("list.ts"), /feed-stage-entry directory-list-row/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   // Rows no longer repeat the plugin's name as a chip; their only label is the record's state (plugin-e2e-review §4 X2).
-  for (const [script, cell] of [[formSource("list.ts"), /fixedCell\(L, record\)/], [DATASET_CLIENT_FACTORY_SCRIPT, /fixedCell\(record\)/], [PPT_CLIENT_FACTORY_SCRIPT, /fixedCell\(record\)/]] as const) {
+  for (const [script, cell] of [[formSource("list.ts"), /fixedCell\(L, record\)/], [datasetSource("list.ts"), /fixedCell\(record\)/], [PPT_CLIENT_FACTORY_SCRIPT, /fixedCell\(record\)/]] as const) {
     assert.doesNotMatch(script, /kindChip\(/);
     assert.doesNotMatch(script, /plugin-stage-kind/);
     assert.match(script, cell);
-    assert.match(script, /L\("固定版本"\) \+ " v" \+ record\.artifact_version/);
+    assert.match(script, /L\("(?:固定版本|dataset\.fixed\.label)"\) \+ " v" \+ record\.artifact_version/);
     // The row-level "存为固定版本" control is gone: it looked like share and was the least-used action; the editor keeps it.
     assert.doesNotMatch(script, /creative-artifact-act/);
   }
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /L\("空表"\)/);
+  assert.match(datasetSource("list.ts"), /L\("dataset\.list\.empty-table"\)/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /is-arriving/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /is-arriving/);
+  assert.match(datasetSource("page.ts"), /is-arriving/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /is-arriving/);
   assert.match(formSource("list.ts"), /mw-status mw-status--plain mw-status--" \+ \(published/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-slide-index/);
@@ -247,11 +248,11 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /mw-status--quiet feed-entry-status/);
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /L\("草稿"\)/);
   assert.doesNotMatch(formSource("list.ts"), /className = "form-row/);
-  assert.doesNotMatch(DATASET_CLIENT_FACTORY_SCRIPT, /className = "dataset-row/);
+  assert.doesNotMatch(datasetSource("list.ts"), /className = "dataset-row/);
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /className = "ppt-row/);
 });
 
-test("Dataset：删行丢掉，筛选藏着的行留下；工作台内联同一合并函数", () => {
+test("Dataset：删行丢掉，筛选藏着的行留下；页面包用同一合并函数", () => {
   const columns = [{ id: "name" }];
   const deleted = mergeDatasetDraftRows(
     [
@@ -300,16 +301,13 @@ test("Dataset：删行丢掉，筛选藏着的行留下；工作台内联同一�
   );
   assert.deepEqual(clearedFilterTooSoon.map((row) => row.id), ["shown"], "空筛选只能描述当前 DOM；隐藏行要用画出 DOM 时的旧筛选提交");
 
-  assert.ok(DATASET_CLIENT_FACTORY_SCRIPT.includes(mergeDatasetDraftRows.toString()));
-  // The filter the rows were drawn with is filterSeen (renamed from renderedFilter).
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /mergeDatasetDraftRows\(selected\?\.rows \|\| \[\], rowsFromDom\(\), columns, filterSeen\)/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /let filterSeen = ""/);
-  const changeStart = DATASET_CLIENT_FACTORY_SCRIPT.indexOf('addEventListener("change"');
-  const changeEnd = DATASET_CLIENT_FACTORY_SCRIPT.indexOf("void loadList", changeStart);
-  assert.ok(changeStart >= 0 && changeEnd > changeStart);
-  const changeHandler = DATASET_CLIENT_FACTORY_SCRIPT.slice(changeStart, changeEnd);
+  // The page's code takes the same function from the package's source (the bundle includes it) and hands it the filter the rows
+  // were drawn with (filterSeen), not the one being typed.
+  assert.match(datasetSource("table.ts"), /import \{ mergeDatasetDraftRows \} from "\.\.\/row-merge\.js"/);
+  assert.match(datasetSource("table.ts"), /mergeDatasetDraftRows\(s\.selected\?\.rows \|\| \[\], page\.rowsFromDom\(\), columns, s\.filterSeen\)/);
+  assert.match(datasetSource("page.ts"), /filterSeen: ""/);
   // Actual type switching (including textarea replacement) is covered by Dataset browser tests.
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /filter\(\(item\) => item\.id !== id\)/);
+  assert.match(datasetSource("table-commands.ts"), /filter\(\(item\) => item\.id !== id\)/);
 });
 
 test("Forms：建题、预览提交、结果计数，重开还在；出题是本地 stub", async () => {

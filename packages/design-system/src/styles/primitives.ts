@@ -273,7 +273,7 @@ export const PRIMITIVE_STYLES = `
   .mw-switch input:focus-visible + .mw-switch__track { ${CONTAINED_FOCUS}; }
   .mw-switch:has(input:disabled) { opacity: .42; }
 
-  .mw-field, .mw-form label:not(.mw-check-row):not(.operation-confirm-check) {
+  .mw-field, .mw-form label:not(.mw-check-row) {
     display: grid; gap: 4px; font-size: 13px; color: var(--ink-soft);
   }
   .mw-field__label { display: flex; align-items: baseline; gap: 8px; color: var(--ink); font-weight: var(--weight-control, 500); }

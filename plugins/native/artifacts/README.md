@@ -58,9 +58,9 @@
 | [src/browser.ts](src/browser.ts) | 浏览、版本与导出 |
 | [src/actions.ts](src/actions.ts) | 统一动作合同与业务处理器 |
 | [src/project-reference.ts](src/project-reference.ts) | 项目引用打开 |
-| [src/plugin-client.ts](src/plugin-client.ts) | 安装专属 SDK 动作与客户端 |
-| [src/plugin-operations.ts](src/plugin-operations.ts) | 固定身份的成果/过程项 owner 操作 |
-| [src/plugin-action-contracts.ts](src/plugin-action-contracts.ts) | 直调与 SDK 共用的输入投影和动作 schema |
+| [modules/artifacts/src/plugin-client.ts](../../../modules/artifacts/src/plugin-client.ts) | 安装专属 SDK 动作与客户端（ac-artifacts A2 搬到成果库模块） |
+| [modules/artifacts/src/plugin-operations.ts](../../../modules/artifacts/src/plugin-operations.ts) | 固定身份的成果/过程项 owner 操作 |
+| [modules/artifacts/src/plugin-action-contracts.ts](../../../modules/artifacts/src/plugin-action-contracts.ts) | 直调与 SDK 共用的输入投影和动作 schema |
 | [src/goal-context.ts](src/goal-context.ts) | 目标中的 Artifact 引用 |
 
 可对照现有调用方 [apps/local-host/src/plugin-executor.ts](../../../apps/local-host/src/plugin-executor.ts) 阅读装配方式。

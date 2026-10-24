@@ -2,6 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstallationClient, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
+import { PLUGINS_READ_PERMISSION } from "./plugin-service-permissions.js";
 
 type ManifestReader = (pluginId: string) => PluginManifest | undefined;
 const readers = new WeakMap<object, Set<ManifestReader>>();
@@ -28,9 +29,9 @@ export function openPluginInstallationDirectory(db: PluginRuntimeDatabase, recor
 
 export function pluginInstallationsFor(manifest: PluginManifest, context: PluginStartContext, projectId: string | null,
   source: PluginInstallationClient | undefined, assertActive: () => void): PluginInstallationClient | undefined {
-  if (!source || !manifest.permissions.some(item => item.permission === "plugins:read")) return undefined;
+  if (!source || !manifest.permissions.some(item => item.permission === PLUGINS_READ_PERMISSION)) return undefined;
   const check = () => {
-    assertActive(); context.requireGrant("plugins:read");
+    assertActive(); context.requireGrant(PLUGINS_READ_PERMISSION);
     const scope = currentPluginInvocation();
     assertCapturedPluginActionCurrent(scope, context);
     if (scope && scope.caller.project_id !== projectId) throw new ActionError("actions.forbidden", "安装查询不属于这个项目");

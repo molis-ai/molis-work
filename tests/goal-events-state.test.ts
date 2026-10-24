@@ -4,11 +4,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, LocalHost, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { goalsRoutes, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { bindGoalsManagementActions, bindGoalsWebActions } from "../apps/local-host/dist/goals-actions.js";
+import { bindGoalsManagementActions, bindGoalsWebActions, readProjectGuidance } from "../apps/local-host/dist/goals-actions.js";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventTypeDefinitionInput, SetGoalEventAgreementInput } from "@molis-ai/molis-work-contracts/modules/goals";
 
@@ -3057,9 +3057,13 @@ test("without the project rule an acceptance of a requirement is not limited to 
   }
 });
 
-test("the management caller factory acts as the person on this machine, builds the authority of a decision itself, and pins the one Goals action", async () => {
+const REPLACEMENT = "io.molis.work.example.goals-provider";
+
+
+test("the management caller factory acts as the person on this machine, builds the authority of a decision itself, and pins the Host's Goals", async () => {
   const seen: Array<{ caller: ActionCallContext; action: ActionReference; input: unknown }> = [];
-  const client: ActionClient = { discover: async () => [], invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
+  // RAC-336: the provider is the Goals that ships with the Host, pinned exactly; the call reads no directory first.
+  const client: ActionClient = { discover: async () => { throw new Error("no directory read"); }, invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
   const management = bindGoalsManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
   assert.equal(management.project_id, BOARD);
   const decision = { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "event-1" };
@@ -3069,7 +3073,8 @@ test("the management caller factory acts as the person on this machine, builds t
   assert.deepEqual([pointed!.caller.actor_id, pointed!.caller.actor_kind, pointed!.caller.audience, pointed!.caller.project_id], [LOCAL_PERSON_ACTOR_ID, "user", "user", BOARD]);
   assert.deepEqual(pointed!.caller.user_action, { source: "management", conversation_ref: "conversation://x", message_ref: "message://y" }, "the decision points at its conversation, and says nothing of who decides");
   assert.deepEqual(pointed!.caller.permissions, goalsActions.decide.action.permissions, "only what that action asks");
-  assert.deepEqual(pointed!.caller.allowed_actions, [{ capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: GOALS_PLUGIN_ID }]);
+  assert.deepEqual(pointed!.caller.allowed_actions, [{ capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: GOALS_PLUGIN_ID }],
+    "the provider found is pinned exactly: the call reaches it and no other");
   assert.equal(pointed!.action.provider_id, GOALS_PLUGIN_ID);
   assert.deepEqual(pointed!.input, decision, "the input is the caller's, untouched");
   assert.equal("call_id" in pointed!.caller, false, "the call number is the operation's (the scope the entry runs in), not made here");
@@ -3112,6 +3117,49 @@ test("the management caller factory acts as the person on this machine, builds t
   assert.equal(seen.length, 1);
 });
 
+test("RAC-337: with no Goals in the project, the Host's management call and guidance read are refused by the dispatcher with a code", async () => {
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
+  const reference = { project_id: "a", storage_key: "a" };
+  try {
+    await assert.rejects(bindGoalsManagementActions(host.actionClient(reference), reference).invoke(goalsActions.snapshot, {}), { code: "actions.missing" }, "management");
+    await assert.rejects(readProjectGuidance(host.actionClient(reference), reference), { code: "actions.missing" }, "guidance");
+  } finally { await host.close(); }
+});
+
+test("RAC-341: a third-party installation that registers Goals' capabilities while Goals is away receives neither the person's management call nor the guidance read", async () => {
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
+  const reference = { project_id: "a", storage_key: "a" };
+  const reached: string[] = [];
+  const offered = [goalsActions.guidanceRead, goalsActions.snapshot, goalsActions.decide];
+  // The only provider of these `goals.*@v` is someone else's installation, under the installation id the Host gives it.
+  host.actionRegistry(reference).registerProvider({ provider: { provider_id: REPLACEMENT, plugin_id: GOALS_PLUGIN_ID, plugin_install_id: REPLACEMENT, title: "Third party", kind: "plugin" },
+    definitions: offered, handlers: offered.map(definition => ({ ...definition, handle: () => { reached.push(definition.capability_id); return {} as never; } })) });
+  try {
+    const management = bindGoalsManagementActions(host.actionClient(reference), reference);
+    await assert.rejects(management.invoke(goalsActions.decide, { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "third-party" }), { code: "actions.provider_changed" }, "management decision");
+    await assert.rejects(management.invoke(goalsActions.snapshot, {}), { code: "actions.provider_changed" }, "management read");
+    await assert.rejects(readProjectGuidance(host.actionClient(reference), reference), { code: "actions.provider_changed" }, "guidance");
+    assert.deepEqual(reached, [], "nothing reaches the third-party provider");
+  } finally { await host.close(); }
+});
+
+test("RAC-342: in the real assembly a second goals.*@v cannot stand beside Goals: the Host's one registry refuses it in the project and at the Home, and another project's never shows", async () => {
+  // Every provider, the Host's own, a project's Plugin Runtime and the Home's, registers into the one CapabilityRegistry of LocalHost,
+  // which refuses the same capability_id@version in an overlapping scope (a project's and the Home's overlap; two projects do not).
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
+  const project = { project_id: "a", storage_key: "a" }, other = { project_id: "b", storage_key: "b" }, read = goalsActions.guidanceRead;
+  const offer = (provider_id: string) => ({ provider: { provider_id, plugin_id: provider_id, title: provider_id, kind: "plugin" as const },
+    definitions: [read], handlers: [{ ...read, handle: () => ({}) as never }] });
+  try {
+    host.actionRegistry(project).registerProvider(offer(GOALS_PLUGIN_ID));
+    assert.throws(() => host.actionRegistry(project).registerProvider(offer(REPLACEMENT)), { code: "kernel.capability_duplicate" }, "in the same project");
+    assert.throws(() => host.actionRegistry().registerProvider(offer(REPLACEMENT)), { code: "kernel.capability_duplicate" }, "at the Home");
+    host.actionRegistry(other).registerProvider(offer(REPLACEMENT));
+    const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: read.action.permissions };
+    assert.deepEqual((await host.actionClient(project).discover(caller)).filter(view => view.capability_id === read.capability_id).map(view => view.provider.provider_id),
+      [GOALS_PLUGIN_ID], "the project's directory shows its own Goals only");
+  } finally { await host.close(); }
+});
 
 test("R-GOALS-OWNER-02: create-intent rejects unpermitted fields before facts or an idempotency receipt, then the same intent succeeds once", () => {
   const data = fixture();

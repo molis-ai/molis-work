@@ -14,8 +14,6 @@ import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-co
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -40,7 +38,7 @@ test("an object picked with “@” is checked with its owner and read by it bef
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "引用实操", actor_id: "owner" }));
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const owner = await localWebActionContext(local, reference, LOCAL_OWNER_PERMISSIONS);
+  const owner = await local.localPersonContext(reference);
   const client = local.actionClient(reference);
   const form = (await client.invoke(owner, formActions.create, { title: "供应商准入问卷" }) as { form: { id: string; version: number } }).form;
   await client.invoke(owner, formActions.update, { id: form.id, expected_version: form.version, description: "准入前需要核对营业执照与银行账户，逾期不补齐的暂停合作" });
@@ -63,8 +61,8 @@ test("an object picked with “@” is checked with its owner and read by it bef
     scopeActions: async work => {
       const ref = work.project_ref;
       const scoped = ref ? local.actionClient(ref) : local.homeActionClient();
-      return { discover: async () => scoped.discover(await localWebActionContext(local, ref, LOCAL_OWNER_PERMISSIONS)),
-        invoke: async (action, input) => scoped.invoke(await localWebActionContext(local, ref, LOCAL_OWNER_PERMISSIONS), action, input) };
+      return { discover: async () => scoped.discover(await local.localPersonContext(ref)),
+        invoke: async (action, input) => scoped.invoke(await local.localPersonContext(ref), action, input) };
     },
     projectTitle: async () => project.display_name, timeZone: "Asia/Shanghai" }, "web-user");
   try {

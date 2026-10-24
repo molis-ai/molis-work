@@ -29,8 +29,8 @@ export function takeSearchHits(
 }
 
 /** Surfaces whose tab opens one object by id (they handle `molis-work:select-item`, or name the row to click): the
- *  platform's Sessions and Artifacts, and every plugin a Manifest view of which `accepts_objects`. */
-export const SEARCH_ITEM_TAB_SURFACES: readonly string[] = ["sessions", "artifacts", ...objectTabPlugins()];
+ *  platform's Artifacts, and every plugin a Manifest view of which `accepts_objects`. */
+export const SEARCH_ITEM_TAB_SURFACES: readonly string[] = ["artifacts", ...objectTabPlugins()];
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId } = host;

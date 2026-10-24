@@ -142,7 +142,7 @@ export class PluginPageAuthority {
     // Only the trusted toolbar adds this header to a bound callback. The child fetch bridge drops it, and a page's
     // ordinary header never opens these owner actions. Both paths retain the page's cancellation and activation.
     const contextChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
-      && request.method === "POST" && ["/api/contextual/prepare", "/api/contextual/attach", "/api/placement/convert", "/api/plugins/io.molis.work.todo/items"].includes(pathname);
+      && request.method === "POST" && ["/api/contextual/prepare", "/api/contextual/attach", "/api/placement/convert"].includes(pathname);
     const workspaceChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-workspaces";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)

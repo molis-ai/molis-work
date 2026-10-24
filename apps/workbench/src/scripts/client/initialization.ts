@@ -54,8 +54,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       saveUiState, setMobileView,
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
     });
-    // "转为待办" in other plugins shows only where Todo is on this page.
-    document.body.toggleAttribute("data-todo-available", Boolean(document.querySelector('[data-work-surface="todo"]')));
     (${NAVIGATION_PRESENTATION_SCRIPT})(L);
     (${DOCK_SCRIPT})(L, state.project?.project_id, {
       membership: pluginMembership,
@@ -95,10 +93,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,
       api,
-      messageApi: async (pathname,method,body) => {
-        try { return await api(pathname,method,body); }
-        catch(error) { if(error.status===409 && error.body?.state==='failed')return error.body;throw error; }
-      },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
       openTarget: (target) => {

@@ -1177,6 +1177,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | 2026-10-20 | Shelf 迁到 Plugin Runtime 之前平台要补的三件（S0-1，③ 向用户问的三个问题，经统筹 ① 转达）：（1）Shelf 的网页抓取今天允许本机页面，而 `materials:fetch` 只许公网；（2）Shelf 重新哈希时读 `origin_realpath`（任意绝对路径）；（3）图片上限从 50 降到 30 | （1）允许；不允许。（2）保留；不保留。（3）降到 30；保持 50 | 「1.允许 2. 留 3. 不行」：本机页面允许、`origin_realpath` 这一读保留、图片上限不降，保持 50 | 一条原则：平台补能力，任何插件声明并获授权都能用，不给 Shelf 开私路。（1）新的平台权限 `materials:fetch_local`，给 `services.materials.readLocalPage(url)`；没声明或没授权，`readSource` 照旧只许公网（S-10）。地址只到回环（`http://` 加 `127.0.0.1`、`[::1]`、`localhost`，无账号密码，“是不是本机”只问 `platform/loopback` 那一份），宿主自己的 Web 入口和它起的浏览器的调试口照旧拒绝，每一跳重定向再查一遍。（2）新的平台权限 `materials:original`，给 `claimOriginal`、`readOriginal`、`releaseOriginal`：路径只由宿主入口在用户驱动的那次导入里记下（该请求的 `Sec-Molis-Work-Original-Path` 头，网页脚本设不了；按 `plugin_id`、安装、激活所在的项目和插件自己的记录键存真实路径，删除项目时清掉该项目的登记），插件自己给不出路径；服务只读，读之前重新解析真实路径、与登记值相等才读（防符号链接替换），上限 32 MiB，不列目录、不写。桌面壳发这个头、导入请求不再把路径放进请求体，是 Shelf 迁移 S2 的事。（3）本片没有提高上限，`services.model` 一次仍是 30 张：供应商收得下 50（Anthropic 每次 100、OpenAI 1500、DeepSeek 600、通义千问 256、Kimi 不限张数、GLM-4.5V/4.6V 50、MiniMax-M3 实测 100），但 vendored Prologue SDK 收不下——`resource/core/bind.js` 的附件占位串是 `PROLOGUE-ATTACHMENT-<nonce>-<序号>`，`host/plugin/node-intake.js` 的 `spliceAttachments` 要求每个占位串在请求体里恰好出现一次，`…-1` 又是 `…-10` 到 `…-19` 的前缀，所以一次请求带到 11 张图就整次拒发（`MODEL_NETWORK_FAILED`，实测 10 张通过，11、21、30 张都被拒），现有的 30 张上限在这个 SDK 上其实只有 10 张可用。“任何一方收不了就不提”，所以不改数；改 SDK 占位串并换 vendored 包，还是把上限如实改成 10，待用户定。另有一项不是用户决定的：`imageTextAvailable()` 与 `extract` 同在 `materials:read` 之下（只回答本机能不能识别图片文字，不读材料，复用宿主已有的那一个判断）。两个新权限的拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` 的 S-44、S-45。 |
 | 2026-10-20 | 一个插件的 Home 实例和项目实例（双实例，PG-012；Shelf 迁到 Plugin Runtime 的前置 S0-2，用户在 ② 会话里直接定 U1、U2） | 授权 U1：A 每个实例各一条记录、Manifest 权限全部必需（推荐）；B 项目实例的授权取两条记录的交集。范围 U2：A 先只给宿主装配的插件（推荐）；B 第三方与沙箱插件也能声明 | U1 选 A；U2 选 A | 标记 `dual_instance` 只在宿主自己的启动名单上（目录条目的 `runtime.dual_instance`），Manifest、安装记录和项目那一半都说不了，规则写进 `skills/molis-plugin-dev/host.md`「双实例」与 S-15。U2 与 2026-10-18「插件的待遇」之间的差距，是同一个平台缺口：外部插件今天还装不了 Home 实例，它们能装 Home 实例那天才谈得上声明另一半；不是给内置插件开的私路，现在一个也没用上（Shelf 迁入时第一个用）。U1 的代价：项目记录也持有只有 Home 一半才用的权限，项目一半没有那些处理器，用不到；交集方案等真有带可选权限的双实例插件再做。设计、切片与验收见 [`specs/dual-instance-plugins`](../dual-instance-plugins/spec.md) |
 | 2026-10-21 | Alchemist 与插件创作台迁不迁（统筹 ① 转达用户；改 10-18「这一轮的收口范围」与「四个构建期例外」里关于这两个的部分） | 用户直接答复 | 不迁；防腐收尾后删除，再重做 | 用户原话：「Alchemist 和 插件创作台先不用迁，帮我做个备份，直接删了，我后面等防腐做完重新重做」，随后补充「先不做删除，我就是跟你说下，这两个不要迁，先把我们防腐做完，再删」。所以这一轮两件都不做：不迁到 Plugin Runtime，也先不删。[privileges.md](privileges.md) 里只关它们的行，「状态」写成「不迁；防腐收尾后删除，再重做（用户 10-21）」，不再算进本线的完成标准；几个插件共有的行只把它们那一部分划出去。删除与重做记 BL-376（Alchemist）、BL-377（插件创作台）。备份是远端分支 `backup/alchemist-plugin-builder-2026-10-21`（main `458b33059`），真删时按当时的 main 另做一份。删除范围用户同日已定（「一起删（推荐）」）：创作台的离线回放（`pnpm studio:replay` 与 CI 里对应的任务）和宿主里只给创作台生成的插件开的专用通路，随创作台一起删；通用的第三方插件安装、沙箱和它们的安全测试保留；以前由创作台生成、已经装好的插件随之不能用。本机没有真实 Home，不写迁移、不留兼容。删之前两者的现行代码照常受门禁约束，别的片碰到照常改；为迁它们而排的平台工作不再因它们而做，别的插件也要用的照旧。 |
+| 2026-10-23 | Alchemist 与插件创作台删不删（用户在防腐收口目标里直接写；改上一行的「防腐收尾后删除」） | 用户直接写 | 不删；可以绕过、先不理会，后续重做 | 用户原话：「Alchemist 和插件创作台不删，但是可以绕过先不理会，后续重做」。所以本轮收口不删这两者，BL-376、BL-377 的删除计划不执行，留作重做时参考；仍不迁。[privileges.md](privileges.md) 里它们的行按「不迁、不删，本轮绕过，后续重做（用户 10-23）」读，照旧不算进完成标准。要删，先问用户。 |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -1208,6 +1209,19 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | 15 | 同一个搜索服务（AnySearch）在 Host 里有两套各自的联网代码：炼金术士用一套，Feed 的网页搜索用另一套（来自仓库附带的搜索依据包 Search Evidence Layer）。两套写了同样的安全限制（固定网址、只连公网地址、请求和回答的大小上限、不跟随跳转），行为只在一点上不同：开了代理、电脑返回假地址时，炼金术士的研究能搜，Feed 的网页搜索会失败（错误码 `provider_unavailable`）。代码里的注释说这是有意的，但没写原因。要不要合成一套 | （a）Feed 也改用炼金术士那套：一套代码、一套规则，Feed 的网页搜索在代理环境下也能用；代价是 Feed 的这个来源也要走公共域名查询（待决 14 的告知要覆盖它）；改动在 Feed 来源服务的默认设置里，不大，但没有试做；（b）反过来，炼金术士也用 Feed 那套，删掉炼金术士自己的联网代码和它的测试夹具：一套代码、没有公共域名查询，代价是炼金术士的研究在代理环境下也会被拒；（c）保持两套，在代码和 `docs/SSOT-MATRIX.md` 里写明为什么 | （a）：「怎样连 AnySearch」只应有一个负责的地方；你已定过代理的假地址模式按正常环境处理（9 月 22 日的代理实操、9 月 27 日生成插件的出站），（b）会让炼金术士在这类环境里也失效 | [AI 清单](ai-entry-inventory.md) §7 第 12 项、§3.7 的 SE-1 与 SE-4、§3.10 第 3a 与 3b 类；代码 `alchemist-search.ts:22`、`feed-source-service.ts:31`、`feed-source-runtime.ts:37`；两种情况的行为差别由 §8 的探针证明（没有真联网）。Jelly 读网页另有第三份同类重复，不在本项里，等本项定了方向再排；**用户 10-09：用户答「哪套好用哪套」：在代理假地址环境下只有炼金术士那套能用，所以 Feed 改用炼金术士那套（等于选项 a），实现时两套各测一次确认**（2026-10-21：Alchemist 不迁，防腐收尾后删除；Feed 若届时已改用这套，删除那一片先把它挪成平台自己的搜索代码，见 BL-376） |
 
 **不需要新决定的**：E-1（删除项目不清 Sessions 记录）——2026-10-07 已定「各主人一起删、可重试」，这是它漏掉的一个主人，按 W2-07 收尾做；修好后真实 Home 里以前删项目留下的 Sessions 记录（若有）按 10-08 已定的做法在下一次维护里先列后删，本片没有读真实 Home，不知道有没有。E-3 至 E-8、E-10、E-11、E-14、V-3 至 V-5、AI 清单 §7 第 3、4、6、9 项是清理与文字修正，没有产品语义的选择；会改合同文字或输出合同的（E-8 去掉 `pages.ai` 的 `stub`、E-11 删 `shelf.jobs.run`、AI 清单 §7 第 4 项的标题与描述）要刷新 API 与动作合同快照，PR 里写给调用方。
+
+### 1.1 剩余风险登记（2026-10-23）
+
+复审报告（2026-10-20～23 合入 PR 的复审；报告文件不入库，由合并 Agent 会话持有）§2.8 与 §8 第 6 条要求：#1018 的 Todo 宿主私路至少在这里登记剩余风险。本节是登记，不是清理完成。
+
+- **来源**：#1018（`f562ed466`，隔离插件页面并修复系统评审中的生命周期与权限问题）；报告 §2.8「隔离页新增 Todo 宿主私路」一行。
+- **现在的代码**
+  - `apps/local-host/src/plugin-page-authority.ts:145`：情境页（带 `x-molis-context-page`、不带 `x-molis-plugin-page`）的 POST 白名单里硬编码了 `/api/plugins/io.molis.work.todo/items`；
+  - `apps/local-host/src/plugin-page-todo.ts`：只放行 `io.molis.work.todo` 的 `items` 操作，把情境页选中的来源映射成待办的 `title`、`sources`、`placement` 与幂等 `request_id`；唯一调用点在 `apps/local-host/src/home-plugin-http.ts`；
+  - `scripts/gates/assembly.mjs:92`：`hostPluginFiles` 指标只按 `-actions.ts` / `-native-plugin-http.ts` 后缀认出「以插件命名的宿主文件」，`plugin-page-todo.ts` 识别不到、不进该指标记录。`scripts/check-health-gates.mjs` 的 `--base` 用同一份 `measureAll` 测量工作树和 merge-base；两边已有且同样命中新规则的文件会共同计入，不会仅因扩充扫描口径就自动成为新增违规。改门禁仍须按仓库规则取得授权，本片只登记，不改正则或指标（口径见 `tooling/gates/README.md`）。
+- **为什么本片只登记**：[context program](../context-program/spec.md) 开头的「交接（2026-10-20）」已说明 W0～W3 合入 main；W1-5 已有内核派生实现（`47c00b44`，`packages/kernel/src/contextual/destinations.ts`），不是尚待新建的平台能力。该 spec §18.7 已修正旧计划：去处走 `/draft`，落点版本冻结与执行前核对归 W3 的 `attach`。后续应按现行情境合同核对并迁移仍存的 Todo 专用入口与适配；是否还需改合同，由核对出的实际差距确定，不能预设为清理前置。本片保持复审报告 P3 的登记范围，不实施迁移。
+- **归属与跟踪**：后续清理沿用 ② 的 context program W1-5 跟踪归属，按当前交接接续；BACKLOG 的 BL-568 跟踪这一条（随 #1114 登记；该 PR 未合入前以本节为准）。完成须同时覆盖情境页的 Todo POST 白名单、`plugin-page-todo.ts` 专用适配及其调用，验证该路径已由通用合同承接后再更新本节；单独删文件不代表清理闭环，也不会消除扫描正则的通用识别盲区。`privileges.md` 的 PG 行由统筹在合入后补，本节不重复维护那份清单。
+- **同报告的另一条**：#1018 的「隔离页 link 通道」（合成 click 可导航宿主设置页）已由合并 Agent 派出的 plugin-frame-fixes 认领修复，不在此登记。
 
 
 ## 2. 现状度量（§3）
@@ -1640,6 +1654,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `config/mcp-tools.json` | 2 → 3 | ACA005（`feature/aca005-search-authority`，本片 PR） | [同一片规格](slices/aca-005-search-authority.md)；逐条授权增加管理 owner 生成的 generation，原 client、scope、精确引用、权限、enabled 全部保留。临时副本已演练一次性 list/apply、外置原件、幂等、重复拒绝、真实写入失败零改和原件恢复；脚本仅在会话临时目录，不进运行时读路径。真实 Home 未操作，随 W5-17/统一发布维护窗口停全部 owner、完整备份并在副本核对后，另按真实 Home 的当次授权执行；v3 运行时严格拒绝 v2，不自动迁移、不改产品发布版本。 |
+| `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | [本片规格](slices/w5-16-home-snapshot.md) B1；真实 Home 未执行，随 W5-17、Goals S9 的既定维护窗口另行授权。停宿主并在完整副本先 `list`，显式 `apply --backup <Home外新目录>` 按原邀请 SHA-256 重建 v2 库，清除邀请回执原文，保留其余业务事实、自增序号与旧链接效力；不自动迁移。`tests/im-invite-maintenance.test.ts` 已在一次性 Home 演练：含最新 WAL 的全表比对、发布库与 backup API 副本无原文字节、重复零改、失败回滚和中断后拒绝打开及原件恢复。 |
 | `memory/memory.db` | 2 → 3 | 记忆策略 M1 第一片（`codex/memory-p0`，独立 PR 交付） | [记忆策略 spec](../prologue-memory-strategy/spec.md) §9.4 / §13；真实 Home 未执行。停止全部 owner 并备份，在隔离副本按旧代码物化个人、项目默认及已有项目的有效开关，保留消费者/插件限制，同一事务写采用记录和版本 3，不改 SDK 正文。已演练事务失败回退、重试、两次新进程重启及旧 Home/Web/MCP 入口拒绝。真实库采用与安装新构建须另获对应授权，不能由普通启动就地升级 |
 | `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 归维护八，与安装新构建同一步进行；真实 Home 未执行，仍需当次授权，不得先用新构建打开旧库或让旧构建打开维护后的库。隔离 v1 副本已演练：停宿主并完整备份，按当前 `CONNECTORS_STORE_BASELINE` 增加连接启停/移除字段、协议/授权请求与技术观察字段和表，在事务中写基线 2，核对原连接 id、凭据引用、绑定、协议及取消记录不变；失败恢复完整副本。证据见 [服务接入 spec](../assistant-service-connections/spec.md) 的连接生命周期、正式接入准备与技术观察记录 |
 | `projects/<project_id>/molis-work.db` | 6 → 7 | #369（删 Casebook 的 5 张表） | 维护六，真实 Home 的 18 个项目库 10-10 已做（上面「维护六」） |
@@ -1647,6 +1663,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | `projects/<project_id>/molis-work.db` | 7 → 8 | L1b（`feat/project-library-l1b`，叠在 #857 上；与 S8 同一批） | 维护八，未做：每个项目库一个事务跑 `tests/fixtures/project-maintenance-v8.sql`，建 `project_root` 并抄 Board 的那一行，重建 `boards`（去掉 `title`，外键指 `project_root`，行与 rowid 不变，S8）和外键指向 `boards` 的 11 张表改指 `project_root`（行、rowid 与自增序号不变），建插件库账本写 Coding、Feed、Goals、Schedule 四行（Goals 一行与 `boards` 的改建是 S8 加进同一份脚本的两步），写 `user_version = 8`；前置或后置核对任一不对整库回滚。演练 `tests/project-maintenance-v8.test.ts`（一次性 Home）；做法见检查清单第 4.3 节维护八。2026-10-20 本机没有真实 Home |
 | `projects/<project_id>/molis-work.db` | 8 → 9 | `feature/system-review-fixes`（SYS-15 公共调度安装绑定，待提交） | 未维护真实 Home：备份副本严格核对 v8，事务中新增 `schedule_action_bindings`、暂停未绑定闹钟、保留业务数据与历史，写 v9；错误版本和失败整笔回滚。SYS-15-S6 临时库演练已通过（`tests/project-maintenance-v9.test.ts`，脚本 `tests/fixtures/project-maintenance-v9.sql`），切换真实 Home 前另定维护窗口。 |
 | `characters/characters.sqlite` | 1 → 2 | Sessions 收尾 SC-2（`migrate/sessions-sc2-characters-runs`；Characters 自己记原生执行，D3） | 未维护真实 Home：停宿主、整份备份，副本上一个事务跑 `tests/fixtures/characters-maintenance-v2.sql`（只核对 `user_version` 正好是 1，不比表结构；只加 `character_runs` 表与索引，草稿不动），演练是 `tests/characters-maintenance-v2.test.ts`；以前记在会话库里的角色运行不迁，留给 SC-5 随会话库一起处理。与装新构建同一步做，动真实 Home 之前弹窗问用户 |
+| `assistant/assistant.db` | 2 → 3 | PG-036 C8-3（`claude/ac-coding-93b25f`；助理按执行方协议选执行方，工作正文的执行方改记插件标识） | 归维护八，与装下一个版本同一步做；未维护真实 Home，动之前弹窗问用户，不得先用新构建打开旧库或让旧构建打开维护后的库。停宿主并整份备份，在副本上一个事务跑 `tests/fixtures/assistant-maintenance-v3.sql`：只核对 `user_version` 正好是 2；工作正文里 `executor.kind` 为 `coding` 的改成 `plugin` 并补 `plugin_id` 为 `io.molis.work.coding`，轮次正文里 `executor` 为 `coding` 的改成 `plugin`，已发送请求的结果（`assistant_requests.result`，同一个请求标识再发会原样取回）里的 `work.executor` 同工作正文那样改，写版本 3；表、工作与会话的关联（种类仍是 `coding_session`）和其余字段不动。失败整笔回滚。临时库演练是 `tests/assistant-maintenance-v3.test.ts`（RAC-447、RAC-448） |
 
 **各库版本表（10-08 建立，项目库一行已按 10-10 维护六更新；各个后续候选的现行版本以 `docs/releases/CHECKLIST.md` 和 `node scripts/verify-release-versions.mjs` 的代码核对为准）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是对应时点的代码版本；真实 Home 目录库已在维护四升至 22，原「仍是 21」为过时状态。I6 Home Runtime 候选 v2 的要求另见 §10.2，不把本表当候选全部库的唯一清单。
 
@@ -1709,14 +1726,14 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/functions` | 模块 | 9 | 1,777 | `store.ts` 939 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/goals` | 模块 | 42 | 9,440 | `event-facts.ts` 631 | 1 | 1 | 2 | 在用 | 深 | 已审 |
 | `modules/governance-collaboration` | 模块 | 12 | 1,116 | `goal-tree-records.ts` 220 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/private-work-context` | 模块 | 21 | 3,054 | `session-records.ts` 367 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/private-work-context` | 模块 | 10 | 1,223 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 6 | 1,123 | `repository.ts` 467 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 已审 |
 | `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 已审 |
 | `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 已审 |
-| `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 已审 |
+| `packages/im-ui` | 基础 | 12 | 1,466 | `browser/controller.ts` 930 | 1 | 2 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 6 | 1,160 | `action-service.ts` 490 | 2 | 1 | 4 | 在用 | 深 | 已审 |
 | `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 已审 |
 | `packages/plugin-sandbox` | 基础 | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 | 在用 | 中 | 已审 |
@@ -1747,7 +1764,6 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
 | `plugins/native/todo` | 内置插件 | 22 | 4,276 | `client.ts` 1,240 | 1 | 4 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/workflows` | 内置插件 | 20 | 3,956 | `client.ts` 1,355 | 2 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
@@ -1755,7 +1771,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 已审 |
 | `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 已审 |
+| `server` | 模块 | 18 | 1,127 | `continuity/service.ts` 179 | 1 | 3 | 2 | 在用 | 中 | 已审 |
 | `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 已审 |
 
 ### 5.2 状态、计划深度与审查
@@ -3625,7 +3641,7 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | W2-18-FUNCTION-CHOICE / P2 必修 | Functions provider 接受 Choice 任意字符串并先存 ok 判断；精确 published action 的 enum 在副作用后才拒绝 | 在生产 provider 转换边界核已声明 criteria，非法答案按真实失败处理，不保存错误成功；不推断未查证的其他原语语义。W2-18-FUNCTION-CHOICE-01：原生协议返回 enum 外 choice，preview/通用/精确动作均不产 ok 历史或取得发布资格；合法选项结果正常。 |
 | W2-18-PAGE-CARDS / P2 必修 | 助理逐张绘制 page card，却每次删除不在单张数组的其他卡，多个待确认卡只留最后一张 | 列表清理按完整集合，单张绘制不删除兄弟卡。W2-18-PAGE-CARDS-01：同真实 work 两张页面卡均可见，执行/忽略/重读各自状态与 Host 一致。仅原 SEND writer 连续修改该文件。 |
 | W2-18-ASSISTANT-404 / P2 必修 | A 刷新晚到 not_found 未核 currentId，会清掉后来打开的有效 B | 成功与失败 UI 效果都固定原读取身份。W2-18-ASSISTANT-404-01：A慢404/B先成功后B选择/草稿保持，A原地删除仍退出。仅原 SEND writer。 |
-| W2-18-HOME-LOCALE / P2 必修 | Home plugin 页面硬写 zh-CN 和 identity translate，英文工作台的 Issue 侧栏仍中文 | 注入现有 locale/L/clientI18n，无第二词典。W2-18-HOME-LOCALE-01：英文选择页/项目中的 Issue 侧栏、无模型设置往返与错误随语言，中文正常。 |
+| W2-18-HOME-LOCALE / P2 必修 | Home plugin 页面硬写 zh-CN 和 identity translate，英文工作台的 Issue 侧栏仍中文 | 注入现有 locale/L/clientI18n，无第二词典。W2-18-HOME-LOCALE-01：英文选择页/项目中的 Issue 侧栏、无模型设置往返与错误随语言，中文正常。#1127 合入后的设置链接按 S-47 打开宿主设置面：首次设置请求失败显示共用请求助手的英文错误和 Retry，点击后由真实 Host 返回模型设置，能关闭回到原 Issue 草稿；宿主地址不跳转、草稿不因往返保存。 |
 | W1-18-TAB-FORMAT / P2 必修 | 当前读取仍把 task/goalId/mother/preview/collapsed 旧状态转成现行对象，无当前 writer | 恢复只收现行形状，删历史转换，保留当前 settings撤下与合法标签/组/分屏规范化；其他旧键先核writer再删。W1-18-TAB-FORMAT-01：当前真实标签/多层分屏重载正确，旧状态不转换；保留现行 UI 无母页/preview 的负向断言。 |
 | W2-18-SETTINGS-LATE / P2 必修 | 设置 A 迟到失败无 request 检查，会替换已打开 B 为 A 错误页 | 失败/重试与成功同样绑定请求。W2-18-SETTINGS-LATE-01：A慢失败/B成功并编辑后B字段/目录保持，A原地失败仍能重试且有诊断编号。 |
 | W2-18-REFERENCE-LATE / P2 必修 | 项目引用预览共用 dialog，A关闭后打开B，A迟到正文可覆盖B标题/下载对应内容 | 只读请求绑定当前预览，关闭/重开失效。W2-18-REFERENCE-LATE-01：真实两文件B先/A后，正文/标题/下载一致，旧失败不改下一预览。 |
@@ -3669,6 +3685,8 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | W2-18-CODING-CONTROL-VERSION / 必修合同缺口（新main差异） | `coding.runs.control`新增switch-model输入但version仍为1，动作快照同版本输入hash由`4dd83c4a83fc`变`78d0a95586bb`，固定引用被静默改形状 | 按现行CONTRACT-CHANGES升动作版本，同改现行路由、固定引用、测试与快照，不加旧版读取兜底。W2-18-CODING-CONTROL-VERSION-01：正常控制和换模走现行版本，固定旧版明确拒绝；W2-18-CODING-CONTROL-VERSION-02：构建后动作快照与实际发现一致，调用方与MCP影响记录。`89af5b5f2`已将控制动作升至v2并加入旧版拒绝断言；快照和运行尚待。 |
 
 | W1-18-PIN-CURRENT / P2 必修 | nextPinnedVersion在无pending、head=recorded+1且source_revision=null时复用“快照前”的旧版；当前四文档先存pending再固定，正常中断不产生此形状 | 删除这条历史特判及旧说明，已有head后正常递增；保留真实pending恢复、移动/复制/不同actor各项目版本线。W1-18-PIN-CURRENT-01：四owner真实固定中断/pending恢复与移动后编号仍正确；无pending的null head不当作旧发布恢复，不覆盖旧成果。由G6与同文件pinActionSubject父控制串行处理，G7不改promote协议。 |
+
+2026-10-23，W2-18-HOME-LOCALE-01 接续修复（[原失败](https://github.com/molis-ai/molis-work/pull/1127#issuecomment-6380003167)，Codex 修复 1）：固定 main `89c9a71947f483cd429405574df7b2b916b36b8d` 复现设置不打开；进一步验证独立 Home 没有工作台设置面，`open-settings-path` 无接收者，设置请求为零。独立 Home 的既有设置宿主补收同一 document 事件，复用 `home-model-settings → molisWorkRequest` 的加载、Retry、关闭与草稿保留；工作台仍走 `settings-directory`，不恢复隔离页面导航、不把 Home 重做成工作台。只接受同源 `/settings/models`、`/settings/connectors`、`/capabilities/connections`；无效 detail、外域和其他路径均无请求、无打开、无导航。范围是 Home 设置脚本、现有事件登记与 S-47 文档、本条验收，以及 `tests/issue-home-locale.e2e.test.ts`、安全 CI 已执行的 `tests/security-invariants-plugin-pages.e2e.test.ts`；实际请求记录须证明失败后 Retry 取得真实 Host 的 200，原草稿/存储结果不变。定向命令为 `node scripts/run-tests.mjs tests/issue-home-locale.e2e.test.ts tests/security-invariants-plugin-pages.e2e.test.ts tests/settings-requests-through-helper.test.ts`，其余按包要求与实际 affected 结果选择；全量交统筹安排。真实 Home 和模型账户不在本片范围。
 
 Gmail 增量判断也与 [Gmail 官方 history.list 合同](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list) 对照：历史按 ID 递增，startHistoryId 排除以前的记录，单条历史可包含多封邮件。因此“最后一页已读”不能替代“候选已消费”。本轮不实际读取外部账户。
 

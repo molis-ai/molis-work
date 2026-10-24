@@ -90,6 +90,6 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
     const current = ports.entry(entry.entry_id);
     if (current.revision !== entry.revision || current.subject_id !== entry.subject_id || current.status !== entry.status) throw new ActionError("actions.subject_changed", "事项在读取期间已变化");
     return subjectContext({ subject: { kind: "inbox_entry", id: entry.entry_id }, revision: `${entry.revision}:${related.revision}`,
-      title: related.title, content: related.content, truncated: related.truncated, goal_ids: related.goal_ids, session_id: related.session_id });
+      title: related.title, content: related.content, truncated: related.truncated, goal_ids: related.goal_ids });
   } }];
 }

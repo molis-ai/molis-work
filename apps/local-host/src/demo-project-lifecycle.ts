@@ -8,13 +8,12 @@ import { randomUUID } from "node:crypto";
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 import { managedProjectDirectory } from "./project-file-paths.js";
-import { validateManagedBoard } from "./managed-project-database.js";
+import { validateManagedProject } from "./managed-project-database.js";
 import type { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
 import {
   enableDemoProjectPlugins,
   seedDemoPluginSurfaces,
-  seedDemoProjectExtras,
 } from "./demo-plugin-seed.js";
 /** The demo project has a fixed id; its seed writes under whichever project id it is given (an older demo keeps its own). */
 export interface DemoProjectSeedPort { projectId: string; seed(databasePath: string, projectId: string): void }
@@ -22,7 +21,6 @@ export interface DemoProjectSeedPort { projectId: string; seed(databasePath: str
 export class DemoProjectLifecycle {
   constructor(
     private readonly projects: Pick<ProjectsModule, "query" | "lifecycle" | "commands">,
-    private readonly homeDirectory: string,
     private readonly projectsDirectory: string,
     private readonly demo: DemoProjectSeedPort,
     private readonly deletion: ManagedProjectDeletion,
@@ -61,7 +59,7 @@ export class DemoProjectLifecycle {
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
       this.demo.seed(stagedDatabasePath, record.project_id);
       seedDemoPluginSurfaces(stagedDatabasePath, record.project_id);
-      validateManagedBoard(stagedDatabasePath, record.project_id);
+      validateManagedProject(stagedDatabasePath, record.project_id);
       await fs.rename(stagingDirectory, projectDirectory);
       promoted = true;
       await this.commit(() => this.projects.lifecycle.register(record, "project.demo_created", actorId));
@@ -95,15 +93,15 @@ export class DemoProjectLifecycle {
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
       this.demo.seed(stagedDatabasePath, project.project_id);
       seedDemoPluginSurfaces(stagedDatabasePath, project.project_id);
-      validateManagedBoard(stagedDatabasePath, project.project_id);
+      validateManagedProject(stagedDatabasePath, project.project_id);
       await fs.rename(projectDirectory, backupDirectory);
       previousMoved = true;
       await fs.rename(stagingDirectory, projectDirectory);
       resetPromoted = true;
       // A rebuilt demo starts without what the owners kept for the old one, except what only a running Molis Work can clear
-      // and what stays valid for the project that stays: the Sessions its kept panels and Runtime bindings name.
+      // and what stays valid for the project that stays (the owners that declare `survivesRebuild`).
       left = await this.owners.clearAll(project.project_id, { leaveElsewhere: true, rebuild: true });
-      await this.seedDemoExtras(project.project_id, project.database_path, actorId);
+      seedDemoPluginSurfaces(project.database_path, project.project_id);
       updated = await this.commit(() => {
         enableDemoProjectPlugins(this.projects, project.project_id, actorId);
         return this.projects.lifecycle.touch(project.project_id, "project.demo_reset", actorId, {});
@@ -139,15 +137,6 @@ export class DemoProjectLifecycle {
 
   private async finishDemoProject(projectId: string, databasePath: string, actorId: string): Promise<void> {
     await this.commit(() => enableDemoProjectPlugins(this.projects, projectId, actorId));
-    await this.seedDemoExtras(projectId, databasePath, actorId);
-  }
-
-  private async seedDemoExtras(projectId: string, databasePath: string, actorId: string): Promise<void> {
     seedDemoPluginSurfaces(databasePath, projectId);
-    await seedDemoProjectExtras({
-      projectId,
-      homeDirectory: this.homeDirectory,
-      actorId,
-    });
   }
 }

@@ -73,10 +73,10 @@ test("closing the last tab in the workspace restores home", () => {
 test("closing home while a plugin view is open leaves that work", () => {
   const state = ops.create();
   const home = ops.activeTab(state);
-  ops.openPlugin(state, "sessions");
+  ops.openPlugin(state, "inbox");
   ops.closeTab(state, state.focusedPaneId, home.id);
   assert.equal(ops.activeTab(state), null);
-  assert.equal(ops.focused(state).viewPlugin, "sessions");
+  assert.equal(ops.focused(state).viewPlugin, "inbox");
   assert.equal(ops.focused(state).tabs.some((tab) => tab.kind === "home"), false);
 });
 
@@ -216,11 +216,11 @@ test("opening another plugin or item adds a tab without replacing existing ones"
 test("opening an already open item activates it and leaves other tabs", () => {
   const state = ops.create();
   const first = ops.openItem(state, "goals", "goal-1", "发布");
-  ops.openPlugin(state, "sessions");
+  ops.openPlugin(state, "inbox");
   const again = ops.openItem(state, "goals", "goal-1", "发布");
   assert.equal(again.id, first.id);
   assert.equal(ops.focused(state).tabs.filter((tab) => tab.itemId === "goal-1").length, 1);
-  assert.equal(ops.focused(state).tabs.some((tab) => tab.plugin === "sessions" && tab.kind === "mother"), false);
+  assert.equal(ops.focused(state).tabs.some((tab) => tab.plugin === "inbox" && tab.kind === "mother"), false);
   assert.equal(ops.focused(state).viewPlugin, "goals");
 });
 
@@ -261,7 +261,7 @@ test("manual groups stay contiguous, collapse is recorded, and pinning leaves th
   const state = ops.create();
   const home = ops.activeTab(state);
   const goal = ops.openItem(state, "goals", "CORE", "Core");
-  ops.openPlugin(state, "sessions");
+  ops.openPlugin(state, "inbox");
   const pane = ops.focused(state);
   ops.addTabToNewGroup(state, pane.id, goal.id);
   assert.equal(pane.groups.length, 1);
@@ -292,7 +292,7 @@ test("dropping a tab after a group joins that group", () => {
   const state = ops.create();
   const home = ops.activeTab(state);
   const goal = ops.openItem(state, "goals", "CORE", "Core");
-  const session = ops.openItem(state, "sessions", "s1", "Session");
+  const session = ops.openItem(state, "inbox", "s1", "Entry");
   ops.addTabToNewGroup(state, state.focusedPaneId, goal.id);
   ops.moveTab(state, state.focusedPaneId, session.id, state.focusedPaneId, null);
   assert.equal(session.groupId, goal.groupId);
@@ -513,10 +513,10 @@ test("PTG-08 a saved plugin page without its plugin tab gets one, and plugin tab
   const base = createTabWorkspaceOps();
   const saved = base.create();
   base.openItem(saved, "goals", "g1", "发布");
-  base.openPlugin(saved, "sessions");
+  base.openPlugin(saved, "inbox");
   assert.equal(isCurrentTabWorkspace(saved), true);
   ops.normalizeLayout(saved);
-  assert.deepEqual(strip(ops.focused(saved)), ["home", "goals", "goals:g1", "sessions"]);
+  assert.deepEqual(strip(ops.focused(saved)), ["home", "goals", "goals:g1", "inbox"]);
   ops.togglePluginGroup(saved, saved.focusedPaneId, "goals");
   assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(saved))), true);
   const tampered = JSON.parse(JSON.stringify(saved));

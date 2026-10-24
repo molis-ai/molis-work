@@ -55,9 +55,11 @@ Acceptance uses the actual desktop and narrow-screen UI for preview, explicit co
   - HTTP、MCP 动作工具与导入都经绑定的动作服务，原 Store 是唯一数据 owner。
   - 失败都是 `ActionError`：码是 `cognia.<原因>`（`cogniaErrors`）；状态只由 kind 推出，没有错误类和状态表。原来码跟着状态走（404、409、499 各有一个码，其余都叫 `cognia.invalid`），现在模型没配置是 `cognia.model_unavailable`（503），模型没给出可用结果是 `cognia.model_invalid`（502），材料太大是 `cognia.too_large`（413）。目录扫描里只有 kind 为 `too_large` 的失败会中断整批，别的失败记成那个文件的跳过原因。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-cognia run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/cognia-actions.test.ts tests/cognia-store.test.ts tests/cognia-ai.test.ts tests/cognia-http.test.ts tests/cognia-prologue.test.ts tests/cognia-runtime.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/cognia-actions.test.ts tests/cognia-store.test.ts tests/cognia-ai.test.ts tests/cognia-http.test.ts tests/cognia-prologue.test.ts tests/cognia-runtime.test.ts tests/cognia-workbench.test.ts tests/cognia-client-bundle.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
 - 授权等待及可见对象定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-context-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；owner 用例的授权是受控策略回调）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/archive/cognia-plugin/spec.md](../../../specs/archive/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 目录导入：可以上传目录文件；未上传时，「预览导入」打开宿主系统目录选择器。界面不能提交绝对路径来取得授权。系统选择后得到的 grant 只供当前插件激活实例、当前项目及调用者使用，取消、撤权、重启和项目删除使其失效（SYS-15）。
+
+页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/cognia-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `cognia.<区域>.<名称>`（`registration.messages`），请求只经共同的 `molisWorkRequest`，插件路径取自 `host.pluginRoute`，不直接 `fetch`、不写插件 id。`src/en.ts` 只留 33 个宿主还按中文原文翻译的词（Cognia 服务端抛出的错误与模型提示、导入预览里文件被跳过的原因，页面把收到的原文交给 `translate`），BL-457；页面自己的词不在这里。

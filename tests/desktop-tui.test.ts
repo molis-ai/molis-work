@@ -161,7 +161,9 @@ function addProjectGoal(
 ): void {
   const store = new LocalProjectDatabase(project.database_path);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(
+    const application = new GoalProjectApplication(store);
+    application.projectOpened(project.project_id); // S8b: a new project's board is made by Goals when the project is first opened, as the Host does
+    application.goals.commands.createGoal(
       project.project_id,
       {
         goal_id: goalId,
@@ -263,7 +265,9 @@ function addProjectAcceptedGoal(
 ): void {
   const store = new LocalProjectDatabase(project.database_path);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(
+    const application = new GoalProjectApplication(store);
+    application.projectOpened(project.project_id); // S8b: a new project's board is made by Goals when the project is first opened, as the Host does
+    application.goals.commands.createGoal(
       project.project_id,
       {
         goal_id: goalId,
@@ -578,7 +582,6 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(browserMarkup, /data-directory-panel="sessions"/);
     assert.doesNotMatch(browserMarkup, /data-directory-open="sessions"/);
     assert.doesNotMatch(browserMarkup, /data-plugin-section="sessions"/);
-    assert.match(browserMarkup, /data-session-stage-shell[\s\S]*data-session-stage-chrome[\s\S]*data-session-stage-list/);
     assert.match(browser, /data-goal-stage-chrome[\s\S]*data-open-create[\s\S]*data-tree-filter-trigger[\s\S]*data-board-switch/);
     assert.match(browser, /data-tree-depth="4"/);
     assert.match(browser, /data-goal-id="WEB-SCAN-ROW"/);
@@ -598,11 +601,11 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const pluginStrip = browser.match(/<nav class="[^"]*plugin-rail immersive-plugin-strip"[^>]*>[\s\S]*?<\/nav>/)?.[0];
     assert.ok(pluginStrip);
     assert.match(pluginStrip, /data-plugin-id="home"[^>]*data-work-surface-open="home"/);
-    for (const plugin of ["goals", "sessions", "inbox", "feed", "artifacts"]) {
+    for (const plugin of ["goals", "inbox", "feed", "artifacts"]) {
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
     assert.doesNotMatch(pluginStrip, /data-plugin-id="shelf"/, "Shelf is a 常开插件, a tab of the side panel, not an entry of the switcher");
-    assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
+    assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"/);
     // No rail: one bar at the foot. At its left the switcher, which holds, under search and the two buttons that get more
     // plugins (the market, the studio), every plugin (each with its own Dock button), then the Dock; the Assistant is only an
     // input; the side panel's one button (Shelf and 灵光 are its tabs); then the project, whose menu holds the person.
@@ -627,7 +630,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const railItems = pluginStrip?.slice(pluginStrip.indexOf('<div class="plugin-rail-items"'), pluginStrip.indexOf("data-rail-tools-toggle") + "data-rail-tools-toggle".length) ?? "";
     assert.match(railItems, /^<div class="plugin-rail-items"[^>]*><button[^>]*data-plugin-id="home"/);
     // The backbone sits under the first purpose heading, 推进 (plugin-e2e-review §3.1).
-    assert.match(railItems, /data-plugin-id="home"[\s\S]*class="plugin-rail-group" data-rail-zone="tools">推进<\/p>[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*data-plugin-id="feed"[\s\S]*data-plugin-id="sessions"[\s\S]*data-rail-tools-toggle/);
+    assert.match(railItems, /data-plugin-id="home"[\s\S]*class="plugin-rail-group" data-rail-zone="tools">推进<\/p>[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*data-plugin-id="feed"[\s\S]*data-rail-tools-toggle/);
     assert.doesNotMatch(railItems, /data-plugin-id="(market|plugin-builder|settings)"/, "the market and the studio are buttons at the head of the switcher, settings under the project");
     assert.match(extend, /data-global-menu[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"[\s\S]*data-plugin-id="plugin-builder"/);
     assert.ok(browser.indexOf('class="plugin-picker-extend"') < browser.indexOf('class="plugin-rail-items"'), "the two buttons are above the project's own entry");
@@ -723,7 +726,6 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktopMarkup, /data-directory-panel="sessions"/);
     assert.doesNotMatch(desktopMarkup, /data-directory-panel="shelf"/);
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="sessions"/);
-    assert.match(desktopMarkup, /data-session-stage-shell/);
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="shelf"/);
     assert.doesNotMatch(desktopMarkup, /data-shelf-stage-shell/, "Shelf has no stage in the work area; it opens in its side tab");
     assert.match(desktop, /data-plugin-section="feed"/);

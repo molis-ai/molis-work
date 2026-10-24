@@ -238,24 +238,14 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Shelf S4: keep a partial-success warning and refresh link visible when sample restoration fails.
-  // Shared success text and button handling reduce duplication; reviewed growth is 1190725 → 1191104 (+379).
-  "/assets/molis-work-workbench.js": [1190725, 1191104],
-  // RAC-138/139: typed Issue client 24145 → 27806 (+3661), reviewed 2026-10-23.
-  // Object state keeps property names (the original +3605); malformed write receipts and same-id recovery add 56.
-  // Combining the failure branches saved 5 bytes; retain the necessary recovery and read-refusal behavior.
-  "/assets/molis-work-plugins/issues.js": [24145, 27806],
-  // RAC-132: carry the Manifest id into the opaque frame and supply its own plugin route (+88 bytes).
-  // Reviewed 2026-10-23: direct fields/path construction; no smaller equivalent without changing surrounding behavior.
-  "/assets/molis-work-plugin-frame.js": [191104, 191192],
-  // SYS-15/S-47 (#1018 review): a page's link channel no longer navigates the owner document; a settings address opens
-  // the settings surface in place through the shell's registered settings channel, and a pane keeps its one relay. The
-  // four host settings paths left the whitelist while the page's own `openSettings` and the relay stayed (+263:
-  // 191104 → 191367, gzip 61710). Packing the page smaller buys only a few dozen bytes, at the cost of the one place a
-  // page could still have moved the owner's window; the page is frozen again once this PR lands. Rebased onto main
-  // 1dedc1f5c while the PR merged main: the merge-base budget is 191192 (RAC-132 的 +88 已烘焙), this PR's +263 is
-  // measured on top, 191455 bytes, gzip 61743.
-  "/assets/molis-work-plugin-frame.js": [191192, 191455],
+  // SYS-15-U10 (#1200): the Git list keeps a row's identity and the pending click across a revision refresh, so a refresh
+  // no longer drops what the person was pressing: 376282 → 377227 (+945). Reviewed in #1200 (Codex 6382757918).
+  "/assets/molis-work-plugins/coding.js": [376282, 377227],
+  // #1114: Cognia's directory rows get a stable locator for the real-code sync path: 22133 → 22157 (+24). Reviewed in #1114 (Codex 6382529211).
+  "/assets/molis-work-plugins/cognia.js": [22133, 22157],
+  // PG-036 C8-3 (#1185): the bar and the side panel render the executors the Host lists (`GET /api/assistant/executors`, modes by
+  // `plugin_id`) instead of a table naming Coding: 1129753 → 1130064 (+311). Reviewed in #1185 (ac-review 6381652434 (d)).
+  "/assets/molis-work-workbench.js": [1129753, 1130064],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

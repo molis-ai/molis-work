@@ -48,7 +48,7 @@ test('operation recovery is a public authorized Host/HTTP action; plugin callers
 
 test('narrow Schedule UI reviews unknown outcomes, cancels safely and rejects a stale installation before an explicit skip', { timeout: 60_000 }, async t => {
   const owner = scheduledOwnerPlugin(); owner.execute(async () => { throw new ActionError("actions.outcome_unknown", "调用中断"); });
-  const b = await openGoalBrowser(t, true, seedDemoBoard, null, undefined, undefined, undefined, {}, { project: [owner.definition] }); if (!b) return;
+  const b = await openGoalBrowser(t, true, seedDemoBoard, null, undefined, undefined, {}, { project: [owner.definition] }); if (!b) return;
   const child = await pluginFrameBrowser(t, b, "schedule");
   const projectId = b.projectId!;
   const ref = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId });

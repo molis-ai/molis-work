@@ -1444,3 +1444,9 @@ Coding 的流式状态、节点身份与恢复以 [CHO-14](../coding-harness-opt
 - 产品实现按上面各片进行中；VUX-01 至 VUX-50 均未整体验收。
 - macOS 真机、用户原始卡顿现场、真实模型长会话、所有现存与已生成插件组合仍需后续证据，不能由初始隔离样本代替。
 - 输出给用户的结果导向文字在 [Goal Prompt](goal-prompt.md)，它是本书的目标摘要，不另立需求来源。
+
+
+用户已于2026-10-24明确批准 Draft #1198 的三项各+7 B一次性增长。仅对准确main f586496e463308995319499f836bb8cfeb654898的arrival.css 705669→705676、settings.css 995803→995810、workbench.css 1614240→1614247登记，其余24项不变；替换已消耗的父额度。原资源门失败保留，批准后仍需实际资源更新/检查、资源门回归及精确父静态门。
+
+
+批准后最终验证：整体build、实际资源update/check通过，27项共7,788,595 B，恰为三份样式表各+7 B，其余24项不变。原资源门回归171/171、health对准确main f586496e4、boundary、secrets/diff通过；结果 `/private/tmp/molis-toast-approved-assets-20261024.results.json` 与 `/private/tmp/molis-toast-approved-assets-repair-20261024.results.json`。首次资源回归命令误写不存在的测试路径page-assets.test.ts而退出，原日志保留；更正为现有page-assets-budget.test.ts后通过，无产品/测试/断言改动。原24状态真实浏览器与README行为证据仍适用，未因资源登记重跑不变路径。CI、最终集成及用户体验认可仍分别待定。

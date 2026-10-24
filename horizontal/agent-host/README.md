@@ -17,13 +17,13 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 
 包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
 
-## 可信 Session 生命周期（M4 合同，定向工程验证通过，待父集成）
+## 可信 Session 生命周期（M4 合同，定向工程验证通过）
 
 purge 还清除同 project/plugin/session 的 ReviewQueue 正文、处理器及本会话批准；无 Session 或其他会话的审查保留。迟到历史恢复和审批结果沿 Index 代际与原行身份拒绝发布。手动回退准备复用同一 admission，不在预检后插入新工作。
 
 命令输出在 Adapter 与 Node 的最后一次读取等待后复核 Session 代际。清理中的异步等待后和每次 surface close 前复核原 effects 权限；撤权不继续后续清理，已完成部分保留、prepared 原决定可续。重启遗留启动意图沿现 recovery 的完整 SDK 账判断：无未认领工作且无 unavailable 才允许继续，意图不删、不伪造 refused。
 
-2026-10-24 已在正式 SDK #100 上完成安装、构建与根/工作区类型检查。`tests/prologue-session-lifecycle.test.ts` 走公共 Action 和真实 Node/SQLite，20/20 通过；`tests/prologue-session-cache-lifecycle.test.ts` 用受控外部读 Port 验证公共 Adapter 的迟到结果拒绝，6/6 通过。影响面首轮失败及定向修复结果见下；完整集成、产品实操和用户验收另记。
+2026-10-24 已在正式 SDK #100 上完成安装、构建与根/工作区类型检查。`tests/prologue-session-lifecycle.test.ts` 走公共 Action 和真实 Node 持久存储，20/20 通过；`tests/prologue-session-cache-lifecycle.test.ts` 用受控外部读 Port 验证公共 Adapter 的迟到结果拒绝，6/6 通过。影响面首轮失败及定向修复结果见下；完整集成、产品实操和用户验收另记。
 
 M4 取消回归复用上述 Action 阶段用例：真实完成一轮后，在 SDK 根 `cleaning` 已持久化的下一次异步授权回调中取消原 signal，回调正常返回，由原 Host 同步门拒绝后续写入。断言取消点后的持久记录字节不变、Run 子记录与 Index 原决定/输入保留；关闭重开不自行继续，换 operation 被拒且零写，原决定重试才完成子记录清除与最小 Index。这里使用真实生产 Action 注册、Adapter 和 Node 存储，调用身份及取消门由测试提供的 `HostCapabilityInvocation` 承担；不等于完整本地 Host/插件入口实操。该例现已随 SDK #100 的生命周期文件通过；早先 SDK #96 缺少恢复入口、SDK #99 归档读取失败的记录仍保留在 spec。当前绿色不能表述为这条取消用例的先红后绿证据。
 

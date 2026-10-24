@@ -133,8 +133,8 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
     async start(context: PluginStartContext) { started.push(context.plugin_id); return { kind: "app" }; },
   });
   const grants = ["storage:private", "model:invoke"];
-  const sandboxed = runtime.install({ definition: definition(`${PLUGIN_ID}.boxed`, "sandbox"), deployment: "local", grants }).install;
-  const hosted = runtime.install({ definition: definition(`${PLUGIN_ID}.hosted`, undefined), deployment: "local", grants }).install;
+  const sandboxed = runtime.install({ trust: { level: "unsigned" }, definition: definition(`${PLUGIN_ID}.boxed`, "sandbox"), deployment: "local", grants }).install;
+  const hosted = runtime.install({ trust: { level: "unsigned" }, definition: definition(`${PLUGIN_ID}.hosted`, undefined), deployment: "local", grants }).install;
   // The Runtime reduces an opaque start failure to a safe message and keeps the code on the installation's record.
   await assert.rejects(runtime.start(sandboxed.install_id), { code: "plugin.executor_failed" });
   assert.deepEqual({ state: runtime.get(sandboxed.install_id).state, code: runtime.get(sandboxed.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
@@ -152,7 +152,7 @@ test("S-60 RAC-238 the Home Runtime stops a sandboxed installation that asks for
   t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
   const { runtime } = await host.ready();
   // A sandboxed package is installed with the person's grants; it is never a start-list entry or a fixture.
-  const { install } = runtime.install({ definition: { ...boxed.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke"] });
+  const { install } = runtime.install({ trust: { level: "unsigned" }, definition: { ...boxed.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke"] });
   await assert.rejects(runtime.start(install.install_id), { code: "plugin.executor_failed" });
   assert.deepEqual({ state: runtime.get(install.install_id).state, code: runtime.get(install.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
   assert.equal(boxed.contexts.length, 0, "the sandboxed plugin's start never ran");

@@ -116,7 +116,7 @@ test("an archived compatible Native release remains usable when a later candidat
     const compatible = definition("2.0.0", started, undefined, { compatible_from_versions: ["1.0.0"] });
     const laterCandidate = definition("3.0.0", started);
     const runtime1 = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
-    const installed = runtime1.install({ definition: old, deployment: "local" });
+    const installed = runtime1.install({ trust: { level: "unsigned" }, definition: old, deployment: "local" });
     await runtime1.start(installed.install.install_id);
     await runtime1.stop(installed.install.install_id);
 
@@ -158,7 +158,7 @@ test("a bundled Native plugin's older install moves up to the Host's version on 
     const oldDefinition = definition("1.0.0", started);
     const firstRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
     const first = new PluginSupervisor(firstRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
-    await first.start([{ definition: oldDefinition, bundled: true, releaseArtifact: { capture: () => "native-v1", restore: () => oldDefinition } }]);
+    await first.start([{ definition: oldDefinition, trust: { level: "host" }, releaseArtifact: { capture: () => "native-v1", restore: () => oldDefinition } }]);
     const installId = first.state(PLUGIN_ID)?.install_id;
     assert.ok(installId);
     await firstRuntime.stop(installId);
@@ -167,7 +167,7 @@ test("a bundled Native plugin's older install moves up to the Host's version on 
     assert.equal(candidate.manifest.upgrade_compatibility, undefined, "no list of versions it can come from");
     const restartedRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
     const restarted = new PluginSupervisor(restartedRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
-    const report = await restarted.start([{ definition: candidate, bundled: true,
+    const report = await restarted.start([{ definition: candidate, trust: { level: "host" },
       releaseArtifact: { capture: () => "native-v2", restore: source => source === "native-v1" ? oldDefinition : candidate } }]);
     assert.deepEqual(report.running, [PLUGIN_ID]);
     assert.equal(restartedRuntime.get(installId).version, "2.0.0", "the install record says what runs");
@@ -354,7 +354,7 @@ test("PluginRuntime.install with bundled moves the record to the build whatever 
       const installed = definition(installedVersion, [], undefined, undefined, { build: "before", publisherId: "molis-before", entrypoint: "./before.js" });
       const host = definition(hostVersion, [], undefined, undefined, { build: "after" });
       const earlier = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
-      const first = earlier.install({ definition: installed, deployment: "local", bundled: true }).install;
+      const first = earlier.install({ definition: installed, deployment: "local", trust: { level: "host" } }).install;
       await earlier.start(first.install_id);
       await earlier.stop(first.install_id);
       const switchedOff = earlier.get(first.install_id);
@@ -362,7 +362,7 @@ test("PluginRuntime.install with bundled moves the record to the build whatever 
 
       // The build that follows is another Host process's: one process never holds two implementations of one identity.
       const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
-      const receipt = runtime.install({ definition: host, deployment: "local", bundled: true });
+      const receipt = runtime.install({ definition: host, deployment: "local", trust: { level: "host" } });
       const record = receipt.install;
       assert.equal(receipt.replayed, false, direction);
       assert.equal(record.version, hostVersion, direction);
@@ -374,7 +374,7 @@ test("PluginRuntime.install with bundled moves the record to the build whatever 
         assert.deepEqual(record[field], switchedOff[field], `${direction}: ${field} stays`);
       }
       assert.deepEqual(runtime.get(first.install_id), record, `${direction}: the repository holds the record that was returned`);
-      assert.equal(runtime.install({ definition: host, deployment: "local", bundled: true }).replayed, true, `${direction}: the same build again changes nothing`);
+      assert.equal(runtime.install({ definition: host, deployment: "local", trust: { level: "host" } }).replayed, true, `${direction}: the same build again changes nothing`);
       // The build is what starts, and it starts from the record it was moved onto.
       await runtime.start(first.install_id);
       assert.equal(runtime.get(first.install_id).state, "running", direction);
@@ -390,8 +390,8 @@ test("following a bundled build never changes the deployment of an installation"
   try {
     const entrypoints: PluginManifest["entrypoints"] = [{ deployment: "local", entrypoint: "./index.js" }, { deployment: "server", entrypoint: "./server.js" }];
     const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
-    const installed = runtime.install({ definition: definition("1.0.0", [], undefined, undefined, { entrypoints }), deployment: "local", bundled: true }).install;
-    assert.throws(() => runtime.install({ definition: definition("0.3.0", [], undefined, undefined, { entrypoints }), deployment: "server", bundled: true }),
+    const installed = runtime.install({ definition: definition("1.0.0", [], undefined, undefined, { entrypoints }), deployment: "local", trust: { level: "host" } }).install;
+    assert.throws(() => runtime.install({ definition: definition("0.3.0", [], undefined, undefined, { entrypoints }), deployment: "server", trust: { level: "host" } }),
       (error: unknown) => (error as { code?: string }).code === "plugin.state_invalid" && /部署环境/.test((error as Error).message));
     assert.deepEqual(runtime.get(installed.install_id), installed, "the refused follow left the record as it was");
   } finally {
@@ -513,10 +513,10 @@ test("PluginRuntime.install without bundled refuses a lower version, a higher ve
   try {
     const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
     const refusal = (candidate: PluginDefinition) => {
-      try { runtime.install({ definition: candidate, deployment: "local" }); return undefined; }
+      try { runtime.install({ trust: { level: "unsigned" }, definition: candidate, deployment: "local" }); return undefined; }
       catch (error) { return (error as { code?: string }).code; }
     };
-    runtime.install({ definition: definition("0.3.0", [], undefined, undefined, { build: "A" }), deployment: "local" });
+    runtime.install({ trust: { level: "unsigned" }, definition: definition("0.3.0", [], undefined, undefined, { build: "A" }), deployment: "local" });
     assert.equal(refusal(definition("0.2.0", [])), "plugin.upgrade_required", "a lower version is not an install over this one");
     assert.equal(refusal(definition("0.4.0", [])), "plugin.upgrade_required", "a higher one needs the declaration, or the person's confirmation in the market");
     assert.equal(refusal(definition("0.3.0", [], undefined, undefined, { build: "B" })), "plugin.definition_conflict");
@@ -532,12 +532,12 @@ test("PluginRuntime.install refuses the same version with another Manifest, and 
   try {
     const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
     const buildA = definition("0.3.0", [], undefined, undefined, { build: "A" });
-    runtime.install({ definition: buildA, deployment: "local" });
-    assert.throws(() => runtime.install({ definition: definition("0.3.0", [], undefined, undefined, { build: "B" }), deployment: "local" }),
+    runtime.install({ trust: { level: "unsigned" }, definition: buildA, deployment: "local" });
+    assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition: definition("0.3.0", [], undefined, undefined, { build: "B" }), deployment: "local" }),
       (error: unknown) => (error as { code?: string }).code === "plugin.definition_conflict" && /请递增版本/.test((error as Error).message));
     // The one way through is the Manifest naming its own version as a compatible source (the Manifest contract allows exactly that).
     const declared = definition("0.3.0", [], undefined, { compatible_from_versions: ["0.3.0"] }, { build: "B" });
-    assert.doesNotThrow(() => runtime.install({ definition: declared, deployment: "local" }));
+    assert.doesNotThrow(() => runtime.install({ trust: { level: "unsigned" }, definition: declared, deployment: "local" }));
   } finally {
     db.close();
   }
@@ -641,7 +641,7 @@ async function startProcess(db: Database.Database, candidate: PluginDefinition,
   const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
   const report = await supervisor.start([{
     definition: candidate,
-    ...(options.bundled ? { bundled: true } : {}),
+    ...(options.bundled ? { trust: { level: "host" } } : {}),
     releaseArtifact: {
       capture: () => label(candidate),
       restore: source => {

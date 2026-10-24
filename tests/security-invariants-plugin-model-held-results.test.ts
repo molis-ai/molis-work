@@ -82,7 +82,7 @@ async function openProbe() {
   } });
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined,
     { actions: { registry: service, project_id: "project-one", providerId: () => PLUGIN } });
-  const installed = runtime.install({ definition, deployment: "local", grants: [MODEL] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [MODEL] }).install;
   await runtime.start(installed.install_id);
   const caller: ActionCallContext = { actor_id: "alice", audience: "user", project_id: "project-one", permissions: [MODEL] };
   return { service, caller, ask: ask.definition, start: start.definition, seen, rows, settled: () => background };

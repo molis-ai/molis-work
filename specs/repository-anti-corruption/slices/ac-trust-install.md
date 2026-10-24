@@ -1,6 +1,6 @@
 # ac-trust：一条安装路、常开与默认连线只认声明、同意可撤回（设计稿）
 
-状态：设计稿，等统筹审定（2026-10-24）；只写设计，不改代码。实现要等 #1098（带来 `plugin-settings-catalog.ts`）合入。
+状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`。
 
 验收编号：RAC-380～399，另加一段 RAC-400～409（实现片也用它）。待办号：BL-555～564。安全不变量先写 S-67、S-68，合入时由统筹核连续。管 `privileges.md` 的 PG-001、PG-004、PG-005，并给 PG-049 提供它要用的同意账本；与 PG-002、PG-013、PG-015、PG-016 的衔接写在 §3.8。本片不改 `privileges.md` 状态列。
 
@@ -224,6 +224,12 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | T7 | 界面：安装预览、插件详情页里的同意清单与撤回、BL-353 与 BL-362 的文字 | T2，T5，#1098 | PG-002 的开关同在这一页，归 PG-002 那条线 |
 | T8 | 文档与手册：POLICY 7.8、THIRD-PARTY-PLUGINS、`skills/molis-plugin-dev`、PG-016 的版本跟随写明 | T1 | |
 
+
+**T1 落地时的两处口径（2026-10-24）：**
+
+- C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）留给 T2：开发目录、宿主的测试夹具和 Feed 的官方集成今天仍在宿主进程里跑，T1 给它们 `unsigned`（官方集成给 `host`，与今天一致），不改它们的执行方式。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2。
+- 已装插件不能换信任等级（`plugin.definition_conflict`）；卸载后重装可以。存量记录按 `execution` 补等级的维护见 §6 与检查清单第 4 节。
+
 ## 8. 验收
 
 | 编号 | 内容 | 证据（测试文件待实现片定，名字里写编号） |
@@ -252,7 +258,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 
 ## 9. 待办
 
-BL-555～562 写在 `specs/BACKLOG.md`（T1～T8 各一行），BL-563 是 T1 开工前核 Home 库账本的列（§10 待定 4），BL-564 空着。
+BL-556～562 写在 `specs/BACKLOG.md`（T2～T8 各一行）；T1 的 BL-555 和 T1 开工前核 Home 库账本的 BL-563（结论在 §10 待定 4）都已做完，行已删；BL-564 空着。
 
 ## 10. 待定
 
@@ -261,7 +267,7 @@ BL-555～562 写在 `specs/BACKLOG.md`（T1～T8 各一行），BL-563 是 T1 �
 1. **拒绝单项声明还装不装。统筹 10-24 定：装，那一项不生效。** S-34 与 RAC-384 保留这个写法。
 2. **`host` 等级的 `always_on` 可不可撤。用户 2026-10-24 定：所有等级的常开同意都可撤**，不设「内置不可撤」。S-34 与 RAC-385 按此写；连带要核的 Goals 缺席场景见 §3.4.1。
 3. **内置插件的 `publisher.signature` 仍是标签。统筹 10-24 定：内置仍靠启动名单的对象身份，不走真签名。**
-4. **外部插件的安装范围。统筹 10-24 定：本片不动。** 同意与发布者固定放在 Home 级，每个项目的安装记录仍各自一份；T1 开工前先核 PG-022 P1b（#1147）Home 库账本的列（BL-563，owner ac-trust）。
+4. **外部插件的安装范围。统筹 10-24 定：本片不动。** 同意与发布者固定放在 Home 级，每个项目的安装记录仍各自一份。**BL-563 核完（T1，2026-10-24）：** PG-022 P1b 的账本 `plugin-libraries/plugin-libraries.db` 的表 `plugin_home_libraries` 只有 `plugin_id`、`publisher_signature`、`store_name`、`version`、`schema_digest`、`created_at`，记的是装进来的插件的 Home **库**（存储），不是安装记录，也没有信任或同意的列；所以同意账本 `plugin_consents` 与 `plugin_publishers` **独立建表**，放在 Home Runtime 库（`plugin-runtime/plugin-runtime.db`，基线 2 → 3）里，与那份账本互不引用。项目平台经 `PluginPlatformHome.consents` 读写同一份，Home Runtime 直接用自己打开的库。
 5. **包信封带公钥（C9）。统筹 10-24 定：带公钥。** 已有的签名包要重打，现在没有外部在用的包。
 6. **提供方 id 对 `pinned` 保持 `plugin-install-<hash>`。统筹 10-24 定。** 固定了提供方的引用在重装后显式失效。
 7. **BL-506 的前缀规则落在哪几处命名空间。统筹 10-24 定：T6 开工时核。** 核完若某处是精确匹配，规则可以放宽（S-68.4 的宿主名单规则同理）。

@@ -156,7 +156,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     privateStorageFor: () => ({ get: key => privateValues.get(key) ?? null, set: (key, value) => { privateValues.set(key, value); }, delete: key => privateValues.delete(key) }),
     capabilities: agentHost.capabilities,
   });
-  const started = await platform.start([{ definition: createCodingPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
+  const started = await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } }]);
   t.after(async () => { await platform.closeCoordination(); store.close(); await rm(directory, { recursive: true, force: true }); });
   assert.deepEqual(started.failed, []); assert.deepEqual(started.blocked, []);
   const dispatch = async (pathname: string, method: "GET" | "POST" = "GET", body?: unknown, query: Record<string, string> = {}) => {

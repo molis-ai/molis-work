@@ -128,7 +128,7 @@ test('unknown plugin long results survive a late navigation response and render 
   const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId: b.projectId! });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(b.store.db), undefined,
     { actions: { registry: b.localHost!.actionRegistry(reference), project_id: b.projectId } });
-  const installed = runtime.install({ definition: plugin, deployment: 'local', grants: [] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: 'local', grants: [] }).install;
   await runtime.start(installed.install_id);
   try {
     const actions = bindActionClient(b.localHost!.actionClient(reference), () => ({ actor_id: 'web-user', project_id: b.projectId, audience: 'user',

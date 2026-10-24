@@ -159,10 +159,10 @@ test("Coding fixed output reaches Diff through the production default binding wi
   try {
     // As the Host's start list gives them: default wiring applies only between plugins that ship with the Host (W4-03).
     await platform.start([
-      { definition: capturing(createCodingPlugin(), context => { coding = context; }), bundled: true },
-      { definition: createShelfPlugin(), bundled: true },
-      { definition: createFilesPlugin(), bundled: true }, { definition: createGitPlugin(), bundled: true },
-      { definition: createTextStatsPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true },
+      { definition: capturing(createCodingPlugin(), context => { coding = context; }), trust: { level: "host" } },
+      { definition: createShelfPlugin(), trust: { level: "host" } },
+      { definition: createFilesPlugin(), trust: { level: "host" } }, { definition: createGitPlugin(), trust: { level: "host" } },
+      { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
@@ -187,8 +187,8 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
   const { store, platform, artifacts } = project(directory);
   try {
     await platform.start([
-      { definition: createCodingPlugin(), bundled: true }, { definition: createShelfPlugin(), bundled: true }, { definition: createFilesPlugin(), bundled: true },
-      { definition: createGitPlugin(), bundled: true }, { definition: createTextStatsPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true },
+      { definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } }, { definition: createFilesPlugin(), trust: { level: "host" } },
+      { definition: createGitPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     const shelfReport = () => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-report")!;
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");

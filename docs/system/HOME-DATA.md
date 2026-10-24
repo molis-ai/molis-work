@@ -91,7 +91,7 @@ Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `plugin-runtime/plugin-runtime.db` | 平台 Home Runtime；安装/发行物/KV 事实归 `packages/plugin-runtime`；`apps/local-host/src/home-plugin-store.ts` 组合当前结构 | SQLite 当前基线 2 · 回滚；旧版或坏结构拒绝 | 必备份 | purge |
+| `plugin-runtime/plugin-runtime.db` | 平台 Home Runtime；安装/发行物/KV 事实，以及 Home 级的同意账本 `plugin_consents` 与发布者固定表 `plugin_publishers`（ac-trust），归 `packages/plugin-runtime`；`apps/local-host/src/home-plugin-store.ts` 组合当前结构 | SQLite 当前基线 3 · 回滚；旧版或坏结构拒绝 | 必备份 | purge |
 | `plugin-libraries/plugin-libraries.db` | 宿主；`apps/local-host/src/installed-plugin-libraries.ts`（PG-022 P1b）：装进来、由宿主自己运行的插件的 Home 库的账本，一个插件 ID 一行（发布者取自安装记录、库名、版本、表的哈希）；用到时才建，库本身在 `<home>/<库名>/<库名>.db`，不在登记里，由账本的行带出 | SQLite 当前基线 1 · 拒绝；`uninstall --purge-user-data` 读它清这些库 | 必备份 | purge |
 | `server/server.sqlite` | `server`；`server/src/database.ts` 的 `openServerDatabase` / `SERVER_DATABASE_BASELINE`；本机由 `apps/local-host/src/im-server.ts` 挂载。右栏讨论的群聊、成员、消息、Thread 与回执都归 server | SQLite 带版本 · WAL · 2（W5-16 B1，v1 须离线维护） | 必备份（第 7 节 E 组），有正文与成员事实；`im_rooms.invite_token_hash`、`mw_sessions.token_hash`、`mw_codes.hash` 只存哈希，邀请回执只存安全状态，原令牌不入库。非项目群按令牌的 SHA-256 入群，项目群不开放邀请；原文只留生成时页面内存 | purge（`server` 已登记，普通卸载保留） |
 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | `plugins/native/alchemist`；路径 `apps/local-host/src/alchemist-paths.ts:4`（`alchemistProjectDirectory`；`apps/local-host/src/alchemist-service-host.ts:49` 在其下拼 `studio.sqlite`），建库 `src/studio/server/db/schema.ts:480`，基线 `:8` | SQLite 带版本 · WAL · 1 | 必备份 | purge（`alchemist` 已登记，整个目录） |
@@ -140,7 +140,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `horizontal/listener-host` | `LISTENER_HOST_SCHEMA_SQL` | `listener_instances`、`listener_deliveries`、`feed_source_runs` |
 | `modules/attention-resumption` | `ATTENTION_SCHEMA_SQL` | `inbox_entries`、`attention_events` |
 | `modules/feed` | `FEED_SCHEMA_SQL` | `feed_items`、`feed_materials`、`feed_item_events` |
-| `packages/plugin-runtime` | `PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL` | `plugin_runtime_installs` |
+| `packages/plugin-runtime` | `PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL` | `plugin_runtime_installs`（含 `publisher_trust` 列） |
 | | `PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL` | `plugin_runtime_release_artifacts` |
 | | `PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL` | `plugin_private_values`（每个启用的 Runtime 插件的私有值） |
 | | `PLUGIN_EVENTS_SCHEMA_SQL` | `plugin_events`、`plugin_event_cursors`、`plugin_event_resolutions` |

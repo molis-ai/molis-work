@@ -1,4 +1,4 @@
-import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { projectVersionStores } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { builtinTypeDeclared } from "./declared-types.js";
@@ -17,7 +17,6 @@ export interface ProjectVersionStores {
  */
 export function openProjectVersionStores(store: LocalProjectDatabase, clock: () => Date = () => new Date()): ProjectVersionStores {
   const journal = { now: () => clock().toISOString(), appendEvent: store.appendEvent.bind(store), eventCursor: store.eventCursor.bind(store), declared: builtinTypeDeclared };
-  const artifacts = new ArtifactsModule({ db: store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, ...journal });
-  const processItems = new ProcessItemsModule({ db: store.db, ...journal });
+  const { artifacts, processItems } = projectVersionStores({ db: store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, ...journal });
   return { artifacts: { query: artifacts.query, commands: artifacts.commands }, processItems: { query: processItems.query, commands: processItems.commands } };
 }

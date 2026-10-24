@@ -13,7 +13,8 @@ import { assertContract, createSandboxRunner } from '@molis-ai/molis-work-plugin
 import type { SandboxRunner, SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import type { SandboxJson, SandboxOperationContract, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildCheckOptions, BuildCheckResult, BuildDependencyLock, BuildGateId } from './build-types.js';
-import { buildManifest, canonical, operationEntry, operationStub, pathInside, readBuildFile, sdkDeclaration, SDK_MODULE } from './build-project.js';
+import { buildManifest, canonical, operationEntry, operationStub, pathInside, readBuildFile, SDK_MODULE } from './build-project.js';
+import { sdkDeclarations } from './build-sdk-declarations.js';
 import { installBuildDependencies } from './build-dependencies.js';
 
 export type { BuildCheckOptions, BuildCheckResult, BuildGate } from './build-types.js';
@@ -49,8 +50,10 @@ export async function runPluginChecks(options: BuildCheckOptions): Promise<Build
     }
     if (!isDeepStrictEqual(canonical(options.manifest), canonical(expected))) throw new Error('Manifest effects differ from the contract');
     if ((await readBuildFile(root, 'src/index.ts')).toString() !== operationEntry(options.contract)) throw new Error('Host-owned entrypoint was changed');
-    const declaration = await sdkDeclaration();
-    if ((await readBuildFile(root, 'developer/sdk.d.ts')).toString() !== declaration) throw new Error('Host-owned SDK declarations were changed');
+    const declarations = await sdkDeclarations();
+    for (const [path, declaration] of declarations) {
+      if ((await readBuildFile(root, path)).toString() !== declaration) throw new Error('Host-owned SDK declarations were changed');
+    }
     pass('G1', 'Frozen contract, operation map, SDK declarations and manifest effects match host authority');
 
     // Dependency declarations need installation before TypeScript resolution. Classify
@@ -83,7 +86,7 @@ export async function runPluginChecks(options: BuildCheckOptions): Promise<Build
       const index = options.contract.operations.indexOf(operation), path = `tests/operations/${index}.ts`;
       await put(path, await readBuildFile(root, path));
     }
-    await put('developer/sdk.d.ts', Buffer.from(declaration));
+    for (const [path, declaration] of declarations) await put(path, Buffer.from(declaration));
     for (const pkg of dependencies.packages) for (const file of pkg.files) {
       const name = `${pkg.path}/${file.path}`, bytes = await readBuildFile(root, name, 16 * 1024 * 1024);
       if (bytes.length !== file.bytes || createHash('sha256').update(bytes).digest('hex') !== file.sha256) throw new Error(`Installed dependency changed after verification: ${name}`);

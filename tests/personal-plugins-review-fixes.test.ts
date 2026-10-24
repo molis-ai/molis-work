@@ -98,7 +98,7 @@ async function listenDispatcher(
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
-    "placement", "agent-definitions", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
+    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
@@ -189,9 +189,9 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.equal(rewriteNativePluginApiPath("/api/plugins/unknown/x"), "/api/plugins/unknown/x");
   // W5-01-PAGES-02: the Runtime client uses its Manifest route, including the resource path.
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.pages\/pages/);
-  // Forms runs on the Plugin Runtime (W4-04): its page calls the routes its Manifest declares, under the project, with no short path to rewrite to.
-  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
+  // RAC-132: Forms uses the Manifest route supplied by the shared client host (W4-04): its page calls the routes its Manifest declares, under the project, with no short path to rewrite to.
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/forms"/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\("\/forms"/);
   // W5-01-DATASET-05: the Runtime client uses the exact declared collection route.
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.dataset\/datasets/);
   // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path.

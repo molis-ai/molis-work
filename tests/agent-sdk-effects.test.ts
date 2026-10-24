@@ -292,7 +292,7 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
       authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], resolveCharacter }) });
     const reference = { project_id: "project", storage_key: join(home, "project.db") }, client = local.client(reference);
     // The plugin instance that starts the round, started by the Host for the person: its calls present the caller the Host issued
-    // its session (S-15), and that caller refuses once the instance stops (plugin-host-services.ts).
+    // its session (S-15), and that caller refuses once the instance stops (apps/local-host/src/plugin-host-services.ts).
     const store = new LocalProjectDatabase(join(home, "plugins.db")), probe = registerProbe(local.actionRegistry(reference), "project");
     const starter = callerPlugin("switcher", "project"), started = await startPlugin(local, reference, store, starter, { actorId: "person" });
     const plugin_caller = await issuedCaller(probe, starter, reference.project_id);

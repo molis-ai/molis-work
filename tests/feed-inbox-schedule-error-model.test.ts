@@ -1,4 +1,5 @@
 import { handleScheduleTestHttp } from "./fixtures/schedule-http.js";
+import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -20,7 +21,6 @@ import * as attentionContracts from "@molis-ai/molis-work-contracts/modules/atte
 import * as feedContracts from "@molis-ai/molis-work-contracts/modules/feed";
 import { ActionError, type ActionExecutionContext, type ActionHandlerBinding, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { schedulerErrors } from "@molis-ai/molis-work-contracts/services/scheduler";
-import { PluginWakeupIndex, createScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import { actionErrorResponse, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import * as feedPlugin from "@molis-ai/molis-work-plugin-feed";
 import * as inboxPlugin from "@molis-ai/molis-work-plugin-inbox";
@@ -385,9 +385,9 @@ test("what is not the scheduler's refusal passes the wrapper untouched: another 
 
 test("with the real scheduler: a toggle of a job that is gone is schedule.job_not_found, a refusal of the scheduler's own registration is schedule.job_invalid, a live job still toggles", async () => {
   const db = new Database(":memory:");
-  const wakeups = new PluginWakeupIndex();
-  wakeups.register(SCHEDULE_PLUGIN, "test.wakeup", async () => {});
-  const schedule = createScheduleService(db, { wakeupIndex: wakeups, now: () => new Date(CLOCK) });
+  const installation = wakeupInstallation(SCHEDULE_PLUGIN);
+  installation.action("test.wakeup", async () => {});
+  const schedule = installation.scheduler(db, { now: () => new Date(CLOCK) });
   const registration = { plugin_id: SCHEDULE_PLUGIN, capability_id: "test.wakeup", object_ref: "source:alpha", title: "拉一次", due_at: "2026-10-12T03:00:00.000Z" };
   try {
     // The ports stand in for the Host's, which call the scheduler the same way.
@@ -424,10 +424,10 @@ test("with the real scheduler: a toggle of a job that is gone is schedule.job_no
 test("with the real reminder and timed-operation services: the caller's mistakes are schedule.job_invalid, an identity they cannot take is actions.forbidden, a good call still works", async () => {
   const db = new Database(":memory:");
   db.exec(schedulePlugin.SCHEDULE_PROJECT_DATABASE.schema);
-  const wakeups = new PluginWakeupIndex();
-  wakeups.register(schedulePlugin.SCHEDULE_PLUGIN_ID, schedulePlugin.SCHEDULE_REMINDER_WAKEUP, async () => {});
-  wakeups.register(schedulePlugin.SCHEDULE_PLUGIN_ID, schedulePlugin.SCHEDULE_OPERATION_WAKEUP, async () => {});
-  const schedule = createScheduleService(db, { wakeupIndex: wakeups, now: () => new Date(CLOCK) });
+  const installation = wakeupInstallation(schedulePlugin.SCHEDULE_PLUGIN_ID);
+  installation.action(schedulePlugin.SCHEDULE_REMINDER_WAKEUP, async () => {});
+  installation.action(schedulePlugin.SCHEDULE_OPERATION_WAKEUP, async () => {});
+  const schedule = installation.scheduler(db, { now: () => new Date(CLOCK) });
   const reminders = schedulePlugin.createScheduleReminders({ db, projectId: SCHEDULE_PROJECT, schedule, now: () => CLOCK,
     describe: identity => ({ title: "论语日课", link: `/plugins/${identity.pluginId}`, generation: "install-1@2026" }) });
   const operations = schedulePlugin.createScheduledOperations({ db, projectId: SCHEDULE_PROJECT, schedule, now: () => CLOCK, link: pluginId => `/plugins/${pluginId}`,

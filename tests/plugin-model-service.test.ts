@@ -176,9 +176,10 @@ test("services.model is for a plugin the Host runs itself that declares model:in
 
     const sandboxed = platformIn(directory), boxed = probe({ name: "boxed", execution: "sandbox" });
     try {
-      await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }]);
-      assert.equal(boxed.started.length, 1, "the sandboxed plugin started");
-      assert.equal(boxed.started.at(-1)?.model, undefined, "the model is a service of the Host's own process, not of sandboxed code");
+      // The model is a service of the Host's own process, not of sandboxed code: a sandboxed package that declares it does not start (S-60).
+      assert.deepEqual((await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }])).running, []);
+      assert.equal(boxed.started.length, 0, "the sandboxed plugin's code never ran");
+      assert.equal(sandboxed.platform.runtime.get(sandboxed.installId(boxed.id)).last_error_code, "sandbox.service_not_given");
     } finally { sandboxed.store.close(); }
 
     const homeless = platformIn(directory, null), alone = probe({ name: "alone" });
@@ -625,7 +626,15 @@ test("S-18 RAC-50 RAC-53 background execution needs its declaration and active a
     if (kind === "sandbox") probe.definition.execution = "sandbox";
     if (kind === "undeclared") for (const action of probe.definition.manifest.actions ?? []) delete action.action.background_job;
     try {
-      assert.deepEqual((await item.platform.start([{ definition: probe.definition, grants: probe.permissions }])).running, [probe.id]);
+      const started = await item.platform.start([{ definition: probe.definition, grants: probe.permissions }]);
+      if (kind === "sandbox") {
+        // Background jobs are not given to sandboxed code (S-60, PG-017 P3): a package that declares them does not start.
+        assert.deepEqual(started.running, []);
+        assert.equal(probe.contexts.length, 0, "the sandboxed plugin's code never ran");
+        assert.equal(item.platform.runtime.get(item.installId(probe.id)).last_error_code, "sandbox.service_not_given");
+        continue;
+      }
+      assert.deepEqual(started.running, [probe.id]);
       const services = probe.contexts.at(-1)!.services!;
       assert.equal(services.model, undefined);
       if (kind !== "declared") assert.equal(services.background, undefined);
@@ -645,3 +654,47 @@ test("S-18 RAC-50 RAC-53 background execution needs its declaration and active a
     }
   }
 }));
+
+test("RAC-333 PG-047 S-18 the platform checks a model answer again before the call commits anything: once the person switches the model after it answered, the call's own beforeEffect and a write through a platform service are refused, though the plugin never called validateResult",
+  { timeout: 60_000 },
+  withDirectory(async directory => {
+    const provider = await startModelStandIn("guard-key-0123456789", "来自模型的回答");
+    const { home, reference } = await homeWithProject(directory);
+    const plugin = probe({ name: "modelguard", permissions: [{ permission: MODEL_INVOKE, required: true }, { permission: "storage:private", required: true }] });
+    const asUser: ActionCallContext = { actor_id: "web-user", project_id: reference.project_id, audience: "user", permissions: [MODEL_INVOKE] };
+    const seen: Array<{ step: string; outcome: unknown }> = [];
+    const attempt = async (step: string, run: () => unknown) => {
+      seen.push({ step, outcome: await Promise.resolve().then(run).then(() => "ok", error => (error as { code?: string }).code ?? String(error)) });
+    };
+    try {
+      await withoutEnvironmentModel(async () => {
+        Object.assign(process.env, { MOLIS_WORK_TEXT_API_KEY: "guard-key-0123456789", MOLIS_WORK_TEXT_BASE_URL: provider.baseUrl, MOLIS_WORK_TEXT_MODEL: "stand-in-model",
+          MOLIS_WORK_TEXT_API_FORMAT: "openai-chat-completions" });
+        let switchModel = false;
+        plugin.on.ask = async ({ model, caller }) => {
+          const answer = await model.complete(instructed(plugin.summarize, "材料正文"));
+          // The person switches the Host's model after it answered; the plugin goes on as if nothing happened.
+          if (switchModel) process.env.MOLIS_WORK_TEXT_MODEL = "another-model";
+          const storage = plugin.started.at(-1)!.storage!;
+          await attempt("beforeEffect", () => caller.beforeEffect());
+          await attempt("write", () => storage.set("answer", answer.text));
+          await attempt("read back", () => { if (storage.get("answer") !== answer.text) throw new Error("not written"); });
+          return answer.text;
+        };
+        const host = new MolisWorkLocalHost({ homeDirectory: home, pluginFixtures: { project: [plugin.definition] } });
+        try {
+          assert.equal(JSON.parse(await host.actionClient(reference).invoke(asUser, plugin.ask, {}) as string), "来自模型的回答");
+          assert.deepEqual(seen, [{ step: "beforeEffect", outcome: "ok" }, { step: "write", outcome: "ok" }, { step: "read back", outcome: "ok" }],
+            "an answer still current is committed as before");
+          seen.length = 0; switchModel = true;
+          plugin.started.at(-1)!.storage!.delete("answer");
+          await host.actionClient(reference).invoke(asUser, plugin.ask, {}).catch(() => undefined);
+          assert.deepEqual(seen, [
+            { step: "beforeEffect", outcome: "actions.configuration_changed" },
+            { step: "write", outcome: "actions.configuration_changed" },
+            { step: "read back", outcome: "Error: not written" },
+          ], "the stale answer is committed through neither, and nothing was written");
+        } finally { await host.close(); }
+      });
+    } finally { await provider.close(); }
+  }));

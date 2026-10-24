@@ -5,18 +5,16 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, createMolisWorkLocalHost, ensureSystemAgentService, molisWorkHostProjectReference, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { codingManifest, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { createMolisWorkLocalHost, ensureSystemAgentService, LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentHostCapabilities, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentSessionOwner, type AgentStartInput, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { managementGoals } from "./goal-management-caller.js";
 import { watchSettlements, type Settlement } from "./fixtures/settlements.js";
-import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
+import { callerPlugin, issuedCaller, registerProbe, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 
 // N-12: Host-internal callers of Goals (the first-run Goal, the project guidance read of a Run) call the
 // Goals actions, and an action client can be asked not to start the project's Runtime plugins first.
@@ -77,20 +75,6 @@ test("the first-run Goal is made by the Goals action, as the person, and leaves 
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-/**
- * A running plugin that carries Coding's Agent block, and its typed client: a plugin's roles come only from its running declaration
- * (PG-051 RAC-195), so a start is the plugin's own call.
- */
-async function codingCaller(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference, directory: string) {
-  const coding = createCodingPlugin();
-  const plugin = callerPlugin("coder", "project", {}, Object.values(agentHostCapabilities).map(entry => entry.capability_id),
-    { block: codingManifest.agent!, agent_prompts: coding.agent_prompts, agent_skills: coding.agent_skills });
-  const store = new LocalProjectDatabase(join(directory, "coder.sqlite"));
-  const { install_id } = await startPlugin(localHost, reference, store, plugin, { capabilities: localHost.client(reference) });
-  const owner = { project_id: reference.project_id, plugin_id: plugin.id, install_id, actor_id: LOCAL_PERSON_ACTOR_ID };
-  return { store, owner, client: plugin.context(reference.project_id).services!.capabilities! };
-}
-
 test("a Run reads the project guidance through the Goals action, once, whether or not Goals is there", async () => {
   const home = await realpath(await mkdtemp(join(tmpdir(), "guidance-read-action-")));
   let removed = false;
@@ -100,8 +84,10 @@ test("a Run reads the project guidance through the Goals action, once, whether o
       removed && action.capability_id.startsWith("goals.") ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已从这个项目移除" } : { available: true } });
   const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.db"), projectId: "guided" });
   const composition = ensureSystemAgentService(host, home);
-  const coder = await codingCaller(host, reference, home);
   const captured: AgentStartRequest[] = [];
+  // A round is started by a plugin the Host started (R8 batch 3), in that plugin's own session.
+  const store = new LocalProjectDatabase(join(home, "plugins.db")), starter = withReaderRole(callerPlugin("guided-starter", "project", {}, [agentHostCapabilities.startRun.capability_id]));
+  let owner: AgentSessionOwner | undefined;
   composition.agentHost.register({
     descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
     async health() { return { ok: true, status: "ready", message: "ready" }; },
@@ -110,7 +96,7 @@ test("a Run reads the project guidance through the Goals action, once, whether o
     observe() { throw new Error("Not used by this read fixture"); },
     async control() { throw new Error("Not used by this read fixture"); },
     async readCommandOutput() { throw new Error("Not used by this read fixture"); },
-    async readSession(session) { return { session, owner: coder.owner, title: "Read", runs: [], latest_run: null }; },
+    async readSession(session) { return { session, owner: owner!, title: "Read", runs: [], latest_run: null }; },
     async start(request) {
       captured.push(request); const role = request.role!;
       return { ref: { run_id: `r${captured.length}`, session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution,
@@ -119,24 +105,27 @@ test("a Run reads the project guidance through the Goals action, once, whether o
         directory: request.directory! } };
     },
   });
-  const request: AgentStartRequest = { ...coder.owner, session: { runtime_id: "probe", session_id: "s" },
-    task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true } };
+  const request: AgentStartInput = { session: { runtime_id: "probe", session_id: "s" }, task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true } };
   const guidanceRows = (rows: readonly Settlement[]) => rows.filter(row => row.capability_id.includes("guidance"));
   try {
     const management = managementGoals(host.actionClient(reference), "guided");
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     await management.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
+    const probe = registerProbe(host.actionRegistry(reference), "project");
+    await startPlugin(host, reference, store, starter);
+    const issued = await issuedCaller(probe, starter, "guided"), rounds = starter.actions("guided");
+    owner = { project_id: "guided", plugin_id: issued.plugin_id, install_id: issued.install_id, actor_id: issued.actor_id };
     const settled = watchSettlements(host);
 
-    await coder.client.invoke(agentHostCapabilities.startRun, ["probe", request]);
+    await rounds.invoke(agentHostCapabilities.startRun, ["probe", request]);
     assert.match(captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!.body, /保留源文件/, "the project layer is delivered");
     assert.deepEqual(guidanceRows(settled), [{ capability_id: "goals.guidance.read", path: undefined, operation: "query", actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", ok: true, code: undefined }],
       "one settlement, the Goals action as the person; no typed guidance capability");
 
     settled.length = 0; removed = true;
-    await coder.client.invoke(agentHostCapabilities.startRun, ["probe", request]);
+    await rounds.invoke(agentHostCapabilities.startRun, ["probe", request]);
     assert.equal(captured[1]!.role!.prompts.some(prompt => prompt.prompt_id === "project-guidance"), false, "without Goals the Run starts with no project layer");
     assert.deepEqual(guidanceRows(settled).map(row => [row.capability_id, row.path, row.ok, row.code]), [["goals.guidance.read", undefined, false, "actions.plugin_disabled"]],
       "the refusal is the Goals action's own, told once");
-  } finally { coder.store.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { await host.close(); store.close(); await rm(home, { recursive: true, force: true }); }
 });

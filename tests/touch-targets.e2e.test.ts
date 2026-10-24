@@ -149,6 +149,7 @@ const DOCK_FOLD = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const pins = [...document.querySelectorAll("[data-dock-pins] [data-dock-pin]")];
   const hidden = pins.filter(pin => pin.hidden).map(pin => pin.dataset.dockPin).sort();
+  const all = pins.map(pin => pin.dataset.dockPin).sort();
   const more = document.querySelector("[data-dock-more]");
   const shown = !!more?.isConnected && more.checkVisibility();
   let listed = [];
@@ -161,7 +162,7 @@ const DOCK_FOLD = `(async () => {
   toggle.click(); await wait(250);
   const reachable = hidden.filter(id => document.querySelector('[data-plugin-picker-popover] [data-plugin-id="' + id + '"]')).sort();
   toggle.click(); await wait(100);
-  return { hidden, listed, reachable, more: shown, home: pins.some(pin => pin.dataset.dockPin === "home" && !pin.hidden) };
+  return { pins: all, hidden, listed, reachable, more: shown, home: pins.some(pin => pin.dataset.dockPin === "home" && !pin.hidden) };
 })()`;
 
 /** Every popover the bar opens, with the controls inside it that are shorter or narrower than 44px. The notices are the island's own rows,
@@ -223,6 +224,7 @@ const popoversScript = (floor: number) => `(async () => {
     const controls = shown ? [...pop.querySelectorAll("button, summary, a[href], input, select, textarea, [role=menuitem], [role=option]")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) : [];
     out[name] = {
       shown, missing: present.filter(selector => !controls.some(el => el.matches(selector))),
+      items: controls.filter(el => el.matches(".dock-overflow-item")).map(el => ({ pin: el.dataset.dockPin, h: Math.round(el.getBoundingClientRect().height) })),
       small: controls.map(el => { const box = el.getBoundingClientRect(); return { cls: String(el.className).split(" ")[0] || el.tagName.toLowerCase(), label: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 16), w: Math.round(box.width), h: Math.round(box.height) }; }).filter(item => Math.min(item.w, item.h) < ${floor}),
     };
     if (!pop.hidden && button) { if (opener.matches("input")) opener.blur(); else opener.click(); }
@@ -558,12 +560,12 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
 
   /** The bar's second row against the window, and the Dock's fold against its list: what a window of this width shows must fit and be reachable. */
   const rowFit = () => evaluate<{ count: number; vw: number; overlap: number; where: string; outside: number; width: number }>(ROW_FIT);
-  const dockFold = () => evaluate<{ hidden: string[]; listed: string[]; reachable: string[]; more: boolean; home: boolean }>(DOCK_FOLD);
+  const dockFold = () => evaluate<{ pins: string[]; hidden: string[]; listed: string[]; reachable: string[]; more: boolean; home: boolean }>(DOCK_FOLD);
   /** Opens every popover of the bar and the strip (the page has an object on show for it) and reports what is in each and which controls are under 44px. */
   const popovers = async (floor: number) => {
     await evaluate(lookAtPage(true));
     await settle();
-    return evaluate<Record<string, { shown: boolean; missing: string[]; small: Array<{ cls: string; label: string; w: number; h: number }> } | null>>(popoversScript(floor));
+    return evaluate<Record<string, { shown: boolean; missing: string[]; items: Array<{ pin: string; h: number }>; small: Array<{ cls: string; label: string; w: number; h: number }> } | null>>(popoversScript(floor));
   };
   /** The switcher's pin and add buttons, as a person with a mouse meets them: they show while a tile is looked at, so the real pointer is put on a
    * tile and what shows is measured, with the room the tile's text gives up for them. */
@@ -648,6 +650,12 @@ for (const scheme of ["light", "dark"] as const) {
     const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]')"] as const;
     const SETTINGS = ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"] as const;
     const moreShown: Record<string, boolean> = {};
+    // SC-4 (#1130) took the Sessions plugin, and the Dock pin it had by default, offline: the default row is one button shorter than the
+    // widths below were written for, and at 390px it holds every pin, so no "+N" button would be drawn and the checks that hold it
+    // next to 项目首页 on the widest row would pass over nothing. The Dock keeps what a person pinned in the page's storage, so the
+    // test pins one more plugin and the row is as long as it was; the assertions below are the ones that were written for it.
+    await w.open(390, 844, HOME[1], HOME[2]);
+    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(['goals', 'inbox', 'feed', 'todo']))`);
     for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
       for (const [name, path, ready] of [HOME, PLUGIN, SETTINGS]) {
         const controls = await w.open(width, height, path, ready);
@@ -673,6 +681,27 @@ for (const scheme of ["light", "dark"] as const) {
     // the dropped buttons to the switcher's list.
     for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
     assert.equal(moreShown["320 home"], true, "without the directory button the row holds the \"+N\" button even at 320px");
+
+    // The Dock's "+N" list is measured where it has to exist. The popovers loops below skip it in a window that holds every pin, which is
+    // right for a wide one but would let the 44px check of its items pass over nothing; the 320px home is the scene that always overflows
+    // (the four pins above plus 项目首页 do not fit beside the "+N" button), so it asserts the list itself and cannot reach a skip.
+    await w.open(320, 568, HOME[1], HOME[2]);
+    const folded = await w.dockFold();
+    assert.ok(folded.hidden.length > 0, `320px home: the Dock folds some pins (${JSON.stringify(folded)})`);
+    assert.equal(folded.more, true, `320px home: and draws the "+N" button for them (${JSON.stringify(folded)})`);
+    assert.deepEqual(folded.listed, folded.hidden, `320px home: the "+N" list holds exactly the pins the row folded (${JSON.stringify(folded)})`);
+    assert.deepEqual([...folded.pins.filter(pin => !folded.hidden.includes(pin)), ...folded.listed].sort(), folded.pins,
+      `320px home: the pins on the row plus the pins in the list are the whole set, none lost and none twice (${JSON.stringify(folded)})`);
+    for (const pin of ["home", "goals", "inbox", "feed", "todo"]) assert.ok(folded.pins.includes(pin), `320px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
+    const dockList = (await w.popovers(44))["the Dock's list"];
+    assert.ok(dockList, "320px home: the \"+N\" button is there to open the Dock's list");
+    assert.equal(dockList.shown, true, "320px home: the Dock's list opens");
+    assert.deepEqual(dockList.missing, [], "320px home: the Dock's list holds its items");
+    assert.ok(dockList.items.length > 0, "320px home: the Dock's report is not empty");
+    assert.deepEqual(dockList.items.map(item => item.pin).sort(), folded.hidden, "320px home: the report's items are the pins the row folded");
+    assert.deepEqual(dockList.items.filter(item => item.h < 44).map(item => `${item.pin} ${item.h}px`), [], "320px home: every item of the Dock's list is a 44px target");
+    assert.deepEqual(dockList.small, [], "320px home: and nothing else in it is smaller");
+    t.diagnostic(`the Dock's "+N" list at 320px held ${dockList.items.length} items (${dockList.items.map(item => `${item.pin} ${item.h}px`).join(", ")}) beside ${folded.pins.length - folded.hidden.length} pins on the row`);
     assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
 
     // The Assistant line stays a 44px input with room to type, and its attach and send keep their size while typing.

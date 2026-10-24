@@ -28,25 +28,25 @@ test("Project plugin HTTP persists only the selected project, rejects unauthoriz
       "x-molis-work-idempotency-key": `add-plugin-${++sequence}` }, body: JSON.stringify({ plugin_id: plugin }),
   });
   assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["goals", "schedule"]);
-  assert.equal((await add(second.project_id, "sessions", false)).status, 403);
+  assert.equal((await add(second.project_id, "inbox", false)).status, 403);
   assert.deepEqual(catalog.listProjectPlugins(second.project_id), ["goals", "schedule"]);
   assert.equal((await add(second.project_id, "unknown")).status, 400);
-  assert.equal((await add("missing", "sessions")).status, 404);
+  assert.equal((await add("missing", "inbox")).status, 404);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const response = await add(second.project_id, "sessions");
+    const response = await add(second.project_id, "inbox");
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { project_id: second.project_id, plugins: ["goals", "schedule", "sessions"], hidden: [] });
+    assert.deepEqual(await response.json(), { project_id: second.project_id, plugins: ["goals", "inbox", "schedule"], hidden: [] });
   }
   assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["goals", "schedule"]);
   const reopened = await openMolisWorkProjectCatalog({ homeDirectory });
-  try { assert.deepEqual(reopened.listProjectPlugins(second.project_id), ["goals", "schedule", "sessions"]); }
+  try { assert.deepEqual(reopened.listProjectPlugins(second.project_id), ["goals", "inbox", "schedule"]); }
   finally { reopened.close(); }
   const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added'").get(second.project_id).n, 1);
   } finally { db.close(); }
   const index = await (await fetch(origin + "/api/settings/project-plugins")).json();
-    assert.deepEqual(index.projects.find((item: { project_id: string }) => item.project_id === second.project_id).plugins, ["goals", "schedule", "sessions"]);
+    assert.deepEqual(index.projects.find((item: { project_id: string }) => item.project_id === second.project_id).plugins, ["goals", "inbox", "schedule"]);
 });
 
 test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay idempotent", async t => {
@@ -116,9 +116,9 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
     method, headers: { origin, "content-type": "application/json", "x-molis-work-control-token": authorized ? token : "invalid",
       "x-molis-work-idempotency-key": `change-plugin-${++sequence}` }, body: JSON.stringify({ plugin_id: plugin }),
   });
-  assert.equal((await change("DELETE", project.project_id, "sessions", false)).status, 403);
+  assert.equal((await change("DELETE", project.project_id, "inbox", false)).status, 403);
   assert.equal((await change("DELETE", project.project_id, "unknown")).status, 400);
-  assert.equal((await change("DELETE", "missing", "sessions")).status, 404);
+  assert.equal((await change("DELETE", "missing", "inbox")).status, 404);
   // Shelf is a 常开插件: no project removes or hides it, and the refusal records nothing.
   const alwaysOn = await change("DELETE", project.project_id, "shelf");
   assert.equal(alwaysOn.status, 400);

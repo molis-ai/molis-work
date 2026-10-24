@@ -9,7 +9,7 @@ import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_STORE_BASELINE, AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { EXECUTOR_MODES, roleOfCapability, roleViews } from "./fixtures/work-executor-fake.js";
 
-// S-59 (specs/repository-anti-corruption PG-036, C8-3): the Assistant takes a plugin as the executor of a work only by the
+// S-62 (specs/repository-anti-corruption PG-036, C8-3): the Assistant takes a plugin as the executor of a work only by the
 // work-executor protocol and the plugin's id. A look-alike is not an executor; a plugin that is gone, unavailable or short of a role is
 // refused and no other one takes its place; and nothing in the Assistant names a plugin.
 
@@ -38,7 +38,7 @@ function directory(rows: Array<{ plugin: string; views: ActionView[] }>) {
 const choose = { kind: "plugin" as const, plugin_id: PLUGIN };
 const send = (text = "做点什么") => ({ executor: choose, scope: { kind: "project" as const, project_id: "project" }, text, request_id: randomUUID() });
 
-test("RAC-440 S-59 a look-alike is not an executor: a provider short of a role, with the roles open to agents only, without a plugin id or without a session kind is not offered", async () => {
+test("RAC-440 S-62 a look-alike is not an executor: a provider short of a role, with the roles open to agents only, without a plugin id or without a session kind is not offered", async () => {
   const whole = roleViews(PLUGIN, "样例 Agent", KIND);
   const short = roleViews("io.molis.work.short", "缺一个角色", "short_session", "run.control");
   const agentsOnly = roleViews("io.molis.work.agents", "只给 Agent", "agent_session").map((view): ActionView => ({ ...view, action: { ...view.action, audiences: ["agent"] } }));
@@ -53,7 +53,7 @@ test("RAC-440 S-59 a look-alike is not an executor: a provider short of a role, 
   }
 });
 
-test("RAC-441 S-59 an executor whose actions are unavailable is shown with its reason and refused: none of its roles runs and no work is left", async () => {
+test("RAC-441 S-62 an executor whose actions are unavailable is shown with its reason and refused: none of its roles runs and no work is left", async () => {
   const views = roleViews(PLUGIN, "样例 Agent", KIND).map(view => view.capability_id.endsWith(".run.start")
     ? { ...view, availability: { available: false as const, code: "actions.not_granted", reason: "插件的授权已被撤回" } } : view);
   const { service, store, caller, reached } = directory([{ plugin: PLUGIN, views }]);
@@ -65,7 +65,7 @@ test("RAC-441 S-59 an executor whose actions are unavailable is shown with its r
   assert.equal(store.list("web-user").length, 0, "no work was left behind");
 });
 
-test("RAC-442 S-59 a work whose executor is gone is refused and no other provider takes its place: no round is recorded and nobody else is called", async () => {
+test("RAC-442 S-62 a work whose executor is gone is refused and no other provider takes its place: no round is recorded and nobody else is called", async () => {
   const mine = roleViews(PLUGIN, "样例 Agent", KIND), other = roleViews("io.molis.work.other-agent", "另一个 Agent", "other_session");
   const { service, store, caller, reached } = directory([{ plugin: PLUGIN, views: mine }, { plugin: "io.molis.work.other-agent", views: other }]);
   const first = await service.send(send(), caller);
@@ -80,7 +80,7 @@ test("RAC-442 S-59 a work whose executor is gone is refused and no other provide
   assert.equal(store.relations.forWork({ work_id: first.work.work_id, project_id: "project" }).length, objects, "no object was linked either");
 });
 
-test("RAC-443 S-59 the Assistant names no plugin: assistant-coding.ts is gone and no file of the Assistant spells Coding's id, its actions or its work kind", () => {
+test("RAC-443 S-62 the Assistant names no plugin: assistant-coding.ts is gone and no file of the Assistant spells Coding's id, its actions or its work kind", () => {
   const dir = join(process.cwd(), "apps/local-host/src/assistant");
   assert.equal(existsSync(join(dir, "assistant-coding.ts")), false);
   const found: string[] = [];

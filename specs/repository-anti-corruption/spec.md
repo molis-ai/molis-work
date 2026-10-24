@@ -1220,7 +1220,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
   - `apps/local-host/src/plugin-page-todo.ts`：只放行 `io.molis.work.todo` 的 `items` 操作，把情境页选中的来源映射成待办的 `title`、`sources`、`placement` 与幂等 `request_id`；唯一调用点在 `apps/local-host/src/home-plugin-http.ts`；
   - `scripts/gates/assembly.mjs:92`：`hostPluginFiles` 指标只按 `-actions.ts` / `-native-plugin-http.ts` 后缀认出「以插件命名的宿主文件」，`plugin-page-todo.ts` 识别不到、不进该指标记录。`scripts/check-health-gates.mjs` 的 `--base` 用同一份 `measureAll` 测量工作树和 merge-base；两边已有且同样命中新规则的文件会共同计入，不会仅因扩充扫描口径就自动成为新增违规。改门禁仍须按仓库规则取得授权，本片只登记，不改正则或指标（口径见 `tooling/gates/README.md`）。
 - **为什么本片只登记**：[context program](../context-program/spec.md) 开头的「交接（2026-10-20）」已说明 W0～W3 合入 main；W1-5 已有内核派生实现（`47c00b44`，`packages/kernel/src/contextual/destinations.ts`），不是尚待新建的平台能力。该 spec §18.7 已修正旧计划：去处走 `/draft`，落点版本冻结与执行前核对归 W3 的 `attach`。后续应按现行情境合同核对并迁移仍存的 Todo 专用入口与适配；是否还需改合同，由核对出的实际差距确定，不能预设为清理前置。本片保持复审报告 P3 的登记范围，不实施迁移。
-- **归属与跟踪**：后续清理沿用 ② 的 context program W1-5 跟踪归属，按当前交接接续；BACKLOG 的 BL-447 跟踪这一条（随 #1114 登记；该 PR 未合入前以本节为准）。完成须同时覆盖情境页的 Todo POST 白名单、`plugin-page-todo.ts` 专用适配及其调用，验证该路径已由通用合同承接后再更新本节；单独删文件不代表清理闭环，也不会消除扫描正则的通用识别盲区。`privileges.md` 的 PG 行由统筹在合入后补，本节不重复维护那份清单。
+- **归属与跟踪**：后续清理沿用 ② 的 context program W1-5 跟踪归属，按当前交接接续；BACKLOG 的 BL-568 跟踪这一条（随 #1114 登记；该 PR 未合入前以本节为准）。完成须同时覆盖情境页的 Todo POST 白名单、`plugin-page-todo.ts` 专用适配及其调用，验证该路径已由通用合同承接后再更新本节；单独删文件不代表清理闭环，也不会消除扫描正则的通用识别盲区。`privileges.md` 的 PG 行由统筹在合入后补，本节不重复维护那份清单。
 - **同报告的另一条**：#1018 的「隔离页 link 通道」（合成 click 可导航宿主设置页）已由合并 Agent 派出的 plugin-frame-fixes 认领修复，不在此登记。
 
 
@@ -1654,6 +1654,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | [本片规格](slices/w5-16-home-snapshot.md) B1；真实 Home 未执行，随 W5-17、Goals S9 的既定维护窗口另行授权。停宿主并在完整副本先 `list`，显式 `apply --backup <Home外新目录>` 按原邀请 SHA-256 重建 v2 库，清除邀请回执原文，保留其余业务事实、自增序号与旧链接效力；不自动迁移。`tests/im-invite-maintenance.test.ts` 已在一次性 Home 演练：含最新 WAL 的全表比对、发布库与 backup API 副本无原文字节、重复零改、失败回滚和中断后拒绝打开及原件恢复。 |
 | `memory/memory.db` | 2 → 3 | 记忆策略 M1 第一片（`codex/memory-p0`，独立 PR 交付） | [记忆策略 spec](../prologue-memory-strategy/spec.md) §9.4 / §13；真实 Home 未执行。停止全部 owner 并备份，在隔离副本按旧代码物化个人、项目默认及已有项目的有效开关，保留消费者/插件限制，同一事务写采用记录和版本 3，不改 SDK 正文。已演练事务失败回退、重试、两次新进程重启及旧 Home/Web/MCP 入口拒绝。真实库采用与安装新构建须另获对应授权，不能由普通启动就地升级 |
 | `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 归维护八，与安装新构建同一步进行；真实 Home 未执行，仍需当次授权，不得先用新构建打开旧库或让旧构建打开维护后的库。隔离 v1 副本已演练：停宿主并完整备份，按当前 `CONNECTORS_STORE_BASELINE` 增加连接启停/移除字段、协议/授权请求与技术观察字段和表，在事务中写基线 2，核对原连接 id、凭据引用、绑定、协议及取消记录不变；失败恢复完整副本。证据见 [服务接入 spec](../assistant-service-connections/spec.md) 的连接生命周期、正式接入准备与技术观察记录 |
 | `projects/<project_id>/molis-work.db` | 6 → 7 | #369（删 Casebook 的 5 张表） | 维护六，真实 Home 的 18 个项目库 10-10 已做（上面「维护六」） |
@@ -1724,14 +1725,14 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/functions` | 模块 | 9 | 1,777 | `store.ts` 939 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/goals` | 模块 | 42 | 9,440 | `event-facts.ts` 631 | 1 | 1 | 2 | 在用 | 深 | 已审 |
 | `modules/governance-collaboration` | 模块 | 12 | 1,116 | `goal-tree-records.ts` 220 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/private-work-context` | 模块 | 21 | 3,054 | `session-records.ts` 367 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/private-work-context` | 模块 | 10 | 1,223 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 6 | 1,123 | `repository.ts` 467 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 已审 |
 | `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 已审 |
 | `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 已审 |
-| `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 已审 |
+| `packages/im-ui` | 基础 | 12 | 1,466 | `browser/controller.ts` 930 | 1 | 2 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 6 | 1,160 | `action-service.ts` 490 | 2 | 1 | 4 | 在用 | 深 | 已审 |
 | `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 已审 |
 | `packages/plugin-sandbox` | 基础 | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 | 在用 | 中 | 已审 |
@@ -1762,7 +1763,6 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
 | `plugins/native/todo` | 内置插件 | 22 | 4,276 | `client.ts` 1,240 | 1 | 4 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/workflows` | 内置插件 | 20 | 3,956 | `client.ts` 1,355 | 2 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
@@ -1770,7 +1770,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 已审 |
 | `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 已审 |
+| `server` | 模块 | 18 | 1,127 | `continuity/service.ts` 179 | 1 | 3 | 2 | 在用 | 中 | 已审 |
 | `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 已审 |
 
 ### 5.2 状态、计划深度与审查

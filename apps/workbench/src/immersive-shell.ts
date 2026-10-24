@@ -84,7 +84,7 @@ function islandPlugins(enabled: readonly string[], inEnglish = false) {
  * Only the backbone and the two named tool groups are listed here; any other Plugin, including
  * one added later, lands in 更多, so adding a Plugin never edits the shell.
  */
-const RAIL_CORE_ORDER = ["goals", "inbox", "feed", "sessions"];
+const RAIL_CORE_ORDER = ["goals", "inbox", "feed"];
 const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 /**
  * Groups read as what the person wants to do, not as kinds of software: 推进 (the backbone plus its helpers),

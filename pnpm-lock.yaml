@@ -181,9 +181,6 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:plugins/native/todo
-      '@molis-ai/molis-work-plugin-work':
-        specifier: workspace:*
-        version: link:plugins/native/work
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:plugins/native/workflows
@@ -473,9 +470,6 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
-      '@molis-ai/molis-work-plugin-work':
-        specifier: workspace:*
-        version: link:../../plugins/native/work
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
@@ -669,9 +663,6 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
-      '@molis-ai/molis-work-plugin-work':
-        specifier: workspace:*
-        version: link:../../plugins/native/work
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
@@ -822,9 +813,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      better-sqlite3:
-        specifier: 12.8.0
-        version: 12.8.0
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^9.6.0
@@ -1022,6 +1010,10 @@ importers:
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/dataset:
     dependencies:
@@ -1037,6 +1029,10 @@ importers:
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/diff:
     dependencies:
@@ -1187,6 +1183,10 @@ importers:
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/pages:
     dependencies:
@@ -1330,15 +1330,6 @@ importers:
         specifier: ^0.28.2
         version: 0.28.2
 
-  plugins/native/work:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
-
   plugins/native/workflows:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -1416,6 +1407,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../packages/plugin-sdk
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../packages/storage

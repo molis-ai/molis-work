@@ -6,8 +6,7 @@ import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest, PluginProcessItemInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createPluginArtifactOperations } from "@molis-ai/molis-work-plugin-artifacts";
+import { ArtifactsModule, ProcessItemsModule, createPluginArtifactOperations } from "@molis-ai/molis-work-module-artifacts";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
@@ -139,8 +138,11 @@ test("W5-01-D1-02: process recovery uses only its store, producer signature and 
       assert.throws(() => foreign.process.readOwn(first), denied);
     }
     const changedSignature = rig.operations({ ...declaration, publisher: { ...declaration.publisher, signature: "different" } }, "other-person");
-    assert.deepEqual(changedSignature.client.readOwn(report), report, "artifact own still checks producer ID only");
-    assert.deepEqual(changedSignature.client.head(report.artifact_id), { version: 1, source_revision: 1 });
+    // RAC-411 (PG-107): an artifact line is the caller's own by plugin ID and publisher signature, the same rule as a process item.
+    assert.throws(() => changedSignature.client.readOwn(report), denied, "RAC-411: same ID, different signature cannot read the artifact");
+    assert.throws(() => changedSignature.client.head(report.artifact_id), denied, "RAC-411: same ID, different signature cannot head the artifact line");
+    assert.deepEqual(rig.operations(upgrade).client.readOwn(report), report, "RAC-411: the same ID and signature still reads its own line across upgrades");
+    assert.deepEqual(rig.operations(declaration, "other-person").client.head(report.artifact_id), { version: 1, source_revision: 1 }, "RAC-411: an artifact has no per-actor owner");
     assert.throws(() => rig.operations({ ...declaration, plugin_id: "io.molis.other" }).client.readOwn(report), denied);
   } finally { rig.close(); }
 });

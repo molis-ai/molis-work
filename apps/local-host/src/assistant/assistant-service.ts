@@ -1005,8 +1005,6 @@ export class AssistantService {
     if (!actions) return null;
     const offered = await actions.discover().catch(() => [] as ActionView[]);
     const readers = offered.filter(view => isSubjectReader(view.action) && view.availability.available);
-    // A session an executor opened is the work itself, not the session the object sits in.
-    const sessionKinds = new Set(executorProviders(offered).map(provider => provider.session_kind));
     const read = async (kind: string, id: string): Promise<ActionSubjectContext | null> => {
       const reader = readers.find(view => view.action.subject_kinds.includes(kind));
       if (!reader) return null;
@@ -1024,7 +1022,6 @@ export class AssistantService {
     const claimed = object.version === undefined ? null : String(object.version);
     return [`${context.title}（${object.kind}，标识 ${object.id}），当前版本 ${context.revision}${claimed && claimed !== context.revision ? `（页面显示的是版本 ${claimed}）` : ""}。`,
       goals.length ? `关联目标：${goals.join("、")}` : "",
-      context.session_id && !sessionKinds.has(object.kind) ? `所在会话：${context.session_id}` : "",
       others.length ? `与它相关的其他工作：${others.map(row => `「${row.title}」（${RELATION_WORDS[row.relation]}，${row.state}）`).join("；")}` : "",
       `正文${context.truncated ? "（节选，完整内容可用读取能力获取）" : ""}：\n${context.content.slice(0, 6000)}`].filter(Boolean).join("\n");
   }

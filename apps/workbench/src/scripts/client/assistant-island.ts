@@ -1533,7 +1533,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     paintMats();
   });
   /** Official surfaces whose tab item is an object with a shared context reader; a plugin that declares its own context wins. */
-  const TAB_KINDS = { pages: "pages_document", coding: "coding_session", inbox: "inbox_entry", feed: "feed_item", goals: "goal", sessions: "session", artifacts: "artifact" };
+  const TAB_KINDS = { pages: "pages_document", coding: "coding_session", inbox: "inbox_entry", feed: "feed_item", goals: "goal", artifacts: "artifact" };
   // What plugins declare for their searchable objects (kind and the surface it opens in) extends and corrects the list.
   const declaredKinds = {};
   api("/surface-kinds").then((res) => Object.assign(declaredKinds, res.kinds || {})).catch(() => undefined);

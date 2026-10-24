@@ -24,7 +24,7 @@ PG-036 的 C8-3：助理把一项工作交给哪个插件，只看插件有没�
 - **RAC-431**：工作按 `plugin_id` 记着执行方；它不再提供协议时拒绝，不换另一个提供方顶替。证明：`tests/assistant-executor.test.ts`。
 - **RAC-432**：新工作按插件标识点名执行方；没有人提供的标识在建工作之前就拒，不留下工作。证明：`tests/assistant-executor.test.ts`。
 - **RAC-433～439**：保留，本片未用。
-- **RAC-440**：看起来像、其实不是执行方的（缺角色、只对 Agent 开放、没有 `plugin_id`、没有会话种类）不在清单里，点名也拒，它的动作一个也不调。证明：`tests/security-invariants-assistant-executor.test.ts`（S-59，暂定号）。
+- **RAC-440**：看起来像、其实不是执行方的（缺角色、只对 Agent 开放、没有 `plugin_id`、没有会话种类）不在清单里，点名也拒，它的动作一个也不调。证明：`tests/security-invariants-assistant-executor.test.ts`（S-62，暂定号）。
 - **RAC-441**：不可用的执行方在清单里带原因，点名也拒，除读 `state` 之外它的角色一个也不跑，不留下工作。证明：同上。
 - **RAC-442**：执行方不见了：续发、再次转交都被拒，不记新的一轮、不连新的对象，也不调别的提供方。证明：同上。
 - **RAC-443**：`assistant-coding.ts` 已删，助理目录的源码里没有 Coding 的插件标识、动作名、工作种类。证明：同上（源码扫描）。

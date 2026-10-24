@@ -275,14 +275,14 @@ test("W5-01-ALC-LIFE-03/05: public Host close retries the retained studio databa
     if (++attempts === 1) throw new Error("database close failed once");
     return closeDatabase();
   });
-  const sessions = Reflect.get(first.host, "sessions") as { close(): Promise<void> };
-  const sessionClose = t.mock.method(sessions, "close");
+  const search = Reflect.get(first.host, "search") as { close(): Promise<void> };
+  const searchClose = t.mock.method(search, "close");
   const failed = first.host.close(), concurrent = first.host.close();
   await Promise.all([failed, concurrent].map(closing => assert.rejects(closing, /database close failed once/)));
   assert.equal(concurrent, failed, "concurrent close callers share the same failed attempt");
   assert.equal(studio.database.open, true);
   await assert.rejects(studio.actions.invoke(a.bootstrap, {}));
-  const completed = sessionClose.mock.callCount();
+  const completed = searchClose.mock.callCount();
   const retry = first.host.close(), repeated = first.host.close();
   assert.notEqual(retry, failed, "explicit retry starts a new close attempt after failure");
   await Promise.all([retry, repeated]);
@@ -290,7 +290,7 @@ test("W5-01-ALC-LIFE-03/05: public Host close retries the retained studio databa
   assert.equal(first.host.close(), retry, "successful close retains its Promise identity");
   assert.equal(attempts, 2);
   assert.equal(studio.database.open, false);
-  assert.equal(sessionClose.mock.callCount(), completed, "successful non-Alchemist shutdown is not repeated");
+  assert.equal(searchClose.mock.callCount(), completed, "successful non-Alchemist shutdown is not repeated");
 });
 
 test("W5-01-ALC-LIFE-06: deletion hook stays live throughout close and waits for the actual foreground executor", async t => {

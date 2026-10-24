@@ -4,7 +4,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LocalHost, LocalProjectDatabase, createPluginPlatform, homeStores, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
@@ -21,21 +20,23 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 for (const output of ["report", "changeset", "plan"] as const) for (const stop of ["cancel", "revoke", "replace"] as const)
   test(`Coding ${output} has no late commit after ${stop} during a real SDK read${output === "plan" ? " (W5-01-CODING-18: the plan row of the session library too)" : ""}`, { timeout: 30_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "coding-effect-")); await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]); seedDemoBoard(join(home, "project.db")); const store = new LocalProjectDatabase(join(home, "project.db"));
-    const sessions = codingSessions(store), service = new ActionService(), reviews = new AgentReviewQueue(), agentHost = new AgentHost({ reviews });
+    const sessions = codingSessions(store), reviews = new AgentReviewQueue(), agentHost = new AgentHost({ reviews });
     const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.coding-effect-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: reviews,
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" }); agentHost.register(adapter);
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } }), reference = { project_id: DEMO_PROJECT_ID, storage_key: join(home, "project.db") };
     registerAgentHostCapabilities({ register: (definition, handler) => definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler) }, {
       agentHost: () => agentHost, projectId: () => DEMO_PROJECT_ID, authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }),
     });
+    // The plugin's actions and the Agent Host's are one directory, as in the product: the agent actions registered above are what Coding calls.
+    const registry = local.actionRegistry(reference), client = { ...local.actionClient(reference), ...local.syncActionClient(reference) };
     local.registerAction(projectSettingsCapabilities.workspaces, () => [{ workspace_id: "work", canonical_path: home, display_name: "Fixture", realpath_verified: true }]);
     const privateStorage = new SqlitePluginPrivateStorage(store.db), artifacts = new ArtifactsModule({ db: store.db, homeOwner: "web-user", appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
     const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
     const target = output === "report" ? "coding.reports.save" : output === "changeset" ? "coding.changesets.save" : "coding.plans.save";
     const completed = Promise.withResolvers<void>(); let production: ActionHandlerBinding | undefined, unregisterProduction: (() => void) | undefined;
     let releaseRead = () => {};
-    const register = service.registerProvider.bind(service);
-    t.mock.method(service, "registerProvider", registration => {
+    const register = registry.registerProvider.bind(registry);
+    t.mock.method(registry, "registerProvider", registration => {
       let captured = false;
       const unregister = register({ ...registration, handlers: registration.handlers?.map(binding => {
         if (binding.capability_id !== target) return binding;
@@ -46,7 +47,7 @@ for (const output of ["report", "changeset", "plan"] as const) for (const stop o
       return unregister;
     });
     const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: { directory: home, completeText: () => undefined, stores: homeStores() },
-      actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: local.client(reference), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
+      actions: { registry, client, project_id: DEMO_PROJECT_ID }, capabilities: local.client(reference), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
     await platform.start([{ definition: createCodingPlugin(), grants: ["search:read", "goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read", "review:git-worktree", "review:git-integration"] }]);
     t.after(async () => { releaseRead(); await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
       await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
@@ -72,9 +73,9 @@ for (const output of ["report", "changeset", "plan"] as const) for (const stop o
       if (stop === "cancel") controller.abort(); else if (stop === "revoke") valid = false;
       else {
         assert.ok(production); assert.ok(unregisterProduction);
-        const definition = service.discover({ actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] }).find(row => row.capability_id === target);
+        const definition = (await client.discover({ actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] })).find(row => row.capability_id === target);
         assert.ok(definition); unregisterProduction();
-        service.registerProvider({ provider: { provider_id: platform.supervisor.state("io.molis.work.coding")!.install_id!, plugin_install_id: platform.supervisor.state("io.molis.work.coding")!.install_id!, title: "Replacement", kind: "plugin", project_id: DEMO_PROJECT_ID },
+        registry.registerProvider({ provider: { provider_id: platform.supervisor.state("io.molis.work.coding")!.install_id!, plugin_install_id: platform.supervisor.state("io.molis.work.coding")!.install_id!, title: "Replacement", kind: "plugin", project_id: DEMO_PROJECT_ID },
           definitions: [definition], handlers: [{ ...production, handle: () => ({}) }] });
       }
     } finally { releaseRead(); }

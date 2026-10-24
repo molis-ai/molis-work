@@ -29,12 +29,11 @@ import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
 import {
-  DATASET_CLIENT_FACTORY_SCRIPT,
   datasetManifest,
 } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_CLIENT_FACTORY_SCRIPT, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
   pagesActions,
@@ -43,7 +42,6 @@ import {
 import { PPT_CLIENT_FACTORY_SCRIPT, pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { homeStores, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { handlePersonalNativePluginHttp } from "../apps/local-host/dist/personal-native-plugin-http.js";
 import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
 import { MolisWorkUninstallService } from "../apps/local-host/dist/installer/uninstall.js";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
@@ -68,13 +66,12 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 async function listenDispatcher(
   home: string,
-  ports: Parameters<typeof handlePersonalNativePluginHttp>[3] = {},
 ): Promise<{ origin: string; close(): Promise<void> }> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "test", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] }));
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    void handleFunctionsHttp(request, response, url, home, { actions }).then(handled => handled || handlePersonalNativePluginHttp(request, response, url, ports)).then((handled) => {
+    void handleFunctionsHttp(request, response, url, home, { actions }).then((handled) => {
       if (!handled && !response.headersSent) {
         response.writeHead(404);
         response.end();
@@ -181,8 +178,13 @@ test("个人插件 Manifest 声明 storage:private，Pages 另有 artifact:write
 });
 
 test("客户端使用当前插件路径，保留的 Host 适配按合同改写", () => {
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/pages/abc/promote"), "/api/pages/abc/promote");
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.form"), "/api/form");
+  // The `/api/plugins/<plugin id>` short-name alias bridge is gone (W6-01/PG-058); only the functions adapter remains.
+  // Form and Pages keep their Manifest routes, so the removed short names leave their paths untouched.
+  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.form"), "/api/plugins/io.molis.work.form");
+  assert.equal(rewriteNativePluginApiPath("/api/plugins/pages/abc/promote"), "/api/plugins/pages/abc/promote");
+  // The functions adapter is the one retained rewrite (W6-01).
+  assert.equal(rewriteNativePluginApiPath("/api/plugins/functions"), "/api/functions");
+  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.functions/items"), "/api/functions/items");
   // Shelf's Home half is a Home Runtime instance (PG-026 S2): its routes are served under its own id, with no short native path.
   assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.shelf/file"), "/api/plugins/io.molis.work.shelf/file");
   assert.equal(rewriteNativePluginApiPath("/api/pages/abc"), "/api/pages/abc");
@@ -193,11 +195,19 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/forms"/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\("\/forms"/);
   // W5-01-DATASET-05: the Runtime client uses the exact declared collection route.
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.dataset\/datasets/);
+  // RAC-150: Dataset's page names its routes under the plugin ("/datasets") and asks the shared host for the full path.
+  const datasetBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(datasetBrowser("page.ts"), /api: "\/datasets"/);
+  assert.match(datasetBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(datasetManifest.routes?.some(route => route.method === "GET" && route.path === "/datasets"), "and the Manifest declares that collection route");
   // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path.
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.ppt\/ppt/);
   // RAC-31: the Runtime client targets its declared route; the HTTP discovery test rejects the removed URL.
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.lingguang\/sparks/);
+  // RAC-146: 灵光's page names its routes under the plugin ("/sparks") and asks the shared host for the full path.
+  const lingguangBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(lingguangBrowser("page.ts"), /api: "\/sparks"/);
+  assert.match(lingguangBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(lingguangManifest.routes?.some(route => route.method === "GET" && route.path === "/sparks"), "and the Manifest declares that collection route");
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 

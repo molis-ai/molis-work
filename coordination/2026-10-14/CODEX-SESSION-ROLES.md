@@ -28,7 +28,7 @@
 | PR | 精确 head 或状态 | 评审专职 | 测试专职 | 统筹 / 修复专职 |
 | --- | --- | --- | --- | --- |
 | #1151 | 11f0d67dbc090b3fc51ca3343441545ddc75c0c3 | 最终增量可合，原EPIPE/强退二轮有效 | 最终头CI run40054508574已14项成功，设计Linux probe跳过；本机与full=[]证据已核 | 统筹认领6379313602，正常队列position4/AWAITING_CHECKS，尚未合入 |
-| #1150 | 31a7bbbf57861995037855cd90c8f05c5471174d | 机械同步增量快看可合；原二轮有效 | 252 项与 build/health/boundary/assets/secrets 归属已核，最终头 CI 尚未完成 | 统筹等 CI；修复已交付 |
+| #1150 | 31a7bbbf57861995037855cd90c8f05c5471174d | 最终机械同步增量可合，原二轮有效 | 252项及最终头CI run40054783327通过（14成功），full=[] | 统筹认领6379342328，正常队列position5/AWAITING_CHECKS，尚未合入 |
 | #1126 | 34fb9eb99ddd335fd57aa07a8fe263d2a533916d | 11 文件增删行与原评审版本一致，快看可合 | 43 文件 176/176、full=[]，基线 8f3fa138；最终头 CI 尚未完成 | 修复 1 已交付并释放 writer，待命 |
 | #1127 | d461fb954e8784d2254391bbc0e8746226b3ef17 | 最终同步增量可合（6379034356） | run 40053259332 与精确 head 对应，Verify/Security/Product 通过，原始关键回归 4/4、1/1；full=[] | 统筹已留合并认领 6379040874，正常队列 AWAITING_CHECKS / position 1；尚未合入 |
 | #1120 | 273104b5703e34cb47aaa31f778153de51d1f15b | 最终机械同步增量可合 | 原 batch-16 有效范围已核，补 macOS feed-security 4/4 与 web-home-isolation 7/7；本机证据通过，最终头 CI 待完成 | 修复 2 已交付并释放槽位，等统筹入队 |

@@ -4,6 +4,7 @@ import {
   SUBJECT_REFERENCE_TYPE,
   isSearchEntriesSource,
   retainActionAuthority,
+  requireSynchronous,
   SEARCH_ENTRIES_PAGE_LIMIT,
   type ActionCallContext,
   type ActionClient,
@@ -19,6 +20,7 @@ import {
   searchSourceKey,
   type SearchHit,
   type SearchIndexDocument,
+  type SearchIndexMatch,
   type SearchIndexPort,
   type SearchIndexSourceRecord,
   type SearchOpenRequest,
@@ -91,6 +93,63 @@ const sameReference = (a: ActionReference, b: ActionReference) => a.capability_i
 const isReader = (view: ActionView) => view.action.input_type === SUBJECT_REFERENCE_TYPE && view.action.output_type === SUBJECT_CONTEXT_TYPE;
 const entryKey = (kind: string, id: string) => `${kind}\u0000${id}`;
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 300);
+
+function queryAuthority(caller: ActionCallContext, sources: readonly SourceView[], views: readonly ActionView[],
+  personal: { access: SearchAccess; sources: readonly SourceView[]; views: readonly ActionView[] } | null, kinds?: readonly string[]) {
+  const checks = sources.map(source => {
+    const own = personal?.sources.some(candidate => candidate.key === source.key) ? personal : null;
+    const candidates = own ? own.views : views.filter(view => !personal?.views.includes(view));
+    const readers = candidates.filter(view => isReader(view) && view.availability.available && view.provider.provider_id === source.reference.provider_id
+      && view.action.subject_kinds.some(kind => source.kinds.has(kind) && (!kinds?.length || kinds.includes(kind))))
+      .map(view => ({ view, valid: true }));
+    return { caller: own?.access.caller ?? caller, source, readers };
+  });
+  const revokedReader = (error: unknown) => error instanceof ActionError && ["mcp.action_revoked", "actions.forbidden"].includes(error.code);
+  return {
+    validate: async () => {
+      for (const check of checks) {
+        check.caller.signal?.throwIfAborted(); await check.caller.validate_authority?.(check.source.reference);
+        for (const reader of check.readers) {
+          try { await check.caller.validate_authority?.(referenceOf(reader.view)); }
+          catch (error) { if (!revokedReader(error)) throw error; reader.valid = false; }
+        }
+      }
+    },
+    assertCurrent: () => {
+      caller.signal?.throwIfAborted();
+      requireSynchronous(caller.assert_authority_current?.());
+      for (const check of checks) {
+        check.caller.signal?.throwIfAborted(); requireSynchronous(check.caller.assert_authority_current?.(check.source.reference));
+        for (const reader of check.readers.filter(reader => reader.valid)) {
+          try { requireSynchronous(check.caller.assert_authority_current?.(referenceOf(reader.view))); }
+          catch (error) { if (!revokedReader(error)) throw error; reader.valid = false; }
+        }
+      }
+    },
+    canRead: (source: SourceView, kind: string, current: readonly ActionView[]) => checks.find(check => check.source.key === source.key)?.readers
+      .some(reader => reader.valid && reader.view.action.subject_kinds.includes(kind) && current.some(view => isReader(view)
+        && view.action.subject_kinds.includes(kind) && view.availability.available
+        && sameReference(referenceOf(view), referenceOf(reader.view)) && view.provider.project_id === reader.view.provider.project_id)) ?? false,
+  };
+}
+
+function defaultOpen(source: SourceView, kind: string, id: string) {
+  const surface = source.kinds.get(kind)?.surface;
+  return surface ? { surface, id } : null;
+}
+
+function searchHits(matches: readonly SearchIndexMatch[], sources: readonly SourceView[]): SearchHit[] {
+  const byKey = new Map(sources.map(source => [source.key, source]));
+  return matches.flatMap(match => {
+    const source = byKey.get(match.source_key);
+    if (!source) return [];
+    return [{ hit_id: encodeSearchHitId({ project_id: source.project_id, provider_id: source.reference.provider_id, capability_id: source.reference.capability_id,
+      version: source.reference.version, kind: match.kind, id: match.object_id }), subject: { kind: match.kind, id: match.object_id }, project_id: source.project_id,
+      plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id, plugin_title: source.view.provider.title, source: source.reference,
+      title: match.title, snippet: match.snippet, highlights: match.highlights, revision: match.revision, updated_at: match.updated_at,
+      open: match.open ?? defaultOpen(source, match.kind, match.object_id), locator: match.locator }];
+  });
+}
 
 /** The owner's complete listing of one entries source, searched for one object; null when the owner no longer lists it. */
 async function findEntry(client: ActionClient, caller: ActionCallContext, source: SourceView, kind: string, id: string): Promise<SearchEntry | null> {
@@ -187,25 +246,19 @@ export class SearchService {
     const offset = offsetOf(input.cursor, query);
     const scoped = this.scoped(access.caller, input.scope);
     const before = await this.callerSources(access, scoped, input);
+    const authority = queryAuthority(access.caller, before.visible, before.views, before.personal, input.kinds);
     await this.purgeDisabled(before.all);
     await this.catchUp(before.visible, scoped, access.caller, false, before.personal ? this.options.personalSpace : undefined);
-    // Catching up waits on the owner's listings; a source the caller lost meanwhile answers nothing from the index (system-search §5.2).
-    const { views, all, visible } = await this.callerSources(access, scoped, input);
+    await authority.validate();
+    const { views, all, visible: current } = await this.callerSources(access, scoped, input);
+    // No await between this original-authority fence and disclosing indexed content/locators (ACA005).
+    authority.assertCurrent();
     if (!all.length) return { status: "empty_scope", hits: [], next_cursor: null, sources: [] };
-    const readers = views.filter(view => isReader(view) && view.availability.available);
+    const visible = current.filter(source => before.visible.some(original => original.key === source.key));
     const allowed = visible.map(source => ({ source_key: source.key,
-      readable_kinds: [...source.kinds.keys()].filter(kind => readers.some(reader => reader.provider.provider_id === source.reference.provider_id && reader.action.subject_kinds.includes(kind))) }));
+      readable_kinds: [...source.kinds.keys()].filter(kind => authority.canRead(source, kind, views)) }));
     const found = this.options.index.search({ query, sources: allowed, ...(input.kinds?.length ? { kinds: input.kinds } : {}), offset, limit });
-    const byKey = new Map(visible.map(source => [source.key, source]));
-    const hits: SearchHit[] = found.matches.flatMap(match => {
-      const source = byKey.get(match.source_key);
-      if (!source) return [];
-      return [{ hit_id: encodeSearchHitId({ project_id: source.project_id, provider_id: source.reference.provider_id, capability_id: source.reference.capability_id,
-        version: source.reference.version, kind: match.kind, id: match.object_id }), subject: { kind: match.kind, id: match.object_id }, project_id: source.project_id,
-        plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id, plugin_title: source.view.provider.title, source: source.reference,
-        title: match.title, snippet: match.snippet, highlights: match.highlights, revision: match.revision, updated_at: match.updated_at,
-        open: match.open ?? this.defaultOpen(source, match.kind, match.object_id), locator: match.locator }];
-    });
+    const hits = searchHits(found.matches, visible);
     const sources = this.statuses(all);
     const pending = sources.some(source => source.state === "indexing");
     const degraded = sources.some(source => ["failed", "stale", "unavailable", "indexing"].includes(source.state));
@@ -238,7 +291,7 @@ export class SearchService {
       try {
         const context = await access.client.invoke(nested, referenceOf(reader), { subject_id: hit.id }) as ActionSubjectContext & { open?: { surface: string; id: string } };
         if (context.subject.kind !== hit.kind || context.subject.id !== hit.id) return { state: "unavailable", hit_id, reason: "对象读取结果与搜索结果不一致" };
-        return { state: "ok", hit_id, subject: context.subject, open: context.open ?? indexed?.open ?? this.defaultOpen(source, hit.kind, hit.id), title: context.title, revision: context.revision };
+        return { state: "ok", hit_id, subject: context.subject, open: context.open ?? indexed?.open ?? defaultOpen(source, hit.kind, hit.id), title: context.title, revision: context.revision };
       } catch (error) {
         refusal = errorText(error);
       }
@@ -255,7 +308,7 @@ export class SearchService {
       return { state: "missing", hit_id, reason: refusal === null ? "这条内容已被删除" : "这条内容已被删除或归档" };
     }
     if (refusal !== null) return { state: "unavailable", hit_id, reason: refusal };
-    return { state: "ok", hit_id, subject: entry.subject, open: entry.open ?? this.defaultOpen(source, hit.kind, hit.id), title: entry.title, revision: entry.revision };
+    return { state: "ok", hit_id, subject: entry.subject, open: entry.open ?? defaultOpen(source, hit.kind, hit.id), title: entry.title, revision: entry.revision };
   }
 
   async status(access: SearchAccess, input: { scope?: SearchScope }): Promise<SearchStatusResponse> {
@@ -312,12 +365,12 @@ export class SearchService {
   }
 
   /** The personal space seen from another project, for the local person only; null when out of scope, absent or not reachable. */
-  private async personalSpaceOf(access: SearchAccess, scoped: Scoped): Promise<{ views: readonly ActionView[]; sources: SourceView[] } | null> {
+  private async personalSpaceOf(access: SearchAccess, scoped: Scoped): Promise<{ access: SearchAccess; views: readonly ActionView[]; sources: SourceView[] } | null> {
     const space = this.options.personalSpace;
     if (!space || !scoped.personal || access.caller.project_id === space || access.caller.audience !== "user") return null;
     try {
       const { access: own, views } = await this.owner(space)();
-      return { views, sources: this.entrySources(views, own.caller).filter(source => source.project_id === space) };
+      return { access: own, views, sources: this.entrySources(views, own.caller).filter(source => source.project_id === space) };
     } catch { return null; }
   }
 
@@ -328,11 +381,6 @@ export class SearchService {
       && (!input?.plugins?.length || input.plugins.includes(source.view.provider.plugin_id ?? source.reference.provider_id))
       && (!input?.kinds?.length || [...source.kinds.keys()].some(kind => input.kinds!.includes(kind))));
     return { views: [...views, ...personal?.views ?? []], personal, all, visible: all.filter(source => source.view.availability.available) };
-  }
-
-  private defaultOpen(source: SourceView, kind: string, id: string) {
-    const surface = source.kinds.get(kind)?.surface;
-    return surface ? { surface, id } : null;
   }
 
   /** A plugin turned off in this project keeps nothing in the index; turned back on, it is indexed again. */
@@ -508,7 +556,7 @@ export class SearchService {
 
   private async document(source: SourceView, entry: SearchEntry, reader: ActionReference | undefined, owner: SearchAccess, nested: ActionCallContext): Promise<SearchIndexDocument> {
     const base: SearchIndexDocument = { source_key: source.key, kind: entry.subject.kind, object_id: entry.subject.id, project_id: source.project_id, revision: entry.revision,
-      title: entry.title, summary: entry.summary, content: "", updated_at: entry.updated_at, open: entry.open ?? this.defaultOpen(source, entry.subject.kind, entry.subject.id),
+      title: entry.title, summary: entry.summary, content: "", updated_at: entry.updated_at, open: entry.open ?? defaultOpen(source, entry.subject.kind, entry.subject.id),
       content_policy: "summary" };
     if (entry.content !== "context" || !reader) return base;
     try {

@@ -203,3 +203,14 @@
 - **#1114 已机械同步**（review-fix-owner，task-12）：新 head `ed204f625a200e8d72a81660cc19cfec834882a6`（merge commit，parents `f7836be2d`+`89c9a7194`，普通 push 未 force；PR MERGEABLE/BLOCKED 等 CI）。唯一冲突 `tooling/gates/page-assets.json`（生成物）取 main 后重跑；相对 main 只差 `cognia.js 24090→24118`（本 PR 自有 +28B）；#1126/#1127 行为冲突无；diff 18 文件 +153/−30；本机 build/workspace:build/page-assets/health/boundary/contracts 47/47/secrets/verify-release 全过；affected-tests full 空；CI run 40063786843 在跑。
 - 评论 [6380128242](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380128242) 请统筹：① **BL-440～448 号段裁定**（阻塞合入，README:3402 与分支占号冲突）；② 请 ac-review 对最终头出「可合/修后可合」结论 + 确认 `cognia.js` +28B 一次性放行、`cognia.import.directory_preview` v2→v3 调用方影响。裁定后由 review-fix-owner 机械重编 9 行 + 同步 `#1125` spec §1.1 的 BL-447 引用，再重跑门禁+CI。
 - **防腐审计（ac-code-auditor）主题 a–e 全部完成**（ANTICORRUPTION-AUDIT.md §6–§10）：@prologue/sdk 边界 PASS、表 owner PASS、页面资源/冻结名单 PASS，无 blocker。AC-AUDIT-05（context-onboarding-service 直接 import pages/artifacts/todo）仍 **HANDOFF-TO-CODEX**；AC-AUDIT-06 清单已修正为 v2（保留 alchemist 直连路由、删 personal 壳与 `/api/plugins/<id>` 别名，task-13 实施中）；AC-AUDIT-07（page-assets 门禁死键/过期放行/note 过时）交 ac-shell/统筹下次动门禁时清理。下一轮 f) 安全不变量表↔代码/测试漂移。
+
+## 2026-10-24 06:20 UTC — #1114 待统筹三件事（合并侧已就绪，只差决策/评审）
+
+- #1114 当前：head `ed204f625a`（机械同步完成）；required checks 全绿（Verify/Gates/Health/Boundaries/Contracts/Secret/Rust/Swift/Shell/Product subset），仅 3 个非必需 Security/Product subset 在跑；`mergeable_state=unstable`；**不在 MERGE-QUEUE §2**。
+- 需要统筹三件事：
+  1. 给 #1114 加 MERGE-QUEUE §2 行（`full=[]`，无需集成批；合入后 privileges.md 状态列由统筹改账）。
+  2. ac-review 对终头 `ed204f625a` 给一轮结论（#1114 上 comment `6379915181` 是复核包：三组 18 文件；待确认 cognia `directory_preview@2→@3` 与 page-assets cognia.js +28B 放行）。
+  3. BL 号段裁定：`specs/BACKLOG.md` 的 BL-440～448 目前只存在于 #1114 分支；main 最大 BL-542，且 main 上无任何 BL-44x 引用（grep 0）。README 派单表把 BL-440～444 给 ac-snapshot、445～449 给 ac-errors（两条线均未开始）。
+     - 推荐 **B（零代码改动）**：#1114 保留 BL-440～448；统筹把 ac-snapshot/ac-errors 的未来号段改到 543+（README 派单表/LINES.md 各一行）。
+     - 备选 **A**：#1114 把 440～448 重编为 543～551（依次顺延），合并 Agent 可在 30 分钟内完成并重推；无其它引用需要同步。
+- 本会话不合并、不入队；Codex 侧合并认领后即可合。

@@ -176,9 +176,10 @@ test("services.model is for a plugin the Host runs itself that declares model:in
 
     const sandboxed = platformIn(directory), boxed = probe({ name: "boxed", execution: "sandbox" });
     try {
-      await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }]);
-      assert.equal(boxed.started.length, 1, "the sandboxed plugin started");
-      assert.equal(boxed.started.at(-1)?.model, undefined, "the model is a service of the Host's own process, not of sandboxed code");
+      // The model is a service of the Host's own process, not of sandboxed code: a sandboxed package that declares it does not start (S-60).
+      assert.deepEqual((await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }])).running, []);
+      assert.equal(boxed.started.length, 0, "the sandboxed plugin's code never ran");
+      assert.equal(sandboxed.platform.runtime.get(sandboxed.installId(boxed.id)).last_error_code, "sandbox.service_not_given");
     } finally { sandboxed.store.close(); }
 
     const homeless = platformIn(directory, null), alone = probe({ name: "alone" });
@@ -478,7 +479,7 @@ test("output json: the answer is decoded when it is JSON, a code fence around it
     } finally { item.store.close(); }
   }));
 
-test("instructions a definition carries are registered while it runs and only then: once for the install however many projects run it, withdrawn with the last of them, refused when they name another owner or the owner has instructions from the catalog", { timeout: 60_000 },
+test("instructions a definition carries are registered while it runs and only then: once for the install however many projects run it, withdrawn with the last of them, refused when they name another owner or one the platform registers itself", { timeout: 60_000 },
   withDirectory(async directory => {
     const model = standIn(), first = platformIn(directory, { current: model.complete }), second = platformIn(directory, { current: model.complete });
     const plugin = probe(), again = probe();
@@ -489,7 +490,7 @@ test("instructions a definition carries are registered while it runs and only th
       // One project stops: the other's instructions are still there.
       await first.platform.runtime.stop(first.installId(plugin.id));
       assert.deepEqual(await second.invoke(again.ask), { text: "摘要结果" });
-      // The last one stops: nothing of the plugin's is registered any more. A version that carries none cannot send one.
+      // The last one stops: kept as not running (PG-051 Q1 b). A version that carries none replaces that record whole, and cannot send one.
       await second.platform.runtime.stop(second.installId(again.id));
       const bare = probe({ version: "1.1.0", instructions: () => [] });
       const third = platformIn(directory, { current: model.complete });
@@ -499,40 +500,45 @@ test("instructions a definition carries are registered while it runs and only th
       } finally { third.store.close(); }
     } finally { first.store.close(); second.store.close(); }
 
-    // A definition cannot register instructions under another owner's name, nor for an owner whose instructions the catalog registers.
+    // A definition cannot register instructions under another owner's name, nor for an owner the platform registers itself (PG-051 Q2).
     // What the supervisor shows of a start that failed is a generic line, so the check is that the plugin never started and nothing ran.
     const wrong = platformIn(directory), strange = probe({ name: "strange", instructions: () => [defineInstructionPrompt({ owner_id: idOf("someone-else"), prompt_id: "x",
       version: 1, title: "x", purpose: "x", used_by: [], body: "x" })] });
-    const duplicate = platformIn(directory), shadow = probe({ pluginId: "io.molis.work.todo" });
+    const duplicate = platformIn(directory), shadow = probe({ pluginId: "io.molis.work.plugin-builder" });
     try {
       const refused = await wrong.platform.start([{ definition: strange.definition, ...GRANTED }]);
       assert.deepEqual(refused.running, []);
       assert.deepEqual(refused.failed.map(entry => entry.plugin_id), [strange.id]);
       assert.equal(strange.started.length, 0, "the plugin never started");
       const doubled = await duplicate.platform.start([{ definition: shadow.definition, ...GRANTED }]);
-      assert.deepEqual(doubled.running, [], "Todo's instructions are the catalog's: a second source for the same owner is refused");
+      assert.deepEqual(doubled.running, [], "Plugin Builder's instructions are the platform's: a second source for the same owner is refused");
       assert.deepEqual(doubled.failed.map(entry => entry.plugin_id), [shadow.id]);
       assert.equal(shadow.started.length, 0);
     } finally { wrong.store.close(); duplicate.store.close(); }
   }));
 
-test("an owner the catalog registers anything for is refused instructions from a definition, not only one whose instructions the catalog registers: an owner with Agent roles or methods and no instructions keeps them", { timeout: 60_000 },
+test("RAC-194 an owner the platform registers itself is refused instructions from a definition; a built-in plugin's own definition is the one source of its instructions", { timeout: 60_000 },
   withDirectory(async directory => {
-    // Registering a second source for such an owner would make the Host's register show the definition's row instead of the catalog's:
-    // the roles and methods the catalog gave it would disappear from the person's settings and from other Agents while it runs.
-    // The catalog has Schedule's and the assistant's Agent roles and Issues' method, none of them with an instruction.
-    for (const owner of ["io.molis.work.schedule", "io.molis.work.assistant", "io.molis.work.issues"]) {
+    // A second source for such an owner would blend into the platform's row in the register: the assistant's Agent, Plugin Builder's
+    // Agents and questions (PG-051 Q2) and Alchemist's instructions, which the Host serves.
+    for (const owner of ["io.molis.work.assistant", "io.molis.work.plugin-builder", "io.molis.work.alchemist"]) {
       const item = platformIn(directory), shadow = probe({ pluginId: owner });
       try {
         const refused = await item.platform.start([{ definition: shadow.definition, ...GRANTED }]);
-        assert.deepEqual(refused.running, [], `${owner} has roles or methods from the catalog: instructions for it come from the catalog's entry`);
+        assert.deepEqual(refused.running, [], `${owner} is registered by the platform`);
         assert.deepEqual(refused.failed.map(entry => entry.plugin_id), [owner]);
         assert.equal(shadow.started.length, 0, "the plugin never started");
       } finally { item.store.close(); }
     }
+    // A built-in plugin is no exception: Todo's instructions come with its definition, and nothing else registers them (PG-051).
+    const todo = platformIn(directory, { current: standIn().complete }), own = probe({ pluginId: "io.molis.work.todo" });
+    try {
+      assert.deepEqual((await todo.platform.start([{ definition: own.definition, ...GRANTED }])).running, ["io.molis.work.todo"]);
+      assert.deepEqual(await todo.invoke(own.ask), { text: "摘要结果" });
+    } finally { todo.store.close(); }
   }));
 
-test("an owner's own registration is not the catalog's: two installations of one plugin (two signatures) run together, each with its instructions, and the last one out withdraws them", { timeout: 60_000 },
+test("an owner's own registration is its installation's: two installations of one plugin (two signatures) run together, each with its instructions, and the last one out withdraws them", { timeout: 60_000 },
   withDirectory(async directory => {
     const model = standIn(), first = platformIn(directory, { current: model.complete }), second = platformIn(directory, { current: model.complete });
     const one = probe({ signature: "signed-by-one" }), other = probe({ signature: "signed-by-other" });
@@ -620,7 +626,15 @@ test("S-18 RAC-50 RAC-53 background execution needs its declaration and active a
     if (kind === "sandbox") probe.definition.execution = "sandbox";
     if (kind === "undeclared") for (const action of probe.definition.manifest.actions ?? []) delete action.action.background_job;
     try {
-      assert.deepEqual((await item.platform.start([{ definition: probe.definition, grants: probe.permissions }])).running, [probe.id]);
+      const started = await item.platform.start([{ definition: probe.definition, grants: probe.permissions }]);
+      if (kind === "sandbox") {
+        // Background jobs are not given to sandboxed code (S-60, PG-017 P3): a package that declares them does not start.
+        assert.deepEqual(started.running, []);
+        assert.equal(probe.contexts.length, 0, "the sandboxed plugin's code never ran");
+        assert.equal(item.platform.runtime.get(item.installId(probe.id)).last_error_code, "sandbox.service_not_given");
+        continue;
+      }
+      assert.deepEqual(started.running, [probe.id]);
       const services = probe.contexts.at(-1)!.services!;
       assert.equal(services.model, undefined);
       if (kind !== "declared") assert.equal(services.background, undefined);
@@ -640,3 +654,47 @@ test("S-18 RAC-50 RAC-53 background execution needs its declaration and active a
     }
   }
 }));
+
+test("RAC-333 PG-047 S-18 the platform checks a model answer again before the call commits anything: once the person switches the model after it answered, the call's own beforeEffect and a write through a platform service are refused, though the plugin never called validateResult",
+  { timeout: 60_000 },
+  withDirectory(async directory => {
+    const provider = await startModelStandIn("guard-key-0123456789", "来自模型的回答");
+    const { home, reference } = await homeWithProject(directory);
+    const plugin = probe({ name: "modelguard", permissions: [{ permission: MODEL_INVOKE, required: true }, { permission: "storage:private", required: true }] });
+    const asUser: ActionCallContext = { actor_id: "web-user", project_id: reference.project_id, audience: "user", permissions: [MODEL_INVOKE] };
+    const seen: Array<{ step: string; outcome: unknown }> = [];
+    const attempt = async (step: string, run: () => unknown) => {
+      seen.push({ step, outcome: await Promise.resolve().then(run).then(() => "ok", error => (error as { code?: string }).code ?? String(error)) });
+    };
+    try {
+      await withoutEnvironmentModel(async () => {
+        Object.assign(process.env, { MOLIS_WORK_TEXT_API_KEY: "guard-key-0123456789", MOLIS_WORK_TEXT_BASE_URL: provider.baseUrl, MOLIS_WORK_TEXT_MODEL: "stand-in-model",
+          MOLIS_WORK_TEXT_API_FORMAT: "openai-chat-completions" });
+        let switchModel = false;
+        plugin.on.ask = async ({ model, caller }) => {
+          const answer = await model.complete(instructed(plugin.summarize, "材料正文"));
+          // The person switches the Host's model after it answered; the plugin goes on as if nothing happened.
+          if (switchModel) process.env.MOLIS_WORK_TEXT_MODEL = "another-model";
+          const storage = plugin.started.at(-1)!.storage!;
+          await attempt("beforeEffect", () => caller.beforeEffect());
+          await attempt("write", () => storage.set("answer", answer.text));
+          await attempt("read back", () => { if (storage.get("answer") !== answer.text) throw new Error("not written"); });
+          return answer.text;
+        };
+        const host = new MolisWorkLocalHost({ homeDirectory: home, pluginFixtures: { project: [plugin.definition] } });
+        try {
+          assert.equal(JSON.parse(await host.actionClient(reference).invoke(asUser, plugin.ask, {}) as string), "来自模型的回答");
+          assert.deepEqual(seen, [{ step: "beforeEffect", outcome: "ok" }, { step: "write", outcome: "ok" }, { step: "read back", outcome: "ok" }],
+            "an answer still current is committed as before");
+          seen.length = 0; switchModel = true;
+          plugin.started.at(-1)!.storage!.delete("answer");
+          await host.actionClient(reference).invoke(asUser, plugin.ask, {}).catch(() => undefined);
+          assert.deepEqual(seen, [
+            { step: "beforeEffect", outcome: "actions.configuration_changed" },
+            { step: "write", outcome: "actions.configuration_changed" },
+            { step: "read back", outcome: "Error: not written" },
+          ], "the stale answer is committed through neither, and nothing was written");
+        } finally { await host.close(); }
+      });
+    } finally { await provider.close(); }
+  }));

@@ -66,6 +66,9 @@ export function isActiveNestedAction(context: ActionCallContext): boolean {
     && context.beforeEffect === origin.execution.beforeEffect;
 }
 
+/** The execution context of the handler whose asynchronous work this is, finished or not; none outside every handler. */
+export function runningHandlerContext(): ActionExecutionContext | undefined { return handlers.getStore()?.execution; }
+
 export function runActionHandler<R>(call: object, execution: ActionExecutionContext, active: () => boolean, enter: () => R): R {
   return startHandler(call, () => handlers.run({ execution, active }, enter));
 }

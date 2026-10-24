@@ -5,7 +5,6 @@ import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
-import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
@@ -36,6 +35,12 @@ function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], hidde
 }
 
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
+/** The project a page is drawn for: what the shell's title bar and project switcher need. */
+export interface ShellProject {
+  project_id: string;
+  display_name: string;
+}
+
 export interface WorkbenchShellPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
@@ -63,8 +68,8 @@ export interface WorkbenchShellPageView<TItem extends GoalCollectionItem> extend
   plugin_rail?: readonly { surface: string; label: string }[];
   /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
   developer_mode?: boolean;
-  project: ProjectOperationsProject | null;
-  projects: ProjectOperationsProject[];
+  project: ShellProject | null;
+  projects: ShellProject[];
   route_prefix: string;
 }
 
@@ -101,11 +106,10 @@ export interface WorkbenchShellPageOwners<TItem extends GoalCollectionItem, TVie
   renderMomentumPlaceholder(): string;
   renderGoalKanban(view: TView, selectedGoalId: string, items: readonly TItem[]): string;
   renderTuiPane(selected: TItem | undefined, view: TView, cliAvailability: Record<string, boolean>): string;
-  renderProjectOperations(project: ProjectOperationsProject | null, data: ProjectOperationsData | undefined): ProjectOperationsSlice;
-  renderDesktopProjectChrome(project: ProjectOperationsProject | null, projects: readonly ProjectOperationsProject[],
+  renderDesktopProjectChrome(project: ShellProject | null, projects: readonly ShellProject[],
     desktop: boolean, settingsHref: string | null,
     options: { switcherClass: string; manageHref: string; directoryToggle: boolean; globalSearch?: boolean }): string;
-  renderProjectSwitcher(project: ProjectOperationsProject | null, projects: readonly ProjectOperationsProject[],
+  renderProjectSwitcher(project: ShellProject | null, projects: readonly ShellProject[],
     desktop: boolean, className: string, manageHref: string): string;
   renderFeedNativePluginSurface(view: TView, surface: FeedPageSurface, preset: "feed",
     entries?: TFeedEntry[], active?: boolean): string;
@@ -130,7 +134,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderIconSprite, clientI18nScript, dataJson, prefixLocalLinks, renderWorkbenchDocument,
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
-    renderProjectOperations, renderDesktopProjectChrome,
+    renderDesktopProjectChrome,
     renderFeedNativePluginSurface, stageModel } = owners;
 
 function renderMolisWorkRefreshFragment(
@@ -164,7 +168,6 @@ function renderMolisWorkWeb(
   controlToken = "",
   desktopShell = false,
   cliAvailability: Record<string, boolean> = {},
-  projectOperationsData?: ProjectOperationsData,
 ): string {
   const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, L);
   const { selected, title, collectionTitle } = collection;
@@ -173,10 +176,7 @@ function renderMolisWorkWeb(
   const initialDesktopSurface = requestedGoalId || archiveView || trashView ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
-  const enabledPlugins = shownProjectPlugins(view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"], view.hidden_plugins ?? []);
-  const projectOperations = renderProjectOperations(view.project
-    ? { project_id: view.project.project_id, display_name: view.project.display_name }
-    : null, projectOperationsData);
+  const enabledPlugins = shownProjectPlugins(view.enabled_plugins ?? ["goals", "inbox", "feed", "artifacts"], view.hidden_plugins ?? []);
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(L, enabledPlugins, view.hidden_plugins, view.pane_plugin);
@@ -284,7 +284,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderProjectHome(view.project?.display_name || title, primitives)}
             ${goalStage}
             ${frameStage}
-            ${projectOperations.surfaces}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode })}</section>
@@ -302,7 +301,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${renderCreateDialog(view)}
   ${renderGlobalSearchOverlay(primitives)}
   ${renderGoalTrashDialog()}
-  ${projectOperations.overlays}
   <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>

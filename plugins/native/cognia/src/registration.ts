@@ -1,5 +1,6 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, COGNIA_DATABASE, createCogniaPlugin } from "./index.js";
+import { COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, COGNIA_DATABASE, createCogniaPlugin } from "./index.js";
+import { COGNIA_MESSAGES } from "./messages.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -8,8 +9,8 @@ import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_C
 export const registration: PluginRegistration = {
   project_plugin_id: COGNIA_PROJECT_PLUGIN_ID, catalog_order: 2,
   runtime: { scope: "home", create: createCogniaPlugin, database: COGNIA_DATABASE, package_name: "@molis-ai/molis-work-plugin-cognia", factory_export: "createCogniaPlugin" },
+  messages: COGNIA_MESSAGES,
   manifest: cogniaManifest,
-  instructions: COGNIA_INSTRUCTIONS,
   personal: true,
   summary: "导入本地知识，带来源检索问答。",
   workbench: {

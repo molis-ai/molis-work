@@ -1,3 +1,5 @@
+import type { PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+
 type ShelfPluginHttpMethod = "GET" | "POST";
 
 export interface ShelfPluginRouteRequest {
@@ -25,76 +27,32 @@ export type ShelfPluginRouteHandler = (
   context: ShelfPluginRouteContext,
 ) => ShelfPluginRouteResponse | Promise<ShelfPluginRouteResponse>;
 
-interface ShelfPluginRouteDefinition {
-  readonly route_id: string;
-  readonly method: ShelfPluginRouteRequest["method"];
-  readonly path: string;
-  readonly pattern: RegExp;
-  readonly param_names?: readonly string[];
-}
+// 32 MB of folder bytes is about 42.7 MB once base64-encoded, under 45,000,000 bytes with the entries' names.
+const UPLOAD_BYTES = 45_000_000;
+const WRITE_BYTES = 3_000_000;
 
-interface ShelfPluginRouteBinding extends ShelfPluginRouteDefinition {
-  readonly handle: ShelfPluginRouteHandler;
-}
-
-export const SHELF_NATIVE_PLUGIN_ROUTES = [
-  route("shelf.terminal", "POST", "/terminal", /^\/api\/shelf\/terminal$/u),
-  route("shelf.snapshot", "GET", "/", /^\/api\/shelf$/u),
-  route("shelf.settings.read", "GET", "/settings", /^\/api\/shelf\/settings$/u),
-  route("shelf.settings.write", "POST", "/settings", /^\/api\/shelf\/settings$/u),
-  route("shelf.admit", "POST", "/items", /^\/api\/shelf\/items$/u),
-  route("shelf.sample", "POST", "/sample", /^\/api\/shelf\/sample$/u),
-  route("shelf.folder", "POST", "/folders", /^\/api\/shelf\/folders$/u),
-  route("shelf.hide", "POST", "/items/:item_id/hide", /^\/api\/shelf\/items\/([^/]+)\/hide$/u, ["item_id"]),
-  route("shelf.delete", "POST", "/items/:item_id/delete", /^\/api\/shelf\/items\/([^/]+)\/delete$/u, ["item_id"]),
-  route("shelf.useMaterial", "POST", "/items/:item_id/use-material", /^\/api\/shelf\/items\/([^/]+)\/use-material$/u, ["item_id"]),
-  route("shelf.material.preview", "GET", "/items/:item_id/project-material", /^\/api\/shelf\/items\/([^/]+)\/project-material$/u, ["item_id"]),
-  route("shelf.material.save", "POST", "/items/:item_id/project-material", /^\/api\/shelf\/items\/([^/]+)\/project-material$/u, ["item_id"]),
-  route("shelf.edit", "POST", "/items/:item_id/edit", /^\/api\/shelf\/items\/([^/]+)\/edit$/u, ["item_id"]),
-  route("shelf.job", "POST", "/jobs", /^\/api\/shelf\/jobs$/u),
-  route("shelf.job.cancel", "POST", "/jobs/:job_id/cancel", /^\/api\/shelf\/jobs\/([^/]+)\/cancel$/u, ["job_id"]),
-  route("shelf.clipboard", "POST", "/clipboard", /^\/api\/shelf\/clipboard$/u),
-  route("shelf.clipboard.delete", "POST", "/clipboard/:clip_id/delete", /^\/api\/shelf\/clipboard\/([^/]+)\/delete$/u, ["clip_id"]),
-  route("shelf.clipboard.join", "POST", "/clipboard/:clip_id/material", /^\/api\/shelf\/clipboard\/([^/]+)\/material$/u, ["clip_id"]),
-  route("shelf.file", "GET", "/items/:item_id/file", /^\/api\/shelf\/items\/([^/]+)\/file$/u, ["item_id"]),
-] as const satisfies readonly ShelfPluginRouteDefinition[];
-
-export class ShelfPluginRouteTable {
-  private readonly bindings: readonly ShelfPluginRouteBinding[];
-
-  constructor(handlers: Readonly<Record<string, ShelfPluginRouteHandler>>) {
-    this.bindings = SHELF_NATIVE_PLUGIN_ROUTES.map((definition) => {
-      const handle = handlers[definition.route_id];
-      if (!handle) throw new Error(`Shelf route ${definition.route_id} 没有 Host binding`);
-      return { ...definition, handle };
-    });
-  }
-
-  async handle(request: ShelfPluginRouteRequest): Promise<ShelfPluginRouteResponse | null> {
-    for (const binding of this.bindings) {
-      if (binding.method !== request.method) continue;
-      const matched = binding.pattern.exec(request.pathname);
-      if (!matched) continue;
-      const params = Object.fromEntries((binding.param_names ?? []).map((name, index) => {
-        const raw = matched[index + 1] ?? "";
-        try {
-          return [name, decodeURIComponent(raw)];
-        } catch {
-          return [name, ""];
-        }
-      }));
-      return binding.handle({ params, request });
-    }
-    return null;
-  }
-}
-
-function route(
-  route_id: string,
-  method: ShelfPluginRouteRequest["method"],
-  path: string,
-  pattern: RegExp,
-  param_names: readonly string[] = [],
-): ShelfPluginRouteDefinition {
-  return { route_id, method, path, pattern, param_names };
-}
+/**
+ * Shelf's routes, all answered by its Home half: on a project page the request chain hands them past the project half to the Home,
+ * which saves into that project with the project the call came from.
+ */
+export const SHELF_HOME_ROUTES = [
+  { route_id: "shelf.terminal", method: "POST", path: "/terminal", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.snapshot", method: "GET", path: "/" },
+  { route_id: "shelf.settings.read", method: "GET", path: "/settings" },
+  { route_id: "shelf.settings.write", method: "POST", path: "/settings", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.admit", method: "POST", path: "/items", max_body_bytes: UPLOAD_BYTES },
+  { route_id: "shelf.sample", method: "POST", path: "/sample", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.folder", method: "POST", path: "/folders", max_body_bytes: UPLOAD_BYTES },
+  { route_id: "shelf.hide", method: "POST", path: "/items/:item_id/hide", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.delete", method: "POST", path: "/items/:item_id/delete", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.useMaterial", method: "POST", path: "/items/:item_id/use-material", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.material.preview", method: "GET", path: "/items/:item_id/project-material" },
+  { route_id: "shelf.material.save", method: "POST", path: "/items/:item_id/project-material", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.edit", method: "POST", path: "/items/:item_id/edit", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.job", method: "POST", path: "/jobs", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.job.cancel", method: "POST", path: "/jobs/:job_id/cancel", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.clipboard", method: "POST", path: "/clipboard", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.clipboard.delete", method: "POST", path: "/clipboard/:clip_id/delete", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.clipboard.join", method: "POST", path: "/clipboard/:clip_id/material", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.file", method: "GET", path: "/items/:item_id/file" },
+] as const satisfies readonly PluginRouteDeclaration[];

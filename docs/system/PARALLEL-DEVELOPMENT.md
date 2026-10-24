@@ -38,7 +38,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | --- | --- |
 | 工作台聚合（`apps/workbench/src/` 下） | `i18n/en.ts`（总词典）、`index.ts`、`plugin-catalog.ts`、`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts`、`page-assets.ts`、`immersive-shell.ts`、`scripts/client/initialization.ts`、`scripts/client/plugin-workbench.ts`；另有 `packages/design-system/src/styles/craft-finish.ts`（总样式）；`builtin-plugins.ts` 是 `node scripts/generate-plugin-registry.mjs` 生成的，不再是手写枢纽：条目写在各包的 `plugins/native/<目录>/src/registration.ts`，枢纽变成这些文件和生成脚本 `scripts/generate-plugin-registry.mjs`，合并冲突时重新生成而不手合 |
 | 宿主聚合（`apps/local-host/src/` 下） | `web-request.ts`（路由分发，连同它的路由表 `web-project-platform-routes.ts`、`web-catalog-index-routes.ts`）、`web-catalog.ts`、`project-host.ts`、`index.ts`（出口） |
-| 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
+| 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`（与同目录的 `plugin-manifest.ts`、`plugin-host-services.ts`、`plugin-routes.ts`）、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
 | 登记与门禁 | `scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`tooling/gates/baseline.json`、`.github/workflows/ci.yml`、`tests/ci-product-subset.txt`（CI 产品子集的清单，见下） |
 | 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |
 | 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`horizontal/agent-host/src/adapters/announce-guard.ts` |

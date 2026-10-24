@@ -32,11 +32,9 @@ import {
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
   type ShelfSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-shelf";
-import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost, createSurfaceRenderer, createSurfaceRenderers } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
-import { createWorkSessionRenderer } from "./work-ui.js";
 
 export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
 import { WORKBENCH_UI_SLOTS } from "./document-shell.js";
@@ -77,10 +75,6 @@ export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost
 export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiPrimitives) {
   return (value: string, label = value): string => renderWorkbenchContribution(ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, "reference", { value, label, primitives });
 }
-
-export const renderProjectOperations = createWorkSessionRenderer(workbenchUiHost);
-
-export const renderWorkTerminal = (model: WorkTerminalUiModel): string => renderWorkbenchContribution(WORK_TERMINAL_UI_CONTRIBUTION_ID, "terminal", model);
 
 /** Mount one surface of a registered contribution in the slot the contribution declares for it. */
 export function renderWorkbenchContribution(contributionId: string, surface: string, model: unknown): string {

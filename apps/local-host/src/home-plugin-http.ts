@@ -1,4 +1,3 @@
-import { pageTodoInput } from "./plugin-page-todo.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
@@ -119,7 +118,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       stop,
       readBody: async (request, maxBytes) => {
         // The route's own limit when it declares one; otherwise bounded for image-bearing Home actions. Each plugin also validates its input.
-        try { return pageTodoInput(request, pluginId, operation, await readLocalWebBody(request, maxBytes ?? 12 * 1024 * 1024)); }
+        try { return await readLocalWebBody(request, maxBytes ?? 12 * 1024 * 1024); }
         catch (error) { if (error instanceof ActionError) throw error; throw new ActionError(error instanceof RangeError ? "actions.input_too_large" : "actions.input_invalid",
           error instanceof Error ? error.message : "请求读取失败"); }
       },

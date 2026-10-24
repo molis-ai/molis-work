@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { createTerminalAutofill, createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalAutofillOptions, type TerminalPanelsOptions } from "@molis-ai/molis-work-plugin-work/terminal";
+import { createTerminalAutofill, createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalAutofillOptions, type TerminalPanelsOptions } from "@molis-ai/molis-work-app-workbench/terminal";
 
 function installGlobals(t: TestContext, values: Record<string, unknown>) {
   for (const [key, value] of Object.entries(values)) {
@@ -185,18 +185,24 @@ function panelsFixture(t: TestContext) {
     WebSocket: BrowserSocket,
     location: { protocol: "http:", host: "localhost" },
     requestAnimationFrame: (callback: () => void) => { callback(); return 1; },
-    fetch: async (url: string, init: RequestInit = {}) => {
-      requests.push({ url, method: init.method ?? "GET", body: init.body as string | undefined });
-      return io.respond(url, init);
-    },
   });
+  // The page's request helper (packages/ui-host): GET without a body, POST with one; a refusal throws, `as: "response"` hands back the answer.
+  const request: TerminalPanelsOptions["request"] = async <T,>(url: string, init: Parameters<TerminalPanelsOptions["request"]>[1] = {}) => {
+    const method = init.method ?? (init.body === undefined ? "GET" : "POST");
+    requests.push({ url, method, body: init.body === undefined ? undefined : JSON.stringify(init.body) });
+    const response = await io.respond(url, { method });
+    if (init.as === "response") return response as T;
+    const body = await response.json() as { error?: string } | null;
+    if (!response.ok) throw Object.assign(new Error(body?.error ?? init.fallback ?? "failed"), { status: response.status });
+    return body as T;
+  };
   const shown: Array<string | null> = [];
   const options: TerminalPanelsOptions = {
     screens: screen as unknown as TerminalPanelsOptions["screens"],
     goalId: () => state.goal, parentReadOnly: () => state.parent, parentReadOnlyMessage: () => "parent read-only",
     canControlPanel: (panel): panel is PanelRecord => Boolean(panel && !state.parent && panel.goal_id === state.goal),
     text: (text) => text, errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
-    headers: () => ({ "x-molis-work-control-token": "token" }), desktopHeaders: () => ({ "x-molis-work-desktop": "1" }),
+    request,
     controlToken: () => "token", setStatus() {}, setMenuOpen() {}, renderTabs() {},
     showTerminal: (id) => shown.push(id), afterOpened: async () => {},
   };

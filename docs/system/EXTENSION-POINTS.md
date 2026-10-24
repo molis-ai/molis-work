@@ -74,7 +74,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `coding-surface.ts`（宿主里写死的伙伴页渲染分支）、`demo-plugin-seed.ts`。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
 
-**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 靠宿主里手写的端口文件接上 Home 数据：按第 1 节同一条命令换成 shelf，包外有 17 个源码或配置文件点名它，宿主里仍有 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、`shelf-actions.ts`（它的 Home 一半与模型调用从 Shelf S2 起是 Runtime 的 Home 实例；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住）。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
+**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 已不靠宿主里手写的文件接上 Home 数据：它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的（`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住），S4 删了 `shelf-actions.ts`，演示数据的示例由宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回；按第 1 节同一条命令换成 shelf，包外仍有 17 个源码或配置文件点名它。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
 
 **目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
 
@@ -115,8 +115,8 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 已有插件里再加一个 AI 动作 | 0 | 包内 `actions.ts`、`prompts.ts`；指令追加到包导出的 `X_INSTRUCTIONS`，目录条目已引用它 |
 | 新的 Runtime 插件要调模型 | 0 | Manifest 声明 `model:invoke`（只要列表和能不能用的声明只读的 `model:read`），在动作处理器里用 `context.services.model`（W3-06 E，`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`，只对宿主自己运行的非沙箱插件）；没有目录条目的插件在 `PluginDefinition.instructions` 里声明指令，不新建宿主端口文件。构建期适配随各自迁移删掉（W5-11） |
 | 宿主自己的模型调用（不属于任何插件） | 2 | `apps/local-host/src/agent-definitions/system-prompts.ts`（定义）、`builtin-instructions.ts`（`BUILTIN_INSTRUCTIONS`、`SYSTEM_INSTRUCTION_SOURCES` 登记）；调用方是功能本身，不计 |
-| 内置 Agent 的角色提示词与方法 | 0 | 插件 `registration` 的 `agent`、`methods`（`BUILTIN_PLUGIN_AGENTS` 派生）；系统内联角色在 `builtin-instructions.ts` 的 `BUILTIN_INLINE_AGENT_*` |
-| Runtime 与已安装插件的 `methods` | 0 | Manifest `methods` 加 `PluginDefinition.methods` 的正文；插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02，`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，与指令同一处；用例 `tests/plugin-methods-runtime.test.ts`）。目录已登记该主人时拒绝启动；沙箱执行的生成插件不登记 |
+| 内置 Agent 的角色提示词与方法 | 0 | 插件定义的 `agent_prompts`、`agent_skills`、`methods`，插件运行时登记（PG-051）；平台自己的内联角色（插件创作台）在 `builtin-instructions.ts` 的 `BUILTIN_INLINE_AGENT_*` |
+| Runtime 与已安装插件的 `methods` | 0 | Manifest `methods` 加 `PluginDefinition.methods` 的正文；插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02，`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，与指令同一处；用例 `tests/plugin-methods-runtime.test.ts`）。停用后声明按「未运行」留在设置里、方法不给别的 Agent，卸载才删（PG-051 Q1 b，`agent-declarations` 库）。目录已登记该主人时拒绝启动；沙箱执行的生成插件不登记 |
 | 用户自定义角色 | 0 | 运行时数据（Characters），不改代码 |
 
 模型服务负责真实调用；消费者独立模型选择与设置由 `model-configuration.ts` 按可信声明提供，Images 的有限生图端口由 `plugin-image-generation-service.ts` 对接 Connector 和 agent-host。剩余构建期调用随各自迁移收回。
@@ -192,7 +192,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 种类 | 现在 | 位置 | 目标 |
 | --- | --- | --- | --- |
 | Agent Host 里自写适配器 | 3 | `horizontal/agent-host/src/adapters/<名>.ts`（实现 `AgentRuntimeAdapter`，`packages/contracts/src/services/agent-host.ts`）、`horizontal/agent-host/src/index.ts` 导出、`agent-host-composition.ts` 注册 | 3 |
-| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 6；接入加角色导入 11–15 | 以 `pi-agent` 为例（6）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/desktop/src/launch.ts`、`apps/desktop/src/web-host.ts`、`plugins/native/work/src/ui/render.ts`、`plugins/native/work/src/ui/terminal.ts`；`grok-build` 还点名 Characters 导入（11 个文件），`opencode` 再加 Shelf 和设置页（15 个文件，分布在 8 个包） | 2 |
+| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 6；接入加角色导入 11–15 | 以 `pi-agent` 为例（6）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/desktop/src/launch.ts`、`apps/desktop/src/web-host.ts`、`plugins/native/work/src/ui/render.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（11 个文件），`opencode` 再加 Shelf 和设置页（15 个文件，分布在 8 个包） | 2 |
 
 外部 Runtime 的目标是一张 Runtime 描述表（id、可执行名、配置与 Skill 路径、恢复参数、导入根、显示名），各处读它。无切片，建议新增（X-4）。`horizontal/agent-host/README.md` 没有写怎么加适配器，这一节补上。
 

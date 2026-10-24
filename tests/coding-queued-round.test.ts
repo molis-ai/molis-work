@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -41,58 +41,59 @@ test("a round told to wait for another session's work waits on it, starts on its
       if (kind === "cancel-wait") { if (one.wait.state === "waiting") one.wait.state = "cancelled"; one.continuation.state = "cancelled"; } else { one.wait.state = "cancelled"; one.wait.continued = true; one.continuation.state = "eligible"; }
       return { session: structuredClone(one) }; } },
   ] });
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    const id = definition.capability_id, input = args as unknown as any[];
+    calls.push([id, args]);
+    if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
+    if (id === agent.readProjectWork.capability_id) {
+      const probe = input[1];
+      const overlaps = probe ? work.filter(item => item.session_id !== probe.session_id && ["running", "waiting"].includes(item.state) && probe.text.includes("src/label.ts"))
+        .map(item => ({ work: item, paths: ["src/label.ts"] })) : [];
+      return { items: work, overlaps } as Output;
+    }
+    if (id === agent.queueProjectRound.capability_id) {
+      // The Host makes the session's step wait on the work's step; it keeps nothing of the send.
+      const workId = `wb${work.filter(entry => entry.session_id === "sdk-b").length || ""}`, waitId = `w-${workId}`, now = new Date().toISOString();
+      const item = { work_id: workId, session_id: "sdk-b", title: "标签加前缀", task: input[1].task, state: "waiting", directory: root, paths: ["src/label.ts"], waits_for: [input[1].after], updated_at_ms: 2, wait_id: waitId };
+      work.push(item);
+      waits.push({ session_id: "sdk-b",
+        wait: { wait_id: waitId, session_id: "sdk-b", graph_id: "board-b", node_id: "session", by: "app", reason: "等「改标签格式」那一轮完成后再开始", mode: "all", until: "success", on_failure: "block",
+          deadline_at: now, conditions: [{ kind: "node", ref: `p/${input[1].after}`, label: "「改标签格式」那一步", last: { status: "pending", at: now } }], state: "waiting", created_at: now },
+        continuation: { graph_id: "board-b", node_id: "session", session_id: "sdk-b", request_key: `board-b.${waitId}`, state: "armed", auto: true } });
+      return item as Output;
+    }
+    if (id === agent.releaseProjectRound.capability_id) { work.find(item => item.work_id === input[1])!.state = "stopped"; return undefined as Output; }
+    if (id === agent.awaitContinuations.capability_id) {
+      for (const deadline = Date.now() + Math.min(input[1], 300); Date.now() < deadline;) {
+        const ready = waits.filter(one => ["eligible", "blocked"].includes(one.continuation.state) && !(input[2] ?? []).includes(one.continuation.request_key));
+        if (ready.length) return ready.map(one => structuredClone(one)) as Output;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      return [] as Output;
+    }
+    if (id === agent.readBackground.capability_id) return [] as Output;
+    if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+    if (id === agent.listActions.capability_id) return [] as Output;
+    if (id === agent.readSession.capability_id) return { runs: [] } as Output;
+    if (id === agent.startRun.capability_id) {
+      if (refusal) throw refusal;
+      const mine = work.find(item => item.work_id === input[1].queued_work_id);
+      if (mine) { mine.state = "running"; mine.run_id = "rb"; }
+      // The round the Host starts on that session takes up its step's continuation that may go on.
+      for (const one of waits) if (one.session_id === "sdk-b" && one.continuation.state === "eligible") Object.assign(one.continuation, { state: "started", run_id: "rb" });
+      return { ref: { session_id: "sdk-b", run_id: "rb" }, frozen: {} } as Output;
+    }
+    if (id === agent.waitRun.capability_id) return { version: "v1", view: { ref: input[1], phase: "completed", frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] } } as Output;
+    if (id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue", capabilities: { mcp: "unsupported" } }] as Output;
+    if (id === agent.readSessionStatuses.capability_id) return input[1].map((session_id: string) => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
+    if (id === agent.listSkills.capability_id) return [] as Output;
+    if (id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
+    if (id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
+    throw new Error(`Unexpected capability ${id}`);
+  } };
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(actions, (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      const id = definition.capability_id, input = args as unknown as any[];
-      calls.push([id, args]);
-      if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
-      if (id === agent.readProjectWork.capability_id) {
-        const probe = input[1];
-        const overlaps = probe ? work.filter(item => item.session_id !== probe.session_id && ["running", "waiting"].includes(item.state) && probe.text.includes("src/label.ts"))
-          .map(item => ({ work: item, paths: ["src/label.ts"] })) : [];
-        return { items: work, overlaps } as Output;
-      }
-      if (id === agent.queueProjectRound.capability_id) {
-        // The Host makes the session's step wait on the work's step; it keeps nothing of the send.
-        const workId = `wb${work.filter(entry => entry.session_id === "sdk-b").length || ""}`, waitId = `w-${workId}`, now = new Date().toISOString();
-        const item = { work_id: workId, session_id: "sdk-b", title: "标签加前缀", task: input[1].task, state: "waiting", directory: root, paths: ["src/label.ts"], waits_for: [input[1].after], updated_at_ms: 2, wait_id: waitId };
-        work.push(item);
-        waits.push({ session_id: "sdk-b",
-          wait: { wait_id: waitId, session_id: "sdk-b", graph_id: "board-b", node_id: "session", by: "app", reason: "等「改标签格式」那一轮完成后再开始", mode: "all", until: "success", on_failure: "block",
-            deadline_at: now, conditions: [{ kind: "node", ref: `p/${input[1].after}`, label: "「改标签格式」那一步", last: { status: "pending", at: now } }], state: "waiting", created_at: now },
-          continuation: { graph_id: "board-b", node_id: "session", session_id: "sdk-b", request_key: `board-b.${waitId}`, state: "armed", auto: true } });
-        return item as Output;
-      }
-      if (id === agent.releaseProjectRound.capability_id) { work.find(item => item.work_id === input[1])!.state = "stopped"; return undefined as Output; }
-      if (id === agent.awaitContinuations.capability_id) {
-        for (const deadline = Date.now() + Math.min(input[1], 300); Date.now() < deadline;) {
-          const ready = waits.filter(one => ["eligible", "blocked"].includes(one.continuation.state) && !(input[2] ?? []).includes(one.continuation.request_key));
-          if (ready.length) return ready.map(one => structuredClone(one)) as Output;
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-        return [] as Output;
-      }
-      if (id === agent.readBackground.capability_id) return [] as Output;
-      if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
-      if (id === agent.listActions.capability_id) return [] as Output;
-      if (id === agent.readSession.capability_id) return { runs: [] } as Output;
-      if (id === agent.startRun.capability_id) {
-        if (refusal) throw refusal;
-        const mine = work.find(item => item.work_id === input[1].queued_work_id);
-        if (mine) { mine.state = "running"; mine.run_id = "rb"; }
-        // The round the Host starts on that session takes up its step's continuation that may go on.
-        for (const one of waits) if (one.session_id === "sdk-b" && one.continuation.state === "eligible") Object.assign(one.continuation, { state: "started", run_id: "rb" });
-        return { ref: { session_id: "sdk-b", run_id: "rb" }, frozen: {} } as Output;
-      }
-      if (id === agent.waitRun.capability_id) return { version: "v1", view: { ref: input[1], phase: "completed", frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] } } as Output;
-      if (id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue", capabilities: { mcp: "unsupported" } }] as Output;
-      if (id === agent.readSessionStatuses.capability_id) return input[1].map((session_id: string) => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
-      if (id === agent.listSkills.capability_id) return [] as Output;
-      if (id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
-      if (id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
-      throw new Error(`Unexpected capability ${id}`);
-    } },
+    capabilities: agentHost,
   });
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

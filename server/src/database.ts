@@ -1,5 +1,6 @@
-import { mkdirSync, chmodSync } from "node:fs";
+import { mkdirSync, chmodSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, LocalSqliteStorage, type SqliteBaseline, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { IM_SCHEMA_SQL } from "./im/schema.js";
 export type ServerDatabase = SqliteDatabase;
@@ -25,10 +26,12 @@ const SERVER_SCHEMA_SQL = `
  * The server database as one current schema (repository-anti-corruption §4.1): identity and transport tables, then IM's.
  * A new database gets it with the version; one at another version is refused, never upgraded in place.
  */
-export const SERVER_DATABASE_BASELINE: SqliteBaseline = { version: 1, schema: SERVER_SCHEMA_SQL + IM_SCHEMA_SQL };
+export const SERVER_DATABASE_BASELINE: SqliteBaseline = { version: 2, schema: SERVER_SCHEMA_SQL + IM_SCHEMA_SQL };
+const maintenanceErrors = defineErrorCodes("im.invite_maintenance", { pending: "unavailable" });
 
 /** Public identity and transport facts only; never a replica of a private Home. */
 export function openServerDatabase(directory: string): LocalSqliteStorage {
+  if (existsSync(join(directory, ".invite-maintenance.json"))) throw maintenanceErrors.pending("邀请库维护尚未完成，请停止 Molis Work 并按维护记录恢复原件；不会创建或打开业务库");
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const storage = new LocalSqliteStorage(join(directory, "server.sqlite"));
   try {

@@ -5,9 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { createDirectoryPicker, runDirectoryPickerCommand, type DirectoryPickerCommandResult } from "../apps/local-host/src/directory-picker.ts";
-import { handleWorkspaceHttp } from "../plugins/native/work/dist/http/workspaces.js";
-import type { WorkSessionHttpContext } from "@molis-ai/molis-work-plugin-work";
-import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import { handleProjectWorkspaceHttp, type ProjectWorkspaceHttpContext } from "../apps/local-host/src/project-workspace-http.ts";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 function commandResult(overrides: Partial<DirectoryPickerCommandResult> = {}): DirectoryPickerCommandResult {
@@ -103,34 +101,21 @@ test("folder window cancel, relative output, missing command, and a second click
 
 test("pick route reports the window result and does not open one without a project", async () => {
   const calls: Array<{ status: number; body: unknown }> = [];
-  const respond: WorkSessionHttpContext["respond"] = (status, body) => {
-    calls.push({ status, body });
-  };
-  const base = {
+  const base: ProjectWorkspaceHttpContext = {
     method: "POST",
     pathname: "/api/workspaces/pick",
+    hasProject: true,
+    actions: { discover: async () => [], invoke: () => Promise.reject(new Error("unused")) },
     readBody: async () => ({}),
-    respond,
-    resourcesPromise: new Promise(() => undefined),
-    hasCurrentGoal: () => false,
-    readGoalContract: () => {
-      throw new Error("unused");
+    respond: (status, body) => {
+      calls.push({ status, body });
     },
-    workspace: {
-      add: () => Promise.reject(new Error("unused")),
-      repair: () => Promise.reject(new Error("unused")),
-      unlink: () => Promise.reject(new Error("unused")),
-      isActionError: () => false,
-      read: () => Promise.resolve(null),
-      normalize: () => null,
-      exists: () => false,
-      isDirectory: () => false,
-    },
+    pickDirectory: () => Promise.reject(new Error("unused")),
   };
   let opened = 0;
-  await handleWorkspaceHttp({
+  await handleProjectWorkspaceHttp({
     ...base,
-    projectOptions: { project: null, projects: [] },
+    hasProject: false,
     pickDirectory: async () => {
       opened += 1;
       return { status: "picked", path: "/tmp" };
@@ -139,7 +124,6 @@ test("pick route reports the window result and does not open one without a proje
   assert.equal(opened, 0);
   assert.deepEqual(calls.at(-1), { status: 400, body: { error: "请先选择 Project" } });
 
-  const project = { project: { project_id: "project-1", display_name: "项目" }, projects: [] as const };
   const results = [
     { status: "picked" as const, path: "/tmp/repo" },
     { status: "cancelled" as const },
@@ -147,7 +131,7 @@ test("pick route reports the window result and does not open one without a proje
     { status: "unavailable" as const, message: "这台电脑打不开目录选择窗口" },
   ];
   for (const result of results) {
-    await handleWorkspaceHttp({ ...base, projectOptions: project, pickDirectory: async () => result });
+    await handleProjectWorkspaceHttp({ ...base, pickDirectory: async () => result });
   }
   assert.deepEqual(calls.slice(1).map((call) => call.body), [
     { path: "/tmp/repo" },
@@ -156,20 +140,31 @@ test("pick route reports the window result and does not open one without a proje
     { error: "这台电脑打不开目录选择窗口" },
   ]);
   assert.deepEqual(calls.slice(1).map((call) => call.status), [200, 200, 409, 503]);
-  // Membership no longer moves Sessions (BL-177), so a Session error is a refusal like any other;
-  // only an action service that is down or not redeemed keeps the 503 recovery response.
+  // Every refusal answers by its kind and with its code (SC-3): an action service that is down or not redeemed is unavailable (503), a missing permission forbidden (403).
   for (const [failure, expectedStatus] of [
     [new ActionError("actions.service_unavailable", "项目目录服务尚未装配"), 503],
-    [sessionErrors.invalid_input("关联恢复需要核对"), 400],
-    [new ActionError("actions.forbidden", "没有目录权限"), 400],
+    [new ActionError("actions.input_invalid", "目录需要核对"), 400],
+    [new ActionError("actions.forbidden", "没有目录权限"), 403],
+    [new ActionError("host.workspace_not_found", "找不到当前 Project 的这条工作目录", { kind: "not_found" }), 404],
   ] as const) {
     let invoked = 0;
-    await handleWorkspaceHttp({ ...base, projectOptions: project, method: "PATCH", pathname: "/api/workspaces/current/path",
+    await handleProjectWorkspaceHttp({ ...base, method: "PATCH", pathname: "/api/workspaces/current/path",
       readBody: async () => ({ workspace_path: "/tmp/next", user_confirmed: true }),
       actions: { discover: async () => [], invoke: async () => { invoked++; throw failure; } },
-      pickDirectory: async () => ({ status: "cancelled" }),
     });
     assert.equal(invoked, 1);
-    assert.deepEqual(calls.at(-1), { status: expectedStatus, body: { error: failure.message } });
+    assert.deepEqual(calls.at(-1), { status: expectedStatus, body: { error: failure.message, code: failure.code } });
   }
+  // A folder id that is not valid percent-encoding is the caller's mistake: refused as invalid before any action runs.
+  for (const [method, suffix] of [["POST", "unlink"], ["PATCH", "path"]]) {
+    let invoked = 0;
+    assert.equal(await handleProjectWorkspaceHttp({ ...base, method, pathname: `/api/workspaces/%E0%A4%A/${suffix}`,
+      readBody: async () => ({ user_confirmed: true, workspace_path: "/tmp/next" }),
+      actions: { discover: async () => [], invoke: async () => { invoked++; return {}; } },
+    }), true, "the route answers malformed paths instead of throwing into the Host error logger");
+    assert.deepEqual(calls.at(-1), { status: 400, body: { error: "请求路径里有无效的编码", code: "host.request_path_invalid" } });
+    assert.equal(invoked, 0);
+  }
+  // Starting a Session in a folder stays with Work: the Host's folder routes leave that address alone.
+  assert.equal(await handleProjectWorkspaceHttp({ ...base, pathname: "/api/workspaces/current/sessions" }), false);
 });

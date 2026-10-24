@@ -6,6 +6,7 @@ import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createLocalFeedApplication, type LocalFeedApplicationOptions } from "./feed-application.js";
 import { joinPluginTransaction } from "./plugin-transaction.js";
 import { hostLog } from "./host-log.js";
+import { NOTIFICATIONS_WRITE_PERMISSION } from "./plugin-service-permissions.js";
 
 type Control = Pick<ActionCallContext, "signal" | "validate_authority" | "assert_authority_current">;
 const feeds = new WeakMap<object, (control: Control) => LocalFeedApplicationOptions>();
@@ -18,20 +19,20 @@ export function bindPluginNotificationFeed(db: object, options: (control: Contro
 export function pluginNotificationsFor(manifest: PluginManifest, context: PluginStartContext, database: PluginDatabase | undefined,
   connection: object | undefined, projectId: string, assertActive: () => void, record: () => PluginInstanceRecord | null, installations?: PluginInstallationClient): PluginNotificationClient | undefined {
   if (!database || !connection || !("transaction" in connection) || typeof connection.transaction !== "function"
-    || !manifest.permissions.some(entry => entry.permission === "notifications:write")) return undefined;
+    || !manifest.permissions.some(entry => entry.permission === NOTIFICATIONS_WRITE_PERMISSION)) return undefined;
   const db = connection as SqliteDatabase, generation = record()?.installation_generation;
   const check = (scope: ReturnType<typeof currentPluginInvocation>) => {
-    assertActive(); context.requireGrant("notifications:write");
+    assertActive(); context.requireGrant(NOTIFICATIONS_WRITE_PERMISSION);
     const current = record();
-    if (!generation || current?.installation_generation !== generation || current.state !== "running" || !current.grants.includes("notifications:write")) {
+    if (!generation || current?.installation_generation !== generation || current.state !== "running" || !current.grants.includes(NOTIFICATIONS_WRITE_PERMISSION)) {
       throw new ActionError("actions.forbidden", "通知所属安装已停止或撤权");
     }
     if (!scope || scope.caller.project_id !== projectId || pluginInvocationReadOnly(scope)) {
       throw new ActionError("actions.forbidden", "通知投递需要当前项目中的可写插件调用");
     }
     assertCapturedPluginActionCurrent(scope, context);
-    if ("scene" in scope || "definition" in scope && (scope.definition.action.scheduling !== "concurrent" || !scope.definition.action.permissions.includes("notifications:write"))
-      || "job" in scope && !scope.caller.permissions.includes("notifications:write")) throw new ActionError("actions.forbidden", "通知投递需要可等待的并行动作");
+    if ("scene" in scope || "definition" in scope && (scope.definition.action.scheduling !== "concurrent" || !scope.definition.action.permissions.includes(NOTIFICATIONS_WRITE_PERMISSION))
+      || "job" in scope && !scope.caller.permissions.includes(NOTIFICATIONS_WRITE_PERMISSION)) throw new ActionError("actions.forbidden", "通知投递需要可等待的并行动作");
   };
   return Object.freeze<PluginNotificationClient>({ deliver: (transaction, input) => {
     const scope = currentPluginInvocation(); check(scope);

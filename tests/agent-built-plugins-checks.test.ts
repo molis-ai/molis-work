@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, chmod, symlink } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, readdir, rm, chmod, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createBuildProject, buildManifest } from '../apps/local-host/src/plugin-builder/build-project.js';
 import { runPluginChecks } from '../apps/local-host/src/plugin-builder/build-checks.js';
 import type { BuildCheckOptions } from '../apps/local-host/src/plugin-builder/build-types.js';
@@ -22,6 +22,25 @@ async function fixture() {
   return { root, project, options, close: () => rm(root, { recursive: true, force: true }) };
 }
 
+// Not macOS-only: the Linux run has no Seatbelt, so G2's "Cannot find module" for a missing declaration only shows on a Mac.
+test('every relative import in the SDK declarations written into a project names a declaration written beside it', async () => {
+  const f = await fixture();
+  try {
+    const root = join(f.root, 'developer'), files = (await readdir(root, { recursive: true })).filter(path => path.endsWith('.d.ts'));
+    assert.ok(files.includes(join('contracts', 'platform', 'plugin-sandbox.d.ts')), 'the SandboxSdk declaration is there');
+    const relative = /(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/g;
+    for (const file of files) {
+      const text = await readFile(join(root, file), 'utf8');
+      // G2 compiles with the ES2022 library alone and no types: the Host's service types name `AbortSignal`, which it does not have.
+      assert.ok(!text.includes('AbortSignal'), `${file} names AbortSignal, which the isolated compiler does not have`);
+      for (const [, specifier] of text.matchAll(relative)) {
+        const target = join(dirname(file), specifier).replace(/\.js$/, '.d.ts');
+        assert.ok(files.includes(target), `${file} imports ${specifier}, but ${target} is not among the project's declarations`);
+      }
+    }
+  } finally { await f.close(); }
+});
+
 test('all six gates run actual code and tests in Seatbelt while unrelated stub remains disconnected', mac, async () => {
   const f = await fixture();
   try {
@@ -30,7 +49,9 @@ test('all six gates run actual code and tests in Seatbelt while unrelated stub r
     assert.ok(result.bundlePath); assert.match(await readFile(result.bundlePath!, 'utf8'), /echo/);
     assert.equal((await runPluginChecks(f.options)).passed, true, 'independent host recheck succeeds without trusting previous results');
     const unfinished = await runPluginChecks({ ...f.options, operationIds: ['later'] }); assert.equal(unfinished.passed, false); assert.match(unfinished.gates.find(g => g.id === 'G4')!.detail, /stub/);
-    assert.ok(!(await readFile(join(f.root, 'developer/sdk.d.ts'), 'utf8')).includes('createSandboxRunner'));
+    for (const path of await readdir(join(f.root, 'developer'), { recursive: true })) {
+      if (path.endsWith('.d.ts')) assert.ok(!(await readFile(join(f.root, 'developer', path), 'utf8')).includes('createSandboxRunner'));
+    }
   } finally { await f.close(); }
 });
 
@@ -40,6 +61,58 @@ test('frozen manifest and entrypoint changes fail G1', mac, async () => {
     const path = join(f.root, 'manifest.json'); await chmod(path, 0o600); await writeFile(path, JSON.stringify({ ...f.options.manifest, effects: { storage: ['write'] } }));
     const result = await runPluginChecks(f.options); assert.equal(result.gates[0]?.passed, false); assert.match(result.gates[0]!.detail, /manifest/);
   } finally { await f.close(); }
+});
+
+test('generated SDK interaction types resolve and calls pass all gates through the sandbox', mac, async () => {
+  const f = await fixture();
+  try {
+    await writeFile(f.project.operationFiles.echo!, `import type {SandboxJson,SandboxSdk} from '@molis/plugin-sdk';
+export default async function(input:SandboxJson,sdk:SandboxSdk):Promise<SandboxJson>{
+  if(typeof input!=='string')throw Error('string required');
+  return sdk.interaction.nextStepsHtml({questions:[],cards:[],follow_ups:[{id:'continue',label:input.toUpperCase(),source:'checks'}]});
+}`);
+    const interaction: NonNullable<BuildCheckOptions['services']['interaction']> = {
+      async questionHtml() { throw new Error('Unexpected question rendering'); },
+      async cardHtml() { throw new Error('Unexpected card rendering'); },
+      async nextStepsHtml(input) { return input.follow_ups?.[0]?.label ?? ''; },
+    };
+    const liveInputs: Parameters<typeof interaction.nextStepsHtml>[0][] = [];
+    const result = await runPluginChecks({ ...f.options, mockServices: { interaction }, services: { interaction: {
+      ...interaction, async nextStepsHtml(input) { liveInputs.push(input); return interaction.nextStepsHtml(input); },
+    } } });
+    assert.equal(result.passed, true, JSON.stringify(result.gates));
+    assert.deepEqual(liveInputs, [{ questions: [], cards: [], follow_ups: [{ id: 'continue', label: 'HELLO', source: 'checks' }] }]);
+  } finally { await f.close(); }
+});
+
+test('G2 rejects incorrect interaction arguments without executing plugin code', mac, async () => {
+  const f = await fixture();
+  try {
+    await writeFile(f.project.operationFiles.echo!, `import type {SandboxSdk} from '@molis/plugin-sdk';
+export default async function(_input:string,sdk:SandboxSdk){return sdk.interaction.nextStepsHtml({questions:[],cards:'invalid'});}`);
+    const result = await runPluginChecks(f.options);
+    assert.equal(result.passed, false); assert.equal(result.gates[0]?.passed, true);
+    const typecheck = result.gates.find(gate => gate.id === 'G2')!;
+    assert.equal(typecheck.passed, false); assert.match(typecheck.detail, /not assignable/);
+    assert.doesNotMatch(typecheck.detail, /Cannot find module/);
+    assert.ok(result.gates.slice(2).every(gate => !gate.passed && gate.detail === 'Not run because G2 failed'));
+    assert.equal(result.bundlePath, undefined);
+  } finally { await f.close(); }
+});
+
+test('G1 rejects changes to direct and transitive host-owned SDK declarations', mac, async () => {
+  for (const dependency of ['platform/plugin-interaction.d.ts', 'platform/action-result.d.ts']) {
+    const f = await fixture();
+    try {
+      const path = join(f.root, 'developer/contracts', dependency);
+      await chmod(path, 0o600); await writeFile(path, (await readFile(path, 'utf8')) + '\n// altered declaration\n');
+      const result = await runPluginChecks(f.options);
+      assert.equal(result.passed, false); assert.equal(result.gates[0]?.passed, false);
+      assert.match(result.gates[0]!.detail, /Host-owned SDK declarations were changed/);
+      assert.ok(result.gates.slice(1).every(gate => !gate.passed && gate.detail === 'Not run because G1 failed'));
+      assert.equal(result.bundlePath, undefined);
+    } finally { await f.close(); }
+  }
 });
 
 test('host ignores Agent tsconfig and rejects Node globals and path imports', mac, async () => {

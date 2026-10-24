@@ -60,7 +60,7 @@ const SMOKES = ["tests/smoke-a.e2e.test.ts", "tests/smoke-b.e2e.test.ts", "tests
 const basics = (): Record<string, string> => ({ "tests/i18n.test.ts": passing, ...Object.fromEntries(SMOKES.map((file) => [file, passing])) });
 const BASIC_LIST = ["tests/i18n.test.ts", ...SMOKES];
 
-type Report = { endedBy: string; today: string; totals: Record<string, number>; phases: Record<string, number>; files: Array<{ file: string; kind: string; status: string; counted: boolean; attempts?: number; pass?: number; skipped?: number; seconds?: number; detail?: string; quarantine?: { owner: string }; expiredQuarantine?: { owner: string } }> };
+type Report = { shard?: { index: number; total: number }; endedBy: string; today: string; totals: Record<string, number>; phases: Record<string, number>; files: Array<{ file: string; kind: string; status: string; counted: boolean; attempts?: number; pass?: number; skipped?: number; seconds?: number; detail?: string; quarantine?: { owner: string }; expiredQuarantine?: { owner: string } }> };
 const subset = (root: string, args: string[], env: Record<string, string> = {}) => {
   const out = path.join(root, "out");
   const run = spawnSync(process.execPath, [script, "--root", root, "--out", out, ...args], { encoding: "utf8", env: { ...process.env, SUBSET_STATE: state, GITHUB_STEP_SUMMARY: "", ...env } });
@@ -351,6 +351,9 @@ test("the runner refuses to run when it cannot say what it measured, and writes 
   refused(["--jobs", "0"], /--jobs needs a whole number of at least 1/);
   refused(["--budget-minutes", "soon"], /--budget-minutes needs a number/);
   refused(["--only"], /--only needs a value/);
+  for (const value of ["0/2", "3/2", "1/0", "1.5/2", "1/2/3", "1/9007199254740992", "NaN/2"]) refused(["--shard", value], /--shard needs k\/n/);
+  refused(["--shard"], /--shard needs a value/);
+  refused(["--shard", "5/5"], /shard 5\/5 has no files/);
   refused(["--today", "yesterday"], /--today needs a real date/);
   refused(["--only", "no-such-file-anywhere"], /no file of tests\/ci-product-subset\.txt matches/);
   refused(["--only", "("], /--only needs a regular expression/);
@@ -358,6 +361,7 @@ test("the runner refuses to run when it cannot say what it measured, and writes 
   refused([], /break a rule, nothing was run:\n- tests\/ci-product-subset\.txt:\d+: tests\/gone\.test\.ts does not exist/, missing);
   const tooFew = scratch({ files: basics(), list: ["tests/i18n.test.ts", SMOKES[0]!] });
   refused([], /1 browser smokes listed/, tooFew);
+  refused(["--shard", "1/2"], /1 browser smokes listed/, tooFew);
   const noList = mkdtempSync(path.join(tmpdir(), "molis-subset-nolist-"));
   directories.push(noList);
   refused([], /there is no product subset to run/, noList);
@@ -366,7 +370,7 @@ test("the runner refuses to run when it cannot say what it measured, and writes 
 test("a quarantine entry that begins in the future is refused, by the run and by --list, so the 30 days cannot be stretched by dating ahead", () => {
   // Valid for every static rule (29 days from its `since`), and the file would be held for a year: the way round that review found.
   const ahead = scratch({ files: { ...basics(), "tests/held.test.ts": passing }, list: [...BASIC_LIST, "tests/held.test.ts"], quarantine: [entry("tests/held.test.ts", { since: "2027-09-01", expires: "2027-09-30" })] });
-  for (const args of [["--today", "2026-10-09"], ["--list", "--today", "2026-10-09"], ["--only", "i18n", "--today", "2026-10-09"]]) {
+  for (const args of [["--today", "2026-10-09"], ["--list", "--today", "2026-10-09"], ["--only", "i18n", "--today", "2026-10-09"], ["--shard", "1/2", "--today", "2026-10-09"]]) {
     const run = subset(ahead, args);
     assert.equal(run.code, 2, `${args.join(" ")}: ${run.text}`);
     assert.match(run.text, /has an entry that begins in the future, nothing was run:\n- tests\/quarantine\.json \(tests\/held\.test\.ts\): "since" 2027-09-01 is \d+ days after today \(2026-10-09\)/, args.join(" "));
@@ -401,6 +405,40 @@ test("--list shows what runs, what is held and what has ended, and runs nothing"
   assert.match(only.text, /3 files in tests\/ci-product-subset\.txt: 3 browser smokes and 0 other files count/);
 });
 
+test("two shards cover the complete list exactly once and retain failure and quarantine decisions", () => {
+  const files = { ...basics(), "tests/held.test.ts": failingTest, "tests/ended.test.ts": passing, "tests/broken.test.ts": failingTest, "tests/ok.test.ts": passing };
+  const list = [...BASIC_LIST, "tests/held.test.ts", "tests/ended.test.ts", "tests/broken.test.ts", "tests/ok.test.ts"];
+  const root = scratch({ files, list, quarantine: [entry("tests/held.test.ts", { expires: "2026-10-31" }), entry("tests/ended.test.ts", { expires: "2026-10-05" })] });
+  const first = subset(root, ["--shard", "1/2", "--today", "2026-10-09", "--retries", "0"]);
+  const second = subset(root, ["--shard", "2/2", "--today", "2026-10-09", "--retries", "0"]);
+  assert.equal(first.code, 1, first.text);
+  assert.equal(second.code, 0, second.text);
+  assert.deepEqual(first.report?.shard, { index: 1, total: 2 });
+  assert.deepEqual(second.report?.shard, { index: 2, total: 2 });
+  const firstFiles = first.report!.files.map(item => item.file).sort();
+  const secondFiles = second.report!.files.map(item => item.file).sort();
+  assert.deepEqual(firstFiles, ["tests/broken.test.ts", "tests/held.test.ts", "tests/i18n.test.ts", SMOKES[1]!].sort());
+  assert.deepEqual(secondFiles, ["tests/ended.test.ts", "tests/ok.test.ts", SMOKES[0]!, SMOKES[2]!].sort());
+  assert.deepEqual([...firstFiles, ...secondFiles].sort(), [...list].sort(), "neither missing nor duplicated files");
+  assert.equal(byFile(first.report, "held.test.ts").counted, false);
+  assert.equal(byFile(first.report, "held.test.ts").status, "fail");
+  assert.equal(first.report?.totals.failing, 1, "only the ordinary broken file fails this shard");
+  assert.equal(byFile(second.report, "ended.test.ts").counted, true);
+  assert.ok(byFile(second.report, "ended.test.ts").expiredQuarantine);
+  assert.match(second.summary!, /shard 2\/2/);
+  assert.match(second.summary!, /Every shard must pass/);
+  for (const [shard, expected] of [["1/2", firstFiles], ["2/2", secondFiles]] as const) {
+    const listed = subset(root, ["--list", "--shard", shard, "--today", "2026-10-09"]);
+    assert.equal(listed.code, 0, listed.text);
+    const paths = [...listed.text.matchAll(/^(?:smoke|run|held) +(tests\/\S+)/gm)].map(match => match[1]!).sort();
+    assert.deepEqual(paths, expected);
+  }
+  const filtered = subset(root, ["--list", "--only", "e2e", "--shard", "2/2"]);
+  assert.equal(filtered.code, 0, filtered.text);
+  assert.match(filtered.text, /^smoke +tests\/smoke-b\.e2e\.test\.ts$/m);
+  assert.match(filtered.text, /shard 2\/2: 1 files/);
+});
+
 // ---- the report's own pieces -----------------------------------------------------------------------------------------------------
 test("only a counted file with a failing result fails the subset; a quarantined one never does", () => {
   const item = (status: string, counted: boolean) => ({ file: `tests/${status}-${counted}.test.ts`, status, counted, kind: "other", marks: [] as string[] });
@@ -426,7 +464,11 @@ test("ci.yml: the product subset is an ubuntu job that cannot fail the workflow,
   const job = jobBlock("product-subset");
   assert.match(job, /^    runs-on: ubuntu-latest$/m);
   assert.match(job, /^    continue-on-error: true$/m, "a red subset must not turn the workflow red (decision #14: not blocking at first)");
-  assert.match(job, /^    name: Product subset \(not required yet\)$/m);
+  assert.match(job, /^    name: Product subset \(not required yet, \$\{\{ matrix\.shard \}\}\/2\)$/m);
+  assert.match(job, /^      fail-fast: false$/m, "a failure does not cancel the other shard");
+  assert.match(job, /^        shard: \[1, 2\]$/m, "both parts of the complete list run");
+  assert.ok(job.includes("--shard ${{ matrix.shard }}/2"));
+  assert.ok(job.includes("name: product-subset-${{ matrix.shard }}"), "each shard preserves its own artifact");
   assert.match(job, /run: exec node scripts\/ci-product-subset\.mjs --expect-platform linux /, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");
   assert.match(job, /- name: Keep the report\n\s+if: \$\{\{ always\(\) \}\}\n\s+uses: actions\/upload-artifact@/, "the report is kept when the job is cancelled or stopped");
   assert.match(job, /run: pnpm build$/m, "the tests import the built packages");

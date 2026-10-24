@@ -9,10 +9,11 @@ import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
+import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
-import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
+import { forgetPluginAgentDefinitions, registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginConnectionsFor } from "./plugin-connections-service.js";
@@ -52,6 +53,8 @@ export class HomePluginExecutor implements PluginExecutor {
   }) {}
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
+    // Before anything is built: a package the sandbox cannot serve does not start here either (S-60).
+    refuseUngivenSandboxServices(definition, context);
     const manifest = definition.manifest;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
     if (!this.options.dualInstance(definition) && (manifest.ports?.inputs.length || manifest.ports?.outputs.length || manifest.events?.publishes.length || manifest.events?.subscribes.length
@@ -174,6 +177,7 @@ export class HomePluginExecutor implements PluginExecutor {
   }
 
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }
+  uninstalled(record: PluginInstanceRecord): void { forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id); }
   restorePrivateData(installId: string, snapshot: unknown): void {
     this.options.storage.restoreInstallationData(installId, snapshot as ReturnType<SqlitePluginPrivateStorage["snapshotInstallationData"]>);
   }

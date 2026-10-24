@@ -1,4 +1,11 @@
 import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { defineErrorCodes } from "@molis-ai/molis-work-plugin-sdk";
+
+/** What opening a Goal terminal is refused for before any panel exists. */
+export const desktopLaunchErrors = defineErrorCodes("desktop", {
+  /** A custom terminal names no command to start: the caller's mistake, refused as invalid (400). */
+  launch_command_required: "invalid",
+});
 
 export const DESKTOP_RUNTIME_KINDS = [
   "codex",
@@ -39,11 +46,6 @@ const DESKTOP_RUNTIME_RECIPES: Record<NamedDesktopRuntimeKind, DesktopRuntimeRec
   "grok-build": { command: "grok", resumeArgs: (sessionId) => ["--resume", sessionId] },
 };
 
-export function desktopRuntimeTitle(runtimeKind: string): string {
-  if (runtimeKind === "generic") return "自定义命令";
-  return isNamedDesktopRuntimeKind(runtimeKind) ? RUNTIME_DISPLAY_NAMES[runtimeKind] : runtimeKind;
-}
-
 export function desktopLaunchSpec(input: {
   runtime_kind: string;
   command?: string;
@@ -62,7 +64,7 @@ export function desktopLaunchSpec(input: {
     };
   }
   const command = input.command?.trim();
-  if (!command) throw new Error("自定义终端需要提供启动命令");
+  if (!command) throw desktopLaunchErrors.launch_command_required("自定义终端需要提供启动命令");
   return { runtime_kind: "generic", command, args: [...(input.args ?? [])], title: command };
 }
 

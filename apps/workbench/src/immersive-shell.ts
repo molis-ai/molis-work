@@ -88,7 +88,7 @@ function islandPlugins(enabled: readonly string[], inEnglish = false) {
  * (`group`, W5-06 2b), and one that names none, including one added later, lands in 更多, so adding
  * a Plugin never edits the shell.
  */
-const RAIL_CORE_ORDER = ["goals", "inbox", "feed", "sessions"];
+const RAIL_CORE_ORDER = ["goals", "inbox", "feed"];
 const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 /**
  * The names of the groups a view can name, which the Host owns (their order is `UI_VIEW_GROUPS`'): 推进 (the backbone plus

@@ -4,6 +4,7 @@ import { connectorSettingsView } from "./web-connector-settings.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
@@ -28,7 +29,6 @@ import { L } from "./web-locale.js";
 import { handleComponentBoardHttp } from "./web-catalog-board.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, renderCharactersSettingsEntry, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
-import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
@@ -59,8 +59,7 @@ export async function handleLocalCatalogWebRequest(
 ): Promise<void> {
   const { PAGE_CSP, handleOnboarding, renderCapsuleShell, isDesktopShellRequest, planningHttp, projectSettings, servePtyClient } = composition;
   const { renderMolisWorkSettings, renderMolisWorkProjectIndex, renderMolisWorkProjectBrief } = composition.workbenchRenderer;
-  const { settingsProjects } = projectSettings;
-  if (await redirectSettingsAddress(request, response, url, serverOptions.homeDirectory, () => settingsProjects(serverOptions.homeDirectory), isDesktopShellRequest(request, url))) return;
+  if (await redirectSettingsAddress(request, response, url, serverOptions.homeDirectory, () => projectSettings.settingsProjects(serverOptions.homeDirectory), isDesktopShellRequest(request, url))) return;
   if (request.method === "GET" && url.pathname === "/capabilities") {
     response.writeHead(302, { location: `/capabilities/library${url.search}`, "cache-control": "no-store" });
     response.end();
@@ -77,9 +76,6 @@ export async function handleLocalCatalogWebRequest(
   if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
-  })) return;
-  if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
-    shelf: { actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })) },
   })) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
@@ -115,7 +111,7 @@ export async function handleLocalCatalogWebRequest(
     const rules = capabilityPageMatch?.[1] === "rules";
     const capabilitySection = (rules ? "library" : capabilityPageMatch?.[1]) as CapabilitySection | undefined;
     const section = (capabilitySection === "connections" ? "connectors" : capabilitySection === "access" ? "mcp" : capabilitySection ?? settingsPageMatch![1]) as WebSettingsSection;
-    const projects = await settingsProjects(serverOptions.homeDirectory);
+    const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory);
     const contextProjectId = url.searchParams.get("project");
     const contextProject = contextProjectId
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
@@ -177,7 +173,7 @@ export async function handleLocalCatalogWebRequest(
       sendJson(response, 404, { error: L("页面不存在") });
       return;
     }
-    const projects = await settingsProjects(serverOptions.homeDirectory);
+    const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory);
     const contextProjectId = url.searchParams.get("project");
     const contextProject = contextProjectId
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
@@ -223,7 +219,8 @@ export async function handleLocalCatalogWebRequest(
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;
-  if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectId => refreshOpenProjectPlugins(localHost, projectId))) return;
+  if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectId => refreshOpenProjectPlugins(localHost, projectId),
+    () => seedDemoHomeSamples(bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS)))) return;
   if (request.method === "GET" && url.pathname === "/desktop/pty-client.js") {
     servePtyClient(request, response);
     return;
@@ -261,14 +258,6 @@ export async function handleLocalCatalogWebRequest(
       now: new Date().toISOString(), last_project_id: remembered.last_project_id,
       opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),
     }));
-    return;
-  }
-  if (request.method === "GET" && (url.pathname === "/sessions" || url.pathname === "/workspaces")) {
-    response.writeHead(302, {
-      location: isDesktopShellRequest(request, url) ? "/?desktop=1" : "/",
-      "cache-control": "no-store",
-    });
-    response.end();
     return;
   }
   if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {

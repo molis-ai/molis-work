@@ -6,8 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { Server } from "node:http";
-import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
+import { createEvidenceContentStore, createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, seedDemoBoard, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -18,7 +17,7 @@ const controlToken = "home-isolation-test-control-token-0123456789";
 /** A secret in the default Home's store; no other Home may read or replace it. */
 const defaultOnlyRef = "connector:github:client_id";
 
-test("Web resolves environment Home once for Catalog, Sessions, control token and Feed", async (t) => {
+test("RAC-212: Web resolves environment Home once for Catalog, control token and Feed without creating the retired Sessions database", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "molis-work-web-env-home-"));
   const envHome = join(root, "configured");
   const defaultHome = join(root, "default-user");
@@ -50,7 +49,7 @@ test("Web resolves environment Home once for Catalog, Sessions, control token an
     });
     assert.equal(response.status, 201, await response.text());
     assert.ok(existsSync(join(envHome, "connectors/connectors.db")));
-    assert.ok(existsSync(join(envHome, "sessions/sessions.db")));
+    assert.equal(existsSync(join(envHome, "sessions/sessions.db")), false, "First startup must not create the retired Sessions database");
     assert.ok(existsSync(join(envHome, "feed/secrets.json")));
     await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
     resetSecretStoreCache();
@@ -61,6 +60,7 @@ test("Web resolves environment Home once for Catalog, Sessions, control token an
     response = await fetch(origin + "/api/settings/connectors/connections?service_id=github", { headers: { "x-molis-work-control-token": token } });
     assert.deepEqual((await response.json()).connections.map((row: { display_name: string }) => row.display_name), ["Env Home GitHub"]);
     assert.equal(readFileSync(join(envHome, "config/web-control-token"), "utf8").trim(), token);
+    assert.equal(existsSync(join(envHome, "sessions/sessions.db")), false, "Service recreation must not create the retired Sessions database");
     assert.equal(existsSync(defaultHome), false, "No service resource may fall back to the default user Home");
   } finally {
     if (server?.listening) await new Promise<void>(resolve => server!.close(() => resolve()));
@@ -132,7 +132,7 @@ test("async home scopes and retained stores keep secrets and body keys in their 
   try {
     const pending = runWithMolisWorkHome(join(root, "a"), async () => {
       const secrets = createFileSecretStore();
-      const content = createFeedEvidenceContentStore();
+      const content = createEvidenceContentStore();
       await waitForOtherHome;
       secrets.put(authRef, "a-first");
       const body = content.write("body belonging to A");
@@ -142,7 +142,7 @@ test("async home scopes and retained stores keep secrets and body keys in their 
       const secrets = createFileSecretStore();
       secrets.put(authRef, "b-only");
       release();
-      return { secrets, content: createFeedEvidenceContentStore() };
+      return { secrets, content: createEvidenceContentStore() };
     });
     const a = await pending;
     runWithMolisWorkHome(join(root, "b"), () => a.secrets.put(authRef, "a-updated"));

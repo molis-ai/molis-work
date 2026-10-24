@@ -23,6 +23,9 @@ function number(value: unknown): number {
   return Number(value ?? 0);
 }
 
+/** An event of one owner: its type and its object type both begin with the namespace (bound four times: the text and its length, for each column). */
+const OWNED = "substr(type, 1, length(?)) = ? AND substr(object_type, 1, length(?)) = ?";
+
 /** The existing local connection and journal primitives; no Module business queries. */
 export class LocalSqliteJournal {
   constructor(readonly db: Database.Database) {}
@@ -42,7 +45,29 @@ export class LocalSqliteJournal {
   }
 
   readEventsDescending(projectId: string) {
-    return (this.db.prepare("SELECT * FROM events WHERE project_id = ? ORDER BY seq DESC").all(projectId) as Row[]).map(row => ({
+    return this.eventsOf(this.db.prepare("SELECT * FROM events WHERE project_id = ? ORDER BY seq DESC").all(projectId) as Row[]);
+  }
+
+  /**
+   * The events one owner wrote, newest first: those whose type and whose object type both begin with `namespace` (a plugin's id and a
+   * dot, PG-094 S9-0). An event of any other name is not in the answer, so an owner cannot read what another one logged.
+   */
+  readOwnedEventsDescending(projectId: string, namespace: string) {
+    return this.eventsOf(this.db.prepare(`SELECT * FROM events WHERE project_id = ? AND ${OWNED} ORDER BY seq DESC`)
+      .all(projectId, namespace, namespace, namespace, namespace) as Row[]);
+  }
+
+  /** Where one owner's log ends: the greatest `seq` among its own events (of `objectType`, which is already in its namespace, when given). */
+  ownedEventCursor(projectId: string, namespace: string, objectType?: string): number {
+    const sql = `SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ? AND ${OWNED}`;
+    const row = (objectType === undefined
+      ? this.db.prepare(sql).get(projectId, namespace, namespace, namespace, namespace)
+      : this.db.prepare(`${sql} AND object_type = ?`).get(projectId, namespace, namespace, namespace, namespace, objectType)) as Row;
+    return number(row.cursor);
+  }
+
+  private eventsOf(rows: Row[]) {
+    return rows.map(row => ({
       seq: number(row.seq), event_id: text(row.event_id), actor_id: text(row.actor_id),
       type: text(row.type), object_type: text(row.object_type), object_id: text(row.object_id),
       reason: text(row.reason), payload: parseJson<unknown>(row.payload_json, null), at: text(row.at),

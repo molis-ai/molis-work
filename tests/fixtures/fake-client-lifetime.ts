@@ -13,6 +13,9 @@ export function fakeLifetime(options: { close?(action: Closing): void } = {}) {
   const mount = () => ({
     /** False once the scope is being disposed: the cleanups of the visible effects run then too, but the page is not just hidden. */
     get alive() { return alive; },
+    /** What a request made `scope: life` goes through (the request helper): the page's fetch while the view is mounted, an abort once it is not. */
+    fetch: (input: string, init: object) => globalThis.fetch(input, init as RequestInit),
+    assertCurrent() { if (!alive) throw new DOMException("View unmounted", "AbortError"); },
     whenVisible(start: () => (() => void) | void) { const effect = { start, stop: start() }; effects.push(effect); return () => {}; },
     own(cleanup: () => void) { owned.push(cleanup); return cleanup; },
   });

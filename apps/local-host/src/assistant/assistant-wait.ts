@@ -55,17 +55,17 @@ async function waitForWorkChange<View = AssistantWorkView>(input: {
 
 /**
  * What wakes a wait on some of the person's works: their own stored facts, the runs they wait on now (each one's
- * latest Assistant round, and the latest round of the Coding session it runs in or handed to, when `codingRun` says),
+ * latest Assistant round, and the latest round of the executor's session it runs in or handed to, when `executorRun` says),
  * and their graphs (a background job they follow ends there).
  */
-function watchWorks(ports: { store: AssistantStore; actorId: string; host(): Promise<AgentHost>; codingRun?(work: StoredWork): Promise<AgentRunRef | undefined> }, workIds: readonly string[]) {
+function watchWorks(ports: { store: AssistantStore; actorId: string; host(): Promise<AgentHost>; executorRun?(work: StoredWork): Promise<AgentRunRef | undefined> }, workIds: readonly string[]) {
   return {
     onStored: (listener: () => void) => { const ids = new Set(workIds); return ports.store.onChange(id => { if (ids.has(id)) listener(); }); },
     onRuns: async (listener: () => void) => {
       const adapter = (await ports.host()).adapter("prologue");
       const refs = (await Promise.all(workIds.map(async id => {
-        const work = ports.store.get(ports.actorId, id), own = ports.store.rounds(id).filter(round => round.executor !== "coding").at(-1), coding = await ports.codingRun?.(work);
-        return [...(own && work.session_id ? [{ session_id: work.session_id, run_id: own.run_id }] : []), ...(coding ? [coding] : [])];
+        const work = ports.store.get(ports.actorId, id), own = ports.store.rounds(id).filter(round => round.executor !== "plugin").at(-1), carried = await ports.executorRun?.(work);
+        return [...(own && work.session_id ? [{ session_id: work.session_id, run_id: own.run_id }] : []), ...(carried ? [carried] : [])];
       }))).flat();
       // Observing replays the run as it is now; only what happens after wakes the wait.
       let replaying = true;

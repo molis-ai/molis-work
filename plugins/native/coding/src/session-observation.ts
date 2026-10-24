@@ -1,6 +1,6 @@
 import { codingBackgroundState } from "./background-state.js";
-import { type Capabilities, type CodingActivation, priorityOf, sessionState } from "./route-activation.js";
-import type { CodingBeforeWrite } from "./route-entry.js";
+import { type CodingActivation, priorityOf, sessionState } from "./route-activation.js";
+import { codingActions, type CodingBeforeWrite } from "./route-entry.js";
 import type { CodingExecution } from "./routes.js";
 import type { CodingSessionRecord } from "./store.js";
 import type { CodingWaitView } from "./waits.js";
@@ -8,21 +8,21 @@ import { codingText } from "./words.js";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** Queries return current projections. Only the activation's observation job persists them (SYS-15-Q1/Q2). */
-export async function readCodingSessions(a: CodingActivation, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite, persist = false) {
+export async function readCodingSessions(a: CodingActivation, execution: CodingExecution, beforeWrite: CodingBeforeWrite, persist = false) {
   const { projectId } = a;
   // Every session's standing in one Host call per runtime, rather than one queued read per session.
   const records = execution.sessions.list(projectId);
   // The titles of the Goals sessions are attached to, as Goals has them now: read through Goals' public action, and kept for the
   // directory, which draws at once (goal-titles.ts). A Goal that cannot be read keeps the title it had, or none.
   await execution.goalTitles.read(records.flatMap(record => record.goal_id ? [record.goal_id] : []), beforeWrite, persist);
-  const statuses = new Map<string, AgentSessionStatus | { session_id: string; error: string }>();
+  const actions = codingActions(a.context, beforeWrite), statuses = new Map<string, AgentSessionStatus | { session_id: string; error: string }>();
   for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
     const ids = records.filter(record => record.runtime_id === runtimeId && record.runtime_session_id).map(record => record.runtime_session_id!);
-    try { for (const status of await api.invoke(agent.readSessionStatuses, [runtimeId, ids])) statuses.set(`${runtimeId}:${status.session_id}`, status); }
+    try { for (const status of await actions.invoke(agent.readSessionStatuses, [runtimeId, ids])) statuses.set(`${runtimeId}:${status.session_id}`, status); }
     catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : codingText(execution.locale)("coding.server.session-unreadable") }); }
   }
   // Parked sessions are read without starting their consumer; the activation job owns its recovery.
-  const parked = new Map<string, CodingWaitView>(), backgroundUnreadable = await codingBackgroundState(api, records, execution.sessions, projectId, persist ? beforeWrite : undefined);
+  const parked = new Map<string, CodingWaitView>(), backgroundUnreadable = await codingBackgroundState(actions, records, execution.sessions, projectId, persist ? beforeWrite : undefined);
   for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
     try { for (const [session, wait] of await a.waits.openWaits(runtimeId)) parked.set(`${runtimeId}:${session}`, wait); } catch { /* shown as not waiting */ }
   }

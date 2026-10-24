@@ -1,4 +1,3 @@
-import { FEED_PLUGIN_ID } from "./identity.js";
 import { retainActionAuthority, ActionError, defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, searchText, type SearchEntry, bindWorkflowContentHandlers, defineWorkflowContentActions, type WorkflowPayload, type ActionSubject, type ActionSubjectContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { FeedItemRecord } from "./projection.js";
@@ -34,7 +33,7 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
       // nothing another producer queued meanwhile: that is judged by its owner, under its owner's authority.
       const { item } = await feed.ingestItemJudged({ source, externalId: input.request_id, title: input.title,
         summary: input.body.replace(/\s+/g, " ").trim().slice(0, 240), body: input.body, url: input.url ?? null,
-        occurredAt: now, attention: false }, retainActionAuthority(caller, { ...feedContentActions.receive, provider_id: FEED_PLUGIN_ID }));
+        occurredAt: now, attention: false }, retainActionAuthority(caller, feedContentActions.receive));
       return { plugin: "feed", item_id: item.item_id, title: item.title };
     },
   }), bindSearchEntriesHandler(feedSearchEntriesAction, () => {
@@ -53,11 +52,11 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
     if (item.disposition === "archived") throw new ActionError("actions.subject_unavailable", "材料已归档，请回到原记录查看");
     return subjectContext({ subject: { kind: "feed_item", id: item.item_id }, revision: String(item.revision), title: item.title,
       content: item.body || item.materials.map(material => material.content || material.preview).filter(Boolean).join("\n\n") || item.summary || "",
-      goal_ids: item.linked_goal_id ? [item.linked_goal_id] : [], session_id: null }, input as { offset?: number });
+      goal_ids: item.linked_goal_id ? [item.linked_goal_id] : [] }, input as { offset?: number });
   } }, { ...feedSourceSubjectAction, handle: (_caller: unknown, input: unknown) => {
     const source = feed.snapshot(board).sources.find(source => source.source_id === (input as { subject_id: string }).subject_id);
     if (!source) throw new ActionError("actions.subject_unavailable", "来源已不存在");
     return subjectContext({ subject: { kind: "source", id: source.source_id }, revision: source.updated_at,
-      title: source.name, content: [source.description, `状态：${source.status}`, source.last_error_code].filter(Boolean).join("\n"), goal_ids: [], session_id: null });
+      title: source.name, content: [source.description, `状态：${source.status}`, source.last_error_code].filter(Boolean).join("\n"), goal_ids: [] });
   } }];
 }

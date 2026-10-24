@@ -22,6 +22,27 @@
 | U6 | Shelf 格里 DropAgent 自己的动作栏 | 界面不动，这些动作同时登记进动作池 |
 | U7 | 下一步 | 先写需求书，用户看过再动代码 |
 
+### Shelf S4 收尾：演示示例恢复（2026-10-23 评审修订）
+
+本片沿用 PG-026-S1/S4 范围，只收尾删除宿主文件客户端之后的真实入口，不改变整条左右互动需求的完成状态。演示项目的创建或重建先在项目目录内完成，释放目录后再经当前 HTTP 调用者的安装授权执行 `shelf.sample.seed`；不直接写 Shelf 文件。`seedDemoHomeSamples` 仍只省略未安装、未运行、未授权三种情况，其余错误由 HTTP 入口处理。
+
+项目本身失败时保留原 HTTP 失败；项目已成功而 Shelf 示例恢复异常时返回 200，保留 `status`、`project` 与成功 `message`，附固定 `warning`「Shelf 示例未能恢复，请在 Shelf 中查看后重试。」及英文，不把内部错误文字带给页面。宿主用 `hostLog.warn` 记录 `projects/demo_sample_failed` 和动作、项目编号。
+
+页面复用 `data-demo-error` 的 alert 区域显示成功消息与 warning，提供普通「刷新」链接，其自身点击处理调用 `location.reload()`；此时保持操作按钮禁用，不执行 450 ms 自动刷新。无 warning 的成功继续自动刷新，项目失败仍可重试。
+
+本片验收编号只归 S4，不新增统筹 RAC：
+
+| 编号 | 可观察结果 | 验证 |
+| --- | --- | --- |
+| PG-026-S4-01 | 真实 HTTP 首次激活 Shelf、删除示例后，分别 create/reset 能恢复示例，不能被吞掉的 forbidden 伪造通过 | `tests/shelf-plugin.test.ts` |
+| PG-026-S4-02 | 临时 Home 的 Shelf 目录 JSON 损坏时，两个操作仍报告已成功的项目和固定 warning，项目真实存在；恢复文件后再操作不再警告；未确认的项目操作仍失败 | `tests/shelf-plugin.test.ts` |
+| PG-026-S4-03 | 独立测试浏览器里 warning 超过 450 ms 仍存在、操作按钮禁用、手动刷新后项目存在；正常成功自动刷新 | `tests/project-settings-navigation.e2e.test.ts` |
+| PG-026-S4-04 | 项目新库已提升到正式目录、但目录提交前的后初始化失败，恢复旧项目身份、正文和插件选择，不留 `project.demo_reset` 回执；不能用缺失的 Shelf 目录或提升前拒绝代替这条回滚路径 | `tests/project-catalog-preservation.test.ts` |
+
+2026-10-23 集成回归补修：S4 删除目录层的 Shelf 初始化后，旧回滚夹具在 `rename(home/shelf)` 就报 ENOENT，尚未调用 reset。只修夹具：观察真实 `.resetting-*` 到正式项目目录的 rename 完成后，才对后初始化的 `sessions` mkdir 注入一次 EACCES；故障当下同时核新库、旧备份、未提交的目录状态，返回后保留原回滚断言。Sessions 在 rebuild 的 owner 清理中被 `survivesRebuild` 排除，调用阶段由生产顺序与运行时提升证据共同证明；不改生产、门禁或正式错误合同。源提交 `7f53441349d88b98da3a715913ced00231622deb` 整体构建后，原文件 6 条中 5 条通过、这条 ENOENT；补修后原 6 条全部通过（PG-026-S4-04 覆盖故障时与回滚后状态），未再改变生产源码或重复浏览器验证。
+
+ownerFiles 拒绝继续由既有 SHF-IO 测试证明；测试替身收敛留 PG-026 后续，不新增绕过作用域的公开测试端口。
+
 ## 2. 现状（2026-10-09 按 origin/main 11878059 重新核对）
 
 | 部分 | 事实 | 对本需求的意义 |
@@ -29,7 +50,7 @@
 | 右栏 | `apps/workbench/src/side-panel.ts`：讨论、浏览器、文件三格是平台自带的，顺序在 `renderSidePanel` 里写死（讨论、浏览器、文件，后面接插件格）；插件声明 `slot: "side"` 的视图也成为一格，按 Manifest 顺序（`apps/workbench/src/plugin-catalog.ts:192`），现在只有灵光声明了（`plugins/native/lingguang/src/manifest.ts:29`）。各格打开后隐藏不销毁；`molis:side-open` / `-close` / `-toggle` 负责打开，`molis:side-shown` 报告当前格 | Shelf 可以按同样的方式进来，不用另造面板；顺序要从写死改成按登记的 `order` 排 |
 | 右栏的群聊痕迹 | 面板 id 还叫 `dock-window-im`，还有 `data-dock-window="im"`、讨论框 `data-dock-frame="im"`；开关按钮是 `data-dock-toggle="im"`（同时带 `data-side-toggle`），提示「侧栏：讨论、浏览器与文件」。出现在 `side-panel.ts`、`immersive-shell.ts:260`、`navigation-presentation.ts:294`、`docs/system/GLOSSARY.md`。第一次打开默认在讨论格；之后用 `localStorage` 的 `molis:side-tab` 记住上次那一格 | 「侧边不止是群聊里」：命名、默认格都要改；「记住上次那一格」已经有了，只改默认值 |
 | 底栏右侧 | `immersive-shell.ts:95` 的 `BAR_RESIDENT_IDS = ["shelf", "lingguang"]`：两个图标按钮（`data-bar-resident`），点了把左边主区切换到该插件；旁边是侧栏按钮，再往右是项目圆钮。这两个 id 还让它们在 Dock 里免于被收起（`immersive-shell.ts:167`） | 两个按钮要并进侧栏按钮 |
-| Shelf | 普通插件（`plugins/native/shelf`），只有 `navigator` 视图，在左边主区占一整页；数据是个人的，在 `<home>/shelf`；由 Runtime 装配，但仍是「混合」插件：HTTP 走旧路径文件 `apps/local-host/src/shelf-native-plugin-http.ts`（经 `personal-native-plugin-http.ts` 接入，在 `tests/builtin-plugin-assembly-gate.test.ts` 的冻结名单里，只许减少） | 改动在视图和入口，动作和存储不用改；本任务不新增旧路径文件 |
+| Shelf | 普通插件（`plugins/native/shelf`），只有 `navigator` 视图，在左边主区占一整页；数据是个人的，在 `<home>/shelf`；由 Runtime 装配，但仍是「混合」插件：写这份 spec 时 HTTP 走旧路径文件 `shelf-native-plugin-http.ts`，Shelf S3 起改为 Manifest 声明的插件路由 `/api/plugins/io.molis.work.shelf/…`，演示种子用的过渡文件客户端 `shelf-actions.ts` 也随 S4 删掉（示例改由宿主调 `shelf.sample.seed` 放回），Shelf 不再是混合插件 | 改动在视图和入口，动作和存储不用改；本任务不新增旧路径文件 |
 | Shelf 与成果库 | 按 [artifact-positioning](../archive/artifact-positioning/spec.md)：Shelf 交给项目的文字材料 `shelf.text-material.v1` 是**过程项**（manifest `process_items.produces`），不进成果库、侧栏文件和搜索；Shelf 把 Coding 报告 `coding.report.v1` 当成果消费、把变更集 `coding.changeset.v1` 当过程项消费（输入端口 `coding-report`、`coding-changeset`），经 `shelf.results.receive` 收成个人副本 | 见总纲 15.1：右栏里能拿起的是 Shelf 材料与副本，过程项不出现在「文件」格 |
 | Shelf 的桌面入口 | 全局热键（`apps/desktop/adapters/tauri/src/shelf_hotkeys_macos.rs`）、菜单栏、轮盘都调用 `globalThis.molisWorkOpenShelf`（`apps/desktop/src/shell.ts:17`），实现方式是点插件列表里 Shelf 那一行（`[data-plugin-strip] [data-plugin-id="shelf"]`）；轮盘的 `over_shelf_panel`（`drop_wheel_macos.rs:1063`）判断鼠标是否在 Shelf 面板上 | 都要改成打开右栏的 Shelf 格 |
 | Shelf 的其他入口 | `shelf.items.admit` 的结果视图链接写成 `?openPlugin=shelf&openItem=…`；搜索结果 `open: { surface: "shelf" }`（`plugins/native/shelf/src/search.ts`） | 改道到右栏 Shelf 格并选中那一行（总纲 15.2） |

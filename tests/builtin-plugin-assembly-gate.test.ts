@@ -48,13 +48,12 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
   "alchemist", "artifacts", "feed", "goals",
-  "inbox", "plugin-builder", "sessions",
+  "inbox", "plugin-builder",
 ]);
 
 /** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
   "alchemist", "artifact", "feed", "inbox",
-  "personal", "shelf",
 ]);
 
 test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {
@@ -121,15 +120,15 @@ test("the frozen lists name exactly what exists: no id, route file or Runtime pl
  * `<plugin>…ActionProvider` registered in project-host.ts, or Host files named after the plugin. A hybrid is neither the
  * Runtime shape (declarations only) nor the frozen build-time shape, and the name list above cannot see it. Frozen on
  * 2026-10-08; a plugin leaves this list when its Host code is gone, and none joins.
- *  - shelf: shelf-native-plugin-http.ts and shelf-actions.ts (its actions, Home and project alike, and its model calls are the
- *    plugin's Runtime instance since S2)
  *  - coding: the workspace surface adapters in the Host (coding-*.ts), the part R-03 asks to move behind declarations
  * W5-01-GIT-04: Git left with G5. What ran git for it in the Host is the platform's workspace Git service (workspace-git*.ts,
  * the projects.workspace.git.* and projects.workspace.writers.* actions only plugins call); the next test pins what is left.
  * RAC-70: Characters left with CHR-1: it is no plugin any more; its handlers are in modules/characters and its page is a section of
  * the Host's Settings.
+ * Shelf left with S4: its actions, model calls and routes are the plugin's Runtime instances (S2, S3), and the demo puts its sample
+ * back through `shelf.sample.seed` instead of opening Shelf's files in the Host.
  */
-const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set(["coding", "shelf"]);
+const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set(["coding"]);
 
 test("Runtime plugins that the Host also assembles by hand are named, and no plugin joins them", async () => {
   const sources = await hostSourceFiles();

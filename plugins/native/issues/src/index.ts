@@ -10,6 +10,7 @@ export * from "./manifest.js";
 export * from "./plugin.js";
 export * from "./ui.js";
 export * from "./client.js";
+export { ISSUES_MESSAGES } from "./messages.js";
 export * from "./methods.js";
 export * from "./prompts.js";
 export { issueNaming, issueNamingErrors, ISSUE_SCREENSHOTS_UNREAD, titleLanguage, type IssueNaming, type IssueNamingInput } from "./naming.js";

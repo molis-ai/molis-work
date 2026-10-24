@@ -206,7 +206,6 @@ export class MolisWorkProjectCatalog {
     }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
-      this.homeDirectory,
       this.projectsDirectory,
       { projectId: DEMO_PROJECT_ID, seed: seedDemoBoard },
       this.projectDeletion,

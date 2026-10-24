@@ -32,7 +32,6 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.event_changed": "conflict";
     readonly "actions.event_invalid": "conflict";
     readonly "actions.event_source_changed": "conflict";
-    readonly "actions.service_configured": "conflict";
     readonly "actions.mcp_name_conflict": "conflict";
     readonly "actions.scene_duplicate": "conflict";
     readonly "actions.input_invalid": "invalid";
@@ -403,13 +402,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
     readonly actor_kind?: "user" | "runtime" | null;
-    readonly user_action?: {
-        readonly source: string;
-        readonly conversation_ref: string;
-        readonly message_ref: string;
-        readonly whole_confirmation_prompted?: boolean;
-        readonly prompted_subject_id?: string;
-    };
+    readonly user_action?: ActionUserAction;
     readonly project_id: string | null;
     readonly audience: ActionAudience;
     readonly plugin_install_id?: string;
@@ -468,6 +461,7 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
+    readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
         readonly audience?: "workflow";
     }) => RetainedActionAuthority;
@@ -743,7 +737,6 @@ export interface ActionSubjectContext {
     content: string;
     truncated: boolean;
     goal_ids: string[];
-    session_id: string | null;
     open?: {
         surface: string;
         id: string;
@@ -763,6 +756,14 @@ export interface ActionUsage {
 
 export interface ActionUsagesInput {
     action: ActionReference;
+}
+
+export interface ActionUserAction {
+    readonly source: string;
+    readonly conversation_ref: string;
+    readonly message_ref: string;
+    readonly whole_confirmation_prompted?: boolean;
+    readonly prompted_subject_id?: string;
 }
 
 export interface ActionView extends ActionReference {
@@ -2533,9 +2534,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
             };
             uniqueItems: boolean;
         };
-        session_id: {
-            type: string[];
-        };
     };
     required: string[];
     additionalProperties: boolean;
@@ -2581,9 +2579,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
                 minLength: number;
             };
             uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];
@@ -2646,9 +2641,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
                 minLength: number;
             };
             uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];
@@ -3297,9 +3289,7 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
     reader: ActionReference;
 }>;
 
-export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference & {
-    provider_id: string;
-}, beforeEffect?: () => Promise<void>): Context;
+export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 

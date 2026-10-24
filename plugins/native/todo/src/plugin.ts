@@ -4,6 +4,8 @@ import type { PluginDefinition, PluginRouteRequest, PluginStartContext } from "@
 import { createTodoActionHandlers, todoActions } from "./actions.js";
 import { todoManifest } from "./manifest.js";
 import { todoOrganizeActions } from "./organize-actions.js";
+import { todoMethods, todoPrompts } from "./roles.js";
+import { TODO_INSTRUCTIONS } from "./prompts.js";
 import { TodoStore, type TodoStores } from "./store.js";
 import { todoUiContribution } from "./ui.js";
 
@@ -13,7 +15,7 @@ import { todoUiContribution } from "./ui.js";
  * Runtime's services. Inside a project the page calls its routes under that project's path, so the actions see the project (S-31).
  */
 export function createTodoPlugin(): PluginDefinition {
-  return { manifest: todoManifest, async start(context) {
+  return { manifest: todoManifest, agent_prompts: todoPrompts, instructions: TODO_INSTRUCTIONS, methods: todoMethods, async start(context) {
     for (const permission of todoManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供待办库");

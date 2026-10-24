@@ -5,13 +5,13 @@ import type { CogniaAiPorts } from "./ai.js";
 import { scanCogniaDirectory } from "./directory.js";
 import { cogniaManifest } from "./manifest.js";
 import { cogniaRoutes } from "./plugin-routes.js";
-import { COGNIA_EVIDENCE } from "./prompts.js";
+import { COGNIA_EVIDENCE, COGNIA_INSTRUCTIONS } from "./prompts.js";
 import { CogniaStore, type CogniaStores } from "./store.js";
 import { cogniaUiContribution } from "./ui.js";
 
 /** The person's one knowledge library, regardless of the project displaying it. */
 export function createCogniaPlugin(): PluginDefinition {
-  return { manifest: cogniaManifest, async start(context) {
+  return { manifest: cogniaManifest, instructions: COGNIA_INSTRUCTIONS, async start(context) {
     for (const permission of cogniaManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, actions = context.services?.actions;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供知识库");

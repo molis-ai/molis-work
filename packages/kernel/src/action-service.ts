@@ -10,7 +10,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
-import { assertSessionAuthorship } from "./action-authorship.js";
+import { assertCallerProvenance } from "./action-authorship.js";
 import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallSettled } from "./action-settlement.js";
 import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
@@ -97,7 +97,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         const callWindows = new Map<string, number[]>();
         const execute = (context: ActionCallContext, input: unknown) => {
           assertReadOnlyEffects(context, definition);
-          context.signal?.throwIfAborted(); assertSessionAuthorship(definition.action, context);
+          context.signal?.throwIfAborted(); assertCallerProvenance(definition.action, context);
           validateActionInput(validateInput, definition, context, input);
           const policy = definition.action.execution;
           if (policy?.max_calls_per_minute) {

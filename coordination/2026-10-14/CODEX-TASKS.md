@@ -8,6 +8,21 @@
 git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination/handoff-2026-10-14:coordination/2026-10-14/CODEX-TASKS.md
 ```
 
+## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
+
+用户 10-24 停了合并 Agent，它的活由 Codex 接：照 `MERGE-QUEUE.md` §1 的条件入队（第 8 条：入队前留「合并认领」，取出时写原因）、机械同步、修 CI 红、起集成批、合入后把行挪到 §3。统筹照旧排顺序、做评审、也会直接入队，两边靠 PR 上的认领避免重复。现在接手时在途的：
+
+| PR | 要做的 | 说明 |
+| --- | --- | --- |
+| #1147 | batch-18 只红 `onboarding-goals-actions.test.ts`，合并 Agent 已改测试（`36f137eaa`） | 等 `ac-review` 核「有没有人直接以插件角色起轮的产品路径」，可合后入队 |
+| #1120 | 机械同步 main | 二轮可合、batch-16 绿；同步后 Verify 绿即入队 |
+| #1126、#1127 | 机械同步 main | 统筹一轮可合；#1127 改了安全不变量，解完核 S-47 行仍点名本 PR 的用例、S 号连续 |
+| #1150 | 机械同步 main（Codex 自己的 PR） | 二轮可合；同步后入队 |
+| #1151 | `serve` 第一行留在 stdout（统筹裁定） | 改完统筹看一眼即入队 |
+| #1137 | 合并 Agent 02:18 手动取出、没写原因 | 现在又在队里；若再被取出要在 PR 上写原因 |
+| batch-1024-19 | 统筹起的（#1130、#1157、#1148），run 40054696653 | 结果对 `known-red-main.md`；绿后按 #1130 → #1157（第 5 条改投 main 后合一次）→ #1148 合 |
+| #1098、#1107、#1112 | 作者合 main 后进下一批 | batch-19 试合时 W5-06 链与 main 冲突 3 个文件 |
+
 ## 1. 规矩
 
 - 照 `SLICE-RULES.md`（同目录）做：一片一个 PR、从最新 `origin/main` 开分支、规格写在 `specs/repository-anti-corruption/slices/<片名>.md`、不改 `privileges.md` 的状态列（PR 正文写「privileges.md 状态」一节）、号段只用下面分给本片的、推送前只跑构建 + `node scripts/check-health-gates.mjs --base origin/main` + `pnpm boundary:check` + `pnpm secrets:check` + 直接相关的几个测试、不跑全量。

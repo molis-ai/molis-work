@@ -1,11 +1,11 @@
 /// <reference lib="dom" />
-import type { UiPageTerminal, UiTerminalEvent, UiTerminalView, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type {} from "@molis-ai/molis-work-plugin-sdk";
+import type { UiPageTerminal, UiTerminalEvent, UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
 
 interface ShelfTuiBridge { open(): void; send(text: string): boolean; isLive(): boolean }
 declare global {
   var molisWorkShelfTui: ShelfTuiBridge | undefined;
   var molisPageTerminal: UiPageTerminal;
-  var molisWorkRequest: UiRequest;
 }
 
 /** The page asks its own backend to open a terminal, then attaches only to the returned panel. */

@@ -13,7 +13,7 @@ import { SandboxError } from './schema.js';
 /** What one request carries at most. */
 const SQL_LENGTH = 16_384, PARAMETERS = 256, STATEMENTS = 64, MESSAGE = 2048;
 /**
- * What one `all` hands back at most: rows, and the bytes of their text and numbers (the channel's message is 1 MiB at the most, and
+ * What one read hands back at most: rows (`all`), and the bytes of their text and numbers (the channel's message is 1 MiB at the most, and
  * the broker refuses a response over half of it). The runner stops reading at the first row past either, so the rows are bounded
  * where they are read, not after.
  */
@@ -54,11 +54,11 @@ export function sandboxStatements(value: SandboxJson | undefined): SandboxStatem
  * `sdk.projectDatabase` over the runner the Host gave the plugin. A row crosses as JSON: a BLOB, an infinity or an integer past
  * 2^53 is refused, not changed. A refusal of the Host's keeps its code and reason, so the plugin can tell a refused statement from
  * a broken one or a killed one; anything else crosses as `sandbox.database_error` with SQLite's message. `all` returns at most
- * `RESULT_ROWS` rows and `RESULT_BYTES` bytes; more is `sandbox.database_result_too_large`, and the plugin pages with `LIMIT` and `OFFSET`.
+ * `RESULT_ROWS` rows; both `get` and `all` return at most `RESULT_BYTES` bytes; more is `sandbox.database_result_too_large`.
  */
 export function sandboxDatabase(runner: PluginProjectStatements): SandboxDatabaseService {
   return {
-    get: (context, statement) => run(context, () => runner.get(statement.sql, statement.parameters, context.signal)),
+    get: (context, statement) => run(context, () => runner.get(statement.sql, statement.parameters, { bytes: RESULT_BYTES }, context.signal)),
     all: (context, statement) => run(context, async () => {
       const rows = await runner.all(statement.sql, statement.parameters, { rows: RESULT_ROWS, bytes: RESULT_BYTES }, context.signal);
       if (rows.length > RESULT_ROWS) throw tooLarge(`A read returns at most ${RESULT_ROWS} rows; page it with LIMIT and OFFSET`);

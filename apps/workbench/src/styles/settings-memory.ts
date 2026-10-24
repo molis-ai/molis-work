@@ -9,6 +9,9 @@ export const MEMORY_SETTINGS_STYLES = `
   .memory-settings .memory-search { flex: 1 1 160px; min-width: 0; }
   .memory-settings .memory-list, .memory-settings .memory-change-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .memory-settings .memory-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 10px 12px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
+  .memory-settings .memory-row--selectable { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .memory-settings [data-memory-select] { accent-color: var(--action); margin: 3px 0 0; }
+  .memory-settings .memory-confirm .mw-form__header p { white-space: pre-line; max-height: 50vh; overflow: auto; overflow-wrap: anywhere; }
   .memory-settings .memory-row.is-off .memory-text { color: var(--muted); }
   .memory-settings .memory-row--candidate { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 38%, var(--line)); }
   .memory-settings .memory-row-copy { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -54,6 +57,8 @@ export const MEMORY_SETTINGS_STYLES = `
   .memory-settings .memory-import { cursor: pointer; }
   @media (max-width: 600px) {
     .memory-settings .memory-row, .memory-settings .memory-change { grid-template-columns: minmax(0, 1fr); }
+    .memory-settings .memory-row--selectable { grid-template-columns: auto minmax(0, 1fr); }
+    .memory-settings .memory-row--selectable > .memory-actions { grid-column: 2; }
     .memory-settings .memory-actions { justify-content: flex-start; }
     .memory-settings .memory-menu { left: 0; right: auto; }
     .memory-settings .memory-pair-line { grid-template-columns: minmax(0, 1fr) auto; }

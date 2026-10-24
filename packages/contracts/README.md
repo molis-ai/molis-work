@@ -6,7 +6,7 @@
 
 Agent Memory 的候选 get 绑定固定 scope/owner/candidate_id 与可选取消信号，沿现 SDK get 返回已授权 canonical 候选或真实缺失的 undefined；拒权与存储错误不变成空结果。仅内部形成查询可据明确 MEMORY_SCOPE_DENIED 排除不可见项，本人管理完整性检查不放宽。
 
-`services/memory` 新增 `memory.page@1` 与 `MemoryPageRequest/Response/MemoryManagementItem`，旧 `memory.list@2` 保持。管理请求没有 owner；六种管理类别不扩大写入/形成四类。响应的真实状态与 expired 分开，classification 缺失为 null，total 和物理成本用 exact/unknown 明示。`services/agent-host` 的 page DTO 复用 SDK 管理查询语义，只有 Adapter 翻译 scope、字段和成本；不建立另一个分页主人。
+`services/memory` 提供 `memory.page@2` 与 `MemoryPageRequest/Response/MemoryManagementItem`。管理请求没有 owner；响应中的 canonical owner 支持固定选集，新增必填输出字段因此升为 v2。六种管理类别不扩大写入/形成四类。响应的真实状态与 expired 分开，classification 缺失为 null，total 和物理成本用 exact/unknown 明示。`services/agent-host` 的 page DTO 复用 SDK 管理查询语义，只有 Adapter 翻译 scope、字段和成本；不建立另一个分页主人。
 
 `memory.prefs.read@3` / `memory.prefs.write@3` 使用九字段 `MemoryPrefs`，新增必填 `class_restrictions`。每行的可信 consumer/current_scene 与可选 scene/kind/lifecycle 选择条件只收紧原权限；read 与 form 独立。合同提供 `isMemoryClassRestrictions` 严格拒绝未知字段/值和重复 selector（不按对象字段顺序区分）；同一选择条件即使决策不同也不能重复。`isCompleteMemoryPrefs` 只接受完整当前设置，旧数据转换由离线采用入口负责。输入省略数组保持原值，显式数组完整替换；重复 selector 的拒绝由 MemoryService 写入口再次执行，JSON Schema 不伪称可以表达该语义。验证入口为 `tests/memory-class-restrictions.test.ts`。
 
@@ -101,6 +101,10 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 `PluginModelClient` 的 `images` 只收字节与可选名称，在首次等待前复制；`execution` 保留同次真实推理回执，注入文字替身不伪造。成功结果与可记账失败的 `validateResult()` 必须在原 `beforeEffect()` 之后、同步提交之前调用；它绑定原动作及模型配置，不能跨动作持有。`choices()` 只返回现行模型名称和能力，不给地址或凭据。
 
 `services/memory` 的正式 `MemoryFormalKind` 含六类，自动形成、工具写入与插件默认许可沿原四类 `MemoryKind`。`memory.change@3` 的 `reclassify` 需要所见版本、明确 kind 和 scenes/lifecycle；可与原正文、适用情境同次修改，期限省略/null/时间分别保留/移除/设置。`memory.history@2` 仅输出原 canonical snapshot 的分类、期限及完整性事实，不暴露内部 snapshot，也不表示当前授权恢复必定成功。正式条目输出同步升 `memory.recall@2`、`memory.list@3`、`memory.write@3`、`memory.candidates.accept@3`，输入形成类别仍四类；已有六类管理页和 v2 记忆包信封保持原版本。验证入口为 `tests/memory-classification-edit-http.test.ts`、`tests/memory-actions.test.ts` 与 `tests/memory-mcp.test.ts`。
+
+固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面测试待统筹构建槽验证；未跑不算通过。合同见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
+
+`AgentMemoryPreviewMutation` 的 `purge` 与 SDK 实际遗忘命令一致；`remove` 仍只是墓碑命令，两者不替换授权。
 
 `ActionCallContext.runtime_memory` 只由 Host 绑定原 Run 的插件、场景与分类限制，和 `runtime_session_id` 一起传递；不接受业务输入，不授予 Action 权限，不持久化第二份策略。
 

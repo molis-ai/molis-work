@@ -121,6 +121,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
   - 正式记忆的六类管理与自动形成的四类许可分开。现「修改」编辑器的「分类与期限」可纠正场景、类型、长期/短期及期限；仅正文/适用情境编辑按控件初始值判定未改类，沿原 update 保留未知分类；编辑区显示原分类，明确移除未声明场景/生命周期时点名确认，实际分类变化通过 memory.change@3 的 reclassify 一次提交正文、适用情境与分类。期限默认保留原绝对时间，移除须明确选择，扩大场景或保留时间先展示前后值并确认；不传 namespace、session 或 classification.extra。到期与会话绑定分类在本片明确拒绝，停用/暂停不会因纠正复活。历史显示分类、期限与完整快照事实，恢复仍受当前权限和期限限制。原版本冲突、操作重试和撤销入口保留。定向回归：`tests/memory-settings-classification.e2e.test.ts`、`tests/memory-settings-cas.e2e.test.ts`、`tests/memory-settings-pages.e2e.test.ts`；完整 M3 的分类开关、批量及旧格式采用仍待后续。
   - 窄屏仍显示完整内容（`DESIGN.md` Layout、VUX-40）：放置完成卡的长项目名在卡内换行，移动与关闭按钮留在视口内；Home 日期条为「今天」与事件点统一预留底部空间，日期数字不与状态字相叠，各日期仍对齐。手机沿用现有 70px 高度，比原来的 64px 多出 6px 容纳三层字形及后备字体，列宽仍为 49px。不改文字与日期行为，不加截断与审计例外。回归 `tests/chinese-completion-layout.e2e.test.ts`、原 `tests/chinese-layers.e2e.test.ts` 与 `tests/placement-card-clearance.e2e.test.ts`。
   - Home 工具（目录项 `runtime.keys`，现在是 Issue 的 `Mod+Shift+I`）是开关：按钮或组合键打开它的侧栏视图并把键盘送进视图文档，从视图里再按一次收起。组合键在同源框架里（侧栏视图、嵌入窗格，以及本机 Host 发的讨论页）由 `homeToolKeysScript()` 转交给外壳；从视图里收起时键盘回到打开它的地方，打开前没有焦点就离开侧栏；带组合键的视图在页面空闲时预载，第一次按下就可用。视图可回报 `molis:side-status`（`busy` / `attention`），外壳在它的页签和按钮上标点，侧栏收起时也看得到。Home 插件侧栏始终只展示当前页。验证见 `tests/issue-global-navigation.e2e.test.ts`。
+  - 历史版本缺少完整快照时仍明确标为不能恢复，但本人可选择「使用这段旧文字」。确认只替换正文，保留当前分类、适用条件、期限、来源与状态；沿现 update 提交原版本与原操作号，取消不写入，丢回应可重试，后继版本冲突不覆盖。完整快照继续用原「回到这一版」，到期/删除/会话及权限限制均由现写门拒绝；不猜旧未知事实。回归复用 `tests/memory-settings-classification.e2e.test.ts` 的真实 SDK、ledger、页面及重启动线。
   - 侧栏脚本（`side-panel*.ts`）发出时去掉整行注释：说明留在源码里，不进页面资源。
   - 跨请求的页面操作固定点击时的对象：浏览器文件选择绑定 chooser 与网页，网站决定绑定原审查和显示的网站；文件预览绑定 source/kind/id 与本次打开。迟到结果不改后来打开的对象，设置与引用预览的失败也遵守同一约束。判断规则样例与草稿删除更新原记录，保留另一规则或同一规则的新编辑。标签恢复只收当前保存格式，保留当前组、分屏与设置页撤下规则。回归见 `tests/workbench-browser-targets.e2e.test.ts`、`tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/workbench-current-tabs.e2e.test.ts`。
   - 插件市场从 Host 重读项目成员；既有 `molis-work:plugins-changed` 使这份投影失效，过期读取不覆盖新事实。后台命令停止失败通过共同 UiRequest 显示拒绝、结果未知与可复制的诊断编号，不自动重试；真实命令状态及 Coding 的持久投影仍归它们的 owner。回归见 `tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-stop-feedback.e2e.test.ts`；后者用公开 Runtime 端口控制隔离子进程，不调用模型。
@@ -187,7 +188,13 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 定向验证：`tests/memory-settings-cas.e2e.test.ts` 保留协议故障、原命令回放、迟到响应与未穷尽空页的受控反例；`tests/memory-settings-pages.e2e.test.ts` 覆盖实际隔离 Home 的非空分页、筛选、配对入口与旧编辑路径。另跑 `tests/client-script-undeclared.test.ts`、`tests/i18n.test.ts` 与本包上述必跑项。真实生产分页与协议反例分别标明证据范围；资源和响应式/明暗布局按现门禁实测，不据 UI 接通宣称完整 M3 或用户验收。
 
+固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面测试待统筹构建槽验证；未跑不算通过。合同见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
+
+页面以 localStorage 保存绑定当前项目路径的 preview_id/action，不存正文、选集或执行进度；新页面与 App 重启可重试原预览。该引用不授权，Host 重核 actor/project/scope/owner 与原选集；完成或本人明确放弃才清理，部分失败/未知/取消保留。
+
 
 ### 明确续期（2026-10-24，实现中）
 
 到期正式记忆在现更多操作里明确续期：空的本地时间输入、原期限与状态说明、前后期限确认；不猜默认期限。仍用原 mutation 冻结 memory_id/所见版本/绝对期限/operation_id，失败可重试原决定；成功重新读取管理页。续期不启用 paused/disabled，会话记忆暂不提供该入口。新增文案有英文，真实浏览器与资源检查待统筹机器槽。
+
+原预览引用无法保存时，本次确认停在执行前，本页保留同 preview 供存储恢复后重试并明确提示关闭页面的恢复限制。完成后的引用清理失败仍重新读取真实管理结果，不保留遗忘正文，也不把完成改称未知；原引用重试只返回原回执。明确放弃时清理失败则保留当前预览。读取失败明确提示，需恢复读取或本人明确放弃后才能新选。故障验收在 `tests/memory-settings-cas.e2e.test.ts`，真实 Host 关闭重开恢复在 `tests/memory-settings-pages.e2e.test.ts`；本轮尚未运行。

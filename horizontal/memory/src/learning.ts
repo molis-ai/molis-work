@@ -41,6 +41,11 @@ const STANDING_WISH = /以后|今后|往后|每次|每回|总是|一律|一直|�
 export class MemoryLearning {
   constructor(private readonly ports: LearningPorts) {}
 
+  /** Internal candidate review does not change the task identity used for formal reads or formation. */
+  private candidates(caller: MemoryCaller) {
+    return this.ports.backend.withCaller({ ...caller, purpose: "management", source_use: "learning" }).candidates;
+  }
+
   worthLearning(caller: MemoryCaller, said: readonly string[]): boolean {
     const latest = said.at(-1) ?? "";
     if (!latest.trim() || said.some(text => DO_NOT_REMEMBER.test(text))) return false;
@@ -65,7 +70,7 @@ export class MemoryLearning {
       // Extraction is a task read, even when its later candidate decision needs a management binding.
       if (formationReadPossible(caller, this.ports.scopes.prefsAt(caller.actor_id, where), where.scope))
         snapshot.existing.push(...await this.ports.scopes.located({ ...caller, purpose: "task" }, where.scope, where.owner));
-      const canonical = await this.ports.backend.withCaller(caller).candidates.list(where.scope, where.owner);
+      const canonical = await this.candidates(caller).list(where.scope, where.owner);
       for (const note of this.ports.ledger.candidates(caller.actor_id).filter(item => item.scope === where.scope && item.owner === where.owner)) {
         const entry = canonical.find(item => item.candidate_id === note.candidate_id);
         if (entry && entry.version === note.version && formationPending(caller, entry)
@@ -77,7 +82,10 @@ export class MemoryLearning {
     return snapshot;
   }
 
-  async context(caller: MemoryCaller) { return formationContext(caller, await this.snapshot(caller)); }
+  async context(caller: MemoryCaller) {
+    caller = { ...caller, purpose: "task", source_use: "learning" };
+    return formationContext(caller, await this.snapshot(caller));
+  }
 
   private slotAllowed(caller: MemoryCaller, snapshot: FormationSnapshot, slot: FormationSlot): boolean {
     const prefs = this.ports.scopes.prefsAt(caller.actor_id, { scope: slot.scope, owner: slot.owner, project: caller.project_id });
@@ -102,7 +110,7 @@ export class MemoryLearning {
       }
       const pending = snapshot.pending.filter(row => row.note.scope === where.scope && row.note.owner === where.owner);
       if (pending.length) {
-        const current = await this.ports.backend.withCaller(caller).candidates.list(where.scope, where.owner);
+        const current = await this.candidates(caller).list(where.scope, where.owner);
         if (pending.some(row => !current.some(next => next.candidate_id === row.entry.candidate_id && next.version === row.entry.version && formationPending(caller, next)
           && formationClassAllowed(caller, this.ports.scopes.prefsAt(caller.actor_id, where), where.scope, next.meta)))) {
           throw memoryErrors.conflict("提炼所参考的候选已改变或不再允许读取");
@@ -124,7 +132,7 @@ export class MemoryLearning {
   }
 
   async learn(caller: MemoryCaller, input: { said: readonly string[]; sources?: readonly AgentMemorySourceSnapshot[] }): Promise<MemoryLearningResult> {
-    caller = this.ports.operations.caller({ ...caller, source_use: "learning" });
+    caller = this.ports.operations.caller({ ...caller, purpose: "task", source_use: "learning" });
     const backend = this.ports.backend.withCaller(caller);
     const skipped = async (): Promise<MemoryLearningResult> => ({ learned: [], formation: await backend.candidates.form({
       operation_id: caller.operation_id!, trigger: "none", ...(caller.signal ? { signal: caller.signal } : {}) }) });
@@ -144,7 +152,8 @@ export class MemoryLearning {
         if (!item.candidate) continue;
         const slot = slots.find(slot => slot.id === item.slot_id);
         if (!slot) throw memoryErrors.conflict("形成回执的目标不在本次授权范围");
-        const entry = (await backend.candidates.list(slot.scope, slot.owner)).find(entry => entry.candidate_id === item.candidate!.candidate_id);
+        const entry = await this.candidates(caller).get({ scope: slot.scope, owner: slot.owner, candidate_id: item.candidate.candidate_id,
+          ...(caller.signal ? { signal: caller.signal } : {}) });
         if (!entry || entry.version !== item.candidate.version) throw memoryErrors.conflict("形成候选已改变，不能登记另一版本");
         caller.signal?.throwIfAborted();
         if (!this.slotAllowed(caller, snapshot, slot) || !this.places(caller).some(place => place.scope === slot.scope && place.owner === slot.owner

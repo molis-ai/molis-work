@@ -9,11 +9,12 @@ import { ChromeHarness, locateTestChrome, type ChromePage } from "@molis-ai/moli
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, memoryActions, type MemoryWriteResult } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { ensureSystemAgentService, memoryRuntimePolicy, molisWorkHostProjectReference, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { ensureSystemAgentService, MolisWorkLocalHost, memoryRuntimePolicy, molisWorkHostProjectReference, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { createDesktopWebHost, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openPrologueMemoryAdoption } from "@molis-ai/molis-work-service-agent-host";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { openTestHome } from "./fixtures/test-home.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 const list = "[data-memory-test-active] [data-memory-list]", rows = `${list} [data-memory-id]`;
@@ -118,12 +119,25 @@ test("nonempty memory settings page through authorized storage, preserve old dec
     };
     await navigate("/settings/memory"); await ready(page);
     const first = await ids(page); assert.equal(first.length, 40);
+    await page.click(`[data-memory-test-active] [data-memory-id="${first[0]}"] [data-memory-select]`);
     assert.match(await page.evaluate<string>("document.querySelector('[data-memory-test-active] [data-memory-summary]').textContent"), /总数未知/);
     await page.click("[data-memory-test-active] [data-memory-next]"); await ready(page);
     const last = await ids(page); assert.equal(last.length, 3);
+    await page.click(`[data-memory-test-active] [data-memory-id="${last[0]}"] [data-memory-select]`);
     assert.deepEqual([...first, ...last].sort(), [...personal].sort());
     assert.match(await page.evaluate<string>("document.querySelector('[data-memory-test-active] [data-memory-summary]').textContent"), /总数未知/, "last page cannot claim a snapshot total");
     await page.click("[data-memory-test-active] [data-memory-previous]"); await ready(page); assert.deepEqual(await ids(page), first);
+    assert.equal(await page.evaluate(`document.querySelector('[data-memory-test-active] [data-memory-id="${first[0]}"] [data-memory-select]').checked`), true);
+    assert.match(await page.evaluate<string>("document.querySelector('[data-memory-test-active] [data-memory-selected]').textContent"), /2 \/ 100/);
+    await page.click("[data-memory-test-active] [data-memory-batch-disable]"); await page.wait("document.querySelector('.memory-confirm[open]')");
+    const selectedPage = (await client.invoke(memoryActions.page, { scope: "personal", limit: 100 })).items;
+    const confirmation = await page.evaluate<string>("document.querySelector('.memory-confirm[open]').textContent");
+    for (const id of [first[0], last[0]]) assert.ok(confirmation.includes(selectedPage.find(item => item.memory_id === id)!.text));
+    assert.match(confirmation, /v1/);
+    await page.click(".memory-confirm[open] .mw-btn--secondary"); await ready(page);
+    assert.ok((await client.invoke(memoryActions.page, { scope: "personal", limit: 100 })).items.every(item => item.state === "active"));
+    assert.equal(await page.evaluate("localStorage.getItem('memory-selection:/api/memory')"), null);
+    await page.click("[data-memory-test-active] [data-memory-selection-reset]");
     await page.fill("[data-memory-test-active] [data-memory-filter=query]", "周报采用要点"); await ready(page);
     for (let part = 0; !(await ids(page)).length && part < 2; part++) { await page.click("[data-memory-test-active] [data-memory-next]"); await ready(page); }
     assert.deepEqual(await ids(page), [personal[0]]);
@@ -201,4 +215,93 @@ test("nonempty memory settings page through authorized storage, preserve old dec
     assert.equal(pairReads, 3, "Assistant summary also uses bounded overview and leaves pairs unread");
     assert.equal(fullLists, 0);
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test("selected category batch keeps the original preview through partial failure and a full Host restart", { timeout: 120_000 }, async t => {
+  const executable = locateTestChrome(); assert.ok(executable);
+  const env = await openTestHome(t);
+  let client = bindActionClient(env.host.homeActionClient(), () => person(MEMORY_PERMISSIONS));
+  let reopened: MolisWorkLocalHost | undefined, server: ReturnType<ReturnType<typeof createDesktopWebHost>> | undefined;
+  const add = async (text: string) => (await client.invoke(memoryActions.write, { scope: "personal", text, kind: "convention" }) as MemoryWriteResult).memory!;
+  const a = await add("First explicitly selected convention"), b = await add("Second explicitly selected convention");
+  let interrupted = false;
+  const removed: Array<{ memory_id: string; expected_version: number | undefined }> = [];
+  const change = MemoryService.prototype.change;
+  t.mock.method(MemoryService.prototype, "change", async function(this: MemoryService, ...args: Parameters<MemoryService["change"]>) {
+    if (args[1].action === "disable" && !interrupted && args[1].memory_id === b.memory_id) {
+      interrupted = true; throw new Error("Unavailable until the person retries");
+    }
+    const result = await change.apply(this, args);
+    if (args[1].action === "remove") removed.push({ memory_id: args[1].memory_id, expected_version: args[1].expected_version });
+    return result;
+  });
+  const directory = await mkdtemp(join(tmpdir(), "memory-selected-browser-"));
+  const browser = await ChromeHarness.start(directory, { executable });
+  try {
+    let page = await browser.page(); await page.viewport(1024, 900);
+    const visit = async () => {
+      await page.command("Page.navigate", { url: env.origin + "/settings/memory" });
+      await page.wait("document.readyState === 'complete' && [...document.querySelectorAll('[data-memory-settings]')].some(root => root.checkVisibility())");
+      await page.evaluate("[...document.querySelectorAll('[data-memory-settings]')].filter(root => root.checkVisibility()).forEach(root => root.setAttribute('data-memory-test-active', ''))");
+      await ready(page);
+    };
+    const part = (name: string) => "[data-memory-test-active] [data-memory-" + name + "]";
+    await visit(); await filter(page, "kind", "convention");
+    for (const item of [a, b]) await page.click("[data-memory-test-active] [data-memory-id=" + JSON.stringify(item.memory_id) + "] [data-memory-select]");
+    assert.match(await page.evaluate<string>("document.querySelector(" + JSON.stringify(part("selected")) + ").textContent"), /2 \/ 100/);
+    await page.click(part("batch-disable"));
+    await page.wait("document.querySelector('.memory-confirm[open]')");
+    const confirmation = await page.evaluate<string>("document.querySelector('.memory-confirm[open]').textContent");
+    assert.ok(confirmation.includes(a.text)); assert.ok(confirmation.includes(b.text)); assert.match(confirmation, /v1/);
+    const later = await add("Added after the original preview");
+    await page.click("[data-memory-confirm-yes]");
+    await page.wait("document.querySelector(" + JSON.stringify(part("batch-status")) + ")?.textContent.includes('尚未完成')");
+    await ready(page);
+    const partial = await page.evaluate<string>("document.querySelector(" + JSON.stringify(part("batch-results")) + ").textContent");
+    assert.match(partial, /结果未知/); assert.doesNotMatch(partial, /Added after/);
+    const saved = await page.evaluate<string>("localStorage.getItem('memory-selection:/api/memory')");
+    assert.ok(saved); assert.equal(saved.includes(a.text), false); assert.equal(saved.includes(b.text), false);
+    const beforeRestart = await client.invoke(memoryActions.page, { scope: "personal" });
+    const completedItem = beforeRestart.items.find(item => item.memory_id === a.memory_id)!;
+    assert.equal(completedItem.state, "disabled");
+    const completedHistory = await client.invoke(memoryActions.history, { memory_id: a.memory_id });
+    await page.command("Page.navigate", { url: "about:blank" }); await page.wait("location.href === 'about:blank'");
+    await env.close(); await env.host.close();
+    reopened = new MolisWorkLocalHost({ homeDirectory: env.home, completeText: null });
+    // Keep the same product origin, so the browser must recover its own saved reference without test copying.
+    server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: env.home, localHost: reopened, controlToken: env.controlToken });
+    await new Promise<void>((resolve, reject) => { server!.once("error", reject); server!.listen(Number(new URL(env.origin).port), "127.0.0.1", resolve); });
+    client = bindActionClient(reopened.homeActionClient(), () => person(MEMORY_PERMISSIONS));
+    page = await browser.page(); await page.viewport(1024, 900);
+    await visit();
+    assert.equal(await page.evaluate("localStorage.getItem('memory-selection:/api/memory')"), saved);
+    await page.click(part("batch-retry"));
+    await page.wait("document.querySelector(" + JSON.stringify(part("batch-status")) + ")?.textContent.includes('全部处理完成')");
+    await ready(page);
+    assert.equal(await page.evaluate("localStorage.getItem('memory-selection:/api/memory')"), null);
+    const state = await client.invoke(memoryActions.page, { scope: "personal" });
+    assert.deepEqual(state.items.find(item => item.memory_id === a.memory_id), completedItem);
+    assert.deepEqual(await client.invoke(memoryActions.history, { memory_id: a.memory_id }), completedHistory, "completed child is not replayed after Host restart");
+    for (const item of [a, b]) assert.equal(state.items.find(row => row.memory_id === item.memory_id)!.state, "disabled");
+    assert.equal(state.items.find(row => row.memory_id === later.memory_id)!.state, "active");
+    // Forget uses the same visible selection and asks again; it cannot silently include the later item.
+    for (const item of [a, b]) await page.click("[data-memory-test-active] [data-memory-id=" + JSON.stringify(item.memory_id) + "] [data-memory-select]");
+    await page.click(part("batch-remove")); await page.wait("document.querySelector('.memory-confirm[open]')");
+    assert.doesNotMatch(await page.evaluate<string>("document.querySelector(" + JSON.stringify(part("batch-status")) + ").textContent"), /全部处理完成/,
+      "a new unconfirmed batch cannot display the previous batch's completion");
+    assert.deepEqual(removed, [], "preview and confirmation have not removed any entry");
+    await page.click("[data-memory-confirm-yes]");
+    await page.wait("document.querySelector(" + JSON.stringify(part("batch-status")) + ")?.textContent.includes('全部处理完成')");
+    await ready(page);
+    await page.wait("![...document.querySelectorAll(" + JSON.stringify(rows) + ")].some(row => " + JSON.stringify([a.memory_id, b.memory_id]) + ".includes(row.dataset.memoryId))");
+    assert.deepEqual(removed, [a, b].map(item => ({ memory_id: item.memory_id, expected_version: state.items.find(row => row.memory_id === item.memory_id)!.version })),
+      "the current apply completed both original selected versions through the real Service");
+    const remaining = await client.invoke(memoryActions.page, { scope: "personal" });
+    assert.deepEqual(remaining.items.map(item => item.memory_id), [later.memory_id]);
+    assert.doesNotMatch(await page.evaluate<string>("document.querySelector(" + JSON.stringify(part("batch-results")) + ").textContent"), /explicitly selected/);
+  } finally {
+    await browser.close();
+    if (server?.listening) { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve())); }
+    await reopened?.close(); await rm(directory, { recursive: true, force: true });
+  }
 });

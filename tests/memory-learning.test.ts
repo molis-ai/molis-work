@@ -262,8 +262,8 @@ async function queuedLearning(t: test.TestContext) {
   const observe = (memory: AgentMemoryCapability): AgentMemoryCapability => ({ ...memory,
     candidates: { ...memory.candidates,
       form: async input => { const result = await memory.candidates.form(input); formed = result.items.some(item => !!item.candidate); return result; },
-      list: async (...args) => {
-        const result = await memory.candidates.list(...args);
+      get: async (...args) => {
+        const result = await memory.candidates.get(...args);
         if (formed) { const after = afterCandidateRead; afterCandidateRead = undefined; await after?.(); }
         return result;
       },

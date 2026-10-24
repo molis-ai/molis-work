@@ -107,7 +107,7 @@ test("memory is one system.memory provider in the shared directory: the person m
   const agent = await agentCaller(host);
   const views = await client.discover(person);
   const memoryViews = views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID);
-  assert.deepEqual(memoryViews.map(view => view.capability_id).sort(), ["memory.candidates.accept", "memory.candidates.discard", "memory.candidates.list", "memory.change", "memory.changes.list",
+  assert.deepEqual(memoryViews.map(view => view.capability_id).sort(), ["memory.batch.apply", "memory.batch.preview", "memory.candidates.accept", "memory.candidates.discard", "memory.candidates.list", "memory.change", "memory.changes.list",
     "memory.changes.undo", "memory.export", "memory.history", "memory.import", "memory.list", "memory.page", "memory.pairs.list", "memory.pairs.resolve", "memory.prefs.read", "memory.prefs.write",
     "memory.recall", "memory.scope.clear", "memory.scope.preview", "memory.signals.report", "memory.upkeep.run", "memory.write"]);
   const agentViews = (await client.discover(agent)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
@@ -320,58 +320,100 @@ for (const phase of ["startup", "screen", "list", "sdk-commit"] as const) for (c
     assert.equal(memory.service.changes(memory.caller(person)).length, 1);
   });
 
-for (const stop of ["cancel", "revoke"] as const)
-  test(`memory cleanup ${stop} after SDK confirms absence leaves source ledger intact`, { timeout: 30_000 }, async t => {
+for (const entry of ["single", "batch"] as const) for (const stop of ["cancel", "revoke"] as const)
+  test(`${entry} memory cleanup ${stop} after SDK confirms absence leaves source ledger intact`, { timeout: 30_000 }, async t => {
     const root = await mkdtemp(join(tmpdir(), "memory-cleanup-effect-")), home = join(root, "controlled");
-    const localHost = new MolisWorkLocalHost({ completeText: null });
-    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-      memory: currentMemory(localHost), modelConfiguration: async () => { throw new Error("no model in cleanup regression"); },
+    const openAdapter = (host: MolisWorkLocalHost) => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+      memory: currentMemory(host), modelConfiguration: async () => { throw new Error("no model in cleanup regression"); },
       resolveCredential: () => { throw new Error("no credentials in cleanup regression"); } });
+    let localHost = new MolisWorkLocalHost({ completeText: null }), adapter = await openAdapter(localHost);
     const agentHost = new AgentHost(); agentHost.register(adapter);
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-    let failedResponse = false, holding = true, revoked = false;
+    let failedResponse = false, holding = true, revoked = false, removals = 0;
     const sdk = adapter.memory!, withCaller = sdk.withCaller.bind(sdk);
     t.mock.method(sdk, "withCaller", (caller: Parameters<AgentMemoryCapability["withCaller"]>[0]) => observedMemory(withCaller(caller), {
       afterRemove: async () => {
+        removals++;
         if (!failedResponse) { failedResponse = true; throw new Error("purge response interrupted"); }
         if (holding) { entered.resolve(); await release.promise; }
       },
     }));
+    const action = entry === "batch" ? memoryActions.batchApply : memoryActions.change;
     let finished = Promise.withResolvers<void>();
     const originalRegistry = localHost.actionRegistry.bind(localHost);
     t.mock.method(localHost, "actionRegistry", (...args: Parameters<typeof originalRegistry>) => {
       const registry = originalRegistry(...args);
       return { ...registry, registerProvider: (registration: ActionProviderRegistration) => registry.registerProvider({ ...registration,
-        handlers: registration.handlers?.map(binding => binding.capability_id !== memoryActions.change.capability_id ? binding : {
+        handlers: registration.handlers?.map(binding => binding.capability_id !== action.capability_id ? binding : {
           ...binding, handle: async (context: ActionExecutionContext, input: unknown) => {
             try { return await binding.handle(context, input); } finally { finished.resolve(); }
           },
         }) }) };
     });
-    const memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, executes: () => true, ready: async () => {} });
-    const ledger = openMemoryLedger({ homeDirectory: home });
+    let memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, executes: () => true, ready: async () => {} });
+    let ledger = openMemoryLedger({ homeDirectory: home });
     t.after(async () => { release.resolve(); ledger.close(); memory.close(); await adapter.close(); await localHost.close(); await rm(root, { recursive: true, force: true }); });
-    const client = localHost.homeActionClient();
+    let client = localHost.homeActionClient();
     const saved = await client.invoke(person, memoryActions.write, { scope: "personal", text: "记住：发布说明先列结论" });
     const id = saved.memory!.memory_id;
     await memory.service.recall(memory.caller(person), { scopes: ["personal"], query: "发布说明" }, { readMode: "explicit" });
     assert.ok(ledger.revisions(id).length); assert.ok(ledger.uses({ memory_id: id }).length);
     const request = { action: "remove" as const, memory_id: id, expected_version: saved.memory!.version };
+    const later = entry === "batch" ? await client.invoke(person, memoryActions.write, { scope: "personal", text: "记住：稍后再处理另一条" }) : undefined;
+    const preview = entry === "batch" ? await client.invoke(person, memoryActions.batchPreview, { action: "remove", items: [saved.memory!, later!.memory!].map(item =>
+      ({ scope: item.scope, owner: LOCAL_PERSON_ACTOR_ID, memory_id: item.memory_id, expected_version: item.version })) }) : undefined;
+    const selection = preview ? ledger.marker(LOCAL_PERSON_ACTOR_ID, `memory-selection:${preview.preview_id}`) : null;
+    const execute = (context: ActionCallContext) => preview
+      ? client.invoke(context, memoryActions.batchApply, { preview_id: preview.preview_id })
+      : client.invoke(context, memoryActions.change, request);
     const original = { ...person, memory_operation_id: "dd107dba-fb95-4195-a74c-315aeb72b665" };
-    await assert.rejects(client.invoke(original, memoryActions.change, request)); await finished.promise;
-    assert.equal((await memory.service.list(memory.caller(person))).items.length, 0);
+    if (preview) {
+      const partial = await client.invoke(original, memoryActions.batchApply, { preview_id: preview.preview_id });
+      assert.equal(partial.complete, false); assert.deepEqual(partial.items.map(item => item.outcome), ["unknown", "not-executed"]);
+    } else await assert.rejects(execute(original));
+    await finished.promise;
+    assert.equal((await memory.service.list(memory.caller(person))).items.length, preview ? 1 : 0);
     const before = { revisions: ledger.revisions(id), uses: ledger.uses({ memory_id: id }), changes: ledger.changesOf(id) };
     finished = Promise.withResolvers<void>();
     const controller = new AbortController();
     const retry: ActionCallContext = { ...original, signal: controller.signal, validate_authority: reference => {
-      if (revoked && reference.capability_id === memoryActions.change.capability_id) throw new ActionError("actions.permission_revoked", "fixture authority revoked");
+      if (revoked && reference.capability_id === action.capability_id) throw new ActionError("actions.permission_revoked", "fixture authority revoked");
     } };
-    const pending = client.invoke(retry, memoryActions.change, request), rejected = assert.rejects(pending);
+    // The fixed-selection contract returns per-item incomplete receipts; a single change still rejects.
+    const settled = preview
+      ? client.invoke(retry, memoryActions.batchApply, { preview_id: preview.preview_id }).then(result => {
+        assert.equal(result.complete, false);
+        assert.deepEqual(result.items.map(item => item.outcome), ["unknown", "not-executed"]);
+      })
+      : assert.rejects(execute(retry));
     await entered.promise;
     if (stop === "cancel") controller.abort(); else revoked = true;
-    holding = false; release.resolve(); await Promise.all([rejected, finished.promise]);
+    holding = false; release.resolve(); await Promise.all([settled, finished.promise]);
+    assert.equal(removals, 2, "only the first item's purge and its original retry reached the SDK");
     assert.deepEqual({ revisions: ledger.revisions(id), uses: ledger.uses({ memory_id: id }), changes: ledger.changesOf(id) }, before);
-    await client.invoke(original, memoryActions.change, request);
+    if (later) {
+      assert.deepEqual((await memory.service.list(memory.caller(person))).items, [later.memory!]);
+      assert.ok(ledger.revisions(later.memory!.memory_id).length, "the later child is not executed after cancellation or revocation");
+    }
+    if (preview) {
+      assert.ok(selection);
+      assert.deepEqual(ledger.marker(LOCAL_PERSON_ACTOR_ID, `memory-selection:${preview.preview_id}`), selection);
+      ledger.close(); memory.close(); await adapter.close(); await localHost.close();
+      localHost = new MolisWorkLocalHost({ completeText: null }); adapter = await openAdapter(localHost);
+      const reopenedAgentHost = new AgentHost(); reopenedAgentHost.register(adapter);
+      memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost: reopenedAgentHost, executes: () => true, ready: async () => {} });
+      ledger = openMemoryLedger({ homeDirectory: home }); client = localHost.homeActionClient();
+      assert.deepEqual(ledger.marker(LOCAL_PERSON_ACTOR_ID, `memory-selection:${preview.preview_id}`), selection);
+      assert.deepEqual({ revisions: ledger.revisions(id), uses: ledger.uses({ memory_id: id }), changes: ledger.changesOf(id) }, before);
+      assert.deepEqual((await memory.service.list(memory.caller(person))).items, [later!.memory!]);
+      const resumed = await client.invoke(original, memoryActions.batchApply, { preview_id: preview.preview_id });
+      assert.equal(resumed.preview_id, preview.preview_id);
+      assert.equal(resumed.complete, true);
+      assert.deepEqual(resumed.items.map(({ scope, owner, memory_id, expected_version }) => ({ scope, owner, memory_id, expected_version })), preview.items);
+      assert.deepEqual(resumed.items.map(item => item.outcome), ["completed", "completed"]);
+    } else await execute(original);
+    assert.deepEqual((await memory.service.list(memory.caller(person))).items, []);
+    if (later) assert.deepEqual(ledger.revisions(later.memory!.memory_id), []);
     assert.deepEqual(ledger.revisions(id), []); assert.deepEqual(ledger.uses({ memory_id: id }), []);
     assert.ok(ledger.changesOf(id).every(change => change.text === ""));
   });

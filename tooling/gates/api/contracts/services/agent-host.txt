@@ -861,7 +861,7 @@ export type AgentMemoryPreviewMutation = {
     kind: "pause" | "disable";
     reason: string;
 } | {
-    kind: "resume" | "remove";
+    kind: "resume" | "remove" | "purge";
 };
 
 export interface AgentMemoryPromotion {

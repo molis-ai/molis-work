@@ -190,6 +190,8 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 
 显式提议的候选去重、限额与来源合并查询使用内部 management 副本，保留原 actor、项目、Session、插件、场景、Run 分类快照与取消信号；学习来源保留 learning，其余标为本次 explicit 提议。只有候选上下文按形成权限读取，要求当前与原 Run 共同允许；learn_from_work 仅约束 learning。正式读取与最终候选提议继续使用原 caller，Agent 不因此取得候选管理、接受或删除入口。验收覆盖 read off/form on 的真实 Action 提议、去重与本人接受，以及形成关闭、原快照缺失和 Agent 管理拒绝。
 
+`learningContext` / `learnFromWork` 明确使用 task / learning，正式读取、来源和 SDK `form` 不借后端的默认管理身份。内部候选快照、派发重验、按形成回执精确引用/版本登记和 v3 策略晋升独立使用同一受限 management 副本；保留 person 原值与所有可信身份、冻结限制和取消信号，不赋予任务正式管理读取或人工决定权。已有候选只在获准集合内参与去重；写入和候选决定仍由 SDK 独占。
+
 `memory.list@4` 的非本人调用只读取当前合法可见的正式项，personal/project 计数也来自这些正式项；pending 与 auto_this_week 返回 null，表示本次未查询管理计数，不表示零。本人管理仍查询并返回原实际计数。正式列表不因旁账中不可见的候选而失败，也不借内部 management 副本扩大权限。助理提议工具直接返回本次 Service.propose 的候选 ID，不再通过全范围候选回读或最后一条猜测结果；并发提议各自保留自己的回执。
 
 跨范围读取返回前同步复核所有已计入正式计数的 canonical 分类目标，使用当前规则与原 Run 快照交集；不只检查筛选后显示项。中途类别禁读整体拒绝，避免返回先前范围的正文或计数；只关闭形成不影响读取。复用现分类判定，不重扫 SDK 或新增元数据存储。
@@ -243,3 +245,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 - Migration Goals: `goal-reorg-f2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面定向工程验证已完成，资源门及依赖合并仍待收束；合同与逐步证据见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
+
+本片定向回归（构建后，单 worker）：node scripts/run-tests.mjs --jobs 1 tests/memory-selected-batch.test.ts tests/memory-service-cas.test.ts tests/memory-management-pages.test.ts tests/memory-management-page-http.test.ts tests/memory-actions.test.ts。浏览器独立槽运行 tests/memory-settings-pages.e2e.test.ts，覆盖分类筛选后的明确选择、预览确认、后来新增不入集、部分失败及完整关闭重开 Host 后沿原预览恢复。最终真实 Home、质量/token 对照与用户验收仍按原 P0 合同执行。

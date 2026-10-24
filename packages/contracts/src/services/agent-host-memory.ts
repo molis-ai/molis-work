@@ -215,7 +215,7 @@ export interface AgentMemoryMutation {
 export interface AgentMemoryChange { text: string; origin?: string; meta?: AgentMemoryMeta }
 /** The actual maintenance command, checked before preparing App history; execution still rechecks authority. */
 export type AgentMemoryPreviewMutation = { kind: "update"; change: AgentMemoryChange }
-  | { kind: "pause" | "disable"; reason: string } | { kind: "resume" | "remove" };
+  | { kind: "pause" | "disable"; reason: string } | { kind: "resume" | "remove" | "purge" };
 /** Supplied only by trusted App/Host code, independently of business/model input. */
 export interface AgentMemoryCaller {
   /** Trusted Run snapshot; absent callers cannot recover a Run memory grant. */

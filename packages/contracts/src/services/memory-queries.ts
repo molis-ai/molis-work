@@ -19,6 +19,8 @@ export interface MemoryListResponse {
 /** Management displays all declared kinds; write and formation retain their narrower product contract. */
 export type MemoryManagementKind = MemoryFormalKind;
 export interface MemoryManagementItem extends Omit<MemoryItem, "kind"> {
+  /** Canonical selected-set target; never a grant. */
+  owner: string;
   kind: MemoryManagementKind;
   classification: NonNullable<AgentMemoryMeta["classification"]> | null;
   expired: boolean;
@@ -62,7 +64,7 @@ const pageProperties = { cursor: text, exhausted: { type: "boolean" }, stopped: 
 /** Built at the existing memory Action owner; reuse the formal item schema without broadening write outputs. */
 export function memoryPageAction(item: { properties: Record<string, unknown>; required: string[] }, permission: string, writeKinds: readonly string[], sources: readonly string[]): ActionDefinition<MemoryPageRequest, MemoryPageResponse> {
   const kinds = { enum: [...writeKinds, "habit", "project-decision"] };
-  return { capability_id: "memory.page", version: 1, operation: "query", action: {
+  return { capability_id: "memory.page", version: 2, operation: "query", action: {
     scope: "home", subject_kinds: [], kind: "query", effect: "read", plugin: false, scheduling: "concurrent", audiences: ["user"], permissions: [permission],
     title: "分批查看记忆", description: "按当前管理权限分批查看记忆及真实分类、状态和期限；未查完不推算总数。",
     input_schema: { type: "object", properties: {
@@ -72,9 +74,9 @@ export function memoryPageAction(item: { properties: Record<string, unknown>; re
       ...continuationProperties,
     }, additionalProperties: false },
     output_schema: { type: "object", properties: {
-      items: { type: "array", maxItems: 100, items: { type: "object", properties: { ...item.properties, kind: kinds,
+      items: { type: "array", maxItems: 100, items: { type: "object", properties: { ...item.properties, owner: { type: "string", minLength: 1 }, kind: kinds,
         classification: { anyOf: [{ type: "null" }, classification] }, expired: { type: "boolean" } },
-        required: [...item.required, "classification", "expired"], additionalProperties: false } },
+        required: [...item.required, "owner", "classification", "expired"], additionalProperties: false } },
       ...pageProperties,
     }, required: ["items", "exhausted", "stopped", "total", "scanned", "cost"], additionalProperties: false },
   } };

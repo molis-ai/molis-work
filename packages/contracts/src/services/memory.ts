@@ -1,3 +1,5 @@
+import { memoryBatchActions } from "./memory-batches.js";
+export { MEMORY_BATCH_MAX_ITEMS, type MemoryBatchItem, type MemoryBatchRequest, type MemoryBatchPreview, type MemoryBatchResult } from "./memory-batches.js";
 import { memoryPageAction, type MemoryListRequest, type MemoryListResponse } from "./memory-queries.js";
 export type { MemoryListRequest, MemoryListResponse, MemoryManagementKind, MemoryManagementItem, MemoryPageFilter, MemoryPageRequest, MemoryPageResponse } from "./memory-queries.js";
 import type { ContractDescriptor } from "../platform/package.js";
@@ -435,6 +437,8 @@ export interface MemoryScopePreview {
   fingerprint: string;
 }
 
+
+
 export interface MemoryClearResult {
   removed: number;
   complete: boolean;
@@ -538,7 +542,9 @@ const notForPlugins = { plugin: false as const };
  * namespace and to the kinds the person allows it, for the day a plugin uses memory with a Host-confirmed identity:
  * that is when `plugin` returns to `audiences` of recall and write and `plugin: false` goes.
  */
+
 export const memoryActions = {
+  ...memoryBatchActions(MEMORY_WRITE_PERMISSION),
   page: memoryPageAction(itemSchema, MEMORY_READ_PERMISSION, MEMORY_KINDS, MEMORY_SOURCES),
   recall: { capability_id: "memory.recall", version: 2, operation: "query", action: { ...reads, ...notForPlugins, scheduling: "concurrent" as const,
     audiences: ["user", "agent", "workflow", "mcp"] as ("user" | "agent" | "workflow" | "mcp")[], permissions: [MEMORY_RECALL_PERMISSION],

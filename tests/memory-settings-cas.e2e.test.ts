@@ -16,7 +16,7 @@ const { renderMolisWorkProjectSettingsHub, renderMolisWorkSettingsStylesheet } =
 // not a substitute for the Service/SDK authority and CAS tests, and never starts a Home or calls a model.
 interface Request { path: string; body: Record<string, unknown>; key: string }
 const entry = (id: string, version: number, state = "active") => ({ memory_id: id, version, state,
-  text: `记忆 ${id}`, kind: "preference", source: "manual", scope: "project", applies: {}, origin: "本人", created_at: "2026-10-23T00:00:00Z",
+  owner: "project", text: `记忆 ${id}`, kind: "preference", source: "manual", scope: "project", applies: {}, origin: "本人", created_at: "2026-10-23T00:00:00Z",
   classification: { scenes: ["common"], lifecycle: "long-term" } as { scenes: string[]; lifecycle: string } | null, expired: false, expires_at: null as string | null });
 interface PageInput { query?: string; cursor?: string; filter?: { kinds?: string[]; scenes?: string[]; states?: string[]; expired?: boolean; unclassified?: boolean } }
 const pageOf = (items: unknown[], extra: object = {}) => ({ items, exhausted: true, stopped: "end", total: { kind: "exact", value: items.length },
@@ -62,7 +62,12 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const address = server.address(); assert.ok(address && typeof address === "object");
   browser = await ChromeHarness.start(directory, { executable: chrome });
   const page = await browser.page(); await page.viewport(1200, 1000);
-  const reset = async () => { await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?visit=${calls.length}` }); await page.wait("document.querySelector('[data-memory-id=active]')"); };
+  let visit = 0;
+  const reset = async () => {
+    await page.evaluate(`document.documentElement.dataset.memoryPreviousVisit = '${++visit}'`);
+    await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?visit=${visit}` });
+    await page.wait(`document.documentElement.dataset.memoryPreviousVisit !== '${visit}' && document.querySelector('[data-memory-id=active]')`);
+  };
   await reset();
   return { page, calls, reset, overview, directory, reads };
 }
@@ -368,4 +373,80 @@ test("Memory classification editing rejects expired and session-bound entries wi
     assert.equal(await f.page.evaluate(`document.querySelector('${item(id)} select[aria-label=类别]').value`), "habit", "the rejected decision remains editable");
     assert.equal(await f.page.evaluate("document.querySelector('[data-memory-retries]').hidden"), true);
   }
+});
+
+// Storage is a browser recovery reference, never a completion ledger. Exceptions use the actual Storage boundary.
+test("batch storage faults keep the original preview, block unsaved writes and refresh completed forgetting", { timeout: 70_000 }, async t => {
+  let applied = 0, completed = false;
+  const f = await open(t, call => {
+    if (call.path.endsWith("/batch/preview")) return { body: { preview_id: "fixed-storage-preview", action: "remove", items: call.body.items, max_items: 100 } };
+    assert.ok(call.path.endsWith("/batch/apply"));
+    assert.equal(call.body.preview_id, "fixed-storage-preview"); applied++; completed = true;
+    return { body: { preview_id: "fixed-storage-preview", action: "remove", complete: true,
+      items: [{ scope: "project", owner: "project", memory_id: "active", expected_version: 7, outcome: "completed", change_id: "original-receipt" }] } };
+  });
+  if (!f) return;
+  const { page } = f, key = "memory-selection:/projects/project/api/memory";
+  await page.evaluate(`(() => {
+    window.memoryStorageErrors = [];
+    addEventListener('error', event => window.memoryStorageErrors.push(event.message));
+    addEventListener('unhandledrejection', event => window.memoryStorageErrors.push(String(event.reason)));
+    window.memoryStorageSet = Storage.prototype.setItem; window.memoryStorageRemove = Storage.prototype.removeItem;
+    Storage.prototype.setItem = function(key, value) { if (key.startsWith('memory-selection:')) throw new DOMException('quota', 'QuotaExceededError'); return window.memoryStorageSet.call(this, key, value); };
+  })()`);
+  await page.click("[data-memory-id=active] [data-memory-select]");
+  await page.click("[data-memory-batch-remove]"); await page.wait("document.querySelector('.memory-confirm[open]')");
+  await page.click("[data-memory-confirm-yes]");
+  await page.wait("document.querySelector('[data-memory-error]').textContent.includes('尚未开始执行') && !document.querySelector('[data-memory-batch-retry]').disabled");
+  assert.equal(applied, 0); assert.equal(completed, false);
+  assert.equal(f.calls.filter(call => call.path.endsWith("/batch/preview")).length, 1);
+  assert.equal(await page.evaluate(`localStorage.getItem(${JSON.stringify(key)})`), null);
+  assert.equal(await page.evaluate("document.querySelector('[data-memory-batch-remove]').disabled"), true);
+  await page.evaluate(`(() => {
+    Storage.prototype.setItem = window.memoryStorageSet;
+    Storage.prototype.removeItem = function(key) { if (key.startsWith('memory-selection:')) throw new DOMException('blocked', 'SecurityError'); return window.memoryStorageRemove.call(this, key); };
+  })()`);
+  // A failed abandon must retain the same in-page preview, before any mutation.
+  await page.click("[data-memory-selection-reset]");
+  await page.wait("document.querySelector('[data-memory-error]').textContent.includes('本次操作仍保留')");
+  assert.equal(await page.evaluate("document.querySelector('[data-memory-batch-retry]').hidden"), false); assert.equal(applied, 0);
+  // The protocol owner removes the body only when apply succeeds; the following overview must project that result.
+  const original = f.overview.items;
+  Object.defineProperty(f.overview, "items", { get: () => completed ? original.filter(item => item.memory_id !== "active") : original });
+  await page.click("[data-memory-batch-retry]");
+  await page.wait("document.querySelector('[data-memory-batch-status]').textContent.includes('引用未能清理') && !document.querySelector('[data-memory-id=active]') && !document.querySelector('[data-memory-batch-retry]').disabled");
+  assert.equal(applied, 1); assert.equal(completed, true);
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('[data-memory-settings]').textContent"), /记忆 active/);
+  assert.deepEqual(JSON.parse(await page.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)), { preview_id: "fixed-storage-preview", action: "remove" });
+  assert.deepEqual(await page.evaluate("window.memoryStorageErrors"), []);
+  await page.evaluate("Storage.prototype.removeItem = window.memoryStorageRemove");
+  await page.click("[data-memory-batch-retry]");
+  await page.wait("document.querySelector('[data-memory-batch-retry]').hidden && document.querySelector('[data-memory-list]').getAttribute('aria-busy') === 'false'");
+  assert.equal(applied, 2); assert.equal(f.calls.filter(call => call.path.endsWith("/batch/preview")).length, 1);
+  assert.equal(await page.evaluate(`localStorage.getItem(${JSON.stringify(key)})`), null);
+  assert.deepEqual(await page.evaluate("window.memoryStorageErrors"), []);
+});
+
+test("unreadable batch storage cannot overwrite a previous preview before explicit abandonment", { timeout: 45_000 }, async t => {
+  const f = await open(t, () => ({ body: {} })); if (!f) return;
+  const key = "memory-selection:/projects/project/api/memory";
+  await f.page.evaluate(`localStorage.setItem(${JSON.stringify(key)}, JSON.stringify({preview_id:'original-unread',action:'disable'}))`);
+  await f.page.command("Page.enable");
+  const { identifier } = await f.page.command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `
+    window.memoryStorageReadProbe = true;
+    const original = Storage.prototype.getItem;
+    Storage.prototype.getItem = function(key) { if (key.startsWith('memory-selection:')) throw new DOMException('blocked', 'SecurityError'); return original.call(this, key); };
+  ` });
+  await f.reset();
+  assert.equal(await f.page.evaluate("window.memoryStorageReadProbe === true"), true, "the storage fault must be installed in the new document before Memory initializes");
+  await f.page.wait("document.querySelector('[data-memory-batch-status]').textContent.includes('无法读取原预览')");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-select]').disabled && document.querySelector('[data-memory-batch-disable]').disabled"), true);
+  assert.equal(f.calls.length, 0);
+  await f.page.command("Page.removeScriptToEvaluateOnNewDocument", { identifier });
+  await f.page.click("[data-memory-selection-reset]");
+  await f.page.wait("!document.querySelector('[data-memory-select]').disabled");
+  await f.reset();
+  assert.equal(await f.page.evaluate(`localStorage.getItem(${JSON.stringify(key)})`), null);
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-batch-retry]').hidden"), true);
+  assert.equal(f.calls.length, 0);
 });

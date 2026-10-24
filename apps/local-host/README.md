@@ -287,4 +287,6 @@ MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-
 
 公共模型服务的原图由 `plugin-model-images.ts` 在 Host 私有临时目录适配现有 Prologue intake，路径由 Host 生成、目录 0700、文件 0600，调用结束清除源副本；SDK 继续负责图片格式和 intake 资源回收。`hostTextGeneration` 返回实际 dispatch 快照的同步复核函数，成功与可记账失败保留原推理事实；公共服务的 `choices()` 复用 `configuredModelChoices`，不解密或联网。回归见 `tests/security-invariants-plugin-model-materials.test.ts`、`tests/prologue-inference-images.test.ts`。
 
+固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面测试待统筹构建槽验证；未跑不算通过。合同见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
+
 Agent 的通用 Memory Action 使用生产 startAuthority 绑定的原 Run `runtime_memory` 与 Session，不能以当前设置或最新 attempt 替代。Memory owner 将其作为 task caller 交同一 SDK；缺失时明确不可用。动作 grant、安装与取消检查保持原调用链。

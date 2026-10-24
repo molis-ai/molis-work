@@ -1,4 +1,4 @@
-import type { MemoryCandidateRecord, MemoryChangeRequest, MemoryLedgerPort, MemoryScope, MemorySource } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryBatchRequest, MemoryCandidateRecord, MemoryChangeRequest, MemoryLedgerPort, MemoryScope, MemorySource } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller } from "./service.js";
 import { memoryErrors } from "./errors.js";
 
@@ -45,6 +45,12 @@ export interface MemoryPurgeTarget {
   condition?: { expected_version: number; operation_id: string; signal?: AbortSignal };
 }
 
+/** The fixed selection holds stable references and child identities, never body copies or local progress. */
+export interface MemorySelection extends MemoryBatchRequest {
+  project_id: string | null;
+  children: string[];
+}
+
 /** The existing ledger keeps operation identity and receipts, never a proposed body or encoded command. */
 export class MemoryOperations {
   constructor(private readonly ledger: MemoryLedgerPort, private readonly newId: () => string, private readonly now: () => Date) {}
@@ -66,6 +72,19 @@ export class MemoryOperations {
       return operation_id;
     });
     return { ...parent, operation_id };
+  }
+
+  selection(caller: MemoryCaller, previewId: string): MemorySelection | undefined {
+    return this.ledger.marker(caller.actor_id, "memory-selection:" + previewId)?.body as MemorySelection | undefined;
+  }
+
+  saveSelection(caller: MemoryCaller, previewId: string, selection: MemorySelection): void {
+    this.ledger.transaction(() => {
+      const existing = this.selection(caller, previewId);
+      if (existing && JSON.stringify(existing) !== JSON.stringify(selection))
+        throw memoryErrors.conflict("同一预览操作号不能改变原选集");
+      if (!existing) this.ledger.setMarker(caller.actor_id, "memory-selection:" + previewId, selection, this.now().toISOString());
+    });
   }
 
   /** Recreating a merged item belongs to the original change, even when the person's retry is a new request. */

@@ -536,6 +536,10 @@ App 复用已有形成限额配置：当前自动学习仅 personal/project，�
 
 形成上下文的正式记忆只来自当前 task-read 许可；读取关闭时不提供正式正文，但仍可按独立形成许可从本人原件产生新候选。待审上下文和 SDK 形成结果登记使用候选管理许可，限定可信 learning 调用、当前 enabled/form/learn_from_work、使用方许可、范围与命名空间，不因此开放正式管理读取。真实模型派发前沿现调用的进程内校验回调，重核原 context 的精确 refs/version、读取或候选管理权限及期限；快照后变化明确拒绝派发，不偷偷替换正文或固定目标。回调不持久化、不进 SDK 内容或模型，none 不调用。派发前拒绝不虚构已发请求或已知零成本，实际调用与用量按各层回执记录。
 
+2026-10-24 形成身份接线修复：`learningContext` 与 `learnFromWork` 明确绑定 task / learning，不再依赖后端缺省 management。正式上下文读取、来源和 `form` 沿原任务身份；仅内部候选快照、派发重验、按形成回执精确 ref/version 登记及 v3 策略候选决定使用 management 副本，保留 actor、person 原值、项目、插件、场景、Session、原 Run 分类限制与 signal。副本不交给 Agent，不开放正式管理读取或人工接受；候选正文和重复判定只来自本轮获准集合，当前形成关闭、撤权、取消、版本改变仍拒绝。复用原 CandidateBox/Host 授权、唯一写主人与 ledger，不增 SDK API、配置项或存储。允许修改 Memory learning、Service 的策略候选接点、现形成/晋升/固定选集回归及本包 README；验收为显式 task 的单来源形成→本人接受→批量遗忘→同源及重启重放拒绝，以及真实 Node 多来源晋升、固定目标 CAS、派发撤权和非本人管理拒绝；脚本模型不代表真实语义质量。
+
+本片局部工程验证：Node 24.14.0 整体增量 build 通过；形成、晋升、分类形成与固定选集四文件 49 项通过，真实队列学习 25 项通过。队列的提交后撤权屏障随登记改为精确 `get`，原回执、撤权零新账注及原操作重试断言保留。Memory README 必跑组已执行，最终 17/18 文件通过；`memory-actions` 的批量清理取消/撤权两项仍是待统筹核对的失败，不能据此宣称整个 P0 或包级回归通过。无付费模型、真实 Home 或用户体验验收。
+
 项目删除仍由 Catalog 的持久回执驱动各 owner。已确认的固定 deletion_id 沿现 `ProjectDeletedPort.clear` 传给 Memory，后者以该身份清理 SDK/ledger；不根据发起删除的是本人界面还是代本人操作的 MCP actor 再造第二套删除权限，也不要求已持有 Runtime 的 Host 重开 Catalog 才能完成已授权清理。只有实际回执路径携该身份；普通 owner 清理和 demo 重建仍要求项目当前存在，无回执且项目缺失时拒绝。当前运行时/存储写主人、延迟重试、无回执拒绝及无关范围零修改不变。
 
 模型侧只用本次短编号选择来源、已有记忆、待审和固定 slot，按目标合并重复 kind 选项；原 SDK identity、分类、适用条件与 CAS 仍保存在调用方的准确映射中。未知编号拒绝，不通过省略可选目标或正文压低成本。省下的请求字符/字节单独计量，不能直接当作已测 token 或模型质量收益。
@@ -727,7 +731,7 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 - **MEM-PAGE-02**：同一查询有至少两页；过滤和全文搜索共享扫描预算，零命中未穷尽可继续，游标换查询/范围被拒。取消、撤权、重启与并发变更不扩大权限；exact 仅在可证明时给出，跨页/过滤未知保持 unknown。
 - **MEM-PAGE-03**：隔离非空 Home 的真实设置页完成选择分类、翻页、改变过滤、空页继续、到期/未分类展示，并确认网络不下发全库。现历史、撤销、导入导出、候选与失败重试入口仍可用。renderer/HTTP 夹具仅作定向回归，不替代生产链实操；资源沿已批准逐文件额度实测，不自动放宽。
 
-后续两个紧随切片仍是 P0：其一按所见版本改类/场景/生命周期/期限，并把分类 read/form 限制接入现 prefs 与当前权限；其二通过 SDK 固定 preview/mutateBatch 与现 marker/history/forget 清理完成选中条目的批量停用/遗忘、逐项结果及原操作恢复。改类不得改 owner/namespace、自动续期或恢复；批量不得重跑动态查询追删后来新增项。旧格式导入、历史撤销、候选管理及完整 Coding/助理旅程继续沿原承诺完成，本片通过不代表完整 M3/P0 验收。
+后续两个紧随切片仍是 P0：其一按所见版本改类/场景/生命周期/期限，并把分类 read/form 限制接入现 prefs 与当前权限；其二通过 SDK 固定 preview 校验原选集，执行复用现 Service.change 唯一写链和 marker/history/forget 清理，完成选中条目的批量停用/遗忘、逐项结果及原操作恢复；不先 mutateBatch 再 change，避免重复执行或清理前报告完成。改类不得改 owner/namespace、自动续期或恢复；批量不得重跑动态查询追删后来新增项。旧格式导入、历史撤销、候选管理及完整 Coding/助理旅程继续沿原承诺完成，本片通过不代表完整 M3/P0 验收。
 
 #### M3 第二片：逐条纠正正式分类
 
@@ -1094,6 +1098,59 @@ M3 逐条分类纠正本轮验证完成（2026-10-24，本地生产 head `68564e
 
 本片提交为 [Draft #1154](https://github.com/molis-ai/molis-work/pull/1154)，基于 #1153，按原依赖顺序合并。实际 27 资源共 7,829,773 B，workbench 从矩阵的 1,206,014 增至 1,207,694 B（+1,680 B），其余 26 项相同，见 `/private/tmp/molis-memory-renewal-current-assets-20261024.json`。复用现有编辑容器、原生日期输入、确认框、重试与期限格式化，增长已单独请用户评审，未获批准前不登记；报告成功不代表资源门通过。工程与上述隔离 Home 操作证据不替代最终 App、付费 B2 或用户验收。
 
+### M3 旧历史仅采用文字短合同（2026-10-24，本地验证通过，资源待批准）
+
+对应 MEM-04/15/34：本人查看缺少完整快照的旧版本时，可明确选择「使用这段旧文字」，确认后仅以旧正文更新当前记忆；当前分类、适用条件、绝对期限、来源、状态和 owner 保留，未知历史事实不补猜。完整快照的「回到这一版」不变。
+
+现有 history DTO 已区分 snapshot_available，现有 memory.change 的 update 已支持仅正文与原版本 CAS；复用现 historyPanel、确认框和同操作重试即可，不新增 API、SDK 能力、存储状态或共享 helper。硬边界仍由现 Service/SDK 写门拥有：已删除、已到期、会话绑定或权限不满足时拒绝，失败不补新版本；停用/暂停不因使用旧文字激活。页面只传 action:update、text、memory_id、首次观察的 expected_version 与原 operation_id。本人可以确认或取消，取消不发送写请求；丢回应按固定原请求重试，后继版本冲突可见且不覆盖。
+
+范围仅 workbench 现设置脚本/英文词典、原分类浏览器回归、workbench README 和本 spec。不修改 SDK、锁文件、API/Action 快照或资源额度；Session 专项和完整 P0 验收不在本片。测试通过真实公开 SDK 与 openMemoryLedger owner 新建合法无快照历史，不覆盖已有 revision、不伪造 history 响应、不读写 foreign SQL。
+
+验收：完整构建后定向浏览器覆盖确认/取消、当前元数据和状态保留、原版本冲突、丢回应同操作重试、完整关闭重开及原 full restore；按 workbench README 跑相关回归、类型/脚本与翻译检查，并实测页面资源增量。只运行点名文件，重型任务服从 machine-slot；工程结果、实操范围、资源批准和用户验收分别记录。
+
+本地结果：以续期父 `5e79861a8904313e889c55a242ed60a13bef711e` 为基线，仅新增现 historyPanel 的文字采用入口和四条英文词典。真实 SDK 初写后由 ledger owner 新建原本不存在的 v1 无快照 revision，再通过公开 Action 编辑为当前分类并停用；页面确认/取消、丢回应后原操作重试、原版本冲突、当前完整 meta/origin/owner/状态与重启保持，以及原 full restore，共 4/4 浏览器用例通过。workbench 必需 18 文件加 Memory classification/CAS/actions 共 21/21 文件通过（其中 12/85/23 项）；README 界面必需 10/10 浏览器文件通过。完整 build、根类型、health 对精确父、secrets 和 diff 检查通过。首轮构建因沙箱禁止 Swift cache 写入失败，日志 `/private/tmp/molis-memory-history-text-build-20261024.log` 保留；允许的本机环境重跑通过，无产品断言失败或放宽断言。结果与同 stem 日志见 `/private/tmp/molis-memory-history-text-20261024.results.json`。
+
+资源实测 27 项共 7,830,253 B；相对续期父唯一变化为 workbench 1,207,694→1,208,174 B，净增 480 B，其余 26 项相同。未改资源额度，增量未批准，资源门尚未通过。未改 API/SDK/快照/锁文件、未运行全量、未访问真实 Home 或付费模型；已覆盖临时 Home 真实浏览器路径，不代替 Session 专项、最终集成或用户验收。
+
+### M3 固定分类选集批量管理短合同（2026-10-24，实现中）
+
+本人在分类筛选页逐条勾选所见 scope/owner/memory_id/expected_version，最多 100 条，跨页选择仍保持原身份和版本。管理分页投影实际 owner，新增必填输出使 memory.page 升为 v2；DTO 不是授权，Host 重新验证当前 actor/project/合法 scope。只支持 disable/remove，不续期、不移动、不新增候选批处理。
+
+公开 memory.batch.preview 接收 action/items，经 backend.previewMutation→SDK preview 逐条验证具体命令；全部通过后在既有 ledger marker 冻结无正文的选集、原项目与稳定 child operation_id，返回 preview_id/action/items/max_items。预览写 marker 前执行现 beforeEffect/current 守卫。memory.batch.apply 仅接 preview_id，同 actor/原项目恢复，逐条绑定原 scope/owner/version 的 change-request 再调用 Service.change。SDK 与 App 各自保留原写主人，不新增表、正文快照、SDK 批处理接口或执行核。上限由 App 明确配置且 Host 最大 100，不从分页大小推导权限。
+
+completed 只来自原子项 change 回执：遗忘须完成来源抑制、候选 SDK/投影、正式删除、历史/uses/pairs/正文投影清理。重试据原 durable change 回执跳过完成项，不能覆盖后继人工版本；缺回执沿原子操作继续，unknown 不猜成功。待执行子项仍过当前授权/CAS，跨项目或合法 scope 改变拒绝；完成项只返回既有事实。冲突/拒绝逐项显示，unknown/取消停止后续；失败不承诺此前零副作用。HTTP 200/incomplete 不报全完成，保留原预览重试；Host 重开沿同 preview/child 恢复，页面只持久化 preview_id/原项目，不存正文。
+
+取消/撤权 Action 回归按上述既有合同区分单项与批量：单项 change 拒绝，batch.apply 返回 incomplete 与 unknown/not-executed；返回结果不授权继续写账。验证在真实 SDK purge 已成功、回应曾中断、原操作重试确认不存在后暂停，此时取消或撤权必须保留原 ledger，第二项不能执行；完整关闭重开 Host 后只能沿原 preview、原 child 与冻结版本恢复。此次只修对应测试的整体拒绝预期并补持久化/恢复断言，不改公开合同或批量执行语义；原首败日志保留，不将其称为干净基线失败。
+
+该回归工程结果：Node 24.14.0、build FIFO 与隔离临时 Home 下，cleanup 最小四项通过（`/private/tmp/molis-memory-cleanup-actions-20261024.log`）；补齐重开后的持久化断言后，完整 `memory-actions.test.ts` 25/25 与 `memory-selected-batch.test.ts` 12/12 通过（`/private/tmp/molis-memory-cleanup-files-20261024.log`）。生产 Action、真实 SDK purge/SQLite、取消/撤权后账本不变、后续项零执行与原 preview/固定版本恢复均已覆盖；未更改批量生产实现。原 18 文件批次失败日志仍保留在 `/private/tmp/molis-memory-formation-purpose-required-20261024.log`。本次仅修改测试与说明，最终源码构建、静态和公开快照由统筹重验；不等于完整产品实操或用户验收。
+
+复杂度取舍：SDK mutateBatch 不拥有 App 来源/ledger 清理，因此执行复用 Service.change；整范围 scope.clear 不适用。batches.ts 只拥有选集预览与恢复，现 Queries 接回 history/changes 读取以保持 Service 粒度。允许 memory README/src service/operations/batches/queries、contracts README/services memory、memory-queries与agent-host-memory、local-host README/memory-host、workbench README/settings-memory及必要样式/翻译、相关测试及本 spec；不改 SDK 包/锁文件、资源/health 门或生成快照。
+
+依赖统筹合入的续期与旧文字父 a16800e4add（含 #1064 删除恢复与分类限制）、SDK preview/CAS 与 Action/ledger 守卫。真实验收：后加不入集、编辑冲突、跨身份拒绝、中途撤权/取消/unknown 停后续、清源/SDK/账本/回执故障后关开恢复不重复、completed 后候选/历史/uses/pairs 无正文且同源不重学；页面实际选择/预览/确认、分项反馈和原预览重试。初始源码准备期没有运行重型验证；现已由统筹按机器槽完成下列定向验证，资源/API/health 与集成结果逐项记录。
+
+批量遗忘的预览使用现有 SDK `purge`，不以 `remove` 墓碑命令的许可替代实际删除许可。现 `AgentMemoryPreviewMutation` 仅补该取值，不新增 Port。
+
+页面以 localStorage 保存绑定当前项目路径的 preview_id/action，不存正文、选集或执行进度；新页面与 App 重启可重试原预览。该引用不授权，Host 重核 actor/project/scope/owner 与原选集；完成或本人明确放弃才清理，部分失败/未知/取消保留。
+
+浏览器存储失败边界：确认后须先保存原 preview 引用，保存失败不执行任何子项，明确提示并保留本页原预览供保存后重试。完成后的引用清理失败不改写已完成事实，也不阻止重新读取页面、清除已遗忘正文；旧引用仅可重放原回执。本人放弃时若引用清理失败，保留本页原预览并提示，不静默开始新选集。读取存储失败明确提示。验收须覆盖 setItem/removeItem 真实异常与实际 Host 关闭重开后的原 preview 恢复；新标签页不代替 Host 重启。
+
+浏览器三失败诊断（2026-10-24）：Storage quota 回归直接点击尚未异步生成的确认框，补等待实际 open dialog 后原断言通过；读取异常回归的 CDP 新文档脚本实际未执行，先启用 Page domain 后安装脚本并校验新文档探针，原故障与明确放弃断言通过。真实 Host 用例另复现产品状态问题：新批量遗忘预览的确认框已打开，仍显示上一批“全部处理完成”，旧文本使等待提前结束、在当前 apply 前读取持久数据。新预览开始时清除旧完成状态及分项结果；当前批次只有其真实 apply 回执可再次宣告完成。不改选集、确认、版本、存储或恢复语义；测试补实际 Service remove 调用、当前页面清除与持久结果，仍按原预览跨 Host 重开。原失败与最小诊断日志保留，禁止加超时、重复点击或削弱持久断言；本次仅 settings-memory.ts、两浏览器回归及本段，构建后实测资源增量，不调额度。
+
+三失败修复结果：固定 Node 24.14.0、build FIFO 及浏览器→build FIFO，整体增量 build 通过；`memory-settings-cas.e2e.test.ts` 25/25、`memory-settings-pages.e2e.test.ts` 2/2 通过，无跳过；脚本未声明检查 5/5、翻译 11/11 与 diff 检查通过（`/private/tmp/molis-memory-batch-browser-script-checks-20261024.log`）。真实临时 Home 完整关开沿原预览恢复，下一批确认前无删除且无旧完成态，真实 Service 按所选两条原版本完成遗忘、页面移除正文，正式管理读取仅余后来新增项。首败 `/private/tmp/molis-selected-batch-browser-20261024.log` 与独立诊断 `/private/tmp/molis-memory-batch-browser-diagnostic-20261024.log` 保留；构建及绿色双文件日志分别为 `/private/tmp/molis-memory-batch-browser-build-20261024.log`、`/private/tmp/molis-memory-batch-browser-green-20261024.log`。本次修复前后实际 27 资源为 7,835,936→7,836,072 B，唯一变化是 workbench.js 1,212,881→1,213,017 B（+136 B），其余 26 项相同；完整逐项值见 `/private/tmp/molis-memory-batch-browser-before-assets-20261024.json` 和 `/private/tmp/molis-memory-batch-browser-after-assets-20261024.json`。资源报告不等于资源门通过，未新增批准或修改额度；此结果不代替完整集成、真实 Home/付费模型或用户验收。
+
+初始准备记录（当时尚未运行，最终结果见下方统筹补记）：真实 100 条跨合法 owner 选集与第 101 条拒绝；SDK 已提交但回应暂停期间同 preview 并发 apply 收敛至单一回执/版本；真实分类页跨页勾选与取消确认；实际关闭 HTTP 和 Home Host 后同来源浏览器恢复原预览，并核完成项版本/历史无重复。来源遗忘抑制用例由 forRun 取得原 Session 的冻结分类配方，不能借 management caller 代替真实任务学习上下文。保持首败与环境重验分开记录。
+
+固定选集 CAS 分类修复（2026-10-24）：在 `f8955a3dcf76333ba6f2ef0b7dac628fe5ead461` 原实现的真实 Node/SQLite 定向回归中，Adapter 已将 `STORAGE_CONFLICT` 转成 `agent.memory_conflict`，批量层遗漏该精确码，导致“预览 A/B→编辑 A→执行”返回 unknown/not-executed，丢回执后后继编辑的重试也误报 unknown。红例日志 `/private/tmp/memory-selected-batch-cas-red.FfDn2v/output.log`，退出 1。仅补此精确码为 conflict，不改变冻结身份/版本、授权、取消、未知结果停后续或回执恢复；不把其它 Agent 错误归作冲突。验收为 A 保留人工后继、B 持久完成，关开重试不重写，非冲突 Agent 故障仍 unknown/not-executed。允许修改 batches、对应真实测试和本片结果；无新增接口、配置、插件或状态。原文件另有来源遗忘用例在 candidates.list 报 MEMORY_SCOPE_DENIED，单独保留，不纳入本修复。
+
+CAS 修复工程结果：指定 Node 24.14.0、机器 build FIFO 槽、临时 Home 下，修复后 `pnpm build` 通过（`/private/tmp/memory-selected-batch-cas-green-build.PaVXOK/output.log`，退出 0）；两个原 CAS 红例与非冲突 Agent 反例定向 3/3 通过（`/private/tmp/memory-selected-batch-cas-green.CEggv1/output.log`，退出 0）。未过滤的两文件运行中 selected-batch 为 11/12，只有上述原有来源遗忘权限失败；memory-service-cas 为 86/86，通过记录在 `/private/tmp/memory-selected-batch-cas-after.qUtz2b/output.log`，整次退出 1。每份日志旁保留独立 exit-code，不以定向绿例替代完整文件结果。原 CAS 回归补验关闭重开后 A 的人工正文/版本不变、B 仅一次停用且版本只加一；非冲突错误不写停用回执。未运行浏览器、真实模型、真实 Home、全量和资源/API/health 集成检查，不能据此宣称整片产品实操或用户验收完成。
+
+M3 固定选集统筹最终补记（2026-10-24，待独立交付）：计划的 109 个普通文件全部有当前有效覆盖，复用 19 个已验证文件并完成其余 91 文件（含额外 Action 快照回归），并集 110、无遗漏；完整清单与复用日志见 `/private/tmp/molis-selected-batch-remaining-ordinary-20261024.json`。核心 source/formation/promotion/class 49 项及 learning 25 项另有定向验证。原 15 浏览器文件中 13 通过、2 文件有 3 失败，按上文诊断修正后受影响两文件 27/27；没有把该首轮写成全绿。最后将稳定 batch status/results 节点绑定一次，等价复用再省 49 B，整体 build、这两浏览器文件与脚本/翻译四文件共 43/43、零重试/跳过通过，日志 `/private/tmp/molis-memory-batch-dom-regression-20261024.log`。非空分页选集、后继新增不纳入、固定版本冲突、取消/撤权后的原预览和 Host 重启恢复均保持。
+
+实际最终资源相对父 #1155（`a16800e4a`）为：workbench.js `1,208,174 → 1,212,968`（+4,794 B）、settings.css `996,117 → 996,605`（+488 B）、workbench.css `1,614,554 → 1,615,042`（+488 B）；27 项合计 `7,830,253 → 7,836,023`，其余 24 项不变。复用现确认框、列表、history 与 DOM 节点，新增仅为跨页固定选集、恢复入口及逐项结果的必要界面。完整逐项 `/private/tmp/molis-memory-batch-dom-assets-20261024.json`，未登记增长，资源门仍失败；此前分类矩阵/续期/旧文字各片的待批额度也不能挪用。API/Action 快照按实际新增 batch.preview/apply@1、page@2（准确选集身份）、previewMutation 增加 purge 更新；这些动作仅本人 user audience，插件/Agent 不获得新管理能力。构建、类型、health 对精确父、boundary、API/Action、secret 的已完成记录在 `/private/tmp/molis-selected-batch-final-static-20261024.results.json`；该文件保留 assets 非零。最终仅 DOM 复用后的类型/health/diff 另验。不宣称共享全量、最终 Home/付费模型对照或用户验收完成。
+
+
+固定选集已独立提交为 Draft #1160（https://github.com/molis-ai/molis-work/pull/1160），实现 head aa3cfbff275，父为 #1155。最终 DOM 复用后的类型、health 对精确父及 diff 检查通过，日志 /private/tmp/molis-selected-final-dom-health-20261024.log。独立深度评审逐项核对固定选集、原子项回执、后继编辑保护、Action/取消/撤权、来源及账本清理、内部 learning 身份和 localStorage/Host 重启路径，未发现确定 P1/P2；该评审只读代码与测试源码，未另跑测试。资源门尚未通过，三项增长已单独请求确认，前序待批额度不能借用；按 #1064 → #1101 → #1111 → #1153 → #1154 → #1155 → #1160 依赖顺序合并，完整 P0 仍未完成。
+
 资源批准与登记（2026-10-24）：用户明确批准 #1153 本片 workbench.js 一次性 +3,024 B。已将原 #1111 的已用额度替换为准确父值 1,202,990→1,206,014，并由当前构建的实际资源更新预算；其余 26 项不变。`page-assets --update --base 3a11c545e` 与随后真实资源门检查均通过，日志 `/private/tmp/molis-memory-category-controls-approved-assets-20261024.log`。本次只改额度登记、实测预算和本记录，没有修改产品代码或重跑产品用例；此前资源门未通过的记录保留。仍按 #1111→#1153 依赖合并，#1064 最终全量及完整 P0 验收继续待完成。
 
 续期资源批准与登记（2026-10-24）：用户明确批准 #1154 本片 workbench.js 一次性 +1,680 B。已先合入 #1153 的额度记录，再以该父提交 `ffa831255` 的准确预算 1,206,014→1,207,694 登记；其余 26 项不变。当前构建的 `page-assets --update --base ffa831255` 与实际资源门均通过，日志 `/private/tmp/molis-memory-expiry-renewal-approved-assets-20261024.log`。仅同步门禁与记录，没有修改产品代码或重跑已有效的产品用例；保留前次未通过资源门的事实。仍等待父链和 #1064 最终全量，不宣称 P0 或用户验收完成。
@@ -1438,3 +1495,8 @@ main2dd 增量整合记录：合同提交 `9966cf17a` 后，真实合并提交 `
 本状态按精确增量计划新跑 100/100 普通文件、1058/1058 用例（jobs2，2.5 分钟）与 8/8 browser、42/42 用例（jobs1/browser1，2.3 分钟），全部首轮通过、retries0、没有 skip。浏览器为 Coding 动作卡、Coding 生命周期、伙伴生命周期、plugin-sample、失败 call_id、UI 生命周期、UI 请求，以及新 main 的 runtime-plugin-http-discovery 真实 Form stage 停用/重启隔离；最后一项现行 classifyFile 已标 browser，不能沿旧标记放进普通组。计划 `/private/tmp/molis-memory-main2dd-target-plan-20261025.json` 区分新跑、实际主干变动与六个新 README 重合但行为依赖未变的复用文件；未受影响的 main112 137 文件证据继续独立沿用，不写成本头全批重跑。原件/接续、拒旧 @1、owner/取消、生产 HTTP 及阶段装配已在本增量实际执行。逐命令与退出码 `/private/tmp/molis-memory-main2dd-final-results-20261025.json`，普通与浏览器日志分别为同前缀 `-ordinary-20261025.log`、`-browser-20261025.log`。本轮没有新增失败或临时探针，也不据通过关闭旧 CDP/async_id UNKNOWN；最终完整 CI 与 Full suite 仍由统筹对新完整 HEAD 执行。
 
 macOS 补验按统筹独立依赖审计选择五个受影响文件：action-contract-snapshot（当前 R8 目录与四口 @2）、installed-plugin-host（项目插件装配/恢复）、installed-plugin-execution（sandbox→Goals 正式动作）、npm-package（当前依赖与客户端打包）、uninstall（当前安装 payload/CLI）。在同一已构建状态真实隔离 Host 下 5/5 文件、59/59 用例首轮通过（jobs1/retries0，2.5 分钟），无 skip；日志 `/private/tmp/molis-memory-main2dd-macos-affected-20261025.log`。这不是新头 27 文件全跑：其余 12 个实际调用未变路径沿用准确 ebdb 的已验日志 `/private/tmp/molis-memory-ebdb-macos-affected-20261024.log`、`/private/tmp/molis-memory-ebdb-macos-studio-20261024.log`；另 10 个沿用准确 `24b1266af648c879fcf5e6f6ca790e7375b4426a`，其平台记录 `/private/tmp/molis-memory-1064-final-head-platform-20261024.results.json`、`-platform.log` 当时 27/27 文件 exit0。旧 dependency 5/6 与 native 20/22 中原有三项 skip 继续为 UNVERIFIED，不是十文件全跳过，也不计为本轮通过。没有运行真实 Home、付费模型或最终打包 App 的用户验收；本次只完成上述工程验证与被实际覆盖的隔离路径。
+
+
+旧文字采用资源批准与登记（2026-10-24）：用户明确批准 #1155 本片 workbench.js 一次性 +480 B。已合入 #1154 的额度记录，以父 `a8bd07eb0` 的准确预算 1,207,694→1,208,174 登记；其余 26 项不变。当前构建的预算更新与实际资源门均通过，日志 `/private/tmp/molis-memory-history-text-approved-assets-20261024.log`。本次仅改资源登记、实测预算与记录，不改产品代码，不重复此前有效产品验证；仍等待父链、#1064 最终全量及完整 P0 验收。
+
+固定选集资源批准与登记（2026-10-24）：用户明确批准 #1160 三项一次性增长：workbench.js +4,794 B、settings.css +488 B、workbench.css +488 B。先合入父链所有独立批准，以 #1155 `66f32c4a6` 的准确预算分别登记 1,208,174→1,212,968、996,117→996,605、1,614,554→1,615,042；其余 24 项不变。当前构建实际 27 项共 7,836,023 B，预算更新与资源门均通过，日志 `/private/tmp/molis-memory-selected-batch-approved-assets-20261024.log`。只改精确额度、预算与记录，没有扩大批准、修改产品代码或复跑已有效产品用例；此前未通过记录保留。依赖合并、#1064 当前冻结全量和完整 P0 验收仍待完成。

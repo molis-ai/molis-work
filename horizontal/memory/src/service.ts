@@ -57,12 +57,13 @@ import { memoryUses } from "./usage.js";
 import { assertFormationFacts, automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
-import { MAX_TEXT, candidateView, changeView, revisionView, pairKey, useTitle } from "./shapes.js";
+import { MAX_TEXT, candidateView, changeView, pairKey, useTitle } from "./shapes.js";
 import { UNCHECKED, UNSAID, theirWords } from "./spoken.js";
 import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, sameWords, similarity } from "./text.js";
 import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
 import { MemoryEdits } from "./edits.js";
 import { newMemoryClassification } from "./classification.js";
+import { MemoryBatches } from "./batches.js";
 import { formationReferenceAllowed } from "./formation.js";
 import { MemoryQueries, type MemoryPageLimits } from "./queries.js";
 import { MemoryScopeCommands, type Located } from "./scope-commands.js";
@@ -112,6 +113,7 @@ export interface MemoryServicePorts {
   newId?: () => string;
   timeZone?: string;
   managementPages?: Partial<MemoryPageLimits>;
+  managementBatchMaxItems?: number;
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
@@ -146,6 +148,7 @@ const STANDING: Record<MemoryFormalKind, number> = { preference: 0.45, conventio
 
 
 export class MemoryService {
+  readonly batches: MemoryBatches;
   private readonly now: () => Date;
   private readonly newId: () => string;
   private readonly preferences: MemoryPreferences;
@@ -191,6 +194,8 @@ export class MemoryService {
       record: (caller, target) => this.recordChange(caller, { kind: "moved", scope: target.scope, owner: target.owner,
         memory_id: target.entry.memory_id, text: target.entry.text, by: "person", rule: null,
         reason: target.scope === "personal" ? "改为个人记忆" : "改为项目记忆", undo: null }) });
+    this.batches = new MemoryBatches({ ...ports, operations: this.operations, scopes: this.scopeCommands, newId: this.newId,
+      maxItems: ports.managementBatchMaxItems, bindTarget: ports.bindChangeTarget, change: (caller, request) => this.change(caller, request) });
     this.learning = new MemoryLearning({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, operations: this.operations,
       offer: (caller, input) => this.offer(caller, input) });
   }
@@ -215,10 +220,7 @@ export class MemoryService {
   list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> { return this.queries.list(caller, request); }
   page(caller: MemoryCaller, request: MemoryPageRequest = {}): Promise<MemoryPageResponse> { return this.queries.page(caller, request); }
 
-  async history(caller: MemoryCaller, memoryId: string): Promise<MemoryHistoryResponse> {
-    const located = await this.scopeCommands.find(caller, memoryId);
-    return { memory_id: located.entry.memory_id, revisions: this.ports.ledger.revisions(located.entry.memory_id).map(revisionView) };
-  }
+  history(caller: MemoryCaller, memoryId: string): Promise<MemoryHistoryResponse> { return this.queries.history(caller, memoryId); }
 
   /**
    * Memories that bear on a situation, for one consumer (spec §7.1): active, not expired, applicable, allowed for this
@@ -391,7 +393,7 @@ export class MemoryService {
     const asCandidate = async (why: string, basis: MemoryBasis | null = input.basis): Promise<MemoryWriteResult> => {
       if (!formationKind) return refused("正式扩展类别不能自动形成候选");
       if (basis === null) return refused("原记忆依据未知，不能替它生成新的候选依据");
-      const waiting = input.candidate_id ? (await this.queries.candidateRecords(caller, input.scope, where.owner)).find(item => item.note.candidate_id === input.candidate_id)?.note : undefined;
+      const waiting = input.candidate_id ? (await this.queries.candidateRecords({ ...caller, purpose: "management", source_use: "learning" }, input.scope, where.owner, { formation: true })).find(item => item.note.candidate_id === input.candidate_id)?.note : undefined;
       await this.ports.beforeEffect?.();
       if (input.candidate_id || this.operations.find(caller, "candidate-hold")) {
         const held = this.operations.holdCandidate(caller, waiting, input, why);
@@ -461,7 +463,7 @@ export class MemoryService {
     const condition = candidate ? this.operations.condition(caller, `promote:${candidate.candidate_id}`, { kind: "promote", scope: input.scope, owner: where.owner,
       candidate_id: candidate.candidate_id, expected_version: input.candidate_version ?? candidate.version }) : undefined;
     const entry = candidate
-      ? await this.ports.backend.withCaller(caller).candidates.promote({ scope: input.scope, owner: where.owner, candidate_id: candidate.candidate_id,
+      ? await this.ports.backend.withCaller({ ...caller, purpose: "management", source_use: "learning" }).candidates.promote({ scope: input.scope, owner: where.owner, candidate_id: candidate.candidate_id,
         ...condition!,
         policy: policy.policy, version: policy.version, origin, meta: toEntryMeta(facts, candidate.meta) })
       : await this.ports.backend.withCaller(caller).write({ scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind], meta: toEntryMeta(facts, input.retainedMeta ?? input.classificationMeta),
@@ -732,12 +734,7 @@ export class MemoryService {
 
   /* ---- recent changes ---- */
 
-  changes(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; limit?: number } = {}): MemoryChange[] {
-    const owners = new Set(this.scopeCommands.scopesFor(caller, filter.scope && filter.scope !== "all" ? [filter.scope] : undefined, true).map(where => `${where.scope}:${where.owner}`));
-    return this.ports.ledger.changes(caller.actor_id, Math.max(1, Math.min(200, filter.limit ?? 50)) * (filter.work_id ? 4 : 1))
-      .filter(change => owners.has(`${change.scope}:${change.owner}`) && (!filter.work_id || change.work?.work_id === filter.work_id))
-      .slice(0, filter.limit ?? 50).map(changeView);
-  }
+  changes(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; limit?: number } = {}): MemoryChange[] { return this.queries.changes(caller, filter); }
 
   /**
    * Take an automatic change back: a written one is deleted, a replaced one goes back, a switched-off one comes back.
@@ -975,7 +972,7 @@ export class MemoryService {
   /* ---- internals ---- */
 
   private async policyCandidate(caller: MemoryCaller, candidateId: string | undefined, where: { scope: MemoryScope; owner: string }): Promise<MemoryBackendCandidate> {
-    const existing = (await this.ports.backend.withCaller(caller).candidates.list(where.scope, where.owner)).find(item => item.candidate_id === candidateId);
+    const existing = candidateId ? await this.ports.backend.withCaller({ ...caller, purpose: "management", source_use: "learning" }).candidates.get({ ...where, candidate_id: candidateId, ...(caller.signal ? { signal: caller.signal } : {}) }) : undefined;
     if (!existing) throw memoryErrors.not_found("没有这条建议的当前原件");
     return existing;
   }
@@ -988,7 +985,7 @@ export class MemoryService {
     const mark = this.operations.begin(caller, `policy-settle:${candidate.candidate_id}`, { kind: "settleInto", ...where,
       candidate_id: candidate.candidate_id, memory_id: entry.memory_id, expected_version: candidate.replacement?.expected_version ?? entry.version,
       candidate_expected_version: input.candidate_version ?? candidate.version });
-    const updated = await this.ports.backend.withCaller(caller).candidates.settleInto({ ...where, candidate_id: candidate.candidate_id,
+    const updated = await this.ports.backend.withCaller({ ...caller, purpose: "management", source_use: "learning" }).candidates.settleInto({ ...where, candidate_id: candidate.candidate_id,
       candidate_expected_version: mark.candidate_expected_version!, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
       target: { memory_id: entry.memory_id, expected_version: mark.expected_version!, change: { text, meta: toEntryMeta(meta, entry.meta) } },
       by: { by: "policy", policy: input.policy.policy, version: input.policy.version } });

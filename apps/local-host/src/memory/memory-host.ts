@@ -7,6 +7,8 @@ import { ActionError, type ActionCallContext, type ActionExecutionContext, type 
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MEMORY_PROVIDER_ID,
+  MEMORY_BATCH_MAX_ITEMS,
+  type MemoryBatchRequest,
   memoryActions,
   type MemoryChangeRequest,
   type MemoryCandidateDecision,
@@ -133,9 +135,9 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     return memory;
   };
   const backend = prologueMemoryBackend(store);
-  const servicePorts = { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
+  const servicePorts = { backend, ledger, managementBatchMaxItems: MEMORY_BATCH_MAX_ITEMS, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
   const service = new MemoryService(servicePorts);
-  const forCall = (context: ActionExecutionContext) => memoryCallService(context, { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) },
+  const forCall = (context: ActionExecutionContext) => memoryCallService(context, servicePorts,
     control => prologueMemoryBackend(store, control), () => !closed);
   const caller = memoryCaller;
   const input = <T>(value: unknown) => (value ?? {}) as T;
@@ -144,6 +146,8 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     { ...memoryActions.page, handle: (context, value) => forCall(context).page(caller(context), input<MemoryPageRequest>(value)) },
     { ...memoryActions.list, handle: (context, value) => forCall(context).list(caller(context), input<MemoryListRequest>(value)) },
     { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(caller(context), input<MemoryWriteRequest>(value)); } },
+    { ...memoryActions.batchPreview, handle: (context, value) => forCall(context).batches.preview(caller(context), input<MemoryBatchRequest>(value)) },
+    { ...memoryActions.batchApply, handle: (context, value) => forCall(context).batches.apply(caller(context), input<{ preview_id: string }>(value).preview_id) },
     { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(caller(context), input<MemoryChangeRequest>(value)); } },
     { ...memoryActions.history, handle: (context, value) => forCall(context).history(caller(context), String(input<{ memory_id: string }>(value).memory_id)) },
     { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await forCall(context).candidates(caller(context), input(value)) }; } },
@@ -307,6 +311,8 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (method !== "POST") return null;
       if (parts.length === 1 && parts[0] === "recall") return { status: 200, body: await call(memoryActions.recall, body) };
       if (parts.length === 1 && parts[0] === "items") return { status: 200, body: await call(memoryActions.write, body) };
+      if (parts.length === 2 && parts[0] === "batch" && parts[1] === "preview") return { status: 200, body: await call(memoryActions.batchPreview, body) };
+      if (parts.length === 2 && parts[0] === "batch" && parts[1] === "apply") return { status: 200, body: await call(memoryActions.batchApply, body) };
       if (parts.length === 1 && parts[0] === "change") return { status: 200, body: await call(memoryActions.change, body) };
       if (parts.length === 1 && parts[0] === "prefs") return { status: 200, body: await call(memoryActions.savePrefs, body) };
       if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "accept") return { status: 200, body: await call(memoryActions.accept, { candidate_id: parts[1], expected_version: body.expected_version, ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}) }) };

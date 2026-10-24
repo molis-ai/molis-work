@@ -1,6 +1,6 @@
 import { MEMORY_KINDS, MEMORY_SOURCES, type MemoryCandidate, type MemoryCandidateRecord, type MemoryScope, type MemoryItem, type MemoryLedgerPort,
   type MemoryListRequest, type MemoryListResponse, type MemoryManagementItem, type MemoryManagementKind,
-  type MemoryPageRequest, type MemoryPageResponse } from "@molis-ai/molis-work-contracts/services/memory";
+  type MemoryChange, type MemoryHistoryResponse, type MemoryPageRequest, type MemoryPageResponse } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendEntry, MemoryBackendPort } from "./backend.js";
 import type { MemoryCaller } from "./service.js";
 import { MemoryScopeCommands } from "./scope-commands.js";
@@ -8,6 +8,7 @@ import { fromEntryMeta } from "./facts.js";
 import { consumerAccess } from "./prefs.js";
 import { formationReferenceAllowed, type FormationSnapshot } from "./formation.js";
 import { isExpired, personOnly, visibleTo } from "./places.js";
+import { changeView, revisionView } from "./shapes.js";
 import { memoryErrors } from "./errors.js";
 
 /** App workload configuration; scan slots do not bound Node directory enumeration. */
@@ -28,6 +29,18 @@ export class MemoryQueries {
     if (Object.values(this.limits).some(value => !Number.isSafeInteger(value) || value < 1)
       || this.limits.maxLimit > 100 || this.limits.defaultLimit > this.limits.maxLimit)
       throw memoryErrors.invalid("管理页限额必须为正整数，页大小不超过 100");
+  }
+
+  async history(caller: MemoryCaller, memoryId: string): Promise<MemoryHistoryResponse> {
+    const located = await this.ports.scopes.find(caller, memoryId);
+    return { memory_id: located.entry.memory_id, revisions: this.ports.ledger.revisions(located.entry.memory_id).map(revisionView) };
+  }
+
+  changes(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; limit?: number } = {}): MemoryChange[] {
+    const owners = new Set(this.ports.scopes.scopesFor(caller, filter.scope && filter.scope !== "all" ? [filter.scope] : undefined, true).map(where => `${where.scope}:${where.owner}`));
+    return this.ports.ledger.changes(caller.actor_id, Math.max(1, Math.min(200, filter.limit ?? 50)) * (filter.work_id ? 4 : 1))
+      .filter(change => owners.has(`${change.scope}:${change.owner}`) && (!filter.work_id || change.work?.work_id === filter.work_id))
+      .slice(0, filter.limit ?? 50).map(changeView);
   }
 
   async list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> {
@@ -118,7 +131,7 @@ export class MemoryQueries {
       if (unclassified !== undefined && unclassified !== (entry.meta.classification === undefined)) continue;
       if (query && !entry.text.toLowerCase().includes(query)) continue;
       const projected = this.ports.scopes.item({ ...where, entry, meta });
-      items.push({ ...projected, kind: kind as MemoryManagementKind, state: meta.state, state_reason: meta.state_reason,
+      items.push({ ...projected, owner: where.owner, kind: kind as MemoryManagementKind, state: meta.state, state_reason: meta.state_reason,
         classification: entry.meta.classification ?? null, expired: isExpired(meta, now) });
     }
     const next = result.exhausted ? { version: 1 as const, binding, index: position.index + 1 }

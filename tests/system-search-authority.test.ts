@@ -40,7 +40,9 @@ async function fixture(t: TestContext, defaultOpen = false) {
   const unblock = () => { hold = false; const answer = release; release = () => {}; answer(); };
   const data: SearchEntry[] = [{ subject: { kind: "authority_note", id: "one" }, revision: "1", title: "An owner's note",
     summary: "Listing metadata contains no body marker", updated_at: null, content: "context", open: { surface: "fixture", id: "one" } }];
+  let lastFetch = Date.now();
   const owner = createServer((_request, response) => {
+    lastFetch = Date.now();
     const answer = () => { response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(data)); };
     if (!hold) { answer(); return; }
     hold = false;
@@ -113,7 +115,9 @@ async function fixture(t: TestContext, defaultOpen = false) {
     assert.ok(accepted); await home.grant(clientId, project.project_id, [accepted]);
   };
   return { home, project, entries, reader, unrelatedReader, peer, clientId, entered: entered.promise, release: unblock, addReader,
-    ask, refresh: async () => { await delay(3_100); hold = true; },
+    // The index re-reads the owner once its last read is 3 s old, and the Host also refreshes it by itself a little after a project opens
+    // (the knowledge catch-up): the owner's own last read, not a fixed wait, says when the next query will have to enter the HTTP wait.
+    ask, refresh: async () => { while (Date.now() - lastFetch < 3_100) await delay(lastFetch + 3_100 - Date.now() + 25); hold = true; },
     ownerQuery: () => home.web.post<SearchQueryResponse>(`/projects/${project.project_id}/api/search/query`, input),
     grant: (actions: ActionDefinition[]) => home.grant(clientId, project.project_id, actions.map(view)),
     revoke: (actions: ActionDefinition[]) => home.revoke(clientId, project.project_id, actions.map(view)),

@@ -2392,3 +2392,16 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 统筹收束补充（2026-10-25）：上文 SDK inspection P2 已由 4ac8d7dc 修复并推回同 #102。独立评审复用原三条 late-revoke 探针在干净安装的最终包验证 present/cleared/absent 均拒绝，3/3通过且源文件字节不变；报告 `/private/tmp/prologue-memory-inspection-current-independent-review-20261025.md`。统筹另用最终4ac受控包从公开入口重跑非空 T0/T1/T2 的 SDK 窄链1/1通过，日志 `/private/tmp/prologue-memory-recovery-current-packed-public-final-20261025.log`。这些补齐该P2及SDK局部恢复证据，不替代Molis完整MEM-40；#102仍Draft等待正在实施的历史清除覆盖与其验证。App维护桥86e6fd291与Character写前归属d11694e2c本地合并，仅本spec追加冲突并保留双方内容，生产无冲突。
 
 维护桥统筹独立复验：在准确86e6fd291源码与最终4ac完整构建上，经原runner重跑 `tests/prologue-memory-adoption.test.ts` 和 `tests/memory-adoption-maintenance.test.ts`，2/2文件、50/50项、jobs1/retries0通过；日志 `/private/tmp/molis-memory-mem40-bridge-root-direct-20261025.log`。已核实际18文件diff，既有控制与恢复原决定未放宽。此结果不冒充含后继owner-authority的聚合构建或最终全量。
+
+### MEM-40 维护完成发布仍持原 owner（2026-10-25，实施前短合同）
+
+真实跨进程反例已确认：第一维护桥 close 释放锁后，第二 Node 进程取得同一 owner 并保持 ledger3/adopting；第一 adopt 随后仍把 ledger 发布为4/existing-home，第三次真实 open 此时因第二 owner 仍活着而 busy。公开生产路径探针及完整日志在 `/private/tmp/molis-memory-mem40-owner-publication-probe-20261025/probe.mjs` 与 `/private/tmp/molis-memory-mem40-owner-publication-red-confirmed-20261025.log`。构建基线86e，三处相关生产源码与本刀准确父866028dd相同；不将反例称为修复通过。
+
+最小修复沿现 owner，不加锁或状态库：writer `close(afterSDKClosed?)` 可收一次同步发布回调，等在途调用及 SDK close 成功后、释放 owner 前执行；非undefined或thenable拒绝，第二次close不能补跑新的回调，普通close()仍幂等。SDK close 失败不执行回调并保 owner；回调本身失败时SDK已关闭，应释放owner但拒绝返回完成。只读 inspection 的 close 仍为零参，不增加写口。LocalHost 仅在 try 内 convert/verify 正常返回且所有结果 complete 后传真实同步 ledger complete；异常 finally 只关句柄，不能凭默认 result 或已跑一半的 verify 发布。回调仍检查原外层取消/维护authority与ledger CAS，不调用已经 stop.abort 的桥 current，也不移除原 current 检查。
+
+允许改现 AgentHost writer/inspection close 类型和实现、Home adoption 发布编排、两份 README、本spec与直接测试及其必要合法 close 注入；不改SDK、vendor/lock、普通Runtime、清理选集/原决定、CI/资源门或完整恢复合同。验收必须以两进程可控交错证明原owner持有时发布、另一owner只能在ledger4之后接管；回调异常/缺失/重复/异步、取消和ledger COMMIT拒绝不能返回完成，SDK关闭失败不发布；已有采用与清理故障回归保持。SDK/业务句柄关闭失败发生在发布前，必须保adopting与owner；ledger COMMIT成功后owner释放失败属于已提交后的关闭故障，账本保持已完成，API明确抛出释放错误且owner仍阻止接管，不能伪造回滚为adopting或正常返回completed。保留原owner-close故障注入和互斥断言，另加真实SDK.close故障，不将二者混称。完整MEM-40仍待后续全主人恢复链。
+
+
+本刀局部工程结果：准确父866028dd的隔离树原 `pnpm build` 通过；真实维护桥34/34、LocalHost28/28、ledger9/9分批通过（jobs2/retries0），两改动测试strict TS通过。真实子进程在SDK关闭后、ledger提交前后均因原owner仍持有而busy，释放后取得owner时读取ledger4；真实SDK清钥关闭故障保adopting/owner，真实owner DB.close故障发生于提交后时保ledger4且API拒绝。另覆盖发布抛错、非undefined/thenable、取消/撤权、COMMIT拒绝、回调缺失/重复和后页verify抛错，失败后沿原Home重开。
+
+首轮新测试误把LocalHost open输入直接传AgentHost，遗漏storageRoot/appVersion/policy；strict TS与8条运行失败均保留，按现生产接线修正后重跑该失败文件，未改生产或断言。离线安装首次store登记symlink被沙箱EPERM拒绝、正式权限原命令通过。日志前缀 `/private/tmp/molis-memory-mem40-publication-`：`build-20261025.log`、`core-20261025.log`（含首败与另两文件通过）、`core-corrected-20261025.log`、`types-corrected-20261025.log`。资源只读report仍27项共7,678,780B，与前桥相同；coding.js相对资源账本既有+1,333B待用户，未修改资源门或视为已放行。此刀修补完成发布互斥窗口，不替代完整MEM-40或产品/用户验收。

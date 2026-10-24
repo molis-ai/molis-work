@@ -22,10 +22,11 @@ export interface PrologueMemoryAdoptionBridge {
   verify(input: { scopes: readonly PrologueMemoryAdoptionScope[]; cursor?: string; signal?: AbortSignal }): Promise<MemoryAdoptionVerification>;
   previewCleanup(input: PrologueMemoryAdoptionScope & { kind: "memory" | "memory-candidate"; cursor?: string; signal?: AbortSignal }): Promise<MemoryAdoptionCleanupPage>;
   purgeCleanupTarget(input: { target: MemoryAdoptionCleanupItem; operation_id: string; signal?: AbortSignal }): Promise<void>;
-  close(): Promise<void>;
+  /** Publish synchronously after SDK close, while this same owner is still held. Supplied on the first close only. */
+  close(afterSDKClosed?: () => void): Promise<void>;
 }
 
-export type PrologueMemoryAdoptionInspection = Pick<PrologueMemoryAdoptionBridge, "previewCleanup" | "close">;
+export type PrologueMemoryAdoptionInspection = Pick<PrologueMemoryAdoptionBridge, "previewCleanup"> & { close(): Promise<void> };
 
 function prepare(input: Omit<PrologueMemoryAdoptionInput, "onOwned">) {
   input = { ...input };
@@ -93,13 +94,24 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
       sessionPurges: [], assertCurrent: current, ...(fixed.signal ? { signal: fixed.signal } : {}) });
   } catch (error) { release(); throw error; }
   let closing: Promise<void> | undefined;
-  const close = () => closing ??= (async () => {
-    stop.abort();
-    await Promise.allSettled([...pending]);
-    await maintenance.close();
-    // Failed close retains the owner. Ledger completion must not run.
-    release();
-  })();
+  const close = (afterSDKClosed?: () => void): Promise<void> => {
+    if (closing) return afterSDKClosed === undefined ? closing
+      : Promise.reject(agentErrors.capability_unavailable("维护关闭已经开始，不能追加完成发布"));
+    closing = (async () => {
+      stop.abort();
+      await Promise.allSettled([...pending]);
+      // Failed SDK close retains the owner and must never publish completion.
+      await maintenance.close();
+      try {
+        const checked: unknown = afterSDKClosed?.();
+        if (checked !== undefined) {
+          void Promise.resolve(checked).catch(() => undefined);
+          throw agentErrors.capability_unavailable("维护完成必须同步发布");
+        }
+      } finally { release(); }
+    })();
+    return closing;
+  };
   if (fixed.signal?.aborted) { await close(); fixed.signal.throwIfAborted(); }
   return {
     adopt: request => perform(request.signal, signal => maintenance.adoptStorage({ ...request, signal,

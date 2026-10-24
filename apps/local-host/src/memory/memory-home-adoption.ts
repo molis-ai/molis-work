@@ -30,7 +30,7 @@ export interface MemoryHomeAdoptionBridge {
   }>;
   previewCleanup: PrologueMemoryAdoptionBridge["previewCleanup"];
   purgeCleanupTarget: PrologueMemoryAdoptionBridge["purgeCleanupTarget"];
-  close(): Promise<void>;
+  close: PrologueMemoryAdoptionBridge["close"];
 }
 
 export interface MemoryHomeAdoptionInput {
@@ -159,7 +159,7 @@ async function openAdoption(prepared: ReturnType<typeof prepareAdoption>, onOwne
 
 /** Body-free paged inspection of an explicit stopped Home; never changes its ledger or adoption barrier. */
 export async function previewMemoryHomeAdoptionCleanup(input: Omit<MemoryHomeAdoptionInput, "cleanup" | "open"> & { cursor?: string;
-  inspect?: (input: { homeDirectory: string; scopes: readonly MemoryHomeAdoptionScope[]; signal?: AbortSignal; assertCurrent(): void }) => Promise<Pick<MemoryHomeAdoptionBridge, "previewCleanup" | "close">> }): Promise<MemoryHomeAdoptionCleanupPreview> {
+  inspect?: (input: { homeDirectory: string; scopes: readonly MemoryHomeAdoptionScope[]; signal?: AbortSignal; assertCurrent(): void }) => Promise<Pick<MemoryHomeAdoptionBridge, "previewCleanup"> & { close(): Promise<void> }> }): Promise<MemoryHomeAdoptionCleanupPreview> {
   const prepared = prepareAdoption(input), cursor = input.cursor;
   const { fixed, scopes, assertCurrent } = prepared;
   const bridge = await (input.inspect ? input.inspect({ homeDirectory: fixed.homeDirectory, scopes, assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) })
@@ -181,6 +181,7 @@ export async function adoptMemoryHome(input: MemoryHomeAdoptionInput): Promise<M
     adopting = beginMemoryLedgerAdoption({ homeDirectory: fixed.homeDirectory, snapshot, assertCurrent });
   });
   const result: MemoryHomeAdoptionResult = { outcome: "completed", items: { adopted: 0, current: 0, "needs-reconcile": 0, conflict: 0, unknown: 0 }, verification: "not-run" };
+  let closed = false;
   try {
     if (!adopting) throw memoryErrors.forbidden("维护入口未在 SDK 打开前建立阻断");
     assertCurrent();
@@ -190,9 +191,15 @@ export async function adoptMemoryHome(input: MemoryHomeAdoptionInput): Promise<M
       if (result.cleanup.some(item => item.outcome !== "completed")) result.outcome = fixed.signal?.aborted ? "cancelled" : "incomplete";
     }
     if (result.outcome === "completed") await convert(bridge, scopes, result, fixed.signal);
-  } finally { await bridge.close(); }
-  if (result.outcome === "completed" && result.verification === "complete") {
-    completeMemoryLedgerAdoption({ homeDirectory: fixed.homeDirectory, snapshot: adopting!, profiles, assertCurrent });
-  }
+    if (result.outcome === "completed" && result.verification === "complete") {
+      let publicationCalls = 0;
+      await bridge.close(() => {
+        if (++publicationCalls !== 1) throw memoryErrors.forbidden("维护完成只能在原 owner 内发布一次");
+        completeMemoryLedgerAdoption({ homeDirectory: fixed.homeDirectory, snapshot: adopting!, profiles, assertCurrent });
+      });
+      closed = true;
+      if (publicationCalls !== 1) throw memoryErrors.forbidden("维护关闭未在原 owner 内发布完成");
+    }
+  } finally { if (!closed) await bridge.close(); }
   return result;
 }

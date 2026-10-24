@@ -82,7 +82,7 @@ test("rust: a test that fails fails the check (cargo test runs the crate's tests
 test("rust: a Rust file outside registered crates is refused, however clean", () => {
   const run = gate(crate(CLEAN_MAIN, { "tooling/other/lib.rs": "pub fn f() {}\n" }), ["rust"]);
   assert.equal(run.code, 1, run.out);
-  assert.match(run.out, /tooling\/other\/lib\.rs is Rust code outside registered crates/);
+  assert.match(run.out, /tooling\/other\/lib\.rs is Rust code outside .*which these checks do not reach/);
 });
 const WORKER_ROOT = "apps/sync-worker";
 const WORKER_MANIFEST = `[package]\nname = "scratch-worker"\nversion = "0.0.0"\nedition = "2024"\n\n[lib]\ncrate-type = ["cdylib", "rlib"]\n`;
@@ -91,6 +91,31 @@ const workerFiles = (source = "pub fn one() -> i32 {\n    1\n}\n") => ({
   [`${WORKER_ROOT}/Cargo.toml`]: WORKER_MANIFEST,
   [`${WORKER_ROOT}/Cargo.lock`]: WORKER_LOCK,
   [`${WORKER_ROOT}/src/lib.rs`]: source,
+});
+const SYNC_ROOT = "server/sync";
+const syncFiles = (source) => Object.fromEntries(Object.entries(workerFiles(source)).map(([file, text]) => [
+  file.replace(WORKER_ROOT, SYNC_ROOT), text.replaceAll("scratch-worker", "scratch-server-sync"),
+]));
+test("rust: the server sync library alone passes", rust, () => {
+  const run = gate(repoWith(syncFiles()), ["rust"]);
+  assert.equal(run.code, 0, run.out);
+  assert.match(run.out, /1 Rust files formatted, clippy clean/);
+});
+test("rust: unformatted server sync code fails", rust, () => {
+  const run = gate(repoWith(syncFiles("pub fn one()->i32{1}\n")), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /rustfmt --check found unformatted code/);
+  assert.match(run.out, /server\/sync\/Cargo.toml/);
+});
+test("rust: a server sync clippy warning fails on WASM", rust, () => {
+  const run = gate(repoWith(syncFiles("pub fn one() -> i32 {\n    return 1;\n}\n")), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /needless_return/);
+});
+test("rust: a warning in a server sync test fails", rust, () => {
+  const run = gate(repoWith(syncFiles("#[cfg(test)]\nmod tests {\n    #[test]\n    fn broken() {\n        let unused = 1;\n    }\n}\n")), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /unused variable/);
 });
 test("rust: the Worker alone passes without a desktop manifest", rust, () => {
   const run = gate(repoWith(workerFiles()), ["rust"]);
@@ -139,15 +164,18 @@ const rustStub = () => {
 };
 test("rust: crate editions, WASM target, locked dependencies and warning policy are explicit", () => {
   const stub = rustStub();
-  const dir = crate(CLEAN_MAIN, { ...workerFiles(), [`${WORKER_ROOT}/src/unreferenced.rs`]: "pub fn f() {}\n" });
+  const dir = crate(CLEAN_MAIN, { ...workerFiles(), ...syncFiles(), [`${WORKER_ROOT}/src/unreferenced.rs`]: "pub fn f() {}\n", [`${SYNC_ROOT}/src/unreferenced.rs`]: "pub fn f() {}\n" });
   const run = gate(dir, ["rust"], { PATH: `${stub.dir}${path.delimiter}${process.env.PATH}` });
   assert.equal(run.code, 0, run.out);
   const calls = readFileSync(stub.log, "utf8").trim().split("\n").map((line) => JSON.parse(line));
   assert.deepEqual(calls, [
     { tool: "rustfmt", args: ["--check", "--edition", "2021", "apps/desktop/adapters/tauri/src/main.rs"] },
     { tool: "cargo", args: ["clippy", "--manifest-path", "apps/desktop/src-tauri/Cargo.toml", "--all-targets", "--locked", "--", "-D", "warnings"] },
+    { tool: "cargo", args: ["test", "--manifest-path", "apps/desktop/src-tauri/Cargo.toml", "--locked"] },
     { tool: "rustfmt", args: ["--check", "--edition", "2024", `${WORKER_ROOT}/src/lib.rs`, `${WORKER_ROOT}/src/unreferenced.rs`] },
     { tool: "cargo", args: ["clippy", "--manifest-path", `${WORKER_ROOT}/Cargo.toml`, "--target", "wasm32-unknown-unknown", "--all-targets", "--locked", "--", "-D", "warnings"] },
+    { tool: "rustfmt", args: ["--check", "--edition", "2024", `${SYNC_ROOT}/src/lib.rs`, `${SYNC_ROOT}/src/unreferenced.rs`] },
+    { tool: "cargo", args: ["clippy", "--manifest-path", `${SYNC_ROOT}/Cargo.toml`, "--target", "wasm32-unknown-unknown", "--all-targets", "--locked", "--", "-D", "warnings"] },
   ]);
 });
 test("rust: a missing Worker manifest is exit 2, never a pass", () => {
@@ -168,12 +196,12 @@ test("rust: a similarly named directory is not a registered Worker", () => {
   assert.equal(run.code, 1, run.out);
   assert.match(run.out, /apps\/sync-worker-other\/src\/lib.rs is Rust code outside/);
 });
-test("rust: CI installs the pinned WASM toolchain and caches both crates", () => {
+test("rust: CI installs the pinned WASM toolchain and caches all three crates", () => {
   const workflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
   const job = workflow.split("\n  native-checks:\n")[1].split("\n  shell-checks:\n")[0];
   assert.match(job, /RUSTUP_TOOLCHAIN: 1\.96\.0/);
   assert.match(job, /rustup toolchain install 1\.96\.0 .*--target wasm32-unknown-unknown/);
-  assert.match(job, /workspaces: \|\n\s+apps\/desktop\/src-tauri\n\s+apps\/sync-worker/);
+  assert.match(job, /workspaces: \|\n\s+apps\/desktop\/src-tauri\n\s+apps\/sync-worker\n\s+server\/sync/);
   assert.match(job, /node scripts\/gates\/native-checks.mjs rust/);
 });
 test("rust: a repository without Rust files has nothing to check", () => {

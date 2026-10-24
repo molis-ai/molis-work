@@ -157,7 +157,7 @@
 
 个人同步整改（personal 分支，2026-10-16）：上述库的新增日志及辅助表纳入当前基线；旧版只拒绝，不自动补表。新增同步配置库 `sync/sync.db` v1，基线为 `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE`。本次未维护真实 Home，启用前需备份并另行授权维护。
 
-个人云同步 D1（2026-10-17）：这是独立 Worker 数据库，不是上表 Home 库。当前新库基线为 `apps/sync-worker/migrations/0001_sync.sql`，`sync_schema.version=3`，包含结构化内容与私有 R2 附件预留的共同容量账本及准入触发器。旧 v1/v2 数据库的维护或重建须另行批准，不能以再次执行已应用的 0001 当作升级；本次没有操作真实 D1。发布前核对独立数据库及私有 R2 绑定、HTTPS Auth 和应用 ID，不能使用 Auth/官网数据库；Artifact 附件首片已实现，其他 owner、预留到期和 30 天引用清理、正式两设备验收未完成。
+个人云同步 D1（2026-10-24 核对目录与版本）：这是远端同步模块的数据库，不是上表 Home 库。当前新库基线为 `server/sync/migrations/0001_sync.sql`，`sync_schema.version=6`，包含结构化内容与私有 R2 附件的共同容量账本、准入触发器、历史保留与清理记录。旧基线数据库的维护或重建须另行批准，不能以再次执行已应用的 0001 当作升级；本次源码迁移没有修改 SQL 或操作真实 D1。发布前核对独立数据库及私有 R2 绑定、HTTPS Auth 和应用 ID，不能使用 Auth/官网数据库。具体 owner 覆盖和清理实现见 `apps/sync-worker/README.md`；真实流量、故障恢复及正式两设备验收仍需另行完成。
 
 个人附件本机暂存（2026-10-17）：`sync/sync.db` 当前基线 v2，新增受空间租约约束的上传回执和下载分块。原 v1 记录是前一切片的历史，不是当前可读格式；旧库保留并拒绝，未维护真实 Home。
 

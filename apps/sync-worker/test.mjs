@@ -28,7 +28,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
   const clients=[];
   try{
     const db=await mf.getD1Database('DB');
-    const sql=readFileSync(new URL('./migrations/0001_sync.sql',import.meta.url),'utf8');
+    const sql=readFileSync(new URL('../../server/sync/migrations/0001_sync.sql',import.meta.url),'utf8');
     for(const [statement] of sql.matchAll(/CREATE TRIGGER[\s\S]*?\nEND;|CREATE (?:TABLE|INDEX)[\s\S]*?;|INSERT INTO sync_schema[\s\S]*?;/g))await db.prepare(statement).run();
     const call=(path,token,body,method=body===undefined?'GET':'POST')=>mf.dispatchFetch('http://local'+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
     assert.equal((await call('/v1/policy','invalid')).status,401);

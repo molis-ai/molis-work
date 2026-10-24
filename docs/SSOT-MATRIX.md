@@ -53,6 +53,8 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 
 ## 3. Apps
 
+独立 Rust 服务端代码不计入下表的 pnpm 包数：`server/sync` 拥有个人同步远端事件、回执、容量、附件与保留记录，`apps/sync-worker` 只负责 Cloudflare 入口装配和部署。两者由 Cargo 与 native-checks 检查；详见 [同步模块](../server/sync/README.md)。原 `server` Node 包的登记、身份/IM 事实归属及公开入口不变。
+
 | 目标 package | 负责什么 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
 | `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `partial` | AP4/DV4/Cutover；实际平台安装证据见验证报告 | 应用：@yijunw0212 |

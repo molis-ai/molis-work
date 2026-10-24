@@ -18,7 +18,7 @@ export async function cloudFixture(t,{authOrigin='https://auth.example.test',mod
   t.after(()=>mf.dispose());
   let db=await mf.getD1Database('DB'),bucket=await mf.getR2Bucket('BLOBS');
   if(schema){
-    const sql=readFileSync(new URL('./migrations/0001_sync.sql',import.meta.url),'utf8');
+    const sql=readFileSync(new URL('../../server/sync/migrations/0001_sync.sql',import.meta.url),'utf8');
     for(const [statement] of sql.matchAll(/CREATE TRIGGER[\s\S]*?\nEND;|CREATE (?:TABLE|INDEX)[\s\S]*?;|INSERT INTO sync_schema[\s\S]*?;/g))await db.prepare(statement).run();
   }
   const call=(path,user='alice',body,method=body===undefined?'GET':'POST',origin='https://sync.example.test')=>mf.dispatchFetch(origin+path,{method,headers:{Authorization:'Bearer '+user,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});

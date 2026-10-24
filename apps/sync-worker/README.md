@@ -1,5 +1,9 @@
 # Personal sync Worker — pre-deployment verification
 
+This directory is the Cloudflare composition root, not the owner of server business logic. `src/lib.rs` registers `fetch` and `scheduled` events and forwards them to the public Rust library in [`server/sync`](../../server/sync/README.md). Sync source and the D1 baseline live there; this App retains the build/configuration and actual-runtime integration tests. The module still uses Cloudflare APIs; this move does not make Node IM deployable on Workers or change any live resource.
+
+Both Wrangler templates watch the App and `server/sync/src` during local development, so changing the moved source rebuilds the Worker. Existing private Wrangler configs must also update `build.watch_dir` and `migrations_dir` to match the templates; do not replace their actual resource IDs.
+
 The Workflows collection carries definitions and run history. Imported runs remain observation-only and cannot dispatch work on the receiving device. Jelly transfers the personal calendar, notes and their links; device-specific import receipts, undo history and previews stay local.
 
 Rust/WASM + D1 transport for space-scoped incremental replication. Auth validates the Bearer token; the server derives the space from issuer, application and user. The request cannot choose another owner. No real cloud resources are created by these instructions.
@@ -32,7 +36,7 @@ Use a canonical origin without a trailing slash, path, credentials, query or fra
 
 ## D1 baseline and accounting
 
-The current fresh D1 baseline is **v6**, recorded by `sync_schema.version` in `migrations/0001_sync.sql`. It includes immutable losing-branch archives, retained-version pins, exact restore-source receipts and 30-day retention of replaced owner graphs. Requests require the exact baseline and never create or alter tables; `fixtures/baseline-v4.sql` and `fixtures/baseline-v5.sql` freeze the old schemas for refusal tests. Earlier databases require separately approved backup and maintenance; re-running an already-applied `0001` does not upgrade them. The local `sync/sync.db` is independently **v5** for parts, receipts, permanent quarantine, protected per-namespace downloads, automatically retried temporary incoming failures and stream cursors; old versions are refused and preserved. No existing user database has been maintained.
+The current fresh D1 baseline is **v6**, recorded by `sync_schema.version` in `../../server/sync/migrations/0001_sync.sql`. It includes immutable losing-branch archives, retained-version pins, exact restore-source receipts and 30-day retention of replaced owner graphs. Requests require the exact baseline and never create or alter tables; `fixtures/baseline-v4.sql` and `fixtures/baseline-v5.sql` freeze the old schemas for refusal tests. Earlier databases require separately approved backup and maintenance; re-running an already-applied `0001` does not upgrade them. The local `sync/sync.db` is independently **v5** for parts, receipts, permanent quarantine, protected per-namespace downloads, automatically retried temporary incoming failures and stream cursors; old versions are refused and preserved. No existing user database has been maintained.
 
 `GET /v1/quota` returns `{limitBytes:100000000,usedBytes}` for the authenticated account across projects/devices. Retained non-null canonical UTF-8 values and unique raw blob bytes count; control metadata and null tombstones do not. Completion/reuse/replay never charge twice. A smaller revision still adds bytes while history is retained. Soft deletion retains content for 30 server-clock days; unreferenced reservations become eligible after 24 hours. Capacity is not released until the corresponding persisted cleanup succeeds.
 

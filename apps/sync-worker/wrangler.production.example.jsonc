@@ -7,8 +7,8 @@
   "workers_dev": true,
   "preview_urls": false,
   "triggers": {"crons":["17 * * * *"]},
-  "build": {"command":"node build.mjs"},
-  "d1_databases": [{"binding":"DB","database_name":"molis-work-sync-production","database_id":"00000000-0000-0000-0000-000000000000","migrations_dir":"migrations"}],
+  "build": {"command":"node build.mjs", "watch_dir": ["src", "../../server/sync/src"]},
+  "d1_databases": [{"binding":"DB","database_name":"molis-work-sync-production","database_id":"00000000-0000-0000-0000-000000000000","migrations_dir":"../../server/sync/migrations"}],
   "r2_buckets": [{"binding":"BLOBS","bucket_name":"configure-private-sync-bucket"}],
   "vars": {"DEPLOYMENT_MODE":"cloud","AUTH_ORIGIN":"https://configure-auth.example.invalid","APPLICATION_ID":"configure-molis-work-application-id","SYNC_WRITE_MODE":"read-write"}
 }

@@ -93,6 +93,8 @@ AP4 已把 Desktop 的启动配方、Panel lifecycle、Capsule presentation 和 
 
 ### Server
 
+当前物理结构：`server/src` 是现有 Node 身份、接续与 IM 包，`server/sync` 是 Rust 个人同步模块；启动装配分别在 `apps/server` 和 `apps/sync-worker`。两者并非同一个已部署的云端进程。同步模块的 HTTP/D1/R2 实现与建表基线归 `server/sync`，Cloudflare 事件宏、构建和部署配置归 App；目前同步模块仍依赖 Cloudflare API，尚未抽象成跨云实现。
+
 Server 负责认证授权、Team/Project 路由、Envelope 顺序、CAS、ACK、Cursor、Replay、Blob、Quota、Retention 和审计。它只理解 Goal/Artifact 的官方 Envelope 与平台控制字段，不解释 Plugin 自定义 payload，也不判断 Goal 是否完成。
 
 Server Plugin 是 Team 决定安装的能力，可以有自己的私有 Store 和 Server entrypoint；它产生的可交换结果仍通过 Goal/Artifact Contract 发送给本地用户。

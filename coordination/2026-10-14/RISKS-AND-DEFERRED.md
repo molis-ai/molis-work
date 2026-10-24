@@ -165,6 +165,8 @@
 | R-33 | 新：main 上 `tests/agent-built-plugins-checks.test.ts` 自 #1079 起在 macOS 上红（生成项目的 `sdk.d.ts` 有相对 import），Linux CI 不跑，没人发现；说明「只在 macOS 跑的用例」没有人定期看 | Codex：C0 修；并在 W6-05 最终回归里跑一遍 macOS 专有用例 | 已关：#1136 合入 main（`15b656648`，10-23）；`agent-built-plugins-workflow` 的 W2-18-BUILDER-LATE-01 同因一并修好 |
 | R-34 | 新：Codex 一个会话同时认领 6 个以上 PR 的修复（#1119、#1083、#1129、#1132、#1137 与 C1），修复串行，作者会话空着，PR 积压 | 统筹：Codex 手上超过 3 个认领时，新的修复改派作者（统筹代留认领）；10-23 22:30 起 #1145、#1146、#1148 由作者修 | 进行中 |
 | R-35 | 新：W5-17 把 catalog 升到 v23（删 `projects.database_path`），真实 Home（4207，主检出跑 main）在 W5-17 合入后不经维护就起不来 | 用户定维护时段；统筹在 W5-17 合入前弹窗问（`ASK-USER-NOT-DO.md` 第二节），没定之前不合 | 进行中 |
+| R-36 | 新：宿主任何地方都不调 `verifyPluginPackage`；安装记录的 `publisher_id`/`publisher_signature` 是安装时 Manifest 的自报，之后才固定（项目库账本、PG-022 P1b 的 Home 库账本都是「装上后不可换」，不保证首次可信） | `ac-trust` 线（PG-001 统一安装确认与签名校验）；该线开线前统筹盯着，未签名插件安装要用户同意 | 进行中 |
+| R-37 | 新：插件 id 互为点号前缀（如 `a` 与 `a.b`）时共用命名空间，事件总线与 S-63/S-64 的前缀检查都受影响（BL-506）；内置 27 个 id 里没有这样的一对 | `ac-trust` 线：安装时拒绝互为前缀的 id | 进行中 |
 
 
 | 编号 | 风险 | 影响 | 现状与缓解 | 谁跟 | 何时处理 |

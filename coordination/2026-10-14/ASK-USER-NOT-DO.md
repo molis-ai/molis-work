@@ -12,3 +12,4 @@
 | 项 | 来自 | 推荐 | 说明 | 问过 |
 | --- | --- | --- | --- | --- |
 | 真实 Home 的项目目录维护（catalog v23） | W5-17（`ac-sandbox-sched`，分支 `claude/ac-w517-catalog-paths`，未开 PR） | 先在真实 Home 的拷贝上跑 `list`，再约一个维护时段：停 4207 → 跑 `rewrite --maintenance-window` → 更新 main → 启动 | W5-17 删 `projects.database_path`，合入后真实 Home 不经维护就不能跑新 main。统筹在 W5-17 合入**前**问；没定时段之前 W5-17 不合 | 未问 |
+| Goals 事件与账键加插件前缀的存量改写 | Goals S9（`ac-sc3`，S9-0/0b 已在分支） | 和 W5-17 的目录维护放在同一个维护时段：先在拷贝上 `list`，再停 4207 一次跑完两份维护脚本 | 事件类型、对象类型、幂等操作名与情境账键要带 `<plugin_id>.` 前缀（S-63/S-64），真实 Home 里 Goals 已有的旧名要由维护改写；只认现行取值，不做读取兜底 | 未问 |

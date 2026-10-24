@@ -1,6 +1,6 @@
 # 交给 Codex 的独立开发片
 
-> **2026-10-23 23:18（洛杉矶）最新分工：** 一骏已指定 `gpt-6.1-sol / xhigh` 专职组织防腐流水线与合并。日常Codex派单、证据裁决和合并交给「统筹｜防腐流水线与合并 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`），每10分钟周期接续；原主chat保留完整目标与用户决定。四个专职评审/测试/修复会话和全部non-block闭环规则见 [CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。原Claude开发owner、有效评审和在途认领保留，Claude仍唯一full组批者；本次不重复启动既有工作。旧的日常root派单/合并文字由本条替代。
+> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「统筹｜防腐流水线与合并 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，gpt-6.1-sol/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；每10分钟兜底接续。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献和仍在途的review-pr-fixer认领、Claude开发owner及唯一full组批职责分别保留；Codex侧协调不替代Claude总统筹。
 
 状态：2026-10-23 起生效。用户 10-23 定：独立的开发任务可以派给 Codex，不必都在 Claude 子会话里做。统筹（本机 Claude）在这里派片、排序；Codex 做完一片在本表写 PR 号，再接下一片。
 

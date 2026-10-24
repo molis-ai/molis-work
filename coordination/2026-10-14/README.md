@@ -3572,3 +3572,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 
 - 10-24 03:05：PG-047 澄清：动作输出按 schema 校验已在 main（`checkedActionResult`），真正剩下的是模型结果 `validateResult()` 由平台在写事务或最后一次 beforeEffect 里强制；`ac-kernel` 先做 plugin-runtime 一侧，`plugin-model-service.ts` 等 #1139、#1147。PG-007 阶段 4 等 CHR-1 与 #1130。之后 PG-043。
 - 10-24 03:10：#1157（`ac-sc3` SC-4b）入表第 39 行，叠在 #1130 上，`full` 非空；交 `ac-review` 一轮。
+- 10-24 03:20：#1083（Shelf S4）已合（`b30325bd5`）；PG-012、026、026-S1、090 的状态写进 PRIVILEGES-PENDING（026-S1、090 已做）。合后 #1119、#1129、#1130、#1137、#1139、#1147、#1150 对 main 冲突，由各自修复认领者合 main。

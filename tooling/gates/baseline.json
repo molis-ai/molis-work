@@ -220,7 +220,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 444,
+  "testInternalImports": 443,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -372,7 +372,7 @@
     "tests/pages-input-rules.test.ts": 1,
     "tests/pages-surface-naming.test.ts": 1,
     "tests/personal-planning-actions.test.ts": 1,
-    "tests/personal-plugins-review-fixes.test.ts": 6,
+    "tests/personal-plugins-review-fixes.test.ts": 5,
     "tests/plugin-builder-diagnostics.e2e.test.ts": 1,
     "tests/plugin-composition.e2e.test.ts": 2,
     "tests/plugin-composition.test.ts": 2,

@@ -4,7 +4,7 @@ import type { createHistory } from './history.js';
 import type { createDrafts } from './drafts.js';
 import type { createTransport } from './transport.js';
 import type { createInvitations } from './invitations.js';
-import type { ImCtx, ImState } from './controller-types.js';
+import type { ImBaseCtx, ImCtx, ImState } from './controller-types.js';
 import type { createImShell } from './controller-shell.js';
 import type { createImComposer } from './controller-composer.js';
 import type { createImSync } from './controller-sync.js';
@@ -53,14 +53,16 @@ export function startIm(factories: ImFactories) {
     threadPage: null, events: null, epoch: 0, refreshing: false, refreshAgain: false, refreshTimer: undefined, toastTimer: undefined,
     threadDraft: null, seen: {}, busyTargets: new Set(), inviteToken: '', dialogVersion: 0, authLost: false,
   };
-  const c = { root, v, q, e, icon, dialog, dialogBody, projectId, s } as ImCtx;
+  const elements = { root, v, q, e, icon, dialog, dialogBody, projectId, s };
+  // Cross-layer calls happen in the returned handlers, once the full context is assembled.
+  const context = (): ImCtx => c;
   const { api, storage, connectProject, subscribe } = factories.createTransport(() => { s.authLost = true; c.syncComposer('group'); c.syncComposer('thread'); c.syncError('身份连接已失效，请重新连接。已输入的内容会保留。'); });
   const { merge, latest, reset: resetHistory } = factories.createHistory(api);
-  Object.assign(c, { api, storage, connectProject, subscribe, merge, latest, resetHistory, drafts: factories.createDrafts(storage) });
-  Object.assign(c, factories.createImShell(c), factories.createImComposer(c), factories.createImSync(c), factories.createImRooms(c), factories.createImTopics(c),
-    factories.createImNavigate(c), factories.createImDialogs(c), factories.createImStartup(c));
-  c.invitations = factories.createInvitations({ api, dialog, body: dialogBody, current: () => ({ room: s.roomId, version: s.dialogVersion }),
-    open: c.openDialog, escape: e, icon, toast: c.toast });
+  const base: ImBaseCtx = Object.assign(elements, { api, storage, connectProject, subscribe, merge, latest, resetHistory, drafts: factories.createDrafts(storage) });
+  const methods = Object.assign(base, factories.createImShell(base), factories.createImComposer(base, context), factories.createImSync(base, context), factories.createImRooms(base, context), factories.createImTopics(base, context),
+    factories.createImNavigate(base, context), factories.createImDialogs(base, context), factories.createImStartup(base, context));
+  const c: ImCtx = Object.assign(methods, { invitations: factories.createInvitations({ api, dialog, body: dialogBody, current: () => ({ room: s.roomId, version: s.dialogVersion }),
+    open: methods.openDialog, escape: e, icon, toast: methods.toast }) });
   factories.createImPage(c);
   factories.createImClicks(c);
   parent.postMessage({ type: 'molis:im-ready' }, location.origin);

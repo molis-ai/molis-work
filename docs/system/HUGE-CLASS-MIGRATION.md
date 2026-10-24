@@ -58,7 +58,7 @@
 | 3 | `plugins/native/pages` | 4 | 10 | 12 | 任务书点名“Pages 编辑器的挂载函数”；路线原文点名的 `mount`、`hoverHandlePlugin`、`commands.ts` 都在这里 |
 | 4 | `apps/local-host` | 16 | 20 | 41 | 不含助理目录；web-* 路由文件的形态与 W5-07 的注册表一致 |
 | 5 | `apps/workbench` | 5 | 6 | 30 |  |
-| 6 | `horizontal/agent-host` | 11 | 15 | 18 | `prologue-node.ts` 已由 W4-06 拆完 |
+| 6 | `horizontal/agent-host` | 6 | 9 | 18 | `prologue-node.ts` 已由 W4-06 拆完；agent-host 第 1 片拆完 5 个文件的 6 个单元 |
 | 7 | `plugins/native/goals` | 7 | 8 | 10 |  |
 | 8 | `packages/plugin-runtime` | 4 | 5 | 9 | W3-06、W4-02 之前或同一 PR 先拆被它们碰到的类 |
 | 9 | `plugins/native/feed` | 1 | 1 | 7 | 不依赖 Feed 迁 Runtime 的专项计划 |
@@ -202,16 +202,11 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 ### Agent Host `horizontal/agent-host`（唯一直接依赖 `@prologue/sdk` 的包）
 
-15 个单元（拆 15），11 个文件。路径前缀 `horizontal/agent-host/src/`。
+9 个单元（拆 9），6 个文件。路径前缀 `horizontal/agent-host/src/`。`plugin-builder.ts`、`prologue-checkpoints.ts`、`prologue-git.ts`、`prologue-mcp.ts`、`prologue-messages.ts` 的 6 个单元已由 W5-10 的 agent-host 第 1 片拆完（纯搬移：内嵌函数提到模块级，公开 API 与动作快照不变）。
 
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
-| `adapters/plugin-builder.ts` | `createPluginBuilderAgent` 函数 204 行<br>`run` 函数 153 行 | 拆 · W5-10 | `run` 里 `execution` 一段 127 行，另有 `guard`（5）、`record`（3）；`createPluginBuilderAgent` 里 `authority` 16 行。执行体、守卫、记录、权限各成函数。`run` 内嵌在 `createPluginBuilderAgent` 里（同一段计两次）。 | 5 |
 | `adapters/prologue-action-gateway.ts` | `prologueActionGateway` 函数 174 行 | 拆 · W5-10 | `executors` 表（51 行）、`invoke`（30）、`tools` 装配（24）各成函数；`memoryExecutors`、`delegationExecutors` 已是模块级函数，和 `executors` 放进同一个目录。 | 4 |
-| `adapters/prologue-checkpoints.ts` | `createPrologueCheckpoints` 函数 221 行 | 拆 · W5-10 | `capability` 对象 125 行：`busy`、`restore`、`context` 等方法各抽成函数，`context` 里拼“宿主的实际操作记录”提示文字的一段单独成文件；`restore`（30）、`document`、`settle`（各 15）已是独立块。 | 1 |
-| `adapters/prologue-git.ts` | `createPrologueGitReviews` 函数 188 行 | 拆 · W5-10 | 返回的对象 72 行、`bindRecovery` 50 行、`restore` 23 行；操作各成函数，恢复绑定独立成文件。 | 2 |
-| `adapters/prologue-mcp.ts` | `createPrologueMcpLibrary` 函数 232 行 | 拆 · W5-10 | `library` 对象 165 行：`list`、`save` 等方法各成函数，`save` 里按传输方式（stdio、http）的分支各成校验函数；`refreshSelected`（13）、`view`（10）随各自的操作。 | 2 |
-| `adapters/prologue-messages.ts` | `createSessionMessages` 函数 170 行 | 拆 · W5-10 | 只超 20 行。返回对象 85 行、钩子注册 33 行、`unsubscribe` 21 行；把钩子注册与返回对象分成两个函数。 | 0 |
 | `adapters/prologue-stream.ts` | `applyPrologueEvent` 函数 304 行 | 拆 · W5-10 | `applyPrologueEvent` 是一个 298 行的 `switch`；每种事件一个处理函数，`switch` 只分发。 | 6 |
 | `adapters/prologue-taskboard.ts` | `createPrologueTaskBoards` 函数 220 行 | 拆 · W5-10 | 返回对象 147 行、钩子 31 行、`unsubscribe` 17 行：钩子注册、跟随（`following`/`stopFollowing`）、返回的任务板操作各成函数。 | 2 |
 | `adapters/prologue.ts` | 文件 1,026 行<br>`PrologueAgentAdapter` 类 658 行 / 18 方法<br>`(module) callback 1` 函数 187 行 | 拆 · W5-10 | 文件、类、私有方法三个单元互相包含：文件 1,026 行 > `PrologueAgentAdapter` 658 行/18 方法 > 私有方法 `#start` 187 行（门禁里记作 `(module) callback 1`，见 §1）。`#start` 按阶段拆；类里还有 `constructor`（81）、`#publish`（63）；会话读写（`createSession`、`readSession`、`#loadSession`、`#restoreSession`）与运行控制（`start`、`control`、`observe`）分成两个协作者；类型与端口声明另放文件，文件回到 800 行以下。W4-06 不含它。 | 8 |

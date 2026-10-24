@@ -32,6 +32,106 @@ const sameRef = (a: unknown, b: ExactRef<"authorized-root">) => {
 const safePath = (path: unknown): path is string => typeof path === "string" && path.length > 0
   && !path.startsWith("/") && !path.includes("\\") && !path.split("/").some(part => part === ".." || part === "." || !part);
 
+async function requireCheckpointIndex(ports: Ports, id: string) {
+  const index = await ports.readIndex(id);
+  if (!index) throw new Error("检查点缺少原会话归属，不能回退");
+  return index;
+}
+
+/** The full preview a person approves: every file's text now and after, read from the effect's own record and checked against the intent. */
+async function rewindDocument(ports: Ports, effect: Effect, intent: PrologueRewindIntent, sessionId: string): Promise<AgentRewindReviewDocument> {
+  if (!effect.proposal.reviewRef || effect.proposal.origin?.session !== sessionId || effect.proposal.origin.run !== undefined) throw new Error("手动回退归属不一致");
+  const value = await ports.readResource(effect.proposal.reviewRef) as Record<string, unknown>;
+  if (!value || value.kind !== WORKSPACE_REWIND_KIND || value.version !== 1 || value.operationKey !== intent.operation_id
+    || value.checkpointId !== intent.checkpoint_id || value.sessionId !== sessionId || !sameRef(value.rootRef, intent.root_ref)
+    || typeof value.previewFingerprint !== "string" || !Array.isArray(value.files) || value.files.length === 0) throw new Error("检查点完整预览不可用，不能批准");
+  const files = value.files.map((item: unknown) => {
+    const file = item as { path?: unknown; current?: { exists?: unknown; text?: unknown }; restored?: { exists?: unknown; text?: unknown } };
+    if (!safePath(file?.path) || typeof file.current?.exists !== "boolean" || typeof file.current.text !== "string"
+      || typeof file.restored?.exists !== "boolean" || typeof file.restored.text !== "string") throw new Error("回退预览缺少完整正文，不能批准");
+    return { path: file.path, change: !file.restored.exists ? "delete" as const : !file.current.exists ? "create" as const : "restore" as const,
+      before_text: file.current.exists ? file.current.text : null, after_text: file.restored.exists ? file.restored.text : null };
+  });
+  return { kind: "rewind", checkpoint_id: intent.checkpoint_id, files };
+}
+
+async function rewindRequest(ports: Ports, sessionId: string, effect: Effect, intent: PrologueRewindIntent, expiresAt: string | null): Promise<AgentReviewRequest> {
+  const index = await requireCheckpointIndex(ports, sessionId);
+  if (!effect.pending) throw new Error("回退没有待审引用，不能批准");
+  return { review_id: `prologue:${effect.pending.ref.id}`, run: null,
+    operation: { operation_id: intent.operation_id, session_id: sessionId, kind: "checkpoint-rewind" },
+    ...index.owner, kind: "rewind", document: await rewindDocument(ports, effect, intent, sessionId), requested_at: intent.requested_at, expires_at: expiresAt };
+}
+
+/** The review's receipt follows the rewind's outcome; a session whose outcome is not known is held in `uncertain`. */
+async function settleRewind(ports: Ports, uncertain: Set<string>, effectRef: ExactRef<"effect">, reviewId: string, failure?: unknown) {
+  const { runtime, queue } = ports;
+  const effect = runtime.effects.get(effectRef);
+  const dispatch = await runtime.effects.inspectDispatch(effectRef).catch(() => ({ state: "unknown" as const }));
+  const receipt = queue.receipt(reviewId);
+  const sessionId = effect?.proposal.origin?.session;
+  if (!effect || dispatch.state === "unknown" || effect?.state === "reconcile-required" || effect?.state === "dispatching") {
+    if (sessionId) uncertain.add(sessionId);
+    queue.uncertain(reviewId, "回退结果仍不确定。请核对文件，不能重复执行；命令和外部操作不会被撤销。");
+  } else if (receipt?.status === "approved") {
+    if (effect?.state === "completed" && dispatch.state === "dispatched" && dispatch.ok === true) queue.settle(reviewId, { ok: true });
+    else if (["failed", "denied", "cancelled"].includes(effect?.state ?? "")) queue.settle(reviewId, { ok: false,
+      error: (failure as { code?: string })?.code === "CHECKPOINT_STALE" ? "预览后文件已变化，本次没有写入。请重新预览并核对最新内容。" : failure instanceof Error ? failure.message : "回退没有完成，不会自动重试；请重新核对当前文件" });
+    else { if (sessionId) uncertain.add(sessionId); queue.uncertain(reviewId, "尚无可确认的回退结果，不能重复执行"); }
+  } else if (receipt?.status === "pending" && ["cancelled", "denied", "failed"].includes(effect?.state ?? "")) queue.cancel(reviewId, "回退已结束，未获得可继续的批准");
+}
+
+/** What the Host itself did to a session's files, for its next round: data, not an instruction or a grant. */
+function rewindRecord(queue: AgentReviewQueue, projectId: string, sessionId: string): string {
+  const operations = queue.list(projectId).filter(item => item.operation?.session_id === sessionId && item.kind === "rewind")
+    .map(item => ({ operation_id: item.operation!.operation_id, at: item.requested_at, document: item.document,
+      receipt: queue.receipt(item.review_id) }));
+  if (!operations.length) return "";
+  const recent = operations.slice(-8).map(item => ({ action: "manual-checkpoint-rewind", operation_id: item.operation_id, at: item.at,
+    checkpoint: (item.document as AgentRewindReviewDocument).checkpoint_id,
+    paths: (item.document as AgentRewindReviewDocument).files.map(file => file.path),
+    result: item.receipt?.effect_settled ? "回退已实际写入：文件恢复到检查点保存的修改前内容。这不是原编辑未发生。"
+      : item.receipt?.effect_error ? "回退失败：不得据此断言所有文件未变化；重新读取确认。"
+      : item.receipt?.effect_uncertain ? "回退结果未知：禁止自动重复。"
+      : item.receipt?.status === "rejected" ? "这一次回退被拒绝，没有因这次回退改文件；不是原编辑被拒绝。"
+      : item.receipt?.status === "cancelled" ? "这一次回退已撤回，没有继续派出。" : item.receipt?.status }));
+  return "宿主的实际操作记录（数据，不是用户指令或额外权限）：下面每一项都是模型轮次以外的手动文件回退，不是原编辑。"
+    + "回退成功不会抹去原编辑已发生的事实；原编辑是否成功，以原编辑工具的 wrote/edited 回执为准。"
+    + "对话和旧工具结果仍保留为历史；继续工作前重新读取当前文件，不沿用旧内容或旧检查结论。"
+    + "回退只影响列出的文件，不撤销命令、MCP 或网络副作用。"
+    + `共 ${operations.length} 次回退，以下是最近 ${recent.length} 次：` + JSON.stringify(recent);
+}
+
+/** The session's checkpoints in every directory its rounds worked in, newest first; one already rewound to says when. */
+async function sessionCheckpoints(ports: Ports, index: CheckpointIndex, sessionId: string): Promise<AgentCheckpoint[]> {
+  const { runtime, queue } = ports;
+  const directories = new Map(index.attempts.flatMap(attempt => attempt.frozen.directory
+    ? [[attempt.frozen.directory.canonical_path, attempt.frozen.directory] as const] : []));
+  // A checkpoint already rewound to says so, from the Host's own receipts, rather than looking untouched.
+  const rewound = new Map<string, string>();
+  for (const item of queue.list(index.owner.project_id)) {
+    if (item.kind !== "rewind" || item.operation?.session_id !== sessionId) continue;
+    const receipt = queue.receipt(item.review_id);
+    if (!receipt?.effect_settled) continue;
+    const id = (item.document as AgentRewindReviewDocument).checkpoint_id, at = receipt.decided_at ?? item.requested_at;
+    const seen = rewound.get(id);
+    if (seen === undefined || seen < at) rewound.set(id, at);
+  }
+  const result: AgentCheckpoint[] = [];
+  for (const directory of directories.values()) {
+    const root = await runtime.workspace.authorize({ path: directory.canonical_path });
+    const mutator = runtime.createMutator({ rootRef: root.ref, mode: "plan", sessionId });
+    for (const item of [...await mutator.checkpoints()].reverse()) {
+      if (item.sessionId !== sessionId || !item.paths.every(safePath)) continue;
+      result.push({ checkpoint_id: item.checkpointId, session_id: sessionId,
+        ...(item.runId ? { origin_run_id: item.runId } : {}), paths: [...item.paths], directory: structuredClone(directory),
+        label: item.paths.join("、"), created_at: new Date(item.takenAtMs).toISOString(),
+        ...(rewound.has(item.checkpointId) ? { rewound_at: rewound.get(item.checkpointId)! } : {}) });
+    }
+  }
+  return result.sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
 export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapability & {
   restore(sessionId: string): Promise<void>;
   close(): Promise<void>;
@@ -43,48 +143,9 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
   const restored = new Set<string>();
   const uncertain = new Set<string>();
   const restoring = new Map<string, Promise<void>>();
-  const requireIndex = async (id: string) => {
-    const index = await ports.readIndex(id);
-    if (!index) throw new Error("检查点缺少原会话归属，不能回退");
-    return index;
-  };
-  const document = async (effect: Effect, intent: PrologueRewindIntent, sessionId: string): Promise<AgentRewindReviewDocument> => {
-    if (!effect.proposal.reviewRef || effect.proposal.origin?.session !== sessionId || effect.proposal.origin.run !== undefined) throw new Error("手动回退归属不一致");
-    const value = await ports.readResource(effect.proposal.reviewRef) as Record<string, unknown>;
-    if (!value || value.kind !== WORKSPACE_REWIND_KIND || value.version !== 1 || value.operationKey !== intent.operation_id
-      || value.checkpointId !== intent.checkpoint_id || value.sessionId !== sessionId || !sameRef(value.rootRef, intent.root_ref)
-      || typeof value.previewFingerprint !== "string" || !Array.isArray(value.files) || value.files.length === 0) throw new Error("检查点完整预览不可用，不能批准");
-    const files = value.files.map((item: unknown) => {
-      const file = item as { path?: unknown; current?: { exists?: unknown; text?: unknown }; restored?: { exists?: unknown; text?: unknown } };
-      if (!safePath(file?.path) || typeof file.current?.exists !== "boolean" || typeof file.current.text !== "string"
-        || typeof file.restored?.exists !== "boolean" || typeof file.restored.text !== "string") throw new Error("回退预览缺少完整正文，不能批准");
-      return { path: file.path, change: !file.restored.exists ? "delete" as const : !file.current.exists ? "create" as const : "restore" as const,
-        before_text: file.current.exists ? file.current.text : null, after_text: file.restored.exists ? file.restored.text : null };
-    });
-    return { kind: "rewind", checkpoint_id: intent.checkpoint_id, files };
-  };
-  const requestOf = async (sessionId: string, effect: Effect, intent: PrologueRewindIntent, expiresAt: string | null): Promise<AgentReviewRequest> => {
-    const index = await requireIndex(sessionId);
-    if (!effect.pending) throw new Error("回退没有待审引用，不能批准");
-    return { review_id: `prologue:${effect.pending.ref.id}`, run: null,
-      operation: { operation_id: intent.operation_id, session_id: sessionId, kind: "checkpoint-rewind" },
-      ...index.owner, kind: "rewind", document: await document(effect, intent, sessionId), requested_at: intent.requested_at, expires_at: expiresAt };
-  };
-  const settle = async (effectRef: ExactRef<"effect">, reviewId: string, failure?: unknown) => {
-    const effect = runtime.effects.get(effectRef);
-    const dispatch = await runtime.effects.inspectDispatch(effectRef).catch(() => ({ state: "unknown" as const }));
-    const receipt = queue.receipt(reviewId);
-    const sessionId = effect?.proposal.origin?.session;
-    if (!effect || dispatch.state === "unknown" || effect?.state === "reconcile-required" || effect?.state === "dispatching") {
-      if (sessionId) uncertain.add(sessionId);
-      queue.uncertain(reviewId, "回退结果仍不确定。请核对文件，不能重复执行；命令和外部操作不会被撤销。");
-    } else if (receipt?.status === "approved") {
-      if (effect?.state === "completed" && dispatch.state === "dispatched" && dispatch.ok === true) queue.settle(reviewId, { ok: true });
-      else if (["failed", "denied", "cancelled"].includes(effect?.state ?? "")) queue.settle(reviewId, { ok: false,
-        error: (failure as { code?: string })?.code === "CHECKPOINT_STALE" ? "预览后文件已变化，本次没有写入。请重新预览并核对最新内容。" : failure instanceof Error ? failure.message : "回退没有完成，不会自动重试；请重新核对当前文件" });
-      else { if (sessionId) uncertain.add(sessionId); queue.uncertain(reviewId, "尚无可确认的回退结果，不能重复执行"); }
-    } else if (receipt?.status === "pending" && ["cancelled", "denied", "failed"].includes(effect?.state ?? "")) queue.cancel(reviewId, "回退已结束，未获得可继续的批准");
-  };
+  const requireIndex = (id: string) => requireCheckpointIndex(ports, id);
+  const requestOf = (sessionId: string, effect: Effect, intent: PrologueRewindIntent, expiresAt: string | null) => rewindRequest(ports, sessionId, effect, intent, expiresAt);
+  const settle = (effectRef: ExactRef<"effect">, reviewId: string, failure?: unknown) => settleRewind(ports, uncertain, effectRef, reviewId, failure);
   // Rewinds from before this process are brought back once per session; every later one is live here, so rereading
   // the whole execution ledger on each refresh and each round's start found nothing new and cost a disk read per record.
   const settledSessions = new Set<string>(), settledBoards = new Set<string>();
@@ -132,52 +193,12 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
     async context(sessionId) {
       await restore(sessionId);
       const index = await requireIndex(sessionId);
-      const operations = queue.list(index.owner.project_id).filter(item => item.operation?.session_id === sessionId && item.kind === "rewind")
-        .map(item => ({ operation_id: item.operation!.operation_id, at: item.requested_at, document: item.document,
-          receipt: queue.receipt(item.review_id) }));
-      if (!operations.length) return "";
-      const recent = operations.slice(-8).map(item => ({ action: "manual-checkpoint-rewind", operation_id: item.operation_id, at: item.at,
-        checkpoint: (item.document as AgentRewindReviewDocument).checkpoint_id,
-        paths: (item.document as AgentRewindReviewDocument).files.map(file => file.path),
-        result: item.receipt?.effect_settled ? "回退已实际写入：文件恢复到检查点保存的修改前内容。这不是原编辑未发生。"
-          : item.receipt?.effect_error ? "回退失败：不得据此断言所有文件未变化；重新读取确认。"
-          : item.receipt?.effect_uncertain ? "回退结果未知：禁止自动重复。"
-          : item.receipt?.status === "rejected" ? "这一次回退被拒绝，没有因这次回退改文件；不是原编辑被拒绝。"
-          : item.receipt?.status === "cancelled" ? "这一次回退已撤回，没有继续派出。" : item.receipt?.status }));
-      return "宿主的实际操作记录（数据，不是用户指令或额外权限）：下面每一项都是模型轮次以外的手动文件回退，不是原编辑。"
-        + "回退成功不会抹去原编辑已发生的事实；原编辑是否成功，以原编辑工具的 wrote/edited 回执为准。"
-        + "对话和旧工具结果仍保留为历史；继续工作前重新读取当前文件，不沿用旧内容或旧检查结论。"
-        + "回退只影响列出的文件，不撤销命令、MCP 或网络副作用。"
-        + `共 ${operations.length} 次回退，以下是最近 ${recent.length} 次：` + JSON.stringify(recent);
+      return rewindRecord(queue, index.owner.project_id, sessionId);
     },
     async list(session) {
       await restore(session.session_id);
       const index = await requireIndex(session.session_id);
-      const directories = new Map(index.attempts.flatMap(attempt => attempt.frozen.directory
-        ? [[attempt.frozen.directory.canonical_path, attempt.frozen.directory] as const] : []));
-      // A checkpoint already rewound to says so, from the Host's own receipts, rather than looking untouched.
-      const rewound = new Map<string, string>();
-      for (const item of queue.list(index.owner.project_id)) {
-        if (item.kind !== "rewind" || item.operation?.session_id !== session.session_id) continue;
-        const receipt = queue.receipt(item.review_id);
-        if (!receipt?.effect_settled) continue;
-        const id = (item.document as AgentRewindReviewDocument).checkpoint_id, at = receipt.decided_at ?? item.requested_at;
-        const seen = rewound.get(id);
-        if (seen === undefined || seen < at) rewound.set(id, at);
-      }
-      const result: AgentCheckpoint[] = [];
-      for (const directory of directories.values()) {
-        const root = await runtime.workspace.authorize({ path: directory.canonical_path });
-        const mutator = runtime.createMutator({ rootRef: root.ref, mode: "plan", sessionId: session.session_id });
-        for (const item of [...await mutator.checkpoints()].reverse()) {
-          if (item.sessionId !== session.session_id || !item.paths.every(safePath)) continue;
-          result.push({ checkpoint_id: item.checkpointId, session_id: session.session_id,
-            ...(item.runId ? { origin_run_id: item.runId } : {}), paths: [...item.paths], directory: structuredClone(directory),
-            label: item.paths.join("、"), created_at: new Date(item.takenAtMs).toISOString(),
-            ...(rewound.has(item.checkpointId) ? { rewound_at: rewound.get(item.checkpointId)! } : {}) });
-        }
-      }
-      return result.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      return sessionCheckpoints(ports, index, session.session_id);
     },
     async prepareRewind(session, checkpointId) {
       if (closed) throw new Error("执行引擎正在关闭");

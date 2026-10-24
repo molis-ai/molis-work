@@ -51,6 +51,12 @@ export interface SandboxEffects {
    * actions that declares `model:invoke`.
    */
   model?: Array<'read' | 'invoke'>;
+  /**
+   * The ids of this contract's command operations the operation may start in the background (`sdk.background.start`, PG-017 P3). Each is a
+   * command of its own with no `background` effect, and the operation that starts it is a command too. The package also declares the Manifest's
+   * `background_job` metadata on the action that runs the starting operation.
+   */
+  background?: string[];
 }
 
 export interface SandboxOperationExample {
@@ -275,6 +281,18 @@ export interface SandboxSdk {
     availability(selection?: SandboxModelSelection): Promise<SandboxModelAvailability>;
     complete(request: SandboxModelRequest): Promise<SandboxModelResult>;
   };
+  /**
+   * Background work (`services.background`, PG-017 P3). `start` accepts one run of a command operation the calling operation declared in
+   * `effects.background`, with a JSON input, and returns its execution id as soon as the Host has accepted it; the run happens in a second
+   * sandbox process of the same package, one operation at a time, so it never holds up the operations of the first. Nothing carries its
+   * result back: the operation writes what it means to keep through the SDK, and it is not replayed if its process dies. `cancel` stops an
+   * execution this sandbox accepted (`false` for one that has already ended). The Host stops every execution when the installation stops,
+   * is revoked, or its project is deleted, and an execution that is stopped writes nothing more.
+   */
+  background: {
+    start(operation: string, input: SandboxJson): Promise<string>;
+    cancel(id: string): Promise<boolean>;
+  };
   /** The platform's question card, action card and next-step row as html, in the call's language (`services.interaction`); nothing to declare. */
   interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
@@ -287,6 +305,7 @@ export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' 
   | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal'
   | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'
   | 'model.choices' | 'model.availability' | 'model.complete'
+  | 'background.start' | 'background.cancel'
   | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 /** Only one active operation per channel. Every host request belongs to that invocation. */

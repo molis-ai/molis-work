@@ -78,6 +78,10 @@ function sdk(callId: string): SandboxSdk {
       availability: selection => answer<SandboxModelAvailability>(invoke('model.availability', [selection === undefined ? null : json(selection)])),
       complete: request => answer<SandboxModelResult>(invoke('model.complete', [json(request)])),
     },
+    background: {
+      start: (operation, input) => invoke('background.start', [operation, json(input)]) as Promise<string>,
+      cancel: id => invoke('background.cancel', [id]) as Promise<boolean>,
+    },
     interaction: {
       questionHtml: (question, options) => invoke('interaction.questionHtml', [json(question), json(options ?? {})]) as Promise<string>,
       cardHtml: (card, options) => invoke('interaction.cardHtml', [json(card), json(options ?? {})]) as Promise<string>,

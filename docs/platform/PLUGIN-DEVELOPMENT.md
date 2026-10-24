@@ -183,7 +183,7 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 ## 已受理的后台执行
 
-宿主自己运行的 Home/项目插件可在本安装的活跃并发 command 里 `await services.background.start(async control => …, { signal? })`。动作必须声明 `background_job`，否则拒绝；沙箱、升级预检没有该服务，启动钩子、直接路由、过期处理器和其他安装也不能借它开始工作。返回句柄的 `result` 是结果 Promise，`cancel()` 只取消这次执行；插件自己保存任务、幂等键、状态与恢复决定，平台不重试、不在重启后重放。
+宿主自己运行的 Home/项目插件可在本安装的活跃并发 command 里 `await services.background.start(async control => …, { signal? })`。动作必须声明 `background_job`，否则拒绝；升级预检没有该服务；沙箱包不收回调，用 `sdk.background.start(operation, input)` 起自己某条命令的一次运行，它在同一个包的第二个沙箱进程里一次一个地跑，结果不回给包（S-67；生成的插件要等创作台一侧接线，BL-377）；启动钩子、直接路由、过期处理器和其他安装也不能借它开始工作。返回句柄的 `result` 是结果 Promise，`cancel()` 只取消这次执行；插件自己保存任务、幂等键、状态与恢复决定，平台不重试、不在重启后重放。
 
 后台回调保留原动作的身份、项目、权限和精确注册，并用新控制调用既有模型与数据服务。每次写入都要先 `await control.beforeEffect()`，提交前同步检查 `control.assert_authority_current?.()`；不能继续使用已返回处理器的 caller。原 HTTP/MCP 正常结束或断开后，已受理工作可继续；原 MCP 授权撤销、插件停用/升级、Host 关闭或显式取消会终止本机等待，迟到的成功与失败都不得写业务记录。没有入口提供独立后台授权的调用仍服从原 signal；不能借它逃离 Agent 的取消。项目路径上的 Home 路由仍在原项目里，提交时重查项目存在且显示该插件。
 

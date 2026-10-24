@@ -1,6 +1,6 @@
 # PG-017：沙箱插件经 broker 拿到宿主服务（设计稿）
 
-状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。P1（模型 + 指令，S-66，RAC-232、RAC-233）的代码与测试在本地分支 `claude/ac-pg017-p1-model-instructions`（叠在批 29 集成分支 `integration/batch-1024-29` 之上），统筹 10-24 夜暂不给构建时段，所以**还没构建、没跑过**（API 快照也待构建后 `pnpm api:update`）。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
+状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。P1（模型 + 指令，S-66，RAC-232、RAC-233）的代码与测试在本地分支 `claude/ac-pg017-p1-model-instructions`（叠在批 29 集成分支 `integration/batch-1024-29` 之上），统筹 10-24 夜给了构建时段，已构建、`pnpm api:update` 过、相关测试过。P3（后台运行，S-67，RAC-236）在本地分支 `claude/ac-pg017-p3-background`（叠在 P1 上），§3.5 已按下面的决定改写，代码与测试做完、已构建验证。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
 
 ## 1. 现状
 
@@ -80,12 +80,13 @@
 
 ### 3.5 后台作业（`background.*`）
 
-宿主内的 `background.start(work)`/`keep(job, work)` 收的是**回调**——宿主进程里跑的函数。沙箱里没有可交给宿主的函数。设计：沙箱版收的是**操作 id + 输入**，宿主侧的 `work` 是“回到这个沙箱的 runner 去调这个操作”（带上后台执行自己的 signal 与 `beforeEffect`）。
+宿主内的 `background.start(work)`/`keep(job, work)` 收的是**回调**——宿主进程里跑的函数。沙箱里没有可交给宿主的函数。设计：沙箱版收的是**操作 id + 输入**，broker 交给宿主的回调是“回到这个沙箱的 lane 去调这个操作”（带上后台执行自己的 signal 与 `beforeEffect`）。
 
-- **broker 方法**：`background.start({ operation, input })`（受理一次后台执行，返回执行编号）、`background.cancel(id)`；周期作业由 Manifest `background.jobs` 声明、绑定到合同里的操作（`keep` 由定义工厂在 `start` 里替它调，不由沙箱调）。效果键 `background: string[]`（操作 id），只给 `command`。
-- **runner 要多一条道**：现在 runner 按 `quick`/`slow` 分道（模型调用不挡别的读写）；后台执行用自己的一条，进程退出后下一次受理再起，已受理的不重放（`outcome: 'unknown'`）。
-- **删项目、卸载、停用时**：平台按项目停掉受理的后台执行（PG-038 已有），沙箱一侧的操作经同一个 signal 取消，沙箱进程随 `stop()` 终止；取消后不再写业务记录。
-- 这一项依赖 runner 的新道，放在第三批。
+- **broker 方法**（已做，S-67）：`background.start(operation, input)`（受理一次后台执行，返回执行编号）、`background.cancel(id)`（只能取消自己受理的，返回是否取消了）。效果键 `background: string[]`（它可以起的命令 id 名单），起和取消都只给命令；合同层拒绝：查询声明它、名单指向不存在的操作、指向查询、指向自己还会起后台的命令（只许一层）。输入在宿主接受之前先按目标操作的合同检查；一个沙箱未结束的运行最多 4 个。
+- **runner 的新道，决定：不是在一个进程里并行，而是第二个进程（lane）**。现在 runner 一次只跑一个操作（通道上只有一个 active），后台运行如果和前台共用它，一个跑几分钟的运行就会挡住这个包所有的读写。让 worker 并行跑多个操作要重写 runner 的核心（active 变成表、SDK 请求要按操作对应、各自的截止时间与取消），这是整条链上最该保持简单的地方；第二个进程只在第一次受理时起，一次一个操作，用自己的更长的截止时间（`SANDBOX_BACKGROUND_LIMITS`，10 分钟），不带 `background` 服务（一个运行起不了更多运行）。代价：两个进程不共享内存里的状态，包要把需要共享的写进它的存储（后台运行本来就应该这样，宿主内的版本同样“不留状态”）。lane 由起第一个进程的一方拥有（`createBackgroundLane`），`sandboxServicesFor` 经 `extras.backgroundLane` 收到它，没有 lane 就没有后台服务（`service_unavailable`），不会退回到在第一个进程里跑。
+- **取消与重放**：取消一个排队中的运行不动正在执行的；取消一个正在执行的运行会结束 lane 的进程（沙箱打断不了运行中的函数），排在它后面的运行一起结束，下一次受理再起新进程，已受理的不重放。
+- **删项目、卸载、停用时**：平台按项目停掉受理的后台执行（PG-038 已有），沙箱一侧的操作经同一个 signal 取消，broker 停止时取消它受理的运行；取消后不再写业务记录。
+- **没做**：Manifest `background.jobs`（插件活着就一直保持的作业）：`keep` 要由定义工厂在 `start` 里替它调、把作业绑到合同里的操作，工厂在创作台一侧（BL-377，同 P1 的两样），所以 `NOT_GIVEN` 里留一行只管 jobs；生成的插件今天没有带 `background_job` 的 Manifest 动作，也就还起不了运行。
 
 ### 3.6 私有文件（`files.*`）、主人文件（`ownerFiles`）
 
@@ -131,7 +132,7 @@
    - 等模型的操作：runner 对声明了 `model: ['invoke']` 的操作把服务截止时间和操作截止时间抬到宿主的模型上限（10 分钟）之后再加一点（`modelDeadlines`），否则 10 秒的服务截止先到，插件看到的是沙箱超时而不是宿主的拒绝；宿主调用方给的 `limits` 仍优先。
    - **没做、要创作台一侧接线的两样**：① 生成的插件（`installed.ts` 的 `sandboxedPluginDefinition`）今天只有一条路由 `studio.call`，没有 Manifest 动作，所以它还拿不到「本插件自己的、声明了 `model:invoke` 的并发动作」这个作用域；要为合同里每个声明了 `model` 效果的操作登记一个并发的 Manifest 动作（权限含 `model:invoke`），让操作经动作网关进沙箱（§3.1 原设计），并让 Manifest 带 `model:invoke`；② 包怎样带指令正文：`SandboxPluginContract` 没有这个字段，生成的插件现在没有 `PluginDefinition.instructions`。这两样跟「沙箱定义工厂从 `installed.ts` 抽出」同属创作台重做（BL-377）的接线，P0 已把它顺延到 BL-377；P1 在平台一侧完成，测试像 P2a～P2c 一样用带 Manifest 动作的探针包经真实项目平台驱动。
 3. **P2 连接 + 材料（不联网部分）**：3.3、3.4 第一批。
-4. **P3 后台**：3.5，runner 多一条道。
+4. **P3 后台**（S-67，本地分支 `claude/ac-pg017-p3-background`）：3.5，第二个进程（lane）而不是 runner 并行；验收见下面「P3 验收」。
 4a. **P2c 主人文件**（S-64，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
 4b. **P2d 本机页面与原文件**（S-65，本地分支，叠在 P2c 上）：3.4 的 `fetch_local` 与 `original`，验收见下面「P2d 验收」。
 5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库/文件/模型设置/生图（BL-490/491）、方法与角色（BL-493）。
@@ -183,6 +184,16 @@
 | RAC-367 | 一段至多 256 KiB，起点在 32 MiB 内，版本只认宿主给过的形状；没到宿主 |
 | RAC-368 | 四个方法各自：没声明、只声明读、声明另一种效果、没批准、只批准读、批准另一种效果、批准别的，都是 `sandbox.not_authorized`；查询声明任一效果则合同不载入；没有按整份读和路径的方法 |
 | RAC-369 | 宿主没建服务答 `sandbox.service_unavailable`；动作之外一律被宿主客户端拒；停用、撤权、取消、守卫拒绝之后什么都不取、不登记、不释放 |
+
+**P3 验收**（S-67，RAC-236；表里 RAC-236 一行的细化）：`tests/security-invariants-sandbox-background.test.ts`
+
+| 编号 | 断言 |
+| --- | --- |
+| RAC-236 | broker 先拒：没声明、没批准、不在名单、查询、合同里没有或不是命令的目标、输入不合、缺参数、非字符串；被拒的宿主一个也没接受；没连接服务答 `sandbox.service_unavailable` |
+| RAC-236 | 未结束的运行有上限；包只能取消自己受理的运行，取消也要有效果；broker 停止时取消全部 |
+| RAC-236 | 合同层：查询、缺失的目标、非命令、嵌套的后台声明都不载入 |
+| RAC-236 | 只有带 lane 才给后台服务；`background.jobs` 声明仍被拒，`background_job` 不再被拒 |
+| RAC-236 | 真进程：运行在另一个进程里，第一个进程在它等待时照常回答；取消正在执行的运行结束它的进程，下一次受理起新进程，被取消的不重来；停掉 lane 后不再受理 |
 
 **P1 验收**（S-66，RAC-232、RAC-233；表里两行的细化）：`tests/security-invariants-sandbox-model.test.ts`
 

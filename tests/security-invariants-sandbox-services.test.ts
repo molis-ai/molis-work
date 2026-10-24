@@ -36,7 +36,6 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
     ["materials", declaring({}, {}, [permission("materials:fetch", true)]), []],
     ["materials", declaring({}, {}, [permission("materials:fetch", false)]), ["materials:fetch"]],
     ["background", declaring({}, { background: { jobs: [{ job_id: "probe" } as never] } }), []],
-    ["background", declaring({}, { actions: [{ action: { background_job: { label: "probe" } } } as never] }), []],
     ["agent", declaring({ agent_prompts: [{ prompt_id: "probe", version: 1, body: "probe", layer: "role" }] }), []],
     ["agent", declaring({ methods: [{ method_id: "probe", version: 1 } as never] }), []],
     ["agent", declaring({}, { agent: { roles: [], prompts: [] } }), []],
@@ -72,6 +71,8 @@ test("S-60 RAC-238 an optional permission the person did not approve is not an a
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, {}, [permission("materials:read", true)]), ["materials:read"]));
   // Connections are given (PG-017 P2, tests/security-invariants-sandbox-connections.test.ts): declaring a slot is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { connections: { slots: [{ slot_id: "github", service_id: "github", reason: "probe" }] } }, [permission("connections:use", true)]), ["connections:use"]));
+  // A run a command starts is given (PG-017 P3, tests/security-invariants-sandbox-background.test.ts): `background_job` on an action is not refused; the kept jobs of the Manifest still are.
+  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { actions: [{ action: { background_job: { label: "probe" } } } as never] }), []));
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring(), ["storage:private"]));
   // The project's own tables are given (S-59): declaring them is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { databases: { project: { store_name: "probe", version: 1, read_permission: "probe:read", write_permission: "probe:write", schema: "CREATE TABLE probe_rows (id INTEGER PRIMARY KEY);" } } },

@@ -618,7 +618,7 @@ test("production path: a fixture the Host is given reaches the model the Host wa
     } finally { await noModel.close(); }
   }));
 
-test("S-18 RAC-50 RAC-53 background execution needs its declaration and active action, is absent from sandbox/preflight, and needs no model Home", withDirectory(async directory => {
+test("S-18 RAC-50 RAC-53 background execution needs its declaration and active action, is absent from preflight, and needs no model Home", withDirectory(async directory => {
   for (const kind of ["declared", "sandbox", "undeclared"] as const) {
     const item = platformIn(directory, null), probe = backgroundProbe(`background-${kind}`, "project");
     // This platform uses an inert private-storage port; lifecycle/storage refusal is tested over the real Home and project stores.
@@ -628,10 +628,10 @@ test("S-18 RAC-50 RAC-53 background execution needs its declaration and active a
     try {
       const started = await item.platform.start([{ definition: probe.definition, grants: probe.permissions }]);
       if (kind === "sandbox") {
-        // Background jobs are not given to sandboxed code (S-60, PG-017 P3): a package that declares them does not start.
-        assert.deepEqual(started.running, []);
-        assert.equal(probe.contexts.length, 0, "the sandboxed plugin's code never ran");
-        assert.equal(item.platform.runtime.get(item.installId(probe.id)).last_error_code, "sandbox.service_not_given");
+        // A run a command starts (`background_job` on an action) is given to sandboxed code (S-67, PG-017 P3): the Host builds the client from the
+        // declaration like for any plugin, and the sandbox reaches it through its lane. The kept jobs of the Manifest are still refused (tests/security-invariants-sandbox-services.test.ts).
+        assert.deepEqual(started.running, [probe.id]);
+        assert.ok(probe.contexts.at(-1)!.services!.background);
         continue;
       }
       assert.deepEqual(started.running, [probe.id]);

@@ -1,6 +1,7 @@
 import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import type { PluginDefinition, PluginHostServices, PluginPrivateStorage, PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxBackgroundLane } from './background.js';
 import type { SandboxServices } from './broker.js';
 import { sandboxDatabase } from './database.js';
 import { sandboxModel } from './model.js';
@@ -42,11 +43,13 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 
 type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
-export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model'>;
+export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'background'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
 export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'> & {
   /** The instructions the package registered (`PluginDefinition.instructions`): the only prompts a model request may name (V-20). */
   instructions?: readonly InstructionPrompt[];
+  /** The lane the activation's background runs go to (a second process of the same package, owned by whoever started the first), PG-017 P3. Without it `background.start` is unavailable. */
+  backgroundLane?: SandboxBackgroundLane;
 };
 
 /**
@@ -72,6 +75,8 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
     ...(host.ownerFiles ? { ownerFiles: sandboxOwnerFiles(host.ownerFiles) } : {}),
     // The Host's text model for the package, which names the instructions it registered and never carries a prompt of its own (S-66).
     ...(host.model ? { model: sandboxModel(host.model, extras.instructions ?? []) } : {}),
+    // The Host's background client for accepting a run, reduced to `start`, and the lane the run happens in (S-67).
+    ...(host.background && extras.backgroundLane ? { background: { client: { start: (work, options) => host.background!.start(work, options) }, lane: extras.backgroundLane } } : {}),
   };
 }
 
@@ -91,7 +96,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   storage: 'given', project_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given', ownerFiles: 'given',
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
-  model: 'given', background: 'refused', agents: 'refused', scheduler: 'refused', directory: 'refused',
+  model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
   notifications: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
@@ -125,8 +130,8 @@ function asksFor(definition: SandboxDeclarations, held: readonly string[], permi
 export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
   { service: 'materials', services: [], reason: 'Reading a page from the network (materials:fetch) is not given to sandboxed plugins yet (PG-017 BL-492).',
     declared: (definition, held) => asksFor(definition, held, ['materials:fetch']) },
-  { service: 'background', services: ['background'], reason: 'Background jobs are not given to sandboxed plugins yet (PG-017 P3).',
-    declared: definition => !!definition.manifest.background?.jobs.length || !!definition.manifest.actions?.some(item => item.action.background_job) },
+  { service: 'background', services: [], reason: 'Background jobs kept for as long as the plugin runs (background.jobs in the Manifest) are not given to sandboxed plugins until the definition can bind them to operations of the package (PG-017 BL-377); a run a command starts (background_job on an action) is.',
+    declared: definition => !!definition.manifest.background?.jobs.length },
   { service: 'agent', services: [], reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',
     declared: definition => !!(definition.methods?.length || definition.manifest.methods?.length || definition.agent_prompts?.length || definition.agent_skills?.length || definition.manifest.agent) },
   { service: 'directory', services: ['directory'], reason: 'A person-authorized directory (directory:read) is not given to sandboxed plugins: it hands the plugin a folder of the person\'s, and has no form without paths yet (PG-017 BL-494).',

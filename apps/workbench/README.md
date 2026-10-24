@@ -28,7 +28,7 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 
 ## 接入与边界
 
-本包处理页面结构和交互装配，不打开数据库。目标状态解释、关系/规划等专属界面由 Goals Plugin 提供；通用主题和图标由 Design System 提供。
+本包处理页面结构和交互装配，不打开数据库。宿主通过 `unavailable_plugin_stages` 提供不可用舞台的结构化显示数据，工作台转义后绘制静态占位；该分支不申请插件页面授权，正常 `plugin_stages` HTML 始终进入原 sandbox frame。目标状态解释、关系/规划等专属界面由 Goals Plugin 提供；通用主题和图标由 Design System 提供。
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 

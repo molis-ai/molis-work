@@ -319,4 +319,7 @@ export const GIT_MESSAGES = {
   "git.host.tracking-both": { zh: "{upstream}：领先 {ahead} · 落后 {behind}", en: "{upstream}: {ahead} ahead · {behind} behind" },
   "git.host.tracking-ahead": { zh: "{upstream}：领先 {ahead}", en: "{upstream}: {ahead} ahead" },
   "git.host.tracking-behind": { zh: "{upstream}：落后 {behind}", en: "{upstream}: {behind} behind" },
+  "git.stage.manage": { zh: "工作目录设置", en: "Working folder settings" },
+  "git.stage.empty-title": { zh: "查看工作区的改动", en: "See the workspace's changes" },
+  "git.stage.empty-body": { zh: "从目录选择一项改动，查看读取时的固定差异，再决定是否暂存。", en: "Choose a change from the folder to see its difference as read, then decide whether to stage it." },
 } as const;

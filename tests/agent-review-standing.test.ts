@@ -1,4 +1,4 @@
-// PA-22: base SDK adoption behavior and retained review/budget boundaries.
+// S-22 (PA-22): base SDK adoption behavior and retained review/budget boundaries.
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentReviewDocument, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";

@@ -1,6 +1,7 @@
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
@@ -173,6 +174,25 @@ export interface RailEntry {
   surface: string;
   label: string;
   glyph: string;
+  /** The rail group the plugin's view names (W5-06 2b); null is 更多. */
+  group: UiViewGroup | null;
+}
+
+/** A kind a person can make new from a Goal, as the plugin's view declares it (`creates`). */
+export interface PluginCreatableKind {
+  readonly id: ProjectPluginId;
+  /** The plugin's create station, which `placement.create` calls. */
+  readonly station: string;
+  /** The kind's name; a new one is called 未命名 followed by it. */
+  readonly title: string;
+}
+
+/** One way to start something from the project home, as the plugin's view declares it (`start`); it opens that plugin. */
+export interface PluginHomeStart {
+  readonly id: ProjectPluginId;
+  readonly title: string;
+  readonly hint: string;
+  readonly glyph: string;
 }
 
 function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefined {
@@ -215,20 +235,40 @@ export const DIRECT_WORK_SURFACE_IDS: ReadonlySet<string> = new Set([
 /** Directory panels owned by a Plugin stage, including Feed's sources alias. */
 export const OWN_DIRECTORY_SURFACES: readonly string[] = shippedDirectoryIds();
 
-function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | "island"): RailEntry[] {
-  const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
+function registryFor(enabled: readonly ProjectPluginId[]): UiViewRegistry {
+  return new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
     manifest: entry.manifest,
     enabled: enabled.includes(entry.project_plugin_id),
   })));
-  return registry.slot(slot).map((view: UiPlacedView) => {
-    const entry = BUILTIN_PLUGIN_CATALOG.find((item) => item.manifest.plugin_id === view.plugin_id);
-    return {
-      id: entry?.project_plugin_id ?? view.plugin_id,
-      surface: entry?.project_plugin_id ?? view.plugin_id,
-      label: view.title,
-      glyph: view.icon ?? "package",
-    };
-  });
+}
+
+/** The enabled plugins' views in one slot, in the order the Manifests declare, each with its plugin's project key. */
+function placedViews(enabled: readonly ProjectPluginId[], slot: "navigator" | "island" | "side"): Array<{ id: ProjectPluginId; view: UiPlacedView }> {
+  return registryFor(enabled).slot(slot).map((view) => ({
+    id: BUILTIN_PLUGIN_CATALOG.find((item) => item.manifest.plugin_id === view.plugin_id)?.project_plugin_id ?? view.plugin_id,
+    view,
+  }));
+}
+
+function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | "island"): RailEntry[] {
+  return placedViews(enabled, slot).map(({ id, view }) => ({ id, surface: id, label: view.title, glyph: view.icon ?? "package", group: view.group }));
+}
+
+/** The views that open a plugin from the rail: its directory entries, then the personal islands. */
+const openingViews = (enabled: readonly ProjectPluginId[]) => [...placedViews(enabled, "navigator"), ...placedViews(enabled, "island")];
+
+/**
+ * What can be made new from a Goal with the enabled plugins (their views' `creates`; W5-06 2b, BL-387): the directory views by
+ * their `order`, then the islands. Not the rail's order, which puts the islands first.
+ */
+export function creatableKinds(enabled: readonly ProjectPluginId[]): PluginCreatableKind[] {
+  return openingViews(enabled).flatMap(({ id, view }) => view.creates ? [{ id, station: view.creates.station, title: view.creates.title }] : []);
+}
+
+/** The project home's ways to start with the enabled plugins (their views' `start`), in the same order as `creatableKinds`. */
+export function homeStarts(enabled: readonly ProjectPluginId[]): PluginHomeStart[] {
+  return openingViews(enabled).flatMap(({ id, view }) => view.start
+    ? [{ id, title: view.start.title, hint: view.start.hint, glyph: view.start.icon ?? view.icon ?? "package" }] : []);
 }
 
 /**
@@ -255,23 +295,12 @@ export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] =
 
 /** Side panel tabs the enabled plugins declare (`slot: "side"`), in Manifest order; the Host serves each one's document. */
 export function sideEntries(enabled: readonly ProjectPluginId[]): Array<UiPlacedView & { project_plugin_id: string }> {
-  const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
-    manifest: entry.manifest,
-    enabled: enabled.includes(entry.project_plugin_id),
-  })));
-  return registry.slot("side").map((view) => ({
-    ...view,
-    project_plugin_id: BUILTIN_PLUGIN_CATALOG.find((item) => item.manifest.plugin_id === view.plugin_id)?.project_plugin_id ?? view.plugin_id,
-  }));
+  return placedViews(enabled, "side").map(({ id, view }) => ({ ...view, project_plugin_id: id }));
 }
 
 /** Settings pages for the enabled set, in Manifest order. */
 export function settingsEntries(enabled: readonly ProjectPluginId[]): UiPlacedView[] {
-  const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
-    manifest: entry.manifest,
-    enabled: enabled.includes(entry.project_plugin_id),
-  })));
-  return registry.slot("settings");
+  return registryFor(enabled).slot("settings");
 }
 
 export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | undefined {

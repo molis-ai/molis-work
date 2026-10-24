@@ -24,7 +24,7 @@ Directory candidates and browsing preferences come from the [current-project set
 - 负责：工作树变更与提交草稿。
 - 不负责：运行 git、批准操作、渲染比较。
 - 公开入口：`@molis-ai/molis-work-plugin-git`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`、`parsePorcelainStatus`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`（伙伴舞台的外壳 `renderCompanionBrowserStage`）、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`、`parsePorcelainStatus`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 插件从不运行 `git`；写操作经 Host 与审查。
   - 页面重新读取由插件自己调 `services.ui.invalidate()`，只在事件回调和宿主的操作回执监听里调；监听在 `stop` 一开始就清掉（BL-411）。

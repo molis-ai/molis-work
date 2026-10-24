@@ -40,13 +40,13 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 
 > **当前唯一定时调度（用户最新明确、Root已官方工具读回）**：只有Root `01a12a80-ede2-7b81-93ea-521a5abcc35c` 的 `molis-work` 每10分钟周期巡检；其他定时任务维持PAUSED。本次只改变周期发现来源，原职责和交付直达接续不变：新PR交REVIEW、可合并项交流水线执行、新独立片交对应实现、有效Review问题交原作者/修复、修复新head即交REVIEW增量复查并按风险交TEST；固定头/证据直接传递并抄Root，不等heartbeat或Root二次许可。Root负责周期发现、初始派单与复杂裁决，流水线/专职不恢复自己的定时器或周期扫描全项目。Claude整线范围/优先级/唯一full排期、既有owner和单writer/公共资源槽不变。
 >
-> **当前共同候选（2026-10-24 17:15 UTC实核；覆盖下列历史排期）**：旧8目标1109/1112/1209/1210/1211/1212/1222/1223保持**一个共同carrier整体actual main后关闭**，1222不独立入队。原Claude统筹已发布 `batch/1024-33` / `eae618248eff94ffb71da917f2aef9eee23b0877`，树 `ac-batch33`，已含1222/a788四源及1112/08b、1109/8921。BL-372原writer正在 `ac-coding-93b25f` 把该头合回1223：本地固定 `0c026b18ea6ebb28ee4879fad581b18f288ee460`（8af+eae），远端仍8af；当前schema、HTTP route、fixture、host-actions.tsv四项未提交改动，尚无新固定修复头。REVIEW [6387093917](https://github.com/molis-ai/molis-work/pull/1223#issuecomment-6387093917) 两P1+fixture必须修由原作者闭环，流水线 [6387188326](https://github.com/molis-ai/molis-work/pull/1223#issuecomment-6387188326) 已公开接续；不启FIX2重复writer。
+> **当前真实核收（覆盖17:15等下列旧状态；不覆盖上方现行模式§0a）**：#1222已原Claude按公开6387065309例外正常入队，17:17:56Z actual main `0060920a314224b2eda6b71ee21b7e29323f6962`，singleparent191acc、tree `c739f57f745958777bdd7d6ccfe43a0dbd43eb29` 精确等于merge-tree(191acc,a788)。四固定来源e20/b6fb/087/d266均a788祖先；1209/1210/1211/1212已原统筹17:19带actual006关闭，6387216568/6387217164/6387217787/6387218361均已核。PR CI40112378526十四适用jobs成功、probe预期skip；同actual头queue40114534899/Verify120935646372成功，queue Sec/Product条件skip有别。活动行已移MERGE-QUEUE§3，不重复关闭/集成/入队，旧8整体尚未完成。
 >
-> **证据/下一步**：旧bl372-tests为121文件103过18红exit1，现成中间rerun16/18、余workspace-project-actions与runtime-declarations；不声称18项仍全待修或已全绿。原作者交固定head/diff/raw直接REVIEW/TEST/流水线→原批统筹折回唯一carrier→以实际main `191acc418dee3e48b2d7f7238015a479de14372e` 统一真实代码合成及共用文件/生成物一次处理→必要增量审验、设置选择器真实浏览器路径与Claude唯一full排期→正常单queue→核actual SHA及八目标包含再关源片。另一 `integration/batch-1024-33` / c0b82a1含1226–1229，不能把其既存full40112466492当此最终同头证据，也不取消/重复full。a788取消P2已REVIEW6386623257关闭，组合REVIEW6387053343通过；原3focus已有TEST6386748136有效分次覆盖（116首过+3后来过、非119首绿），无需新/tmp MCP观察，原红/取消原因UNKNOWN保留。
+> **最后3目标仍一个候选**：1109/1112/1223由原Claude `batch/1024-33`、`ac-batch33`统一收尾。1223远端固定ade38ec9c3f8e849bc8254bc1d85ccfb36fe7839已修schema漏项、HTTP Host身份及fixture，REVIEW6387252631/TEST实际读raw支持三处行为修正；原121文件103/18→中间16/18→rerun2两文件2/2，tests2为124执行项/122唯一文件（2重复）、666case通过，不冒124不同文件或全仓full。ade wholebuild2无显式exit且route后续局部编译更晚，不能冒最终全树指纹证明。
 >
-> **已释放/落地边界**：C1 #1231/bf09cc3已固定并完全RELEASED，REVIEW6386882837 PASS；不因等旧8审验空占writer，C2B2b仍按旧8优先后移。#1198已由Root唯一正常队列于16:58:08Z actual main `191acc418dee3e48b2d7f7238015a479de14372e`，树0844a43fa66df00c7ea7fa17077261922d835fa2；记录见MERGE-QUEUE§3，不重复命令。旧正式视觉exit1/6px及UNKNOWN保留，Root和独立Review已按完整交叉原图作本分支非回归裁定，未改阈值/覆盖/期望图；不冒本人验收。
-
-
+> **版本P2已交原批统筹并实际固定**：6387272636认领在carrier升version2（不改id/受众/strictschema），ac-coding不再写。共同本地clean固定 `331cd096cd78981ba90a8755b511094f7f95ec84`：fd009补两现有测试的MCPv3记录、fa68合真实main006、594aed合ade、331版本/共用生成物；已直送独立REVIEW薄复核/TEST现成raw，尚不冒远端eae已前进或批PR已发布。原foreman raw在 `/private/tmp/claude-501/-Users-yijunwang-code-goalboard/a8d0c51f-3071-4520-b7e1-548f6ca97ad6/scratchpad/`；b33-gen2明确v1→v2/API无变化，旧35文件/旧build0与更晚全树构建区分。最终选择器单/双Runtime、改选/重载、消失不回退/恢复默认真实浏览器、准确组合build/资源门禁/必要full及CI仍须按Claude统一排期核；另一c0b integration/40112466492不冒此同头，也不取消或另起重复full。最终actual包含后才关最后3源。
+>
+> **源码接续**：C1 #1231/bf09cc3已完全fixed/RELEASED，REVIEW6386882837 PASS；FIX2无源码占用。原已accepted的C2 B2b独立合同已实际START交实现2 `01a16c97-5b6a-7343-b245-dc63b65e1e11`，从actual006鲜核去重/5CLI blobs、同一slice红绿实现，不转给FIX2、不抢旧3原writer或公共build/browser、不起full。B2b/A/完整Home恢复仍未完成。#1198 actual191acc及旧正式exit1/6px/UNKNOWN、Root非回归裁定与验收边界见§3，均不改写历史。
 
 > 2026-10-24 16:35 UTC **最新人类指令覆盖下列旧source排期**
 >

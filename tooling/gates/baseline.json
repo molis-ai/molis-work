@@ -79,8 +79,8 @@
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
     "class horizontal/search/src/index.ts#SearchService": {
-      "lines": 403,
-      "methods": 26
+      "lines": 392,
+      "methods": 25
     },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
       "lines": 371,

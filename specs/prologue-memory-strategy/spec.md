@@ -2273,3 +2273,18 @@ Demo 并发与恢复：复用现有确定名 staging 目录，将独占创建提
 包一致性独立核验通过：当前 tgz 与统筹交付的 #101 原归档逐字节一致，1,369,124字节、SHA-256 `632d8b3b6f7485d68badfd917370227e124ba6dfdc4b6cf4139667d621ee8b90`、sidecar、provenance、SHA-512 与 lock 相符，vendor 仍仅两份 tgz（`...-online-final-provenance-20261025.log`）。公开变化仅 AgentMemoryCapability 新增在线 previewPurge 及三个平台类型，不新增 Action、SDK 源码补丁或资源额度。整合 CI、真实 Home、未知归属/合法点号 owner 对账、MEM-40 与用户验收仍分别待核；上述证据仅支持本片覆盖路径的局部工程结果。
 
 本地候选终检：相对准确父 b603fdb6 的 health exit0（96巨单元、72份API快照、3020声明），boundary exit0，diff检查通过；日志为 `...-online-candidate-health-20261025.log`、`...-online-candidate-boundary-20261025.log`。提交前使用仓库秘密扫描规则检查新增518行，发现0（`...-online-candidate-dirty-secrets-20261025.log`）；提交后仍由同一正式脚本按父提交到候选提交再扫，最终SHA与结果写在本地交接。只交本地候选，未推送、未新建PR，最终整合由统筹负责。
+
+
+#### RAC-116 分类策略快照夹具对齐（2026-10-25，修改前）
+
+准确父fe686d9a0e204388d1b20489025c5886800dc6a7（SDK101）。最终聚合13文件首批12绿、assistant-http-logging首例4/5的10s enqueue等待首败保留`/private/tmp/molis-memory-final-online-integration-tests-20261025.log`。相对9e055220f，现assistant-memory-sources要求trigger Run自有v2/taxonomy1分类策略；原夹具虽已有canonical original，却直接adapter.start且role不带Memory recipe，Runtime回读策略undefined，按已接受MEM-CLASS拒绝借用新Run/当前偏好，Host实际learning_skipped/enqueue0，并非缺original或等待不足。
+
+独立/tmp原式probe（`/private/tmp/molis-assistant-logging-diagnosis-20261025/probe.test.mts`）只读使用fe686已构建公开包/真实回环隔离Home，确认canonical本人原件true、Run completed、无policy、learning_skipped；原10s断言失败保留`...-diagnosis-raw-20261025.log`。配对仅沿现公开AssistantService.memoryForRound读取该work真实默认偏好生成recipe，经原role.memory进SDK，Runtime回读policy v2/tax1与recipe相同，原RAC隐私/一次告警/拒绝无task/下一明确轮原ref入队断言1/1通过（`...-diagnosis-recipe-20261025.log`）。不手填schema或policy、不改prefs/验收/timeout/retry/生产。
+
+本刀只允许tests/assistant-http-logging.test.ts与本spec：正例用真实公开recipe并核SDK冻结policy，保留所有原断言；现无recipe负例继续skip且enqueue0、不能借后继Run策略。仅复验该原文件及现memory-learning缺policy负例，不重跑13/全量/浏览器，不触真实Home/付费模型/Knowledge协议/SDK/CI/资源。本隔离树复用相同fe686聚合的已构建公开包与安装（node_modules只读链接），不冒充新树安装或构建；所有产品源码和锁相同，测试/文档变化不需新产品build。
+
+RAC-116本地结果：隔离`/private/tmp/molis-assistant-logging-policy-fixture-20261025`从fe686出发，只两既有路径，生产/SDK/vendor/锁/公开合同/CI/资源均不改。正例只调用`service.memoryForRound(store.get(...), text)`取当前Memory owner真实recipe，经role.memory启动同一SDK，再严格回读class_restrictions==recipe.class_restrictions；原canonical original与所有隐私/一次告警/入队次数/失败恢复/原引用payload断言完整保留，没有手填策略或改偏好。`node scripts/run-tests.mjs tests/assistant-http-logging.test.ts --jobs 1 --browser-jobs 1 --retries 0 --verbose`整文件5/5（`/private/tmp/molis-assistant-logging-policy-fixture-final-20261025.log`）。
+
+原式带观测probe依旧10s失败、SDK本人原件true/policy null、Host实际learning_skipped，保留`/private/tmp/molis-assistant-logging-diagnosis-raw-20261025.log`；公开recipe配对1/1保留`...-diagnosis-recipe-20261025.log`。独立负向probe以真实learning_skipped事件作屏障，已完成work仍可读、SDK policy undefined、schedule无task且enqueue0，1/1（`/private/tmp/molis-assistant-logging-policy-ingress-negative-20261025.log`）；未将无策略来源配置放行。现有`memory-learning.test.ts`仅`a trigger Run without policy cannot borrow a newer Run snapshot`亦1/1（`...-existing-negative-built-20261025.log`），该负例断言学习模型调用与候选均为0。首次在未构建隔离树运行该负例因其相对dist导入ERR_MODULE_NOT_FOUND，执行装配失败`...-existing-negative-20261025.log`保留；改为只读准确已构建聚合原文件运行，不改断言/等待/配置，未重跑13或全量。
+
+产品路径只读核对：Assistant正常prepare先memoryForRound，Host authority.memory冻结同一recipe进role；这次手动SDK logging夹具遗漏了该步。新增source门合法拒绝缺policy旧Run，不能据9e曾5/5回退此门，也不能单独归因SDK101。聚合后来a617c210仅改同spec、产品与fe686逐路径不变，因此复用的公开构建仍准确；未新增安装/整体build/浏览器或资源实测，资源沿统筹本轮27项7,678,780 B证据，不冒充独立重测。临时node_modules只读链接验证后移除，未入库。Knowledge待批协议不碰，原首败继续披露；这是夹具合同对齐的工程验证，不扩张成完整App/用户验收。

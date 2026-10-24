@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { LocalMcpServer, createMolisWorkLocalHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { grantMcpAction, revokeMcpAction, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
@@ -22,9 +22,10 @@ function oneRecord(host: Awaited<ReturnType<typeof residentManagement>>["host"],
 }
 
 test("W3-07-7-03 CLI and management MCP reuse the resident project and its actual operation number, including a database alias", async t => {
-  const operations: string[] = [];
-  const env = await residentManagement(t, { actionAvailability: (_caller, action) => {
-    if (action.capability_id === "goals.snapshot.read") operations.push(currentCallId()!);
+  const directory = new AbortController();
+  const operations: { id: string | undefined; caller: ActionCallContext; directory: boolean }[] = [];
+  const env = await residentManagement(t, { actionAvailability: (caller, action) => {
+    if (action.capability_id === "goals.snapshot.read") operations.push({ id: currentCallId(), caller, directory: caller.signal === directory.signal });
     return { available: true };
   } });
   const alias = join(env.home, "same-project.db"); await symlink(env.project.database_path, alias);
@@ -36,8 +37,28 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
     "v1", "snapshot", "--db", alias, "--json", JSON.stringify({ project_id: env.project.project_id, call_id: FORGED_CALL })],
     { env: { ...process.env, MOLIS_WORK_HOME: env.home, MOLIS_WORK_WEB_URL: env.origin }, timeout: 10_000 });
   assert.deepEqual(JSON.parse(cli.stdout), await env.host.withProject(env.reference, runtime => runtime.store.snapshot(env.project.project_id)));
-  assert.ok(operations.length > 0); const cliId = operations.at(-1)!;
+  // W3-07-7-03: a real directory lookup after the CLI deterministically adds observations outside that request.
+  const catalog = await env.host.actionClient(env.reference, false).discover(await env.host.localPersonContext(env.reference, directory.signal));
+  assert.ok(catalog.some(action => action.capability_id === "goals.snapshot.read"));
+  const probes = operations.filter(observation => observation.directory);
+  assert.ok(probes.length > 0, "the real directory must check snapshot availability after the CLI has completed");
+  for (const probe of probes) {
+    assert.equal(probe.id, undefined, "directory discovery is not a running management operation");
+    assert.notEqual(probe.caller.user_action?.source, "management");
+    assert.equal(probe.caller.actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.equal(probe.caller.project_id, env.project.project_id);
+  }
+  // The Host supplies management provenance; a directory probe can have the same actor/project but is not the CLI call.
+  const cliOperations = operations.filter(observation => observation.caller.user_action?.source === "management");
+  assert.ok(cliOperations.length > 0);
+  const cliId = cliOperations[0]!.id;
+  assert.ok(typeof cliId === "string", "the real CLI request must retain its active call scope");
   assert.notEqual(cliId, FORGED_CALL); assert.match(cliId, /^[0-9a-f]{8}-[0-9a-f-]{27}$/);
+  for (const operation of cliOperations) {
+    assert.equal(operation.id, cliId);
+    assert.equal(operation.caller.call_id, cliId, "the observed scope is the actual resident invocation's operation");
+    assert.deepEqual([operation.caller.actor_id, operation.caller.audience, operation.caller.project_id], [LOCAL_PERSON_ACTOR_ID, "user", env.project.project_id]);
+  }
   assert.deepEqual(env.host.callLog!.find(cliId), [], "a successful snapshot read has no durable invocation row");
   const listed = await mcp.handleMessage({ id: 2, method: "tools/list" }) as { result: { tools: { name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] } };
   const initialize = listed.result.tools.find(tool => tool.name === "molis_work_v1_initialize");

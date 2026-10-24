@@ -68,8 +68,7 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
 test("native event providers project original Feed, Inbox, source state and project Sessions", async () => {
   const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
   const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
-  const { createFeedEvidenceContentStore } = await import("@molis-ai/molis-work-module-feed");
-  const { runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
+  const { createEvidenceContentStore, runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
   const home = await mkdtemp(join(tmpdir(), "native-home-events-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath, caller.project_id!);
@@ -83,7 +82,7 @@ test("native event providers project original Feed, Inbox, source state and proj
     const ingest = (id: string, at = now.toISOString()) => feed.ingestItem({ source, externalId: id, title: "材料 " + id, summary: "摘要", body: "完整原文 " + id, occurredAt: at, attention: false }).item;
     const ordinary = ingest("ordinary"), active = ingest("active", "2020-01-01T00:00:00Z"), done = ingest("done");
     const retainedText = "# 保留的材料原文\n\n这段内容只存在加密材料中。";
-    const retained = runWithMolisWorkHome(home, () => createFeedEvidenceContentStore().write(retainedText));
+    const retained = runWithMolisWorkHome(home, () => createEvidenceContentStore().write(retainedText));
     const materialItem = feed.ingestItem({ source, externalId: "material-only", title: "材料附件", summary: "不能替代原文的摘要", body: null, occurredAt: now.toISOString(), attention: false,
       material: { material_id: "retained-material", canonical_url: null, title: "材料附件", source_name: source.name, published_at: null,
         preview: "附件预览", content_hash: null, content_ref: retained.contentRef, content_available: true, content_type: "text/markdown",

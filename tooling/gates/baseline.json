@@ -1,5 +1,5 @@
 {
-  "giantUnits": 116,
+  "giantUnits": 113,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -82,15 +82,6 @@
     "class horizontal/search/src/index.ts#SearchService": {
       "lines": 403,
       "methods": 26
-    },
-    "class modules/feed/src/index.ts#FeedModule": {
-      "lines": 501,
-      "methods": 16
-    },
-    "file modules/functions/src/store.ts": 937,
-    "class modules/functions/src/store.ts#FunctionsStore": {
-      "lines": 331,
-      "methods": 22
     },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
       "lines": 371,
@@ -229,7 +220,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 446,
+  "testInternalImports": 444,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -266,7 +257,7 @@
     "tests/assistant-island-script.test.ts": 1,
     "tests/assistant-memory.test.ts": 1,
     "tests/assistant-mentions.test.ts": 2,
-    "tests/assistant-methods.test.ts": 4,
+    "tests/assistant-methods.test.ts": 3,
     "tests/assistant-tool-words.test.ts": 3,
     "tests/assistant-turns.test.ts": 1,
     "tests/assistant-undo.test.ts": 1,
@@ -279,7 +270,7 @@
     "tests/characters-native-execution.test.ts": 1,
     "tests/characters-publication-http.test.ts": 1,
     "tests/client-script-undeclared.test.ts": 4,
-    "tests/coding-commit-draft.test.ts": 2,
+    "tests/coding-commit-draft.test.ts": 1,
     "tests/coding-delegation-waits.test.ts": 2,
     "tests/coding-plan-dependencies.test.ts": 1,
     "tests/coding-session-follow.test.ts": 1,
@@ -458,7 +449,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 115,
+  "emptyCatchesInScriptsTotal": 113,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -501,7 +492,6 @@
     "plugins/native/git/src/client.ts": 3,
     "plugins/native/goals/src/event-document-client.ts": 1,
     "plugins/native/goals/src/project-policy-client.ts": 1,
-    "plugins/native/images/src/client.ts": 2,
     "plugins/native/plugin-builder/src/agent-studio.ts": 3,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/reading-client.ts": 1,
@@ -613,7 +603,7 @@
     "plugins/native/shelf/src/settings-client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 46,
+  "rawFetchInScriptsTotal": 45,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
@@ -625,7 +615,6 @@
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
     "plugins/native/coding/src/client.ts": 1,
     "plugins/native/dataset/src/client.ts": 1,
-    "plugins/native/images/src/client.ts": 1,
     "plugins/native/lingguang/src/client.ts": 1,
     "plugins/native/pages/src/client.ts": 1,
     "plugins/native/pages/src/import-client.ts": 1,
@@ -669,12 +658,8 @@
     "plugin-module-import#plugins/native/shelf -> modules/shelf": 1,
     "lists#declared": 1
   },
-  "moduleRepositoryExportsTotal": 8,
+  "moduleRepositoryExportsTotal": 4,
   "moduleRepositoryExports": {
-    "modules/feed#export:FeedEvidenceContentStore": 1,
-    "modules/feed#export:createFeedEvidenceContentStore": 1,
-    "modules/functions#export:openFunctionsStore": 1,
-    "modules/functions#export:FunctionsStore": 1,
     "modules/private-work-context#export:createSessionContentStore": 1,
     "modules/private-work-context#export:SessionContentStore": 1,
     "modules/shelf#export:ShelfStore": 1,
@@ -755,7 +740,7 @@
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
-  "translationConflictTotal": 180,
+  "translationConflictTotal": 172,
   "translationConflicts": {
     "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": 2,
     "{count} 次": 2,
@@ -801,7 +786,6 @@
     "风险": 2,
     "根据工具说明确认作用范围；点击后会执行该工具，包括它声明的写入操作。": 2,
     "更多操作": 2,
-    "更新": 2,
     "关联": 2,
     "关系": 3,
     "还没有来源": 2,
@@ -856,7 +840,6 @@
     "确定": 2,
     "仍需拆分": 2,
     "日期": 2,
-    "日志": 2,
     "删列": 2,
     "删行": 2,
     "上次成果发布尚未完成。恢复使用上次固定内容，后续编辑可另存一版。": 2,
@@ -869,9 +852,8 @@
     "说明": 5,
     "所有来源的流水": 2,
     "替换": 2,
-    "添加材料": 2,
     "条": 2,
-    "跳过": 3,
+    "跳过": 2,
     "停用": 3,
     "通过": 2,
     "图片": 2,
@@ -880,7 +862,6 @@
     "完成要求": 2,
     "网址": 2,
     "未安排": 2,
-    "未分类": 2,
     "未说明": 2,
     "未指定": 2,
     "文档": 2,
@@ -892,7 +873,6 @@
     "先记下还没想清楚的想法，再决定留下或丢掉。": 2,
     "显式继续": 2,
     "项目": 2,
-    "新增": 2,
     "修改": 2,
     "选项": 2,
     "选择文件、网页或工作往来，整理背景、进展与下一步。": 2,
@@ -920,7 +900,6 @@
     "整理": 2,
     "整篇": 2,
     "正在处理": 3,
-    "正在处理…": 2,
     "正在读取…": 2,
     "正在做": 2,
     "证据不足": 2,
@@ -928,11 +907,9 @@
     "执行时检查，登录尚未确认": 2,
     "执行受阻": 2,
     "执行中": 2,
-    "重试读取": 2,
     "重新读取": 3,
     "注意": 2,
     "状态": 2,
-    "资料": 2,
     "自动记住": 2,
     "自动停用": 2,
     "组织": 2,
@@ -1242,11 +1219,10 @@
     "tests/workspace-plugin-graph.test.ts": 2,
     "tests/writer-integration-host.test.ts": 1
   },
-  "consoleCallsTotal": 28,
+  "consoleCallsTotal": 21,
   "consoleCalls": {
     "apps/local-host/src/assistant/assistant-http.ts": 2,
     "apps/local-host/tooling/pack-npm.mjs": 1,
-    "apps/server/src/main.ts": 7,
     "examples/seed-demo.mts": 3,
     "server/public/preview.mjs": 1,
     "tests/cli-protocol.test.ts": 1,

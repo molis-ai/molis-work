@@ -244,6 +244,8 @@ test("插件的角色从它自己的 Manifest 解析；只读的可用，会写�
     assert.equal(reader?.available, true);
     assert.equal(writer?.available, false, "Runtime 没接宿主审批，会写的角色就该不可用");
     assert.match(writer?.reason ?? "", /text-edit/);
+    // RAC-195, RAC-182: a call no running plugin makes has no declaration to read roles from, and is refused as not a plugin's.
+    await assert.rejects(item.client.invoke(agentHostCapabilities.availableRoles, [READ_ONLY] as never), { code: "actions.forbidden" });
   } finally {
     await close(item);
   }

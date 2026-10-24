@@ -1,10 +1,11 @@
 import type { ImRoom, ImRoomList, ImSessionState } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
-import type { ImCtx } from './controller-types.js';
+import type { ImBaseCtx, ImCtx } from './controller-types.js';
 /** Connecting: the session, the name form and the first room. */
-export function createImStartup(c: ImCtx): Pick<ImCtx, 'startup'> {
-  const { s, root, v, q, e, projectId, api, storage, connectProject, resetHistory, drafts } = c;
+export function createImStartup(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx, 'startup'> {
+  const { s, root, v, q, e, projectId, api, storage, connectProject, resetHistory, drafts } = base;
   async function startup() {
+    const c = context();
     c.connection('连接中');
     try {
       s.events?.close();

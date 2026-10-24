@@ -1,7 +1,7 @@
 import type { StreamKind } from './types.js';
-import type { ImCtx } from './controller-types.js';
+import type { ImBaseCtx, ImCtx } from './controller-types.js';
 /** Small shared helpers: element lookup by stream, paths, status lines and the composer's enabled state. */
-export function createImShell(c: ImCtx): Pick<ImCtx, 'key' | 'target' | 'formFor' | 'inputFor' | 'pathFor' | 'toast' | 'syncError' | 'connection' | 'status' | 'syncComposer' | 'resizeInput' | 'activeKind' | 'actions' | 'parseInvite'> {
+export function createImShell(c: ImBaseCtx): Pick<ImCtx, 'key' | 'target' | 'formFor' | 'inputFor' | 'pathFor' | 'toast' | 'syncError' | 'connection' | 'status' | 'syncComposer' | 'resizeInput' | 'activeKind' | 'actions' | 'parseInvite'> {
   const { s, q } = c;
   const key = (suffix: string) => 'molis-im:' + s.member!.id + ':' + suffix;
   const target = (kind: StreamKind) => kind === 'thread' ? s.threadId && s.roomId + '/' + s.threadId : s.roomId;

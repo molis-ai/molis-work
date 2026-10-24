@@ -7,6 +7,7 @@ import test from "node:test";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionClient, PluginDatabase, PluginHostServices, PluginPrivateStorage, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PROJECT_DATABASE, CodingSessionStore, createCodingPlugin, type CodingBeforeEffect } from "@molis-ai/molis-work-plugin-coding";
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
@@ -123,7 +124,11 @@ function routesOver(services: { agent?: Pick<PluginActionClient, "invoke"> }) {
   const sessions = new CodingSessionStore(watched);
   // The fixture redeems Coding's own actions; the Agent Host's (R8) answer from `agent`, and one the test does not give answers nothing.
   const agentHost = services.agent ?? { invoke: async (definition: { capability_id: string }) => { throw new Error(`unexpected action ${definition.capability_id}`); } };
-  const host = { availability: () => ({ available: true }), invoke: (definition: never, input: never) => agentHost.invoke(definition, input) };
+  const host = { availability: () => ({ available: true }), invoke: async (definition: { capability_id: string }, input: never) => {
+    // The project's Runtime pick (BL-372): nothing picked, so the Home default stands.
+    if (definition.capability_id === projectSettingsCapabilities.runtime.capability_id) return null as never;
+    return agentHost.invoke(definition as never, input);
+  } };
   const context = startContext({ storage: privateStorage(), actions: host as never });
   const routes = codingFixtureRoutes(context, sessions);
   return { database, sessions, hooks, call: (id: string, request: Partial<PluginRouteRequest>) => routes.find(route => route.route_id === id)!.handle({ query: {}, ...request } as PluginRouteRequest) };

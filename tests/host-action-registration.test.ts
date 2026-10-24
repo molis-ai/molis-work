@@ -140,9 +140,10 @@ test("PG035-06 one seam: the Host registers only actions, refuses a definition w
   const workspace = { workspace_id: "w", canonical_path: root, realpath_verified: true, display_name: "w" };
   const product = new MolisWorkLocalHost({ homeDirectory: join(root, "home"), completeText: null, workspacesFor: async () => [workspace], workspaceFor: async () => workspace });
   t.after(async () => { await product.close(); rmSync(root, { recursive: true, force: true }); });
-  // The seven reads and the browsing choice the Host registers for every project are actions, on the action seam.
+  // The reads and the browsing and Runtime choices the Host registers for every project are actions, on the action seam.
   const ids = [workspaceReadActions.git, workspaceReadActions.file, projectsCapabilities.listWorkspaces, projectSettingsCapabilities.workspaces,
-    projectSettingsCapabilities.browsingWorkspace, projectSettingsCapabilities.selectBrowsingWorkspace, projectsCapabilities.readWorkspace].map(item => item.capability_id);
+    projectSettingsCapabilities.browsingWorkspace, projectSettingsCapabilities.selectBrowsingWorkspace, projectSettingsCapabilities.runtime, projectSettingsCapabilities.selectRuntime,
+    projectsCapabilities.readWorkspace].map(item => item.capability_id);
   const rows = product.status().capabilities;
   for (const id of ids) assert.ok(rows.find(row => row.capability_id === id)?.action, `${id} is registered as an action`);
   assert.equal(Reflect.get(product, "registerCapability"), undefined, "nor on the product Host");

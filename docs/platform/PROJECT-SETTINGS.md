@@ -10,6 +10,7 @@ Contract：`@molis-ai/molis-work-contracts/modules/projects` 的 `projectSetting
 | --- | --- | --- |
 | 已关联目录 | `projects.settings.workspaces.read.v1` | `readonly ProjectWorkspaceRef[]` |
 | 当前浏览目录 | `projects.settings.browsing-workspace.read.v1` | `ProjectWorkspaceRef \| null` |
+| 项目的 Agent 运行时 | `projects.settings.runtime.read.v1` | `string \| null`（运行时标识，`null` 是 Home 默认） |
 
 两个能力分别写入 Manifest `capabilities.consumes`。调用统一为 `context.services.actions.invoke(capability, [], control)`，事先可用 `context.services.actions.availability(capability)` 只读检查。未声明的项在 Plugin Runtime 拒绝；Host 未装配的项返回不可用。不存在全量设置读取、通配授权或任意 key 查询。调用不接受项目编号；Host 根据当前 runtime 的项目返回，显式只投影 `workspace_id / canonical_path / realpath_verified / display_name`，不返回 catalog 的其他项目关联。
 
@@ -22,6 +23,10 @@ const candidates = await context.services!.capabilities!.invoke(projectSettingsC
 ```
 
 只需要浏览目录的插件仅声明 `browsingWorkspace`。只需要候选目录的 Coding/创作台仅声明 `workspaces`。路径读取能力不等于文件读写授权；文件与 Git 操作仍经过各自 Host 能力并重新核对关联。项目说明不是此协议的一项。
+
+## 项目的 Agent 运行时
+
+项目的新会话、方法与 MCP 服务跑在哪个运行时：人在「项目设置 → 常规」里选（`projects.settings.runtime.select.v1`，只有本机用户、`projects:settings`），没选就是平台运行时目录的 Home 默认（`defaultAgentRuntime`：目录顺序里第一个能开会话的）。读取与解析只有一处写法：`resolveProjectRuntime(目录, 读到的选择)`（`contracts/services/agent-host`）。选定的运行时不在目录里、或开不了会话时，新会话与项目的方法、MCP 设置被拒绝，错误说出运行时的名字并指向项目设置，不悄悄换成别的运行时；Characters 的动作目录同样为空。已建的会话仍跑在建它时的运行时上。设置页的选择器只在有一个以上运行时、或已选的运行时不可用时出现，后一种情形里可以改选或恢复默认。读取需要在 Manifest `capabilities.consumes` 里声明；没有任何插件能改这个选择。存储见 `docs/system/HOME-DATA.md`。
 
 ## 数据和刷新
 

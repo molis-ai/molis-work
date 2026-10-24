@@ -7,7 +7,7 @@ import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-arti
 import { renderCompanionBrowserStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
 
 import type { GitListItem, GitView } from "./projection.js";
-import { GIT_SENTENCE_TABLE, sayHostSentence } from "./sentences.js";
+import { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js";
 
 export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
 
@@ -136,7 +136,7 @@ export function renderGitChanges(model: GitUiModel): string {
   }
   const header = `<header class="git-head">${icon("git-branch")}`
     + `<span class="git-branch">${escape(sayHostSentence(p.text, GIT_SENTENCE_TABLE, view.head))}</span>`
-    + (view.tracking === "" ? "" : `<span class="git-tracking">${escape(sayHostSentence(p.text, GIT_SENTENCE_TABLE, view.tracking))}</span>`)
+    + (view.upstream === null ? "" : `<span class="git-tracking">${escape(sayUpstream(p.text, view.upstream))}</span>`)
     + `</header>`;
   const body = view.message !== ""
     ? `<p class="git-clean">${escape(p.text(view.message))}</p>`

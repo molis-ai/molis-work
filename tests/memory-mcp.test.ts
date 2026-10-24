@@ -46,10 +46,11 @@ test("an external MCP client reads memory only through the person's grant for me
     return JSON.parse(result.content[0].text) as MemoryRecallResponse;
   };
   // The person's grant, as the settings page records it: one record per client, action, version and provider; memory.recall is a Home action.
-  const grant = { client_id: "runtime:codex", project_id: null, capability_id: "memory.recall", version: 1, provider_id: MEMORY_PROVIDER_ID, permissions: ["memory:recall"], enabled: true };
+  // The settings page gives each record a new generation whenever it is switched on or off, so revoking and granting again do too.
+  const grant = { client_id: "runtime:codex", project_id: null, capability_id: "memory.recall", version: 1, provider_id: MEMORY_PROVIDER_ID, permissions: ["memory:recall"], enabled: true, generation: "grant-1" };
   const record = async (grants: readonly object[]) => {
     await mkdir(join(home, "config"), { recursive: true });
-    await writeFile(join(home, "config", "mcp-tools.json"), JSON.stringify({ version: 2, action_grants: grants }, null, 2));
+    await writeFile(join(home, "config", "mcp-tools.json"), JSON.stringify({ version: 3, action_grants: grants }, null, 2));
   };
 
   // Before a grant the client sees nothing of memory, and a call by name is refused without leaking a memory.
@@ -85,11 +86,11 @@ test("an external MCP client reads memory only through the person's grant for me
   assert.deepEqual(uses, ["mcp", "mcp"], "each recall by the client is a use receipt, shown to the person as used by an external AI client");
 
   // Revoking the grant takes the tool away at once and the next call is refused; granting again restores it.
-  await record([{ ...grant, enabled: false }]);
+  await record([{ ...grant, enabled: false, generation: "grant-2" }]);
   assert.equal((await codex.tools()).includes(RECALL_TOOL), false);
   const revoked = await codex.call(RECALL_TOOL, { query: "周报 风险" });
   assert.equal(revoked.isError, true);
   assert.doesNotMatch(JSON.stringify(revoked), /先写风险/);
-  await record([grant]);
+  await record([{ ...grant, generation: "grant-3" }]);
   assert.equal((await recalled(codex, "周报 风险")).items.length, 2, "granting again restores it");
 });

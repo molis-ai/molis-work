@@ -36,6 +36,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 7. **`baseline.json` 冲突一律取 main 那一侧**（10-24 10:1x 补）：CI 不读这份文件，快查只拦「比基线大」，main 那一侧的数字对本 PR 只会更宽、不会误拦；不用跑 `--update`，也不为它单独同步。真正收紧由统筹在批 PR 或定期一次 `--update --base origin/main` 做。
 6. 合并队列本身已是「最多 5 个一起建、一起合、全绿才合」（ALLGREEN），不改仓库设置。
 
+8. **macOS 专属文件要在本机补跑**（10-24 加）：CI 的全量带 `--skip-macos-only`，Linux 上不跑 Seatbelt、Keychain、launchctl、Swift 一类的 28 个非浏览器文件（清单由 `scripts/ci-linux-probe/select.mjs` 的 `classifyFile` 标 `darwin` 且非 `browser` 得出）。批 PR 入队前，统筹在批树上本机跑一遍这份清单（构建后、全量期间以外的时段，走机器槽位）；红的归属与修复按全量的规矩走。起因：batch-26 的沙箱叠层让 `agent-built-plugins-checks`/`-workflow` 在 macOS 上红（创作台 SDK 声明漏带 `services/materials.d.ts`），Linux 全量看不到。
+
 ## 2. 顺序与现状
 
 「就绪」只在 1～5 条全满足时写「可合」。
@@ -199,3 +201,4 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 
 - 10-24 10:07 UTC Codex流水线实际落地核：#1194已09:59:35Z merged，SHA f880df0c43d36464ce7407c27311d895487b3716；单parent f586、tree27dcea4f288f9682d979cff92505319808461d9e与33c58批头相同（队列落地不是保留33c祖先的merge commit）。五源头逐一merge-base --is-ancestor到33c58均exit0，REVIEW已核非机械冲突保留，五源PR均已Claude带本批SHA关闭，流水线未重复关。只关闭这五片/批本身，不写batch26整批全绿或原Security自动重试绿。#1200精确82fd实际Linux U10首1/1/87文件与Security2 86/86已核，专项945B通过，独立TEST正式回贴接续；Claude最新选择并batch27，一次落实准确资源生成，未应用前预算红保持。
 - 10-24 10:10 UTC：**#1194 合入 `f880df0c4`**（batch-25：#1166 #1178 #1179 #1157/#1130），五个切片 PR 已关。批 PR [#1202](https://github.com/molis-ai/molis-work/pull/1202)（batch-26：沙箱叠层顶 #1144 `61a0da5df` + #1190 `bc0160f06`，S-59/60/61 按序）已开、认领、自动合并。batch-27 集成全量 run 40084374444（`integration/batch-1024-27` `729b9d7c3`，只叠 main，不含 batch-26）= #1200、#1114、#1180、#1186（与 #1180 在 `list-silent-refresh.test.ts` 两边都留）、#1185（随 #1157 删掉『所在会话』行与没用的 `sessionKinds`）、#1187、#1182（`session-handoff`/`session-workspace` 取 #1157 的删除）、#1197。#1187 与沙箱叠层在项目库三处有真代码冲突，移出 batch-27：batch-26 合入后由 ac-sc3 合 main 解，并改用 S-63；batch-27 批 PR 里 #1185 改用 S-62。#1199 待文档挡合并项修好后并入。
+- 10-24 10:20 UTC：**#1202 关自动合并**：ac-kernel 在批树上本机跑出沙箱叠层的 macOS 专属回归（`agent-built-plugins-checks` 5/17、`-workflow` 41/42：`build-sdk-declarations.ts` 的 `CONTRACT_DECLARATIONS` 漏 `services/materials.d.ts`，来自 PG-017 P2b `86e262d9f`），交 ac-sandbox-sched 在 #1144 上修。统筹在批树上跑 28 个 macOS 专属文件找全。#1181 新头 `7533e1561`（coding-effect-control 夹具改用同一动作目录）、#1188 新头 `05054e915`（coding-session-follow 归 #1188：假宿主补答 `browsingWorkspace`），都只改夹具、批树上本机过；内容已在 batch-26 全量里，按 merge-only 并进 #1202 一起落地。

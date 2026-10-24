@@ -9,7 +9,7 @@ import { codingError, codingFailure, codingText } from "./words.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { nextConfiguration, runControl, text } from "./run-inputs.js";
-import { projectRuntime, requireProjectRuntime, supports } from "./runtime-choice.js";
+import { projectRuntime, requireProjectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
 import { roundAfterParkedAnswer, startRound } from "./start-round.js";
 import type { CodingSessionRecord } from "./store.js";
@@ -27,13 +27,15 @@ const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found",
 // The directory reads current facts without changing any persistent record or starting background execution.
 const readState = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context } = a, actions = codingActions(context, beforeWrite);
-  const runtimes = await actions.invoke(agent.listRuntimes, []);
+  const directory = await runtimeDirectory(actions, api), { runtimes } = directory;
   const sessions = await readCodingSessions(a, execution, beforeWrite);
   // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
-  const { runtime: library } = projectRuntime(runtimes);
+  const { runtime: library } = projectRuntime(directory);
   const methods = library && supports(library, "skills") ? await actions.invoke(agent.listSkills, [library.runtime_id]) : [];
   const mcp = library && supports(library, "mcp") ? await actions.invoke(agent.listMcp, [library.runtime_id]) : [];
   return { sessions, methods, mcp, models: execution.models.list(),
+    // The Runtime a new session runs on; the page reads the role matrix of the open session's Runtime, or this one when none is open.
+    project_runtime_id: library?.runtime_id ?? null,
     // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
     // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
     // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
@@ -83,10 +85,10 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { projectId, route } = a;
-    return route("coding.create-session", async (request, _api, execution, beforeWrite) => {
+    return route("coding.create-session", async (request, api, execution, beforeWrite) => {
       const body = bodyOf(request);
-      // The first Runtime in the platform's directory that can host a session; with none, the session is refused and nothing is created.
-      const runtime = requireProjectRuntime(await codingActions(a.context, beforeWrite).invoke(agent.listRuntimes, []));
+      // The project's picked Runtime, else the first one in the platform's directory that can host a session; with none, the session is refused and nothing is created.
+      const runtime = requireProjectRuntime(await runtimeDirectory(codingActions(a.context, beforeWrite), api!));
       const record = await execution.sessions.create(beforeWrite, { project_id: projectId, session_id: crypto.randomUUID(),
         title: text(body.title ?? DEFAULT_SESSION_TITLE, "coding.field.session-title"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
       return { session: record };

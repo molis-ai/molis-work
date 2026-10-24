@@ -1,4 +1,5 @@
 import { bindCharactersActions, CHARACTERS_ACTIONS, createCharactersActionHandlers, openCharacters, type CharacterCallGuard, type CharactersActionPorts, type CharactersActionRuntime, type CharactersAgentCatalog, type CharactersService } from "@molis-ai/molis-work-module-characters";
+import { ProjectRuntimeSettings } from "./project-runtime-settings.js";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, characterErrors, parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ArtifactsQueryApi, ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -20,11 +21,12 @@ export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSp
  * project's 成果库, and local Agent imports and launches. `agent` is read at each call: the built-in Agent's engines and
  * the actions it may be given, as the Agent composition answers them (none before it is composed).
  */
-export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, agent: () => CharactersAgentCatalog | undefined): ActionProviderRegistration {
+export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, agent: () => Omit<CharactersAgentCatalog, "pickedRuntime"> | undefined): ActionProviderRegistration {
   const catalog = () => agent() ?? (() => { throw new Error("内置 Agent 能力目录尚未接通"); })();
   return charactersProvider(runtime, characterActionPorts(options, LOCAL_PERSON_ACTOR_ID, runtime.project_id, runtime.artifacts.query), {
     listRuntimes: () => catalog().listRuntimes(),
-    listActions: () => catalog().listActions(),
+    pickedRuntime: () => new ProjectRuntimeSettings(runtime.store.db).read(runtime.project_id),
+    listActions: runtimeId => catalog().listActions(runtimeId),
   });
 }
 

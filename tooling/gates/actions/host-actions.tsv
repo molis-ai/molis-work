@@ -36,7 +36,7 @@ agent.run.read.v1	3	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060
 agent.run.reviews.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	710c08a0c3d9	-
 agent.run.start.v1	2	platform	command	operation	project	write	-	plugin	-	-	-	-	5f2fa38e5397	0fdb50912f18	-
 agent.run.wait.v1	3	platform	query	query	project	read	concurrent	plugin	-	-	-	-	3ae8db7426c4	ab890e3f832f	046efc93b6ac
-agent.runtimes.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	9cecb8ebe607	2d71ed8711cd	-
+agent.runtimes.v1	2	platform	query	query	project	read	-	plugin	-	-	-	-	9cecb8ebe607	49f5b25c9d4a	-
 agent.session.create.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	36c1b12fe97d	8237effa9721	-
 agent.session.lifecycle.archive.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	bd1b830879f3	49b5a7ddfc1a	-
 agent.session.lifecycle.preview-purge.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	2bf329391661	4479c9bb591d	-
@@ -178,6 +178,8 @@ placement.move	1	system.placement	command	operation	home	write	-	user	placement:
 placement.related	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	03636e556197	c77ce5a16d74	-
 placement.spaces	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	d746974fa9af	afb3d85a8f08	-
 placement.unlink	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	767463c0e660	ffe64f3e9a62	-
+projects.settings.runtime.read.v1	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.runtime.optional	9cecb8ebe607	8c923fd28c9a	-
+projects.settings.runtime.select.v1	1	platform	command	operation	project	write	-	user	projects:settings	project	-	project.runtime.optional	65d08d19afe5	8c923fd28c9a	-
 projects.workspace.files.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	9a0d0d76ae5b	a2c799262a3c	-
 projects.workspace.git.inspect	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	5c51a17cf8a5	a2c799262a3c	-
 projects.workspace.git.operation.prepare.v1	1	platform	command	operation	project	write	-	plugin	review:git-operation	workspace	-	-	3994c5ceffab	18a6c013818d	-

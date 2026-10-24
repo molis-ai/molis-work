@@ -43,11 +43,13 @@ export interface GitProjectionInput {
   selected?: readonly string[];
 }
 
+export interface GitUpstream { name: string; ahead: number; behind: number }
+
 export interface GitView {
   phase: GitPhase;
   head: string;
-  /** Rendered as "origin/main：领先 2 · 落后 1", or empty when there is no upstream; a host sentence the page says again. */
-  tracking: string;
+  /** The remote tracking branch and how far this branch is ahead of and behind it, or null when there is none. The page says it in its own language and width (user 2026-10-23 ⑧). */
+  upstream: GitUpstream | null;
   staged: readonly GitListItem[];
   changes: readonly GitListItem[];
   conflicts: readonly GitListItem[];
@@ -69,7 +71,7 @@ export function projectGit(input: GitProjectionInput): GitView {
     return {
       phase: input.phase,
       head: "",
-      tracking: "",
+      upstream: null,
       staged: [],
       changes: [],
       conflicts: [],
@@ -96,7 +98,7 @@ export function projectGit(input: GitProjectionInput): GitView {
   return {
     phase: "ready",
     head: headLabel(status.head),
-    tracking: trackingLabel(status),
+    upstream: status.upstream === undefined ? null : { name: status.upstream.name, ahead: status.upstream.ahead, behind: status.upstream.behind },
     staged,
     changes,
     conflicts,
@@ -124,16 +126,6 @@ export function headLabel(head: GitHead): string {
   if (head.kind === "branch") return head.name;
   if (head.kind === "unborn") return said("git.host.head-unborn", { name: head.name });
   return said("git.host.head-detached", { commit: head.commit.slice(0, 8) });
-}
-
-function trackingLabel(status: GitStatus): string {
-  const upstream = status.upstream;
-  if (upstream === undefined) return "";
-  const { name: upstreamName, ahead, behind } = upstream;
-  if (ahead > 0 && behind > 0) return said("git.host.tracking-both", { upstream: upstreamName, ahead, behind });
-  if (ahead > 0) return said("git.host.tracking-ahead", { upstream: upstreamName, ahead });
-  if (behind > 0) return said("git.host.tracking-behind", { upstream: upstreamName, behind });
-  return said("git.host.tracking-synced", { upstream: upstreamName });
 }
 
 function messageFor(phase: GitPhase): string {

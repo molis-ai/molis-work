@@ -391,3 +391,33 @@ test("OPEN-PLACE-01 a plugin opens where its declarations put it: the work area 
   // The shipped plugins: Shelf is the only one with nothing but a side view.
   assert.deepEqual(sideOpenedPlugins(), { shelf: "plugin:shelf/side" });
 });
+
+test("PG-060 a plugin's tab opens one object when a Manifest view of it accepts objects, and is named by its views", async () => {
+  const { objectTabPlugins, pluginTabTitles } = await import("@molis-ai/molis-work-app-workbench");
+  const entry = (id: string, views: Array<{ accepts_objects?: boolean }>) => ({ project_plugin_id: id, manifest: { ui: { views } } });
+  assert.deepEqual(objectTabPlugins([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["notes"]);
+  // The shipped plugins: search, placement and side files open these as an object's tab (Artifacts is the platform's own).
+  // Git and Diff take no object by id (no `molis-work:select-item`, no row to click), so they declare none.
+  assert.deepEqual(new Set(objectTabPlugins()), new Set(["goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "coding"]));
+  // The workbench writes no plugin's tab title: each is its navigator or island view's, in the page's language.
+  const zh = pluginTabTitles(), en = pluginTabTitles(true);
+  assert.deepEqual([zh.feed, zh.lingguang, zh.ppt, zh.workflows], ["Feed", "灵光", "PPT", "工作流程"]);
+  assert.deepEqual([en.lingguang, en.workflows], ["Lingguang", "Workflows"]);
+});
+
+test("PG-060 the side panel's 打开 opens a Files file as the file's own tab, a plugin without object tabs at its record", async () => {
+  const { CLIENT_SCRIPT, objectTabPlugins } = await import("@molis-ai/molis-work-app-workbench");
+  // The side panel's file tab decides exactly as search does (specs/archive/side-panel P3): the initialization program
+  // embeds the object-tab list, so both look at one list: Artifacts and every plugin declaring accepts_objects.
+  const surfaces = JSON.stringify(["artifacts", ...objectTabPlugins()]);
+  assert.equal(objectTabPlugins().includes("sessions"), false, "SC-4's retired Sessions surface does not return through the catalog");
+  assert.ok(CLIENT_SCRIPT.includes(`openRecord: (plugin, id, title) => ${surfaces}.includes(plugin)`),
+    "the side panel's openRecord routes by the same object-tab list search uses");
+  // Files declares `accepts_objects`: the file opens as its own tab (before W5-06's remainder the Files page opened with nothing chosen).
+  // Todo opens its records by clicking its row: the record in its list, as search does.
+  assert.ok(objectTabPlugins().includes("files"));
+  assert.ok(!objectTabPlugins().includes("todo"));
+  // `openItem` for the object's tab, `openPluginRecord` for a record-only plugin; no tab workspace yet: optional chaining
+  // keeps it a no-op instead of throwing.
+  assert.ok(CLIENT_SCRIPT.includes("? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id)"));
+});

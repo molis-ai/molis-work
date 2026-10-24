@@ -134,7 +134,6 @@ export const diffManifest: PluginManifest = {
         contribution_id: DIFF_UI_CONTRIBUTION_ID,
         icon: "git-compare",
         order: 40,
-        accepts_objects: true,
       },
     ],
   },

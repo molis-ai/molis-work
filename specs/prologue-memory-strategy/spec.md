@@ -2058,3 +2058,17 @@ Assistant 界面资源批准与聚合（2026-10-25）：用户明确批准本片
 从应用整合 `21c549d3a` 合入基础 `82bb6aae8`，继续已有分类管理、生命周期和可信原件合同，不新增产品范围。三方冲突限定于公开 Action 合同、host 动作快照、资源两文件和本 spec：保留应用三个读取动作 @3、Session lifecycle @1，同时接入主干 runtimes@2 与 Runtime/Character 声明；SDK100 与应用的冻结分类策略、原决定重试、导航修复及 Assistant 归档界面保持。自动合并的装配、适配器与 Coding 入口按实际调用链复核，不以无文本冲突代替正确性。
 
 资源额度只迁移原已批准净增：相对新基础仍为 Workbench +32,890 B、Coding +570 B、settings/workbench CSS 各 +680 B；本轮不借主干变化增加额度。先解冲并核真实公开合同、类型和实际产物，再与在途的项目删除恢复及 Coding 恢复合并验证；各自独立回归按原合同保留，统一在 #1101 交付，不另开小 PR。最终 CI/全量、未解释的首败与工程/产品/用户验收边界继续保留。基础 #1064 的新 CI 与应用集成并行，合并顺序仍是基础先、应用后。
+
+### #1064 接入 batch-33 的增量合同（2026-10-25，实施前）
+
+基础93b76797的普通CI40116662394与Full suite40116658143已成功，完整1402/1402 Linux文件；stream-text浏览器只经原一次重试通过，首败原因UNKNOWN。Cloudflare生产构建失败仍缺真实错误日志，不据GitHub绿色宣布全部可合。当前main为bde02c59eb9a1d794a442419570819a80585708a，包含runtime声明、项目设置和插件挂载变化。实际三方检查只有五处冲突：资源脚本/预算、Coding卡片与Memory MCP测试、host动作快照；生产路径自动合并仍须独立检查。
+
+本次只整合准确main与已验证的Memory基础，复用现Runtime声明和Memory原件/策略合同，不新增能力或兼容。允许处理上述冲突、实际交叉调用问题与必要生成记录，保留双方全部业务断言；不调整CI、超时、重试、安全边界、SDK94或既有一次性资源净增（Workbench +3193 B、Coding +717 B）。先整体构建，核对实际公共合同与资源，再按runtime选择、角色调用、Memory MCP/原件、Coding启动及受影响测试覆盖；无变化的旧证据继续有效。最终头运行完整CI，不将旧头绿色移用。后续应用#1101在基础稳定后一次整合，不追逐每个小提交重复全量；真实Home、发布和付费模型仍不在此刀范围。
+
+batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb7a14` 合入 `bde02c59eb9a1d794a442419570819a80585708a`。五处冲突分别保留 MCP v3 受保护设置写主人、四个 Memory @2 及主干 runtimes@2，以及原批准资源净增。Node 24.14.0 / pnpm 11.9 下完整构建、根/工作区类型、boundary、准确父 health、API/Action、库版本登记和实际资源检查通过；API/Action 生成没有变更。首次离线安装因默认缓存缺包失败，显式使用本机既有 pnpm store 后成功；首次原生构建因 sandbox 不允许 Swift 模块缓存失败，同命令获得缓存访问后成功。上述失败原样保留，不改依赖、编译参数或验收。
+
+精确增量覆盖 AgentHost README、Coding README 和本次 Runtime/Memory 交叉路径，共 72/72 文件、563/563 用例，jobs2/browser1/retries0；含 Coding 动作卡与生命周期两个真实 browser 文件。计划 `/private/tmp/molis-memory-main-batch33-test-plan-20261025.json`，原日志 `/private/tmp/molis-memory-main-batch33-delta-20261025.log`，逐文件结果 `/private/tmp/molis-memory-main-batch33-delta-results-20261025.json`。准确 bde 已提交基线为 27 项 7,638,717 B；本集成实际构建为 7,642,627 B，仅 Workbench +3,193 B、Coding +717 B，其他 25 项相同。本轮未重新构建 bde 基线，不将提交基线称为双树实测。资源写入命令曾被自动审批拒绝，随后改用只读 report/check 并通过，未新增额度或提高门禁。
+
+独立深审 `/private/tmp/molis-memory-batch33-review-642106407-20261025.md` 未发现本次 Memory 合并新增阻断；SDK94 归档与已安装 772 文件逐项一致。另确认主干已有 P2：公开 AgentHost.start 尚未拒绝 `supports_character_limits:false` 的 Character 调用，Coding 入口已有拒绝；内存 adapter 诊断确认调用被受理，但未证明越权。准确 bde 同样存在，当前生产只注册声明 true 的 Prologue，助理自身也使用 Prologue，未证明影响本次 Memory 实际调用链。保留该上游缺口，不在本片顺手修改或缩窄公共合同。
+
+推送前 origin/main 前进至 `87ebba4c769557f9548d66310d76eb4e30b68bc9`，仅 #1237 的 IM 上下文初始化及其测试/README，与本片 Memory 调用链无同路径改动；`git merge-tree` 三方检查无冲突。本候选冻结在上述已验 bde 集成，不宣称包含 #1237；PR 合并结果 CI 与最终完整 Full suite 仍须检查。旧 93b 的普通/全量成功和 stream-text 首败 UNKNOWN、Cloudflare 未知失败继续保留，不能替代新候选结果。用户刚批准的 Assistant +4,064 B 已在后续 #1101 单独登记，本基础 PR 不使用该额度。付费模型、真实 Home、最终整体验收与原 macOS skip 的边界不变。

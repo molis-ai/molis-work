@@ -7,6 +7,7 @@ import test from "node:test";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionClient, PluginCapabilityClient, PluginDatabase, PluginHostServices, PluginPrivateStorage, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PROJECT_DATABASE, CodingSessionStore, createCodingPlugin, type CodingBeforeEffect } from "@molis-ai/molis-work-plugin-coding";
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
@@ -122,7 +123,11 @@ function routesOver(services: { capabilities?: PluginCapabilityClient; agent?: P
   const watched: PluginDatabase = { ...database, transaction: async (beforeEffect, write) => { await hooks.onWrite(); return database.transaction(beforeEffect, write); } };
   const sessions = new CodingSessionStore(watched);
   // Coding's routes need the Host's client; one the test does not give answers nothing.
-  const capabilities = services.capabilities ?? { availability: () => ({ available: true }), invoke: async (definition: { capability_id: string }) => { throw new Error(`unexpected capability ${definition.capability_id}`); } };
+  const capabilities = services.capabilities ?? { availability: () => ({ available: true }), invoke: async (definition: { capability_id: string }) => {
+    // The project's Runtime pick (BL-372): nothing picked, so the Home default stands.
+    if (definition.capability_id === projectSettingsCapabilities.runtime.capability_id) return null as never;
+    throw new Error(`unexpected capability ${definition.capability_id}`);
+  } };
   const context = startContext({ storage: privateStorage(), capabilities });
   const routes = codingFixtureRoutes(context, sessions);
   // The fixture redeems Coding's own actions; the Agent Host's (R8) answer from `agent`.

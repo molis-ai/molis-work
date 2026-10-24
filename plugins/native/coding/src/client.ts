@@ -484,7 +484,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const workspaceKey=JSON.stringify(result.workspaces);
     if(workspaceChoice.dataset.options!==workspaceKey) {workspaceChoice.replaceChildren(...result.workspaces.map(item=>{const option=make('option');option.value=item.workspace_id;option.textContent=item.canonical_path;return option;}));workspaceChoice.dataset.options=workspaceKey;workspaceChoice.value=workspaceId;}
     if(!q('[data-coding-workspace-dialog]').open) workspaceChoice.value=workspaceId;
-    const roles=result.runtimes.find(runtime=>runtime.runtime_id==='prologue')?.roles || [];
+    const rid=result.sessions.find(s=>s.session_id===current)?.runtime_id||result.project_runtime_id,roles=result.runtimes.find(r=>r.runtime_id===rid)?.roles||[];
     q('[data-coding-intent] option[value=parallel]').disabled=!roles.find(role=>role.role_id==='writers')?.available;
     const collaborate=q('[data-coding-intent] option[value=collaborate]');collaborate.disabled=!roles.find(role=>role.role_id==='coordinator')?.available;
     const execute=q('[data-coding-intent] option[value=execute]'); const available=roles.find(role=>role.role_id==='builder');

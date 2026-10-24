@@ -6,6 +6,9 @@ import { bindActionClient, type ActionRegistryPort, type ActionClient, LOCAL_PER
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
+/** What the personal planning actions ask: what the person holds over their provider (`local-owner-permissions.ts`). */
+export const PERSONAL_PLANNING_PERMISSIONS: readonly string[] = [...new Set(PERSONAL_PLANNING_ACTIONS.flatMap(definition => definition.action.permissions))];
+
 /** Uses the platform's existing Catalog owner, never a second Home database. */
 export class PersonalPlanningActions {
   private withCatalog?: LocalWebCatalogRunner;

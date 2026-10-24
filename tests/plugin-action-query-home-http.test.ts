@@ -47,7 +47,8 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const target = { ...pagesContentActions.read, capability_id: "query.target" };
   await client.discover({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["pages:read"] });
-  s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "home-held-query", title: "Held query", kind: "system", project_id: project.project_id },
+  // Under the Host's own provider the person holds `pages:read` (PG-007 stage 4); a made-up host provider would give the route nothing.
+  s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "platform", title: "Held query", kind: "system", project_id: project.project_id },
     definitions: [target], handlers: [{ ...target, handle: async () => { entered.resolve(); await release.promise; return { title: "Held", body: "Late content" }; } }] });
   probe.target.current = target;
   const pending = request(path, { item_id: page.document.id });

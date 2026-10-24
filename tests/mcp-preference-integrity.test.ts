@@ -52,7 +52,7 @@ test("W1-18-MCP-CONFIG-01 real duplicate records never reopen a withdrawn system
   assert.ok(denied && !denied.enabled);
   const other = original.action_grants.filter(grant => grant.capability_id !== publicAction.capability_id);
   for (const records of [[denied, denied], [{ ...denied, enabled: true }, { ...denied, enabled: true }], [denied, { ...denied, enabled: true }]]) {
-    const grants = [...other, ...records], text = JSON.stringify({ version: 2, action_grants: grants });
+    const grants = [...other, ...records], text = JSON.stringify({ version: 3, action_grants: grants });
     await writeFile(f.file, text);
     const directory = await f.mcp.client.discover(f.mcp.caller);
     assert.equal(directory.some(view => view.capability_id === publicAction.capability_id), false);
@@ -81,8 +81,8 @@ test("W1-18-MCP-CONFIG-01 malformed, wrong-version and unreadable real configura
   const original = await readMcpToolPreference(f.home.home), originalText = JSON.stringify(original);
   const denied = original.action_grants.find(grant => grant.capability_id === publicAction.capability_id);
   assert.ok(denied);
-  for (const text of ['{"version":2,"action_grants":', JSON.stringify({ ...original, version: 1 }),
-    JSON.stringify({ version: 2 }), JSON.stringify({ ...original, action_grants: [{ ...denied, enabled: "false" }] }),
+  for (const text of ['{"version":3,"action_grants":', JSON.stringify({ ...original, version: 1 }), JSON.stringify({ ...original, version: 2 }),
+    JSON.stringify({ version: 3 }), JSON.stringify({ ...original, action_grants: [{ ...denied, enabled: "false" }] }),
     JSON.stringify({ ...original, overrides: {} })]) {
     await writeFile(f.file, text);
     await assert.rejects(f.mcp.client.discover(f.mcp.caller), { code: "actions.configuration_unavailable" });
@@ -115,7 +115,7 @@ test("W1-18-MCP-CONFIG-01 the real AUTH synchronous effect tail also rejects con
   const pending = f.mcp.client.invoke(f.mcp.caller, publicAction, {}).then(result => ({ result, error: undefined }), error => ({ result: undefined, error }));
   try {
     await Promise.race([f.entered.promise, pending.then(() => { throw new Error("Operation settled before its final policy wait"); })]);
-    const broken = '{"version":2,"action_grants":';
+    const broken = '{"version":3,"action_grants":';
     await writeFile(f.file, broken);
     f.state.held = false; f.release.resolve();
     const outcome = await pending;

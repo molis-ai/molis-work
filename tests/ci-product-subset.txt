@@ -435,6 +435,7 @@ tests/todo-organize.test.ts
 tests/typesafe-inference-port.test.ts
 tests/ui-audit-2026-09-22.test.ts
 tests/uninstall-catalog.test.ts
+tests/uninstall-receipt.test.ts
 tests/v1.test.ts
 tests/visual-foundation.test.ts
 tests/web-mutation-key-settle.test.ts

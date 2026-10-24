@@ -108,6 +108,8 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 
 **1245/1250实际四dump同hunk（Root核过，已补6389738857）**：tests/fixtures/goal-event-history/{legacy,mixed,approved,approved-completed}.sql及README双方同改。FIX5仅同步Attention DDL/两部分索引/候选版本，历史业务INSERT、独立v9拒绝样本、helper/生产/断言保持；action-read-compatibility四红为静态v9被候选v10严格拒绝，未证读取兼容回归。唯一carrier合成时保T1 trust+本题owner两套字段/索引并统一版本，不任选一方v10盖另一方。
 
+**C2↔1251窄hunk接续（已补6389927962）**：1251/7d的Artifacts测试module import与workspace apps/local-host记录，C2拟改同测试stdio argv及agent-host storage依赖记录；实际hunk独立，carrier保双方。共享production-action-mcp-server按A trusted resident origin转发，保五消费者真实授权/撤权/锁拒绝，不绕storage.owner.busy。当前1250/d4完整changed-files未触这些路径；C2 fixed head/实际diff尚未交，不能据准备声明包含/合入。
+
 「就绪」只在 1～5 条全满足时写「可合」。
 
 | 序 | PR | 内容 | 依赖 | 批 | 现状（按行最近固定头与回执读取） |

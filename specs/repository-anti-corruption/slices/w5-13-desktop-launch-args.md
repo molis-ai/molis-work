@@ -22,4 +22,6 @@ Root 已裁定的 A 边界：仅接受现行 JSON `string[]`，坏 JSON、合法
 - 离线安装、两次整体构建、新测试严格类型、三份改动 TypeScript 的 Biome、boundary、对准确 merge-base `7a2b01fd` 的 health 通过。health 初次仅因 README 引用的新测试尚未 Git 暂存而拒绝，纳入本片新文件后复核通过；没有放宽规则或断言。原生 Rust 门禁在公共 build 槽实际执行，20 份源码 rustfmt、clippy 与 cargo tests 通过；本机 1.96.0 与 CI 固定工具链一致。
 - Node 用例由公共运行器隔离 Home/文件凭据，测试经公开 HTTP 客户端带真实控制令牌及一次性键，无全局 fetch mock；Rust 用例使用自身临时文件、本机 socket 与独立剪贴板。未启动新 Chrome 批次、外部模型或用户 Agent，未操作真实 Home/4207、安装到用户系统或产品凭据；不以这些结果宣称原生 WebKit 实操、坏记录恢复、最终产品或本人验收。
 
-最终推送前 fresh fetch 后逐提交 secrets 与 diff 复核；共享 CI 产品子集的新用例一行已交流水线确认写入归属，不擅自复用上一片的单行授权。最终一个完整非 Draft PR，首评由流水线路由 Claude ac-review、修后 Codex 增量复查，固定头/差异/原始证据直交流水线并抄 Root。作者交付后源码冻结并释放资源，不等待旧片的 CI/full/合并，也不自领新片。
+CI 产品子集仅登记本片 `tests/desktop-launch-args.test.ts` 一行，与本片一同交付；Linux 执行结果待最终头 CI/独立 TEST 核实，不用本机通过替代。
+
+最终推送前 fresh fetch 后逐提交 secrets 与 diff 复核；仅 CI 文本清单及本规格的最后更新不改变 `fe285283172e025abf05e671052b83687d0ee9cc` 的生产/测试源码，复用有效 124 项、构建和原生结果，另跑清单规则与最终门禁。最终一个完整非 Draft PR，首评由流水线路由 Claude ac-review、修后 Codex 增量复查，固定头/差异/原始证据直交流水线并抄 Root。作者交付后源码冻结并释放资源，不等待旧片的 CI/full/合并，也不自领新片。

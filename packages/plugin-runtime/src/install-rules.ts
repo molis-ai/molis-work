@@ -1,6 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDeployment, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDeployment, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 
 import { pluginManifestDigest } from "./identity.js";
@@ -20,6 +20,15 @@ export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest:
   if ((manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(previous.version)) return undefined;
   if (previous.execution === "sandbox" && comparePluginVersions(manifest.version, previous.version) < 0) return undefined;
   return `卸载时保留了 ${previous.version} 的数据，${manifest.version} 没有声明能读取它：可以放弃这些数据后全新安装，或者先重新安装 ${previous.version}，再升级到 ${manifest.version}`;
+}
+
+/**
+ * Saves a new installation's row. When the person's word drops the data an uninstall kept (`discard`, `replaced` the uninstalled row that
+ * held it), the Host is told once the row is saved, so what it kept beside that data goes too, before anything starts.
+ */
+export function saveInstalled(repository: PluginRuntimeRepository, executor: PluginExecutor, record: PluginInstanceRecord, replaced: PluginInstanceRecord | null, discard: boolean): void {
+  repository.save(record);
+  if (discard && replaced?.state === "uninstalled" && replaced.retain_private_data) executor.keptDataDiscarded?.(replaced);
 }
 
 /**

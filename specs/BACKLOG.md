@@ -197,6 +197,7 @@
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| BL-569 | 安全不变量门禁的游离测试检查漏掉 `.e2e.test.ts`：`scripts/gates/security-invariants.mjs` 的 `hasTests` 与末尾扫描只匹配普通 `.test.ts`，需在独立片纳入浏览器文件，并补未登记 e2e 的拒绝回归；落实后删本行 | AC-AUDIT-08；[#1173 一轮建议](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380866302)、[统筹接续](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380869179) | 已知缺口 | 本片仅校正文档与登记，门禁实现另片先核权限依据 | 独立门禁片与评审 | 中 | 防腐线（本线） |
 | BL-070 | Outbox 的实现与重放验收（目标架构保留，本期只重组现有功能） | [molis-work-architecture-reorganization](molis-work-architecture-reorganization/spec.md) 开头 2026-09-06 范围澄清 | 明确后续做 | 用户 2026-09-06 定为后续 | 无 | 低 | 未分配 |
 | BL-071 | 团队空间与多人共享项目（Identity & Space 的团队部分属于 Server） | [work-placement §9](archive/work-placement/spec.md) | 明确后续做 | 未开始 | Server | 低 | 未分配 |
 | BL-072 | 构建期装配的 Native 插件不在版本化升级与恢复内 | [plugin-upgrades](archive/plugin-upgrades/spec.md) | 已知缺口 | 随插件装配统一解决 | BL-080 | 中 | 第二步 |

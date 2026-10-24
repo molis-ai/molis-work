@@ -57,7 +57,8 @@ export interface PluginModelResult {
   /**
    * After beforeEffect, immediately before synchronous commit: rechecks this original call and model binding. The platform also
    * runs this check itself (PG-047): at every write the call makes through a platform service, at each nested call, and at the end
-   * of the call's every `beforeEffect`; an answer that no longer stands is refused there with the same code, called or not.
+   * of the call's every `beforeEffect`, the one its background work is given included; an answer that no longer stands is refused
+   * there with the same code, called or not, and so is every later write of the call, whatever it rests on.
    */
   validateResult(): void;
   readonly text: string;

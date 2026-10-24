@@ -3,7 +3,7 @@ import type { AgentMcpServerView, AgentMcpToolRef } from "@molis-ai/molis-work-c
 import type { AssistantWorkConnection, AssistantWorkGit, AssistantWorkSurroundings } from "@molis-ai/molis-work-contracts/services/assistant";
 import { workspaceReadActions, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { connectorManagementActions, type ManagedConnectorView } from "../connector-management-actions.js";
-import { CodingExecutor } from "./assistant-coding.js";
+import { WorkExecutor } from "./assistant-executor.js";
 import { agentActions } from "./assistant-directory.js";
 import type { AssistantServicePorts } from "./assistant-service.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -22,12 +22,12 @@ export interface SurroundingsPorts extends Pick<AssistantServicePorts, "personAc
 /**
  * Where a work runs and what it can reach and call (specs/visual-ui-experience VUX-08/09; the user's 2026-10-20 decision ②):
  * each part is read from its owner's own public read, as the person, when the panel asks, and kept nowhere.
- * - 工作环境: the work's scope; for a work Coding carries, the session's directory (Coding's `state` and `sessions.read`) and
+ * - 工作环境: the work's scope; for a work a plugin carries, the session's directory (the executor's `state` and `session.read`) and
  *   that directory's repository (`projects.workspace.git.inspect`, a summary). A remote's address is shown as owner/name only.
  * - 连接: the person's connections (`connectors.connections.read`), each by its own status.
  * - 工具: what the work's executor can call now, the same discovery its rounds use, split as a round's directory splits it;
- *   for Coding, the MCP tools chosen for its session (`sessions.read`), each live only while its server is on, connected
- *   and still offers it (`state`), the way Coding's own run checks them.
+ *   for an executor plugin, the MCP tools chosen for its session (`session.read`), each live only while its server is on, connected
+ *   and still offers it (`state`), the way the plugin's own run checks them.
  * A part that cannot be read says why; the others still answer.
  */
 export function assistantSurroundings(store: AssistantStore, ports: SurroundingsPorts, actorId: string) {
@@ -45,29 +45,29 @@ export function assistantSurroundings(store: AssistantStore, ports: Surroundings
 
 const why = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim().slice(0, 200);
 
-type CodingSetup = Awaited<ReturnType<CodingExecutor["setup"]>> & { actions: BoundActionClient };
+type ExecutorSetup = Awaited<ReturnType<WorkExecutor["setup"]>> & { actions: BoundActionClient };
 
 async function read(work: StoredWork, ports: SurroundingsPorts): Promise<AssistantWorkSurroundings> {
-  // A Coding work's directory and its tools come from the same two reads of Coding, asked once for both groups.
-  const coding = work.executor.kind === "coding" && work.executor.session_id && ports.personActions ? codingSetup(work.executor.session_id, ports.personActions(work)) : null;
-  coding?.catch(() => undefined);
-  const [environment, connections, tools] = await Promise.all([environmentOf(work, ports, coding), connectionsOf(ports), toolsOf(work, ports, coding)]);
+  // An executor work's directory and its tools come from the same two reads of the executor, asked once for both groups.
+  const setup = work.executor.kind === "plugin" && work.executor.session_id && ports.personActions ? executorSetup(work.executor.plugin_id, work.executor.session_id, ports.personActions(work)) : null;
+  setup?.catch(() => undefined);
+  const [environment, connections, tools] = await Promise.all([environmentOf(work, ports, setup), connectionsOf(ports), toolsOf(work, ports, setup)]);
   return { environment, ...connections, tools, read_at: new Date().toISOString() };
 }
 
-async function codingSetup(sessionId: string, person: Promise<BoundActionClient>): Promise<CodingSetup> {
+async function executorSetup(pluginId: string, sessionId: string, person: Promise<BoundActionClient>): Promise<ExecutorSetup> {
   const actions = await person;
-  return { ...await new CodingExecutor(actions).setup(sessionId), actions };
+  return { ...await (await WorkExecutor.bind(actions, pluginId)).setup(sessionId), actions };
 }
 
-async function environmentOf(work: StoredWork, ports: SurroundingsPorts, coding: Promise<CodingSetup> | null): Promise<AssistantWorkSurroundings["environment"]> {
+async function environmentOf(work: StoredWork, ports: SurroundingsPorts, setup: Promise<ExecutorSetup> | null): Promise<AssistantWorkSurroundings["environment"]> {
   const scope: AssistantWorkSurroundings["environment"]["scope"] = work.scope.kind === "project"
     ? { kind: "project", project_id: work.scope.project_id, title: work.scope_title ?? await ports.projectTitle?.(work.scope.project_id).catch(() => null) ?? null } : { kind: "personal" };
-  if (!coding) return { scope };
+  if (!setup) return { scope };
   try {
-    const { workspace, actions } = await coding;
-    return { scope, coding: { workspace: workspace && { name: workspace.name, path: workspace.path }, git: workspace ? await gitOf(actions, workspace.workspace_id) : null } };
-  } catch (error) { return { scope, coding: { workspace: null, git: null, problem: why(error) } }; }
+    const { workspace, actions } = await setup;
+    return { scope, executor: { workspace: workspace && { name: workspace.name, path: workspace.path }, git: workspace ? await gitOf(actions, workspace.workspace_id) : null } };
+  } catch (error) { return { scope, executor: { workspace: null, git: null, problem: why(error) } }; }
 }
 
 const available = (views: readonly ActionView[], reference: { capability_id: string; version: number }, provider?: string) =>
@@ -120,20 +120,20 @@ function mcpBlocked(ref: AgentMcpToolRef, servers: readonly AgentMcpServerView[]
   return server.tools.some(tool => tool.tool === ref.tool && (!ref.version || tool.version === ref.version)) ? "" : "服务里已没有这个工具";
 }
 
-async function codingTools(coding: Promise<CodingSetup>): Promise<AssistantWorkSurroundings["tools"]> {
+async function executorTools(setup: Promise<ExecutorSetup>): Promise<AssistantWorkSurroundings["tools"]> {
   try {
-    const { mcp } = await coding, counts = new Map<string, number>(), unavailable: AssistantWorkSurroundings["tools"]["unavailable"] = [];
+    const { mcp } = await setup, counts = new Map<string, number>(), unavailable: AssistantWorkSurroundings["tools"]["unavailable"] = [];
     for (const ref of mcp.chosen) {
       const provider = mcp.servers.find(one => one.id === ref.server)?.label ?? ref.server_label ?? ref.server, reason = mcpBlocked(ref, mcp.servers);
       if (reason) unavailable.push({ title: ref.tool, provider, reason });
       else counts.set(provider, (counts.get(provider) ?? 0) + 1);
     }
-    return { executor: "coding", callable: [...counts].map(([provider, count]) => ({ provider, count })), unavailable: unavailable.slice(0, UNAVAILABLE_SHOWN) };
-  } catch (error) { return { executor: "coding", callable: [], unavailable: [], problem: why(error) }; }
+    return { executor: "plugin", callable: [...counts].map(([provider, count]) => ({ provider, count })), unavailable: unavailable.slice(0, UNAVAILABLE_SHOWN) };
+  } catch (error) { return { executor: "plugin", callable: [], unavailable: [], problem: why(error) }; }
 }
 
-async function toolsOf(work: StoredWork, ports: SurroundingsPorts, coding: Promise<CodingSetup> | null): Promise<AssistantWorkSurroundings["tools"]> {
-  if (work.executor.kind === "coding") return coding ? codingTools(coding) : { executor: "coding", callable: [], unavailable: [] };
+async function toolsOf(work: StoredWork, ports: SurroundingsPorts, setup: Promise<ExecutorSetup> | null): Promise<AssistantWorkSurroundings["tools"]> {
+  if (work.executor.kind === "plugin") return setup ? executorTools(setup) : { executor: "plugin", callable: [], unavailable: [] };
   try {
     const authority = await ports.authority(work);
     const { offered, unavailable } = agentActions(authority.actions ? await (await authority.actions(RUNTIME)).discover() : [], Number.MAX_SAFE_INTEGER);

@@ -90,7 +90,8 @@ tests/assistant-answers.test.ts
 tests/assistant-attachments.test.ts
 tests/assistant-attention.test.ts
 tests/assistant-character.test.ts
-tests/assistant-coding-executor.test.ts
+tests/assistant-executor.test.ts
+tests/assistant-executor-product.test.ts
 tests/assistant-contributions.test.ts
 tests/assistant-delegation.test.ts
 tests/assistant-diagnostics.test.ts

@@ -1,10 +1,10 @@
 {
   "giantUnits": 113,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1868,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1845,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1515,
-      "methods": 91
+      "lines": 1494,
+      "methods": 90
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -40,7 +40,7 @@
     "file apps/workbench/src/i18n/en.ts": 3316,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 285,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2046,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -220,7 +220,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 444,
+  "testInternalImports": 442,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -250,7 +250,6 @@
     "tests/assistant-attachments.test.ts": 1,
     "tests/assistant-attention.test.ts": 2,
     "tests/assistant-business-gateway.test.ts": 5,
-    "tests/assistant-coding-executor.test.ts": 2,
     "tests/assistant-contributions.test.ts": 1,
     "tests/assistant-diagnostics.test.ts": 2,
     "tests/assistant-followups.test.ts": 2,
@@ -968,7 +967,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 168,
+  "unknownCastsTotal": 163,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1035,7 +1034,6 @@
     "tests/artifacts-actions.test.ts": 1,
     "tests/artifacts-module.test.ts": 2,
     "tests/assistant-business-gateway.test.ts": 5,
-    "tests/assistant-coding-executor.test.ts": 5,
     "tests/coding-characters-http.test.ts": 1,
     "tests/coding-commit-draft.test.ts": 1,
     "tests/coding-continuation.test.ts": 1,
@@ -1082,7 +1080,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 480,
+  "explicitAnyTotal": 475,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1118,7 +1116,6 @@
     "tests/assistant-answers.test.ts": 2,
     "tests/assistant-business-gateway.test.ts": 8,
     "tests/assistant-character.test.ts": 4,
-    "tests/assistant-coding-executor.test.ts": 5,
     "tests/assistant-delegation.test.ts": 1,
     "tests/assistant-followups.test.ts": 2,
     "tests/assistant-memory.test.ts": 17,
@@ -1308,9 +1305,8 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 27,
+  "errorSubclassTotal": 26,
   "errorSubclasses": {
-    "apps/local-host/src/assistant/assistant-coding.ts": 1,
     "apps/local-host/src/browser/cdp.ts": 1,
     "apps/local-host/src/connector-api-oauth.ts": 1,
     "apps/local-host/src/connector-cli.ts": 1,

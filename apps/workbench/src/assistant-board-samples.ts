@@ -97,12 +97,12 @@ const CODE_ACTIVITY = [
 
 /** About code: Coding carries it, in a repository with a conflict; 「推进一步」 finishes the running command, then the round. */
 function codingWork(at: Iso): { views: AssistantWorkView[]; surroundings: AssistantWorkSurroundings } {
-  const work = boardWork(at, "board-coding", "登录兼容旧的 session cookie", "running", 1, { executor: { kind: "coding", title: "Coding", session_id: "cs-auth", mode: "execute" } });
+  const work = boardWork(at, "board-coding", "登录兼容旧的 session cookie", "running", 1, { executor: { kind: "plugin", plugin_id: "io.molis.work.coding", title: "Coding", session_id: "cs-auth", mode: "execute" } });
   const text = "登录要兼容旧的 session cookie，公开接口别动";
   const reply = "先读了 `auth/session.ts` 和 `auth/cookie.ts`：旧格式的 Cookie 叫 `session`，没有过期时间。改成先读 `sid`、再读旧的 `session`，过期时间按新的七天补上。";
   const step = (state: AssistantActivity["state"]) => act("c-c7", "command", "pnpm test auth", state, { sequence: 7 });
   const stage = (activity: AssistantActivity[], steps: Array<"pending" | "in-progress" | "done">, more: Partial<AssistantRound> = {}) => round(at, "run-code-1", 9, {
-    executor: "coding", text, phase: "running", ended_at: null, activity, steps: CODE_STEPS(steps), model: { model_id: "MiniMax-M2", window_tokens: 200000 },
+    executor: "plugin", text, phase: "running", ended_at: null, activity, steps: CODE_STEPS(steps), model: { model_id: "MiniMax-M2", window_tokens: 200000 },
     turns: [{ turn_id: "t-code-1", kind: "assistant", text: reply, at: at(7), sequence: 0 }], ...more,
   });
   const done = "改好了：旧 Cookie 可读，42 个用例通过，`docs/auth.md` 写了兼容说明。";
@@ -114,12 +114,12 @@ function codingWork(at: Iso): { views: AssistantWorkView[]; surroundings: Assist
   ];
   const surroundings: AssistantWorkSurroundings = {
     environment: { scope: { kind: "project", project_id: BOARD_PROJECT.id, title: BOARD_PROJECT.title },
-      coding: { workspace: { name: "molis-auth", path: "~/code/molis-auth" }, git: { repository: "molis-ai/molis-auth", branch: "feature/session-cookie", ahead: 2, behind: 0, changed: 3, conflicted: 1 } } },
+      executor: { workspace: { name: "molis-auth", path: "~/code/molis-auth" }, git: { repository: "molis-ai/molis-auth", branch: "feature/session-cookie", ahead: 2, behind: 0, changed: 3, conflicted: 1 } } },
     connections: [
       { connection_id: "github", title: "GitHub", account: "yijunw0212", state: "connected", tools: "callable" },
       { connection_id: "linear", title: "Linear", account: null, state: "needs-authorization", tools: "blocked" },
     ],
-    tools: { executor: "coding", callable: [{ provider: "GitHub MCP", count: 3 }], unavailable: [{ title: "create_issue", provider: "Linear MCP", reason: "服务未连接" }] },
+    tools: { executor: "plugin", callable: [{ provider: "GitHub MCP", count: 3 }], unavailable: [{ title: "create_issue", provider: "Linear MCP", reason: "服务未连接" }] },
     read_at: at(1),
   };
   return { views, surroundings };

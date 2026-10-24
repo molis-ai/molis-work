@@ -68,7 +68,7 @@ Plugin Runtime（有效安装的 Manifest）──► 类型登记表（modules/
 - 登记表由端口取数：Plugin Runtime 提供「有效安装的 Manifest 列表」（含启用状态），Characters 的宿主产出者表由 `modules/characters` 提供（PG-085 的方向），登记表在安装、卸载、启用、停用、升级时重建，不读 `BUILTIN_PLUGIN_CATALOG`。
 - 每条类型登记：`artifact_type_id@schema_version`、属主（插件 id 加发布者签名）、显示名、预览/钉入/比较动作、谁能续写（`produces.continue` 与 `consumes.continue`）、谁声明了「被谁引用」的动作。
 - **「没声明就拒写」对所有产出者一视同仁**：今天宿主检查只覆盖内置、装上的插件靠自己的客户端兜（S-69.1）。外加一层，不撤掉 Runtime 客户端那层。
-- 类型 id 只有一个属主：后来者声明了已被别的发布者占着的 `artifact_type_id` 时，安装被拒（S-70.2）。同一发布者的升级不算冲突。（取舍见 §10 待定 3。）
+- 类型 id 只有一个属主：后来者声明了已被别的发布者占着的 `artifact_type_id` 时，安装被拒（S-70.2）。同一发布者的升级不算冲突。（统筹 10-24 定，见 §10 A 类第 2 项。）
 
 ### 3.4 `artifacts.consumes` 能写文件类型（PG-079）
 
@@ -92,7 +92,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 - `artifacts.goals.embeds`、`goal-context.ts`、`readReferences` 里的字面量换成登记表查询；`GOAL_ROLES` 表消失。
 - 一个链接种类只有一个属主（S-70.3）：别的插件声明已被占的种类，安装被拒；插件不能写属主是别人的种类的边。
 - Goals 不在项目里时，这些查询返回空，不报错（ac-trust §3.4.1 的 Goals 缺席清单里已列成果库一项，本片的用例要覆盖它）。
-- 动作 `artifacts.goals.embeds` 的名字带 Goals：留不留、改不改，见 §10 待定 5。
+- 动作 `artifacts.goals.embeds` 的名字带 Goals：留不留、改不改，统筹 10-24 定保留，见 §10 A 类第 3 项。
 
 ### 3.6 自读口径合成一套（PG-107）
 
@@ -116,17 +116,17 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | --- | --- | --- | --- |
 | 环境变量 `MOLIS_JELLY_NATIVE_HELPER`、`MOLIS_JELLY_WHISPER_HELPER` | 素材助手读 | 改为 `MOLIS_MATERIAL_NATIVE_HELPER`、`MOLIS_MATERIAL_WHISPER_HELPER`；只认新名，不读旧名；同步文档与脚本 | 不动存量；开发机的环境变量要换名，写进 PR 影响 |
 | 符号与函数名：`resolveFeedSecurityDirectory` 等 | 名字带 Feed | 改为平台名字（候选 `resolveHomeSecurityDirectory`） | 不动 |
-| 磁盘目录 `{home}/feed`（Home 级密钥库、锁、证据内容库） | 路径带 Feed | 候选 `{home}/security`；代码只认新路径，旧路径在时启动显式报错，不回退 | **动**，见 §6、§10 待定 4 |
-| 模型缓存 `{home}/lingguang/models` | 路径带灵光 | 候选 `{home}/materials/models` | **动**，见 §6、§10 待定 4 |
-| 插件客户端包路由 `^/assets/molis-work-plugins/<id>.js`，由内置目录取 | 路由只认目录 | 按有效安装记录里声明的客户端包资源给；不再有「目录里有没有 `<id>.js`」这一支（该路由的字节预算按 `page-assets` 门禁的规则走，不得变大） | 不动存量 |
+| 磁盘目录 `{home}/feed`（Home 级密钥库、锁、证据内容库） | 路径带 Feed | 候选 `{home}/security`；代码只认新路径，旧路径在时启动显式报错，不回退 | **动**，见 §6、§10 B 类第 8 项 |
+| 模型缓存 `{home}/lingguang/models` | 路径带灵光 | 候选 `{home}/materials/models` | **动**，见 §6、§10 B 类第 8 项 |
+| 插件客户端包路由 `^/assets/molis-work-plugins/<id>.js`，由内置目录取 | 路由只认目录 | **同源 `/assets` 路由只发宿主构建里的包**（含 A6 之后「成果」平台面的客户端），按宿主构建清单给，不按「目录里有没有 `<id>.js`」；**非 host 插件的客户端代码不进同源资源路由**，Runtime 插件的客户端照旧走隔离框（S-47）。这一项是把路由的口径写清并加门禁，不放宽任何来源；该路由的字节预算按 `page-assets` 门禁的规则走，不得变大 | 不动存量 |
 
 `packages/storage` 的 Home 存储注册表（`home-stores.ts`）已经要求每个路径登记主人；改名后的两个路径在表里登记为平台主人，不是 Feed 或灵光。
 
 ### 3.9 与相邻条目的衔接
 
-- **提供方换成 `system.artifacts`（PG-077 的最后一步）**：能力 id 与版本不变，只换 `registered_provider`。这会碰到真实 Home 里的 MCP 授权和工作流引用（引用里带提供方），所以放在 A5，随一次维护脚本一起落，**代码只认新提供方，旧引用显式失败，不兜底**；未经用户批准不动真实 Home（§6、§10 待定 1）。与 ac-trust 的 S-68.3（提供方 id 规则）一致：系统提供方用 `system.*`，插件不得注册 `system.*` 或平台能力 id（RAC-423）。
-- **W5-06（PG-060）**：成果页进平台工作台面后，由通用挂载器挂上；A5 不等它也能做提供方与代码搬家，但「成果」入口从插件目录条目换成平台面这一步（A6）要等 W5-06 的挂载器。
-- **ac-registry**：本稿的登记表与它共用「有效安装的 Manifest 派生登记」这一件事，实现不另起第二份。我没有看到 ac-registry 的稿；先后和接口以统筹 LINES.md §2 为准（§7 标了假设）。
+- **提供方换成 `system.artifacts`（PG-077 的最后一步）**：能力 id 与版本不变，只换 `registered_provider`。这会碰到真实 Home 里的 MCP 授权和工作流引用（引用里带提供方），所以放在 A5，随一次维护脚本一起落，**代码只认新提供方，旧引用显式失败，不兜底**；真实 Home 的执行列进维护时段计划，交用户时一并确认，未经用户批准不动（§6、§10 B 类）。A5 只换动作的提供方，「成果」入口仍由原目录条目的界面提供，入口照常可用；目录条目的删除在 A6 同一片里做（§7）。与 ac-trust 的 S-68.3（提供方 id 规则）一致：系统提供方用 `system.*`，插件不得注册 `system.*` 或平台能力 id（RAC-423）。
+- **W5-06（PG-060）**：成果页进平台工作台面后，由通用挂载器挂上。A6 把「换成平台面」「删目录条目（C7）」「删插件包」放在同一片，**不许有中间断掉的状态**：每一片合入后「成果」入口都能用（RAC-424）。
+- **ac-registry**：本稿的登记表与它共用「有效安装的 Manifest 派生登记」这一件事，实现不另起第二份。统筹 10-24 定：凡是碰 `plugin-catalog.ts` 或内置目录条目的片（A3、A6），排在 ac-registry 的 PG-024 片之后（LINES §2 第 3 行，它本身等 #1098、#1112）；其余片在 W5-06 链合完后可以先做。逐片的前置见 §7。
 - **#1098**：动 `manifest.ts`，A3 要改 Pages、Goals 的 Manifest，所以等它合入。A1、A2 不碰 Manifest 文件。
 - **PG-085**：Characters 作为宿主产出者的类型声明由 `modules/characters` 提供给登记表，本片不搬 Characters。
 - **PG-090**：Shelf 取成果已经走平台（C3），本片不动。
@@ -141,7 +141,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | C4 | `DOM_EVENT_PREFIXES` 删 `molis-shelf-`，加 `molis-<owner>-` 规则（§3.7） | `pnpm api:update`；门禁改 |
 | C5 | `modules/artifacts` 新导出：`projectArtifacts`、`createPluginArtifactClient`、`ownsRecord`、登记表 | `pnpm api:update`；旧导出路径（插件包里）删除，不留别名 |
 | C6 | `plugin-host-services.ts` 的 `artifacts`、`processItems` 来源改成 C5 | 公开 SDK 形状不变 |
-| C7 | 删除：`io.molis.work.artifacts` 的目录条目、`BUILTIN_PLUGIN_CATALOG` 里的成果库行、`HOST_ARTIFACT_PRODUCERS` 的内置来源（Characters 改由 `modules/characters` 供） | `node scripts/generate-plugin-registry.mjs`；`builtin-plugin-assembly-gate` 名单同步 |
+| C7 | **与 A6 同一片**删除：`io.molis.work.artifacts` 的目录条目、`BUILTIN_PLUGIN_CATALOG` 里的成果库行、`HOST_ARTIFACT_PRODUCERS` 的内置来源（Characters 改由 `modules/characters` 供） | `node scripts/generate-plugin-registry.mjs`；`builtin-plugin-assembly-gate` 名单同步 |
 | C8 | 环境变量改名（§3.8） | 文档、脚本、`.env` 示例 |
 
 ## 5. 信任边界与安全不变量
@@ -169,6 +169,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 - **`consumes.file` 声明**：只决定「续写」名单里列不列，续写动作的权限仍按动作授权走；声明扩展名的插件拿不到文件正文。
 - **Goals 的链接种类来自 Manifest**：属主唯一、来源模块取声明方身份，第三方不能伪造 Goals 的交付边。
 - **提供方换 `system.*`**：不给任何插件新增权限；系统提供方只有宿主能注册（ac-trust S-68.3）。
+- **客户端代码不进同源路由**：同源 `/assets` 只发宿主构建里的包；非 host 插件的客户端照旧走隔离框（S-47）。本片不放宽任何来源，所以也没有新的缓存面。
 - **自读加签名**：是收紧。
 - 若实现中发现任何一条要扩大，写进 §10 交统筹，不自己定。
 
@@ -177,7 +178,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | 存量 | 改后形状 | 做法 |
 | --- | --- | --- |
 | 真实 Home 的 MCP 授权、工作流步骤里的提供方 `io.molis.work.artifacts` | `system.artifacts` | 维护脚本一次改完；代码只认新值。**先列清单，用户批准后才动**，与 A5 同一次维护 |
-| `{home}/feed` | `{home}/security`（候选） | 维护脚本原子 `rename`，先备份；启动时发现旧路径显式报错；**用户维护时段**，见 §10 待定 4 |
+| `{home}/feed` | `{home}/security`（候选） | 维护脚本原子 `rename`，先备份；启动时发现旧路径显式报错；**用户维护时段**，见 §10 B 类第 8 项 |
 | `{home}/lingguang/models` | `{home}/materials/models`（候选） | 缓存可重新下载：建议不迁移，维护时删旧目录，首次用时重下 |
 | 项目库里的成果、过程项、链接 | 不变 | 不动；表仍由 `modules/artifacts` 独占 |
 | 创作台装进项目的插件产出的类型 | 登记表按安装记录补入 | 启动时由登记表重建，不写数据 |
@@ -186,20 +187,20 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 
 ## 7. 实现拆片
 
-每片一个 PR；前置栏标和 W5-06、ac-registry、#1098 的先后。
+每片一个 PR；前置栏标和 W5-06、ac-registry、#1098 的先后（统筹 10-24 定：碰 `plugin-catalog.ts` / 内置目录条目的片排在 ac-registry 的 PG-024 片之后，其余片在 W5-06 链合完后可先做）。**每一片合入后「成果」入口都能用，不留中间断掉的状态。**
 
 | 片 | 内容 | 前置 | 备注 |
 | --- | --- | --- | --- |
-| A1 | PG-107 与 PG-078 的构造部分：`ownsRecord` 合一；`projectArtifacts` 工厂，三到四处构造改取工厂 | 无 | 不碰 Manifest 与合同导出；可立即开工；RAC-410～412 |
+| A1 | PG-107 与 PG-078 的构造部分：`ownsRecord` 合一；`projectArtifacts` 工厂，三到四处构造改取工厂 | W5-06 链合完 | 不碰 Manifest 与合同导出；RAC-410～412 |
 | A2 | 代码搬进 `modules/artifacts`：动作处理器、`createPluginArtifactClient`、`plugin-operations`；`plugin-host-services` 与宿主十来个文件停止 import 成果库插件包；提供方先不换 | A1 | `pnpm api:update`；RAC-413～414 |
-| A3 | 类型登记表从 Manifest 生成；`consumes.file`；Goals 链接种类；S-69、S-70 | A2；**#1098 合入**；ac-registry（见下） | `pnpm api:update`；Pages、Goals 的 Manifest；RAC-415～421 |
-| A4 | PG-096：事件前缀规则 | 无 | 独立，可与 A1 并行；RAC-426 |
-| A5 | 提供方换 `system.artifacts` 与维护脚本；目录条目删除（C3、C7） | A2、A3；用户批准维护 | `pnpm actions:update`；RAC-422、423 |
-| A6 | 「成果」入口成平台面，经 W5-06 的通用挂载器挂；5 段客户端模板随平台面发；包删除 | A5；**W5-06 的挂载器** | 页面资源字节不得变大；RAC-424、425 |
-| A7 | PG-097：环境变量改名、符号改名、客户端包路由；真实 Home 目录改名放维护脚本 | 目录改名要用户批准；其余无前置 | RAC-427、428；可与 A5 合一次维护 |
+| A3 | 类型登记表从 Manifest 生成（碰 `plugin-catalog.ts`）；`consumes.file`；Goals 链接种类；S-69、S-70 | A2；**#1098 合入**；**ac-registry 的 PG-024 片** | `pnpm api:update`；Pages、Goals 的 Manifest；RAC-415～421 |
+| A4 | PG-096：事件前缀规则 | W5-06 链合完 | 独立，可与 A1 并行；RAC-426 |
+| A5 | 提供方换 `system.artifacts` 与维护脚本（C3）；目录条目**不删**，入口照常 | A2、A3；维护时段计划 | `pnpm actions:update`；RAC-422、423 |
+| A6 | 「成果」入口成平台面，经 W5-06 的通用挂载器挂；5 段客户端模板随平台面发；**同一片**删目录条目与 `BUILTIN_PLUGIN_CATALOG` 里的行（C7）、删插件包 | A5；**W5-06 的挂载器**；**ac-registry 的 PG-024 片** | 页面资源字节不得变大；RAC-424、425 |
+| A7 | PG-097：环境变量改名、符号改名、客户端包路由口径与门禁；真实 Home 目录改名放维护脚本 | W5-06 链合完；目录改名按维护时段计划 | RAC-427、428；可与 A5 合一次维护 |
 | A8 | 文档与门禁收口：SSOT-MATRIX 两行、`privileges.md` 状态、`SECURITY-INVARIANTS.md` 的 S-69/70、门禁名单只减不增 | A5～A7 | RAC-429 |
 
-先后小结：A1 与 A4 无前置，可立刻做；A3 之前必须等 #1098；A5 之前 A3 完成；A6 必须等 W5-06；A3 与 ac-registry 的关系**假设**为「共用同一份有效安装的 Manifest 派生登记，谁先落谁定接口、后者吸收」，请统筹按 LINES.md 核。
+先后小结：A1、A2、A4、A5、A7 在 W5-06 链合完后可以先做；A3、A6 碰内置目录条目，排在 ac-registry 的 PG-024 片之后（A3 另等 #1098，A6 另等 W5-06 的挂载器）；A5 之前 A3 完成。
 
 ## 8. 验收
 
@@ -217,30 +218,36 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | RAC-419 | 源码里 `artifact-native-plugin-http.ts` 不再有 `PAGES_PLUGIN_ID`、`PAGES_READABLE_FILE`；`modules/artifacts`、成果库代码里没有 `goal.input` 等字面量 | 门禁式测试 |
 | RAC-420 | Goals 链接种类来自 Goals 的 Manifest；Goals 缺席时 `artifacts.goals.embeds`、详情页「被谁引用」返回空，不报错（对应 ac-trust RAC-400 清单里成果库一项） | 非浏览器用例 |
 | RAC-421 | 别的插件声明或写 Goals 的链接种类被拒；属主停用后不能再写，已有版本可读、预览降级（S-70.3、S-70.4） | 安全不变量测试 |
-| RAC-422 | 提供方换后：能力 id 不变，快照里 `registered_provider` 是 `system.artifacts`；旧提供方的工作流引用显式失败（不兜底）；MCP 授权在维护脚本之后仍解析 | 快照测试；隔离 Home 演练 |
+| RAC-422 | 提供方换后（按维护时段计划的结论执行）：能力 id 不变，快照里 `registered_provider` 是 `system.artifacts`；旧提供方的工作流引用显式失败（不兜底）；MCP 授权在维护脚本之后仍解析；A5 合入后「成果」入口照常可用 | 快照测试；隔离 Home 演练 |
 | RAC-423 | 插件 Manifest 声明 `artifacts.*` 或 `system.*` 的能力 id 被拒 | 安全不变量测试 |
-| RAC-424 | 「成果」入口是平台面：不在插件市场与设置里可被当插件关闭或卸载；经 W5-06 挂载器挂上 | 浏览器冒烟一个 |
+| RAC-424 | 「成果」入口是平台面，不是插件：不进插件市场与插件常开同意模型，一直在；Dock 上能不能收起跟 Dock 现行规则走，不另开特例。A6 同一片内完成换面与删目录条目，**每一片合入后入口都能用**；经 W5-06 挂载器挂上 | 浏览器冒烟一个 |
 | RAC-425 | 客户端模板随平台面发，`plugin-workbench.ts` 里没有成果库内联模板；`pnpm page-assets:check` 不变大 | 页面资源门禁 |
 | RAC-426 | `DOM_EVENT_PREFIXES` 不含任何插件专用前缀；`molis-<owner>-` 规则：前缀与登记的 `owner` 不一致被门禁拦；Shelf 现有事件名不变 | `scripts/gates/dom-events.mjs` 与测试 |
 | RAC-427 | 代码里读不到 `MOLIS_JELLY_*`；新名生效；平台存储函数名不带 Feed、灵光 | 单元测试加 grep 门禁 |
-| RAC-428 | 目录改名：隔离 Home 演练旧路径→新路径；旧路径在时启动显式报错，不回退；备份可还原 | 隔离 Home 演练记录 |
+| RAC-428 | 目录改名（按维护时段计划的结论执行）：隔离 Home 演练旧路径→新路径；旧路径在时启动显式报错，不回退；备份可还原。同源 `/assets` 路由只发宿主构建里的包，非 host 插件的客户端不进该路由（S-47 隔离框不变） | 隔离 Home 演练记录；路由测试 |
 | RAC-429 | 公开 API 与动作合同快照只有 §4 列出的变化，PR 里逐项写对调用方的影响；SSOT-MATRIX、`privileges.md`、`SECURITY-INVARIANTS.md` 同步 | `pnpm api:update`、`pnpm actions:update` 的 diff；`pnpm health:check` 的文档引用检查 |
 
 ## 9. 待办
 
-BL-575～582 对应 A1～A8，BL-583 是真实 Home 目录改名与提供方引用改写的维护清单（§10 待定 1、4，用户维护时段），BL-584 是 A3 开工前核 ac-registry 稿的接口（§10 待定 7）；都写在 `specs/BACKLOG.md`。
+BL-575～582 对应 A1～A8，BL-583 是真实 Home 目录改名与提供方引用改写的维护清单（§10 B 类，用户维护时段），BL-584 是 A3 开工前核 ac-registry 稿的接口（§10 A 类第 5 项）；都写在 `specs/BACKLOG.md`。
 
 ## 10. 待定
 
-以下都先写了推荐，没有一项在稿里自己定。
+分两类：A 类统筹 2026-10-24 已定；B 类待用户（维护时段），稿里只写成「按维护时段计划的结论」，不预写成已定。
 
-1. **提供方换 `system.artifacts` 要不要在这一轮做、什么时候动真实 Home。** 推荐：做，但 A5 的代码和维护脚本一起交，用户批准的维护时段执行；之前只到 A3。
-2. **登记表读 Manifest 的端口由谁给。** 推荐：Plugin Runtime 导出「有效安装的 Manifest」查询，登记表在 `modules/artifacts` 持有；不让 `modules/artifacts` 依赖 Runtime 包（用端口）。
-3. **类型 id 冲突怎么处理。** 推荐：后来者安装被拒（S-70.2）；备选是 id 带发布者前缀，会改所有现存类型，不推荐。
-4. **`{home}/feed`、`{home}/lingguang/models` 要不要改名，什么时候改。** 推荐：`feed` 改（它放着密钥库和锁，叫 Feed 误导），`lingguang/models` 不迁移、维护时删旧缓存；两个都放用户的维护时段，和 A5 同一次。若用户不想动真实 Home，则只改符号与环境变量，路径的「去插件名」降为已知例外并写进 `privileges.md`。
-5. **`artifacts.goals.embeds` 的动作名。** 推荐：保留（Goals 确实是它的消费者，数据已是声明驱动），改名会牵动工作流引用与 Skill，不值。
-6. **「成果」入口要不要允许被隐藏。** 推荐：作为平台面常开，不进插件市场（成果库是每个项目都带的事实）；若用户希望可隐藏，按 ac-trust 的常开同意模型处理。
-7. **ac-registry 的接口先后。** 统筹按 LINES.md 核；A3 开工前由 BL-584 落实。
+### A. 统筹 10-24 定
+
+1. **登记表读 Manifest 的端口**：Plugin Runtime 导出「有效安装的 Manifest」查询端口，登记表在 `modules/artifacts` 持有；`modules/artifacts` 不依赖 Runtime 包。
+2. **类型 id 冲突**：后来者安装被拒（S-70.2），与 S-68 保留 `plugin_id` 同一口径；备选「id 带发布者前缀」会改所有现存类型，不取。
+3. **`artifacts.goals.embeds` 的动作名**：保留（Goals 是它的消费者，数据已是声明驱动），改名会牵动工作流引用与 Skill。
+4. **「成果」入口**：成果库去插件身份后是平台面，不走插件常开同意模型，一直在；Dock 上能不能收起跟 Dock 现行规则走，不另开特例。**它和用户 2026-10-24「插件的常开同意都可撤」不冲突，理由是它不再是插件**：那条管的是插件声明的 `always_on` 同意，成果库没有 Manifest、没有同意可撤。RAC-424 按此写。
+5. **ac-registry 与 W5-06 的先后**：碰 `plugin-catalog.ts` / 内置目录条目的片（A3、A6）排在 ac-registry 的 PG-024 片之后（LINES §2 第 3 行，它本身等 #1098、#1112）；其余片在 W5-06 链合完后可先做。逐片前置见 §7，A3 开工前由 BL-584 核接口。
+6. **不留中间断掉的状态与同源路由口径**：C7 与 A6 同一片；§3.8 的客户端口径（非 host 插件的客户端不进同源 `/assets`）。
+
+### B. 待用户（维护时段）
+
+7. **提供方换 `system.artifacts`**：代码与维护脚本按推荐写（A5），真实 Home 的执行（MCP 授权、工作流引用的改写）列进维护时段计划，交用户时一并确认。RAC-422 写成「按维护时段计划的结论」。
+8. **`{home}/feed` 改名与 `lingguang/models` 删旧缓存**：代码与维护脚本按推荐写（`feed` 改、模型缓存不迁移、维护时删旧目录），真实 Home 的执行同上列进计划。若用户不动真实 Home，路径「去插件名」要作为**不做的理由**交用户确认，稿里不预写；RAC-428 同样写成「按维护时段计划的结论」。
 
 ## 11. 防腐复查
 

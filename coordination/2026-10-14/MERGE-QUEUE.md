@@ -74,6 +74,10 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 > - 远端分支清理（用户 10-24 晚：「已经合入的就可以删」）：96 个已合入的远端分支已删（PR 合入且 head 相同 44 个；head 被已合 PR 包含 34 个；集成分支的每个来源都已合入 18 个）。未合入的保留，含 `ac-kernel/s57-x4-binding-cleanup`（X4 的旧版，`s57-x4-bindings` 已取代，X4 合入后再删）。本地删了 batch-29 两棵、`baseline-main`、`/private/tmp/handoff/batch-1023-12` 四棵工作树。
 > - #1235（Images README 两句，Codex 二轮可合）：`full` 空，CI 绿后单个入队。
 > - S 号按合入顺序定：`scripts/gates/security-invariants.mjs` 要求 S-01 起连续、不跳号，所以分支里都是暂定号，统筹在批分支里按落地顺序定正式号。main 现到 S-65；#1234 进 batch-34 定为 S-66（P1）、S-67（P3）；S-57 扩展 X1～X3 原先暂给的 S-71～73 改成到时接着排（若紧跟 #1234 就是 S-68～70）；ac-trust、ac-artifacts 设计稿里的号同样只是暂定。
+> - 统筹裁（10-24 晚）：
+>   - R8 余项选 A：一个 PR「删 typed 通道」（删 `registerCapability` 与 typed 登记、调用支；删 `services.capabilities`/`PluginCapabilityClient`，调用方改走 `services.actions`；`HostCapabilityDefinition` 留作 `ActionDefinition` 的身份基类）。外部 API 不留兼容期，创作台和 Alchemist 不能弄坏，跑全量。
+>   - PG-022 由 ac-sandbox-sched 先合一次 main 解真代码冲突，#1234 二轮可合后开 PR；BL-490/491 叠在它后面。
+>   - 远端分支 `claude/ac-pg017-p2-fetch` 等 p2e 落地再删。
 > - batch-34 候选：#1227（一轮可合，无修复）+ 修完二轮的 #1226 #1228 #1229 #1232 #1230 + #1231（已二轮）+ #1234（待一轮）。修复单在 CODEX-TASKS §0a。
 
 

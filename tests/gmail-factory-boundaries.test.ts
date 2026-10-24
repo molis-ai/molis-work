@@ -149,6 +149,8 @@ test("RAC-127 / RAC-128: provider preserves resolver receivers, per-call tokens,
       return { ok: true as const, accessToken: `access-${this.calls}` };
     },
     async fetchImpl(this: unknown, input: string, init?: RequestInit) {
+      // W5-10 equivalence guards preserve health's bare fetch call and sync's shared receiver from before the split.
+      // They are not public plugin contracts; reassess them if an accepted W5-11 spec changes the behavior.
       if (phase === "health") assert.equal(this, undefined, "health invokes the captured fetch as a bare function");
       else {
         assert.ok(this && typeof this === "object");
@@ -175,6 +177,8 @@ test("RAC-127 / RAC-128: provider preserves resolver receivers, per-call tokens,
   if (!result.ok) assert.fail("full sync failed");
   assert.deepEqual(paths, ["/gmail/v1/users/me/profile", "/gmail/v1/users/me/profile", "/gmail/v1/users/me/messages", "/gmail/v1/users/me/messages/m1"]);
   assert.equal(options.calls, 2);
+  // W5-10 equivalence guard preserves the original count of clock reads, not a public plugin contract.
+  // Reassess this count if an accepted W5-11 spec changes the behavior.
   assert.equal(clockReads, 3);
   const cursor = result.cursor;
   assert.ok(cursor && typeof cursor === "object" && "historyId" in cursor);

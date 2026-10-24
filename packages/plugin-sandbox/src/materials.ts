@@ -1,4 +1,4 @@
-import type { SandboxJson, SandboxMaterialRequest } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxJson, SandboxMaterialDocumentBatch, SandboxMaterialExtraction, SandboxMaterialRequest } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { MaterialSource, MaterialUpload } from '@molis-ai/molis-work-contracts/services/materials';
 import { SandboxError } from './schema.js';
 
@@ -55,3 +55,7 @@ export function materialRequest(value: SandboxJson | undefined, keys: ReadonlyAr
 export function plainJson(value: unknown): SandboxJson {
   return JSON.parse(JSON.stringify(value ?? null));
 }
+
+/** The answers cross as what the sandbox's declarations promise: a Host reader whose result no longer fits `SandboxMaterial*` fails to compile here. */
+export const documentBatchJson = (batch: SandboxMaterialDocumentBatch): SandboxJson => plainJson(batch);
+export const extractionJson = (extraction: SandboxMaterialExtraction): SandboxJson => plainJson(extraction);

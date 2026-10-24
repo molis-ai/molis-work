@@ -3,7 +3,7 @@ import type { PluginConnectionMethod, PluginConnectionsClient } from '@molis-ai/
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
-import { materialRequest, materialSource, materialUploads, plainJson } from './materials.js';
+import { documentBatchJson, extractionJson, materialRequest, materialSource, materialUploads } from './materials.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 
@@ -124,10 +124,10 @@ export class SandboxBroker {
       count(2);
       if (method === 'materials.readDocuments') {
         const files = materialUploads(args[0]), { timeoutMs } = materialRequest(args[1], ['timeoutMs']);
-        return materials?.readDocuments ? plainJson(await materials.readDocuments(files, { signal: context.signal, ...(timeoutMs !== undefined ? { timeoutMs } : {}) })) : missing();
+        return materials?.readDocuments ? documentBatchJson(await materials.readDocuments(files, { signal: context.signal, ...(timeoutMs !== undefined ? { timeoutMs } : {}) })) : missing();
       }
       const source = materialSource(args[0]), request = materialRequest(args[1]);
-      return materials?.extract ? plainJson(await materials.extract(source, { ...request, signal: context.signal })) : missing();
+      return materials?.extract ? extractionJson(await materials.extract(source, { ...request, signal: context.signal })) : missing();
     }
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.

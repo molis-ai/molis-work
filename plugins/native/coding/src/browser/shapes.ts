@@ -1,13 +1,16 @@
 /** The JSON the Coding routes answer, as far as the page reads it (src/routes-*.ts write it). */
 
-export interface StepReport { readonly by?: string; readonly note: string; readonly inputs?: readonly { readonly input_id: string }[] }
+export interface StepReport { readonly by?: string; readonly note: string; readonly at_ms?: number; readonly inputs?: readonly { readonly input_id: string }[] }
 
 export interface StepNode {
   readonly id: string;
   readonly title?: string;
   readonly state: string;
   readonly inserted?: boolean;
-  readonly owner?: { readonly kind: string; readonly label?: string };
+  readonly owner?: { readonly kind: string; readonly label?: string; readonly expired?: boolean };
+  readonly depends_on?: readonly string[];
+  /** The supplements that asked for the step. */
+  readonly origins?: readonly { readonly input_id: string }[];
   readonly reports: readonly StepReport[];
 }
 
@@ -17,8 +20,8 @@ export interface PlanEntry {
   readonly run_id: string;
   readonly revision: number;
   readonly board_error?: unknown;
-  readonly board?: { readonly project_id: string; readonly version: number; readonly nodes: readonly StepNode[] };
-  readonly plan?: { readonly content: { readonly steps: readonly { readonly title: string; readonly acceptance: string }[] } };
+  readonly board?: { readonly project_id: string; readonly version: number; readonly terminal?: boolean; readonly nodes: readonly StepNode[] };
+  readonly plan?: { readonly content: { readonly title?: string; readonly steps: readonly { readonly title: string; readonly acceptance: string }[] } };
   readonly verdicts?: Readonly<Record<string, StepVerdict>>;
 }
 

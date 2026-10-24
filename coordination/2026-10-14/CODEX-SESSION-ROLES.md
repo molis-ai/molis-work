@@ -20,6 +20,16 @@
 
 ## 流水线接续合同
 
+**现行模式：一骏正式确认（2026-10-24 07:13UTC，由root转达）**
+
+Claude继续负责整条防腐线的总体方向、优先级、跨线依赖与唯一full组批。Codex root在既定目标内主动组织独立任务、裁决技术选择和无人认领问题，不事事请示；流水线执行日常派单、源码交槽、CI/队列/正常合并与共享进度。REVIEW独立只读评审，TEST独立核验证据和必要回归，修复1/2承接全部确认有效的block与non-block（含文档、验证缺口、CI和冲突），实现1/2持续承接独立开发片。现有作者正在修的保留原owner，无人认领的由流水线落实到修复专职。
+
+non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一步/真依赖、实际修复PR或提交、独立复审/验证和真实merge SHA；BL、领域标签、待做或准备完成都不算闭环。不成立、重复或取消要有依据。按Claude优先级、依赖和可用writer实际启动，不无限停在台账。
+
+固定PR/head＋spec/diff/原始日志由作者直接发REVIEW、TEST和流水线，收到即自动增量审验；must-fix直接回原作者并抄流水线，新head立即复审，不等用户、二次转发、CI完成或heartbeat。源码固定并明确释放即可交下一独立片，不为等待审验/CI/merge占writer；单Codex writer、整机一build/一浏览器批及Claude唯一full保持。模型分工、已有认领和工作不中断，不新建重复入口。
+
+本组共享协调文件由流水线chat串行维护，root和六专职不抢写。上述现行规则取代历史无真实依赖的“仅准备”“等root再次派”表述；真实源码占用、在途文件冲突、必要外部权限或合同依赖才暂停相关部分。常规交付、排队和内部可解决失败只更新共享；只有必须一骏决定或补权限/信息时通知。
+
 > **用户新增授权（10-24 06:57UTC由root转达）**：继续服从Claude的范围、优先级、依赖和唯一full排期，Codex在该合同内有技术选择、派单、资源交槽及接续的决断权，不事事请示；复杂范围/架构/安全/授权取舍交root，只有确需一骏决定才通知。两个实现chat按排期实际实施；无真依赖时不因review/CI/merge空等writer。修复/实现作者固定head与证据直接发REVIEW、TEST及执行chat，接收即自动增量审验，不等用户/执行转发/heartbeat；must-fix直接回原作者并抄执行，由执行串行排写，禁止形成第二writer。
 
 1. 收到PR、修复交付或新评审意见，先鲜查head、认领、依赖和现行实现；已有作者在修则接同一人，未认领项公开认领后明确派给一个修复专职。
@@ -34,8 +44,8 @@
 
 - 用户最新模型分工已实测生效：本执行chat当前`01a16ca8-9fc1-7df1-927a-0cb3e7fdc74c`（2026-10-24 06:45:56.285UTC）turn_context为gpt-6.1-sol/max；root与REVIEW为Astra/xhigh，TEST/FIX/C1/C2为6.1-sol/max。root已独立核全8个chat，无需再为模型重启。当前C1唯一writer、随后C2顺序及现有CI继续。
 - 当前唯一writer已实际转C1 RAC113：#1173作者固定`f45abe4e8a46c12722f5cb3194410df56439dab4`普通push后明确释放，直接作者消息已自动启动REVIEW/TEST；REVIEW正式6381248620与TEST独立核证均通过，无mustfix；新头workflow_runs=[]、既存DIRTY待顺序sync，不称排队或已绿。C1已实际接写，自有`/Users/yijunwang/.codex/worktrees/c1-uninstall-inspection/goalboard`，slice/四条公开prepare回归已写，离线安装通过，build在ac-coding之后按公共槽排队，源码先保留红例。C1固定head并释放直接触发C2 slice+B1，不等审验/CI/merge或二次许可；两方已确认。
-- Claude是整条防腐线总统筹；本chat负责Codex侧按其范围、优先级、跨线依赖与全量排期接续。C1/C2两个实现chat已收到入口并开始只读准备，完整目标未缩小；不重复建chat，全部Codex修复/实现仍单writer。DeepSeek历史贡献与review-pr-fixer在途认领分别保留。
-- 修复1已交非Draft[#1174](https://github.com/molis-ai/molis-work/pull/1174) `5bbb4318697dbef4631e5db3870691c27fff2e94`，4文件+12/-5，仅两e2e同步与两原spec；已释放writer/build/browser。统筹已读真实bundle延迟旧点击0次→ready后严格pointer1次、旧document等待精确红→navigate-before-click完整AC4绿；完整main后续5+3/8及batch23同patch8/8保留。首次main-fixed7/8的Pages后段failed/Missing frame仍未归因，TEST接现有批次观察，不能称已修。原日志 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/handoff.md`；实际affected full=[]/storage=[]。REVIEW6380942452与TEST独立核原始diff/两有效探针/完整文件/门禁及最终affected均通过，无需重复本机运行；精确头CI40070310777已Verify/Security/Product及全部适用项成功；Claude公开合并认领6380951820。06:54已实际见queue位置1/AWAITING_CHECKS，同一精确头，不重复入队。ac-review6380946827补充BL544侧视图加载守护（当前仅ac-shell领域归属，仍需具体实施接续）和R44；10s期限/负载只是候选解释，缺少原始mount失败原因，未定因。
+- Claude是整条防腐线总统筹；本chat负责Codex侧按其范围、优先级、跨线依赖与全量排期接续。C1已实际实施、C2已获下一源码释放触发授权，完整目标未缩小；不重复建chat，全部Codex修复/实现仍单writer。DeepSeek历史贡献与review-pr-fixer在途认领分别保留。
+- 修复1已交非Draft[#1174](https://github.com/molis-ai/molis-work/pull/1174) `5bbb4318697dbef4631e5db3870691c27fff2e94`，4文件+12/-5，仅两e2e同步与两原spec；已释放writer/build/browser。统筹已读真实bundle延迟旧点击0次→ready后严格pointer1次、旧document等待精确红→navigate-before-click完整AC4绿；完整main后续5+3/8及batch23同patch8/8保留。首次main-fixed7/8的Pages后段failed/Missing frame仍未归因，TEST接现有批次观察，不能称已修。原日志 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/handoff.md`；实际affected full=[]/storage=[]。REVIEW6380942452与TEST独立核原始diff/两有效探针/完整文件/门禁及最终affected均通过，无需重复本机运行；精确头CI40070310777已Verify/Security/Product及全部适用项成功；Claude公开合并认领6380951820。06:54已实际见queue位置1/AWAITING_CHECKS，同一精确头，不重复入队。ac-review6380946827补充BL544侧视图加载守护（现实际实施owner修复1，ac-shell领域归属保留，按原PR顺序插空）和R44；10s期限/负载只是候选解释，缺少原始mount失败原因，未定因。
 - #1114最终远端`7733c554140f7d25e3aa8436ba2af4ae2c8c82e8`已交（回执6381127415），父9df80415b+d28794061；统筹读实际remerge-diff仅BACKLOG双方逐字并集/排序。REVIEW正式6381135401及TEST最终独立核验通过，9df的build/307项/27assets7792605B证据按未变部分复用，最终health对d287、affected full/storage/uncovered空与secrets178行均有效；不是最终头新build。CI40071861128排队，Claude原合并认领6381041047保持。修复2已明确释放writer不等CI，现只读待队列。
 - #1107原review-pr-fixer仅收尾[6380813962](https://github.com/molis-ai/molis-work/pull/1107#issuecomment-6380813962)机械同步，本机`064cf2c5e7`尚未交远端；禁止第二writer重做。#1098远端`91e096524`对main冲突，修复2已只读准备，按Claude顺序及新交付衔接。
 - #1112 `8d700173c`正式二轮[6380756955](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380756955)通过；Security2/2 SYS-15-U10仍不能归已知flaky。TEST核f4df/8d700九个相关文件相同，候选装配间接影响仍未排除；下一明确owner修复2，1114后按统筹固定范围：真实回执/revision/精确行重新点击交错观测，复用SYS50/51响应屏障；不加sleep/重试或关轮询，修后Linux同文件和现有CI复验。三项non-block（技能文档构建期范围、PG060/RAC映射、Files侧栏打开后实际选中）仍由修复2接续准备；Files采用现有openAuditBrowser的A/B冷/热两态真实路径。W5统一full仍缺，不入队。
@@ -43,8 +53,16 @@
 - batch22固定`e76380003`结束失败3份（Home locale、home-side、placement）；batch23固定`74606d5e2`16分片15绿/1红home-side，汇总未作为全绿。TEST核shard12 Home4/4、S475/5、85/85文件无重试。Claude已在[#1171/6380903089](https://github.com/molis-ai/molis-work/pull/1171#issuecomment-6380903089)明确main红修复不等另一份无关main红，冻结`b27b0cd8c`已真实合入`d28794061a189aea2d4e5ebfe74b558ed9a8e169`；#1167及共享清单相关候选按Claude等1174合入后merge-only，不擅自移除队列或把batch写全绿。
 - #1170已真合`61bfc2b8ad28ddd64304e89a3862e2e51d18b37a`；#1172于06:37:01UTC真合`6f638ad734ce68e6c2b78b3a5ad209f10a711ffd`，#1171于06:39:30UTC真合`d28794061a189aea2d4e5ebfe74b558ed9a8e169`；均沿原公开认领，不重复入队。
 - Home连接A→B/back-all复用A缓存是确定既存功能缺陷，具体后续owner修复1；保留同目标草稿、取消仅B、全部连接和宿主/Issue状态。R42/BL543的query意见未证越权，合法参数不能全剥离，不阻#1171现结论。
-- #1168 `98906bfad`已由plugin-frame-fixes交付6380716957，Claude增量裁可合6380726381，现与#1169进Claude唯一batch24（固定5e781d4bd/run40070386529）；待实际CI/full/合入，不再称待一轮。#1157非空Dock44px、#1119引用、#1139三项建议保留原实际owner。REVIEW已完成DeepSeek审计去重：AC01–04/E1–21除E3部分说明已随1170闭环；AC05实际是宿主直引插件定义/转换/限额而非所有调用绕网关，尚需Claude统一PG088/031实现归属；E22、SSOT AC12–15/17、RUNTIME-MIGRATION:150为真实剩余文档项，将明确串行实施owner。
+- #1168 `98906bfad`已由plugin-frame-fixes交付6380716957，Claude增量裁可合6380726381，现与#1169进Claude唯一batch24（固定5e781d4bd/run40070386529）；待实际CI/full/合入，不再称待一轮。#1157非空Dock44px、#1119引用、#1139三项建议保留原实际owner。REVIEW已完成DeepSeek审计去重：AC01–04/E1–21除E3部分说明已随1170闭环；AC05实际是宿主直引插件定义/转换/限额而非所有调用绕网关，现实际实施owner修复2，按现有PG088/031边界及W5目录依赖接续，新的跨模块合同取舍交root；E22、SSOT AC12–15/17、RUNTIME-MIGRATION:150为真实剩余文档项，将明确串行实施owner。
 
+
+### 下一项non-block实施触发
+
+| 项目与来源 | 实际实施owner | 可执行下一步/触发 | 交付及闭环 |
+| --- | --- | --- | --- |
+| [#1112二轮6380756955](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380756955)：Skill构建期范围、PG060/RAC证据映射、Files侧栏真实打开B并选中（冷/热两态） | 修复2 `01a16b08-de51-7cd0-a4c5-d45d89d9cdb3`，沿已有认领 | 当前C1→C2 B1保持；C2 B1固定head释放后，在其独立审验窗口给修复2一个完整短片。开工鲜核当前head/claim、真实依赖及更高优先级must-fix，不碰DeepSeek在途1107；完成释放即还C2 B2 | 目前尚无这三项修复提交，不能称完成。固定head直发REVIEW/TEST/流水线，随后记录实际PR/提交、验证和最终merge SHA；#1112本身安全/full/W5依赖另核 |
+| #1174 BL544侧视图慢加载可点无响应 | 修复1 `01a1682d-0a26-7522-b2b2-4446d904a7b7`，ac-shell领域归属保留 | 依原PR顺序在C片审验/CI插空；鲜核side-view在途认领，唯一spec＋真实延迟bundle/严格pointer回归；不调整R44期限 | 未实现；独立审验/实际提交与merge后关闭，不以BL登记代替 |
+| AC05 context-onboarding插件耦合（PG088/031） | 修复2，ac-shell/ac-platform领域归属保留 | 依W5动态目录合同及Claude优先级；沿已有审计核公开转换/限额/提供方合同，新取舍交root，真冲突只暂停相关文件 | 未实现；不得仅换字符串或搬私有实现进contracts；完整修复、独立证据和真merge才闭环 |
 
 ## 未闭环评审问题的认领与修复
 

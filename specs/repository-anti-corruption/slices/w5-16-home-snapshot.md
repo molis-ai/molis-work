@@ -145,6 +145,23 @@ Host 关闭保留原 Home 绑定立即撤下、Alchemist 立即进入 closing �
 
 Studio 的 HTTPS 升级用例在本分支与干净 `bde02c59` 基线上仍同为 TLS 建连失败、同一断言 400 而非 200；最初一次基线给“结果未知”的不同正文也保留，不将它们混为同一根因。三个可选 live 条件未启用，不当作执行通过；没有商业模型、真实 Home、Keychain、全量或用户验收结论。`affected-tests` 建议 full（装配、存储、跨 4 包），选出 310 文件，其中 117 个建议项仍交 TEST/Claude 的后续窗口，full 只由 Claude 统一。完整 A 最小生产调用链和拒绝证据齐备后交正常非 Draft PR，作者验证不替代首评、独立审验或集成；完整快照与恢复仍未实现。
 
+#### A 初始化清理重试补修（FIX4，#1254）
+
+TEST 在固定 `19ccdfa8ed41fee58038e9cedcd43abf3f48e65d` 用公开 API 和真实 SDK/MCP 订阅复现：初始化后段抛错，第一次退订也抛错，原 catch 报 AggregateError 并保留借用，却丢失清理闭包；重建报 agent.storage_busy，父 owner.release 报 storage.owner.borrowed，退订没有第二次调用。Host composition 又只保存成功返回的 adapter，dispose 够不到失败实例。原件为 `/tmp/molis-verify-2026-10-24/pr1254-19cc-test/initialization-cleanup-repro.{mjs,log,json}`。
+
+初始化返回的 Promise 保留显式 `close(): Promise<void>` 句柄；原 await 的 adapter 结果与成功后的 close 入口保持。句柄从创建起拥有本次资源、未完成清理和 release，不依赖异常类或全局恢复登记。初始化失败仍先尝试清理，失败报告原 AggregateError；显式 close 等待本次初始化结算后只重试未完成项，全部成功才归还借用/独立 owner。正常 shutdown 复用这些资源的完成记录，保留原顺序；一项成功后不因后项失败重复副作用。并发 close 共用同次 Promise，失败后允许下一次明确调用，不自动循环。
+
+Host 从创建时保存初始化句柄；失败后的显式 ready 先完成旧实例清理再起新实例，dispose 即使没有成功 adapter 也调用该句柄。关闭一开始拒绝新初始化；已接纳的 ready 保留原正常结算合同，但不能在关闭后登记运行时或再建第二实例，由 dispose 等实际清理。Memory 先于 SDK 的原外层关闭顺序保持。只改 Agent Node 生命周期、Host composition、直接回归和必要说明；不改 storage 锁/快照端口、snapshot/restore 登记与 CLI、SDK 包、真实 Home/凭据、门禁或 baseline，完整 snapshot/restore 仍归实现2。
+
+| 编号 | 本题验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-105-A-11 | 初始化失败且清理失败仍可显式重试；再次失败仍占锁；已完成项不重复，全部清理成功后同 Home 可合法初始化/关闭/重新取得 owner | 原公开 API 复现和真实 SDK/MCP 订阅的父借用、独立 owner 回归；持续拒绝与恢复均实测，不能在 finally 提前 release |
+| RAC-105-A-12 | Host dispose 能收尾未完成初始化；同 Home 并发 ready/close 只初始化/清理一次，关闭后不登记或重开运行时，不提前归还 owner | 真实 Host composition/关闭路径、实际订阅及受控关闭屏障，正常启动/关闭控制；无模型、临时 Home |
+
+目标为本题功能可用并完成必要工程与独立核收；原 A 的 369 文件分阶段证据保原范围，只补本题受影响调用链，不重跑整批或新 full。先在19cc实际整体构建并保留原复现/新增回归红，再改实现并整体构建；定向 lifecycle、安全拒绝及适用包/Skill 回归、scoped strict/Biome、准确 merge-base health、boundary、test-imports、推前 fresh-fetch secrets。资源走 machine-slot，固定修后头正常更新原PR后交 REVIEW 增量/TEST，Claude FIRST 保留。
+
+补修作者证据：原19cc构建来源指纹重新核对匹配b1226d80，原公开API探针仍以exit1记录退订只调用一次/借用不可归还；相同故障的修后探针真实调用第二次退订，后续初始化、关闭、父owner释放与再次取得均成立。新增A-11/12六项通过。首轮30文件为29过/1红，既有system-agent-service指出已接纳ready应正常结算；修正生产分支并保留原断言后，相关8文件50项全过，与其余适用结果合计30唯一文件208项有效并集，不冒一个同头全绿批。原首败、19cc的369分阶段与可选live/Studio边界均保留。构建、strict、Biome、准确merge-base健康、边界和引用检查的原件在 `/tmp/molis-pr1254-init-cleanup-retry-20261024/`；固定修后头还须独立REVIEW增量/TEST与原Claude FIRST、CI/集成核收，本片不关闭完整A、snapshot/restore或C2。
+
 快照只在持 lease 的离线窗口枚举和读数据，逐库 backup，非 SQLite 与其引用取同一切点；写入私有暂存目录，全部验证后才发布完成清单。恢复先验证清单、所有文件、实际版本、完整性、摘要、密钥依赖和原路径；不自动盖版本或迁移。任何预检拒绝都不改原 Home。发布/回滚保留可观察状态和原数据，不复用旧数据库连接，不让半成品被宿主当成新 Home。
 
 ## 文件边界与验收

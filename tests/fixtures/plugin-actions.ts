@@ -2,6 +2,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 
 /** Standalone owner fixtures explicitly share one Kernel, just as the application Host does. */
@@ -66,3 +67,18 @@ export function fakeWriterActions(actions: ReturnType<typeof pluginActions>, ans
   return actions;
 }
 const writers = new WeakSet<object>();
+
+/**
+ * The agent Host's plugin-only actions (PG-035: session messages and background commands) answered by a Coding test's own fake of
+ * the agent Host, so one table answers both the actions and the typed capabilities still left (the real handlers are tested in
+ * tests/agent-host-actions.test.ts). `answer` gives what an action returns for its input.
+ */
+export function fakeAgentHostActions(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, input: unknown) => unknown) {
+  if (agentHosts.has(actions.registry)) return actions;
+  agentHosts.add(actions.registry);
+  const definitions = Object.values(agentHostCapabilities).filter((definition): definition is ActionDefinition<never, unknown> => "action" in definition && definition.action !== undefined) as ActionDefinition[];
+  actions.registry.registerProvider({ provider: { provider_id: "agent-host-fixture", title: "Agent 宿主", kind: "system" }, definitions,
+    handlers: definitions.map(definition => ({ ...definition, handle: (_caller: ActionCallContext, input: unknown) => answer(definition, input) })) });
+  return actions;
+}
+const agentHosts = new WeakSet<object>();

@@ -14,6 +14,7 @@ export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnviron
 export type { MolisWorkRuntimeContextHost } from "./runtime-context.js";
 export { prepareLocalProjectStorage } from "./project-storage.js";
 export { PluginHostExecutor } from "./plugin-executor.js";
+export { hostDependencyCheck, type PluginDependencyCheck } from "./plugin-actions-client.js";
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
 export { handleCharactersHttp, type CharactersInvoke } from "./characters-http.js";
 export { charactersProvider, type CharactersProject } from "./characters-host.js";

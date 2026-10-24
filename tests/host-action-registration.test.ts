@@ -5,14 +5,13 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { DEMO_PROJECT_ID, LocalHost, LocalProjectDatabase, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentHostCapabilities, type AgentDraftTextRequest, type AgentDraftTextResult } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
 /*
- * PG-035: an action has one seam on the Host (`registerAction`), a typed entry the other (`register`); each refuses the other kind.
+ * PG-035: a Host capability is an action, with one seam on the Host (`registerAction`); there is no typed seam or typed client.
  * The model draft is one of the Host's actions: offered to plugins only, only while they hold `model:invoke`, reached through the
  * plugin's action client like every action it consumes, under the caller's own fence.
  */
@@ -43,9 +42,9 @@ async function draftSetup(t: TestContext) {
   const silent = callerPlugin("silent", "project", { "model:invoke": false });
   const typed = host.client(reference);
   const started = {
-    drafter: await startPlugin(host, reference, store, drafter, { grants: ["model:invoke"], capabilities: typed }),
-    muted: await startPlugin(host, reference, store, muted, { capabilities: typed }),
-    silent: await startPlugin(host, reference, store, silent, { grants: ["model:invoke"], capabilities: typed }),
+    drafter: await startPlugin(host, reference, store, drafter, { grants: ["model:invoke"], dependencies: typed }),
+    muted: await startPlugin(host, reference, store, muted, { dependencies: typed }),
+    silent: await startPlugin(host, reference, store, silent, { grants: ["model:invoke"], dependencies: typed }),
   };
   t.after(async () => { await host.close(); store.close(); rmSync(root, { recursive: true, force: true }); });
   return { host, reference, seen, probe, drafter, muted, silent, started };
@@ -71,13 +70,9 @@ test("PG035-01 S-15 a plugin drafts only while it holds model:invoke, and the dr
   assert.equal(seen.model, 1);
 });
 
-test("PG035-02 S-15 the draft is not reachable through the typed client: an action is called as an action", async t => {
+test("PG035-02 S-15 there is no typed client: a plugin reaches the draft only as an action", async t => {
   const { seen, drafter, muted, silent } = await draftSetup(t);
-  // The exact refusals, so that another failure (a broken fixture, a wrong caller) cannot pass for them.
-  for (const [plugin, code] of [[drafter, "actions.forbidden"], [muted, "actions.plugin_permission"]] as const) {
-    const capabilities = plugin.context(DEMO_PROJECT_ID).services!.capabilities!;
-    await assert.rejects(capabilities.invoke(draft, INPUT), { code }, plugin.id);
-  }
+  for (const plugin of [drafter, muted]) assert.equal(Reflect.get(plugin.context(DEMO_PROJECT_ID).services!, "capabilities"), undefined, plugin.id);
   // A plugin holding the permission but not consuming the draft cannot reach it either way.
   await assert.rejects(silent.actions(DEMO_PROJECT_ID).invoke(draft, INPUT), { code: "actions.forbidden" });
   assert.equal(seen.calls.length, 0);
@@ -134,14 +129,12 @@ test("PG035-05 S-15 S-35 a draft whose call is cancelled or whose plugin is stop
   assert.equal(seen.model, 0, "a revoked call asks no model");
 });
 
-test("PG035-06 one seam per kind: the typed one refuses an action, the action one refuses a typed entry, and the Host's own reads are actions", async t => {
+test("PG035-06 one seam: the Host registers only actions, refuses a definition with no action, and its own reads are actions", async t => {
   const host = new LocalHost<object>({ runtimeFactory: { open: () => ({}), close: () => {} } });
   t.after(() => host.close());
-  assert.throws(() => host.register(draft, () => ANSWER), { code: "host.registration_seam" });
-  const typedEntry: HostCapabilityDefinition<[], string> = { capability_id: "fixture.typed.read", version: 1, operation: "query" };
+  assert.equal(Reflect.get(host, "register"), undefined, "there is no typed seam");
   const posing = { capability_id: "fixture.typed.posing", version: 1, operation: "query" } as ActionDefinition<[], string>;
   assert.throws(() => host.registerAction(posing, () => "never"), { code: "actions.definition_invalid" });
-  assert.equal(typeof host.register(typedEntry, () => "typed"), "function", "a typed entry still has its own seam");
 
   const root = mkdtempSync(join(tmpdir(), "host-action-seams-"));
   const workspace = { workspace_id: "w", canonical_path: root, realpath_verified: true, display_name: "w" };
@@ -153,5 +146,5 @@ test("PG035-06 one seam per kind: the typed one refuses an action, the action on
     projectsCapabilities.readWorkspace].map(item => item.capability_id);
   const rows = product.status().capabilities;
   for (const id of ids) assert.ok(rows.find(row => row.capability_id === id)?.action, `${id} is registered as an action`);
-  assert.throws(() => product.registerCapability(projectSettingsCapabilities.workspaces, () => []), { code: "host.registration_seam" });
+  assert.equal(Reflect.get(product, "registerCapability"), undefined, "nor on the product Host");
 });

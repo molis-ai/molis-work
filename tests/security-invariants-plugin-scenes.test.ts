@@ -9,7 +9,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalHost, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -28,7 +28,7 @@ const judgment: ActionDefinition = { capability_id: "sceneprobe.judge", version:
 } };
 type Write = "storage" | "event" | "artifact";
 type Mutation = "bind" | "consume" | "failed";
-type Nested = "own" | "consumed" | "typed";
+type Nested = "own" | "consumed";
 type NestedOperation = "query" | "command" | "paid";
 type Read = "bindings" | "targets" | "prepare" | "availability" | "configuration";
 const nestedDefinition = (route: Nested, operation: NestedOperation): ActionDefinition<Record<string, never>, number> => ({
@@ -63,16 +63,12 @@ async function setup(t: TestContext) {
   };
   const ownDefinitions = (["query", "command", "paid"] as const).map(operation => nestedDefinition("own", operation));
   const consumedDefinitions = (["query", "command", "paid"] as const).map(operation => nestedDefinition("consumed", operation));
-  const typedHost = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  for (const operation of ["query", "command", "paid"] as const) {
-    typedHost.registerAction(nestedDefinition("typed", operation), (_runtime, _input, caller) => nestedHandle(operation, caller.beforeEffect));
-  }
   actions.registry.registerProvider({ provider: { provider_id: "nested-consumer", kind: "system", title: "嵌套目标" }, definitions: consumedDefinitions,
     handlers: consumedDefinitions.map(definition => ({ ...definition, handle: caller => nestedHandle(definition.operation === "command" ? "command" : definition.action.execution?.cost === "metered" ? "paid" : "query", caller.beforeEffect) })) });
   const nested = async () => {
     const asked = state.nested!, definition = nestedDefinition(asked.route, asked.operation);
     const passed = asked.spoof ? { ...definition, action: { ...definition.action, execution: { cost: "free" as const } } } : definition;
-    return asked.route === "typed" ? services!.capabilities!.invoke(passed, {}) : services!.actions!.invoke(passed, {});
+    return services!.actions!.invoke(passed, {});
   };
   const alterView = (caller: ActionCallContext) => {
     Object.assign(caller.permissions, { 0: "forged:grant" });
@@ -116,7 +112,7 @@ async function setup(t: TestContext) {
     schema_version: 2, host_api_version: 2, plugin_id: ID, version: "1.0.0", name: "Scene probe", kind: "app",
     publisher: { publisher_id: "sceneprobe", signature: "sceneprobe-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
     permissions: ["storage:private", "artifact:read", "artifact:write", "model:invoke", PERMISSION].map(permission => ({ permission, required: true, reason: "场景验证" })),
-    capabilities: { provides: [], consumes: [...consumedDefinitions, ...(["query", "command", "paid"] as const).map(operation => nestedDefinition("typed", operation))].map(value => value.capability_id) }, artifacts: { produces: [preview.type], consumes: [] }, ui: { contributions: [] },
+    capabilities: { provides: [], consumes: consumedDefinitions.map(value => value.capability_id) }, artifacts: { produces: [preview.type], consumes: [] }, ui: { contributions: [] },
     events: { publishes: [{ event_type_id: EVENT, type_version: 1 }], subscribes: [] }, actions: [preview.definition, ...ownDefinitions], action_scenes: [scene],
   }, event_types: [{ event_type_id: EVENT, type_version: 1, validate: payload => payload }], start(context) {
     services = context.services;
@@ -138,14 +134,14 @@ async function setup(t: TestContext) {
     }] };
   } };
   const platform = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", db: store.db, journal: store, artifacts, processItems,
-    ui: new UiHost(), capabilities: typedHost.client({ project_id: DEMO_PROJECT_ID, storage_key: join(directory, "typed") }), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest), home: { directory, completeText: () => null, stores: homeStores() } });
+    ui: new UiHost(), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest), home: { directory, completeText: () => null, stores: homeStores() } });
   const registerJudgment = () => actions.registry.registerProvider({ provider: { provider_id: "scene-judgment", kind: "system", title: "判断探针" },
     definitions: [judgment], handlers: [{ ...judgment, handle: () => { if (state.failJudgment) throw new Error("judgment failed"); return true; } }] });
   let disposeJudgment = registerJudgment();
   t.after(async () => {
     state.release.resolve(); disposeJudgment();
     try { await platform.closeCoordination(); for (const install of platform.runtime.list()) if (install.state === "running") await platform.runtime.stop(install.install_id); }
-    finally { await typedHost.close(); store.close(); rmSync(directory, { recursive: true, force: true }); }
+    finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
   });
   assert.deepEqual((await platform.start([{ definition, bundled: true }])).running, [ID]);
   services!.storage!.set("seed", "readable");
@@ -232,7 +228,7 @@ test("S18-SCENE-READ a scene cannot impersonate a concurrent action to call the 
 });
 
 // S18-SCENE-NESTED: dispatchers use registered operation/cost, and preserve the real scene after crossing providers.
-for (const route of ["own", "consumed", "typed"] as const) {
+for (const route of ["own", "consumed"] as const) {
   test(`S18-SCENE-NESTED ${route}: read callbacks allow queries but refuse writes and metered queries`, async t => {
     const fixture = await setup(t), { state } = fixture;
     state.nested = { route, operation: "query" }; state.scrubControl = true;

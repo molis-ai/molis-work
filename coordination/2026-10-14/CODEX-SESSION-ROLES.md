@@ -44,7 +44,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 
 ## 当前流水线（2026-10-24 12:08 UTC）
 
-- **新收件#1209 B2a**固定dbec1b89dd49333fc6f2f4d264800f7897ecfd4c/basef586，非Draft，唯一slice w5-16-home-snapshot.md，实际diff20文件+844/-21，原raw与handoff在`/tmp/molis-verify-2026-10-24/c2-b2/`已核。整体build/strict3tests/boundary/health/versions/imports/页面/secrets作者通过；owner5/readonly3/maintenance4、70files628最终仅作者证据，已立即派独立REVIEW/TEST按head去重。S12/拒绝/必要公开owner与原raw离线维护，full命中storage由Claude统一申请；共同出口/文档/编号等批内一次解，不机械sync main。B1已合不是B2a或C2整体完成，B2b/earlylease/全Home snapshot/restore/真实Home仍未完成。
+- **#1209 B2a（初交dbec、当前e20）** 新远端e20e68f0af2e519c333feb50fb062958cf7f22b7/REVIEW6384019404与TEST6384047094已过；以下初交证据固定dbec1b89dd49333fc6f2f4d264800f7897ecfd4c/basef586，非Draft，唯一slice w5-16-home-snapshot.md，实际diff20文件+844/-21，原raw与handoff在`/tmp/molis-verify-2026-10-24/c2-b2/`已核。整体build/strict3tests/boundary/health/versions/imports/页面/secrets作者通过；owner5/readonly3/maintenance4、70files628最终仅作者证据，已立即派独立REVIEW/TEST按head去重。S12/拒绝/必要公开owner与原raw离线维护，full命中storage由Claude统一申请；共同出口/文档/编号等批内一次解，不机械sync main。B1已合不是B2a或C2整体完成，B2b/earlylease/全Home snapshot/restore/真实Home仍未完成。
 
 - **#1202已实际合入**645853cb60c0c76c4fa86ba27bbbbc0f35ba868a（11:12:45Z），七固定源头3f8/4dc/a26/8f/bc/7533/05054逐一ancestor c4，landing tree=e7a5a85=已测627树；Claude已七条带SHA关闭，QUEUE移§3。full26b40086400255@c4/attempt1全16+汇总success；merge-group40088629727 Verify成功（该组Security/Product skip不冒绿）。独立TEST c4正确build、10文件153/153首跑/零skip/retry/自然exit0；旧stale试跑不计、原28Mac stdout未亲读，既有CI47合同/相关Security复用。C1/C2/W5/W6整线未完成。
 - **#1206 batch27已实际合入c609（11:59:44Z）**固定fa52a4f8c4e27848562c993a35c2b63d975c645d/base645；包含1200/1114/1180/1186/1185c37/1182/1197→1199，1187排除。touch新c37 REVIEW6383557011增量过，已直触TEST核raw；实际三准确APPROVED/生成与S62/路径由Claude批内落，组合REVIEW6383617763已PASS；CI40089112650/实际merge2ca7a663 Verify与两Security/Product成功，Security原raw90/90+89/89文件已核。唯一full27b40089127294全16+汇总success；8源head祖先/实际树1ff5f00=已测2ca与Claude带SHA关闭回执齐，QUEUE移§3，不重复full。下方日期旧候选状态按本条新事实读取。
@@ -83,6 +83,11 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | [#1185评审6381652434](https://github.com/molis-ai/molis-work/pull/1185#issuecomment-6381652434)：成果交执行方仍写死Coding/单按钮 | 修复2，公开认领[6381689882](https://github.com/molis-ai/molis-work/pull/1185#issuecomment-6381689882)；原ac-artifacts领域owner保留 | 1185真合后小PR，鲜核ac-artifacts实际认领防重复。1175 A6当前只搬5模板，未覆盖GET/executors清单语义，不能当已实现；沿协议按可用执行方画/选/传，核零/多/失效提供方真实回归 | 尚无修复提交；原ac-coding维护SQL mustfix不抢，按既定writer排期，独立复审/验证/真merge闭环 |
 
 ## 未闭环评审问题的认领与修复
+
+### ACA003 P2实际实施owner FIX2（root已裁定，非START）
+
+按现S18补Assistant原精确动作assert_authority_current、同轮真实disabled读取及现有生命周期/异步验证组合，边界/验收见TASKS同一accepted WO。有限检查未证明生产越权，DB一处statement-check helper差异已纠正，不再找/造exploit作为实施前置。现P1/在途必须修后实际SOURCE窗口接；当前仅只读，不增callback/状态库/版本/Assistant generation、不混ACA005。生产authority+真实settings最终拒绝零写、合法/无关关闭/嵌套有行为证据，声明等待仅合同测试。实际修PR/head/独立审验/真merge后闭环，不新增无关PR门。
+
 
 ### #1208 两项明确nonblock（6383624497，实际owner FIX2）
 

@@ -1,4 +1,4 @@
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { McpToolDefinition } from "./protocol.js";
 import {
   V1_COMMON,
@@ -8,23 +8,23 @@ import {
 export const V1_TOOLS: McpToolDefinition[] = [
   {
     name: "molis_work_v1_initialize",
-    description: goalsActions.initialize.action.description,
+    description: goalEntryActions.initialize.action.description,
     inputSchema: {
       type: "object",
       properties: {
         ...V1_COMMON,
-        ...goalsActions.initialize.action.input_schema.properties as Record<string, unknown>,
+        ...goalEntryActions.initialize.action.input_schema.properties as Record<string, unknown>,
       },
       required: ["project_id", "idempotency_key"],
     },
   },
   {
     name: "molis_work_v1_goal_tree_decide",
-    description: goalsActions.treeDecide.action.description,
+    description: goalEntryActions.treeDecide.action.description,
     inputSchema: {
       type: "object",
       properties: {
-        ...goalsActions.treeDecide.action.input_schema.properties as Record<string, unknown>,
+        ...goalEntryActions.treeDecide.action.input_schema.properties as Record<string, unknown>,
         ...V1_COMMON,
         // Who decides is the person on this machine; the caller only points at where the decision came from.
         authority: {

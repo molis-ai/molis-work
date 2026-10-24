@@ -305,6 +305,17 @@ export interface GoalTreeProposalDecideInput {
   idempotency_key: string;
 }
 
+export interface GoalTreeProposalListQuery {
+  project_id: string;
+  proposal_id?: string;
+  root_goal_id?: string;
+}
+
+export interface GoalTreeProposalListResult {
+  observed_event_cursor: number;
+  proposals: GoalTreeProposalRecord[];
+}
+
 export interface GoalTreeItemOwner {
   proposal_id: string;
   project_id: string;

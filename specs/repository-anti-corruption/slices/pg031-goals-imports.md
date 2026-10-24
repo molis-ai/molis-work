@@ -1,6 +1,6 @@
 # PG-031 另一半：平台入口不再从 Goals 插件包 import 动作
 
-状态：设计已定，未动代码（2026-10-24，防腐线 ac-kernel）。统筹 10-24 裁定用 contracts 描述符、不走目录查找（第 2 节「裁定」）；等 batch-28 合入、统筹给构建时段后再实现。做的是 `privileges.md` PG-031 里「CLI 和 MCP 经动作目录调用，去掉 import」那一半；Goals 管理调用的提供方那一半是 BL-501（PR #1207）。代码按 main `c6093a2e9` 核过。
+状态：已实现，待 PR 合入（2026-10-24，防腐线 ac-kernel）。统筹 10-24 裁定用 contracts 描述符、不走目录查找（第 2 节「裁定」）。做的是 `privileges.md` PG-031 里「CLI 和 MCP 经动作目录调用，去掉 import」那一半；Goals 管理调用的提供方那一半是 BL-501（#1207，已随 batch-28 合入）。代码按 main `9ed0e7a5c` 核过。
 
 ## 1. 要解决的
 
@@ -30,6 +30,7 @@
 
 具体：
 
+0. **`goalAction` 挪进叶子文件** `packages/contracts/src/modules/goal-action-definition.ts`，由 `goal-actions.ts` 原名转出（公开 API 不变）。这样新文件取它不会和 `goal-actions.ts` 互相 import。
 1. **contracts 新增一组描述符** `goalEntryActions`，放在新文件 `packages/contracts/src/modules/goal-entry-actions.ts`，由 `modules/goal-actions` 这个 subpath `export *` 出去（不新开 subpath）。收平台入口要用、现在只在插件里的 12 个：initialize、treeSubmit、treeRead、treeCheck、treeDecide、active、snapshot、decide、guidanceRead、create、directoryItem、inputsConfirm。描述符原样搬，`capability_id`、`version`、说明、schema、`audiences`、`permissions`、`intake`、`result_view` 一字不改，所以动作合同快照不变。
 2. **随描述符搬进 contracts 的类型与数据**（都是纯声明）：
    - `InitializeBoardOutput`（`board-actions.ts`）；`GoalCreateActionInput`（`actions.ts`，本是 contracts 类型的 `Omit`）；`GoalDecisionActionInput`（`decision-action.ts`，同上）；
@@ -37,7 +38,7 @@
    - `GoalConfirmedInput` 与 `goals.inputs.confirm` 的两个局部 schema（`input-actions.ts`）；
    - `GOALS_TREE_INTAKE`、`GOALS_TREE_SUBMIT_RESULT`（`tree-intake.ts`，纯数据，属于 `goals.tree.submit` 的描述符）。
 3. **插件改成引用这份**：`goalsActions` 里这 12 项写成 `goalEntryActions.X`，和现在 `contract: goalPluginActions.contract` 一个写法；处理器、可用性、授权检查都留在插件。插件原来导出的同名类型改成从 contracts 转出，插件内部用法不变。
-4. **`readGoalResumeFacts` 搬进 contracts**（与描述符同文件）：它是 12 行、只经调用者的 `invoke` 读 list 与 directoryItem 的纯函数，符合 contracts「无副作用的小 helper」（`contracts-purity` 的 20 行线以内、没有 effects）。插件不再导出它；两份测试改从 contracts 取。
+4. **`readGoalResumeFacts` 搬进 contracts**（放在 `goal-actions.ts`，`goalPluginActions` 旁边）：它是 12 行、只经调用者的 `invoke` 读 list 与 directoryItem 的纯函数，符合 contracts「无副作用的小 helper」（`contracts-purity` 的 20 行线以内、没有 effects）。插件不再导出它；两份测试改从 contracts 取。
 5. **平台入口改从 contracts 取**：表里 9 个文件把 import 换成 `@molis-ai/molis-work-contracts/modules/goal-actions`；`content-action-providers.ts` 用 `goalPluginActions.contract`，类型断言随之删掉。`apps/cli`、`apps/mcp` 的 `package.json` 去掉对 Goals 插件的依赖，两份 README 的依赖句跟着改。
 6. **不改调用方式**：描述符只给 `capability_id@version`、说明与 schema，不带提供方；调用照旧经 `LocalHost` 的动作网关分发。CLI 与管理 MCP 仍经 `bindGoalsManagementActions`，按 #1207 精确钉随宿主发布的 Goals（`allowed_actions` 不放宽，第三方提供方由分发器拒）；其余几个入口（引导、Feed 升格、到达页、Feed 关联上下文、MCP 上下文）用的客户端和授权也原样不动，本片既不给它们新加钉、也不放宽。放宽钉死等 ac-trust 的同意清单（R-45）。分发之前不加任何查目录或别的会被取消的步骤，取消与拒绝照旧走中央结算、只留「未执行」行（batch-28 那次红的教训）。
 
@@ -58,15 +59,19 @@
 
 ## 5. 门禁预期
 
-- `goals#outside-files`：45 → 34 左右（少 `apps/cli` 的 1 个源文件与 `package.json`、`apps/mcp` 的 3 个源文件与 `package.json`、`apps/local-host` 的 5 个源文件）。实现后以 `node scripts/check-health-gates.mjs --base origin/main` 的实测为准写进 PR。
+- `goals#outside-files`：实测 45 → 33（`apps/cli`、`apps/mcp` 的源文件与 `package.json`，`apps/local-host` 的 5 个源文件，`scripts/workspace-packages.mjs` 里两个应用的依赖登记，两份测试改从 contracts 取 `readGoalResumeFacts`）。
 - 不加巨大单元；新文件 `goal-entry-actions.ts` 估计 60～80 行，没有 20 行以上的函数、没有可变状态。
 - `as unknown as`、空 `catch` 不增；`content-action-providers.ts` 少一处类型断言。
 
+## 5a. 跟着改的门禁规则
+
+`scripts/check-package-boundaries.mjs` 的 `checkGoalTransportCallers` 原先写死「CLI 与管理 MCP 只从 Goals 插件包取 `goalsActions`」。规则的意思不变、严格程度不变，只把来源换成 contracts 的 `modules/goal-actions` 与 `goalEntryActions`：仍只许取这一个名字，`invoke` 仍必须点名 `goalEntryActions.<动作>`，管理 MCP 仍必须调 initialize、decide、treeDecide；Goals 插件包本身成了被拒的来源。突变用例 `tests/goals-query-boundaries.test.mjs` 同步改，并补「从插件包 import 被拒」两例。`scripts/workspace-packages.mjs` 去掉两个应用对 Goals 插件的依赖登记（与 `package.json` 一致）。
+
 ## 6. 验收
 
-- **RAC-343**：`apps/cli/src`、`apps/mcp/src` 和第 1 节表里 local-host 的 5 个文件不再 import Goals 插件包；`apps/cli`、`apps/mcp` 的 `package.json` 不再依赖它。证明：门禁数字下降；`packages/test-kit/tests/boundaries.test.mjs` 若有对应条目一并收紧。
+- **RAC-343**：`apps/cli/src`、`apps/mcp/src` 和第 1 节表里 local-host 的 5 个文件不再 import Goals 插件包；`apps/cli`、`apps/mcp` 的 `package.json` 不再依赖它。证明：`goals#outside-files` 下降（45 → 33），`checkGoalTransportCallers` 把插件包当作被拒的来源（`tests/goals-query-boundaries.test.mjs` 的突变用例）。
 - **RAC-344**：插件的 `goalsActions` 与 contracts 的 `goalEntryActions`、`goalPluginActions` 中同名项是同一个对象，插件不另写一份。测试逐项断言 `===`，放在 `tests/goals-command-actions.test.ts`。
-- **RAC-345**：管理 MCP 列出的 `goals` 工具，说明与输入字段和共同目录里同一动作的描述符一致（`tests/feed-promote-mcp.test.ts` 或现有管理 MCP 用例旁加一条）。
+- **RAC-345**：管理 MCP 的 Goals 工具（initialize、goal_tree_decide、event_decide）说明与输入字段和 Goals 登记的同一动作一致（`tests/mcp-action-catalog.test.ts`）。
 - 动作合同快照不变，`pnpm test:contracts` 照过。
 
 ## 7. 本机要跑的（实现时）

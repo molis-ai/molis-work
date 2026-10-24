@@ -37,7 +37,7 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | PR | 一轮评论 | 要修 | 二轮 |
 | --- | --- | --- | --- |
 | #1228 | 6387362602 | 提供方 id 常量与权限来源；RAC-339 证据范围 | FIX3已修固定 `ed3985f188856e829fd5233aa23ada80cd8a26b5`；二轮6388105405、TEST6388119074 PASS。Assistant线程本来需model:invoke，原“多给”仅该子结论不成立并保留实际权限；旧Search fixture只迁合法身份。80唯一文件706项有效，CI40121335561/最终批仍另核；源码释放后FIX3按Root转#1226 |
-| #1226 | 6387391426 | `settleReview` 解构 `readDecision` 丢 `this`，包一层箭头函数并补真实 receiver 回归 | Root已交FIX3 `01a16f01-0e2c-7450-a0f8-8ad03f18b32e`，原 `ef71a03c19a64a80fb1ed05fd0e0922813e08b4e` / ac-kernel/agent-host-giants-a，当前唯一修复者；固定新头后直交二轮/TEST，不重复writer |
+| #1226 | 6387391426 | settleReview保持readDecision的this receiver，补真实端口回归 | FIX3已一次正常push `1d400d25408544e5ab28c645630fcfe80afca4bb`（ef71后4文件+200/-82，生产+3/-2）；公开6388517999，真实旧1/3→新3/3，24唯一文件180有效/两build及门禁通过。已直交二轮/TEST，结论待；只Receiver单轮，不重复巨大单元原首评/不改SDK和断言，新头CI/批full另核 |
 | #1229 | 6387428971 | `translation-check:467` 的过时注释 | FIX2固定 `c2a66516784bb1c6341ccecdd2b6eec5de343bc4`，仅注释+2/-1，断言不变、去注释JS逐字相同、语法/diff/secrets0；二轮6388272667 PASS。整个Workflows原PR待最终批，不能把注释修复当全PR已合 |
 | #1232 | ac-review6387465387 / Codex6387505760复用 | 页面真实DOM负断言与灵光已minify的served源码检查，文档范围写准 | FIX4固定 `887b8ee76361289cd46eec27a0e85569776c5243`，二轮6387989321、TEST6388063111 PASS。实际词只在i18n脚本，3种真实UI变异仍拒绝；灵光保内容/字节23209一致。原首败保留，未改生产/门禁；整条#1229→#1232进最终批。FIX4已转#1239 |
 | #1230 | 6387490072 | S-54补RAC-463；opened失败能重试，缺能力不误播空workspace | FIX1固定 `c887e11c985632b1f5add9a3f83a4dd503bf0f8d`，二轮6388234113、TEST6388250799 PASS；修复真实3红→新8/8，62唯一文件563项有效。仅S54引用、不动drain契约，CI40122537049/整功能最终批另核；FIX1源码已释放 |
@@ -61,11 +61,15 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 >
 > **共同载体实际审验**：#1236冻结331cd096cd78981ba90a8755b511094f7f95ec84，原Claude唯一队列已自然完成，无额外queue。PR CI40117632751十四适用成功；full40117579239同331十六worker+aggregate成功，TEST正核各原件分母/retry/skip，不把metadata称首轮全case绿；merge-group40122786015同actual bde，Verify120959586844成功、10成功/3条件skip。REVIEW6387363344/6387547375、TEST6387369093/6387961395有效；Mac原26ts+独立native22/22合27唯一文件，各首红及定向恢复原件保留。selector七态最终attempt4 exit0/清理0，隔离Home/fake adapter，不冒模型执行/真实Home/本人验收。完整实际证明 `/tmp/molis-pr1109-1112-20261024/landing-proof.json`，专职两源收尾已交Root并归档。
 >
+> **331 full原件最终核收**：full40117579239独立TEST6388533532已PASS：16worker全checkout331，源码1398减27Mac=1371唯一文件，11×86+5×85无重/缺；1370首ok（含5全skip）+Cognia SYS15/390首3/4、原策略唯一retry44.8s过，最终1371/1371/零最终红/零known-main豁免。首轮Node9016=9001pass/1fail/14skip，retry无逐case打印，不虚构首绿；同文件旧文档不证明同断言基线。raw `/tmp/molis-verify-2026-10-24/full33-331cd096-test/test-handoff-full331.md`。此为331证据，不声称测试后续main整树。
+>
 > **独立已合文档修复**：#1235/52c14058f931c074d5f58e46bcbd34d0397cad95已18:34:28Z actual `7d25794e9e7d9985bf22b863ac57b6d0e2dc6b90`，singleparent7a2/tree8433129e=真实试合，只README+4/-2；二轮6387516202、TEST6387748949、PRCI40117331601十四适用成功、queue40120134604/Verify120953043097成功。原1212/6384912989 README P2由6388326951实际关闭，其他问题不吞。raw `/tmp/molis-verify-2026-10-24/images-recovery-doc/merge-proof.json`。
 >
-> **当前独立接续**：#1237固定7ebef08b252f675891ae1eca91b84d7200bed349，二轮6387881227、TEST6388153277 PASS；原生产any真实反证已修，邀请首过/follow初次navigate失败后唯一复跑过，原因UNKNOWN。PRCI40120148369十四适用成功/probe skip，actual full/storage=[]，uncovered六工厂为启发式未直接映射，未称空；必跑/实际类型及两browser按范围核收。鲜核main bde试合无冲突tree1f9b385babfa64ae94d01ac436ef1d7fd56a4450，6388458800公开认领后本流水线一次正常match-head已入唯一队列pos1/AWAITING_CHECKS；actual前不关1216原P2。FIX2现#1229已二轮PASS；其余当前各FIX固定头/阶段见§0a，不为等待前片CI/merge空占独立writer。
+> **当前独立接续**：#1237固定7eb已19:27:04Z actual `87ebba4c769557f9548d66310d76eb4e30b68bc9`；parent bde/tree1f9b385babfa64ae94d01ac436ef1d7fd56a4450等真实试合，12路径源→实际零diff/main包含。二轮6387881227/TEST6388153277、PRCI40120148369十四成功及唯一正常queue40124785872/Verify120965005904成功（10成功3条件skip）均核；6388559742及原1216/6388559951实际关闭该P2，首导航红/唯一恢复/六uncovered映射边界原样保留。FIX2现#1229注释c2已二轮PASS，其余固定候选按§0a接Claude下一批。
 >
-> **C1/C2当前实际实施与边界**：C1作者RAC117 desktop launch_args已实现固定fe285（最终PR头待发布），Root定A保持string[]严格解析，真实公开入口红绿/124项与native有效；Root已明确授权本独立分支只补CI产品子集 `tests/desktop-launch-args.test.ts` 一行，和冻结1238助手行、1064 Memory段不重叠，不需要第二份登记/二次归属审批。最终完整非Draft PR交ac-review一轮；FIX5只修1238同轮。C2仍完整B2b/A/全Home目标owner，冻结b9交FIX4唯一评审修复，无新build/test/源码并写。C1 README bf09缺32已TEST自然跑32/32 exit0，同头clean；c72那批未启动且正被55fc替代，不拿331 full或旧头替新候选。共享logger/合同/同文件真实重叠串行，公共build/browser各一槽，full仍仅Claude。
+> **C1 RAC117完整交付**：非Draft #1240 固定 `3ce6270b7297382a9e07051c35959b4b89d882bf`，直接parent fe285283172e025abf05e671052b83687d0ee9cc、实际merge-base7a2；6文件+259/-10/clean，最终仅CI一行+slice说明，生产/业务test逐字同已测fe285。Root已定严格A，11唯一文件143/143/0skip含必要CI-list19，真实公开Catalog/SQLite/Desktop HTTP红绿、两整体build/native真实Rust及必要门禁有效；Linux/同头CI/独立TEST另核。流水线6388538710已公开交ac-review一轮，Root确认本轮用户已停止Claude UI，流水线不再操作或重启该应用，不派Codex代首评；尚待既有非UI链路自然实际认领，绝不把公开请求当已开始。TEST已直收准确头，作者source释放，不阻C2/其他修复。原件 `/tmp/molis-verify-2026-10-24/c1-rac117/handoff.md`。
+>
+> **C2 A实际START**：RAC105既有A合同内，独立actual-main-bde树的新 `packages/storage/src/adapters/storage-owner.ts` 与真实公开入口跨进程回归/fixtures已明确给实现2实际编码，不等B2b/Memory整体merge。Root已直接定清同锁上提/opaque父借用与stdio转发可信context、常驻Host薄入口合同；不再泛称等待Root安全裁定。生产stdio/contextTools等实际Catalog写入口须随A最小完整接线闭合，不能先合Host独占留下绕行；保Origin/token/nonce/数字回环/Host instance/取消，身份取可信context而非用户arguments，不新权限/锁/通用RPC/本地写回退。FIX4当前公共出口/README/同一slice/S12按实际hunk固定释放后串行追加A，不等CI/merge；Memory只协调真实同hunk，不将整条Memory当前置。完整A/快照恢复未完成，不把新模块半成品另开PR；本次无需build/browser/full，真实Home不动。
 
 > 2026-10-24 16:35 UTC **最新人类指令覆盖下列旧source排期**
 >

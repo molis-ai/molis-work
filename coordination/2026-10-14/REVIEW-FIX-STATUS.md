@@ -186,3 +186,14 @@
 
 - 合并线已把审计结论的三件事——BL 号段冲突需合入前重编、`cognia.js` +28B 放行与 `cognia.import.directory_preview@2→@3` 调用方影响待确认、本闭环表链接——作为官方出口发到 #1114：[issuecomment-6379916609](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6379916609)（2026-10-24T04:34:56Z）。
 - 后续：BL-44x 重编号等统筹裁定（BL-442/444/445/446/448 已可删行，剩 BL-440/441/443/447 待重编）；#1126 合入 main `89c9a7194` 后 #1114 再次 CONFLICTING，机械同步由 review-fix-owner 按 lead task-12 在 04:4xZ 认领（[issuecomment-6379925378](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6379925378)），本轮不动 BL。
+
+## 2026-10-24 05:10 UTC — 修复线/合并线状态同步（lead）
+
+- **防腐存量审计（ac-code-auditor，只读常驻）第 1–3 轮完成，无 blocker**；审计文件 `coordination/2026-10-14/ANTICORRUPTION-AUDIT.md`（第 1 轮 `e70185b4e`、第 2 轮 `33aabc1d2`、第 3 轮 §7 `67adc46f`）。
+- **第 3 轮产出 21 处 privileges/SSOT 精确 edit（E1–E21，§7.2 可直接贴）**：状态补写（PG-051←#1147、PG-010←#1120、PG-056/070/071←#1137）、14 处行号/文件失效、PG-058 九份→5 份、PG-065 26→25、第 1 轮 4 条漂移合并。**请统筹批量写 privileges.md；修复线不改账。** E14 预留：task-13 合入后 PG-058 由 5 份改 4 份。
+- **AC-AUDIT-05（HANDOFF-TO-CODEX）**：`apps/local-host/src/context-onboarding-service.ts:6/15/19` 直接 import pages/artifacts/todo 运行时插件包；PG-088 只覆盖 Pages，todo 无 PG 行、artifacts 不在 PG-031 位置表 → 交 ac-platform（改走公开动作或随 W5-02 后续片）。
+- **BL-445 本机复验 PASS**：`/tmp/verify-906` HEAD `a12347ae0`，install/build exit 0，`tests/truncation-tip.e2e.test.ts` 2/2 pass 154.28s（日志 `/tmp/verify-906-{build,test}.log`）；严格销项仍需集成批 Linux CI 记录。
+- **#1157 batch-19 三红本机复验 PASS**：HEAD `2d15c6d41`，home-offers 1/1、web-home-isolation 7/7、touch-targets 4/4（日志 `/tmp/verify-1157-*.log`）。
+- **#1114**：机械同步 main `89c9a7194` 进行中（review-fix-owner，task-12，认领 6379925378）；**BL-440～448 号段与 ac-snapshot/ac-errors 分配冲突待统筹裁定**（README:3243/3402），已留评论 6379916609。
+- **task-13（AC-AUDIT-06）**：plugin-frame-fixes 进行中（删 `personal-native-plugin-http.ts` + `NATIVE_PLUGIN_HTTP_FILES` 5→4，draft PR 待出）。
+- 合并线：main `89c9a7194`，队列空；batch-1024-20 run 40061024962 in_progress、batch-1024-21 run 40061758914 queued（只读跟踪，不操作）。

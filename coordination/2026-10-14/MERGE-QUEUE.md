@@ -70,7 +70,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | 新 | [#1200](https://github.com/molis-ai/molis-work/pull/1200) | U10刷新保留交互行 | W5原U10修复/独立main | full=[]；实际Claude并integration27/729b9d7c3 | 固定82fd/basef586，代码REVIEW6382734693/资源6382757918/独立TEST6382864207通过，实际LinuxU10首1/1+Security87/87及86/86无retry；P2真重排焦点仍FIX2后续。当前仅Coding376282→377227+945B/Verify红；最终批共享writer重测落APPROVED/生成，已起full40084374444不代表预算已修；C2 B2独占源继续 |
 
-| 新 | [#1202](https://github.com/molis-ai/molis-work/pull/1202) | batch26 sandbox+B1+R8/Files修头 | 原mainf880，当前afab仅CI Node固定 | 旧db4 Linux有效范围/新8f与Mac28适用按真实差异核 | 当前c4a40b84，已含8f/bc/7533/05054，组合REVIEW6383192425 PASS，CI40085798403 merge627e80bf Health/API/27资源7,645,168B/合同通过。1188真正REVIEW6382944062，6382989612是raw请求；28Mac汇总未冒独立核。TEST已START自有冻结c4必要正确build+小集以消除旧dist不符，非25/28/full。10:42 OPEN/auto=null/queue=null，最新实际再核，真merge/固定包含后才关源片 |
+| 新 | [#1202](https://github.com/molis-ai/molis-work/pull/1202) | batch26 sandbox+B1+R8/Files修头 | 原mainf880，当前afab仅CI Node固定 | 旧db4 Linux有效范围/新8f与Mac28适用按真实差异核 | 当前c4a40b84，已含8f/bc/7533/05054，组合REVIEW6383192425 PASS，CI40085798403 merge627e80bf Health/API/27资源7,645,168B/合同通过。1188真正REVIEW6382944062，6382989612是raw请求；28Mac汇总未冒独立核。TEST自有c4正确build真实exit0，5文件44项首过skip0（9/9/1/8/17）有效，旧stale试跑不作证；Mac/SDK+companion必要5文件公共browser排队中（不抢C2、不重复25/28/full），CI现材料6/6服务6/6连接5/5及47合同复用，仍待本机回执/适用覆盖最终核收。10:42 OPEN/auto=null/queue=null，最新实际再核，真merge/固定包含后才关源片 |
 
 ## 3. 已合
 

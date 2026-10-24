@@ -224,3 +224,12 @@
 - 常驻审计继续待命：main 前进（#1168 合入、批量写落地）后刷新基准、复跑 5 条只读命令并更新 E/AC 状态。
 
 - 10-24 统筹裁（[#1114 6380382311](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380382311)）：BL-440～449 是 Codex C1/C2 的号段，#1114 不用。已解决的 BL-442/444/445/446/448 删行并写证据；BL-440→**BL-565**、BL-441→**BL-566**、BL-443→**BL-567**、BL-447→**BL-568**；BL-569～574 留给复审修复线。上表里的 BL-440～448 按此对照读。
+
+## BL 号段已按统筹裁执行（#1114 新头 `00e1d45c8`）
+
+- 统筹裁（#1114 comment `6380382311`）：BL-440～449 仍归 Codex C1/C2；#1114 删 5 行已解决项、留 4 行改 BL-565～568，BL-569～574 留给复审修复线。
+- 执行（review-fix-owner，task-14）：`specs/BACKLOG.md` 删 BL-442/444/445/446/448，保留 BL-440→565、441→566、443→567、447→568（移到 BL-542 后按号顺）；`specs/repository-anti-corruption/spec.md:1222` BL-447→BL-568。新 head **`00e1d45c860481f6eea97d3f2aabd5f60ca59cf2`**（普通 push `ed204f625..00e1d45c8`）。
+- 删除证据：BL-442/444 ← #1126 `89c9a7194`；BL-446/448 ← #1127 `c0b48111b`；BL-445 ← 纯 main Linux scheduled Full suite run `40017302743`（head `e8e79e53e`，success；job `120632568999`「Full suite (11/16)」日志 `[77/84] ok tests/truncation-tip.e2e.test.ts 160.1s 2/2 tests`，macOS 复跑不作数）。
+- 验证：build、`pnpm health:check`、`check-health-gates --base origin/main`、secrets、page-assets 全过；`git grep 'BL-44[0-8]'` 只剩 `slices/w5-13-server-cli.md:43` 的 Codex C1 预留号段说明（非引用）。
+- 状态：#1114 非 draft、MERGEABLE/BLOCKED（CI run `40067187885` queued）；评审请求评论 `6380491268`（ac-review 最终头一轮 + +28B / `directory_preview@2→@3` 表态）。等 CI 绿 + 评审可合 → 统筹入队（`full=[]`，不进批）。
+- #1168（task-13，AC-AUDIT-06）head `cb3440a02`：审计复核 PASS + AC-AUDIT-16 文档补丁已推；CI run `40065546050` 7 success / 6 pending；`full` 命中（web-request.ts 枢纽文件）→ 转 ready 后需批。

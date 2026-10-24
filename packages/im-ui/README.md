@@ -42,7 +42,7 @@ pnpm --filter @molis-ai/molis-work-im-ui typecheck
 node scripts/run-tests.mjs tests/im-controller-initialization.test.ts tests/im-browser-state.test.ts tests/im-domain.test.ts tests/im-local-project.test.ts
 ```
 
-初始化类型验收：`RAC-IMCTX-01`——方法工厂的构造输入不能读取尚未安装的方法或邀请控制器；`RAC-IMCTX-02`——缺少基础服务或邀请控制器时编译失败，完整装配后才能注册页面和点击监听。工厂求值、事件注册、46 个返回方法的行为与 `toString` 拼装顺序保持不变。
+初始化类型验收：`RAC-IMCTX-01`——方法工厂的构造输入不能读取尚未安装的方法或邀请控制器，缺少基础服务时编译失败；`RAC-IMCTX-02`——生产装配表达式保留结构类型，直接移去启动方法或邀请控制器时编译失败，完整装配后才能注册页面和点击监听。工厂求值、事件注册、46 个返回方法的行为与 `toString` 拼装顺序保持不变。
 
 复查发现的 5 项缺陷及模块边界调整已修复；14 项定向状态/领域/HTTP 回归通过。真实源码工作台复跑跨页缓存、延迟发布、搜索锚点、清除 Cookie 后恢复和实际发送、390×400 短屏与桌面/常规窄屏。范围仍仅为功能可用切片；修复证据见 spec 和 `review/e2e-audit/fixes.md`。
 

@@ -59,8 +59,17 @@ export function startIm(factories: ImFactories) {
   const { api, storage, connectProject, subscribe } = factories.createTransport(() => { s.authLost = true; c.syncComposer('group'); c.syncComposer('thread'); c.syncError('身份连接已失效，请重新连接。已输入的内容会保留。'); });
   const { merge, latest, reset: resetHistory } = factories.createHistory(api);
   const base: ImBaseCtx = Object.assign(elements, { api, storage, connectProject, subscribe, merge, latest, resetHistory, drafts: factories.createDrafts(storage) });
-  const methods = Object.assign(base, factories.createImShell(base), factories.createImComposer(base, context), factories.createImSync(base, context), factories.createImRooms(base, context), factories.createImTopics(base, context),
-    factories.createImNavigate(base, context), factories.createImDialogs(base, context), factories.createImStartup(base, context));
+  // One typed source avoids Object.assign's variadic any overload; all factories run before base receives the methods.
+  const methods = Object.assign(base, {
+    ...factories.createImShell(base),
+    ...factories.createImComposer(base, context),
+    ...factories.createImSync(base, context),
+    ...factories.createImRooms(base, context),
+    ...factories.createImTopics(base, context),
+    ...factories.createImNavigate(base, context),
+    ...factories.createImDialogs(base, context),
+    ...factories.createImStartup(base, context),
+  });
   const c: ImCtx = Object.assign(methods, { invitations: factories.createInvitations({ api, dialog, body: dialogBody, current: () => ({ room: s.roomId, version: s.dialogVersion }),
     open: methods.openDialog, escape: e, icon, toast: methods.toast }) });
   factories.createImPage(c);

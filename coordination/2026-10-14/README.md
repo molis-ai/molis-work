@@ -3563,3 +3563,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 01:55：#1117（R7，S-58）已合（`acb8941b0`）；PG-029、030 待写进 privileges。#1119（S-59）可以跟上。
 
 - 10-24 02:05：`ac-kernel` agent-host 巨大单元第 1 片已推送（`feedccb02`，5 个文件，含创作台那个纯搬移，留着）。平台片排序：BL-394 → BL-366 → PG-047 → PG-007 阶段 4；BL-430 等 #1098/#1107/#1112；BL-350 等 #1143；BL-356 等 PG-022 P2 推送后与 BL-350 一起。
+
+- 10-24 02:25：BL-394 已推送（`ed27d0413`，`full` 空），按新例外直接开 PR。SLICE-RULES 加：每线最多两个开着的 PR，小的、基于 main、`full` 为空的不占名额。BL-366 统筹同意只做广播（agent-change、按 workspace_id 对、Files 收到时重新确认目录），删 readsFilesOutputs 记 BL-521（项目工作目录增删改发 `host.workspace.changed` 之后），由 `ac-kernel` 紧接着做，先核 sc4b 与 `project-workspace-http.ts`。

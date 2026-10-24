@@ -1108,3 +1108,13 @@ M1 原件证明隔离补充短合同（2026-10-24，修改前）：独立审查�
 本提交免费 B2 preflight 显示树与构建干净、已装 SDK94 来源一致，离线 20 行执行完成且 modelCalls=0。结果 `/private/tmp/molis-memory-b2-preflight-ebdb-20261024.json` 与 `/private/tmp/molis-memory-b2-offline-ebdb-20261024.json`。离线显式读取仍可包含无关记忆，只证明实际覆盖的确定性读取，不证明自动任务召回质量或 token 收益；未运行付费 B0/B1/B2 对照，§9 门槛不变。
 
 完整 Full suite `40103925781` 尚未全部结束时，第 9 片明确 86/87、`coding-action-cards.e2e.test.ts` 失败，原有一次重试仍失败。原文件在固定 Node24.14、本机构建也复现同一动作选项等待失败；生产读取口确认夹具手写的 MCP v2 缺少当前 v3/generation，报 `actions.configuration_unavailable` 且保留原文件。该夹具与主干612相同，不是 Memory 产品授权回归。最小修复只把原授权设置改走现受保护 `/api/settings/mcp/actions` HTTP 入口，让当前 owner 派生权限及 generation；不手造配置、不改生产代码、原时限、卡片编辑、只执行一次和唯一 Goal 断言。原文件单次复验 1/1 通过，零重试。红例、具体配置拒绝与绿例分别在 `/private/tmp/molis-memory-1064-ebdb-coding-action-cards-permitted-20261025.log`、`-coding-old-grant-read-20261025.log`、`-coding-action-cards-owner-grant-20261025.log`；首次沙箱 listen EPERM 单独保留，不当产品失败。其余云端分片继续收集，不取消来隐藏失败；修正后最终提交仍须完整 CI 和全量通过，不能沿用旧 head 绿色结论。
+
+### #1064 接入 main112 的窄合同（2026-10-25，实施前）
+
+从冻结的 `8f8fc71a1df4dc85fdcceae69a2a53aeb407a07e` 在独立树合入准确 main `112114f231a734ac761cf36e8411c8897d0826d8`；原 #1064 树及其完整 CI 保持不动。本次用户结果不变：本人初始原话与同 Session 接续引用仍经受保护 Host、安装身份和确切 Action 证明进入同一 SDK Session，不能由插件 DTO、其他会话或后台任务伪造。
+
+采用 main R8 的全 Action 登记、Characters 可信 Host 目录、MCP 当前授权 check、内部 authority 不收业务 pluginId，以及 ownsSession 对协作读取、控制、枚举与等待的归属限制。同时保留本片 originalInput 窄回调、currentOriginalInput 的安装/Action 复核与复制、trustedSupplementInput、original_input/continued_from 严格 schema、Coding 在加工任务前取得原话、回调深复制与后台剥离。身份和当前授权是不可配置的硬边界；SDK/Host 继续是原写主人，不增加插件槽、配置、账本、兼容或用户入口，不升级 SDK94。MCP v3 授权继续由受保护设置 HTTP owner 生成 generation，不恢复手写旧配置。
+
+允许修改真实冲突文件、必要现有消费者、相应 README/本 spec、API/Action 生成快照和资源基线；vendor 九个既有 blob 对冻结父逐项不变，锁文件仅保留原 SDK94 与 main 新依赖变化。搜索夹具选择本片公开 peer command 标脏及精确 MCP 受理/owner HTTP 双屏障，移除 main 仅服务 TTL 等待的 lastFetch，不叠加两套等待，不改变产品或断言/时限。取消、撤权、失败、重试和恢复沿原合同，不因整合放宽。
+
+固定 Node24.14/pnpm11.9，冻结离线安装；先准确 main baseline、再整合树整体构建，定向普通用例 jobs2/browser1/retries0，最后原 Coding action-card 浏览器零重试。覆盖 R8 会话/插件身份、原件与后台隔离、原件 HTTP/真实 Node Session 恢复及 Memory Context、MCP v3 与搜索屏障，并覆盖受改包 README 必跑组；不跑本机全量、不触真实 Home/付费模型，最终完整 CI 由统筹负责。资源按准确父重新实测实际 27 项：仅原 Workbench +3,193 B、Coding +717 B 上限，其余继承 main 缩减，删除已消费旧额度，不新增额度。准确父类型、health、边界、API/Action、资源、secret/diff 通过才形成工程交接；原首败和未验边界保留，不宣称产品或用户验收通过。

@@ -102,13 +102,15 @@ export function assertMatches(schema: SandboxSchema, value: unknown, path = '$',
   }
 }
 
-const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase'] as const;
+const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase', 'connections', 'materials'] as const;
 export function assertEffects(effects: unknown): asserts effects is SandboxEffects {
   if (!effects || typeof effects !== 'object' || Array.isArray(effects)) throw new SandboxError('sandbox.invalid_contract', 'Effects must be an object');
   for (const [key, values] of Object.entries(effects)) {
     if (!effectKeys.includes(key as typeof effectKeys[number]) || !Array.isArray(values) || values.some(v => typeof v !== 'string' || !v || v.length > 256) || new Set(values).size !== values.length) throw new SandboxError('sandbox.invalid_contract', `Invalid effect ${key}`);
     if ((key === 'storage' || key === 'artifacts' || key === 'projectDatabase') && values.some(v => v !== 'read' && v !== 'write')) throw new SandboxError('sandbox.invalid_contract', `Invalid ${key} access`);
     if (key === 'networkDomains' && values.some(v => !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Network effects require exact lowercase DNS domains');
+    if (key === 'materials' && values.some(v => v !== 'read')) throw new SandboxError('sandbox.invalid_contract', 'Invalid materials access');
+    if (key === 'connections' && values.some(v => !/^[a-z][a-z0-9-]{0,63}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Connection effects name a slot of the Manifest');
     if (key === 'resources' && values.some(v => !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Resources require logical names, not paths');
   }
 }

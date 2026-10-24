@@ -1,10 +1,11 @@
-import type { ImMember, ImRoom, ImRoomState, ImThreadState, ImMessage, ImMessagePage, ImRoomList, ImReadState, ImMarkReadInput, ImSessionState, ImInvite, ImSearchResult } from '@molis-ai/molis-work-contracts/services/im';
+import type { ImMember, ImRoom, ImRoomState, ImThreadState, ImMessage, ImMessagePage, ImRoomList, ImReadState, ImMarkReadInput, ImSessionState, ImSearchResult } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind, ScrollAnchor, TopicDraft, ApiError } from './types.js';
 import type { createViews } from '../views.js';
 import type { createMessageFormat } from '../message-format.js';
 import type { createHistory } from './history.js';
 import type { createDrafts } from './drafts.js';
 import type { createTransport } from './transport.js';
+import type { createInvitations } from './invitations.js';
 /** Browser-owned orchestration only. Facts remain in the shared server. */
 export function startIm(factories: {
   createViews: typeof createViews;
@@ -12,6 +13,7 @@ export function startIm(factories: {
   createHistory: typeof createHistory;
   createDrafts: typeof createDrafts;
   createTransport: typeof createTransport;
+  createInvitations: typeof createInvitations;
 }) {
   const root = document.querySelector<HTMLElement>('[data-im-app]')!;
   if (!root)
@@ -51,6 +53,8 @@ export function startIm(factories: {
   const inputFor = (kind: StreamKind) => formFor(kind).querySelector('textarea')!;
   const pathFor = (room: string, thread = '') => '/rooms/' + encodeURIComponent(room) + (thread ? '/threads/' + encodeURIComponent(thread) : '');
   const toast = (message: string) => { const node = q('[data-toast]'); node.textContent = message; node.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => node.hidden = true, 4000); };
+  const invitations = factories.createInvitations({ api, dialog, body: dialogBody, current: () => ({ room: roomId, version: dialogVersion }),
+    open: openDialog, escape: e, icon, toast });
   const syncError = (message: string) => { const node = q('[data-sync-alert]'); node.querySelector('span')!.textContent = message; node.hidden = !message; };
   const connection = (message: string, failed = false) => { const node = q('[data-connection]'); node.textContent = message; node.classList.toggle('is-offline', failed); };
   const status = (kind: StreamKind, message: string, error = false) => { const node = q('[data-compose-status="' + kind + '"]'); node.textContent = message; node.classList.toggle('is-error', error); };
@@ -611,20 +615,7 @@ export function startIm(factories: {
     });
   }
   async function showInvite() {
-    const r = roomId;
-    openDialog('邀请成员 · ' + roomState!.room.title, '<p role="status">正在获取邀请链接…</p>');
-    const version = dialogVersion;
-    try {
-      const invite = await api<ImInvite>(pathFor(r) + '/invite');
-      if (!dialog.open || version !== dialogVersion || roomId !== r)
-        return;
-      dialogBody.innerHTML = '<p>通过这个链接加入群聊后，可以查看群里的消息和全部 Thread。</p><label class="im-field">邀请链接<input class="im-invite-value" readonly value="' + e(invite.url) + '" data-invite-value></label><p class="im-form-error" data-invite-error role="alert"></p><div class="im-form-actions"><button class="im-secondary" type="button" data-action="rotate-invite">更换链接</button><button class="im-primary" type="button" data-action="copy-invite">' + icon('copy') + '复制链接</button></div>';
-    }
-    catch (cause) {
-      const error = cause as ApiError;
-      if (dialog.open && version === dialogVersion && roomId === r)
-        dialogBody.innerHTML = '<p class="im-form-error">' + e(error.message) + '</p>';
-    }
+    await invitations.open(roomId, roomState!.room.title);
   }
   function members() {
     if (!roomState)
@@ -896,32 +887,10 @@ export function startIm(factories: {
         button.hidden = true;
       }
       else if (action === 'copy-invite') {
-        const input = dialogBody.querySelector<HTMLInputElement>('[data-invite-value]')!;
-        // The button answers through the shared copy feedback (VUX-19); a refusal selects the link to copy by hand.
-        if (!await window.molisCopy?.(button, input.value, { done: '已复制', failed: '复制失败' })) {
-          input.focus();
-          input.select();
-          toast('链接已选中，请复制。');
-        }
+        await invitations.copy(button);
       }
       else if (action === 'rotate-invite') {
-        const r = dialog.dataset.room!, version = dialogVersion;
-        button.disabled = true;
-        try {
-          const result = await api<ImInvite>(pathFor(r) + '/invite/rotate', { client_id: crypto.randomUUID() });
-          if (dialog.open && version === dialogVersion && roomId === r) {
-            dialogBody.querySelector<HTMLInputElement>('[data-invite-value]')!.value = result.url;
-            toast('已更换邀请链接，旧链接不再可用');
-          }
-        }
-        catch (cause) {
-          const error = cause as ApiError;
-          if (dialog.open && version === dialogVersion)
-            dialogBody.querySelector<HTMLElement>('[data-invite-error]')!.textContent = error.message;
-        }
-        finally {
-          button.disabled = false;
-        }
+        await invitations.rotate(button);
       }
     }
     catch (cause) {

@@ -19,7 +19,7 @@ import { diffViewText, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-v
 import { icon } from "@molis-ai/molis-work-design-system";
 import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const { L, clientI18nScript } = createWorkbenchLocale(() => "zh");
@@ -94,20 +94,22 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     receipt: { review_id: "review-" + index, status: "approved", effect_settled: true, effect_error: null },
   }));
   const privateValues = new Map<string, string>();
-  const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, actions: pluginActions(store, DEMO_PROJECT_ID),
+  // The fake Agent Host answers its actions (R8 batch 3) and the typed capabilities still left from one table.
+  const agentHost = withFakeAgentHost({ actions: pluginActions(store, DEMO_PROJECT_ID), capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
+    reads++; if (!readable) throw new Error("runtime unavailable after capture");
+    // Like a Host whose runtime has no task graph: Coding's wake loop ends here instead of retrying in the background
+    // (each retry would land on a later read, after the capture, when the run is slower than its 5 s back-off).
+    if (definition.capability_id === agent.awaitContinuations.capability_id) throw Object.assign(new Error("当前运行时没有等待与接续"), { code: "agent.capability_unavailable" });
+    if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
+    if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
+    if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
+    throw new Error("Unexpected capability " + definition.capability_id);
+  } } });
+  const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, actions: agentHost.actions,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }), ui: new UiHost(), home: null,
     privateStorageFor: () => ({ get: key => privateValues.get(key) ?? null, set: (key, value) => { privateValues.set(key, value); }, delete: key => privateValues.delete(key) }),
-    capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
-      reads++; if (!readable) throw new Error("runtime unavailable after capture");
-      // Like a Host whose runtime has no task graph: Coding's wake loop ends here instead of retrying in the background
-      // (each retry would land on a later read, after the capture, when the run is slower than its 5 s back-off).
-      if (definition.capability_id === agent.awaitContinuations.capability_id) throw Object.assign(new Error("当前运行时没有等待与接续"), { code: "agent.capability_unavailable" });
-      if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
-      if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
-      if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
-      throw new Error("Unexpected capability " + definition.capability_id);
-    } },
+    capabilities: agentHost.capabilities,
   });
   const started = await platform.start([{ definition: createCodingPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
   t.after(async () => { await platform.closeCoordination(); store.close(); await rm(directory, { recursive: true, force: true }); });

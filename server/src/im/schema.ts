@@ -4,7 +4,9 @@ import type { ImDatabase } from "./types.js";
 export const IM_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS im_rooms (
       id TEXT PRIMARY KEY, title TEXT NOT NULL, owner_id TEXT NOT NULL REFERENCES mw_members(id),
-      invite_token TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      invite_token_hash TEXT UNIQUE CHECK (invite_token_hash IS NULL OR
+        (length(invite_token_hash) = 64 AND invite_token_hash NOT GLOB '*[^0-9a-f]*')),
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       project_id TEXT REFERENCES mw_projects(id)
     );
     CREATE UNIQUE INDEX IF NOT EXISTS im_project_room ON im_rooms(project_id) WHERE project_id IS NOT NULL;

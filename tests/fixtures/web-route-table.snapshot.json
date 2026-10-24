@@ -646,6 +646,11 @@
     "error": "没有这个炼金术士页面。"
   },
   "GET <project>/api/shelf": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.shelf/": {
     "status": 200,
     "type": "application/json",
     "keys": [

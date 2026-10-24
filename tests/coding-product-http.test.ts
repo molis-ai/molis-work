@@ -37,14 +37,14 @@ test("Coding formal routes preserve drafts and isolate projects across server re
       projects.push(created.body.project.project_id);
     }
     // Shelf is personal and always available; it is not a per-project opt-in. What it saves into a project is project knowledge.
-    const shelfItem = await request('/api/shelf/items', 'POST', { filename: 'port.md', bytes_base64: Buffer.from('固定端口材料').toString('base64') });
+    const shelfItem = await request('/api/plugins/io.molis.work.shelf/items', 'POST', { filename: 'port.md', bytes_base64: Buffer.from('固定端口材料').toString('base64') });
     assert.equal(shelfItem.status, 200);
     // It is saved through the 成果库's import, so a project without the 成果库 refuses it, as the side panel's import does.
-    const elsewhere = `/projects/${projects[1]}/api/shelf/items/${shelfItem.body.item.item_id}/project-material`;
+    const elsewhere = `/projects/${projects[1]}/api/plugins/io.molis.work.shelf/items/${shelfItem.body.item.item_id}/project-material`;
     const refused = await request(elsewhere, 'POST', { expected_fingerprint: (await request(elsewhere)).body.fingerprint });
     assert.equal(refused.status, 403, JSON.stringify(refused.body));
     assert.equal((await request(`/api/settings/projects/${projects[0]}/plugins`, 'POST', { plugin_id: 'artifacts' })).status, 200);
-    const projectMaterial = `/projects/${projects[0]}/api/shelf/items/${shelfItem.body.item.item_id}/project-material`;
+    const projectMaterial = `/projects/${projects[0]}/api/plugins/io.molis.work.shelf/items/${shelfItem.body.item.item_id}/project-material`;
     const materialPreview = await request(projectMaterial);
     assert.equal(materialPreview.status, 200);
     const fixedMaterial = await request(projectMaterial, 'POST', { expected_fingerprint: materialPreview.body.fingerprint });

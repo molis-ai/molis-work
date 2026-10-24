@@ -2356,6 +2356,18 @@ MEM-40桥接补充：沿原exclusive owner先取得唯一写权，再通过仅�
 
 ### 清除范围与归属覆盖补齐（2026-10-25，实施前冻结合同）
 
+第二段App归属修复短合同：独立树codex/memory-owner-authority从eb8004d817e220984ffe4b38b73477e32bd21110开始。仅改现memory-ledger.noteOwner的原子关系一致性、memory-runtime-policy的一般Character mutation最终许可、相关README及真实SDK/SQLite直接回归和本spec。Storage只比较scope/owner既有project/subject，不导入Memory/hash；同关系可更新title，已有非空subject/project不得改绑，null subject只在现可信proposals/commitApproved准备入口提供原据时补齐。App一般mutation的target及before要求非空subject与characterOwner(project,subject)一致；本人采用不要求caller.character。原deletion固定计划许可独立保留；空scope读取不登记owner，不使未知关系变一般写权。保持现SDK最终assertCurrent复核，不造新注册口/registry/迁移/表或兼容，不实现本节后续SDK exact/coverage/全域投影。
+
+验收先取未映射直接SDK写与SQLite改绑的真实red，再验正确映射的新提案/写入及本人accept/settle/promote、同关系重试/title更新、双连接交错不得last-write-wins、等待中撤权或当前映射事实变化拒绝提交，空读取零登记，原冲突subject负例保留。按实际包README必跑与直接影响去重，固定Node24.14/pnpm11.9、jobs2/browser1/retries0；正式整体build等bridge释放槽。资源预计净增零但最终实测，历史无原据关系仍明确待核对，不宣称已解决P1或全清除通过。
+
+直接消费者历史fixture同步：`project-deletion-memory`原fallback通过抑制noteOwner再调用新propose种入旧状态，现已被新的写前关系门正确拒绝。仅在隔离SQLite中先合法创建原SDK候选/可信候选账，再精确删除该一个owner映射来复现旧状态；原fallback、删除与持久结果断言保持，新增当前行删除数校验。不在产品增加补猜、注册或兼容，也不将候选账在/owner缺失与双缺失历史P1混同。原71批首败保留，只单文件复验。
+
+第二段实证：先复用准确父已构建公开包取red。双SQLite连接的关系冲突2例均未被旧UPSERT拒绝；真实management一般Character写在未登记/冲突subject下仍可写，违反本次新冻结的“映射先于一般mutation”不变量，不宣称已有用户越权事件。首轮task用途本来就被SDK拒绝，另存management正确窗口。修后最终关系2/2、原proposal3/3、policy25/25通过；后者含本人无caller.character的accept/settle、真实两来源自动promote/原journal、空读零登记、target/before的同步current以及映射在异步准入中被现forgetScopes删除后零正式提交。null subject可在同project原准备补齐，null project不能凭后调用补猜，双连接陈旧输入/重试均不重绑，关系重开保留。
+
+新增夹具首败均保留：最初policy22/25中的缺forgetScopes必填数组、将直接SDK晋升误当App候选投影完成，以及把无caller.character的当前MemoryItem空展示字段当新承诺；后续23/25与24/25记录了canonical终态实际为promoted及project展示仍为空。最后仅核真实canonical owner/ID/版本、精确ledger关系和committed晋升journal，25/25通过；未改产品、原权限/取消/版本断言或UI投影合同。普通SDK最终门和App关系检查不以返回展示字段代替。
+
+固定Node24.14/pnpm11.9，独立frozen/offline安装、整体build、根types/workspace types、精确eb800父health、boundary/API/Action均0；SDK/vendor/锁/公开形状/门禁不变。LocalHost+storage README去重63非browser与8直接影响文件，71批70/71文件通过，唯一旧状态种入失败按上段修正后仅project-deletion-memory整文件3/3通过，其余有效结果复用；唯一README真实浏览器runtime-plugin-http-discovery 20/20。27资源7,678,780 B逐项等有效父产物，净增0 B；资源门仍只拒绝原Coding +1,333 B，不挪额度、不调整门。构建/browser/测试执行位均释放。全部命令、red/新增夹具首败、最终结果在 `/private/tmp/molis-memory-owner-authority-*-20261025.*`；无全量、真实Home、付费模型，未实现SDK exact/coverage、历史无证关系修复或MEM-40全主人验收。
+
 原P0清除承诺不缩减。首先保留上述准确映射先于新Character候选的修复；再补现映射一致性与最终写授权；随后SDK提供精确Session选择和只返回状态的owner覆盖检查，App接原业务完成门；最后实跑项目删除与单Session清除/恢复。完整设计审查 `/private/tmp/molis-memory-purge-coverage-contract-20261025.md` 只作分析依据，本节是当前施工合同。当前没有这两项SDK能力或历史P1已修复的结论。
 
 SDK复用现Memory preview/purge与Registry，增加互斥的exact-Session选择（canonical Session ref + 原parent operation），以及owner coverage操作（原operation + App可信关系派生的knownScopes）。两项分别经明确的App authority授权及最后异步后的同步current复核；缺配置在扫描前拒绝，空页/终页也检查，不以authorize([])、person/ui字段或普通manage-read代替许可。Session选择允许SDK内部解码当前App的必要原件，只返回精确绑定于原Session的有界删除身份、原版本与原candidate sources/null；source/evidence引用不算绑定，无AppIndex或Session已删不能漏掉原件。原scoped模式保持不读其他owner正文的边界。coverage只扫当前App两类registry的身份元数据，只返回覆盖状态、cursor/exhausted和有限issue，不输出全局owner/ref/正文/数量，也不授予删除权限。坏header、身份冲突、未知形状、未决reservation或不能证明已清除的行明确不完整。
@@ -2392,3 +2404,5 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 统筹收束补充（2026-10-25）：上文 SDK inspection P2 已由 4ac8d7dc 修复并推回同 #102。独立评审复用原三条 late-revoke 探针在干净安装的最终包验证 present/cleared/absent 均拒绝，3/3通过且源文件字节不变；报告 `/private/tmp/prologue-memory-inspection-current-independent-review-20261025.md`。统筹另用最终4ac受控包从公开入口重跑非空 T0/T1/T2 的 SDK 窄链1/1通过，日志 `/private/tmp/prologue-memory-recovery-current-packed-public-final-20261025.log`。这些补齐该P2及SDK局部恢复证据，不替代Molis完整MEM-40；#102仍Draft等待正在实施的历史清除覆盖与其验证。App维护桥86e6fd291与Character写前归属d11694e2c本地合并，仅本spec追加冲突并保留双方内容，生产无冲突。
 
 维护桥统筹独立复验：在准确86e6fd291源码与最终4ac完整构建上，经原runner重跑 `tests/prologue-memory-adoption.test.ts` 和 `tests/memory-adoption-maintenance.test.ts`，2/2文件、50/50项、jobs1/retries0通过；日志 `/private/tmp/molis-memory-mem40-bridge-root-direct-20261025.log`。已核实际18文件diff，既有控制与恢复原决定未放宽。此结果不冒充含后继owner-authority的聚合构建或最终全量。
+
+统筹合入 owner-authority 候选fdde7360d：仅LocalHost README追加冲突并保留两项说明，生产无冲突。实际diff为Storage条件UPSERT和Character一般mutation对target/before的准确映射核查；title更新和同项目缺subject的可信准备仍可用，project改绑与已非空subject替换拒绝，原删除专用许可不扩权。此提交与维护桥先本地集中到#1101，待最后收尾并发窗口复现/修复及统一构建验证后推送；不另开小PR。

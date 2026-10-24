@@ -177,8 +177,12 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     owners: projectId => db.prepare("SELECT scope, owner, title, subject FROM memory_owners WHERE project_id=? ORDER BY rowid").all(projectId)
       .map(row => ({ scope: String(row.scope) as never, owner: String(row.owner), title: String(row.title), subject: row.subject === null || row.subject === undefined ? null : String(row.subject) })),
     noteOwner: input => {
-      db.prepare("INSERT INTO memory_owners(scope,owner,project_id,title,subject) VALUES (?,?,?,?,?) ON CONFLICT(scope,owner) DO UPDATE SET project_id=excluded.project_id, title=excluded.title, subject=COALESCE(excluded.subject, memory_owners.subject)")
+      const written = db.prepare(`INSERT INTO memory_owners(scope,owner,project_id,title,subject) VALUES (?,?,?,?,?)
+        ON CONFLICT(scope,owner) DO UPDATE SET title=excluded.title, subject=COALESCE(memory_owners.subject, excluded.subject)
+        WHERE memory_owners.project_id IS excluded.project_id
+          AND (memory_owners.subject IS NULL OR excluded.subject IS NULL OR memory_owners.subject=excluded.subject)`)
         .run(input.scope, input.owner, input.project_id, input.title, input.subject ?? null);
+      if (Number(written.changes) !== 1) throw Object.assign(new Error("记忆归属的项目与角色不能被替换"), { code: "memory.conflict" });
     },
     candidateOwners: projectId => {
       const found = new Map<string, { scope: MemoryScope; owner: string }>();

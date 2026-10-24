@@ -78,6 +78,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 密文快照预检必须只读，不创建锁/目录/key；密文中有任一条认证失败就整体拒绝，不能因活 vault 损坏而拒绝检查健康快照。明确恢复读取仍核原 key、普通单链接文件及调用 owner 的引用归属。
   - 只有部分操作需要凭据的服务用 `createLazyFileSecretStore`：读取尚未保存的引用不初始化后端。
   - 原子文件写入、日志与幂等记录由这里提供，Module 不各建一套。
+  - `memory_owners` 的既有scope/owner不能改绑project或非空subject；同关系title更新和缺subject的可信准备补齐由同一条件UPSERT原子处理，冲突不改原行。Storage只核关系一致性，不推导Character/hash或授予权限。回归见 `tests/memory-owner-relations.test.ts`。
   - 记忆账本只有成功开始写事务后才进入嵌套状态；连接锁导致开始失败后，同一实例的后续多步写入仍完整回滚或提交。回归见 [memory-ledger-transaction.test.ts](../../tests/memory-ledger-transaction.test.ts)。
   - `memoryLedgerHasOnlyPreferences` 只读核现行精确 schema、完整 prefs 形状及 new-home adoption 标记；任一正文账注、未知标记或未知形状都不证明空态，不创建或迁移数据库。它与 Runtime 目录确实不存在共同支持 Catalog-only 新 Home 的项目删除准备；项目 prefs 是可归属设置，不代表 Memory 原件。对应真实恢复用例为 `tests/project-deletion-recovery.test.ts`。
   - 搜索索引是可删除的派生缓存：文件缺失、损坏或 schema 版本不符时清空重建，不读回任何业务事实。

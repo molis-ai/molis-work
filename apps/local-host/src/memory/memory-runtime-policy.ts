@@ -74,13 +74,14 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     if (!state || caller.project_id && !state.deletion && await state.owner.projectExists(caller.project_id) !== true) return undefined;
     return state.owner.alive() ? state : undefined;
   };
-  const scoped = (caller: AgentMemoryCaller, target: Pick<Target, "scope" | "owner">, state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }) => {
+  const scoped = (caller: AgentMemoryCaller, target: Pick<Target, "scope" | "owner">, state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }, mutation = false) => {
     if (target.scope === "user") return target.owner === caller.actor_id;
     if (!caller.project_id) return false;
     if (target.scope === "project") return target.owner === caller.project_id;
     if (target.scope !== "character") return false;
     const recorded = state.owner.owners(caller.project_id).find(row => row.scope === "character" && row.owner === target.owner);
     if (state.deletion) return state.owner.deletingScope?.("character", target.owner) || !!recorded || state.owner.candidateOwners(caller.project_id).some(row => row.scope === "character" && row.owner === target.owner);
+    if (mutation && (!recorded?.subject || target.owner !== characterOwner(caller.project_id, recorded.subject))) return false;
     if (caller.person === true) return !!recorded;
     return !!caller.character_id && (!recorded || recorded.subject === caller.character_id)
       && target.owner === characterOwner(caller.project_id, caller.character_id);
@@ -95,7 +96,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
       && (!target.kind || (!access.kinds || access.kinds.some(kind => kind === target.kind)) && (!plugin?.kinds || plugin.kinds.some(kind => kind === target.kind))) };
   };
   const permitted = (caller: AgentMemoryCaller, request: Request, state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }, operation?: "disable") => {
-    if (request.appId !== "io.molis.work" || !scoped(caller, request.target, state) || !namespaceAllowed(caller, request.target.namespace)) return false;
+    if (request.appId !== "io.molis.work" || !scoped(caller, request.target, state, request.action !== "read" && request.action !== "manage-read") || !namespaceAllowed(caller, request.target.namespace)) return false;
     if (state.deletion) return (request.action === "manage-read" || request.action === "delete")
       && (request.target.scope !== "user" || state.owner.deletingPersonal?.(request.target) === true);
     // This synchronous predicate is repeated at the SDK's real commit, including already-waiting formation/accept.
@@ -143,7 +144,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
       .every(request => request.target.createdAtMs + CANDIDATE_TTL_MS > Date.now());
   const requestsAllowed = (caller: AgentMemoryCaller, requests: readonly Request[], state: ReturnType<typeof currentFacts>, operation?: "disable") =>
     !!state && candidateAcceptanceCurrent(requests) && requests.every(request => permitted(caller, request, state, operation)
-      && (!request.before || scoped(caller, request.before, state) && namespaceAllowed(caller, request.before.namespace)));
+      && (!request.before || scoped(caller, request.before, state, request.action !== "read" && request.action !== "manage-read") && namespaceAllowed(caller, request.before.namespace)));
   return {
     policy: extractor ? { ...POLICY, formation: { maxSlots: 144 },
       // 120 fixed replacement metas can each occupy the SDK's 4 KiB metadata budget, plus 24 creation slots and identities.

@@ -458,7 +458,16 @@ async function librarySetup(t: TestContext, home = false) {
     : composeAgentHost({ localHost, workspaceFor });
   // What the Runtime was asked, with the owner it was asked for; whose each session is; which continuations are ready.
   const seen: Array<[string, unknown]> = [], sessions = new Map<string, Record<string, string>>(), ready: Array<ReturnType<typeof continuation>> = [], excluded: string[][] = [];
-  const listing: { current?: Promise<void> } = {}, observers = new Set<unknown>();
+  const listing: { current?: Promise<void> } = {}, tooling: { current?: Promise<void> } = {}, toolVersion = { current: 1 }, observers = new Set<unknown>();
+  // Every MCP provider the Host registers in the project's directory, by provider id: what a list republished.
+  const mcpRegistrations: string[] = [], registryOf = localHost.actionRegistry.bind(localHost);
+  t.mock.method(localHost, "actionRegistry", (place: Parameters<typeof registryOf>[0]) => {
+    const port = registryOf(place);
+    return { ...port, registerProvider: (registration: Parameters<typeof port.registerProvider>[0]) => {
+      if (registration.provider.kind === "mcp") mcpRegistrations.push(registration.provider.provider_id);
+      return port.registerProvider(registration);
+    } };
+  });
   const asked = <T>(name: string, value: () => T) => async (owner: unknown) => { seen.push([name, owner]); return value(); };
   const unused = async (): Promise<never> => { throw new Error("Not used by this fixture"); };
   composition.agentHost.register({
@@ -479,8 +488,10 @@ async function librarySetup(t: TestContext, home = false) {
       list: async (owner: unknown) => { seen.push(["mcp.list", owner]); await listing.current; return [server("s1")]; },
       save: asked("mcp.save", () => server("s1")), control: asked("mcp.control", () => undefined),
       validateSources: async () => [], validate: async () => [],
-      // Listing brings the project's directory up to what the servers offer: the Host asks for their tools.
-      tools: asked("mcp.tools", () => []), live: () => false, call: unused,
+      // Listing brings the project's directory up to what the servers offer: the Host asks for their tools (`tooling` holds that read).
+      tools: async (owner: { plugin_id: string }) => { seen.push(["mcp.tools", owner]); await tooling.current;
+        return [{ server: "s1", server_label: "s1", tool: `lookup-${owner.plugin_id.split(".").at(-1)}`, version: String(toolVersion.current), configuration_version: 1, description: "", input_schema: { type: "object" } }]; },
+      live: () => false, call: unused,
     },
     collaboration: {
       read: async () => [], control: unused, revise: unused,
@@ -500,11 +511,12 @@ async function librarySetup(t: TestContext, home = false) {
   consumer.definition.agent_prompts = [{ prompt_id: "reader", version: 1, body: "Answer from the supplied context only.", layer: "role" }];
   other.definition.manifest.agent = { ...READER, roles: [{ ...READER.roles[0]!, role_id: "drafter" }] };
   other.definition.agent_prompts = consumer.definition.agent_prompts;
-  for (const plugin of [consumer, other, bystander]) await startPlugin(localHost, reference, store, plugin, { actorId: "web-user" });
+  const started = [];
+  for (const plugin of [consumer, other, bystander]) started.push(await startPlugin(localHost, reference, store, plugin, { actorId: "web-user" }));
   const ownerOf = (plugin: typeof consumer) => ({ project_id: PROJECT, plugin_id: plugin.id, install_id: plugin.context(PROJECT).install_id, actor_id: "web-user" });
   sessions.set("mine", ownerOf(consumer)); sessions.set("theirs", ownerOf(other));
   t.after(async () => { if (!home) composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
-  return { localHost, reference, seen, ready, excluded, gate, listing, observers, consumer, other, bystander, methodOwner: (plugin: typeof consumer) => ({ project_id: PROJECT, plugin_id: plugin.id }) };
+  return { localHost, reference, seen, ready, excluded, gate, listing, tooling, toolVersion, mcpRegistrations, observers, consumer, other, bystander, consumerRuntime: started[0]!, methodOwner: (plugin: typeof consumer) => ({ project_id: PROJECT, plugin_id: plugin.id }) };
 }
 
 /** A call stopped while the Host reads its authority, after it started and before it writes: `stop` ends it, `gate` lets the read go on. */
@@ -559,14 +571,18 @@ test("RAC-183 the method library is the caller's own: it lists, reads and instal
   assert.deepEqual(named("skills.install"), [methodOwner(consumer)], "the stopped install did not reach the library");
 });
 
-test("RAC-184 MCP servers are the caller's own; a stopped save writes nothing and a stopped list republishes nothing", async t => {
-  const { seen, gate, listing, consumer, other, methodOwner } = await librarySetup(t), actions = consumer.actions(PROJECT);
+test("RAC-184 MCP servers are the caller's own; a list republishes the caller's own tools, idempotently, and a stopped call writes nothing", async t => {
+  const { seen, gate, listing, tooling, toolVersion, mcpRegistrations, consumer, other, consumerRuntime, methodOwner } = await librarySetup(t), actions = consumer.actions(PROJECT);
   const named = (name: string) => seen.filter(([what]) => what === name).map(([, owner]) => owner);
   assert.deepEqual((await actions.invoke(agent.listMcp, [LIBRARY])).map(entry => entry.id), ["s1"]);
   await other.actions(PROJECT).invoke(agent.listMcp, [LIBRARY]);
   assert.deepEqual(new Set(named("mcp.list").map(owner => JSON.stringify(owner))), new Set([methodOwner(consumer), methodOwner(other)].map(owner => JSON.stringify(owner))),
     "each plugin's servers are listed for that plugin, and for no other");
   assert.ok(named("mcp.tools").length >= 2, "a list brings the project's directory up to what the servers offer");
+  // Each list re-registers its own plugin's tools and no other's; listing again with nothing changed registers nothing new.
+  assert.deepEqual(mcpRegistrations, [`${consumer.id}#mcp:s1`, `${other.id}#mcp:s1`]);
+  await actions.invoke(agent.listMcp, [LIBRARY]);
+  assert.equal(mcpRegistrations.length, 2, "an unchanged list is idempotent");
   const http = { expected_version: 0, label: "notes", enabled: true, timeout_ms: 1000, transport: "http" as const, endpoint: "http://127.0.0.1:1/mcp", auth: { kind: "none" as const } };
   assert.equal((await actions.invoke(agent.saveMcp, [LIBRARY, http])).id, "s1");
   assert.deepEqual(named("mcp.save"), [methodOwner(consumer)]);
@@ -579,12 +595,32 @@ test("RAC-184 MCP servers are the caller's own; a stopped save writes nothing an
   // A save stopped after it started, before it writes, keeps nothing; a list stopped while it reads republishes nothing.
   await stoppedMidway(gate, signal => actions.invoke(agent.saveMcp, [LIBRARY, http], { signal, beforeEffect: async () => {} }));
   assert.deepEqual(named("mcp.save"), [methodOwner(consumer)], "the stopped save did not reach the library");
-  const synced = named("mcp.tools").length;
+  // From here every tool has a new version, so a list that went through would register it again.
+  toolVersion.current = 2;
+  const synced = named("mcp.tools").length, registrations = mcpRegistrations.length;
   await stoppedMidway(listing, signal => actions.invoke(agent.listMcp, [LIBRARY], { signal, beforeEffect: async () => {} }));
   assert.equal(named("mcp.tools").length, synced, "the stopped list did not republish the project's directory");
+  // Stopped after its last check, while the Host reads what the servers offer: the check runs again before the directory is written.
+  await stoppedMidway(tooling, signal => actions.invoke(agent.listMcp, [LIBRARY], { signal, beforeEffect: async () => {} }));
+  assert.equal(named("mcp.tools").length, synced + 1, "this time the list got as far as reading the tools");
+  assert.equal(mcpRegistrations.length, registrations, "and registered nothing");
+  // The plugin stopped (its authority withdrawn) while the Host reads the tools: refused, nothing registered.
+  const opened = Promise.withResolvers<void>();
+  tooling.current = opened.promise;
+  const pending = actions.invoke(agent.listMcp, [LIBRARY]);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const stopping = consumerRuntime.runtime.stop(consumerRuntime.install_id);
+  opened.resolve(); tooling.current = undefined;
+  await assert.rejects(pending);
+  await stopping;
+  assert.equal(named("mcp.tools").length, synced + 2);
+  assert.equal(mcpRegistrations.length, registrations, "the stopped plugin's list registered nothing");
+  // The changed tool is registered again by a list that goes through: the refusals above are what kept it out.
+  await other.actions(PROJECT).invoke(agent.listMcp, [LIBRARY]);
+  assert.deepEqual(mcpRegistrations.slice(registrations), [`${other.id}#mcp:s1`]);
 });
 
-test("RAC-185 the wait for a continuation answers the caller's own sessions only, as a concurrent query sharing waitRun's 8 places", async t => {
+test("RAC-185 the wait for a continuation answers the caller's own sessions only, as a concurrent query sharing waitRun's 8 places either way", async t => {
   const definition = agent.awaitContinuations as ActionDefinition;
   assert.deepEqual([definition.operation, definition.action.scheduling, definition.action.execution], ["query", "concurrent", { timeout_ms: 30_000 }]);
   const { localHost, ready, excluded, observers, consumer } = await librarySetup(t, true), actions = consumer.actions(PROJECT);
@@ -616,6 +652,19 @@ test("RAC-185 the wait for a continuation answers the caller's own sessions only
   assert.equal(observers.size, 0, "and the refused follow followed nothing");
   for (const control of held) control.abort();
   await Promise.all(open);
+  // And the other way: eight rounds followed fill the same places, so a wait for a continuation is refused before it asks anything.
+  const session = { runtime_id: LIBRARY, session_id: "mine" }, run = { session_id: "mine", run_id: "r1" };
+  const { version } = await actions.invoke(agent.waitRun, [session, run, null, 0], { beforeEffect: async () => {} });
+  const following = Array.from({ length: 8 }, () => new AbortController());
+  const followed = following.map(control => actions.invoke(agent.waitRun, [session, run, version, 25_000], { signal: control.signal, beforeEffect: async () => {} }).catch(() => undefined));
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(observers.size, 8);
+  const looked = excluded.length;
+  await assert.rejects(awaitFor(25_000), { code: "agent.wait_limit_reached" });
+  assert.equal(excluded.length, looked, "the refused wait for a continuation asked the task graph nothing");
+  for (const control of following) control.abort();
+  await Promise.all(followed);
+  assert.deepEqual(await awaitFor(0), [], "the places are given back");
   for (const timeoutMs of [25_001, -1, 1.5])
     await assert.rejects(actions.invoke(agent.awaitContinuations, [LIBRARY, timeoutMs, []]), { code: "actions.input_invalid" }, String(timeoutMs));
   await assert.rejects(actions.invoke(agent.awaitContinuations, [LIBRARY, 0, Array.from({ length: 201 }, (_, index) => `key-${index}`)]), { code: "actions.input_invalid" });

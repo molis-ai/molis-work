@@ -529,7 +529,7 @@ export const agentHostCapabilities = {
    */
   listMcp: {
     capability_id: "agent.mcp.list.v1", version: 1, operation: "query",
-    action: { title: "列出 MCP 服务器", description: "调用插件在这个运行时上的 MCP 服务器与各自现在提供的工具。", kind: "query", ...pluginOnly,
+    action: { title: "列出 MCP 服务器", description: "调用插件在这个运行时上的 MCP 服务器与各自现在提供的工具；列的同时，宿主把这个插件自己的 MCP 工具按现在的样子在项目动作目录里重新登记（幂等，不写业务数据）。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: mcpServerOutput } },
   } as ActionDefinition<[runtimeId: string], AgentMcpServerView[]>,
   saveMcp: {

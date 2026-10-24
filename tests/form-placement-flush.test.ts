@@ -14,7 +14,7 @@ interface Node {
   setAttribute(name?: string, value?: string): void; getAttribute(): string | null; removeAttribute(): void;
   append(...nodes: Node[]): void; replaceChildren(...nodes: Node[]): void;
   querySelector(selector?: string): Node | null; querySelectorAll(selector?: string): Node[];
-  closest(selector?: string): Node | null; contains(): boolean; focus(): void; click(): void; scrollIntoView(): void;
+  closest(selector?: string): Node | null; matches(selector?: string): boolean; contains(): boolean; focus(): void; click(): void; scrollIntoView(): void;
   addEventListener(type: string, fn: (event: unknown) => void): void; removeEventListener(): void;
   showModal(): void; close(): void;
   readonly offsetWidth: number;
@@ -32,6 +32,8 @@ function element(): Node {
     querySelector(): Node | null { return element(); },
     querySelectorAll(): Node[] { return []; },
     closest(): Node | null { return null; },
+    // The form client script asks `event.target.matches(selector)` on change events; like closest/contains, the fake node matches nothing.
+    matches: () => false,
     contains: () => false, focus() {}, click() {}, scrollIntoView() {},
     addEventListener(type: string, fn: (event: unknown) => void) { node.listeners[type] = fn; },
     removeEventListener() {}, showModal() {}, close() {},
@@ -75,8 +77,8 @@ test("LOGIC-08 moving the open form stores its unsaved editor edits first", asyn
         return { forms: [form], ai_available: false };
       },
     });
-    const factory = Function(`return (${FORM_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string; route: (path: string) => string }) => void;
-    factory({ translate: text => text, projectId: "p", route: path => path });
+    const factory = Function(`return (${FORM_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: () => string; pluginId: string; route: (path: string) => string; pluginRoute: (path: string) => string }) => void;
+    factory({ translate: text => text, projectId: () => "p", pluginId: "io.molis.work.form", route: path => path, pluginRoute: path => path });
     for (let i = 0; i < 8; i += 1) await new Promise(resolve => setImmediate(resolve));
     const row = element();
     row.dataset.formId = "f1";

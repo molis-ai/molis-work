@@ -1,11 +1,12 @@
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { createScheduleService, PluginWakeupIndex } from '@molis-ai/molis-work-service-scheduler';
+import { wakeupInstallation } from './scheduler-owner.js';
 import { SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, prepareScheduledOperation, runScheduledOperation } from '@molis-ai/molis-work-plugin-schedule';
 
 const [path, at, mode] = process.argv.slice(2);
 if (!path || !at || !mode || !process.send) throw new Error('Expected an isolated project, clock, crash phase and IPC');
-const store = new LocalProjectDatabase(path), index = new PluginWakeupIndex(), clock = new Date(at);
-index.register(SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, async (input, control) => {
+const store = new LocalProjectDatabase(path), installation = wakeupInstallation(SCHEDULE_PLUGIN_ID), clock = new Date(at);
+installation.action(SCHEDULE_OPERATION_WAKEUP, async (input, control) => {
+  prepareScheduledOperation(store.db, input);
   if (mode === 'before-dispatch') { process.send!('prepared'); await new Promise(() => {}); }
   const result = await runScheduledOperation(store.db, input, control, {
     currentInstallation: () => true, now: () => clock,
@@ -22,5 +23,5 @@ index.register(SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, async (input, cont
   process.send!('committed');
   await new Promise(() => {}); // Stop between domain commit and the Scheduler's technical receipt.
   return result;
-}, { prepare: input => prepareScheduledOperation(store.db, input) });
-await createScheduleService(store.db, { wakeupIndex: index, now: () => clock }).tick(clock);
+});
+await installation.scheduler(store.db, { now: () => clock }).tick(clock);

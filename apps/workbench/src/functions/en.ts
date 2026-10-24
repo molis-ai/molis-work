@@ -1,4 +1,5 @@
 export const FUNCTIONS_EN: Record<string, string> = {
+  "取消选择": "Clear selection",
   // Said by the delete-project dialog (the label of this owner's project data).
   "判断规则在这个项目里的场景绑定和判断记录": "Function bindings and judgments made in this project",
   "仅列出插件已声明的工具和页面动作。": "Only declared plugin tools and page actions are listed.",

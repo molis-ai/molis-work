@@ -238,10 +238,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Category read/formation controls reuse the existing settings components.
-  // User approved #1153 +3024 B; rebind to parent 85ab5d920 measured 1203369 B.
+// Category read/formation controls reuse the existing settings components.
+  // User approved #1153 +3024 B; rebind to parent 825bedbf0 measured 1202971 B.
   // The merged child budget must be updated only after its actual build.
-  "/assets/molis-work-workbench.js": [1203369, 1206393],
+  "/assets/molis-work-workbench.js": [1202971, 1205995],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

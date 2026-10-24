@@ -47,4 +47,6 @@ export const CONTEXTUAL_EN: Record<string, string> = {
   "左边没有可以放进去的位置": "There is no place on the left to put it.",
   "已{verb}": "Done: {verb}",
   "左边的内容已经换了，请重新选择要放进去的位置": "What is open on the left has changed. Choose where to put it again.",
+  "这个页面还没有声明它的对象，不能放进去": "This page has not declared its objects, so it cannot be put in.",
+  "没有可以放进去的内容": "There is nothing to put in.",
 };

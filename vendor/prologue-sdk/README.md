@@ -48,6 +48,8 @@
 - 从两个各自解开的源码目录各打一次，字节数与 SHA-256 相同。
 - 上游 main 的祖先复核：`patch-history.json` 的 41 个提交对 `2c7feba5` 逐项用 GitHub 的比较接口核对，除三个过渡包来源以外都是祖先（38 个 ahead 或 identical，3 个 diverged：`08b84296`、`923e5a40`、`4007a93c`）。
 
+2026-10-24 补核 SDK94 原包来源 `f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512`：原 head 与 #94 squash merge `d94a99fb` 的 tree 相同，后者是 SDK95 来源的祖先，原 head 本身不是。`patch-history.json` 现共记录42 个 Prologue 提交；上面的41项核查时点与结论保留，不把新增来源算作当时已核查。
+
 重建命令与工具版本见同目录的 `.provenance.json`。
 
 Molis 侧的验证（这一刀只换包，加上 #53 带来的一处断言）：

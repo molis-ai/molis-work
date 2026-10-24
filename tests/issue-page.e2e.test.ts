@@ -202,7 +202,8 @@ test("ISSUE-06 hidden and removed Issue views stop refreshing; one remount keeps
     "removing the view must release its global listener");
   await evaluate(`issueChecks.parent.append(issueChecks.root);
     const mount = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    const host = { root: issueChecks.root, mountPluginClient: mount, translate: text => text, route: path => path };
+    const host = { root: issueChecks.root, mountPluginClient: mount, translate: text => text, route: path => path,
+      pluginId: 'io.molis.work.issues', pluginRoute: path => '/api/plugins/io.molis.work.issues' + path, readRefusal: () => '' };
     globalThis.molisWorkbenchPluginFactories.issues(host);globalThis.molisWorkbenchPluginFactories.issues(host);`);
   await waitFor("issueChecks.reads === 1");
   assert.equal(await evaluate(`(async()=>{issueChecks.reads=0;issueChecks.refresh();${nextFrame}return issueChecks.reads;})()`), 1,

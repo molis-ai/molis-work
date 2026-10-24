@@ -16,8 +16,8 @@ export interface TodoQuickParse {
 
 /**
  * Reads dates out of a one-line todo without a model: "周四前…" is a due date, "周四…" a planned day,
- * "…提醒我" a reminder. Anything it cannot read stays in the title. Self-contained (no imports, no outer
- * names) because the browser client embeds its source text.
+ * "…提醒我" a reminder. Anything it cannot read stays in the title. Self-contained (no imports), so the
+ * page's bundle takes it as it is.
  */
 export function parseTodoQuickText(text: string, now: Date): TodoQuickParse {
   const pad = (value: number) => String(value).padStart(2, "0");

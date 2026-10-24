@@ -3569,3 +3569,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 02:50：#1132（Issues 客户端）、#1146（Goals S4）已合。#1156（BL-394）一轮可合、`full` 空。BL-366 已推送（`ac-kernel/bl366-agent-workspace-changed`，`b13e05409`，`full` 非空，未开 PR）；接着 BL-521。
 
 - 10-24 02:58：BL-521 撞 `web-project-platform-routes.ts`（sc4b、#1130）、`index.ts`（#1139、#1114、#1064）与 `project-plugins.ts`（#1107）；统筹同意等 #1107、#1130、sc4b 合入后从 main 开，cause 名 `workspace-settings`。`ac-kernel` 先做 PG-047。
+
+- 10-24 03:05：PG-047 澄清：动作输出按 schema 校验已在 main（`checkedActionResult`），真正剩下的是模型结果 `validateResult()` 由平台在写事务或最后一次 beforeEffect 里强制；`ac-kernel` 先做 plugin-runtime 一侧，`plugin-model-service.ts` 等 #1139、#1147。PG-007 阶段 4 等 CHR-1 与 #1130。之后 PG-043。

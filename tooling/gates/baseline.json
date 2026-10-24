@@ -1,5 +1,5 @@
 {
-  "giantUnits": 113,
+  "giantUnits": 107,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -47,12 +47,6 @@
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 191,
     "function apps/workbench/src/shell-page-renderer.ts#renderMolisWorkWeb": 155,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
-    "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
-    "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
-    "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
-    "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 185,
-    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
-    "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
     "file horizontal/agent-host/src/adapters/prologue.ts": 965,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {

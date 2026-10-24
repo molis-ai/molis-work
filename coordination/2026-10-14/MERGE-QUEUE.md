@@ -31,7 +31,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 8 | [#1112](https://github.com/molis-ai/molis-work/pull/1112) | W5-06 余项第一片（草稿） | 排在 #1076、#1099 之后 | 同 #1076 | `ac-review` 一轮：修后可合，2 条交 Codex（[评论](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6370952389)）；统筹裁定规格板选 (b)、补 RAC-80～84（[裁定](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6371157480)）；Codex 合 main、重量 page-assets、转 ready |
 | 13 | [#1119](https://github.com/molis-ai/molis-work/pull/1119) | BL-395 整片：沙箱项目库语句跑在宿主能杀的子进程里（时间、内存、结果、递归上限；S-59，改 S-46） | **#1117 先合**（S 号连续的门禁要 S-58 在 main 上） | `full` 非空（shared-core、spans-packages，219 文件），进下一批 | 头 `a699e421c`；子进程已补齐、BL-480 已删；`ac-review` 排队审；改了安全不变量，合前看 Security invariants |
 | 14 | [#1120](https://github.com/molis-ai/molis-work/pull/1120) | R5：Feed/Functions 入口不再导出 Repository/Store、PG-010 首页规则目标按声明找、两包巨大单元 | — | `full` 非空（shared-core、storage、spans-packages、deletes-code，141 文件），进下一批 | 头 `0cd8cc7b6`；`ac-review` 一轮「修后可合」，修复已推（19:37Z：CHECKLIST 路径、HOME-DATA、巨大单元、RAC-176 回归等）；**等二轮确认**；合并 Agent 已起批-1023-14（Full suite run 40021912725） |
-| 15 | [#1121](https://github.com/molis-ai/molis-work/pull/1121) | R8 第 1 批：agent 宿主会话间消息与后台命令 7 条 typed 改成只给插件的动作（BL-365） | — | `full` 非空（shared core，205 文件），进下一批 | 头 `d63657e40`；`ac-review` 一轮修后可合（Coding 路由丢了请求防护），Codex 已修并**二轮：可合**；改动作，合前确认动作快照已刷新；#1148 叠在它上面 |
 | 19 | [#1129](https://github.com/molis-ai/molis-work/pull/1129) | W5-03/04 Todo 片（样板）：客户端打包成 TS、稳定翻译键；`todo.js` 61,976→54,090 B | — | `full` 非空（assembly、deletes-code，102 文件），进下一批 | 头 `ed3b374f4`；`ac-review` 优先审（后面 5 片照它做） |
 | 20 | [#1130](https://github.com/molis-ai/molis-work/pull/1130) | SC-4：Sessions 下线（删 Work 包、Session 模块部分、首页「说一句」；PG-081、PG-082 收尾；D6 方案 A 用户 10-23 已确认） | **叠在 #1113 上**，#1113 先合 | `full` 非空（855 文件），进集成批 | 头 `06600841f`；`ac-review` 排队审；作者在改「待用户确认」措辞，之后接 BL-485/486/488 |
 | 24 | [#1126](https://github.com/molis-ai/molis-work/pull/1126) | 评审修复线（合并 Agent 派）：Coding 两条无人认领 P3——#955 首页后台时间界限、#928 英文持有人中文标签 | — | `full` 为空 | 头 `3283c106a`；`ac-review` 待审；Verify 绿；`page-assets` coding.js 375409→376282 一次性放行待评审认可（lead 派 coding-review-fixes） |
@@ -81,7 +80,9 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1145 | `b1ab81518` | 10-24 01:27 UTC |
 | #1146 | `fea1eb0ba` | 10-24 01:34 UTC |
 | #1132 | `1dedc1f5c` | 10-24 01:42 UTC |
+| #1121 | `aa4de404f` | 10-24 02:19 UTC |
 
 | 38 | [#1156](https://github.com/molis-ai/molis-work/pull/1156) | `ac-kernel` 平台片 BL-394：`releaseArtifact` 恢复出的定义在 start 时补 remember（RAC-330） | — | `full` 为空 | 头 `ed27d0413`；`ac-review` 一轮**可合**，0 条挡合并（[评论](https://github.com/molis-ai/molis-work/pull/1156#issuecomment-6378323530)）；小片，`full` 空，CI 绿可直接入队 |
 | 39 | [#1157](https://github.com/molis-ai/molis-work/pull/1157) | `ac-sc3` SC-4b：清 SC-4 三项残留（BL-485 Codex 会话适配器、BL-486 `session_id`、BL-488 依赖） | **叠在 #1130 上**（第二层），#1130 合入后改投 main | `full` 非空（shared-core），进下一批 | 头 `96565f330`；`ac-review` 一轮**修后可合** 1 条（[评论](https://github.com/molis-ai/molis-work/pull/1157#issuecomment-6378466079)：BL-383/384 换成本线号段 BL-507～519 里没用的号）；修复认领 `ac-sc3`；`full` 非空，修后进下一批 |
 | 40 | [#1158](https://github.com/molis-ai/molis-work/pull/1158) | 统筹：privileges.md 状态第 4 批（PG-026-S1、030、090 已做；012、026、029、031、056、070、071、094 进度） | — | `full` 为空 | 头 `dd69fff8a`；`ac-review` 一轮**可合**（三行「已做」在 main 上都站得住）；CI 绿、CLEAN，**可合，交合并 Agent 入队** |
+

@@ -13,8 +13,13 @@ const closeHttp = Server.prototype.close;
 Server.prototype.close = function(callback) {
   observed.transport += 1;
   observed.order.push("transport");
+  if (mode === "blocked") {
+    // Leave the real HTTP listener open and never complete transport cleanup. The parent sends actual OS signals.
+    process.send?.("closing");
+    return this;
+  }
   return closeHttp.call(this, error => {
-    // Keep the close pending across the second signal to verify that it cannot close storage early or run twice.
+    // Keep close pending across the second signal: force exit must skip storage and never start cleanup twice.
     setTimeout(() => {
       observed.order.push("transport_done");
       callback(mode === "transport" || mode === "both" ? failure("transport") : error);
@@ -37,6 +42,7 @@ Server.prototype.listen = function(...args) {
     // main's await startServer and listener installation finish before this turn. Emit through the process's real
     // signal listeners to make the pending-close interleaving deterministic, without sending a signal to another PID.
     setImmediate(() => {
+      if (mode === "blocked") { process.send?.("ready"); return; }
       process.emit(process.env.MOLIS_WORK_TEST_SERVER_SIGNAL);
       if (process.env.MOLIS_WORK_TEST_SERVER_REPEAT === "yes") {
         process.emit("SIGTERM");

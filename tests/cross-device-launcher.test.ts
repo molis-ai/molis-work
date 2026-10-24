@@ -9,7 +9,7 @@ import { openServerDatabase, Identity, ServerEvents, ContinuityService } from '@
 
 const launcher=new URL('../apps/server/dist/main.js',import.meta.url).pathname;
 function launch(args:string[],entry=launcher,nodeArgs:string[]=[]){
-  const child=spawn(process.execPath,[...nodeArgs,entry,...args],{stdio:['ignore','pipe','pipe']});
+  const child=spawn(process.execPath,[...nodeArgs,entry,...args],{stdio:['ignore','pipe','pipe'],env:{...process.env,MOLIS_WORK_DEBUG:'server'}});
   let output='',errors='';child.stdout.on('data',chunk=>output+=chunk);child.stderr.on('data',chunk=>errors+=chunk);
   const exited=new Promise<number|null>((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>resolve(code));});
   return {child,exited,output:()=>output,errors:()=>errors};
@@ -22,7 +22,14 @@ async function command(args:string[]){
 async function listening(server:ReturnType<typeof launch>){
   return new Promise<string>((resolve,reject)=>{
     const timer=setTimeout(()=>reject(Error('standalone did not start: '+server.errors())),45000);
-    server.child.stdout.on('data',()=>{const match=server.output().match(/Molis Work (?:Server|QA): (http:\/\/127\.0\.0\.1:\d+)\/continuity/);if(match){clearTimeout(timer);resolve(match[1]!);}});
+    const onOutput=()=>{
+      const qa=server.output().match(/Molis Work QA: (http:\/\/127\.0\.0\.1:\d+)\/continuity/);
+      const listening=server.errors().split('\n').slice(0,-1).filter(line=>line.startsWith('{')).map(line=>JSON.parse(line))
+        .find(record=>record.area==='server' && record.event==='listening');
+      const origin=qa?.[1] ?? (listening ? `${listening.fields.tls?'https':'http'}://${listening.fields.address}:${listening.fields.port}` : undefined);
+      if(origin){clearTimeout(timer);resolve(origin);}
+    };
+    server.child.stdout.on('data',onOutput);server.child.stderr.on('data',onOutput);onOutput();
     server.exited.then(code=>{clearTimeout(timer);reject(Error('standalone exited before listen: '+code+' '+server.errors()));});
   });
 }

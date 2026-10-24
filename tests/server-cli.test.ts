@@ -34,19 +34,29 @@ function command(directory: string, args: string[], options: { preload?: boolean
   return result;
 }
 
-function serve(t: TestContext, mode: string, signal = "SIGINT", repeat = false) {
+function serve(t: TestContext, mode: string, signal = "SIGINT", repeat = false, debug = false) {
   const directory = home(t), state = join(directory, "server"), report = join(directory, "close.json");
   const config = join(directory, "config.json");
   writeFileSync(config, JSON.stringify({ projects: [] }));
   const result = command(directory, ["serve", "--state", state, "--config", config, "--host-home", directory, "--port", "0"], {
     preload: true,
-    env: { MOLIS_WORK_TEST_SERVER_CLOSE: mode, MOLIS_WORK_TEST_SERVER_SIGNAL: signal,
+    env: { MOLIS_WORK_DEBUG: debug ? "server" : "", MOLIS_WORK_TEST_SERVER_CLOSE: mode, MOLIS_WORK_TEST_SERVER_SIGNAL: signal,
       MOLIS_WORK_TEST_SERVER_REPEAT: repeat ? "yes" : "no", MOLIS_WORK_TEST_SERVER_REPORT: report },
   });
   const observed = JSON.parse(readFileSync(report, "utf8"));
-  assert.deepEqual(observed, { transport: 1, storage: 1, storageClosed: mode !== "storage" && mode !== "both",
+  assert.deepEqual(observed, repeat ? { transport: 1, storage: 0, storageClosed: false, order: ["transport"] }
+    : { transport: 1, storage: 1, storageClosed: mode !== "storage" && mode !== "both",
     order: ["transport", "transport_done", "storage"] });
   return { result, directory, state };
+}
+
+function assertForcedLog(stderr: string, signal: string): void {
+  const records = stderr.trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(records.length, 1);
+  const { at, ...record } = records[0];
+  assert.ok(!Number.isNaN(Date.parse(at)));
+  assert.deepEqual(record, { level: "warn", area: "server", event: "shutdown_forced",
+    fields: { signal, remaining_cleanup_skipped: true } });
 }
 
 function closedPipe(t: TestContext, args: (directory: string) => string[]) {
@@ -71,6 +81,43 @@ function closedPipe(t: TestContext, args: (directory: string) => string[]) {
   return { child, exited, stderr: () => stderr };
 }
 
+async function forceShutdown(t: TestContext, first: NodeJS.Signals, second: NodeJS.Signals) {
+  const directory = home(t), report = join(directory, "close.json"), config = join(directory, "config.json");
+  writeFileSync(config, JSON.stringify({ projects: [] }));
+  const child = spawn(process.execPath, ["--no-warnings", "--unhandled-rejections=strict", "--import", fixture, entry,
+    "serve", "--state", join(directory, "server"), "--config", config, "--host-home", directory, "--port", "0"], {
+    cwd: root, stdio: ["ignore", "pipe", "pipe", "ipc"],
+    env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "", MOLIS_WORK_TEST_SERVER_CLOSE: "blocked",
+      MOLIS_WORK_TEST_SERVER_REPORT: report },
+  });
+  let stderr = "";
+  child.stdout!.resume();
+  child.stderr!.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+  const exited = once(child, "close");
+  const message = () => Promise.race([
+    once(child, "message", { signal: t.signal }).then(([payload]) => payload),
+    exited.then(result => { throw new Error(`Server exited before signal handshake: ${JSON.stringify(result)} ${stderr}`); }),
+  ]);
+  try {
+    assert.equal(await message(), "ready");
+    const closing = message();
+    assert.equal(child.kill(first), true);
+    assert.equal(await closing, "closing");
+    assert.equal(child.exitCode, null, "the first signal must wait for the blocked cleanup");
+    const forcedExit = once(child, "close", { signal: AbortSignal.timeout(3_000) });
+    assert.equal(child.kill(second), true);
+    const [code, signal] = await forcedExit;
+    assert.equal(signal, null, stderr);
+    assert.deepEqual(JSON.parse(readFileSync(report, "utf8")), {
+      transport: 1, storage: 0, storageClosed: false, order: ["transport"],
+    }, "a repeated signal must not start cleanup again or claim the skipped storage close ran");
+    return { code, stderr };
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    await exited;
+  }
+}
+
 test("RAC-110: server help, JSON output and startup instructions retain stdout and stay out of stderr", t => {
   const directory = home(t);
   const result = command(directory, []);
@@ -87,15 +134,28 @@ test("RAC-110: server help, JSON output and startup instructions retain stdout a
   assert.equal(started.result.stderr, "");
   const owner = JSON.parse(readFileSync(join(started.state, "owner.json"), "utf8"));
   const lines = started.result.stdout.split("\n");
-  assert.match(lines[0]!, /^Molis Work Server: http:\/\/127\.0\.0\.1:\d+\/continuity$/);
-  assert.equal(lines[1], `Owner pairing code: ${join(started.state, "connect.json")} (10 minutes)`);
-  assert.equal(lines[2], `Host action client: runtime:cross-device:${owner.id}`);
-  assert.equal(lines[3], "Required action grants: goals.state.read@1, goals.progress.record@1, goals.progress.receipt@1, artifacts.read@1");
-  assert.deepEqual(lines.slice(4), [""]);
+  assert.equal(lines[0], `Owner pairing code: ${join(started.state, "connect.json")} (10 minutes)`);
+  assert.equal(lines[1], `Host action client: runtime:cross-device:${owner.id}`);
+  assert.equal(lines[2], "Required action grants: goals.state.read@1, goals.progress.record@1, goals.progress.receipt@1, artifacts.read@1");
+  assert.deepEqual(lines.slice(3), [""]);
   const listed = command(started.directory, ["members", "--state", started.state]);
   assert.equal(listed.status, 0, listed.stderr);
   assert.equal(listed.stderr, "");
   assert.equal(listed.stdout, JSON.stringify([{ id: owner.id, display_name: owner.display_name, project_id: null, role: null }], null, 2) + "\n");
+});
+
+test("RAC-110: listening diagnostics use the Host debug log without moving pairing details into it", t => {
+  const { result } = serve(t, "ok", "SIGTERM", false, true);
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /Molis Work Server:|http:\/\//);
+  const records = result.stderr.trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(records.length, 1);
+  const { at, fields, ...record } = records[0];
+  assert.ok(!Number.isNaN(Date.parse(at)));
+  assert.deepEqual(record, { level: "debug", area: "server", event: "listening" });
+  assert.ok(Number.isInteger(fields.port) && fields.port > 0 && fields.port <= 65535);
+  assert.deepEqual({ ...fields, port: 0 }, { address: "127.0.0.1", port: 0, tls: false });
+  assert.doesNotMatch(result.stderr, /connect\.json|pairing|runtime:cross-device|Required action grants/);
 });
 
 test("RAC-110: help and members exit 0 without stderr when the stdout reader closes early", { timeout: 30_000 }, async t => {
@@ -159,12 +219,26 @@ test("RAC-111: shutdown failure logs each phase without private details, closes 
   }
 });
 
-test("RAC-111: SIGTERM also closes normally; repeated signals cannot close twice or hide a pending failure", t => {
-  const normal = serve(t, "ok", "SIGTERM", true);
+test("RAC-111: SIGTERM closes normally; repeated signals still start transport cleanup only once", t => {
+  const normal = serve(t, "ok", "SIGTERM");
   assert.equal(normal.result.status, 0, normal.result.stderr);
   assert.equal(normal.result.stderr, "");
-  const failed = serve(t, "transport", "SIGINT", true);
-  assert.equal(failed.result.status, 1, failed.result.stderr);
-  assert.equal(failed.result.stderr.trim().split("\n").length, 1);
-  assert.equal(JSON.parse(failed.result.stderr).fields.phase, "transport");
+  // The coordinator's decision changes the second signal to force exit; the one-close invariant is retained in serve().
+  for (const mode of ["ok", "transport"]) {
+    const interrupted = serve(t, mode, "SIGINT", true);
+    assert.equal(interrupted.result.status, 143, interrupted.result.stderr);
+    assertForcedLog(interrupted.result.stderr, "SIGTERM");
+  }
+});
+
+test("RAC-111: a second OS signal exits blocked cleanup immediately and logs the skipped remainder once", { timeout: 60_000 }, async t => {
+  for (const first of ["SIGINT", "SIGTERM"] as const) {
+    for (const second of ["SIGINT", "SIGTERM"] as const) {
+      await t.test(`${first} then ${second}`, async t => {
+        const result = await forceShutdown(t, first, second);
+        assert.equal(result.code, second === "SIGINT" ? 130 : 143, result.stderr);
+        assertForcedLog(result.stderr, second);
+      });
+    }
+  }
 });

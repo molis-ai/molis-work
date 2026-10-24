@@ -58,11 +58,16 @@ if(command === "authorize") {
   const tls=values.cert && values.key ? {cert:await readFile(resolve(values.cert),"utf8"),key:await readFile(resolve(values.key),"utf8")} : undefined;
   const running=await startServer({identity,continuity,events,im:createImDomain({db:storage.db,identity,events}),port:Number(values.port ?? 4187),hostname:values.hostname,
     publicOrigin:values.origin,tls,imAssets:{html:renderImPage({embedded:false}),css:IM_STYLES,script:IM_CLIENT_SCRIPT}});
-  writeOutput(`Molis Work Server: ${running.origin}/continuity\nOwner pairing code: ${join(state,"connect.json")} (10 minutes)\nHost action client: ${memberClientId(owner.id)}\n`);
+  const address = running.server.address();
+  if (address && typeof address === "object") hostLog.debug("server", "listening", { address: address.address, port: address.port, tls: Boolean(tls) });
+  writeOutput(`Owner pairing code: ${join(state,"connect.json")} (10 minutes)\nHost action client: ${memberClientId(owner.id)}\n`);
   writeOutput(`Required action grants: ${CONTINUITY_ACTIONS.map(a=>a.capability_id+"@"+a.version).join(", ")}\n`);
   let closing = false;
-  const close = async () => {
-    if (closing) return;
+  const close = async (signal: "SIGINT" | "SIGTERM") => {
+    if (closing) {
+      hostLog.warn("server", "shutdown_forced", undefined, { signal, remaining_cleanup_skipped: true });
+      process.exit(signal === "SIGINT" ? 130 : 143);
+    }
     closing = true;
     let exitCode = 0;
     try { await running.close(); }
@@ -71,5 +76,5 @@ if(command === "authorize") {
     catch (error) { exitCode = 1; hostLog.error("server", "shutdown_failed", error, { phase: "storage" }); }
     process.exit(exitCode);
   };
-  process.on("SIGINT", close); process.on("SIGTERM", close);
+  process.on("SIGINT", () => close("SIGINT")); process.on("SIGTERM", () => close("SIGTERM"));
 } else writeOutput("serve --state DIR --config FILE --host-home DIR [--host-url http://127.0.0.1:4173] [--port 4187]\nFor LAN add --hostname ADDRESS --origin https://ADDRESS:PORT --cert FILE --key FILE\nauthorize --state DIR --member ID --project ID --control-token-file FILE [--host-url URL] [--revoke]\nmembers --state DIR\nrestore --bundle FILE --destination DIR\nread-assets --destination DIR --project SOURCE_PROJECT_ID\n");

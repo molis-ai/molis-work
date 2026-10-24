@@ -253,6 +253,14 @@ const APPROVED_CEILINGS = {
   // passing argument (6 bytes) are the growth. There is no shorter spelling that still tells Host's roots apart:
   // 24090 → 24118 (+28).
   "/assets/molis-work-plugins/cognia.js": [24090, 24118],
+  // SYS-15/S-47 (#1018 review): a page's link channel no longer navigates the owner document; a settings address opens
+  // the settings surface in place through the shell's registered settings channel, and a pane keeps its one relay. The
+  // four host settings paths left the whitelist while the page's own `openSettings` and the relay stayed (+263:
+  // 191104 → 191367, gzip 61710). Packing the page smaller buys only a few dozen bytes, at the cost of the one place a
+  // page could still have moved the owner's window; the page is frozen again once this PR lands. Rebased onto main
+  // 1dedc1f5c while the PR merged main: the merge-base budget is 191192 (RAC-132 的 +88 已烘焙), this PR's +263 is
+  // measured on top, 191455 bytes, gzip 61743.
+  "/assets/molis-work-plugin-frame.js": [191192, 191455],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -425,6 +425,7 @@ tests/scheduler.test.ts
 tests/search-evidence-runtime.test.ts
 tests/search-references.test.ts
 tests/secret-store-format.test.ts
+tests/server-cli.test.ts
 tests/server-database-baseline.test.ts
 tests/shelf-cli-probe.test.ts
 tests/shelf-job-runner.test.ts

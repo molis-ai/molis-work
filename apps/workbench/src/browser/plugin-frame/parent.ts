@@ -34,13 +34,32 @@ function stored(prefix: string): FrameConfig["storage"] {
   return storage;
 }
 
+/**
+ * A page never navigates a document. A settings address opens the workbench's settings in place, in the shell page that
+ * owns them: a frame in the shell asks this document, an embedded shell asks the one it is embedded in, and a pane hands
+ * the address to the pane's one relay to the workbench it sits in. Any other address changes nothing.
+ */
+function openSettings(url: URL): void {
+  const pane = new URLSearchParams(location.search).get("workbenchPane");
+  if (window.parent !== window && pane !== null) {
+    window.parent.postMessage({ type: "workbench-open-settings", paneId: pane, href: url.href }, location.origin);
+    return;
+  }
+  let owner = document;
+  try { if (window.top && window.top !== window) owner = window.top.document; } catch { /* A cross-origin embedder keeps its own documents. */ }
+  owner.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: url.href } }));
+}
+
 function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>, prefix: string): void {
   const url = new URL(message.url);
   const objectLink = url.pathname === prefix + "/" && /^[a-z][a-z0-9-]{0,100}$/u.test(url.searchParams.get("openPlugin") ?? "")
     && [...url.searchParams.keys()].every(key => ["openPlugin", "openItem", "openTitle", "openVersion"].includes(key));
-  if (url.origin === location.origin && (objectLink || ["/settings/models", "/settings/connectors", "/capabilities/connections", prefix + "/settings/workspaces"].includes(url.pathname))) {
-    const link = document.createElement("a"); link.href = url.pathname + url.search; link.hidden = true; root.append(link); link.click(); link.remove();
-  } else if (["https:", "http:", "mailto:"].includes(url.protocol) && url.origin !== location.origin) window.open(url.href, "_blank", "noopener,noreferrer");
+  if (url.origin !== location.origin) {
+    if (["https:", "http:", "mailto:"].includes(url.protocol)) window.open(url.href, "_blank", "noopener,noreferrer");
+    return;
+  }
+  if (!objectLink) { openSettings(url); return; }
+  const link = document.createElement("a"); link.href = url.pathname + url.search; link.hidden = true; root.append(link); link.click(); link.remove();
 }
 
 /** An installed surface may have appeared since this shell loaded. The server rebuilds the current project's catalog. */

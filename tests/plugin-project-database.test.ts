@@ -39,7 +39,7 @@ const idOf = (name: string) => `io.molis.work.example.${name}`;
 
 /** The Home's top-level entries that are not a library, registered or not (docs/system/HOME-DATA.md sections 5 and 6). */
 const HOME_DIRECTORIES = ["feed", "config", "agent-runtime", "browser", "shelf", "logs", "releases", "bin", "cache", "backups", "plugin-builder",
-  "directory-access", "runtime-integrations", "projects", "sessions", "alchemist"];
+  "directory-access", "runtime-integrations", "projects", "sessions", "alchemist", "plugin-files"];
 
 interface ProbeOptions {
   name?: string;

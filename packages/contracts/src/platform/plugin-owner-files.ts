@@ -2,7 +2,8 @@
  * A plugin's own files in the Home: the root and top-level entries are what its Manifest declares (`owner_files`, PG-102), like any
  * plugin's; the Host gives the service to a definition on its start list, whose root its store registry holds as this plugin's
  * (the root may also be the directory of the plugin's own library; the library's files are not among the entries), and to a sandboxed
- * installation in a project, whose root is that installation's own folder of the project (`plugin-files/<install>/<store_name>`, S-65).
+ * installation, whose root is that installation's own folder: in a project, `<Home>/projects/<project>/plugin-files/<install>/<store_name>`;
+ * on the Home Runtime, `<Home>/plugin-files/<install>/<store_name>` (S-65).
  * A sandboxed plugin reaches it only through the broker: relative paths and bounded base64, never `rootPath` or the writer callback.
  *
  * Inside the plugin's own action (or a background job that action started) the call needs the action to declare the file permission

@@ -74,8 +74,11 @@ top-level entry and refuses `..`, absolute paths, links and special nodes. A `re
 (`null` when there is none; a larger one is refused before it is read); a `list` is at most 1000 entries; a `write` is 1 to
 16 steps (`mkdir`, `write`, `replace_atomic`, `copy`, `remove`, `set_access`) with base64 bytes, each file at most 256 KiB
 and the call at most 512 KiB, and runs after the call's `beforeEffect()`. The operation declares `effects.ownerFiles`
-(`read`, or `read` and `write`; a query cannot write) and the person approves it. The folder is the installation's own in the
-project (`<Home>/projects/<project>/plugin-files/<installation>/<store_name>/`).
+(`read`, or `read` and `write`; a query cannot write) and the person approves it. The folder is the installation's own: in a
+project, `<Home>/projects/<project>/plugin-files/<installation>/<store_name>/`; on the Home Runtime,
+`<Home>/plugin-files/<installation>/<store_name>/` (a registered Home store, so a purge covers it). An uninstall that keeps no
+data, and a reinstall that drops the data an uninstall kept, remove the installation's folder (the Host's executors, not the
+plugin); an uninstall that keeps the data leaves it to the same installation id.
 
 `projectDatabase.get/all/transaction` reach the plugin's own tables in the project's library through the
 Host's `services.project_database`, adapted by `sandboxDatabase`. The broker bounds what crosses before the

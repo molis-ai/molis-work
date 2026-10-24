@@ -238,6 +238,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       retain_private_data: input.retain_private_data ?? current?.retain_private_data ?? true,
     };
     this.repository.save(record);
+    if (input.discard_kept_data === true && current?.state === "uninstalled" && current.retain_private_data) this.executor.keptDataDiscarded?.(current);
     return this.receipt("install", record, false);
   }
 

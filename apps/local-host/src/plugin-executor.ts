@@ -5,6 +5,7 @@ import { StoppedServiceCalls, type PluginCapabilityPort, type PluginEventBus, ty
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
+import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -91,6 +92,12 @@ export class PluginHostExecutor implements PluginExecutor {
 
   uninstalled(record: PluginInstanceRecord): void {
     forgetPluginAgentDefinitions(this.options.home, record.install_id);
+    // A sandboxed installation that keeps no data keeps no files either (S-65); one that keeps it leaves its folder to the same installation id.
+    if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
+  }
+
+  keptDataDiscarded(record: PluginInstanceRecord): void {
+    if (record.execution === "sandbox") removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
   }
 
   /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */

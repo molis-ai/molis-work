@@ -1130,3 +1130,11 @@ main112 整合中的合同版本补正（修改前）：独立审查确认本片
 main112＋四口 @2 的冻结状态定向工程验证：137/137 普通文件首轮全部通过（jobs2/browser1/retries0，8.1 分钟），包含受改 AgentHost/Contracts/Coding/LocalHost README 必跑普通组与原件、会话归属、后台隔离、MCP v3 和搜索接缝；精确清单及现行 classifyFile 结果 `/private/tmp/molis-memory-main112-target-plan-20261025.json`，该批没有被分类为 macOS-only 的文件。新 agent-host-actions 16/16 通过，真实 Coding HTTP 的 start/readSession/readRun/waitRun 路径与同 Session 接续均实际执行；SDK Effects 13/13、Coding 原件 8/8、后台隔离 24/24、回调原件隔离 17/17、搜索 12/12。根/工作区类型、boundary、workspace 登记、准确父 health、API/Action、secret/diff 均通过；逐命令日志与退出码 `/private/tmp/molis-memory-main112-final-results-20261025.json`，普通日志 `/private/tmp/molis-memory-main112-final-ordinary-20261025.log`。冲突 import 清理仅移除已不再使用的 ActionDefinition 类型名，无运行行为变化。
 
 准确 main112 与本状态各实测 27 项资源：7,637,908 → 7,641,818 B，只有 Workbench 1,130,064 → 1,133,257 B（+3,193）和 Coding 377,227 → 377,944 B（+717），其余 25 项逐项相等；无新额度，main 的 Form/PPT/CSS 缩减保留。两侧记录 `/private/tmp/molis-memory-main112-baseline-assets-20261025.json`、`/private/tmp/molis-memory-main112-final-assets-report-20261025.log`。原定两个 Coding browser 尚未运行：主干随后前进至 2dd535912，统筹要求保留到下一准确整合状态执行，未把未跑算通过；本状态未跑完整 Full suite、真实 Home、付费模型及用户验收。
+
+### #1064 接入 main2dd 的增量合同（2026-10-25，实施前）
+
+从 main112＋四口 @2 已验提交 `70559efd2` 合入准确 main `2dd53591276982b6947369e345ddfcffcc21afd2`。新增主干的 W5-06/C9 改由运行中项目插件渲染 stage，移除 Host 的 coding-surface 与旧导出，通用 project-plugin-stages、Files 输入刷新及嵌入槽接手；保留这些主干删减、不可用占位和 Files/Git 对 design-system 的真实依赖，不恢复宿主特例。Memory、原件身份、四口 @2、SDK94 九 blob 与两条隔离保持；该增量不扩展 Memory 功能、SDK、旧版本兼容、授权或额度。
+
+只处理真实冲突及必要现有消费者、README/spec、生成快照和实际基线。与 Memory 的直接接缝是 LocalHost 公开入口、工作区/锁、文档和基线；生产原件/四 Action 定义及 Coding 原件运行主链没有同路径变化。新 stage 会影响实际 Coding 页面，所以两个未跑 browser 放到本次准确整合后。先协调现七 browser 结束，再固定 runtime 冻结离线安装两树、准确 2dd baseline 与整合 head 整体构建及 27 项资源实测；仅沿原 Workbench +3,193、Coding +717 上限，其他项目继承准确 main 实测，不新给额度。
+
+回归按增量选择：新增 stage/嵌入槽/不可用状态与其生产 HTTP、已迁移 Coding 视图 fixture 的直接消费者、Workbench 新触点 README 必跑，以及受 web-request/路由装配影响的 Coding/助理原件与旧口拒绝路径。现 137 文件的未变路径沿用其准确冻结证据，不机械全批重跑；静态门对新 merge-base 重测，两个 Coding browser 串行零重试。精确增量文件清单、首败与结果继续记本节；最终全量与 CI 由统筹执行，不把 main112 或旧 8f8 的通过当作 2dd 通过。

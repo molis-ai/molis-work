@@ -1,5 +1,6 @@
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { DesktopPanelRecord, DesktopPanelRepository } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { desktopLaunchErrors } from "../launch.js";
 
 export function createDesktopPanelTables(db: SqliteDatabase): void {
   db.exec(`
@@ -136,20 +137,13 @@ export class SqliteDesktopPanelRepository implements DesktopPanelRepository {
 }
 
 function mapDesktopPanel(row: Record<string, unknown>): DesktopPanelRecord {
-  let launchArgs: string[] = [];
-  try {
-    const parsed = JSON.parse(String(row.launch_args ?? "[]")) as unknown;
-    if (Array.isArray(parsed)) launchArgs = parsed.map(String);
-  } catch {
-    launchArgs = [];
-  }
   return {
     panel_id: String(row.panel_id),
     project_id: String(row.project_id),
     goal_id: String(row.goal_id),
     runtime_kind: String(row.runtime_kind),
     launch_command: String(row.launch_command),
-    launch_args: launchArgs,
+    launch_args: readLaunchArgs(row.launch_args),
     cwd: row.cwd == null ? null : String(row.cwd),
     work_context_id: String(row.work_context_id),
     host_session_id: row.host_session_id == null ? null : String(row.host_session_id),
@@ -159,4 +153,18 @@ function mapDesktopPanel(row: Record<string, unknown>): DesktopPanelRecord {
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
+}
+
+function readLaunchArgs(value: unknown): string[] {
+  if (typeof value !== "string") throw desktopLaunchErrors.launch_args_invalid("终端面板的启动参数记录无效，无法读取。");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw desktopLaunchErrors.launch_args_invalid("终端面板的启动参数记录无效，无法读取。");
+  }
+  if (!Array.isArray(parsed) || !parsed.every((arg: unknown) => typeof arg === "string")) {
+    throw desktopLaunchErrors.launch_args_invalid("终端面板的启动参数记录无效，无法读取。");
+  }
+  return parsed;
 }

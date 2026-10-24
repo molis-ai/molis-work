@@ -1,10 +1,12 @@
 import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { defineErrorCodes } from "@molis-ai/molis-work-plugin-sdk";
 
-/** What opening a Goal terminal is refused for before any panel exists. */
+/** Coded failures while preparing or reading a Goal terminal's launch. */
 export const desktopLaunchErrors = defineErrorCodes("desktop", {
   /** A custom terminal names no command to start: the caller's mistake, refused as invalid (400). */
   launch_command_required: "invalid",
+  /** Stored arguments are damaged: refuse the complete-record read as internal (500), without exposing its contents. */
+  launch_args_invalid: "internal",
 });
 
 export const DESKTOP_RUNTIME_KINDS = [

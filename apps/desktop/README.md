@@ -25,6 +25,8 @@ createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 o
 
 Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位页在 `webview-placeholder/`；本包不另建 Goal 状态机。App 构建、安装与 Developer ID 签名/公证是不同步骤，当前实现不能据此声称已公证或已公开发布。
 
+面板持久化的 `launch_args` 只接受 JSON 字符串数组，合法空数组与每个字符串保持原样。损坏 JSON、非数组或含非字符串的数组以 `desktop.launch_args_invalid` 拒绝完整记录读取（HTTP 500）；包含坏记录的本次列表，以及依赖读取的重开、状态修改、关闭和别名操作也拒绝。失败不改原数据、不生成启动参数，也不把坏记录当成无参数启动；其他 Goal 的合法面板仍可读取。本包不提供坏记录自动修复或删除。
+
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
 桌面启动、原生命令分发及 Shelf 后台请求先用随机 challenge 和 Home 控制密钥验证本地服务的 HMAC 响应。后台请求复用已验证的 TCP 连接再发送令牌和内容；端口上的任意 HTTP 服务不能冒充本 Home。原生 PTY 已移除，终端仍走工作台的 WebSocket PTY。对应 SYS-14 的 Rust/HTTP 负向用例证明协议拒绝，原生 WebKit 实操单列验收。
@@ -46,7 +48,7 @@ pnpm --filter @molis-ai/molis-work-app-desktop typecheck
 pnpm --filter @molis-ai/molis-work-app-desktop build
 ```
 
-已有行为示例与回归：[desktop-tui.test.ts](../../tests/desktop-tui.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[desktop-tui.test.ts](../../tests/desktop-tui.test.ts)、[持久化参数故障回归](../../tests/desktop-launch-args.test.ts)。完成上述构建后运行：
 
 ```bash
 node scripts/run-tests.mjs tests/desktop-tui.test.ts

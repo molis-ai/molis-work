@@ -36,7 +36,10 @@ export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
     else conflicts.push(`启动器已被修改，不会删除：${launcher}`);
   }
   const releasesDirectory = path.join(homeDirectory, "releases");
-  const entries = await fs.readdir(releasesDirectory, { withFileTypes: true }).catch(() => []);
+  const entries = await fs.readdir(releasesDirectory, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  });
   for (const entry of entries) {
     const releasePath = path.join(releasesDirectory, entry.name);
     const releaseManifestPath = path.join(releasePath, "release.json");
@@ -83,7 +86,10 @@ async function readText(target: string): Promise<string | null> {
 }
 
 async function pathExists(target: string): Promise<boolean> {
-  try { await fs.stat(target); return true; } catch { return false; }
+  try { await fs.stat(target); return true; } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 export async function existingPaths(paths: string[]): Promise<string[]> {

@@ -178,13 +178,51 @@ export function assertPluginActionCurrent(instance: PluginInstance): void {
   markPluginActionChecked(scope);
 }
 
-/** A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. */
+/**
+ * A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. A model
+ * answer the call was handed is checked again here too (`holdPluginModelResult`): what the call writes or asks for next may rest on it.
+ */
 export function assertCapturedPluginActionCurrent(scope: PluginInvocationScope | undefined, instance: PluginInstance): void {
   if (!scope) return;
   if (!inPluginInstance(scope, instance)) throw new ActionError("actions.forbidden", "这次写入属于另一个插件实例，不属于正在运行的动作");
   scope.caller.signal?.throwIfAborted();
   requireSynchronous(scope.caller.assert_authority_current?.(), "最终授权检查必须同步完成");
   scope.caller.signal?.throwIfAborted();
+  assertHeldPluginModelResults(heldKey(scope));
+}
+
+/**
+ * Each model answer handed to a call, as the check that it may still be committed (`PluginModelResult.validateResult`). Kept under
+ * the call's `checked` record where it has one, which work that carries the call on shares, else under the scope itself.
+ */
+const heldModelResults = new WeakMap<object, Array<() => void>>();
+const heldKey = (scope: PluginInvocationScope): object => ("checked" in scope && scope.checked) || scope;
+
+/**
+ * Holds a model answer the model service handed to `scope` (PG-047): from then on every check the platform makes for the call
+ * (`assertCapturedPluginActionCurrent`, so every write through a platform service and every nested call) and the call's own
+ * `beforeEffect` returning (`pluginActionBeforeEffect`) run `validate` first, so an answer whose call or model binding is no
+ * longer current is committed through none of them, whether the plugin checked it or not.
+ */
+export function holdPluginModelResult(scope: PluginActionScope, validate: () => void): void {
+  const key = heldKey(scope), held = heldModelResults.get(key);
+  if (held) held.push(validate); else heldModelResults.set(key, [validate]);
+}
+
+function assertHeldPluginModelResults(key: object): void {
+  for (const validate of heldModelResults.get(key) ?? []) validate();
+}
+
+/**
+ * The `beforeEffect` a plugin's action handler is given: the call's own, and once it returns, every model answer the call holds
+ * checked again (`holdPluginModelResult`). Returning is one way the call passes its last authority check (`checked`).
+ */
+export function pluginActionBeforeEffect(before: () => Promise<void>, checked: { passed: boolean }): () => Promise<void> {
+  return async () => {
+    await before();
+    assertHeldPluginModelResults(checked);
+    checked.passed = true;
+  };
 }
 
 /**

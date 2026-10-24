@@ -20,7 +20,20 @@ const providerId = "fixture.search-authority";
 
 async function fixture(t: TestContext, defaultOpen = false) {
   const directory = await mkdtemp(join(tmpdir(), "aca005-search-home-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
+  const authorityWaiting = Promise.withResolvers<void>();
+  const authorityReleased = Promise.withResolvers<void>();
+  let acceptedCallId: string | undefined;
+  const host = new class extends MolisWorkLocalHost {
+    override async inspectActions(...args: Parameters<MolisWorkLocalHost["inspectActions"]>) {
+      // The query may exhaust its indexing budget before both settings requests finish.
+      // Hold only this accepted invocation's real authority recheck; settings have no call_id.
+      if (acceptedCallId && args[0].call_id === acceptedCallId) {
+        authorityWaiting.resolve();
+        await authorityReleased.promise;
+      }
+      return super.inspectActions(...args);
+    }
+  }({ homeDirectory: directory, completeText: null });
   const home = { ...await serveTestHost(null, { home: directory, host }), host };
   const project = await home.createProject("Original search authority");
   const permissions = defaultOpen ? [] : ["form:read"];
@@ -59,7 +72,10 @@ async function fixture(t: TestContext, defaultOpen = false) {
     // Observe the real query handler, not MCP's earlier catalog request or the owner's background refresh.
     if (queryArmed && caller.actor_id === clientId && caller.project_id === project.project_id && caller.audience === "mcp"
       && caller.call_id && running?.capability_id === searchActions.query.capability_id
-      && running.version === searchActions.query.version && running.provider_id === SEARCH_PROVIDER_ID) accepted.resolve();
+      && running.version === searchActions.query.version && running.provider_id === SEARCH_PROVIDER_ID) {
+      acceptedCallId ??= caller.call_id;
+      accepted.resolve();
+    }
     return { available: true };
   }, definitions: [entries, reader, unrelatedReader, peer], handlers: [
     bindSearchEntriesHandler(entries, async () => {
@@ -85,9 +101,10 @@ async function fixture(t: TestContext, defaultOpen = false) {
       MOLIS_WORK_WORK_CONTEXT_ID: "search-authority-session", MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     }, stderr: "pipe" });
   const sdk = new Client({ name: "search-authority-test", version: "1" });
-  t.signal.addEventListener("abort", unblock, { once: true });
+  const releaseAll = () => { unblock(); authorityReleased.resolve(); };
+  t.signal.addEventListener("abort", releaseAll, { once: true });
   t.after(async () => {
-    unblock();
+    releaseAll();
     try { await sdk.close(); }
     finally {
       for (const withdraw of disposers) withdraw();
@@ -120,7 +137,8 @@ async function fixture(t: TestContext, defaultOpen = false) {
     const accepted = (await home.inspect(clientId, project.project_id)).find(item => item.capability_id === next.capability_id);
     assert.ok(accepted); await home.grant(clientId, project.project_id, [accepted]);
   };
-  return { home, project, entries, reader, unrelatedReader, peer, clientId, entered: entered.promise, accepted: accepted.promise, release: unblock, addReader,
+  return { home, project, entries, reader, unrelatedReader, peer, clientId, entered: entered.promise, accepted: accepted.promise,
+    authorityWaiting: authorityWaiting.promise, releaseOwner: unblock, release: releaseAll, addReader,
     ask, refresh: async () => {
       // A completed provider command marks its sources dirty; background knowledge refresh may have renewed their age.
       await home.host.actionClient(project.reference).invoke(await home.host.localPersonContext(project.reference), { ...peer, provider_id: providerId }, {});
@@ -143,6 +161,9 @@ async function duringOwnerWait(f: Fixture, change: () => Promise<unknown>) {
     assert.equal(finished, false, "the real owner's HTTP fetch is still pending");
     await change();
     assert.equal(finished, false, "the product settings request completed before the same query answered");
+    f.releaseOwner();
+    await f.authorityWaiting;
+    assert.equal(finished, false, "the same query is waiting at its real authority recheck");
     f.release();
     return await pending;
   } finally { f.release(); }

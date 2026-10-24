@@ -111,3 +111,5 @@
 最新裁定（2026-10-23洛杉矶）：#1127 main已知红查出真实独立Home设置入口失效，不能再记作单纯旧选择器。root核home-plugin-page/parent/home-model-settings代码，公开6380173758裁定修复1在现有Home设置宿主消费受限同源三路径事件，复用原dialog/Retry/草稿/关闭，保留S47与工作台设置面；无导航旁路。修复1仍唯一writer，须重新构建和核实际affected full。#1166首轮6380139209发现旧卸载重放await期间同版本重装的新definition被删除，必须修；root6380162886保留修复2owner，当前只读准备等writer释放。独立测试已核原28文件572/572及U1/U2有效红绿，不能代替新增交错和共享核心full。#1163已正常入队，#1161仍队内，未记录实际合入。
 
 22:13洛杉矶更新：#1161已实际合入a934251d3，#1163仍队首检查中。main设置入口修复已收到作者关键红绿：原红例保留，Home4/4、S47含新拒绝5/5，拒绝放进现行安全CI文件；作者32文件544项、build/boundary/资源无增长，最终health及提交后secrets待交，尚未独立核原始证据。contracts/dom-events说明同步使真实affected触发full；等最终PR立即交独立review/test，Claude统筹唯一集成批，修复1仍唯一writer。
+
+22:16洛杉矶交付：main设置修复#1171 b27b0cd8c0663cb93d074b6038ff37bdcd2de89a（base89c9a7194）已交、非Draft、7文件+75/-15；root读实际增量并已立即派专职正式review和独立原始日志核验。作者32文件544项及必要门禁通过仍待独立裁决，actual full触发，Claude唯一组批。修复1已释放writer/build/browser，保留#1121待1148依赖；修复2现在唯一writer，已明确启动#1166同版本重装交错P2，按已核拒绝+队列释放方案与真实交错红绿修，不开其他队列。#1161已实际合入，#1163仍排队。

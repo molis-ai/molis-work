@@ -261,6 +261,11 @@ const APPROVED_CEILINGS = {
   // object keys of the shared state they destructure and return survive minification (about 1.6 KB of the growth); the rest is the
   // layer wrappers. Positional hand-over would win ~1.2 KB back at the cost of unreadable layer signatures; not taken.
   "/assets/molis-work-plugins/plugin-builder.js": [116132, 118672],
+  // A holder the Host labels in its own words (本会话, 子任务「…」, 用户, 没人认领…) is said on the English page with page
+  // words (P3 #928, 2026-10-23): the two client helpers that read a holder by kind, and two catalog keys, 375409 → 376282
+  // (+873). The served pack is tightened, so comments do not count there; the words and the reading are the cost. Rebased
+  // onto main 1dedc1f5c while the PR merged main: the merge-base budget is 375409, the measured pack is 376282.
+  "/assets/molis-work-plugins/coding.js": [375409, 376282],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

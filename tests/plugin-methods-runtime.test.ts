@@ -7,6 +7,7 @@ import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-cont
 import type { AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeAgentDefinitions, homeStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pagesManifest, pagesMethods } from "@molis-ai/molis-work-plugin-pages";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -221,6 +222,38 @@ function promptsAfterRestart(home: string) {
     return { prompts: promptsOf(restarted), roles: homeAgentDefinitions(restarted).roles().filter(role => role.owner_id === AGENT_PROBE).map(role => role.role_id) };
   } finally { rmSync(restarted, { recursive: true, force: true }); }
 }
+
+test("RAC-196-U1 an uninstall whose declaration cleanup hits a database lock finishes that cleanup on retry", { timeout: 60_000 },
+  withHome(async home => {
+    const project = platformIn(home), definition = agentProbe();
+    try {
+      assert.deepEqual((await project.platform.start([{ definition }])).running, [AGENT_PROBE]);
+      const id = project.installId(AGENT_PROBE), runtime = project.platform.runtime;
+      await runtime.stop(id);
+      assert.deepEqual(promptsOf(home), ["probe-role:disabled"]);
+      const blocker = openHomeSqliteDatabase(home, "agent-declarations");
+      try {
+        blocker.exec("BEGIN IMMEDIATE");
+        await assert.rejects(runtime.uninstall(id, { retain_private_data: true }), /database is locked/);
+      } finally { blocker.close(); }
+      const uninstalled = runtime.get(id);
+      assert.equal(uninstalled.state, "uninstalled", "the installation fact was saved before the failed cleanup");
+      assert.equal(uninstalled.retain_private_data, true);
+      assert.equal(runtime.contribution(id), null);
+      assert.deepEqual(listed(home, AGENT_PROBE), [], "failed cleanup never restores an Agent method");
+      assert.deepEqual(promptsOf(home), ["probe-role:disabled"], "the failed delete left the remembered declaration");
+      assert.deepEqual(promptsAfterRestart(home).prompts, ["probe-role:disabled"], "it is still persisted, not just cached");
+
+      const retried = await runtime.uninstall(id, { retain_private_data: false });
+      assert.equal(retried.replayed, true);
+      assert.deepEqual(retried.install, uninstalled, "retry preserves the original data choice, generation and timestamps");
+      assert.deepEqual(runtime.get(id), uninstalled);
+      assert.deepEqual(promptsOf(home), [], "retry really removed the in-memory declaration");
+      assert.deepEqual(promptsAfterRestart(home), { prompts: [], roles: [] }, "retry really removed the persisted declaration");
+      assert.deepEqual((await runtime.uninstall(id)).install, uninstalled, "completed cleanup is safe to repeat");
+      assert.doesNotThrow(() => runtime.register({ ...definition }), "successful retry releases the old implementation too");
+    } finally { project.store.close(); }
+  }));
 
 test("RAC-196 PG-051 Q1 b the last instance out leaves the installation's newest version, not the one it started with", { timeout: 60_000 },
   withHome(async home => {

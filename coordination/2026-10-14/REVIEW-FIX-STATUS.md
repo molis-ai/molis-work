@@ -255,3 +255,10 @@ lead 对审计结论抽查确认（读 main `8aa62a65b` 的原始文件，GitHub
 - SSOT-MATRIX AC-AUDIT-12..15（70→71 包、8→9 horizontal、63→67 subpath、server 行改「已完成」、modules/goals+governance 补 2026-10-18 注）；#1130 合入后 71→70 同片再改。
 - HANDOFF-TO-CODEX：AC-AUDIT-05（`context-onboarding-service.ts` 直 import pages/artifacts/todo；PG-088 只覆盖 Pages）按审计转 ac-platform。
 - #1168 合入后 AC-AUDIT-06/16 标 done、E14 九→4 份。
+
+## 追加派单（2026-10-24 06:4x UTC）
+
+- **task-18**（review-pr-fixer）：#1114 ac-review 一轮「修后可合」（6380443185）的挡合并项——① 正文改两句（删「MCP 需重授权」、删「删了 #1108 4 条放行」；保留 +28B 与 @2→@3 说明）；② 在 `tests/cognia-workbench.test.ts` 补一条断言页面调 `cognia.import.directory_preview@3` 带 `locator: "local:"+grant.root`（#1114/#1167 谁先合都要在）；③ 与 #1167（batch-24-23）顺序协同：谁先好谁先合，后合者搬 locator 行并重算 `cognia.js` 放行两数。
+- **task-17**（review-fix-owner）：进行中，AC-AUDIT-08/09/10/11 纯文档 PR。
+- **task-16**（plugin-frame-fixes）：#1168 按 ac-review 修别名表收口 + 反向断言 + 正文 affected-tests，进行中。
+- **AC-AUDIT-07 去向（据 MERGE-QUEUE #1169 行）**：统筹已让 #1169 作者删除 `APPROVED_CEILINGS` 里用完的 `issues.js`、`plugin-frame.js` 等条目（与本审计条目同源），本线无需另开清理 PR；`security-invariants.mjs` 正则扩展（AC-AUDIT-08 门禁侧）仍等用户批准。

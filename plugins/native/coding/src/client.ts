@@ -126,7 +126,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // The composer and what sets the next round (each a button by the box opening a dialog of that name) are shut while a
   // session is made, until its first read, and while sending.
   const unread=()=>creating || !draft.owns(current),shut=()=>sending || unread(),choosers=['workspace','goal','writer-directories','material','method','mcp','actions','character','delegate'];
-  const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,status});
+  const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,q,api,reviews:(box,workspace)=>host.showReviews?.(box,[],null,workspace),status});
   const stepReports = (${CODING_STEPS_CLIENT_FACTORY_SCRIPT})({...ports,prepareRework:reason=>plans.prepareStepRework(reason),receipts:host.receipts});
   let planEntries=[],subagentGroups=[];
   // A long session is read as a window: the latest rounds in full, earlier ones as summaries until scrolled back to.

@@ -11,6 +11,7 @@ const pieces = [
   { out: "usage-meter-bundle.js", module: "usage-meter", create: "usageMeter" },
   { out: "subagents-bundle.js", module: "subagents", create: "subagentGroups" },
   { out: "writers-bundle.js", module: "writers", create: "writerDirectories" },
+  { out: "writer-integration-bundle.js", module: "writer-integration", create: "writerIntegration" },
 ];
 
 const shared = { bundle: true, format: "iife", platform: "browser", minify: true, charset: "utf8", logLevel: "warning" };

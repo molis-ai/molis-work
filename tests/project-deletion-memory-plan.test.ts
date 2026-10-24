@@ -18,7 +18,7 @@ test("project deletion freezes tombstones and original versions, then resumes SD
   const tombstone = await f.raw(caller("tombstone")).tombstone({ scope: "project", owner: "project-a", memory_id: second.memory_id,
     expected_version: second.version, operation_id: "tombstone-original" });
   const who = caller("project-delete-fixed"), backend = () => prologueMemoryBackend(async () => f.adapter().memory!);
-  const plan = await previewProjectMemoryPurge({ backend: backend(), ledger: f.ledger(), caller: who }, "project-a", false);
+  const plan = await previewProjectMemoryPurge({ backend: backend(), ledger: f.ledger(), caller: who }, "project-a", { sessions: [] });
   const targets = plan.scopes.flatMap(scope => scope.memories);
   assert.deepEqual(targets.map(item => item.memory_id).sort(), [first.memory_id, second.memory_id].sort());
   assert.equal(targets.find(item => item.memory_id === second.memory_id)?.version, tombstone.version);
@@ -41,7 +41,7 @@ test("project deletion never adopts a successor version when retrying its origin
   const f = await memoryServiceHome(t, { projects: ["project-a"] }), service = await f.open();
   const original = (await service.write(caller("original"), { scope: "project", text: "Original project convention" })).memory!;
   const who = caller("original-delete"), backend = prologueMemoryBackend(async () => f.adapter().memory!);
-  const plan = await previewProjectMemoryPurge({ backend, ledger: f.ledger(), caller: who }, "project-a", false);
+  const plan = await previewProjectMemoryPurge({ backend, ledger: f.ledger(), caller: who }, "project-a", { sessions: [] });
   const successor = await f.raw(caller("edit")).update({ scope: "project", owner: "project-a", memory_id: original.memory_id,
     expected_version: original.version, operation_id: "successor", change: { text: "Successor must remain" } });
   await assert.rejects(applyProjectMemoryPurge({ backend, ledger: f.ledger(), caller: who, control }, plan), error => (error as { code?: string }).code === "agent.memory_conflict");
@@ -53,10 +53,10 @@ test("revocation after the SDK purge stops ledger cleanup and later targets", as
   const f = await memoryServiceHome(t, { projects: ["project-a"] }), service = await f.open();
   for (const name of ["First", "Second"]) await service.write(caller(name), { scope: "project", text: name + " project convention" });
   const who = caller("revoked-delete"), raw = prologueMemoryBackend(async () => f.adapter().memory!);
-  const plan = await previewProjectMemoryPurge({ backend: raw, ledger: f.ledger(), caller: who }, "project-a", false);
+  const plan = await previewProjectMemoryPurge({ backend: raw, ledger: f.ledger(), caller: who }, "project-a", { sessions: [] });
   let allowed = true, removes = 0, forgotten = 0;
   const ledgerForget = f.ledger().forget;
-  t.mock.method(f.ledger(), "forget", id => { forgotten++; ledgerForget(id); });
+  t.mock.method(f.ledger(), "forget", (id: string) => { forgotten++; ledgerForget(id); });
   const backend = observeMemoryBackend(raw, bound => ({ ...bound, remove: async input => { removes++; await bound.remove(input); allowed = false; } }));
   const revoked = { beforeEffect: async () => undefined, assert_current: () => { if (!allowed) throw new Error("Original grant revoked"); } };
   await assert.rejects(applyProjectMemoryPurge({ backend, ledger: f.ledger(), caller: who, control: revoked }, plan), /Original grant revoked/);
@@ -70,7 +70,7 @@ test("an unavailable runtime cannot certify an empty plan or erase the original 
   const f = await memoryServiceHome(t, { projects: ["project-a"] }), service = await f.open();
   const item = (await service.write(caller("kept"), { scope: "project", text: "Keep until runtime is available" })).memory!;
   const who = caller("unavailable-delete");
-  await assert.rejects(previewProjectMemoryPurge({ backend: null, ledger: f.ledger(), caller: who }, "project-a", false),
+  await assert.rejects(previewProjectMemoryPurge({ backend: null, ledger: f.ledger(), caller: who }, "project-a", { sessions: [] }),
     error => (error as { code?: string }).code === "memory.unavailable");
   await assert.rejects(applyProjectMemoryPurge({ backend: null, ledger: f.ledger(), caller: who, control },
     { project_id: "project-a", actor_id: who.actor_id, operation_id: who.operation_id!, scopes: [] }),
@@ -82,21 +82,49 @@ test("an unavailable runtime cannot certify an empty plan or erase the original 
 test("a non-exhausted page without a continuation cannot certify completion", async t => {
   const f = await memoryServiceHome(t, { projects: ["project-a"] }); await f.open();
   const raw = prologueMemoryBackend(async () => f.adapter().memory!);
-  const backend = observeMemoryBackend(raw, bound => ({ ...bound, page: async query => {
-    const { cursor: _cursor, ...page } = await bound.page(query); return { ...page, exhausted: false, stopped: "unknown" };
+  const backend = observeMemoryBackend(raw, bound => ({ ...bound, previewPurge: async query => {
+    const { cursor: _cursor, ...page } = await bound.previewPurge(query); return { ...page, exhausted: false };
   } }));
-  await assert.rejects(previewProjectMemoryPurge({ backend, ledger: f.ledger(), caller: caller("unknown-delete") }, "project-a", false),
+  await assert.rejects(previewProjectMemoryPurge({ backend, ledger: f.ledger(), caller: caller("unknown-delete") }, "project-a", { sessions: [] }),
     error => (error as { code?: string }).code === "memory.conflict");
+});
+
+test("partial and cancelled online previews never freeze a plan or change the ledger", async t => {
+  const f = await memoryServiceHome(t, { projects: ["project-a"] }), service = await f.open();
+  const item = (await service.write(caller("kept-for-preview"), { scope: "project", text: "Keep incomplete original" })).memory!;
+  const raw = prologueMemoryBackend(async () => f.adapter().memory!);
+  for (const outcome of ["partial", "cancelled"] as const) {
+    const backend = observeMemoryBackend(raw, bound => ({ ...bound,
+      previewPurge: async query => ({ ...await bound.previewPurge(query), outcome }) }));
+    await assert.rejects(previewProjectMemoryPurge({ backend, ledger: f.ledger(), caller: caller(`refuse-${outcome}`) }, "project-a", { sessions: [] }),
+      { code: "memory.conflict" });
+    assert.ok(f.ledger().revisions(item.memory_id).length > 0);
+    assert.equal((await f.raw().list("project", "project-a"))[0]?.memory_id, item.memory_id);
+  }
+});
+
+test("a canonical candidate with unrecorded sources is not treated as an empty source set", async t => {
+  const f = await memoryServiceHome(t, { projects: ["project-a"] }); await f.open();
+  const item = await f.raw().candidates.propose({ scope: "project", owner: "project-a", text: "Suggestion without recorded source identity",
+    origin: "person", expected_version: 0, operation_id: "unrecorded-candidate",
+    meta: { kind: "fact", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } } });
+  assert.deepEqual(f.ledger().candidates(LOCAL_PERSON_ACTOR_ID), []);
+  const backend = prologueMemoryBackend(async () => f.adapter().memory!);
+  const page = await backend.withCaller(caller("inspect-candidate")).previewPurge({ kind: "memory-candidate", scope: "project", owner: "project-a" });
+  assert.equal(page.items[0]?.kind === "memory-candidate" && page.items[0].sources, null);
+  await assert.rejects(previewProjectMemoryPurge({ backend, ledger: f.ledger(), caller: caller("unknown-candidate-source") }, "project-a", { sessions: [] }),
+    { code: "memory.conflict" });
+  assert.equal((await f.raw().candidates.list("project", "project-a"))[0]?.candidate_id, item.candidate_id);
 });
 
 test("a queued revocation never crosses an extra promise gap into the ledger write", async t => {
   const f = await memoryServiceHome(t, { projects: ["project-a"] }), service = await f.open();
   await service.write(caller("one"), { scope: "project", text: "One project item" });
   const who = caller("microtask-delete"), backend = prologueMemoryBackend(async () => f.adapter().memory!);
-  const plan = await previewProjectMemoryPurge({ backend, ledger: f.ledger(), caller: who }, "project-a", false);
+  const plan = await previewProjectMemoryPurge({ backend, ledger: f.ledger(), caller: who }, "project-a", { sessions: [] });
   let allowed = true, effects = 0, unauthorizedWrites = 0;
   const forget = f.ledger().forget;
-  t.mock.method(f.ledger(), "forget", id => { if (!allowed) unauthorizedWrites++; forget(id); });
+  t.mock.method(f.ledger(), "forget", (id: string) => { if (!allowed) unauthorizedWrites++; forget(id); });
   const current = { beforeEffect: async () => {
     if (++effects === 2) queueMicrotask(() => queueMicrotask(() => { allowed = false; }));
   }, assert_current: () => { if (!allowed) throw new Error("Original grant revoked"); } };
@@ -130,7 +158,7 @@ test("project cleanup and restart retain suppression of the original source", { 
   const accepted = await service.accept(caller("accept"), candidate.candidate_id, { expected_version: candidate.version });
   assert.ok(accepted.memory);
   const who = caller("purge-source"), backend = () => prologueMemoryBackend(async () => f.adapter().memory!);
-  const plan = await previewProjectMemoryPurge({ backend: backend(), ledger: f.ledger(), caller: who }, "project-a", false);
+  const plan = await previewProjectMemoryPurge({ backend: backend(), ledger: f.ledger(), caller: who }, "project-a", { sessions: [] });
   assert.ok(plan.scopes.some(scope => scope.sources.some(source => source.event_id === original.event_id)));
   await applyProjectMemoryPurge({ backend: backend(), ledger: f.ledger(), caller: who, control }, plan);
   const calls = generate.mock.callCount();
@@ -148,7 +176,7 @@ test("project cleanup and restart retain suppression of the original source", { 
   }
 });
 
-test("public listing of a purged Session omits still-retained originals without an App ledger note", async t => {
+test("online purge preview retains originals hidden from public listing after Session purge", async t => {
   const f = await memoryServiceHome(t, { projects: ["project-a"] }); await f.open();
   const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", plugin_id: "io.molis.work.coding", install_id: "coding" };
   const session = await f.adapter().createSession({ ...owner, workspace: "none", role_id: "coding", title: "Original scope binding" });
@@ -165,11 +193,12 @@ test("public listing of a purged Session omits still-retained originals without 
     const page = await f.raw(who).page({ scope: "project", owner: "project-a", filter: { tombstone } });
     assert.equal(page.exhausted, true); assert.deepEqual(page.items, []);
   }
-  const plan = await previewProjectMemoryPurge({ backend: prologueMemoryBackend(async () => f.adapter().memory!), ledger: f.ledger(), caller: caller("new-project-plan") }, "project-a", false);
-  assert.deepEqual(plan.scopes.flatMap(scope => scope.memories), [], "an authorized target plan does not prove the old Session's originals are gone");
+  const plan = await previewProjectMemoryPurge({ backend: prologueMemoryBackend(async () => f.adapter().memory!), ledger: f.ledger(), caller: caller("new-project-plan") }, "project-a", { sessions: [] });
+  assert.deepEqual(plan.scopes.flatMap(scope => scope.memories), [{ memory_id: formal.memory_id, version: formal.version }]);
   // A fresh wrong-version delete conflicts: this is a retained canonical original, not an already-absent receipt.
   await assert.rejects(f.raw(who).remove({ scope: "project", owner: "project-a", memory_id: formal.memory_id,
     expected_version: formal.version + 1, operation_id: "prove-original-retained" }), error => (error as { code?: string }).code === "agent.memory_conflict");
+  await applyProjectMemoryPurge({ backend: prologueMemoryBackend(async () => f.adapter().memory!), ledger: f.ledger(), caller: caller("new-project-plan"), control }, plan);
   await f.raw(who).remove({ scope: "project", owner: "project-a", memory_id: formal.memory_id,
-    expected_version: formal.version, operation_id: "delete-original-identity" });
+    expected_version: formal.version + 1, operation_id: "prove-original-absent" });
 });

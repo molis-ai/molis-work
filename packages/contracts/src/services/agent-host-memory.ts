@@ -280,6 +280,33 @@ export interface AgentMemoryPage {
   cost: { directory_entries: number | "unknown"; directory_enumerations: number | "unknown";
     directory_traversal: "full" | "bounded" | "unknown"; metadata_reads: number | "unknown"; body_reads: number | "unknown" };
 }
+/** Online delete identities include originals hidden from ordinary reads. A page is not a cross-page snapshot. */
+export interface AgentMemoryPurgeQuery {
+  kind: "memory" | "memory-candidate";
+  scope: AgentMemoryEntry["scope"];
+  owner: string;
+  session_ref?: { kind: "session"; id: string; revision: number };
+  limit?: number;
+  cursor?: string;
+  signal?: AbortSignal;
+}
+export type AgentMemoryPurgeItem = {
+  expected_version: number;
+  identity: { scope: AgentMemoryEntry["scope"]; owner: string };
+  session_ref?: { kind: "session"; id: string; revision: number };
+} & (
+  | { kind: "memory"; memory_id: string; state: "active" | "paused" | "disabled" | "tombstoned" }
+  | { kind: "memory-candidate"; candidate_id: string; state: AgentMemoryCandidateEntry["state"];
+      /** null means unrecorded, never proof that no source exists. */
+      sources: AgentMemorySourceRef[] | null }
+);
+export interface AgentMemoryPurgePage {
+  outcome: "completed" | "partial" | "cancelled";
+  items: AgentMemoryPurgeItem[];
+  issues: Array<{ code: string }>;
+  cursor?: string;
+  exhausted: boolean;
+}
 type AgentMemoryLocation = { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string };
 type AgentCandidateLocation = { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string };
 
@@ -289,6 +316,7 @@ export interface AgentMemoryCapability {
   withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
   page(input: AgentMemoryPageQuery): Promise<AgentMemoryPage>;
+  previewPurge(input: AgentMemoryPurgeQuery): Promise<AgentMemoryPurgePage>;
   /** Append maps operation_id to SDK idempotencyKey; it has no synthetic expected version. */
   write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryEntry>;
   update(input: AgentMemoryLocation & AgentMemoryMutation & { change: AgentMemoryChange }): Promise<AgentMemoryEntry>;

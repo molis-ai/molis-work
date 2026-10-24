@@ -5,16 +5,30 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { createRequire } from "node:module";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, ensureSystemAgentService, projectDeletedHooksFor, AssistantStore, ASSISTANT_STORE_NAME, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, ensureSystemAgentService, projectDeletedHooksFor, AssistantStore, ASSISTANT_STORE_NAME, molisWorkHostProjectReference, memoryRuntimePolicy, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { ASSISTANT_PLUGIN_ID, ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryMeta, AgentMemoryCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const actor = LOCAL_PERSON_ACTOR_ID;
+const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
+const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
 const meta: AgentMemoryMeta = { kind: "fact", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } };
+/** Public SDK setup represents originals predating App ownership records; the tested operation uses the resident owner. */
+function openOriginalRuntime(home: string) {
+  const declared = memoryRuntimePolicy(() => undefined).policy;
+  const policy = { ...declared, matrix: { ...declared.matrix, rows: declared.matrix?.rows?.map(row => ({ ...row,
+    actions: row.actions?.filter(action => action !== "promote"), write: { ...row.write, approval: "person" } })) } };
+  return createRuntime({ app: { appId: "io.molis.work", appVersion: "0.0.0" },
+    host: createNodeHost({ storageRoot: join(home, "agent-runtime"), exclusiveOwner: true }), config: { memory: policy },
+    memoryAuthority: { authorize: async () => true, authorizeManagement: async () => ({ allowed: true, storageCost: "visible" }),
+      defaultContext: { consumer: "ui", currentScene: "common", purpose: "management" } } });
+}
 async function fixture(t: TestContext, project_id?: string) {
   const home = await mkdtemp(join(tmpdir(), "molis-project-fixed-recovery-"));
   let catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -38,12 +52,12 @@ async function fixture(t: TestContext, project_id?: string) {
 test("the accepted project plan clears real Sessions and bound personal tombstones before business owners; retry preserves its original decision", { timeout: 90_000 }, async t => {
   const f = await fixture(t);
   const coding = { project_id: f.gone.project_id, plugin_id: "io.molis.work.coding", install_id: "coding-installed", actor_id: actor };
-  const root = await f.adapter().createSession({ ...coding, workspace: "none", title: "Archived Coding session" });
+  const root = await f.adapter().createSession({ ...coding, workspace: "none", role_id: "coding", title: "Archived Coding session" });
   const lifecycle = f.adapter().sessionLifecycle!;
   const state = await lifecycle.read(root, coding);
   await lifecycle.archive(root, { operation_id: "archive-original", expected_version: state.version!, expected_state: "active" }, coding);
   const assistantOwner = { project_id: ASSISTANT_PERSONAL_OWNER, plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: actor };
-  const assistant = await f.adapter().createSession({ ...assistantOwner, workspace: "none", title: "Associated personal session" });
+  const assistant = await f.adapter().createSession({ ...assistantOwner, workspace: "none", role_id: "assistant", title: "Associated personal session" });
   const db = openHomeSqliteDatabase(f.home, ASSISTANT_STORE_NAME), works = new AssistantStore(db);
   const work = works.create({ actor_id: actor, title: "Associated Work", scope: { kind: "project", project_id: f.gone.project_id }, origin: null });
   works.update(actor, work.work_id, work.revision, { session_id: assistant.session_id, archived: true }); db.close();
@@ -81,21 +95,36 @@ test("the accepted project plan clears real Sessions and bound personal tombston
   assert.deepEqual((await f.memory(null).page({ scope: "user", owner: actor, filter: { tombstone: true } })).items, []);
   assert.deepEqual((await f.memory(null).list("user", actor)).map(row => row.memory_id), [kept.memory_id]);
   assert.ok(f.catalog.getProject(f.kept.project_id));
-  assert.ok(project.memory);
+  assert.ok(project && typeof project === "object" && "memory" in project && project.memory);
 });
 
-test("preparation failure accepts no receipt and leaves Catalog, directory and originals unchanged", { timeout: 60_000 }, async t => {
+test("a new deletion recovers retained originals from an independently purged indexed Session", { timeout: 60_000 }, async t => {
   const f = await fixture(t), owner = { project_id: f.gone.project_id, plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: actor };
-  const session = await f.adapter().createSession({ ...owner, workspace: "none", title: "Prior purged Session" });
+  const session = await f.adapter().createSession({ ...owner, workspace: "none", role_id: "coding", title: "Prior purged Session" });
   const entry = await f.memory(f.gone.project_id, session.session_id).write({ scope: "project", owner: f.gone.project_id, text: "Retained orphan", origin: "person", operation_id: "orphan",
     meta: { ...meta, session_ref: { kind: "session", id: session.session_id, revision: 1 } } });
   const preview = await f.adapter().sessionLifecycle!.previewPurge(session, owner);
   await f.adapter().sessionLifecycle!.purge(session, { operation_id: "prior-session-purge", expected_version: preview.version, expected_state: preview.state }, preview, owner);
-  await assert.rejects(f.catalog.deleteProject(f.request), /先前清除/);
+  assert.equal((await f.catalog.deleteProject(f.request)).deletion.cleanup_state, "complete");
+  assert.equal(f.retained(), 0); assert.equal(existsSync(f.gone.database_path), false);
+  // A stale CAS could not delete a retained original; absence makes this a no-op.
+  await f.memory().remove({ scope: "project", owner: f.gone.project_id, memory_id: entry.memory_id,
+    expected_version: entry.version + 1, operation_id: "prove-absent" });
+});
+
+test("an incomplete online preview accepts no receipt and leaves Catalog, directory and originals unchanged", { timeout: 60_000 }, async t => {
+  const f = await fixture(t);
+  const entry = await f.memory().write({ scope: "project", owner: f.gone.project_id, text: "Retained on incomplete preview", origin: "person", operation_id: "incomplete", meta });
+  const capability = f.adapter().memory!, original = capability.withCaller.bind(capability);
+  const incomplete = (bound: AgentMemoryCapability): AgentMemoryCapability => ({ ...bound,
+    withExecution: control => incomplete(bound.withExecution!(control)),
+    previewPurge: async query => ({ ...await bound.previewPurge(query), outcome: "partial", issues: [{ code: "STORAGE_RECONCILE_REQUIRED" }] }) });
+  const failure = t.mock.method(capability, "withCaller", (who: Parameters<AgentMemoryCapability["withCaller"]>[0]) => incomplete(original(who)));
+  await assert.rejects(f.catalog.deleteProject(f.request), /尚未完整确认/);
   assert.deepEqual(f.catalog.listProjectDeletions(), []); assert.equal(f.retained(), 1); assert.equal(existsSync(f.gone.database_path), true);
-  assert.ok(f.catalog.getProject(f.gone.project_id));
-  await assert.rejects(f.memory().remove({ scope: "project", owner: f.gone.project_id, memory_id: entry.memory_id,
-    expected_version: entry.version + 1, operation_id: "wrong-version" }), { code: "agent.memory_conflict" });
+  assert.ok(f.catalog.getProject(f.gone.project_id)); failure.mock.restore();
+  assert.equal((await f.memory().list("project", f.gone.project_id))[0]?.memory_id, entry.memory_id);
+  assert.equal((await f.catalog.deleteProject(f.request)).deletion.cleanup_state, "complete");
 });
 
 test("a legacy NULL recovery receipt stays pending without running owners or rescanning a new plan", { timeout: 60_000 }, async t => {
@@ -135,7 +164,7 @@ test("a receipt commit failure after directory removal resumes the same complete
 
 test("the preparation hold rejects new project and bound-personal writes before the Catalog accepts, while unrelated personal data remains usable", { timeout: 60_000 }, async t => {
   const f = await fixture(t), owner = { project_id: f.gone.project_id, plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: actor };
-  const session = await f.adapter().createSession({ ...owner, workspace: "none", title: "Held Session" });
+  const session = await f.adapter().createSession({ ...owner, workspace: "none", role_id: "coding", title: "Held Session" });
   await f.memory(null, session.session_id).write({ scope: "user", owner: actor, text: "Accepted before the hold", origin: "person", operation_id: "before-hold",
     meta: { ...meta, session_ref: { kind: "session", id: session.session_id, revision: 1 } } });
   const hooks = projectDeletedHooksFor(f.home), original = hooks.owners().find(item => item.id === "memory")!;
@@ -160,7 +189,7 @@ test("a Catalog-only new Home can clear project preferences without starting a R
   const gone = await catalog.createProject({ display_name: "No runtime project", actor_id: actor });
   const next = await catalog.createProject({ display_name: "Unknown ledger project", actor_id: actor });
   const ledger = openMemoryLedger({ homeDirectory: home }); t.after(() => ledger.close());
-  ledger.savePrefs(actor, `project:${gone.project_id}`, defaultPrefs("project", "off"));
+  ledger.savePrefs(actor, `project:${gone.project_id}`, defaultPrefs("project", "reviewed"));
   assert.equal(memoryLedgerHasOnlyPreferences({ homeDirectory: home }), true);
   const request = (id: string) => ({ actor_id: actor, project_id: id, delete_confirmed: true, idempotency_key: `delete-${id}` });
   assert.equal((await catalog.deleteProject(request(gone.project_id))).deletion.cleanup_state, "complete");
@@ -197,7 +226,7 @@ test("an accepted absent plan can resume after another project starts the Runtim
   const resumed = ensureSystemAgentService(host, home, withMolisWorkProjectCatalog); await resumed.ready;
   memory = resumed.agentHost.adapter("prologue").memory!;
   await assert.rejects(resumed.agentHost.adapter("prologue").createSession({ project_id: gone.project_id, plugin_id: "io.molis.work.coding",
-    install_id: "installed", actor_id: actor, workspace: "none", title: "Must remain refused after restart" }), { code: "agent.session_busy" });
+    install_id: "installed", actor_id: actor, workspace: "none", role_id: "coding", title: "Must remain refused after restart" }), { code: "agent.session_busy" });
   await assert.rejects(memory.withCaller(caller(gone.project_id)).write({ scope: "project", owner: gone.project_id, text: "Still closed after restart",
     origin: "person", operation_id: "late-after-restart", meta }));
   fail = false;
@@ -205,4 +234,78 @@ test("an accepted absent plan can resume after another project starts the Runtim
   assert.equal(repeated.deletion.cleanup_state, "complete", repeated.deletion.cleanup_error ?? "");
   assert.equal(repeated.deletion.deletion_id, first.deletion.deletion_id);
   assert.deepEqual((await memory.withCaller(caller(kept.project_id)).list("project", kept.project_id)).map(item => item.memory_id), [later.memory_id]);
+});
+
+test("project deletion clears canonical originals hidden by a purged Session even without an App index or ledger", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-project-canonical-orphan-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  let host: MolisWorkLocalHost | undefined;
+  t.after(async () => { await host?.close(); catalog.close(); await rm(home, { recursive: true, force: true }); });
+  const project = await catalog.createProject({ display_name: "Unindexed canonical original", actor_id: actor });
+  let runtime = await openOriginalRuntime(home);
+  let original: { ref: { kind: "memory"; id: string; revision: number }; version: number };
+  try {
+    const session = await runtime.sessions.create();
+    const bound = runtime.bindMemory({ consumer: "ui", currentScene: "common", purpose: "management", sessionRef: session.ref });
+    original = await bound.memory.write({ scope: "project", owner: project.project_id, text: "Retained canonical project original",
+      origin: "public SDK setup", idempotencyKey: "unindexed-original", meta: { kind: "fact", source: "manual", approvedBy: { by: "person" },
+        classification: { scenes: ["common"], lifecycle: "long-term" }, sessionRef: session.ref } });
+    await runtime.sessions.purge(await session.previewPurge());
+    const page = await bound.memory.page({ scope: "project", owner: project.project_id });
+    assert.deepEqual(page.items, []); assert.equal(page.exhausted, true, "ordinary listing hides the retained original");
+  } finally { await runtime.shutdown(); }
+  host = new MolisWorkLocalHost({ homeDirectory: home });
+  await ensureSystemAgentService(host, home, withMolisWorkProjectCatalog).ready;
+  const removed = await catalog.deleteProject({ project_id: project.project_id, actor_id: actor,
+    delete_confirmed: true, idempotency_key: "delete-unindexed-original" });
+  assert.equal(removed.deletion.cleanup_state, "complete", removed.deletion.cleanup_error ?? "");
+  await host.close();
+  runtime = await openOriginalRuntime(home);
+  try {
+    // A retained canonical original rejects this stale version. An absent locator is a no-op; it cannot delete a survivor.
+    await assert.doesNotReject(runtime.memory.purge(original!.ref, { expectedVersion: original!.version + 1,
+      operationId: "prove-original-is-absent", identity: { scope: "project", owner: project.project_id } }));
+  } finally { await runtime.shutdown(); }
+});
+
+for (const missingSteps of [false, true]) test(`a complete demo deletion receipt ${missingSteps ? "without owner steps " : ""}cannot clear later canonical originals or authorize recreation`, { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-demo-current-original-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  let host = new MolisWorkLocalHost({ homeDirectory: home });
+  t.after(async () => { await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); });
+  const input = { actor_id: actor, user_confirmed: true }, demo = await catalog.ensureDemoProject(input);
+  await ensureSystemAgentService(host, home, withMolisWorkProjectCatalog).ready;
+  assert.equal((await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: actor,
+    delete_confirmed: true, idempotency_key: "old-demo-deletion" })).deletion.cleanup_state, "complete");
+  if (missingSteps) {
+    const receipts = new DatabaseSync(join(home, "projects", "catalog.db"));
+    try {
+      const originalPlan = receipts.prepare("SELECT recovery_plan FROM project_deletions WHERE project_id = ?").get(DEMO_PROJECT_ID);
+      assert.equal(JSON.parse(String(originalPlan?.recovery_plan)).kind, "runtime", "missing steps retain the real original runtime plan");
+      receipts.prepare("DELETE FROM project_deletion_steps WHERE deletion_id IN (SELECT deletion_id FROM project_deletions WHERE project_id = ?)").run(DEMO_PROJECT_ID);
+      assert.equal(receipts.prepare("SELECT recovery_plan FROM project_deletions WHERE project_id = ?").get(DEMO_PROJECT_ID)?.recovery_plan, originalPlan?.recovery_plan);
+    } finally { receipts.close(); }
+    assert.deepEqual(catalog.listProjectDeletions()[0]?.owner_steps, []);
+  }
+  await host.close();
+  let runtime = await openOriginalRuntime(home);
+  let original: { ref: { kind: "memory"; id: string; revision: number }; version: number };
+  try {
+    original = await runtime.memory.write({ scope: "project", owner: DEMO_PROJECT_ID, text: "Later canonical original must remain",
+      origin: "public SDK setup", idempotencyKey: "later-demo-original", meta: { kind: "fact", source: "manual", approvedBy: { by: "person" },
+        classification: { scenes: ["common"], lifecycle: "long-term" } } });
+  } finally { await runtime.shutdown(); }
+  host = new MolisWorkLocalHost({ homeDirectory: home });
+  await ensureSystemAgentService(host, home, withMolisWorkProjectCatalog).ready;
+  await assert.rejects(catalog.ensureDemoProject(input), /仍有当前记忆原件/);
+  assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), false);
+  assert.equal(existsSync(demo.project.database_path), false);
+  assert.equal(catalog.listProjectDeletions().length, 1);
+  await host.close(); runtime = await openOriginalRuntime(home);
+  try {
+    await runtime.memory.hydrate([{ scope: "project", owner: DEMO_PROJECT_ID }]);
+    assert.equal((await runtime.memory.get(original!.ref))?.text, "Later canonical original must remain");
+    await assert.rejects(runtime.memory.purge(original!.ref, { expectedVersion: original!.version + 1,
+      operationId: "prove-later-original-retained", identity: { scope: "project", owner: DEMO_PROJECT_ID } }), { code: "STORAGE_CONFLICT" });
+  } finally { await runtime.shutdown(); }
 });

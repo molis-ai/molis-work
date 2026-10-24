@@ -28,6 +28,7 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
       const page = await (await store()).page({ ...input, scope: prologueScope(input.scope) });
       return { ...page, items: page.items.map(view) };
     },
+    previewPurge: async input => (await store()).previewPurge({ ...input, scope: prologueScope(input.scope) }),
     write: async input => view(await (await store()).write({ ...input, scope: prologueScope(input.scope) })),
     update: async input => view(await (await store()).update({ ...input, scope: prologueScope(input.scope) })),
     setMeta: async input => view(await (await store()).setMeta({ ...input, scope: prologueScope(input.scope) })),

@@ -535,6 +535,7 @@ export interface AgentMemoryCapability {
     withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
     page(input: AgentMemoryPageQuery): Promise<AgentMemoryPage>;
+    previewPurge(input: AgentMemoryPurgeQuery): Promise<AgentMemoryPurgePage>;
     write(input: {
         scope: AgentMemoryEntry["scope"];
         owner: string;
@@ -924,6 +925,52 @@ export interface AgentMemoryPromotionRequest extends AgentMemoryPromotionIdentit
             expected_version: number;
         };
     };
+    signal?: AbortSignal;
+}
+
+export type AgentMemoryPurgeItem = {
+    expected_version: number;
+    identity: {
+        scope: AgentMemoryEntry["scope"];
+        owner: string;
+    };
+    session_ref?: {
+        kind: "session";
+        id: string;
+        revision: number;
+    };
+} & ({
+    kind: "memory";
+    memory_id: string;
+    state: "active" | "paused" | "disabled" | "tombstoned";
+} | {
+    kind: "memory-candidate";
+    candidate_id: string;
+    state: AgentMemoryCandidateEntry["state"];
+    sources: AgentMemorySourceRef[] | null;
+});
+
+export interface AgentMemoryPurgePage {
+    outcome: "completed" | "partial" | "cancelled";
+    items: AgentMemoryPurgeItem[];
+    issues: Array<{
+        code: string;
+    }>;
+    cursor?: string;
+    exhausted: boolean;
+}
+
+export interface AgentMemoryPurgeQuery {
+    kind: "memory" | "memory-candidate";
+    scope: AgentMemoryEntry["scope"];
+    owner: string;
+    session_ref?: {
+        kind: "session";
+        id: string;
+        revision: number;
+    };
+    limit?: number;
+    cursor?: string;
     signal?: AbortSignal;
 }
 

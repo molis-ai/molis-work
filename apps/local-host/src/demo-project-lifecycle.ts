@@ -11,6 +11,7 @@ import { managedProjectDirectory } from "./project-file-paths.js";
 import { validateManagedProject } from "./managed-project-database.js";
 import type { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
+import { ProjectDeletedDeferred } from "./project-deleted-hooks.js";
 import { decodeProjectDeletionRecovery } from "./project-deletion-recovery.js";
 import {
   enableDemoProjectPlugins,
@@ -27,7 +28,7 @@ export class DemoProjectLifecycle {
     private readonly deletion: ManagedProjectDeletion,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">,
     private readonly commit: CatalogCommit,
-    private readonly owners: Pick<ProjectDeletedPort, "clearAll" | "ready">,
+    private readonly owners: Pick<ProjectDeletedPort, "clearAll" | "ready" | "withRecreation">,
   ) {}
 
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> {
@@ -51,14 +52,13 @@ export class DemoProjectLifecycle {
     if (await fs.stat(directory).then(() => true, error => { if (error.code === "ENOENT") return false; throw error; }))
       throw catalogErrors.project_storage_invalid("示例项目目录仍存在，不能按旧删除结果覆盖");
     const earlier = this.projects.query.listProjectDeletions().filter(receipt => receipt.project_id === this.demo.projectId);
-    const cleared = earlier.length > 0 && earlier.every(receipt => {
+    const deletions = earlier.map(receipt => {
       const record = this.projects.lifecycle.getDeletion(receipt.deletion_id);
-      if (!record?.recovery_plan || record.cleanup_state !== "complete" || !receipt.owner_steps.length
-        || receipt.owner_steps.some(step => step.state !== "complete")) return false;
-      decodeProjectDeletionRecovery(record.recovery_plan, record.project_id, record.deletion_id);
-      return true;
+      if (!record?.recovery_plan || record.cleanup_state !== "complete"
+        || receipt.owner_steps.some(step => step.state !== "complete"))
+        throw new ProjectDeletedDeferred("原示例删除事实不完整，请由运行中的 Molis Work 核对后重试", true);
+      return { ...receipt, recovery: decodeProjectDeletionRecovery(record.recovery_plan, record.project_id, record.deletion_id) };
     });
-    if (earlier.length && !cleared) await this.owners.clearAll(this.demo.projectId, { skipDeferred: earlier.every(receipt => receipt.owner_steps.length > 0) });
     const record = this.projects.lifecycle.prepareRecord({
       project_id: this.demo.projectId,
       display_name: input.display_name ?? "Molis Work 示例项目",
@@ -67,18 +67,31 @@ export class DemoProjectLifecycle {
     });
     const stagingDirectory = path.join(this.projectsDirectory, `.staging-${record.project_id}`);
     const projectDirectory = path.dirname(record.database_path);
-    let promoted = false;
+    let staged = false, promoted = false;
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
-      const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
-      this.demo.seed(stagedDatabasePath, record.project_id);
-      seedDemoPluginSurfaces(stagedDatabasePath, record.project_id);
-      validateManagedProject(stagedDatabasePath, record.project_id);
-      await fs.rename(stagingDirectory, projectDirectory);
-      promoted = true;
-      await this.commit(() => this.projects.lifecycle.register(record, "project.demo_created", actorId));
+      staged = true;
+      const create = async (assertCurrent: () => void) => {
+        assertCurrent();
+        if (this.projects.lifecycle.retainedProject(record.project_id)) throw catalogErrors.project_storage_invalid("示例实例已变化，请重新查看");
+        if (deletions.length) await this.owners.clearAll(record.project_id, { skipDeferred: true });
+        assertCurrent();
+        const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
+        this.demo.seed(stagedDatabasePath, record.project_id);
+        seedDemoPluginSurfaces(stagedDatabasePath, record.project_id);
+        validateManagedProject(stagedDatabasePath, record.project_id);
+        await fs.rename(stagingDirectory, projectDirectory);
+        promoted = true;
+        await this.commit(() => {
+          assertCurrent();
+          if (this.projects.lifecycle.retainedProject(record.project_id)) throw catalogErrors.project_storage_invalid("示例实例已变化，请重新查看");
+          return this.projects.lifecycle.register(record, "project.demo_created", actorId);
+        });
+      };
+      if (deletions.length) await this.owners.withRecreation({ project_id: record.project_id, deletions }, create);
+      else await create(() => {});
     } catch (error) {
-      await fs.rm(stagingDirectory, { recursive: true, force: true });
+      if (staged) await fs.rm(stagingDirectory, { recursive: true, force: true });
       if (promoted) await fs.rm(projectDirectory, { recursive: true, force: true });
       throw error;
     }

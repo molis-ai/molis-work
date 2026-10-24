@@ -224,6 +224,8 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 
 ## 进一步阅读
 
+项目删除的 Memory 准备通过 SDK 在线无正文 `previewPurge` 固定原件集合，包含普通列表因 Session 已结束而隐藏的条目；不完整结果在保存收据前拒绝。Demo 在旧删除完成后重建时，Catalog 将已解码的原收据和计划交现 Memory owner 的 `withRecreation`，只读验证当前原范围为空，并持同一 hold 到同步 Catalog 注册。历史 complete 不授权清理后来 Memory 原件；其余 owner 正常清分区。纯 Catalog 不能接管已经存在的 Runtime，关闭 resident 后保持 deferred，重开同一 resident 后同请求恢复。确定名 staging 只由成功创建它的请求清理；排队期间 proof 失效会拒绝最后提交。真实交错回归见 `tests/project-deletion-recovery.test.ts`、`tests/project-deletion-processes.test.ts` 和 `tests/project-deletion-owners.test.ts`。
+
 - [职责与接入说明](../../docs/platform/LOCAL-HOST.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 

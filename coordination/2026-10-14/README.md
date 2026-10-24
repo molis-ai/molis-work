@@ -3574,3 +3574,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 03:10：#1157（`ac-sc3` SC-4b）入表第 39 行，叠在 #1130 上，`full` 非空；交 `ac-review` 一轮。
 - 10-24 03:20：#1083（Shelf S4）已合（`b30325bd5`）；PG-012、026、026-S1、090 的状态写进 PRIVILEGES-PENDING（026-S1、090 已做）。合后 #1119、#1129、#1130、#1137、#1139、#1147、#1150 对 main 冲突，由各自修复认领者合 main。
 - 10-24 03:30：开 #1158（privileges.md 状态第 4 批，11 行），入表第 40 行，交 `ac-review`。
+- 10-24 03:40：#1151 两项取舍裁定（二次 Ctrl-C 强制退出、console 只替换产品输出）；#1150、#1151 二轮排进 `ac-review`；请 `ac-sandbox-sched`、`ac-sc3`、`ac-clients-1` 分别先查认领再合 main（#1119、#1130、#1129）；#1137、#1147 由合并 Agent 同步。

@@ -73,7 +73,12 @@ function plan(db) {
     eventChanges.push({ seq: row.seq, type: NAMESPACE + row.type, object_type: NAMESPACE + row.object_type, from: `${row.type} / ${row.object_type}` });
   }
 
-  // Only Goals and Governance write idempotency records (every other owner keeps its own table), so every old name is Goals'.
+  // Every old name in this table is Goals', retired operations included. The only code that has written `idempotency_records` is
+  // Goals (`modules/goals`) and Governance (`modules/governance-collaboration`, `proposal-operation-store.ts`), both through
+  // `putIdempotency`; every other owner keeps its own table. So `claim_goal`, `start_run`, `submit_evidence`, `report_run`,
+  // `submit_review` and the other operations of features Goals has since dropped (found in the 18 libraries of the real Home on
+  // 2026-10-24, 34 names, 5,580 rows) were all written by the old Goals. They are renamed like the rest, and none is deleted:
+  // deleting a person's records needs their approval, and keeping them costs nothing.
   const records = db.prepare("SELECT project_id, actor_id, operation, idempotency_key FROM idempotency_records").all();
   const taken = new Set(records.map(row => JSON.stringify([row.project_id, row.actor_id, row.operation, row.idempotency_key])));
   const recordChanges = [];

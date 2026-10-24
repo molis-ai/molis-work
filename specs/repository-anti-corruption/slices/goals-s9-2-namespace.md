@@ -55,7 +55,7 @@
 
 ## 5. 不做、留给后续
 
-- 真实 Home 的维护：用户定在与 W5-17 同一个维护窗口、由用户选时间（10-24）；在停宿主、整份备份之后做。
-- 2026-10-24 对真实 Home 的一次性副本（SQLite 备份接口，用户在对话里同意，副本已删）只读试跑，只记数：18 个项目库**都是库版本 7**，没有 `plugin_project_databases`，所以脚本要在 v8→v9 的项目库维护（BL-413）之后才能跑；给副本补一行 Goals 版本 1 的账本后，`events` 5,408 行（29 种类型/对象类型）、`idempotency_records` 5,580 行（34 个操作名，含已下线功能的 `claim_goal`、`start_run`、`submit_evidence`、`report_run`、`submit_review` 等）、`context_edges` 0、`input_bindings` 0；两种名单外的形状（共 68 行）使脚本停下，已在 RAC-293 里处理。幂等记录的「旧名都是 Goals 的」这条假设在这批数据上成立（别的主人没有写进这张表），但名字里有已下线功能留下的，改名后仍是 Goals 前缀下的死名字，维护窗口时可一并问用户要不要清。
+- 真实 Home 的维护：用户定在与 W5-17 同一个维护窗口、由用户选时间（10-24）；在停宿主、整份备份之后做。顺序：先项目库 v7 → v8（`tests/fixtures/project-maintenance-v8.sql`，同时写下 Goals 版本 1 的账本行）、v8 → v9（`project-maintenance-v9.sql`），即 BL-413；再 W5-17；最后本脚本。当前 main 的项目库基线是 9，版本 7 的库打开即被拒、文件不动，从不原地升级。
+- 2026-10-24 对真实 Home 的一次性副本（SQLite 备份接口，用户在对话里同意，副本已删）只读试跑，只记数：18 个项目库**都是库版本 7**，没有 `plugin_project_databases`，所以脚本要在 v8→v9 的项目库维护（BL-413）之后才能跑；给副本补一行 Goals 版本 1 的账本后，`events` 5,408 行（29 种类型/对象类型）、`idempotency_records` 5,580 行（34 个操作名，含已下线功能的 `claim_goal`、`start_run`、`submit_evidence`、`report_run`、`submit_review` 等）、`context_edges` 0、`input_bindings` 0；两种名单外的形状（共 68 行）使脚本停下，已在 RAC-293 里处理。幂等记录「旧名都是 Goals 的」这条假设成立：统筹 10-24 核对过 main 上只有 `modules/goals` 与 `modules/governance-collaboration`（`putIdempotency`、`proposal-operation-store.ts`）写 `idempotency_records`，已下线功能的操作（`claim_goal` 等）都是旧 Goals 写的。裁定：**全部改名，一条不删**（删真实 Home 的数据要用户批准，留着没有代价）；理由也写在脚本里。脚本遇到名单外的形状仍然退出 1、什么都不写。
 - 代码搬进 `plugins/native/goals`、保存点预检换法、客户端改用 `services.project_database`：切到 Runtime 时一并做（搬家会抬高「插件包名在自己包之外被点名」的计数，要等装配改成 Runtime 才一并降）。
 - `personal_planning_method_packs`（目录库）：个人规划那一块。

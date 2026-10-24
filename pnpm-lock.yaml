@@ -1244,6 +1244,10 @@ importers:
       prosemirror-view:
         specifier: ^1.41.4
         version: 1.42.4
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/plugin-builder:
     dependencies:
@@ -1348,6 +1352,10 @@ importers:
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/official-integrations/catalog:
     dependencies:

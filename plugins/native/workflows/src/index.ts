@@ -13,6 +13,7 @@ export { WORKFLOWS_UI_CONTRIBUTION_ID, workflowsUiContribution, workflowsUiDescr
 export type { WorkflowsUiModel, WorkflowsUiPrimitives, WorkflowsUiSurface } from "./ui.js";
 export { WORKFLOWS_STYLES } from "./styles.js";
 export { WORKFLOWS_EN } from "./en.js";
+export { WORKFLOWS_MESSAGES } from "./messages.js";
 export { WORKFLOWS_INSTRUCTIONS } from "./prompts.js";
 export { WORKFLOWS_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { createWorkflowsPlugin } from "./plugin.js";

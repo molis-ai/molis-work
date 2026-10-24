@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution, workflowsProjectData, WORKFLOWS_HOME_STORE } from "./index.js";
+import { WORKFLOWS_MESSAGES, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution, workflowsProjectData, WORKFLOWS_HOME_STORE } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -10,6 +10,7 @@ export const registration: PluginRegistration = {
   home_store: WORKFLOWS_HOME_STORE,
   manifest: workflowsManifest,
   project_data: workflowsProjectData,
+  messages: WORKFLOWS_MESSAGES,
   personal: true,
   summary: "把插件串成流程，一步步做完。",
   workbench: {

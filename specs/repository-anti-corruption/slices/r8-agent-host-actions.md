@@ -1,6 +1,6 @@
 # R8：agent 宿主的 typed 能力分批改登记成动作（PG-035、BL-364、BL-365）
 
-状态：第 1 批评审修复已完成本地验证（2026-10-23，防腐线 ac-kernel 片，Codex 接续修复），第 2 批（§8）已实现、在评审；第 4 批（§11）已在本地实现（2026-10-23），§11.3 四项统筹 10-23 已裁、按裁定做完，验收 RAC-182～187 的定向回归通过；验收 RAC-188～190、RAC-197 的定向回归通过，共享核心全量与浏览器验证留统一集成窗口，未宣称整线完成。
+状态：第 1～3 批与 `waitRun` 一批已合入 main（#1121、#1148、batch-26 #1202）；第 4 批（§11）在 PR 里（2026-10-24，防腐线 ac-kernel，从 main `1712c0331` 重放），§11.3 四项统筹 10-23 已裁、按裁定做完，验收 RAC-182～187 的定向回归通过。共享核心全量与浏览器验证留统一集成窗口，未宣称整线完成。
 
 ## 1. 目标
 
@@ -262,7 +262,7 @@ BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
 
 ## 11. 第 4 批：BL-364 剩下的 12 条（已实现；§11.3 统筹 10-23 已裁）
 
-分支 `ac-kernel/r8-agent-typed-to-actions-4`，叠在第 3 批上，按顺序在前面的 PR 合入后再开。验收编号 RAC-182～187。
+分支 `ac-kernel/r8-agent-typed-to-actions-4b`：第 3 批随 batch-26 合入后，把原分支 `…-4` 的四个提交重放到 main `1712c0331` 上（`baseline.json` 不随功能 PR 改）。验收编号 RAC-182～187。
 
 ### 11.1 范围与归到哪条规矩
 
@@ -312,7 +312,7 @@ BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
 - 11 条转成只给插件、不要权限的动作：`listRuntimes`（输入 `[]`）、`availableRoles`、`listActions`（`[runtimeId]`）、四条技能、三条 MCP（`[runtimeId, …]`，都不再带 `pluginId`）、`awaitContinuations`（`concurrent` 查询，宿主 30 秒兜底，`timeoutMs` 0～25 000 整数，`exclude` 至多 200 条）。输出 schema 顶层列全，嵌套对象只约束 `object`（同 §9.3①、BL-470）。
 - `pluginFor(call)` 不再收 `pluginId`；`ports.authority(call)` 没有插件调用者就按 `agent.session_unknown` 拒，只按调用者取声明、授权与 `method_owner`。`listActions` 先取权威再看运行时是否支持动作工具。
 - 写之前补 `beforeEffect`：`installSkill`、`saveMcp`；`mcpChanged`（MCP 目录同步）排在 `beforeEffect` 之后，属主取自 `owner.plugin_id`，不再另传插件名；§11.3③（统筹 10-23 裁）同步在写之前再跑一次授权检查，失败照原错误拒绝。
-- `awaitContinuations` 只回调用者自己会话的接续（照 `readScopedSession`），别的会话的接续记进 `exclude` 接着等，不提前结束；与 `waitRun` 共用每个安装 8 个的名额（`installationWaits(8)`）。
+- `awaitContinuations` 只回调用者自己会话的接续（照 `readScopedSession`），别的会话的接续记进 `exclude` 接着等，不提前结束（循环在 `run-wait.ts` 的 `awaitOwnContinuations`，`registerAgentHostCapabilities` 因此不变长）；与 `waitRun` 共用每个安装 8 个的名额（`installationWaits(8)`）。
 - 删掉平台里只为 `wait` 留的分支：`HostCapabilityOperation` 只剩 `query | command`，内核登记拒绝 `wait`；`action-metadata.ts`、`local-host.ts` 的 `callSignal`、排队绕行与 `checkActionAvailability` 早退，`action-call-log.ts`、`typed-call-settlement.ts` 的 wait 分支都删了。可能停住的读改成声明 `scheduling: "concurrent"` 的查询。
 - §11.3① Characters（统筹 10-23 裁）：`AgentHostComposition.charactersCatalog(runtime)` 给 Characters 宿主一个宿主内部的端口，运行时列表照 `descriptors()`，动作照 Characters 自己的声明算；`characters-host.ts` 不再经 typed 客户端。
 - §11.3② 删掉（统筹 10-23 裁）`agent.reviews.list.v1`（描述符、处理器、包描述与 `scripts/workspace-packages.mjs` 的登记）。

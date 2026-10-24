@@ -2,7 +2,7 @@ import { agentErrors } from "./errors.js";
 import { requireSynchronous, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withAgentEffect } from "./invocation-effects.js";
 import { projectWorkScope } from "./project-work-scope.js";
-import { installationWaits, waitForRunChange } from "./run-wait.js";
+import { awaitOwnContinuations, installationWaits, waitForRunChange } from "./run-wait.js";
 import { registerSessionActions } from "./session-actions.js";
 import { registerWriteCheckerActions } from "./write-checker-actions.js";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -294,21 +294,12 @@ export function registerAgentHostCapabilities<Context>(
       const caller = pluginFor(context), adapter = ports.agentHost(context).adapter(runtimeId);
       if (!caller) throw denied();
       if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
-      const release = waits.hold(caller.install_id), skipped = [...exclude], signal = context.invocation.signal;
+      const collaboration = adapter.collaboration, release = waits.hold(caller.install_id);
       try {
-        for (const deadline = Date.now() + timeoutMs; ;) {
-          const ready = await adapter.collaboration.awaitReady(ports.projectId(context), Math.max(0, deadline - Date.now()), skipped, signal);
-          signal?.throwIfAborted();
-          const own = [];
-          for (const view of ready) {
-            if (await readScopedSession(context, { runtime_id: runtimeId, session_id: view.session_id }).then(() => true, () => false)) own.push(view);
-            else if (view.continuation) skipped.push(view.continuation.request_key);
-          }
-          if (own.length || Date.now() >= deadline) {
-            await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-            return own;
-          }
-        }
+        const own = await awaitOwnContinuations((left, skipped, signal) => collaboration.awaitReady(ports.projectId(context), left, skipped, signal),
+          view => readScopedSession(context, { runtime_id: runtimeId, session_id: view.session_id }).then(() => true, () => false), timeoutMs, exclude, context.invocation.signal);
+        await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
+        return own;
       } finally { release(); }
     }),
     register(agentHostCapabilities.readBackground, async (context, [runtimeId, sessionId]) => {

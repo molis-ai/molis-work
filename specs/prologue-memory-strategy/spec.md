@@ -2076,3 +2076,9 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 独立深审 `/private/tmp/molis-memory-batch33-review-642106407-20261025.md` 未发现本次 Memory 合并新增阻断；SDK94 归档与已安装 772 文件逐项一致。另确认主干已有 P2：公开 AgentHost.start 尚未拒绝 `supports_character_limits:false` 的 Character 调用，Coding 入口已有拒绝；内存 adapter 诊断确认调用被受理，但未证明越权。准确 bde 同样存在，当前生产只注册声明 true 的 Prologue，助理自身也使用 Prologue，未证明影响本次 Memory 实际调用链。保留该上游缺口，不在本片顺手修改或缩窄公共合同。
 
 推送前 origin/main 前进至 `87ebba4c769557f9548d66310d76eb4e30b68bc9`，仅 #1237 的 IM 上下文初始化及其测试/README，与本片 Memory 调用链无同路径改动；`git merge-tree` 三方检查无冲突。本候选冻结在上述已验 bde 集成，不宣称包含 #1237；PR 合并结果 CI 与最终完整 Full suite 仍须检查。旧 93b 的普通/全量成功和 stream-text 首败 UNKNOWN、Cloudflare 未知失败继续保留，不能替代新候选结果。用户刚批准的 Assistant +4,064 B 已在后续 #1101 单独登记，本基础 PR 不使用该额度。付费模型、真实 Home、最终整体验收与原 macOS skip 的边界不变。
+
+### #1101 集中可审查候选（2026-10-25，整合前）
+
+沿用户“尽量合成一个大PR”的决定，从已推送5cba31499统一整合基础71d345f5f、项目删除候选b603fdb68（含其短合同/AgentHost依赖）和Coding恢复候选980194bb0。只合并已明确的当前候选、原合同、失败与验证记录，不另开PR，不把候选提交当交付通过。SDK保持100直到在线无正文删除预览通过独立验证后采用；当前不实施尚待用户决定的subject/Knowledge归档保留协议。Catalog22→23与Coding自有库1→2的严格版本门、临时副本维护及当前原决定恢复按各原短合同保留，不碰真实Home。
+
+本批开放项明确保留：项目raw SDK orphan P1、demo跳过业务owner遗留清理P2、Coding恢复额外knowledge.organize、Coding新资源额度未批准。原项目README81/82、CodingREADME40/42与浏览器模型次数失败不得隐藏；不运行已知必败的重复全量。冲突只在实际相交合同/生成快照处取并集并核生产调用链，保留新父Runtime/MCP与全部原业务断言。整合后一次整体构建、静态/APIAction/版本/资源实测及交叉路径定向检查，原已验且未变路径沿用；后续依赖修正进入同一#1101，等阻塞消除后才做最终完整CI及验收。

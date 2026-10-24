@@ -1,7 +1,7 @@
+import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /** The page's one request helper (packages/ui-host request-client): control headers, one origin, plain Errors with `code`. */
-declare const molisWorkRequest: UiRequest;
 export const pageRequest = (): UiRequest => molisWorkRequest;
 
 export type Method = "GET" | "POST" | "PUT";

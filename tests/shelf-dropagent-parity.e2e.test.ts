@@ -9,7 +9,8 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
-import { openHostShelfStore, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 test("Shelf DropAgent parity: full copies, reading, comparison, actions and client bridges", { timeout: 180_000 }, async (t) => {
   const bin = await mkdtemp(join(tmpdir(), "shelf-parity-agent-"));
@@ -58,7 +59,7 @@ fi
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
       models: [{ model_id: "fixture-model", enabled: true }] });
   }));
-  const shelf = openHostShelfStore(homeDirectory, { pathEnvironment: bin, home: homeDirectory, preferred: "claude" }, {},
+  const shelf = openTestShelfStore(homeDirectory, { pathEnvironment: bin, home: homeDirectory, preferred: "claude" }, {},
     shelfTestAi(async () => ({ text: "# 合稿\n\n两份材料经过受控执行，来源可切换。\n", execution: shelfTestReceipt })));
   assert.equal(shelf.runtime().executable, join(bin, "claude"));
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);

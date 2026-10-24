@@ -39,6 +39,7 @@ import { cancelConnectorAuthorizationsForSession, holdConnectorAuthorizationsFor
 import { retainConnectorSetupsForSession } from "../connector-setup-retain.js";
 import { assistantSetupMaterial } from "./assistant-setup-material.js";
 import { pageChoices } from "./assistant-pages.js";
+import { hostLog } from "../host-log.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -122,7 +123,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     learnFromRound: ({ work, sources, run_id }) => {
       if (!work.session_id) return;
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
-        .catch(error => console.warn("[memory] 没有排上提炼", error));
+        .catch(error => hostLog.warn("memory", "learning_not_queued", error));
     },
     authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
@@ -174,7 +175,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory, assistantThreadRegistration(threads)); }
-  catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }
+  catch (error) { hostLog.warn("assistant", "rule_actions_registration_failed", error); }
   return entry;
 }
 

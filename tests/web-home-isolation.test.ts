@@ -50,7 +50,8 @@ test("Web resolves environment Home once for Catalog, Sessions, control token an
     });
     assert.equal(response.status, 201, await response.text());
     assert.ok(existsSync(join(envHome, "connectors/connectors.db")));
-    assert.ok(existsSync(join(envHome, "sessions/sessions.db")));
+    // SC-4b: Sessions is offline; nothing opens or creates the retired sessions store any more.
+    assert.equal(existsSync(join(envHome, "sessions/sessions.db")), false, "the retired Sessions store is not created");
     assert.ok(existsSync(join(envHome, "feed/secrets.json")));
     await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
     resetSecretStoreCache();

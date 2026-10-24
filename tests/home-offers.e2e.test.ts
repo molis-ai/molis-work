@@ -88,11 +88,11 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     await waitFor(`!!document.querySelector('[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]')`);
     await click(`[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`);
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('正在查找')");
-    const talkTop = await evaluate<number>("document.querySelector('[data-home-open-talk]').getBoundingClientRect().top");
+    // SC-4b: Home no longer draws the Talk button; the subject's offers are its only async surface.
+    assert.equal(await evaluate("!!document.querySelector('[data-home-open-talk]')"), false, "SC-4b: Home has no Talk button");
     releaseOffers();
     await waitFor(`!!${TAG} && !${TAG}.disabled`);
     assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(button => button.textContent)"), ["加入 Inbox", "保存为资料", "升格为 Goal", "忽略", "标记待核查"]);
-    assert.ok(Math.abs(await evaluate<number>("document.querySelector('[data-home-open-talk]').getBoundingClientRect().top") - talkTop) < 1, "async offers keep the Talk button under the pointer");
     await capture("desktop-unknown-action");
     await clickTag();
     try { await waitFor(`!!document.querySelector('.home-offers-result') && !${TAG}`); }

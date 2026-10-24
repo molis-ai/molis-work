@@ -109,6 +109,10 @@ export function projectVersionStores(options: ArtifactsModuleOptions): ProjectVe
   return stores;
 }
 
+export { createPluginArtifactClient } from "./plugin-client.js";
+export { createPluginArtifactOperations, type PluginArtifactOperationsInput } from "./plugin-operations.js";
+export { pluginArtifactErrors } from "./plugin-errors.js";
+
 export {
   artifactContentDigest,
   artifactContentSize,

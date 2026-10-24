@@ -1833,3 +1833,10 @@ Coding 归档交付前统筹复核（2026-10-24）：已独立核真实 backend/
 
 
 #1196 消费版本补充验证（2026-10-24）：初次生产版本回归仅2/12通过，改为现行v2后原整文件12/12通过。Local Host README及相关58文件首轮57文件通过，followup-deletion中两个阶段等待超时；已定位其夹具把所有Coding动作硬编码v1，故未进入现行v2处理器。范围只补为从公开codingRouteActions读取真实版本，不改原取消/删除断言、等待时限或业务行为；随后原两文件20/20通过，包含删除期间零新增轮次与原持久化结果。整体build、根类型、health精确父8386b2355、boundary、API/Action、实际资源、secrets/diff均通过，资源仍为既批准coding.js+570 B，其余不变。日志保留 `/private/tmp/molis-memory-1196-coding-consumer-validation-20261024.results.json` 与 `...-related.log` 的初次失败，以及 `/private/tmp/molis-memory-1196-coding-consumer-fixture-recheck-20261024.log` 的定向复验。当前远端main c609已将Coding专用执行器改为通用WorkExecutor；该新主干的集成由#1064处理，本片基于SDK100父链的结果不证明新主干已通过，也不恢复已退役专用入口。
+
+
+聚合源码合并记录（2026-10-25）：独立分支 `codex/memory-p0-application-integration` 从 f27 fast-forward 到4e07；短合同ea004ca18后依次合入准确父1c2、a9d、05ea、ac1、3c58、415c，源码候选2c970e823529e10551f7f042ba50442db07c84fa。准确父和上表14个固定head均为候选祖先，原树未改；相对准确父190文件+12970/-1223含原历史记录、测试和快照，不据此声称验收通过。
+
+实际冲突处理：R8 capability-registration/session-actions保留新父从当前caller取owner及ownsSession，组合原Run分类快照；MemoryQueries的完整查询职责抽取与批量历史同时保留；MCP回归保留v3设置写主人/generation，采用recall@3的union输出；candidate policy把TTL新提交门与run explicit/disable门求交，PrologueMemory原call复用options并传取消signal；候选/导入/批量页面各自原请求与完整决定均保留。生命周期合并保留cache generation/current fence和live Run memoryBinding；Coding新stage保留，旧archive分支替换为既有受控原决定流程，旧assistant-coding文件尊重新父删除，generic WorkExecutor仍按所选插件角色发现现版本。三read已升@3，原PluginRuntime拒@1测试补拒read@2，start@2不变。SDK100八个vendor文件逐blob等415c，包1,365,062B/SHA与上节一致；锁只采用其SDK100 integrity，同时保留新父依赖。spec两侧历史记录保留；生成快照和资源暂保留基线，等待最终真实生成和测量，不手编通过状态。
+
+统一验证准备：按实际8包（Local Host、Workbench、AgentHost、Memory、Contracts、PluginRuntime、Storage、Coding）README必跑首条、Workbench界面必需、当前修改测试和直接冲突消费者去重，正式selector为219个非browser、20个browser；5个darwin非browser是Action快照、真实安装Host/执行、Keychain重试及插件材料拒绝。清单与逐项原因暂存 `/private/tmp/molis-memory-p0-aggregate-20261025.plan.json`，不把旧批次数相加。先固定Node24.14/pnpm11.9离线冻结安装、一次整体build，继而类型、API/Action实际生成、准确父1c2的health/boundary/资源/secrets/diff；必要非browser先核冲突核心再跑其余去重集，jobs2/retries0。20浏览器在build后独占统一批次、browser1/retries0。共享全量由统筹执行，仍无付费模型。当前上述验证未运行，资源实际净增尚未知，后续按真实结果记录首败和补验，不把源码clean当通过。

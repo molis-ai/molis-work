@@ -300,10 +300,9 @@
     },
     "shelf": {
       "paths": [
-        "modules/shelf/",
-        "apps/local-host/src/shelf-*"
+        "modules/shelf/"
       ],
-      "reason": "The Shelf module, plugin and its Host AI file; its codes already start with shelf."
+      "reason": "The Shelf module and plugin; its codes already start with shelf."
     },
     "signals": {
       "paths": [

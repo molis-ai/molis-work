@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID,
   DEMO_CORE_ARTIFACT_ID,
@@ -15,10 +15,8 @@ import { DEMO_PROJECT_ID,
   LocalProjectDatabase,
   
   createLocalFeedApplication,
-  openHostShelfStore,
   seedDemoBoard,
   seedDemoPluginSurfaces,
-  seedDemoProjectExtras,
   openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-feed";
 import { renderFeedWorkbenchFragment } from "./workbench-renderer-fixture.js";
@@ -91,9 +89,8 @@ async function assertDemoPluginFacts(input: {
   } finally {
     store.close();
   }
-  assert.ok(
-    (await openHostShelfStore(input.homeDirectory).snapshot()).materials.some((item) => item.name === "试用示例.pdf"),
-  );
+  // The Shelf sample is Shelf's: the resident Host puts it back through `shelf.sample.seed` (shelf-actions.test.ts), the catalog does not.
+  assert.equal(existsSync(join(input.homeDirectory, "shelf")), false, "making the demo writes nothing into Shelf's files");
 }
 
 test("seedDemoBoard fixtures stay empty of plugin samples", async () => {

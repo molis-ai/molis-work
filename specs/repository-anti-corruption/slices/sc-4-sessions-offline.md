@@ -23,7 +23,7 @@
 删除：
 
 - 包 `plugins/native/work` 整个删除（Manifest、`registration`、15 个 `sessions.*` 与 3 个 `sessions.message.*` 动作、HTTP 路由 `/api/sessions*`、`/api/session-*`、`POST /api/workspaces/:id/sessions`、会话目录界面、登记会话的 PTY 录制）。
-- `modules/private-work-context` 里属于 Session 的部分（注册表、记录、事件、交接、消息、关联、内容库、`project-data.ts` 的 `purgeSessionsProject`、`sessionsProjectData`）；只留运行上下文绑定（模块不改名，BL-383 后做）。合同 `private-work-context.ts` 里的 Session 类型与 `sessionErrors` 删除，`session-messages.ts` 合同随之删除。
+- `modules/private-work-context` 里属于 Session 的部分（注册表、记录、事件、交接、消息、关联、内容库、`project-data.ts` 的 `purgeSessionsProject`、`sessionsProjectData`）；只留运行上下文绑定（模块不改名，BL-507 后做）。合同 `private-work-context.ts` 里的 Session 类型与 `sessionErrors` 删除，`session-messages.ts` 合同随之删除。
 - 宿主装配：`session-runtime-resources`、`session-registry`、`work-actions`、`work-goal-contract`、`web-session`、`web-work-session`、`local-owner-permissions` 里的 Work 权限、`web-request` 的 sessions 路由、`index.ts` 的转出；删项目的 `sessions` owner；目标页的会话区（`web-goals-read.ts`）；演示种子里的 Session。
 - 首页「说一句」（`home.talk.prepare`、`home-talk-actions.ts`、`home-dock-http.ts` 里的接线，工作台的 `home-talk.ts` 与入口按钮）。
 - 工作台：会话界面与 `work-ui`；各名单里的 `sessions`（钉选、导轨、primitive、标签、全局搜索）；画布的会话块；`page-assets` 里的会话脚本与样式。
@@ -31,7 +31,7 @@
 - 测试：只属于 Session 的用例整个删；混合用例去掉会话部分。
 - 文档：PRODUCT.md、SSOT、HOME-DATA、GLOSSARY、`docs/product-operations/`、`skills/molis-plugin-dev/examples.md`、反腐 spec 与 BACKLOG（BL-177 只剩重做的需求书）。
 
-不做：SC-5（删 `<home>/sessions/` 存量，真实 Home 一律不碰）、BL-383（模块改名）、BL-384（`/api/goals/:id/panels` 改名）、Sessions 重做（BL-177）。
+不做：SC-5（删 `<home>/sessions/` 存量，真实 Home 一律不碰）、BL-507（模块改名）、BL-508（`/api/goals/:id/panels` 改名）、Sessions 重做（BL-177）。
 
 ## 3. 验收
 

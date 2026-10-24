@@ -66,6 +66,8 @@ export const PLACEMENT_EN: Record<string, string> = {
   "已移除关联": "Link removed",
   "只去掉了关系；对象本身、复制品和固定版本都不变。": "Only the link was removed. The item itself, its copies and fixed versions are unchanged.",
   "没能移除关联": "Couldn't remove the link",
+  "移除关联": "Remove link",
+  "移动": "Move",
   "还没有其他项目": "No other projects yet",
   "这类内容只放在个人空间": "This kind of item only lives in your personal space",
   "这个插件的内容还不能移动": "Items from this plugin can't be moved yet",

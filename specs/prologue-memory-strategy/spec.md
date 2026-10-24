@@ -1167,3 +1167,30 @@ M2 晋升授权等待取消窄修（2026-10-24，独立工作树，未提交）�
 精确命令与原日志在 `/private/tmp/molis-memory-promotion-cancellation-commands-20261024.txt` 及同前缀的 `red-20261024.log`、`green-first-20261024.log`、`green-20261024.log`、`regression-20261024.log`、`environment-check-20261024.log`、`build-red-20261024.log`、`build-green-20261024.log`、`health-20261024.log`、`boundaries-20261024.log`。这是隔离 Node 存储和定向合同路径的工程证据，不是一次全量、真实 Home、最终 App 产品实操、真实模型质量或用户验收；未跑浏览器/付费模型，未改 SDK/vendor/lock/资源/CI，未提交、推送、合并或发布。
 
 统筹交付核对：独立深审未发现确定 P1/P2，确认只竞速授权等待、Host 原提交 Promise 未竞速、提交后仍沿 SDK 返回待补账、各次 ALS 信号隔离及监听/迟到拒绝处理；该评审仅核源码与已有红绿日志，未另跑测试。根/工作区类型、API/Action、实际资源、diff 全过，结果 `/private/tmp/molis-memory-promotion-cancellation-final-gates-20261024.results.json`。两个原生 async-id 失败在干净父 `f49081796` 的同两文件、相同沙箱命令各一次同样复现（`/private/tmp/molis-memory-promotion-cancellation-parent-sandbox-20261024.log`）；本片在允许的本机执行环境通过，不把这组原生失败宣称已修复或混同 #1064 的 SQLite 析构问题。准备按 #1184 后继独立 Draft 交付，不修改任何验收或合并门。
+
+### M4 已知目标的删除专用接线（2026-10-24，本独立片定向工程验证通过，统筹已复核；旧树历史结果保留）
+
+对应 MEM-15/18/20/29：已保存原 ref、scope/owner、expected version 与 operation 的遗忘重试，在原 Session 已永久结束后仍能清除目标正文；该许可不能读出正文，也不能删除后来版本或改成另一个目标。当前 AgentHost 的 formal remove / candidate purge 先 hydrate/get，错误地要求 manage-read，阻断 SDK #98 已提供的 delete-only identity locator。本片只把现公开 Port 的准确身份交给该 SDK 入口；不新增动作、输入字段、发现入口、维护授权、状态、表、策略或后台清理。
+
+调用链仍为 MemoryService 或现可信调用方 → AgentMemoryCapability（原 caller/control）→ SDK bound Memory 的 purge(ref, { identity, expectedVersion, operationId, signal }) → 原 Host。SDK 为正文与版本唯一写主人；App 现 marker/ledger 主人和成功后补账不变。现 remove / candidates.purge 的返回仍为 void，未知结果不当作成功；tombstone、普通 list/get/hydrate、写入及候选接受不获豁免。取消、当前授权、真实 identity/版本和未决候选拒绝均不可配置；SDK Host 可替换，App 提供已有决定，终端用户仍通过原遗忘/清理入口确认。
+
+本独立片允许修改 `horizontal/agent-host/src/adapters/prologue-memory.ts`、Agent Host README、`tests/prologue-memory-delete-locator.test.ts` 与本 spec 的 M4 节；不改 contracts、SDK/vendor/lock、共享快照、资源门、CI 或其它工作树。采用正式 SDK #98 以上后按 FIFO 构建并验证：MEM-DEL-01 非空正式记忆/候选在 Session purge 和 Node 重开后，普通管理读拒绝、原身份版本 delete 成功且物理正文不可读、其他目标保持；MEM-DEL-02 存在目标的旧版本、撤权/取消拒绝且零持久修改；错 scope/owner 不得影响真实目标，缓存已知身份不一致时拒绝，冷态该范围无目标时保持 SDK 既有 void 无副作用语义，不把缺失解释为原操作曾成功；MEM-DEL-03 未决 reservation 不绕过原 reconciliation，成功删除的原操作可重试。调用生产公开入口、真实隔离磁盘，不操作真实 Home，不将本片称为 Session 业务删除、Memory 全部副本清理或 Project 删除已经完成。
+
+**旧 delete-locator 工作树历史（仅保留历史证据，不作本独立片验收；以下至本节历史记录末尾）。**
+
+本地验证（2026-10-24，精确父 `a16800e4addfaf7f785230864c47324fe8548454`，SDK #99）：统筹完成冻结离线安装和整体构建后，删除专用回归 9/9、current-authority 10/10、adoption 7/7、MemoryService CAS 85/85、Memory Action 23/23 通过。删除测试首轮 8/9；原因是 purge 保留原存储 ID 的墓碑，但清空 metadata，旧断言用 metadata.rowId 找不到它。修正为清除前捕获 Registry ID、清除后以公开 store.get 验墓碑与空 metadata、readSecure 拒绝，保留旁条正文及原操作重试零写断言；不放宽其他八条测试。首轮失败日志保留。
+
+README 必跑与正式包来源校验最终 20/20 文件通过；安装、许可证、npm 包、release assets 四文件通过。另补形成、分类权限、Run Context、未接受启动四文件通过。晋升回归初跑 9/12：一条预期正式提交后待补账，实际在提交前授权复核得到 actions.forbidden；两条等待 App prepare/record 的取消用例超时。干净 SDK96 基线 `66f32c4a69ab0cdf542e7accaa217be0679de10e` 上原文件同样 9/12、同三失败；测试与相关 authority/promotion/effects/node 生产源码相同。根因是夹具按 beforeEffect 第几次调用猜持久阶段。诊断补丁经公开 Node Host 只读存储核真实候选 decision 或正式正文已落盘后设置屏障，在对应授权等待中取消、释放等待，再验 App 回调零进入、正文 0/1、候选 pending、重启后原操作恢复且 prepare/record 各一次，得到 12/12；但原两条取消用例要求先返回拒绝、再释放授权等待，该诊断改变了这个可观察时序，不是等价通过。补丁与日志保留给统筹审查，未记为原验收完成，也未改生产。当前有效口径仍为 34 文件中 33 文件完整通过，晋升的原三失败及两项即时取消时序未收口；不能用诊断 12/12 宣称累计 394/394 通过。未跑全量和浏览器，不代表最终 App 或用户验收。纯标记净化 boundary 与纯使用回执投影 receipts 不调用本次 remove/purge，未纳入额外验证。
+
+根与 workspace 类型、health 对精确父、boundary、API/Action 快照及 diff 检查通过。资源门失败：workbench 预算 1,202,990 B、实测 1,208,174 B，增加 5,184 B；未改额度或共享快照，待统筹处理。提交范围 secrets 命令因 HEAD 尚为父提交只扫描 0 行；另复用现 scanner 扫本次 dirty 新增行，未见不在 allowlist 的命中，提交后仍需正式重扫。三个沙箱监听/Node 退出异常文件在允许的本机环境重跑 12/12 通过，环境失败日志保留；vendor 测试按实际 SDK #99 与历史来源记录同步精确事实，不删除断言。结果与分步日志见 `/private/tmp/molis-memory-delete-locator-sdk99-20261024-remaining.results.json`、同 stem 的 `-extended.log` 与 `-test-summary.json`。
+
+
+本独立片合同与验证起点（2026-10-24）：准确父为晋升取消修复 Draft #1193 的 `6a5ed01ef9bc18b5499a6cbbc999ebb5e4142786`，工作树 `/private/tmp/molis-memory-delete-identity-20261024`。只移植删除 identity 接线、原 README、删除专用测试和本节历史，不移植改变严格取消时序的旧 promotion 诊断。正式 SDK #99 与父片晋升取消修复均已在父；本片仅采用其既有接口。验收仍为 MEM-DEL-01..03，严格取消晋升14项继续保留。复用父同状态且未受影响的 README 工程证据，仅跑删除/晋升/current-authority/adoption/MemoryService CAS/Action 及当前差异相关针对性回归；正式运行器固定 jobs2/browser1/retries0。完成本树 frozen offline 安装、机器 FIFO build、根与工作区类型、准确父 health、boundary、API/Action、资源与 diff。测试中的 close/open 只证明同进程 Runtime/Node Host 重开与持久结果，不称 OS 进程重启或完整 App 实操；不操作真实 Home、付费模型或全量，不提交、推送、开 PR。
+
+本独立片实际结果（2026-10-24，准确父 `6a5ed01ef9bc18b5499a6cbbc999ebb5e4142786`）：生产差异只在既有 formal remove / candidate purge，将 ref 与显式 identity 交 SDK purge，不先 hydrate/get；未改 SDK、公开 schema 或其它写主人。冻结离线安装、机器 FIFO 下整体 build 均首轮通过；根 tsc 与全工作区 typecheck、health 对该准确父、boundary、API/Action 快照及实际资源门均通过，资源 27 项/7,830,253 B，未改额度或共享快照。正式运行器 `--jobs 2 --browser-jobs 1 --retries 0` 的10个非浏览器文件全部通过：删除9、严格晋升14、current-authority10、SDK adoption16、App adoption14、MemoryService CAS85、Memory Action23、Agent SDK effects13、adoption maintenance23、Memory boundary1。没有本片首败或自动重试；旧树失败原文保持上文历史，不用新结果覆盖。README 其余未受本次两个删除口影响的必跑证据复用父 #1193 的有效结果，未在本树机械重跑。
+
+MEM-DEL-01..03 的当前证据：同进程内关闭 Runtime/Node Host 后重新打开，已永久结束的 Session 原 ref 可在 delete-only 权限下清除正文；常规读取仍拒绝，目标 secure body 不可读、原 Registry ID 留 tombstone/空 metadata，独立旁条正文保持，原 operation 重放不再变更存储。已知 scope/owner 冲突、存在目标的旧版本、取消、撤权和未决 candidate reservation 均被拒；冷态错误范围中的 absent locator 返回 void 且真实目标原正文/版本不变，不声称这等于删除成功。以上为真实隔离 Node 磁盘和公开 Adapter 的有界工程证据，没有 OS 子进程重启、完整 App/浏览器、付费模型、真实 Home 或用户验收。
+
+本树精确命令、退出码和日志索引为 `/private/tmp/molis-memory-delete-identity-20261024.results.json` 与 `/private/tmp/molis-memory-delete-identity-commands-20261024.txt`；原始输出分别为同前缀的 install/build/regression/root-types/workspace-types/health/boundary/api/actions/resources 日志。差异仅本合同约定四文件，未提交、推送、开 PR 或改旧树，交统筹独立审核和后续集成。
+
+统筹已独立核实际两个删除口、新增9项测试与真实原日志。正文不可读、墓碑/旁条/版本/原操作断言和信任边界与原合同一致；未发现需要扩大范围的缺口。本片保留 Draft，提交后正式 secrets 扫描与父链最终集成仍为交付门，不将局部验证等同完整 App 验收。

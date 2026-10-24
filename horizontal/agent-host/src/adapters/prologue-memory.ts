@@ -76,7 +76,9 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
             mutation: proposed.kind === "update" ? { kind: "update", change: change(proposed.change) } : proposed }] });
       }),
       tombstone: input => call(async bound => memoryView(await bound.memory.remove(await formal(bound, input), mutation(input)))),
-      remove: input => call(async bound => bound.memory.purge(await formal(bound, input), mutation(input))),
+      remove: input => call(async bound => bound.memory.purge(ref("memory", input.memory_id), {
+        ...mutation(input), identity: { scope: input.scope, owner: input.owner },
+      })),
       recall: input => call(async bound => {
         const result = await bound.memory.recall({ receiptId: randomUUID(), scopes: [{ scope: input.scope, owner: input.owner }],
           readMode: "task", ...(input.keywords ? { keywords: input.keywords } : {}), ...(input.text !== undefined ? { text: input.text } : {}),
@@ -133,7 +135,9 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
         }, input.by, mutation({ ...input, expected_version: input.candidate_expected_version }))), undefined, undefined, input.signal),
         discard: input => call(async bound => candidateView(await bound.candidates.discard(await candidate(bound, input), mutation(input)))),
         expire: input => call(async bound => candidateView(await bound.candidates.expire(await candidate(bound, input), mutation(input)))),
-        purge: input => call(async bound => bound.candidates.purge(await candidate(bound, input), mutation(input))),
+        purge: input => call(async bound => bound.candidates.purge(ref("memory-candidate", input.candidate_id), {
+          ...mutation(input), identity: { scope: input.scope, owner: input.owner },
+        })),
         reconcileDecision: input => call(async bound => {
           const receipt = await bound.candidates.reconcileDecision(await candidate(bound, input), mutation(input));
           return { outcome: receipt.outcome, future_commit: receipt.futureCommit, past_commit: receipt.pastCommit,

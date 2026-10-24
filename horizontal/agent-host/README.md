@@ -9,6 +9,8 @@
 
 依 spec §9.4，Memory Capability 的 `previewMutation` 只将带原版本与原操作号的 update/pause/disable/resume/remove 真实命令交同一 SDK management.preview，不写条目，不替代执行时的当前授权。`tombstone` 委托 SDK 逻辑 remove，返回实际条目版本与原操作重放结果；现 `remove` 仍委托物理 purge。两口沿原 caller/ExecutionControl，不增加第二写主人、查询授权或恢复账。App 的维护补账只接受实际 SDK 提交确认；缺失、同文或版本加一不能作为成功证明。验证使用公开 Adapter 与真实隔离 Node 存储，覆盖取消/撤权、原操作重放和后继版本冲突。
 
+已知目标的 `remove` / `candidates.purge` 将现有 ID、scope/owner、原版本和操作号直接交 SDK 的删除专用 identity locator，不先 hydrate/get。原 Session 永久结束不会为此获得正文读取许可；普通读取、逻辑删除和候选接受保持原边界。存在目标时，当前授权、取消、版本冲突和未决候选决定仍由同一 SDK/Host 拒绝，不扩大删除集合。冷启动时，给定 scope/owner 下不存在目标沿 SDK 既有幂等合同返回 void、零写入，不证明原删除曾成功；已缓存的同 ID 与给定身份冲突则拒绝。对应 §M4 与 `tests/prologue-memory-delete-locator.test.ts`：分别覆盖冷启动错身份的真实目标保留、已知身份冲突和存在目标的最终授权门。已在正式 SDK #99 上通过公开 Adapter 与真实隔离 Node 存储的定向工程验证；同进程关闭重开只证明持久语义，不冒充 OS 进程重启、完整 App 实操或真实 Home 验收。
+
 Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副作用 Review 队列。
 
 显式 `storageRoot` 的 Node 适配器持有 SQLite 独占锁，直到 SDK 正常关闭或进程退出，防止另一执行器把活动审阅误判为重启遗留。获取失败报告 `agent.storage_busy`，不读取恢复记录。该锁保护当前单执行方假设；跨进程调用转发仍由 LocalHost 接通，不能用多个 runtime 直接共享这个目录。

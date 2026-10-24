@@ -3545,3 +3545,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-23 23:58：waitRun（R8 第 3 批 slice §10）统筹裁：一个并发、只给插件的查询动作；调用方取消照平台通用规则记，不给单个动作开调用记录例外，等到 timeoutMs 返回正常的「仍在跑」不算取消；同 PR 删平台不用的 wait 分支；并发等待若动作服务没有现成上限，就每安装 8 个、超出带码拒绝并测拒绝。
 
 - 10-24 00:20：#1151 一轮修后可合（EPIPE，Codex 修）；#1152（privileges 状态 3）已开。R8 第 4 批 §11.3 统筹裁：Characters 用宿主内部端口 CharactersAgentCatalog（不给插件），记 BL（`ac-kernel` 号段 BL-520～524）；删 listReviews；listMcp 保留同步但只同步调用者自己安装的工具、幂等、beforeEffect 后、撤权取消停用不同步并测拒绝；awaitContinuations 与 waitRun 共用每安装 8 个的池。
+
+- 10-24 00:35：#1138 已合（PG-051 P2a），#1147 改投 main 有冲突，`ac-kernel` 先合 main。S 号现分：S-58 #1117、S-59 #1119、S-60 #1139、S-61 W5-17（`ac-sandbox-sched`）、S-62～S-64 `ac-sc3`；下一个空号 S-65。`ac-sc3` S9-0（`dcaf78bc3`）已推送、S9-0b 在跑测试；统筹要求事件类型与情境账键按调用者插件 id 分命名空间（跨主人读写带码拒绝），新服务在 #1139 合入后归进 `SANDBOX_SERVICE_FATE`。

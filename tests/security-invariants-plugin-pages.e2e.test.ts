@@ -84,6 +84,37 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
   assert.equal(await browser.evaluate("Boolean(document.querySelector('meta[name=molis-work-control-token]'))"), true, "the owner's independent page remains available");
 });
 
+// SYS-15 S-47 (2026-10-23 review of #1018): a page's link channel never navigates the owner document. The settings
+// addresses the parent used to click through now open the settings surface in place; a shareable link address that is not
+// a settings address changes nothing, and neither path needs a gesture the page does not have.
+test("SYS-15 S-47 a page link never navigates the owner document: a settings address opens the settings surface in place", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  const { command, sessionId, evaluate, navigate, waitFor } = browser;
+  await navigate(() => command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=cognia` }, sessionId));
+  await browser.surfaceReady("cognia"); await child.waitFor("!document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
+  const opened = "Boolean(document.querySelector('[data-work-surface=settings] [data-model-settings]') || document.querySelector('[data-directory-panel=settings] [data-settings-section=models][aria-current]'))";
+  const owner = "({href:location.href,marker:window.__ownerMarker,frames:document.querySelectorAll('iframe[data-plugin-frame]').length,token:Boolean(document.querySelector('meta[name=molis-work-control-token]'))})";
+  const page = await child.evaluate<string>("location.href");
+  await evaluate("window.__ownerMarker='owner-page';window.__settingsAddresses=[];document.addEventListener('molis-work:open-settings-path',event=>window.__settingsAddresses.push(String(event.detail?.href||'')))");
+  const before = await evaluate(owner);
+  assert.equal(await evaluate(opened), false, "the settings are not open yet");
+  // A scripted click carries no gesture: the page's own settings link suppresses its navigation and reports the address.
+  await child.evaluate(`(() => {
+    const link = document.createElement("a"); link.setAttribute("href", "/settings/models"); link.textContent = "模型设置";
+    document.body.append(link); link.click(); link.remove();
+  })()`);
+  await waitFor(opened, 10_000);
+  assert.deepEqual(await evaluate<string[]>("window.__settingsAddresses"), [`${browser.origin}/settings/models`], "the address reached the shell as a settings request, not as a navigation");
+  assert.deepEqual(await evaluate(owner), before, "the owner document did not navigate, reload or lose its frame");
+  assert.equal(await evaluate<string>("window.__ownerMarker"), "owner-page", "no full page load happened");
+  assert.equal(await child.evaluate<string>("location.href"), page, "the page itself did not follow the link");
+  // The message path without any click moves nothing either, for an owner address that opens no surface.
+  await child.evaluate(`molisWorkOpenExternalUrl(${JSON.stringify(`/projects/${browser.projectId}/desk`)})`);
+  await waitFor("window.__settingsAddresses.some(href=>href.endsWith('/desk'))");
+  assert.deepEqual(await evaluate(owner), before, "a host address that opens no surface still moves nothing");
+});
+
 test("SYS-15-F1 SYS-15-F2 desktop search releases only the file selected by a trusted click, then opens its owned copy", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "shelf");

@@ -1,6 +1,6 @@
 import { codingBackgroundState } from "./background-state.js";
 import { type Capabilities, type CodingActivation, priorityOf, sessionState } from "./route-activation.js";
-import type { CodingBeforeWrite } from "./route-entry.js";
+import { codingActions, type CodingBeforeWrite } from "./route-entry.js";
 import type { CodingExecution } from "./routes.js";
 import type { CodingSessionRecord } from "./store.js";
 import type { CodingWaitView } from "./waits.js";
@@ -22,7 +22,7 @@ export async function readCodingSessions(a: CodingActivation, api: Capabilities,
     catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : codingText(execution.locale)("coding.server.session-unreadable") }); }
   }
   // Parked sessions are read without starting their consumer; the activation job owns its recovery.
-  const parked = new Map<string, CodingWaitView>(), backgroundUnreadable = await codingBackgroundState(api, records, execution.sessions, projectId, persist ? beforeWrite : undefined);
+  const parked = new Map<string, CodingWaitView>(), backgroundUnreadable = await codingBackgroundState(codingActions(a.context, beforeWrite), records, execution.sessions, projectId, persist ? beforeWrite : undefined);
   for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
     try { for (const [session, wait] of await a.waits.openWaits(runtimeId)) parked.set(`${runtimeId}:${session}`, wait); } catch { /* shown as not waiting */ }
   }

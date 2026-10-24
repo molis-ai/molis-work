@@ -124,7 +124,9 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
       });
     };
     const bindDemo = (scope) => {
-      (scope || document).querySelectorAll("[data-demo-action]").forEach((button) => {
+      const buttons = (scope || document).querySelectorAll("[data-demo-action]");
+      const disable = value => buttons.forEach(button => {button.disabled = value;});
+      buttons.forEach((button) => {
         if (button.dataset.bound === "1") return;
         button.dataset.bound = "1";
         button.addEventListener("click", async () => {
@@ -137,19 +139,26 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
               ? L("重建 demo 会清除其中的所有改动，但不会影响用户项目。确认继续？")
               : L("删除这个可重建 demo？用户项目不会被删除。");
           if (!window.confirm(message)) return;
-          button.disabled = true;
+          disable(true);
           if (error) error.hidden = true;
           try {
             const result = await molisWorkRequest("/api/settings/demo", { body: { action, user_confirmed: true }, fallback: L("demo 操作失败") });
+            const message = result.message || L("demo 已更新");
+            if (result.warning && error) {
+              error.textContent = message + ' ' + result.warning + ' ';
+              const refresh = document.createElement('a');refresh.href = location.href;refresh.textContent = L('刷新');
+              refresh.onclick = event => {event.preventDefault();location.reload();};error.append(refresh);error.hidden = false;
+              return;
+            }
             if (toast) {
-              toast.textContent = result.message || L("demo 已更新"); toast.dataset.mwState = "done"; toast.classList.remove("is-error");
+              toast.textContent = message; toast.dataset.mwState = "done"; toast.classList.remove("is-error");
               toast.classList.add("is-visible");
               setTimeout(() => toast.classList.remove("is-visible"), 2600);
             }
             setTimeout(() => location.reload(), 450);
           } catch (caught) {
             if (error) { molisWorkRequest.show(error, caught); error.hidden = false; }
-            button.disabled = false;
+            disable(false);
           }
         });
       });

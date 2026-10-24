@@ -1,4 +1,3 @@
-import { INBOX_PLUGIN_ID } from "./identity.js";
 import { retainActionAuthority, defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, type SearchEntry, type ActionSubject, type ActionSubjectContext, ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionAudience, type ActionCallContext,
   type WorkflowPayload, type WorkflowReceiveInput, type WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
@@ -64,10 +63,9 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
       throw new ActionError("actions.input_invalid", "这条 Inbox 事项没有可以交接的正文");
     },
     receive: async (input, caller) => {
-      const origin = { ...inboxContentActions.receive, provider_id: INBOX_PLUGIN_ID };
-      const nestedCaller = retainActionAuthority(caller, origin);
+      const nestedCaller = retainActionAuthority(caller, inboxContentActions.receive);
       const itemId = input.feed_item_id ?? (await ports.receiveFeed(input, nestedCaller)).item_id;
-      await nestedCaller.validate_authority?.(origin);
+      await nestedCaller.validate_authority?.(caller.current_action!);
       const stored = ports.ensure(itemId, addedByOf(caller.audience));
       const entry = stored.status === "done" || stored.status === "dismissed" ? ports.reopen(stored) : stored;
       await ports.flush(nestedCaller, entry.entry_id);

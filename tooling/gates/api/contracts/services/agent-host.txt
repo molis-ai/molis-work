@@ -1980,18 +1980,18 @@ export declare const agentHostCapabilities: {
         items: AgentProjectWork[];
         overlaps: AgentProjectWorkOverlap[];
     }>;
-    readonly readMessages: HostCapabilityDefinition<[runtimeId: string, sessionId?: string], AgentSessionMessage[]>;
-    readonly prioritizeSession: HostCapabilityDefinition<[runtimeId: string, sessionId: string], {
+    readonly readMessages: ActionDefinition<[runtimeId: string, sessionId?: string], AgentSessionMessage[]>;
+    readonly prioritizeSession: ActionDefinition<[runtimeId: string, sessionId: string], {
         notified: string[];
         paths: string[];
     }>;
-    readonly sendPeopleMessage: HostCapabilityDefinition<[runtimeId: string, input: AgentPeopleMessageInput], AgentSessionMessage>;
-    readonly actOnPeopleMessage: HostCapabilityDefinition<[runtimeId: string, messageId: string, action: AgentPeopleMessageAction, detail?: {
+    readonly sendPeopleMessage: ActionDefinition<[runtimeId: string, input: AgentPeopleMessageInput], AgentSessionMessage>;
+    readonly actOnPeopleMessage: ActionDefinition<[runtimeId: string, messageId: string, action: AgentPeopleMessageAction, detail?: {
         event?: string;
         note?: string;
         attachments?: AgentMessageAttachment[];
     }], AgentSessionMessage>;
-    readonly cancelMessage: HostCapabilityDefinition<[runtimeId: string, messageId: string], void>;
+    readonly cancelMessage: ActionDefinition<[runtimeId: string, messageId: string], void>;
     readonly queueProjectRound: HostCapabilityDefinition<[runtimeId: string, input: {
         session: AgentSessionRef;
         directory: string;
@@ -2000,8 +2000,8 @@ export declare const agentHostCapabilities: {
         title?: string;
     }], AgentProjectWork>;
     readonly awaitContinuations: HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>;
-    readonly readBackground: HostCapabilityDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
-    readonly stopBackground: HostCapabilityDefinition<[runtimeId: string, taskId: string], boolean>;
+    readonly readBackground: ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
+    readonly stopBackground: ActionDefinition<[runtimeId: string, taskId: string], boolean>;
     readonly releaseProjectRound: HostCapabilityDefinition<[runtimeId: string, workId: string, note: string], void>;
     readonly listSkills: HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>;
     readonly readSkill: HostCapabilityDefinition<[runtimeId: string, pluginId: string, ref: AgentSkillRef], AgentSkillDefinition>;

@@ -1209,6 +1209,19 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 **不需要新决定的**：E-1（删除项目不清 Sessions 记录）——2026-10-07 已定「各主人一起删、可重试」，这是它漏掉的一个主人，按 W2-07 收尾做；修好后真实 Home 里以前删项目留下的 Sessions 记录（若有）按 10-08 已定的做法在下一次维护里先列后删，本片没有读真实 Home，不知道有没有。E-3 至 E-8、E-10、E-11、E-14、V-3 至 V-5、AI 清单 §7 第 3、4、6、9 项是清理与文字修正，没有产品语义的选择；会改合同文字或输出合同的（E-8 去掉 `pages.ai` 的 `stub`、E-11 删 `shelf.jobs.run`、AI 清单 §7 第 4 项的标题与描述）要刷新 API 与动作合同快照，PR 里写给调用方。
 
+### 1.1 剩余风险登记（2026-10-23）
+
+复审报告（2026-10-20～23 合入 PR 的复审；报告文件不入库，由合并 Agent 会话持有）§2.8 与 §8 第 6 条要求：#1018 的 Todo 宿主私路至少在这里登记剩余风险。本节是登记，不是清理完成。
+
+- **来源**：#1018（`f562ed466`，隔离插件页面并修复系统评审中的生命周期与权限问题）；报告 §2.8「隔离页新增 Todo 宿主私路」一行。
+- **现在的代码**
+  - `apps/local-host/src/plugin-page-authority.ts:145`：情境页（带 `x-molis-context-page`、不带 `x-molis-plugin-page`）的 POST 白名单里硬编码了 `/api/plugins/io.molis.work.todo/items`；
+  - `apps/local-host/src/plugin-page-todo.ts`：只放行 `io.molis.work.todo` 的 `items` 操作，把情境页选中的来源映射成待办的 `title`、`sources`、`placement` 与幂等 `request_id`；唯一调用点在 `apps/local-host/src/home-plugin-http.ts`；
+  - `scripts/gates/assembly.mjs:92`：`hostPluginFiles` 指标只按 `-actions.ts` / `-native-plugin-http.ts` 后缀认出「以插件命名的宿主文件」，`plugin-page-todo.ts` 识别不到、不进该指标记录。`scripts/check-health-gates.mjs` 的 `--base` 用同一份 `measureAll` 测量工作树和 merge-base；两边已有且同样命中新规则的文件会共同计入，不会仅因扩充扫描口径就自动成为新增违规。改门禁仍须按仓库规则取得授权，本片只登记，不改正则或指标（口径见 `tooling/gates/README.md`）。
+- **为什么本片只登记**：[context program](../context-program/spec.md) 开头的「交接（2026-10-20）」已说明 W0～W3 合入 main；W1-5 已有内核派生实现（`47c00b44`，`packages/kernel/src/contextual/destinations.ts`），不是尚待新建的平台能力。该 spec §18.7 已修正旧计划：去处走 `/draft`，落点版本冻结与执行前核对归 W3 的 `attach`。后续应按现行情境合同核对并迁移仍存的 Todo 专用入口与适配；是否还需改合同，由核对出的实际差距确定，不能预设为清理前置。本片保持复审报告 P3 的登记范围，不实施迁移。
+- **归属与跟踪**：后续清理沿用 ② 的 context program W1-5 跟踪归属，按当前交接接续；BACKLOG 的 BL-447 跟踪这一条（随 #1114 登记；该 PR 未合入前以本节为准）。完成须同时覆盖情境页的 Todo POST 白名单、`plugin-page-todo.ts` 专用适配及其调用，验证该路径已由通用合同承接后再更新本节；单独删文件不代表清理闭环，也不会消除扫描正则的通用识别盲区。`privileges.md` 的 PG 行由统筹在合入后补，本节不重复维护那份清单。
+- **同报告的另一条**：#1018 的「隔离页 link 通道」（合成 click 可导航宿主设置页）已由合并 Agent 派出的 plugin-frame-fixes 认领修复，不在此登记。
+
 
 ## 2. 现状度量（§3）
 

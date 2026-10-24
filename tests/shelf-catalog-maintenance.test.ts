@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 // Shelf S3 (① ruling D3): the one-time maintenance that takes a Home's Shelf catalog from version 1 to 2, rehearsed on a throwaway
 // Home only. Version 1 is written here the way the build before S3 wrote it: every item with an `origin_realpath` (a path or null).
@@ -14,7 +14,7 @@ const TOOL = fileURLToPath(new URL("./fixtures/shelf-catalog-maintenance.mjs", i
 test("the Shelf catalog maintenance lists, rewrites version 1 as 2 once, keeps every item and refuses the real Home", { timeout: 60_000 }, async t => {
   const home = mkdtempSync(join(tmpdir(), "shelf-catalog-maintenance-")), elsewhere = mkdtempSync(join(tmpdir(), "shelf-real-home-"));
   t.after(() => { rmSync(home, { recursive: true, force: true }); rmSync(elsewhere, { recursive: true, force: true }); });
-  const store = openHostShelfStore(home, { disabled: true });
+  const store = openTestShelfStore(home, { disabled: true });
   const file = await store.admitFile({ filename: "a.txt", bytes: Buffer.from("原件的副本") });
   const text = await store.admitText("一段文字");
   const catalogFile = join(home, "shelf", "catalog.json");
@@ -24,7 +24,7 @@ test("the Shelf catalog maintenance lists, rewrites version 1 as 2 once, keeps e
     items: current.items.map(item => ({ ...item, origin_realpath: item.item_id === file.item_id ? privatePath : null })) }, null, 2));
   chmodSync(catalogFile, 0o600);
   const before = readFileSync(catalogFile);
-  await assert.rejects(openHostShelfStore(home, { disabled: true }).snapshot(), /Shelf 目录格式不符/u, "the new build refuses a version 1 catalog");
+  await assert.rejects(openTestShelfStore(home, { disabled: true }).snapshot(), /Shelf 目录格式不符/u, "the new build refuses a version 1 catalog");
 
   const tool = (args: string[], env: Record<string, string> = {}) => {
     const run = spawnSync(process.execPath, [TOOL, ...args, "--json"], { encoding: "utf8", env: { ...process.env, MOLIS_WORK_HOME: elsewhere, ...env } });
@@ -49,10 +49,10 @@ test("the Shelf catalog maintenance lists, rewrites version 1 as 2 once, keeps e
   const after = readFileSync(catalogFile, "utf8");
   assert.ok(!after.includes("origin_realpath") && !after.includes(privatePath));
   assert.equal(statSync(catalogFile).mode & 0o777, 0o600);
-  const reopened = await openHostShelfStore(home, { disabled: true }).snapshot();
+  const reopened = await openTestShelfStore(home, { disabled: true }).snapshot();
   assert.deepEqual(reopened.materials.map(item => item.item_id).sort(), [file.item_id, text.item_id].sort());
   assert.ok(!JSON.stringify(reopened).includes(privatePath));
-  assert.equal(openHostShelfStore(home, { disabled: true }).readFile(file.item_id).bytes.toString("utf8"), "原件的副本");
+  assert.equal(openTestShelfStore(home, { disabled: true }).readFile(file.item_id).bytes.toString("utf8"), "原件的副本");
 
   // Again, nothing changes; a catalog it cannot vouch for is left as it is.
   const again = tool(["rewrite", "--home", home]);

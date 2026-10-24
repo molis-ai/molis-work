@@ -11,7 +11,7 @@ import type { PluginJobControl, PluginKeptJob, PluginStartContext } from "@molis
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import type { CodingSessionRecord } from "./store.js";
-import { codingActionControl, codingJobWrite, type CodingBeforeWrite } from "./route-entry.js";
+import { codingActions, codingActionControl, codingJobWrite, type CodingBeforeWrite } from "./route-entry.js";
 import { holdReason, openWait, waitViewOf, wakeBodyOf, type CodingWaitView } from "./waits.js";
 
 type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
@@ -128,14 +128,14 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   /** Ask for `runtimeId`'s loop; nothing when one runs. */
   const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string, recovery = false) => jobs.wake(execution, runtimeId, recovery);
   /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
-  const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite?: CodingBeforeWrite) => {
-    for (const one of view.wait.conditions) if (one.kind === "envelope") await api.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
+  const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite: CodingBeforeWrite) => {
+    const actions = codingActions(context, beforeWrite);
+    for (const one of view.wait.conditions) if (one.kind === "envelope") await actions.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
     const queued = queuedOf(view.wait.wait_id);
     if (view.wait.by === "app" && queued) await api.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
     // An open wait is cancelled; one over whose step is held for the person gives the step back.
     if (view.wait.state === "waiting" || ["blocked", "needs-reconciliation"].includes(view.continuation?.state ?? ""))
-      await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" },
-        beforeWrite && codingActionControl(beforeWrite));
+      await actions.invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" });
     storage()?.delete(`queued:${view.wait.wait_id}`);
   };
   /** The person goes on before the wait is over: the continuation is ready at once, and the round started now takes it up. */

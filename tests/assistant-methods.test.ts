@@ -11,8 +11,9 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
+import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-instructions.js";
+import { homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -37,16 +38,18 @@ function reply(text = "好的。"): Response {
 
 const PAGES_METHOD = "io.molis.work.pages/meeting-notes";
 
-test("a method a Plugin offers for business work is declared with business tools only and registered with the Host by id and version", async () => {
+test("a method a Plugin offers for business work is declared with business tools only and registered with the Host by id and version while it runs", async () => {
   const declared = (methods: unknown[]) => manifestProblems(declarationManifest({ methods }));
   assert.equal(declared([{ skill_id: "notes", version: 1, name: "纪要", summary: "整理纪要", tools: ["read-capability"] }]), "");
   assert.match(declared([{ skill_id: "edit", version: 1, name: "改代码", summary: "改文件", tools: ["edit-file"] }]), /只能使用业务工具/);
   assert.match(declared([{ skill_id: "x", version: 1, name: "无说明", summary: "", tools: ["read-capability"] }]), /适用说明/);
   const home = await mkdtemp(join(tmpdir(), "assistant-methods-registry-"));
   try {
-    const registry = agentDefinitionsFor(home, builtinRegistrations);
+    const registry = homeAgentDefinitions(home);
+    assert.equal(registry.methods().find(method => method.key === PAGES_METHOD), undefined, "nothing of Pages' until it runs (PG-051)");
+    registerPluginAgentDefinitions({ directory: home, completeText: () => undefined, stores: homeStores() }, createPagesPlugin(), "pages-install");
     const listed = registry.methods().find(method => method.key === PAGES_METHOD);
-    assert.ok(listed, "Pages' method is registered with the Host");
+    assert.ok(listed, "Pages' method is registered with the Host, from its running definition");
     assert.equal(listed.source.kind, "plugin");
     assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 2]);
     // ADH-14: whether writing the page asks first is the Host's, by the action's effect; the method no longer stops for it.
@@ -76,7 +79,7 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "fixture-only" });
   agentHost.register(adapter);
-  const registry = agentDefinitionsFor(home, builtinRegistrations);
+  const registry = homeAgentDefinitions(home);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => agentHost,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")),

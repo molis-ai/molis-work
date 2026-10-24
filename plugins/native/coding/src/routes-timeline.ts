@@ -5,7 +5,7 @@ import { codingContinuation } from "./continuation.js";
 import { nextHistoryMode } from "./history-digest.js";
 import { savedMaterials } from "./materials.js";
 import { type Capabilities, type CodingActivation, selected, sessionState, savedBudget, savedDigestUsage, priorityOf } from "./route-activation.js";
-import { codingActionControl } from "./route-entry.js";
+import { codingActions, codingActionControl } from "./route-entry.js";
 import { bodyOf, savedActions, methodSelection, mcpSelection, mcpSources } from "./route-selections.js";
 import { nextConfiguration, text } from "./run-inputs.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint } from "./session-window.js";
@@ -325,12 +325,12 @@ const ROUTES: RouteMaker[] = [
   // Messages this session sent and received, and withdrawing an open one.
   (a) => {
     const { projectId, route } = a;
-    return route("coding.messages", async (request, api, execution) => {
+    return route("coding.messages", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) return { messages: [] };
       const sessions = execution.sessions.list(projectId), coding = (runtime: string) => sessions.find(entry => entry.runtime_session_id === runtime);
       // Letters for people (delegations and their deliveries) are shown with the delegation, not here.
-      return { messages: (await api!.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id])).filter(message => message.audience !== "people").map(message => {
+      return { messages: (await codingActions(a.context, beforeWrite).invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id])).filter(message => message.audience !== "people").map(message => {
         const outgoing = message.from_session === record.runtime_session_id, other = coding(outgoing ? message.to_session : message.from_session);
         return { ...message, from_title: coding(message.from_session)?.title ?? message.from_title, to_title: coding(message.to_session)?.title ?? message.to_title,
           outgoing, peer: other ? { session_id: other.session_id, title: other.title } : null };
@@ -339,26 +339,26 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { route } = a;
-    return route("coding.message-cancel", async (request, api, execution) => {
+    return route("coding.message-cancel", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      await api!.invoke(agent.cancelMessage, [record.runtime_id, text(request.params.messageId, "coding.field.letter")]);
+      await codingActions(a.context, beforeWrite).invoke(agent.cancelMessage, [record.runtime_id, text(request.params.messageId, "coding.field.letter")]);
       return { cancelled: true };
     });
   },
   // The session's background commands, and stopping one.
   (a) => {
     const { route } = a;
-    return route("coding.background", async (request, api, execution) => {
+    return route("coding.background", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) return { commands: [] };
-      return { commands: await api!.invoke(agent.readBackground, [record.runtime_id, record.runtime_session_id]) };
+      return { commands: await codingActions(a.context, beforeWrite).invoke(agent.readBackground, [record.runtime_id, record.runtime_session_id]) };
     });
   },
   (a) => {
     const { route } = a;
-    return route("coding.background-stop", async (request, api, execution) => {
+    return route("coding.background-stop", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      return { stopped: await api!.invoke(agent.stopBackground, [record.runtime_id, text(request.params.taskId, "coding.field.background-command")]) };
+      return { stopped: await codingActions(a.context, beforeWrite).invoke(agent.stopBackground, [record.runtime_id, text(request.params.taskId, "coding.field.background-command")]) };
     });
   },
 ];

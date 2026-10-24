@@ -2,6 +2,13 @@ import { INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
 
 /** The resident Assistant in the bottom bar, with the supplement receipt it shares with every plugin. */
 export const ASSISTANT_EN: Record<string, string> = {
+  "周日": "Sun",
+  "周一": "Mon",
+  "周二": "Tue",
+  "周三": "Wed",
+  "周四": "Thu",
+  "周五": "Fri",
+  "周六": "Sat",
   ...INPUT_RECEIPTS_EN,
   "AI 记下的约定": "What the AI noted as agreed",
   "回复到原评论": "Replying to the original comment",

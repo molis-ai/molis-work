@@ -9,11 +9,10 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { shelfActions, SHELF_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-shelf';
 import { readMaterialWebsite } from '../apps/local-host/src/material-web.js';
-import { openHostShelfStore } from '../apps/local-host/src/shelf-actions.js';
-import { shelfStoreProvider } from './shelf-direct-actions.js';
+import { shelfStoreProvider, openTestShelfStore } from './shelf-direct-actions.js';
 
 /** The Host's own page reader behind Shelf, as the Home instance's materials service runs it. */
-const hostShelf = (home: string) => shelfStoreProvider(() => openHostShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite }));
+const hostShelf = (home: string) => shelfStoreProvider(() => openTestShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite }));
 
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), 'material-web-'));
@@ -51,7 +50,7 @@ async function fixture(t: test.TestContext) {
   let authorized = true;
   const caller = { actor_id: 'person', audience: 'user' as const, project_id: null, permissions: SHELF_ACTION_PERMISSIONS,
     validate_authority: () => { if (!authorized) throw new ActionError('actions.revoked', 'revoked'); } };
-  const store = () => openHostShelfStore(home, { disabled: true });
+  const store = () => openTestShelfStore(home, { disabled: true });
   t.after(async () => {
     dispose(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(home, { recursive: true, force: true });

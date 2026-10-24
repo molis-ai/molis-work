@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { link, mkdir, readFile, rename, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, readFile, rename, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import * as localHost from "@molis-ai/molis-work-app-local-host";
 import { createLazyFileSecretStore, inspectSealedSecretsSnapshot, readExistingSecret } from "@molis-ai/molis-work-storage";
 import { runtimeBackupFixture } from "./fixtures/runtime-config-backups.js";
+import { assertRefusedPromptly, runFifoChild } from "./fixtures/runtime-backup-fifo.js";
 
 function reader() {
   const read = Reflect.get(localHost, "readRuntimeConfigBackup");
@@ -96,22 +97,37 @@ test("S-12 RAC-104: linked backup or vault files cannot redirect an explicit own
 });
 
 test("S-12 RAC-104: special backup and vault files are refused without blocking the owner", async t => {
-  for (const subject of ["backup", "vault"]) {
+  for (const subject of ["backup", "vault"] as const) {
     const f = await runtimeBackupFixture(t), runtime = f.service(), plan = await runtime.prepare("codex", "connect");
     const result = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
     assert.equal(result.status, "connected", result.message);
     const target = subject === "backup" ? result.backup_path! : join(f.home, "feed", "secrets.json");
     await unlink(target);
     const fifo = spawnSync("mkfifo", [target], { encoding: "utf8" }); assert.equal(fifo.status, 0, fifo.stderr);
-    // The 1 s budget is the owner call's own, timed inside the child; the process timeout only stops a real hang, because loading the
-    // Host package in a fresh process takes longer than the call on a busy CI runner.
-    const child = spawnSync(process.execPath, ["--input-type=module", "-e",
-      "import {readRuntimeConfigBackup} from '@molis-ai/molis-work-app-local-host';const started=performance.now();try{await readRuntimeConfigBackup(process.argv[1],'codex',process.argv[2]);process.exitCode=2;}catch(error){if(error.code!==process.argv[3])throw error;}const took=performance.now()-started;if(took>1000){console.error(`owner call took ${Math.round(took)} ms`);process.exitCode=3;}",
-      f.home, plan.plan_id, subject === "backup" ? "installer.runtime_backup.invalid" : "installer.runtime_backup.key_unavailable"],
-      { encoding: "utf8", env: process.env, timeout: 30_000 });
-    assert.equal(child.error, undefined, "a special file must be rejected instead of waiting for a writer");
-    assert.equal(child.status, 0, child.stderr);
+    assert.equal((await lstat(target)).isFIFO(), true);
+    // Nothing ever opens the FIFO for writing: an owner that waited for a writer would never return.
+    const read = await runFifoChild("owner", { home: f.home, plan: plan.plan_id, fifo: target });
+    t.diagnostic(`${subject}: ${JSON.stringify({ ...read, stderrTail: undefined })}`);
+    assertRefusedPromptly(read, subject === "backup" ? "installer.runtime_backup.invalid" : "installer.runtime_backup.key_unavailable");
   }
+});
+
+test("S-12 RAC-104: the same budget fails a read that waits on a FIFO, and a cancelled check stops only its own child", async t => {
+  const f = await runtimeBackupFixture(t), fifo = join(f.directory, "no-writer.fifo");
+  const made = spawnSync("mkfifo", [fifo], { encoding: "utf8" }); assert.equal(made.status, 0, made.stderr);
+  const blocked = await runFifoChild("block", { home: f.home, plan: "none", fifo });
+  t.diagnostic(`blocked: ${JSON.stringify({ ...blocked, stderrTail: undefined })}`);
+  assert.equal(blocked.entered, true);
+  assert.equal(blocked.timedOut, true, "a read waiting for a writer outlives the budget");
+  assert.equal(blocked.refused, null);
+  assert.equal(blocked.signal, "SIGKILL");
+  assert.throws(() => assertRefusedPromptly(blocked, "installer.runtime_backup.invalid"), "the check a prompt refusal passes must fail a blocked read");
+  const controller = new AbortController();
+  const cancelled = await runFifoChild("block", { home: f.home, plan: "none", fifo }, { signal: controller.signal, onEntered: () => controller.abort() });
+  t.diagnostic(`cancelled: ${JSON.stringify({ ...cancelled, stderrTail: undefined })}`);
+  assert.equal(cancelled.cancelled, true);
+  assert.equal(cancelled.timedOut, false);
+  assert.equal(cancelled.signal, "SIGKILL", "cancelling kills the blocked child and waits for its close");
 });
 
 test("S-12 RAC-104: a missing original key or unfinished maintenance refuses capture before changing Runtime configuration", async t => {

@@ -70,7 +70,7 @@ test("registered clients mount on demand, retry resources and retain their origi
   await click('[data-work-surface=pages] [data-ui-client-retry]');
   await waitFor("document.querySelector('[data-work-surface=pages]').dataset.uiClientState === 'ready'");
   assert.equal(await child.evaluate("typeof window.MolisWorkPagesEditor.mount"), "function");
-  // W5-04 PG-070: every surface (Files, Git, Diff and Text Stats among them) mounts with the bundle of its own; the clients a
+  // RAC-542 W5-04 PG-070: every surface (Files, Git, Diff and Text Stats among them) mounts with the bundle of its own; the clients a
   // surface uses (Coding's Git and Files) load beside it, and each isolated document loads a bundle only once, retaining it when reopened.
   const loaded = (id: string) => `performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/assets/molis-work-plugins/${id}.js')).length`;
   const opened: string[] = [];

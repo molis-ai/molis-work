@@ -50,7 +50,7 @@ test('composition preserves Native UI identities', () => {
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.work.terminal.v1'), undefined);
 });
 
-test('W5-04 PG-070 every client is a bundle of its own: Files, Git, Diff and Text Stats borrow nothing from Coding', () => {
+test('RAC-540 PG-070 every client is a bundle of its own: Files, Git, Diff and Text Stats borrow nothing from Coding', () => {
   const clients = new Map(pluginSurfaceClients().map(client => [client.id, client]));
   for (const id of ['coding', 'files', 'git', 'diff', 'text-stats']) {
     assert.equal(clients.get(id)?.bundle, id, `${id} is its own bundle`);
@@ -62,7 +62,7 @@ test('W5-04 PG-070 every client is a bundle of its own: Files, Git, Diff and Tex
   assert.deepEqual(clients.get('coding')?.assets, ['/assets/molis-work-plugins/git.js', '/assets/molis-work-plugins/files.js']);
 });
 
-test('W5-02-REG-08 a client gets the clients its registration names in clientUses, mounted as the plugin they belong to', () => {
+test('RAC-541 W5-02-REG-08 a client gets the clients its registration names in clientUses, mounted as the plugin they belong to', () => {
   const entry = futurePlugin(), at = (id: string, order: number, workbench: Omit<PluginRegistration['workbench'], 'order' | 'contributions'>): PluginRegistration =>
     ({ ...entry, project_plugin_id: id, catalog_order: order, manifest: { ...entry.manifest, plugin_id: 'io.molis.work.' + id }, workbench: { order, contributions: [], ...workbench } });
   const user = at('user', 1, { clientFactory: 'host => host.clients.lent({ root: "r" })', clientUses: ['lent'] });

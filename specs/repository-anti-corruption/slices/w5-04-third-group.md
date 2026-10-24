@@ -2,7 +2,7 @@
 
 状态：执行中（2026-10-24）。Coding 一族的第一段：Files、Git、Diff、Text Stats 四个插件各出一份自己的客户端包（`/assets/molis-work-plugins/<插件>.js`），样式随各自的插件包交付，`clientFrom` 从合同里删掉（PG-070）；Coding 自己的 24 个客户端文件（3b）还没有搬，不在本片。叠在 #1243（第二组）上，#1243 合入后只剩本片的差异；本地构建、定向用例与健康门禁通过，待统筹集成全量。
 
-验收编号：RAC-169（Diff 与 Text Stats 的客户端）；PG-070 的三条（组合层）的 RAC 号等统筹再给一段，之后把下面的 PG-070 条目改成 RAC 号。
+验收编号：RAC-169（Diff 与 Text Stats 的客户端）、RAC-540～542（PG-070 的组合层）；遗留 BL-605。
 
 ## 范围
 
@@ -41,15 +41,15 @@ Diff、Text Stats 的三句话原来用中文原文当键、由工作台的英�
 
 ## 验收
 
-- PG-070-A：`pluginSurfaceClients()` 里 Coding、Files、Git、Diff、Text Stats 的 `bundle` 都是自己的 id，宿主都发得出这份包；四个伙伴插件的客户端工厂各不相同；Coding 的资源里加载 Git、Files 的包（`tests/builtin-plugin-composition.test.ts`）。
-- PG-070-B：`clientUses` 的客户端拿到 `host.clients[<短 id>]`，以被用插件自己的身份挂载，缺客户端时报错（`tests/builtin-plugin-composition.test.ts`）。
-- PG-070-C：每个浏览器页面按需加载的包在隔离文档里只加载一次、重开时保留，Coding 的页面同时加载 Git、Files 的包（`tests/workbench-deferred-clients.e2e.test.ts`）。
+- RAC-540：`pluginSurfaceClients()` 里 Coding、Files、Git、Diff、Text Stats 的 `bundle` 都是自己的 id，宿主都发得出这份包；四个伙伴插件的客户端工厂各不相同；Coding 的资源里加载 Git、Files 的包（`tests/builtin-plugin-composition.test.ts`）。
+- RAC-541：`clientUses` 的客户端拿到 `host.clients[<短 id>]`，以被用插件自己的身份挂载，缺客户端时报错（`tests/builtin-plugin-composition.test.ts`）。
+- RAC-542：每个浏览器页面按需加载的包在隔离文档里只加载一次、重开时保留，Coding 的页面同时加载 Git、Files 的包（`tests/workbench-deferred-clients.e2e.test.ts`）。
 - RAC-161、RAC-168：Files、Git 的请求只在 `request.ts` 里，其余规则不变（`tests/files-client-bundle.test.ts`、`tests/git-client-bundle.test.ts`）。
 - RAC-169：Diff 与 Text Stats 的页面文字每个键都有中英文、没有中文键与动态键；浏览器代码不直接 `fetch`、无 `any`、`as unknown as`、空 `catch`、浏览器弹窗，不写插件 id 与 `/api/plugins/`；构建跑浏览器类型检查并用 esbuild 打包，esbuild 与根同版本；包是 `(host) => {…}` 函数表达式，页面根不是伙伴页面时什么也不挂（`tests/diff-text-stats-client-bundle.test.ts`）。
 - 行为不变：`tests/companion-client-lifecycle.e2e.test.ts`（四个伙伴页面在隐藏、拆下、重挂载时的查询与监听，Git/Files 的刷新与恢复）、`tests/coding-workbench.e2e.test.ts`、`tests/plugin-page-reviews.e2e.test.ts`。
 
 ## 登记的遗留
 
-- 3b：Coding 自己的 24 个客户端文件（只有 4 个已在 `src/browser/`）改成打包、类型检查的 TypeScript；体量约 355 KB，按子客户端分批搬。
-- 伙伴页面的外壳（返回、状态、刷新）在四个插件里各写了一份，等 PG-055（SDK 公共界面部件）后合成一份。
+- BL-605：3b，Coding 自己的 24 个客户端文件（只有 4 个已在 `src/browser/`）改成打包、类型检查的 TypeScript；体量约 355 KB，单独一个 PR，先搬子客户端、再搬主客户端（同一 PR 的两个提交）。
+- 伙伴页面的外壳（返回、状态、刷新）在四个插件里各写了一份：统筹 10-24 定伙伴舞台不公开（PG-055 的 D3），各插件用公开的舞台外壳、图标、按钮自己写，不合成一份。
 - 设置页样式表里的 `CODING_STYLES`（PG-072）。

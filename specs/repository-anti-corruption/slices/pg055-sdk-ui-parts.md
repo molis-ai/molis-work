@@ -1,6 +1,6 @@
 # PG-055 草案：SDK 提供公开的界面部件，插件包不再依赖私有的 design-system
 
-状态：草案（2026-10-24），只有设计、没有代码；SDK 是共享核心，等统筹评审后再实现。
+状态：设计已定（2026-10-24 统筹裁定 D1～D6，见文末），还没有代码；排在 W5-04 第三组的 3b（BL-605）之后做，分两个 PR（S1+S2、S3+S4）。
 
 ## 问题
 
@@ -41,7 +41,8 @@
 - `escapeHtml`、`cx`、`renderAttrs`（design-system 的 `primitives/html.ts`，三十行）。
 - `icon(name, className?)` 与图标名字表（`PluginIconName`）。**关键事实**：`icon()` 输出的是 `<svg aria-hidden="true"><use href="#icon-名"></use></svg>`，图形在宿主页面带的雪碧图里（`renderIconSprite()`），不在 `icon()` 里。所以 SDK 只要名字表和一行标记，**不需要把 lucide 带进 SDK**，也不改变「SDK 只依赖 contracts」。状态环类的图标名（`STATE_RING_ICON_STATES`）走 `renderStateRing`，一并搬（`state-ring.ts`、`state-ring-geometry.ts`、`state-ring-states.ts`，合计约 220 行）。
 - `renderPluginStageShell`（21 行）、`renderButton`、`renderStatusMark`、`renderBadge`、`renderEmpty`、`renderStateRing`、`StateRingState`。
-- `RECEIPT_WORDS` 与 `InteractionNextStep` 的类型：回执用词是 Host 与插件对用户说的同一批词。contracts 里现在没有这两个名字（只有 `platform/plugin-interaction` 的 `PluginInteractionNextSteps`），所以搬进 contracts 是新增导出，要走 `CONTRACT-CHANGES.md`，见开放项 D4。
+- `renderDatePicker` 连同它要用的 `renderInput`、`renderCalendar`（D6）。它的行为不在部件里：`.mw-date-picker`、`data-date-picker-input`、`.mw-calendar__day`、`data-ix-calendar-page` 这些钩子由宿主往每个插件页面注入的交互脚本（`plugin-frame.ts` 里的 `INTERACTION_CLIENT_SCRIPT_TYPED_DATES`）接线，与 `molisReflow` 同类，所以部件进 SDK、脚本留在宿主，钩子进第四节的守护测试。
+- `RECEIPT_WORDS` 与 `InteractionNextStep` 的类型：回执用词是 Host 与插件对用户说的同一批词。contracts 里现在没有这两个名字（只有 `platform/plugin-interaction` 的 `PluginInteractionNextSteps`），所以搬进 contracts 是新增导出，要走 `CONTRACT-CHANGES.md`，见裁定 D4。
 
 ### 二、`@molis-ai/molis-work-plugin-sdk/browser`：浏览器端工具
 
@@ -66,26 +67,28 @@
 
 仿 `public-sdk-private-dependency` 加一条 `plugin-private-ui-dependency`：`plugins/native/*`（除 plugin-builder）的源码不得 import `@molis-ai/molis-work-design-system`；计数按文件，对照 merge-base 只许减少。plugin-builder 的例外写进规则的名单（带理由：创作台是平台能力）。
 
-## 迁移步骤（每步一个 PR，前后都能独立合）
+## 迁移步骤（统筹 10-24 定：两个 PR，排在 3b 之后）
 
-1. **S1**：SDK 加 `/ui`（和 `/browser`、`page-globals`）。design-system 先不动，测试比较两边输出逐字相同（过渡期的单一用途测试，S2 删）。快照入库，测试守护类名。按共享核心跑全量。
-2. **S2**：design-system 改成从 SDK 取这些部件，删本地实现与重复测试；宿主的行为不变。
-3. **S3**：插件分批替换 import，每批只改 import 和 `package.json`（去掉 design-system 依赖，补 plugin-sdk 依赖，登记到 `workspace-packages.mjs`）：先 `icon` 加 `renderPluginStageShell` 的 12 个；再 feed、goals（状态环）；再 diff、files、git、text-stats（伙伴舞台，见开放项 D3）；最后 coding、pages、shelf、jelly、form、lingguang、ppt。
-4. **S4**：加边界规则 `plugin-private-ui-dependency`，把 PG-055 标完成。
+- **PR 一（S1+S2，共享核心，进批跑一次全量）**
+  1. SDK 加 `/ui`、`/browser`、`/page-globals`；`RECEIPT_WORDS`、`InteractionNextStep` 进 contracts 的 `platform/ui`（改合同，走 `CONTRACT-CHANGES.md`，`pnpm api:update`）；快照入库，类名与钩子测试守护；过渡期用一条测试比较 design-system 与 SDK 的输出逐字相同。
+  2. design-system 改成从 SDK 取这些部件，删本地实现与上面那条过渡测试；宿主的行为不变。
+- **PR 二（S3+S4）**
+  3. 插件分批替换 import，每批只改 import 和 `package.json`（去掉 design-system 依赖，补 plugin-sdk 依赖，登记到 `workspace-packages.mjs`）：先 `icon` 加 `renderPluginStageShell` 的 12 个；再 feed、goals（状态环）；再 diff、files、git、text-stats（各自把舞台写进自己的 `ui.ts`，D3）；最后 coding、pages、shelf、jelly（日期选择器，D6）、form、lingguang、ppt。每批按各插件 README 的「改动后必跑」。
+  4. 加边界规则 `plugin-private-ui-dependency`，把 PG-055 标完成。
 
-估计影响面：S1、S2 动共享核心（SDK、design-system、工作台的页面生成），按共享核心跑全量；S3 每批按各插件 README 的「改动后必跑」。页面资源：部件被打进各插件自己的客户端包，只带用到的（esbuild 摇树）；服务端渲染的部件不进页面资源。
+估计影响面：PR 一动共享核心（SDK、design-system、contracts、工作台的页面生成），按共享核心跑全量。页面资源：部件被打进各插件自己的客户端包，只带用到的（esbuild 摇树）；服务端渲染的部件不进页面资源。
 
-## 开放项（请统筹定）
+## 统筹裁定（2026-10-24）
 
-- **D1**：子路径划分用 `/ui`（字符串部件）加 `/browser`（DOM 工具）加 `/page-globals`（类型声明）三个，还是合成一个 `/ui`？推荐三个：只想要图标的服务端代码不该拉进 DOM 函数的类型。
-- **D2**：design-system 改依赖 SDK（推荐，一份实现），还是两边各留一份、靠一致性测试（不推荐：测试守住的是现在，不是以后）。
-- **D3**：伙伴页面舞台（`renderCompanionBrowserStage`、`renderCompanionListStage`、`CompanionStageModel`）要不要公开。它们是 Coding 页面的内部构件（标记里保留 `data-companion` 钩子，注释还写着「Coding 的客户端来填」），第三方插件没有「嵌进 Coding」这件事；W5-04 第三组 A 已经让这四个插件的客户端各画自己的页面外壳。推荐**不公开**：四个插件各自把舞台写在自己的 `ui.ts` 里，只用公开的 `renderPluginStageShell`、`icon`、`renderButton`；这样 `CompanionStageModel` 和 `renderSidebar`/`renderEmpty` 都不进 SDK。
-- **D4**：`RECEIPT_WORDS` 与 `InteractionNextStep` 放哪：contracts 的 `platform/ui`（推荐，它们是宿主对用户说的词，不是部件）还是 SDK `/ui`。
-- **D5**：类名合同的守护只做测试（推荐），还是另外在 contracts 里登记一张类名表。后者多一份要维护的名单，现在没有第三方在用，先做测试。
-- **D6**：`renderDatePicker` 只有 jelly 用，且依赖页面脚本（`INTERACTION_CLIENT_SCRIPT_TYPED_DATES` 一类）：是和 Jelly 的客户端一起处理，还是先留在 design-system 作为 Jelly 的唯一例外。推荐后者，写进边界规则的名单（带理由和到期）。
+- **D1**：三个子路径 `/ui`（字符串部件）、`/browser`（DOM 工具）、`/page-globals`（类型声明）。
+- **D2**：design-system 改依赖 SDK，一份实现。
+- **D3**：伙伴页面舞台不公开；四个插件各自用公开的舞台外壳、图标、按钮写自己的舞台。
+- **D4**：`RECEIPT_WORDS` 与 `InteractionNextStep` 进 contracts 的 `platform/ui`（改合同）。
+- **D5**：类名合同只做测试守护，不另登记类名表。
+- **D6**：不留例外，不然 PG-055 关不掉。日期选择器的行为脚本是宿主往每个插件页面注入的全局（见第一节），所以 `renderDatePicker`（连同 `renderInput`、`renderCalendar`）进 SDK `/ui`、全局的类型进 `/page-globals`；若实现时发现它其实只是 Jelly 自己的脚本，就连脚本一起搬进 Jelly 的包。边界规则的名单里只有 plugin-builder 一条（创作台是平台能力，见非目标）。
 
-## 验收（草案，实现时再编号）
+## 验收（实现时再编号）
 
 - SDK `/ui` 的每个部件输出都只用宿主样式表里有规则的类名（类名测试）。
-- 22 个包里除 plugin-builder 与 D6 的例外外，没有从 design-system 的 import；规则 `plugin-private-ui-dependency` 在 `pnpm health:check` 里计数、只许减少。
+- 22 个包里除 plugin-builder 外，没有从 design-system 的 import；规则 `plugin-private-ui-dependency` 在 `pnpm health:check` 里计数、只许减少。
 - design-system 里这些部件只有一份实现（在 SDK）；`tests/plugin-sample.e2e.test.ts` 在本机兜底：外部作者只装两个包也能渲染舞台外壳与图标。

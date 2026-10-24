@@ -29,6 +29,8 @@ c609 正式视觉首败（未关闭）：原参数、jobs1/browser1/retries0、�
 
 唯一readiness观察：源码确认原 `stablePicture` 只等顶document的fonts/finite animations；iframe经srcdoc load→child factory→ready消息→parent uiClientState→fixture surfaceReady，没有等待child fonts/finite animations。但一次新增只读观察中，两次原截图attempt前，child/top均complete、document.fonts.status loaded、getAnimations为空；按钮到html七层祖先animation none/0s、transform none、transition0s，rect恒定，opacity按钮0.45/其他祖先1。child reducedMotion=false但webdriver/craftStill=true，现有自动化静止规则已生效；两注册FontFace为unloaded，不能据此把未使用face当仍加载。附加CDP读取耗时4.885/8.430ms，存在时序/布局查询扰动；观察图等A2、与A1仍仅原11点不同。未观察到具体未就绪条件，原因按 **UNKNOWN** 收口，不归因GPU/负载、不加sleep/ready补丁、不换截图后端，不再增加回合。原始观察 `/private/tmp/molis-toast-todo-readiness-20261024.json`；A/A、逐点RGBA、命令与边界 `/private/tmp/molis-toast-todo-diagnostic-aa-20261024.md`。
 
+2026-10-25 成对捕获观察：同一 c609 产品及构建完成一组有效 A1/A2，每边原 Todo 6 图/2 样式、每次实际捕获均保留；官方零阈值仍 exit1、同坐标11px/max4，但方向反转，新 A1 逐像素等于旧 A2，新 A2 等于旧 A1。实际可见 Todo owner 由 DOM frame 与 default execution context 绑定；四次捕获前后，按钮及伪元素720项样式、18节祖先的所采样式与几何、焦点/hover、加载和动画状态一致，跨运行仅18项随机项目/页面/标签/端口身份不同。每边两次原 PNG 完全相同；不支持以增加等待或修改产品解决。读取跨 context 非原子，额外调用约20–35ms，child初次loaderId未采到，不能反推无仪器时刻；两次前置Node ABI/受限Chrome启动失败单列，未产生截图。唯一有效实验后诊断树恢复clean c609，未改产品、共享harness、阈值或期望图。结论仍 **UNKNOWN/RED**，不再无新依据重复readiness。完整记录 `/private/tmp/molis-toast-todo-paired-20261025.md`，原始观察、恢复证明和官方比较分别在同前缀的 `-permitted-a1/observation.json`、`-permitted-a2/observation.json`、`-permitted.restored.json`、`-compare/report.json`。
+
 本片继续 **Draft**：正式视觉差异未关闭，不申请像素豁免。所有临时capture/观察代码已guard恢复，三树均clean后仅回写本文；产品/test/共享harness/阈值没有因诊断改变。未跑全量、此后主干集成、最终CI或最终App/真人触屏/主观体验验收；定向工程证据不替代这些结论。Toast是独立UI验收阻塞，不作为Memory合同的前置条件。
 
 ## 1. 目标与体验要求

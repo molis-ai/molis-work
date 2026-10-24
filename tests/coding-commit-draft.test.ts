@@ -5,10 +5,10 @@ import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-ho
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { commitDraftMaterial, commitMessageFrom, CODING_COMMIT_DRAFT, CODING_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-coding";
-import { draftText } from "@molis-ai/molis-work-app-local-host";
-import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
+import { commitDraftMaterial, commitMessageFrom, createCodingPlugin, CODING_COMMIT_DRAFT, CODING_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-coding";
+import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
+import { draftText, homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-instructions.js";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const run = (task: string, answer: string) => ({ turns: [{ turn_id: "u", kind: "user", text: task, at: null }, { turn_id: "a", kind: "assistant", text: answer, at: null }] }) as unknown as AgentRunView;
@@ -55,9 +55,11 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.draft-test", appVersion: "1.0.0" }, storageRoot: join(home, "owner-runtime") });
   const options = { homeDirectory: home, env: { MOLIS_WORK_TEXT_API_KEY: "test-only", MOLIS_WORK_TEXT_BASE_URL: `http://127.0.0.1:${address.port}`,
     MOLIS_WORK_TEXT_API_FORMAT: "anthropic-messages", MOLIS_WORK_TEXT_MODEL: "fixture" }, resolveInference: async () => adapter.inference };
-  // A draft's instruction is always one its plugin registered: here Form's, so Coding's own prompts stay unused below.
+  // A draft's instruction is always one its plugin registered, while it runs (PG-051): here Form's, so Coding's own prompts stay unused below.
+  const running = (directory: string) => { for (const definition of [createFormPlugin(), createCodingPlugin()]) registerPluginAgentDefinitions({ directory, completeText: () => undefined, stores: homeStores() }, definition, `${definition.manifest.plugin_id}-install`); };
+  running(home);
   const fixturePlugin = "io.molis.work.form", fixturePrompt = "form.draft-questions";
-  const rules = agentDefinitionsFor(home, builtinRegistrations).prompt(`${fixturePlugin}/${fixturePrompt}`).default_body.split("\n")[0]!.slice(0, 20);
+  const rules = homeAgentDefinitions(home).prompt(`${fixturePlugin}/${fixturePrompt}`).default_body.split("\n")[0]!.slice(0, 20);
   const before = await readdir(home), refs: string[] = [];
   try {
     for (let index = 0; index < 2; index++) {
@@ -76,7 +78,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     await assert.rejects(draftText(options, { purpose: "p", prompt: fixturePrompt, material: "" }, { pluginId: fixturePlugin }), /为空或过长/);
     assert.equal(bodies.length, 2);
 
-    const definitions = agentDefinitionsFor(home, builtinRegistrations), pluginId = "io.molis.work.coding";
+    const definitions = homeAgentDefinitions(home), pluginId = "io.molis.work.coding";
     const named = { purpose: "整理材料", prompt: "coding.commit-draft", material: "UNTRUSTED_MATERIAL" };
     const key = `${pluginId}/${named.prompt}`;
     assert.equal(definitions.uses(key).length, 0);
@@ -109,6 +111,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
       assert.deepEqual(definitions.uses(promptKey).map(use => [use.version, use.user_revision, use.caller]), [[prompt.version, 1, pluginId]]);
     }
     const otherHome = join(home, "another-home");
+    running(otherHome);
     await draftText({ ...options, homeDirectory: otherHome }, named, { pluginId });
     assert.ok(JSON.stringify(bodies.at(-1).system).includes(CODING_COMMIT_DRAFT.body.split("\n")[0]!));
     assert.doesNotMatch(JSON.stringify(bodies.at(-1).system), /User instructions/);

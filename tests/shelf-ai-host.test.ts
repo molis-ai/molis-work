@@ -68,9 +68,10 @@ test("Shelf Action -> registered prompt override -> shared Prologue -> result an
   const definitions = agentDefinitionsFor(f.home, builtinRegistrations);
   const prompt = SHELF_INSTRUCTIONS.find(row => row.prompt_id === "shelf.summarize.short")!;
   const key = `${SHELF_PLUGIN_ID}/${prompt.prompt_id}`;
+  const { item } = await f.actions.invoke(a.admit, { text: "周五交付，预算 12 万元。", title: "计划"});
+  // Shelf's instructions are registered by its running definition (PG-051): the person edits them once it runs.
   const registered = definitions.prompt(key);
   definitions.save(registered.key, "OVERRIDDEN_SHELF: summarize the supplied material.", null, "owner");
-  const { item } = await f.actions.invoke(a.admit, { text: "周五交付，预算 12 万元。", title: "计划"});
   const outcome = await f.actions.invoke(a.generate, { recipe: "summarize", item_id: item.item_id, option_id: "short" });
   assert.equal(outcome.job.runtime, "prologue"); assert.equal(outcome.job.execution?.state, "completed");
   assert.equal(outcome.job.execution?.configuredModel, "text"); assert.deepEqual(outcome.job.execution?.reportedModels, ["actual-fixture-model"]);

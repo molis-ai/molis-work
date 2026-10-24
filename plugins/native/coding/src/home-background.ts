@@ -15,8 +15,11 @@ const STANDING: Readonly<Record<string, string>> = { running: "进行中", pause
 const WAITING = new Set(["paused", "waiting-answer", "waiting-approval", "reconcile-required", "queued"]);
 
 /**
- * `startedAt` is when this activation of Coding started. No round survives it: one recorded as under way before then was cut off,
- * so its session is really waiting to be checked, and opening it shows what happened. A queued round has not started, so it was not cut off.
+ * `startedAt` is when the Home process started. A round does not survive that: one recorded as under way before then was cut off, so
+ * its session is really waiting to be checked, and opening it shows what happened. Stopping and starting Coding again does not cut a
+ * round: that stops only this activation's background jobs (the follower and the wake loop, PG-038, S-52) while the round stays in the
+ * Home-level agent host, so an activation that started later says nothing about a round (plugin.ts takes the process's start). A queued
+ * round has not started, so it was not cut off.
  */
 function codingHomeBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], startedAt: string): HomeBackgroundTask[] {
   return sessions.map(session => {

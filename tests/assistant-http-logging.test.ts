@@ -105,14 +105,19 @@ test("RAC-116: learning enqueue refusal stays observable and private while the c
       // MEM-35: a prepared task is not evidence of authorship; the real Runtime owns the person's original.
       const original = { input_id: randomUUID(), text, written_by: "person" as const, occurred_at: new Date().toISOString() };
       const originalRef = { session_id: session.session_id, input_id: original.input_id, version: 1 as const };
+      // MEM-CLASS: use the real preference owner's recipe; the completed source must retain its own frozen policy.
+      const memory = await service.memoryForRound(store.get(LOCAL_PERSON_ACTOR_ID, work.work_id), text);
+      assert.ok(memory, "the real Memory owner supplies this round's recipe");
       const run = await adapter.start({ ...owner, session, task: text, workspace: "none", role_id: "assistant",
         original_input: original,
-        role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+        role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [], memory } });
       store.addRound(work.work_id, { run_id: run.ref.run_id, text, materials: [], context: null, started_at: new Date().toISOString() });
       await until(async () => (await service.list()).find(item => item.work_id === work.work_id)?.state, state => state === "running", "real work running before completion");
       finishModel();
       await until(async () => (await adapter.read(run.ref)).phase, phase => phase === "completed", "real SDK round completion");
       assert.deepEqual((await adapter.read(run.ref)).original_input, { ref: originalRef, text, written_by: "person", occurred_at: original.occurred_at });
+      assert.deepEqual((await adapter.read(run.ref)).class_restrictions, memory.class_restrictions,
+        "the real Runtime freezes this source Run's actual policy, rather than borrowing one while learning");
       const completed = await withCallId(CALL_ID, () => service.list());
       assert.equal(completed.find(item => item.work_id === work.work_id)?.state, "completed");
       return { work, run, session, originalRef, key: `memory-learn:${work.work_id}:${run.ref.run_id}` };

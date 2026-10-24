@@ -60,7 +60,7 @@ if(command === "authorize") {
     publicOrigin:values.origin,tls,imAssets:{html:renderImPage({embedded:false}),css:IM_STYLES,script:IM_CLIENT_SCRIPT}});
   const address = running.server.address();
   if (address && typeof address === "object") hostLog.debug("server", "listening", { address: address.address, port: address.port, tls: Boolean(tls) });
-  writeOutput(`Owner pairing code: ${join(state,"connect.json")} (10 minutes)\nHost action client: ${memberClientId(owner.id)}\n`);
+  writeOutput(`Molis Work Server: ${running.origin}/continuity\nOwner pairing code: ${join(state,"connect.json")} (10 minutes)\nHost action client: ${memberClientId(owner.id)}\n`);
   writeOutput(`Required action grants: ${CONTINUITY_ACTIONS.map(a=>a.capability_id+"@"+a.version).join(", ")}\n`);
   let closing = false;
   const close = async (signal: "SIGINT" | "SIGTERM") => {

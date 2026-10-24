@@ -34,11 +34,11 @@ function command(directory: string, args: string[], options: { preload?: boolean
   return result;
 }
 
-function serve(t: TestContext, mode: string, signal = "SIGINT", repeat = false, debug = false) {
+function serve(t: TestContext, mode: string, signal = "SIGINT", repeat = false, debug = false, origin?: string) {
   const directory = home(t), state = join(directory, "server"), report = join(directory, "close.json");
   const config = join(directory, "config.json");
   writeFileSync(config, JSON.stringify({ projects: [] }));
-  const result = command(directory, ["serve", "--state", state, "--config", config, "--host-home", directory, "--port", "0"], {
+  const result = command(directory, ["serve", "--state", state, "--config", config, "--host-home", directory, "--port", "0", ...(origin ? ["--origin", origin] : [])], {
     preload: true,
     env: { MOLIS_WORK_DEBUG: debug ? "server" : "", MOLIS_WORK_TEST_SERVER_CLOSE: mode, MOLIS_WORK_TEST_SERVER_SIGNAL: signal,
       MOLIS_WORK_TEST_SERVER_REPEAT: repeat ? "yes" : "no", MOLIS_WORK_TEST_SERVER_REPORT: report },
@@ -134,20 +134,29 @@ test("RAC-110: server help, JSON output and startup instructions retain stdout a
   assert.equal(started.result.stderr, "");
   const owner = JSON.parse(readFileSync(join(started.state, "owner.json"), "utf8"));
   const lines = started.result.stdout.split("\n");
-  assert.equal(lines[0], `Owner pairing code: ${join(started.state, "connect.json")} (10 minutes)`);
-  assert.equal(lines[1], `Host action client: runtime:cross-device:${owner.id}`);
-  assert.equal(lines[2], "Required action grants: goals.state.read@1, goals.progress.record@1, goals.progress.receipt@1, artifacts.read@1");
-  assert.deepEqual(lines.slice(3), [""]);
+  assert.match(lines[0], /^Molis Work Server: http:\/\/127\.0\.0\.1:[1-9]\d*\/continuity$/);
+  assert.equal(lines[1], `Owner pairing code: ${join(started.state, "connect.json")} (10 minutes)`);
+  assert.equal(lines[2], `Host action client: runtime:cross-device:${owner.id}`);
+  assert.equal(lines[3], "Required action grants: goals.state.read@1, goals.progress.record@1, goals.progress.receipt@1, artifacts.read@1");
+  assert.deepEqual(lines.slice(4), [""]);
   const listed = command(started.directory, ["members", "--state", started.state]);
   assert.equal(listed.status, 0, listed.stderr);
   assert.equal(listed.stderr, "");
   assert.equal(listed.stdout, JSON.stringify([{ id: owner.id, display_name: owner.display_name, project_id: null, role: null }], null, 2) + "\n");
 });
 
+test("RAC-110: the default startup guide preserves --origin instead of printing the bound address", t => {
+  const origin = "http://work.example.test:4187";
+  const { result } = serve(t, "ok", "SIGTERM", false, false, origin);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.equal(result.stdout.split("\n")[0], `Molis Work Server: ${origin}/continuity`);
+  assert.doesNotMatch(result.stdout, /http:\/\/(?:127\.0\.0\.1|0\.0\.0\.0):/);
+});
+
 test("RAC-110: listening diagnostics use the Host debug log without moving pairing details into it", t => {
   const { result } = serve(t, "ok", "SIGTERM", false, true);
   assert.equal(result.status, 0, result.stderr);
-  assert.doesNotMatch(result.stdout, /Molis Work Server:|http:\/\//);
   const records = result.stderr.trim().split("\n").map(line => JSON.parse(line));
   assert.equal(records.length, 1);
   const { at, fields, ...record } = records[0];
@@ -155,6 +164,7 @@ test("RAC-110: listening diagnostics use the Host debug log without moving pairi
   assert.deepEqual(record, { level: "debug", area: "server", event: "listening" });
   assert.ok(Number.isInteger(fields.port) && fields.port > 0 && fields.port <= 65535);
   assert.deepEqual({ ...fields, port: 0 }, { address: "127.0.0.1", port: 0, tls: false });
+  assert.equal(result.stdout.split("\n")[0], `Molis Work Server: http://127.0.0.1:${fields.port}/continuity`);
   assert.doesNotMatch(result.stderr, /connect\.json|pairing|runtime:cross-device|Required action grants/);
 });
 

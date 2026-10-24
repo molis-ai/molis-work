@@ -1,8 +1,48 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+
+test("PG-026-S4-03 demo sample warning remains visible until manual refresh and normal success still reloads", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "empty");
+  if (!browser) return;
+  const { origin, homeDirectory, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+  t.after(browser.on("Page.javascriptDialogOpening", (event, session) => {
+    assert.equal(event.type, "confirm");
+    void command("Page.handleJavaScriptDialog", { accept: true }, session).catch(() => undefined);
+  }));
+  const shelf = await fetch(origin + "/api/plugins/io.molis.work.shelf/");
+  assert.equal(shelf.status, 200); await shelf.text();
+  const catalog = resolve(homeDirectory, "shelf", "catalog.json"), saved = await readFile(catalog);
+  await navigate(() => command("Page.navigate", { url: origin + "/settings/projects" }, sessionId));
+  await waitFor("document.querySelector('[data-demo-action=create]')?.dataset.bound === '1'");
+  await writeFile(catalog, "{broken-shelf-catalog");
+  try {
+    await click('[data-demo-action="create"]');
+    await waitFor("!document.querySelector('[data-demo-error]').hidden && document.querySelector('[data-demo-error] a')");
+    // This delay tests the specific old 450ms automatic-refresh boundary, not page readiness.
+    await evaluate("new Promise(resolve => setTimeout(resolve, 700))");
+    const warning = await evaluate<string>("document.querySelector('[data-demo-error]').textContent");
+    assert.match(warning, /示例项目已创建/);
+    assert.match(warning, /Shelf 示例未能恢复，请在 Shelf 中查看后重试。/);
+    assert.equal(await evaluate("document.querySelector('[data-demo-error]').getAttribute('role')"), "alert");
+    assert.equal(await evaluate("[...document.querySelectorAll('[data-demo-action]')].every(button => button.disabled)"), true);
+    const projects = await (await fetch(origin + "/api/settings/projects")).json() as { projects: Array<{ project_id: string }> };
+    assert.equal(projects.projects.length, 1);
+    await writeFile(catalog, saved);
+    await navigate(() => click('[data-demo-error] a'));
+    assert.equal(await evaluate("document.querySelector('[data-demo-action=create]')"), null);
+    const projectId = projects.projects[0]!.project_id;
+    assert.ok((await (await fetch(origin + "/api/settings/projects")).json() as { projects: Array<{ project_id: string }> }).projects.some(project => project.project_id === projectId));
+    await navigate(() => command("Page.navigate", { url: origin + "/settings/projects#" + encodeURIComponent(projectId) }, sessionId));
+    await waitFor("document.querySelector('[data-demo-action=reset]')?.dataset.bound === '1'");
+    await navigate(() => click('[data-demo-action="reset"]'));
+    await waitFor("document.querySelector('[data-demo-action=reset]')?.dataset.bound === '1'");
+    assert.equal(await evaluate("document.querySelector('[data-demo-error]').hidden"), true);
+    assert.equal(await evaluate("document.querySelector('[data-demo-action=reset]').disabled"), false);
+  } finally { await writeFile(catalog, saved); }
+});
 
 test("onboarding header return receives real pointer clicks in Web, desktop and narrow layouts", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);

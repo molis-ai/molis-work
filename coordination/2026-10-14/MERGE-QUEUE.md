@@ -42,9 +42,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 29 | [#1143](https://github.com/molis-ai/molis-work/pull/1143) | PG-017 P2a：连接经 broker 给沙箱插件 | 叠在 #1139→#1119（第三层）；已按用户要求转为非 Draft，保留 #1119 先合与 #1139 改投 main 的依赖 | 待重算 | 一轮修后可合（[6379959779](https://github.com/molis-ai/molis-work/pull/1143#issuecomment-6379959779)）；作者已修（S-57 与 S-60 一致、正文四节、合 #1139），新头 `f904b2e70`；待 diff 复核，随 #1144 进 batch-22 |
 | 30 | [#1144](https://github.com/molis-ai/molis-work/pull/1144) | PG-017 P2b：不联网的材料读取经 broker 给沙箱 | 叠在 #1143（第四层）；已按用户要求转为非 Draft，仍按层依赖合入 | 待重算 | 一轮修后可合（[6379978891](https://github.com/molis-ai/molis-work/pull/1144#issuecomment-6379978891)）；作者已修（S-39 与 S-60 一致、正文四节），新头 `75fe93612`；待 diff 复核，进 batch-22（带着整叠 #1119→#1139→#1143） |
 | 34 | [#1148](https://github.com/molis-ai/molis-work/pull/1148) | R8 第 2 批（BL-364）：项目里的工作与会话状态 4 条 typed 改登记成只给插件的动作 | **叠在 #1121 上**（第二层），#1121 合入后改投 main | `full` 非空，进下一批 | 头 `2a8eec5d8`（squash 感知同步，只剩自己的 13 个文件）；二轮可合；在 **batch-1024-19**（统筹起，10-24 03:35，run [40054696653](https://github.com/molis-ai/molis-work/actions/runs/40054696653)：main `aa4de404f` + #1157 `782af05ed`（含 #1130 `f7fb96ed6`）+ #1148 `2a8eec5d8`）；绿后入队 |
-| 新 | [#1163](https://github.com/molis-ai/molis-work/pull/1163) | #1147非阻塞遗留：SDK instructions统一登记文案 | #1147已实际合入1756f9842 | 纯文档，无full需求 | head `fd7c64a0ee77e72642cd5d6cf3b6c2a1cc281896`；修复2已交付/释放，1行README，正式review6379896345及独立原始文档/secret核验通过；非Draft；CI40062592114全部相关检查成功，统筹6380163092已匹配head正常入队，实际merge SHA另核 |
 | 新 | [#1166](https://github.com/molis-ai/molis-work/pull/1166) | #1138非阻塞遗留：卸载清理失败可重试完成 | — | shared-core，须统一集成 | head `beb065b34b6bc2a870c3b982d4a445d63353f50b`；首轮6380139209需修同版本重装交错P2，修复2已在#1171交付释放后串行启动P2实现；原28文件572项及U1/U2红绿已独立核有效，新增交错/CI/full待，不入队、不自起批 |
-| 新 | [#1171](https://github.com/molis-ai/molis-work/pull/1171) | main #1127独立Home设置事件无消费者回归 | 优先修main红，后解锁#1119/#1139/#1148 | contracts DOM登记触发full，Claude唯一组批 | head `b27b0cd8c0663cb93d074b6038ff37bdcd2de89a`，base89c9a7194；修复1交7文件+75/-15并释放，作者32文件544项/无资源增长；已立即交独立review/test，最终CI/full待 |
+| 新 | [#1171](https://github.com/molis-ai/molis-work/pull/1171) | main #1127独立Home设置事件无消费者回归 | 优先修main红，后解锁#1119/#1139/#1148 | contracts DOM登记触发full，Claude唯一组批 | head `b27b0cd8c0663cb93d074b6038ff37bdcd2de89a`，base89c9a7194；修复1交7文件+75/-15并释放，正式review6380293028通过、32文件544项及门禁已独立核有效/无资源增长；请求Claude统一full，CI40065480866/full待 |
 | 新 | [#1164](https://github.com/molis-ai/molis-work/pull/1164) | `ac-sc3` BL-385（R-17）：删除项目时清该项目的 Characters 原生执行记录 | — | `full` 非空（shared-core、storage、spans-packages，137 文件），进批 | `ac-review` 一轮**可合**（[6379997417](https://github.com/molis-ai/molis-work/pull/1164#issuecomment-6379997417)）。合并时机统筹定：可以合——真实 Home 的 characters v1→v2 本来就在维护八里，4207 换新 main 前必须先做（R-41），本 PR 不额外加约束；进下一批 |
 | 新 | [#1165](https://github.com/molis-ai/molis-work/pull/1165) | `ac-kernel` PG-047：模型结果的 `validateResult()` 由平台强制 | — | `full` 非空（63 个单元文件，无浏览器），进批 | 一轮可合；作者补完两条（RAC-334、RAC-335、S-18、`slices/pg047-held-model-results.md`），新头 `01de2cb48`；待 `ac-review` diff 复核，进 batch-22 |
 | 新 | [#1168](https://github.com/molis-ai/molis-work/pull/1168) | W6-01 / PG-058：删 `personal` 旧短名路由桥，alchemist HTTP 改显式直连（审计 AC-AUDIT-06） | — | 草稿；改枢纽文件 `web-request.ts`，转 ready 时算 `full` | 审计流程（Codex 侧）开的草稿；Alchemist 不删、行为不变（保留 `/api/alchemist` 直连）。转 ready 后交 `ac-review` 一轮 |
@@ -59,6 +58,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | PR | 合并提交 | 日期 |
 | --- | --- | --- |
+| #1163 | `8aa62a65b2a3644fc8be69ff50b748a53317ec34` | 10-24 05:16:43 UTC（Codex已核实际合并；#1147 SDK文案建议闭环） |
 | #1161 | `a934251d35dae6907fb2de75c3fb9f91735218e0` | 10-24 05:12:22 UTC（Codex已核实际合并，回执6380246527；#805规格引用错号闭环） |
 | #1126 | `89c9a71947f483cd429405574df7b2b916b36b8d` | 10-24 04:31:56 UTC（Codex已核实际合并；BL-540/541各已认领待串行实施） |
 | #1147 | `1756f9842def9df6b1cb0ccebfa23b10af26ec76` | 10-24 04:28:30 UTC（Codex已核实际合并；SDKREADME非阻塞文案另派修复2） |
@@ -129,4 +129,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 Codex本轮接续（2026-10-23洛杉矶）：main的issue-home-locale已知红已公开6380097295明确派修复1，优先于#1121（该归属认领保持）；修复2#1166已交付/释放并立即转独立review/test，暂无第二writer。#1119/#1139/#1148按batch20新裁定等待main修复后同步，未借已知红直接合入。SC4 batch21继续，但#1157非空菜单必修覆盖尚未关闭，6380099760已向ac-sc3说明绿批不能替代该项落实；不重复起批、不取消CI。#1163尚等最后Security1，未入队。
 
-Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings-path的实际入口缺陷（loads=[]），非只改旧选择器；6380173758明确按Home现有dialog加同源三路径事件消费并验证真实Retry/拒绝/草稿，工作台与S47禁导航规则保留。修复1唯一writer，#1166修复2仅只读准备交错修复。#1161已实际合入a934251d3；#1163全部必要CI完成，仍队首检查中，待实际merge SHA。batch20/21既有main红及1119/1139/1148合并门槛不变。
+Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings-path的实际入口缺陷（loads=[]），非只改旧选择器；6380173758明确按Home现有dialog加同源三路径事件消费并验证真实Retry/拒绝/草稿，工作台与S47禁导航规则保留。修复1唯一writer，#1166修复2仅只读准备交错修复。#1161已实际合入a934251d3；#1163已实际合入8aa62a65b。batch20/21既有main红及1119/1139/1148合并门槛不变。

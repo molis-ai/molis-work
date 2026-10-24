@@ -85,31 +85,22 @@ async function captureCli(operation: () => Promise<number>): Promise<Record<stri
   return JSON.parse(lines.at(-1) ?? "{}") as Record<string, unknown>;
 }
 
-test("a held wait runs beside the project's queue: a later read or command is not delayed, and a wait cannot be claimed for a command", async () => {
-  const wait = { capability_id: "test.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
-  const read = { capability_id: "test.read", version: 1, operation: "query" } as HostCapabilityDefinition<void, number>;
+test("RAC-186 no capability is a wait: the registry refuses one, and a caller cannot claim a wait for a command", async () => {
+  // Following a live round is a query declared concurrent (R8 batch 4), which runs beside the queue as the next tests show.
   const bump = { capability_id: "test.bump", version: 1, operation: "command" } as HostCapabilityDefinition<void, number>;
   const host = new LocalHost<{ value: number }>({ instanceId: "wait-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
-  let release!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  host.register(wait, async () => { await held; return "changed"; });
-  host.register(read, runtime => runtime.value);
+  // Object.assign keeps the declared type while the value claims an operation the type no longer has.
+  const follow = Object.assign({ capability_id: "test.follow", version: 1, operation: "query" } as HostCapabilityDefinition<void, string>, { operation: "wait" });
+  assert.throws(() => host.register(follow, () => "never"), /operation 必须是 query 或 command/);
   host.register(bump, runtime => ++runtime.value);
   const client = host.client({ project_id: "p", storage_key: "memory:p" });
-  const following = client.invoke(wait, undefined);
-  await new Promise(resolve => setTimeout(resolve, 10));
-  assert.equal(await client.invoke(bump, undefined), 1, "a command sent while a wait is held runs at once");
-  assert.equal(await client.invoke(read, undefined), 1);
-  release();
-  assert.equal(await following, "changed");
-  await assert.rejects(client.invoke({ ...bump, operation: "wait" } as HostCapabilityDefinition<void, number>, undefined),
-    (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && (error.cause instanceof ActionError && ["kernel.capability_invalid","kernel.capability_duplicate","kernel.capability_missing"].includes(error.cause.code))
-      && error.message === error.cause.message);
+  await assert.rejects(client.invoke(Object.assign({ ...bump }, { operation: "wait" }), undefined), /operation 必须是 query 或 command/);
+  assert.equal(await client.invoke(bump, undefined), 1);
   await host.close();
 });
 
-test("closing the Host ends its waits: close does not wait out a long poll, and a caller's own signal still ends one", async () => {
-  const wait = { capability_id: "test.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
+test("closing the Host ends its concurrent reads: close does not wait out a long poll, and a caller's own signal still ends one", async () => {
+  const wait = { capability_id: "test.follow", version: 1, operation: "query", scheduling: "concurrent" } as HostCapabilityDefinition<void, string>;
   let closed = 0;
   const host = new LocalHost<{ value: number }>({ instanceId: "wait-close-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => { closed += 1; } } });
   const reasons: unknown[] = [];
@@ -134,21 +125,21 @@ test("closing the Host ends its waits: close does not wait out a long poll, and 
   assert.equal(closed, 1);
 });
 
-test("a transport never reaches a Host wait: its action clients run declared actions only, and no action can be declared as a wait", async () => {
-  // Why closing needs to end only the waits Host code calls through invoke(): a page, MCP, the assistant or a Home plugin route
-  // reaches a capability through actionClient or homeActionClient, and those refuse anything that is not a declared action.
-  const wait = { capability_id: "test.transport.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
+test("a transport never reaches a typed Host entry: its action clients run declared actions only, and no action can be declared as a wait", async () => {
+  // A page, MCP, the assistant or a Home plugin route reaches a capability through actionClient or homeActionClient, and those
+  // refuse anything that is not a declared action.
+  const wait = { capability_id: "test.transport.follow", version: 1, operation: "query", scheduling: "concurrent" } as HostCapabilityDefinition<void, string>;
   const host = new LocalHost<{ value: number }>({ instanceId: "transport-wait-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
   let entered = 0;
   host.register(wait, () => { entered += 1; return "answered"; });
-  const declared: ActionDefinition<Record<string, never>, string> = { capability_id: "test.transport.declared", version: 1, operation: "wait",
+  const declared = Object.assign({ capability_id: "test.transport.declared", version: 1, operation: "query",
     action: { title: "跟随", description: "等下一轮", kind: "operation", scope: "project", audiences: ["user", "mcp"], permissions: [], subject_kinds: [],
-      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };
-  assert.throws(() => host.registerAction(declared, () => "never"), /operation 与 kind 不一致/, "an action is a query or a command, never a wait");
+      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } } as ActionDefinition<Record<string, never>, string>, { operation: "wait" });
+  assert.throws(() => host.registerAction(declared, () => "never"), /operation 与 kind 不一致|operation 必须是 query 或 command/, "an action is a query or a command, never a wait");
   const caller = (project_id: string | null): ActionCallContext => ({ actor_id: "alice", project_id, audience: "mcp", permissions: [] });
   await assert.rejects(host.actionClient({ project_id: "p", storage_key: "memory:p" }).invoke(caller("p"), wait, undefined), { code: "actions.missing" });
   await assert.rejects(host.homeActionClient().invoke(caller(null), wait, undefined), { code: "actions.missing" }, "nor does the Home line ever hold one");
-  assert.equal(entered, 0, "a wait is reached only through invoke(), where closing its project ends it");
+  assert.equal(entered, 0, "a typed entry is reached only through invoke(), where closing its project ends it");
   assert.equal(await host.client({ project_id: "p", storage_key: "memory:p" }).invoke(wait, undefined), "answered");
   await host.close();
 });

@@ -26,7 +26,7 @@
 
 这个包不是数据库入口。新增命令应调用所有者的动作（经 Host 造的管理调用者），避免在命令处理器直接打开 Store、自带 Host 客户端或自己构造身份。
 
-工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
@@ -50,7 +50,7 @@ node scripts/run-tests.mjs tests/cli-protocol.test.ts
 - 负责：终端参数解析、命令分发与 CLI 输出协议。
 - 不负责：业务决定、Module Store、重复的应用规则。
 - 公开入口：`@molis-ai/molis-work-app-cli`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不是数据库入口：命令调 Goals 的动作，不在处理器里直接打开 Store；不自己构造调用者（身份与出处由 Host 的 `bindGoalsManagementActions` 定，门禁 `checkGoalTransportCallers`：`command-dispatch.ts` 只引 action 合同、Goals 包的 `{ goalsActions }` 和自己的 `protocol.js`，不论 `import *`、`export … from`、子路径、`import()` 还是 `require()`，也不持有任何 Host 客户端）。
   - JSON 与文件输入的解析、错误呈现留在 CLI；状态变化由实际 owner 完成。

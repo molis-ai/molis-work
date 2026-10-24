@@ -14,19 +14,19 @@ import {
   type AgentPromptResolver,
 } from "@molis-ai/molis-work-service-agent-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
+import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { readProjectGuidance } from "./goals-actions.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { registerWorkspaceGitActions } from "./workspace-git-actions.js";
 import { registerWorkspaceGitWriters } from "./workspace-git-writers.js";
 import { draftText } from "./model-draft.js";
-import { agentHostCapabilities, type AgentMcpLibrary, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentRuntimeDescriptor, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { memoryForAgentRun } from "./memory/memory-host.js";
 import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
@@ -65,6 +65,11 @@ export interface AgentHostComposition {
   refreshExternalMcp(owner: AgentSkillOwner): Promise<void>;
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
+  /**
+   * What Characters asks of the built-in Agent in one project: the engines and the actions a round may be given. Characters is a
+   * provider the Host registers itself, with no plugin caller, so it is answered here rather than through the plugin-only actions.
+   */
+  charactersCatalog(runtime: MolisWorkProjectRuntime): { listRuntimes(): Promise<AgentRuntimeDescriptor[]>; listActions(): Promise<readonly ActionView[]> };
   /** Starts the runtime when it has not started yet. */
   readonly ready: Promise<void>;
   /** Settles once the runtime has started because something needed it; waiting on it never starts the runtime. */
@@ -111,9 +116,9 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const externalMcp = createExternalMcpDirectory({ localHost: options.localHost, homeDirectory: options.homeDirectory });
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
-      register: (definition, handler) => { // Each kind on its own seam (PG-035): an action to the action one, the typed rest to the other.
+      register: (definition, handler) => { // Every Agent Host entry is an action (R8); the runtime starts on the first call.
         const started: typeof handler = async (project, input, invocation) => { await initialize(); return handler(project, input, invocation); };
-        return definition.action ? options.localHost.registerAction(definition as typeof definition & ActionDefinition, started) : options.localHost.registerCapability(definition, started);
+        return options.localHost.registerAction(definition, started);
       },
     },
     {
@@ -121,7 +126,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       originalInput: (_runtime, caller) => currentOriginalInput(caller),
       authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
       projectId: (runtime) => runtime.project_id,
-      mcpChanged: (runtime, runtimeId, pluginId, library, owner) => externalMcp.sync(runtime, pluginId, runtimeId, library, owner),
+      mcpChanged: (runtime, runtimeId, library, owner, check) => externalMcp.sync(runtime, runtimeId, library, owner, check),
       writeCheckers: async (runtime) => ({ workspaces: await workspaceGrants(options, runtime.project_id), store: keptWriteCheckers(prologue) }),
     },
   );
@@ -150,7 +155,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
-  return { preparePlugin: caller => preparePluginAgent(options, caller), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
+  return { preparePlugin: caller => preparePluginAgent(options, caller), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
@@ -163,6 +168,18 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       await prologue?.close();
     })();
   } };
+}
+
+/** The built-in Agent's engines, and the actions its rounds may be given in this project, as Characters reads them. */
+function charactersCatalog(options: AgentHostCompositionOptions, agentHost: AgentHost, initialize: () => Promise<void>, runtime: MolisWorkProjectRuntime) {
+  return {
+    listRuntimes: async () => { await initialize(); return agentHost.descriptors(); },
+    listActions: async () => {
+      await initialize();
+      const authority = await startAuthority(runtime, CHARACTER_PLUGIN_ID, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory);
+      return authority.actions ? (await authority.actions("prologue")).discover() : [];
+    },
+  };
 }
 
 /** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */

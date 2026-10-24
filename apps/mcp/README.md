@@ -25,7 +25,7 @@
 
 Session 身份来自 Host 上下文，不能把模型提交的参数直接当作身份。工具 schema 与响应适配属于这里；Goal 事件事实和完成效果属于 Goals，可信用户决定属于 Governance，UI 不另算完成。插件的对外能力就是它声明的动作，由 Local Host 按授权列入目录，不进本包静态目录。作者与 Host 改法见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
-工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
@@ -49,7 +49,7 @@ node scripts/run-tests.mjs tests/host-entry-consistency.test.ts
 - 负责：MCP 工具 schema、受众划分与能力适配。
 - 不负责：业务规则、直接访问 Store、Runtime Skill 政策。
 - 公开入口：`@molis-ai/molis-work-app-mcp`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Runtime 与 Session 身份由 Host 写入，工具参数不能自填用户、批准或身份。连接工具（绑定、解绑、拒绝建议、新建并绑定、删项目）也不收 `actor_id`：操作者是 Host 记下的 MCP 客户端与 Runtime 会话（`ports.actorFor`），参数里带身份字段被 `mcp.unexpected_field` 拒绝，什么也不写；删项目交给 Host 的删除服务（`ports.deleteProject`），本包不自己开项目目录删。
   - 三个管理工具各调用一个 Goals 动作：`initialize` → `goals.board.initialize`（版本 2，S8：只收 `project_id` 与 `idempotency_key`，不再收 `title`），`event_decide` → `goals.decisions.record`，`goal_tree_decide` → `goals.tree.decide`。Host 私有的 `bindGoalsManagementActions` 复用命令行的本人身份、management 出处、动作自己的权限和单一授权；本包没有 Host 客户端、typed Goals 描述符或第二份工厂，Runtime 只得到 null 端口。

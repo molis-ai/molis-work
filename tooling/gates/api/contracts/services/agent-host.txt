@@ -1913,9 +1913,9 @@ export declare const PLUGIN_REVIEW_PERMISSION_PREFIX = "review:";
 export type PluginReviewKind = (typeof PLUGIN_REVIEW_KINDS)[number];
 
 export declare const agentHostCapabilities: {
-    readonly listActions: HostCapabilityDefinition<[runtimeId: string, pluginId: string], readonly ActionView[]>;
-    readonly listRuntimes: HostCapabilityDefinition<[], AgentRuntimeDescriptor[]>;
-    readonly availableRoles: HostCapabilityDefinition<[runtimeId: string, pluginId: string], Array<{
+    readonly listActions: ActionDefinition<[runtimeId: string], readonly ActionView[]>;
+    readonly listRuntimes: ActionDefinition<[], AgentRuntimeDescriptor[]>;
+    readonly availableRoles: ActionDefinition<[runtimeId: string], Array<{
         role_id: string;
         available: boolean;
         reason?: string;
@@ -1955,17 +1955,17 @@ export declare const agentHostCapabilities: {
         after: string;
         title?: string;
     }], AgentProjectWork>;
-    readonly awaitContinuations: HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>;
+    readonly awaitContinuations: ActionDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>;
     readonly readBackground: ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
     readonly stopBackground: ActionDefinition<[runtimeId: string, taskId: string], boolean>;
     readonly releaseProjectRound: ActionDefinition<[runtimeId: string, workId: string, note: string], void>;
-    readonly listSkills: HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>;
-    readonly readSkill: HostCapabilityDefinition<[runtimeId: string, pluginId: string, ref: AgentSkillRef], AgentSkillDefinition>;
-    readonly discoverSkills: HostCapabilityDefinition<[runtimeId: string, pluginId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>;
-    readonly installSkill: HostCapabilityDefinition<[runtimeId: string, pluginId: string, candidateId: string], AgentSkillCatalogEntry>;
-    readonly listMcp: HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentMcpServerView[]>;
-    readonly saveMcp: HostCapabilityDefinition<[runtimeId: string, pluginId: string, input: AgentMcpServerInput], AgentMcpServerView>;
-    readonly controlMcp: HostCapabilityDefinition<[runtimeId: string, pluginId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>;
+    readonly listSkills: ActionDefinition<[runtimeId: string], AgentSkillCatalogEntry[]>;
+    readonly readSkill: ActionDefinition<[runtimeId: string, ref: AgentSkillRef], AgentSkillDefinition>;
+    readonly discoverSkills: ActionDefinition<[runtimeId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>;
+    readonly installSkill: ActionDefinition<[runtimeId: string, candidateId: string], AgentSkillCatalogEntry>;
+    readonly listMcp: ActionDefinition<[runtimeId: string], AgentMcpServerView[]>;
+    readonly saveMcp: ActionDefinition<[runtimeId: string, input: AgentMcpServerInput], AgentMcpServerView>;
+    readonly controlMcp: ActionDefinition<[runtimeId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>;
     readonly startRun: ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>;
     readonly readRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>;
     readonly draftText: ActionDefinition<AgentDraftTextRequest, AgentDraftTextResult>;
@@ -1983,7 +1983,6 @@ export declare const agentHostCapabilities: {
         request: AgentReviewRequest;
         receipt: AgentReviewReceipt | null;
     }>>;
-    readonly listReviews: HostCapabilityDefinition<[projectId: string, status?: AgentReviewStatus], AgentReviewRequest[]>;
 };
 
 export declare const agentOfferActions: {

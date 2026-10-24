@@ -48,21 +48,22 @@ SourcePort 也只接 AgentHost 的 snake_case 引用、身份与短期正文快�
 
 有界模型结果由 SDK `collectRun` 从同一 Run 收集；Host 的 `completeTextResult` 返回原引用、终态、实际模型和 typed usage，并可显式请求结构校验或观察文字/用量进度。失败保留可用的运行回执，不自动重试格式。公共模型绑定、Coding 草稿、Cognia 的具体例子见 [AI 手册](../../docs/platform/PROLOGUE-AI.md)。
 
-插件不持有 Agent Host，只能通过注册的 Capability 调用：运行时列表、角色可用性、会话创建与读取、
-Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插件是否在 Manifest 里声明消费了该 Capability。
+插件不持有 Agent Host，只能调它登记的动作：运行时列表、角色可用性、方法库与 MCP、会话创建与读取、
+Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、不要权限，宿主先检查插件在 Manifest 里声明消费了它；
+是谁的会话、角色、方法库，只按调用者算，输入里不带插件名（R8）。
 
-注册入口是 `registerAgentHostCapabilities`，已由 Local Host 的生产装配调用，Coding 通过声明的 Capability 使用。
+注册入口是 `registerAgentHostCapabilities`，已由 Local Host 的生产装配调用，Coding 经 `services.actions` 使用。
 `agent.run.reviews.v1` 按当前项目、原 Session、Run 和生产者读取文本审查与原回执；读取先刷新 SDK 原恢复事实，失败明确报不可用。
 它不会批准、派出或结算副作用。固定成果的保存与阅读由消费插件通过原 Artifact 服务完成，批准仍属于宿主审查面。
 
-**批准动作刻意不是 Capability**：那是用户在宿主审查面里的动作；开成插件可调的能力，
+**批准刻意不是插件可调的动作**：那是用户在宿主审查面里的动作；开成插件可调的能力，
 就等于让插件批准自己的副作用。
 
 ## 从哪里读代码
 
 - `src/index.ts`：`AgentHost` 的注册、能力矩阵与启动授权。
 - `src/reviews.ts`：`AgentReviewQueue` 的请求、决定、一次性消费与回执。
-- `src/capability-registration.ts`：对外暴露的 Capability 与它们的授权边界。
+- `src/capability-registration.ts`：对外暴露的动作与它们的授权边界。
 - `src/session-actions.ts`：关于会话轮次的统一动作——等待与接续（`agent.collaboration.*`），以及插件向一轮补充要求（`agent.inputs.send`，回执说这一轮收下了还是留到下一轮；纠正用 `about` 指向原来那条）、撤回还没交给模型的补充（`agent.inputs.withdraw`）。
 - `tests/agent-host.test.ts`：授权与批准各条边界的断言。
 

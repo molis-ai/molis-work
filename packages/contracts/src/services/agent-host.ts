@@ -1,8 +1,7 @@
 export type { AgentOriginalInputRef, AgentOriginalInputDraft, AgentOriginalInput } from "./agent-inputs.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
-import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt, AgentReviewStatus } from "./agent-host-reviews.js";
-import type { HostCapabilityDefinition } from "../platform/app-host.js";
+import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from "./agent-host-reviews.js";
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import type { AgentCreateSessionInput, AgentSkillRef, AgentWorkingDirectory, AgentStartInput } from "./agent-host-start.js";
 import type { AgentSubagentView, AgentSkillCatalogEntry, AgentSkillCandidate, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
@@ -313,6 +312,18 @@ const subagentOutput = { type: "object", required: ["subagent_id", "parent_run",
   child_run: runRefOutput, activity: objects, usage: object, host_tools: strings, error: { type: "string" }, subagent_id: { type: "string" }, parent_run: runRefOutput,
   role_id: { type: "string" }, role_name: { type: "string" }, task: { type: "string" }, state: { type: "string" }, result: { type: ["string", "null"] }, workspace_path: { type: ["string", "null"] } } } as const;
 /** A directory the Host granted, a fixed Artifact version: what a start names, never a raw path or a live object. */
+const runtimeOutput = { type: "object", required: ["runtime_id", "display_name", "provider_version", "capabilities"], additionalProperties: false, properties: {
+  runtime_id: { type: "string" }, display_name: { type: "string" }, provider_version: { type: "string" }, capabilities: object,
+  supports_action_tools: { type: "boolean" }, supports_workspace_none: { type: "boolean" }, supports_workspace_business: { type: "boolean" } } } as const;
+const actionViewOutput = { type: "object", required: ["capability_id", "version", "operation", "action", "provider", "availability"], additionalProperties: false, properties: {
+  capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" }, operation: { enum: ["query", "command"] }, action: object, provider: object, availability: object } } as const;
+const skillProperties = { skill_id: { type: "string" }, version: { type: "integer" }, name: { type: "string" }, summary: { type: "string" }, tools: strings } as const;
+const skillEntryOutput = { type: "object", required: ["skill_id", "version", "name", "summary", "tools", "source", "enabled"], additionalProperties: false, properties: {
+  ...skillProperties, source: { enum: ["builtin", "installed"] }, enabled: { type: "boolean" } } } as const;
+const mcpServerOutput = { type: "object", required: ["id", "version", "label", "enabled", "transport", "timeout_ms", "credential", "health", "tools", "resources"], additionalProperties: false, properties: {
+  id: { type: "string" }, version: { type: "integer" }, label: { type: "string" }, enabled: { type: "boolean" }, transport: { enum: ["stdio", "http"] }, timeout_ms: { type: "integer" },
+  directory: object, executable: { type: "string" }, argv: strings, endpoint: { type: "string" }, credential: { enum: ["none", "present"] }, auth_connection_id: { type: "string" },
+  health: { enum: ["connected", "disconnected", "unavailable", "not-reattached"] }, busy: { type: "string" }, error: { type: "string" }, tools: objects, resources: strings } } as const;
 const directoryInput = { type: "object", required: ["canonical_path", "realpath_verified"], additionalProperties: false, properties: { canonical_path: { type: "string", minLength: 1, maxLength: 4096 }, realpath_verified: { type: "boolean" } } } as const;
 const artifactInput = { type: "object", required: ["artifact_id", "version"], additionalProperties: false, properties: { artifact_id: entryId, version: count } } as const;
 const workspaceKind = { enum: ["required", "none", "business"] } as const;
@@ -345,25 +356,34 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   budget: { type: "object", additionalProperties: false, properties: { max_turns: count, max_output_tokens: count, max_total_tokens: count, max_duration_ms: { type: "integer", minimum: 1, maximum: 2_147_483_647 } } },
   workspace: workspaceKind, directory: directoryInput } } as const;
 /** Offered to plugins only, which reach them through `services.actions` once their Manifest consumes them; nothing else needed. */
+const skillRef = { type: "object", required: ["skill_id", "version"], additionalProperties: false, properties: { skill_id: entryId, version: count } } as const;
+const mcpServerInput = { type: "object", required: ["expected_version", "label", "enabled", "timeout_ms", "transport"], additionalProperties: false, properties: {
+  id: entryId, expected_version: { type: "integer", minimum: 0 }, label: text(2000), enabled: { type: "boolean" }, timeout_ms: { type: "integer", minimum: 1, maximum: 3_600_000 },
+  transport: { enum: ["stdio", "http"] }, directory: directoryInput, executable: text(4096), argv: { type: "array", maxItems: 200, items: text(32_768) }, endpoint: text(4096),
+  auth: { type: "object", required: ["kind"], additionalProperties: false, properties: { kind: { enum: ["none", "keep-existing", "replace-secret", "connection"] }, secret: text(65_536), connection_id: entryId } } } } as const;
 const pluginOnly = { scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [] } as const;
 
 export const agentHostCapabilities = {
-  listActions: { capability_id: "agent.actions.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], readonly ActionView[]>,
-  /** Which Runtimes exist and what each one really supports. */
+  /** What the calling plugin's own grants let a round on this Runtime call (R8 rule 3); empty where the Runtime has no action tools. */
+  listActions: {
+    capability_id: "agent.actions.list.v1", version: 1, operation: "query",
+    action: { title: "列出一轮能调的动作", description: "按调用插件自己的授权，列出这个运行时上一轮能调的动作；运行时不支持动作工具时为空。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: actionViewOutput } },
+  } as ActionDefinition<[runtimeId: string], readonly ActionView[]>,
+  /** Which Runtimes exist and what each one really supports: this machine's configuration, the same for every plugin. */
   listRuntimes: {
-    capability_id: "agent.runtimes.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<[], AgentRuntimeDescriptor[]>,
-  /** Roles this Runtime can carry for one Plugin, with a reason for each it cannot. */
+    capability_id: "agent.runtimes.v1", version: 1, operation: "query",
+    action: { title: "列出运行时", description: "本机有哪些 Agent 运行时，各自真正支持什么。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", maxItems: 0 }, output_schema: { type: "array", items: runtimeOutput } },
+  } as ActionDefinition<[], AgentRuntimeDescriptor[]>,
+  /** Roles this Runtime can carry for the calling plugin's own declarations, with a reason for each it cannot. */
   availableRoles: {
-    capability_id: "agent.roles.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<
-    [runtimeId: string, pluginId: string],
-    Array<{ role_id: string; available: boolean; reason?: string }>
-  >,
+    capability_id: "agent.roles.v1", version: 1, operation: "query",
+    action: { title: "列出能用的角色", description: "调用插件自己声明的角色里，这个运行时能承载哪些，不能的写明原因。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false },
+      output_schema: { type: "array", items: { type: "object", required: ["role_id", "available"], additionalProperties: false, properties: {
+        role_id: { type: "string" }, available: { type: "boolean" }, reason: { type: "string" } } } } },
+  } as ActionDefinition<[runtimeId: string], Array<{ role_id: string; available: boolean; reason?: string }>>,
   /** A session for the calling plugin and person, both from the call (R8 rule 1). */
   createSession: {
     capability_id: "agent.session.create.v1", version: 1, operation: "command",
@@ -454,13 +474,19 @@ export const agentHostCapabilities = {
           title: { type: "string", maxLength: 2000 } } }] } },
   } as ActionDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }], AgentProjectWork>,
   /**
-   * Continuations of the project's sessions that are ready to go on, or held for the person, but for `exclude` (request
-   * keys); waits up to `timeoutMs` for one. A wait, so it stays a Host channel: reading and controlling are the actions
-   * in agent-collaboration.
+   * Continuations of the calling plugin's own sessions that are ready to go on, or held for the person, but for `exclude`
+   * (request keys); waits up to `timeoutMs` for one, as `waitRun` waits (concurrent, a ceiling, dropped if cancelled).
+   * Reading and controlling them are the actions in agent-collaboration.
    */
   awaitContinuations: {
-    capability_id: "agent.collaboration.await.v1", version: 1, operation: "wait",
-  } as HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>,
+    capability_id: "agent.collaboration.await.v1", version: 1, operation: "query",
+    action: { title: "等会话接续", description: "等调用插件自己的会话里有一个能接着走或等人处理的接续；到时没有就回空表。", kind: "query", ...pluginOnly,
+      scheduling: "concurrent", execution: { timeout_ms: 30_000 },
+      input_schema: { type: "array", minItems: 2, maxItems: 3, additionalItems: false,
+        items: [runtimeId, { type: "integer", minimum: 0, maximum: 25_000 }, ids(200)] },
+      output_schema: { type: "array", items: { type: "object", required: ["session_id"], additionalProperties: false, properties: {
+        session_id: { type: "string" }, wait: object, continuation: object } } } },
+  } as ActionDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>,
   /** The project's background commands; one session's when named. */
   readBackground: {
     capability_id: "agent.background.read.v1", version: 1, operation: "query",
@@ -480,27 +506,49 @@ export const agentHostCapabilities = {
     action: { title: "不再等", description: "放下一项还在等的工作，并写明为什么。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, entryId, { type: "string", maxLength: 2000 }], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, workId: string, note: string], void>,
+  /** The calling plugin's method library on this Runtime (R8 rule 1: the library's owner is the caller). */
   listSkills: {
     capability_id: "agent.skills.list.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>,
+    action: { title: "列出方法", description: "调用插件在这个运行时上的方法库：内置的与装进来的。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: skillEntryOutput } },
+  } as ActionDefinition<[runtimeId: string], AgentSkillCatalogEntry[]>,
   readSkill: {
     capability_id: "agent.skills.read.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, ref: AgentSkillRef], AgentSkillDefinition>,
+    action: { title: "读一个方法", description: "读调用插件方法库里的一个方法的正文。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, skillRef], additionalItems: false },
+      output_schema: { type: "object", required: ["skill_id", "version", "name", "summary", "tools", "body"], additionalProperties: false, properties: { ...skillProperties, body: { type: "string" } } } },
+  } as ActionDefinition<[runtimeId: string, ref: AgentSkillRef], AgentSkillDefinition>,
   discoverSkills: {
     capability_id: "agent.skills.discover.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>,
+    action: { title: "在工作区里找方法", description: "在调用插件授权的工作区里找能装的方法。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, directoryInput, text(4096)], additionalItems: false },
+      output_schema: { type: "array", items: { type: "object", required: ["candidate_id", "name", "summary", "source_label", "files", "body"], additionalProperties: false, properties: {
+        candidate_id: { type: "string" }, name: { type: "string" }, summary: { type: "string" }, source_label: { type: "string" }, files: strings, body: { type: "string" } } } } },
+  } as ActionDefinition<[runtimeId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>,
   installSkill: {
     capability_id: "agent.skills.install.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, candidateId: string], AgentSkillCatalogEntry>,
+    action: { title: "装一个方法", description: "把找到的一个方法装进调用插件自己的方法库。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, entryId], additionalItems: false }, output_schema: skillEntryOutput },
+  } as ActionDefinition<[runtimeId: string, candidateId: string], AgentSkillCatalogEntry>,
+  /**
+   * The calling plugin's MCP servers on this Runtime. Listing also brings the project's action directory up to what they offer now
+   * (the Host's own bookkeeping, not a business record), after the call's last check.
+   */
   listMcp: {
     capability_id: "agent.mcp.list.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentMcpServerView[]>,
+    action: { title: "列出 MCP 服务器", description: "调用插件在这个运行时上的 MCP 服务器与各自现在提供的工具；列的同时，宿主把这个插件自己的 MCP 工具按现在的样子在项目动作目录里重新登记（幂等，不写业务数据）。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: mcpServerOutput } },
+  } as ActionDefinition<[runtimeId: string], AgentMcpServerView[]>,
   saveMcp: {
     capability_id: "agent.mcp.save.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, input: AgentMcpServerInput], AgentMcpServerView>,
+    action: { title: "保存 MCP 服务器", description: "新建或改调用插件的一个 MCP 服务器；本机进程只能在授权工作区里。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, mcpServerInput], additionalItems: false }, output_schema: mcpServerOutput },
+  } as ActionDefinition<[runtimeId: string, input: AgentMcpServerInput], AgentMcpServerView>,
   controlMcp: {
     capability_id: "agent.mcp.control.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>,
+    action: { title: "连上、断开或删掉 MCP 服务器", description: "对调用插件自己的一个 MCP 服务器连上、断开、取消正在做的或删掉。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, entryId, { enum: ["connect", "disconnect", "cancel", "remove"] }], additionalItems: false } },
+  } as ActionDefinition<[runtimeId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>,
   /** Start a Run. The Host checks role, capability and directory before the Runtime is asked. */
   startRun: {
     capability_id: "agent.run.start.v1", version: 1, operation: "command",
@@ -604,14 +652,6 @@ export const agentHostCapabilities = {
       output_schema: { type: "array", items: { type: "object", required: ["request", "receipt"], additionalProperties: false, properties: {
         request: { type: "object", required: ["review_id"], properties: { review_id: { type: "string" } } }, receipt: { anyOf: [object, { type: "null" }] } } } } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], Array<{ request: AgentReviewRequest; receipt: AgentReviewReceipt | null }>>,
-  listReviews: {
-    capability_id: "agent.reviews.list.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<
-    [projectId: string, status?: AgentReviewStatus],
-    AgentReviewRequest[]
-  >,
 } as const;
 
 export type AgentHostCapabilityId =

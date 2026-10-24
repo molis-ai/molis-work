@@ -1,5 +1,5 @@
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { printCliJson as print } from "./protocol.js";
 
 /**
@@ -24,36 +24,36 @@ export async function dispatchCliProjectCommand(
   switch (operation) {
   case "init":
     bound(String(project_id));
-    print(await actions.invoke(goalsActions.initialize, { idempotency_key: String(input.idempotency_key) }));
+    print(await actions.invoke(goalEntryActions.initialize, { idempotency_key: String(input.idempotency_key) }));
     break;
   case "goal-tree-propose":
     bound(project_id);
-    print(await actions.invoke(goalsActions.treeSubmit, payload));
+    print(await actions.invoke(goalEntryActions.treeSubmit, payload));
     break;
   case "goal-tree-read":
     bound(project_id);
-    print(await actions.invoke(goalsActions.treeRead, payload));
+    print(await actions.invoke(goalEntryActions.treeRead, payload));
     break;
   case "goal-tree-check":
     bound(project_id);
-    print(await actions.invoke(goalsActions.treeCheck, payload));
+    print(await actions.invoke(goalEntryActions.treeCheck, payload));
     break;
   case "goal-tree-decide": {
     // The decision is the person's: `authority` only points at the conversation it came from, and the Host builds who decides.
     const { authority, ...decision } = payload;
     bound(project_id);
-    print(await actions.invoke(goalsActions.treeDecide, decision, authority));
+    print(await actions.invoke(goalEntryActions.treeDecide, decision, authority));
     break;
   }
   case "active-goal":
     bound(String(project_id));
-    print(await actions.invoke(goalsActions.active, {
+    print(await actions.invoke(goalEntryActions.active, {
       goal_id: String(input.goal_id), reason: String(input.reason), idempotency_key: String(input.idempotency_key),
     }));
     break;
   case "snapshot":
     bound(String(project_id));
-    print(await actions.invoke(goalsActions.snapshot, {}));
+    print(await actions.invoke(goalEntryActions.snapshot, {}));
     break;
   default:
     throw new Error(`未知 V1 operation: ${operation}`);

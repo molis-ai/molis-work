@@ -111,7 +111,6 @@ export const packageDescriptor = {
     "agent.review-queue.v1",
     "agent.runtimes.v1",
     "agent.run.start.v1",
-    "agent.reviews.list.v1",
   ],
 } as const;
 

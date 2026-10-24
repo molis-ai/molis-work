@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-plugin-goals": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {

@@ -12,7 +12,7 @@ Workspace registration: `goal-reorg-f2`。
 - `src/views.ts`：消息、引用、来源上下文、成员与标签的安全渲染。
 - `src/message-format.ts`：先转义再处理基础 Markdown，不接受原始 HTML。
 - `src/client.ts`：组装已编译、有类型的浏览器函数；不再维护不可检查的 JavaScript 字符串。
-- `src/browser/controller.ts`：会话选择、DOM 事件和功能之间的编排。
+- `src/browser/controller.ts`：只做装配（页面状态 `ImState`、上下文 `ImCtx`、按顺序调用各层）；具体工作分在 `controller-shell.ts`（路径、状态行、输入框可用性）、`controller-composer.ts`（草稿、引用、绘制、阅读位置、已读）、`controller-sync.ts`（事件流、刷新、历史分页）、`controller-rooms.ts`（选群、选话题）、`controller-topics.ts`（话题面板与新话题）、`controller-navigate.ts`（发送、来源与搜索结果定位）、`controller-dialogs.ts`（各弹窗）、`controller-startup.ts`（连接与取名）、`controller-page.ts`（页面级监听）、`controller-clicks.ts`（`data-action` 点击分发）。每层是自包含的工厂，只经 `ImCtx` 与别的层后绑定相互调用，由 `client.ts` 序列化进页面。
 - `src/browser/history.ts`：连续历史窗口、缓存追赶与分页游标。
 - `src/browser/drafts.ts`：成员/会话草稿、稳定提交版本及条件清理。
 - `src/browser/transport.ts`：同源 HTTP、SSE 与经过来源/请求标识校验的宿主连接。

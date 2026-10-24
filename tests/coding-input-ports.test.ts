@@ -24,7 +24,7 @@ import { deferred } from "./fixtures/home-runtime.js";
 
 // Coding reads what it used to be handed by the Host through the platform instead (W5-01 C2; specs/coding-plugin §4 H): the models
 // from `services.model` (PG-047, V-13), the Goal titles from Goals' public read action (PG-091), the Characters from Characters' two
-// public actions `characters.list` and the plugin-only `characters.runnable` (PG-086), each declared in its Manifest and checked by the
+// public actions `characters.list` and the `characters.runnable` (PG-086), each declared in its Manifest and checked by the
 // platform's grant. The person's `characters.execution` (the local program and folders) stays out of a plugin's reach. There is no
 // `ready` port to wait for.
 
@@ -69,7 +69,7 @@ test("W5-01-CODING-23 PG035-07 Coding declares model:read, model:invoke only as 
     assert.ok(consumed.includes(definition.capability_id), `Coding lists ${definition.capability_id} under consumes`);
   }
   assert.equal(consumed.includes(charactersActions.execution.capability_id), false, "Coding does not ask for how a Character is launched");
-  assert.deepEqual(charactersActions.runnable.action.audiences, ["plugin"], "the runnable answer is for plugins only");
+  assert.deepEqual(charactersActions.runnable.action.audiences, ["user", "plugin"], "the runnable answer is for the person (the Assistant's picker, RAC-458) and plugins, nobody else");
   assert.deepEqual(charactersActions.execution.action.audiences, ["user"], "the local program and folders stay the person's");
 });
 

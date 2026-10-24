@@ -131,7 +131,7 @@ PR 等 #1121 合入再开，不开第三层。
    - 顶层字段列全、`required`、`additionalProperties: false`。
    - 嵌套对象只列仓库里调用方（Coding 与其他调用点）真读的字段，其余只约束 `object`。
    - 只约束 `object` 的地方，动作合同快照看不出形状变化，所以只列真用的，不把没人读的字段塞进 schema。
-   - 收紧记为 BL-470。去掉的条件：仓库外第一个插件读嵌套字段，或 `validateResult`（PG-047）开启。
+   - 收紧记为 BL-470。动作服务本来就按 output_schema 校验返回，只约束 `object` 的嵌套对象校验得过、约束不住形状。去掉的条件：仓库外第一个插件读嵌套字段。（原先写的「或 `validateResult`（PG-047）开启」是笔误：PG-047 的 `validateResult` 指模型结果，不是动作返回。）
    - 小而稳的类型照第 1 批写全：`AgentSessionRef`、`AgentRunHandle`、`AgentCheckpoint`、`AgentRecoveryReport`、命令输出。
 2. **身份字段拆开。**
    - 插件给的 `*Input` 不带身份字段，就是动作的输入 schema。

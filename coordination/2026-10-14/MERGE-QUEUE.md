@@ -180,3 +180,4 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 - 10-24 09:1x UTC：batch-26 = 沙箱叠层（顶层 #1144 `61a0da5df`，一次落地）+ #1181 `e70160a6e` + #1188 `d6d1da98a`，按 §1a 开成一个批 PR；batch-25 跑完就起。
 - 10-24 09:2x UTC：#1168 合入 `ab472ecc8`（W6-01 删 personal 旧短名路由桥、PG-058）；进 privileges 状态第 6 批。
 - 10-24 09:4x UTC：#1175、#1176 合入（`ac-bl543` 工作树与分支已删）。Codex [#1190](https://github.com/molis-ai/molis-work/pull/1190)（C2 B1，IM 邀请只存哈希 + v1 离线维护，`58bc50cf9`，full 命中 shared-core/storage）请求进批：Codex REVIEW/TEST 在 batch-25 结束前给了结论就并进 **batch-26**（S 号一组：沙箱 S-59/S-60、#1190 届时 S-61、#1181、#1188），否则 batch-27；ac-review 另做合同与安全的聚焦复查。#1187 的命名空间分隔符（"." 会被带点的 plugin_id 包含，R-37 同类）挡合并，交 ac-sc3 改成 ":" 并补前缀包含的对照测试。真实 Home 的 v1 邀请哈希维护记进 R-41。
+- 10-24 09:5x UTC：#1190 ac-review 防腐复查可合（6381984863：合同影响与 API 快照一致、S 用例断言拒绝且库不变、v2 开库拒 v1、维护只在 tmpdir 演练且对真实 Home 要 `--maintenance-window`）；等 Codex REVIEW 结论与 TEST。#1187 分隔符已改冒号（`0b6d12ce0`，RAC-296），交 ac-review 复核。

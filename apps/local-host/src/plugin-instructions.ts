@@ -22,8 +22,10 @@ let hostOwners: ReadonlySet<string> | undefined;
  * `agent` block (with `PluginDefinition.agent_prompts`, so the person sees and edits them and a run uses the edit, PG-051), its instructions
  * (`PluginDefinition.instructions`), so the person sees and edits them in “Prompt 与 Character” like every other, and the methods
  * its Manifest declares with their bodies (`PluginDefinition.methods`), so other Agents use them as they use a built-in Plugin's
- * (decision #18, W4-02). Only for a plugin the Host runs itself on a platform that reaches a Home: instructions exist for
- * `services.model`, which no other plugin has, and a method's body goes into another Agent's round. Returns what withdraws them, once.
+ * (decision #18, W4-02). Only on a platform that reaches a Home. A sandboxed package registers its instructions the same way
+ * (PG-017 P1, V-20: they exist for `services.model`, and a model request names one of them); its roles, Agent prompts, skills and methods are
+ * not given to it (`SANDBOX_NOT_GIVEN` refuses them when it starts, before this runs), because a method's body goes into another Agent's round.
+ * Returns what withdraws them, once.
  *
  * The register shows an installation's newest running version, whole: one that starts while another project still runs an earlier
  * version replaces the registration, an earlier one starting later does not. A version that declares none of these replaces it with
@@ -36,7 +38,7 @@ let hostOwners: ReadonlySet<string> | undefined;
  * that names an owner other than itself.
  */
 export function registerPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, installId: string): (() => void) | undefined {
-  if (!home || definition.execution === "sandbox") return undefined;
+  if (!home) return undefined;
   const instructions = definition.instructions ?? [], bodies = definition.methods ?? [], agent = definition.manifest.agent;
   const carries = instructions.length > 0 || bodies.length > 0 || agent !== undefined;
   const { plugin_id: owner, version, name } = definition.manifest;

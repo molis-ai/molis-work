@@ -6,7 +6,10 @@ export function el<Tag extends keyof HTMLElementTagNameMap>(tag: Tag, text = "",
   return node;
 }
 
-/** What an Error says (the Host's words, when a request was refused); anything else thrown is shown as it is. */
+/**
+ * What an Error says (the Host's words, when a request was refused); anything else thrown is shown as it is. An error made in
+ * another window (a plugin's frame, a test's context) is not an `instanceof Error` here, so it is read by its shape.
+ */
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return error !== null && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : String(error);
 }

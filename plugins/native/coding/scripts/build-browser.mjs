@@ -19,6 +19,7 @@ const shared = { bundle: true, format: "iife", platform: "browser", minify: true
 
 await Promise.all([
   build({ ...shared, entryPoints: ["src/browser/draft-factory.ts"], banner: { js: "(ports, draft) => {" }, footer: { js: "return draft}" }, outfile: "dist/draft-bundle.js" }),
+  build({ ...shared, entryPoints: ["src/browser/settings/index.ts"], outfile: "dist/settings-bundle.js" }),
   build({ ...shared, entryPoints: ["src/browser/workbench-factory.ts"], banner: { js: "(host, coding) => {" }, footer: { js: "}" }, outfile: "dist/workbench-bundle.js" }),
   ...pieces.map(({ out, module, create }) => build({
     ...shared,

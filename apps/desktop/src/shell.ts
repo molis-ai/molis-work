@@ -15,9 +15,15 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   if(!native)return;
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
   globalThis.molisWorkOpenShelf=()=>globalThis.molisWorkOpenPlugin?.("shelf");
-  globalThis.molisWorkShelfNotice=(message)=>{
+  globalThis.molisWorkShelfNotice=(message,partial=false)=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
-    window.dispatchEvent(new CustomEvent("molis-shelf-notice",{detail:{message:String(message||"")}}));
+    message=String(message||"");
+    window.dispatchEvent(new CustomEvent("molis-shelf-notice",{detail:{message}}));
+    const toast=document.querySelector("[data-settings-toast], [data-toast]");
+    if(!toast||!globalThis.molisWorkRequest?.toast)return;
+    const display=message.split("\\n").map(line=>globalThis.L?.(line)??line).join("\\n");
+    globalThis.molisWorkRequest.toast(toast,null,display,{ms:5000});
+    if(partial===true){toast.setAttribute("data-mw-state","partial");toast.classList.remove("is-error");}
   };
   globalThis.molisWorkShelfRefresh=()=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;

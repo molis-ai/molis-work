@@ -852,37 +852,32 @@ fn send_terminal_text(items: &[String], text: Option<&str>) {
 
 /// A wheel notice never opens or closes the panel; it only leaves the reason.
 fn quiet_notice(message: &str) {
+    admission_notice(message, false);
+}
+
+fn admission_notice(message: &str, partial: bool) {
     let Some(host) = host() else { return };
-    let Some(window) = host.app.get_webview_window("main") else {
-        return;
-    };
-    let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
-    let script = format!(
-        r#"(() => {{
-          window.dispatchEvent(new CustomEvent("molis-shelf-notice", {{ detail: {{ message: {encoded} }} }}));
-        }})();"#
-    );
-    let _ = window.eval(&script);
+    crate::shelf_notice(&host.app, message, partial, 0);
 }
 
 /// Returns the shelf item ids the drop produced, in drop order.
 fn admit_cargo(cargo: &Cargo, capture_pages: bool) -> Vec<String> {
     let mut admitted = Vec::new();
     if !cargo.files.is_empty() {
-        for path in &cargo.files {
-            match shelf_http::admit_file(path) {
-                Ok(item_id) => admitted.push(item_id),
-                Err(error) => quiet_notice(&error),
-            }
-        }
-        return admitted;
+        return shelf_http::notify_admissions(
+            cargo.files.iter().map(|path| shelf_http::admit_file(path)),
+            admission_notice,
+        );
     }
     if let Some((bytes, extension)) = &cargo.image {
-        match shelf_http::admit_bytes(&format!("image.{extension}"), bytes, None) {
-            Ok(id) => admitted.push(id),
-            Err(error) => quiet_notice(&error),
-        }
-        return admitted;
+        return shelf_http::notify_admissions(
+            [shelf_http::admit_bytes(
+                &format!("image.{extension}"),
+                bytes,
+                None,
+            )],
+            admission_notice,
+        );
     }
     // Browser drags can include a page title as text beside the actual URL.
     let content = cargo

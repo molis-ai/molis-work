@@ -46,3 +46,55 @@ test("DESK-SHELF-01 DESK-SHELF-02 the hotkey's Shelf opens its side tab, and the
   await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
   await waitFor(`document.body.dataset.sideOpen === 'false' && ${last}?.panel === null`, 8_000);
 });
+
+for (const locale of ["zh", "en"] as const) test(`PG-026-S1-S3-5 PG-026-S1-S3-7 real desktop bootstrap shows ${locale} partial feedback outside Shelf without changing its tab, visibility or focus`, { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: BRIDGE }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${locale}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
+  await waitFor("typeof globalThis.molisWorkShelfNotice === 'function' && globalThis.molisWorkRequest?.toast && document.querySelector('[data-side-toggle]')");
+  assert.equal(await evaluate("document.documentElement.lang.startsWith(" + JSON.stringify(locale) + ")"), true);
+  const message = "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。";
+  const translated = locale === "en" ? "The copy was saved, but the original could not be registered. Later processing cannot check whether the original has changed." : message;
+  const toast = "document.querySelector('[data-settings-toast], [data-toast]')";
+  const state = `({open:document.body.dataset.sideOpen,
+    tab:document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab ?? null,
+    focus:document.activeElement === document.querySelector('[data-side-toggle]')})`;
+  await evaluate("window.__shelfNotices=[];window.addEventListener('molis-shelf-notice',event=>window.__shelfNotices.push(event.detail.message))");
+  for (const opened of [false, true]) {
+    if (opened) {
+      await evaluate("globalThis.molisWorkOpenShelf()");
+      await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`);
+      await waitFor(`document.querySelector('[data-side-body=${JSON.stringify(SHELF_TAB)}] iframe')`);
+    } else {
+      await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+      await waitFor("document.body.dataset.sideOpen === 'false'");
+    }
+    await evaluate("document.querySelector('[data-side-toggle]').focus()");
+    const before = await evaluate(state);
+    await evaluate(`globalThis.molisWorkShelfNotice(${JSON.stringify(message)},true)`);
+    await waitFor(`${toast}?.classList.contains('is-visible') && ${toast}.textContent === ${JSON.stringify(translated)}`);
+    assert.equal(await evaluate(`${toast}.ownerDocument === document && ${toast}.getBoundingClientRect().height > 0`), true, "the visible notice belongs to the top page, even when Shelf is an opaque iframe");
+    assert.equal(await evaluate(`${toast}.dataset.mwState`), "partial");
+    assert.equal(await evaluate(`${toast}.classList.contains('is-error')`), false);
+    await evaluate("globalThis.molisWorkShelfRefresh();new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    assert.equal(await evaluate(`${toast}.classList.contains('is-visible')`), true, "the existing refresh does not erase the notice");
+    assert.deepEqual(await evaluate(state), before, "feedback leaves the panel, selected tab and keyboard focus alone");
+  }
+  assert.deepEqual(await evaluate("window.__shelfNotices"), [message, message], "the existing event is retained once per notice");
+  const beforeError = await evaluate(state);
+  await evaluate("globalThis.molisWorkShelfNotice('文件未收下')");
+  assert.equal(await evaluate(`${toast}.textContent`), "文件未收下");
+  assert.equal(await evaluate(`${toast}.dataset.mwState`), "failed");
+  assert.equal(await evaluate(`${toast}.classList.contains('is-error')`), true, "an omitted partial flag still means a real failure");
+  assert.deepEqual(await evaluate(state), beforeError);
+  const failure = "已收下 1 项，另有文件未收下：读取失败";
+  const mixed = failure + "\n" + message;
+  await evaluate(`globalThis.molisWorkShelfNotice(${JSON.stringify(mixed)},false)`);
+  assert.equal(await evaluate(`${toast}.textContent`), failure + "\n" + translated, "the fixed warning is translated even after a dynamic native failure line");
+  assert.equal(await evaluate(`${toast}.dataset.mwState`), "failed");
+  assert.equal(await evaluate(`${toast}.classList.contains('is-error')`), true);
+  assert.equal(await evaluate("window.__shelfNotices.at(-1)"), mixed, "the existing event retains its original payload");
+  assert.deepEqual(await evaluate(state), beforeError);
+});

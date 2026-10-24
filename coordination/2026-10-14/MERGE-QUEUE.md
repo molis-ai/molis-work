@@ -1,6 +1,6 @@
 # 防腐线合并清单（给合并 Agent）
 
-> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「统筹｜防腐流水线与合并 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，gpt-6.1-sol/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；每10分钟兜底接续。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献和仍在途的review-pr-fixer认领、Claude开发owner及唯一full组批职责分别保留；Codex侧协调不替代Claude总统筹。
+> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「统筹｜防腐流水线与合并 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；每10分钟兜底接续。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献和仍在途的review-pr-fixer认领、Claude开发owner及唯一full组批职责分别保留；Codex侧协调不替代Claude总统筹。
 
 状态：2026-10-23 起生效。统筹（本机 Claude）维护顺序与就绪条件；合并由用户另派的合并 Agent 做（用户 10-23）。**10-24 起统筹也合、也审**（用户 10-24：PR 积压，统筹协同处理合并与评审）：条件 1～5 满足的，谁先看到谁入队。**10-24 03:40 用户停了合并 Agent，它的活（入队、机械同步、CI 红的修复、起集成批、挪 §3）由 Codex 接**；统筹职责不变。下文的「合并 Agent」都读作 Codex。
 
@@ -49,11 +49,13 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1169](https://github.com/molis-ai/molis-work/pull/1169) | `ac-clients-1` R11（PG-063/064）：Inbox/灵光转待办走通用创作入口，删工作台的 `data-make-todo`；来源打开按声明解析（统筹定 B） | — | 待算 | 二轮**可合**（[6380370924](https://github.com/molis-ai/molis-work/pull/1169#issuecomment-6380370924)）；头 `295575bcd` 删了已用完的 issues.js、plugin-frame.js×2 放行（统筹核过，只剩 todo.js、lingguang.js）。`full` 命中，排 **batch-24**（和 #1168），batch-23 跑完即开 |
 | 新 | [#1167](https://github.com/molis-ai/molis-work/pull/1167) | `ac-clients-1` Cognia（W5-04，RAC-144～145）：稳定翻译键与打包、类型检查的页面客户端 | — | `full` 非空（assembly、spans-packages，97 个用例），进 batch-23 | 一轮可合、作者改完两条，二轮**可合**（[6380313426](https://github.com/molis-ai/molis-work/pull/1167#issuecomment-6380313426)），头 `4097bbd1d`；进 batch-23 |
 | **先** | [#1171](https://github.com/molis-ai/molis-work/pull/1171) | Codex：恢复独立Home设置请求接收，修issue-home-locale真实入口失效 | — | batch23固定74606d5e2（main8aa+#1171 b27+#1167 4097） | batch-1024-23（[40066081993](https://github.com/molis-ai/molis-work/actions/runs/40066081993)）只红 `home-side-surfaces`（main 已知红，batch-22 不含本 PR 也同样红），`issue-home-locale` 过。本 PR 是 main 红修复，不等另一份无关红（互等会卡死），10-24 06:40 合并认领入队（[6380903089](https://github.com/molis-ai/molis-work/pull/1171#issuecomment-6380903089)）。#1167 等 home-side-surfaces 修好走 merge-only |
-| 新 | [#1114](https://github.com/molis-ai/molis-work/pull/1114) | 复审修复线：复审报告（10-20～23）里可修的 P2/P3 与文档债 | — | `full` 空，不进批 | `ac-review` 二轮**可合**（[6380826646](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380826646)，头 `6bac03b45`，locator 测试是真断言、remerge-diff 空）。等作者推「删已用完放行」那一下，统筹核 diff 即入队（`full` 空） |
+| 新 | [#1114](https://github.com/molis-ai/molis-work/pull/1114) | DeepSeek复审修复成果与剩余资源放行清理 | #1167谁先好谁先合；后合搬locator/重算 | full为空 | `6bac03b45`正文/locator/BL改号已二轮6380826646；Claude6380810029新增已用资源放行清理由Codex修复2在6380924207明确接单，当前唯一writer，不重做已有效审验。新头交后只增量核清理/page-assets/CI |
 | 新 | [#1172](https://github.com/molis-ai/molis-work/pull/1172) | `ac-giants` 代做：ac-trust 安装信任设计稿（PG-001/004/005） | — | 纯文档 | 二轮可合，头 `e25131d78` 统筹核 diff（RAC-400、§3.4.1 补四类），10-24 06:04 合并认领、开 auto-merge 等 CI |
 | 新 | [#1173](https://github.com/molis-ai/molis-work/pull/1173) | Codex：AC-AUDIT-08～11 校准安全不变量表与测试编号（纯文档/注释） | #1171、沙箱叠层之后 | 纯文档 | 头 `47cf31b28`，交 `ac-review`。`SECURITY-INVARIANTS.md` 和 #1171、#1144 都冲突，顺序 #1171 → 沙箱叠层 → 本 PR（[6380825487](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380825487)） |
 | **先** | [#1174](https://github.com/molis-ai/molis-work/pull/1174) | Codex：main 红修复——`home-side-surfaces`（VUX-16 灵光侧栏等客户端 ready）与 `work-placement-journeys`（跨项目点击前先听导航） | — | `full` 空，不进批 | 头 `5bbb43186`，交 `ac-review` 优先审；合入后 #1167、#1164、#1165、#1119、#1139、#1148、#1130→#1157 合 main 走 merge-only |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
+
+| 新 | [#1174](https://github.com/molis-ai/molis-work/pull/1174) | Codex：VUX16真实ready/严格指针和AC3/4点击前导航监听；仅两测试与原spec | main红同步修复，按Claude顺序独立推进 | actual full=[]/storage=[]，不自行全量 | 冻结`5bbb4318697dbef4631e5db3870691c27fff2e94`；正式评审6380942452通过，TEST独立核原日志/完整文件/Pages后段未归因信号中，CI待。修复1已释放；无产品、fixture、断言或超时放宽。Pages旧信号明确TEST/修复1跟进，不列已归因 |
 
 新开的开发片 PR 由统筹按依赖插进本表。
 

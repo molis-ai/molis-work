@@ -12,7 +12,7 @@ export function startCodingObservation(a: CodingActivation): void {
       await setTimeout(5_000, undefined, { signal: control.signal, ref: false });
       try {
         await readCodingSessions(a, execution, beforeWrite, true);
-        for (const runtimeId of new Set(execution.sessions.list(projectId).filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
+        for (const runtimeId of new Set(execution.sessions.list(projectId).filter(record => record.runtime_session_id && !execution.sessions.lifecycle.pending(projectId, record.session_id)).map(record => record.runtime_id))) {
           a.waits.wakeLoop(api, execution, runtimeId);
         }
       } catch {

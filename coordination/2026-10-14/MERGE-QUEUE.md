@@ -44,6 +44,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 30 | [#1144](https://github.com/molis-ai/molis-work/pull/1144) | PG-017 P2b：不联网的材料读取经 broker 给沙箱 | 叠在 #1143（第四层）；已按用户要求转为非 Draft，仍按层依赖合入 | 待重算 | 统筹转了已按用户要求转为非 Draft；评审要看 RAC-25 旧测试改写没放宽 |
 | 34 | [#1148](https://github.com/molis-ai/molis-work/pull/1148) | R8 第 2 批（BL-364）：项目里的工作与会话状态 4 条 typed 改登记成只给插件的动作 | **叠在 #1121 上**（第二层），#1121 合入后改投 main | `full` 非空，进下一批 | 头 `2a8eec5d8`（squash 感知同步，只剩自己的 13 个文件）；二轮可合；在 **batch-1024-19**（统筹起，10-24 03:35，run [40054696653](https://github.com/molis-ai/molis-work/actions/runs/40054696653)：main `aa4de404f` + #1157 `782af05ed`（含 #1130 `f7fb96ed6`）+ #1148 `2a8eec5d8`）；绿后入队 |
 | 新 | [#1161](https://github.com/molis-ai/molis-work/pull/1161) | #805非阻塞遗留：写后检查设置页路由注释规格错号 | — | 注释only，无full需求 | head `a6621a7ea817077b489c8e26648986568a9c02b2`；修复1交付/释放，1文件+1/-1，正式一轮6379702002可合，独立文档/secret检查通过；CI40061206220原生作业失败，已交测试专职读日志定位，不盲重跑 |
+| 新 | [#1163](https://github.com/molis-ai/molis-work/pull/1163) | #1147非阻塞遗留：SDK instructions统一登记文案 | #1147已实际合入1756f9842 | 纯文档，无full需求 | head `fd7c64a0ee77e72642cd5d6cf3b6c2a1cc281896`；修复2已交付/释放，1行README，root已读diff并立即派正式review/独立检查；已转ready，CI待 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 新开的开发片 PR 由统筹按依赖插进本表。

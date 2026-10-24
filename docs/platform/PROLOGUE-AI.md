@@ -81,13 +81,13 @@ SDK 的 schema 支持明确的类型、nullable/anyOf、必填、enum、对象�
 
 ```text
 Coding 页面 → plugins/native/coding/src/routes.ts
-  → agent.run.start.v1 → AgentHost.start（horizontal/agent-host/src/index.ts）
+  → agent.run.start.v1@2 → AgentHost.start（horizontal/agent-host/src/index.ts）
       冻结角色（调用者这次激活的 Manifest 与定义里的 `agent_prompts`；没有调用者就没有角色，PG-051）→ 核对目录授权 → 核对原会话归属（project/plugin/install/actor）
       → 解析 Character 固定版本 → 组装宿主工具与动作工具（精确引用）
   → Prologue 适配器（adapters/prologue-node.ts 组合，adapters/prologue-run.ts 起跑）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
   → 报告、变更集作为 Artifact 发布
-  ← agent.run.wait.v1 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
+  ← agent.run.wait.v1@2 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
 ```
 
 **每一轮带一个调用编号**（W3-01 E；见 [调用链](../system/CALL-CHAINS.md) §1 第 5 条）：一轮（助理、Coding 等 Agent、定时任务到点跑的 Agent）开始时，宿主给它一个调用编号。启动权限的 `call_id`（`AgentStartAuthority`）经 `AgentHost.start` 交给适配器，适配器写进这一轮的冻结记录（`AgentRunView.frozen.call_id`，和角色、提示词版本、工具一起冻结，读回时原样）；这一轮每次工具调用的上下文也带同一个编号，所以按编号能从调用记录找到这一轮走过的每一步。编号只记在 Molis Work 自己的冻结记录里，不交给 Prologue（用户 2026-10-10 决定），Prologue 的运行元数据没有它。编号只由宿主给：适配器只读启动权限，不读 `agent.run.start` 的请求体，插件在里面写的 `call_id` 不会成为一轮的编号。有界推理（`hostTextGeneration`、`hostCompleteText`）没有运行记录可挂，不带编号，它所在的那个动作的调用记录行带着。`frozen.call_id` 与 `AgentToolActivity.call_id`（Prologue 给一次工具调用的 id）是两回事。

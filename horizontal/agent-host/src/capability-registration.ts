@@ -1,18 +1,18 @@
 import { agentErrors } from "./errors.js";
-import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withAgentEffect } from "./invocation-effects.js";
 import { projectWorkScope } from "./project-work-scope.js";
-import { installationWaits, waitForRunChange } from "./run-wait.js";
+import { awaitOwnContinuations, installationWaits, waitForRunChange } from "./run-wait.js";
 import { registerSessionActions } from "./session-actions.js";
 import { registerWriteCheckerActions } from "./write-checker-actions.js";
-import type { HostCapabilityDefinition, HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { type AgentHost, type AgentStartAuthority } from "./index.js";
 
 /**
- * Registers the Agent Host's Capabilities with a Host registry.
+ * Registers the Agent Host's actions with a Host registry: every one is offered to plugins only (R8).
  *
  * Plugins reach the Agent Host only through these, never by holding it. The
  * Host resolves start authority from the calling Plugin's own declarations, so
@@ -24,7 +24,7 @@ import { type AgentHost, type AgentStartAuthority } from "./index.js";
  */
 export interface AgentCapabilityRegistrar<Context> {
   register<Input, Output>(
-    definition: HostCapabilityDefinition<Input, Output>,
+    definition: ActionDefinition<Input, Output>,
     handler: (context: Context, input: Input, invocation: HostCapabilityInvocation) => Output | Promise<Output>,
   ): () => void;
 }
@@ -46,9 +46,10 @@ export interface AgentCapabilityPorts<Context> {
   projectId(context: Context): string;
   /**
    * After an owner's MCP servers were listed, saved or connected/disconnected: what they offer now may be republished
-   * (the Host's action directory follows it). A failure here never undoes the change itself.
+   * (the Host's action directory follows it), for that owner alone and idempotently. `check` is the call's final authority
+   * check, run again right before anything is written. A failure here never undoes the change itself.
    */
-  mcpChanged?(context: Context, runtimeId: string, pluginId: string, library: AgentMcpLibrary, owner: AgentSkillOwner): void | Promise<void>;
+  mcpChanged?(context: Context, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner, check: () => void): void | Promise<void>;
   /** The project's workspaces as the catalog reads them now, and where the runtime keeps their after-write checkers. */
   writeCheckers?(context: Context): Promise<{ workspaces: readonly ProjectWorkspaceRef[]; store: AgentWriteCheckerStore }>;
 }
@@ -60,29 +61,37 @@ export function registerAgentHostCapabilities<Context>(
   type Call = { source: Context; invocation: HostCapabilityInvocation };
   const denied = () => agentErrors.session_unknown("调用身份与插件或会话归属不一致");
   const waits = installationWaits(8);
-  const pluginFor = (call: Call, pluginId?: string): (HostPluginCaller & { readonly project_id: string }) | undefined => {
+  const pluginFor = (call: Call): (HostPluginCaller & { readonly project_id: string }) | undefined => {
     const caller = call.invocation.plugin;
     if (call.invocation.consumer === "plugin" && !caller) throw denied();
     if (!caller) return undefined;
     caller.assertActive();
-    if (caller.project_id === null || caller.project_id !== owners.projectId(call.source) || pluginId !== undefined && caller.plugin_id !== pluginId) throw denied();
+    if (caller.project_id === null || caller.project_id !== owners.projectId(call.source)) throw denied();
     return { ...caller, project_id: caller.project_id };
   };
   const ports = {
     agentHost: (call: Call) => owners.agentHost(call.source),
     projectId: (call: Call) => owners.projectId(call.source),
-    mcpChanged: async (call: Call, runtimeId: string, pluginId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) => {
-      try { await owners.mcpChanged?.(call.source, runtimeId, pluginId, library, owner); }
-      catch { /* The change itself succeeded; whoever follows it catches up on the next list. */ }
+    // After the call's last check, and checked again before anything is written: a cancelled, revoked or stopped call republishes nothing.
+    mcpChanged: async (call: Call, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) => {
+      const check = () => call.invocation.assertAuthorityCurrent();
+      await call.invocation.beforeEffect(); check();
+      try { await owners.mcpChanged?.(call.source, runtimeId, library, owner, check); }
+      catch {
+        // The change itself succeeded; whoever follows it catches up on the next list. A call no longer current is refused, though.
+        check();
+      }
     },
-    authority: async (call: Call, pluginId: string): Promise<AgentStartAuthority> => {
-      const caller = pluginFor(call, pluginId);
-      const authority = await owners.authority(call.source, caller?.plugin_id ?? pluginId, caller);
+    /** The calling plugin's own start authority: its declarations and grants, never a plugin an input names (R8 rule 1). */
+    authority: async (call: Call): Promise<AgentStartAuthority> => {
+      const caller = pluginFor(call);
+      if (!caller) throw denied();
+      const authority = await owners.authority(call.source, caller.plugin_id, caller);
       await call.invocation.beforeEffect(); call.invocation.assertAuthorityCurrent();
       return invocationAuthority(authority, call.invocation, caller);
     },
   };
-  const register = <Input, Output>(definition: HostCapabilityDefinition<Input, Output>, handler: (call: Call, input: Input) => Output | Promise<Output>) =>
+  const register = <Input, Output>(definition: ActionDefinition<Input, Output>, handler: (call: Call, input: Input) => Output | Promise<Output>) =>
     registrar.register(definition, async (source, input, invocation = { beforeEffect: async () => {}, assertAuthorityCurrent: () => {} }) => {
       // Plugin hooks can run at every await. Validate and execute the same data,
       // even if a hook mutates the original request after its owner was checked.
@@ -115,47 +124,46 @@ export function registerAgentHostCapabilities<Context>(
     return view;
   };
   const disposers = [
-    register(agentHostCapabilities.listActions, async (context, [runtimeId, pluginId]) => {
-      if (!ports.agentHost(context).adapter(runtimeId).descriptor.supports_action_tools) return [];
-      const authority = await ports.authority(context, pluginId);
-      if (!authority.actions) return [];
+    register(agentHostCapabilities.listActions, async (context, [runtimeId]) => {
+      const authority = await ports.authority(context);
+      if (!ports.agentHost(context).adapter(runtimeId).descriptor.supports_action_tools || !authority.actions) return [];
       return (await authority.actions(runtimeId)).discover();
     }),
-    register(agentHostCapabilities.listRuntimes, (context) => ports.agentHost(context).descriptors()),
+    register(agentHostCapabilities.listRuntimes, (context) => { if (!pluginFor(context)) throw denied(); return ports.agentHost(context).descriptors(); }),
+    // Read from the caller's own declarations, which are public Manifest data.
+    register(agentHostCapabilities.availableRoles, async (context, [runtimeId]) =>
+      ports.agentHost(context).availableRoles(runtimeId, (await ports.authority(context)).manifest)),
 
-    register(agentHostCapabilities.availableRoles, async (context, [runtimeId, pluginId]) =>
-      // Role availability is read from that Plugin's own declarations, which are
-      // public Manifest data; naming the Plugin keeps the answer unambiguous.
-      ports.agentHost(context).availableRoles(
-        runtimeId,
-        (await ports.authority(context, pluginId)).manifest,
-      )),
+    // The method library and the MCP servers are the caller's own (`method_owner`): no input names another's.
+    register(agentHostCapabilities.listSkills, async (context, [runtimeId]) =>
+      ports.agentHost(context).skillCatalog(runtimeId, await ports.authority(context))),
+    register(agentHostCapabilities.readSkill, async (context, [runtimeId, ref]) =>
+      ports.agentHost(context).readSkill(runtimeId, await ports.authority(context), ref)),
+    register(agentHostCapabilities.discoverSkills, async (context, [runtimeId, directory, path]) =>
+      ports.agentHost(context).discoverSkills(runtimeId, await ports.authority(context), directory, path)),
+    register(agentHostCapabilities.installSkill, async (context, [runtimeId, candidateId]) => {
+      const authority = await ports.authority(context);
+      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
+      return ports.agentHost(context).installSkill(runtimeId, authority, candidateId);
+    }),
 
-    register(agentHostCapabilities.listSkills, async (context, [runtimeId, pluginId]) =>
-      ports.agentHost(context).skillCatalog(runtimeId, await ports.authority(context, pluginId))),
-    register(agentHostCapabilities.readSkill, async (context, [runtimeId, pluginId, ref]) =>
-      ports.agentHost(context).readSkill(runtimeId, await ports.authority(context, pluginId), ref)),
-    register(agentHostCapabilities.discoverSkills, async (context, [runtimeId, pluginId, directory, path]) =>
-      ports.agentHost(context).discoverSkills(runtimeId, await ports.authority(context, pluginId), directory, path)),
-    register(agentHostCapabilities.installSkill, async (context, [runtimeId, pluginId, candidateId]) =>
-      ports.agentHost(context).installSkill(runtimeId, await ports.authority(context, pluginId), candidateId)),
-
-    register(agentHostCapabilities.listMcp, async (context, [runtimeId, pluginId]) => {
-      const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, await ports.authority(context, pluginId));
+    register(agentHostCapabilities.listMcp, async (context, [runtimeId]) => {
+      const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, await ports.authority(context));
       const servers = await library.list(owner);
-      await ports.mcpChanged(context, runtimeId, pluginId, library, owner);
+      await ports.mcpChanged(context, runtimeId, library, owner);
       return servers;
     }),
-    register(agentHostCapabilities.saveMcp, async (context, [runtimeId, pluginId, input]) => {
-      const authority = await ports.authority(context, pluginId);
+    register(agentHostCapabilities.saveMcp, async (context, [runtimeId, input]) => {
+      const authority = await ports.authority(context);
       if (input.transport === "stdio" && (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path))) throw agentErrors.directory_unauthorized("MCP 进程目录必须是当前项目的授权工作区");
       const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, authority);
+      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       const saved = await library.save(owner, input);
-      await ports.mcpChanged(context, runtimeId, pluginId, library, owner);
+      await ports.mcpChanged(context, runtimeId, library, owner);
       return saved;
     }),
-    register(agentHostCapabilities.controlMcp, async (context, [runtimeId, pluginId, id, action]) => {
-      const authority = await ports.authority(context, pluginId);
+    register(agentHostCapabilities.controlMcp, async (context, [runtimeId, id, action]) => {
+      const authority = await ports.authority(context);
       const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, authority);
       if (action === "connect") {
         const server = (await library.list(owner)).find(item => item.id === id);
@@ -163,11 +171,11 @@ export function registerAgentHostCapabilities<Context>(
       }
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       await library.control(owner, id, action);
-      await ports.mcpChanged(context, runtimeId, pluginId, library, owner);
+      await ports.mcpChanged(context, runtimeId, library, owner);
     }),
 
     register(agentHostCapabilities.createSession, async (context, [runtimeId, input]) => {
-      const { owner } = ownerOf(context), authority = await ports.authority(context, owner.plugin_id);
+      const { owner } = ownerOf(context), authority = await ports.authority(context);
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       return ports.agentHost(context).createSession(runtimeId, { ...input, ...owner }, authority);
     }),
@@ -201,7 +209,7 @@ export function registerAgentHostCapabilities<Context>(
     register(agentHostCapabilities.startRun, async (context, [runtimeId, input]) => {
       const { owner } = ownerOf(context);
       if (runtimeId !== input.session.runtime_id) throw agentErrors.session_unknown("执行请求与会话所在的运行时不一致");
-      const authority = await ports.authority(context, owner.plugin_id);
+      const authority = await ports.authority(context);
       await readScopedSession(context, input.session);
       return ports.agentHost(context).start(runtimeId, { ...input, ...owner }, authority);
     }),
@@ -279,13 +287,22 @@ export function registerAgentHostCapabilities<Context>(
       await adapter.messages.cancel(ports.projectId(context), messageId);
     }),
     // What this project's sessions wait for and how they go on, and what a plugin tells one of their rounds (session-actions), and the person's after-write checkers (write-checker-actions).
-    ...registerSessionActions(register, { pluginFor, originalInput: call => owners.originalInput?.(call.source, pluginFor(call)), adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun, actions: async (call, pluginId, runtimeId, session, memory) => { const authority = await ports.authority(call, pluginId); return authority.actions ? authority.actions(runtimeId, undefined, session, memory) : undefined; } }),
+    ...registerSessionActions(register, { pluginFor, originalInput: call => owners.originalInput?.(call.source, pluginFor(call)), adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun,
+      ownsSession: (call, session) => readScopedSession(call, session).then(() => true, () => false), actions: async (call, runtimeId, session, memory) => { const authority = await ports.authority(call); return authority.actions ? authority.actions(runtimeId, undefined, session, memory) : undefined; } }),
     ...registerWriteCheckerActions(register, { pluginFor, projectId: ports.projectId, writeCheckers: call => owners.writeCheckers?.(call.source) ?? Promise.reject(agentErrors.capability_unavailable("宿主没有接通写后检查器")) }),
-    register(agentHostCapabilities.awaitContinuations, async (context, [runtimeId, timeoutMs, exclude]) => {
-      pluginFor(context);
-      const adapter = ports.agentHost(context).adapter(runtimeId);
+    // Like waitRun: one of the caller's places to wait, only its own sessions' continuations. Another plugin's that are ready
+    // join `exclude` and the wait goes on, so they neither show nor end the wait early.
+    register(agentHostCapabilities.awaitContinuations, async (context, [runtimeId, timeoutMs, exclude = []]) => {
+      const caller = pluginFor(context), adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!caller) throw denied();
       if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
-      return adapter.collaboration.awaitReady(ports.projectId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : [], context.invocation.signal);
+      const collaboration = adapter.collaboration, release = waits.hold(caller.install_id);
+      try {
+        const own = await awaitOwnContinuations((left, skipped, signal) => collaboration.awaitReady(ports.projectId(context), left, skipped, signal),
+          view => readScopedSession(context, { runtime_id: runtimeId, session_id: view.session_id }).then(() => true, () => false), timeoutMs, exclude, context.invocation.signal);
+        await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
+        return own;
+      } finally { release(); }
     }),
     register(agentHostCapabilities.readBackground, async (context, [runtimeId, sessionId]) => {
       pluginFor(context);
@@ -350,15 +367,15 @@ export function registerAgentHostCapabilities<Context>(
       return recovery.close(session, run.run_id, expectedVersion);
     }),
     register(agentHostCapabilities.listCheckpoints, async (context, [session]) => {
-      const view = await readScopedSession(context, session);
-      const authority = await ports.authority(context, view.owner.plugin_id);
+      await readScopedSession(context, session);
+      const authority = await ports.authority(context);
       const checkpoints = ports.agentHost(context).adapter(session.runtime_id).checkpoints;
       if (!checkpoints) throw agentErrors.capability_unavailable("当前运行时未接通检查点");
       return (await checkpoints.list(session)).filter(item => item.directory?.realpath_verified && authority.authorizedDirectories.includes(item.directory.canonical_path));
     }),
     register(agentHostCapabilities.prepareRewind, async (context, [session, checkpointId, roleId]) => {
-      const view = await readScopedSession(context, session);
-      const authority = await ports.authority(context, view.owner.plugin_id);
+      await readScopedSession(context, session);
+      const authority = await ports.authority(context);
       const role = authority.manifest.roles.find(role => role.role_id === roleId);
       if (!role || !["text-edit", "workspace-write"].includes(role.execution ?? "read-only")) throw agentErrors.capability_unavailable("当前方式不能回退文件，请选择修改文件或执行");
       const checkpoints = ports.agentHost(context).adapter(session.runtime_id).checkpoints;
@@ -377,26 +394,6 @@ export function registerAgentHostCapabilities<Context>(
       return queue.list(projectId).filter(request => request.run?.session_id === run.session_id
         && request.run.run_id === run.run_id && request.plugin_id === view.owner.plugin_id)
         .map(request => ({ request, receipt: queue.receipt(request.review_id) }));
-    }),
-
-    register(agentHostCapabilities.listReviews, async (context, [projectId, status]) => {
-      const scoped = ports.projectId(context), host = ports.agentHost(context), caller = pluginFor(context);
-      const requests = host.reviews.list(scoped === projectId ? projectId : scoped, status);
-      if (!caller) return requests;
-      const visible = [];
-      for (const request of requests) {
-        const sessionId = request.run?.session_id ?? (request.operation?.kind === "checkpoint-rewind" ? request.operation.session_id : undefined);
-        if (request.plugin_id !== caller.plugin_id || !sessionId) continue;
-        for (const runtime of host.descriptors()) {
-          try {
-            const session = await readScopedSession(context, { runtime_id: runtime.runtime_id, session_id: sessionId });
-            if (!request.run || session.runs.some(run => run.run_id === request.run!.run_id && run.session_id === sessionId)) visible.push(request);
-            break;
-          } catch { /* A foreign or unavailable session is not part of this plugin's queue. */ }
-        }
-      }
-      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      return visible;
     }),
   ];
   return () => {

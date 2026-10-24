@@ -67,13 +67,13 @@ test("the CLI and management MCP call Goals' actions through the management call
   // The dispatcher is handed the management port; it holds no Host client, no typed Goals descriptor and no domain port of its own.
   assert.match(changed("dispatcher", add('import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";')), /command-dispatch\.ts.*LocalHostProjectClient/);
   for (const name of ["initializeBoardCapability", "snapshotBoardCapability", "setActiveGoalCapability", "goalTreeCapabilities", "createGoalProposalClients"]) {
-    assert.match(changed("dispatcher", add(`import { ${name} } from "@molis-ai/molis-work-plugin-goals";`)), new RegExp(`command-dispatch\\.ts.*${name}`), name);
+    assert.match(changed("dispatcher", add(`import { ${name} } from "@molis-ai/molis-work-contracts/modules/goal-actions";`)), new RegExp(`command-dispatch\\.ts.*${name}`), name);
   }
   assert.match(changed("dispatcher", source => source.replace(/CliManagementActions/g, "SomethingElse")), /management/);
   assert.match(changed("dispatcher", add("const x = client.withProject(reference);")), /withProject/);
   assert.match(changed("dispatcher", add("const x = coordinator.goals.query;")), /coordinator\.goals/);
   // The snapshot is read through Goals' own action, not another one and not by hand.
-  assert.match(changed("dispatcher", source => source.replace("goalsActions.snapshot", "goalsActions.list")), /goalsActions\.snapshot/);
+  assert.match(changed("dispatcher", source => source.replace("goalEntryActions.snapshot", "goalEntryActions.list")), /goalEntryActions\.snapshot/);
   // The Host side builds the caller with the factory, over the client that does not prepare the project's plugins.
   assert.match(changed("project", source => source.replace("bindGoalsManagementActions(", "somethingElse(")), /cli-project\.ts.*bindGoalsManagementActions/);
   assert.match(changed("project", source => source.replace("actionClient(reference, false)", "actionClient(reference)")), /cli-project\.ts.*actionClient\(reference, false\)/);
@@ -84,18 +84,18 @@ test("the CLI and management MCP call Goals' actions through the management call
 });
 
 test("W3-07-4-01: the MCP gate rejects typed or domain callers and requires three actual Goals action calls", () => {
-  const goals = "@molis-ai/molis-work-plugin-goals";
+  const goals = "@molis-ai/molis-work-contracts/modules/goal-actions";
   for (const code of [
     `import { initializeBoardCapability } from "${goals}";`,
     `import { goalTreeCapabilities } from "${goals}";`,
     `import { recordGoalUserDecisionCapability } from "${goals}";`,
     `import * as goals from "${goals}";`, `import goals from "${goals}";`, `import "${goals}";`,
-    `import { initializeBoardCapability as goalsActions } from "${goals}";`,
+    `import { initializeBoardCapability as goalEntryActions } from "${goals}";`,
     `export { initializeBoardCapability } from "${goals}";`, `export * from "${goals}";`,
     `const goals = await import("${goals}");`, `const goals = require("${goals}");`,
     `type Typed = import("${goals}").GoalTreeEntryApi;`, "const goals = await import(specifier);",
   ]) assert.match(changed("mcp", add(code)), /tool-dispatch\.ts/, code);
-  for (const specifier of ["@molis-ai/molis-work-contracts/platform/app-host", "@molis-ai/molis-work-app-local-host",
+  for (const specifier of ["@molis-ai/molis-work-plugin-goals", "@molis-ai/molis-work-contracts/platform/app-host", "@molis-ai/molis-work-app-local-host",
     `${goals}/typed`, "./goal-event-commands.js", "./goal-tree-commands.js", "node:fs"]) {
     assert.match(changed("mcp", add(`import { anything } from "${specifier}";`)), /tool-dispatch\.ts.*imports/, specifier);
   }
@@ -106,13 +106,13 @@ test("W3-07-4-01: the MCP gate rejects typed or domain callers and requires thre
   }
   assert.equal(changed("mcp", add('// No host.client(reference), withScope or coordinator.goals here.\nconst note = "LocalHostProjectClient";')), "");
   for (const action of ["initialize", "decide", "treeDecide"]) {
-    const actual = `actions.invoke(goalsActions.${action},`;
+    const actual = `actions.invoke(goalEntryActions.${action},`;
     const source = transportSources().mcp.dispatcher;
     assert.ok(source.includes(actual), `${action} mutation reaches the production call`);
-    assert.match(changed("mcp", text => text.replace(actual, "actions.invoke(goalsActions.list,")
-      .concat(`\n// ${actual}\nconst note = ${JSON.stringify(actual)};`)), new RegExp(`goalsActions\\.${action}`));
+    assert.match(changed("mcp", text => text.replace(actual, "actions.invoke(goalEntryActions.list,")
+      .concat(`\n// ${actual}\nconst note = ${JSON.stringify(actual)};`)), new RegExp(`goalEntryActions\\.${action}`));
   }
-  assert.match(changed("mcp", text => text.replace("actions.invoke(goalsActions.initialize,", "actions.invoke(typed,")), /invoke must name a Goals action/);
+  assert.match(changed("mcp", text => text.replace("actions.invoke(goalEntryActions.initialize,", "actions.invoke(typed,")), /invoke must name a Goals action/);
 });
 
 test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open and gives only management its unprepared action port", () => {
@@ -162,16 +162,16 @@ test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open an
 });
 
 test("the CLI boundary rule reads every way into the Goals package and into a Host client, not only a named import and one identifier", () => {
-  const goals = "@molis-ai/molis-work-plugin-goals";
-  // Anything of the Goals package other than `{ goalsActions }` is a typed entry the CLI must not hold, in whatever shape it is reached.
+  const goals = "@molis-ai/molis-work-contracts/modules/goal-actions";
+  // Anything of the Goals descriptors module other than `{ goalEntryActions }` is a typed entry the CLI must not hold, in whatever shape it is reached.
   const namespace = add(`import * as goals from "${goals}";\nconst typed = goals.initializeBoardCapability;`);
   assert.match(changed("dispatcher", namespace), /command-dispatch\.ts.*\* as goals/);
   assert.match(changed("dispatcher", add(`import goals from "${goals}";`)), /command-dispatch\.ts.*default import goals/);
-  assert.match(changed("dispatcher", add(`import "${goals}";`)), /command-dispatch\.ts.*goalsActions/);
-  assert.match(changed("dispatcher", add(`import { goalsActions, initializeBoardCapability } from "${goals}";`)), /command-dispatch\.ts.*initializeBoardCapability/);
-  assert.match(changed("dispatcher", add(`import { initializeBoardCapability as goalsActions } from "${goals}";`)), /command-dispatch\.ts.*initializeBoardCapability/);
+  assert.match(changed("dispatcher", add(`import "${goals}";`)), /command-dispatch\.ts.*goalEntryActions/);
+  assert.match(changed("dispatcher", add(`import { goalEntryActions, initializeBoardCapability } from "${goals}";`)), /command-dispatch\.ts.*initializeBoardCapability/);
+  assert.match(changed("dispatcher", add(`import { initializeBoardCapability as goalEntryActions } from "${goals}";`)), /command-dispatch\.ts.*initializeBoardCapability/);
   for (const subpath of [`${goals}/typed`, `${goals}/dist/index.js`]) {
-    assert.match(changed("dispatcher", add(`import { goalsActions } from "${subpath}";`)), new RegExp(`command-dispatch\\.ts.*${subpath.replace(/[/.]/g, "\\$&")}`), subpath);
+    assert.match(changed("dispatcher", add(`import { goalEntryActions } from "${subpath}";`)), new RegExp(`command-dispatch\\.ts.*${subpath.replace(/[/.]/g, "\\$&")}`), subpath);
   }
   assert.match(changed("dispatcher", add(`export { initializeBoardCapability } from "${goals}";`)), /command-dispatch\.ts.*re-export/);
   assert.match(changed("dispatcher", add(`export * from "${goals}";`)), /command-dispatch\.ts.*re-export/);
@@ -180,8 +180,8 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
   assert.match(changed("dispatcher", add(`const goals = require("${goals}");`)), /command-dispatch\.ts.*require\(\)/);
   assert.match(changed("dispatcher", add(`type Typed = import("${goals}").GoalTreeEntryApi;`)), /command-dispatch\.ts.*import type/);
   assert.match(changed("dispatcher", add("const goals = await import(specifier);")), /command-dispatch\.ts.*string literal/);
-  // The dispatcher reaches the action contract, goalsActions and its protocol file; another module is another way to a Host client.
-  for (const specifier of ["@molis-ai/molis-work-contracts/platform/app-host", "@molis-ai/molis-work-local-host", "../../local-host/src/project-host.js", "./goal-tree-commands.js", "node:fs"]) {
+  // The dispatcher reaches the action contract, goalEntryActions and its protocol file; another module (the Goals plugin package too, PG-031) is another way in.
+  for (const specifier of ["@molis-ai/molis-work-plugin-goals", "@molis-ai/molis-work-contracts/platform/app-host", "@molis-ai/molis-work-local-host", "../../local-host/src/project-host.js", "./goal-tree-commands.js", "node:fs"]) {
     assert.match(changed("dispatcher", add(`import { anything } from "${specifier}";`)), new RegExp(`command-dispatch\\.ts.*imports ${specifier.replace(/[/.]/g, "\\$&")}`), specifier);
   }
   // A Host client is a Host client whatever the variable is called and however the property is spelled.
@@ -200,7 +200,7 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
   // A comment or a string that names them is not a caller.
   assert.equal(changed("dispatcher", add('// the CLI never calls host.client(reference) or client.withProject(reference)\nconst note = "coordinator.goals";')), "");
   // The snapshot is read through the action, not by a look-alike in a comment or a string.
-  assert.match(changed("dispatcher", source => source.replace("goalsActions.snapshot", "goalsActions.list").concat('\n// goalsActions.snapshot\nconst note = "goalsActions.snapshot";')), /goalsActions\.snapshot/);
+  assert.match(changed("dispatcher", source => source.replace("goalEntryActions.snapshot", "goalEntryActions.list").concat('\n// goalEntryActions.snapshot\nconst note = "goalEntryActions.snapshot";')), /goalEntryActions\.snapshot/);
 
   // The local fallback keeps its original reference and signal; the dispatcher receives the selected resident/local port.
   const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference, false), reference, { signal: options.signal })";

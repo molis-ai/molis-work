@@ -1392,3 +1392,49 @@ boundary、API/Action与diff通过；实际27资源共7,806,260 B，只有workbe
 正常、拒绝、取消与恢复沿各原短合同：真实 Node/持久存储/SQLite/公开 Host Action/HTTP 验证正常结果和拒绝后的持久状态；分类/续期/批量/导入/候选保留同版本竞争、丢回应、SDK 已提交但业务失败、原请求重启重试与后继冲突；Run 扩展核第一工具早于 start 返回、等待过期与安装撤权；生命周期核静止归档、忙/待批拒绝、原决定、业务写失败、取消与重启。页面按原非空场景真实 Chrome 操作，jobs2/browser1/retries0，固定 Node24.14/pnpm11.9；权限明确的 loopback/Chrome 与缓存安装首次使用已批准权限。安装/build、根与 workspace 类型、README 去重必需集、API/Action 实际生成、准确父 health/boundary/资源/secrets/diff 均须完成；未变路径引用其准确旧 head 证据，不冒称新树实跑。
 
 尚未闭合的边界保留：续期提交后 pending 跨新期限不自动补账，组合故障尚未直接实跑；候选持完整原请求可重启/跨TTL对账，离页刷新不保证重建，个人自身 pending accept 的 overview 自动过期冲突仍存在；原 CDP/Page.navigate 与 async_id 首败原因未知，不能用补验抹去。Assistant 自有 Session archive/unarchive/start 恢复、项目删除、Session 管理与 MEM-40 等未完 P0 继续在此 Draft 按原合同推进，不因14片合入宣称完成。本次合并不顺手实现这些后继；#1198全站视觉 UNKNOWN 仍独立，付费B2预算未批准，真实模型零调用。最终工程、完整产品实操与用户验收分开记录。
+
+### #1064 最终平台补验与 Coding 授权夹具（2026-10-25）
+
+准确提交 `ebdb0d312044741f2a8ad5ff7bc2ff7cbfff08c8` 的正常 CI `40103927554` 全部已执行作业及 Verify 通过；条件未触发的 Linux probe 仍为 skipped。安全 2/2 中搜索撤权文件一次 12/12。Linux 排除集仍为原 27 个 macOS 文件；按旧已验 `24b1266af` 至本提交的真实调用链差异重跑 17 个受影响文件，全部通过，jobs1/retries0，其余 10 个未变路径沿用原准确提交证据。日志 `/private/tmp/molis-memory-ebdb-macos-affected-20261024.log` 与 `/private/tmp/molis-memory-ebdb-macos-studio-20261024.log`。原 dependency live 1 项和 native tool 2 项跳过仍为未验证，不算通过；Studio 使用本地脚本模型，不是真实供应商质量验收。
+
+本提交免费 B2 preflight 显示树与构建干净、已装 SDK94 来源一致，离线 20 行执行完成且 modelCalls=0。结果 `/private/tmp/molis-memory-b2-preflight-ebdb-20261024.json` 与 `/private/tmp/molis-memory-b2-offline-ebdb-20261024.json`。离线显式读取仍可包含无关记忆，只证明实际覆盖的确定性读取，不证明自动任务召回质量或 token 收益；未运行付费 B0/B1/B2 对照，§9 门槛不变。
+
+完整 Full suite `40103925781` 尚未全部结束时，第 9 片明确 86/87、`coding-action-cards.e2e.test.ts` 失败，原有一次重试仍失败。原文件在固定 Node24.14、本机构建也复现同一动作选项等待失败；生产读取口确认夹具手写的 MCP v2 缺少当前 v3/generation，报 `actions.configuration_unavailable` 且保留原文件。该夹具与主干612相同，不是 Memory 产品授权回归。最小修复只把原授权设置改走现受保护 `/api/settings/mcp/actions` HTTP 入口，让当前 owner 派生权限及 generation；不手造配置、不改生产代码、原时限、卡片编辑、只执行一次和唯一 Goal 断言。原文件单次复验 1/1 通过，零重试。红例、具体配置拒绝与绿例分别在 `/private/tmp/molis-memory-1064-ebdb-coding-action-cards-permitted-20261025.log`、`-coding-old-grant-read-20261025.log`、`-coding-action-cards-owner-grant-20261025.log`；首次沙箱 listen EPERM 单独保留，不当产品失败。其余云端分片继续收集，不取消来隐藏失败；修正后最终提交仍须完整 CI 和全量通过，不能沿用旧 head 绿色结论。
+
+### #1064 接入 main112 的窄合同（2026-10-25，实施前）
+
+从冻结的 `8f8fc71a1df4dc85fdcceae69a2a53aeb407a07e` 在独立树合入准确 main `112114f231a734ac761cf36e8411c8897d0826d8`；原 #1064 树及其完整 CI 保持不动。本次用户结果不变：本人初始原话与同 Session 接续引用仍经受保护 Host、安装身份和确切 Action 证明进入同一 SDK Session，不能由插件 DTO、其他会话或后台任务伪造。
+
+采用 main R8 的全 Action 登记、Characters 可信 Host 目录、MCP 当前授权 check、内部 authority 不收业务 pluginId，以及 ownsSession 对协作读取、控制、枚举与等待的归属限制。同时保留本片 originalInput 窄回调、currentOriginalInput 的安装/Action 复核与复制、trustedSupplementInput、original_input/continued_from 严格 schema、Coding 在加工任务前取得原话、回调深复制与后台剥离。身份和当前授权是不可配置的硬边界；SDK/Host 继续是原写主人，不增加插件槽、配置、账本、兼容或用户入口，不升级 SDK94。MCP v3 授权继续由受保护设置 HTTP owner 生成 generation，不恢复手写旧配置。
+
+允许修改真实冲突文件、必要现有消费者、相应 README/本 spec、API/Action 生成快照和资源基线；vendor 九个既有 blob 对冻结父逐项不变，锁文件仅保留原 SDK94 与 main 新依赖变化。搜索夹具选择本片公开 peer command 标脏及精确 MCP 受理/owner HTTP 双屏障，移除 main 仅服务 TTL 等待的 lastFetch，不叠加两套等待，不改变产品或断言/时限。取消、撤权、失败、重试和恢复沿原合同，不因整合放宽。
+
+固定 Node24.14/pnpm11.9，冻结离线安装；先准确 main baseline、再整合树整体构建，定向普通用例 jobs2/browser1/retries0，最后原 Coding action-card 浏览器零重试。覆盖 R8 会话/插件身份、原件与后台隔离、原件 HTTP/真实 Node Session 恢复及 Memory Context、MCP v3 与搜索屏障，并覆盖受改包 README 必跑组；不跑本机全量、不触真实 Home/付费模型，最终完整 CI 由统筹负责。资源按准确父重新实测实际 27 项：仅原 Workbench +3,193 B、Coding +717 B 上限，其余继承 main 缩减，删除已消费旧额度，不新增额度。准确父类型、health、边界、API/Action、资源、secret/diff 通过才形成工程交接；原首败和未验边界保留，不宣称产品或用户验收通过。
+
+main112 整合中的合同版本补正（修改前）：独立审查确认本片 startInput 新增 original_input/continued_from，runViewOutput 新增 original_input，但 startRun/readSession/readRun/waitRun 的动作 version 仍为 1。按现行 CONTRACT-CHANGES §3 阶段一，将这四口 version 从 1 升为 2；capability_id 保持原名，旧 @1 引用明确拒绝，不留兼容或静默换版。同步实际固定消费者、Skill 与 API/Action 生成快照。现 agent-host-actions 复用真实 PluginRuntime 校验旧 @1 不到 Runtime，保留原 owner/取消断言，并复用 Coding product HTTP/真实 SDK fixture 验证当前 startRun 的原件输入、三读输出与同 Session 接续；不用手造 schema 或源码字符串证明。刚结束的构建只作改前证据，源码定型后重新整体构建再执行完整定向组。
+
+历史冻结提交 `8f8fc71a1` 的完整 Full suite `40106807196` 后续已结束，17 个 job（16 片与汇总）全部 success、1389/1389；coding-question-card、cognia-actions、coding-model-controls、alchemist-workbench、work-placement 五文件仅在原 workflow 的一次 retry 后通过，Coding 动作卡与第 14 片首轮通过。汇总 `/private/tmp/molis-memory-1064-full8f8-20261025.summary.json`。这只属于旧准确 head，不覆盖本次 main112 整合和四口升版，也不消除此前首败或未付费/用户验收边界。
+
+本次合同先提交为 `51b7aa7b0`，真实合并提交 `bd2e0bc23` 的 merge-base 为准确 main112。七个文本冲突均在预期路径：登记接线、工作区表、Agent SDK 测试 import、搜索夹具、Action 快照、health 与资源基线；搜索保留原片语义屏障，未拼接 TTL 等待。SDK 九 blob（vendor 八文件与 agent-host/package.json）对 `8f8fc71a1` 逐项相同，记录 `/private/tmp/molis-memory-main112-sdk-nine-blobs-20261025.json`；锁文件相对原父仅 main 移除 Goals 依赖及新增 esbuild devDependency，原 SDK94 分辨率不变。两树离线安装首次因 pnpm store 登记 symlink 权限失败，保留原日志，获准缓存访问后成功；准确基线整体构建首次 Swift 缓存权限拒绝也保留，授权执行完成。四口升版后的最终整合整体构建已通过，日志 `/private/tmp/molis-memory-main112-integration-build-action-v2-20261025.log`，前一次整合构建只作改前证据。
+
+新旧版本红例在未升版构建上实际失败：真实插件可成功调用旧 readSession@1，未出现应有拒绝，日志 `/private/tmp/molis-memory-main112-action-version-red-20261025.log`。当前实现四定义升为 @2；消费者均经公开 definition 取得 version，静态核查未发现需迁移的业务固定 @1 引用。Skill、手册与 README 明示当前四口 @2。PluginRuntime 的目录选择层对失效固定版本准确返回 actions.dependency_missing，因此测试在普通批启动前按实际调用链更正为该精确码，不接受任意拒绝。API 生成无额外变化，Action 生成明确四口换版；最终定向结果继续在本节记录，不以合同或构建替代。
+
+main112＋四口 @2 的冻结状态定向工程验证：137/137 普通文件首轮全部通过（jobs2/browser1/retries0，8.1 分钟），包含受改 AgentHost/Contracts/Coding/LocalHost README 必跑普通组与原件、会话归属、后台隔离、MCP v3 和搜索接缝；精确清单及现行 classifyFile 结果 `/private/tmp/molis-memory-main112-target-plan-20261025.json`，该批没有被分类为 macOS-only 的文件。新 agent-host-actions 16/16 通过，真实 Coding HTTP 的 start/readSession/readRun/waitRun 路径与同 Session 接续均实际执行；SDK Effects 13/13、Coding 原件 8/8、后台隔离 24/24、回调原件隔离 17/17、搜索 12/12。根/工作区类型、boundary、workspace 登记、准确父 health、API/Action、secret/diff 均通过；逐命令日志与退出码 `/private/tmp/molis-memory-main112-final-results-20261025.json`，普通日志 `/private/tmp/molis-memory-main112-final-ordinary-20261025.log`。冲突 import 清理仅移除已不再使用的 ActionDefinition 类型名，无运行行为变化。
+
+准确 main112 与本状态各实测 27 项资源：7,637,908 → 7,641,818 B，只有 Workbench 1,130,064 → 1,133,257 B（+3,193）和 Coding 377,227 → 377,944 B（+717），其余 25 项逐项相等；无新额度，main 的 Form/PPT/CSS 缩减保留。两侧记录 `/private/tmp/molis-memory-main112-baseline-assets-20261025.json`、`/private/tmp/molis-memory-main112-final-assets-report-20261025.log`。原定两个 Coding browser 尚未运行：主干随后前进至 2dd535912，统筹要求保留到下一准确整合状态执行，未把未跑算通过；本状态未跑完整 Full suite、真实 Home、付费模型及用户验收。
+
+### #1064 接入 main2dd 的增量合同（2026-10-25，实施前）
+
+从 main112＋四口 @2 已验提交 `70559efd2` 合入准确 main `2dd53591276982b6947369e345ddfcffcc21afd2`。新增主干的 W5-06/C9 改由运行中项目插件渲染 stage，移除 Host 的 coding-surface 与旧导出，通用 project-plugin-stages、Files 输入刷新及嵌入槽接手；保留这些主干删减、不可用占位和 Files/Git 对 design-system 的真实依赖，不恢复宿主特例。Memory、原件身份、四口 @2、SDK94 九 blob 与两条隔离保持；该增量不扩展 Memory 功能、SDK、旧版本兼容、授权或额度。
+
+只处理真实冲突及必要现有消费者、README/spec、生成快照和实际基线。与 Memory 的直接接缝是 LocalHost 公开入口、工作区/锁、文档和基线；生产原件/四 Action 定义及 Coding 原件运行主链没有同路径变化。新 stage 会影响实际 Coding 页面，所以两个未跑 browser 放到本次准确整合后。先协调现七 browser 结束，再固定 runtime 冻结离线安装两树、准确 2dd baseline 与整合 head 整体构建及 27 项资源实测；仅沿原 Workbench +3,193、Coding +717 上限，其他项目继承准确 main 实测，不新给额度。
+
+回归按增量选择：新增 stage/嵌入槽/不可用状态与其生产 HTTP、已迁移 Coding 视图 fixture 的直接消费者、Workbench 新触点 README 必跑，以及受 web-request/路由装配影响的 Coding/助理原件与旧口拒绝路径。现 137 文件的未变路径沿用其准确冻结证据，不机械全批重跑；静态门对新 merge-base 重测，两个 Coding browser 串行零重试。精确增量文件清单、首败与结果继续记本节；最终全量与 CI 由统筹执行，不把 main112 或旧 8f8 的通过当作 2dd 通过。
+
+交付粒度调整（用户 2026-10-25 明确决定）：从本日起按完整可验收功能归并 PR；内部切片继续用于依赖、责任和测试，不再默认对应独立 PR。当前 #1064 基础整合继续收束；后续分类管理、续期、历史采用、批量及相关管理入口集中为一个 Memory 管理交付 PR。已有 Draft 仅在新 PR 完整包含、且差异与验收核对后才标注替代并关闭，不删除分支；具体归并名单由统筹核对真实 DAG 后写回本 spec。已有逐资源一次性批准仅按对应净增组合核算，门禁、失败与范围均不放宽；本决定不把未完切片或未验路径变为完成。
+
+main2dd 增量整合记录：合同提交 `9966cf17a` 后，真实合并提交 `4a381bdc945df9abaaaccb68faba8a518efa256a` 无文本冲突，merge-base 精确为 `2dd53591276982b6947369e345ddfcffcc21afd2`。九个 SDK blob 仍逐项等于 `8f8fc71a1`，记录 `/private/tmp/molis-memory-main2dd-sdk-nine-blobs-20261025.json`；锁文件继承 main 的 Files/Git→design-system 依赖，SDK94 不变。两树冻结离线安装与固定 Node24.14 整体构建均首轮通过，基线产品源码保持干净；日志 `/private/tmp/molis-memory-main2dd-{baseline,integration}-{install,build}-20261025.log`。根/工作区类型、boundary、登记表、准确父 health、API/Action、secret/diff 均通过，API/Action 生成没有额外修改。准确两侧实测仍为 27 项、7,637,908 → 7,641,818 B，仅原 Workbench +3,193 B 与 Coding +717 B，其他 25 项逐项相等，无新额度。资源记录 `/private/tmp/molis-memory-main2dd-baseline-assets-20261025.json`、`/private/tmp/molis-memory-main2dd-final-assets-report-20261025.log`。
+
+本状态按精确增量计划新跑 100/100 普通文件、1058/1058 用例（jobs2，2.5 分钟）与 8/8 browser、42/42 用例（jobs1/browser1，2.3 分钟），全部首轮通过、retries0、没有 skip。浏览器为 Coding 动作卡、Coding 生命周期、伙伴生命周期、plugin-sample、失败 call_id、UI 生命周期、UI 请求，以及新 main 的 runtime-plugin-http-discovery 真实 Form stage 停用/重启隔离；最后一项现行 classifyFile 已标 browser，不能沿旧标记放进普通组。计划 `/private/tmp/molis-memory-main2dd-target-plan-20261025.json` 区分新跑、实际主干变动与六个新 README 重合但行为依赖未变的复用文件；未受影响的 main112 137 文件证据继续独立沿用，不写成本头全批重跑。原件/接续、拒旧 @1、owner/取消、生产 HTTP 及阶段装配已在本增量实际执行。逐命令与退出码 `/private/tmp/molis-memory-main2dd-final-results-20261025.json`，普通与浏览器日志分别为同前缀 `-ordinary-20261025.log`、`-browser-20261025.log`。本轮没有新增失败或临时探针，也不据通过关闭旧 CDP/async_id UNKNOWN；最终完整 CI 与 Full suite 仍由统筹对新完整 HEAD 执行。
+
+macOS 补验按统筹独立依赖审计选择五个受影响文件：action-contract-snapshot（当前 R8 目录与四口 @2）、installed-plugin-host（项目插件装配/恢复）、installed-plugin-execution（sandbox→Goals 正式动作）、npm-package（当前依赖与客户端打包）、uninstall（当前安装 payload/CLI）。在同一已构建状态真实隔离 Host 下 5/5 文件、59/59 用例首轮通过（jobs1/retries0，2.5 分钟），无 skip；日志 `/private/tmp/molis-memory-main2dd-macos-affected-20261025.log`。这不是新头 27 文件全跑：其余 12 个实际调用未变路径沿用准确 ebdb 的已验日志 `/private/tmp/molis-memory-ebdb-macos-affected-20261024.log`、`/private/tmp/molis-memory-ebdb-macos-studio-20261024.log`；另 10 个沿用准确 `24b1266af648c879fcf5e6f6ca790e7375b4426a`，其平台记录 `/private/tmp/molis-memory-1064-final-head-platform-20261024.results.json`、`-platform.log` 当时 27/27 文件 exit0。旧 dependency 5/6 与 native 20/22 中原有三项 skip 继续为 UNVERIFIED，不是十文件全跳过，也不计为本轮通过。没有运行真实 Home、付费模型或最终打包 App 的用户验收；本次只完成上述工程验证与被实际覆盖的隔离路径。

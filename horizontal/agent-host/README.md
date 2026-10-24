@@ -55,21 +55,22 @@ SourcePort 也只接 AgentHost 的 snake_case 引用、身份与短期正文快�
 
 有界模型结果由 SDK `collectRun` 从同一 Run 收集；Host 的 `completeTextResult` 返回原引用、终态、实际模型和 typed usage，并可显式请求结构校验或观察文字/用量进度。失败保留可用的运行回执，不自动重试格式。公共模型绑定、Coding 草稿、Cognia 的具体例子见 [AI 手册](../../docs/platform/PROLOGUE-AI.md)。
 
-插件不持有 Agent Host，只能通过注册的 Capability 调用：运行时列表、角色可用性、会话创建与读取、
-Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插件是否在 Manifest 里声明消费了该 Capability。
+插件不持有 Agent Host，只能调它登记的动作：运行时列表、角色可用性、方法库与 MCP、会话创建与读取、
+Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、不要权限，宿主先检查插件在 Manifest 里声明消费了它；
+是谁的会话、角色、方法库，只按调用者算，输入里不带插件名（R8）。
 
-注册入口是 `registerAgentHostCapabilities`，已由 Local Host 的生产装配调用，Coding 通过声明的 Capability 使用。
+注册入口是 `registerAgentHostCapabilities`，已由 Local Host 的生产装配调用，Coding 经 `services.actions` 使用。
 `agent.run.reviews.v1` 按当前项目、原 Session、Run 和生产者读取文本审查与原回执；读取先刷新 SDK 原恢复事实，失败明确报不可用。
 它不会批准、派出或结算副作用。固定成果的保存与阅读由消费插件通过原 Artifact 服务完成，批准仍属于宿主审查面。
 
-**批准动作刻意不是 Capability**：那是用户在宿主审查面里的动作；开成插件可调的能力，
+**批准刻意不是插件可调的动作**：那是用户在宿主审查面里的动作；开成插件可调的能力，
 就等于让插件批准自己的副作用。
 
 ## 从哪里读代码
 
 - `src/index.ts`：`AgentHost` 的注册、能力矩阵与启动授权。
 - `src/reviews.ts`：`AgentReviewQueue` 的请求、决定、一次性消费与回执。
-- `src/capability-registration.ts`：对外暴露的 Capability 与它们的授权边界。
+- `src/capability-registration.ts`：对外暴露的动作与它们的授权边界。
 - `src/session-actions.ts`：关于会话轮次的统一动作——等待与接续（`agent.collaboration.*`），以及插件向一轮补充要求（`agent.inputs.send`，回执说这一轮收下了还是留到下一轮；纠正用 `about` 指向原来那条）、撤回还没交给模型的补充（`agent.inputs.withdraw`）。
 - `tests/agent-host.test.ts`：授权与批准各条边界的断言。
 
@@ -166,6 +167,8 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 信的规则：agents 受众的信只在同一张板相邻的步骤之间走，宿主负责把信交给收件人正在跑的那一轮。同一项目的会话可以互相请求、答复、通知、交接计划步骤；跨项目的会话不在同一张板上，照旧拒绝。几个会话同写一张板靠 SDK 按节点判冲突（P2k）：只有要改的那一步在模型读过之后被人改过，才报冲突。
 
 可信初始输入由受保护 Host 入口交给现 Session attempt 保存原件，后续同 Session 接续只带引用；业务 DTO 不能自证本人身份。`tests/coding-original-inputs.test.ts` 走真实 HTTP/Node 验证原文、首个时间、重启、失败重试同身份、并发拒绝及跨 Session/派生输入拒绝；这只证明原件桥，不代表学习形成已接通。
+
+原件输入与输出对应的正式动作当前为 `agent.run.start.v1@2`、`agent.session.read.v1@2`、`agent.run.read.v1@2`、`agent.run.wait.v1@2`。旧 @1 固定引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
 
 `readOriginalInput(ref)` 从该 Session attempt 读取首原件的精确正文、作者、身份和首次时间；`accepted_run` 则指向同原件最近一次已接受且未 refused 的直接尝试（排除 `frozen.continued_from`）。拒绝且未建立 Run 的尝试不阻挡后续真实重试，派生继续不能让失败原件取得学习资格。来源消费方仍检查定位 Run 的当前状态、Session owner、工作和权限；缺失或未接受不从拼接任务恢复。原时间和身份不因读取、继续或重试变化，不扫描 SDK 历史，不增加正文存储；Source Port 的 App 规则见记忆策略 §9.4。
 

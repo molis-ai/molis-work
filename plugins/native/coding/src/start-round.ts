@@ -159,7 +159,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const modelRefusal = model ? execution.models.unavailable(model) : MODEL_UNAVAILABLE;
   if (!model || modelRefusal !== undefined) throw new Error(modelRefusal);
   const effort = chosenEffort(body, model);
-  const roles = await api!.invoke(agent.availableRoles, [record.runtime_id, context.plugin_id]);
+  const roles = await codingActions(context, beforeWrite).invoke(agent.availableRoles, [record.runtime_id]);
   const availability = roles.find((entry) => entry.role_id === role);
   if (!availability?.available) throw availability?.reason ? new Error(availability.reason) : codingFailure("coding.server.role-unavailable");
   const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
@@ -170,7 +170,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     characterTools = await execution.characters.actionTools(character, codingActionControl(beforeWrite));
   }
   const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),
-    await api!.invoke(agent.listActions, [record.runtime_id, context.plugin_id]), characterTools);
+    await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]), characterTools);
   const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
   const text_materials = await resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), codingActionControl(beforeWrite));
   if (goal) text_materials.unshift(goal.material);

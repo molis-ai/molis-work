@@ -292,7 +292,7 @@ export interface ActionMetadata {
 }
 
 export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
-  /** An action is a query or a command; a wait (following a live round) only observes and is never offered as one. */
+  /** An action is a query or a command; following a live round is a query declared `scheduling: "concurrent"`. */
   readonly operation: "query" | "command";
   readonly provider_id?: string;
   readonly action: ActionMetadata;

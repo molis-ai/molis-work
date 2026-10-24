@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { agentHostCapabilities as agent, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -120,7 +120,7 @@ test("typed start revocation at SDK commit rejects only its invocation; accepted
       try { return await inner(source, input, invocation); }
       finally { if (definition.capability_id === agent.startRun.capability_id && (input as [string, { session: { session_id: string } }])[1].session.session_id === originalSession) finished.resolve(); }
     };
-    return definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler);
+    return local.registerAction(definition, handler);
   } }, { agentHost: () => agentHost, projectId: runtime => runtime.project_id,
     authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
   // Sessions and rounds are a plugin's own actions (R8 batch 3): each project's round is started by a plugin the Host started there.
@@ -223,7 +223,7 @@ for (const stage of ["configuration", "credential", "sdk-acceptance"] as const) 
       } });
     const host = new AgentHost(); host.register(adapter);
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
-    registerAgentHostCapabilities<null>({ register: (definition, handler) => definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project", authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
+    registerAgentHostCapabilities<null>({ register: (definition, handler) => local.registerAction(definition, handler) }, { agentHost: () => host, projectId: () => "project", authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
     const reference = { project_id: "project", storage_key: join(home, "project.db") }, client = local.client(reference);
     // Controlling a round is a plugin's own action (R8 batch 3): the round is started and switched by a plugin the Host started.
     const store = new LocalProjectDatabase(join(home, "plugins.db")), probe = registerProbe(local.actionRegistry(reference), "project");
@@ -294,7 +294,7 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
     };
     const host = new AgentHost(); host.register(adapter);
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
-    registerAgentHostCapabilities<null>({ register: (definition, handler) => definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project",
+    registerAgentHostCapabilities<null>({ register: (definition, handler) => local.registerAction(definition, handler) }, { agentHost: () => host, projectId: () => "project",
       authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], resolveCharacter }) });
     const reference = { project_id: "project", storage_key: join(home, "project.db") }, client = local.client(reference);
     // The plugin instance that starts the round, started by the Host for the person: its calls present the caller the Host issued

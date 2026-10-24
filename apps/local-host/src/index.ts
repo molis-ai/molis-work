@@ -200,13 +200,10 @@ export {
 export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
 export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
-export {
-  codingDirectoryPanel,
-  codingRouteHooks,
-  type CodingSurfacePorts,
-} from "./coding-surface.js";
+export { filesOutputsRefresh } from "./project-plugin-input-refresh.js";
+export { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";
-export { releaseProjectPlugins } from "./project-plugins.js";
+export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins } from "./project-plugins.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
 export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";

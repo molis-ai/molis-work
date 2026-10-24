@@ -4,12 +4,12 @@
 
 | 项 | 所在行 | 推荐 | 理由 | 问过 |
 | --- | --- | --- | --- | --- |
-| 沙箱插件永远不给 `ownerFiles` | PG-017（及 PG-103） | 不做 | 合同是宿主文件系统的根路径加 writer 回调，过不了有界 JSON；沙箱没有文件写权，也不该知道宿主路径。沙箱插件用 `files`（PG-102/104 合成后经 broker 给）存自己的文件 | 未问 |
-| 沙箱插件不给材料的 `fetch_local`、`original` | PG-017 | 不做 | `fetch_local` 读本机页面，等于让沙箱探本机网络；`original` 的句柄是宿主文件。联网读取在 BL-492 的允许域名之后给 | 未问 |
+| 沙箱插件永远不给 `ownerFiles` | PG-017（及 PG-103） | 不做 | 合同是宿主文件系统的根路径加 writer 回调，过不了有界 JSON；沙箱没有文件写权，也不该知道宿主路径。沙箱插件用 `files`（PG-102/104 合成后经 broker 给）存自己的文件 | **10-24 用户定：做**（不按推荐）。沙箱插件经 broker 拿有界的 owner files：不给根路径、不给 writer 回调，只给按声明条目的相对路径读写，限大小、拒链接与特殊节点，写入过 `beforeEffect`；要新 S 号与拒绝测试。归 `ac-sandbox-sched`（PG-017 P2c） |
+| 沙箱插件不给材料的 `fetch_local`、`original` | PG-017 | 不做 | `fetch_local` 读本机页面，等于让沙箱探本机网络；`original` 的句柄是宿主文件。联网读取在 BL-492 的允许域名之后给 | **10-24 用户定：做**（不按推荐）。经 broker 给：`fetch_local` 由宿主按现有的地址校验（回环/私网规则、fake-IP 照用户 09-27 的定法）代取、只回提取后的内容；`original` 给不透明的句柄、有界分段读，不给宿主路径；要新 S 号与拒绝测试。归 `ac-sandbox-sched`（PG-017 P2d） |
 
 ## 要用户定的其他事项（真实 Home、发版等，同样攒批问）
 
 | 项 | 来自 | 推荐 | 说明 | 问过 |
 | --- | --- | --- | --- | --- |
-| 真实 Home 的项目目录维护（catalog v23） | W5-17（`ac-sandbox-sched`，分支 `claude/ac-w517-catalog-paths`，未开 PR） | 先在真实 Home 的拷贝上跑 `list`，再约一个维护时段：停 4207 → 跑 `rewrite --maintenance-window` → 更新 main → 启动 | W5-17 删 `projects.database_path`，合入后真实 Home 不经维护就不能跑新 main。统筹在 W5-17 合入**前**问；没定时段之前 W5-17 不合 | 未问 |
-| Goals 事件与账键加插件前缀的存量改写 | Goals S9（`ac-sc3`，S9-0/0b 已在分支） | 和 W5-17 的目录维护放在同一个维护时段：先在拷贝上 `list`，再停 4207 一次跑完两份维护脚本 | 事件类型、对象类型、幂等操作名与情境账键要带 `<plugin_id>.` 前缀（S-63/S-64），真实 Home 里 Goals 已有的旧名要由维护改写；只认现行取值，不做读取兜底 | 未问 |
+| 真实 Home 的项目目录维护（catalog v23） | W5-17（`ac-sandbox-sched`，分支 `claude/ac-w517-catalog-paths`，未开 PR） | 先在真实 Home 的拷贝上跑 `list`，再约一个维护时段：停 4207 → 跑 `rewrite --maintenance-window` → 更新 main → 启动 | W5-17 删 `projects.database_path`，合入后真实 Home 不经维护就不能跑新 main。统筹在 W5-17 合入**前**问；没定时段之前 W5-17 不合 | **10-24 用户定：同一个维护时段**（按推荐）。先在真实 Home 的一次性拷贝上跑两份 `list`，结果交用户；时段由用户定，到时停 4207 → 跑两份维护脚本 → 更新 main → 启动。W5-17 与 Goals S9 的改写在维护做完前不合 |
+| Goals 事件与账键加插件前缀的存量改写 | Goals S9（`ac-sc3`，S9-0/0b 已在分支） | 和 W5-17 的目录维护放在同一个维护时段：先在拷贝上 `list`，再停 4207 一次跑完两份维护脚本 | 事件类型、对象类型、幂等操作名与情境账键要带 `<plugin_id>.` 前缀（S-63/S-64），真实 Home 里 Goals 已有的旧名要由维护改写；只认现行取值，不做读取兜底 | **10-24 用户定：和 W5-17 同一个维护时段**（见上一行） |

@@ -31,7 +31,7 @@
       "methods": 41
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 225,
-    "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
+    "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 165,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
@@ -78,7 +78,7 @@
       "lines": 399,
       "methods": 28
     },
-    "function horizontal/scheduler/src/index.ts#createScheduleService": 219,
+    "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
     "class horizontal/search/src/index.ts#SearchService": {
       "lines": 403,
       "methods": 26
@@ -159,7 +159,7 @@
       "methods": 23
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 637,
+      "lines": 631,
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
@@ -229,7 +229,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 448,
+  "testInternalImports": 446,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -368,7 +368,7 @@
     "tests/local-web-actions.test.ts": 2,
     "tests/material-documents.test.ts": 1,
     "tests/material-extraction.test.ts": 5,
-    "tests/material-web.test.ts": 2,
+    "tests/material-web.test.ts": 1,
     "tests/mcp-action-grants.test.ts": 2,
     "tests/memory-actions.test.ts": 2,
     "tests/memory-agent-runs.test.ts": 1,
@@ -413,7 +413,7 @@
     "tests/secret-store-keychain-retry.test.ts": 1,
     "tests/shelf-ai-host.test.ts": 3,
     "tests/shelf-client-boundaries.e2e.test.ts": 1,
-    "tests/shelf-material-extraction.test.ts": 3,
+    "tests/shelf-material-extraction.test.ts": 2,
     "tests/shelf-plugin.test.ts": 1,
     "tests/shelf-recipes.test.ts": 2,
     "tests/shelf-settings.test.ts": 1,
@@ -458,7 +458,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 115,
+  "emptyCatchesInScriptsTotal": 113,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -501,7 +501,6 @@
     "plugins/native/git/src/client.ts": 3,
     "plugins/native/goals/src/event-document-client.ts": 1,
     "plugins/native/goals/src/project-policy-client.ts": 1,
-    "plugins/native/jelly/src/client-content.ts": 2,
     "plugins/native/plugin-builder/src/agent-studio.ts": 3,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/reading-client.ts": 1,
@@ -613,7 +612,7 @@
     "plugins/native/shelf/src/settings-client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 48,
+  "rawFetchInScriptsTotal": 45,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
@@ -625,9 +624,6 @@
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
     "plugins/native/coding/src/client.ts": 1,
     "plugins/native/dataset/src/client.ts": 1,
-    "plugins/native/issues/src/client.ts": 1,
-    "plugins/native/jelly/src/client.ts": 1,
-    "plugins/native/jelly/src/client-material.ts": 1,
     "plugins/native/lingguang/src/client.ts": 1,
     "plugins/native/pages/src/client.ts": 1,
     "plugins/native/pages/src/import-client.ts": 1,
@@ -702,7 +698,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 9,
+  "hostPluginFilesTotal": 8,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -711,7 +707,6 @@
     "apps/local-host/src/goals-actions.ts#actions": 1,
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/shelf-actions.ts#actions": 1,
     "apps/local-host/src/work-actions.ts#actions": 1
   },
   "registerProviderSitesTotal": 17,
@@ -729,10 +724,9 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 2,
+  "hybridPluginsTotal": 1,
   "hybridPlugins": {
-    "coding#host-files": 1,
-    "shelf#host-files": 1
+    "coding#host-files": 1
   },
   "pluginOutsideMentionsTotal": 309,
   "pluginOutsideMentions": {
@@ -764,7 +758,7 @@
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
-  "translationConflictTotal": 186,
+  "translationConflictTotal": 180,
   "translationConflicts": {
     "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": 2,
     "{count} 次": 2,
@@ -843,7 +837,6 @@
     "例如：产品观察": 2,
     "连接只保存账号授权。你可以在使用时选择账号与内容范围。": 2,
     "列表更新失败，当前输入已保留，请重试。": 2,
-    "没有匹配的内容": 2,
     "每天": 2,
     "目标": 2,
     "目标说明": 2,
@@ -864,7 +857,6 @@
     "全局": 2,
     "缺少项目": 2,
     "确定": 2,
-    "确认导入": 2,
     "仍需拆分": 2,
     "日期": 2,
     "日志": 2,
@@ -888,12 +880,11 @@
     "图片": 2,
     "推进": 2,
     "完成": 2,
-    "完成要求": 3,
+    "完成要求": 2,
     "网址": 2,
     "未安排": 2,
     "未分类": 2,
     "未说明": 2,
-    "未完成": 2,
     "未指定": 2,
     "文档": 2,
     "文档正文": 2,
@@ -910,7 +901,6 @@
     "选择文件、网页或工作往来，整理背景、进展与下一步。": 2,
     "选择下方服务，按提示登录或填写密钥。你可以稍后再添加其他账号。": 2,
     "要点": 2,
-    "页": 2,
     "依据": 2,
     "已绑定判断能力": 2,
     "已被替代": 2,
@@ -921,7 +911,7 @@
     "已启用": 2,
     "已失效": 2,
     "已停用": 4,
-    "已完成": 3,
+    "已完成": 2,
     "引用": 2,
     "有事项需要处理。": 2,
     "在来源清单中连接账号，确认整理建议后再建立项目。": 2,
@@ -932,7 +922,6 @@
     "这条 Goal 已从日常列表移除，但内容和历史仍然保留。": 2,
     "整理": 2,
     "整篇": 2,
-    "正文": 2,
     "正在处理": 3,
     "正在处理…": 2,
     "正在读取…": 2,
@@ -942,7 +931,6 @@
     "执行时检查，登录尚未确认": 2,
     "执行受阻": 2,
     "执行中": 2,
-    "重试": 2,
     "重试读取": 2,
     "重新读取": 3,
     "注意": 2,

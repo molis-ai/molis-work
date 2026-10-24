@@ -196,6 +196,8 @@ export interface PluginExecutor {
   /** Host snapshot hooks keep persisted private data intact if candidate startup fails. */
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
+  /** The installation is uninstalled and its row saved: what the Host kept for it while it was installed goes (PG-051 Q1 b). */
+  uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
 }
 
 export interface PluginRuntimeRepository {

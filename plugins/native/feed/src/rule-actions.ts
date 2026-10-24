@@ -1,4 +1,3 @@
-import { FEED_PLUGIN_ID } from "./identity.js";
 import { feedCaptureContent } from "./scenes.js";
 import { retainActionAuthority, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionSceneUsage, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
@@ -90,7 +89,7 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
       return { rule: feed.saveOutRuleUpdate(next, current!.revision) };
     }),
     bind(feedRuleActions.delete, args => ({ rule: feed.deleteOutRule(projectId, args.rule_id) })),
-    bind(feedRuleActions.evaluate, (args, caller) => feed.evaluateItems(projectId, args.item_ids, retainActionAuthority(caller, { ...feedRuleActions.evaluate, provider_id: FEED_PLUGIN_ID }, caller.beforeEffect))),
+    bind(feedRuleActions.evaluate, (args, caller) => feed.evaluateItems(projectId, args.item_ids, retainActionAuthority(caller, feedRuleActions.evaluate, caller.beforeEffect))),
     bind(feedRuleActions.preview, args => {
       const snapshot = feed.snapshot(projectId);
       if (!snapshot.sources.some(source => source.source_id === args.source_id)) throw feedErrors.invalid_transition("请选择当前项目的来源");

@@ -1,16 +1,10 @@
-# Prologue SDK 构建来源
+# Prologue SDK 受控包
 
-本目录的规则见 [AGENTS.md](../../AGENTS.md)：只放当前使用的 Prologue 包（最多再加一份在途分支的），换新包时删掉旧包，旧包从 Git 历史取。
+当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 是 [Draft #102](https://github.com/molis-ai/molis-prologue/pull/102) 的冻结候选 `4ac8d7dc823233aca67924942688e9f9aae9e87d`，尚未合并。它包含 #101，新增既有存储只读 inspection 与固定目标 maintenance；Molis 的离线采用桥不再打开普通 Runtime。
 
-目录里现在有这些东西：
+归档 1,378,953 字节、796 文件，SHA-256 `f46c51b37dc71b6d0f7b07abdd9ad59c627253b8459c007f40c093a9f549d36a`；sidecar/provenance 和 lock 同步。保留一份 retry-waiting 主线在途包，仍为两份；被替换的 #101 原包记录在 patch-history，Git 历史可取回。
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,369,124 字节），SHA-256 `632d8b3b6f7485d68badfd917370227e124ba6dfdc4b6cf4139667d621ee8b90`。来源为已合并 Prologue [#101](https://github.com/molis-ai/molis-prologue/pull/101)，merge `6523abb47d25bd45d22dc47db1d3a679bf9327d5`、head `ac914852dc6a92e1f8d777e400b3714a37478606`。实际归档来自干净生产提交 `28e6f0491753bcaef3fab536670e82e78cc290c6`；后继 head 仅追加验证文档，合并后沿用原归档，无本地补丁。包含 #100 全部能力，新增在线、无正文的 `previewPurge`，用于当前授权下找到普通列表因 Session 已结束而隐藏的 canonical 原件；不借离线维护授权。
-- 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `f4bbbd88` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
-- 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 34 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
-- 本文件。
-
-SDK 验证记录：#101 最终原 `pnpm quality` 通过（70 文件 723 项及类型、构建、API、复杂度、文档、干净消费者、Rust）；正式归档 784 个文件与冻结构建一致，公开安装消费者和坏索引独立反例通过。Node 24.14.0、pnpm 11.9.0、macOS arm64。已知合法点号 owner 前缀重叠仍需 `STORAGE_RECONCILE_REQUIRED` 对账，不能将历史自定义 owner 泛称完整支持；未读真实 Home。Molis 接线和原失败恢复验证另记 [Memory spec](../../specs/prologue-memory-strategy/spec.md)，不以 SDK 工程门代替最终 App 或用户验收。
+重建：在独立干净 SDK checkout 固定上述 SHA，使用 Node 24.14.0 / pnpm 11.9.0，`pnpm install --frozen-lockfile --offline`、`pnpm quality`，再于 `packages/sdk` 执行 `pnpm pack --pack-destination <独立目录>`。本仓库消费统筹提供的原归档，不在 vendor 打补丁。统筹报告 d57 基础候选的 quality 70 文件 723 项及磁盘满定向 4 文件 40 项通过；4ac8d7d 仅增加 inspection 返回前的必填同步当前权限复核，其独立深审待完成。Molis 桥接证据见 Memory spec，不将 SDK 工程验证当作完整 MEM-40、产品实操或用户验收。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 

@@ -231,3 +231,5 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 ### 明确续期（2026-10-24，实现中）
 
 Memory renew 经现可信 caller、ExecutionControl 和 formal ref 解析直接调用公开 SDK memory.renew；Adapter 只映射 expires_at_ms，不修改状态、分类或来源，不补 Session 绑定。本片保留已采用的 SDK #96 交付包；接入新父后的验证结果见 Memory spec，不将旧父证据冒充本轮通过。
+
+离线 Memory 采用由 `openPrologueMemoryAdoption` 持现独占 owner，成功后同步 `onOwned` 建立 App 屏障，再打开 SDK 专用 maintenance（当前 Session purge 计划为空），没有普通 Runtime 恢复或 shutdown。关闭先等待维护调用、关闭 SDK，成功才释放 owner；失败保 owner。`openPrologueMemoryAdoptionInspection` 只提供原孤儿 cleanup preview/close，不取得 owner、不创建 SDK key 或目录；两者固定 App、scope、策略并保留同步当前授权。回归：`tests/prologue-memory-adoption.test.ts`、`tests/memory-adoption-maintenance.test.ts`。

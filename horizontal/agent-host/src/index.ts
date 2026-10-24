@@ -673,7 +673,7 @@ export class AgentHost implements AgentHostApi {
 export { PrologueInferenceError, inferenceServiceUnavailableReason, isDispatchRefusal } from "./inference.js";
 export { reportedTokenTotal, decodePrologueJsonOutput } from "./inference.js";
 export type { PrologueCredentialInput, PrologueTextInput, PrologueInputImage, PrologueTextResult, PrologueExecutionReceipt, PrologueRunRef, PrologueStructuredRequest, PrologueTextProgress, PrologueImageInput, PrologueTypeSafeInput, PrologueInferenceClient } from "./inference.js";
-export { openPrologueMemoryAdoption, type PrologueMemoryAdoptionInput, type PrologueMemoryAdoptionBridge, type PrologueMemoryAdoptionScope } from "./adapters/prologue-memory-adoption.js";
+export { openPrologueMemoryAdoption, openPrologueMemoryAdoptionInspection, type PrologueMemoryAdoptionInput, type PrologueMemoryAdoptionBridge, type PrologueMemoryAdoptionInspection, type PrologueMemoryAdoptionScope } from "./adapters/prologue-memory-adoption.js";
 export type { PrologueMemoryOptions } from "./adapters/prologue-memory-authority.js";
 
 export type { PrologueProjectDeletion, ProjectSessionDeletionPlan } from "./adapters/prologue-project-deletion.js";

@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { createRuntime, type MemoryAdoptionCleanupItem, type MemoryAdoptionCleanupPage, type MemoryAdoptionPage, type MemoryAdoptionVerification, type Runtime } from "@prologue/sdk";
-import { createNodeHost } from "@prologue/sdk/node";
+import { type MemoryAdoptionCleanupItem, type MemoryAdoptionCleanupPage, type MemoryAdoptionPage, type MemoryAdoptionVerification } from "@prologue/sdk";
+import { openNodeRecoveryMaintenance, openNodeRecoveryInspection, type NodeRecoveryMaintenance, type NodeRecoveryInspectionInput } from "@prologue/sdk/node";
 import { agentErrors } from "../errors.js";
 import type { PrologueMemoryOptions } from "./prologue-memory-authority.js";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
@@ -14,6 +14,8 @@ export interface PrologueMemoryAdoptionInput {
   readonly policy: PrologueMemoryOptions["policy"];
   readonly signal?: AbortSignal;
   readonly assertCurrent?: () => void;
+  /** Synchronous barrier after exclusive ownership and before SDK opening; called once. */
+  readonly onOwned?: () => void;
 }
 export interface PrologueMemoryAdoptionBridge {
   adopt(input: PrologueMemoryAdoptionScope & { kind: "memory" | "memory-candidate"; cursor?: string; signal?: AbortSignal }): Promise<MemoryAdoptionPage>;
@@ -23,8 +25,9 @@ export interface PrologueMemoryAdoptionBridge {
   close(): Promise<void>;
 }
 
-/** Offline only: shares the normal adapter's exclusive owner, but exposes no Agent, model or ordinary memory writer. */
-export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionInput): Promise<PrologueMemoryAdoptionBridge> {
+export type PrologueMemoryAdoptionInspection = Pick<PrologueMemoryAdoptionBridge, "previewCleanup" | "close">;
+
+function prepare(input: Omit<PrologueMemoryAdoptionInput, "onOwned">) {
   input = { ...input };
   input.signal?.throwIfAborted();
   if (!isAbsolute(input.storageRoot) || !input.appVersion || input.scopes.some(scope => !scope.owner
@@ -50,24 +53,17 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
     }
   };
   const bound = (request: { appId: string; context: unknown }) => { current(); return request.appId === app.appId && isDeepStrictEqual(request.context, context); };
-  const release = acquirePrologueStorageOwner(input.storageRoot);
-  let runtime: Runtime;
-  try {
-    runtime = await createRuntime({ app, host: createNodeHost({ storageRoot: input.storageRoot, exclusiveOwner: true }),
-      config: { memory: policy }, memoryAuthority: {
-        authorize: async requests => requests.every(request => bound(request) && ["manage-read", "delete"].includes(request.action) && allowed(request.target)),
-        assertCurrent: requests => {
-          current();
-          if (!requests.every(request => bound(request) && ["manage-read", "delete"].includes(request.action) && allowed(request.target)))
-            throw agentErrors.capability_unavailable("当前维护授权不允许此清理目标");
-        },
-        authorizeManagement: async request => ({ allowed: bound(request) && allowed(request) }),
-        authorizeAdoption: async request => bound(request) && request.scopes.length === scopes.length
-          && request.scopes.every(allowed) && scopes.every(scope => request.scopes.some(item => item.scope === scope.scope && item.owner === scope.owner)),
-      },
-    });
-  } catch (error) { release(); throw error; }
-  const maintenance = runtime.bindMemory(context);
+  const memory: NodeRecoveryInspectionInput["memory"] = { policy, context, scopes, authority: {
+    authorize: async requests => requests.every(request => bound(request) && ["manage-read", "delete"].includes(request.action) && allowed(request.target)),
+    assertCurrent: requests => {
+      current();
+      if (!requests.every(request => bound(request) && ["manage-read", "delete"].includes(request.action) && allowed(request.target)))
+        throw agentErrors.capability_unavailable("当前维护授权不允许此清理目标");
+    },
+    authorizeManagement: async request => ({ allowed: bound(request) && allowed(request) }),
+    authorizeAdoption: async request => bound(request) && request.scopes.length === scopes.length
+      && request.scopes.every(allowed) && scopes.every(scope => request.scopes.some(item => item.scope === scope.scope && item.owner === scope.owner)),
+  } };
   const perform = <T>(signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> => {
     const current = AbortSignal.any([stop.signal, ...(input.signal ? [input.signal] : []), ...(signal ? [signal] : [])]);
     const operation = (async () => { current.throwIfAborted(); return work(current); })();
@@ -75,15 +71,36 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
     void operation.then(() => pending.delete(operation), () => pending.delete(operation));
     return operation;
   };
+  current();
+  return { input, app, memory, current, allowed, stop, pending, perform };
+}
+
+/** Offline writer: same exclusive owner, with no Runtime startup or shutdown. */
+export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionInput): Promise<PrologueMemoryAdoptionBridge> {
+  const onOwned = input.onOwned;
+  const { input: fixed, app, memory, current, allowed, stop, pending, perform } = prepare(input);
+  const release = acquirePrologueStorageOwner(fixed.storageRoot);
+  let maintenance: NodeRecoveryMaintenance;
+  try {
+    current();
+    const checked: unknown = onOwned?.();
+    if (checked !== undefined) {
+      void Promise.resolve(checked).catch(() => undefined);
+      throw agentErrors.capability_unavailable("维护阻断必须同步建立");
+    }
+    current();
+    maintenance = await openNodeRecoveryMaintenance({ storageRoot: fixed.storageRoot, app, memory,
+      sessionPurges: [], assertCurrent: current, ...(fixed.signal ? { signal: fixed.signal } : {}) });
+  } catch (error) { release(); throw error; }
   let closing: Promise<void> | undefined;
   const close = () => closing ??= (async () => {
     stop.abort();
     await Promise.allSettled([...pending]);
-    await runtime.shutdown();
-    // Failed shutdown retains the owner, as the normal Node adapter does. Ledger completion must not run.
+    await maintenance.close();
+    // Failed close retains the owner. Ledger completion must not run.
     release();
   })();
-  if (input.signal?.aborted) { await close(); input.signal.throwIfAborted(); }
+  if (fixed.signal?.aborted) { await close(); fixed.signal.throwIfAborted(); }
   return {
     adopt: request => perform(request.signal, signal => maintenance.adoptStorage({ ...request, signal,
       // Old kind/namespace/origin do not prove a natural scene. Keep absent classification absent.
@@ -96,12 +113,22 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
       return perform(request.signal, async signal => {
         current();
         if (!allowed(target.identity)) throw agentErrors.capability_unavailable("清理目标已不在当前维护范围");
-        const options = { expectedVersion: target.expectedVersion, operationId, identity: target.identity, signal };
-        if (target.ref.kind === "memory") await maintenance.memory.purge(target.ref, options);
-        else await maintenance.candidates.purge(target.ref, options);
+        await maintenance.purgeMemory({ ref: target.ref, expectedVersion: target.expectedVersion, operationId, identity: target.identity, signal });
         current(); signal.throwIfAborted();
       });
     },
     close,
   };
+}
+
+/** Existing-only inspection: no writer owner, directory creation or SDK recovery. */
+export async function openPrologueMemoryAdoptionInspection(input: Omit<PrologueMemoryAdoptionInput, "onOwned">): Promise<PrologueMemoryAdoptionInspection> {
+  const { input: fixed, app, memory, current, stop, pending, perform } = prepare(input);
+  const inspection = await openNodeRecoveryInspection({ storageRoot: fixed.storageRoot, app, memory, assertCurrent: current });
+  let closing: Promise<void> | undefined;
+  const close = () => closing ??= (async () => {
+    stop.abort(); await Promise.allSettled([...pending]); await inspection.close();
+  })();
+  if (fixed.signal?.aborted) { await close(); fixed.signal.throwIfAborted(); }
+  return { previewCleanup: request => perform(request.signal, signal => inspection.previewAdoptionCleanup({ ...request, signal })), close };
 }

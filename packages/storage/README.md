@@ -97,3 +97,5 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+`beginMemoryLedgerAdoption` 与 complete 共用现 change 事务的同步 assertCurrent：取得原 snapshot 后、实际 COMMIT 前都复核，异步 checker 或拒绝回滚该事务。原 origin/adopting、CAS 和库版本不变；SDK 失败后已提交的 adopting 保留。回归见 `tests/memory-adoption-maintenance.test.ts` 与 `tests/memory-ledger-adoption.test.ts`。

@@ -2337,3 +2337,18 @@ GitHub当前返回#1064可合并，reviews与review threads为空，不等于人
 先冻结可独立证明的最小防新增修复：Character proposal在SDK写入前，复用现memory_owners及commitApproved的noteOwner做法，保存可信placeOf/caller.character给出的project与subject；失败不进入SDK，SDK后账注失败仍保留该准确映射。允许修改现MemoryService及必要同模块内聚代码、相关直接行为测试和本spec，不新增registry、第二owner真相、迁移或权限放宽。验收覆盖首次ledger失败后重开可找到原SDK候选及正确项目归属、原操作重试不重复创建、owner保存失败则SDK零写、其他项目不受影响；不以此单项修复宣称历史全覆盖或项目完整删除通过。历史未知归属与单Session完整选择的合同继续核对，当前P1保留。
 
 MEM-40桥接补充：沿原exclusive owner先取得唯一写权，再通过仅用于建立adopting的同步窄回调持久阻断，随后才打开SDK maintenance；锁忙不得提前改ledger。回调失败/返回异步值应在SDK初始化前拒绝并释放已得owner；close失败不得发布或提前释放。只读previewMemoryHomeAdoptionCleanup改走inspection的同名旧cleanup语义，复用原decoder/权限，不能换成previewPurge的不同选择集合，也不能借只读预览启动writer。源/目标协议及验收仍为前两段MEM-40合同；该接线尚未实现。
+
+### MEM-40 App 维护桥实现合同（2026-10-25）
+
+本刀从 c8c23db（生产 fe686）隔离实现：沿现独占 owner 成功后同步调用一次 `onOwned`，LocalHost 在该回调内按原 snapshot/CAS 和实际提交前同步 checker 建立 adopting，然后 SDK 专用 `openNodeRecoveryMaintenance` 才打开。当前 adoption 的 Session 允许计划为空，不承担完整 T0/T1/T2 源投影或 Session purge。锁忙不写 ledger，回调失败/异步结果在 SDK 打开前拒绝并释放 owner；SDK 打开失败保留 adopting，close 失败保 owner 且禁止 complete。沿原清理决定、分页验证和 beforeEffect/取消语义，不恢复普通 Runtime/shutdown。
+
+公开预览的 homeDirectory/cursor/返回值与孤儿清理选集不变；AgentHost 新增只读 inspection 桥，LocalHost 的注入测试 Port 由 writer `open` 拆为只读 `inspect`，只提供 previewCleanup/close。它复用 SDK 原 cleanup decoder，不借普通 purge preview，不取得 writer owner。SDK root 的字节与文件集合应不变。SQLite readonly 仍可能产生 WAL/SHM，因此这个局部函数不是 T1/T0 原 Home 的全树零副作用入口；已冻结的完整停写工作副本由后续同 #1101 上层编排负责，本刀不以文案代替该验收。
+
+依赖采用 Draft SDK #102 冻结 d57c2f5055d9dcabbeb4d40591a8312203970e2f 的受控归档（尚未合并）。允许路径为现 AgentHost 维护桥/公开导出、Home adoption 编排/只读 Context、ledger begin checker、三个 README、本 spec、vendor/lock/API 快照及直接测试。无 schema、Action、CI、资源门或普通启动自动维护变化。现同步 checker、scope固定、原目标版本、原 operation、SDK成功后ledger故障重试、取消/撤权/close未完成不发布均须保留；验证通过只支持本桥局部工程结论，完整恢复、产品实操、用户验收仍另验。
+
+
+本桥局部工程结果（2026-10-25）：初始 d57 候选完整 build 通过，核心 57 项、README/夹具影响组 105 文件 985 项及三 browser 文件 26 项通过，jobs2/browser1/retries0；为分批有效结果，不伪称一批全绿。沙箱下安装缓存 EPERM、Swift cache/嵌套 sandbox、loopback EPERM/Node browser callback 首败保留；正式权限运行原命令通过。SDK 首批的旧空 root 互斥夹具及 /var realpath 故障钩子仅同步到真实 maintenance 路径，原断言/时限未放宽。七处直接桥消费者和首败详见 `/private/tmp/molis-memory-mem40-app-bridge-20261025.md`。
+
+上游独审补齐 inspection 最后异步后/所有事实返回前的同步当前屏障后，最终受控归档改为 `4ac8d7dc823233aca67924942688e9f9aae9e87d`：1,378,953 B、SHA256 `f46c51b37dc71b6d0f7b07abdd9ad59c627253b8459c007f40c093a9f549d36a`、796 文件。App 直接传原 `prepare.current`，检查 signal、关闭状态和原 LocalHost Catalog/ledger scopes/维护授权，不传 noop。最终包整体 build、核心三文件 59/59（含真实 JSON 读取后取消/撤权返回前拒绝且字节不变）、vendor 78/78、两改动测试 strict TS 均 exit0；归档与原交付、sidecar/provenance/SHA512 lock、796 安装文件逐字节一致，vendor仍两包。最终日志 `/private/tmp/molis-memory-mem40-bridge-current-{build,core,types}-20261025.log`。未机械重跑不受此唯一 SDK checker 变化影响的 105 文件与三 browser，前述结果仍明确归属 d57 候选。
+
+局部已证明原未选 board/queue open/close 反例不再发生，owner 忙零 ledger 写、同步回调失败在 SDK 读取前拒绝、SDK 打开失败保 adopting、close 失败保 owner/禁止 complete，SDK成功后原账本故障继续按原决定重试。readonly SDK cleanup沿原语义且非空 SDK 文件不变；SQLite sidecar 与上层完整工作副本边界不变。API 生成命令通过且现 contracts/plugin-sdk 快照无变化，实际 Host 资源仍27项共7,678,780B。SDK #102仍为候选，最终独审/合并由统筹核对；完整 MEM-40、真实 Home、产品实操及用户验收不由这些局部工程证据替代。

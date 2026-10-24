@@ -10,7 +10,7 @@ import {
   type PluginEventSubscribeDeclaration, type PluginHostServices, type PluginManifest, type PluginPermissionDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, observeReviewSettlements, reviewSettlementForwarder, seedDemoBoard,
+  createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, observeReviewSettlements, reviewSettlementForwarder, seedDemoBoard, type AgentWritePlaces,
 } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { currentPluginAction, PluginHostEvents, type PluginHostEventsLifecycle, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
@@ -80,7 +80,7 @@ const watcher = (pluginId: string) => probe(pluginId, [CHANGED], [READ]);
  * The project platform the Host builds, a review queue, and the settlement forwarder the Host wires between them. `extra` are
  * started with the three probes every test has, each as a bundled plugin, so it holds every permission it declares.
  */
-async function platform(t: TestContext, extra: ReturnType<typeof probe>[] = []) {
+async function platform(t: TestContext, extra: ReturnType<typeof probe>[] = [], places?: AgentWritePlaces) {
   const home = mkdtempSync(join(tmpdir(), "host-events-")), file = join(home, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID), privateStorage = new SqlitePluginPrivateStorage(store.db);
@@ -90,7 +90,7 @@ async function platform(t: TestContext, extra: ReturnType<typeof probe>[] = []) 
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest), home: null });
   const queue = new AgentReviewQueue(), forwarder = reviewSettlementForwarder(running.hostEvents);
-  forwarder.update(listener => observeReviewSettlements(queue, DEMO_PROJECT_ID, listener));
+  forwarder.update(listener => observeReviewSettlements(queue, DEMO_PROJECT_ID, listener, places));
   const failures: PluginEventDeliveryFailure[] = [];
   running.hostEvents.observeFailures(failure => failures.push(failure));
   t.after(async () => {
@@ -272,9 +272,9 @@ test("X6-05 S-54 a crashing installation gets nothing queued for it, even while 
   assert.equal((await crashed).install.state, "crashed");
 });
 
-test("X6-06 S-54 an Agent's own change and a review restored from history send nothing to anyone", async t => {
+test("X6-06 S-54 an Agent's own change sends no settlement to anyone, and a review restored from history sends nothing at all", async t => {
   const watching = watcher(W);
-  const { queue, asker, bystander, deaf, settled } = await platform(t, [watching]);
+  const { queue, asker, bystander, deaf, settled } = await platform(t, [watching], places({ "run-1": "/repo" }));
   queue.request({ review_id: "agent-own", run: { run_id: "run-1", session_id: "s-1" }, project_id: DEMO_PROJECT_ID, plugin_id: A, kind: "command",
     document: { kind: "command", command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, env_allowlist: ["PATH"] }, requested_at: "2026-10-22T00:00:00Z", expires_at: null });
   queue.decide({ review_id: "agent-own", decision: "approve", actor_id: "owner" });
@@ -287,9 +287,87 @@ test("X6-06 S-54 an Agent's own change and a review restored from history send n
   queue.settle("restored", { ok: true }, { restored: true });
   queue.restoreDecision({ ...restored, review_id: "restored-later" }, { status: "approved", decided_by: "owner", decided_at: "2026-10-22T00:00:00Z", note: null });
   queue.uncertain("restored-later", "重启后才确认");
+  await placed();
   await settled();
   // The restored ones ran in an earlier process, before anything running now started: no workspace change to announce either.
-  for (const item of [asker, bystander, deaf, watching]) assert.deepEqual(item.heard(), [], item.definition.manifest.plugin_id);
+  for (const item of [asker, bystander, deaf]) assert.deepEqual(item.heard(), [], item.definition.manifest.plugin_id);
+  assert.deepEqual(watching.heard().map(record => record.payload), [{ workspace_id: "w", cause: "agent-change" }], "only the Agent's own change, as a workspace change (BL-366)");
+});
+
+/** An Agent's write is placed after the settlement returns: let that finish before the host events drain. */
+const placed = () => new Promise(resolve => setImmediate(resolve));
+
+/** The places an Agent's write is matched against: each round's frozen directory, and the project's one workspace `w` at `/repo`. */
+function places(rounds: Record<string, string>, gate?: Promise<unknown>): AgentWritePlaces {
+  return {
+    async runDirectory(run) { await gate; return rounds[run.run_id] ?? null; },
+    async workspaces() { return [{ workspace_id: "w", canonical_path: "/repo", realpath_verified: true, display_name: "repo" },
+      { workspace_id: "w-docs", canonical_path: "/repo/docs", realpath_verified: true, display_name: "docs" }]; },
+  };
+}
+
+test("RAC-331 BL-366 S-54 an Agent's approved write is announced to the workspace it landed in, whatever its outcome; one that never ran, another project's, or one outside every workspace is not", async t => {
+  const watching = watcher(W);
+  const { queue, asker, bystander, deaf, settled } = await platform(t, [watching], places({ "run-1": "/repo", "run-2": "/elsewhere" }));
+  let counter = 0;
+  const agent = (document: Parameters<AgentReviewQueue["request"]>[0]["document"], options: { run?: string; project?: string } = {}) => {
+    const reviewId = `agent-${++counter}`;
+    queue.request({ review_id: reviewId, run: { run_id: options.run ?? "run-1", session_id: "s-1" }, project_id: options.project ?? DEMO_PROJECT_ID, plugin_id: A,
+      kind: document.kind, document, requested_at: "2026-10-23T00:00:00Z", expires_at: null });
+    return reviewId;
+  };
+  const approve = (reviewId: string) => { queue.decide({ review_id: reviewId, decision: "approve", actor_id: "owner" }); queue.consumeApproval(reviewId); return reviewId; };
+  const edit = (extra: object = {}) => ({ kind: "text-edit" as const, target_path: "a.ts", exists: true, before_text: "a", after_text: "b", ...extra });
+  const command = { kind: "command" as const, command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, env_allowlist: ["PATH"] };
+  const heard = () => watching.heard().map(record => record.payload);
+
+  queue.settle(approve(agent(edit())), { ok: true });
+  queue.settle(approve(agent(command)), { ok: false, error: "失败" });
+  queue.uncertain(approve(agent(command)), "结果未确认");
+  // A subtask's root inside the project names the deepest workspace that holds it; an integration names its target.
+  queue.settle(approve(agent(edit({ workspace_path: "/repo/docs/guide" }), { run: "run-2" })), { ok: true });
+  queue.settle(approve(agent({ kind: "git-integration", source: { session_id: "s-1", run_id: "run-3", subagent_id: "sub", branch: "b", base_commit: "c", directory: "/elsewhere" },
+    target_directory: "/repo", files: [] }, { run: "run-3" })), { ok: true });
+  await placed(); await settled();
+  // Each write is placed on its own, so they may arrive in any order.
+  assert.deepEqual(heard().map(payload => JSON.stringify(payload)).toSorted(), [
+    { workspace_id: "w", cause: "agent-change" }, { workspace_id: "w", cause: "agent-change" }, { workspace_id: "w", cause: "agent-change" },
+    { workspace_id: "w", cause: "agent-change" }, { workspace_id: "w-docs", cause: "agent-change" },
+  ].map(payload => JSON.stringify(payload)));
+
+  // Refusals: rejected (never ran), another project's, a round whose directory is outside every workspace, a subtask's own worktree,
+  // a round that is gone, and kinds that write no directory. (A review with no round is refused when asked: the queue needs one.)
+  const rejected = agent(edit());
+  queue.decide({ review_id: rejected, decision: "reject", actor_id: "owner" });
+  queue.settle(approve(agent(edit(), { project: "another-project" })), { ok: true });
+  queue.settle(approve(agent(edit(), { run: "run-2" })), { ok: true });
+  queue.settle(approve(agent(edit({ workspace_path: "/tmp/subtask" }))), { ok: true });
+  queue.settle(approve(agent(edit(), { run: "run-gone" })), { ok: true });
+  queue.settle(approve(agent({ kind: "tool-operation", tool: "open", summary: "打开", fields: [] })), { ok: true });
+  queue.settle(approve(agent({ kind: "mcp", server: "s", tool: "t", arguments_json: "{}" })), { ok: true });
+  await placed(); await settled();
+  assert.equal(heard().length, 5, JSON.stringify(heard()));
+  // The payload names the workspace and the cause only; nobody is addressed a settlement for an Agent's write.
+  for (const item of [asker, bystander, deaf]) assert.deepEqual(item.heard(), [], item.definition.manifest.plugin_id);
+});
+
+test("RAC-331 BL-366 S-54 an Agent's write still being placed when the Host stops forwarding is not announced", async t => {
+  const watching = watcher(W);
+  let open!: () => void;
+  const gate = new Promise<void>(resolve => { open = resolve; });
+  const { queue, settled, running } = await platform(t, [watching], places({ "run-1": "/repo" }, gate));
+  const forwarder = reviewSettlementForwarder(running.hostEvents);
+  forwarder.update(listener => observeReviewSettlements(queue, DEMO_PROJECT_ID, listener, places({ "run-1": "/repo" }, gate)));
+  queue.request({ review_id: "late", run: { run_id: "run-1", session_id: "s-1" }, project_id: DEMO_PROJECT_ID, plugin_id: A, kind: "text-edit",
+    document: { kind: "text-edit", target_path: "a.ts", exists: true, before_text: "a", after_text: "b" }, requested_at: "2026-10-23T00:00:00Z", expires_at: null });
+  queue.decide({ review_id: "late", decision: "approve", actor_id: "owner" });
+  queue.consumeApproval("late");
+  queue.settle("late", { ok: true });
+  forwarder.stop();
+  open();
+  await placed(); await settled();
+  // The helper's own forwarder still runs: it alone announces the write, once.
+  assert.deepEqual(watching.heard().map(record => record.payload), [{ workspace_id: "w", cause: "agent-change" }]);
 });
 
 test("X6-07 S-54 a settlement inside an action is delivered outside it, as the subscriber itself; a failing handler changes nothing", async t => {

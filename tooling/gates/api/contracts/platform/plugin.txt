@@ -2257,7 +2257,7 @@ export interface HostReviewSettledPayload {
 
 export interface HostWorkspaceChangedPayload {
     workspace_id: string;
-    cause: "plugin-operation";
+    cause: "plugin-operation" | "agent-change";
 }
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];

@@ -159,7 +159,7 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 宿主事件（X-6，S-54）：宿主自己发的事件，现在有两条（类型与载荷在合同 `platform/plugin`）：
 
 - `host.review.settled@1`（`HOST_REVIEW_SETTLED_EVENT`、`HostReviewSettledPayload`）：只发给发起这个审查的那个安装。
-- `host.workspace.changed@1`（`HOST_WORKSPACE_CHANGED_EVENT`、`HostWorkspaceChangedPayload`）：插件发起、人批准的工作区操作执行完（成功、失败、不明）时，广播给本项目里订阅了它、持有 `workspace:read` 的每个安装。载荷只有 `{ workspace_id, cause }`；收到就重读那个工作区，不要按 `cause` 分支。
+- `host.workspace.changed@1`（`HOST_WORKSPACE_CHANGED_EVENT`、`HostWorkspaceChangedPayload`）：插件发起、人批准的工作区操作执行完（成功、失败、不明）时，或 Agent 经人批准的写入在本项目的某个工作目录里执行完时，广播给本项目里订阅了它、持有 `workspace:read` 的每个安装。载荷只有 `{ workspace_id, cause }`；收到就重读那个工作区，不要按 `cause` 分支。
 
 1. Manifest `events.subscribes` 写 `{ event_type_id: "host.review.settled", type_version: 1 }`（或 `host.workspace.changed`），不写 `from_plugin_ids`（写了读 Manifest 时就拒绝）。订阅 `host.workspace.changed` 还要在 `permissions` 里声明 `workspace:read`，没声明读 Manifest 时就拒绝；人关掉这项授权就收不到。
 2. 同一个 `onEvent` 接收：`event.source_plugin_id` 是 `"host"`，`sequence` 是 0；`correlation_id` 在 `host.review.settled` 上是 `review_id`，在 `host.workspace.changed` 上是 null。

@@ -1005,8 +1005,6 @@ export class AssistantService {
     if (!actions) return null;
     const offered = await actions.discover().catch(() => [] as ActionView[]);
     const readers = offered.filter(view => isSubjectReader(view.action) && view.availability.available);
-    // A session an executor opened is the work itself, not the session the object sits in.
-    const sessionKinds = new Set(executorProviders(offered).map(provider => provider.session_kind));
     const read = async (kind: string, id: string): Promise<ActionSubjectContext | null> => {
       const reader = readers.find(view => view.action.subject_kinds.includes(kind));
       if (!reader) return null;

@@ -2,7 +2,7 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-co
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { bindGoalsWebActions } from "./goals-actions.js";
 import { onboardingPlanningHint } from "@molis-ai/molis-work-app-workbench";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -84,7 +84,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             .trim()
             .slice(0, 120) || input.projectName;
           // The Web person's Goals call, behind this route's origin, control-token and key checks; it starts none of the project's plugins.
-          const createdGoal = (await bindGoalsWebActions(localHost.actionClient(reference, false), reference).invoke(goalsActions.create, {
+          const createdGoal = (await bindGoalsWebActions(localHost.actionClient(reference, false), reference).invoke(goalEntryActions.create, {
             title,
             outcome: input.outcome,
             why: "把第一次表达的目标保存为可继续澄清的共同事实",

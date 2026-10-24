@@ -32,7 +32,6 @@ import {
   openFormStore,
 } from "@molis-ai/molis-work-plugin-form";
 import {
-  PPT_CLIENT_FACTORY_SCRIPT,
   openPptStore,
   pptActions,
 } from "@molis-ai/molis-work-plugin-ppt";
@@ -54,29 +53,17 @@ function projectBody(body: Record<string, unknown> = {}): Record<string, unknown
   return { project_id: PROJECT, ...body };
 }
 
-function saveFunctionSource(script: string): string {
-  const start = script.search(/const save = (?:async )?\(\)/);
-  const end = script.indexOf("const queueSave", start);
-  assert.ok(start >= 0 && end > start, "找不到 save()");
-  return script.slice(start, end);
-}
-
 // Forms' page is TypeScript bundled into its client pack (W4-04): what its code does is read in the sources, what it ships in the bundle.
 const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
 // Dataset's page is the same: TypeScript bundled into its client pack, read here in the sources.
 const datasetSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
+// PPT's page is the same.
+const pptSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/ppt/src/browser/${file}`, import.meta.url)), "utf8");
 const between = (text: string, from: string, to: string) => {
   const start = text.indexOf(from), end = text.indexOf(to, start);
   assert.ok(start >= 0 && end > start, `找不到 ${from}`);
   return text.slice(start, end);
 };
-
-function fillEditorSource(script: string): string {
-  const start = script.indexOf("const fillEditor");
-  const end = script.indexOf("const closeEditor", start);
-  assert.ok(start >= 0 && end > start, "找不到 fillEditor()");
-  return script.slice(start, end);
-}
 
 function emptyView(): MolisWorkWebView {
   return {
@@ -207,7 +194,7 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.ok(script.includes("const PERSONAL_PLUGIN_IDS = " + JSON.stringify([...PERSONAL_PLUGIN_IDS])));
   assert.doesNotMatch(formSource("save.ts"), /fillEditor/);
   assert.doesNotMatch(between(datasetSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);
-  assert.doesNotMatch(saveFunctionSource(PPT_CLIENT_FACTORY_SCRIPT), /fillEditor/);
+  assert.doesNotMatch(between(pptSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);
   // Form serialization and stale-response preservation are exercised in the actual browser.
   // Dataset save ordering and conflict preservation are exercised in the real browser tests.
   // PPT save ordering and conflict retention are verified through the real browser.
@@ -215,41 +202,41 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(between(formSource("list.ts"), "export const fillEditor", "export const closeEditor"), /resetEditing\(page\)/);
   assert.match(between(formSource("list.ts"), "const resetEditing", "export const fillEditor"), /clearTimeout\(page\.saveTimer\)/);
   assert.match(between(datasetSource("editor.ts"), "page.fillEditor = ", "page.closeEditor"), /clearTimeout\(s\.saveTimer\)/);
-  assert.match(fillEditorSource(PPT_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
+  assert.match(between(pptSource("editor.ts"), "page.fillEditor = ", "page.closeEditor"), /clearTimeout\(s\.saveTimer\)/);
   assert.match(datasetSource("commands.ts"), /closest\("\[data-column-type\]"\)/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-question-move/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /mw-check/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form-preview-rating/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-option-remove/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-form-result-list/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /还有必填题没填/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /载入中/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-card-notes/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-card-empty/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form\.fill\.missing-required/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form\.result\.loading/);
+  assert.match(pptSource("slides.ts"), /ppt-card-notes/);
+  assert.match(pptSource("slides.ts"), /ppt-card-empty/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.match(datasetSource("list.ts"), /feed-stage-entry directory-list-row/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(pptSource("list.ts"), /feed-stage-entry directory-list-row/);
   // Rows no longer repeat the plugin's name as a chip; their only label is the record's state (plugin-e2e-review §4 X2).
-  for (const [script, cell] of [[formSource("list.ts"), /fixedCell\(L, record\)/], [datasetSource("list.ts"), /fixedCell\(record\)/], [PPT_CLIENT_FACTORY_SCRIPT, /fixedCell\(record\)/]] as const) {
+  for (const [script, cell] of [[formSource("list.ts"), /fixedCell\(L, record\)/], [datasetSource("list.ts"), /fixedCell\(record\)/], [pptSource("list.ts"), /fixedCell\(page, record\)/]] as const) {
     assert.doesNotMatch(script, /kindChip\(/);
     assert.doesNotMatch(script, /plugin-stage-kind/);
     assert.match(script, cell);
-    assert.match(script, /L\("(?:固定版本|dataset\.fixed\.label)"\) \+ " v" \+ record\.artifact_version/);
+    assert.match(script, /L\("(?:固定版本|form\.fixed\.label|dataset\.fixed\.label|ppt\.fixed\.label)"\) \+ " v" \+ record\.artifact_version/);
     // The row-level "存为固定版本" control is gone: it looked like share and was the least-used action; the editor keeps it.
     assert.doesNotMatch(script, /creative-artifact-act/);
   }
   assert.match(datasetSource("list.ts"), /L\("dataset\.list\.empty-table"\)/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /is-arriving/);
   assert.match(datasetSource("page.ts"), /is-arriving/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /is-arriving/);
+  assert.match(pptSource("page.ts"), /is-arriving/);
   assert.match(formSource("list.ts"), /mw-status mw-status--plain mw-status--" \+ \(published/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-slide-index/);
+  assert.match(pptSource("slides.ts"), /ppt-slide-index/);
   // The PPT row carries no placeholder status span any more; its state cell is fixedCell (asserted above).
-  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /mw-status--quiet feed-entry-status/);
-  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /L\("草稿"\)/);
+  assert.doesNotMatch(pptSource("list.ts"), /mw-status--quiet feed-entry-status/);
+  assert.doesNotMatch(pptSource("list.ts"), /L\("草稿"\)/);
   assert.doesNotMatch(formSource("list.ts"), /className = "form-row/);
   assert.doesNotMatch(datasetSource("list.ts"), /className = "dataset-row/);
-  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /className = "ppt-row/);
+  assert.doesNotMatch(pptSource("list.ts"), /className = "ppt-row/);
 });
 
 test("Dataset：删行丢掉，筛选藏着的行留下；页面包用同一合并函数", () => {

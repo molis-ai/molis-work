@@ -8,7 +8,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { agentHostCapabilities as service } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { PluginCapabilityClient, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 import { crossEntrySchedule as subject, crossEntryTodo as todo, isCrossEntryObject } from "./fixtures/cross-entry-subjects.js";
@@ -107,21 +107,21 @@ test("W3-09-1-01 T1: page, actual MCP tool and the bound plugin SDK action clien
   for (const result of results) assert.ok(persisted.tasks.some(task => task.task_id === result.task.task_id && task.title === input.title && task.clock_label === time && task.enabled));
 });
 
-// R8 batch 3 (RAC-180): opening an Agent session is a plugin-only action, so the refusals here are the action service's, each recorded,
-// and the identity a session is opened for is never the request's to give.
+// R8 batches 3 and 4 (RAC-180, RAC-182): the Agent service is plugin-only actions, so the refusals here are the action service's, each
+// recorded, and the identity a session is opened for is never the request's to give.
 test("W3-09-1-01 T4: the Agent service records refusals, requires its original plugin identity and leaves successful reads unrecorded", { timeout: 60_000 }, async t => {
-  let client: PluginCapabilityClient | undefined, actions: BoundActionClient | undefined;
+  let actions: BoundActionClient | undefined;
   const definition: PluginDefinition = {
     manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.cross-entry-service", version: "1.0.0", name: "Typed service fixture", kind: "app",
       publisher: { publisher_id: "fixture", signature: "typed-service-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
       permissions: [], capabilities: { provides: [], consumes: [service.createSession.capability_id, service.listRuntimes.capability_id] },
       artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
-    async start(context) { client = context.services?.capabilities; actions = context.services?.actions; return { kind: "app", views: [], actions: [] }; }, async stop() {},
+    async start(context) { actions = context.services?.actions; return { kind: "app", views: [], actions: [] }; }, async stop() {},
   };
   const home = await openTestHome(t, { host: { pluginFixtures: { project: [definition] } } });
   const project = await home.createProject("Cross entry typed service", ["schedule"]);
   await home.host.inspectActions({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] }, project.reference);
-  assert.ok(client && actions, "the production executor opened the fixture's declared service ports");
+  assert.ok(actions, "the production executor opened the fixture's declared service port");
   const changed = t.mock.method(home.host.search!, "changed");
   const fields = (record: ReturnType<typeof row>) => [record.operation, record.actor_id, record.audience, record.ok, record.code, record.refused];
   // A caller that is not a plugin has no plugin identity to open a session for: refused before any Runtime is asked.
@@ -139,8 +139,8 @@ test("W3-09-1-01 T4: the Agent service records refusals, requires its original p
   await withCallId(missingId, () => assert.rejects(native.invoke(service.createSession, ["no-such-runtime", { title: "own" }] as never), { code: "agent.runtime_unknown" }));
   assert.deepEqual(fields(row(home, missingId, service.createSession.capability_id)), ["command", "web-user", "plugin", false, "agent.runtime_unknown", undefined]);
   const readId = newCallId();
-  assert.ok(Array.isArray(await withCallId(readId, () => client!.invoke(service.listRuntimes, []))));
-  assert.deepEqual(home.host.callLog!.find(readId), [], "a successful typed query is not a platform command");
+  assert.ok(Array.isArray(await withCallId(readId, () => native.invoke(service.listRuntimes, []))));
+  assert.deepEqual(home.host.callLog!.find(readId), [], "a successful query is not a platform command");
   assert.equal(changed.mock.calls.length, 0, "the Agent service creates no plugin owner-change signal");
 });
 

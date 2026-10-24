@@ -1,21 +1,9 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEventTrustedAuthoritySources, type GoalEventDecisionResult, type GoalEventTrustedAuthority,
-  type RecordGoalUserDecisionInput } from "@molis-ai/molis-work-contracts/modules/goals";
-import { goalAction } from "./action-contract.js";
-import { identifier, count, boolean, object, array, scope, change, effect, decision } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalEventTrustedAuthoritySources, type GoalEventTrustedAuthority } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalEntryActions, type GoalDecisionActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { GoalEventApplication } from "./goal-event-application.js";
 
-type GoalDecisionActionInput = Omit<RecordGoalUserDecisionInput, "project_id" | "authority">;
-const definition = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>("goals.decisions.record", "记录用户决定",
-  "保存用户本人通过受保护入口作出的决定；模型只能请求或引用决定。作者及操作出处由 Host 注入，仍核对原请求和当前承诺", "command",
-  object({ goal_id: identifier, idempotency_key: identifier, request_id: identifier, selected_option_id: identifier,
-    conclusion: identifier, accepts_requirements: boolean, effects: array({ ...effect, properties: { ...effect.properties as Record<string, unknown>, action: identifier } }), authorized_change: change,
-    scope: { ...scope, required: [] } }, ["goal_id", "idempotency_key", "conclusion"]),
-  object({ event_id: identifier, observed_event_cursor: count, replayed: boolean, recorded: { const: true }, decision }));
-
-export const goalDecisionAction: ActionDefinition<GoalDecisionActionInput, GoalEventDecisionResult> = {
-  ...definition, action: { ...definition.action, audiences: ["user"], permissions: ["goals:decide"] },
-};
+export const goalDecisionAction = goalEntryActions.decide;
 
 function authority(caller: ActionCallContext): GoalEventTrustedAuthority {
   const provenance = caller.user_action;

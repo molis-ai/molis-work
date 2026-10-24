@@ -1,3 +1,4 @@
+import { applyMemoryContext, applyMemoryRecalled } from "./prologue-memory-stream.js";
 import type { PrologueUsageReceipt } from "../inference.js";
 import type { TokenCount as PrologueTokenCount } from "@prologue/sdk";
 import { closeInputs, noteInputEvent, steerOf } from "./prologue-inputs.js";
@@ -40,7 +41,7 @@ export type PrologueControlState =
 
 /** The event shapes this projection reads. Anything else is left alone. */
 export type PrologueEvent =
-  | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string; source?: "person" | "app" | "peer" }
+  | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string; source?: "person" | "app" | "peer"; acceptedAtMs?: number }
   | { type: "text-delta"; text: string }
   | { type: "reasoning-delta"; text: string }
   | { type: "tool-call"; call: { id: string; name: string; input?: Record<string, unknown> } }
@@ -61,7 +62,12 @@ export type PrologueEvent =
   | { type: "retry-waiting"; model: string; attempt: number; waitMs: number; retryAtMs: number; reason: "rate-limited" | "unavailable" | "not-sent"; why: string; status?: number }
   | { type: "turn-changes"; turn: number; changes: ReadonlyArray<{ path: string; byteLength: number; digest: string; checkpointId: string }> }
   | { type: "model-switched"; from: { protocol: string; model: string }; to: { protocol: string; model: string } }
-  | { type: "memory-recalled"; method?: string; injected?: ReadonlyArray<{ id: string; version: number }>; omitted?: ReadonlyArray<{ id: string; version: number }>; unavailable?: readonly string[] }
+  | { type: "memory-recalled"; method?: string; injected?: ReadonlyArray<{ id: string; version: number }>; omitted?: ReadonlyArray<{ id: string; version: number }>; unavailable?: readonly string[];
+      retrieval?: { receiptId: string; outcome: "ready" | "none" | "skip" | "unavailable" | "failed" | "timeout" | "cancelled"; errorCode?: string } }
+  | { type: "memory-context"; callId: string; status: "prepared" | "not-dispatched" | "dispatched-or-unknown" | "response-observed";
+      tokens: number; budgetTokens: number; basis: "conservative-estimate" | "provider-reported";
+      references: readonly { receiptId: string; id: string; version: number }[];
+      parts: readonly { index: number; tokens: number; form: "entry" | "excerpt" | "summary" }[] }
   | { type: "todo-changed"; items?: ReadonlyArray<{ id?: unknown; text?: unknown; state?: unknown }> }
   | { type: "circuit-tripped"; reason?: string; count?: number; why?: string }
   | { type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix"; questions?: ReadonlyArray<{ ref: { id: string; revision: number }; kind: string; prompt: string }>; operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }> }
@@ -413,15 +419,6 @@ function applyResponseRepair(state: PrologueStreamState, frame: PrologueEvent, a
   return true;
 }
 
-// Which memories the runtime really injected, left out for room, or found gone at start. No text travels here.
-function applyMemoryRecalled(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
-  const recalled = event as Extract<PrologueEvent, { type: "memory-recalled" }>;
-  state.memory_recalled = { method: recalled.method === "recall" ? "recall" : "pinned",
-    injected: (recalled.injected ?? []).map(one => ({ memory_id: one.id, version: one.version })),
-    omitted: (recalled.omitted ?? []).map(one => ({ memory_id: one.id, version: one.version })), unavailable: [...(recalled.unavailable ?? [])] };
-  return true;
-}
-
 // The Run replaced its own step list (update-todo): the latest list stands as a whole, as the runtime keeps it.
 function applyTodoChanged(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
   const items = (event as Extract<PrologueEvent, { type: "todo-changed" }>).items ?? [];
@@ -527,6 +524,7 @@ const ENDS_RETRY_WAIT = new Set(["text-delta", "reasoning-delta", "tool-call", "
 const HANDLERS: Readonly<Record<string, (state: PrologueStreamState, event: PrologueEvent, at: string | null) => boolean>> = {
   "model-response-repair": applyResponseRepair,
   "memory-recalled": applyMemoryRecalled,
+  "memory-context": applyMemoryContext,
   "todo-changed": applyTodoChanged,
   "circuit-tripped": applyCircuitTripped,
   "agent-control": applyAgentControl,

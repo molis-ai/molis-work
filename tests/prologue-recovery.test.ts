@@ -104,13 +104,21 @@ test("RC-08: the recovery report lists the supplements waiting in the session fo
       let off = () => {};
       off = adapter.observe(handle.ref, view => { if (["failed", "completed", "cancelled"].includes(view.phase)) { clearTimeout(timer); queueMicrotask(() => off()); resolve(); } });
     });
+    const personBefore = Date.now();
     const person = await adapter.inputs!.send(handle.ref, { text: "下一轮顺便看注册接口", key: "send.r1", mode: "after-run" });
+    const personAfter = Date.now(), noteBefore = Date.now();
     const note = await adapter.inputs!.send(handle.ref, { text: "计划已调整", source: "host" });
+    const noteAfter = Date.now();
     assert.equal(person.delivered, "queued");
     assert.equal(note.delivered, "queued", "the round had ended, so the Host's note waits too");
-    assert.deepEqual((await adapter.recovery!.inspect(session)).inputs, [
-      { input_id: person.input_id, text: "下一轮顺便看注册接口", source: "person", key: "send.r1" },
-      { input_id: note.input_id, text: "计划已调整", source: "host" },
+    const inputs = (await adapter.recovery!.inspect(session)).inputs;
+    assert.ok(inputs, "the queue was read, not unknown");
+    const personAt = inputs[0]?.accepted_at_ms, noteAt = inputs[1]?.accepted_at_ms;
+    assert.ok(Number.isSafeInteger(personAt) && personAt! >= personBefore && personAt! <= personAfter);
+    assert.ok(Number.isSafeInteger(noteAt) && noteAt! >= noteBefore && noteAt! <= noteAfter);
+    assert.deepEqual(inputs, [
+      { input_id: person.input_id, text: "下一轮顺便看注册接口", source: "person", key: "send.r1", accepted_at_ms: personAt },
+      { input_id: note.input_id, text: "计划已调整", source: "host", accepted_at_ms: noteAt },
     ]);
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
@@ -133,16 +141,20 @@ test("RC-09: the next round takes what waits in the session, shows it with its r
       role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
     const first = await round("看看测试");
     assert.equal((await ended(first.ref)).phase, "completed");
+    const acceptedBefore = Date.now();
     const kept = await adapter.inputs!.send(first.ref, { text: "下一轮顺便看注册接口", key: "send.c1", mode: "after-run" });
+    const acceptedAfter = Date.now();
     assert.equal(kept.delivered, "queued");
     assert.deepEqual((await adapter.readSession(session)).queued_inputs?.map(input => [input.input_id, input.text]), [[kept.input_id, "下一轮顺便看注册接口"]],
       "RC-18: between rounds, the session's read carries what waits for the next one");
+    const acceptedAt = (await adapter.readSession(session)).queued_inputs?.[0]?.accepted_at_ms;
+    assert.ok(Number.isSafeInteger(acceptedAt) && acceptedAt! >= acceptedBefore && acceptedAt! <= acceptedAfter);
 
     const second = await round("继续");
     const view = await ended(second.ref);
     assert.equal(view.phase, "completed");
     assert.deepEqual(view.turns.filter(turn => turn.steer).map(turn => ({ kind: turn.kind, text: turn.text, steer: turn.steer })),
-      [{ kind: "user", text: "下一轮顺便看注册接口", steer: { id: kept.input_id, key: "send.c1", state: "read" } }], "the round shows the supplement it took, once, under its own id");
+      [{ kind: "user", text: "下一轮顺便看注册接口", steer: { id: kept.input_id, key: "send.c1", state: "read", source: "person", accepted_at_ms: acceptedAt } }], "the round keeps the original input identity and acceptance time when it carries the supplement");
     assert.equal(view.turns.find(turn => turn.steer)!.steer!.key, "send.c1", "RC-17: a carried supplement keeps the key it was sent under, so a lost answer can still be matched to it");
     assert.deepEqual((await adapter.recovery!.inspect(session)).inputs, [], "taken by the round, it no longer waits");
     assert.deepEqual((await adapter.readSession(session)).queued_inputs, [], "RC-18: the round ended, so the queue was read, and nothing waits (3b-2c: read and empty is [], not absent)");
@@ -206,7 +218,7 @@ test("durable interrupted prefix retains content, settled tools and one closed q
     try {
       const { latest_run: view } = await adapter.readSession({ session_id: ref.session_id, runtime_id: "prologue" });
       assert.equal(view?.phase, closed ? "failed" : "reconcile-required");
-      assert.deepEqual(view?.turns.find(turn => turn.text === "不要改动测试")?.steer, { id: "steer-1", state: "unread" });
+      assert.deepEqual(view?.turns.find(turn => turn.text === "不要改动测试")?.steer, { id: "steer-1", state: "unread", source: "person" }, "an old input without an acceptance timestamp stays unknown");
       assert.deepEqual(view?.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text), ["读取文件后再问你。", "已显示但尚未收尾的正文。"]);
       assert.equal(view?.activity.find(activity => activity.call_id === "read-1")?.state, "completed");
       assert.equal(view?.activity.find(activity => activity.call_id === "ask-1")?.state, "unknown");

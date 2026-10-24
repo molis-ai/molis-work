@@ -85,7 +85,8 @@ export async function walkLayers(browser: LayerWalkBrowser, screens: Array<[wher
     for (const type of ["mousePressed", "mouseReleased"] as const) await command("Input.dispatchMouseEvent", { type, ...point, button, clickCount: 1 }, sessionId);
   };
   const escape = async () => {
-    for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }, sessionId);
+    // Native key codes are platform-specific; 27 opens Chrome Help on this macOS test host.
+    for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
     await pause(300);
   };
   const open = async (path: string) => {

@@ -5,7 +5,7 @@ import { PLUGIN_ROUTE_PREFIX, pluginRouteMatcher, type PluginRouteMatch, type Pl
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { hostErrors } from "./host-errors.js";
 import type { PluginPlatform } from "./plugin-platform.js";
-import { offerRoutedOriginalFile } from "./plugin-actions-client.js";
+import { offerRoutedOriginalFile, offerRoutedOriginalInput } from "./plugin-actions-client.js";
 import { offeredOriginalFile } from "./material-original-entry.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
@@ -36,6 +36,20 @@ interface RuntimePluginRouteControls {
   readBody?(request: IncomingMessage, maxBytes: number | undefined): Promise<unknown>;
   /** Ends this call (its `execution.signal`): a streamed route uses it when the plugin stops or its progress overflows. */
   stop?(): void;
+}
+
+/** A transport envelope, removed before the plugin's Action input is built. No business parameters decide authorship. */
+function takeOriginalInput(body: unknown, installId: string | null | undefined, control: PluginExecutionControl | undefined): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body) || !Object.hasOwn(body, "original_input")) return body;
+  const { original_input: offered, ...input } = body as Record<string, unknown>;
+  if (!installId || !control || !offered || typeof offered !== "object" || Array.isArray(offered)) throw new ActionError("actions.input_invalid", "原始输入信封无效");
+  const value = offered as Record<string, unknown>;
+  if (Object.keys(value).some(key => key !== "input_id" && key !== "text" && key !== "use") || typeof value.input_id !== "string"
+    || value.use !== undefined && value.use !== "supplement" || !/^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$/.test(value.input_id) || typeof value.text !== "string" || !value.text.trim() || value.text.length > 100_000) {
+    throw new ActionError("actions.input_invalid", "原始输入信封无效");
+  }
+  offerRoutedOriginalInput(control, { ...(value.use === "supplement" ? { use: "supplement" as const } : {}), install_id: installId, input_id: value.input_id, text: value.text, written_by: "person", occurred_at: new Date().toISOString() });
+  return input;
 }
 
 /**
@@ -88,7 +102,10 @@ export async function dispatchRuntimePluginRoute(
   await hooks.beforeDispatch?.(router);
   let body: unknown;
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {
-    try { body = await (controls.readBody ?? ((request, maxBytes) => readLocalWebBody(request, maxBytes)))(request, match.max_body_bytes ?? undefined); }
+    try {
+      body = await (controls.readBody ?? ((request, maxBytes) => readLocalWebBody(request, maxBytes)))(request, match.max_body_bytes ?? undefined);
+      body = takeOriginalInput(body, active.install_id, controls.execution);
+    }
     catch (error) {
       if (!(error instanceof ActionError)) throw error;
       const refusal = actionErrorResponse(error);

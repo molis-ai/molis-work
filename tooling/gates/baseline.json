@@ -1,9 +1,9 @@
 {
   "giantUnits": 96,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1842,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1837,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1491,
+      "lines": 1480,
       "methods": 90
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -39,7 +39,7 @@
     "file apps/workbench/src/i18n/en.ts": 3308,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 284,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2046,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -52,10 +52,10 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 965,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 958,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 602,
-      "methods": 18
+      "lines": 589,
+      "methods": 19
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 346,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
@@ -67,10 +67,10 @@
       "lines": 361,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1259,
+    "file horizontal/memory/src/service.ts": 1151,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1079,
-      "methods": 51
+      "lines": 1015,
+      "methods": 48
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
       "lines": 399,
@@ -398,7 +398,7 @@
     "tests/workspace-git-read.test.ts": 1,
     "tests/workspace-production-events.test.ts": 1
   },
-  "vendoredPrologueSdk": 1,
+  "vendoredPrologueSdk": 2,
   "schemaPatches": 0,
   "compatMarkerTotal": 8,
   "compatMarkers": {
@@ -993,7 +993,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 468,
+  "explicitAnyTotal": 466,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1093,7 +1093,6 @@
     "tests/mcp-access-browser.test.ts": 1,
     "tests/mcp-action-settings.test.ts": 6,
     "tests/memory-agent-runs.test.ts": 2,
-    "tests/memory-learning.test.ts": 2,
     "tests/model-thinking.test.ts": 2,
     "tests/pages-cross-module.test.ts": 1,
     "tests/pages-input-rules.test.ts": 3,

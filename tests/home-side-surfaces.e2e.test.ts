@@ -94,8 +94,8 @@ test("VUX-16 (fallback): the fields on the Home Issue page, the Issue side view 
 
   const lingguang = await pluginFrameBrowser(t, browser, "lingguang");
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/lingguang/side` }, sessionId));
-  // VUX-16: markup can precede the client binding; the Host's ready reply means the actual controls are usable.
-  await browser.waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.uiClientState === 'ready'", 30_000);
+  // The child root exists while still hidden, and becomes visible before its client has installed the listeners.
+  await browser.waitFor("document.querySelector('[data-side-view-root] > [data-work-surface=lingguang]')?.dataset.uiClientState === 'ready' && document.querySelector('[data-side-view-root] > [data-work-surface=lingguang]').checkVisibility()", 30_000);
   // The one data-fit field on the side view is the chat's composer; it appears once an idea is jotted down and the
   // conversation pane is opened. That is the path a person takes: 记下 → 头脑风暴.
   await lingguang.click("[data-lingguang-capture]");

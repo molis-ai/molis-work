@@ -8,11 +8,12 @@ import { createRequire } from "node:module";
 import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { agentHostCapabilities as agent, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
+import { memoryServiceHome } from "./fixtures/memory-service-home.js";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
@@ -89,15 +90,20 @@ test("I6-02: a real Node questionnaire refusal preserves each problem and the pe
 
 // W2-18-CODING-EFFECT-01: queued SDK effects keep the original checker after a failed/returned preparation scope.
 test("an SDK effect queued by an invocation cannot lose its guard just because the wrapper returned", async t => {
-  const home = await mkdtemp(join(tmpdir(), "agent-queued-effects-"));
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.queued-effects-test", appVersion: "1.0.0" }, storageRoot: home });
+  const fixture = await memoryServiceHome(t, { projects: [] }); await fixture.open();
+  const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "ui", person: true, current_scene: "common", purpose: "management" as const };
+  const memory = () => fixture.memory().withCaller(caller);
+  assert.deepEqual(await memory().list("user", caller.actor_id), [], "the production authority admits this isolated personal scope");
   const release = Promise.withResolvers<void>(), committed = Promise.withResolvers<unknown>(); let current = true;
-  t.after(async () => { release.resolve(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
-  await adapter.withEffect({ beforeEffect: async () => {}, assert_current: () => { if (!current) throw new Error("queued effect lost its original authority"); } }, async () => {
-    void release.promise.then(() => adapter.memory!.write({ scope: "app", owner: "original", text: "A queued SDK write", origin: "fixture" })).then(committed.resolve, committed.reject);
+  t.after(() => { release.resolve(); });
+  await fixture.adapter().withEffect({ beforeEffect: async () => {}, assert_current: () => { if (!current) throw new Error("queued effect lost its original authority"); } }, async () => {
+    void release.promise.then(() => memory().write({ scope: "user", owner: caller.actor_id, text: "A queued SDK write", origin: "fixture", operation_id: "queued-original",
+      meta: { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } } })).then(committed.resolve, committed.reject);
   });
-  current = false; const rejected = assert.rejects(committed.promise); release.resolve(); await rejected;
-  assert.deepEqual(await adapter.memory!.list("app", "original"), []);
+  current = false; const rejected = assert.rejects(committed.promise, /queued effect lost its original authority/); release.resolve(); await rejected;
+  assert.deepEqual(await memory().list("user", caller.actor_id), []);
+  await fixture.close(); await fixture.open();
+  assert.deepEqual(await memory().list("user", caller.actor_id), [], "the rejected queued write left no persistent memory after restart");
 });
 
 // W2-18-CODING-EFFECT-02: the final SDK commit fence and the typed Host bridge, including an independent peer.

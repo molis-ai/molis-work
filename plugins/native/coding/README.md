@@ -64,6 +64,12 @@ Directory candidates and browsing preferences come from the [current-project set
 
 短草稿（提交说明、接续摘要）的固定指令归 `src/prompts.ts`，由 Coding 的插件定义（`PluginDefinition.instructions`）携带，Coding 运行时登记，支持用户覆盖（PG-051）。`agent.draft-text.v1` 只传 `prompt` id、材料和所选模型；Host 使用原调用插件身份解析，不能在业务输入声明 owner。材料裁剪、摘要降级及提交前的用户审阅仍由 Coding 负责。相关回归：`tests/coding-commit-draft.test.ts`、`tests/coding-history-summary-http.test.ts`、`tests/prompt-registration.test.ts`。
 
+## 初始输入原件
+
+普通发送在 `original_input` HTTP 信封中携带稳定输入键及未拼接的正文。受保护 Host 入口固定作者与首次受理时间，沿原 Action 控制传给 AgentHost；原件只由既有加密 Session attempt 保存，Coding 不建正文账。Run 的材料、摘要、计划和继续说明不反推为本人原话。同 Session 继续只携带原 Run 引用；原输入重试沿用身份/时间，不授权重复执行未知结果。队列与跨 Session 原件继承待后续 P0 接入，旧来源不明记录不回填。
+
+本片遵循 [Memory spec §9.4](../../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。作者证明、同身份不可改文和当前权限不可配置关闭；已有 Host/Agent Adapter 可替换，未接原件读取时明确不可用；用户仍只操作原输入框/继续按钮。聚焦验收为 `tests/coding-original-inputs.test.ts` 与 `tests/coding-continuation.test.ts`，覆盖真实 HTTP/SDK、重启、同输入重试与派生来源拒绝；不代表来源形成或整体 Memory P0 已完成。
+
 ## 开发要求
 
 - 负责：参照 App：编码会话、每轮执行、委派，以及它们产出的变更集、报告与图；自己固定的报告和变更怎样变成可复制的 Markdown 正文（`coding.results.document@1`），以及自己成果的列表。
@@ -101,6 +107,10 @@ Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏
 
 后台 Run follower 是激活的 `follow` 作业，用安装自己的授权和作业的取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。
 
-`coding.runs.control` 的现行合同是 version 7：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），文字、数字、日期、日期时间题的回答 `value`（version 4，T1），对象引用题的回答（`value` 是选中的对象，version 5，T2；标题由宿主按对象主人现在的写法换掉），撤回补充与补充的 `about`（version 6，回执 3b-2a），以及补充的 `source`（version 7，BL-144：`host` 是宿主转交页面代写的话，这一轮记成说明，不记成本人的话）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
+`coding.runs.control` 的现行合同是 version 8：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），文字、数字、日期、日期时间题的回答 `value`（version 4，T1），对象引用题的回答（`value` 是选中的对象，version 5，T2；标题由宿主按对象主人现在的写法换掉），撤回补充与补充的 `about`（version 6，回执 3b-2a），以及补充的 `source`（version 7，BL-144：`host` 是宿主转交页面代写的话，这一轮记成说明，不记成本人的话）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
 
 Coding 的目标目录、当前约定/状态、进展保存和回执使用 `@molis-ai/molis-work-contracts/modules/goal-actions` 的五个完整合同；Goals 注册这些合同，Coding 不 import Goals 实现、不再消费四个旧 typed 协议。Manifest 声明 Goals 读写权限，实例资格取 Host 启动名单的真实 definition；每次路由调用传原取消、提交前复查与同步尾检。目录页仍取100项；固定报告的进展确认只读当前事实，创建给模型的目标材料才执行20k长度约束。
+
+## 补充原件边界
+
+`coding.runs.control` v8 的本人补充由受保护 HTTP 的 `original_input: {input_id,text,use:"supplement"}` 信封证明；Host 剥离信封并绑定当前安装/动作，`key` 必须为 `send.<input_id>`。业务 `source` 不授予作者身份，无证明按 Host 输入。原话与拼接模型正文分别沿现 SDK 输入主人保存，重试复用同一键，不另建正文记录；初始输入仍用原有无 use 信封。验收见 `specs/ai-input-receipts/spec.md` MIX-IN-01–03。

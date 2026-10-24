@@ -17,6 +17,8 @@ import type { StopGuard } from "./prologue-stop-guard.js";
  */
 
 export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
+  /** App taxonomy and live memory authority; absent means memory is unavailable. */
+  memory?: import("./prologue-memory-authority.js").PrologueMemoryOptions;
   /** Parsers the App supplies for documents people bring (PDF…); the runtime ships none. */
   documentParsers?: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentParser[];
   /** Host-owned surface; absence keeps all writes unavailable. */

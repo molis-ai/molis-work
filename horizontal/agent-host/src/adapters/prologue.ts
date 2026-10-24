@@ -24,6 +24,8 @@ import type {
   AgentSessionStatus,
   AgentStartRequest,
   AgentStartExecution,
+  AgentRecalledMemory,
+  AgentMemoryUseReceipt,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { emptyCapabilityMatrix } from "../capabilities.js";
@@ -31,11 +33,13 @@ import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
 import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
 import { controlFailure } from "./prologue-control-errors.js";
+import { PrologueMemoryUsage } from "./prologue-memory-usage.js";
+import { restoredSessionRecords, restorePrologueRun } from "./prologue-restored-session.js";
 import { inputsPort, type RoundInputs, type SessionQueue } from "./prologue-inputs.js";
+import { readSupplementaryInput, type SupplementaryLocation } from "./prologue-original-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
   applyRunEvent,
-  closeInterruptedPrologueStream,
   runStreamState,
   type RoundDesk,
   prologuePhaseOf,
@@ -88,6 +92,8 @@ export interface PrologueAdapterPorts {
   stopHeld?(runId: string): { target: string; summary: string } | undefined;
   /** True when the run was held for only saying what it would do, and called nothing after its one continuation. */
   endedOnPromise?(runId: string, sessionId: string): boolean;
+  /** Project actual SDK Context receipts into the App's existing memory ledger. Never a model tool. */
+  memoryUsage?(receipt: AgentMemoryUseReceipt): void | Promise<void>;
 }
 
 export interface PrologueRunPort {
@@ -118,6 +124,7 @@ export interface PrologueStartInput {
   subagent_workspaces?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[];
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentFrozenSubagentRole[];
   /** Host provenance, persisted before execution; never credentials or event history. */
+  original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
   provenance: { frozen: AgentRunView["frozen"]; started_at: string };
   session_id: string;
   /** Authorized root this Run may touch, already resolved by the Host. `business`: no root, the App's actions only. */
@@ -200,6 +207,9 @@ export interface PrologueRuntimePort {
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
     create(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
+    originalInput?(sessionId: string, input: Pick<AgentStartRequest, "original_input" | "continued_from">): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput | undefined>;
+    readOriginalInput?: AgentRuntimeAdapter["readOriginalInput"];
+    locateInput?(sessionId: string, inputId: string): Promise<SupplementaryLocation | undefined>;
     restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
     /** Same owner/recovery checks as restore, without restoring historical controls or retaining transcripts. */
     readStatus?(sessionId: string): Promise<{
@@ -227,6 +237,8 @@ export interface PrologueRestoredSession {
     frozen: AgentRunView["frozen"];
     started_at: string;
     task: string;
+    original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
+    memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage">;
     stop_intent?: "stopped" | "cancelled";
     /** Why the Host stopped this run itself, when it did. */ stop_reason?: string;
     /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */
@@ -238,7 +250,7 @@ export interface PrologueRestoredSession {
   } & RoundDesk>;
 }
 
-interface SessionRecord {
+export interface SessionRecord {
   workspace: "required" | "none" | "business";
   title: string;
   runs: AgentRunRef[];
@@ -285,7 +297,7 @@ function currentCapabilities(approvalsAttached: boolean, receiptsAttached: boole
   return matrix;
 }
 
-interface RunRecord {
+export interface RunRecord {
   view: AgentRunView;
   state: PrologueStreamState;
   control: PrologueControlPort;
@@ -297,6 +309,45 @@ interface RunRecord {
   timingReady?: boolean;
   timingError?: string;
   observedEndAt?: string;
+  memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage">;
+}
+
+/** Validate a frozen role and any continued plan against this Runtime before preparing an execution. */
+async function prepareRunRole(request: AgentStartRequest, runtime: PrologueRuntimePort, descriptor: AgentRuntimeDescriptor,
+  read: (ref: AgentRunRef) => Promise<AgentRunView>) {
+  const role = request.role;
+  if (role === undefined) {
+    throw agentErrors.role_not_frozen("宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑");
+  }
+  if (request.continue_step_board_of !== undefined) {
+    // Continuing a graph is only ever the same plan, in the same session, while that graph is unfinished.
+    if (!request.execution_plan) throw agentErrors.capability_unavailable("继续计划需要原确认计划");
+    const earlier = await read({ session_id: request.session.session_id, run_id: request.continue_step_board_of });
+    if (!isEnded(earlier.phase)) throw agentErrors.session_busy("被继续的那一轮还没有结束");
+    if (JSON.stringify(earlier.frozen.execution_plan) !== JSON.stringify(request.execution_plan)) throw agentErrors.capability_unavailable("继续计划必须使用那一轮的同一版确认计划");
+    if (!earlier.step_board || earlier.step_board.terminal) throw agentErrors.capability_unavailable("那一轮的计划图已经结束，请调整计划后重新开始");
+  }
+  if (request.execution_plan && (!runtime.readStepBoard || STEP_TOOLS.some(tool => !role.host_tools.includes(tool)))) {
+    throw agentErrors.capability_unavailable("当前运行时或角色尚未接通计划步骤回报");
+  }
+  // Only Host-frozen workspace grants open the SDK write envelope for children.
+  // The coordinator's Character still restricts its own tools to read/dispatch.
+  if (role.subagents?.length && !runtime.subagents) throw agentErrors.capability_unavailable("当前运行时未装配子代理观察和控制");
+  const mode: "plan" | "build" = role.execution === "read-only" && !role.subagent_workspaces?.length ? "plan" : "build";
+  if (mode === "build" && descriptor.capabilities["text-edit"] === "unsupported") {
+    throw agentErrors.capability_unavailable("这个 Runtime 尚未接通副作用审批，不能运行会写入的角色");
+  }
+
+  if ((request.skills?.length ?? 0) !== (role.skills?.length ?? 0)
+    || role.skills?.some(skill => !request.skills?.some(ref => ref.skill_id === skill.skill_id && ref.version === skill.version))
+    || ((role.skills?.length ?? 0) > 0 && !runtime.inlineMethods)) {
+    throw agentErrors.capability_unavailable("方法未由宿主解析或当前运行时不能展开方法");
+  }
+  if ((request.mcp_tools?.length || request.mcp_sources?.length) && descriptor.capabilities.mcp === "unsupported") throw agentErrors.capability_unavailable("此运行时尚未接通 MCP 审查");
+  if (role.compaction && !runtime.compaction) throw agentErrors.capability_unavailable("上下文整理尚未接通");
+  if ((role.actions?.tools.length || role.action_gateway) && !runtime.actionTools) throw agentErrors.capability_unavailable("Action tools are not connected to this runtime");
+  if (role.action_gateway && request.workspace !== "business") throw agentErrors.capability_unavailable("能力网关只用于业务会话");
+  return { role, mode };
 }
 
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
@@ -305,7 +356,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
-  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#publish(runId));
+  readonly inputs = {
+    ...inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#publish(runId)),
+    read: (ref: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef) => readSupplementaryInput(ref, {
+      locate: async input => this.#runtime.sessions.locateInput?.(input.session_id, input.input_id),
+      latest: async id => this.#sessions.get(id)?.runs.at(-1) ?? (await this.#runtime.sessions.readStatus?.(id))?.latest?.ref,
+      read: run => this.read(run),
+    }),
+  };
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -315,6 +373,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly documents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentCapability;
   readonly #runtime: PrologueRuntimePort;
   readonly #ports: PrologueAdapterPorts;
+  readonly #memoryUsage: PrologueMemoryUsage;
   readonly #now: () => Date;
   readonly #sessions = new Map<string, SessionRecord>();
   readonly #restoring = new Map<string, Promise<SessionRecord>>();
@@ -327,6 +386,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
+    this.#memoryUsage = new PrologueMemoryUsage(options.memoryUsage);
     if (options.runtime.projectWork) this.projectWork = options.runtime.projectWork;
     if (options.runtime.messages) this.messages = options.runtime.messages;
     // A plan change goes through the adapter, which knows which round's graph may still change.
@@ -443,6 +503,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
   }
 
+  async readOriginalInput(ref: Parameters<NonNullable<AgentRuntimeAdapter["readOriginalInput"]>>[0]) {
+    return this.#runtime.sessions.readOriginalInput?.({ ...ref });
+  }
+
   async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {
     let projected: Awaited<ReturnType<NonNullable<PrologueRuntimePort["sessions"]["readStatus"]>>>;
     if (!this.#sessions.has(session.session_id) && this.#runtime.sessions.readStatus) {
@@ -479,7 +543,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {
-    request = { ...request, budget: parseAgentRunBudget(request.budget) };
+    request = { ...request, budget: parseAgentRunBudget(request.budget),
+      ...(request.original_input ? { original_input: structuredClone(request.original_input) } : {}),
+      ...(request.continued_from ? { continued_from: structuredClone(request.continued_from) } : {}) };
     request = { ...request, execution_plan: freezeExecutionPlan(request), text_materials: structuredClone(request.text_materials ?? []) };
     const session = await this.#loadSession(request.session.session_id);
     if (session.workspace !== (request.workspace ?? "required") || request.role?.workspace === "none" && request.workspace !== "none"
@@ -515,6 +581,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async #start(request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
+    if ((request.original_input || request.continued_from) && !this.#runtime.sessions.originalInput) throw agentErrors.capability_unavailable("当前运行时没有初始原件读取能力");
+    const original = await this.#runtime.sessions.originalInput?.(request.session.session_id, request);
     const { textMaterials, imageMaterials } = validateRunAttachments(request, Boolean(this.#runtime.imageAttachments));
     if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");
     const model = await this.#ports.modelConfiguration(request.model_selection);
@@ -523,40 +591,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     }
     // A model the settings mark as not seeing images never gets them: nothing is sent, and the person hears why.
     if (imageMaterials.length && model.vision === false) throw agentErrors.capability_unavailable(`模型设置里标注「${model.model}」不支持看图，图片没有发出；可以换一个支持看图的模型，或去掉图片再发`);
-    const role = request.role;
-    if (role === undefined) {
-      throw agentErrors.role_not_frozen("宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑");
-    }
-    if (request.continue_step_board_of !== undefined) {
-      // Continuing a graph is only ever the same plan, in the same session, while that graph is unfinished.
-      if (!request.execution_plan) throw agentErrors.capability_unavailable("继续计划需要原确认计划");
-      const earlier = await this.read({ session_id: request.session.session_id, run_id: request.continue_step_board_of });
-      if (!isEnded(earlier.phase)) throw agentErrors.session_busy("被继续的那一轮还没有结束");
-      if (JSON.stringify(earlier.frozen.execution_plan) !== JSON.stringify(request.execution_plan)) throw agentErrors.capability_unavailable("继续计划必须使用那一轮的同一版确认计划");
-      if (!earlier.step_board || earlier.step_board.terminal) throw agentErrors.capability_unavailable("那一轮的计划图已经结束，请调整计划后重新开始");
-    }
-    if (request.execution_plan && (!this.#runtime.readStepBoard || STEP_TOOLS.some(tool => !role.host_tools.includes(tool)))) {
-      throw agentErrors.capability_unavailable("当前运行时或角色尚未接通计划步骤回报");
-    }
-    // Only Host-frozen workspace grants open the SDK write envelope for children.
-    // The coordinator's Character still restricts its own tools to read/dispatch.
-    if (role.subagents?.length && !this.#runtime.subagents) throw agentErrors.capability_unavailable("当前运行时未装配子代理观察和控制");
-    const mode = role.execution === "read-only" && !role.subagent_workspaces?.length ? "plan" : "build";
-    if (mode === "build" && this.descriptor.capabilities["text-edit"] === "unsupported") {
-      throw agentErrors.capability_unavailable("这个 Runtime 尚未接通副作用审批，不能运行会写入的角色");
-    }
-
-    if ((request.skills?.length ?? 0) !== (role.skills?.length ?? 0)
-      || role.skills?.some(skill => !request.skills?.some(ref => ref.skill_id === skill.skill_id && ref.version === skill.version))
-      || ((role.skills?.length ?? 0) > 0 && !this.#runtime.inlineMethods)) {
-      throw agentErrors.capability_unavailable("方法未由宿主解析或当前运行时不能展开方法");
-    }
-    if ((request.mcp_tools?.length || request.mcp_sources?.length) && this.descriptor.capabilities.mcp === "unsupported") throw agentErrors.capability_unavailable("此运行时尚未接通 MCP 审查");
-    if (role.compaction && !this.#runtime.compaction) throw agentErrors.capability_unavailable("上下文整理尚未接通");
-    if ((role.actions?.tools.length || role.action_gateway) && !this.#runtime.actionTools) throw agentErrors.capability_unavailable("Action tools are not connected to this runtime");
-    if (role.action_gateway && request.workspace !== "business") throw agentErrors.capability_unavailable("能力网关只用于业务会话");
+    const { role, mode } = await prepareRunRole(request, this.#runtime, this.descriptor, ref => this.read(ref));
     const at = this.#now().toISOString();
-    const frozen = freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: this.#runtime.defaultContextWindowTokens, callId: execution?.call_id });
+    const frozen = { ...freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: this.#runtime.defaultContextWindowTokens, callId: execution?.call_id }),
+      ...(original ? { original_input: original.ref } : {}), ...(request.continued_from ? { continued_from: request.continued_from } : {}) };
 
     await execution?.beforeStart?.();
     requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
@@ -565,6 +603,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       assertBeforeStart: execution?.assertBeforeStart,
       beforeDispatch: execution?.beforeDispatch,
       provenance: { frozen, started_at: at },
+      ...(original ? { original_input: original } : {}),
       session_id: request.session.session_id,
       ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { root_path: request.directory.canonical_path }),
       model,
@@ -577,7 +616,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       },
       ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
       task: request.task,
-      ...(role.memory?.pinned.length ? { memory: structuredClone(role.memory) } : {}),
+      ...(role.memory ? { memory: structuredClone(role.memory) } : {}),
       ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
       ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
       text_materials: textMaterials,
@@ -601,6 +640,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
     const view: AgentRunView = {
       ref,
+      ...(original ? { original_input: original } : {}),
       phase: "starting",
       frozen,
       turns: [{ turn_id: "user-1", kind: "user", text: request.task, at, sequence: 0 }],
@@ -617,6 +657,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       state,
       control: started.control,
       model,
+      ...(request.role?.memory ? { memory_context: { consumer: request.role.memory.consumer,
+        ...(request.role.memory.usage ? { usage: structuredClone(request.role.memory.usage) } : {}) } } : {}),
       unsubscribe: () => {},
       listeners: new Set(),
     };
@@ -647,6 +689,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       // effect was allowed, so the failure is recorded on the run instead.
       if (isAwaitingApproval(event)) void this.#mirror(ref, event);
       this.#publish(ref.run_id);
+      if (event.type === "memory-context") void this.#memoryUsage.record(record, session.owner).then(() => this.#publish(ref.run_id));
     });
     const unsubscribeControl = started.control.subscribe(() => this.#publish(ref.run_id));
     record.unsubscribe = () => { unsubscribeEvents(); unsubscribeControl(); };
@@ -658,6 +701,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const session = await this.#loadSession(run.session_id);
     if (!session.runs.some(item => item.run_id === run.run_id)) throw agentErrors.run_unknown("这次执行不属于此会话");
     const record = this.#requireRun(run.run_id);
+    await this.#memoryUsage.record(record, session.owner);
     const view = structuredClone(record.view);
     if (view.frozen.execution_plan) {
       try {
@@ -758,9 +802,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   /** Release the underlying Runtime. The Host owns when this happens. */
   async close(): Promise<void> {
     this.#detachApprovalAnswers?.();
-    for (const record of this.#runs.values()) record.unsubscribe();
     await Promise.all([...this.#runs.values()].map(record => record.timingCommit));
-    await this.#runtime.shutdown();
+    try { await this.#runtime.shutdown(); }
+    finally {
+      for (const record of this.#runs.values()) record.unsubscribe();
+      await Promise.all([...this.#runs.values()].map(record => record.timingCommit));
+      await this.#memoryUsage.flush();
+    }
   }
 
   /**
@@ -876,20 +924,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   async #restoreSession(sessionId: string): Promise<SessionRecord> {
     const restored = await this.#runtime.sessions.restore?.(sessionId);
     if (!restored) return this.#requireSession(sessionId);
-    const session: SessionRecord = { title: restored.title, owner: restored.owner, workspace: restored.workspace ?? "required", runs: [],
-      ...(restored.recovery ? { recovery: restored.recovery } : {}) };
-    for (const saved of restored.runs) {
-      const { state, endedAt } = restorePrologueRun(saved);
-      // Replayed records are immutable observations. A new Run continues the
-      // same SDK session; old control handles cannot be resurrected.
-      const unavailable = (): never => { throw agentErrors.capability_unavailable("历史执行没有活动控制句柄，不能重放停止、回答或继续指令"); };
-      const control: PrologueControlPort = { state: state.phase === "reconcile-required" ? "reconcile-required" : "running",
-        stop: unavailable, pause: unavailable, resume: unavailable, steer: unavailable, subscribe: () => () => {} };
-      const view: AgentRunView = { ref: saved.ref, frozen: saved.frozen, started_at: saved.started_at, ended_at: endedAt,
-        phase: state.phase, turns: [], activity: [], usage: state.usage, awaiting_input: [] };
-      this.#runs.set(saved.ref.run_id, { view, state, control, unsubscribe: () => {}, listeners: new Set(), timingReady: true });
-      session.runs.push(saved.ref);
-      this.#publish(saved.ref.run_id, false);
+    const { session, records } = restoredSessionRecords(restored);
+    for (const record of records) {
+      this.#runs.set(record.view.ref.run_id, record);
+      this.#publish(record.view.ref.run_id, false);
     }
     this.#sessions.set(sessionId, session);
     return session;
@@ -916,49 +954,4 @@ function isAwaitingApproval(event: PrologueEvent): event is AwaitingApproval {
 function isEnded(phase: string): boolean {
   return phase === "completed" || phase === "failed"
     || phase === "cancelled" || phase === "stopped";
-}
-
-/** One interpretation of persisted progress for both the directory and full history. */
-function restorePrologueRun(saved: PrologueRestoredSession["runs"][number]) {
-  const state = runStreamState(saved.frozen.model_context?.prompt_includes_cache ?? false, saved);
-  state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at, sequence: 0 });
-  let firstPrompt = true;
-  let endedAt: string | null = null;
-  for (const event of saved.events ?? []) {
-    if (event.type === "prompt" && event.role === "user" && firstPrompt) {
-      firstPrompt = false;
-      if (event.text === saved.task) continue;
-    }
-    const atMs = (event as { atMs?: unknown }).atMs;
-    const at = typeof atMs === "number" && Number.isFinite(atMs) ? new Date(atMs).toISOString() : null;
-    applyRunEvent(state, event, at);
-    if (isEnded(state.phase) && typeof atMs === "number") endedAt = at;
-  }
-  if (saved.timing) {
-    const turns = new Map(saved.timing.turns.map(item => [item.turn_id, item.at]));
-    const activity = new Map(saved.timing.activity.map(item => [item.call_id, item.at]));
-    state.turns = state.turns.map(item => turns.has(item.turn_id) ? { ...item, at: turns.get(item.turn_id)! } : item);
-    state.activity = state.activity.map(item => activity.has(item.call_id) ? { ...item, at: activity.get(item.call_id)! } : item);
-    if (isEnded(state.phase)) endedAt = saved.timing.ended_at;
-  }
-  for (const question of saved.original_questions ?? []) {
-    if (!state.awaiting_input.some(held => held.pending_id === question.pending_id)) state.awaiting_input.push({ ...question, sequence: state.next_sequence++ });
-  }
-  if (!saved.events || !isEnded(state.phase)) {
-    closeInterruptedPrologueStream(state);
-    if (saved.terminal) {
-      // The runtime sealed the run; only its progress stopped short (the service went down while it was ending).
-      // Nothing is left to reconcile for it — an operation with an unknown outcome would still be open work, and that
-      // holds the whole session for checking — so it reads as ended, and says why the record is short.
-      state.phase = saved.stop_intent === "stopped" ? "stopped" : "failed";
-      state.stop_reason = saved.stop_intent === "stopped"
-        ? "已停止（服务在这一轮结束时中断，过程记录不完整；运行时确认它已结束，没有待核对的操作）"
-        : "这一轮在服务中断时结束，过程记录不完整；运行时确认它已结束，没有待核对的操作。不会自动重跑。";
-    } else {
-      state.phase = "reconcile-required";
-      state.stop_reason = "这轮执行在中断前没有提交完整事件账，已发生的操作需要核对；不会自动重跑。";
-    }
-  }
-  if (state.phase === "cancelled" && saved.stop_intent === "stopped") { state.phase = "stopped"; state.stop_reason = saved.stop_reason ?? "已停止"; }
-  return { state, endedAt };
 }

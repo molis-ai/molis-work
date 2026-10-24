@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { bindActionClient, defineSubjectContextAction, type ActionCallContext, type ActionDefinition, type ActionView, type BoundActionClient,
-  type WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/actions";
+  type WorkExecutorRole, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService, AssistantStore, assistantServiceFor, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { EXECUTOR_MODES, roleOfCapability, roleViews } from "./fixtures/work-executor-fake.js";
+import { EXECUTOR_MODES, roleDefinitions, roleOfCapability, roleViews } from "./fixtures/work-executor-fake.js";
+
+import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
+import { openTestHome } from "./fixtures/test-home.js";
 
 // specs/repository-anti-corruption PG-036 (C8-3): the Assistant carries a work in any plugin that publishes the work-executor protocol,
 // found by the roles' types and kept by the plugin's id. These tests speak the protocol with a plugin that is not Coding.
@@ -171,8 +176,14 @@ test("RCPT-368: words a page wrote reach a round under way as the Host's, and th
   exec.sessions.get((first.work.executor as { session_id: string }).session_id)!.runs.at(-1)!.phase = "running";
   await service.send({ work_id: first.work.work_id, text: "浏览器已经交还，请继续", request_id: randomUUID(), written_by: "page" }, caller);
   assert.equal(exec.controls().at(-1)!.input.source, "host", "a page's wording is a note in the round, never the person's words");
-  await service.send({ work_id: first.work.work_id, text: "顺便补上测试", request_id: randomUUID() }, caller);
+  const text = "顺便补上测试", request_id = randomUUID();
+  await service.send({ work_id: first.work.work_id, text, request_id }, { ...caller, original_input: {
+    install_id: ASSISTANT_INSTALL_ID, input_id: request_id, text, written_by: "person", occurred_at: new Date().toISOString(),
+  } });
+  assert.equal(exec.controls().at(-1)!.input.original, undefined, "personal authorship travels only in the protected client context, never the action payload");
   assert.equal(exec.controls().at(-1)!.input.source, undefined, "the person's own words go without a source, which the executor reads as theirs");
+  await service.send({ work_id: first.work.work_id, text: "没有入口证明的文字", request_id: randomUUID() }, caller);
+  assert.equal(exec.controls().at(-1)!.input.source, "host", "a direct Service call cannot claim personal authorship without the send owner's stamp");
 });
 
 test("RC-06: words that reach a round as it ends are said to wait for the next round, never to have reached this one", async () => {
@@ -309,4 +320,61 @@ test("handing a work to a plugin carries what its documents say now, read from t
   // The person reads their own message for that round, not the note that travelled with it.
   const shown = (await service.read(work.work_id)).rounds.at(-1)!.turns.find(turn => turn.kind === "user")!.text;
   assert.equal(shown, "按文档实现");
+});
+
+
+test("MEM-35 executor supplements bind personal provenance to the installed generic action's exact version; absent installation and revoked grants refuse it", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("原输入转交");
+  const system = ensureSystemAgentService(home.host, home.home); await system.ready;
+  const { service } = assistantServiceFor({ localHost: home.host, homeDirectory: home.home, agentHost: system.agentHost,
+    agentReady: () => system.ready, projectTitle: async () => null, pages: async () => ["home"] });
+  const exec = fakeExecutor(), permission = "fixture-executor:write";
+  const definitions = roleDefinitions(PLUGIN, KIND, [permission]).map(definition => ({ ...definition,
+    version: roleOfCapability(PLUGIN, definition.capability_id) === "run.control" ? 13 : definition.version }));
+  const originals: Array<HostOfferedOriginalInput | undefined> = [];
+  const handlers = definitions.map(definition => ({ ...definition, async handle(context: ActionCallContext, input: unknown) {
+    if (roleOfCapability(PLUGIN, definition.capability_id) === "run.control") originals.push(context.original_input);
+    return exec.respond(roleOfCapability(PLUGIN, definition.capability_id), input as Input);
+  } }));
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "样例 Agent", kind: "app",
+    publisher: { publisher_id: "example", signature: "executor-original" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission, required: false, reason: "执行用户的工作" }], capabilities: { provides: [], consumes: [] },
+    artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: definitions },
+    async start() { return { kind: "app", actions: handlers }; } });
+  const repository = await home.host.withProject(project.reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: home.host.actionRegistry(project.reference), project_id: project.project_id } });
+  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [permission] }).install;
+  try {
+    await runtime.start(installed.install_id);
+    const caller = { project_ref: project.reference };
+    const first = await service.send({ executor: { kind: "plugin", plugin_id: PLUGIN }, scope: { kind: "project", project_id: project.project_id },
+      text: "先检查", request_id: randomUUID() }, caller);
+    exec.sessions.get((first.work.executor as { session_id: string }).session_id)!.runs.at(-1)!.phase = "running";
+    const send = (text: string) => {
+      const request_id = randomUUID();
+      const original = { input_id: request_id, text, written_by: "person" as const, occurred_at: "2026-10-24T00:00:00.000Z", install_id: ASSISTANT_INSTALL_ID };
+      return { original, result: service.send({ work_id: first.work.work_id, text, request_id }, { ...caller, original_input: original }) };
+    };
+    const accepted = send("顺便补上测试"); await accepted.result;
+    const action = definitions.find(definition => definition.capability_id.endsWith(".run.control"))!;
+    const provider = (await home.host.inspectActions({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [permission] }, project.reference))
+      .find(view => view.capability_id === action.capability_id)!.provider;
+    assert.deepEqual(originals, [{ ...accepted.original, use: "supplement", install_id: installed.install_id,
+      action: { capability_id: action.capability_id, version: 13, provider_id: provider.provider_id } }]);
+    assert.equal(exec.controls().at(-1)!.input.original, undefined);
+    const before = exec.controls().length;
+    const record = runtime.get(installed.install_id); repository.save({ ...record, grants: [] });
+    await assert.rejects(send("撤权后不转交").result);
+    assert.equal(exec.controls().length, before, "revocation never reaches the executor handler or records another supplement");
+    repository.save(record); await runtime.stop(installed.install_id);
+    // A provider can publish the same role and plugin id, but it cannot invent an installation owner.
+    const withdraw = home.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "fixture-uninstalled", plugin_id: PLUGIN,
+      kind: "plugin", title: "未安装的声明", project_id: project.project_id }, definitions: definitions.map(definition => ({ ...definition,
+        action: { ...definition.action, permissions: [] } })), handlers });
+    try {
+      await assert.rejects(send("声明角色不等于原件授权").result);
+      assert.equal(exec.controls().length, before, "an uninstalled declaration gets no personal original or supplement");
+      assert.equal(originals.length, 1);
+    } finally { withdraw(); }
+  } finally { await runtime.stop(installed.install_id); }
 });

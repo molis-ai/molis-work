@@ -53,7 +53,7 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
         check(); options.signal?.throwIfAborted();
         lifetime = createExecutionLifetime({ signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal,
           monitor: { intervalMs: 200, check } });
-        control = { ...caller, signal: lifetime.signal, on_progress: undefined,
+        control = { ...caller, signal: lifetime.signal, on_progress: undefined, original_input: undefined,
           retainAuthority: undefined, retainBackgroundAuthority: undefined, retain_background_authority: undefined,
           assert_authority_current: () => { lifetime.assertActive(); check(); },
           beforeEffect: pluginActionBeforeEffect(async () => { lifetime.assertActive(); check(); await authority(); lifetime.assertActive(); check(); }, checked) };

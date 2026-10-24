@@ -85,6 +85,25 @@ const follow = (a: CodingActivation, execution: CodingExecution, sessionId: stri
   };
 };
 
+/** A protected entry's exact raw words, before mentions/digests; derived modes never create personal input. */
+function originalForStart(body: Record<string, unknown>, beforeWrite: CodingBeforeWrite) {
+  const original = beforeWrite.original_input;
+  if (!original || original.text !== body.task || body.plan_revision !== undefined || body.reask !== undefined
+    || body.continued_from !== undefined || body.continue_step_board_of !== undefined || body.origin_task !== undefined || body.wait_for !== undefined) return undefined;
+  const { input_id, text, written_by, occurred_at } = original;
+  return { input_id, text, written_by, occurred_at };
+}
+
+function continuedOriginal(body: Record<string, unknown>, sessionId: string | null) {
+  if (body.continued_from === undefined) return undefined;
+  const value = body.continued_from;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw codingFailure("coding.server.no-run-record");
+  const ref = value as Record<string, unknown>;
+  if (Object.keys(ref).some(key => key !== "session_id" && key !== "run_id") || ref.session_id !== sessionId
+    || typeof ref.run_id !== "string" || !ref.run_id || ref.run_id.length > 200) throw codingFailure("coding.server.no-run-record");
+  return { session_id: sessionId!, run_id: ref.run_id };
+}
+
 /**
  * Start a round in a session: from the person's send, or later from a queued round when the work it waited for is
  * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
@@ -94,6 +113,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
+  const original_input = originalForStart(body, beforeWrite), continued_from = continuedOriginal(body, record.runtime_session_id);
   const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "coding.field.continued-run", 200);
   if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw codingFailure("coding.server.continue-plan");
   const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(projectId, record.session_id);
@@ -183,7 +203,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
       context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
         tokens: { input: spent.tokens.input + usage.input, output: spent.tokens.output + usage.output } }));
     });
-  const start = async (mode: "session" | "digest") => codingActions(a.context, beforeWrite).invoke(agent.startRun, [record.runtime_id, { session, directory, task: mode === "digest" ? (await digestFor()).text : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+  const start = async (mode: "session" | "digest") => codingActions(a.context, beforeWrite).invoke(agent.startRun, [record.runtime_id, { session, directory, task: mode === "digest" ? (await digestFor()).text : task, ...(original_input ? { original_input } : {}), ...(continued_from ? { continued_from } : {}), role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
     ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
     ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
     // A round that waited for other work takes over the item it waited as.

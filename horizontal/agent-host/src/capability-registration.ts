@@ -30,6 +30,8 @@ export interface AgentCapabilityRegistrar<Context> {
 }
 
 export interface AgentCapabilityPorts<Context> {
+  /** Protected original of the current plugin Action; never read from capability arguments. */
+  originalInput?(context: Context, caller?: HostPluginCaller): import("@molis-ai/molis-work-contracts/platform/actions").HostOfferedOriginalInput | undefined;
   /** The Agent Host serving this context. */
   agentHost(context: Context): AgentHost;
   /**
@@ -285,7 +287,7 @@ export function registerAgentHostCapabilities<Context>(
       await adapter.messages.cancel(ports.projectId(context), messageId);
     }),
     // What this project's sessions wait for and how they go on, and what a plugin tells one of their rounds (session-actions), and the person's after-write checkers (write-checker-actions).
-    ...registerSessionActions(register, { pluginFor, adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun,
+    ...registerSessionActions(register, { pluginFor, originalInput: call => owners.originalInput?.(call.source, pluginFor(call)), adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun,
       ownsSession: (call, session) => readScopedSession(call, session).then(() => true, () => false), actions: async (call, runtimeId, session) => { const authority = await ports.authority(call); return authority.actions ? authority.actions(runtimeId, undefined, session) : undefined; } }),
     ...registerWriteCheckerActions(register, { pluginFor, projectId: ports.projectId, writeCheckers: call => owners.writeCheckers?.(call.source) ?? Promise.reject(agentErrors.capability_unavailable("宿主没有接通写后检查器")) }),
     // Like waitRun: one of the caller's places to wait, only its own sessions' continuations. Another plugin's that are ready

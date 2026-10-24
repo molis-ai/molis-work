@@ -57,6 +57,18 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
   assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
   assert.equal(await v.ask("$('[data-issue-flag] a[href=\"/settings/models\"]')?.textContent"), "Models");
   assert.doesNotMatch(await v.ask<string>("$('[data-issue-flag]').textContent"), /[\u3400-\u9fff]/u);
+  // HOME-SET-02: the standalone consumer cannot turn an invalid settings request into navigation or I/O.
+  assert.deepEqual(await b.evaluate(`(() => {
+    const fetch = window.fetch, before = location.href; let requests = 0;
+    window.fetch = (...args) => { requests++; return fetch.apply(window, args); };
+    try {
+      for (const href of ['https://example.invalid/settings/models', '/projects', 'http://[', {}]) {
+        document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', { detail: { href } }));
+      }
+      return { requests, open: document.querySelector('[data-home-model-settings]').open, samePage: location.href === before };
+    } finally { window.fetch = fetch; }
+  })()`), { requests: 0, open: false, samePage: true });
+  assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
   const ownerState = "({address:location.href, marker:window.__homeSettingsOwner, sameFrame:Boolean(window.__homeSettingsFrame?.isConnected && window.__homeSettingsFrame === document.querySelector('iframe[data-plugin-frame=issues]'))})";
   const owner = await b.evaluate(`(() => { window.__homeSettingsOwner = 'issue-settings-owner'; window.__homeSettingsFrame = document.querySelector('iframe[data-plugin-frame=issues]'); return ${ownerState}; })()`);
   await v.ask("globalThis.__settingsDraftMarker = 'original-issue-frame'");
@@ -84,6 +96,19 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
   await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]') && document.querySelector('[data-home-model-status]').hidden", 15_000);
   assert.deepEqual(await b.evaluate("window.__modelSettingsLoads"), ["interrupted", 200], "Retry fetches the real Host document after the failed request");
   assert.deepEqual(await b.evaluate(ownerState), owner, "the settings link keeps the owner document and the original plugin frame");
+  // The management link is offered only when a connection exists; create one through the real local API.
+  await b.web.post("/api/settings/connectors/connections", {
+    service_id: "model-api", display_name: "Home settings fixture", token: "home-settings-test-only-connection",
+  });
+  await b.click("[data-home-model-content] [data-model-add-provider]");
+  await b.waitFor("document.querySelector('[data-home-model-content] [data-model-name]') && !document.querySelector('[data-model-settings]').hasAttribute('aria-busy')");
+  await b.evaluate(`(() => { const input = document.querySelector('[data-home-model-content] [data-model-name]');
+    input.value = 'Unsaved provider'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await b.click('[data-home-model-content] a[href="/settings/connectors?connector=model-api"]');
+  await b.waitFor("document.querySelector('[data-home-model-content] [data-connectors-settings]') && document.querySelector('[data-home-model-status]').hidden");
+  await b.click("[data-home-model-back]");
+  await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]') && document.querySelector('[data-home-model-status]').hidden");
+  assert.equal(await b.evaluate("document.querySelector('[data-home-model-content] [data-model-name]').value"), "Unsaved provider");
   await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
   assert.equal(await v.ask("globalThis.__settingsDraftMarker"), "original-issue-frame", "the Issue execution context was not reloaded");
   assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");

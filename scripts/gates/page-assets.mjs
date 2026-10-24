@@ -238,9 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // BL-372 (#1223, batch-33): the Runtime row on the project's general settings page, shown with more than one Runtime or when
-  // the picked one is gone. The row binder is already written compact; reviewed by the coordinator on 2026-10-24, +852 B.
-  "/assets/molis-work-workbench.js": [1130064, 1130916],
+  // Memory retries and usage states retain the approved +3093 B and +105 B, tightened by 5 B of equivalent reuse.
+  // Main batch-33 includes its Runtime row; only the same Memory +3193 B is admitted here.
+  "/assets/molis-work-workbench.js": [1130916, 1134109],
+  // Stable original-input identity retains the approved +738 B, tightened by 21 B of equivalent reuse to +717 B.
+  "/assets/molis-work-plugins/coding.js": [377163, 377880],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

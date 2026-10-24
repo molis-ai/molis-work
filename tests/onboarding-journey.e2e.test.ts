@@ -307,7 +307,7 @@ test("the opening and the two questions lay out cleanly at every width, in light
 });
 
 /** Every screen the journey can be on that a person reaches only part-way: each is a journey the Host already holds. */
-async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof openJourneyBrowser>>>): Promise<Array<[string, string, string]>> {
+async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof openJourneyBrowser>>>, locale: "zh" | "en" = "zh"): Promise<Array<[string, string, string]>> {
   const { seed, batch } = journey;
   const drafts = await batch();
   const scope = seed(item => {
@@ -350,6 +350,8 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     item.adoption = { title: LONG_NAME, body: SUMMARY, blank: false };
     item.summary = { title: "新版方案", body: SUMMARY, references: [reference(1)] };
   });
+  // English names the current batch before the total; Chinese names the total first. Both must show the same exact counts.
+  const summaryProgress = locale === "en" ? /\b4\/8\b/ : /8\D+4/, todoProgress = locale === "en" ? /\b1\/6\b/ : /6\D+1/;
   // A long round stopped part-way: the checkpoint says how far reading, the summary's batches and the todo batches came.
   const longQueue = seed(item => {
     item.sources = [{ kind: "files", selected: true, files: fileMeta(12).map(file => ({ path: file.path, staged: MAIL_SHA256 })), reading: { done: 120, total: 300, references: [], issues: [] } }];
@@ -367,7 +369,7 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     ["sources, materials added", `/onboarding?mode=new-project&journey=${added}`, `${obView("sources")} && document.querySelectorAll('.ob-right .mw-file-group').length === 2`],
     ["scope, long names", `/onboarding?mode=new-project&journey=${scope}`, `${obView("preview")} && document.querySelectorAll('.mw-file-row').length > 20`],
     ["reading, interrupted", `/onboarding?mode=new-project&journey=${interrupted}`, obView("reading")],
-    ["reading, a long queue interrupted", `/onboarding?mode=new-project&journey=${longQueue}`, `${obView("reading")} && document.querySelectorAll('.ob-phase').length === 3 && /120\\D+300/.test(document.querySelector('.ob-phases').textContent) && /8\\D+4/.test(document.querySelectorAll('.ob-phase')[1].textContent) && /6\\D+1/.test(document.querySelectorAll('.ob-phase')[2].textContent) && /48\\.0 MB \\/ 120\\.0 MB/.test(document.querySelector('.ob-phases').textContent) && document.querySelector('.ob-right [role=progressbar]').getAttribute('aria-valuenow') === '48000000' && document.querySelectorAll('.ob-phase [role=progressbar]').length === 2`],
+    ["reading, a long queue interrupted", `/onboarding?mode=new-project&journey=${longQueue}`, `${obView("reading")} && document.querySelectorAll('.ob-phase').length === 3 && /120\\D+300/.test(document.querySelector('.ob-phases').textContent) && ${summaryProgress}.test(document.querySelectorAll('.ob-phase')[1].textContent) && ${todoProgress}.test(document.querySelectorAll('.ob-phase')[2].textContent) && /48\\.0 MB \\/ 120\\.0 MB/.test(document.querySelector('.ob-phases').textContent) && document.querySelector('.ob-right [role=progressbar]').getAttribute('aria-valuenow') === '48000000' && document.querySelectorAll('.ob-phase [role=progressbar]').length === 2`],
     ["materials ready", `/onboarding?mode=new-project&journey=${needsModel}`, obView("materials")],
     ["review with drafts", `/onboarding?mode=new-project&journey=${reviewWithDrafts}`, `${obView("review")} && document.querySelectorAll('[data-draft]').length === 3`],
     ["review, long name, no drafts", `/onboarding?mode=new-project&journey=${reviewPlain}`, obView("review")],
@@ -418,7 +420,7 @@ test("in English every screen of the journey lays out cleanly too: longer words,
   const { view, go, evaluate, waitFor, command, sessionId, origin } = journey;
   await command("Network.enable", {}, sessionId);
   await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);
-  const states = await seededScreens(journey);
+  const states = await seededScreens(journey, "en");
   for (const { name, width, height } of SCREENS.filter(screen => ["1440", "768", "390 phone", "320 phone"].includes(screen.name))) {
     await view(width, height ?? 900, "light");
     for (const [state, path, ready] of states) {

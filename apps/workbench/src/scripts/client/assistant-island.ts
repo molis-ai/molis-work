@@ -422,7 +422,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node;
   };
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
-  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ L, el, keyed, setText, placer: (parent) => placer(parent), glyph: (name) => glyph(name), spinner: (state) => spinner(state) }), activityLine = proc.activityLine, retries = (${ASSISTANT_RETRY_FACTORY_SCRIPT})({ L, root: island, setText });
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
   const ixClient = host.interaction, fills = new Map(); // fills: words from the composer into a card's draft (R4, assistant-send.ts)
@@ -617,22 +616,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
     flush(); proc.sweep(node);
     if (carried) put(carried);
-    const memories = round.memories_used;
-    if (memories && ((memories.used || []).length || (memories.omitted || []).length)) {
-      const used = memories.used || [], omitted = memories.omitted || [];
-      const box = keyed(node, "data-entry", "memories", () => { const box = el("details", "assistant-steps assistant-memories"); box.append(el("summary", "assistant-steps-summary")); return box; });
-      const signature = JSON.stringify([used.map((m) => m.memory_id), omitted.map((m) => m.memory_id)]);
-      if (box.dataset.signature !== signature) {
-        box.dataset.signature = signature;
-        box.firstElementChild.textContent = L("用到 {n} 条记忆", { n: used.length }) + (omitted.length ? " · " + L("没带上 {n} 条", { n: omitted.length }) : "");
-        [...box.children].slice(1).forEach((child) => child.remove());
-        const line = (memory) => { const row = el("p", "assistant-activity assistant-memory"); row.append(el("span", "assistant-memory-scope", L(memory.scope === "personal" ? "个人" : memory.scope === "character" ? "角色" : "本项目")), document.createTextNode(memory.text)); if (memory.origin) row.title = memory.origin; return row; };
-        used.forEach((memory) => box.append(line(memory)));
-        // Left out for length (the budget) or for count (the limit): the memory service says which.
-        if (omitted.length) { box.append(el("p", "assistant-memory-omitted", L(omitted.every((memory) => memory.reason === "budget") ? "因为篇幅没带上" : "因为篇幅或条数上限没带上"))); omitted.forEach((memory) => box.append(line(memory))); }
-      }
-      put(box);
-    }
+    proc.memory(node, round.memories_used, put);
     const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status")), phase = round.phase;
     status.dataset.phase = phase; status.dataset.mwState = ({starting:'starting',running:'running',compacting:'running',failed:'failed',stopped:'stopped',cancelled:'cancelled',paused:'paused','reconcile-required':'verify',unknown:'verify'})[phase] || 'idle';
     const ownStop = round.stop_reason && round.stop_reason !== "已停止" ? round.stop_reason : "";
@@ -686,6 +670,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return holder;
   };
   const spinner = (state = "running") => { const mark = el("span", "assistant-state-ring"); mark.dataset.mwState = state; mark.setAttribute("aria-hidden", "true"); return mark; };
+  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ L, el, keyed, setText, placer, glyph, spinner }), activityLine = proc.activityLine, retries = (${ASSISTANT_RETRY_FACTORY_SCRIPT})({ L, root: island, setText });
   /** What an object is, read from its kind or the surface it opens in. */
   const KIND_GLYPH = [[/todo/, "check"], [/image|photo/, "image"], [/coding|code/, "code"], [/goal/, "target"], [/lingguang|idea/, "idea"],
     [/feed|inbox|mail/, "inbox"], [/workflow|schedule/, "workflow"], [/dataset|database/, "database"], [/artifact|package/, "package"], [/page|doc|note|form|ppt/, "note"]];
@@ -795,7 +780,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       suggestions.forEach((candidate) => {
         const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", {}); await reload(); };
         cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: L(candidate.held ? "你刚才让我记住" : "要记住吗") + "：" + candidate.text, detail: candidate.held,
-          sub: (candidate.held ? "" : candidate.why + " · ") + L(candidate.scope === "personal" ? "个人" : candidate.scope === "character" ? "角色" : "本项目"),
+          sub: (candidate.held ? "" : candidate.why + " · ") + proc.memoryScope(candidate.scope),
           actions: [sideAct(L("记住"), candidate.text, settle("/accept"), false, "primary"), sideAct(L("不用"), candidate.text, settle("/discard"), false, "secondary")] }));
       });
       paintBlock(node, L("还等你处理"), "bell", cards.length ? stack(cards) : null, String(cards.length), true, true);
@@ -943,7 +928,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           const scoped = change.scope === "project" ? change.project_id || (project && project.id) : "";
           if (!handled) location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
         }, true));
-        const scope = L(change.scope === "personal" ? "个人" : change.scope === "character" ? "角色" : "本项目");
+        const scope = proc.memoryScope(change.scope);
         if (undone && (!UNDONE[change.kind] || !change.text)) return card({ icon: "sparkles", title: L("已撤销（已从记忆里删掉）"), done: true, sub: scope, actions });
         return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: change.text, done: undone,
           sub: [scope, undone ? L(UNDONE[change.kind]) : KEPT[change.kind] ? L(KEPT[change.kind]) : ""].filter(Boolean).join(" · "), actions });

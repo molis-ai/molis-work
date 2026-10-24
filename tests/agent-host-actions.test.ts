@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentHostCapabilities as agent, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, type AgentRunRef, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
+import { codingProductHost } from "./fixtures/coding-product-host.js";
+import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
 /*
  * R8 (PG-035, BL-364): the agent Host's letters between sessions and background commands are its actions. A plugin that consumes
@@ -274,7 +277,7 @@ async function roundsSetup(t: TestContext, home = false) {
     read: answer("read", args => ({ ...ROUND_VIEW, ref: args[0] })),
     // A round that keeps running: the view is published once, as the Runtime does to a new observer, and never changes.
     observe(run: unknown, listener: (view: never) => void) { seen.push(["observe", [run]]); observers.add(listener); listener({ ...ROUND_VIEW, ref: run } as never); return () => { observers.delete(listener); }; },
-    readSession: async (session: { runtime_id: string; session_id: string }) => ({ session, owner: owner.current, title: "Rounds", runs: [{ session_id: "s1", run_id: "r1" }], latest_run: null }) as never,
+    readSession: async (session: { runtime_id: string; session_id: string }) => ({ session, owner: owner.current, title: "Rounds", runs: [{ session_id: "s1", run_id: "r1" }], latest_run: { ...ROUND_VIEW } }) as never,
     control: answer("control", () => undefined),
     readCommandOutput: answer("command", args => ({ ref: args[1], command: "node --test", exit_code: 0, stdout: "ok", stderr: "", truncated: false })),
     recovery: { inspect: answer("inspect", () => structuredClone(recovery)), close: answer("close", () => structuredClone(recovery)) },
@@ -282,7 +285,7 @@ async function roundsSetup(t: TestContext, home = false) {
     subagents: { list: answer("subagents", () => []), cancel: answer("cancel", () => undefined) },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
-  const consumer = callerPlugin("rounds", "project", {}, [...SIX, ...READS, agent.waitRun].map(definition => definition.capability_id));
+  const consumer = callerPlugin("rounds", "project", {}, [...SIX, ...READS, agent.waitRun, agent.startRun].map(definition => definition.capability_id));
   const bystander = callerPlugin("rounds-bystander", "project");
   await startPlugin(localHost, reference, store, consumer, { actorId: "web-user" });
   await startPlugin(localHost, reference, store, bystander, { actorId: "web-user" });
@@ -290,7 +293,48 @@ async function roundsSetup(t: TestContext, home = false) {
   return { localHost, reference, seen, owner, consumer, bystander, observers };
 }
 const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", frozen: {}, turns: [], activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
+  original_input: { ref: { session_id: "s1", input_id: "original-1", version: 1 }, text: "Use pnpm", written_by: "person", occurred_at: "2026-10-23T00:00:00.000Z" },
   started_at: "2026-10-23T00:00:00.000Z", ended_at: null };
+
+test("original-input Action shapes reject fixed version 1 through the real plugin dispatcher", async t => {
+  const { consumer, seen, owner } = await roundsSetup(t), actions = consumer.actions(PROJECT);
+  owner.current = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
+  const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
+  const calls = [
+    [agent.readSession, [session]], [agent.readRun, [session, run]], [agent.waitRun, [session, run, null, 0]],
+    [agent.startRun, [RUNTIME, { session, task: "Read the project", role_id: "reader" }]],
+  ] as const;
+  for (const [definition, input] of calls) {
+    await assert.rejects(actions.invoke({ ...definition, version: 1 } as ActionDefinition, input), { code: "actions.dependency_missing" }, definition.capability_id);
+  }
+  assert.deepEqual(seen, [], "none of the old references reached the Runtime");
+});
+
+test("current original-input Actions carry protected Coding words and same-session continuation through production HTTP", { timeout: 60_000 }, async t => {
+  const f = await codingProductHost(t, () => cogniaModelResponse("已读。")), prefix = "/api/plugins/io.molis.work.coding";
+  const created = await f.call<{ session: { session_id: string } }>(f.project.project_id, prefix + "/sessions", {});
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  const id = created.body.session.session_id, task = "  本项目统一用 pnpm。\r\n只解释约定。  ", inputId = randomUUID();
+  const start = async (text: string, extra: Record<string, unknown>) => {
+    const result = await f.call<{ run: { ref: AgentRunRef } }>(f.project.project_id, prefix + `/sessions/${id}/runs`, {
+      task: text, intent: "discuss", workspace_id: f.workspaceId, provider_id: "fixture", model_id: "fixture-model", ...extra,
+    });
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    const view = await f.ended(result.body.run.ref); assert.equal(view.phase, "completed", view.stop_reason); return view;
+  };
+  const first = await start(task, { original_input: { input_id: inputId, text: task } });
+  assert.equal(first.original_input?.text, task); assert.equal(first.original_input?.written_by, "person");
+  assert.deepEqual(first.original_input?.ref, { session_id: first.ref.session_id, input_id: inputId, version: 1 });
+  const continued = await start("根据前轮回执继续", { continued_from: first.ref });
+  assert.deepEqual(continued.original_input, first.original_input); assert.deepEqual(continued.frozen.continued_from, first.ref);
+  const timeline = await f.call<{ runs: AgentRunView[] }>(f.project.project_id, prefix + `/sessions/${id}`);
+  assert.equal(timeline.status, 200, JSON.stringify(timeline.body));
+  assert.deepEqual(timeline.body.runs.find(run => run.ref.run_id === continued.ref.run_id)?.original_input, first.original_input,
+    "production session/run reads preserve the canonical original");
+  const live = await f.call<{ runs: AgentRunView[] }>(f.project.project_id, prefix + `/sessions/${id}/runs/${continued.ref.run_id}/live?timeout=0`);
+  assert.equal(live.status, 200, JSON.stringify(live.body));
+  assert.deepEqual(live.body.runs[0]?.original_input, first.original_input, "the production waitRun Action also retains the canonical original");
+});
 
 test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks are plugin-only actions on the caller's own session", async t => {
   for (const definition of SIX as ActionDefinition[]) assert.deepEqual([definition.action.scope, definition.action.audiences, definition.action.permissions], ["project", ["plugin"], []], definition.capability_id);
@@ -346,6 +390,8 @@ test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing
   owner.current = mine;
   assert.deepEqual((await actions.invoke(agent.readSession, [session])).runs, [run]);
   assert.equal((await actions.invoke(agent.readRun, [session, run])).phase, "running");
+  assert.deepEqual((await actions.invoke(agent.readRun, [session, run])).original_input, ROUND_VIEW.original_input);
+  assert.deepEqual((await actions.invoke(agent.readSession, [session])).latest_run?.original_input, ROUND_VIEW.original_input);
   assert.deepEqual(await actions.invoke(agent.readRunReviews, [session, run]), []);
   assert.deepEqual(await actions.invoke(agent.listSubagents, [session, run]), []);
   // A rewind is prepared only for a role that edits files; this plugin declares none, so it is refused past the session check.
@@ -394,6 +440,7 @@ test("RAC-181 following a round is a concurrent plugin-only query on the caller'
 
   const first = await waitFor(null, 0);
   assert.equal(first.view.phase, "running");
+  assert.deepEqual(first.view.original_input, ROUND_VIEW.original_input);
   // Nothing changed within the wait: the same round comes back, as a success, and the call log keeps no row of it.
   const quiet = await waitFor(first.version, 50);
   assert.equal(quiet.version, first.version, "a wait that reached its time answers the round as it is");

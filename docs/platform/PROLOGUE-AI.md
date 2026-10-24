@@ -81,16 +81,18 @@ SDK 的 schema 支持明确的类型、nullable/anyOf、必填、enum、对象�
 
 ```text
 Coding 页面 → plugins/native/coding/src/routes.ts
-  → agent.run.start.v1 → AgentHost.start（horizontal/agent-host/src/index.ts）
+  → agent.run.start.v1@2 → AgentHost.start（horizontal/agent-host/src/index.ts）
       冻结角色（调用者这次激活的 Manifest 与定义里的 `agent_prompts`；没有调用者就没有角色，PG-051）→ 核对目录授权 → 核对原会话归属（project/plugin/install/actor）
       → 解析 Character 固定版本 → 组装宿主工具与动作工具（精确引用）
   → Prologue 适配器（adapters/prologue-node.ts 组合，adapters/prologue-run.ts 起跑）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
   → 报告、变更集作为 Artifact 发布
-  ← agent.run.wait.v1 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
+  ← agent.run.wait.v1@2 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
 ```
 
 **每一轮带一个调用编号**（W3-01 E；见 [调用链](../system/CALL-CHAINS.md) §1 第 5 条）：一轮（助理、Coding 等 Agent、定时任务到点跑的 Agent）开始时，宿主给它一个调用编号。启动权限的 `call_id`（`AgentStartAuthority`）经 `AgentHost.start` 交给适配器，适配器写进这一轮的冻结记录（`AgentRunView.frozen.call_id`，和角色、提示词版本、工具一起冻结，读回时原样）；这一轮每次工具调用的上下文也带同一个编号，所以按编号能从调用记录找到这一轮走过的每一步。编号只记在 Molis Work 自己的冻结记录里，不交给 Prologue（用户 2026-10-10 决定），Prologue 的运行元数据没有它。编号只由宿主给：适配器只读启动权限，不读 `agent.run.start` 的请求体，插件在里面写的 `call_id` 不会成为一轮的编号。有界推理（`hostTextGeneration`、`hostCompleteText`）没有运行记录可挂，不带编号，它所在的那个动作的调用记录行带着。`frozen.call_id` 与 `AgentToolActivity.call_id`（Prologue 给一次工具调用的 id）是两回事。
+
+正式 AgentHost Action 的启动输入允许既有 `original_input` 草稿和 `continued_from`，但 project/plugin/install/actor 只由 Host 调用上下文推导，冻结角色不从输入读。原件草稿不是本人证明：Host 仍比对受保护输入的安装、正文、作者、编号及首次时间。Run、Session 最新轮次与等待输出保留 canonical `original_input`，顶层未知字段仍拒绝。助理向通用执行方转交补充时，只匹配所选插件当前安装的精确 `run.control` Action/版本，原话通过 Host 上下文传递，不放进业务 `original` 字段。
 
 ## 4. 新增一个 AI 能力：调用骨架与可执行示例
 
@@ -460,7 +462,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **按相关、时效、权限和实际预算选，不按「前几个」。** 省略了要说出来，模型才能如实告诉用户：灵光把过长的一条截到开头并写「（以下省略）」，整场材料超过 18 万字符就拒绝并请用户减少所选（`plugins/native/lingguang/src/actions.ts` 的 `conversationPrompt`）；助理写明「没有带上的记忆」有几条、为什么。
 
-**摘要、裁剪、记忆与交接要保住影响正确性的东西。** 上下文整理（`horizontal/agent-host/src/adapters/prologue-compaction.ts`）只让模型选原文坐标，宿主逐字拷贝，所以要求、数值和路径不会在改写里走样；整理时把当前的用户要求（`instructions`）一起交给它，压缩之后新要求仍然生效。交给子任务时，`delegate-work` 的 `brief` 字段写明「It does not see this conversation」，只附它需要的材料。一轮进行中用户补一句话，走输入回执 `agent.inputs.send.v2`（`packages/contracts/src/services/agent-inputs.ts`）：在下一个边界读进上下文、打断当前回复或留到下一轮，回执说明这句话去了哪里。这些都复用 Prologue 与已有的回执能力，不在每个插件里再做一套，也不靠每轮追加同一组禁令弥补资料丢失。
+**摘要、裁剪、记忆与交接要保住影响正确性的东西。** 上下文整理（`horizontal/agent-host/src/adapters/prologue-compaction.ts`）只让模型选原文坐标，宿主逐字拷贝，所以要求、数值和路径不会在改写里走样；整理时把当前的用户要求（`instructions`）一起交给它，压缩之后新要求仍然生效。交给子任务时，`delegate-work` 的 `brief` 字段写明「It does not see this conversation」，只附它需要的材料。一轮进行中用户补一句话，走输入回执 `agent.inputs.send.v3`（`packages/contracts/src/services/agent-inputs.ts`）：在下一个边界读进上下文、打断当前回复或留到下一轮，回执说明这句话去了哪里。补充 Action 不信任自报 person；受保护发送的原件证明绑定当前安装、动作和输入键。附材料或选区时，Host 传 `source: host` 与独立 `original`，SDK 只把外层 text 送进模型，raw 原件用于当前来源核验。这些都复用 Prologue 与已有的回执能力，不在每个插件里再做一套，也不靠每轮追加同一组禁令弥补资料丢失。
 
 **资料不足时补什么：**
 
@@ -532,7 +534,7 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
 | 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
-| 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v2` 与 `agent.inputs.withdraw.v1` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
+| 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v3` 与 `agent.inputs.withdraw.v1` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 收尾核对 | 回复说做了、记住了、按钮好了或接下来要做，而这一轮其实没做 | `horizontal/agent-host/src/adapters/prologue-stop-guard.ts` 的收工钩子：可写的一轮没有任何成功的改动时，`ending-review.ts` 把结尾和宿主记的事实（`announce-guard.ts` 的 `RoundFacts`：调用过什么、结果如何）交给这一轮的模型核对一次；对不上的按种类各拦一次、接着做一次（用户 2026-09-28、2026-10-16）。核对的指令是这一轮的主人登记的提示词：Manifest 的 `ending_review` 指向它（`assistant-ending-review`、`coding-ending-review`），在「设置 › 提示词」里叫「收尾核对」，用用户改过的版本，版本记进开跑时冻结的记录（`frozen.ending_review`）；agent-host 自己不带提示词，只读回答里约定的那一行 JSON。内部标识只认宿主交给模型的；把调用写成文字按工具格式认 | 让模型读说法，宿主给事实；判断出错、超时或答得不对一律放行；有改动的一轮不核对 | 只在 Manifest 声明了 `ending_review` 的 Agent 上（现在是 Assistant 与 Coding）；有改动的一轮里多出来的假话不查；核对的用量不计入这一轮的预算 | 确定性：`tests/announce-guard.test.ts`、`tests/assistant-business-gateway.test.ts`、`tests/assistant-memory.test.ts`、`tests/agent-definitions.test.ts`；真实模型：手册需求书 §9.5 的 D1② 记录 |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
 | 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理）；Runtime 插件经 `services.materials` 读到的文件，也由插件用它放进 `instructed(自己的指令, 数据)` 的数据里再交给 `services.model` | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来；灵光的对话把这句写在可改的指令 `lingguang.conversation` 里，待换成 `fencedMaterials` | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条，以及材料服务读到的文件经 Runtime 插件自己的指令交给模型、用户改掉指令里的提醒后声明照样在的一条） |

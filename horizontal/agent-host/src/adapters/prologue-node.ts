@@ -13,6 +13,7 @@ import type { PrologueGitReviewPort } from "./prologue-git.js";
 import type { PrologueInferenceClient } from "../inference.js";
 import { createPrologueMcpLibrary } from "./prologue-mcp.js";
 import { createPrologueMemory } from "./prologue-memory.js";
+import { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 import { readResource, readResourceText, createRoundState, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import { createNodeCoordination, createNodeInference, createNodeProjectWork } from "./prologue-node-parts.js";
 import { createWorkGraphs } from "./prologue-work-graphs.js";
@@ -119,10 +120,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   let surfaceHost: PrologueSurfaces | undefined;
   const state = createRoundState();
   const index = createSessionIndexStore(effects.host, options.app.appId);
+  const memoryAuthority = createPrologueMemoryAuthority(options.memory, index, effects);
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
-  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers);
+  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers, memoryAuthority);
   checks.open();
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
   // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
@@ -142,7 +144,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });
   const surfaces = () => surfaceHost;
-  const platformMemory = createPrologueMemory(runtime, effects.bind);
+  const platformMemory = createPrologueMemory(runtime, effects, memoryAuthority.binding);
   const gitReviews = createNodeGitReviews(options, host, runtime);
   const projectWork = createNodeProjectWork(options, host, runtime, state);
   const workGraphs = createWorkGraphs(runtime, index);
@@ -189,6 +191,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       return started;
     }) },
     modelConfiguration: options.modelConfiguration,
+    ...(options.memoryUsage ? { memoryUsage: options.memoryUsage } : {}),
     stopHeld: runId => { const queue = state.heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) state.heldLabels.delete(runId); return next; },
     // Judged when the run ends, from its facts: held for only announcing, and nothing called after that.
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),

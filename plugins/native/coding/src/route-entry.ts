@@ -1,4 +1,4 @@
-import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionLocale, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionClient, PluginCapabilityClient, PluginJobControl, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingInteractionHtml } from "./interaction-html.js";
@@ -7,8 +7,8 @@ import { codingRouteActions } from "./route-actions.js";
 import type { CodingExecution } from "./routes.js";
 import { codingError, codingErrorIn } from "./words.js";
 
-export type CodingBeforeWrite = (() => Promise<void>) & { assert_current(): void; signal?: AbortSignal };
-type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">;
+export type CodingBeforeWrite = (() => Promise<void>) & { assert_current(): void; signal?: AbortSignal; original_input?: HostOfferedOriginalInput };
+type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current" | "original_input">;
 /** Carry the original route fence to a formal dependency action just as the typed adapter does. */
 export function codingActionControl(beforeWrite: CodingBeforeWrite): Control {
   return { signal: beforeWrite.signal, beforeEffect: beforeWrite, assert_authority_current: beforeWrite.assert_current };
@@ -51,7 +51,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
       for (const permission of permissions) context.requireGrant(permission);
       requireSynchronous(control?.assert_authority_current?.(), "最终授权检查必须同步完成");
     };
-    return Object.assign(async () => { if (ownerCheck) await ownerCheck(); else await control?.beforeEffect(); assert_current(); }, { assert_current, signal: control?.signal });
+    return Object.assign(async () => { if (ownerCheck) await ownerCheck(); else await control?.beforeEffect(); assert_current(); }, { assert_current, signal: control?.signal, original_input: control?.original_input });
   };
   const execute = async (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite, locale: ActionLocale | undefined) => {
     const api = context.services?.capabilities;

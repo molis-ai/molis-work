@@ -1,5 +1,8 @@
-import type { AgentSessionRef, AgentStartRequest, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentSessionRef, AgentStartRequest, AgentTextMaterial, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID, type AssistantMaterial } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
+import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
 
 /**
@@ -10,6 +13,14 @@ export const ROUND_TURNS = 60;
 /** Whose a work's rounds are on the Host: its project's, or the person's own when it belongs to none. */
 export const ownerOf = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 
+/** A trusted send owner may attest only the exact ordinary input, before any derived materials are added. */
+export function sentOriginal(input: AssistantSendInput, offered: Omit<HostOfferedOriginalInput, "action"> | undefined, writtenBy?: string) {
+  if (!offered || writtenBy || input.written_by || input.reask !== undefined) return undefined;
+  if (offered.install_id !== ASSISTANT_INSTALL_ID || offered.input_id !== input.request_id || offered.text !== input.text || offered.written_by !== "person")
+    throw assistantErrors.invalid("发送原件与受理的本人输入不一致");
+  return Object.freeze({ ...offered });
+}
+
 /**
  * What a round of `work` asks the Host for: whose it is, the session and role it runs as, what it is told and shown,
  * and how far it may go. The Host checks all of it again when it starts the round.
@@ -17,6 +28,7 @@ export const ownerOf = (work: StoredWork) => work.project_ref?.project_id ?? ASS
 export function roundStartInput(work: StoredWork, round: {
   actor_id: string; session: AgentSessionRef; role_id: string; task: string; text_materials: AgentTextMaterial[];
   materials: readonly AssistantMaterial[]; tokens_left?: number;
+  original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef;
 }): AgentStartRequest {
   const { materials } = round;
   return {
@@ -24,6 +36,8 @@ export function roundStartInput(work: StoredWork, round: {
     session: round.session, role_id: round.role_id, workspace: "business", task: round.task,
     action_gateway: !work.reply_target,
     text_materials: round.text_materials,
+    ...(round.original_input ? { original_input: { input_id: round.original_input.input_id, text: round.original_input.text, written_by: round.original_input.written_by, occurred_at: round.original_input.occurred_at } } : {}),
+    ...(round.continued_from ? { continued_from: round.continued_from } : {}),
     // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
     ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
       .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),

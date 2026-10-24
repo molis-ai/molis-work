@@ -204,21 +204,24 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-retry-waiting.tgz";
+  const current = "prologue-sdk-0.0.0-rc.1-memory-p0.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the one agent-host depends on, packed from a named commit of upstream main without a patch", () => {
+  test("the current Prologue package is the one agent-host depends on, packed from a named commit merged into upstream main without a patch", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // vendor/prologue-sdk/README.md: upstream main's merge of PR #60 (a model call that waits to retry says so: retry-waiting, with the retry time and why), on top of #59 (internal exports narrowed), #58 (runtime admission and shutdown boundaries hardened), #53 (an answered ask-user result names its question under answered; BL-176), #57, #56, #55, #54, #52, #51, #50, #49, #48, #47, #46, #45, #44, #43 and #42. PA-MCP-02.
-    assert.equal(provenance.source.commit, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");
-    assert.equal(provenance.source.mergedUpstream.pullRequest, 60);
+    // PR #94's tested head has the same tree as its upstream main merge; the package includes #60.
+    assert.equal(provenance.source.commit, "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512");
+    assert.equal(provenance.source.mergedUpstream.pullRequest, 94);
+    assert.equal(provenance.source.mergedUpstream.head, provenance.source.commit);
+    assert.equal(provenance.source.mergedUpstream.merge, "d94a99fb3d3cd33c95cd97393c4d1949366ffa81");
     assert.equal(provenance.source.inFlight, undefined);
-    assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, provenance.source.commit);
+    // The historical ancestry audit remains pinned to the main commit it actually checked.
+    assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
   });

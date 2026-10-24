@@ -44,6 +44,9 @@ test("RC-10: a supplement goes with its send mode and a key, and the page says w
   assert.equal(await ui.steer("s", "r", "别改 fixture", "next-boundary"), "已送达，当前回复或这批工具结束后交给 AI。");
   assert.match(await ui.steer("s", "r", "改用新接口", "interrupt"), /正在写的回复已丢掉.*已执行的操作不撤销/u, "interrupting says what it costs");
   assert.deepEqual(sent.map(body => [body.kind, body.run_id, body.mode, body.key]), [["steer", "r", "next-boundary", "send.u1"], ["steer", "r", "interrupt", "send.u2"]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.map(body => body.original_input))), [
+    { input_id: "u1", text: "别改 fixture", use: "supplement" }, { input_id: "u2", text: "改用新接口", use: "supplement" },
+  ], "each protected request carries the complete words under the same input identity as its retry key");
   const queued = receipts(() => taken("queued"));
   assert.equal(await queued.ui.steer("s", "r", "顺便改文档", "after-run"), "已存好，下一轮开始时带上。");
   assert.equal(await queued.ui.steer("s", "r", "还要这个", "next-boundary"), "这一轮刚结束，已存好，下一轮开始时带上。", "a supplement that missed its round never reads as taken by it");
@@ -68,6 +71,7 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   assert.notEqual(sending, lost);
   assert.match(sending.text, /发送中…/u);
   assert.equal(sent[1]!.key, sent[0]!.key, "the same words in the same mode are the same supplement");
+  assert.deepEqual(sent[1]!.original_input, sent[0]!.original_input, "a lost answer cannot mint a second original");
   release();
   assert.equal(await again, "之前已送到，没有重复发送。");
   assert.equal(ui.bubble("s", nothing), null, "once the Host has it, the round's own record shows it");
@@ -140,8 +144,9 @@ test("RCPT-326: from a receipt, the page takes a supplement back and sends a cor
   await assert.rejects(act.correct("steer-1", "只测失败路径", "k1"), /没确认送到：再按一次，同一条不会重复。/u);
   assert.equal(await act.correct("steer-1", "只测失败路径", "k1"), "之前已送到，没有重复发送。");
   assert.deepEqual(JSON.parse(JSON.stringify(sent.slice(0, 3))), [{ kind: "withdraw", run_id: "run-1", input_id: "steer-1" }, { kind: "withdraw", run_id: "run-1", input_id: "steer-1" },
-    { kind: "steer", run_id: "run-1", text: "只测失败路径", about: "steer-1", key: "send.k1" }], "RCPT-326 the person's words, the input they correct, and the receipt's key");
+    { kind: "steer", run_id: "run-1", text: "只测失败路径", about: "steer-1", key: "send.k1", original_input: { input_id: "k1", text: "只测失败路径", use: "supplement" } }], "RCPT-326 the person's words, the input they correct, and the receipt's key");
   assert.ok(sent.slice(2).every(body => body.key === "send.k1"), "RCPT-326 sent again, the same key");
+  for (const body of sent.slice(3)) assert.deepEqual(body.original_input, sent[2]!.original_input, "correction retries preserve the original, too");
   assert.ok(paths.every(path => path === "/sessions/s%201/control"));
   assert.equal(refreshed(), 6, "the page reads the round again after each");
 });

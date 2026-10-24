@@ -62,6 +62,18 @@ export interface HostOfferedOriginalFile {
   readonly install_id: string;
 }
 
+/** A protected HTTP entry's original text, limited to its installation and exact first own Action. Grants nothing. */
+export interface HostOfferedOriginalInput {
+  /** Supplement-only provenance; absent retains the existing initial-input contract. */
+  readonly use?: "supplement";
+  readonly input_id: string;
+  readonly text: string;
+  readonly written_by: "person" | "host";
+  readonly occurred_at: string;
+  readonly install_id: string;
+  readonly action: ActionReference;
+}
+
 /** The languages a page is shown in; the words a handler sends back follow the caller's. */
 export type ActionLocale = "zh" | "en";
 
@@ -82,6 +94,10 @@ export interface ActionUserAction {
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
+  /** Memory read intent fixed by a protected Host entry; never copied from business/model input. Absent means task. */
+  readonly memory_read_mode?: "explicit" | "task";
+  /** Validated Memory HTTP command identity, separate from this request's call_id. Grants nothing; never a model argument. */
+  readonly memory_operation_id?: string;
   /** Host-authenticated delivery of a completed discussion run; never accepted from business input. */
   readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
@@ -124,6 +140,8 @@ export interface ActionCallContext extends ActionCallOrigin {
    * plugin may do with it is the `materials:original` service's, which asks for the declaration and the grant. Never business input.
    */
   readonly original_file?: HostOfferedOriginalFile;
+  /** Protected HTTP provenance only; never copied from Action/model arguments or carried into background work. */
+  readonly original_input?: HostOfferedOriginalInput;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
   /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */

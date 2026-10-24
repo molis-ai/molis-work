@@ -121,3 +121,9 @@ Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插�
 评论内显式召唤个人助理时，复用宿主的原线程回复服务和同一个 Prologue，不新建第二个执行引擎。插件拥有消息与锚点，并声明用户专属的线程上下文查询与回复命令；宿主冻结该轮目标、材料和受限角色，最终回复从可信调用上下文交给所有者。普通评论不启动模型。模型完成而投递失败时只重投递；停止、撤权或原注册实例变化后拒绝迟到写入。后台使用 dispatcher 在原处理器存活时保留的授权检查，不保存已经结束的 beforeEffect。重启后的投递由新的显式请求恢复，不自动再调模型。实现入口为 `apps/local-host/src/assistant/assistant-threads.ts`，协议与验证边界见 [统一规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 
 评论入口明确带入未保存正文时，使用 `AssistantThreadDraft` 随该轮发起请求交给 owner 校验版本；只存入该轮材料并标出草稿，不替用户保存正文。默认仍等待保存，未持久化的新锚点必须先保存。
+
+### 补充输入的作者边界
+
+`agent.inputs.send.v3` / `coding.runs.control` v8 的业务输入不收 `original`，自报 `source: person` 不授予本人身份。本人 HTTP 发送由 Host 以 `use: supplement` 证明绑定当前安装、动作与 `send.<input_id>`；附材料或选区只改变外层模型 text，raw 原话沿同一 SDK 输入记录保存，不能拆标记推断。无证明的 Action 输入按 Host 处理；初始原件证明与补充证明不能互换。
+
+初始原件与接续通过正式 `agent.run.start.v1@2` 输入；`agent.session.read.v1@2`、`agent.run.read.v1@2`、`agent.run.wait.v1@2` 保留 canonical 原件，四口旧 @1 引用已失效。字段只表达草稿与来源引用，不能带 project/plugin/install/actor 或冻结角色。Host 校验原件证明，`readRun`、`readSession.latest_run` 与 `waitRun.view` 保留 canonical 原件；新增字段必须同步严格 Action schema 并升动作 version。助理通用执行方的补充经所选插件精确 `run.control` Action 与当前安装转交证明，不把协议角色本身当作本人授权。

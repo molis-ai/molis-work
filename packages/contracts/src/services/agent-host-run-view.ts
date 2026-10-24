@@ -128,6 +128,8 @@ export interface AgentRetryWait {
 }
 
 export interface AgentRunView {
+  /** Canonical original input read from its existing Session attempt; absent when no source was recorded. */
+  original_input?: import("./agent-inputs.js").AgentOriginalInput;
   step_board?: AgentStepBoard;
   step_board_error?: string;
   ref: AgentRunRef;

@@ -5,15 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
-import { setTimeout as delay } from "node:timers/promises";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, subjectContext,
-  type ActionDefinition, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
-import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
+  type ActionDefinition, type ActionExecutionContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SEARCH_PROVIDER_ID, searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const marker = "ACA005ORIGINALAUTHORITYBODY";
@@ -21,7 +20,20 @@ const providerId = "fixture.search-authority";
 
 async function fixture(t: TestContext, defaultOpen = false) {
   const directory = await mkdtemp(join(tmpdir(), "aca005-search-home-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
+  const authorityWaiting = Promise.withResolvers<void>();
+  const authorityReleased = Promise.withResolvers<void>();
+  let acceptedCallId: string | undefined;
+  const host = new class extends MolisWorkLocalHost {
+    override async inspectActions(...args: Parameters<MolisWorkLocalHost["inspectActions"]>) {
+      // The query may exhaust its indexing budget before both settings requests finish.
+      // Hold only this accepted invocation's real authority recheck; settings have no call_id.
+      if (acceptedCallId && args[0].call_id === acceptedCallId) {
+        authorityWaiting.resolve();
+        await authorityReleased.promise;
+      }
+      return super.inspectActions(...args);
+    }
+  }({ homeDirectory: directory, completeText: null });
   const home = { ...await serveTestHost(null, { home: directory, host }), host };
   const project = await home.createProject("Original search authority");
   const permissions = defaultOpen ? [] : ["form:read"];
@@ -29,20 +41,21 @@ async function fixture(t: TestContext, defaultOpen = false) {
     { kind: "unrelated_note", title: "Other kind", surface: "fixture" }], "HTTP notes", permissions);
   const reader = defineSubjectContextAction("fixture.search.reader", "authority_note", "Read note", permissions);
   const unrelatedReader = defineSubjectContextAction("fixture.search.other-reader", "unrelated_note", "Read another kind", permissions);
-  const peer: ActionDefinition = { capability_id: "fixture.search.peer", version: 1, operation: "query", action: {
-    title: "Independent grant", description: "Shares permissions without authority over this note", kind: "query", scope: "project",
+  const peer: ActionDefinition = { capability_id: "fixture.search.peer", version: 1, operation: "command", action: {
+    title: "Independent grant", description: "Shares permissions without authority over this note", kind: "operation", scope: "project",
     audiences: ["user", "mcp"], permissions: ["form:read"], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "boolean" },
   } };
   const entered = Promise.withResolvers<void>();
+  const accepted = Promise.withResolvers<void>();
+  const clientId = "runtime:search-authority";
+  let queryArmed = false;
   let release = () => {};
   let hold = false;
   const unblock = () => { hold = false; const answer = release; release = () => {}; answer(); };
   const data: SearchEntry[] = [{ subject: { kind: "authority_note", id: "one" }, revision: "1", title: "An owner's note",
     summary: "Listing metadata contains no body marker", updated_at: null, content: "context", open: { surface: "fixture", id: "one" } }];
-  let lastFetch = Date.now();
   const owner = createServer((_request, response) => {
-    lastFetch = Date.now();
     const answer = () => { response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(data)); };
     if (!hold) { answer(); return; }
     hold = false;
@@ -54,6 +67,16 @@ async function fixture(t: TestContext, defaultOpen = false) {
   const ownerUrl = `http://127.0.0.1:${address.port}/entries`;
   const dispose = home.host.actionRegistry(project.reference).registerProvider({ provider: {
     provider_id: providerId, plugin_id: providerId, title: "HTTP owner", kind: defaultOpen ? "system" : "plugin", project_id: project.project_id,
+  }, availability: caller => {
+    const running = (caller as Partial<ActionExecutionContext>).current_action;
+    // Observe the real query handler, not MCP's earlier catalog request or the owner's background refresh.
+    if (queryArmed && caller.actor_id === clientId && caller.project_id === project.project_id && caller.audience === "mcp"
+      && caller.call_id && running?.capability_id === searchActions.query.capability_id
+      && running.version === searchActions.query.version && running.provider_id === SEARCH_PROVIDER_ID) {
+      acceptedCallId ??= caller.call_id;
+      accepted.resolve();
+    }
+    return { available: true };
   }, definitions: [entries, reader, unrelatedReader, peer], handlers: [
     bindSearchEntriesHandler(entries, async () => {
       const response = await fetch(ownerUrl);
@@ -78,9 +101,10 @@ async function fixture(t: TestContext, defaultOpen = false) {
       MOLIS_WORK_WORK_CONTEXT_ID: "search-authority-session", MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     }, stderr: "pipe" });
   const sdk = new Client({ name: "search-authority-test", version: "1" });
-  t.signal.addEventListener("abort", unblock, { once: true });
+  const releaseAll = () => { unblock(); authorityReleased.resolve(); };
+  t.signal.addEventListener("abort", releaseAll, { once: true });
   t.after(async () => {
-    unblock();
+    releaseAll();
     try { await sdk.close(); }
     finally {
       for (const withdraw of disposers) withdraw();
@@ -90,7 +114,6 @@ async function fixture(t: TestContext, defaultOpen = false) {
     }
   });
   await sdk.connect(transport);
-  const clientId = "runtime:search-authority";
   const views = await home.inspect(clientId, project.project_id);
   const view = (definition: ActionDefinition) => {
     const found = views.find(item => item.capability_id === definition.capability_id && item.version === definition.version);
@@ -114,10 +137,14 @@ async function fixture(t: TestContext, defaultOpen = false) {
     const accepted = (await home.inspect(clientId, project.project_id)).find(item => item.capability_id === next.capability_id);
     assert.ok(accepted); await home.grant(clientId, project.project_id, [accepted]);
   };
-  return { home, project, entries, reader, unrelatedReader, peer, clientId, entered: entered.promise, release: unblock, addReader,
-    // The index re-reads the owner once its last read is 3 s old, and the Host also refreshes it by itself a little after a project opens
-    // (the knowledge catch-up): the owner's own last read, not a fixed wait, says when the next query will have to enter the HTTP wait.
-    ask, refresh: async () => { while (Date.now() - lastFetch < 3_100) await delay(lastFetch + 3_100 - Date.now() + 25); hold = true; },
+  return { home, project, entries, reader, unrelatedReader, peer, clientId, entered: entered.promise, accepted: accepted.promise,
+    authorityWaiting: authorityWaiting.promise, releaseOwner: unblock, release: releaseAll, addReader,
+    ask, refresh: async () => {
+      // A completed provider command marks its sources dirty; background knowledge refresh may have renewed their age.
+      await home.host.actionClient(project.reference).invoke(await home.host.localPersonContext(project.reference), { ...peer, provider_id: providerId }, {});
+      hold = true;
+      queryArmed = true;
+    },
     ownerQuery: () => home.web.post<SearchQueryResponse>(`/projects/${project.project_id}/api/search/query`, input),
     grant: (actions: ActionDefinition[]) => home.grant(clientId, project.project_id, actions.map(view)),
     revoke: (actions: ActionDefinition[]) => home.revoke(clientId, project.project_id, actions.map(view)),
@@ -130,10 +157,13 @@ async function duringOwnerWait(f: Fixture, change: () => Promise<unknown>) {
   let finished = false;
   const pending = f.ask().finally(() => { finished = true; });
   try {
-    await Promise.race([f.entered, pending.then(() => { throw new Error("Query answered without entering its owner's HTTP wait"); })]);
+    await Promise.race([Promise.all([f.accepted, f.entered]), pending.then(() => { throw new Error("Query answered before its handler and owner's HTTP wait were both observed"); })]);
     assert.equal(finished, false, "the real owner's HTTP fetch is still pending");
     await change();
     assert.equal(finished, false, "the product settings request completed before the same query answered");
+    f.releaseOwner();
+    await f.authorityWaiting;
+    assert.equal(finished, false, "the same query is waiting at its real authority recheck");
     f.release();
     return await pending;
   } finally { f.release(); }

@@ -1,3 +1,4 @@
+export type { AgentOriginalInputRef, AgentOriginalInputDraft, AgentOriginalInput } from "./agent-inputs.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from "./agent-host-reviews.js";
@@ -139,13 +140,16 @@ export type {
 } from "./agent-host-builder.js";
 
 export type { AgentStartExecution } from "./agent-host-start.js";
+export type { AgentMemoryFormationSlot, AgentMemoryFormationContext, AgentMemoryFormationInput, AgentMemoryExtractionUsage,
+  AgentMemoryFormationResult, AgentMemoryExtractionDraft, AgentMemoryExtractionRequest, AgentMemoryExtractor } from "./agent-host-memory-formation.js";
 
 export { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX, type PluginReviewKind } from "./agent-host-reviews.js";
 export { agentOfferActions, type AgentActionOffer, type AgentOfferRunRequest, type AgentRunOffer } from "./agent-host-offers.js";
 export { agentWriteCheckerActions, type AgentWriteChecker, type AgentWriteCheckerList, type AgentWriteCheckerSave, type AgentWriteCheckerStore, type AgentWriteCheckNote } from "./agent-host-write-checkers.js";
 
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
-export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability } from "./agent-host-memory.js";
+export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentMemoryUseReceipt, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability,
+  AgentMemoryCaller, AgentMemoryMutation, AgentMemoryChange, AgentMemoryPreviewMutation, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemorySourceRequest, AgentMemoryPromotionIdentity, AgentMemoryPromotionRequest, AgentMemoryPromotionPreparation, AgentMemoryPromotionApplied, AgentMemoryPromotionReceipt, AgentMemoryPromotion, AgentMemoryPromotionPendingError, AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryClearResult } from "./agent-host-memory.js";
 
 export const servicesAgentHostContract = {
   contractId: "io.molis.work.service.agent-host.v1",
@@ -296,7 +300,7 @@ const runRefOutput = { type: "object", required: ["run_id", "session_id"], addit
 const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "turns", "activity", "usage", "awaiting_input", "started_at", "ended_at"], additionalProperties: false, properties: {
   step_board: object, step_board_error: { type: "string" }, ref: runRefOutput, phase: { enum: RUN_PHASES }, frozen: object, turns: objects, activity: objects,
   command_outputs: { type: "array", items: { type: "object", required: ["call_id", "run_id"], properties: { call_id: { type: "string" }, run_id: { type: "string" } } } },
-  usage: object, awaiting_input: objects, stop_reason: { type: "string" }, memory_recalled: object, todo: objects, turn_changes: objects, sleeping_until: { type: "string" },
+  usage: object, awaiting_input: objects, stop_reason: { type: "string" }, original_input: object, memory_recalled: object, todo: objects, turn_changes: objects, sleeping_until: { type: "string" },
   retry_wait: object, model_switch: object, offers: objects, started_at: { type: "string" }, ended_at: { type: ["string", "null"] } } } as const;
 const sessionViewOutput = { type: "object", required: ["owner", "session", "title", "runs", "latest_run"], additionalProperties: false, properties: {
   workspace: { enum: ["required", "none", "business"] }, checkpoint_busy: { type: "boolean" }, recovery: { type: "object", required: ["required", "reason"], properties: { required: { const: true }, reason: { type: "string" } } },
@@ -330,6 +334,9 @@ const ids = (maxItems: number) => ({ type: "array", maxItems, items: entryId }) 
 const mcpRef = { server: entryId, configuration_version: { type: "integer", minimum: 0 }, server_label: text(2000) } as const;
 /** What a plugin starts a round with: no owner and no role, the Host adds both (§9.3②). */
 const startInput = { type: "object", required: ["session", "task", "role_id"], additionalProperties: false, properties: {
+  original_input: { type: "object", required: ["input_id", "text", "written_by", "occurred_at"], additionalProperties: false, properties: {
+    input_id: entryId, text: text(1_000_000), written_by: { enum: ["person", "host"] }, occurred_at: text(200) } },
+  continued_from: runRef,
   action_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["capability_id", "version", "provider_id"], additionalProperties: false, properties: { capability_id: entryId, version: count, provider_id: entryId } } },
   action_gateway: { type: "boolean" }, character_skill_ids: ids(200),
   execution_plan: { type: "object", required: ["source", "title", "steps"], additionalProperties: false, properties: { source: artifactInput, title: text(2000),
@@ -396,7 +403,7 @@ export const agentHostCapabilities = {
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
   readSession: {
-    capability_id: "agent.session.read.v1", version: 1, operation: "query",
+    capability_id: "agent.session.read.v1", version: 2, operation: "query",
     action: { title: "读 Agent 会话", description: "自己的一条会话：标题、各轮的引用和最近一轮。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionViewOutput },
   } as ActionDefinition<[session: AgentSessionRef], AgentSessionView>,
@@ -545,13 +552,13 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>,
   /** Start a Run. The Host checks role, capability and directory before the Runtime is asked. */
   startRun: {
-    capability_id: "agent.run.start.v1", version: 1, operation: "command",
+    capability_id: "agent.run.start.v1", version: 2, operation: "command",
     action: { title: "开始一轮 Agent 执行", description: "在自己的会话里按插件声明的角色开始一轮；宿主先核角色、能力与目录。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, startInput], additionalItems: false },
       output_schema: { type: "object", required: ["ref", "frozen"], additionalProperties: false, properties: { ref: runRefOutput, frozen: object } } },
   } as ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>,
   readRun: {
-    capability_id: "agent.run.read.v1", version: 1, operation: "query",
+    capability_id: "agent.run.read.v1", version: 2, operation: "query",
     action: { title: "读一轮执行", description: "自己会话里一轮的过程、状态和用量。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: runViewOutput },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
@@ -580,7 +587,7 @@ export const agentHostCapabilities = {
    * a timer; nothing is replayed. Concurrent, beside the project's queue; the Host stops it at 30 s whatever it does.
    */
   waitRun: {
-    capability_id: "agent.run.wait.v1", version: 1, operation: "query",
+    capability_id: "agent.run.wait.v1", version: 2, operation: "query",
     action: { title: "等一轮执行变化", description: "自己会话里的一轮有了变化就回答，最多等 25 秒；到时还没变就回答它现在的样子。", kind: "query", ...pluginOnly,
       scheduling: "concurrent", execution: { timeout_ms: 30_000 },
       input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false,

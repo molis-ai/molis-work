@@ -1,8 +1,14 @@
 # Agent Host
 
+## Memory 维护命令边界
+
+依 spec §9.4，Memory Capability 的 `previewMutation` 只将带原版本与原操作号的 update/pause/disable/resume/remove 真实命令交同一 SDK management.preview，不写条目，不替代执行时的当前授权。`tombstone` 委托 SDK 逻辑 remove，返回实际条目版本与原操作重放结果；现 `remove` 仍委托物理 purge。两口沿原 caller/ExecutionControl，不增加第二写主人、查询授权或恢复账。App 的维护补账只接受实际 SDK 提交确认；缺失、同文或版本加一不能作为成功证明。验证使用公开 Adapter 与真实隔离 Node 存储，覆盖取消/撤权、原操作重放和后继版本冲突。
+
 Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副作用 Review 队列。
 
 显式 `storageRoot` 的 Node 适配器持有 SQLite 独占锁，直到 SDK 正常关闭或进程退出，防止另一执行器把活动审阅误判为重启遗留。获取失败报告 `agent.storage_busy`，不读取恢复记录。该锁保护当前单执行方假设；跨进程调用转发仍由 LocalHost 接通，不能用多个 runtime 直接共享这个目录。
+
+离线记忆采用的 `openPrologueMemoryAdoption` 使用同一存储 owner 锁，只向显式范围开放 SDK 的 `adoptLegacy` 与整 App `verifyAdoption`，不装 Agent、模型或普通记忆写入口。维护 Runtime 保留 App taxonomy、版本与限额，但只装只读维护配方；不要求安装普通 Runtime 的提炼、召回或晋升实例，也不把维护配方写回正常配置。调用方必须先停所有 owner 并备份，在关闭维护 Runtime 后重新打开正常 Runtime；关闭等待在途页结束，SDK 关闭失败不释放写锁。旧 metadata 无法证明自然场景时保持未分类，不从 kind/namespace 猜测；原引用、版本、期限、来源与已完成候选关联由 SDK 保持。页中的 issues、未决决定、未知归属、取消与未知提交均不是完成；LocalHost 累计整次结果后才提交 ledger4。维护入口不改变正常 Runtime 的授权。真实隔离 Node 回归：`tests/prologue-memory-adoption.test.ts`；SQLite 编排故障回归：`tests/memory-adoption-maintenance.test.ts`。
 
 包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
 
@@ -17,6 +23,26 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 
 编码任务的业务含义、模型选择、凭据，以及批准决定本身——那是用户在宿主审查面里做的。
 adapter 只报告事实并执行已批准的工作。
+
+记忆使用投影由可选 `memoryUsage` Host 回调接收真实 SDK Context 回执，保留原 Session/Run、条目版本、retrieval receipt 与模型 call。`prepared` 不算派发；`dispatched-or-unknown` 与 `response-observed` 分开，后者也不证明模型采用。回调失败只报告 `memory.receipt_unrecorded`，不重发模型；读取原 Run 可再交同一事实，关闭 Runtime 时等待在途投影。历史事件到只读视图由 `prologue-restored-session.ts` 持有，SDK 存储读取与原不可恢复控制不变。验证：`tests/prologue-memory-run-context.test.ts` 使用真实 Node/SQLite/本机 HTTP 覆盖 ledger 故障、原 Run 重读和零网络补账；`tests/memory-use-receipts.test.ts` 覆盖单调摘要与遗忘屏障。
+
+## 记忆晋升与可信原件桥
+
+`AgentMemoryTools` 的保存、建议、查询与停用回调必须接收本次可信执行控制。gateway 保留实际工具/Run 的取消信号，并为一次执行生成固定操作号；模型参数或 tool-call id 不授予操作身份。LocalHost 将此控制贯穿实际 Host 提交与 ledger，未提供控制的旧直接调用拒绝；不新增跨重启工具重放保证。
+
+形成沿 `memory.candidates.form` 委托同一 SDK 候选主人；Host extractor 只在既有 `memory-extractor` 槽执行一次提炼。固定 slots、replacement 原版本与 canonical 来源由 SDK 校验，Adapter 仅投影 snake case，不产生候选或批准。已有记忆（最多 30）及待审候选（最多 20）的授权展示快照随这次 ALS 调用传给 extractor，正文只传一次，不成为来源证明，不存第二份账；快照不能替代后续来源、权限、期限与目标 CAS。进程内 `validate_context` 与 caller/context 分开保存在本次 ALS 中，在真实模型 before_dispatch 前复核原 ref/version 与当前读取许可，不序列化、不落盘、不发模型；`none` 零调用。逐项 created/replayed/rejected/unknown、部分成功、取消和未知用量完整返回。正常返回的 reported usage 先交 SDK，再由来源与实际存储门拒绝迟到写入；Host 自身拒绝结果或取消竞速尚未交回结果时，usage 保持 unknown，不推算为零。`trigger:none` 委托 SDK 零来源/模型读取；缺 extractor 明确 unavailable。验证使用公开 Adapter、真实 Node 存储与本机 HTTP，不宣称真实模型质量已验收。
+
+补充原件证明由 Host 绑定实际 install、Action 和 `send.<input_id>`；无证明的 Action 输入按 host 来源处理，不因自报 person 升权。混合输入的 raw 原件只原位保存，外层正文仍是唯一模型材料；初始输入与补充输入的证明用途隔离，不能互换。Adapter 只投影已核验原件，不从组合正文或分隔符反推本人原话。
+
+已经接受的 Run 停止时，当前控制调用先通过原权限检查并持久化停止意图；随后取消和 SDK 终态收尾经现有 effects.detach 脱离该短调用。终态仍由 SDK 保存并发布，界面不提前伪报停止；普通迟到业务写仍受原调用检查。
+
+Host 可注入版本化 `memory.promotion`，Adapter 将候选、来源、正式变更与 App 历史回执转换为纯 AgentHost DTO，只有这里依赖 SDK 类型。`decide` 只读返回 promote/hold；`undo.prepare` 保存当前操作的准备，`undo.record` 以 SDK 已提交的 canonical entry 补历史及撤销身份。回调首参只能来自当前 `withCaller` 的独立调用上下文，或 SDK 请求对应的可信 Session owner；prepare/record 没有来源上下文时要求原调用绑定仍在，缺失即拒绝，不从模型参数恢复身份，不新建操作账。 App 的 prepare/record 写账也复用原调用的 `PrologueEffects`：异步身份解析和 `beforeEffect` 后紧邻写入核 `assertCurrent` 及本次 `signal`，任一等待中取消不再调用 App 写账；撤权后不能留下准备历史，正式已提交而补账被拒时沿原操作恢复。
+
+SDK 仍拥有来源、权限、期限、取消与正式 CAS 门。App 的回执必须保持原 operation、候选原版本、policy/version 和实际 memory/version；Adapter 不伪造成功，也不证明 App 的历史事务已实际可撤销。已提交而 record 未完成时，SDK 的 `MEMORY_PROMOTION_RECORD_PENDING` 映为 `agent.memory_promotion_record_pending`（conflict），保留`operation_id` 与无正文 `committed: { memory_id, version }`，可用完整原请求重试，不能报成零写入。未装完整晋升实例仍不可用。
+
+`AgentTurnSteer` 和 `AgentQueuedInput` 仅复制 SDK 可证明的 `acceptedAtMs` 为可选 `accepted_at_ms`，不把新 Run 或读取时刻当作原件时间；旧记录未知就省略。steer 的 `source` 同样从 SDK 原件投影，app 映为 host，peer 保持 peer，不凭 user-role 判断本人。carry、取消与重启不另造输入身份。
+
+SourcePort 也只接 AgentHost 的 snake_case 引用、身份与短期正文快照，调用方来自同一可信绑定；来源内容不由模型自报。当前产品通过 SDK form/extractor 复用唯一 HostTextGeneration 提炼；来源与候选持久化仍由 SDK 核验。此桥不接第二模型循环或第二来源/历史表。回归使用公开 Node Adapter 与隔离真实存储，覆盖创建、替换、hold、故障补账、撤权及取消。
 
 ## 插件怎么够到它
 
@@ -131,3 +157,11 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 宿主还可通过 `checks.owned` 登记领域 owner 的只读检查；模型与插件没有登记入口。每次读取前后都用当前会话身份向 owner 重新证明权限，允许仅该窄读取在重启后恢复；通用动作和文件检查仍按 S-27 拒绝重启后的旧授权。读取暂时失败保留 unknown；撤权或归属不符是 refused，不展示原始错误正文。个人助理的 `molis.connector-setup@1` 只查看同一会话准备的接入请求，不能借它安装、调用业务工具或判断任务成功。回归见 `tests/security-invariants-owned-checks.test.ts`。
 
 信的规则：agents 受众的信只在同一张板相邻的步骤之间走，宿主负责把信交给收件人正在跑的那一轮。同一项目的会话可以互相请求、答复、通知、交接计划步骤；跨项目的会话不在同一张板上，照旧拒绝。几个会话同写一张板靠 SDK 按节点判冲突（P2k）：只有要改的那一步在模型读过之后被人改过，才报冲突。
+
+可信初始输入由受保护 Host 入口交给现 Session attempt 保存原件，后续同 Session 接续只带引用；业务 DTO 不能自证本人身份。`tests/coding-original-inputs.test.ts` 走真实 HTTP/Node 验证原文、首个时间、重启、失败重试同身份、并发拒绝及跨 Session/派生输入拒绝；这只证明原件桥，不代表学习形成已接通。
+
+原件输入与输出对应的正式动作当前为 `agent.run.start.v1@2`、`agent.session.read.v1@2`、`agent.run.read.v1@2`、`agent.run.wait.v1@2`。旧 @1 固定引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
+
+`readOriginalInput(ref)` 从该 Session attempt 读取首原件的精确正文、作者、身份和首次时间；`accepted_run` 则指向同原件最近一次已接受且未 refused 的直接尝试（排除 `frozen.continued_from`）。拒绝且未建立 Run 的尝试不阻挡后续真实重试，派生继续不能让失败原件取得学习资格。来源消费方仍检查定位 Run 的当前状态、Session owner、工作和权限；缺失或未接受不从拼接任务恢复。原时间和身份不因读取、继续或重试变化，不扫描 SDK 历史，不增加正文存储；Source Port 的 App 规则见记忆策略 §9.4。
+
+`inputs.read(ref)` 先由 SDK 同 Session 的有界 InputBook 定位，再读该 Run 的原输入回执。当前 queued/withdrawn 优先于旧回执；未落定的直接补充仅可检查该 Session 唯一当前活跃 Run，记录缺失或已裁剪保持未知，不扫描历史。该定位不赋予读取或形成许可，产品 SourcePort 仍逐次核当前来源主人和用途。

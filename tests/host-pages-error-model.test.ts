@@ -315,8 +315,8 @@ test("the 成果 browser's route failures carry a code and the status of their k
  * connection_revoked, connection_required, credentials_unavailable) declares the other six, all `invalid`, in artifact-document-import.ts.
  */
 const DOCUMENT_STATUS: Readonly<Record<string, number>> = {
-  source_invalid: 400, content_invalid: 400, filename_invalid: 400, input_invalid: 400, original_invalid: 400, empty: 400, binary: 400,
-  original_not_offered: 400, too_large: 413,
+  source_invalid: 400, content_invalid: 400, filename_invalid: 400, input_invalid: 400, original_invalid: 400, original_not_offered: 400, empty: 400, binary: 400,
+  too_large: 413,
 };
 
 test("the import's failures are declared, each with the status of its kind: 415 and 422 are 400, too large is 413", async t => {

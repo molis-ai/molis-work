@@ -21,29 +21,43 @@
  * record does not mark that reply (a Prologue need in the spec), so the mark is the page's own and a reload loses it.
  */
 export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,landed,receipts})=>{
-  const SENT={'next-boundary':L('coding.sent.next-boundary'),interrupt:L('coding.sent.interrupt'),'after-run':L('coding.sent.after-run')};
+  const say=key=>L('coding.sent.'+key);
+  const SENT={'next-boundary':say('next-boundary'),interrupt:say('interrupt'),'after-run':say('after-run')};
   const small=text=>{const node=document.createElement('small');node.className='coding-turn-receipt';node.textContent=text;return node;};
-  const AGAIN=L('coding.sent.again'),unsure=error=>error instanceof TypeError||error.name=='SyntaxError',control=id=>'/sessions/'+encodeURIComponent(id)+'/control';let item=null;
+  const AGAIN=say('again'),unsure=error=>error instanceof TypeError||error.name=='SyntaxError',route=(id,kind)=>'/sessions/'+encodeURIComponent(id)+'/'+kind;let item=null;
+  // A failed initial send retains its source identity, independently of the HTTP transport's retry key.
+  let initial;
+  const start=async(id,command)=>{
+    const direct=typeof command.task==='string'&&command.task.trim()&&['continued_from','reask','plan_revision','continue_step_board_of','origin_task','wait_for'].every(key=>command[key]===undefined);
+    const signature=direct?JSON.stringify([id,command]):null;
+    if(direct&&initial?.signature!==signature)initial={signature,id:crypto.randomUUID()};
+    const original=direct?initial:null;
+    const result=await api(route(id,'runs'),'POST',{...command,...(original?{original_input:{input_id:original.id,text:command.task}}:{})});
+    if(initial===original)initial=undefined;
+    return result;
+  };
+  const supplement=(id,body)=>api(route(id,'control'),'POST',{kind:'steer',...body,original_input:{input_id:body.key.slice(5),text:body.text,use:'supplement'}});
   const send=async sent=>{
     sent.lost=0;item=sent;refresh();const writing=sent.mode=='interrupt'&&q('.coding-turn.is-writing');
     try{
-      const {receipt}=await api(control(sent.id),'POST',{kind:'steer',run_id:sent.run,text:sent.text,key:sent.key,mode:sent.mode});
+      const {receipt}=await supplement(sent.id,{run_id:sent.run,text:sent.text,key:sent.key,mode:sent.mode});
       if(item==sent)item=null;
-      if(writing&&receipt.delivered=='run'&&!receipt.replayed){writing.classList.add('is-dropped');writing.append(small(L('coding.sent.dropped')));}
-      return receipt.replayed?AGAIN:receipt.delivered=='queued'&&sent.mode!='after-run'?L('coding.sent.just-ended'):SENT[sent.mode];
-    }catch(error){if(unsure(error)){sent.lost=1;throw Error(L('coding.sent.unconfirmed'))}if(item==sent)item=null;throw error;}
+      if(writing&&receipt.delivered=='run'&&!receipt.replayed){writing.classList.add('is-dropped');writing.append(small(say('dropped')));}
+      return receipt.replayed?AGAIN:receipt.delivered=='queued'&&sent.mode!='after-run'?say('just-ended'):SENT[sent.mode];
+    }catch(error){if(unsure(error)){sent.lost=1;throw Error(say('unconfirmed'))}if(item==sent)item=null;throw error;}
     finally{refresh();}
   };
   return {
+    start,
     from(node,first){const one=node?.origins?.[0];return one?receipts.link(q('[data-coding-turns]'),one.input_id,first,'来自补充「'):null;},
     steer(id,run,text,mode){
       return send({id,run,text,mode,key:item?.lost&&item.id==id&&item.text==text&&item.mode==mode?item.key:'send.'+crypto.randomUUID()});
     },
     act(id,run){
-      const path=control(id),lost=error=>{throw unsure(error)?Error(L('coding.sent.unconfirmed-again')):error;};
+      const path=route(id,'control'),lost=error=>{throw unsure(error)?Error(say('unconfirmed-again')):error;};
       return {
-        withdraw:input_id=>api(path,'POST',{kind:'withdraw',run_id:run,input_id}).then(({withdrawn})=>withdrawn.from=='queued'?L('coding.sent.withdrawn'):'',lost).finally(refresh),
-        correct:(about,text,key)=>api(path,'POST',{kind:'steer',run_id:run,text,about,key:'send.'+key}).then(({receipt})=>receipt.replayed?AGAIN:receipt.delivered=='queued'?SENT['after-run']:L('coding.sent.corrected'),lost).finally(refresh),
+        withdraw:input_id=>api(path,'POST',{kind:'withdraw',run_id:run,input_id}).then(({withdrawn})=>withdrawn.from=='queued'?say('withdrawn'):'',lost).finally(refresh),
+        correct:(about,text,key)=>supplement(id,{run_id:run,text,about,key:'send.'+key}).then(({receipt})=>receipt.replayed?AGAIN:receipt.delivered=='queued'?SENT['after-run']:say('corrected'),lost).finally(refresh),
       };
     },
     bubble(id,run){
@@ -51,7 +65,7 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,land
       if(item.lost&&run.turns.some(turn=>turn.steer?.key==item.key)){const sent=item;item=null;landed(sent,AGAIN);return null;}
       if(item.node?.dataset.lost!=item.lost){
         const node=item.node=document.createElement('article');node.className='coding-turn is-sending';node.dataset.kind='user';node.dataset.lost=item.lost;node.textContent=item.text;
-        node.append(small(item.lost?L('coding.sent.lost'):L('coding.sent.sending')));
+        node.append(small(item.lost?say('lost'):say('sending')));
       }
       return item.node;
     },

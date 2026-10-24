@@ -36,7 +36,9 @@ function steerView(receipt: InputReceipt, closed: boolean): AgentTurnSteer {
   const ended = closed && (receipt.state === "accepted" || receipt.state === "applied");
   const state = ended ? "unread" : receipt.state === "accepted" ? "received" : receipt.state;
   const claim = receipt.handling;
-  return { id: receipt.steerId, state, ...(receipt.key === undefined ? {} : { key: receipt.key }), ...(receipt.about === undefined ? {} : { about: receipt.about }),
+  return { id: receipt.steerId, state, source: receipt.source === "app" ? "host" : receipt.source,
+    ...(receipt.original ? { original: { ...receipt.original } } : {}),
+    ...(receipt.acceptedAtMs === undefined ? {} : { accepted_at_ms: receipt.acceptedAtMs }), ...(receipt.key === undefined ? {} : { key: receipt.key }), ...(receipt.about === undefined ? {} : { about: receipt.about }),
     ...(claim ? { model_claim: { treatment: claim.treatment, ...(claim.kind ? { kind: claim.kind } : {}), targets: claim.targets.map(target => ({ ...target })),
       impacts: [...claim.impacts], ...(claim.note ? { note: claim.note } : {}), ...(claim.callId ? { call_id: claim.callId } : {}),
       ...(claim.toolCallId ? { tool_call_id: claim.toolCallId } : {}), revisions: receipt.handlingRevisions ?? 1 } } : {}),
@@ -75,7 +77,7 @@ export function closeInputs(state: InputLedger): void {
 }
 
 /** A supplement as the runtime takes it; `app` is the Host speaking, never the person. */
-export interface SteerInput { text: string; source?: "person" | "app"; key?: string; interrupt?: boolean; about?: string }
+export interface SteerInput { original?: import("@prologue/sdk").InputOriginal; text: string; source?: "person" | "app"; key?: string; interrupt?: boolean; about?: string }
 /** The session's own queue: what waits there for the next round, under the same keys the round's supplements use. */
 type QueueInput = (input: Omit<SteerInput, "interrupt">) => Promise<{ inputId: string; replayed: boolean }>;
 /** A live round's supplements: hand one over, or take back one it has not put in the context; a restored round has no withdraw. */
@@ -92,7 +94,7 @@ const codeOf = (error: unknown) => (error as { code?: unknown } | null)?.code;
  */
 export async function deliverSteer(input: AgentInputSend, ended: boolean, steer: (input: SteerInput) => Promise<{ steerId: string; replayed: boolean }>,
   queue: QueueInput | undefined, beforeQueue?: () => void): Promise<AgentSteerReceipt> {
-  const one = { text: input.text, ...(input.source === "host" ? { source: "app" as const } : {}), ...(input.key ? { key: input.key } : {}), ...(input.about ? { about: input.about } : {}) };
+  const one = { ...(input.original ? { original: { ...input.original } } : {}), text: input.text, ...(input.source === "host" ? { source: "app" as const } : {}), ...(input.key ? { key: input.key } : {}), ...(input.about ? { about: input.about } : {}) };
   const keep = async (): Promise<AgentSteerReceipt> => {
     if (!queue) throw agentErrors.capability_unavailable(ended ? "这一轮已经结束，当前运行时不能把补充留到下一轮" : "当前运行时不能把补充留到下一轮");
     beforeQueue?.();
@@ -141,6 +143,7 @@ async function withdrawInput(inputId: string, live: LiveRound, queue: ((inputId:
 export function inputsPort(round: (run: AgentRunRef) => Promise<LiveRound>, queue: () => SessionQueue | undefined, publish: (runId: string) => void): AgentInputsPort {
   return {
     send: async (run, input, beforeQueue) => {
+      input = structuredClone(input);
       const live = await round(run), keep = queue();
       try { return await deliverSteer(input, live.ended, one => live.control.steer(one), keep && (one => keep.add(run.session_id, one)), beforeQueue); } finally { publish(run.run_id); }
     },

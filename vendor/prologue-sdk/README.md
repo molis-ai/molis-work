@@ -4,14 +4,15 @@
 
 目录里现在有这些东西：
 
-- 当前包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,340,202 字节），SHA-256 `119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1`。来源为 Prologue [#94](https://github.com/molis-ai/molis-prologue/pull/94) 的干净提交 `f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512`，已合 main `d94a99fb3d3cd33c95cd97393c4d1949366ffa81`，整树一致，无补丁。包含此前 Memory CAS/分类管理、可信来源/晋升/采用、有界地址、过期管理及混合输入原件。本片固定候选替换目标与版本，task 只补缺或逐字相同，suggestedBasis 与正式依据分开，inferred 不自动晋升。候选 shape5 同创建输入核对意图，实际旧 #93 包五个相关入口零提交拒绝，磁盘不变；旧无字段候选可继续管理，普通取消及显式 purge 语义不变。
+- 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `f4bbbd88` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
 - `patch-history.json`：已删除的 26 份历史补丁和 31 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
-另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
+该 head 的完整 `pnpm quality`、干净安装消费者和新旧包兼容专项通过。制包环境为 macOS arm64、Node 24.19.0、pnpm 11.9.0；实际 Node 与仓库声明的 24.14.0 有差异。本次未作独立逐字节重建，不宣称完成 Molis 采用、模型收益或用户验收。Molis 集成与严格 baseline 切换状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
 
-## 当前依赖：retry-waiting（2026-10-23）
+## 上一份主线依赖：retry-waiting（2026-10-23）
 
 当前包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz`（1,249,614 字节），SHA-256 `ac44cf9fd079f3444523285798ac0d6d2dc1ed1e5b07f05870887db66b4df419`。来源为上游 main `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`，即 [Prologue #60](https://github.com/molis-ai/molis-prologue/pull/60) 的合并（head `84a6884f`），当时的 main 头；无补丁、dirty 为 false。上游仓库此后改名为 `molis-ai/molis-prologue`（原 `molis-ai/prologue`，旧地址会跳转；下面较早的小节里的旧链接保留原样）。上游按这个提交给的源码归档（GitHub tarball）解到两个各自独立的空目录，各自装依赖、构建、打包，两份逐字节相同。版本号仍是 `0.0.0-rc.1`，只换上游提交，不算发版。
 

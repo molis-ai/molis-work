@@ -3,13 +3,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { captureHostLog, charactersProvider, createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { charactersActions, openCharacters } from "@molis-ai/molis-work-module-characters";
+import { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -83,6 +84,10 @@ function probe() {
     Object.assign(caller.permissions, { 0: "forged:grant" });
     if (caller.allowed_actions?.[0]) Object.assign(caller.allowed_actions[0], { capability_id: "forged.action" });
     if (caller.allowed_capability_ids) Object.assign(caller.allowed_capability_ids, { 0: "forged.action" });
+    if (caller.original_input) {
+      Object.assign(caller.original_input, { text: "forged personal words", written_by: "person", use: undefined });
+      Object.assign(caller.original_input.action, { capability_id: "forged.action", version: 99, provider_id: "forged-provider" });
+    }
     if (caller.signal) Object.assign(caller.signal, { throwIfAborted: () => {} });
     Object.assign(caller, { signal: undefined, assert_authority_current: undefined, beforeEffect: async () => {} });
   };
@@ -304,16 +309,32 @@ test("S-18 Characters publish: a caller gone after its beforeWrite is refused by
   }
 });
 
-test("S-18 action callback mutations cannot erase original cancellation, grants or end-of-call authority", async t => {
+test("S-18 action callback mutations cannot rewrite original-input proof or erase cancellation, grants or end-of-call authority", async t => {
   const { client, plugin, written } = await platform(t), call = caller();
-  const context = { ...call.context, allowed_capability_ids: [plugin.writeAction.capability_id], allowed_actions: [{ capability_id: plugin.writeAction.capability_id, version: 1 }] };
+  const original: HostOfferedOriginalInput = { input_id: "host-original", text: "Host supplied words", written_by: "host", use: "supplement",
+    occurred_at: "2026-10-24T00:00:00.000Z", install_id: "original-install",
+    action: { capability_id: plugin.writeAction.capability_id, version: 1, provider_id: "original-provider" } };
+  const expected = structuredClone(original);
+  const context = { ...call.context, original_input: original, allowed_capability_ids: [plugin.writeAction.capability_id],
+    allowed_actions: [{ capability_id: plugin.writeAction.capability_id, version: 1 }] };
   plugin.gate.corrupt = true;
   const pending = client.invoke(context, plugin.writeAction, { target: "storage", name: "mutated-cancel" }).then(() => undefined, (error: unknown) => error);
-  await plugin.gate.entered.promise;
-  assert.deepEqual(context.permissions, [WRITE]);
-  assert.deepEqual(context.allowed_capability_ids, [plugin.writeAction.capability_id]);
-  assert.equal(context.allowed_actions[0]!.capability_id, plugin.writeAction.capability_id);
-  call.cancel(); plugin.gate.release.resolve();
+  try {
+    await plugin.gate.entered.promise;
+    assert.deepEqual(context.permissions, [WRITE]);
+    assert.deepEqual(context.allowed_capability_ids, [plugin.writeAction.capability_id]);
+    assert.equal(context.allowed_actions[0]!.capability_id, plugin.writeAction.capability_id);
+    assert.deepEqual(context.original_input, expected, "the plugin's mutable callback view cannot alter the Host's text, authorship, use or nested Action identity");
+    // Public AgentHost admission still sees the Host's proof, so rewriting the callback's view cannot authorize a forged personal start.
+    // No adapter is installed: provenance must refuse before any runtime or model can be reached.
+    await assert.rejects(new AgentHost().start("prologue", { project_id: DEMO_PROJECT_ID, actor_id: context.actor_id, plugin_id: ID,
+      install_id: original.install_id, session: { session_id: "never-started", runtime_id: "prologue" },
+      directory: { canonical_path: tmpdir(), realpath_verified: true }, role_id: "probe", task: "forged personal words",
+      original_input: { input_id: expected.input_id, text: "forged personal words", written_by: "person", occurred_at: expected.occurred_at } },
+      { manifest: { roles: [], prompts: [] }, authorizedDirectories: [tmpdir()], original_input: context.original_input }), { code: "agent.capability_unavailable" });
+  } finally {
+    call.cancel(); plugin.gate.release.resolve(); await pending;
+  }
   const result = await pending;
   assert.ok(result instanceof Error); assert.equal(result.name, "AbortError");
   assert.equal(written("storage", "mutated-cancel"), false);

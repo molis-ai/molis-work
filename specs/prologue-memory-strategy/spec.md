@@ -1395,6 +1395,8 @@ M1 原件证明隔离补充短合同（2026-10-24，修改前）：独立审查�
 
 搜索夹具修正短合同及证据：改用进程外临时观察器，未改产品和测试返回值，确认提前返回是合法complete/1hit；真实freshness记录显示首次检查后，资料整理后台又刷新来源，实际MCP查询距checked_at仅1,919ms，小于3,000ms，因此原3.1秒盲等待不能保证过期。仅修改原测试：使用已有同provider peer的公开command通知来源变化，移除睡眠；公开availability只观察实际MCP的精确actor/project/call_id和search.query执行上下文，并返回原available:true，撤权前同时等待该受理观测和真实owner HTTP卡点。后台可共用索引同步，但不能冒充目标查询已受理；不改变缓存、授权、原12例断言或超时。初次fixture把action.kind误写command导致初始化失败，已改为合同规定的operation；失败日志和停止的本轮进程记录保留。最终单文件12/12通过，日志 `/private/tmp/molis-memory-search-accepted-fixture-20261024.log`；原观察记录为 `/private/tmp/molis-memory-search-observe-20261024.jsonl` 与 `/private/tmp/molis-memory-search-freshness-observe-20261024.jsonl`。此前诊断进程的原生断言未被该业务修复宣称解决。
 
+2026-10-25，准确 `82bb6aa` 的 Full suite `40125988328` 第1片在原有一次重试后仍失败，`ACA005-05 default-open reader` 在设置结束时查询已回答；普通 CI `40125992606` 已通过。当前隔离单例正常设置路径通过；仅延迟同一真实重授请求的对照稳定复现原断言：原查询约1.53秒返回 complete/空 hits、无正文。代码确认搜索 catchUp 原有1.5秒预算不保证等到设置HTTP结束，不能据此改产品预算或删除旧授权断言。修正短合同仅限此测试与本记录：通过公开 Host.inspectActions 在已观测的同一 call_id 的授权复查处设置有界于原测试时限的屏障，真实设置请求和目录读取仍由原 owner 执行；确认设置完成、owner HTTP释放、该查询到达授权复查后再放行。原12例、同值重授/默认absence/新增reader/无关授权/正文零披露断言及30秒时限均保留，增加对实际授权等待的断言；不改生产、CI、测试重试或资源门。原红例、正常/延迟对照与完整结果分别保留在 `/private/tmp/molis-memory-search-budget-{control,slow-grant}-20261025.log` 和 `-diagnostic-20261025.jsonl`。修正后定向与最终CI尚待验证。
+
 提交527e78ca9的正常CI `40102013736` 已通过全部已执行job及Verify，Linux安全2/2明确本文件一次12/12；条件未触发的Linux probe为skipped，不算通过。这是上述夹具修正前的CI证据，修正后的最终head仍须正常CI与完整Full suite；本机定向通过、旧CI和用户资源额度批准均不替代该门。
 
 交付依赖说明：#1198是独立主干样式修复，不改变Memory存储、原件、形成或召回合同，因此其视觉诊断与#1064工程交付并行，各自保留完成门；不把#1198的失败算作通过，也不据此宣布P0产品验收完成。Todo准确c609专用诊断树同代码A1/A2在原零阈值下重现完全相同的11个像素差（坐标、RGBA方向均一致），证明差异无需该CSS补丁也能发生；原因仍UNKNOWN，原正式视觉比较仍红。原只读基线写入诊断被自动审批拒绝后已恢复干净，后续仅使用独立临时树；未改图、掩膜、阈值或产品。#1064仍须自身所有阻塞、最终普通CI与完整Full suite通过后才能合并，所有未完成P0切片与产品/用户验收继续保留。
@@ -2076,6 +2078,12 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 独立深审 `/private/tmp/molis-memory-batch33-review-642106407-20261025.md` 未发现本次 Memory 合并新增阻断；SDK94 归档与已安装 772 文件逐项一致。另确认主干已有 P2：公开 AgentHost.start 尚未拒绝 `supports_character_limits:false` 的 Character 调用，Coding 入口已有拒绝；内存 adapter 诊断确认调用被受理，但未证明越权。准确 bde 同样存在，当前生产只注册声明 true 的 Prologue，助理自身也使用 Prologue，未证明影响本次 Memory 实际调用链。保留该上游缺口，不在本片顺手修改或缩窄公共合同。
 
 推送前 origin/main 前进至 `87ebba4c769557f9548d66310d76eb4e30b68bc9`，仅 #1237 的 IM 上下文初始化及其测试/README，与本片 Memory 调用链无同路径改动；`git merge-tree` 三方检查无冲突。本候选冻结在上述已验 bde 集成，不宣称包含 #1237；PR 合并结果 CI 与最终完整 Full suite 仍须检查。旧 93b 的普通/全量成功和 stream-text 首败 UNKNOWN、Cloudflare 未知失败继续保留，不能替代新候选结果。用户刚批准的 Assistant +4,064 B 已在后续 #1101 单独登记，本基础 PR 不使用该额度。付费模型、真实 Home、最终整体验收与原 macOS skip 的边界不变。
+
+82bb 最终 CI 实证：普通 `40125992606` 全部已执行作业与 Verify 通过，Linux probe skipped；完整 `40125988328` 为 1403/1404 文件通过，搜索撤权文件经原一次重试仍失败。另四文件仅重试通过：cognia-actions 的输入/CDP 超时、web health 的 starting≠ok、contextual-pages-goals 的 null≠CORE、issue-capture-page 的输入框焦点未到位；原因仍 UNKNOWN，不称作一次通过或环境已解释。逐片结果 `/private/tmp/molis-memory-batch33-ci-final-20261025.json`，原 GitHub 日志保留。
+
+上述搜索等待修正的正式单文件12/12与同一1800ms延迟对照1/1通过，均零重试；正常与延迟路径都经过原 Host 权限查询，原请求在重授后仍空 hits，不是延长生产预算或放宽断言。正式日志 `/private/tmp/molis-memory-search-authority-barrier-fixed-20261025.log`，对照 `/private/tmp/molis-memory-search-budget-slow-grant-fixed-20261025.log` 与 `-fixed-diagnostic-20261025.jsonl`。初次修改出现测试局部变量重名导致 transform 失败，原日志 `-authority-barrier-20261025.log` 保留；只修变量名后才完成上述验证。根类型、准确82bb增量health、secrets/diff通过；仅test/spec变化，无须重复未变生产构建/资源及72文件验证。独立深审确认真实gateway先固定原grant/absence再观察同call_id，等待后原样调用公开super.inspectActions，不造授权；设置无call_id、新请求有新身份、失败/取消均释放两道等待。未发现新增P1/P2；最终提交的普通CI与完整Full suite尚待运行，其他重试及UNKNOWN不因本修正消除。
+
+本次推送前远端main为 `584112c65`（在87eb上增加#1238 Assistant HTTP日志结构及专测），三方无冲突；不将它冒称为本候选已集成，保持已验证bde生产冻结。后续#1101最终整合按真实交叉路径验证，不为每次主干日志变化重复全量。原Cloudflare日志缺失、付费B2、真实Home/用户验收边界不变。
 
 ### #1101 集中可审查候选（2026-10-25，整合前）
 

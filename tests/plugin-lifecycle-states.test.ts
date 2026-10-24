@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { IntegrationProviderPort, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationProviderPort, PluginDefinition, PluginExecutor, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   MemoryPluginEventsRepository,
   MemoryPluginRuntimeRepository,
+  NativePluginExecutor,
   PluginEventBus,
   PluginRuntime,
   PluginSupervisor,
@@ -16,6 +17,49 @@ import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-
  * leaves the old code with its own event contract, and a bundled upgrade can be started again by the next boot.
  */
 const ID = "io.molis.work.lifecycle-probe";
+
+test("RAC-196-U2 uninstall cleanup retries stay revoked, serialized and replayable across a Runtime restart", async t => {
+  for (const restart of [false, true]) await t.test(restart ? "new Runtime" : "same Runtime", async () => {
+    const repository = new MemoryPluginRuntimeRepository(), native = new NativePluginExecutor();
+    const contexts: PluginStartContext[] = [];
+    let starts = 0, stops = 0, cleanups = 0, active = 0, mostActive = 0;
+    const failure = new Error("Host cleanup unavailable");
+    const executor: PluginExecutor = {
+      async start(definition, context) { starts += 1; contexts.push(context); return native.start(definition, context); },
+      async stop(definition, context) { stops += 1; return native.stop(definition, context); },
+      async uninstalled(record) {
+        cleanups += 1; active += 1; mostActive = Math.max(mostActive, active);
+        try {
+          assert.equal(record.state, "uninstalled");
+          assert.deepEqual(repository.get(record.install_id), record);
+          await new Promise<void>(resolve => setImmediate(resolve));
+          if (cleanups === 1) throw failure;
+        } finally { active -= 1; }
+      },
+    };
+    const base = probe("1.0.0");
+    const definition = { ...base, manifest: { ...base.manifest, permissions: [{ permission: "storage:private", required: true, reason: "probe" }] } };
+    const original = new PluginRuntime(repository, executor);
+    const id = original.install({ definition, deployment: "local", grants: ["storage:private"] }).install.install_id;
+    await original.start(id);
+    contexts[0]!.requireGrant("storage:private");
+    await assert.rejects(original.uninstall(id, { retain_private_data: true }), error => error === failure);
+    const saved = original.get(id);
+    assert.equal(saved.state, "uninstalled");
+    assert.equal(original.contribution(id), null);
+    assert.throws(() => contexts[0]!.requireGrant("storage:private"), { code: "plugin.grant_denied" });
+
+    const runtime = restart ? new PluginRuntime(repository, executor) : original;
+    const receipts = await Promise.all([runtime.uninstall(id, { retain_private_data: false }), runtime.uninstall(id)]);
+    assert.equal(cleanups, 3, "both retries reach idempotent Host cleanup, including an already-completed replay");
+    assert.equal(mostActive, 1, "overlapping retries use the installation's lifecycle queue");
+    for (const receipt of receipts) { assert.equal(receipt.replayed, true); assert.deepEqual(receipt.install, saved); }
+    assert.deepEqual(repository.get(id), saved, "retries do not rewrite the uninstall or change the person's data choice");
+    assert.equal(starts, 1); assert.equal(stops, 1, "cleanup retries do not reactivate or stop code again");
+    assert.throws(() => contexts[0]!.requireGrant("storage:private"), { code: "plugin.grant_denied" });
+    assert.doesNotThrow(() => runtime.register({ ...definition }));
+  });
+});
 
 interface ProbeOptions {
   starts?: string[];

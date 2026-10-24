@@ -601,7 +601,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     restore?: PluginInstanceRecord,
   ): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
-    if (current.state === "uninstalled" && (!restore || restore.installation_generation === current.installation_generation)) return this.receipt("uninstall", current, true);
+    const replayed = current.state === "uninstalled" && (!restore || restore.installation_generation === current.installation_generation);
     if (current.state === "running" && this.hasLiveInstance(installId)) {
       const definition = this.requireDefinition(current);
       const live = this.liveContext(installId);
@@ -616,7 +616,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     this.revokeContext(installId);
     const at = this.now();
-    const updated = restore ? cloneRecord(restore) : {
+    const updated = replayed ? current : restore ? cloneRecord(restore) : {
       ...current,
       state: "uninstalled" as const,
       retain_private_data: options.retain_private_data ?? current.retain_private_data,
@@ -624,13 +624,13 @@ export class PluginRuntime implements PluginRuntimeApi {
       updated_at: at,
       uninstalled_at: at,
     };
-    this.repository.save(updated);
+    if (!replayed) this.repository.save(updated);
     await this.executor.uninstalled?.(updated);
     // No implementation survives its installation. A later explicit reinstall may supply a new in-memory object.
     for (const [key, definition] of this.definitions) {
       if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) this.definitions.delete(key);
     }
-    return this.receipt("uninstall", updated, false);
+    return this.receipt("uninstall", updated, replayed);
   }
 
   get(installId: string): PluginInstanceRecord {

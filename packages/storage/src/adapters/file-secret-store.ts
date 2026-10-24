@@ -269,7 +269,7 @@ interface ResolvedMaster {
 
 export class KeychainUnavailableError extends Error {
   constructor() {
-    super("macOS Keychain master key is unavailable; refusing to rotate existing secrets. Automatic retries are stopped for this process. Restore Keychain access, then restart Molis Work or the affected MCP connection to retry.");
+    super("macOS Keychain master key is unavailable; refusing to rotate existing secrets. Automatic retries are stopped for this process. Even an empty vault may have sealed Home data that needs its original Keychain item (com.molis.work.feed.secretstore / install-master-key). Restore access to that original item, then restart Molis Work or the affected MCP connection. An environment key cannot replace this recorded backend. See docs/system/HOME-DATA.md#original-key-recovery.");
     this.name = "KeychainUnavailableError";
   }
 }
@@ -284,12 +284,12 @@ function masterInfo(kind: SecretStoreBackendKind, key: Buffer): ResolvedMaster {
 function readExistingMasterKey(backend: SecretStoreBackendKind): ResolvedMaster {
   if (backend === "aes-gcm-file") {
     const key = readInstallKeyFile(installKeyPath());
-    if (!key) throw new Error("install key file is unavailable or invalid; refusing to rotate existing secrets");
+    if (!key) throw new Error("install key file is unavailable or invalid; refusing to rotate existing secrets. Even an empty vault may have sealed Home data that needs its original key. Restore this Home's original feed/secrets.key, then restart Molis Work or the affected MCP connection. A new environment key cannot replace this recorded file backend. See docs/system/HOME-DATA.md#original-key-recovery.");
     return masterInfo(backend, key);
   }
   if (backend === "env-key+aes-gcm") {
     const raw = readProductEnv("ENCRYPTION_KEY"), key = raw ? parseEnvKey(raw) : null;
-    if (!key) throw new Error("Molis Work encryption key is unavailable; refusing to rotate existing secrets");
+    if (!key) throw new Error("Molis Work encryption key is unavailable; refusing to rotate existing secrets. Even an empty vault may have sealed Home data that needs its original key. Restore the original MOLIS_WORK_ENCRYPTION_KEY, then restart Molis Work or the affected MCP connection. A new value cannot recover existing ciphertext. See docs/system/HOME-DATA.md#original-key-recovery.");
     return masterInfo(backend, key);
   }
   const raw = readKeychain(), key = raw ? Buffer.from(raw, "base64") : null;
@@ -325,9 +325,10 @@ function resolveMasterKey(): ResolvedMaster {
   return masterInfo("aes-gcm-file", loadOrCreateInstallKeyFile());
 }
 
-function sealV2(plaintext: string, key: Buffer): string {
+function sealV2(plaintext: string, key: Buffer, aad?: Buffer): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv(ALG, key, iv);
+  if (aad) cipher.setAAD(aad);
   const ct = Buffer.concat([
     cipher.update(Buffer.from(plaintext, "utf8")),
     cipher.final(),
@@ -343,7 +344,7 @@ function sealV2(plaintext: string, key: Buffer): string {
   return Buffer.from(JSON.stringify(sealed)).toString("base64");
 }
 
-function openV2(sealed: string, key: Buffer): string | null {
+function openV2(sealed: string, key: Buffer, aad?: Buffer): string | null {
   try {
     const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedV2;
     if (raw.v !== 2 || raw.alg !== ALG || typeof raw.iv !== "string" || typeof raw.tag !== "string" || typeof raw.ct !== "string") {
@@ -354,6 +355,7 @@ function openV2(sealed: string, key: Buffer): string | null {
     const ct = Buffer.from(raw.ct, "base64");
     if (iv.length !== 12 || tag.length !== 16) return null;
     const decipher = createDecipheriv(ALG, key, iv);
+    if (aad) decipher.setAAD(aad);
     decipher.setAuthTag(tag);
     const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
     return pt.toString("utf8");
@@ -518,7 +520,11 @@ function payloadHome(homeDirectory: string): string {
 
 function payloadMaster(home: string, backend: SecretStoreBackendKind): ResolvedMaster {
   try { return runWithMolisWorkHome(home, () => readExistingMasterKey(backend)); }
-  catch { throw snapshotErrors.key_unavailable("原 Home 的凭据主密钥不可用；不会创建替代密钥"); }
+  catch { throw snapshotErrors.key_unavailable("原 Home 的凭据主密钥不可用；不会创建替代密钥。请按原后端找回原钥匙并重启，见 docs/system/HOME-DATA.md#original-key-recovery。"); }
+}
+
+function homePayloadAad(home: string, binding: string): Buffer {
+  return Buffer.from(JSON.stringify(["molis-work/home-payload/v1", home, binding]), "utf8");
 }
 
 /** Seals owner data in memory under the existing backend; never puts temporary entries in the live vault. */
@@ -529,7 +535,7 @@ export function sealExistingHomePayload(homeDirectory: string, binding: string, 
   }
   const master = openSnapshotFile(home, file).master ?? payloadMaster(home, file.backend);
   const body = JSON.stringify({ schema_version: 1, home, binding, contents });
-  return { schema_version: 1, backend: master.kind, key_reference: masterReference(master), ciphertext: sealV2(body, master.key) };
+  return { schema_version: 1, backend: master.kind, key_reference: masterReference(master), ciphertext: sealV2(body, master.key, homePayloadAad(home, binding)) };
 }
 
 /** Opens a previously sealed owner payload even when the live vault has been lost or damaged. */
@@ -542,7 +548,7 @@ export function openExistingHomePayload(homeDirectory: string, binding: string, 
   if (payload.key_reference.location !== reference.location || payload.key_reference.sha256 !== reference.sha256) {
     throw snapshotErrors.integrity_failed("原密钥与密封数据的依赖不匹配");
   }
-  const text = openV2(payload.ciphertext, master.key);
+  const text = openV2(payload.ciphertext, master.key, homePayloadAad(home, binding));
   if (text === null) throw snapshotErrors.integrity_failed("原密钥与密封数据不匹配，或密文已损坏");
   let body: unknown;
   try { body = JSON.parse(text); } catch { throw snapshotErrors.invalid("密封数据正文格式无效"); }

@@ -98,7 +98,10 @@ test("S-12 RAC-104-B2b-01: an empty Keychain vault keeps its original backend fo
     assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
     // The only PATH directory now has no security executable: neither a system lookup nor a replacement key is possible.
     rmSync(join(root, "bin", "security")); resetSecretStoreCache();
+    // S-12 RAC-104-B2b-07: a fresh environment value cannot replace the vault's recorded Keychain backend.
+    process.env.MOLIS_WORK_ENCRYPTION_KEY = Buffer.alloc(32, 31).toString("base64");
     assert.throws(() => runWithMolisWorkHome(home, createFileSecretStore), /Keychain/u);
+    assert.throws(() => runWithMolisWorkHome(home, createFileSecretStore), /original Keychain item.*HOME-DATA\.md/u);
     assert.throws(() => openExistingHomePayload(home, "original-owner", sealed), { code: "storage.secrets_snapshot.key_unavailable" });
     assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
   }, "exit 36"));

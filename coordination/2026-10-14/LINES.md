@@ -67,10 +67,10 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-10 | 进行中 | 设计系统归 `ac-giants`；官方集成与横向服务归 Codex C3；agent-host 归 `ac-kernel` |
 | W5-11 | 部分 | OAuth 移进官方集成插件（统筹 + Codex） |
 | W5-12 | 见矩阵一 | 收尾时统筹核 |
-| W5-13 | 进行中 | Codex C1 |
+| W5-13 | 进行中（RAC113/114切片已落地，非整体完成） | Codex C1；RAC113 #1183/f586、RAC114 #1213随#1215/1712（12:52:01Z）均真实合入，快回归子集登记实际CI已核；剩余宿主日志/错误片按原C1 owner及Claude后续派单继续 |
 | W5-14 | 未开 | 改名（统筹 10-23 定按 GLOSSARY §4/§5），各族迁完后 |
 | W5-15 | 部分 | 成熟度词表；发版与版本号归用户 |
-| W5-16 | 进行中（仅B1已落地） | Codex C2 实现2；B1 #1190/bc016 已随#1202实际645853cb6合入，B2a Runtime密封/raw维护/只读key前置正在独占实施；B2b CLI私有状态、A早期同Home lease与全库/非SQLite快照恢复仍未完成，合同/下一可执行动作见CODEX-TASKS和CODEX-SESSION-ROLES当前段，真实Home/R41另行统一 |
+| W5-16 | 进行中（仅B1已真实落地） | Codex C2 实现2；B1 #1190/bc016随#1202/645已合。B2a #1209/e20已双独立审验通过、source冻结释放，在Claude full29/52受测；该批唯一S15 Images启动红归原ac-sandbox，B2a尚无最终批真merge。B2b CLI必要状态/早期同Home lease/全库及非SQLite快照恢复仍未完成，按W5当前FIX2自然固定交槽后排实际source，合同见CODEX-TASKS/SESSION-ROLES；真实Home/R41统一窗口另核 |
 | W5-17 | 已派 | `ac-sandbox-sched`（#1113 已合；本地做，线上开着的 PR 合入一个再开）。10-24 用户定：和 Goals S9 同一个维护时段，先在真实 Home 拷贝上跑 `list` 交用户，维护做完前不合 |
 | W6-01～06 | 未开 | §4 |
 

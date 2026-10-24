@@ -5,11 +5,11 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, ModelProviderStore, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost, ModelProviderStore, ensureSystemAgentService, withConnectorConnections, workspaceRefFor } from "@molis-ai/molis-work-app-local-host";
 import { LocalSqliteStorage, createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentHostCapabilities, type AgentRunRef, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryClassRestriction } from "@molis-ai/molis-work-contracts/services/memory";
 import { grantMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
@@ -83,7 +83,10 @@ test("production Coding memory.list keeps the old Run restriction after reopenin
       credential_ref: connection.credential_ref!, models: [{ model_id: "fixture-model", enabled: true }],
     });
   } finally { database.close(); }
-  host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  host = new MolisWorkLocalHost({ homeDirectory: home,
+    workspacesFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    workspaceFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => workspaceRefFor(catalog, projectId)),
+  });
   served = await serveTestHost(null, { home, host });
   const project = await served.createProject("Run memory action policy", ["coding"]);
   await served.web.post(`/projects/${project.project_id}/api/workspaces`, { workspace_path: directory, user_confirmed: true });
@@ -101,12 +104,16 @@ test("production Coding memory.list keeps the old Run restriction after reopenin
   const before = await memory.invoke(memoryActions.list, { scope: "project" });
   assert.ok(before.items.some(item => item.text.includes(SENTINEL)), "the person can read the actual persisted source before starting either Run");
 
-  // This service is the Home's real composeAgentHost/startAuthority assembly. No handcrafted authority/client/caller replaces it.
+  // Coding's HTTP entry carries its real running activation into composeAgentHost/startAuthority (PG-051).
+  // A direct Host client has no plugin declaration and must not borrow the bundled reader role.
   const composition = ensureSystemAgentService(host, home);
-  const client = host.client(project.reference), owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, plugin_id: CODING, install_id: "coding" };
-  const session = await client.invoke(agentHostCapabilities.createSession, ["prologue", { ...owner, title: "Memory action snapshot", directory: { canonical_path: directory, realpath_verified: true } }]);
-  const start = () => client.invoke(agentHostCapabilities.startRun, ["prologue", { ...owner, session, role_id: "reader", task: "请调用所选能力查看项目记忆。",
-    history: "digest", directory: { canonical_path: directory, realpath_verified: true }, action_tools: [action], model_selection: { provider_id: "fixture", model_id: "fixture-model" } }]);
+  const coding = `/projects/${project.project_id}/api/plugins/${CODING}`;
+  const { session } = await served.web.post<{ session: { session_id: string } }>(`${coding}/sessions`, { title: "Memory action snapshot" });
+  const web = served.web;
+  const start = async () => (await web.post<{ run: AgentRunView }>(`${coding}/sessions/${session.session_id}/runs`, {
+    intent: "discuss", task: "请调用所选能力查看项目记忆。", workspace_id: workspaces.workspaces[0]!.workspace_id,
+    action_tools: [action], provider_id: "fixture", model_id: "fixture-model",
+  })).run;
   const finish = (ref: AgentRunRef): Promise<AgentRunView> => until(async () => {
     const view = await composition.agentHost.adapter("prologue").read(ref);
     return ["completed", "failed", "stopped", "cancelled"].includes(view.phase) ? view : undefined;

@@ -178,3 +178,4 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 - 10-24 08:5x UTC：#1185 二轮可合（`8fd671224`，6381730749：v3 维护 SQL 同一事务改 `assistant_requests.result`，RAC-447/448 钉住无旧形状、中途失败整笔回滚）；进 batch-27（同批 #1186、#1187、#1180 改 base 后）。
 - 10-24 09:0x UTC：按用户要求改成 §1a「同路径一起落地」。立即生效：#1130 与 #1157 不再逐个同步——#1157 改 base 为 main、#1130 关掉自动合并，由 `ac-sc3` 只在 #1157 合一次 main（BACKLOG、`baseline.json` 共用文件 + `tests/project-deletion-declarations.test.ts` 与 #1164 的真冲突），#1157 一次落地后关 #1130。batch-25（#1166、#1178、#1179、#1182）跑完开成一个批 PR；沙箱叠层进 batch-26 也开批 PR 一次落地；batch-27 按页面资源一组排（#1180、#1186、#1185，加 #1187）。
 - 10-24 09:1x UTC：batch-26 = 沙箱叠层（顶层 #1144 `61a0da5df`，一次落地）+ #1181 `e70160a6e` + #1188 `d6d1da98a`，按 §1a 开成一个批 PR；batch-25 跑完就起。
+- 10-24 09:2x UTC：#1168 合入 `ab472ecc8`（W6-01 删 personal 旧短名路由桥、PG-058）；进 privileges 状态第 6 批。

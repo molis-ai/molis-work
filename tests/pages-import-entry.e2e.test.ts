@@ -160,12 +160,13 @@ test("Pages: template, name and confirmation actions remain visible in a short w
   await child.click('[data-pages-delete]');
   await child.waitFor("document.querySelector('[data-pages-confirm]').open");
   await assertFooterVisible(child, '[data-pages-confirm]');
-  // A refused deletion leaves its message in the content area, with cancel still fully reachable.
+  // A refused deletion leaves its message in the content area, with cancel still fully reachable. The page asks through the frame's
+  // molisWorkRequest, so the refusal is that helper's: an Error with the Host's status and words.
   await child.evaluate(`(() => {
-    const real = window.fetch.bind(window);
-    window.fetch = (input, init) => init?.method === 'POST' && String(input?.url || input).includes('/delete')
-      ? Promise.resolve(new Response(JSON.stringify({ error: '暂时无法删除，请检查后重试。'.repeat(60) }), { status: 503, headers: { 'content-type': 'application/json' } }))
-      : real(input, init);
+    const real = window.molisWorkRequest;
+    window.molisWorkRequest = Object.assign((url, init = {}) => init.method === 'POST' && String(url).includes('/delete')
+      ? Promise.reject(Object.assign(new Error('暂时无法删除，请检查后重试。'.repeat(60)), { status: 503 }))
+      : real(url, init), real);
   })()`);
   await child.click('[data-confirm-ok]');
   await child.waitFor("!document.querySelector('[data-pages-confirm] .mw-field__error').hidden && !document.querySelector('[data-confirm-ok][data-loading]')");

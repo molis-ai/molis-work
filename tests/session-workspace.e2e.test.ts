@@ -17,7 +17,10 @@ const TOKEN = "molis-work-session-workspace-e2e-token-0123456789";
 function addAcceptedGoal(databasePath: string, projectId: string, goalId: string, title: string): void {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(
+    const application = new GoalProjectApplication(store);
+    // A project is made with its root row alone: Goals makes its board when the project is opened (S8b), so the fixture opens it the way the Host does.
+    application.projectOpened(projectId);
+    application.goals.commands.createGoal(
       projectId,
       {
         goal_id: goalId,

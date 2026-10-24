@@ -86,7 +86,7 @@ test("SYS-15 S-47 terminal page controls only its server-created panel and canno
   await grantHomeProbe(f.host, a); await grantHomeProbe(f.host, b);
   const server = createServer(), connections = new Set<Socket>();
   server.on("connection", socket => { connections.add(socket); socket.once("close", () => connections.delete(socket)); });
-  pty = attachMolisWorkPtySocket(server, "fixture-terminal-owner", {}, f.home);
+  pty = attachMolisWorkPtySocket(server, "fixture-terminal-owner", f.home);
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   t.after(async () => { pty.killAll(); for (const socket of connections) socket.destroy(); await new Promise<void>(resolve => server.close(() => resolve())); });
   const address = server.address(); assert.ok(address && typeof address === "object");

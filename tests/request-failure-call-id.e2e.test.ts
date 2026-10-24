@@ -65,7 +65,7 @@ test("toast diagnostic links keep readable ink through pointer and keyboard stat
     await open();
     const row = `[data-memory-settings] [data-memory-id="${saved.memory.memory_id}"]`;
     await waitFor(`!!document.querySelector(${JSON.stringify(row)})`, 20_000);
-    await evaluate(`molisWorkRequest('/api/memory/change', { body: { memory_id: ${JSON.stringify(saved.memory.memory_id)}, action: 'remove' } })`);
+    await removeCurrentMemory(evaluate, saved.memory.memory_id);
     await click(`${row} button[aria-label^="停用"]`);
     await waitFor(`!!document.querySelector(${JSON.stringify(button)}) && document.querySelector(${JSON.stringify(toast)}).getAnimations().every(a => a.playState === 'finished')`);
     const point = await evaluate<{ x: number; y: number }>(`(() => { const b = document.querySelector(${JSON.stringify(button)}).getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);

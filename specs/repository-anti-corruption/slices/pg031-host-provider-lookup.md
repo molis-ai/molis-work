@@ -1,6 +1,6 @@
 # PG-031 宿主其余写死的提供方
 
-状态：分支 `ac-kernel/pg031-host-remainder`（从 main `61248691d` 重放），等 ac-kernel 开着的 PR 数降下来再开 PR（2026-10-24，ac-kernel，统筹 10-24 排在 S-57 扩展设计稿之后）。本片收掉宿主侧除 Goals（BL-501 另一片）以外仍写死别的插件提供方的地方；PG-031 里「CLI、MCP、宿主从插件包 import `goalsActions`」那一半不在本片。
+状态：已开 PR，进集成批（2026-10-24，ac-kernel，分支 `ac-kernel/pg031-host-remainder`，已合 main `112114f23`）。本片收掉宿主侧除 Goals（BL-501 另一片）以外仍写死别的插件提供方的地方；PG-031 里「CLI、MCP、宿主从插件包 import `goalsActions`」那一半不在本片。
 
 ## 目标与边界
 
@@ -31,5 +31,5 @@
 
 ## 遗留
 
-- PG-031 的另一半（CLI、MCP、宿主从 Goals 包 import 动作定义）已由 PG-031 第一片 #1218 改成 contracts 描述符，随批 PR #1224 落地。
+- PG-031 的另一半（CLI、MCP、宿主从 Goals 包 import 动作定义）已由 PG-031 第一片 #1218 改成 contracts 描述符，随批 PR #1224 合入 main（`112114f23`）。
 - 宿主里其余 `provider_id: …PLUGIN_ID` 都是插件钉自己的动作或自己登记的提供方（`characters-host.ts`、`characters-http.ts`、`feed-goal-promotion.ts`、`assistant-thread-actions.ts`、`personal-planning-actions.ts`），以及 server continuity 的外部授权（保留），不属本片。

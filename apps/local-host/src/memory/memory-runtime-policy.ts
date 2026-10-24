@@ -18,6 +18,9 @@ export interface MemoryRuntimePolicyOwner {
   projectExists(projectId: string): Promise<boolean | null>;
   /** Present only during the trusted project-deletion hook, never from an Action's input. */
   deletingProject(): string | undefined;
+  deletingScope?(scope: string, owner: string): boolean;
+  deletingPersonal?(target: Request["target"]): boolean;
+  deletionPending?(projectId: string | null, sessionId?: string): boolean;
 }
 
 const CODING = "io.molis.work.coding";
@@ -72,12 +75,12 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     return state.owner.alive() ? state : undefined;
   };
   const scoped = (caller: AgentMemoryCaller, target: Pick<Target, "scope" | "owner">, state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }) => {
-    if (target.scope === "user") return !state.deletion && target.owner === caller.actor_id;
+    if (target.scope === "user") return target.owner === caller.actor_id;
     if (!caller.project_id) return false;
     if (target.scope === "project") return target.owner === caller.project_id;
     if (target.scope !== "character") return false;
     const recorded = state.owner.owners(caller.project_id).find(row => row.scope === "character" && row.owner === target.owner);
-    if (state.deletion) return !!recorded || state.owner.candidateOwners(caller.project_id).some(row => row.scope === "character" && row.owner === target.owner);
+    if (state.deletion) return state.owner.deletingScope?.("character", target.owner) || !!recorded || state.owner.candidateOwners(caller.project_id).some(row => row.scope === "character" && row.owner === target.owner);
     if (caller.person === true) return !!recorded;
     return !!caller.character_id && (!recorded || recorded.subject === caller.character_id)
       && target.owner === characterOwner(caller.project_id, caller.character_id);
@@ -93,7 +96,12 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
   };
   const permitted = (caller: AgentMemoryCaller, request: Request, state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }, operation?: "disable") => {
     if (request.appId !== "io.molis.work" || !scoped(caller, request.target, state) || !namespaceAllowed(caller, request.target.namespace)) return false;
-    if (state.deletion) return request.action === "manage-read" || request.action === "delete";
+    if (state.deletion) return (request.action === "manage-read" || request.action === "delete")
+      && (request.target.scope !== "user" || state.owner.deletingPersonal?.(request.target) === true);
+    // This synchronous predicate is repeated at the SDK's real commit, including already-waiting formation/accept.
+    if (state.owner.deletionPending?.(caller.project_id, caller.session_id)
+      || state.owner.deletionPending?.(caller.project_id, request.target.sessionRef?.id)
+      || request.before && state.owner.deletionPending?.(caller.project_id, request.before.sessionRef?.id)) return false;
     if (request.action === "manage-read" || request.action === "delete") {
       if (caller.person === true && caller.purpose === "management") return true;
       if (request.action === "delete") return false;

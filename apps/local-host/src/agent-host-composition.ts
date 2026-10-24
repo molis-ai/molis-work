@@ -65,6 +65,7 @@ export interface AgentHostComposition {
   refreshExternalMcp(owner: AgentSkillOwner): Promise<void>;
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
+  projectDeletion(): Awaited<ReturnType<typeof createPrologueNodeAdapter>>["projectDeletion"];
   /**
    * What Characters asks of the built-in Agent in one project: the engines and the actions a round may be given. Characters is a
    * provider the Host registers itself, with no plugin caller, so it is answered here rather than through the plugin-only actions.
@@ -155,7 +156,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
-  return { preparePlugin: caller => preparePluginAgent(options, caller), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
+  return { projectDeletion: () => { if (!prologue) throw new Error("项目清理运行时尚未启动"); return prologue.projectDeletion; }, preparePlugin: caller => preparePluginAgent(options, caller), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();

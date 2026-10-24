@@ -11,6 +11,7 @@ import { managedProjectDirectory } from "./project-file-paths.js";
 import { validateManagedProject } from "./managed-project-database.js";
 import type { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
+import { decodeProjectDeletionRecovery } from "./project-deletion-recovery.js";
 import {
   enableDemoProjectPlugins,
   seedDemoPluginSurfaces,
@@ -37,14 +38,27 @@ export class DemoProjectLifecycle {
       await this.finishDemoProject(existing.project_id, existing.database_path, actorId);
       return { status: "existing", project: existing };
     }
-    // The demo has a fixed id, so an earlier demo may have left data under it. A deletion that is still pending is finished
-    // first (or the demo is not made). Once an earlier demo has been deleted, every owner clears again before the new one
-    // starts; an owner that cannot clear here (memory and search in a process without their services) is left out only
-    // when every earlier receipt has owner steps, which say it already ran. A demo that never existed has nothing to
-    // clear, and no owner has to be reachable to make it.
+    // Settle the original deletion before recreating its fixed id. A successor that appeared while we waited owns its
+    // data; neither an old receipt nor a missing public row authorizes clearing it again.
     await this.deletion.settleProject(this.demo.projectId);
+    const current = this.projects.lifecycle.retainedProject(this.demo.projectId);
+    if (current) {
+      if (current.data_class !== "regenerable_demo") throw catalogErrors.project_storage_invalid("示例标识已有当前项目，不能按旧删除结果清理");
+      await this.finishDemoProject(current.project_id, current.database_path, actorId);
+      return { status: "existing", project: current };
+    }
+    const directory = path.join(this.projectsDirectory, this.demo.projectId);
+    if (await fs.stat(directory).then(() => true, error => { if (error.code === "ENOENT") return false; throw error; }))
+      throw catalogErrors.project_storage_invalid("示例项目目录仍存在，不能按旧删除结果覆盖");
     const earlier = this.projects.query.listProjectDeletions().filter(receipt => receipt.project_id === this.demo.projectId);
-    if (earlier.length) await this.owners.clearAll(this.demo.projectId, { skipDeferred: earlier.every(receipt => receipt.owner_steps.length > 0) });
+    const cleared = earlier.length > 0 && earlier.every(receipt => {
+      const record = this.projects.lifecycle.getDeletion(receipt.deletion_id);
+      if (!record?.recovery_plan || record.cleanup_state !== "complete" || !receipt.owner_steps.length
+        || receipt.owner_steps.some(step => step.state !== "complete")) return false;
+      decodeProjectDeletionRecovery(record.recovery_plan, record.project_id, record.deletion_id);
+      return true;
+    });
+    if (earlier.length && !cleared) await this.owners.clearAll(this.demo.projectId, { skipDeferred: earlier.every(receipt => receipt.owner_steps.length > 0) });
     const record = this.projects.lifecycle.prepareRecord({
       project_id: this.demo.projectId,
       display_name: input.display_name ?? "Molis Work 示例项目",

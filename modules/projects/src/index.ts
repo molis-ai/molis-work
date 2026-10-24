@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { ProjectDeletionRecord, ProjectDeletionStep, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectDeletionRecord, ProjectDeletionStep, ProjectPluginRegistry, ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import type {
   ProjectsApplicationApi,
@@ -73,6 +73,8 @@ export class ProjectsModule implements ProjectsApplicationApi {
     ): ReturnType<ProjectService["touch"]>;
     appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, unknown>): void;
     removeFacts(projectId: string): number;
+    /** Deletion recovery alone reads the retained row; ordinary queries keep pending projects hidden. */
+    retainedProject(projectId: string): ProjectRecord | null;
     removeWorkspaceMembershipsForProject(projectId: string): number;
     findDeletion(actorId: string, idempotencyKey: string): StoredProjectDeletion | null;
     insertDeletion(record: StoredProjectDeletion): void;
@@ -85,7 +87,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     pendingDeletions(projectId?: string): StoredProjectDeletion[];
     updateDeletionCleanup(
       deletionId: string,
-      input: { state: "complete" | "pending"; error: string | null; cleaned_at: string | null },
+      input: { state: "complete" | "pending"; error: string | null; cleaned_at: string | null; add_binding_count?: number },
     ): StoredProjectDeletion;
     deletionRecord(record: StoredProjectDeletion): ProjectDeletionRecord;
     normalizeWorkspace: typeof normalizeProjectWorkspace;
@@ -133,6 +135,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       appendEvent: (projectId, type, actorId, payload) =>
         this.records.appendEvent(projectId, type, actorId, payload),
       removeFacts: (projectId) => this.records.removeFacts(projectId),
+      retainedProject: projectId => repository.getProject(projectId, true),
       removeWorkspaceMembershipsForProject: (projectId) =>
         repository.removeWorkspaceMembershipsForProject(projectId),
       findDeletion: (actorId, idempotencyKey) => this.records.findDeletion(actorId, idempotencyKey),

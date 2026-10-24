@@ -4,6 +4,9 @@ import { catalogErrors } from "./project-catalog-contract.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { L } from "./web-locale.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import path from "node:path";
+import { PROJECT_DATABASE_FILENAME } from "@molis-ai/molis-work-storage";
+import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 
 /** What only the process that runs the project's terminals and runtime can answer or do. */
 export interface ProjectDeletionPorts {
@@ -16,7 +19,7 @@ export interface ProjectDeletionPorts {
 /**
  * Deleting a project, for every door: the settings page and the MCP tool run this one service, in the process that has the
  * terminals and the runtime (the resident Host; a process with no Host to forward to has none of either). It refuses while
- * one of the project's terminals is alive, lets go of the project's runtime, and only then has the catalog delete: the
+ * one of the project's terminals is alive. The original plan clears Memory and Sessions before releasing its runtime:
  * catalog's receipt (one step for each owner of project data) and its retry stay the catalog's. The caller says who asks;
  * the arguments of a person's or a Runtime's request never do.
  */
@@ -33,9 +36,15 @@ export class ProjectDeletionService {
         if (catalog.listDesktopPanels(project.project_id).some(panel => this.ports.isPanelAlive(panel.panel_id))) {
           throw catalogErrors.project_terminal_live(L("请先关闭这个项目中正在运行的终端，再删除项目。"));
         }
-        await this.ports.releaseProject(project.database_path);
+        // Runtime release is an owner step after the fixed Memory/Session plan, while Catalog bindings still exist.
       }
-      return catalog.deleteProject(input);
+      const owners = projectDeletedHooksFor(catalog.homeDirectory), original = owners.owners().find(owner => owner.id === "project-runtime");
+      const dispose = owners.register({ ...original, id: "project-runtime", label: null, priority: -10,
+        clear: async (projectId, receipt) => {
+          await original?.clear(projectId, receipt);
+          if (projectId === input.project_id.trim()) await this.ports.releaseProject(path.join(catalog.projectsDirectory, projectId, PROJECT_DATABASE_FILENAME));
+        } });
+      try { return await catalog.deleteProject(input); } finally { dispose(); }
     });
   }
 }

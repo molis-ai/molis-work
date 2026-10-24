@@ -2,8 +2,8 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 
 /**
- * A deleted project's open runtime is closed first, whichever way the project was deleted (the Web page closes it
- * before asking; MCP and the demo's remove and rebuild do not). Closing stops what the project's runtime runs
+ * A deleted project's open runtime closes after the fixed Memory/Session plan completes and before its directory moves.
+ * Demo rebuild retains its current-project cleanup order. Closing stops what the project's runtime runs
  * (generated plugins, Plugin Studio's runners) and lets go of its database, so a project made again under the same path
  * never meets the old, unlinked database through a runtime that was left open.
  */

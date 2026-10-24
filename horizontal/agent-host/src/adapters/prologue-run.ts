@@ -355,7 +355,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
     const role = children.roles.get(exactCharacterKey(registered.character!))!;
     // Every child's run hears what its neighbours on the task graph send it (letters are handed over by the Host).
-    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text, source: "app" }); } });
+    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: text => deps.index.starting(input.session_id, current => deps.effects.admit(current, async () => { await observed.control.steer({ text, source: "app" }); })) });
     state.runSessions.set(observed.run.ref.id, observed.childSession.ref.id);
     state.runRefs.set(observed.run.ref.id, observed.run.ref);
     state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
@@ -503,7 +503,7 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
   // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
   if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
   state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && !at.stopping(),
-    steer: async text => { await started.control.steer({ text, source: "app" }); } });
+    steer: text => deps.index.starting(session.ref.id, current => deps.effects.admit(current, async () => { await started.control.steer({ text, source: "app" }); })) });
   if (at.stepBoard) deps.stepBoards.follow(at.stepBoard, { session_id: session.ref.id, run_id: started.run.ref.id });
   // A main round is work under way in its project until it ends; a subtask's work is its parent's.
   if (!at.none && input.root_path && !index.parent_run) {
@@ -596,7 +596,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
           deps.effects.detach(() => { actionController.abort(); control.stop(reason); });
         })().catch(error => { at.stopping.current = undefined; throw error; });
       },
-      pause: () => control.pause(), resume: () => control.resume(),
+      pause: () => control.pause(), resume: () => { current(); deps.index.assertAdmission(at.session.ref.id); deps.effects.assertCurrent(); control.resume(); },
       // The new model's key is exchanged first; the runtime refuses a target or frozen settings it cannot carry.
       beforeModelSwitch: deps.effects.beforeEffect,
       switchModel: async (target, beforeAccept) => {
@@ -604,7 +604,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         await deps.effects.beforeEffect();
         return control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef }, { beforeAccept: () => { deps.effects.assertCurrent(); beforeAccept(); } });
       },
-      steer: input => control.steer(input), withdrawSteer: steerId => control.withdrawSteer(steerId), subscribe: listener => control.subscribe(listener),
+      steer: input => deps.index.starting(at.session.ref.id, current => deps.effects.admit(current, () => control.steer(input))), withdrawSteer: steerId => control.withdrawSteer(steerId), subscribe: listener => control.subscribe(listener),
     },
   };
 }
@@ -676,7 +676,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   watchRoundFacts(state, started.run);
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
-  state.dispatchChecks.set(started.run.ref.id, dispatchGuard);
+  state.dispatchChecks.set(started.run.ref.id, async () => { await dispatchGuard(); deps.index.assertAdmission(input.session_id); });
   await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
     project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
   return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, stepBoard: materials.stepBoard, stopping }),

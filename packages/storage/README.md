@@ -79,6 +79,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 只有部分操作需要凭据的服务用 `createLazyFileSecretStore`：读取尚未保存的引用不初始化后端。
   - 原子文件写入、日志与幂等记录由这里提供，Module 不各建一套。
   - 记忆账本只有成功开始写事务后才进入嵌套状态；连接锁导致开始失败后，同一实例的后续多步写入仍完整回滚或提交。回归见 [memory-ledger-transaction.test.ts](../../tests/memory-ledger-transaction.test.ts)。
+  - `memoryLedgerHasOnlyPreferences` 只读核现行精确 schema、完整 prefs 形状及 new-home adoption 标记；任一正文账注、未知标记或未知形状都不证明空态，不创建或迁移数据库。它与 Runtime 目录确实不存在共同支持 Catalog-only 新 Home 的项目删除准备；项目 prefs 是可归属设置，不代表 Memory 原件。对应真实恢复用例为 `tests/project-deletion-recovery.test.ts`。
   - 搜索索引是可删除的派生缓存：文件缺失、损坏或 schema 版本不符时清空重建，不读回任何业务事实。
   - 索引切分：中日韩每字单独、相邻两字成词，其余字母数字按小写词、查询用前缀；候选必须在原文（NFKC、小写）里真实出现才返回，两字中文与 `Q4` 这类短词可查。
   - 正文由读取器提供的条目，只对能读该种类的调用来源返回。

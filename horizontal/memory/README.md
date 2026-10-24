@@ -252,7 +252,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 用户自己说过、认可过、替换或改过的记忆，不会被撤销之前的某次自动写入而删掉或覆盖：之后这些自动记录不再可撤销，撤销时也再核对一次这条还是不是自动的。
   - 助理只能把记忆停用（记作助理的变动，本人可撤销）；改正文和彻底删除只有本人，在设置里做。
   - 显式召回只记录返回，不更新最近参考；最近参考由真实 Run 的 `response-observed` Context 回执投影。派发未知和记录失败单独显示，不重发模型；迟到回执不能恢复已遗忘身份。
-  - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
+  - 项目删除原收据使用 `previewProjectMemoryPurge`/`applyProjectMemoryPurge` 冻结并恢复精确 formal/candidate（含墓碑）版本及 source 引用；先持久来源抑制，再删 SDK 目标并清 ledger，最终同步控制紧邻实际账本写。个人目标仅由宿主的 canonical Session 绑定授权，纯 evidence 引用不级联。null backend 不构成空态证明；已知 ledger 目标在 SDK 预览中缺失时冲突。原 `purgeProjectMemories` 只留给当前项目 demo reset，不是删除收据恢复口。SDK 公开页对已 purged/missing Session 的过滤仍不能证明历史无账注原件已穷尽，当前完整项目删除验收因此未闭合。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
 - 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-adoption.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-unknown-facts.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
@@ -270,3 +270,5 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面定向工程验证已完成，资源门及依赖合并仍待收束；合同与逐步证据见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
 
 本片定向回归（构建后，单 worker）：node scripts/run-tests.mjs --jobs 1 tests/memory-selected-batch.test.ts tests/memory-service-cas.test.ts tests/memory-management-pages.test.ts tests/memory-management-page-http.test.ts tests/memory-actions.test.ts。浏览器独立槽运行 tests/memory-settings-pages.e2e.test.ts，覆盖分类筛选后的明确选择、预览确认、后来新增不入集、部分失败及完整关闭重开 Host 后沿原预览恢复。最终真实 Home、质量/token 对照与用户验收仍按原 P0 合同执行。
+
+项目删除的 Host 入口先经 AgentHost 固定可信 Session 集合，再以当前删除 authority 冻结 formal/candidate 的原 ref/version（包括墓碑）及无正文来源引用。`previewProjectMemoryPurge` 不把被 SDK 权限过滤的空页当成历史 orphan 完整性证明；已知账注与可读原件不符、已有 purge Session 却没有当时固定计划时拒绝。`applyProjectMemoryPurge` 按 Catalog 原计划依次持久来源抑制、清原件及 ledger，成功后才允许 Session purge；每次 ledger 真写前同步检查当前 control，来源抑制不随范围 marker 收尾消失。个人目标只由 SDK canonical Session 绑定授权，纯引用不级联。旧无计划与 MEM-40 停写采用仍分别验收。

@@ -17,6 +17,8 @@ import type { StopGuard } from "./prologue-stop-guard.js";
  */
 
 export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
+  /** Synchronous Catalog pending receipt fact; deletion itself uses its original held lane. */
+  projectDeletionPending?(projectId: string, sessionId?: string): boolean;
   /** App taxonomy and live memory authority; absent means memory is unavailable. */
   memory?: import("./prologue-memory-authority.js").PrologueMemoryOptions;
   /** Parsers the App supplies for documents people bring (PDF…); the runtime ships none. */

@@ -234,7 +234,7 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
         deps.effects.assertCurrent();
         if (purge) deps.approvals?.forget(deps.options.reviewQueue?.forgetSession({ ...owner, session_id: id }) ?? []);
       } }),
-    create: (input, execution) => deps.effects.start(execution, async () => {
+    create: (input, execution) => deps.index.creating(input.project_id, current => deps.effects.start(execution, () => deps.effects.admit(current, async () => {
       const session = await deps.runtime.sessions.create();
       try { await deps.index.save({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
         owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] }); }
@@ -247,7 +247,7 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
       }
       deps.state.sessions.set(session.ref.id, session.ref);
       return session;
-    }),
+    }))),
     restore: id => deps.recovery.restore(id),
     originalInput: (id, input) => resolveOriginalInput(deps.index, id, input),
     readOriginalInput: ref => readOriginalInput(deps.index, ref),
@@ -292,7 +292,8 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor, ledger) => stepBoards.amend(run, amendment, expectedVersion, actor, ledger), works: deps.workGraphs.port },
     // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key, and gives it back while it still waits.
     queue: {
-      add: async (sessionId, input) => (await openSession(sessionId, "这条会话读不到，补充留不到下一轮")).queueInput(input),
+      add: (sessionId, input) => deps.index.starting(sessionId, current => deps.effects.admit(current, async () =>
+        (await openSession(sessionId, "这条会话读不到，补充留不到下一轮")).queueInput(input))),
       withdraw: async (sessionId, inputId) => (await openSession(sessionId, "这条会话读不到，撤不回排着的补充")).withdrawQueuedInput(inputId),
     },
     background: deps.waitsPort.background,
@@ -313,7 +314,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     imageAttachments: true,
     compaction: true,
     ...(deps.checkpoints ? { checkpoints: { ...deps.checkpoints,
-      prepareRewind: (session, checkpointId) => deps.index.starting(session.session_id, () => deps.checkpoints!.prepareRewind(session, checkpointId)) } } : {}),
+      prepareRewind: (session, checkpointId) => deps.index.starting(session.session_id, current => deps.effects.admit(current, () => deps.checkpoints!.prepareRewind(session, checkpointId))) } } : {}),
     async saveRunTiming(run, timing) {
       await deps.index.update(run.session_id, index => {
         const attempt = index.attempts.find(item => item.run_id === run.run_id);
@@ -339,7 +340,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     },
     readCommandOutput: readCommandOutput(deps),
     sessions: sessionsPort(deps),
-    startAgentRun: input => deps.index.starting(input.session_id, () => startPrologueRun(deps, input)),
+    startAgentRun: input => deps.index.starting(input.session_id, current => deps.effects.admit(current, () => startPrologueRun(deps, input))),
     shutdown: deps.shutdown,
   };
 }

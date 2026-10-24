@@ -19,7 +19,6 @@ import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
-import { filesOutputsRefresh } from "./project-plugin-input-refresh.js";
 import { handleProjectPluginHttp, pluginEventsPending } from "./project-plugin-http.js";
 import { assistantNotices, handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
@@ -170,7 +169,7 @@ export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runti
     : runtimeEntry?.personal || (options.project && (!runtimeEntry || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
         catalog => availableProjectPluginIds(catalog.listProjectPlugins(options.project!.project_id)).has(runtimeEntry.project_plugin_id))));
   if (!enabled) { const refusal = actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件")); sendJson(response, refusal.status, refusal.body); return true; }
-  return handleProjectPluginHttp(request, response, url, pluginPorts, filesOutputsRefresh);
+  return handleProjectPluginHttp(request, response, url, pluginPorts);
 } };
 
 /** Small reads the shell and the desktop app poll: health, which runtimes exist, the terminal client, the board cursor. */

@@ -172,7 +172,7 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
         for (const item of [...await mutator.checkpoints()].reverse()) {
           if (item.sessionId !== session.session_id || !item.paths.every(safePath)) continue;
           result.push({ checkpoint_id: item.checkpointId, session_id: session.session_id,
-            ...(item.runId ? { origin_run_id: item.runId } : {}), paths: [...item.paths], directory: structuredClone(directory),
+            ...(item.runId ? { origin_run_id: item.runId } : {}), paths: [...item.paths], directory: { canonical_path: directory.canonical_path, realpath_verified: directory.realpath_verified },
             label: item.paths.join("、"), created_at: new Date(item.takenAtMs).toISOString(),
             ...(rewound.has(item.checkpointId) ? { rewound_at: rewound.get(item.checkpointId)! } : {}) });
         }

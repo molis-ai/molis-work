@@ -6,7 +6,7 @@ import { parseFilePath, writerDirectoryCapabilities, writerIntegrationCapabiliti
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingFailure } from "./words.js";
-import { codingActionControl } from "./route-entry.js";
+import { codingActions, codingActionControl } from "./route-entry.js";
 
 /** Coding routes for parallel writers: their directories, integrating a child's result, and stopping or judging a child. */
 
@@ -43,15 +43,15 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.control-subagent", async (request, api, execution, beforeWrite) => {
+    return route("coding.control-subagent", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-record");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const run = { session_id: record.runtime_session_id, run_id: text(request.params.runId, "coding.field.original-run") };
-      const children = await api!.invoke(agent.listSubagents, [session, run]);
+      const children = await codingActions(context, beforeWrite).invoke(agent.listSubagents, [session, run]);
       const child = children.find(child => child.subagent_id === request.params.childId);
       if (!child) throw codingFailure("coding.server.subtask-elsewhere");
-      if (body.action === "stop") await api!.invoke(agent.cancelSubagent, [session, run, child.subagent_id, request.actor_id]);
+      if (body.action === "stop") await codingActions(context, beforeWrite).invoke(agent.cancelSubagent, [session, run, child.subagent_id]);
       else {
         if (!["accepted", "needs-work"].includes(String(body.action)) || child.state !== "completed") throw codingFailure("coding.server.rate-ended-only");
         const notes = typeof body.notes === "string" ? body.notes.trim() : "";

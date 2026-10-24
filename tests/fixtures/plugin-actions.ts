@@ -71,14 +71,47 @@ const writers = new WeakSet<object>();
 /**
  * The agent Host's plugin-only actions (PG-035: session messages and background commands) answered by a Coding test's own fake of
  * the agent Host, so one table answers both the actions and the typed capabilities still left (the real handlers are tested in
- * tests/agent-host-actions.test.ts). `answer` gives what an action returns for its input.
+ * tests/agent-host-actions.test.ts). `answer` gives what an action returns for its input; actions the test serves itself are `served`.
  */
-export function fakeAgentHostActions(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, input: unknown) => unknown) {
+export function fakeAgentHostActions(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, input: unknown, options: { signal?: AbortSignal }) => unknown,
+  served: readonly ActionDefinition[] = []) {
   if (agentHosts.has(actions.registry)) return actions;
   agentHosts.add(actions.registry);
-  const definitions = Object.values(agentHostCapabilities).filter((definition): definition is ActionDefinition<never, unknown> => "action" in definition && definition.action !== undefined) as ActionDefinition[];
+  const definitions = (Object.values(agentHostCapabilities).filter((definition): definition is ActionDefinition<never, unknown> => "action" in definition && definition.action !== undefined) as ActionDefinition[])
+    .filter(definition => !served.some(own => own.capability_id === definition.capability_id));
   actions.registry.registerProvider({ provider: { provider_id: "agent-host-fixture", title: "Agent 宿主", kind: "system" }, definitions,
-    handlers: definitions.map(definition => ({ ...definition, handle: (_caller: ActionCallContext, input: unknown) => answer(definition, input) })) });
+    handlers: definitions.map(definition => ({ ...definition, handle: async (caller: ActionCallContext, input: unknown) => completeView(definition, await answer(definition, input, { signal: caller.signal })) })) });
   return actions;
 }
 const agentHosts = new WeakSet<object>();
+
+/**
+ * A Coding test's host whose fake Agent Host (`capabilities`) also answers the agent Host's actions, as the real Host answers both
+ * from one registration. The first host made for a project's actions is the one that answers; `served` are the test's own.
+ */
+export function withFakeAgentHost<H extends { actions: ReturnType<typeof pluginActions>; capabilities: { invoke(definition: ActionDefinition, input: never): Promise<unknown> } }>(host: H, served: readonly ActionDefinition[] = []): H {
+  fakeAgentHostActions(host.actions, (definition, input) => host.capabilities.invoke(definition, input as never), served);
+  return host;
+}
+
+/*
+ * A fake names only what its test reads; the rest of a session's or round's view takes neutral values here, so the answer
+ * still fits the action's output contract (whose top level is listed in full, R8 batch 3) without every fake spelling it out.
+ */
+const RUN_VIEW = { ref: { session_id: "session", run_id: "run" }, phase: "completed", frozen: {}, turns: [], activity: [], usage: {}, awaiting_input: [], started_at: "2026-01-01T00:00:00.000Z", ended_at: null };
+const SESSION_VIEW = { owner: { project_id: "project", plugin_id: "plugin", install_id: "install" }, session: { session_id: "session", runtime_id: "runtime" }, title: "", runs: [], latest_run: null };
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const runView = (value: unknown) => isRecord(value) ? { ...RUN_VIEW, ...value } : value;
+function completeView(definition: ActionDefinition, value: unknown): unknown {
+  switch (definition.capability_id) {
+    case agentHostCapabilities.readRun.capability_id: return runView(value);
+    case agentHostCapabilities.waitRun.capability_id: return isRecord(value) ? { ...value, view: runView(value.view) } : value;
+    case agentHostCapabilities.readSession.capability_id:
+      return isRecord(value) ? { ...SESSION_VIEW, ...value, latest_run: value.latest_run ? runView(value.latest_run) : null } : value;
+    case agentHostCapabilities.startRun.capability_id: return isRecord(value) ? { frozen: {}, ...value } : value;
+    case agentHostCapabilities.readRunReviews.capability_id: return Array.isArray(value) ? value.map(entry => isRecord(entry) ? { receipt: null, ...entry } : entry) : value;
+    case agentHostCapabilities.listSubagents.capability_id:
+      return Array.isArray(value) ? value.map(child => isRecord(child) ? { role_id: "", task: "", state: "running", result: null, workspace_path: null, parent_run: RUN_VIEW.ref, ...child } : child) : value;
+    default: return value;
+  }
+}

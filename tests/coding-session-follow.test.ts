@@ -57,7 +57,7 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
     }
     throw new Error(`Unexpected capability ${definition.capability_id}`);
   } };
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(pluginActions(store, DEMO_PROJECT_ID), (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(pluginActions(store, DEMO_PROJECT_ID), (definition, input, options) => agentHost.invoke(definition, input, options)), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: agentHost,
   });
@@ -157,7 +157,7 @@ async function codingJobs() {
     if (id === agent.awaitContinuations.capability_id) { calls.awaitContinuations++; return await (on.awaitContinuations ?? ready)() as Output; }
     throw new Error(`Unexpected capability ${id}`);
   } };
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(actions, (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(actions, (definition, input, options) => agentHost.invoke(definition, input, options)), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: agentHost,
   });

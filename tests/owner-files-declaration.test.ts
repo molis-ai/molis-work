@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { SHELF_OWNER_FILES } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_OWNER_FILES, createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
 
@@ -57,4 +63,26 @@ test("RAC-308 a definition that declares owner_files and is not on the Host's st
   assert.equal(beside.contexts.length, 0, "its code never ran");
   assert.equal(platform.runtime.get(install.install_id).last_error_code, "plugin.declaration_invalid", "not the Runtime's generic executor failure");
   assert.equal(existsSync(`${home}/${beside.owner_files.store_name}`), false);
+});
+
+test("RAC-322 a project's platform with no Home does not refuse the shipped Shelf's project half, which shares the Manifest's owner_files and is given none; a project plugin that is not a dual-instance half and declares them is refused", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "owner-files-no-home-"));
+  const file = join(directory, "board.db");
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file);
+  const platformWithoutHome = () => createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
+    processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
+    ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), home: null });
+  try {
+    const shelf = createShelfPlugin();
+    assert.deepEqual(shelf.manifest.owner_files, SHELF_OWNER_FILES, "the project half carries the declaration the Home half does");
+    // The bare platform here has no Host capabilities, so Shelf's actions are not redeemed and it does not run; the list check is
+    // what this is about: it is not refused as a project plugin that declares files.
+    const report = await platformWithoutHome().start([{ definition: shelf, bundled: true }]);
+    assert.deepEqual(report.failed.filter(entry => entry.code === "plugin.declaration_invalid"), []);
+    const imposter = ownerFilesProbe("noHomeOwner");
+    await assert.rejects(platformWithoutHome().start([{ definition: imposter.definition }]), /不能声明.*主人文件服务/u);
+    assert.equal(imposter.contexts.length, 0, "it never ran");
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

@@ -142,7 +142,7 @@ Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与�
 
 Manifest 的 `databases.home`（`PluginDatabaseDeclaration`，PG-022；项目库见 `databases.project`）描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只给宿主启动名单上的 Native 插件（库要登记在 Home 的存储登记里；名单之外的插件还没有 Home 库，声明了就拒绝启动）；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
 
-项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 Manifest 写 `databases.home`，启动名单的条目上不再有 `database`。库只给宿主启动名单列出的那个定义对象，所以同 `plugin_id` 的开发中或生成的插件，即使 Manifest 也这样声明，也被拒绝启动（`plugin.declaration_invalid`）；沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 Home 存储登记中归该插件所有，并与登记的库基线一致；Manifest 声明 `storage:private` 和库的读写权限，同一份名单不能重复占用库。名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，数据由插件自己按项目分区；库随实例启动打开、停止关闭。Dataset、Form、灵光、Pages、PPT、Workflows 是当前生产里的这类插件。
+项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 Manifest 写 `databases.home`，启动名单的条目上不再有 `database`。名单上的定义对象拿登记里的库；不在名单上、由宿主自己运行的插件（开发中的、装进来的）也可以在 Manifest 声明 `databases.home`，库经账本给：库首次打开时在 `plugin-libraries/` 记下插件 ID、发布者（取自安装记录）、库名、版本和表的哈希，之后换了发布者、版本、表或库名都拒绝启动；库名不能是宿主已有的存储、安装器的目录、别的插件的库或 Home 里已有的目录；按项目分开的库只有名单上的插件能有。首次的发布者是安装时 Manifest 的自报，安装时不校验签名是 PG-001 的缺口，账本只保证装上后不可换发布者。沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 Home 存储登记中归该插件所有，并与登记的库基线一致；Manifest 声明 `storage:private` 和库的读写权限，同一份名单不能重复占用库。名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，数据由插件自己按项目分区；库随实例启动打开、停止关闭。Dataset、Form、灵光、Pages、PPT、Workflows 是当前生产里的这类插件。
 
 - `database.get/all` 用 SQLite 只读连接，接受参数化查询；没有跨库、路径和连接管理入口。
 - `database.transaction(caller.beforeEffect, tx => …)` 先等待当前动作授权，再复查安装和 grant，随后执行短同步事务；异步回调拒绝并回滚。事务对象离开回调后失效。

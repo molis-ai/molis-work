@@ -32,6 +32,7 @@ import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
+import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
@@ -125,10 +126,12 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
  * nothing, its own `stop` hook included.
  */
 function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
-  const declaration = homeLibraryFor(definition, options.databaseFor?.(definition));
-  if (declaration === undefined) return undefined;
+  const library = homeLibraryFor(definition, options.databaseFor?.(definition), options.record?.(context.install_id) ?? null);
+  if (library === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
-  return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); }, context);
+  const { directory, stores } = options.home;
+  const open = () => openPluginDatabase(directory, library.declaration, permission => { assertActive(); context.requireGrant(permission); }, context);
+  return library.installed ? openInstalledPluginLibrary(directory, library.installed, library.declaration, stores, open) : open();
 }
 
 /**

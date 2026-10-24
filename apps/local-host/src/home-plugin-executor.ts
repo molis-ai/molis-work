@@ -10,6 +10,7 @@ import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
+import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
@@ -96,11 +97,15 @@ export class HomePluginExecutor implements PluginExecutor {
     };
     try {
       const home = pluginHomeFor(this.options.home);
-      const declaration = homeLibraryFor(definition, this.options.database(definition));
+      const library = homeLibraryFor(definition, this.options.database(definition), this.options.record(context.install_id));
+      const declaration = library?.declaration;
       if (declaration?.partition === "project") {
         partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));
       }
-      else if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context);
+      else if (library) {
+        const open = () => openPluginDatabase(this.options.home, library.declaration, authorize, context);
+        database = library.installed ? openInstalledPluginLibrary(this.options.home, library.installed, library.declaration, home.stores, open) : open();
+      }
       const fileDeclaration = this.options.files(definition);
       if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context);
       const owned = ownerFilesGiven(definition, this.options.ownerFiles(definition));

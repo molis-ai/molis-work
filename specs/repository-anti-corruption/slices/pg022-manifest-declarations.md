@@ -1,6 +1,6 @@
 # PG-022 / PG-102 / PG-103 / PG-104：宿主条目上的声明搬进 Manifest
 
-状态：统筹已裁（2026-10-24，见 §6「统筹 10-24 裁」）；P1（Home 库）已在分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，已推送，PR 排在 §8 列的在途 PR 和本线 #1119、#1139 合入之后；顺序 P1 → P1b → P2 → P3；P2 拆成 P2a（`owner_files` 进 Manifest，已在同一分支实现）和 P2b（`files` 合并、Images 迁移、删 `initialize_owner_files`，等 R1～R3 的裁定）；P1b 等统筹答 A/B；P3（`model_configuration`、`image_generation` 进 Manifest）已在同一分支实现。代码按 main `abc052bcb` 核过。
+状态：统筹已裁（2026-10-24，见 §6「统筹 10-24 裁」）；P1（Home 库）已在分支 `claude/ac-pg022-manifest-declarations` 实现并过相关测试，已推送，PR 排在 §8 列的在途 PR 和本线 #1119、#1139 合入之后；顺序 P1 → P1b → P2 → P3；P2 拆成 P2a（`owner_files` 进 Manifest，已在同一分支实现）和 P2b（删 `files`、Images 迁移、动作之外开 ownerFiles、删 `initialize_owner_files`，R1～R3 已裁，见 §6）；P1b 取 A（Home 库账本的发布者取自安装记录，见 §6），已在同一分支实现（§4.4）；P3（`model_configuration`、`image_generation` 进 Manifest）已在同一分支实现。代码按 main `abc052bcb` 核过。
 
 ## 1. 现状
 
@@ -29,7 +29,7 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 | 期 | 内容 | 依赖 |
 | --- | --- | --- |
 | **P1** Home 库（PG-022） | `databases.home`；五个 Home 级和六个项目级插件的声明搬进各自 Manifest；`runtime.database` 与条目 `database` 删除；存储登记从 Manifest 推；PLIB-11 | 无 |
-| P1b Home 库的发布者账本与非内置插件 | 登记从已安装插件的 Manifest 推；首次打开记发布者，换了就拒（D23 第 6 条） | P1；Q1 |
+| P1b Home 库的发布者账本与非内置插件 | 账本一行一个插件，记发布者（取自安装记录）、库名、版本、表的哈希；换了就拒（D23 第 6 条）；purge 读账本 | P1；Q1；统筹 10-24 裁 A |
 | **P2** 文件合成一套（PG-102 文件一半、PG-103、PG-104） | `files` 并进 `owner_files` 的授权口径；Manifest 声明（配额）；删 `initialize_owner_files`，初始文件改成 Manifest 里的种子；Images 迁移，项目执行器的 files 按项目分区、删项目时清 | P1 的登记推导；Q2 |
 | **P3** 模型设置与生图（PG-102 余下） | `model_configuration`、`image_generation` 搬进 Manifest | P1；Q3 |
 
@@ -61,6 +61,22 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 - 项目库（`databases.project`）、账本、`openPluginDatabase` 与分区库的开库代码。
 - 真实 Home 的数据：库的位置、文件、版本都不变，没有维护。
 
+### 4.4 P1b：装进来的插件的 Home 库（2026-10-24）
+
+统筹 10-24 裁取 A。不在宿主启动名单上、由宿主自己运行的定义（开发中的、装进来的）声明了 `databases.home`：P1 拒绝，P1b 经账本给。
+
+| 项 | 做法 |
+| --- | --- |
+| 账本 | `apps/local-host/src/installed-plugin-libraries.ts`：Home 里新的宿主存储 `plugin-libraries/plugin-libraries.db`（基线 1，登记为宿主的 `INSTALLED_LIBRARIES_HOME_STORE`），表 `plugin_home_libraries`，一个插件 ID 一行：发布者签名、库名（唯一）、版本、表的哈希、建于。用到时才建，已有的 Home 不动、没有版本维护 |
+| 为什么是单独的宿主库 | 放进插件自己的库文件会让它的结构与基线不同，插件的 SQL 也碰得到账本；放进 `plugin-runtime.db` 要把它的基线从 2 升到 3，真实 Home 要做维护。单独一个只有宿主读写的新库，两样都不碰 |
+| 发布者 | 取自安装记录（`PluginInstanceRecord.publisher_signature`，装上时从 Manifest 抄下，之后 `changeVersion` 拒绝换发布者）。**首次值是安装时 Manifest 的自报，安装时不校验签名是 PG-001 的缺口（`ac-trust` 线），P1b 只保证装上后不可换发布者，不比项目库账本多声称什么。** 统筹把「宿主哪里都不调 `verifyPluginPackage`」记进风险登记，归 PG-001，本线不碰 |
+| 打开 | `homeLibraryFor(定义, 名单给的, 安装记录)` 返回库声明和（不在名单上时）安装记录里的主人；`openInstalledPluginLibrary` 在账本的一个 `BEGIN IMMEDIATE` 事务里：有行就查发布者、库名、版本、表的哈希，无行就查名字空闲（登记里没有、不是安装器的目录 `config`、`bin`、`releases`、别的插件的行、Home 里没有这个目录）再调 `openPluginDatabase` 建库、写行、提交；建库失败回滚，库目录是这次建的就删掉 |
+| 拒绝的码 | `plugin.home_database.object_taken`、`publisher_mismatch`、`version_mismatch`、`shape_mismatch`（`plugin.*` 主人是 `apps/local-host/src/installed-plugin-*`）；按项目分开的库与沙箱定义仍是 `plugin.declaration_invalid`。拒绝落在安装记录的 `last_error_code`，插件的代码不运行 |
+| 名单上的库 | 不变：登记里归这个插件、基线相同。内置插件的库不进账本，装进来的同 `plugin_id` 仿冒品要它们的库名会被「登记里有」拒绝（RAC-304 的码现在是 `object_taken`） |
+| purge | `uninstall --purge-user-data` 在登记的各项之外读账本，列出每个库名的目录；账本里的名字是宿主写的，但会变成要删的路径，所以不是一个普通目录名、或登记里或安装器已占用的名字不列；账本读不出来，计划是冲突、不执行（不能说清楚要清什么，就不清） |
+| 与 Q1 原稿不同 | Q1 写「登记从已安装插件的 Manifest 推出」。安装记录里没有 Manifest（只有哈希），所以账本自己就是这份登记，purge 读它；效果一样（清得到），来源更可靠 |
+| 没做 | 沙箱插件的 Home 库（等模型 broker，PG-017）；装进来的插件按项目分开的库；单个插件卸载时删它的库（今天内置插件的库也不删，`retain_private_data` 只管插件私有存储） |
+
 ## 5. P2、P3 轮廓（审定前不写代码）
 
 **P2 文件（PG-102 文件一半、PG-103、PG-104）**
@@ -83,7 +99,7 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 2. **Images 的 `files` 读写权限都是 `storage:private`**，而 ownerFiles 要求调用它的**动作**自己声明文件权限（`owner-files-service.ts` 的 `scope.definition.action.permissions.includes(permission)`）。Images 的动作带的是 `images:read`、`images:generate`、`images:delete`，所以直接迁移过去，写文件的动作都被拒。
 3. **Images 在 `start` 里恢复**（`ImagesService.recover` 列出并删除没人引用的图片文件）。start 里没有动作作用域，而 ownerFiles 在动作之外一律拒绝。
 
-待统筹裁（推荐在前，已发给统筹）：
+统筹已裁（见 §6「统筹 10-24 裁」，推荐在前的写法保留作理由）：
 
 - **R1 动作之外怎么办（管 1 和 3）。** 推荐：ownerFiles 在动作之外（`start`、定时器）也开，条件是安装的现行授权覆盖 `storage:private` 与文件权限，这是其他服务（`assertPluginActionCurrent`）一贯的规矩；动作里不变；不再有 `control` 参数。这样 Shelf 在自己的 `start` 里放示例，Images 在自己的 `start` 里回收，钩子删掉。另一条路是写仍只在动作里：Shelf 在第一个动作里才放示例，Images 把回收挪进 `jobs.start`，两者都改行为。
 - **R2 Images 的权限（管 2）。** 推荐：加一项 Images 权限 `images:files:write`（Manifest 里，可选），加进 `images.jobs.start`（版本 2→3）与 `images.jobs.delete`（1→2）；读用每个读动作本来就有的 `images:read`。这改两个动作合同：动作快照、升版本、MCP 客户端要重新授权。另一条是只对 Images 去掉「动作要声明文件权限」这一检查，我不想自己削弱 S-15。
@@ -115,6 +131,11 @@ P3（已做，Q3 统筹同意不等模型 broker）：`PluginManifest.model_conf
 - Q2：文件合成一套之后只留一个名字、一个服务（名字按 `docs/system/GLOSSARY.md`），同一个 PR 改所有调用方，不留兼容期、不做薄委托（别名反正在 W6-01 删）。沙箱永远拿不到 `ownerFiles`（这条「不做」在等用户确认）。
 - Q3：同意，不等模型 broker。Q4：同意，四个 PR：P1、P1b、P2、P3。
 - 顺序：P1 修正（错误码传递、去掉导出、RAC 号）→ 推送 → P1b → P2 → P3，全部本地并推送；本线两个在途 PR（#1119、#1139）合入后才开 PR。
+- **P1b 取 A（统筹 10-24 裁）：Home 库的账本，发布者取自安装记录**（安装时定下，与项目库账本同一种规则）。首次值是安装时 Manifest 的自报，安装时不校验签名是 PG-001 的缺口（`ac-trust` 线），P1b 只保证装上后不可换发布者，不比项目库账本多声称什么。统筹把「宿主哪里都不调 `verifyPluginPackage`」记进风险登记，归 PG-001，本线不碰。拒绝测试：同一 `install_id` 换发布者被拒；同一 `plugin_id` 由另一个发布者新装，按账本规则也被拒。
+- **R1 动作之外开 ownerFiles（统筹 10-24 裁，取推荐）**：`start`、定时器等动作之外也可调，当且仅当安装的**现行**授权覆盖 `storage:private` 与对应的文件权限（与 `assertPluginActionCurrent` 同一条规矩）；停用、卸载、撤权之后写不了；每一种拒绝有测试；能碰的仍只限 Manifest 里声明的条目；动作里不变。删 `initialize_owner_files` 钩子：Shelf 在自己的 `start` 里放示例，Images 在自己的 `start` 里回收。
+- **R2 Images 加 `images:files:write`（统筹 10-24 裁，改成必需）**：不是可选——没有它 `images.jobs.start` 不能工作，可选而用户没批会让 Images 半坏；内置插件默认同意（统筹 10-23）。`images.jobs.start` 2→3、`images.jobs.delete` 1→2；先 `pnpm build` 再 `pnpm actions:update`；PR 里写对 MCP 客户端和工作流程步骤的影响（要重新授权）；不削弱 S-15。
+- **R3 名字（统筹 10-24 裁）**：留 `ownerFiles` / `owner_files`，删 `files`；GLOSSARY 加一条，写明旧名 `files`。
+- 我自己定的两点（项目插件声明 `owner_files` 除双实例的项目一半外一律拒绝；文件根可与同一插件自己的库共用）：统筹同意，每个拒绝各有测试。P2a / P2b 拆分同意。仍是本地加推送，不开 PR。
 
 ## 7. 验收（P1）
 
@@ -141,6 +162,20 @@ P2a、P3：
 | RAC-312 | Jelly 的模型设置、Images 的生图声明在各自的 Manifest 里，登记里没有；内置插件里只有它们声明 | 同上 |
 | RAC-313 | 装在名单之外、声明了模型设置或生图的定义：启动被拒，`last_error_code` 是 `plugin.declaration_invalid`，代码没运行 | 同上 |
 | RAC-314 | 项目插件声明模型设置或生图：启动名单被拒，不留一个要了服务却没拿到的插件 | 同上 |
+| RAC-322 | 没有 Home 的项目平台不把 Shelf 的项目一半当成声明了主人文件的项目插件拒绝（是否双实例看目录，不看 Home 在不在）；不是双实例一半又声明了的，仍被拒、没运行（P2a 在没有 Home 时漏判，由 `tests/project-plugin-database-refusal.test.ts` 发现） | `tests/owner-files-declaration.test.ts` |
+
+P1b：
+
+| 编号 | 断言 | 测试 |
+| --- | --- | --- |
+| RAC-315 | 装进来、由宿主运行的插件拿到 Manifest 声明的库：启动时建，账本记发布者（等于安装记录的）、库名、版本；可读写；另一个平台再装再启动，同一发布者打开同样的行，账本不多行 | `tests/installed-plugin-libraries.test.ts` |
+| RAC-316 | 同 `plugin_id`、另一个发布者的新安装（装得上，安装 ID 不同）启动被拒，码 `plugin.home_database.publisher_mismatch`，代码没运行，行和账本原样，第一个插件照常写 | 同上 |
+| RAC-317 | 同一安装 ID 升级到另一个发布者的定义被 Runtime 拒绝，安装记录的发布者、账本、库原样 | 同上 |
+| RAC-318 | 名字已占用的一律拒绝、什么都不建：登记里的存储（`todo`、`images`、`feed`、`projects`）、安装器的 `config`、账本自己的 `plugin-libraries`、别的插件的库、Home 里没有行的现成目录（里面的文件不动） | 同上 |
+| RAC-319 | 账本记的版本、表、库名与这次声明不同拒绝（代码没运行、库原样）；第一次打开失败不留行也不留目录，修好的版本能打开 | 同上 |
+| RAC-320 | 装进来的插件按项目分开的库被拒（`plugin.declaration_invalid`，账本没开）；库名不合规、读写权限不在 permissions 里的 Manifest 装不上 | 同上 |
+| RAC-321 | purge 计划含装进来的插件的库和账本；账本里被改过的名字（登记里的 `feed`、`../outside`、带斜杠、大写）不列；账本读不出来，计划是冲突 | 同上；`tests/personal-plugins-review-fixes.test.ts`（每个登记的存储都被列入并删掉，含账本里的库） |
+
 
 ## 8. 开工前核对（2026-10-23，`gh pr list` 的文件清单）
 

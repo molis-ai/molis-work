@@ -1,4 +1,5 @@
-import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { InstalledLibraryOwner } from "./installed-plugin-libraries.js";
 import type { PluginPlatformHome } from "./home-side.js";
 
 /** A plugin on the Host's start list; the library in the Home it is given, if any, is the one its Manifest declares (`databases.home`). */
@@ -53,16 +54,29 @@ export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], h
   }
 }
 
+/** What a running definition is given: the library its Manifest declares, and, for a plugin the Host did not ship, the install record's owner. */
+export interface HomeLibraryGrant {
+  readonly declaration: HomePluginDatabaseDeclaration;
+  /** Set for an installed plugin: its library is made and checked through the ledger (`openInstalledPluginLibrary`), not the registry. */
+  readonly installed?: InstalledLibraryOwner;
+}
+
 /**
- * The library a running definition is given, `given` being what the Host's start list holds for it (`pluginEntryIdentity`). None
- * when its Manifest declares none; a refusal when it declares one the list did not give it: a plugin that is not on the Host's
- * list has no library in the Home yet, and does not start without the service it declared.
+ * The library a running definition is given, `given` being what the Host's start list holds for it (`pluginEntryIdentity`) and `record`
+ * its install record. None when its Manifest declares none. A plugin on the list gets the library the registry holds as its own. One
+ * that is not on it, run by the Host (not sandboxed), gets its declared library under the ledger, with the publisher the install
+ * record fixed at install time (`openInstalledPluginLibrary`); a sandboxed one has none, and does not start without the service it
+ * declared.
  */
-export function homeLibraryFor(definition: PluginDefinition, given: HomePluginDatabaseDeclaration | undefined): HomePluginDatabaseDeclaration | undefined {
-  const declared = definition.manifest.databases?.home;
+export function homeLibraryFor(definition: PluginDefinition, given: HomePluginDatabaseDeclaration | undefined, record: PluginInstanceRecord | null): HomeLibraryGrant | undefined {
+  const declared = definition.manifest.databases?.home, id = definition.manifest.plugin_id;
   if (declared === undefined) return undefined;
-  if (given === undefined) {
-    throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 的 Manifest 声明了 Home 库 ${declared.store_name}，但宿主没有把这个库给它：不在宿主启动名单上的插件现在还没有 Home 库`);
+  if (given !== undefined) return { declaration: given };
+  if (definition.execution === "sandbox") {
+    throw pluginErrors.declaration_invalid(`沙箱插件 ${id} 声明了 Home 库 ${declared.store_name}，沙箱里的代码拿不到宿主进程里的库`);
   }
-  return given;
+  if (record === null || record.plugin_id !== id) {
+    throw pluginErrors.declaration_invalid(`插件 ${id} 声明了 Home 库 ${declared.store_name}，但没有它的安装记录：库的发布者取自安装记录`);
+  }
+  return { declaration: declared, installed: { plugin_id: record.plugin_id, publisher_signature: record.publisher_signature } };
 }

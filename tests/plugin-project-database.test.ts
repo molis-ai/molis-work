@@ -151,7 +151,7 @@ test("beforeEffect decides the write: a transaction whose beforeEffect refuses w
     } finally { item.store.close(); }
   }));
 
-test("RAC-304 only a definition the Host's start list holds is given a library: one listed whose Manifest declares none has none, and another definition that carries the same plugin id and asks for the library in its Manifest is refused with plugin.declaration_invalid and runs nothing, installed over the declared one",
+test("RAC-304 only a definition the Host's start list holds is given a library: one listed whose Manifest declares none has none, and another definition that carries the same plugin id and asks for the library in its Manifest is refused and runs nothing, installed over the declared one: the registry's library is the shipped plugin's, and the ledger gives an installed plugin no store the Host's registry holds (plugin.home_database.object_taken)",
   withDirectory(async directory => {
     const first = platformIn(directory), declared = probe(), undeclared = probe({ name: "plainprobe" }), lookalike = probe({ version: "1.1.0" });
     try {
@@ -165,13 +165,15 @@ test("RAC-304 only a definition the Host's start list holds is given a library: 
         grants: [STORAGE.permission, READ.permission, WRITE.permission] }), /启动失败/u);
       assert.deepEqual(first.platform.runtime.list().map(record => [record.state, record.version]), [["running", "1.0.0"], ["running", "1.0.0"]], "the refused version left the plugin as it was");
       assert.equal(asking.started.length, 0, "it ran nothing, so it read and wrote nothing of the library");
-      // A definition installed beside the list is refused the same way, and the Runtime's record says why under the refusal's own code.
+      // A definition installed beside the list asks for the shipped plugin's library name: the Host's registry holds it, so the
+      // ledger refuses (installed-plugin-libraries.test.ts has the installed plugin that asks for a free name), and the Runtime's
+      // record says why under the refusal's own code.
       const installed = probe({ name: "askprobe" });
       const { install } = first.platform.runtime.install({ definition: withLibrary(installed.definition, DECLARATION), deployment: "local",
         grants: [STORAGE.permission, READ.permission, WRITE.permission] });
       await assert.rejects(first.platform.runtime.start(install.install_id), /启动失败/u);
       assert.equal(installed.started.length, 0, "the installed plugin's code never ran");
-      assert.equal(first.platform.runtime.get(install.install_id).last_error_code, "plugin.declaration_invalid", "not the Runtime's generic executor failure");
+      assert.equal(first.platform.runtime.get(install.install_id).last_error_code, "plugin.home_database.object_taken", "not the Runtime's generic executor failure");
       // The entry is about the definition object the Host listed. A different one with the same plugin id, here a version put over
       // the declared plugin, is not it.
       await first.platform.runtime.upgrade({ install_id: first.installId(declared.id), definition: lookalike.definition,

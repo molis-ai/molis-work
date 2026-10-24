@@ -9,6 +9,7 @@ import { CONNECTOR_TOOLS_HOME_STORE } from "./connector-tool-download.js";
 import { CONNECTORS_HOME_STORE } from "./connectors-store.js";
 import { CONTEXT_ONBOARDING_HOME_STORE } from "./context-onboarding-store.js";
 import { HOME_PLUGIN_RUNTIME_HOME_STORE } from "./home-plugin-store.js";
+import { INSTALLED_LIBRARIES_HOME_STORE } from "./installed-plugin-libraries.js";
 import { ORIGINAL_FILES_HOME_STORE } from "./material-original-files.js";
 import { DISCUSSION_HOME_STORE } from "./im-server.js";
 import { PLACEMENT_HOME_STORE } from "./placement-actions.js";
@@ -27,7 +28,7 @@ export function homeStores(): HomeStoreRegistry {
     ...owned("apps/local-host", ...at("projects", "logs")),
     ...owned("apps/local-host/src/installer", ...at("backups")),
     ...owned("modules/private-work-context", ...at("sessions")),
-    ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE,
+    ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, INSTALLED_LIBRARIES_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE,
       CONNECTORS_HOME_STORE, CONNECTOR_TOOLS_HOME_STORE, CONTEXT_ONBOARDING_HOME_STORE, ALCHEMIST_HOME_STORE, ORIGINAL_FILES_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
     ...owned("modules/characters", CHARACTERS_HOME_STORE),

@@ -29,10 +29,14 @@ export function ownerFilesGiven(definition: PluginDefinition, given: PluginOwner
   return givenService(definition, definition.manifest.owner_files, given, "主人文件");
 }
 
-/** The same catalog and bound fixtures used by the Home supervisor, without starting any instance. */
-export function homeOwnerFilesEntries(home: string): PluginOwnerFilesEntry[] {
+/**
+ * The same catalog and bound fixtures used by the Home supervisor, without starting any instance. A platform with no Home still
+ * knows which shipped plugins are dual-instance (that is the catalog's), so it can tell their project half from a project plugin
+ * that declares files it is not given.
+ */
+export function homeOwnerFilesEntries(home: string | null): PluginOwnerFilesEntry[] {
   return [...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, definition: entry.runtime.create() }] : []),
-    ...fixtureDeclarationsFor(home, "home")];
+    ...home === null ? [] : fixtureDeclarationsFor(home, "home")];
 }
 
 /**
@@ -42,7 +46,8 @@ export function homeOwnerFilesEntries(home: string): PluginOwnerFilesEntry[] {
  */
 export function assertOwnerFilesEntries(homeEntries: readonly PluginOwnerFilesEntry[], projectEntries: readonly PluginOwnerFilesEntry[], home: Pick<PluginPlatformHome, "stores"> | null): void {
   assertHomeOnlyDeclarations(homeEntries, projectEntries);
-  const all = [...homeEntries, ...projectEntries], taken = new Set<string>();
+  // Without a Home no Home instance starts, so only the project list has anything to check.
+  const all = [...home ? homeEntries : [], ...projectEntries], taken = new Set<string>();
   for (const entry of all) {
     const { definition, initialize_owner_files: initialize } = entry, files = definition.manifest.owner_files;
     if (initialize && !files) throw new Error("文件初始化器需要可信文件声明");

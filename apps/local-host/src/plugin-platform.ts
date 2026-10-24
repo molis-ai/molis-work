@@ -238,7 +238,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
         listed.add(definition.manifest.plugin_id);
       }
       assertDatabaseEntries(entries, options.home, "project");
-      assertOwnerFilesEntries(options.home ? homeOwnerFilesEntries(options.home.directory) : [], entries, options.home);
+      assertOwnerFilesEntries(homeOwnerFilesEntries(options.home?.directory ?? null), entries, options.home);
       assertFilesEntries(entries, options.home);
       identity.remember(entries);
       const report = await supervisor.start(entries);

@@ -82,4 +82,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1146 | `fea1eb0ba` | 10-24 01:34 UTC |
 | #1132 | `1dedc1f5c` | 10-24 01:42 UTC |
 
-| 38 | [#1156](https://github.com/molis-ai/molis-work/pull/1156) | `ac-kernel` 平台片 BL-394：`releaseArtifact` 恢复出的定义在 start 时补 remember（RAC-330） | — | `full` 为空 | 头 `ed27d0413`；`ac-review` 排队一轮 |
+| 38 | [#1156](https://github.com/molis-ai/molis-work/pull/1156) | `ac-kernel` 平台片 BL-394：`releaseArtifact` 恢复出的定义在 start 时补 remember（RAC-330） | — | `full` 为空 | 头 `ed27d0413`；`ac-review` 一轮**可合**，0 条挡合并（[评论](https://github.com/molis-ai/molis-work/pull/1156#issuecomment-6378323530)）；小片，`full` 空，CI 绿可直接入队 |

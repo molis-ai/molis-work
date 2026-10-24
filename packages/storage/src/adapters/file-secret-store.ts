@@ -14,10 +14,12 @@ import path from "node:path";
 import {
   createCipheriv,
   createDecipheriv,
+  createHash,
   randomBytes,
   scryptSync,
 } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DatabaseSync } from "node:sqlite";
 import { atomicWriteFileSync } from "./atomic-write.js";
 import { readProductEnv, resolveFeedSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
@@ -272,8 +274,7 @@ export class KeychainUnavailableError extends Error {
   }
 }
 
-function resolveMasterKey(): ResolvedMaster {
-  const persisted = loadFile();
+function resolveMasterKey(persisted: SecretsFileV2 = loadFile()): ResolvedMaster {
   const hasPersistedEntries = Object.keys(persisted.entries).length > 0;
   const envRaw = readProductEnv("ENCRYPTION_KEY");
   if (persisted.backend === "env-key+aes-gcm" && hasPersistedEntries && !envRaw) {
@@ -364,12 +365,13 @@ function sealV2(plaintext: string, key: Buffer): string {
 function openV2(sealed: string, key: Buffer): string | null {
   try {
     const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedV2;
-    if (raw.v !== 2 || raw.alg !== ALG || !raw.iv || !raw.tag || !raw.ct) {
+    if (raw.v !== 2 || raw.alg !== ALG || typeof raw.iv !== "string" || typeof raw.tag !== "string" || typeof raw.ct !== "string") {
       return null;
     }
     const iv = Buffer.from(raw.iv, "base64");
     const tag = Buffer.from(raw.tag, "base64");
     const ct = Buffer.from(raw.ct, "base64");
+    if (iv.length !== 12 || tag.length !== 16) return null;
     const decipher = createDecipheriv(ALG, key, iv);
     decipher.setAuthTag(tag);
     const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
@@ -384,9 +386,13 @@ function loadFile(): SecretsFileV2 {
   if (!fs.existsSync(p)) {
     return { version: FORMAT_VERSION, backend: "aes-gcm-file", entries: {} };
   }
+  return parseSecretsFile(fs.readFileSync(p, "utf8"));
+}
+
+function parseSecretsFile(contents: string): SecretsFileV2 {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+    parsed = JSON.parse(contents);
   } catch {
     throw new Error("secrets file is corrupt");
   }
@@ -400,9 +406,10 @@ function loadFile(): SecretsFileV2 {
     throw new Error(`secrets file format ${String(parsed.version)} is not supported; only ${FORMAT_VERSION} is read`);
   }
   const backend = parsed.backend;
+  if (!isSecretStoreBackend(backend)) throw new Error("secrets file backend is not supported");
   return {
     version: FORMAT_VERSION,
-    backend: isSecretStoreBackend(backend) ? backend : "aes-gcm-file",
+    backend,
     entries: { ...parsed.entries },
   };
 }
@@ -418,6 +425,90 @@ function isStringRecord(value: unknown): value is Record<string, string> {
 
 function isSecretStoreBackend(value: unknown): value is SecretStoreBackendKind {
   return value === "aes-gcm-file" || value === "keychain+aes-gcm" || value === "env-key+aes-gcm";
+}
+
+const snapshotErrors = defineErrorCodes("storage.secrets_snapshot", {
+  invalid: "invalid", key_unavailable: "unavailable", integrity_failed: "invalid",
+});
+
+export interface SealedSecretsSnapshotInspection {
+  version: 2;
+  backend: SecretStoreBackendKind;
+  entries: number;
+  key_reference: { location: string; sha256: string } | null;
+}
+
+function snapshotHome(homeDirectory: string): string {
+  if (typeof homeDirectory !== "string" || !path.isAbsolute(homeDirectory)) throw snapshotErrors.invalid("密文预检需要明确的绝对 Home 路径");
+  try {
+    runWithMolisWorkHome(homeDirectory, () => {
+      const directory = fs.lstatSync(resolveFeedSecurityDirectory(), { throwIfNoEntry: false });
+      if (directory && (!directory.isDirectory() || directory.isSymbolicLink())) throw snapshotErrors.key_unavailable("凭据目录不能是链接");
+      const key = fs.lstatSync(installKeyPath(), { throwIfNoEntry: false });
+      if (key && (!key.isFile() || key.nlink !== 1)) throw snapshotErrors.key_unavailable("原密钥必须是只有一个链接的普通文件");
+    });
+  } catch { throw snapshotErrors.key_unavailable("原 Home 的凭据目录或密钥文件不可用"); }
+  return homeDirectory;
+}
+
+/** Reads only existing master material selected by the supplied vault, not the possibly damaged live vault. */
+function openSnapshot(homeDirectory: string, contents: string) {
+  snapshotHome(homeDirectory);
+  let file: SecretsFileV2;
+  try { file = parseSecretsFile(contents); }
+  catch { throw snapshotErrors.invalid("凭据快照不是现行的 v2 密文格式或后端"); }
+  return openSnapshotFile(homeDirectory, file);
+}
+
+function openSnapshotFile(homeDirectory: string, file: SecretsFileV2) {
+  const opened = new Map<string, string>();
+  if (Object.keys(file.entries).length === 0) return { file, opened, master: null };
+  let master: ResolvedMaster;
+  try { master = runWithMolisWorkHome(homeDirectory, () => resolveMasterKey(file)); }
+  catch { throw snapshotErrors.key_unavailable("原 Home 的凭据主密钥不可用；不会创建替代密钥"); }
+  for (const [ref, sealed] of Object.entries(file.entries)) {
+    const value = openV2(sealed, master.key);
+    if (value === null) throw snapshotErrors.integrity_failed("原密钥与凭据快照不匹配，或密文已损坏");
+    opened.set(ref, value);
+  }
+  return { file, opened, master };
+}
+
+/** No store initialization, cache, lock database, write, key generation or returned plaintext. */
+export function inspectSealedSecretsSnapshot(homeDirectory: string, contents: string): SealedSecretsSnapshotInspection {
+  const { file, opened, master } = openSnapshot(homeDirectory, contents);
+  const location = file.backend === "aes-gcm-file" ? "home:feed/secrets.key" : file.backend === "env-key+aes-gcm"
+    ? "env:MOLIS_WORK_ENCRYPTION_KEY" : "keychain:" + KEYCHAIN_SERVICE + "/" + KEYCHAIN_ACCOUNT;
+  return { version: FORMAT_VERSION, backend: file.backend, entries: opened.size,
+    key_reference: master ? { location, sha256: createHash("sha256").update(master.key).digest("hex") } : null };
+}
+
+/** An explicit owner read shares the same read-only integrity check; normal diagnostics return no plaintext. */
+export function readSealedSecretSnapshotEntry(homeDirectory: string, contents: string, authRef: string): string | null {
+  return openSnapshot(homeDirectory, contents).opened.get(authRef) ?? null;
+}
+
+/** A normal owner can read a persisted reference without initializing a store or relying on a cached master. */
+export function readExistingSecret(homeDirectory: string, authRef: string): string | null {
+  snapshotHome(homeDirectory);
+  let file: SecretsFileV2;
+  try {
+    file = runWithMolisWorkHome(homeDirectory, (): SecretsFileV2 => {
+      let descriptor: number;
+      try { descriptor = fs.openSync(secretsPath(), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK); }
+      catch (error) {
+        if (error instanceof Error && "code" in error && error.code === "ENOENT") return { version: FORMAT_VERSION, backend: "aes-gcm-file", entries: {} };
+        throw error;
+      }
+      try {
+        const stat = fs.fstatSync(descriptor);
+        if (!stat.isFile() || stat.nlink !== 1) throw snapshotErrors.invalid("凭据文件必须是只有一个链接的普通文件");
+        return parseSecretsFile(fs.readFileSync(descriptor, "utf8"));
+      } finally { fs.closeSync(descriptor); }
+    });
+  }
+  catch { throw snapshotErrors.invalid("现 Home 的凭据文件不可用或不是现行格式"); }
+  return openSnapshotFile(homeDirectory, file).opened.get(authRef) ?? null;
 }
 
 function saveFile(file: SecretsFileV2): void {

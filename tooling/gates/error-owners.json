@@ -317,6 +317,12 @@
       ],
       "reason": "The sources module (SourcesError): its source_* codes become sources.*."
     },
+    "storage": {
+      "paths": [
+        "packages/storage/src/adapters/file-secret-store.ts"
+      ],
+      "reason": "The platform SecretStore owns sealed-vault snapshot format, existing-master dependency and integrity refusals; its new typed codes start with storage."
+    },
     "ui_host": {
       "paths": [
         "packages/ui-host/"

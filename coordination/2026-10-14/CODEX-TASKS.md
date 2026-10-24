@@ -12,6 +12,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 
+> **源码交槽与新收件（11:38UTC）**：C2 B2a已交非Draft#1209固定dbec1b89dd49333fc6f2f4d264800f7897ecfd4c，20files+844/-21，raw/handoff=`/tmp/molis-verify-2026-10-24/c2-b2/`，作者70files628不同case最终过（原69文件绿/维护fixture realpath红后4/4，非首轮全绿），已经DIRECT REVIEW/TEST与流水线并明确RELEASE、候选冻结/树干净无运行。独立审验未完成不冒通过，storage/full只提交Claude候选。下一唯一writer已实际START **C1实现1 RAC114失败收据**（公开1183/6383746333）：原卸载错误primary，单次写receipt失败须既有最小日志+真实人类提示，不加重试/API、无敏感内容，按既有同一slice与真实故障验证。1206还未merge，W5真依赖未满足；C1固定release且1206已实际落地即接FIX2一次1107/1112同步进当前batch29，不自动等batch28。C2 B2b已接受完整最小合同仍必须在后续source窗口实施，当前无第二writer/不等前片审验CI空占。
+
 > **当前执行（10-24 11:24UTC，覆盖下列旧时间快照）**：#1202实际11:12:45Z合入645853cb60c0c76c4fa86ba27bbbbc0f35ba868a，7固定头均c4祖先、landing与已测627树相同，源PR已Claude带SHA关闭，QUEUE已移§3。full26b40086400255@c4全16+汇总success，merge-group40088629727 Verify成功；独立TEST10文件153/153首过/零skip/retry/自然exit0，旧stale不计、原28stdout未亲读。#1206/fa52a4f8c已开/base645，唯一full27b40089127294进行中，REVIEW已接组合增量；touch c37增量6383557011过，原raw交TEST，不重审board/资源。C2 B2a仍唯一source，固定交付/release后可接B2b等独立片；**W5 FIX2须同时等1206实际落地**再对1107（含1098）/1112各合一次main，Claude6383510742基于真代码冲突新时点优先于旧“release即sync”。不让等待review/CI空占writer，也不提前撞真实依赖。ACA005→003独立tmp验证TEST已接续，不新增生产writer/无关合并门。B2根因完整纠正见同一当前合同，不另造初始化任务。
 
 > **现行落地规则已接续（10-24 08:16UTC核源）**：以MERGE-QUEUE最新§1a「同路径一起落地」为准，旧逐片同步/逐片入队流程不套新批：评审仍逐片固定head，full非空按路径在Claude批分支一次解共用文件、一次health/security/full，最终仅批PR入队，叠层顶端一次落地；原片按批PR真实merge SHA及包含证据关闭。纯共用文件冲突作者不merge main、不刷baseline；full空且按队列试合无冲突的小PR可独立入队。#1114含Cognia真实代码冲突，仍是Claude6381691853指定等1169先合后原FIX2一次同步的例外，不开重复writer。

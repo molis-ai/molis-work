@@ -22,6 +22,9 @@ import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
+import { codingManifest, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** 产品装配真的构造了 Agent Host，插件经 Capability 够得到它。 */
 
@@ -37,6 +40,20 @@ function readOnlyRuntime(runtimeId: string): AgentRuntimeAdapter {
     createSession: unused, readSession: unused, start: unused, read: unused, control: unused, readCommandOutput: unused,
     observe() { throw new Error("Not used by this fixture"); },
   };
+}
+
+/**
+ * A running plugin that carries Coding's Agent block, and its typed client: a plugin's roles come only from its running declaration
+ * (PG-051 RAC-195), so a start or a role listing is the plugin's own call.
+ */
+async function codingCaller(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference, directory: string) {
+  const coding = createCodingPlugin();
+  const plugin = callerPlugin("coder", "project", {}, Object.values(agentHostCapabilities).map(entry => entry.capability_id),
+    { block: codingManifest.agent!, agent_prompts: coding.agent_prompts, agent_skills: coding.agent_skills });
+  const store = new LocalProjectDatabase(join(directory, "coder.sqlite"));
+  const { install_id } = await startPlugin(localHost, reference, store, plugin, { capabilities: localHost.client(reference) });
+  const owner = { project_id: reference.project_id, plugin_id: plugin.id, install_id, actor_id: LOCAL_PERSON_ACTOR_ID };
+  return { store, owner, client: plugin.context(reference.project_id).services!.capabilities! };
 }
 
 async function fixture(workspace: ProjectWorkspaceRef | null) {
@@ -71,6 +88,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "board" });
   const composition = composeAgentHost({ localHost, workspaceFor: () => ({ workspace_id: "w", canonical_path: directory, realpath_verified: true, display_name: "workspace" }) });
   const captured: AgentStartRequest[] = [];
+  const coder = await codingCaller(localHost, reference, directory);
   composition.agentHost.register({
     descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
     async health() { return { ok: true, status: "ready", message: "ready" }; },
@@ -79,7 +97,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     observe() { throw new Error("Not used by this read fixture"); },
     async control() { throw new Error("Not used by this read fixture"); },
     async readCommandOutput() { throw new Error("Not used by this read fixture"); },
-    async readSession(session) { return { session, owner: { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
+    async readSession(session) { return { session, owner: coder.owner, title: "Read", runs: [], latest_run: null }; },
     async start(request) {
       captured.push(request); const role = request.role!;
       return { ref: { run_id: `r${captured.length}`, session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution,
@@ -88,13 +106,13 @@ test("Agent Host loads current guidance through actions and freezes each real re
         ...(request.workspace === "none" ? { workspace: "none" as const } : { directory: request.directory }) } };
     },
   });
-  const client = localHost.client(reference);
+  const client = coder.client;
   try {
     const management = managementGoals(localHost.actionClient(reference), "board");
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     const added = await management.invoke(goalsActions.guidanceAdd, { kind: "constraint",
       content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
-    const request: AgentStartRequest = { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },
+    const request: AgentStartRequest = { ...coder.owner, session: { runtime_id: "probe", session_id: "s" },
       task: "读取项目", role_id: "reader", directory: { canonical_path: directory, realpath_verified: true } };
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     const first = captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;
@@ -109,7 +127,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     assert.equal(captured[2]!.role!.prompts.some(prompt => prompt.prompt_id === "project-guidance"), false);
     assert.ok(reads >= 3, "each start consults the real guidance action policy");
-  } finally { await composition.dispose(); await localHost.close(); await rm(directory, { recursive: true, force: true }); }
+  } finally { await composition.dispose(); coder.store.close(); await localHost.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test("an Agent round carries the number of the call that started it: its tool calls and the start the Runtime is given", async t => {
@@ -134,6 +152,8 @@ test("an Agent round carries the number of the call that started it: its tool ca
   const ping: ActionDefinition = { capability_id: "fixture.agent.ping", version: 1, operation: "query", action: { title: "Ping", description: "Answers", kind: "query", scope: "project",
     audiences: ["agent", "mcp"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
   const handled: Array<string | undefined> = [];
+  const coder = await codingCaller(localHost, reference, home);
+  t.after(() => coder.store.close());
   let execution: AgentStartExecution | undefined, tools: AgentActionClient | undefined, request: AgentStartRequest | undefined;
   composition.agentHost.register({
     descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", supports_action_tools: true, capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
@@ -143,7 +163,7 @@ test("an Agent round carries the number of the call that started it: its tool ca
     observe() { throw new Error("Not used by this fixture"); },
     async control() { throw new Error("Not used by this fixture"); },
     async readCommandOutput() { throw new Error("Not used by this fixture"); },
-    async readSession(session) { return { session, owner: { project_id: project.project_id, plugin_id: CODING, install_id: "coding", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
+    async readSession(session) { return { session, owner: coder.owner, title: "Read", runs: [], latest_run: null }; },
     async start(given, guards) {
       request = given; execution = guards; tools = given.role!.actions!.client; const role = given.role!;
       return { ref: { run_id: "r1", session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution, model_id: "probe",
@@ -151,12 +171,12 @@ test("an Agent round carries the number of the call that started it: its tool ca
         skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true as const }, action_tools: given.action_tools } };
     },
   });
-  const client = localHost.client(reference);
+  const client = coder.client;
   localHost.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture.agent", kind: "plugin", title: "Fixture" }, definitions: [ping],
     handlers: [{ ...ping, handle(context) { handled.push(context.call_id); return "pong"; } }] });
   await grantGoalsMcp(served, project, "agent:probe", [ping]);
   const action = { capability_id: ping.capability_id, version: 1, provider_id: "fixture.agent" };
-  const start = { project_id: project.project_id, plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },
+  const start = { ...coder.owner, session: { runtime_id: "probe", session_id: "s" },
     task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true }, action_tools: [action] };
   // A number in the request body is the plugin's own data: it is never the round's number.
   const started = newCallId();
@@ -201,16 +221,19 @@ test("装配之后，运行时列表经 Capability 就能拿到", async () => {
 });
 
 test("Coding 的角色从它自己的 Manifest 解析；只读的可用，会写的不可用", async () => {
-  const item = await fixture(null);
+  const item = await fixture(null), coder = await codingCaller(item.localHost, item.reference, item.directory);
   try {
-    const roles = await item.client.invoke(agentHostCapabilities.availableRoles,
-      [READ_ONLY, CODING]);
+    const roles = await coder.client.invoke(agentHostCapabilities.availableRoles,
+      [READ_ONLY, coder.owner.plugin_id]);
     const reader = roles.find((role) => role.role_id === "reader");
     const writer = roles.find((role) => role.role_id === "writer");
     assert.equal(reader?.available, true);
     assert.equal(writer?.available, false, "Runtime 没接宿主审批，会写的角色就该不可用");
     assert.match(writer?.reason ?? "", /text-edit/);
+    // RAC-195: a call no running plugin makes finds no roles in the catalog; it is answered with none, not refused.
+    assert.deepEqual(await item.client.invoke(agentHostCapabilities.availableRoles, [READ_ONLY, CODING]), []);
   } finally {
+    coder.store.close();
     await close(item);
   }
 });

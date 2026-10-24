@@ -256,6 +256,11 @@ const APPROVED_CEILINGS = {
   // 1dedc1f5c while the PR merged main: the merge-base budget is 191192 (RAC-132 的 +88 已烘焙), this PR's +263 is
   // measured on top, 191455 bytes, gzip 61743.
   "/assets/molis-work-plugin-frame.js": [191192, 191455],
+  // A holder the Host labels in its own words (本会话, 子任务「…」, 用户, 没人认领…) is said on the English page with page
+  // words (P3 #928, 2026-10-23): the two client helpers that read a holder by kind, and two catalog keys, 375409 → 376282
+  // (+873). The served pack is tightened, so comments do not count there; the words and the reading are the cost. Rebased
+  // onto main 1dedc1f5c while the PR merged main: the merge-base budget is 375409, the measured pack is 376282.
+  "/assets/molis-work-plugins/coding.js": [375409, 376282],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

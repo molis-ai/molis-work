@@ -1,6 +1,6 @@
 # 防腐线合并清单（给合并 Agent）
 
-> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「专职｜防腐流水线与合并执行 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，用户最新指定gpt-6.1-sol/max，06:45:56UTC实际回合已核；root/REVIEW保留gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；Root负责唯一定时巡检；原五类职责和交付驱动接续保持。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献保留；review-pr-fixer旧认领已Claude6381877118释放并由FIX2接续，Claude开发owner及唯一full组批职责保持；Codex侧协调不替代Claude总统筹。
+> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「专职｜防腐流水线与合并执行 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，用户最新指定gpt-6.1-sol/max，06:45:56UTC实际回合已核；root/REVIEW保留gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；Root负责唯一定时巡检；原五类职责和交付驱动接续保持。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。独立树允许多writer，真实同文件/合同/候选重叠串行，公共build/browser槽保持；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献保留；review-pr-fixer旧认领已Claude6381877118释放并由FIX2接续，Claude开发owner及唯一full组批职责保持；Codex侧协调不替代Claude总统筹。
 
 状态：2026-10-23 起生效。统筹（本机 Claude）维护顺序与就绪条件；合并由用户另派的合并 Agent 做（用户 10-23）。**10-24 起统筹也合、也审**（用户 10-24：PR 积压，统筹协同处理合并与评审）：条件 1～5 满足的，谁先看到谁入队。**10-24 03:40 用户停了合并 Agent，它的活（入队、机械同步、CI 红的修复、起集成批、挪 §3）由 Codex 接**；统筹职责不变。下文的「合并 Agent」都读作 Codex。
 
@@ -12,6 +12,9 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 现行协作模式（用户 2026-10-24 晚，覆盖本文、`CODEX-TASKS.md`、`SLICE-RULES.md` 里与它不一致的旧说法）
 
+**多writer现行规则（Root转达人类最新明确：“可以提升writer数量，不局限1个，不影响速度”）**：不同独立工作树、不同明确问题/实现项、真实依赖已满足且无重复owner时可以同时写，不设整个Codex协作组只有1人的上限。同一文件/合同、同一候选及有真实代码依赖的部分仍串行；公共冲突/生成物由当前carrier owner统一。每个FIX仍一次专注一个问题、gpt-6.1-sol/max，未收尾不塞无关任务。公共build一个、browser批一个、full仅Claude唯一排期不变，等资源不等于停止独立编码；只有Root周期巡检，原交付直接接续与现有角色不变。此条覆盖以下旧“单writer/唯一writer/串行轮换”上限，仅改变并行数量，不凭共享一处文字取消已有授权或在途owner。
+
+
 用户原话：「在 claude：组织好合并顺序，进行开发和 review。在 codex：review 问题修复，修复后的二轮 review，以及有独立任务可以交付 Codex 执行」；「完整实现某个功能或者 slice 之后统一 PR」。
 
 | 谁 | 做什么 |
@@ -19,9 +22,9 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | Claude 统筹 | 范围、优先级、合并顺序；按路径组批（§1a），唯一起 full；批 PR 入队，合入后关源 PR；裁定 |
 | Claude 开发线（`ac-*`） | 开发。一个完整功能或 slice 做完才开一个 PR，开完接着做下一个；**不修评审意见** |
 | Claude 评审（`ac-review`） | **所有**防腐 PR 的一轮评审（Codex 写的也是），按统筹排的顺序 |
-| Codex 修复（全部 Codex 写代码的合起来一个 writer） | 一轮评审里全部有效意见（挡合并的与不挡合并的）在原 PR 分支上修，先留「修复认领」；一轮的修复攒齐一次推送 |
+| Codex 修复（独立树/独立问题可多writer，同文件/合同/候选串行） | 一轮评审里全部有效意见（挡合并的与不挡合并的）在原 PR 分支上修，先留「修复认领」；一轮的修复攒齐一次推送 |
 | Codex 评审 | 修复后的二轮（只看增量），结论写「二轮：可合」加固定 head；没过就回 Codex 修复 |
-| Codex 独立实现 | 统筹派的独立片（`CODEX-TASKS.md` §0a），和修复共用那一个 writer；**排在下一批要用的修复后面** |
+| Codex 独立实现 | 统筹派的独立片（`CODEX-TASKS.md` §0a），与修复按真实文件/合同依赖协调并行；下一批必要修复优先，但不空等独立编码 |
 | Codex 测试 | 红用例归因、偶发失败、`known-red-main.md` |
 
 一片的流程：开发线开 PR → `ac-review` 一轮 → Codex 修复 → Codex 二轮可合 → 统筹组批、full、批 PR 入队 → 合入后关源 PR。一轮结论是「可合」的不经修复，直接等组批。二轮可合之前不进批。

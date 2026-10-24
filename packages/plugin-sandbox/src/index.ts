@@ -3,6 +3,7 @@ export type { SandboxRunner, SandboxRunnerOptions, SandboxLimits, SandboxCallCon
 export { SandboxBroker, type SandboxServices, type SandboxServiceContext } from './broker.js';
 export { sandboxDatabase, type SandboxDatabaseService, type SandboxStatement } from './database.js';
 export { OWNER_FILE_BYTES, OWNER_FILE_CALL_BYTES, OWNER_FILE_STEPS, OWNER_FILE_LIST_ENTRIES, sandboxOwnerFiles, type SandboxOwnerFiles } from './owner-files.js';
+export { MODEL_DATA_CHARS, modelDeadlines, sandboxModel, type SandboxModel } from './model.js';
 export { sandboxServicesFor, storageTransactions, assertSandboxDeclarations, SANDBOX_NOT_GIVEN, SANDBOX_SERVICE_FATE, type NotGiven, type SandboxServiceFate, type SandboxHostServices, type SandboxHostExtras, type SandboxDeclarations } from './services.js';
 export { createHttpsProxy, isPublicAddress, validateNetworkRequest } from './https-proxy.js';
 export type { HttpsProxyOptions, SandboxSecret } from './https-proxy.js';

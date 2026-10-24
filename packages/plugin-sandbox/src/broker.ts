@@ -4,6 +4,7 @@ import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkReques
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
 import { documentBatchJson, extractionJson, materialLocalUrl, materialRequest, materialSource, materialUploads, originalPart, originalRecordKey, plainJson } from './materials.js';
+import { availabilityJson, choicesJson, modelCall, modelResultJson, modelSelection, type SandboxModel } from './model.js';
 import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
@@ -31,6 +32,8 @@ export interface SandboxServices {
   materials?: PluginMaterialsClient;
   /** The activation's `services.ownerFiles` without its `rootPath`: the plugin's own declared files by relative path (S-64). */
   ownerFiles?: SandboxOwnerFiles;
+  /** The activation's `services.model` without its `configuration`, with the instructions the package registered (S-66, PG-017 P1). */
+  model?: SandboxModel;
 }
 interface DispatchGuards {
   permit(key: keyof SandboxEffects, value: string): void;
@@ -138,6 +141,27 @@ export class SandboxBroker {
     return plainJson(method === 'ownerFiles.stat' ? ownerFileInfo(files, path) : method === 'ownerFiles.list' ? ownerFileList(files, path) : ownerFileRead(files, path));
   
   }
+  private async dispatchModel(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
+    // The Host's client asks the Manifest's `model:*` permissions, the grant, the running instance, that the call is inside the plugin's own concurrent
+    // action that declares `model:invoke`, and the original caller's `beforeEffect()` before the model is asked and again before the answer is handed
+    // over. Here: the declared and approved effect, a command for anything that spends the model, and a request that names an instruction the package
+    // registered instead of carrying text.
+    const model = this.services.model;
+    if (method === 'model.choices') { permit('model', 'read'); count(0); return model ? choicesJson(model.client.choices()) : missing(); }
+    if (method === 'model.availability') {
+      permit('model', 'read'); count(1);
+      const selection = modelSelection(args[0]);
+      return model ? availabilityJson(model.client.availability(selection)) : missing();
+    }
+    if (method !== 'model.complete') throw new SandboxError('sandbox.invalid_request', 'Unknown model method');
+    permit('model', 'invoke'); count(1);
+    if (operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot send a model request');
+    const call = modelCall(args[0], model?.instructions ?? []);
+    if (!model) return missing();
+    const result = await model.client.complete(call.prompt, { ...call.request, signal: context.signal });
+    result.validateResult();
+    return modelResultJson(result);
+  }
   private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
     const guards = this.guards(operation, args), { permit, count, string, missing } = guards;
     if (method.startsWith('storage.')) {
@@ -189,6 +213,7 @@ export class SandboxBroker {
     }
     if (method.startsWith('materials.')) return this.dispatchMaterials(context, method, args, guards);
     if (method.startsWith('ownerFiles.')) return this.dispatchOwnerFiles(context, operation, method, args, guards);
+    if (method.startsWith('model.')) return this.dispatchModel(context, operation, method, args, guards);
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.
       const object = <T>(index: number): T => {

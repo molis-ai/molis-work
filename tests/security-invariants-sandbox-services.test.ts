@@ -33,9 +33,6 @@ const declaring = (extra: Partial<SandboxDeclarations> = {}, manifestExtra: Part
 
 test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not given is refused with a code, naming the service", () => {
   const asks: Array<[string, SandboxDeclarations, readonly string[]]> = [
-    ["model", declaring({}, {}, [permission("model:invoke", true)]), []],
-    ["model", declaring({}, {}, [permission("model:read", false)]), ["model:read"]],
-    ["instructions", declaring({ instructions: [{ prompt_id: "probe", version: 1, owner_id: PLUGIN_ID, title: "probe", body: "probe", layer: "task" } as never] }), []],
     ["materials", declaring({}, {}, [permission("materials:fetch", true)]), []],
     ["materials", declaring({}, {}, [permission("materials:fetch", false)]), ["materials:fetch"]],
     ["background", declaring({}, { background: { jobs: [{ job_id: "probe" } as never] } }), []],
@@ -67,7 +64,10 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
 });
 
 test("S-60 RAC-238 an optional permission the person did not approve is not an ask, and what the sandbox is given passes", () => {
-  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, {}, [permission("model:invoke", false), permission("materials:read", false)]), ["storage:private"]));
+  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, {}, [permission("directory:read", false), permission("materials:read", false)]), ["storage:private"]));
+  // The model and the package's own instructions are given (PG-017 P1, tests/security-invariants-sandbox-model.test.ts): declaring them is not refused.
+  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({ instructions: [{ prompt_id: "probe", version: 1, owner_id: PLUGIN_ID, title: "probe", body: "probe", layer: "task" } as never] },
+    {}, [permission("model:invoke", true), permission("model:read", true)]), ["model:invoke", "model:read"]));
   // Reads of bytes are given (PG-017 P2, tests/security-invariants-sandbox-materials.test.ts): materials:read is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, {}, [permission("materials:read", true)]), ["materials:read"]));
   // Connections are given (PG-017 P2, tests/security-invariants-sandbox-connections.test.ts): declaring a slot is not refused.
@@ -106,10 +106,10 @@ function unclassified(table: Readonly<Record<string, readonly string[] | undefin
 test("S-60 RAC-238 every permission the Host builds a service for is given to the sandbox or refused by a row; an unclassified one fails here", () => {
   assert.deepEqual(unclassified(HOST_SERVICE_PERMISSIONS, SANDBOX_SERVICE_FATE, SANDBOX_NOT_GIVEN), []);
   // The check can fail: a permission added to a service without a decision for the sandbox, a service decided as refused that no row refuses, a row for a service the sandbox gives.
-  assert.deepEqual(unclassified({ ...HOST_SERVICE_PERMISSIONS, model: [...HOST_SERVICE_PERMISSIONS.model!, "model:probe"], scheduler: ["schedule:probe"] }, SANDBOX_SERVICE_FATE, SANDBOX_NOT_GIVEN),
-    ["model/model:probe", "scheduler/schedule:probe"]);
+  assert.deepEqual(unclassified({ ...HOST_SERVICE_PERMISSIONS, agents: [...HOST_SERVICE_PERMISSIONS.agents!, "agent:probe"], scheduler: ["schedule:probe"] }, SANDBOX_SERVICE_FATE, SANDBOX_NOT_GIVEN),
+    ["scheduler/schedule:probe", "agents/agent:probe"]);
   assert.deepEqual(unclassified({ probe: ["probe:use"] }, { ...SANDBOX_SERVICE_FATE, probe: "entry" }, []), ["probe/probe:use"]);
-  assert.deepEqual(unclassified({}, { ...SANDBOX_SERVICE_FATE, model: "given" }, SANDBOX_NOT_GIVEN), ["row model"]);
+  assert.deepEqual(unclassified({}, { ...SANDBOX_SERVICE_FATE, scheduler: "given" }, SANDBOX_NOT_GIVEN), ["row scheduler"]);
   // Every service of the Host is decided (the type makes a new one fail to compile), and each row's services are the ones decided as refused.
   const refused = Object.entries(SANDBOX_SERVICE_FATE).filter(([, fate]) => fate === "refused").map(([service]) => service).sort();
   assert.deepEqual(SANDBOX_NOT_GIVEN.flatMap(row => row.services).sort(), refused, "every refused service is named by exactly one row");
@@ -129,10 +129,10 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   t.after(async () => { await local.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const started: string[] = [];
   const definition = (id: string, execution: PluginDefinition["execution"]): PluginDefinition => ({
-    manifest: { ...manifest({}, [permission("model:invoke", true)]), plugin_id: id }, ...(execution ? { execution } : {}),
+    manifest: { ...manifest({}, [permission("directory:read", true)]), plugin_id: id }, ...(execution ? { execution } : {}),
     async start(context: PluginStartContext) { started.push(context.plugin_id); return { kind: "app" }; },
   });
-  const grants = ["storage:private", "model:invoke"];
+  const grants = ["storage:private", "directory:read"];
   const sandboxed = runtime.install({ definition: definition(`${PLUGIN_ID}.boxed`, "sandbox"), deployment: "local", grants }).install;
   const hosted = runtime.install({ definition: definition(`${PLUGIN_ID}.hosted`, undefined), deployment: "local", grants }).install;
   // The Runtime reduces an opaque start failure to a safe message and keeps the code on the installation's record.
@@ -152,7 +152,9 @@ test("S-60 RAC-238 the Home Runtime stops a sandboxed installation that asks for
   t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
   const { runtime } = await host.ready();
   // A sandboxed package is installed with the person's grants; it is never a start-list entry or a fixture.
-  const { install } = runtime.install({ definition: { ...boxed.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke"] });
+  // The probe's model and instructions are given; a folder of the person's (directory:read) is not, so it is what the package asks for.
+  boxed.definition.manifest.permissions.push({ permission: "directory:read", required: true, reason: "probe" });
+  const { install } = runtime.install({ definition: { ...boxed.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke", "directory:read"] });
   await assert.rejects(runtime.start(install.install_id), { code: "plugin.executor_failed" });
   assert.deepEqual({ state: runtime.get(install.install_id).state, code: runtime.get(install.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
   assert.equal(boxed.contexts.length, 0, "the sandboxed plugin's start never ran");

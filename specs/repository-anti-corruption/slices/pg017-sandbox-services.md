@@ -1,6 +1,6 @@
 # PG-017：沙箱插件经 broker 拿到宿主服务（设计稿）
 
-状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
+状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。P1（模型 + 指令，S-66，RAC-232、RAC-233）的代码与测试在本地分支 `claude/ac-pg017-p1-model-instructions`（叠在批 29 集成分支 `integration/batch-1024-29` 之上），统筹 10-24 夜暂不给构建时段，所以**还没构建、没跑过**（API 快照也待构建后 `pnpm api:update`）。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
 
 ## 1. 现状
 
@@ -124,7 +124,12 @@
 1. **P0 基础**（#1139 做了下面「做了」的两项，「没做」的三项顺延）：
    - 做了：`sandboxServicesFor` 一张映射（并入 `storage`/`projectDatabase`/`interaction`）；拒绝时的带码错误（§2 第 7 条）：宿主为激活建服务所认的权限名只在 `HOST_SERVICE_PERMISSIONS` 一处，宿主的每一项服务在 `SANDBOX_SERVICE_FATE` 里有一个决定，`NOT_GIVEN` 表覆盖所有不给的权限与 Manifest 声明（含项目成果、过程项、端口、事件），完整性测试看住；项目平台与 Home 执行器启动前共用一个检查。
    - 没做（顺延）：**broker 新效果键与通用的形状上限**——它们只在第一个要新效果键的 broker 方法那一片里才有用，没有方法时只是死代码，所以跟 P1 一起做；**沙箱定义工厂从 `installed.ts` 抽出**——要等创作台的策略和沙箱定义的通用部分能分开，创作台随 BL-377 重做，抽在它前面会抽错，所以不单独做，BL-377 时一并处理；**去掉宿主侧对 `sandbox` 的排除**——每个排除要和它的 broker 方法在同一片里去掉，所以随 P1～P3 逐个去（六个宿主条目里的抛错，等 PG-022/PG-102 把声明搬进 Manifest 时整体重写）。
-2. **P1 模型 + 指令**（V-20 的指令部分，排 PG-051 P2 后）：3.1、3.2。
+2. **P1 模型 + 指令**（V-20 的指令部分，PG-051 P2 已做完，S-66，本地分支 `claude/ac-pg017-p1-model-instructions`）：3.1、3.2，验收见下面「P1 验收」。落地时定的几处：
+   - 宿主两处去掉沙箱的排除：`pluginModelFor`（客户端照 Manifest 与授权建，沙箱与宿主内同一份）、`registerPluginAgentDefinitions`（沙箱也登记指令；角色、Agent 提示词、方法仍由 `SANDBOX_NOT_GIVEN` 的 `agent` 一行在启动时拒，在它之前，所以这里不再另写一道）。`SANDBOX_NOT_GIVEN` 删掉 `model` 与 `instructions` 两行，`SANDBOX_SERVICE_FATE.model` 改为给。
+   - broker 方法 `model.choices`、`model.availability`、`model.complete`；效果键 `model: ['read' | 'invoke']`，`invoke` 只给命令（合同层拒绝查询声明）。通道上的类型是沙箱自己的纯 JSON 类型（`SandboxModelChoice/Availability/Request/Result`），不 import 宿主服务类型（创作台隔离编译 G2 在 macOS 上只有 ES 库，见 P2b 的教训）；`choicesJson`、`availabilityJson`、`modelResultJson` 用这些类型接宿主的答复，宿主一改形状即编译不过。
+   - 请求只写登记过的指令 id（`prompt_id`、可选 `system_id`）和这次的数据（≤ 200,000 字符），没有文字、图片、回调、信号；指令名单是 `sandboxServicesFor(host, { instructions })` 带进来的 `PluginDefinition.instructions`，名单里查不到的 id 答 `sandbox.instruction_unknown`；别的主人的指令即使进了名单，宿主客户端再拒（`plugin.model_instruction_refused`）。范围（超时、输出长度）不在 broker 钳，由宿主客户端按同一个码拒，保证与宿主内运行的插件同码（RAC-237）。
+   - 等模型的操作：runner 对声明了 `model: ['invoke']` 的操作把服务截止时间和操作截止时间抬到宿主的模型上限（10 分钟）之后再加一点（`modelDeadlines`），否则 10 秒的服务截止先到，插件看到的是沙箱超时而不是宿主的拒绝；宿主调用方给的 `limits` 仍优先。
+   - **没做、要创作台一侧接线的两样**：① 生成的插件（`installed.ts` 的 `sandboxedPluginDefinition`）今天只有一条路由 `studio.call`，没有 Manifest 动作，所以它还拿不到「本插件自己的、声明了 `model:invoke` 的并发动作」这个作用域；要为合同里每个声明了 `model` 效果的操作登记一个并发的 Manifest 动作（权限含 `model:invoke`），让操作经动作网关进沙箱（§3.1 原设计），并让 Manifest 带 `model:invoke`；② 包怎样带指令正文：`SandboxPluginContract` 没有这个字段，生成的插件现在没有 `PluginDefinition.instructions`。这两样跟「沙箱定义工厂从 `installed.ts` 抽出」同属创作台重做（BL-377）的接线，P0 已把它顺延到 BL-377；P1 在平台一侧完成，测试像 P2a～P2c 一样用带 Manifest 动作的探针包经真实项目平台驱动。
 3. **P2 连接 + 材料（不联网部分）**：3.3、3.4 第一批。
 4. **P3 后台**：3.5，runner 多一条道。
 4a. **P2c 主人文件**（S-64，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
@@ -178,6 +183,18 @@
 | RAC-367 | 一段至多 256 KiB，起点在 32 MiB 内，版本只认宿主给过的形状；没到宿主 |
 | RAC-368 | 四个方法各自：没声明、只声明读、声明另一种效果、没批准、只批准读、批准另一种效果、批准别的，都是 `sandbox.not_authorized`；查询声明任一效果则合同不载入；没有按整份读和路径的方法 |
 | RAC-369 | 宿主没建服务答 `sandbox.service_unavailable`；动作之外一律被宿主客户端拒；停用、撤权、取消、守卫拒绝之后什么都不取、不登记、不释放 |
+
+**P1 验收**（S-66，RAC-232、RAC-233；表里两行的细化）：`tests/security-invariants-sandbox-model.test.ts`
+
+| 编号 | 断言 |
+| --- | --- |
+| RAC-232 | 在自己的并发动作里 `complete` 成功，发出去的是登记的指令正文加这次的数据，系统指令是另一条登记的，JSON 输出带 `value`；答复只有 `text`、`value`、`usage`；可用性与列表可读 |
+| RAC-232 | broker 先拒：没声明或没批准的 `model` 效果、`read` 不能 `complete`、查询不能发请求（合同层也不载入）、未知方法；被拒的没到模型 |
+| RAC-232（同 RAC-237） | 宿主客户端对不并发的动作、没声明 `model:invoke` 的动作、动作之外各给宿主内运行的插件同一个码 |
+| RAC-232 | 原调用不再成立、问完后权限没了、超过宿主的超时与输出上限、输出不是 JSON：不交答案，被拒的没问模型 |
+| RAC-233 | 人改过的指令是发出去的版本；没登记的 id、写成文字的 id、多余的成员（含 `prompt`、`images`）、非字符串数据、超长数据、不完整的模型选择、别的主人的指令逐项被拒，都没到模型 |
+| RAC-233 | 沙箱定义登记别的主人的指令，启动即被拒 |
+| RAC-232 | 会等模型的操作的截止时间在宿主的模型上限之后；其余操作不变；配置得更长的保持 |
 
 **安全不变量**：建议新增 S-60（沙箱经 broker 使用宿主服务的总规则：两道门、有界 JSON、撤权后不写、不给的拒绝）一行，承接 S-15 里“沙箱进程没有……”的那句和 S-59 的数据库一条；各项服务的测试挂在这一行的“拒绝测试”里。如果统筹希望每片各占一行（S-60 模型、S-61 连接与材料、S-62 后台），也可以，**请定**。S-15、S-46 里描述“沙箱没有这些服务”的话要同时改成现状。
 

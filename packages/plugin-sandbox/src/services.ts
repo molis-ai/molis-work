@@ -1,7 +1,9 @@
+import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import type { PluginDefinition, PluginHostServices, PluginPrivateStorage, PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxServices } from './broker.js';
 import { sandboxDatabase } from './database.js';
+import { sandboxModel } from './model.js';
 import { sandboxOwnerFiles } from './owner-files.js';
 import { SandboxError } from './schema.js';
 
@@ -40,9 +42,12 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 
 type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
-export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles'>;
+export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
-export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'>;
+export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'> & {
+  /** The instructions the package registered (`PluginDefinition.instructions`): the only prompts a model request may name (V-20). */
+  instructions?: readonly InstructionPrompt[];
+};
 
 /**
  * The `SandboxServices` of one activation: its private storage, and each of its other services the Host built. A service the Host did
@@ -65,6 +70,8 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
     ...(host.materials ? { materials: host.materials } : {}),
     // The plugin's own declared files: the Host's client reduced to the four members the channel can carry (no location, no writer callback).
     ...(host.ownerFiles ? { ownerFiles: sandboxOwnerFiles(host.ownerFiles) } : {}),
+    // The Host's text model for the package, which names the instructions it registered and never carries a prompt of its own (S-66).
+    ...(host.model ? { model: sandboxModel(host.model, extras.instructions ?? []) } : {}),
   };
 }
 
@@ -84,7 +91,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   storage: 'given', project_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given', ownerFiles: 'given',
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
-  model: 'refused', background: 'refused', agents: 'refused', scheduler: 'refused', directory: 'refused',
+  model: 'given', background: 'refused', agents: 'refused', scheduler: 'refused', directory: 'refused',
   notifications: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
@@ -116,10 +123,6 @@ function asksFor(definition: SandboxDeclarations, held: readonly string[], permi
  * here in the same change that gives its service, so what stays in the list is exactly what a package asking for it is refused for.
  */
 export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
-  { service: 'model', services: ['model'], reason: 'Model calls (model:read, model:invoke) are not given to sandboxed plugins yet (PG-017 P1).',
-    declared: (definition, held) => asksFor(definition, held, ['model:read', 'model:invoke']) },
-  { service: 'instructions', services: [], reason: 'Registered instructions are not given to sandboxed plugins yet (PG-017 P1, V-20).',
-    declared: definition => !!definition.instructions?.length },
   { service: 'materials', services: [], reason: 'Reading a page from the network (materials:fetch) is not given to sandboxed plugins yet (PG-017 BL-492).',
     declared: (definition, held) => asksFor(definition, held, ['materials:fetch']) },
   { service: 'background', services: ['background'], reason: 'Background jobs are not given to sandboxed plugins yet (PG-017 P3).',

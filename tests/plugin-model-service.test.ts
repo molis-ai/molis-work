@@ -157,7 +157,7 @@ async function withoutEnvironmentModel<T>(run: () => Promise<T>): Promise<T> {
   try { return await run(); } finally { for (const name of names) if (prior[name] === undefined) delete process.env[name]; else process.env[name] = prior[name]; }
 }
 
-test("services.model is for a plugin the Host runs itself that declares model:invoke, on a platform that reaches a Home: not for a plugin that declares no model, a sandboxed one, a platform without a Home, or the upgrade preflight", { timeout: 60_000 },
+test("services.model is for a plugin the Host runs itself that declares model:invoke, on a platform that reaches a Home: not for a plugin that declares no model, a platform without a Home, or the upgrade preflight; a sandboxed package gets the same client for its broker", { timeout: 60_000 },
   withDirectory(async directory => {
     const item = platformIn(directory), declared = probe(), undeclared = probe({ name: "nomodel", declares: false });
     try {
@@ -176,10 +176,10 @@ test("services.model is for a plugin the Host runs itself that declares model:in
 
     const sandboxed = platformIn(directory), boxed = probe({ name: "boxed", execution: "sandbox" });
     try {
-      // The model is a service of the Host's own process, not of sandboxed code: a sandboxed package that declares it does not start (S-60).
-      assert.deepEqual((await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }])).running, []);
-      assert.equal(boxed.started.length, 0, "the sandboxed plugin's code never ran");
-      assert.equal(sandboxed.platform.runtime.get(sandboxed.installId(boxed.id)).last_error_code, "sandbox.service_not_given");
+      // A sandboxed package is an install trust, not a second set of permissions (PG-017 P1, S-66): the Manifest's declaration builds the same
+      // client for it, which its broker forwards (tests/security-invariants-sandbox-model.test.ts).
+      assert.deepEqual((await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }])).running, [boxed.id]);
+      assert.equal(typeof boxed.started.at(-1)?.model?.complete, "function", "the sandboxed plugin's start was given services.model");
     } finally { sandboxed.store.close(); }
 
     const homeless = platformIn(directory, null), alone = probe({ name: "alone" });

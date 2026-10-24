@@ -33,10 +33,17 @@ test("classification controls save independent personal/project restrictions, ke
   }
   const read = (scope: MemoryScope) => client.invoke(memoryActions.prefs, { scope });
   const savePrefs = MemoryService.prototype.savePrefs;
-  let failNext = false;
+  let failNext = false, failOverviewAfterSave = false, failPrefsRead = false, failedRefreshes = 0;
   t.mock.method(MemoryService.prototype, "savePrefs", function(this: MemoryService, ...args: Parameters<MemoryService["savePrefs"]>) {
     if (failNext) { failNext = false; throw new Error("保存分类限制失败，请重试"); }
-    return savePrefs.apply(this, args);
+    const saved = savePrefs.apply(this, args);
+    if (failOverviewAfterSave) { failOverviewAfterSave = false; failPrefsRead = true; }
+    return saved;
+  });
+  const prefs = MemoryService.prototype.prefs;
+  t.mock.method(MemoryService.prototype, "prefs", function(this: MemoryService, ...args: Parameters<MemoryService["prefs"]>) {
+    if (failPrefsRead) { failPrefsRead = false; failedRefreshes++; throw new Error("刷新分类限制失败，请重新读取"); }
+    return prefs.apply(this, args);
   });
   directory = await mkdtemp(join(tmpdir(), "memory-classes-browser-"));
   browser = await ChromeHarness.start(directory, { executable });
@@ -96,9 +103,20 @@ test("classification controls save independent personal/project restrictions, ke
       assert.deepEqual((await read(scope)).prefs.class_restrictions, [retained]);
       assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-class=read]').value`), "explicit-only");
     }
+    if (scope === "personal") failOverviewAfterSave = true;
     await submit(); expected.set(scope, [retained, rule]);
     const stored = (await read(scope)).prefs;
     assert.deepEqual(stored.class_restrictions, expected.get(scope)); assert.equal(stored.enabled, true); assert.equal(stored.form, true);
+    if (scope === "personal") {
+      assert.equal(failedRefreshes, 1, "the successful POST is followed by a real overview read failure");
+      assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-error]').hidden`), false);
+      assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-page-status]').textContent`), "读取未完成，请重新读取。");
+      const second: MemoryClassRestriction = { selector: { ...selector, kind: "fact" }, read: "off", form: "inherit" };
+      await choose(page, "kind", "fact"); await choose(page, "read", second.read); await choose(page, "form", second.form);
+      await submit(); expected.set(scope, [retained, rule, second]);
+      assert.deepEqual((await read(scope)).prefs.class_restrictions, expected.get(scope),
+        "saving another selector after refresh failure preserves the first confirmed restriction");
+    }
     await navigate(scope);
     const buttons = root + " [data-memory-class-list] button";
     await page.evaluate(`document.querySelectorAll('${buttons}')[1].setAttribute('data-edit-class-rule', '')`);

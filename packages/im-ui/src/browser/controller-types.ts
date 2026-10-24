@@ -41,11 +41,8 @@ export interface ImState {
 
 type Views = ReturnType<typeof createViews>;
 
-/**
- * What every layer of the controller sees: the page's elements and services (set before any layer runs), the shared state,
- * and the functions each layer returns. Layers call each other through this object, late-bound, so none of them closes over another.
- */
-export interface ImCtx extends ReturnType<typeof createTransport> {
+/** Elements, state and services that are ready before the controller's method factories run. */
+export interface ImBaseCtx extends ReturnType<typeof createTransport> {
   merge: ReturnType<typeof createHistory>['merge'];
   latest: ReturnType<typeof createHistory>['latest'];
   root: HTMLElement;
@@ -59,6 +56,13 @@ export interface ImCtx extends ReturnType<typeof createTransport> {
   s: ImState;
   resetHistory: () => void;
   drafts: ReturnType<typeof createDrafts>;
+}
+
+/**
+ * The completed controller, passed to listeners only after every method and invitations are installed.
+ * Method factories receive ImBaseCtx; their returned handlers obtain this context when called, after assembly.
+ */
+export interface ImCtx extends ImBaseCtx {
   invitations: ReturnType<typeof createInvitations>;
   // shell
   key: (suffix: string) => string;

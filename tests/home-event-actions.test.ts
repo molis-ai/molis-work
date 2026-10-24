@@ -65,7 +65,7 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
   assert.throws(() => service.registerProvider({ provider: { provider_id: "bad", title: "Bad", kind: "plugin" }, definitions: [malformed], handlers: [{ ...malformed, handle: () => ({}) }] }), { code: "actions.definition_invalid" });
 });
 
-test("native event providers project original Feed, Inbox, source state and project Sessions", async () => {
+test("native event providers project original Feed, Inbox and source state", async () => {
   const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
   const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
   const { createEvidenceContentStore, runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
@@ -74,7 +74,7 @@ test("native event providers project original Feed, Inbox, source state and proj
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath, caller.project_id!);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: caller.project_id! });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  const owner = { ...caller, permissions: ["home:read", "feed:read", "inbox:read", "goals:read", "sessions:read"] };
+  const owner = { ...caller, permissions: ["home:read", "feed:read", "inbox:read", "goals:read"] };
   const now = new Date(); const range = { from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString() };
   try {
     const runtime = await host.withProject(reference, runtime => runtime); const feed = createLocalFeedApplication(runtime.store.db);
@@ -93,11 +93,8 @@ test("native event providers project original Feed, Inbox, source state and proj
     const doneEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, done.item_id, "manual").entry;
     feed.setInboxEntryStatus(reference.project_id, doneEntry.entry_id, "done", doneEntry.revision); await feed.flushPendingJudgments();
     feed.upsertSource({ ...source, status: "error", last_outcome: "failed", last_error_code: "rate_limited", updated_at: now.toISOString() });
-    const resources = await host.sessionResources();
-    const session = resources.registry.createSession({ runtime_id: "codex", native_runtime_session_id: "native-event-session", project_id: reference.project_id, actor_id: owner.actor_id, user_confirmed: true, title: "真实会话", current_goal_id: goal.goal_id });
-    const foreign = resources.registry.createSession({ runtime_id: "codex", native_runtime_session_id: "foreign-event-session", project_id: "foreign", actor_id: owner.actor_id, user_confirmed: true });
     const client = host.actionClient(reference);
-    for (const capability_id of ["feed.home.events", "inbox.home.events", "sessions.home.events"]) {
+    for (const capability_id of ["feed.home.events", "inbox.home.events"]) {
       await assert.rejects(client.invoke(owner, { capability_id, version: 1 }, { ...range, to: range.from }), { code: "actions.input_invalid" });
     }
     const result = await client.invoke(owner, homeEventActions.events, range) as HomeEventsResult;
@@ -106,12 +103,10 @@ test("native event providers project original Feed, Inbox, source state and proj
     assert.equal(find("feed_item", ordinary.item_id)[0]?.content, "完整原文 ordinary");
     assert.equal(find("feed_item", materialItem.item_id)[0]?.content, retainedText, "Home reads decrypted retained materials when the item has no inline body");
     assert.equal(find("feed_item", ordinary.item_id)[0]?.facts.find(fact => fact[0] === "挂在")?.[1], goal.title);
-    assert.equal(find("session", session.session_id)[0]?.facts.find(fact => fact[0] === "挂在")?.[1], goal.title);
     assert.equal(find("feed_item", active.item_id).length, 0); assert.equal(find("feed_item", done.item_id).length, 0);
     const attention = find("inbox_entry", activeEntry.entry_id); assert.equal(attention.length, 1); assert.equal(attention[0]?.placement, "active"); assert.match(attention[0]?.content || "", /完整原文 active/);
     assert.equal(find("inbox_entry", doneEntry.entry_id).length, 0);
     const fault = find("source", source.source_id)[0]!; assert.ok(fault); assert.equal(fault.open?.label, "查看来源"); assert.match(fault.content, /同步出现问题/); assert.ok(!fault.content.includes("授权"));
-    assert.equal(find("session", session.session_id)[0]?.open?.id, session.session_id); assert.equal(find("session", foreign.session_id).length, 0);
     const open = { window: range, source: fault.source, event_id: fault.event_id, target: fault.open };
     assert.deepEqual(await client.invoke(owner, homeEventActions.openEvent, open), { target: fault.open });
     feed.upsertSource({ ...source, status: "active", last_outcome: "completed", last_error_code: null });

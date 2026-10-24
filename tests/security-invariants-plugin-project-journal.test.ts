@@ -13,7 +13,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// S-61 (PG-094 S9-0): a plugin reaches the project's journal (the events and the idempotency records of its actions) only through
+// S-63 (PG-094 S9-0): a plugin reaches the project's journal (the events and the idempotency records of its actions) only through
 // `services.project_database.journal`, which asks, on every call, what a statement of its own tables asks: the grants, and the
 // original caller of the action it runs for. A call cancelled, revoked or moved to another provider writes nothing there either,
 // and the actor of a row is the caller's, never the plugin's to choose. The journal is shared by every owner of the project, so
@@ -143,7 +143,7 @@ const codeOf = (failure: (typeof FAILURES)[number]) => failure === "revoke" ? "a
 const outcomeOf = (promise: Promise<unknown>) => promise.then(() => "written" as const, (error: unknown) => error as { code?: string; name?: string });
 
 // RAC-265
-test("S-61 a plugin's own wait does not stand in for its caller: revoked, cancelled or moved to another provider while it waits, the plugin's rows, the event and the idempotency record are all absent", async t => {
+test("S-63 a plugin's own wait does not stand in for its caller: revoked, cancelled or moved to another provider while it waits, the plugin's rows, the event and the idempotency record are all absent", async t => {
   const { client, main, nothing } = await platform(t);
   for (const failure of FAILURES) {
     main.reset();
@@ -161,7 +161,7 @@ test("S-61 a plugin's own wait does not stand in for its caller: revoked, cancel
 
 // RAC-266
 for (const method of METHODS) {
-  test(`S-61 ${method}: asks the original caller again inside the transaction; a caller that is gone by then writes and reads nothing, and the transaction rolls back`, async t => {
+  test(`S-63 ${method}: asks the original caller again inside the transaction; a caller that is gone by then writes and reads nothing, and the transaction rolls back`, async t => {
     const { client, main, event, record, nothing } = await platform(t);
     for (const failure of FAILURES) {
       main.reset();
@@ -185,7 +185,7 @@ for (const method of METHODS) {
 }
 
 // RAC-267
-test("S-61 a handle kept past its transaction, and work an action leaves running, write nothing once the transaction or the call has ended", async t => {
+test("S-63 a handle kept past its transaction, and work an action leaves running, write nothing once the transaction or the call has ended", async t => {
   const { client, main, nothing } = await platform(t);
   for (const method of METHODS) {
     main.reset();
@@ -201,7 +201,7 @@ test("S-61 a handle kept past its transaction, and work an action leaves running
 });
 
 // RAC-267
-test("S-61 a journal reached through one installation refuses inside another installation's action", async t => {
+test("S-63 a journal reached through one installation refuses inside another installation's action", async t => {
   const { client, main, peer, nothing } = await platform(t);
   peer.reset();
   await assert.rejects(client.invoke(caller(peer.write).context, peer.act, { name: "borrowed", step: "borrow" }), { code: "actions.forbidden" });
@@ -209,7 +209,7 @@ test("S-61 a journal reached through one installation refuses inside another ins
 });
 
 // RAC-268
-test("S-61 the journal is the plugin's by grant: without the permission every call refuses, the statements still cannot reach the tables, and a granted plugin reads them", async t => {
+test("S-63 the journal is the plugin's by grant: without the permission every call refuses, the statements still cannot reach the tables, and a granted plugin reads them", async t => {
   const { client, main, bare, nothing } = await platform(t);
   for (const method of METHODS) {
     bare.reset();
@@ -227,7 +227,7 @@ test("S-61 the journal is the plugin's by grant: without the permission every ca
 });
 
 // RAC-269
-test("S-61 the actor of a row is the action's caller or its recorded author; outside every action it is the one the Host runs the project's plugins as", async t => {
+test("S-63 the actor of a row is the action's caller or its recorded author; outside every action it is the one the Host runs the project's plugins as", async t => {
   const { client, main, event, record, nothing } = await platform(t);
   const audited = caller(main.write, { audit_actor_id: "author" });
   assert.equal(await client.invoke(audited.context, main.act, { name: "as-caller", step: "both" }), true);
@@ -250,7 +250,7 @@ test("S-61 the actor of a row is the action's caller or its recorded author; out
 });
 
 // RAC-270
-test("S-61 the project of a row is the library's: an event naming another project lands in this one, and a read shows this project's events only", async t => {
+test("S-63 the project of a row is the library's: an event naming another project lands in this one, and a read shows this project's events only", async t => {
   const { client, main, event } = await platform(t);
   assert.equal(await client.invoke(caller(main.write).context, main.act, { name: "mine", step: "both", project: "another-project" }), true);
   assert.equal(event("mine")?.project_id, DEMO_PROJECT_ID);
@@ -264,7 +264,7 @@ test("S-61 the project of a row is the library's: an event naming another projec
 });
 
 // RAC-271
-test("S-61 a journal write joins the plugin's transaction: an idempotency record already there refuses the second, and the plugin's row goes with it", async t => {
+test("S-63 a journal write joins the plugin's transaction: an idempotency record already there refuses the second, and the plugin's row goes with it", async t => {
   const { client, main, noted, record } = await platform(t);
   assert.equal(await client.invoke(caller(main.write).context, main.act, { name: "twice", step: "plain", method: "putIdempotency" }), true);
   const first = record("twice");
@@ -276,7 +276,7 @@ test("S-61 a journal write joins the plugin's transaction: an idempotency record
 });
 
 // RAC-294
-test("S-61 a plugin reads and counts only its own events: another owner's events, and the Host's, are not in its answer or its cursor, and the names it gets back are its own bare ones", async t => {
+test("S-63 a plugin reads and counts only its own events: another owner's events, and the Host's, are not in its answer or its cursor, and the names it gets back are its own bare ones", async t => {
   const { client, main, peer, event, hostEvent } = await platform(t);
   assert.equal(await client.invoke(caller(main.write).context, main.act, { name: "main-note", step: "both" }), true);
   peer.reset();
@@ -302,7 +302,7 @@ test("S-61 a plugin reads and counts only its own events: another owner's events
 });
 
 // RAC-295
-test("S-61 an idempotency operation is the plugin's own: two owners using the same operation and key keep two records, and neither gets the other's", async t => {
+test("S-63 an idempotency operation is the plugin's own: two owners using the same operation and key keep two records, and neither gets the other's", async t => {
   const { main, peer, records } = await platform(t);
   const put = (item: typeof main, hash: string) => item.services().project_database!.transaction(async () => {}, tx => tx.journal.putIdempotency({
     actorId: HOST_ACTOR, operation: "probe.note", key: "shared", requestHash: hash, outcome: { by: hash }, at: AT }));
@@ -320,7 +320,7 @@ test("S-61 an idempotency operation is the plugin's own: two owners using the sa
 });
 
 // RAC-296
-test("S-61 two installs whose ids are dot-prefixes of each other are strangers to the journal: no reads of each other's events, no writes under each other's names, no collisions of operations", async t => {
+test("S-63 two installs whose ids are dot-prefixes of each other are strangers to the journal: no reads of each other's events, no writes under each other's names, no collisions of operations", async t => {
   const { main, child, event, records, hostEvent } = await platform(t);
   assert.ok(child.id.startsWith(`${main.id}.`), "the child's id extends the parent's at a dot");
   const parent = main.services().project_database!, kid = child.services().project_database!;

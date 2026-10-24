@@ -26,8 +26,9 @@ const at = (...paths: string[]): HomeStoreDeclaration[] => paths.map(path => ({ 
 export function homeStores(): HomeStoreRegistry {
   return registry ??= homeStoreRegistry([
     ...owned("apps/local-host", ...at("projects", "logs")),
+    // Retired in SC-4 (slices/sc-4-sessions-offline.md §1): no code opens it; backup and `uninstall --purge-user-data` still know the directory.
+    ...owned("apps/local-host", ...at("sessions")),
     ...owned("apps/local-host/src/installer", ...at("backups")),
-    ...owned("modules/private-work-context", ...at("sessions")),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE, AGENT_DECLARATIONS_HOME_STORE,
       CONNECTORS_HOME_STORE, CONNECTOR_TOOLS_HOME_STORE, CONTEXT_ONBOARDING_HOME_STORE, ALCHEMIST_HOME_STORE, ORIGINAL_FILES_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),

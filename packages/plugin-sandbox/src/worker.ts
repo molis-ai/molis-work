@@ -1,5 +1,5 @@
 // This file is copied alone to a .mjs file. No host modules or credentials enter the sandbox.
-import type { SandboxHostMessage, SandboxJson, SandboxOperations, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxOperations, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const write = process.stdout.write.bind(process.stdout);
 const send = (value: unknown) => write(JSON.stringify(value) + '\n');
@@ -7,6 +7,8 @@ const pending = new Map<string, { resolve: (value: SandboxJson) => void; reject:
 let sequence = 0;
 /** What crosses the channel is JSON; the Host checks its shape before drawing it. */
 const json = (value: unknown) => value as SandboxJson;
+/** What the Host answered, as the type the SDK promises; the Host checked its shape before it crossed. */
+const answer = <T>(call: Promise<SandboxJson>) => call as Promise<T>;
 let active: string | undefined;
 let buffer = '';
 const bundleUrl = process.argv[2]!;
@@ -36,6 +38,12 @@ function sdk(callId: string): SandboxSdk {
       get: (sql, parameters) => invoke('projectDatabase.get', [sql, parameters ?? []]) as Promise<SandboxSqlRow | null>,
       all: (sql, parameters) => invoke('projectDatabase.all', [sql, parameters ?? []]) as Promise<SandboxSqlRow[]>,
       transaction: statements => invoke('projectDatabase.transaction', [statements.map(item => ({ sql: item.sql, parameters: item.parameters ?? [] }))]) as Promise<Array<{ changes: number }>>,
+    },
+    connections: { request: (slot, request) => answer<SandboxConnectionResponse>(invoke('connections.request', [slot, json(request)])) },
+    materials: {
+      imageTextAvailable: () => answer<boolean>(invoke('materials.imageTextAvailable', [])),
+      readDocuments: (files, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['readDocuments']>>>(invoke('materials.readDocuments', [json(files), json(request ?? {})])),
+      extract: (file, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['extract']>>>(invoke('materials.extract', [json(file), json(request ?? {})])),
     },
     interaction: {
       questionHtml: (question, options) => invoke('interaction.questionHtml', [json(question), json(options ?? {})]) as Promise<string>,

@@ -41,12 +41,12 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const confirmDialog = workbench.querySelector("[data-lingguang-confirm]");
   const saveStatus = workbench.querySelector('[data-lingguang-save-status]');
   const todoButton = workbench.querySelector("[data-lingguang-todo]");
-  // "转为待办" is composed by the workbench from what the button carries, so it always carries what is on screen.
+  // "转为待办" puts the spark into the creation entry named todo from what the button carries, so it always carries what is on screen.
   const syncTodo = () => {
     if (!todoButton || !selected) return;
-    todoButton.dataset.makeTodoId = selected.id;
-    todoButton.dataset.makeTodoTitle = titleInput.value.trim() || bodyInput.value.trim().split(/\\r?\\n/)[0].slice(0, 80);
-    todoButton.dataset.makeTodoExcerpt = bodyInput.value.slice(0, 2000);
+    todoButton.dataset.contextId = selected.id;
+    todoButton.dataset.contextTitle = titleInput.value.trim() || bodyInput.value.trim().split(/\\r?\\n/)[0].slice(0, 80);
+    todoButton.dataset.contextText = (titleInput.value + "\\n" + bodyInput.value).trim().slice(0, 3000);
   };
   const saveRetry = workbench.querySelector('[data-lingguang-save-retry]');
   /** The spark on screen, for the placement bar and the Assistant. */

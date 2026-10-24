@@ -73,6 +73,13 @@ export function callerPlugin(name: string, scope: CallerScope, permissions: Read
 
 export type CallerPlugin = ReturnType<typeof callerPlugin>;
 
+/** `plugin`, declaring one read-only `reader` role: a plugin a test starts rounds as, since starting one is a plugin's own action. */
+export function withReaderRole(plugin: CallerPlugin): CallerPlugin {
+  plugin.definition.manifest.agent = { roles: [{ role_id: "reader", version: 1, execution: "read-only", prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }] };
+  plugin.definition.agent_prompts = [{ prompt_id: "reader", version: 1, body: "Answer from the supplied context only.", layer: "role" }];
+  return plugin;
+}
+
 /** A project's plugins start when its actions are first looked at, as the workbench does when the person opens the project. */
 export async function startProjectPlugins(host: { inspectActions(caller: ActionCallContext, reference: LocalHostProjectReference): Promise<unknown> }, reference: LocalHostProjectReference) {
   await host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: reference.project_id, permissions: [] }, reference);

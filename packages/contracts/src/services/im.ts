@@ -53,7 +53,8 @@ export interface ImThreadState { thread: ImThread; context: ImMessage[] }
 export interface ImMessagePage { messages: ImMessage[]; has_more: boolean; next_before: number | null }
 export interface ImSearchResult { messages: ImMessage[] }
 export interface ImReadState { positions: Record<string, number>; unread: Record<string, boolean> }
-export interface ImInvite { room_id: string; token: string; path: string; url: string }
+/** Safe invitation state. The caller keeps the original token only in its current page's memory. */
+export interface ImInviteState { room_id: string; token_hash: string | null }
 export interface ImFailure { code: string; error: string }
 export interface ImChange {
   cursor: number;
@@ -69,6 +70,8 @@ export interface ImMarkReadInput extends ImMutation { message_id: string }
 export interface ImSessionInput extends ImMutation { display_name: string }
 export interface ImCreateRoomInput extends ImMutation { title: string }
 export interface ImJoinInput extends ImMutation { token: string }
+/** One explicit generation/rotation intent. Reuse both fields after an uncertain response. */
+export interface ImRotateInviteInput extends ImMutation { token: string }
 export interface ImCreateThreadInput extends ImMutation { title: string; source_message_id?: string; body?: string }
 export interface ImSendInput extends ImMutation { body: string; quote_id?: string }
 export interface ImShareInput extends ImMutation { message_id: string; body?: string }
@@ -81,7 +84,12 @@ export interface ImShareInput extends ImMutation { message_id: string; body?: st
  * unique main room if needed. Current project access is required on every read
  * and write; rooms created without a project keep their own membership.
  * POST /join -> { room: ImRoom }; GET /rooms/:room -> ImRoomState.
- * GET /rooms/:room/invite and POST .../invite/rotate -> ImInvite (owner only).
+ * GET /rooms/:room/invite -> ImInviteState (owner only, no mutation).
+ * POST .../invite/rotate accepts ImRotateInviteInput -> current ImInviteState.
+ * The page generates a cryptographically random 32-byte token (64 lower-case hex
+ * characters), keeps it only in memory and builds its link locally. The server
+ * and receipts retain only its SHA-256. A replay rechecks current ownership and
+ * returns the current hash; it never reactivates a token superseded later.
  * GET /rooms/:room/messages?before=sequence&limit=50 -> ImMessagePage.
  * POST /rooms/:room/messages -> { message: ImMessage }.
  * POST /rooms/:room/threads -> ImThreadState. Optional body creates the first
@@ -99,12 +107,14 @@ export interface ImShareInput extends ImMutation { message_id: string; body?: st
  * GET /rooms/:room/events is SSE: ready/reset { cursor }, change ImChange.
  * Reconnect using Last-Event-ID or ?since=cursor. Refetch the room and current
  * message views on ready/reset/change; events never substitute message history.
- * Errors return ImFailure. POST success status is 200, including exact replays.
+ * Errors return ImFailure. POST success status is 200, including replays.
+ * Other mutation receipts replay their original result; invitation receipts
+ * cannot report an old token as current, so that route rereads the safe state.
  */
 export const servicesImContract = {
-  contractId: "io.molis.work.service.im.v1",
+  contractId: "io.molis.work.service.im.v2",
   kind: "horizontal",
-  schemaVersion: 1,
+  schemaVersion: 2,
   maturity: "partial",
   ssot: "specs/archive/molis-work-im/spec.md",
 } as const;

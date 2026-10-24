@@ -109,7 +109,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     }
     left.forEach((section) => host.leaveSettingsSection?.(section));
   };
-  // A dialog's choices can say what a plugin makes possible (Sessions offers Codex natively only when Coding is here).
+  // A dialog's choices can say what a plugin makes possible (a plugin offers Codex natively only when Coding is here).
   const patchChoices = (next) => {
     const liveDialogs = [...document.querySelectorAll('dialog')], nextDialogs = [...next.querySelectorAll('dialog')];
     if (liveDialogs.length !== nextDialogs.length) return;

@@ -106,7 +106,9 @@ export interface AgentCommandReviewDocument {
     after_write_check?: Pick<AgentWriteCheckNote, "checker_id" | "display_name" | "version">;
 }
 
-export type AgentCreateSessionInput = AgentCreateSessionFields & ({
+export type AgentCreateSessionInput = {
+    title: string;
+} & ({
     workspace?: "required";
     directory: AgentWorkingDirectory;
     role_id?: string;
@@ -119,6 +121,8 @@ export type AgentCreateSessionInput = AgentCreateSessionFields & ({
     directory?: never;
     role_id: string;
 });
+
+export type AgentCreateSessionRequest = AgentCreateSessionInput & AgentSessionOwner;
 
 export interface AgentDelegatedWork {
     work_id: string;
@@ -978,7 +982,7 @@ export interface AgentRuntimeAdapter {
     readonly documents?: AgentDocumentCapability;
     readonly descriptor: AgentRuntimeDescriptor;
     health(): Promise<AgentRuntimeHealth>;
-    createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
+    createSession(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<AgentSessionRef>;
     readSession(session: AgentSessionRef): Promise<AgentSessionView>;
     readSessionStatus?(session: AgentSessionRef): Promise<{
         owner: AgentSessionView["owner"];
@@ -1129,6 +1133,13 @@ export interface AgentSessionMessagesCapability {
     }, actorId: string): Promise<AgentSessionMessage>;
 }
 
+export interface AgentSessionOwner {
+    project_id: string;
+    plugin_id: string;
+    install_id: string;
+    actor_id: string;
+}
+
 export interface AgentSessionRef {
     session_id: string;
     runtime_id: string;
@@ -1153,7 +1164,7 @@ export interface AgentSessionView {
         required: true;
         reason: string;
     };
-    owner: Pick<AgentCreateSessionInput, "project_id" | "plugin_id" | "install_id" | "actor_id">;
+    owner: AgentSessionOwner;
     session: AgentSessionRef;
     title: string;
     runs: AgentRunRef[];
@@ -1202,7 +1213,11 @@ export interface AgentStartExecution extends ActionCallOrigin {
     beforeDispatch?(): void | Promise<void>;
 }
 
-export type AgentStartRequest = AgentStartRequestFields & AgentWorkspace;
+export type AgentStartInput = AgentStartInputFields & AgentWorkspace;
+
+export type AgentStartRequest = AgentStartInput & AgentSessionOwner & {
+    role?: AgentFrozenRole;
+};
 
 export type AgentStepAmendment = {
     kind: "skip";
@@ -1524,15 +1539,15 @@ export declare const agentHostCapabilities: {
         available: boolean;
         reason?: string;
     }>>;
-    readonly createSession: HostCapabilityDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>;
-    readonly listSubagents: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>;
-    readonly cancelSubagent: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>;
-    readonly readSession: HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>;
-    readonly readSessionStatuses: HostCapabilityDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | {
+    readonly createSession: ActionDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>;
+    readonly listSubagents: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>;
+    readonly cancelSubagent: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>;
+    readonly readSession: ActionDefinition<[session: AgentSessionRef], AgentSessionView>;
+    readonly readSessionStatuses: ActionDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | {
         session_id: string;
         error: string;
     }>>;
-    readonly readProjectWork: HostCapabilityDefinition<[runtimeId: string, probe?: {
+    readonly readProjectWork: ActionDefinition<[runtimeId: string, probe?: {
         session_id?: string;
         directory: string;
         text: string;
@@ -1552,7 +1567,7 @@ export declare const agentHostCapabilities: {
         attachments?: AgentMessageAttachment[];
     }], AgentSessionMessage>;
     readonly cancelMessage: ActionDefinition<[runtimeId: string, messageId: string], void>;
-    readonly queueProjectRound: HostCapabilityDefinition<[runtimeId: string, input: {
+    readonly queueProjectRound: ActionDefinition<[runtimeId: string, input: {
         session: AgentSessionRef;
         directory: string;
         task: string;
@@ -1562,7 +1577,7 @@ export declare const agentHostCapabilities: {
     readonly awaitContinuations: HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>;
     readonly readBackground: ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
     readonly stopBackground: ActionDefinition<[runtimeId: string, taskId: string], boolean>;
-    readonly releaseProjectRound: HostCapabilityDefinition<[runtimeId: string, workId: string, note: string], void>;
+    readonly releaseProjectRound: ActionDefinition<[runtimeId: string, workId: string, note: string], void>;
     readonly listSkills: HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>;
     readonly readSkill: HostCapabilityDefinition<[runtimeId: string, pluginId: string, ref: AgentSkillRef], AgentSkillDefinition>;
     readonly discoverSkills: HostCapabilityDefinition<[runtimeId: string, pluginId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>;
@@ -1570,20 +1585,20 @@ export declare const agentHostCapabilities: {
     readonly listMcp: HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentMcpServerView[]>;
     readonly saveMcp: HostCapabilityDefinition<[runtimeId: string, pluginId: string, input: AgentMcpServerInput], AgentMcpServerView>;
     readonly controlMcp: HostCapabilityDefinition<[runtimeId: string, pluginId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>;
-    readonly startRun: HostCapabilityDefinition<[runtimeId: string, request: AgentStartRequest], AgentRunHandle>;
-    readonly readRun: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>;
+    readonly startRun: ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>;
+    readonly readRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>;
     readonly draftText: ActionDefinition<AgentDraftTextRequest, AgentDraftTextResult>;
-    readonly waitRun: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], {
+    readonly waitRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], {
         version: string;
         view: AgentRunView;
     }>;
-    readonly controlRun: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>;
-    readonly readCommandOutput: HostCapabilityDefinition<[session: AgentSessionRef, ref: AgentCommandOutputRef], AgentCommandOutput>;
-    readonly inspectRecovery: HostCapabilityDefinition<[session: AgentSessionRef], AgentRecoveryReport>;
-    readonly recoverRun: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>;
-    readonly listCheckpoints: HostCapabilityDefinition<[session: AgentSessionRef], AgentCheckpoint[]>;
-    readonly prepareRewind: HostCapabilityDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>;
-    readonly readRunReviews: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], Array<{
+    readonly controlRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>;
+    readonly readCommandOutput: ActionDefinition<[session: AgentSessionRef, ref: AgentCommandOutputRef], AgentCommandOutput>;
+    readonly inspectRecovery: ActionDefinition<[session: AgentSessionRef], AgentRecoveryReport>;
+    readonly recoverRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>;
+    readonly listCheckpoints: ActionDefinition<[session: AgentSessionRef], AgentCheckpoint[]>;
+    readonly prepareRewind: ActionDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>;
+    readonly readRunReviews: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], Array<{
         request: AgentReviewRequest;
         receipt: AgentReviewReceipt | null;
     }>>;
@@ -1618,14 +1633,6 @@ export declare const servicesAgentHostContract: {
 };
 
 // Declarations the exports above refer to, which no entry exports itself:
-
-interface AgentCreateSessionFields {
-    project_id: string;
-    plugin_id: string;
-    install_id: string;
-    actor_id: string;
-    title: string;
-}
 
 interface AgentFrozenStartFields {
     action_tools?: ExactActionReference[];
@@ -1680,7 +1687,7 @@ interface AgentFrozenStartFields {
     budget: AgentRunBudget | null;
 }
 
-interface AgentStartRequestFields {
+interface AgentStartInputFields {
     action_tools?: ExactActionReference[];
     action_gateway?: boolean;
     character_skill_ids?: string[];
@@ -1694,10 +1701,6 @@ interface AgentStartRequestFields {
     subagent_workspaces?: AgentSubagentWorkspace[];
     character?: ArtifactReference | null;
     session: AgentSessionRef;
-    project_id: string;
-    plugin_id: string;
-    install_id: string;
-    actor_id: string;
     task: string;
     role_id: string;
     model_selection?: {
@@ -1705,7 +1708,6 @@ interface AgentStartRequestFields {
         model_id: string;
     };
     reasoning_effort?: AgentReasoningEffort;
-    role?: AgentFrozenRole;
     text_materials?: AgentTextMaterial[];
     image_materials?: AgentImageMaterial[];
     skills?: AgentSkillRef[];

@@ -7,6 +7,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertPluginActionCurrent, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { ProjectJournalBinding } from "./plugin-project-journal.js";
+import { assertReadStatement, assertWriteStatement } from "./project-statement-protocol.js";
 
 /** One SQLite connection as both drivers show it: node:sqlite's `DatabaseSync` (a library in the Home), better-sqlite3's `Database` (the project's). */
 export interface PluginDatabaseConnection {
@@ -41,7 +42,7 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
  *
  * The project's library also gives the project's journal (`journal`, PG-094 S9-0): its reads ask what a read of the plugin's own
  * tables asks, and its writes exist only on the transaction handle and ask what a statement of it asks, so the same cancel, revoke
- * or provider change that stops a statement stops them (S-61).
+ * or provider change that stops a statement stops them (S-63).
  */
 export function pluginDatabaseClient<Connection extends PluginDatabaseConnection>(connections: PluginDatabaseConnections<Connection>,
   declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, instance: PluginInstance, closed: () => boolean): PluginDatabase;
@@ -65,8 +66,8 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
     try { return read(); } finally { db.exec("PRAGMA query_only = OFF"); }
   };
   const reads = (db: Connection, check: () => void): PluginDatabaseReader => ({
-    get(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => (db.prepare(sql).get(...parameters) as PluginSqlRow | undefined) ?? null); },
-    all(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => db.prepare(sql).all(...parameters) as PluginSqlRow[]); },
+    get(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => (db.prepare(sql).get(...parameters) as PluginSqlRow | undefined) ?? null); },
+    all(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => db.prepare(sql).all(...parameters) as PluginSqlRow[]); },
   });
   const client: PluginProjectDatabase | PluginDatabase = Object.freeze({
     ...reads(reader, () => permit(declaration.read_permission)),
@@ -86,7 +87,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
           ...(journal ? { journal: journal.writer(check) } : {}),
           run(sql: string, parameters: readonly PluginSqlValue[] = []) {
             check();
-            if (!/^\s*(INSERT|UPDATE|DELETE)\b/iu.test(sql)) throw new Error("事务写入仅接受 INSERT、UPDATE 或 DELETE");
+            assertWriteStatement(sql);
             connections.check?.(writer, sql, parameters, "write");
             return writer.prepare(sql).run(...parameters) as { changes: number | bigint };
           },
@@ -108,8 +109,4 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
     },
   });
   return client;
-}
-
-function query(sql: string): void {
-  if (!/^\s*(SELECT|WITH)\b/iu.test(sql)) throw new Error("读取仅接受 SELECT 或 WITH 查询，不提供连接管理或跨库指令");
 }

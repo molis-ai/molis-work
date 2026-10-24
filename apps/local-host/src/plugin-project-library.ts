@@ -1,10 +1,12 @@
-import type { PluginManifest, PluginProjectDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginManifest, PluginProjectDatabase, PluginProjectStatements } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginStatementGuard, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalSqliteStorage, type LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { pluginDatabaseClient, type PluginDatabaseConnection } from "./plugin-database-client.js";
 import { projectJournalBinding, type ProjectJournalBinding } from "./plugin-project-journal.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isolatedProjectStatements } from "./plugin-project-isolation.js";
 import { openPluginTables } from "./project-plugin-databases.js";
+import { ProjectStatementProcess, type StatementLimits } from "./project-statement-process.js";
 
 /** The Host's own connection to a project's library (better-sqlite3), and the file it is. */
 export interface ProjectLibrary {
@@ -29,9 +31,15 @@ export interface ProjectLibrary {
  *
  * The client also carries the project's journal (`journal`): the events and idempotency records the storage package owns, which a
  * statement cannot reach. It is asked the same questions as a statement, and the plugin needs `PROJECT_JOURNAL_PERMISSION` for it.
+ *
+ * A plugin whose code the Host does not run in its own process (a sandboxed one) does not use this client: its statements run in a
+ * process of their own that the Host kills when one runs too long or takes too much memory (`statements`). That
+ * process opens the library with its own two connections (a different process, so PLIB-08's reason does not apply to it; WAL
+ * lets it and the Host's connections share the file) and starts on its first statement.
  */
-export function openPluginProjectLibrary(library: ProjectLibrary, manifest: PluginManifest, authorize: (permission: string) => void, instance: PluginInstance): {
-  client: PluginProjectDatabase; reader: PluginDatabaseConnection; close(): void;
+export function openPluginProjectLibrary(library: ProjectLibrary, manifest: PluginManifest, authorize: (permission: string) => void, instance: PluginInstance,
+  statementLimits: Partial<StatementLimits> = {}): {
+  client: PluginProjectDatabase; statements: PluginProjectStatements; reader: PluginDatabaseConnection; close(): void;
 } {
   const declaration = manifest.databases?.project;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 没有声明项目库`);
@@ -47,7 +55,9 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
       ? projectJournalBinding({ ...library.journal, reader: storage }, authorize, instance, manifest.plugin_id) : noJournal;
     const client = pluginDatabaseClient({ reader, writer: library.db, inTransaction: () => library.db.inTransaction === true,
       check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, instance, () => closed, journal);
-    return { client, reader, close() { if (!closed) { closed = true; storage.close(); } } };
+    const processes = new ProjectStatementProcess(library.path, record, statementLimits);
+    const statements = isolatedProjectStatements(processes, declaration, authorize, instance, () => closed);
+    return { client, statements, reader, close() { if (!closed) { closed = true; processes.dispose(); storage.close(); } } };
   } catch (error) { storage.close(); throw error; }
 }
 

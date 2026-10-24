@@ -7,16 +7,17 @@ import { materialImageTextAvailable } from "./material-native.js";
 import { readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 import { readMaterialSource } from "./material-source-providers.js";
 import type { PluginPlatformHome } from "./home-side.js";
+import { MATERIAL_PERMISSIONS } from "./plugin-service-permissions.js";
 
-const MATERIAL_PERMISSIONS = ["materials:read", "materials:fetch", "materials:fetch_local", "materials:original"];
 
 /**
- * Same trust boundary as services.model; a sandbox or platform without a Home receives no material service. `project_id` is the
+ * A platform without a Home receives no material service (the model service is refused to a sandboxed activation; this one is not). A sandboxed activation is given this
+ * client like any other, for the readers of bytes only (PG-017; the sandbox refuses a package that asks for the rest). `project_id` is the
  * project the Host started this activation for (`null` for a Home-level one): original-file registrations are kept per project.
  */
 export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
   assertActive: () => void, project_id: string | null): PluginMaterialsClient | undefined {
-  if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MATERIAL_PERMISSIONS.includes(item.permission))) return undefined;
+  if (!home || !definition.manifest.permissions.some(item => MATERIAL_PERMISSIONS.includes(item.permission))) return undefined;
   return createPluginMaterialsClient(definition.manifest, {
     extract: (source, options) => extractHomeMaterial(home.directory, source, options),
     readDocuments: (files, options) => readMaterialUploads(files, { signal: options.signal, timeoutMs: options.timeoutMs }),

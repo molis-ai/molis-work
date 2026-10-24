@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import http from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
 import { createImDomain, ImError, type ImSession, type ImEvents, type ImIdentity } from "../server/src/im/index.js";
-import type { ImMember, ImMessagePage, ImMessage, ImRoom, ImThreadState, ImInvite } from "@molis-ai/molis-work-contracts/services/im";
+import type { ImMember, ImMessagePage, ImMessage, ImRoom, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
 
 async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), "molis-im-domain-"));
@@ -95,8 +95,9 @@ test("IM uses shared members, enforces room membership, and only an owner contro
     const created = await f.post(alice.session, "/rooms", { title: "产品讨论" }); assert.equal(created.status, 200);
     const room = created.body.room as ImRoom;
     assert.equal(room.member_count, 1); assert.equal(room.latest_message, null);
-    const invite = (await f.call(alice.session, "GET", `/rooms/${room.id}/invite`)).body as ImInvite;
-    assert.equal(invite.url, `${f.origin}${invite.path}`);
+    assert.deepEqual((await f.call(alice.session, "GET", `/rooms/${room.id}/invite`)).body, { room_id: room.id, token_hash: null });
+    const invite = { token: randomBytes(32).toString("hex") };
+    assert.equal((await f.post(alice.session, `/rooms/${room.id}/invite/rotate`, invite)).status, 200);
     assert.equal((await f.post(bob.session, "/join", { token: invite.token })).status, 200);
     assert.equal((await f.post(bob.session, "/join", { token: invite.token })).body.room.member_count, 2, "rejoining never duplicates a member");
     for (const suffix of ["", "/messages", "/threads/arbitrary", "/invite"]) assert.equal((await f.call(stranger.session, "GET", `/rooms/${room.id}${suffix}`)).status, 403);
@@ -106,7 +107,8 @@ test("IM uses shared members, enforces room membership, and only an owner contro
     assert.throws(() => f.domain.assertRoomMember(room.id, stranger.member.id), { code: "im.forbidden" });
     assert.equal((await f.call(bob.session, "GET", `/rooms/${room.id}/invite`)).status, 403);
     assert.equal((await f.post(bob.session, `/rooms/${room.id}/invite/rotate`)).status, 403);
-    const rotated = (await f.post(alice.session, `/rooms/${room.id}/invite/rotate`)).body as ImInvite;
+    const rotated = { token: randomBytes(32).toString("hex") };
+    assert.equal((await f.post(alice.session, `/rooms/${room.id}/invite/rotate`, rotated)).status, 200);
     assert.notEqual(rotated.token, invite.token);
     assert.equal((await f.post(stranger.session, "/join", { token: invite.token })).status, 404);
     assert.equal((await f.post(stranger.session, "/join", { token: rotated.token })).status, 200);
@@ -124,7 +126,9 @@ test("IM shares original group context, isolates Threads, shares replies with ba
     const alice = await f.person("Alice"), bob = await f.person("Bob");
     const room = (await f.post(alice.session, "/rooms", { title: "群一" })).body.room as ImRoom;
     const other = (await f.post(alice.session, "/rooms", { title: "群二" })).body.room as ImRoom;
-    const invite = (await f.call(alice.session, "GET", `/rooms/${room.id}/invite`)).body as ImInvite;
+    assert.deepEqual((await f.call(alice.session, "GET", `/rooms/${room.id}/invite`)).body, { room_id: room.id, token_hash: null });
+    const invite = { token: randomBytes(32).toString("hex") };
+    assert.equal((await f.post(alice.session, `/rooms/${room.id}/invite/rotate`, invite)).status, 200);
     await f.post(bob.session, "/join", { token: invite.token });
     const originals: ImMessage[] = [];
     for (let i = 0; i < 7; i++) originals.push((await f.post(alice.session, `/rooms/${room.id}/messages`, { body: `原文 ${i}`, author_id: bob.member.id })).body.message);

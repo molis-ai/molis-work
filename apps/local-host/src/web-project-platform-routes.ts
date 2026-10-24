@@ -149,15 +149,6 @@ export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runti
   return handleProjectPluginHttp(request, response, url, pluginPorts, codingRouteHooks);
 } };
 
-/** The old addresses of the sessions page open the project page at its sessions. */
-export const sessionsAddressRoute: WebRoute<ProjectRuntimeContext> = { id: "sessions-address", handle: ({ request, response, url, options, composition }) => {
-  if (request.method !== "GET" || !/^\/(sessions|workspaces)$/.test(url.pathname)) return false;
-  const desktopQuery = composition.isDesktopShellRequest(request, url) ? "?desktop=1" : "";
-  response.writeHead(302, { location: `${options.routePrefix}/${desktopQuery}#sessions`, "cache-control": "no-store" });
-  response.end();
-  return true;
-} };
-
 /** Small reads the shell and the desktop app poll: health, which runtimes exist, the terminal client, the board cursor. */
 export const projectProbeRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "health", handle: ({ request, response, url, options }) => {

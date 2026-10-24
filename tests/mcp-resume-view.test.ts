@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,7 +9,6 @@ import {
   GoalProjectApplication,
   LocalProjectDatabase,
   molisWorkHostProjectReference,
-  openWorkSessionRegistry,
 } from "@molis-ai/molis-work-app-local-host";
 import { buildMcpResumeView, type McpResumeFacts } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -133,12 +132,7 @@ test("context_resolve restores Host focus outside the discovery window and write
     result = await resolve();
     assert.equal(result.resume.focus.goal_id, "FOCUS-HOST");
     assert.equal(result.resume.focus.source, "host_focus");
-    const registry = await openWorkSessionRegistry({ homeDirectory: directory });
-    try {
-      assert.deepEqual(registry.list(), [], "resolving context records no Session");
-    } finally {
-      registry.close();
-    }
+    assert.equal(existsSync(join(directory, "sessions")), false, "resolving context records no Session: nothing opens the retired store");
   } finally {
     await runtime?.close();
     await served?.close();

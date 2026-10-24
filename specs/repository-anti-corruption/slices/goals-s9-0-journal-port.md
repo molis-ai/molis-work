@@ -1,6 +1,6 @@
-# Goals S9-0：项目事件日志与幂等记录的端口（PG094-11 前置，S-61）
+# Goals S9-0：项目事件日志与幂等记录的端口（PG094-11 前置，S-63）
 
-状态：已实现（2026-10-24，迁移线 ac-sc3 片，与 S8b（#1182）互不依赖，直接从 main 开）。统筹 10-23 裁：S9 存储搬迁之前先做；表仍属 `packages/storage`，`tooling/gates/table-owners.json` 不变；登记 S-61（取消、撤权之后日志端口不写）并带拒绝测试；号按合并顺序取：原先暂定 S-63，10-24 统筹裁定释放，取开 PR 时 main 之后的下一个空号。草稿见 `goals-s8b-s9-runtime.md` 第 4 节。
+状态：已实现（2026-10-24，迁移线 ac-sc3 片，与 S8b（#1182）互不依赖，直接从 main 开）。统筹 10-23 裁：S9 存储搬迁之前先做；表仍属 `packages/storage`，`tooling/gates/table-owners.json` 不变；登记 S-63（取消、撤权之后日志端口不写）并带拒绝测试；号按合并顺序取：S-59～S-61 已被 batch-26 占，S-62 给 #1185，取 S-63（统筹 10-24）。沙箱插件（`execution: "sandbox"`）拿 `services.project_statements` 而不是 `services.project_database`，所以没有日志端口；要给沙箱开日志端口是另一片，须走 broker 总规则（S-60）。草稿见 `goals-s8b-s9-runtime.md` 第 4 节。
 
 ## 1. 目标
 
@@ -14,7 +14,7 @@ Goals 搬进 Plugin Runtime 之后，它的动作仍要写项目的 `events`（�
 | `apps/local-host/src/plugin-project-journal.ts`（新） | `projectJournalBinding`：包住 `packages/storage` 的 `LocalSqliteJournal`（写在宿主的写连接上，读在只读连接上）。项目号由库给，不取输入里的 `projectId`（输入里多带的会被盖掉）。 |
 | `plugin-database-client.ts` | `pluginDatabaseClient` 多一个可选的 `journal` 绑定（重载：有它返回 `PluginProjectDatabase`，没有仍是 `PluginDatabase`，Home 库不受影响）。日志的读问「读自己的表」问的那一套；日志的写只在事务句柄上，问「事务里写一条语句」问的那一套（授权、`assertPluginActionCurrent`、事务仍在）。 |
 | `plugin-project-library.ts` / `plugin-platform.ts` | `ProjectLibrary.journal`（项目号、宿主给插件用的行为人、写连接上的 journal）由平台把 `PluginPlatformOptions.journal` 带下去；没有 journal 的库，每个方法都以 `actions.service_unavailable` 拒绝，类型上它仍在。 |
-| `docs/system/SECURITY-INVARIANTS.md` | 新增 S-61 一行；`tests/security-invariants-plugin-project-journal.test.ts` 逐条断言「拒绝」。 |
+| `docs/system/SECURITY-INVARIANTS.md` | 新增 S-63 一行；`tests/security-invariants-plugin-project-journal.test.ts` 逐条断言「拒绝」。 |
 
 行为人规则：在动作里，一行日志或一条幂等记录的行为人只能是该动作调用者的 `actor_id` 或 `audit_actor_id`（Goals 现在写事件用的正是 `audit_actor_id ?? actor_id`）；不在任何动作里（`start`、路由、定时器），只能是宿主给这个项目的插件用的行为人。幂等记录的键含行为人，所以插件读不到、也占不了别的行为人的记录。
 
@@ -22,7 +22,7 @@ Goals 搬进 Plugin Runtime 之后，它的动作仍要写项目的 `events`（�
 
 ## 3. 验收
 
-- **RAC-265**：插件自己的等待（`beforeEffect`）不能代替调用者：调用在等待期间被撤权、取消或换了提供方，插件自己的行、事件、幂等记录都不在。（S-61；`tests/security-invariants-plugin-project-journal.test.ts`）
+- **RAC-265**：插件自己的等待（`beforeEffect`）不能代替调用者：调用在等待期间被撤权、取消或换了提供方，插件自己的行、事件、幂等记录都不在。（S-63；`tests/security-invariants-plugin-project-journal.test.ts`）
 - **RAC-266**：事务写入体内，调用者在插件自己的语句之后、日志调用之前失效，`appendEvent`、`putIdempotency`、`getIdempotency`、`eventCursor`、`readEventsDescending` 五个方法每个都拒绝，事务整体回滚（插件同一事务里的行也不在）。（同上）
 - **RAC-267**：事务结束后留着的句柄、动作返回之后仍在跑的工作，日志一行也写不进去（`actions.forbidden`、`actions.expired`）；另一个安装的动作拿本安装的服务写，拒绝（`actions.forbidden`）。（同上）
 - **RAC-268**：没有 `journal:project` 授权的插件，日志的每个方法拒绝（`plugin.grant_denied`），并且语句仍读不到 `events`、`idempotency_records`；有授权的插件能读。（同上）

@@ -36,7 +36,7 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     const b=await openGoalBrowser(t,true); if(!b)return;
     const {command,sessionId,navigate,origin,projectId,evaluate,click,waitFor}=b;
     const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-    for(const plugin_id of ['feed','sessions']) catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:'surface-test'});
+    for(const plugin_id of ['feed']) catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:'surface-test'});
     catalog.close();
     const app=new GoalProjectApplication(b.store);
     const id=app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:'让项目的下一步清晰可见',outcome:'目标、记录与执行共享一个连续工作区',actor_id:'web-user',actor_kind:'user',idempotency_key:'surface-goal'}).goal.goal_id;
@@ -150,10 +150,6 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     await writeFile(`${process.env.MOLIS_CONTENT_CAPTURE || `${REVIEW_EVIDENCE}/continuous-v11`}/feed-focus-${width}.json`,JSON.stringify(focusEvidence,null,2));
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
     await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
-    await openPlugin('sessions');
-    await click('[data-work-surface=sessions] [data-open-session-add]');
-    await checkEditor('[data-session-add-dialog]');await click('[data-session-add-toggle]');await capture('session-editor');
-    await click('[data-session-add-form] > footer [data-dialog-close]');
     await navigate(()=>command('Page.navigate',{url:prefix+'/settings/general'},sessionId));await capture('settings');
     assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);
     assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID,id).goal_event_cursor,before,'cancelled note is not written');

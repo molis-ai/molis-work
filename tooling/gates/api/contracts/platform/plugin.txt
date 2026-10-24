@@ -2547,11 +2547,11 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
 }
 
 export interface PluginAttentionClient {
-    list(): AttentionEntryRecord[];
-    get(entryId: string): AttentionEntryRecord;
-    findActiveForSubject(subjectType: AttentionSubjectType, subjectId: string): AttentionEntryRecord | null;
-    findForSubject(subjectType: AttentionSubjectType, subjectId: string): AttentionEntryRecord[];
-    events(entryId?: string): AttentionEvent[];
+    list(): PluginAttentionEntryRecord[];
+    get(entryId: string): PluginAttentionEntryRecord;
+    findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
+    findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
+    events(entryId?: string): PluginAttentionEvent[];
     join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginAttentionWriter) => T): T;
 }
 
@@ -2559,22 +2559,34 @@ export interface PluginAttentionDeclaration {
     readonly subjects: readonly AttentionSubjectType[];
 }
 
-export interface PluginAttentionEntryInput {
-    readonly subject_type: AttentionSubjectType;
-    readonly subject_id: string;
+export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
     readonly reason: AttentionReason;
     readonly detail?: Record<string, unknown>;
     readonly entry_id?: string;
     readonly at?: string;
 }
 
+export type PluginAttentionEntryRecord = AttentionEntryRecord & {
+    owner_plugin_id: string;
+};
+
+export type PluginAttentionEvent = AttentionEvent & {
+    owner_plugin_id: string;
+};
+
+export interface PluginAttentionSubjectReference {
+    readonly owner_plugin_id: string;
+    readonly subject_type: AttentionSubjectType;
+    readonly subject_id: string;
+}
+
 export interface PluginAttentionWriter {
     create(input: PluginAttentionEntryInput): {
-        entry: AttentionEntryRecord;
+        entry: PluginAttentionEntryRecord;
         created: boolean;
     };
     setStatus(entryId: string, status: AttentionStatus, expectedRevision?: number): AttentionEntryRecord;
-    deleteSubject(subjectType: AttentionSubjectType, subjectId: string): number;
+    deleteSubject(subject: PluginAttentionSubjectReference): number;
 }
 
 export interface PluginBackgroundClient {

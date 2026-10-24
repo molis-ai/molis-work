@@ -20,12 +20,13 @@ export interface AttentionCommands {
         created: boolean;
     };
     setStatus(projectId: string, entryId: string, status: AttentionStatus, expectedRevision?: number): AttentionEntryRecord;
-    deleteSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string): number;
+    deleteSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId?: string | null): number;
 }
 
 export interface AttentionEntryRecord {
     project_id: string;
     entry_id: string;
+    owner_plugin_id: string | null;
     subject_type: AttentionSubjectType;
     subject_id: string;
     reason: AttentionReason;
@@ -41,6 +42,7 @@ export interface AttentionEvent {
     event_id: string;
     project_id: string;
     entry_id: string;
+    owner_plugin_id: string | null;
     type: `inbox_entry.${"created" | AttentionStatus | "deleted"}`;
     subject_type: AttentionSubjectType;
     subject_id: string;
@@ -54,8 +56,8 @@ export interface AttentionEvents {
 export interface AttentionQuery {
     list(projectId: string): AttentionEntryRecord[];
     get(projectId: string, entryId: string): AttentionEntryRecord;
-    findActiveForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string): AttentionEntryRecord | null;
-    findForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string): AttentionEntryRecord[];
+    findActiveForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId?: string | null): AttentionEntryRecord | null;
+    findForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId?: string | null): AttentionEntryRecord[];
 }
 
 export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault" | "artifact_out_failed";
@@ -70,6 +72,7 @@ export type AttentionSubjectType = typeof ATTENTION_SUBJECT_TYPES[number];
 
 export interface CreateAttentionEntryInput {
     project_id: string;
+    owner_plugin_id?: string | null;
     subject_type: AttentionSubjectType;
     subject_id: string;
     reason: AttentionReason;

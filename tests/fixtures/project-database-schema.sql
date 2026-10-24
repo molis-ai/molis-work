@@ -4,6 +4,7 @@ CREATE TABLE attention_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       type TEXT NOT NULL,
       subject_type TEXT NOT NULL,
       subject_id TEXT NOT NULL,
@@ -151,6 +152,7 @@ CREATE TABLE idempotency_records (
 CREATE TABLE inbox_entries (
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
       reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),
@@ -160,8 +162,7 @@ CREATE TABLE inbox_entries (
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       completed_at TEXT,
-      PRIMARY KEY (project_id, entry_id),
-      UNIQUE (project_id, subject_type, subject_id, reason)
+      PRIMARY KEY (project_id, entry_id)
 );
 CREATE TABLE library_artifact_versions (
     artifact_id TEXT NOT NULL REFERENCES library_artifacts(artifact_id) ON DELETE CASCADE,
@@ -471,6 +472,10 @@ CREATE INDEX feed_source_runs_project_source_idx
       ON feed_source_runs(project_id, source_id, started_at DESC);
 CREATE INDEX feed_sources_project_updated_idx
       ON feed_sources(project_id, updated_at DESC, source_id);
+CREATE UNIQUE INDEX inbox_entries_owned_subject_idx
+      ON inbox_entries(project_id, owner_plugin_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NOT NULL;
+CREATE UNIQUE INDEX inbox_entries_unassigned_subject_idx
+      ON inbox_entries(project_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NULL;
 CREATE INDEX inbox_entries_project_status_idx
       ON inbox_entries(project_id, status, updated_at DESC, entry_id);
 CREATE INDEX inbox_entries_project_subject_idx

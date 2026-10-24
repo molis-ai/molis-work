@@ -14,3 +14,5 @@
 `approved` 与 `approved-completed` 里存的授权完成决定（`goal_event_applied_decisions` 与幂等回执里的 `commitment`），按「点头只对整份约定有效」（`specs/archive/goal-closure-identity`）改成了当前形状：承诺里记结果说明和决定时 Goal 的每一条要求（`MIXED-C1`、`imported-policy:MIXED-OWNER`），与现行代码写下同样决定时逐字相同（用同一份约定记一条新决定对照过）。原先只记结果说明、不含任何要求。旧形状的承诺比不上现在的约定，项目规则「完成前必须你点头」打开时不再放行；读取不兜底旧形状，所以夹具存成当前形状，不改断言。真实 Home 里没有这样的决定要整理（演练拷贝里全部项目库的授权完成与接受要求的决定为零条）。
 
 版本 9（SYS-15-S6）在临时副本执行同一份维护九脚本（`tests/fixtures/project-maintenance-v9.sql`），新增空的动作闹钟安装绑定表，旧闹钟暂停且清空租约，未填造授权。四份夹具的其余业务行逐表核对不变，再用同样的 `sqlite3 .dump` 导出。
+
+版本 10（#1245，Attention 明确对象归属）只更新 Attention 两表的 owner 字段、对应部分唯一索引和版本头；不从历史 ID 推断 owner，现有记录保持未归属 null。四份夹具的历史业务 INSERT 原样保留，已逐表核对行与 rowid 不变，外键和完整性检查通过。它们仍是历史业务数据的现行 schema 夹具，不是生产读取时的迁移路径。与同批 T1 的结构组合由最终 carrier 统一真实版本。

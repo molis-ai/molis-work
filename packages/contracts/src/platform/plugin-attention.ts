@@ -17,17 +17,24 @@ export const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
 
 /**
  * Which kinds of subject a plugin's own objects are, for Attention (`attention` in the Manifest). Only a plugin that declares a
- * kind may add an entry about it or delete the entries of it; the kinds are the platform's closed list, so a plugin cannot invent
- * one or put an entry about another plugin's object.
+ * kind may add or delete its own objects of it; different plugins may declare the same kind. The owner is recorded separately.
  */
 export interface PluginAttentionDeclaration {
   readonly subjects: readonly AttentionSubjectType[];
 }
 
-/** An entry to add; the project is the call's and the existence of the subject is the declaring plugin's to vouch for. */
-export interface PluginAttentionEntryInput {
+/** A subject to address. A write checks this target against the installation's trusted Manifest, never treating it as caller identity. */
+export interface PluginAttentionSubjectReference {
+  readonly owner_plugin_id: string;
   readonly subject_type: AttentionSubjectType;
   readonly subject_id: string;
+}
+
+export type PluginAttentionEntryRecord = AttentionEntryRecord & { owner_plugin_id: string };
+export type PluginAttentionEvent = AttentionEvent & { owner_plugin_id: string };
+
+/** An entry to add; its project and stored owner come from the call and installation. The plugin vouches for the subject's existence. */
+export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
   readonly reason: AttentionReason;
   readonly detail?: Record<string, unknown>;
   readonly entry_id?: string;
@@ -35,17 +42,22 @@ export interface PluginAttentionEntryInput {
 }
 
 export interface PluginAttentionWriter {
-  create(input: PluginAttentionEntryInput): { entry: AttentionEntryRecord; created: boolean };
+  create(input: PluginAttentionEntryInput): { entry: PluginAttentionEntryRecord; created: boolean };
+  /** The global entry id still allows closing/reopening another owner or an unassigned entry; returns its actual owner or null. */
   setStatus(entryId: string, status: AttentionStatus, expectedRevision?: number): AttentionEntryRecord;
-  deleteSubject(subjectType: AttentionSubjectType, subjectId: string): number;
+  deleteSubject(subject: PluginAttentionSubjectReference): number;
 }
 
+/**
+ * Reads need attention:read and show every explicitly owned entry in this project, with its recorded owner. Unassigned entries
+ * remain accessible through their existing direct owner paths until explicit maintenance assigns them; ids and kinds never infer an owner.
+ */
 export interface PluginAttentionClient {
-  list(): AttentionEntryRecord[];
-  get(entryId: string): AttentionEntryRecord;
-  findActiveForSubject(subjectType: AttentionSubjectType, subjectId: string): AttentionEntryRecord | null;
-  findForSubject(subjectType: AttentionSubjectType, subjectId: string): AttentionEntryRecord[];
-  events(entryId?: string): AttentionEvent[];
+  list(): PluginAttentionEntryRecord[];
+  get(entryId: string): PluginAttentionEntryRecord;
+  findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
+  findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
+  events(entryId?: string): PluginAttentionEvent[];
   /** Runs `write` inside the plugin's current project transaction (`PluginDatabase.transaction`); the writer is refused once it ends. */
   join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginAttentionWriter) => T): T;
 }

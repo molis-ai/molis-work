@@ -4,7 +4,9 @@ import {
   PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION,
   type PluginAttentionClient, type PluginAttentionWriter, type PluginContextLedgerClient, type PluginContextLedgerWriter, type PluginInstanceRecord,
   type PluginManifest, type PluginProjectDatabase, type PluginStartContext,
+  type PluginAttentionEntryInput, type PluginAttentionSubjectReference,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { attentionErrors, type AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule, type AttentionSqliteDatabase } from "@molis-ai/molis-work-module-attention-resumption";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
@@ -74,16 +76,16 @@ const actorOf = (scope: Scope, fallback: string) => scope ? scope.caller.audit_a
 
 /**
  * `services.attention`: the project's Inbox entries. Reads need `attention:read`; every write needs `attention:write`, joins the plugin's
- * current project transaction, and asks the original caller again at each call. An entry may be added or deleted only for a kind of
- * subject the Manifest declares (`attention.subjects`), so a plugin writes entries about its own objects and no one else's; closing
- * or reopening an entry (`setStatus`) is any holder of `attention:write`'s, the way the Inbox does.
+ * current project transaction, and asks the original caller again at each call. Adding/deleting checks the declared kind and the
+ * installation's recorded plugin owner. Reads show explicitly owned entries of every plugin; unassigned entries remain with their
+ * direct owner paths until explicit maintenance assigns them. Closing/reopening by global id still belongs to any attention:write holder.
  */
 export function pluginAttentionFor(manifest: PluginManifest, context: PluginStartContext, database: PluginProjectDatabase | undefined, ports: PluginProjectServicePorts,
   assertActive: () => void, record: () => PluginInstanceRecord | null): PluginAttentionClient | undefined {
   const connection = ports.connection;
   if (!database || !connection || !("transaction" in connection) || typeof connection.transaction !== "function"
     || !declared(manifest, PLUGIN_ATTENTION_READ_PERMISSION) && !declared(manifest, PLUGIN_ATTENTION_WRITE_PERMISSION)) return undefined;
-  const projectId = ports.project_id, gate = gateFor(context, projectId, assertActive, record), subjects = manifest.attention?.subjects ?? [];
+  const projectId = ports.project_id, owner = manifest.plugin_id, gate = gateFor(context, projectId, assertActive, record), subjects = manifest.attention?.subjects ?? [];
   let actor = ports.actor_id;
   const attentionModule = new AttentionModule(connection as AttentionSqliteDatabase, { exists: () => true }, { eventSink: event => {
     if (!ports.journal) throw new ActionError("actions.service_unavailable", "这个项目库没有日志");
@@ -91,25 +93,52 @@ export function pluginAttentionFor(manifest: PluginManifest, context: PluginStar
       type: event.type, reason: event.reason, payload: event.payload, at: event.at });
   } });
   const reading = () => { gate.read(PLUGIN_ATTENTION_READ_PERMISSION); };
-  const owns = (subjectType: string) => {
-    if (!(subjects as readonly string[]).includes(subjectType)) throw new ActionError("actions.forbidden", "插件没有在 Manifest 里声明这种对象");
+  const owns = (subject: PluginAttentionSubjectReference) => {
+    if (subject.owner_plugin_id !== owner) throw new ActionError("actions.forbidden", "插件只能添加或删除自己的对象");
+    if (!(subjects as readonly string[]).includes(subject.subject_type)) throw new ActionError("actions.forbidden", "插件没有在 Manifest 里声明这种对象");
   };
   return Object.freeze<PluginAttentionClient>({
-    list: () => { reading(); return attentionModule.query.list(projectId); },
-    get: entryId => { reading(); return attentionModule.query.get(projectId, entryId); },
-    findActiveForSubject: (subjectType, subjectId) => { reading(); return attentionModule.query.findActiveForSubject(projectId, subjectType, subjectId); },
-    findForSubject: (subjectType, subjectId) => { reading(); return attentionModule.query.findForSubject(projectId, subjectType, subjectId); },
-    events: entryId => { reading(); return attentionModule.events.list(projectId, entryId); },
+    list: () => { reading(); return attentionModule.query.list(projectId).filter(hasAttentionOwner); },
+    get: entryId => { reading(); return assignedEntry(attentionModule.query.get(projectId, entryId)); },
+    findActiveForSubject: subject => {
+      reading(); const entry = attentionModule.query.findActiveForSubject(projectId, subject.subject_type, subject.subject_id, subject.owner_plugin_id);
+      return entry && hasAttentionOwner(entry) ? entry : null;
+    },
+    findForSubject: subject => { reading(); return attentionModule.query.findForSubject(projectId, subject.subject_type, subject.subject_id, subject.owner_plugin_id).filter(hasAttentionOwner); },
+    events: entryId => { reading(); return attentionModule.events.list(projectId, entryId).filter(hasAttentionOwner); },
     join: (transaction, write) => joinPluginTransaction(database, transaction, (_afterCommit, live) => {
       const permit = () => { live(); const scope = gate.write(PLUGIN_ATTENTION_WRITE_PERMISSION); actor = actorOf(scope, ports.actor_id); };
       permit();
       return write(Object.freeze<PluginAttentionWriter>({
-        create: input => { permit(); owns(input.subject_type); return attentionModule.commands.create({ ...input, project_id: projectId }); },
+        create: input => {
+          permit(); owns(input); assertEntryIdAvailable(attentionModule, projectId, owner, input);
+          const result = attentionModule.commands.create({ ...input, owner_plugin_id: owner, project_id: projectId });
+          return { ...result, entry: assignedEntry(result.entry) };
+        },
         setStatus: (entryId, status, expectedRevision) => { permit(); return attentionModule.commands.setStatus(projectId, entryId, status, expectedRevision); },
-        deleteSubject: (subjectType, subjectId) => { permit(); owns(subjectType); return attentionModule.commands.deleteSubject(projectId, subjectType, subjectId); },
+        deleteSubject: subject => { permit(); owns(subject); return attentionModule.commands.deleteSubject(projectId, subject.subject_type, subject.subject_id, owner); },
       }));
     }),
   });
+}
+
+function hasAttentionOwner<T extends { owner_plugin_id: string | null }>(entry: T): entry is T & { owner_plugin_id: string } {
+  return entry.owner_plugin_id !== null;
+}
+
+function assignedEntry(entry: AttentionEntryRecord): AttentionEntryRecord & { owner_plugin_id: string } {
+  if (!hasAttentionOwner(entry)) throw attentionErrors.entry_not_found("找不到这个 Inbox Entry");
+  return entry;
+}
+
+function assertEntryIdAvailable(attention: AttentionModule, projectId: string, owner: string, input: PluginAttentionEntryInput): void {
+  if (input.entry_id === undefined) return;
+  let entry: AttentionEntryRecord;
+  try { entry = attention.query.get(projectId, input.entry_id); }
+  catch (error) { if (error instanceof ActionError && error.code === "attention.entry_not_found") return; throw error; }
+  if (entry.owner_plugin_id !== owner || entry.subject_type !== input.subject_type || entry.subject_id !== input.subject_id || entry.reason !== input.reason) {
+    throw new ActionError("actions.forbidden", "条目 ID 已用于另一个对象");
+  }
 }
 
 /**

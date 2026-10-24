@@ -31,7 +31,7 @@
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
-| 项目库 | `projects/<project_id>/molis-work.db` | 9 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 10 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 拒绝（只停 Feed） |
 | 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 拒绝（只停 Goals） |
@@ -130,6 +130,8 @@
   - [ ] **Shelf 目录 `shelf/catalog.json` 1 → 2（Shelf S3，① 裁定 D3；候选，未做）。** 新构建只认版本 2，打开版本 1 的目录会拒绝，所以和装新构建同一步做。工具是 `tests/fixtures/shelf-catalog-maintenance.mjs`：停宿主、整份备份（第 4.2 节）后，先在备份副本上跑 `list`（只报版本、条目数和带路径的条目数，不报路径），再在维护窗口里对真 Home 跑 `rewrite --home <Home> --maintenance-window`，跑完再 `list` 一次，应是版本 2、没有带路径的条目。做法和为什么这样做见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1「真实 Home 维护八」下的「Shelf 目录」一行。目录是 JSON 文件，不在第 3 节的库版本表里，`verify-release-versions` 也不核对它，只靠这一项不漏。
   - [ ] **删掉 Characters 留下的安装记录（待做，CHR-1 之后）。** Characters 已不是插件（CHR-1，2026-10-22）：宿主自己登记它的动作，项目库 `plugin_runtime_installs` 里 `plugin_id` 为 `io.molis.work.characters` 的那条记录没人启动、也没人改（监督器只启动自己的条目），留着不影响打开项目，但它和它的授权已经是孤儿。对每个项目库先只读数一遍：这条安装记录（授权写在记录里）、`plugin_runtime_release_artifacts` 里同一 `plugin_id` 的发行物存档、按它的 `install_id` 存在别的 `plugin_*` 表里的行（私有值、事件游标等），把数字报给用户；再整份备份（第 4.2 节），在拷贝上删、核对其余插件的记录一行不变，经用户同意后对真库做。和上一项的 v8 维护合不合成一次，由用户定（`specs/plugin-project-database/spec.md` 决定表 2026-10-19「v8 在真实 Home 上何时维护、是否与 Characters 清理合并」）。产品代码里不写这一步。
   - [ ] **角色库 `characters/characters.sqlite` 1 → 2（Sessions 收尾 SC-2，#1080）。** 停宿主、整份备份（第 4.2 节）后，对这一个库在一个事务里跑 `tests/fixtures/characters-maintenance-v2.sql`：版本不是正好 1 就整个回滚，什么都不改；做的事只有建 `character_runs` 表与它的索引、`user_version` 写 2，`character_drafts` 一行不动。先在一次性 Home 和备份的拷贝上跑 `tests/characters-maintenance-v2.test.ts` 的演练和同一份脚本，再对真库跑。以前记在会话库里的角色运行不迁，留给 SC-5 随会话库一起处理。清单那一行见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1「库版本维护清单」的 `characters/characters.sqlite` 行。做完以后这份 SQL 和演练用例删除，从 Git 历史取。
+
+- [ ] **项目库 v9 → v10（Attention 对象归属，S9-0b）。** Entry 和 event 增加明确的 `owner_plugin_id`，未归属旧行保持 null；唯一约束按 owner 区分。实际库沿用统一维护窗口，先备份、给出具体两表维护补丁并在隔离拷贝演练，再按当次授权处理真实 Home；不在启动时改表或猜旧 owner。本片源码与新库验证不等于真实维护完成，见 [S9-0b slice](../../specs/repository-anti-corruption/slices/goals-s9-0b-attention-ledger-services.md)。组合分支若同时改项目 schema，最终版本由集成 carrier 统一。
 
 ### 4.4 装新构建
 

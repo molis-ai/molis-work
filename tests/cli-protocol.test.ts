@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { cliFlagValue, cliGoalUrl, readCliJsonPayload } from "@molis-ai/molis-work-app-cli";
+import { cliFlagValue, cliGoalUrl, dispatchCli, printCliLine, readCliJsonPayload, type CliCommandPorts } from "@molis-ai/molis-work-app-cli";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -23,6 +23,32 @@ async function captureCli(operation: () => Promise<number>): Promise<string[]> {
     console.log = original;
   }
 }
+
+test("RAC-112: plugin dispatch keeps successful arguments and catches synchronous and asynchronous failures", async t => {
+  const errors: string[] = [];
+  const output: string[] = [];
+  t.mock.method(console, "error", (message: string) => { errors.push(message); });
+  t.mock.method(console, "log", (message: string) => { output.push(message); });
+  const unused = async () => assert.fail("a plugin command must not invoke a different port");
+  const ports: CliCommandPorts = { plugin: unused, install: unused, service: unused, demo: unused, uninstall: unused, v1: unused };
+  const calls: string[][] = [];
+  ports.plugin = async args => { calls.push(args); printCliLine("plugin result"); return 7; };
+  assert.equal(await dispatchCli(["plugin", "list", "--json"], ports), 7);
+  assert.deepEqual(calls, [["list", "--json"]]);
+  assert.deepEqual(output, ["plugin result"]);
+  assert.deepEqual(errors, []);
+
+  ports.plugin = () => { throw new Error("sync failure"); };
+  assert.equal(await dispatchCli(["plugin", "list"], ports), 1);
+  assert.deepEqual(errors.splice(0), ["错误: sync failure"]);
+
+  const pending = Promise.withResolvers<number>();
+  ports.plugin = () => pending.promise;
+  const dispatched = dispatchCli(["plugin", "install"], ports);
+  pending.reject(new Error("async failure"));
+  assert.equal(await dispatched, 1);
+  assert.deepEqual(errors, ["错误: async failure"]);
+});
 
 test("CLI preserves first-flag and inline JSON precedence, file errors and Goal URL output", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-input-"));

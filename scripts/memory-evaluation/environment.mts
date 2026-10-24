@@ -96,7 +96,7 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
       async original(text: string, scene: "coding" | "assistant", project: string | null, previous?: EvaluationOriginal) {
         setup = true;
         try {
-          const original = previous ?? await originals!.create(adapter!, text, scene, project);
+          const original = previous ?? await originals!.create(adapter!, memory, text, scene, project);
           const target = project ? { scope: "project" as const, owner: project } : { scope: "user" as const, owner: EVALUATION_ACTOR };
           const sources = await originals!.sources.resolve(original.caller, { app_id: "io.molis.work", target, refs: [original.ref] });
           return { original, sources };

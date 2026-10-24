@@ -46,15 +46,28 @@ export interface SessionIndexStore {
   /** Synchronous publication fence for reads/observers across awaits. */
   capture(id: string, lifecycle?: boolean): () => void;
   assertIdle(id: string): void;
+  assertAdmission(id: string): void;
   /** Includes preparation, so a lifecycle command cannot pass between claim and actual SDK start. */
-  starting<T>(id: string, work: () => Promise<T>): Promise<T>;
+  starting<T>(id: string, work: (current: () => void) => Promise<T>): Promise<T>;
+  creating<T>(projectId: string, work: (current: () => void) => Promise<T>): Promise<T>;
+  holdProject<T>(projectId: string, associated: readonly string[], work: () => Promise<T>): Promise<T>;
+  enumerate(): Promise<SessionIndex[]>;
   /** Same per-Session write lane; pending decisions are readable only by their lifecycle owner. */
   lifecycle<T>(id: string, work: (index: SessionIndex, save: (value: SessionIndex) => Promise<void>) => Promise<T>): Promise<T>;
   inspect(id: string): Promise<SessionIndex | undefined>;
 }
 
-export function createSessionIndexStore(host: NodeHost, appId: string): SessionIndexStore {
+export function createSessionIndexStore(host: NodeHost, appId: string, projectDeletionPending?: (projectId: string, sessionId?: string) => boolean, sessionLive?: (id: string) => boolean): SessionIndexStore {
   const indexKind = `molis-agent-index-${createHash("sha256").update(appId).digest("hex").slice(0, 24)}`;
+  const heldProjects = new Set<string>(), heldSessions = new Set<string>();
+  const projects = new Map<string, string>();
+  const creating = new Map<string, number>();
+  const assertProjectOpen = (project: string | undefined, id?: string) => {
+    if (!project) throw agentErrors.session_unknown("找不到原会话归属");
+    if (heldProjects.has(project) || projectDeletionPending?.(project, id) || id && heldSessions.has(id)) {
+      throw agentErrors.session_busy("项目正在清理，不能开始新工作");
+    }
+  };
   const versions = new Map<string, number>();
   const indexUpdates = new Map<string, Promise<void>>();
   const gates = new Map<string, { generation: number; busy: boolean; starting: number; unavailable: boolean }>();
@@ -72,7 +85,7 @@ export function createSessionIndexStore(host: NodeHost, appId: string): SessionI
     try {
       const record = await host.storage.commit({ kind: indexKind, id: value.ref.id,
         expectedVersion: versions.get(value.ref.id) ?? 0, metadata: { schema: 1 }, secureBody: bytes });
-      versions.set(value.ref.id, record.version);
+      versions.set(value.ref.id, record.version); projects.set(value.ref.id, value.owner.project_id);
       gate(value.ref.id).unavailable = Boolean(value.lifecycle && (value.lifecycle.phase !== "complete" || value.lifecycle.action === "purge"));
     } finally { bytes.fill(0); }
   };
@@ -98,7 +111,7 @@ export function createSessionIndexStore(host: NodeHost, appId: string): SessionI
       if (value.lifecycle !== undefined && !validLifecycle(value)) throw new Error("会话原生命周期决定损坏，不能猜测完成或重做清除");
       const after = await host.storage.get({ kind: indexKind, id });
       if (!after || after.version !== record.version || after.tombstoned) throw unavailable();
-      versions.set(id, record.version);
+      versions.set(id, record.version); projects.set(id, value.owner.project_id);
       gate(id).unavailable = Boolean(value.lifecycle && (value.lifecycle.phase !== "complete" || value.lifecycle.action === "purge"));
       return value;
     } finally { bytes.fill(0); }
@@ -138,10 +151,46 @@ export function createSessionIndexStore(host: NodeHost, appId: string): SessionI
     });
   };
   return { save, read, update, inspect, capture,
+    assertAdmission: id => assertProjectOpen(projects.get(id), id),
+    async enumerate() {
+      const result: SessionIndex[] = []; let cursor: string | undefined;
+      do {
+        const page = await host.storage.list({ kind: indexKind, ...(cursor ? { cursor } : {}) });
+        for (const record of page.records) {
+          if (record.tombstoned) throw agentErrors.session_unknown("归属索引已成墓碑，不能证明项目清理集合完整");
+          const saved = await inspect(record.id);
+          if (!saved) throw agentErrors.session_unknown("归属索引在枚举时消失");
+          result.push(saved);
+        }
+        cursor = page.cursor;
+      } while (cursor);
+      return result;
+    },
+    async creating(projectId, work) {
+      const current = () => assertProjectOpen(projectId); current();
+      creating.set(projectId, (creating.get(projectId) ?? 0) + 1);
+      try { return await work(current); }
+      finally { const left = creating.get(projectId)! - 1; if (left) creating.set(projectId, left); else creating.delete(projectId); }
+    },
+    async holdProject(projectId, associated, work) {
+      if (heldProjects.has(projectId) || creating.get(projectId) || associated.some(id => heldSessions.has(id))
+        || [...projects].some(([id, owner]) => (owner === projectId || associated.includes(id))
+          && (gate(id).starting || gate(id).busy || sessionLive?.(id)))) throw unavailable();
+      heldProjects.add(projectId);
+      for (const id of associated) heldSessions.add(id);
+      try { return await work(); }
+      finally { heldProjects.delete(projectId); for (const id of associated) heldSessions.delete(id); }
+    },
     assertIdle(id) { const held = gate(id); if (held.busy || held.starting) throw agentErrors.session_busy("会话正在准备执行或处理原决定，不能取得静止预览"); },
     async starting(id, work) {
       const current = capture(id), held = gate(id); held.starting++;
-      try { if (held.busy) throw unavailable(); await read(id); current(); return await work(); }
+      try {
+        if (held.busy || heldSessions.has(id)) throw unavailable();
+        const saved = await read(id);
+        if (!saved) throw agentErrors.session_unknown("找不到原会话归属");
+        const admitted = () => { current(); assertProjectOpen(saved.owner.project_id, id); };
+        admitted(); return await work(admitted);
+      }
       finally { held.starting--; }
     },
     async lifecycle(id, work) {

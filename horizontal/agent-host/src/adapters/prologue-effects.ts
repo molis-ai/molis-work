@@ -8,6 +8,7 @@ export interface PrologueEffects {
   call<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T>;
   memory<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>, signal?: AbortSignal): Promise<T>;
   start<T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T>;
+  admit<T>(current: () => void, work: () => Promise<T>): Promise<T>;
   session(target: Session): Session;
   beforeEffect(): Promise<void>;
   assertCurrent(): void;
@@ -18,7 +19,7 @@ export interface PrologueEffects {
 
 /** Per-invocation SDK commit checks; accepted runs detach from the start call before driving background work. */
 export function prologueEffects(host: PrologueHost): PrologueEffects {
-  const calls = new AsyncLocalStorage<{ control: AgentMemoryExecutionControl; active: boolean; accepted: boolean; memory: boolean; signal?: AbortSignal }>();
+  const calls = new AsyncLocalStorage<{ control: AgentMemoryExecutionControl; active: boolean; accepted: boolean; memory: boolean; signal?: AbortSignal; admission?: () => void }>();
   const beforeEffect = async () => {
     const frame = calls.getStore();
     if (!frame?.active) return;
@@ -41,7 +42,7 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
       if (signal.aborted) throw cancelled();
     } finally { signal.removeEventListener("abort", onAbort); }
   };
-  const assertCurrent = () => { const frame = calls.getStore(); if (frame?.active) requireSynchronous(frame.control.assert_current(), "最终授权检查必须同步完成"); };
+  const assertCurrent = () => { const frame = calls.getStore(); if (frame?.active) { frame.admission?.(); requireSynchronous(frame.control.assert_current(), "最终授权检查必须同步完成"); } };
   const commit = <T>(write: () => Promise<T>): Promise<T> => {
     if (!calls.getStore()?.active) return write();
     // Memory's async gate runs before SDK authorization. Do not reopen an async window
@@ -73,6 +74,11 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
     if (!execution?.beforeStart && !execution?.assertBeforeStart) return work();
     return call({ beforeEffect: () => execution.beforeStart?.(), assert_current: () => execution.assertBeforeStart?.() }, work);
   };
+  const admit = <T>(current: () => void, work: () => Promise<T>): Promise<T> => {
+    const inherited = calls.getStore(); current();
+    return calls.run({ control: inherited?.control ?? { beforeEffect() {}, assert_current() {} }, active: true,
+      accepted: false, memory: false, admission: () => { inherited?.admission?.(); current(); } }, work);
+  };
   const session = (target: Session): Session => new Proxy(target, { get(object, key) {
     // Everything after `drive` goes through as given: `carry` there names the session's waiting supplements the run takes (specs/ai-input-receipts D29).
     if (key === "startRun") return (input: Parameters<Session["startRun"]>[0], drive?: Parameters<Session["startRun"]>[1], options?: Parameters<Session["startRun"]>[2]) => {
@@ -82,5 +88,5 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
     };
     const value: unknown = Reflect.get(object, key); return typeof value === "function" ? value.bind(object) : value;
   } });
-  return { host: { ...host, storage }, call, memory: (control, work, signal) => call(control, work, true, signal), start, session, beforeEffect, assertCurrent, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
+  return { host: { ...host, storage }, call, memory: (control, work, signal) => call(control, work, true, signal), start, admit, session, beforeEffect, assertCurrent, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
 }

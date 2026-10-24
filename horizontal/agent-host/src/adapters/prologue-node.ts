@@ -21,6 +21,7 @@ import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime,
 import { createPrologueRecovery } from "./prologue-recovery.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
 import { createPrologueSchedule } from "./prologue-schedule.js";
+import { createProjectDeletion, type PrologueProjectDeletion } from "./prologue-project-deletion.js";
 import { createSessionIndexStore } from "./prologue-session-index.js";
 import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
@@ -86,7 +87,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
 ): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
-  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
+  projectDeletion: PrologueProjectDeletion; surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
   const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
   try {
     const adapter = await initializePrologueNodeAdapter(options);
@@ -119,7 +120,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
   const state = createRoundState();
-  const index = createSessionIndexStore(effects.host, options.app.appId);
+  const index = createSessionIndexStore(effects.host, options.app.appId, options.projectDeletionPending,
+    id => [...state.activeRuns].some(([run, active]) => state.runSessions.get(run) === id && active.live()));
   const memoryAuthority = createPrologueMemoryAuthority(options.memory, index, effects);
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
@@ -205,6 +207,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   },
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
+    projectDeletion: createProjectDeletion({ runtime, index, lifecycle: port.sessions.lifecycle!, effects }),
     assertDirectoriesIdle: directoriesIdle(runtime, index), withEffect: effects.call });
 }
 

@@ -5,14 +5,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { mock } from "node:test";
-import type { FunctionsPreviewRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
 
 const conflict = (error: unknown) => (error as { code?: string }).code === "functions.conflict";
 
 test("two writes in the same millisecond: the first moves the version, the second still holding the old one is refused", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "functions-versions-"));
-  const store = openFunctionsStore(home);
+  const provider: TypeSafeProvider = { async evaluate() { return { primitive: "choice", choice: "save", noul: null, score: null, legend: null,
+    probabilities: { save: 1 }, confidence: 1, model: "fixture" }; } };
+  const store = createFunctionsService({ home, credential: () => null, env: { TYPESAFE_API_KEY: "fixture-only" }, provider });
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
   mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-16T08:00:00.000Z") });
   t.after(() => mock.timers.reset());
@@ -22,7 +23,7 @@ test("two writes in the same millisecond: the first moves the version, the secon
   const first = store.updateDraft(draft.id, { instructions: "First writer", criteria: [{ key: "save", description: "Save the note" }, { key: "skip", description: "No change" }] }, read);
   assert.ok(first.updated_at > read, "the version moves although the clock did not");
   assert.throws(() => store.updateDraft(draft.id, { instructions: "Second writer" }, read), conflict);
-  assert.equal(store.get(draft.id)?.instructions, "First writer");
+  assert.equal(store.get(draft.id).instructions, "First writer");
 
   // Samples are checked against the same version.
   const withSample = store.addSample(draft.id, { input: "Example" }, first.updated_at);
@@ -32,16 +33,14 @@ test("two writes in the same millisecond: the first moves the version, the secon
   assert.throws(() => store.removeSample(draft.id, sampleId, first.updated_at), conflict);
   const without = store.removeSample(draft.id, sampleId, withSample.updated_at);
   assert.ok(without.updated_at > withSample.updated_at);
-  assert.deepEqual(store.get(draft.id)?.samples, []);
+  assert.deepEqual(store.get(draft.id).samples, []);
 
   // A saved preview and publishing are checked against the same version.
-  const preview = { input: "Example", outcome: "ok", primitive: "choice", choice: null, noul: null, score: null, legend: null, probabilities: {},
-    confidence: null, model: "fixture", config_hash: without.config_hash, at: without.updated_at } as FunctionsPreviewRecord;
-  assert.throws(() => store.savePreview(draft.id, preview, withSample.updated_at), conflict);
-  const previewed = store.savePreview(draft.id, preview, without.updated_at);
+  await assert.rejects(store.preview(draft.id, "Example", withSample.updated_at), conflict);
+  const previewed = await store.preview(draft.id, "Example", without.updated_at);
   assert.ok(previewed.updated_at > without.updated_at);
   assert.throws(() => store.publish(draft.id, without.updated_at), conflict);
-  assert.equal(store.get(draft.id)?.status, "draft");
+  assert.equal(store.get(draft.id).status, "draft");
   const published = store.publish(draft.id, previewed.updated_at);
   assert.equal(published.status, "published");
   assert.ok(published.updated_at > previewed.updated_at);

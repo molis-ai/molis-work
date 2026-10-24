@@ -202,8 +202,12 @@ jobs:
       - name: Typecheck product launchers
         run: pnpm exec tsc --noEmit -p tsconfig.json
 
+      # The last test is the frozen list of the Host's holders of Goals' coordinator and tables (PG094-06): it needs no build, only the
+      # tracked sources, and it counts per file, so it runs on every pull request, not only in the full suite.
       - name: Verify Goal boundaries
-        run: node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
+        run: |
+          node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
+          node scripts/run-tests.mjs tests/goals-host-no-direct-reads.test.ts
 
       # Rules that read the build, each mutation-verified or asserted on the built host: the page asset budget rules (a grown
       # asset, a new asset, a raised budget, a slack left unlowered, a missing build and the laundering moves each fail; a route

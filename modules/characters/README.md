@@ -14,7 +14,7 @@
 
 ## 开发要求
 
-- 负责：个人 Character 草稿与启用状态；原生执行的记录（`src/runs.ts`，表 `character_runs`：谁、哪个项目、哪个版本、任务、目录、是否派发成功；不存终端输出）；角色动作的声明（`src/actions.ts`）、处理器（`src/action-handlers.ts`，按记录、草稿、发布、导入分组）、归属绑定（`src/action-bindings.ts`）、发布的来源与身份核对（`src/publications.ts`）、本机导入与预览的非界面逻辑（`src/imports.ts`、`src/import-preview.ts`）、Agent 可用动作的登记与草稿校验（`src/agent-actions.ts`）、用法登记（`src/usages.ts`）、成果预览的 Markdown（`src/artifact-preview.ts`）。
+- 负责：个人 Character 草稿与启用状态；原生执行的记录（`src/runs.ts`，表 `character_runs`：谁、哪个项目、哪个版本、任务、目录、是否派发成功；不存终端输出）；项目被删除时清掉该项目的执行记录（`src/project-data.ts` 的 `charactersProjectData`：确认框里的标签与 `purgeCharactersProject`；Characters 不是插件，由宿主在 `apps/local-host/src/project-deleted-owners.ts` 里按名登记，草稿不属于任何项目、不清）；角色动作的声明（`src/actions.ts`）、处理器（`src/action-handlers.ts`，按记录、草稿、发布、导入分组）、归属绑定（`src/action-bindings.ts`）、发布的来源与身份核对（`src/publications.ts`）、本机导入与预览的非界面逻辑（`src/imports.ts`、`src/import-preview.ts`）、Agent 可用动作的登记与草稿校验（`src/agent-actions.ts`）、用法登记（`src/usages.ts`）、成果预览的 Markdown（`src/artifact-preview.ts`）。
 - 不负责：已发布正文（在 Artifact）、执行（写角色包、起进程由 Host 的 `apps/local-host/src/character-native-execution.ts` 做，记录经 `openCharacterRuns` 写这里）、终端输出、权限、界面；注册动作提供方、接页面的地址、给端口（Host：`apps/local-host/src/characters-host.ts`、`apps/local-host/src/characters-http.ts`）；「设置 › 角色」的界面（`apps/workbench/src/characters/`）。
 - 公开入口：`@molis-ai/molis-work-module-characters`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/characters`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`（库的结构基线 `applySqliteBaseline`）。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -24,5 +24,5 @@
   - 只在确认草稿仍有效时，把固定内容交给 Host 注入的发布者。
   - 不依赖插件、App、Agent Runtime 或其他 Module 的实现；仓库实现不从公开入口导出。
   - 仅空的版本 0 库初始化为当前版本 2；已有结构的版本 0 库、版本 1 库（加 `character_runs` 之前的，维护见 `tests/fixtures/characters-maintenance-v2.sql`）和未来版本拒绝打开，保留原库的结构、数据、版本及文件权限，不盖章升级。
-- 改动后必跑：`node scripts/run-tests.mjs tests/characters-module.test.ts tests/characters-actions.test.ts tests/characters-action-handlers.test.ts tests/characters-import.test.ts tests/characters-schema.test.ts tests/characters-maintenance-v2.test.ts`；动了声明、绑定或处理器再跑 `tests/characters-native-execution.test.ts tests/characters-publication-http.test.ts tests/security-invariants-plugin-original-caller.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/characters-module.test.ts tests/characters-actions.test.ts tests/characters-action-handlers.test.ts tests/characters-import.test.ts tests/characters-schema.test.ts tests/characters-maintenance-v2.test.ts tests/characters-project-deletion.test.ts`；动了声明、绑定或处理器再跑 `tests/characters-native-execution.test.ts tests/characters-publication-http.test.ts tests/security-invariants-plugin-original-caller.test.ts`
 - 相关手册：[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

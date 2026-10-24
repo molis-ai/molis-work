@@ -24,7 +24,7 @@ Studio 业务由 `alchemistActions` 声明，输入输出验证与目录 JSON Sc
 
 构建：`pnpm --filter @molis-ai/molis-work-plugin-alchemist build`；业务测试：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。宿主、恢复和浏览器回归见根目录 `tests/alchemist-*.test.ts`。范围与验收记录见 `specs/archive/alchemist-plugin/spec.md`。
 
-AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMIST_INSTRUCTIONS`；领域与 Host 端口使用 `InstructedPrompt`，研究维度和任务材料单独传递。Host 在授权复查后使用当前 Home 的用户覆盖；格式纠正仍需显式预算、最多一次，SDK 负责 JSON 解码，插件核对领域语义。回归包含 `tests/prompt-registration.test.ts` 和 `tests/alchemist-structured-output.test.ts`。
+AI 固定指令统一定义于 `src/prompts.ts`，`ALCHEMIST_INSTRUCTIONS` 由 Host 自己的列表登记（`apps/local-host/src/agent-definitions/builtin-instructions.ts`；Alchemist 由 Host 承载、没有运行时定义，迁到 Plugin Runtime 之前留在这里，PG-051）；领域与 Host 端口使用 `InstructedPrompt`，研究维度和任务材料单独传递。Host 在授权复查后使用当前 Home 的用户覆盖；格式纠正仍需显式预算、最多一次，SDK 负责 JSON 解码，插件核对领域语义。回归包含 `tests/prompt-registration.test.ts` 和 `tests/alchemist-structured-output.test.ts`。
 
 ## 开发要求
 

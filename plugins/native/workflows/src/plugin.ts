@@ -6,6 +6,7 @@ import { createWorkflowsActionHandlers, workflowsActions, type WorkflowsActionPo
 import { createWorkflowContentPorts } from "./content-client.js";
 import { WorkflowsStore, type WorkflowsStores } from "./store.js";
 import { workflowsUiContribution } from "./ui.js";
+import { WORKFLOWS_INSTRUCTIONS } from "./prompts.js";
 
 /**
  * Workflows as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
@@ -14,7 +15,7 @@ import { workflowsUiContribution } from "./ui.js";
  * authority of each nested call is theirs, never the plugin's own.
  */
 export function createWorkflowsPlugin(): PluginDefinition {
-  return { manifest: workflowsManifest, async start(context) {
+  return { manifest: workflowsManifest, instructions: WORKFLOWS_INSTRUCTIONS, async start(context) {
     for (const permission of workflowsManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const projectId = context.project_id;
     if (!projectId) throw new ActionError("actions.scope_mismatch", "工作流程只属于一个项目");

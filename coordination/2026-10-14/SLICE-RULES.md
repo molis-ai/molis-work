@@ -18,6 +18,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 ## 2. 写
 
 - 一片一个 PR，目标 main。不叠第三层。
+- 一条线同时开着的 PR 最多两个（10-23 PR 积压时定）；例外：基于 main、`full` 为空、改动小的片可以直接开，不占名额（统筹 10-24）。
 - 规格写在 `specs/repository-anti-corruption/slices/<片名>.md`（新文件，开头一句状态句），写目标、范围、带编号的验收。不改 `spec.md`，统筹合入后统一挂链接。
 - 验收编号、BL 号用统筹分给本片的号段（见派单）。号段用不完就空着，不够就问统筹。安全不变量 S 号（现在 main 最大 S-57）不自取，要用时问统筹。
 - 证明验收的测试，在测试名或注释里写出编号。

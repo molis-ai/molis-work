@@ -5,13 +5,13 @@ import { join } from "node:path";
 import test from "node:test";
 import { inviteFixture } from "./fixtures/im-invites.js";
 
-// The new invariant number follows the main/queue allocation at PR integration; RAC-100/101 stay stable.
+// S-61 is the integration candidate; the security batch assigns its final number. RAC-100/101 stay stable.
 type InviteState = { room_id: string; token_hash: string | null };
 const digest = (token: string) => createHash("sha256").update(token).digest("hex");
 const intent = () => ({ client_id: randomUUID(), token: randomBytes(32).toString("hex") });
 const rotate = (room: string) => `/rooms/${room}/invite/rotate`;
 
-test("RAC-100: invitations persist only hashes; safe GET never rotates and a hash is not a bearer credential", async t => {
+test("S-61 RAC-100: invitations persist only hashes; safe GET never rotates and a hash is not a bearer credential", async t => {
   const f = await inviteFixture(t), alice = await f.person("Alice"), bob = await f.person("Bob"), room = await f.room(alice.cookie);
   const before = f.storage.db.prepare("SELECT total_changes() AS n").get();
   const empty = await f.call<InviteState>(alice.cookie, `/rooms/${room.id}/invite`);
@@ -33,7 +33,7 @@ test("RAC-100: invitations persist only hashes; safe GET never rotates and a has
   assert.equal((await f.post(bob.cookie, "/join", { token: first.token })).status, 200);
 });
 
-test("RAC-101: every invitation replay rechecks the current owner, room membership and project restriction", async t => {
+test("S-61 RAC-101: every invitation replay rechecks the current owner, room membership and project restriction", async t => {
   const f = await inviteFixture(t), alice = await f.person("Alice"), bob = await f.person("Bob"), outside = await f.person("Outside"), room = await f.room(alice.cookie);
   const first = intent(); assert.equal((await f.post(alice.cookie, rotate(room.id), first)).status, 200);
   f.storage.db.prepare("INSERT INTO im_members VALUES (?,?,?)").run(room.id, bob.member.id, new Date().toISOString());
@@ -57,7 +57,7 @@ test("RAC-101: every invitation replay rechecks the current owner, room membersh
   assert.deepEqual(stable(), before);
 });
 
-test("RAC-101: lost responses and restarts reuse one rotation; stale replays never reactivate a superseded token", async t => {
+test("S-61 RAC-101: lost responses and restarts reuse one rotation; stale replays never reactivate a superseded token", async t => {
   const f = await inviteFixture(t), alice = await f.person("Alice"), bob = await f.person("Bob"), room = await f.room(alice.cookie);
   const first = intent(); await f.loseAnswer(alice.cookie, rotate(room.id), first);
   const count = () => f.storage.db.prepare("SELECT COUNT(*) AS n FROM mw_events WHERE kind='invite'").get();
@@ -74,7 +74,7 @@ test("RAC-101: lost responses and restarts reuse one rotation; stale replays nev
   assert.deepEqual(count(), after);
 });
 
-test("RAC-101: a failed invitation receipt rolls back the hash and event, then the same intent can recover", async t => {
+test("S-61 RAC-101: a failed invitation receipt rolls back the hash and event, then the same intent can recover", async t => {
   const f = await inviteFixture(t), alice = await f.person("Alice"), room = await f.room(alice.cookie);
   const first = intent(), next = intent(); await f.post(alice.cookie, rotate(room.id), first);
   const before = f.storage.db.prepare("SELECT COUNT(*) AS n FROM mw_events").get();

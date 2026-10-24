@@ -131,8 +131,6 @@ function publish(home, file, original, backupDirectory) {
     for (const name of original.keys()) if (name !== "server.sqlite") fs.unlinkSync(path.join(home, "server", name));
     fs.renameSync(file, path.join(home, "server", "server.sqlite"));
     sync(path.join(home, "server"));
-    fs.unlinkSync(marker); sync(path.join(home, "server"));
-    return backup;
   } catch (error) {
     const failures = [error];
     for (const [name, value] of original) try { fs.writeFileSync(path.join(home, "server", name), value.bytes, { mode: value.mode }); fs.chmodSync(path.join(home, "server", name), value.mode); sync(path.join(home, "server", name)); } catch (failure) { failures.push(failure); }
@@ -140,6 +138,10 @@ function publish(home, file, original, backupDirectory) {
     if (failures.length > 1) throw new AggregateError(failures, "Publication rollback is incomplete; stop the Host and recover the originals from " + backup);
     throw error;
   }
+  // The complete v2 database is now published. Cleanup must not roll it back after the marker is removed.
+  try { fs.unlinkSync(marker); sync(path.join(home, "server")); }
+  catch (error) { throw new Error("Version 2 was published, but maintenance-marker cleanup was not confirmed; keep the Host stopped and inspect the library or recover the originals from " + backup, { cause: error }); }
+  return backup;
 }
 
 function sync(file) {

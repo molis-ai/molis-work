@@ -28,11 +28,12 @@ test("RAC-102: real invitation UI generates explicitly, keeps retries in memory,
     await page.click("[data-welcome-body] [data-action=create-room]"); await page.fill("[data-dialog] input[name=title]", "Invite recovery");
     await page.click("[data-dialog] button[type=submit]");
     await page.wait("document.querySelector('[data-conversations]')?.hidden === false && !document.querySelector('[data-dialog]').open");
-    const room = String(f.storage.db.prepare("SELECT id FROM im_rooms").get()!.id);
-    const count = () => Number(f.storage.db.prepare("SELECT COUNT(*) AS n FROM mw_events WHERE kind='invite'").get()!.n);
+    const room = (f.storage.db.prepare("SELECT id FROM im_rooms").get() as { id: string }).id;
+    const count = () => (f.storage.db.prepare("SELECT COUNT(*) AS n FROM mw_events WHERE kind='invite'").get() as { n: number }).n;
+    const storedHash = () => (f.storage.db.prepare("SELECT invite_token_hash FROM im_rooms").get() as { invite_token_hash: string | null }).invite_token_hash;
     await page.click("[data-action=invite]");
     await page.wait("document.querySelector('[data-action=rotate-invite]')?.textContent === '生成邀请链接'");
-    assert.equal(count(), 0); assert.equal(f.storage.db.prepare("SELECT invite_token_hash FROM im_rooms").get()!.invite_token_hash, null);
+    assert.equal(count(), 0); assert.equal(storedHash(), null);
     await page.click("[data-action=rotate-invite]"); await page.wait("document.querySelector('[data-invite-value]')");
     const firstUrl = await page.evaluate<string>("document.querySelector('[data-invite-value]').value"), firstToken = new URL(firstUrl).searchParams.get("invite")!;
     assert.match(firstToken, /^[0-9a-f]{64}$/); assert.equal(count(), 1);
@@ -64,13 +65,13 @@ test("RAC-102: real invitation UI generates explicitly, keeps retries in memory,
     assert.equal(count(), 4); await page.click("[data-action=rotate-invite]");
     await page.wait("document.querySelector('[data-invite-error]')?.textContent.includes('不会重新激活旧链接')");
     assert.equal(await page.evaluate("!!document.querySelector('[data-invite-value]')"), false);
-    assert.equal(f.storage.db.prepare("SELECT invite_token_hash FROM im_rooms").get()!.invite_token_hash, newerHash); assert.equal(count(), 4);
+    assert.equal(storedHash(), newerHash); assert.equal(count(), 4);
     const all = await page.evaluate<Array<{ client_id: string; token: string }>>("window.__inviteCalls");
     assert.deepEqual(all[2], all[4]);
     assert.equal(await page.evaluate<boolean>(`JSON.stringify(localStorage).includes(${JSON.stringify(all[2]!.token)})`), false);
     await page.click("[data-action=rotate-invite]"); await page.wait("document.querySelector('[data-invite-value]')");
     const currentToken = new URL(await page.evaluate<string>("document.querySelector('[data-invite-value]').value")).searchParams.get("invite")!;
-    assert.equal(f.storage.db.prepare("SELECT invite_token_hash FROM im_rooms").get()!.invite_token_hash, createHash("sha256").update(currentToken).digest("hex"));
+    assert.equal(storedHash(), createHash("sha256").update(currentToken).digest("hex"));
     const shots = join(process.cwd(), ".impeccable/qa/review/w5-16-im-invites"); mkdirSync(shots, { recursive: true });
     for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
       await page.viewport(width, 900); await page.evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);

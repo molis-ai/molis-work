@@ -132,3 +132,27 @@ test("RAC-103: a real publication I/O failure rolls back original bytes; an inte
     const opened = openServer(f.directory); opened.close();
   }
 });
+
+test("RAC-103: cleanup failures report an already published v2 library without rolling it back after marker removal", t => {
+  for (const fault of ["unlink", "directory-sync"]) {
+    const f = source(t), original = files(f.directory), backupDirectory = join(f.root, "originals"), marker = join(realpathSync(f.directory), ".invite-maintenance.json");
+    const script = `import fs from 'node:fs'; const {maintainInvitations}=await import(${JSON.stringify(pathToFileURL(tool).href)});
+      const unlink=fs.unlinkSync, sync=fs.fsyncSync;let removed=false;
+      fs.unlinkSync=file=>{if(file===${JSON.stringify(marker)}){${fault === "unlink" ? "throw new Error('marker cleanup denied');" : "removed=true;"}}return unlink(file);};
+      fs.fsyncSync=fd=>{if(removed){removed=false;throw new Error('directory flush denied');}return sync(fd);};
+      maintainInvitations('apply',{home:${JSON.stringify(f.home)},backupDirectory:${JSON.stringify(backupDirectory)}});`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" });
+    assert.equal(result.status, 1); assert.match(result.stderr, /Version 2 was published, but maintenance-marker cleanup was not confirmed/);
+    assert.deepEqual(files(backupDirectory), original);
+    const db = new DatabaseSync(f.file, { readOnly: true });
+    try {
+      assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 2);
+      assert.equal(db.prepare("SELECT invite_token_hash FROM im_rooms WHERE id='room'").get()!.invite_token_hash, hash(f.active));
+      assert.equal(db.prepare("SELECT body FROM im_messages WHERE id='wal-message'").get()!.body, "Committed before crash");
+    } finally { db.close(); }
+    if (fault === "unlink") { assert.ok(existsSync(marker)); assert.throws(() => openServer(f.directory), { code: "im.invite_maintenance.pending" }); unlinkSync(marker); }
+    else assert.equal(existsSync(marker), false);
+    assert.equal(run("apply", f.home, backupDirectory).status, 0);
+    const opened = openServer(f.directory); opened.close();
+  }
+});

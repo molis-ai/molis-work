@@ -1654,6 +1654,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | [本片规格](slices/w5-16-home-snapshot.md) B1；真实 Home 未执行，随 W5-17、Goals S9 的既定维护窗口另行授权。停宿主并在完整副本先 `list`，显式 `apply --backup <Home外新目录>` 按原邀请 SHA-256 重建 v2 库，清除邀请回执原文，保留其余业务事实、自增序号与旧链接效力；不自动迁移。`tests/im-invite-maintenance.test.ts` 已在一次性 Home 演练：含最新 WAL 的全表比对、发布库与 backup API 副本无原文字节、重复零改、失败回滚和中断后拒绝打开及原件恢复。 |
 | `memory/memory.db` | 2 → 3 | 记忆策略 M1 第一片（`codex/memory-p0`，独立 PR 交付） | [记忆策略 spec](../prologue-memory-strategy/spec.md) §9.4 / §13；真实 Home 未执行。停止全部 owner 并备份，在隔离副本按旧代码物化个人、项目默认及已有项目的有效开关，保留消费者/插件限制，同一事务写采用记录和版本 3，不改 SDK 正文。已演练事务失败回退、重试、两次新进程重启及旧 Home/Web/MCP 入口拒绝。真实库采用与安装新构建须另获对应授权，不能由普通启动就地升级 |
 | `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 归维护八，与安装新构建同一步进行；真实 Home 未执行，仍需当次授权，不得先用新构建打开旧库或让旧构建打开维护后的库。隔离 v1 副本已演练：停宿主并完整备份，按当前 `CONNECTORS_STORE_BASELINE` 增加连接启停/移除字段、协议/授权请求与技术观察字段和表，在事务中写基线 2，核对原连接 id、凭据引用、绑定、协议及取消记录不变；失败恢复完整副本。证据见 [服务接入 spec](../assistant-service-connections/spec.md) 的连接生命周期、正式接入准备与技术观察记录 |
 | `projects/<project_id>/molis-work.db` | 6 → 7 | #369（删 Casebook 的 5 张表） | 维护六，真实 Home 的 18 个项目库 10-10 已做（上面「维护六」） |
@@ -1730,7 +1731,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 已审 |
 | `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 已审 |
-| `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 已审 |
+| `packages/im-ui` | 基础 | 12 | 1,466 | `browser/controller.ts` 930 | 1 | 2 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 6 | 1,160 | `action-service.ts` 490 | 2 | 1 | 4 | 在用 | 深 | 已审 |
 | `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 已审 |
 | `packages/plugin-sandbox` | 基础 | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 | 在用 | 中 | 已审 |
@@ -1769,7 +1770,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 已审 |
 | `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 已审 |
+| `server` | 模块 | 18 | 1,127 | `continuity/service.ts` 179 | 1 | 3 | 2 | 在用 | 中 | 已审 |
 | `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 已审 |
 
 ### 5.2 状态、计划深度与审查

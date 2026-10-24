@@ -58,7 +58,7 @@
       "lines": 602,
       "methods": 18
     },
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 355,
+    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 350,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
       "lines": 381,
       "methods": 12

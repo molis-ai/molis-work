@@ -62,3 +62,10 @@
 - 规格板插件格改 `pluginMarketCards()` 构建期目录：亮格=新项目默认启用（Goals/Inbox/Feed/Sessions+个人），灰格=其余；developer 不进；创作台按真实机制放选择器头部；新增 RAC-80～84 与 `tests/primitive-catalog-bar.test.ts`；删内联脚本改为 initialization 程序（`*_SCRIPT` 门禁不增）。
 - 证据：build/workspace:build、定向 4 文件 66 用例、6 张截图（亮/灰/点击转亮）、health/page-assets/boundary/verify-release/secrets、affected-tests（325 用例，`full`=assembly+spans-packages）全过。
 - 待办：ac-review 二轮 + 集成批（批由 Codex 起）；未入队、不动队列。
+
+## batch-1024-19 失败归因与 #1157 适配（2026-10-24 04:0xZ）
+- batch-19（run 40054696653）终态 failure：13 分片过，红=shard 5/16、7/16、13/16，**全部归因 #1157**（SC-4b 删除 Talk 按钮/sessions.db 建表/DOCK_DEFAULT_PINS 5→4，三个测试未适配；#1157 叠在非 main base 从未跑 CI）：
+  - `tests/home-offers.e2e.test.ts`、`tests/web-home-isolation.test.ts`、`tests/touch-targets.e2e.test.ts`。
+- ci-failure-owner 已认领并适配三条（仅 3 个测试文件、无产品语义），#1157 新 head `b64058335`，本机两连过；批分支重推归 Codex/合并线。
+- 另：#1114 现 head `471ff8d56` 是 review-fix-owner 的机械同步（认领 03:42Z），等其报告与评审。
+- 当前 main `47c780644`；合并队列 [#1141 pos1]；#1125 二轮可合、CI 进行中。

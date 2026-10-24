@@ -119,6 +119,26 @@ export interface SandboxMaterialRequest {
   pdfMode?: 'text' | 'ocr';
   ocrLanguages?: Array<'zh-Hans' | 'zh-Hant' | 'en-US'>;
 }
+/**
+ * What `extract` answers, as plain JSON. These are the sandbox's own types, not the Host's `MaterialExtraction`: the declarations a generated
+ * plugin is compiled against must stand alone (the isolated compiler has no DOM or Node library, and the Host's service types name a
+ * DOM global). The broker passes the Host's answer through `extractionJson`, so a Host type that drifts away from this one stops the build.
+ */
+export interface SandboxMaterialExtraction {
+  text: string;
+  title?: string;
+  extractor: string;
+  pages: Array<{ number: number; text: string; method: string; confidence: number | null; lines?: Array<{ text: string; confidence: number | null }> }>;
+  segments?: Array<{ start_seconds: number; end_seconds: number; text: string }>;
+  frames?: Array<{ seconds: number; text: string; confidence?: number | null }>;
+  duration_seconds?: number;
+  coverage: { status: 'sufficient' | 'partial' | 'insufficient'; truncated?: boolean; processed_pages: number; total_pages: number; issues: string[] };
+}
+/** What `readDocuments` answers, as plain JSON (see `SandboxMaterialExtraction`). */
+export interface SandboxMaterialDocumentBatch {
+  documents: Array<{ name: string; format: 'markdown' | 'html' | 'text' | 'csv'; content: string; coverage: { status: 'sufficient' | 'partial' | 'insufficient'; issues: string[]; truncated?: boolean } }>;
+  warnings: string[];
+}
 
 /** What a statement in the project's library takes and gives back across the channel: no BLOBs, no integers past 2^53. */
 export type SandboxSqlValue = null | number | string;
@@ -163,8 +183,8 @@ export interface SandboxSdk {
    */
   materials: {
     imageTextAvailable(): Promise<boolean>;
-    readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<import('../services/materials.js').MaterialDocumentBatch>;
-    extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<import('../services/materials.js').MaterialExtraction>;
+    readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<SandboxMaterialDocumentBatch>;
+    extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<SandboxMaterialExtraction>;
   };
   /** The platform's question card, action card and next-step row as html, in the call's language (`services.interaction`); nothing to declare. */
   interaction: import('./plugin-interaction.js').PluginInteractionClient;

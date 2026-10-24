@@ -70,7 +70,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | 新 | [#1200](https://github.com/molis-ai/molis-work/pull/1200) | U10刷新保留交互行 | W5原U10修复/独立main | full=[]；实际Claude并integration27/729b9d7c3 | 固定82fd/basef586，代码REVIEW6382734693/资源6382757918/独立TEST6382864207通过，实际LinuxU10首1/1+Security87/87及86/86无retry；P2真重排焦点仍FIX2后续。当前仅Coding376282→377227+945B/Verify红；最终批共享writer重测落APPROVED/生成，已起full40084374444不代表预算已修；C2 B2独占源继续 |
 
-| 新 | [#1202](https://github.com/molis-ai/molis-work/pull/1202) | batch26 sandbox顶1144+B1 1190，后按Claude并1181/1188修头 | mainf880；真实MAC回归必须修 | 原db4 full适用由TEST核；不得Linux绿盖Mac红 | 当前9d3b206f467abb888b26d2ae96e004f40af83b94、非Draft，Claude原claim6382880584；macOS SDK声明漏materials.d.ts（PG017P2b）报checks5/17/workflow41/42，已交原ac-sandbox-sched/1144，TEST核原始/修后覆盖。实际GraphQL autoMergeRequest=null/queueEntry=null、OPEN未合，固定修头尚待；1181/1188新fixture候选增量审验接续，真实最终head/必要CI/merge后才关源片 |
+| 新 | [#1202](https://github.com/molis-ai/molis-work/pull/1202) | batch26 sandbox顶1144+B1，按Claude后并1181/1188 | mainf880；Mac已知回归须核修后 | 原db4 full适用独立核；新SDK修头按最终组合验证 | 当前9d3b206f/basef880非Draft、原claim6382880584；auto/queue实核null。1144新8f6317687/6383003050已实际修声明材料/AbortSignal，REVIEW6383041525五文件PASS，非运行时schema；TEST待两阶段红绿/25file原始路径6383021485。1181新7533/1188新05054已薄REVIEW6382943872/6382944062 PASS，TEST精确新头原日志6382989612待补。最终head尚未含则不关闭原红，不以Linux绿盖Mac，正常CI/真实merge齐再关源片 |
 
 ## 3. 已合
 

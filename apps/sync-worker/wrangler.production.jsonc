@@ -1,0 +1,31 @@
+{
+  // Existing production resources. No credentials or Auth placeholder values belong here.
+  "name": "molis-work-production",
+  "account_id": "200c8682734af6babc8d4ae4afaff221",
+  "main": "dist/index.js",
+  "compatibility_date": "2026-09-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  // AUTH_ORIGIN, APPLICATION_ID, DEPLOYMENT_MODE and SYNC_WRITE_MODE are managed
+  // in the Worker's runtime Variables and Secrets, not in Builds variables.
+  "keep_vars": true,
+  // Enable hourly maintenance only after cloud Auth and attachment acceptance.
+  "triggers": {"crons": []},
+  "build": {"command": "node build.mjs", "watch_dir": ["src", "../../server/src/sync"]},
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "molis-work-server-db-production",
+    "database_id": "b10b81c2-24de-4345-abfc-539555173982",
+    "migrations_dir": "../../server/migrations/sync"
+  }],
+  "r2_buckets": [{
+    "binding": "FILES",
+    "bucket_name": "molis-work-server-files-production"
+  }],
+  "observability": {
+    "enabled": true,
+    "logs": {"enabled": true, "head_sampling_rate": 1, "invocation_logs": true},
+    "traces": {"enabled": false},
+    "issues": {"enabled": true}
+  }
+}

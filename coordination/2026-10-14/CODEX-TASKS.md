@@ -49,6 +49,10 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | **#1230（最先，挡 batch-34）** | 统筹 PR 评论（batch-34 全量 40127827015 shard 8、11） | **挡合并**：`announceProjectOpened` 在第一个 plugin 路由的请求上下文里跑了记调用行的 invoke，路由的 413/400 输入拒绝带上了补发的 `call_id`；`pages-import` W5-01-PAGES-03 和 `document-plugins-error-model` 6 条红。要：补发不改变触发它的路由的调用身份；两个文件断言不改照样过；新增「首个路由被拒无 call_id／无头」用例；隔离做法不依赖 typed 还是动作（batch-35 会改成动作）。一次推送 | 待修；修完统筹并进 batch-34 重跑全量 |
 | #1242 | ac-review 一轮可合，固定 `6c91a74ec`（同步 main 后，PR 评论 6389022716） | 不挡合并：`coding-plugin/implementation.md:126` 还提 `registerCapability`；r8 片状态句；统筹 PR 评论裁「HostCapabilityDefinition 删名接受」，`slices/r8-agent-host-actions.md` 的裁定措辞跟着改。三项一次推送 | 待修；进 batch-35（`full` 非空） |
 | #1243 | ac-review 一轮可合（9c4adba04） | 不挡合并：PG-056（`privileges.md:235`）、`side-shelf/spec.md:62` 还引着搬走的代码 | 待修；进 batch-35 |
+| #1245 | ac-review 一轮可合（f965b04a8） | **统筹升挡合并**：Inbox 条目的对象种类按插件号隔开（写入只动本插件号名下，读照受众带主人；跨插件加、删各补一条拒绝用例），切片措辞改准。S-66 暂定号不用改 | 待修 |
+| #1246 | ac-review 一轮可合（80e5ee7d1） | **统筹升挡合并**：重装「不留数据」且清理失败过的记录，先重清，清不掉带码拒绝；补两条用例 | 待修 |
+| #1244 | ac-review 一轮可合（b0d881314） | 本 PR 内修：关闭先 `closeIdleConnections`、等不到再 `closeAllConnections`；补「开着长连接停止，退出 0、不记超时」用例 | 待修 |
+| #1247 | ac-review 一轮可合（3cd354a5c） | `writeJudgment` 每条规则构造定义（很小，可写理由不改）；作者正文补 affected/full 结果 | 待看 |
 
 | 序 | 独立片 | 状态 |
 | --- | --- | --- |

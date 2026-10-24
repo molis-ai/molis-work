@@ -30,6 +30,16 @@ export function pluginSlotScope(install_id: string): string {
   return pluginBindingScope({ install_id });
 }
 
+/** A deleted project's `per_record` bindings, of every plugin (S-57 extension X4); a Home that never saved an account has none. */
+export function forgetProjectConnectionBindings(home: string, project_id: string): void {
+  if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.forgetProjectBindings(project_id));
+}
+
+/** An installation's `per_record` bindings in a project it is uninstalled from (S-57 extension X4). */
+export function forgetInstallationProjectBindings(home: string, install_id: string, project_id: string): void {
+  if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.forgetInstallationProjectBindings(install_id, project_id));
+}
+
 /** A target's scope: an installation slot's, or a `per_record` slot's, which is also the call's project's and the record's (S-72 provisional). */
 export function targetScope(target: Pick<PluginConnectionTarget, "install_id" | "project_id" | "record_key">): string {
   return target.project_id === undefined && target.record_key === undefined ? pluginSlotScope(target.install_id)

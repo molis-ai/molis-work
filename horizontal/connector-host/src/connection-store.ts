@@ -1,5 +1,5 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { parsePluginBindingScope, pluginBindingErrors } from "./plugin-binding-scopes.js";
+import { installationProjectBindingsWhere, isPluginBindingScope, parsePluginBindingScope, pluginBindingErrors, projectBindingsWhere } from "./plugin-binding-scopes.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -344,7 +344,7 @@ export class ConnectorConnectionStore {
     // A plugin's scope is written only by `pluginBindingScope` (plugin-binding-scopes.ts, where the encoding is described):
     // `plugin-installation:<install>`, or `…/project:<project>/record:<key>` for a `per_record` slot. One that does not read back is refused.
     const scope = requiredText(input.scopeId, "作用域", 512);
-    if (scope.startsWith("plugin-installation:") && !parsePluginBindingScope(scope)) throw pluginBindingErrors.scope_invalid("插件连接槽的作用域无效");
+    if (isPluginBindingScope(scope) && !parsePluginBindingScope(scope)) throw pluginBindingErrors.scope_invalid("插件连接槽的作用域无效");
     const plugin = requiredText(input.pluginId, "插件", 160);
     const slot = requiredText(input.slotId, "用途", 160);
     this.db.prepare(`INSERT INTO connector_bindings (scope_id,plugin_id,slot_id,connection_id,updated_at)
@@ -356,6 +356,21 @@ export class ConnectorConnectionStore {
     const row = this.db.prepare(`SELECT c.* FROM connector_bindings b JOIN connector_connections c USING(connection_id)
       WHERE b.scope_id = ? AND b.plugin_id = ? AND b.slot_id = ?`).get(scopeId, pluginId, slotId) as Row | undefined;
     return row ? connectionFromRow(row) : null;
+  }
+
+  /** A deleted project's `per_record` bindings, of every plugin (S-57 extension X4); the accounts themselves stay. */
+  forgetProjectBindings(projectId: string): number {
+    const match = projectBindingsWhere(projectId);
+    return match ? Number(this.db.prepare(`DELETE FROM connector_bindings WHERE ${match.where}`).run(...match.parameters).changes) : 0;
+  }
+
+  /**
+   * One installation's `per_record` bindings in one project, when it is uninstalled there (S-57 extension X4). Its installation slot's
+   * binding is shared by every project the same installation id is in, and stays until the person unbinds it.
+   */
+  forgetInstallationProjectBindings(installId: string, projectId: string): number {
+    const match = installationProjectBindingsWhere(installId, projectId);
+    return match ? Number(this.db.prepare(`DELETE FROM connector_bindings WHERE ${match.where}`).run(...match.parameters).changes) : 0;
   }
 
   unbind(scopeId: string, pluginId: string, slotId: string): void {

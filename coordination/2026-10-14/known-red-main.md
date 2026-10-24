@@ -12,7 +12,7 @@
 
 | 文件 | 带进来的 PR | 原因类别 | 谁修 | 依据 |
 | --- | --- | --- | --- | --- |
-| `tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01） | #1127（`c0b48111b`，10-24 03:33 合入；隔离页 link 通道的设置地址改为发 `molis-work:open-settings-path` 打开设置面） | 断言过期，或产品回归（待定：插件页里点 `/settings/models` 原先打开首页模型设置弹窗，加载失败时有英文「Can't reach…」和 Retry；现在改开设置面，用例等的 `[data-home-model-settings]` 不再出现） | Codex（#1127 的作者线），统筹 10-24 05:40 派 | batch-1024-20 分片 10 两次都红（run 40061024962）；统筹在 main `04435950a` 本机复现同一处超时；batch-19（基底 `aa4de404f`，不含 #1127）这份是绿的 |
+| `tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01） | #1127（`c0b48111b`，10-24 03:33 合入；隔离页link改发`molis-work:open-settings-path`） | 产品回归：独立`/plugins/issues`仅装Home原设置dialog，没有工作台settings-directory；新事件无人消费，真实设置请求`loads=[]`。不能仅更换等待选择器 | Codex专职修复1（01a1682d-0a26-7522-b2b2-4446d904a7b7），root认领6380097295/裁定6380173758，唯一writer在修 | batch20分片10首跑/重试都红；原main04435950a及鲜main89c9a7194复现line69；修后须保留S47禁导航，Home现有宿主限同源三路径消费事件，证明英文错误/真实Retry/关闭/草稿/拒绝；待PR独立评审测试及实际合入再移除 |
 
 
 2026-10-23：[C0修复 #1136](https://github.com/molis-ai/molis-work/pull/1136) 已于21:33:38 UTC合入 main `15b6566486282aef7fa4543251f6555bcf139510`，Codex现场核对GitHub合并状态及main历史；按统筹CODEX-TASKS的已完成裁定移除两条macOS已知红及机读项。创建/G1/G2现共用完整SDK声明集合，解决checks与workflow的W2-18-BUILDER-LATE-01同一声明依赖缺失。作者报告macOS checks17/17、workflow42/42；Codex核过实际diff与全部CI，未独立读取作者本机原始日志，不把Linux跳过说成macOS实测。

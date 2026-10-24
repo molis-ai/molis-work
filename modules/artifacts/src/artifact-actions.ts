@@ -8,7 +8,7 @@ import type { ExternalDocumentSource, ModelRequired } from "./artifact-document-
 import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 
-import { text, id, version, object, array, nullable, reference, consumerTypes, record } from "./artifact-action-schemas.js";
+import { text, id, version, object, array, nullable, reference, consumerTypes, record } from "./plugin-action-schemas.js";
 const selection = { selected: nullable(record), requested: nullable(reference), compatibility: nullable(object({ artifact: reference,
   consumable: { type: "boolean" }, reason: { enum: ["compatible_consumer", "consumer_missing", "artifact_unavailable", "artifact_archived"] } })) };
 const browser = object({ versions: array(record), ...selection });

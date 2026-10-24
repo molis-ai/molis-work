@@ -4,6 +4,12 @@
 
 A2b 的取舍（受「插件不能 import 模块」限制，插件在 A6 删除前仍要自己的 Manifest 与登记）：模块持有完整的 `artifact-actions.ts`（动作清单加处理器）、`artifact-provider.ts`（`ARTIFACTS_PROVIDER`：id、名称、版本、签名）及其依赖；插件只留动作清单（`actions.ts`）、`browser-view.ts`（页面视图类型与版本路径）、Home 存储登记与项目删除清理（`original-store.ts`）和界面。两份清单与提供方字段由 `tests/plugin-artifact-schemas.test.ts` 对照（RAC-414），A6 删插件时重复随之消失。
 
+A2b 一轮修复合同（FIX6，2026-10-24，首评 `6390053800`）：只收齐本轮四项有效意见，原 FIRST 结论保留。S-55 的 `originalFileOf` 引用改指模块现址，HOME-DATA 对应行改用现行 `openArtifactOriginal`。全仓核对模块新增的 `artifactsProjectData`、`purgeArtifactOriginals` 只有本测试的 label 对照，没有生产消费者，删除这两项声明及出口；项目删除继续由插件已登记的 `artifactsProjectData.purge` 执行，不提前做 A6。模块的 `consumerTypes` 合入已有 `plugin-action-schemas.ts`，动作处理器复用它，删除第三份 schema 文件。
+
+- **RAC-413（补充）**：宿主 `src/` 的 TypeScript 导入检查递归到所有子目录；不新增或修改门禁规则、阈值。模块与插件的公共 schema（含 `consumerTypes`）继续相等。
+- **RAC-414（补充）**：临时 Home 中，以包含 `.` 的非空合法项目 id 经模块 `storeArtifactOriginal` 写入非空原件，核对实际文件和字节，再经插件真实删除声明清理；实际原件目录消失，另一项目的原件仍可读。17 个动作、消费者 schema、提供方与存储声明的原有对照保留。
+- **范围与验证**：仅相关模块文件、原 schema 回归、两处精确文档引用和本稿；不改其他合同、Host 搬移、C2 stdio argv、真实 Home 或后续片。整体 `pnpm build` 走公共单槽，之后跑模块 README 与本题影响用例、真实 merge-base health、boundary、动作快照、资源及推前 fetch/secrets。原作者 123 文件首败和未跑三份浏览器的说法交 TEST 按风险核证据，本题不重跑该全集或另起 full；shared-core、assembly、spans-packages 的整合全量仍交 Claude 唯一组批。
+
 验收编号：RAC-410～429。待办号：BL-575～584。安全不变量先写 S-69、S-70（main 现最大 S-58，在途到 S-68），合入时由统筹核连续。管 `privileges.md` 的 PG-077、PG-078、PG-079、PG-096、PG-097、PG-107；与 PG-060（W5-06）、PG-085（Characters 进 `modules/characters`）、PG-090、PG-001（ac-trust 的提供方身份）的衔接写在 §3.9。本片不改 `privileges.md` 状态列。
 
 方向来自统筹 2026-10-23「成果库去插件身份，平台事实一族」和用户 2026-10-18「插件不分官方、个人、创作台生成还是第三方，待遇一样」：成果库不是一个恰好内置的插件，而是平台的一项事实（每个项目都有、人要留存和引用的固定版本）；别的插件和它的关系，只靠自己 Manifest 里的声明。

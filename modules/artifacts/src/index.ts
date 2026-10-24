@@ -153,6 +153,6 @@ export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, 
 export type { ArtifactBrowserView, ArtifactBrowserRoute } from "./artifact-browser.js";
 export { importArtifactDocument, documentErrors, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, EXTERNAL_DOCUMENT_SOURCES } from "./artifact-document-import.js";
 export type { ArtifactDocumentImportPorts, ArtifactOriginalFile, ImportedArtifactDocument, ExternalDocumentSource, ModelRequired, OfferedOriginal } from "./artifact-document-import.js";
-export { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, ARTIFACTS_HOME_STORE, artifactOriginalPath, artifactsProjectData, openArtifactOriginal, purgeArtifactOriginals, storeArtifactOriginal } from "./artifact-original-store.js";
+export { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, ARTIFACTS_HOME_STORE, artifactOriginalPath, openArtifactOriginal, storeArtifactOriginal } from "./artifact-original-store.js";
 export type { StoredArtifactOriginal } from "./artifact-original-store.js";
 export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./artifact-goal-context.js";

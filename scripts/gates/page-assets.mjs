@@ -238,9 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Explicit adoption of old history text reuses the history panel, confirmation and update/CAS retry.
-  // The user approved #1155's +480 B on 2026-10-24, only against expiry-renewal parent #1154.
-  "/assets/molis-work-workbench.js": [1207694, 1208174],
+  // Fixed-selection batch management reuses confirmation, lists, history and DOM nodes (49 B saved in final reuse).
+  // The user approved #1160's three exact increases on 2026-10-24, only against history-text parent #1155.
+  "/assets/molis-work-workbench.js": [1208174, 1212968], // +4794 B
+  "/assets/molis-work-settings.css": [996117, 996605], // +488 B
+  "/assets/molis-work-workbench.css": [1614554, 1615042], // +488 B
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

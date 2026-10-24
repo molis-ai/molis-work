@@ -1,6 +1,6 @@
 # W5-16：Home 离线快照与恢复
 
-状态：Codex C2 实施中；B1 #1190 `bc0160f06` 经独立 REVIEW/TEST 核收，已随 #1202 实际合入 main `645853cb6`（#1190 本身关闭而非单独 merge）；B2a（Runtime 备份密封、只读 vault 预检、旧备份维护）已随 #1222 进入 main；B2b（CLI 私有状态密封）从 main `0060920a` 实施。早期 Home 互斥及完整快照/恢复尚未实现。负责人：Codex 实现2。目标是完整命令功能可用，工程证据、临时 Home 实操与一骏本人验收分别结算。
+状态：Codex C2 实施中；B1/B2a 已实际进入 main，B2b #1239 固定 `5e1d8a29156509d6fc51f75fd5bcc17316e3f225` 已独立核验、待统一集成。A #1254 固定 `19ccdfa8ed41fee58038e9cedcd43abf3f48e65d` 已交 Claude 首评及 TEST，原树冻结；本后续树组合这两个固定依赖，实现完整 snapshot 命令。完整 restore 尚未实现，C2 保持进行中。负责人：Codex 实现2。目标是完整命令功能可用，工程证据、临时 Home 实操与一骏本人验收分别结算。
 
 ## 目标、依据与交付顺序
 
@@ -14,6 +14,28 @@ Claude 负责整线方向、优先级、跨线依赖与统一 full。2026-10-24 
 4. 完整快照，再完整恢复；可以分 PR，但上述总范围保持。本片交付不把 C2、W5-16 或防腐线标完成。
 
 C1 RAC-113 以 #1183 固定并释放后，B1 已按约定交 REVIEW/TEST、释放给修复2的 #1112 短片，之后回到 B2。B1 在统一 #1202 中落定 S-61，真实前序 S-59/60 随沙箱同批进入，不插占位或放宽门禁。B2a 固定 head 后也立即直交 REVIEW、TEST、流水线并释放源码，不等待 B2b、评审或 CI；后续单 writer 由流水线按真实依赖接续。本片沿已有 S-12 增补密钥/备份拒绝，不另抢新编号。
+
+## 完整 snapshot 命令（2026-10-24 当前实施合同）
+
+本片后续树以 actual main `52560f32c5dec529315d11eff95932c2ea1d7dff` 组合 A `19ccdfa8`、B2b `5e1d8a29`，组合基点 `2b7d8133541deaa9d6ad79eaf5ac0e5ae9a19f97`；不修改冻结来源。交付 `molis-work home snapshot --to <新目录> [--home <原Home>] [--json]`。Home 解析沿既有入口，必须已存在；目标在 Home 外且尚不存在，父目录已存在。命令不创建业务 Host、不启动服务、不在线暂停；先取得同一 `agentRuntimeDirectory(home)` 的 opaque lease，再检查业务存储，busy 时不建立输出或暂存。锁与侧车在任何内容读取、摘要或递归前排除，原 inode 与父目录保持。
+
+唯一集合仍为 `homeStores()`：在原条目旁增加快照分类、子路径排除、原 key 依赖和 SQLite 版本检查。带 Home 的枚举由原 installed-library owner 读取账本纳入实际第三方 Home 库；不另建 CLI 库名单。递归发现必要文件和实际分区，SQLite 通过文件头识别并用 backup API 包含最新已提交 WAL，侧车不复制。登记库核当前基线，Catalog 经原 metadata owner 核 owner/schema；项目库记录主版本和全部插件 ledger 子版本，子版本仅由建表 owner 的窄只读端口返回，不在 Host 复制 SQL。未知库、无法分类的内容、坏库、链接和维护标记整次拒绝；未使用的缺失存储记 absent，不初始化业务库。
+
+普通内容保留相对路径与原权限；SQLite 输出记录 actual user_version、owner 子版本、schema 形状、integrity_check/foreign_key_check 和最终摘要，文件记录大小与摘要，目录记 mode。全部来自同一持锁离线窗口，不正则清洗用户正文。vault 只接受现行密文，Runtime 备份引用经 B2a owner 验证，CLI `.home` 只经 B2b 整批密封，不能 raw 复制。SDK、旧 Sessions、构建 run 的 key 只记同 Home 路径与身份摘要，不导出、不补造。书签按 Root 已定边界：显式 Home 内 `directory-access/bookmarks.json` 原字节及权限使用现有 Home payload owner 密封，限原机器原路径；OS 不接受时由用户重选目录，不刷新或伪造授权。Home 外 AppData 作为外部依赖，不读取或复制。已证派生项与浏览器 profile 排除，明确重新登录。
+
+暂存为目标父目录中的随机 0700 sibling，输出文件为 0600，原 mode 仅记在 manifest；无明文秘密暂存。全部 payload、SQLite 校验和刷盘成功后，才写唯一 manifest 并刷盘，原子 rename 到尚不存在的目标。manifest 格式/产品版本、原 Home、owner 集合、文件和库版本、依赖及 exclusions 是恢复输入，不另造完成标记。普通失败清理本次暂存，无成功目录；被杀只可能留下无完成语义的私有 sibling，重试使用新目录，核路径后可清残留。rename 成功而父目录刷盘失败须报“已发布，持久化未确认”和位置，不伪称零产物或删除已发布结果。已有目标不得覆盖，cleanup 不删他人目录。
+
+storage 只负责严格文件技术、SQLite backup/完整性；registry、编排与 CLI 接线归 local-host；installer、Catalog、installed-library 与插件库 ledger 由原 owner 提供只读检查。只追加必要公开导出/类型并同步 API，不新增动作、MCP、权限、加密算法、依赖、门禁或调度。使用有真实内容的临时 Home；整体 build 走公共槽，full 仅 Claude 排期。真实 Home、Keychain、网络/凭据配置均不操作，不重做 A/stdio/Memory。
+
+| 编号 | 本片验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-104-S-01 | 唯一登记含实际 owner、动态 Home 库和项目/插件/Alchemist 分区，必要文件保存，无未知静默跳过 | 有内容 Home，逐 owner 用原 reader 或 SQLite 实查读回，和实际 registry 比较 |
+| RAC-105-S-02 | Host/Agent 与命令双向互斥，失败/退出/被杀可重取，锁和父目录 inode 保持 | 真实子进程/Host、持锁屏障、拒绝前后业务及输出对照 |
+| RAC-106-S-03 | backup 含 WAL 最新提交、排除未提交，主/子版本、完整性和摘要正确；坏库/错版拒绝 | 保持 WAL writer 连接，独立 reader 实查备份事实 |
+| RAC-104-S-04 | vault、Runtime、CLI 私有状态和书签符合 owner 密封合同，raw key/token/锁不外带 | 合成秘密扫描全部产物，原 key 下由 B2 owner 打开核字节/mode；缺 key/原文/维护拒绝且零业务写 |
+| RAC-109-S-05 | 不覆盖目标、不越界、不跟随软/硬链接，中断无虚假完整产物，可重试 | 真实 I/O 故障/kill、完整 CLI 子进程和源/输出对照；文档给恢复步骤 |
+
+RAC-107/108 的统一 restore 发布、回滚和重启续写仍归本 C2 后续；此处仅约定共享输入格式和原路径/key 约束，不把 owner 解密或手动读回称为 restore 命令完成。
 
 ## B1：只存哈希的邀请合同
 
@@ -124,7 +146,7 @@ S-12 同行补 B2b 的密钥引用、用途隔离、Home/owner/安装/来源绑�
 | --- | --- | --- |
 | `projects` | local-host 的 Catalog、项目库及项目插件数据库 owner | 普通库与必要项目文件；逐库版本/子版本和 WAL backup；模型连接只存引用。项目绝对路径必须保持 |
 | `logs`、`backups` | local-host；installer 的预留备份目录 | 日志不备份；`backups` 没有现行写者，空目录可省，未知非空内容必须拒绝分类，不能默认为缓存 |
-| `sessions` | private-work-context，`sessions/content` | 库与密封 blob；`content.key` 只记同 Home 原文件依赖，不能导出/替换 |
+| `sessions` | apps/local-host，SC-4 退役登记 | 仅持离线 lease 的通用快照技术读取 SQLite、核 owner/meta 版本 7 与完整性；不读 Session 业务表、不恢复业务 reader。密封 blob 同点复制，`content.key` 仅原 Home 依赖，不导出/替换 |
 | `plugin-runtime`、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`context-onboarding`、`plugin-originals` | local-host 各当前库声明 | 普通事实、授权/声明与配置；平台凭据为引用，库按各 owner 当前基线备份 |
 | `connectors` | connector connection/protocol owner，现基线 2 | 凭据为 `credential_ref`，依赖 vault；受管 CLI 的 `installation_id` 与 runtime 安装状态同点保存 |
 | `runtime` | connector-tool-install/runtime/cli-launch | 安装所有权与固定版本记录正常备份；私有 `.home` 由 B2b 密封，包、共享运行时和已证缓存/临时排除 |
@@ -141,7 +163,7 @@ S-12 同行补 B2b 的密钥引用、用途隔离、Home/owner/安装/来源绑�
 | `plugin-builder` | plugin-builder 设计/构建/发布 owner | 源码、设计、发布及 run 状态保留；每个 run 的 `storage.key` 只为原 Home 依赖；已证构建缓存可重建 |
 | `cache`、`git-operation-details.json` | local-host 缓存与 Git 审查细节 | cache 可重建；Git 细节是普通事实，与 Agent 审查回执同点备份 |
 | `config/onboarding.json`、`config/project-arrival.json`、`config/mcp-tools.json`、`config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | 各 Home 配置 owner | 普通设置、可见工具和授权引用；保留必要配置，不复制 Home 安装控制令牌 |
-| `directory-access` | desktop 的 `DirectoryRecord {path, bookmark}` | Root 已核为必要敏感原件：Home 内的 bookmark 须密封并按原路径/字节恢复，OS 决定是否有效，失效仍须重选；AppData 外只列外部依赖，不按普通配置导出或静默排除。该 owner 实现仍待接续 |
+| `directory-access` | desktop 的 `DirectoryRecord {path, bookmark}` | 显式 Home 内原字节/权限由现有 Home payload 密封，只回原路径；OS 决定是否有效，失效仍须用户重选，不刷新或伪造授权。Home 外 AppData 仅列外部依赖，不读取或复制，不按普通配置导出 |
 
 文件依赖只留 owner、同 Home 原路径/后端和必要的身份摘要；raw master、SDK key、会话 key 与构建 run key 不进备份。浏览器是现有明确排除；目录授权仍有上表的 owner 核实项，其他独有事实不能借“派生”漏备。
 

@@ -315,10 +315,10 @@ export class MolisWorkProjectCatalog {
   ): MolisWorkRuntimeContextSuggestionRejectionResult { return this.runtimeContexts.commands.rejectRuntimeContextSuggestion(input); }
   bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution { return this.runtimeContexts.commands.bindRuntimeContext(input); }
   unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult { return this.runtimeContexts.commands.unbindRuntimeContext(input); }
-  async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<MolisWorkRuntimeContextResolution> {
+  async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput, beforeEffect: () => void = () => undefined): Promise<MolisWorkRuntimeContextResolution> {
     return this.runtimeContexts.createProjectAndBindRuntimeContext(input, {
-      registerProject: (record, eventType, actorId) => this.insertProjectInTransaction(record, eventType, actorId),
-      provisionCreatedProject: (input, commit) => this.projectFiles.provisionCreatedProject(input, commit),
+      registerProject: (record, eventType, actorId) => { beforeEffect(); this.insertProjectInTransaction(record, eventType, actorId); },
+      provisionCreatedProject: (input, commit) => this.projectFiles.provisionCreatedProject(input, commit, beforeEffect),
     });
   }
   listRuntimeContextBindingEvents(

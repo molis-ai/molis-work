@@ -1,6 +1,5 @@
-import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { hasStorageBusinessFiles, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryExecutionControl, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -203,7 +202,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   // is started for it: only the ledger forgets the project.
   let closed = false;
   const executes = () => ports.executes() || runtimeHere;
-  const runtimeExists = () => existsSync(agentRuntimeDirectory(ports.homeDirectory));
+  const runtimeExists = () => hasStorageBusinessFiles(agentRuntimeDirectory(ports.homeDirectory));
   const elsewhere = memoryOwnerWithoutService(ports.homeDirectory);
   const whileRuntimeIsOurs = async <T>(work: () => Promise<T>): Promise<T> => {
     try { return await work(); }

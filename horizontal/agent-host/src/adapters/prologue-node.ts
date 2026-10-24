@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { isAbsolute } from "node:path";
 import { BUILT_IN_ADAPTERS, createAdapterRegistry } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics, AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -26,6 +27,7 @@ import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 import { createPrologueSurfaces, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { PrologueAgentAdapter } from "./prologue.js";
+import { agentErrors } from "../errors.js";
 export { PrologueCredentialBridge, type PrologueCredentialHost } from "./prologue-credentials.js";
 export type { PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 export { SUBAGENT_DEFAULT_TURNS } from "./prologue-node-port.js";
@@ -86,26 +88,35 @@ export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
 ): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
   surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
-  const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
+  if (typeof options.storageRoot !== "string" || !isAbsolute(options.storageRoot)) {
+    throw agentErrors.storage_root_invalid("Agent 执行服务需要明确的绝对存储目录；不会回退到当前目录或用户默认存储");
+  }
+  const release = acquirePrologueStorageOwner(options.storageRoot, options.storageOwner);
+  const cleanup: Array<() => unknown> = [];
   try {
-    const adapter = await initializePrologueNodeAdapter(options);
+    const adapter = await initializePrologueNodeAdapter(options, close => { cleanup.push(close); });
     const close = adapter.close.bind(adapter);
     let closing: Promise<void> | undefined;
     adapter.close = () => closing ??= (async () => {
       await close();
       release();
-    })();
+    })().catch(error => { closing = undefined; throw error; });
     return adapter;
-  } catch (error) { release(); throw error; }
+  } catch (error) {
+    const failures: unknown[] = [];
+    for (const close of cleanup.reverse()) { try { await close(); } catch (failure) { failures.push(failure); } }
+    if (failures.length) throw new AggregateError([error, ...failures], "Agent 初始化未完成，资源清理失败；仍保留存储所有权");
+    release(); throw error;
+  }
 }
 
-async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions) {
+async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions, onFailureClose: (close: () => unknown) => void) {
   // Async context holds only a trusted denial guard, never serializes it in a Run.
   const dispatchGuards: DispatchGuards = new AsyncLocalStorage<() => void | Promise<void>>();
   const host = createNodeHost({
-    // This process holds the storage root's owner lock (acquirePrologueStorageOwner) for its whole life, so a write claim
+    // This runtime owns or borrows the storage root's actual owner lock for its whole life, so a write claim
     // found there at start is one a crashed owner left: the Host clears it instead of refusing that record for ever.
-    ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot, exclusiveOwner: true }),
+    storageRoot: options.storageRoot, exclusiveOwner: true,
     resolveHost: resolveModelHostname,
     beforeNetworkDispatch: async () => { await dispatchGuards.getStore()?.(); },
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
@@ -123,6 +134,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
   const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers);
+  onFailureClose(async () => { checks.close(); await runtime.shutdown(); });
   checks.open();
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
   // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
@@ -141,26 +153,32 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });
+  onFailureClose(() => mcpLibrary.dispose());
   const surfaces = () => surfaceHost;
   const platformMemory = createPrologueMemory(runtime, effects.bind);
   const gitReviews = createNodeGitReviews(options, host, runtime);
+  onFailureClose(() => gitReviews?.close());
   const projectWork = createNodeProjectWork(options, host, runtime, state);
   const workGraphs = createWorkGraphs(runtime, index);
   // A part's round that ended while the Host stopped before its step's end was written: its step ends now (§6.0n).
   await workGraphs.reconcile();
   const { messages, waitsPort, stepBoards } = createNodeCoordination(runtime, index, state, projectWork);
+  onFailureClose(() => { stepBoards.close(); messages.close(); waitsPort.close(); });
   const reviews = { runtime, host, state, index, options, surfaces, projectWork };
   const pendings = createPendingPort(reviews);
   const remember = createReviewMemory(reviews);
   const approvals = createApprovals(reviews, pendings, remember);
   const detachReviews = restoreReviewHistory(reviews, pendings, remember);
+  onFailureClose(() => detachReviews?.());
   const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex: index.read, readResource: ref => readResource(runtime, ref),
     remember: (id, intent) => index.update(id, saved => { (saved.rewinds ??= []).push(intent); }),
     decision: (id, pendingId, receipt) => index.update(id, saved => {
       (saved.review_decisions ??= {})[pendingId] = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note };
     }),
   }) : undefined;
+  onFailureClose(() => checkpoints?.close());
   const { inference, createBuilderAgent, close: closeInference } = createNodeInference(runtime, options, credentials, dispatchGuards);
+  onFailureClose(closeInference);
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
   const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs,

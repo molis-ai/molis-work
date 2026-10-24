@@ -2319,3 +2319,21 @@ RAC-116本地结果：隔离`/private/tmp/molis-assistant-logging-policy-fixture
 允许修改：SDK现composition与Node公开出口、必要Memory共享装配、相关模块Contract/README/唯一队列和直接行为测试；Molis现AgentHost维护桥、Home采用编排、必要公开类型/SDK受控包和原文档。不改普通Runtime恢复状态机、Knowledge/Search合同、资源门/CI或真实Home。源读取半段完成后在同一SDK分支继续目标维护，合为一份PR；App仍汇入#1101。
 
 验收在原MEM-40上补直接证据：非空target的未选board/queue/wait/effect/parked及eligible接续，在open/明确选项清理/close后正文与版本不变且没有新派发或Session输入；选中Memory/Candidate/Session沿原主人删除，未知、撤权、取消、关闭与原版本冲突拒绝，已经提交的部分能按原决定恢复。真实T0/T1/T2全主人旅程、WAL及最终验收尚未运行，不由新factory局部测试代替。
+
+### 基础PR最终CI与首败边界（2026-10-25）
+
+#1064准确头`9e055220f5a20d7b14ad72daa7879d871be0da7e`的普通CI `40131875487`与Full suite `40131872720`已完成；统筹逐个读取16份未截断分片日志，合计1,406/1,406文件通过，其中三个文件仅经原内置重试通过。interaction-no-crosstalk两例CDP releaseObject/callFunctionOn超时，pages-clipboard首例未到两块选中条件，resident-management-actions首例读取到undefined操作号，均保留原首败，不宣称首轮全绿。新增setViewport不在前两路径执行；interaction可信点击夹具有相关变动，不能把首败归为旧问题或环境，Pages缺现场选区/按键轨迹，两项原因仍UNKNOWN。
+
+resident的受控真实CLI/公开目录探针证明原测试通用availability观测口会收进没有operation scope的合法目录读取，取末项作为CLI编号不可靠；CLI快照正确且真实受保护调用取得合法UUID。此测试及相关主链相对准确main584无diff；本次CI具体追加者仍UNKNOWN，未证明Memory或CLI产品回归。报告`/private/tmp/molis-memory-foundation-9e-retry-assessment-20261025.md`，探针`/private/tmp/molis-memory-foundation-9e-resident-metadata-probe-20261025.log`；首个探针的错误手填权限也保留为夹具失败。未改生产、测试、超时、重试或隔离名单，未重跑全套。
+
+GitHub当前返回#1064可合并，reviews与review threads为空，不等于人工批准；最终Full聚合注解只有runner镜像迁移notice。原可选Linux probe skipped及历史macOS三项skip仍是未验证，旧93b Cloudflare失败仍缺原始日志、影响未销账，#1064尚未合并。新的App实现继续集中#1101；本记录不改变Foundation被验证的提交，也不替代App最终完整动线或用户验收。
+
+### 项目删除的Character归属遗漏（2026-10-25，P1待修）
+
+准确fe686生产的公开MemoryService.propose先持久化SDK候选，后保存App候选账；首次角色在后一事务失败时，owners/candidateOwners都可能为空。真实Node/SQLite、原policy与公开服务探针已重启读回该绑定候选，实际previewProjectMemoryPurge只得到空的本人/项目集合，applyProjectMemoryPurge正常返回而候选未变；不是修复通过。Catalog随后可能complete由实际调用链推出，未冒称完整Catalog实操。报告`/private/tmp/molis-memory-session-purge-memory-owner-scope-20261025.md`及`/private/tmp/molis-memory-session-owner-probe-20261025/project-scope.log`。已知owner的SDK101预览通过不能关闭这个选集完整性问题。
+
+原propose marker虽早于SDK持久化，但只有哈希owner而无project/Character关系；SDK canonical meta同样没有这份App关系。默认long/short候选共用同一顺序，因此只补Session绑定扫描不能覆盖整个项目。不得逆hash、从source正文或当前活动角色猜归属；不能把不可判的历史原件当不存在。
+
+先冻结可独立证明的最小防新增修复：Character proposal在SDK写入前，复用现memory_owners及commitApproved的noteOwner做法，保存可信placeOf/caller.character给出的project与subject；失败不进入SDK，SDK后账注失败仍保留该准确映射。允许修改现MemoryService及必要同模块内聚代码、相关直接行为测试和本spec，不新增registry、第二owner真相、迁移或权限放宽。验收覆盖首次ledger失败后重开可找到原SDK候选及正确项目归属、原操作重试不重复创建、owner保存失败则SDK零写、其他项目不受影响；不以此单项修复宣称历史全覆盖或项目完整删除通过。历史未知归属与单Session完整选择的合同继续核对，当前P1保留。
+
+MEM-40桥接补充：沿原exclusive owner先取得唯一写权，再通过仅用于建立adopting的同步窄回调持久阻断，随后才打开SDK maintenance；锁忙不得提前改ledger。回调失败/返回异步值应在SDK初始化前拒绝并释放已得owner；close失败不得发布或提前释放。只读previewMemoryHomeAdoptionCleanup改走inspection的同名旧cleanup语义，复用原decoder/权限，不能换成previewPurge的不同选择集合，也不能借只读预览启动writer。源/目标协议及验收仍为前两段MEM-40合同；该接线尚未实现。

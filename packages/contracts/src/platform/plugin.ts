@@ -46,6 +46,7 @@ export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
+export * from "./plugin-attention.js";
 export type { PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration } from "./plugin-scheduler.js";
 export type { PluginFilesClient, PluginFilesDeclaration } from "./plugin-files.js";
 export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
@@ -114,6 +115,10 @@ export interface PluginHostServices {
   /** Public metadata of installations in this activation's scope. */
   readonly notifications?: import("./plugin-notifications.js").PluginNotificationClient;
   readonly installations?: import("./plugin-installations.js").PluginInstallationClient;
+  /** The project's Attention entries (the Inbox's); present with `attention:read` or `attention:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
+  readonly attention?: import("./plugin-attention.js").PluginAttentionClient;
+  /** The project's Context Ledger edges; present with `context-ledger:read` or `context-ledger:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
+  readonly contextLedger?: import("./plugin-attention.js").PluginContextLedgerClient;
   /** Awaited, owner-bound Agent work through the Home's shared runtime. */
   readonly agents?: import("./plugin-agents.js").PluginAgentClient;
   /** One finite continuation of an accepted action; business jobs and recovery remain plugin-owned. */
@@ -336,6 +341,8 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
+  /** v2: the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
+  attention?: import("./plugin-attention.js").PluginAttentionDeclaration;
   /** v2: places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
   connections?: import("./plugin-connections.js").PluginConnectionsDeclaration;
   /** v2: kept jobs and commands the platform may wake for this installation. */
@@ -505,7 +512,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

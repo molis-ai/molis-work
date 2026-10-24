@@ -408,7 +408,7 @@ P1 的 import 使用有界批次，先完整校验该批，再在 Host 可证明
 | M3 分类管理界面 | Molis 界面负责人；现有 memory 设置、样式/翻译和浏览器用例 | C0、Q0 后可按冻结 API 开发；真实验收依赖 M1、M2 | 非空场景下分页/统计、来源/期限/状态、改类与分类开关、固定预览的批量停用/遗忘、冲突/部分失败；保留历史/撤销/导出。MEM-04、08～09、15、17～18、28、34、39 |
 | I0 集成与首期验收 | 统筹；SDK 装配/公开快照、共同包交付、集成回归与本 spec；修复回到对应任务负责人 | S1～S3、M1～M3 的实际产物 | 干净包公开入口、真实 Host、完整产品动线、B2 成对回放、人工质量复核、用户验收分层记录；汇总全部 P0 责任，不以 required CI 代替产品/效果证据 |
 
-任务是完整职责，不要求每项挤成一个大 PR。S1 按“写门/状态/替换 → 管理查询/删除/采用”顺序分片；每片只承担当前真实消费者需要的行为。SDK 稳定公共类型随对应功能同改并迁完当前消费者，不先发布没有实现的空槽或空 registry。
+任务按完整职责分工，内部切片用于依赖和验收。按用户 2026-10-25 的交付调整，同仓可一起审查的结果尽量合在同一个 PR；当前基础归 #1064，后续应用工作集中 #1101，不再默认一片一个 PR。S1 仍按“写门/状态/替换 → 管理查询/删除/采用”顺序推进；每片只承担当前真实消费者需要的行为。SDK 稳定公共类型随对应功能同改并迁完当前消费者，不先发布没有实现的空槽或空 registry。
 
 执行位采用“统筹 + 三个执行位”：第一批分别负责 SDK 合同、Molis 合同、Q0；合同/基线完成后先做 S1 写入基础、M1 配置采用，第三位承担可独立的策略规则或验证，M3 在真实管理接口具备后接入；SDK 基础可用后换为 S2、S3、M2。未完成的任务不会因换批消失，统筹按实际依赖和可用执行位分配；先有一条“保存分类记忆 → 授权读取 → 重启”真实链，再增量加入形成与纠错。S1 的 CAS 第一片不代表分类/page 已可用，M3 的接口演示不等于真实后端验收。
 
@@ -2273,3 +2273,19 @@ Demo 并发与恢复：复用现有确定名 staging 目录，将独占创建提
 包一致性独立核验通过：当前 tgz 与统筹交付的 #101 原归档逐字节一致，1,369,124字节、SHA-256 `632d8b3b6f7485d68badfd917370227e124ba6dfdc4b6cf4139667d621ee8b90`、sidecar、provenance、SHA-512 与 lock 相符，vendor 仍仅两份 tgz（`...-online-final-provenance-20261025.log`）。公开变化仅 AgentMemoryCapability 新增在线 previewPurge 及三个平台类型，不新增 Action、SDK 源码补丁或资源额度。整合 CI、真实 Home、未知归属/合法点号 owner 对账、MEM-40 与用户验收仍分别待核；上述证据仅支持本片覆盖路径的局部工程结果。
 
 本地候选终检：相对准确父 b603fdb6 的 health exit0（96巨单元、72份API快照、3020声明），boundary exit0，diff检查通过；日志为 `...-online-candidate-health-20261025.log`、`...-online-candidate-boundary-20261025.log`。提交前使用仓库秘密扫描规则检查新增518行，发现0（`...-online-candidate-dirty-secrets-20261025.log`）；提交后仍由同一正式脚本按父提交到候选提交再扫，最终SHA与结果写在本地交接。只交本地候选，未推送、未新建PR，最终整合由统筹负责。
+
+### #1101 在线删除与 Coding 准入统一验证（2026-10-25）
+
+统筹将 Coding 两处 P2 修复 `ae5ee4082` 与项目删除 `25b94471c` 正常合入为 `fe686d9a0e204388d1b20489025c5886800dc6a7`，父链已含基础 `9e055220f` / main `584112c65`。仅 spec 追加冲突，逐段保留；自动合并的公共导出与快照经实际构建核验。Coding 独立临时探针4/4，覆盖已 pending、路由读取等待及 adapter 更晚读取等待后的拒写、完整 SDK 图/输入不变、纯评价与 stop 的差别，四次原归档重试均200，受测操作模型增量0；completed-child 查询仍为有界替身，不记为真实子代理实操。报告 `/private/tmp/molis-coding-pending-p2-independent-final-20261025.md`。
+
+准确整合树 frozen 离线安装、完整 build、根类型、准确9e health/API、boundary、真实临时 Host 的 Action 快照和全分支秘密扫描均 exit0。安装首两次分别为 pnpm store 默认路径不一致引发 NO_TTY、现缓存注册链接 EPERM，指定原 store 并取得既有缓存访问后通过；未清别树依赖或改 lock。SDK101 归档1,369,124 B，已安装784文件逐字节一致。日志 `/private/tmp/molis-memory-final-online-integration-{install,install-store,install-authorized,build,types,health,boundary,actions,secrets}-20261025.log`。
+
+统一13文件首批为12/13，`assistant-http-logging.test.ts` 4/5：虽已有本人原件，但其手工启动未携带当前形成所需的 Run 分类策略快照，未走到预期 enqueue。保留 `/private/tmp/molis-memory-final-online-integration-tests-20261025.log`，由真实生产 recipe 的配对诊断继续处理，不放宽来源门或超时。其它有效结果保留，后续只重验实际改动影响面。27项实际资源共7,678,780 B，与前一整合逐项相同；正式资源门仍只拒绝未获答复的 Coding +1,333 B，已批准 Workbench +4,064 B 不扩大使用。记录 `/private/tmp/molis-memory-final-online-integration-assets-20261025.json` 与 `...-assets-gate-20261025.log`。新 CI、Knowledge 恢复的零模型边界、MEM-40、最终产品动线与用户验收均未由本轮局部验证替代。
+
+### MEM-40 源事实读取实施合同（2026-10-25，尚未完成）
+
+依原 §8.3 与 M4 恢复合同，选择操作者已停止全部 writer 后保留的完整 T1 工作副本，由各主人只读解释；T1 原目录及 T0 备份不写。SQLite 只读连接可能新增 WAL/SHM，不能直接打开原件，也不能丢弃未 checkpoint WAL。完整复制包含已有库、WAL/SHM、SDK 密文及对应密钥；副本仅作本次输入，不拷回源或替换 target 私有记录。不新增全 Home 锁、常驻 manifest 或第二终止事实库。停 writer 是原离线维护前提，不用文件前后相等冒充工具已证明一致快照。
+
+SDK 先在现模块实现专用离线 inspection：显式 root/app/management context、当前 authority 与 scopes，仅读既有 key，禁止初始化目录、生成密钥、清 CAS、hydrate 或普通 Runtime 自动恢复。复用 canonical decoder，提供有界 Session 终止投影、精确 Session preview、精确 Memory 身份 present/cleared/absent，以及 #101 原 scope/Session 筛选的无正文分页。App 自有 Index 的读取只允许打开时固定的单个 appStorageKind；未声明则不可用，不给任意 SDK kind 读取口。旧决定中的 scope/owner/id 提供选集，不从裸 forgotten id、正文或私有 key 猜归属；缺 key、坏形状、未知来源、未决状态不能变为空集合。
+
+顺序为：SDK 只读入口与真实持久验证 → Molis 各 owner 无正文事实投影 → target 保持 adopting 并在任何 Runtime 自动恢复前固定原目标当前版本及新维护决定 → 沿现主人清理/补账并关闭后才解除阻断。target 可写采用的初始化仍可能触发 restore/continuation，必须先核实际副作用并冻结最小接线，不能只凭初始化后的版本冲突就忽略未删对象被改变；这部分尚未解决。禁止从本读取切片宣称 MEM-40 通过，也不新增普通运行期兼容、真实 Home 操作或付费调用。验收仍覆盖非空 T0/T1/T2、SDK已删但App未补账、raw purged Session、取消/缺钥/未决/WAL失败以及未删完整对象保持，具体结果继续写本 spec。

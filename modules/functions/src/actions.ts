@@ -4,6 +4,8 @@ import { AGENT_MCP_DESTINATION_ID, type FunctionRecord, FunctionSummary, Functio
 import type { FunctionsService } from "./service.js";
 import { functionAuthoringActions, functionAuthoringHandlers } from "./authoring-actions.js";
 
+export const FUNCTIONS_PROVIDER_ID = "system.functions";
+
 const text = { type: "string" };
 const integer = { type: "integer", minimum: 1 };
 const primitive = { enum: ["choice", "noul", "score"] };
@@ -43,7 +45,7 @@ export const functionsActions = {
 
 /** The Functions rule a judgment reference names, if it names one; scene judgments are filed under that rule's key. */
 export function publishedFunctionKey(reference: ActionReference): string | null {
-  return reference.provider_id === "system.functions" && reference.capability_id.startsWith("functions.published.")
+  return reference.provider_id === FUNCTIONS_PROVIDER_ID && reference.capability_id.startsWith("functions.published.")
     ? reference.capability_id.slice("functions.published.".length) : null;
 }
 
@@ -79,7 +81,7 @@ export interface FunctionsActionPorts {
   read<T>(operation: (service: FunctionsService) => T): T;
   run<T>(operation: (service: FunctionsService) => Promise<T>): Promise<T>;
 }
-const provider = { provider_id: "system.functions", title: "判断规则", kind: "system" as const };
+const provider = { provider_id: FUNCTIONS_PROVIDER_ID, title: "判断规则", kind: "system" as const };
 const credentialAvailability = (ports: FunctionsActionPorts) => ports.credentialAvailable()
   ? { available: true as const } : { available: false as const, code: "actions.connection_required", reason: "请先连接判断服务" };
 

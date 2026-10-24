@@ -17,7 +17,9 @@ import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-co
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const marker = "ACA005ORIGINALAUTHORITYBODY";
-const providerId = "fixture.search-authority";
+// PG-007 (RAC-338): indexing reads as the person, so this Host-registered fixture must use a provider the person holds permissions
+// over. MCP still receives the exact original grants below; no installation grant or search-revocation assertion is bypassed.
+const providerId = "platform";
 
 async function fixture(t: TestContext, defaultOpen = false) {
   const directory = await mkdtemp(join(tmpdir(), "aca005-search-home-"));

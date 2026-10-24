@@ -1,12 +1,15 @@
-import type { PluginInteractionClient, PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginBackgroundExecution, PluginInteractionClient, PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginConnectionMethod, PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { BACKGROUND_EXECUTIONS, type SandboxBackground } from './background.js';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
 import { documentBatchJson, extractionJson, materialLocalUrl, materialRequest, materialSource, materialUploads, originalPart, originalRecordKey, plainJson } from './materials.js';
+import { availabilityJson, choicesJson, modelCall, modelResultJson, modelSelection, type SandboxModel } from './model.js';
 import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
+import { randomUUID } from 'node:crypto';
 
 export interface SandboxServiceContext {
   readonly identity: Readonly<SandboxIdentity>; readonly signal: AbortSignal; readonly operationId: string;
@@ -31,6 +34,10 @@ export interface SandboxServices {
   materials?: PluginMaterialsClient;
   /** The activation's `services.ownerFiles` without its `rootPath`: the plugin's own declared files by relative path (S-64). */
   ownerFiles?: SandboxOwnerFiles;
+  /** The activation's `services.model` without its `configuration`, with the instructions the package registered (S-66, PG-017 P1). */
+  model?: SandboxModel;
+  /** The activation's `services.background` reduced to `start`, and the lane its runs go to (PG-017 P3): the executions are the broker's, so they end with it. */
+  background?: SandboxBackground;
 }
 interface DispatchGuards {
   permit(key: keyof SandboxEffects, value: string): void;
@@ -44,10 +51,18 @@ export class SandboxBroker {
   private readonly queue: BoundedQueue;
   private readonly calls: RateBudget;
   private readonly events: RateBudget;
+  /** The executions this broker accepted and that have not ended: the only ones its package can cancel. */
+  private readonly executions = new Map<string, { target: string; execution: PluginBackgroundExecution<SandboxJson> }>();
+  private accepting = 0;
+  private stopped = false;
   constructor(private readonly identity: Readonly<SandboxIdentity>, private readonly grants: SandboxEffects, private readonly services: SandboxServices, private readonly limits: BrokerLimits) {
     this.queue = new BoundedQueue(limits.sdkQueue); this.calls = new RateBudget(limits.sdkPerMinute); this.events = new RateBudget(limits.eventsPerMinute);
   }
-  stop(error: SandboxError): void { this.queue.close(error); }
+  stop(error: SandboxError): void {
+    this.stopped = true; this.queue.close(error);
+    for (const { execution } of this.executions.values()) execution.cancel();
+    this.executions.clear();
+  }
   invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs): Promise<SandboxJson> {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
@@ -138,6 +153,62 @@ export class SandboxBroker {
     return plainJson(method === 'ownerFiles.stat' ? ownerFileInfo(files, path) : method === 'ownerFiles.list' ? ownerFileList(files, path) : ownerFileRead(files, path));
   
   }
+  private async dispatchModel(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
+    // The Host's client asks the Manifest's `model:*` permissions, the grant, the running instance, that the call is inside the plugin's own concurrent
+    // action that declares `model:invoke`, and the original caller's `beforeEffect()` before the model is asked and again before the answer is handed
+    // over. Here: the declared and approved effect, a command for anything that spends the model, and a request that names an instruction the package
+    // registered instead of carrying text.
+    const model = this.services.model;
+    if (method === 'model.choices') { permit('model', 'read'); count(0); return model ? choicesJson(model.client.choices()) : missing(); }
+    if (method === 'model.availability') {
+      permit('model', 'read'); count(1);
+      const selection = modelSelection(args[0]);
+      return model ? availabilityJson(model.client.availability(selection)) : missing();
+    }
+    if (method !== 'model.complete') throw new SandboxError('sandbox.invalid_request', 'Unknown model method');
+    permit('model', 'invoke'); count(1);
+    if (operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot send a model request');
+    const call = modelCall(args[0], model?.instructions ?? []);
+    if (!model) return missing();
+    const result = await model.client.complete(call.prompt, { ...call.request, signal: context.signal });
+    result.validateResult();
+    return modelResultJson(result);
+  }
+  private async dispatchBackground(operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, string, missing }: DispatchGuards): Promise<SandboxJson> {
+    // The Host's client asks the Manifest's `background_job` metadata on the plugin's own concurrent action, the running instance and the original
+    // caller's authority (before the Host accepts, and again at each `beforeEffect` of the run). Here: only a command starts or cancels work, the
+    // operation that runs is one the contract names and the person approved, its input is checked before anything is accepted, and the number of
+    // runs the package can have outstanding is bounded.
+    if (operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot start background work');
+    if (method === 'background.cancel') {
+      count(1); const id = string(0, 64);
+      if (!operation.effects.background?.some(target => this.grants.background?.includes(target))) throw new SandboxError('sandbox.not_authorized', 'Undeclared or unapproved background work');
+      const accepted = this.executions.get(id);
+      if (!accepted) return false;
+      permit('background', accepted.target);
+      accepted.execution.cancel();
+      return true;
+    }
+    if (method !== 'background.start') throw new SandboxError('sandbox.invalid_request', 'Unknown background method');
+    count(2); const target = string(0, 128), input = args[1]!; permit('background', target);
+    const background = this.services.background;
+    if (!background) return missing();
+    background.lane.check(target, input);
+    if (this.executions.size + this.accepting >= BACKGROUND_EXECUTIONS) throw new SandboxError('sandbox.queue_full', 'Too many background executions are still running');
+    this.accepting += 1;
+    let execution: PluginBackgroundExecution<SandboxJson>;
+    try { execution = await background.client.start(control => background.lane.run(target, input, { signal: control.signal, beforeEffect: control.beforeEffect })); }
+    finally { this.accepting -= 1; }
+    if (this.stopped) {
+      execution.cancel();
+      void execution.result.catch(() => undefined);
+      throw new SandboxError('sandbox.stopped', 'Sandbox stopped while accepting background work');
+    }
+    const id = randomUUID();
+    this.executions.set(id, { target, execution });
+    void execution.result.then(() => undefined, () => undefined).then(() => { this.executions.delete(id); });
+    return id;
+  }
   private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
     const guards = this.guards(operation, args), { permit, count, string, missing } = guards;
     if (method.startsWith('storage.')) {
@@ -189,6 +260,8 @@ export class SandboxBroker {
     }
     if (method.startsWith('materials.')) return this.dispatchMaterials(context, method, args, guards);
     if (method.startsWith('ownerFiles.')) return this.dispatchOwnerFiles(context, operation, method, args, guards);
+    if (method.startsWith('model.')) return this.dispatchModel(context, operation, method, args, guards);
+    if (method.startsWith('background.')) return this.dispatchBackground(operation, method, args, guards);
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.
       const object = <T>(index: number): T => {

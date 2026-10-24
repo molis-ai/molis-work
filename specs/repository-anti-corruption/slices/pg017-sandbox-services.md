@@ -1,6 +1,6 @@
 # PG-017：沙箱插件经 broker 拿到宿主服务（设计稿）
 
-状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
+状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。P1（模型 + 指令，S-66，RAC-232、RAC-233）与 P3（后台运行，S-67，RAC-236）合成一个 PR，分支 `claude/ac-pg017-p1-p3`（基于 main，两个提交分开保留；S 号暂定，合入顺序由统筹定）：代码与测试做完，已构建、`pnpm api:update` 过、相关测试过，§3.5 已按下面的决定改写。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
 
 ## 1. 现状
 
@@ -25,14 +25,14 @@
 | Home 库 `services.database` | `plugin-database-entries.ts:34` | 宿主启动名单的 `databaseFor` | **只在条目上**（PG-022） |
 | 私有文件 `services.files` | `plugin-files-entries.ts:12` | 条目 `files` | **只在条目上**（PG-102、PG-104） |
 | 主人文件 `ownerFiles` | `plugin-owner-files-entries.ts:40` | 条目 `owner_files` | **只在条目上**（PG-102、PG-103） |
-| 模型设置 `services.model.configuration` | `model-configuration-entries.ts:11` | 条目 `model_configuration` | **只在条目上**（PG-102） |
+| 模型设置 `services.model.configuration` | `services.ts` 的 `NOT_GIVEN`（S-60 启动拒绝） | Manifest `model_configuration` + 宿主启动名单绑定 | Manifest 已有声明；沙箱尚不给（BL-490/491） |
 | 生图 `services.imageGeneration` | `plugin-image-generation-entries.ts:10`、`plugin-image-generation-service.ts:15` | 条目 `image_generation` | **只在条目上**（PG-102） |
 | 项目清理 | `plugin-project-cleanup.ts:36` | 条目 `project_data`（`purge` 是宿主调的函数）；PG-106 的 `onProjectDeleted` 钩子已在 C4（10-21）删掉 | **只在条目上**（PG-022、§4 m） |
 
 分两类，决定了能不能在这一组里做：
 
 - **Manifest 已经能声明的**（模型、材料、连接、后台、指令/方法）：沙箱一侧缺的只是 broker 方法和去掉排除，权限仍按 Manifest 与授权查，这一组可以单独做完。
-- **只在宿主条目上声明的**（Home 库、文件、主人文件、模型设置、生图、项目清理）：沙箱插件没有“条目”——它不是宿主的目录里的东西——所以没有地方写声明，这几项**要等 PG-022、PG-102 把声明搬进 Manifest** 才有东西可查；在那之前给它们开口，就得让宿主为沙箱插件手写一份条目，正是 10-18 要拆掉的私路。
+- **只在宿主条目上声明的**（Home 库、文件、主人文件、生图、项目清理；模型设置的现行声明与启动拒绝见 §3.7）：沙箱插件没有“条目”——它不是宿主的目录里的东西——所以没有地方写声明，这几项**要等 PG-022、PG-102 把声明搬进 Manifest** 才有东西可查；在那之前给它们开口，就得让宿主为沙箱插件手写一份条目，正是 10-18 要拆掉的私路。
 
 ## 2. 设计原则
 
@@ -80,12 +80,13 @@
 
 ### 3.5 后台作业（`background.*`）
 
-宿主内的 `background.start(work)`/`keep(job, work)` 收的是**回调**——宿主进程里跑的函数。沙箱里没有可交给宿主的函数。设计：沙箱版收的是**操作 id + 输入**，宿主侧的 `work` 是“回到这个沙箱的 runner 去调这个操作”（带上后台执行自己的 signal 与 `beforeEffect`）。
+宿主内的 `background.start(work)`/`keep(job, work)` 收的是**回调**——宿主进程里跑的函数。沙箱里没有可交给宿主的函数。设计：沙箱版收的是**操作 id + 输入**，broker 交给宿主的回调是“回到这个沙箱的 lane 去调这个操作”（带上后台执行自己的 signal 与 `beforeEffect`）。
 
-- **broker 方法**：`background.start({ operation, input })`（受理一次后台执行，返回执行编号）、`background.cancel(id)`；周期作业由 Manifest `background.jobs` 声明、绑定到合同里的操作（`keep` 由定义工厂在 `start` 里替它调，不由沙箱调）。效果键 `background: string[]`（操作 id），只给 `command`。
-- **runner 要多一条道**：现在 runner 按 `quick`/`slow` 分道（模型调用不挡别的读写）；后台执行用自己的一条，进程退出后下一次受理再起，已受理的不重放（`outcome: 'unknown'`）。
-- **删项目、卸载、停用时**：平台按项目停掉受理的后台执行（PG-038 已有），沙箱一侧的操作经同一个 signal 取消，沙箱进程随 `stop()` 终止；取消后不再写业务记录。
-- 这一项依赖 runner 的新道，放在第三批。
+- **broker 方法**（已做，S-67）：`background.start(operation, input)`（受理一次后台执行，返回执行编号）、`background.cancel(id)`（只能取消自己受理、且目标仍在当前操作声明与人的批准内的运行，返回是否取消了）。效果键 `background: string[]`（它可以起的命令 id 名单），起和取消都只给命令；合同层拒绝：查询声明它、名单指向不存在的操作、指向查询、指向自己还会起后台的命令（只许一层）。输入在宿主接受之前先按目标操作的合同检查；一个沙箱未结束的运行最多 4 个。
+- **runner 的新道，决定：不是在一个进程里并行，而是第二个进程（lane）**。现在 runner 一次只跑一个操作（通道上只有一个 active），后台运行如果和前台共用它，一个跑几分钟的运行就会挡住这个包所有的读写。让 worker 并行跑多个操作要重写 runner 的核心（active 变成表、SDK 请求要按操作对应、各自的截止时间与取消），这是整条链上最该保持简单的地方；第二个进程只在第一次受理时起，一次一个操作，用自己的更长的截止时间（`SANDBOX_BACKGROUND_LIMITS`，10 分钟），不带 `background` 服务（一个运行起不了更多运行）。代价：两个进程不共享内存里的状态，包要把需要共享的写进它的存储（后台运行本来就应该这样，宿主内的版本同样“不留状态”）。lane 由起第一个进程的一方拥有（`createBackgroundLane`），`sandboxServicesFor` 经 `extras.backgroundLane` 收到它，没有 lane 就没有后台服务（`service_unavailable`），不会退回到在第一个进程里跑。
+- **取消与重放**：取消一个排队中的运行不动正在执行的；取消一个正在执行的运行会结束 lane 的进程（沙箱打断不了运行中的函数），排在它后面的运行一起结束，下一次受理再起新进程，已受理的不重放。
+- **删项目、卸载、停用时**：平台按项目停掉受理的后台执行（PG-038 已有），沙箱一侧的操作经同一个 signal 取消，broker 停止时关闭后续受理并取消已受理的运行，正在受理的句柄晚返回也立即取消并答 `sandbox.stopped`；取消后不再写业务记录。
+- **没做**：Manifest `background.jobs`（插件活着就一直保持的作业）：`keep` 要由定义工厂在 `start` 里替它调、把作业绑到合同里的操作，工厂在创作台一侧（BL-377，同 P1 的两样），所以 `NOT_GIVEN` 里留一行只管 jobs；生成的插件今天没有带 `background_job` 的 Manifest 动作，也就还起不了运行。
 
 ### 3.6 私有文件（`files.*`）、主人文件（`ownerFiles`）
 
@@ -100,7 +101,7 @@
 这四项都属于“**Home 级**”：库在 Home、偏好文件在 Home、连接绑定在 Home、清理由宿主在删项目时调函数。沙箱插件今天只会作为项目里的实例运行（创作台的第二个平台 `home: null`，PG-083）。设计：
 
 - **Home 库（`database`）**：项目库已经给了（`projectDatabase`，S-59）。Home 库要等 PG-022 把声明搬进 Manifest；之后沿用 S-59 的子进程语句执行（它只认“库文件路径 + 账本记录”，路径换成 Home 里的库即可），不另写一套（BL-490）。
-- **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64），但声明只在条目上（PG-102）。等 Manifest 能声明之后，沿 3.1 的办法给；`generate` 是花钱的，只给 `command`。生图的字节结果有大小上限（BL-491）。
+- **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64）。模型设置现有 Manifest 字段 `model_configuration` 已能声明，沙箱还没有其 broker 方法与设置端口，按 S-60 启动即以 `sandbox.service_not_given` 拒绝该声明；不让项目平台静默不给，Home 也不等后续条目校验才报错。正式开放仍属 BL-490/491，不随本轮修复接入。生图按 PG-102 的前提开放，`generate` 是花钱的，只给 `command`，字节结果有大小上限（BL-491）。
 - **项目清理**：`purge` 是宿主调的函数，沙箱插件没有。设计：沙箱插件的数据（私有存储、项目库里它自己的表、`files`）都归平台按安装和声明清掉（删项目时平台先停它的后台，再关库、清分区，§4 a），不需要它交一个函数。这一项不是“给沙箱一项服务”，而是确认**声明式清理对沙箱插件同样成立**，测试里补一条；`assertProjectCleanupEntries` 里对沙箱的拒绝改成带码的错误并写明理由。
 
 ### 3.8 仍不给的清单
@@ -108,7 +109,8 @@
 | 项 | 为什么 | 什么时候再看 |
 | --- | --- | --- |
 | 方法与角色的正文 | 进别的 Agent 的一轮，没有安装确认页能列出 | 外部插件安装确认（PG-001）之后，BL-493 |
-| Home 库、`files`、模型设置、生图、项目清理的 `purge` | 声明只在宿主条目上，沙箱插件没有条目 | PG-022/102 之后，BL-490/491 |
+| Home 库、`files`、生图、项目清理的 `purge` | 声明只在宿主条目上，沙箱插件没有条目 | PG-022/102 之后，BL-490/491 |
+| 模型设置 | Manifest `model_configuration` 已有；沙箱未提供对应端口与 broker 方法，声明即带码拒绝 | BL-490/491 |
 | `model.complete` 的 `onText`/`images`、材料的字节输入大对象 | 回调/大字节过不了有界 JSON | 第二批，视需要 |
 
 ## 4. 前提与顺序
@@ -124,9 +126,14 @@
 1. **P0 基础**（#1139 做了下面「做了」的两项，「没做」的三项顺延）：
    - 做了：`sandboxServicesFor` 一张映射（并入 `storage`/`projectDatabase`/`interaction`）；拒绝时的带码错误（§2 第 7 条）：宿主为激活建服务所认的权限名只在 `HOST_SERVICE_PERMISSIONS` 一处，宿主的每一项服务在 `SANDBOX_SERVICE_FATE` 里有一个决定，`NOT_GIVEN` 表覆盖所有不给的权限与 Manifest 声明（含项目成果、过程项、端口、事件），完整性测试看住；项目平台与 Home 执行器启动前共用一个检查。
    - 没做（顺延）：**broker 新效果键与通用的形状上限**——它们只在第一个要新效果键的 broker 方法那一片里才有用，没有方法时只是死代码，所以跟 P1 一起做；**沙箱定义工厂从 `installed.ts` 抽出**——要等创作台的策略和沙箱定义的通用部分能分开，创作台随 BL-377 重做，抽在它前面会抽错，所以不单独做，BL-377 时一并处理；**去掉宿主侧对 `sandbox` 的排除**——每个排除要和它的 broker 方法在同一片里去掉，所以随 P1～P3 逐个去（六个宿主条目里的抛错，等 PG-022/PG-102 把声明搬进 Manifest 时整体重写）。
-2. **P1 模型 + 指令**（V-20 的指令部分，排 PG-051 P2 后）：3.1、3.2。
+2. **P1 模型 + 指令**（V-20 的指令部分，PG-051 P2 已做完，S-66，本地分支 `claude/ac-pg017-p1-model-instructions`）：3.1、3.2，验收见下面「P1 验收」。落地时定的几处：
+   - 宿主两处去掉沙箱的排除：`pluginModelFor`（客户端照 Manifest 与授权建，沙箱与宿主内同一份）、`registerPluginAgentDefinitions`（沙箱也登记指令；角色、Agent 提示词、方法仍由 `SANDBOX_NOT_GIVEN` 的 `agent` 一行在启动时拒，在它之前，所以这里不再另写一道）。`SANDBOX_NOT_GIVEN` 删掉 `model` 与 `instructions` 两行，`SANDBOX_SERVICE_FATE.model` 改为给。
+   - broker 方法 `model.choices`、`model.availability`、`model.complete`；效果键 `model: ['read' | 'invoke']`，`invoke` 只给命令（合同层拒绝查询声明）。通道上的类型是沙箱自己的纯 JSON 类型（`SandboxModelChoice/Availability/Request/Result`），不 import 宿主服务类型（创作台隔离编译 G2 在 macOS 上只有 ES 库，见 P2b 的教训）；`choicesJson`、`availabilityJson`、`modelResultJson` 用这些类型接宿主的答复，宿主一改形状即编译不过。
+   - 请求只写登记过的指令 id（`prompt_id`、可选 `system_id`）和这次的数据（≤ 200,000 字符），没有文字、图片、回调、信号；指令名单是 `sandboxServicesFor(host, { instructions })` 带进来的 `PluginDefinition.instructions`，名单里查不到的 id 答 `sandbox.instruction_unknown`；别的主人的指令即使进了名单，宿主客户端再拒（`plugin.model_instruction_refused`）。范围（超时、输出长度）不在 broker 钳，由宿主客户端按同一个码拒，保证与宿主内运行的插件同码（RAC-237）。
+   - 等模型的操作：runner 对声明了 `model: ['invoke']` 的操作把服务截止时间和操作截止时间抬到宿主的模型上限（10 分钟）之后再加一点（`modelDeadlines`），否则 10 秒的服务截止先到，插件看到的是沙箱超时而不是宿主的拒绝；宿主调用方给的 `limits` 仍优先。
+   - **没做、要创作台一侧接线的两样**：① 生成的插件（`installed.ts` 的 `sandboxedPluginDefinition`）今天只有一条路由 `studio.call`，没有 Manifest 动作，所以它还拿不到「本插件自己的、声明了 `model:invoke` 的并发动作」这个作用域；要为合同里每个声明了 `model` 效果的操作登记一个并发的 Manifest 动作（权限含 `model:invoke`），让操作经动作网关进沙箱（§3.1 原设计），并让 Manifest 带 `model:invoke`；② 包怎样带指令正文：`SandboxPluginContract` 没有这个字段，生成的插件现在没有 `PluginDefinition.instructions`。这两样跟「沙箱定义工厂从 `installed.ts` 抽出」同属创作台重做（BL-377）的接线，P0 已把它顺延到 BL-377；P1 在平台一侧完成，测试像 P2a～P2c 一样用带 Manifest 动作的探针包经真实项目平台驱动。
 3. **P2 连接 + 材料（不联网部分）**：3.3、3.4 第一批。
-4. **P3 后台**：3.5，runner 多一条道。
+4. **P3 后台**（S-67，本地分支 `claude/ac-pg017-p3-background`）：3.5，第二个进程（lane）而不是 runner 并行；验收见下面「P3 验收」。
 4a. **P2c 主人文件**（S-64，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
 4b. **P2d 本机页面与原文件**（S-65，本地分支，叠在 P2c 上）：3.4 的 `fetch_local` 与 `original`，验收见下面「P2d 验收」。
 5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库/文件/模型设置/生图（BL-490/491）、方法与角色（BL-493）。
@@ -146,7 +153,7 @@
 | RAC-236 | 后台：受理的沙箱操作在卸载、删项目、取消时被停，之后不写业务记录；进程死后不重放 |
 | RAC-237 | 同一份 Manifest 声明，宿主内运行和沙箱运行，对同一输入得到同一个拒绝码（同等待遇，抽样每项服务各一例） |
 | RAC-238（Manifest 一半，#1139 已做） | 现在不给的、由 Manifest 或定义声明的项（模型、指令、连接、材料、后台作业、角色/提示词/技能/方法、目录、唤醒、运行 Agent、通知、已装插件、调用别人的动作、项目成果/过程项/端口/事件）在沙箱定义里声明时，启动以 `sandbox.service_not_given` 拒绝，指明是哪一项、为什么，代码一行不跑；项目平台与 Home 执行器各一例；宿主认的每个权限名要么被给、要么有一行拒绝（完整性测试），没归类的变红 |
-| RAC-238（条目一半，PG-022/PG-102 之后；`ownerFiles` 已由 P2c 给） | 现在只在宿主条目上声明的项（`ownerFiles`、Home 库、`files`、模型设置、生图）：声明搬进 Manifest 之后，沙箱定义里声明它们时同样带码拒绝或给出，不再是六处无码的 `Error`；在那之前它们在沙箱里根本没有入口，这一半不算做完 |
+| RAC-238（条目一半，PG-022/PG-102 之后；`ownerFiles` 已由 P2c 给） | 现在只在宿主条目上声明的项（`ownerFiles`、Home 库、`files`、生图；模型设置的现行声明按 §3.7 带码拒绝）：声明搬进 Manifest 之后，沙箱定义里声明它们时同样带码拒绝或给出，不再是六处无码的 `Error`；在那之前它们在沙箱里根本没有入口，这一半不算做完 |
 | RAC-239 | 声明式清理对沙箱插件成立：删项目时它的私有存储、项目库里的表、后台执行被平台清掉，不需要它交 `purge` |
 
 **P2c 验收**（S-64，统筹 10-24 给 RAC-350～369：本片 RAC-350～359，P2d 用 RAC-360～369）：`tests/security-invariants-sandbox-owner-files.test.ts`
@@ -178,6 +185,35 @@
 | RAC-367 | 一段至多 256 KiB，起点在 32 MiB 内，版本只认宿主给过的形状；没到宿主 |
 | RAC-368 | 四个方法各自：没声明、只声明读、声明另一种效果、没批准、只批准读、批准另一种效果、批准别的，都是 `sandbox.not_authorized`；查询声明任一效果则合同不载入；没有按整份读和路径的方法 |
 | RAC-369 | 宿主没建服务答 `sandbox.service_unavailable`；动作之外一律被宿主客户端拒；停用、撤权、取消、守卫拒绝之后什么都不取、不登记、不释放 |
+
+**PR #1234 评审修复合同（2026-10-24，Codex 修复5）**：保留 P1/P3 的三道门与既有批准语义，范围仅 broker 的后台停止/取消、不给的模型设置声明、对应测试及 S-66/67 记录。`stop()` 关闭受理并取消已返回的句柄；正等待宿主受理的句柄在晚返回时立即取消，原调用答 `sandbox.stopped`，不能重新入表或接受后续请求。每个运行在 broker 内绑定目标命令，取消仍只限本 broker，并要求当前操作声明与批准都包含该运行的实际目标；未知或已结束的 id 保持 `false`。这些是现有效果交集与停止合同的修复，不新增权限。沙箱声明 `model_configuration` 统一在项目/Home 启动前答 `sandbox.service_not_given`，不创建设置端口；不实现 BL-490/491。`instructions` 与 `backgroundLane` 的生成插件生产接线继续按 §4 排除，测试探针使用真实宿主后台客户端与真实动作作用域。
+
+本轮工程验证：旧实现上的目标取消与停止交错两条回归失败，模型设置的声明、项目及 Home 启动三条断言失败，修后全部通过；S-20 原引号错误也已实际红绿验证，只改 S-66/67 的正文与测试分类。公共 build 槽内整体 `pnpm build`、`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main` 通过；包 README 的全部必跑文件与宿主后台、模型、模型设置、Home 模型生命周期、模型动作调度共 17 个文件，175 项通过，1 项可选真实公网用例按既有条件跳过，0 失败。S-67 三条 macOS 真 Seatbelt 进程用例全部实跑通过。独立修后二轮待交；全量由统筹统一安排，本会话未启动；生产生成插件接线与本人体验验收不由这些工程证据代替。
+
+**P3 验收**（S-67，RAC-236；表里 RAC-236 一行的细化）：`tests/security-invariants-sandbox-background.test.ts`、`tests/security-invariants-sandbox-background-host.test.ts`
+
+| 编号 | 断言 |
+| --- | --- |
+| RAC-236 | broker 先拒：没声明、没批准、不在名单、查询、合同里没有或不是命令的目标、输入不合、缺参数、非字符串；被拒的宿主一个也没接受；没连接服务答 `sandbox.service_unavailable` |
+| RAC-236 | 未结束的运行有上限；包只能取消自己受理的运行，取消须由当前操作声明并获批准的实际目标，声明 work 不能取消 spin，批准 work 也不能取消 spin；允许的同目标取消成功，未知或已结束 id 返回 false |
+| RAC-236 | 制造宿主已受理但句柄仍未返回时与 broker.stop 的真实交错：晚到句柄被取消并结束，调用答 sandbox.stopped，后续请求不再被宿主受理 |
+| RAC-236 | 沙箱路径使用真实项目平台创建的 PluginBackgroundClient：动作外答 plugin.background_action_required；缺 background_job、非并发或查询答 plugin.background_undeclared；拒绝后 lane 没有运行，合法并发命令受理并执行 |
+| RAC-236 | 合同层：查询、缺失的目标、非命令、嵌套的后台声明都不载入 |
+| RAC-236 | 只有带 lane 才给后台服务；`background.jobs` 声明仍被拒，`background_job` 不再被拒 |
+| RAC-236 | 真进程：运行在另一个进程里，第一个进程在它等待时照常回答；取消正在执行的运行结束它的进程，下一次受理起新进程，被取消的不重来；停掉 lane 后不再受理 |
+
+**P1 验收**（S-66，RAC-232、RAC-233；表里两行的细化）：`tests/security-invariants-sandbox-model.test.ts`
+
+| 编号 | 断言 |
+| --- | --- |
+| RAC-232 | 在自己的并发动作里 `complete` 成功，发出去的是登记的指令正文加这次的数据，系统指令是另一条登记的，JSON 输出带 `value`；答复只有 `text`、`value`、`usage`；可用性与列表可读 |
+| RAC-232 | broker 先拒：没声明或没批准的 `model` 效果、`read` 不能 `complete`、查询不能发请求（合同层也不载入）、未知方法；被拒的没到模型 |
+| RAC-232（同 RAC-237） | 宿主客户端对不并发的动作、没声明 `model:invoke` 的动作、动作之外各给宿主内运行的插件同一个码 |
+| RAC-232 | 原调用不再成立、问完后权限没了、超过宿主的超时与输出上限、输出不是 JSON：不交答案，被拒的没问模型 |
+| RAC-233 | 人改过的指令是发出去的版本；没登记的 id、写成文字的 id、多余的成员（含 `prompt`、`images`）、非字符串数据、超长数据、不完整的模型选择、别的主人的指令逐项被拒，都没到模型 |
+| RAC-233 | 沙箱定义登记别的主人的指令，启动即被拒 |
+| RAC-238 | 声明 model_configuration 的沙箱定义在项目与 Home Runtime 启动即以 sandbox.service_not_given 拒绝，start 未执行；只声明 model:read/invoke 与本插件指令仍可启动 |
+| RAC-232 | 会等模型的操作的截止时间在宿主的模型上限之后；其余操作不变；配置得更长的保持 |
 
 **安全不变量**：建议新增 S-60（沙箱经 broker 使用宿主服务的总规则：两道门、有界 JSON、撤权后不写、不给的拒绝）一行，承接 S-15 里“沙箱进程没有……”的那句和 S-59 的数据库一条；各项服务的测试挂在这一行的“拒绝测试”里。如果统筹希望每片各占一行（S-60 模型、S-61 连接与材料、S-62 后台），也可以，**请定**。S-15、S-46 里描述“沙箱没有这些服务”的话要同时改成现状。
 

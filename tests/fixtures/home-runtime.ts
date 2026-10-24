@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
-import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebHost, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, type WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -22,7 +22,7 @@ async function within(name: string, operation: Promise<unknown>) {
   finally { clearTimeout(timer); }
 }
 
-/** An isolated Host behind the actual desktop HTTP composition. No store writes or grant shortcuts. */
+/** An isolated Host behind the actual desktop HTTP composition, with the Catalog's directory list. No store writes or grant shortcuts. */
 export async function serveHomeRuntime(t: TestContext, options: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]> = {}, webOptions: Pick<WebServerOptions, "chooseDirectory"> = {}) {
   const home = options.homeDirectory ?? await mkdtemp(join(tmpdir(), "home-runtime-"));
   let host: MolisWorkLocalHost | undefined, server: ReturnType<ReturnType<typeof createDesktopWebHost>> | undefined;
@@ -38,7 +38,15 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
     }
     if (failures.length) throw new AggregateError(failures, "Home runtime fixture cleanup failed");
   });
-  host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...options });
+  const workspaceFor = options.workspaceFor;
+  host = new MolisWorkLocalHost({
+    homeDirectory: home, completeText: null,
+    // A supplied single-folder port remains the authority; explicit list options below still win, including an intentional undefined.
+    workspacesFor: workspaceFor
+      ? async projectId => { const workspace = await workspaceFor(projectId); return workspace === null ? [] : [workspace]; }
+      : projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    ...options,
+  });
   const token = randomUUID();
   server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token, ...webOptions });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));

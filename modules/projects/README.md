@@ -56,7 +56,8 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
   - 目录关联只由本模块管理，不建第二份目录库；按项读取当前项目，不返回其他项目的关联。
   - 卸载检查只提供目录事实，不删除用户文件。
   - 卸载检查只列 `projects` 表里的项目（`listCatalogProjectsForUninstall`）；`catalog_meta` 归 storage，目录是不是本产品的，由宿主用 `LocalCatalogMetadata` 判断后再问本模块。
-  - 删除回执（`project_deletions`）带每个数据所有者的一步（`project_deletion_steps`：pending、complete），与目录自己的清理在同一个事务里写入；回执只有目录暂存已删且每一步都是 complete 时才是 complete。一步的所有者不在收尾的进程里时，这一步保持 pending 并留着上次的错误，等有这个所有者的进程来做，不会被当作无事可做。所有者清什么不归本模块。
+  - 删除回执（`project_deletions`）带每个数据所有者的一步（`project_deletion_steps`：pending、complete），与无正文原恢复计划（`recovery_plan`）在同一个事务里写入；pending 项目从普通查询退出，原目录行与绑定保留到 Memory、Session 和业务 owner 都成功后才删除；回执只有目录暂存已删且每一步都是 complete 时才是 complete。一步的所有者不在收尾的进程里时，这一步保持 pending 并留着上次的错误，等有这个所有者的进程来做，不会被当作无事可做。所有者清什么不归本模块。
+  - `lifecycle.retainedProject` 只给删除 owner 读保留的原目录行；同 ID 原删除仍 pending 时，实际 register 事务同步拒绝后继登记，即使原行已删。普通查询不能把隐藏等同不存在或据旧 complete 删除后继实例。
 - 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts tests/project-deletion-hooks.test.ts`
 - 相关手册：[docs/modules/projects.md](../../docs/modules/projects.md)、[docs/platform/PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

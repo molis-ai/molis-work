@@ -14,7 +14,7 @@ import { WebSocket } from "ws";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, ProjectDeletionService, createMolisWorkLocalHost, molisWorkHostProjectReference, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, ProjectDeletionService, createMolisWorkLocalHost, molisWorkHostProjectReference, projectDeletedHooksFor, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 /**
@@ -304,11 +304,11 @@ test("W3-02-G1-01 real deletion HTTP and its forwarding MCP retain owner conflic
   const { localHost, origin, token, stop } = await residentHost(t, home);
   t.after(stop);
   const details = { current_phase: "busy", current_version: 3 };
-  const original = localHost.closeProject.bind(localHost);
+  const hooks = projectDeletedHooksFor(home), original = hooks.owners().find(owner => owner.id === "memory")!;
   const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null, runtimeHost(home), localHost, origin);
   t.after(() => mcp.close());
+  const dispose = hooks.register({ ...original, withRecovery: async () => { throw new ActionError("example.runtime_busy", "运行环境尚未释放", { kind: "conflict", details }); } });
   try {
-    localHost.closeProject = async () => { throw new ActionError("example.runtime_busy", "运行环境尚未释放", { kind: "conflict", details }); };
     const reply = await fetch(origin + "/api/internal/project-deletion", { method: "POST", headers: {
       origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID(),
     }, body: JSON.stringify({ home_id: createHash("sha256").update(resolvePath(home)).digest("hex"), client_id: "runtime:codex",
@@ -323,7 +323,7 @@ test("W3-02-G1-01 real deletion HTTP and its forwarding MCP retain owner conflic
     assert.deepEqual(JSON.parse(text), { error: "运行环境尚未释放", code: "example.runtime_busy", details });
     assert.deepEqual(catalog.listProjectDeletions(), []);
     assert.equal(existsSync(project.database_path), true);
-  } finally { localHost.closeProject = original; }
+  } finally { dispose(); }
 });
 
 test("W3-02-G1-01 an uncoded resident deletion failure keeps its message through MCP and uses the common internal code", { timeout: 60_000 }, async t => {

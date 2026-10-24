@@ -113,14 +113,18 @@
     "keys": [
       "candidates",
       "changes",
-      "counts",
+      "cost",
+      "exhausted",
       "items",
       "labels",
       "last_upkeep",
       "pairs",
       "prefs",
       "project_id",
-      "scope"
+      "scanned",
+      "scope",
+      "stopped",
+      "total"
     ]
   },
   "GET /api/memory/items": {
@@ -681,14 +685,18 @@
     "keys": [
       "candidates",
       "changes",
-      "counts",
+      "cost",
+      "exhausted",
       "items",
       "labels",
       "last_upkeep",
       "pairs",
       "prefs",
       "project_id",
-      "scope"
+      "scanned",
+      "scope",
+      "stopped",
+      "total"
     ]
   },
   "GET <project>/api/agent-definitions/prompts": {

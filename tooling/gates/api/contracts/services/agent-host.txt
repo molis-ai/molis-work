@@ -16,7 +16,7 @@ export interface AgentActionClient {
     }>;
     check?(reference: ExactActionReference, input: unknown): Promise<void>;
     direct?(view: ActionView): boolean;
-    invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
+    invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal, memoryRead?: import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadControl): Promise<unknown>;
 }
 
 export interface AgentActionOffer {
@@ -442,6 +442,8 @@ export interface AgentMcpToolRef {
 }
 
 export interface AgentMemoryCaller {
+    readonly run_explicit?: true;
+    readonly class_restrictions?: AgentMemoryClassPolicy;
     actor_id: string;
     character_id?: string;
     project_id: string | null;
@@ -470,6 +472,9 @@ export interface AgentMemoryCandidateCapability {
         signal?: AbortSignal;
     }): Promise<AgentMemoryCandidateEntry>;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
+    get(input: AgentCandidateLocation & {
+        signal?: AbortSignal;
+    }): Promise<AgentMemoryCandidateEntry | undefined>;
     accept(input: AgentCandidateLocation & AgentMemoryMutation & {
         text?: string;
         origin?: string;
@@ -529,6 +534,8 @@ export interface AgentMemoryCapability {
     withCaller(caller: AgentMemoryCaller): AgentMemoryCapability;
     withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
+    page(input: AgentMemoryPageQuery): Promise<AgentMemoryPage>;
+    previewPurge(input: AgentMemoryPurgeQuery): Promise<AgentMemoryPurgePage>;
     write(input: {
         scope: AgentMemoryEntry["scope"];
         owner: string;
@@ -552,6 +559,9 @@ export interface AgentMemoryCapability {
         reason: string;
     }): Promise<AgentMemoryEntry>;
     resume(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+    renew(input: AgentMemoryLocation & AgentMemoryMutation & {
+        expires_at_ms: number;
+    }): Promise<AgentMemoryEntry>;
     previewMutation(input: AgentMemoryLocation & AgentMemoryMutation & {
         mutation: AgentMemoryPreviewMutation;
     }): Promise<void>;
@@ -588,6 +598,13 @@ export interface AgentMemoryChange {
     text: string;
     origin?: string;
     meta?: AgentMemoryMeta;
+}
+
+export interface AgentMemoryClassPolicy {
+    readonly policy_version: 2;
+    readonly taxonomy_version: 1;
+    readonly personal: readonly MemoryClassRestriction[];
+    readonly project: readonly MemoryClassRestriction[];
 }
 
 export interface AgentMemoryClearResult {
@@ -798,6 +815,47 @@ export interface AgentMemoryMutation {
     signal?: AbortSignal;
 }
 
+export interface AgentMemoryPage {
+    items: AgentMemoryEntry[];
+    cursor?: string;
+    exhausted: boolean;
+    stopped: "end" | "limit" | "scan-limit" | "unknown";
+    total: {
+        kind: "exact";
+        value: number;
+    } | {
+        kind: "unknown";
+    };
+    scanned: number | "unknown";
+    cost: {
+        directory_entries: number | "unknown";
+        directory_enumerations: number | "unknown";
+        directory_traversal: "full" | "bounded" | "unknown";
+        metadata_reads: number | "unknown";
+        body_reads: number | "unknown";
+    };
+}
+
+export interface AgentMemoryPageQuery {
+    scope: AgentMemoryEntry["scope"];
+    owner: string;
+    filter?: {
+        namespace?: string | null;
+        scenes?: readonly string[];
+        kinds?: readonly string[];
+        lifecycles?: readonly string[];
+        extra?: Readonly<Record<string, readonly string[]>>;
+        sources?: readonly string[];
+        states?: readonly ("active" | "paused" | "disabled")[];
+        expired?: boolean;
+        tombstone?: boolean;
+    };
+    limit?: number;
+    scan_limit?: number;
+    cursor?: string;
+    signal?: AbortSignal;
+}
+
 export type AgentMemoryPreviewMutation = {
     kind: "update";
     change: AgentMemoryChange;
@@ -805,7 +863,7 @@ export type AgentMemoryPreviewMutation = {
     kind: "pause" | "disable";
     reason: string;
 } | {
-    kind: "resume" | "remove";
+    kind: "resume" | "remove" | "purge";
 };
 
 export interface AgentMemoryPromotion {
@@ -867,6 +925,52 @@ export interface AgentMemoryPromotionRequest extends AgentMemoryPromotionIdentit
             expected_version: number;
         };
     };
+    signal?: AbortSignal;
+}
+
+export type AgentMemoryPurgeItem = {
+    expected_version: number;
+    identity: {
+        scope: AgentMemoryEntry["scope"];
+        owner: string;
+    };
+    session_ref?: {
+        kind: "session";
+        id: string;
+        revision: number;
+    };
+} & ({
+    kind: "memory";
+    memory_id: string;
+    state: "active" | "paused" | "disabled" | "tombstoned";
+} | {
+    kind: "memory-candidate";
+    candidate_id: string;
+    state: AgentMemoryCandidateEntry["state"];
+    sources: AgentMemorySourceRef[] | null;
+});
+
+export interface AgentMemoryPurgePage {
+    outcome: "completed" | "partial" | "cancelled";
+    items: AgentMemoryPurgeItem[];
+    issues: Array<{
+        code: string;
+    }>;
+    cursor?: string;
+    exhausted: boolean;
+}
+
+export interface AgentMemoryPurgeQuery {
+    kind: "memory" | "memory-candidate";
+    scope: AgentMemoryEntry["scope"];
+    owner: string;
+    session_ref?: {
+        kind: "session";
+        id: string;
+        revision: number;
+    };
+    limit?: number;
+    cursor?: string;
     signal?: AbortSignal;
 }
 
@@ -980,12 +1084,7 @@ export interface AgentMemoryTools {
         applies: string;
         note?: string;
     }>;
-    list(control: AgentMemoryToolControl): Promise<Array<{
-        memory_id: string;
-        scope: "personal" | "project" | "character";
-        text: string;
-        origin: string;
-    }>>;
+    list?(control: AgentMemoryToolControl): Promise<import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadResult>;
     forget?(memoryId: string, control: AgentMemoryToolControl): Promise<{
         forgotten: boolean;
         note?: string;
@@ -1112,6 +1211,7 @@ export interface AgentProjectWorkOverlap {
 export type AgentReasoningEffort = "low" | "medium" | "high";
 
 export interface AgentRecalledMemory {
+    readonly class_restrictions: AgentMemoryClassPolicy;
     pinned: AgentPinnedMemory[];
     consumer: string;
     current_scene: string;
@@ -1324,6 +1424,8 @@ export interface AgentRunUsage {
 }
 
 export interface AgentRunView {
+    readonly class_restrictions?: import("services/agent-host-memory").AgentMemoryClassPolicy;
+    readonly memory_scene?: string;
     original_input?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentOriginalInput;
     step_board?: AgentStepBoard;
     step_board_error?: string;
@@ -1357,6 +1459,7 @@ export interface AgentRuntimeAdapter {
     readonly schedule?: AgentScheduleCapability;
     readonly memory?: AgentMemoryCapability;
     readonly documents?: AgentDocumentCapability;
+    readonly sessionLifecycle?: AgentSessionLifecycle;
     readonly descriptor: AgentRuntimeDescriptor;
     health(): Promise<AgentRuntimeHealth>;
     createSession(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<AgentSessionRef>;
@@ -1474,6 +1577,42 @@ export interface AgentScheduledTask {
     last_failure?: string;
 }
 
+export interface AgentSessionDecision {
+    operation_id: string;
+    expected_version: number;
+    expected_state: "active" | "archived";
+}
+
+export interface AgentSessionLifecycle {
+    read(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionLifecycleView>;
+    archive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+    unarchive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+    previewPurge(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionPurgePreview>;
+    purge(session: AgentSessionRef, decision: AgentSessionDecision, preview: AgentSessionPurgePreview, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+}
+
+export interface AgentSessionLifecycleReceipt {
+    scope: "agent-host-session";
+    session: AgentSessionRef;
+    operation_id: string;
+    action: "archive" | "unarchive" | "purge";
+    state: "active" | "archived" | "purged";
+    version: number;
+}
+
+export interface AgentSessionLifecycleView {
+    session: AgentSessionRef;
+    state: "active" | "archived" | "purged" | "unknown";
+    version: number | null;
+    operation?: {
+        action: "archive" | "unarchive" | "purge";
+        decision: AgentSessionDecision;
+        completed: boolean;
+        preview?: AgentSessionPurgePreview;
+        receipt?: AgentSessionLifecycleReceipt;
+    };
+}
+
 export interface AgentSessionMessage {
     message_id: string;
     from_session: string;
@@ -1520,6 +1659,15 @@ export interface AgentSessionOwner {
     plugin_id: string;
     install_id: string;
     actor_id: string;
+}
+
+export interface AgentSessionPurgePreview {
+    session: AgentSessionRef;
+    version: number;
+    state: "active" | "archived";
+    runs: number;
+    resources: number;
+    destroys_key: boolean;
 }
 
 export interface AgentSessionRef {
@@ -2001,6 +2149,16 @@ export declare const agentOfferActions: {
     }>;
 };
 
+export declare const agentSessionLifecycleActions: {
+    readonly read: ActionDefinition<Target, AgentSessionLifecycleView>;
+    readonly previewPurge: ActionDefinition<Target, AgentSessionPurgePreview>;
+    readonly archive: ActionDefinition<Change, AgentSessionLifecycleReceipt>;
+    readonly unarchive: ActionDefinition<Change, AgentSessionLifecycleReceipt>;
+    readonly purge: ActionDefinition<Change & {
+        preview: AgentSessionPurgePreview;
+    }, AgentSessionLifecycleReceipt>;
+};
+
 export declare function agentTextMaterialContent(material: AgentTextMaterial): string;
 
 export declare const agentWriteCheckerActions: {
@@ -2098,6 +2256,7 @@ type AgentMemoryLocation = {
 };
 
 interface AgentMemoryToolControl {
+    readonly memory_read?: import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadControl;
     readonly operation_id: string;
     readonly signal: AbortSignal;
 }
@@ -2132,3 +2291,11 @@ interface AgentStartInputFields {
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;
 }
+
+type Change = Target & {
+    decision: AgentSessionDecision;
+};
+
+type Target = {
+    session: AgentSessionRef;
+};

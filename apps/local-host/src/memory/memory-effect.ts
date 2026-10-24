@@ -4,11 +4,14 @@ import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/m
 import { MemoryService, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 
 export function memoryCaller(context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller {
-  const consumer = context.audience === "plugin" ? "plugin" : context.audience === "mcp" ? "mcp" : context.audience === "user" ? "ui" : "agent";
-  return { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: context.project_id, consumer, plugin_id: context.host_plugin?.plugin_id ?? null, work: work ?? null,
+  const agent = context.actor_id.startsWith("agent:"), run = agent ? context.runtime_memory : undefined;
+  if (agent && (!run || !context.runtime_session_id)) throw new ActionError("memory.unavailable", "原 Run 的记忆权限快照不可用，请新开一轮");
+  const consumer = agent ? "agent" : context.audience === "plugin" ? "plugin" : context.audience === "mcp" ? "mcp" : context.audience === "user" ? "ui" : "agent";
+  return { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: context.project_id, consumer, plugin_id: run?.plugin_id ?? context.host_plugin?.plugin_id ?? null, work: work ?? null,
+    ...(run ? { session_id: context.runtime_session_id, purpose: "task" as const, current_scene: run.current_scene, class_restrictions: structuredClone(run.class_restrictions) } : {}),
     ...(context.memory_operation_id ?? context.call_id ? { operation_id: context.memory_operation_id ?? context.call_id } : {}),
     ...(context.signal ? { signal: context.signal } : {}),
-    person: context.audience === "user" && context.actor_kind !== "runtime" };
+    person: !agent && context.audience === "user" && context.actor_kind !== "runtime" };
 }
 
 /** The HTTP replay key protects one transport request; this identity belongs to one unchanged Memory command. */

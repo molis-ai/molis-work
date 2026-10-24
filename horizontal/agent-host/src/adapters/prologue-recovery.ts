@@ -21,7 +21,7 @@ interface RecoveryDeps {
 type OpenWork = Awaited<ReturnType<Runtime["listOpenWork"]>>;
 
 /** A run or open item of the session that no start claims: the only thing a start without a reference could have made. */
-const unclaimedWork = (index: SessionIndex, terminal: readonly { id: string }[], open: OpenWork) =>
+export const unclaimedWork = (index: SessionIndex, terminal: readonly { id: string }[], open: OpenWork) =>
   terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))
   || open.items.some(item => item.origin.session === index.ref.id && !index.attempts.some(attempt => attempt.run_id === item.origin.run || attempt.run_id === item.id));
 
@@ -42,6 +42,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
   const queued = async (ref: SessionIndex["ref"]) => (await (await runtime.sessions.open(ref))?.inputQueue())?.queued.map(queuedInput);
 
   const inspect = async (sessionId: string): Promise<AgentRecoveryReport> => {
+    const current = sessionIndex.capture(sessionId);
     const index = await sessionIndex.read(sessionId);
     if (!index) throw new Error("会话执行索引不可用");
     const report = await runtime.sessions.inspectRecovery(index.ref);
@@ -78,6 +79,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       children.push(...own.runs.map(run => view(run, { subagent_id: child.ref.id })));
     }
     const queue = await queued(index.ref);
+    current();
     return { session_id: sessionId, blockers, ...(queue ? { inputs: queue } : {}),
       runs: [...report.runs.map(run => view(run)), ...children] };
   };
@@ -98,6 +100,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
 
   // Both paths inspect every start and all SDK recovery facts; only transcript replay is selective.
   const restore = async (id: string, statusOnly = false): Promise<(PrologueRestoredSession & { planned?: AgentRunRef }) | undefined> => {
+    const current = sessionIndex.capture(id);
     const index = await sessionIndex.read(id);
     if (!index) return undefined;
     const session = await runtime.sessions.open(index.ref);
@@ -131,7 +134,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
         ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),
         events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });
     }
-    deps.state.sessions.set(id, index.ref);
+    current(); deps.state.sessions.set(id, index.ref);
     return { title: index.title, owner: index.owner, workspace: index.workspace ?? "required", runs,
       ...(planned ? { planned: { session_id: id, run_id: planned.run_id! } } : {}),
       ...(reasons.length ? { recovery: { required: true as const, reason: [...new Set(reasons)].join("；") } } : {}) };
@@ -152,6 +155,6 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
     },
   };
   /** The session's waiting supplements, read on their own: no recovery check (specs/ai-input-receipts D31). */
-  const queuedOf = async (sessionId: string) => { const index = await sessionIndex.read(sessionId); return index ? queued(index.ref) : undefined; };
+  const queuedOf = async (sessionId: string) => { const current = sessionIndex.capture(sessionId), index = await sessionIndex.read(sessionId); const result = index ? await queued(index.ref) : undefined; current(); return result; };
   return { inspect, restore, port, queued: queuedOf };
 }

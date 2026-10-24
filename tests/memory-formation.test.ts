@@ -6,7 +6,7 @@ import { memoryServiceHome, observeMemoryBackend, originalMemorySources, scripte
 
 // MEM-12/21/34/35: one persistent formation path, exact originals, bounded targets and current-authority recovery.
 const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui", person: true };
-const caller = (operation_id: string): MemoryCaller => ({ ...person, person: false, consumer: "assistant", current_scene: "assistant", source_use: "learning", operation_id });
+const caller = (operation_id: string): MemoryCaller => ({ ...person, person: false, consumer: "assistant", current_scene: "assistant", purpose: "task", source_use: "learning", operation_id });
 const proposal = (text: string, extra: Partial<MemoryProposal> = {}): MemoryProposal => ({ text, scope: "project", kind: "convention", basis: "explicit", quote: text, ...extra });
 async function fixture(t: Parameters<typeof memoryServiceHome>[0]) {
   const originals = originalMemorySources(["project-a"]), extraction = scriptedMemoryExtraction();
@@ -30,6 +30,45 @@ test("MEM-FORM no standing signal reads no source and calls no extractor", async
   assert.equal(calls, 0);
   assert.deepEqual(env.ledger().candidates(person.actor_id), []);
   assert.deepEqual(memory.changes(person), []);
+});
+
+test("MEM-FORM task formation uses a restricted candidate context without granting management to its caller", async t => {
+  const originals = originalMemorySources(["project-a"]), text = "以后发布先整理核对清单";
+  const extracted: MemoryCaller[] = [];
+  const env = await memoryServiceHome(t, { projects: ["project-a"], sources: originals.port, extractor: { async extract(who, input) {
+    extracted.push(who);
+    assert.equal(who.purpose, "task"); assert.equal(who.person, false);
+    assert.deepEqual(input.context?.existing, [], "read-off formal bodies cannot enter the extractor through candidate management");
+    assert.deepEqual(input.context?.pending.map(entry => entry.text), ["待本人认可的发布清单"]);
+    const slot = input.slots.find(entry => entry.scope === "project" && entry.meta.kind === "convention" && !entry.replacement)!;
+    return { drafts: [{ slot_id: slot.id, text, suggested_basis: "inferred" as const,
+      evidence: [{ source: input.sources[0]!, quote: text }] }] };
+  } } });
+  const memory = await env.open();
+  memory.savePrefs(person, "personal", { learn_from_work: false });
+  await memory.write(person, { scope: "project", text: "禁止自动读取的正式项目事实", kind: "fact" });
+  const pending = await memory.propose(person, { scope: "project", text: "待本人认可的发布清单", kind: "convention",
+    basis: "inferred", why: "待本人确认", from: "extraction" });
+  const recipe = await memory.forRun({ ...caller("context-recipe"), session_id: "formation-identity" }, { query: "发布核对" });
+  assert.ok(recipe);
+  const { purpose: _purpose, source_use: _use, ...worker } = { ...caller("formation-identity"), session_id: "formation-identity",
+    class_restrictions: recipe.class_restrictions };
+  memory.savePrefs(person, "project", { task_recall: false });
+  const context = await memory.learningContext(worker);
+  assert.deepEqual(context.existing, []);
+  assert.deepEqual(context.pending.map(entry => entry.candidate_id), [pending.candidate_id]);
+  const result = await memory.learnFromWork(worker, { said: [text], sources: [originals.add("identity-original", text)] });
+  assert.equal(result.formation.outcome, "completed"); assert.equal(result.recording_error, undefined);
+  assert.equal(result.learned[0]?.outcome, "candidate"); assert.equal(extracted.length, 1);
+  assert.equal(extracted[0]!.session_id, worker.session_id);
+  assert.deepEqual(extracted[0]!.class_restrictions, worker.class_restrictions);
+  assert.ok(!("purpose" in worker), "normalizing the learning invocation must not mutate its owner caller");
+  const task = { ...worker, purpose: "task" as const, source_use: "learning" as const };
+  await assert.rejects(env.raw(task).candidates.list("project", "project-a"), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(env.raw(task).candidates.accept({ scope: "project", owner: "project-a", candidate_id: pending.candidate_id,
+    expected_version: pending.version, operation_id: "task-cannot-accept" }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.equal((await env.raw(person).candidates.get({ scope: "project", owner: "project-a", candidate_id: pending.candidate_id }))!.state, "pending");
+  assert.equal((await env.raw(person).list("project", "project-a")).length, 1);
 });
 
 test("MEM-FORM independent full originals form once then use v3 promotion and original-operation replay", { timeout: 30_000 }, async t => {

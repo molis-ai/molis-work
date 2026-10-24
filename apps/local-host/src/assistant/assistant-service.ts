@@ -1,3 +1,4 @@
+import { AssistantWorkLifecycle, type AssistantArchiveRequest } from "./assistant-work-lifecycle.js";
 import { threadReplyMaterials } from "./assistant-thread-types.js";
 import { assistantFailure } from "./assistant-error.js";
 import { isDeepStrictEqual } from "node:util";
@@ -18,7 +19,6 @@ import { roundModel, workView } from "./assistant-work-view.js";
 import { AssistantOffers } from "./assistant-offers.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
-  ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID,
   type AssistantActivity, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantMaterialText,
@@ -36,13 +36,13 @@ import { type AssistantStore, type StoredRound, type StoredWork } from "./assist
 import { AssistantJobs, JOB_FOLLOW_MS } from "./assistant-jobs.js";
 import { declaredUndo } from "../action-undo.js";
 import { assistantErrors } from "./assistant-errors.js";
-import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
+import { assistantCandidate, assistantMemoryCaller, assistantMemoryTools } from "./assistant-memory-tools.js";
 import { assistantMemoryTrail } from "./assistant-memory-trail.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
-import type { MemoryCaller, MemoryService, MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
+import type { MemoryService, MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import { WorkExecutor, dispatchControl, executorProviders, offerExecutors, type ExecutorControl, type PersonActions } from "./assistant-executor.js";
-import { AssistantInputs, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, checkArchiveFilter, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
 import { memoryInputSnapshots, memoryInputSource } from "../memory/memory-source-identity.js";
 import type { memorySources } from "../memory/memory-sources.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
@@ -347,6 +347,7 @@ export class AssistantService {
   private readonly delegations: AssistantDelegations;
   readonly offers: AssistantOffers;
   readonly continuations: AssistantContinuations;
+  readonly lifecycle: AssistantWorkLifecycle;
   /** Background work this person's works started, followed on their graphs. */
   readonly jobs: AssistantJobs;
   /** The reminders, timed rounds and attention rules of this person. */
@@ -361,7 +362,7 @@ export class AssistantService {
       readSubject: (work, subject) => this.readSubject(work, subject), authority: work => ports.authority(work, { source: "card" }), jobs: this.jobs,
       createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
-      work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
+      work: workId => store.get(actorId, workId), assertCanSchedule: work => this.lifecycle.assertStart(work), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
       setting: key => store.setting(actorId, key), setSetting: (key, value) => store.setSetting(actorId, key, value),
       rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules), pages: () => ports.pages(),
       // Each look at the Plugins is bounded in time, so one that does not answer cannot hold the sweep.
@@ -369,6 +370,8 @@ export class AssistantService {
         return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),
       host: () => ports.host(), state: (host, work) => this.stateFor(host, work), schedule: () => this.schedule(),
       send: (work, text, request_id, stillCurrent) => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent) });
+    this.lifecycle = new AssistantWorkLifecycle({ store, actorId, host: () => ports.host(), state: (host, work) => this.stateFor(host, work),
+      blockStart: id => this.continuations.blockStart(id), stopFollowUps: (id, control) => this.followUps.stopForArchive(id, control) });
     this.delegations = new AssistantDelegations({ store, actorId, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),
       stateOf: (host, work) => this.stateFor(host, work), latestRun: (host, work) => this.latestRun(host, work), chooseCharacter: (work, choice) => this.chooseCharacter(work, choice),
       lastReply: async work => [...((await this.assistantPart(work)).rounds.at(-1)?.turns ?? [])].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim(),
@@ -383,13 +386,13 @@ export class AssistantService {
       } });
   }
 
-  async list(): Promise<AssistantWork[]> {
-    const works = this.store.list(this.actorId);
+  async list(archived: boolean | "any" = false): Promise<AssistantWork[]> {
+    const works = this.store.list(this.actorId, { archived: checkArchiveFilter(archived) });
     if (!works.length) return [];
     const host = await this.ports.host();
     return Promise.all(works.map(async work => {
       const state = await this.stateFor(host, work);
-      this.notice(work, state);
+      if (!work.archived) this.notice(work, state);
       return this.publicWork(await this.named(work), state);
     }));
   }
@@ -678,6 +681,7 @@ export class AssistantService {
     if (input.executor_session_id !== undefined && (input.work_id || choice?.kind !== "plugin" || typeof input.executor_session_id !== "string" || !input.executor_session_id)) {
       throw assistantErrors.invalid("只有交给执行方插件的新工作可以接着一个已有的会话");
     }
+    if (input.work_id) this.lifecycle.assertStart(this.store.get(this.actorId, input.work_id));
     const claim = this.store.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined;
@@ -1214,16 +1218,9 @@ export class AssistantService {
     return this.publicWork(work, await this.stateSafely(work));
   }
 
-  /** Put away (or back). Putting away is quiet: it waits for no round in progress here or in what it handed out, and takes its timed rounds with it. */
-  async archive(workId: string, archived: boolean): Promise<AssistantWork> {
-    if (archived) {
-      const host = await this.ports.host(), own = this.store.get(this.actorId, workId), group = [own, ...this.store.delegatedBy(this.actorId, own, "any")];
-      if ((await Promise.all(group.map(item => this.stateFor(host, item)))).some(state => ["running", "paused", "waiting-input", "waiting-review"].includes(state))) {
-        throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
-      }
-      await this.followUps.stopForArchive(workId);
-    }
-    const work = this.store.update(this.actorId, workId, null, { archived });
+  /** SDK first, then the Work projection, under the same current authority. */
+  async archive(workId: string, request: AssistantArchiveRequest, control: AgentMemoryExecutionControl): Promise<AssistantWork> {
+    const work = await this.lifecycle.change(workId, request, control);
     return this.publicWork(work, await this.stateSafely(work));
   }
 
@@ -1242,6 +1239,7 @@ export class AssistantService {
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
+
   /** The executor a work is kept with (or the plugin named), found again in the project's directory as the person; refused, not replaced, when it is not there. */
   private async executorOf(work: Pick<StoredWork, "project_ref" | "executor"> | Pick<StoredWork, "project_ref">, pluginId?: string, dispatch?: { control?: ExecutorControl; original?: SendIntent["original_input"] }): Promise<WorkExecutor> {
     if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用执行方插件");
@@ -1258,7 +1256,8 @@ export class AssistantService {
   /** A work carried by a plugin: its round starts, continues or is answered in the plugin's own session. */
   private async executorDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("这项工作的执行方暂时不能带图片；可以把图里的要点写成文字再发");
-    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
+    const current = () => { assertSendCurrent(stillCurrent); this.lifecycle.assertStart(work); };
+    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: dispatchControl(current) });
     if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
     // The mode chosen before the first Send is saved on the session, where the plugin's page reads it too.
     if (!work.executor.session_id) work = await openSession(this.store, this.actorId, work, executor, mode);
@@ -1286,19 +1285,17 @@ export class AssistantService {
     const adapter = host.adapter(RUNTIME);
     let base = await this.ports.authority(work);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
-    const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart ? { ...base, beforeStart: async () => {
-      await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent);
+    const startAuthority = () => ({ ...base, beforeStart: async () => {
+      await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent); this.lifecycle.assertStart(work);
     }, assertBeforeStart: () => {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
-      requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent);
-    } } : base), original_input });
+      requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); this.lifecycle.assertStart(work);
+    }, original_input });
     let authority = startAuthority();
     const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
-      const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
-        actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
-      work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
-      // Action ownership includes the newly created session, also on the very first round.
+      work = await this.lifecycle.bindSession(host, work, { title: work.title, workspace: "business", role_id: role }, authority, () => assertSendCurrent(stillCurrent));
+      // Action ownership includes the newly bound session; later preparation is fenced without holding the binding gap.
       base = await this.ports.authority(work); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);
@@ -1428,8 +1425,8 @@ export class AssistantService {
         `和这一轮相关的记忆里，${budget ? `有 ${budget} 条因为篇幅没有带上` : ""}${budget && conflicts ? "，" : ""}${conflicts ? `有 ${conflicts} 条和另一条互相矛盾、带上的是用户明确说过的那条` : ""}。`));
     }
     // Forming memories switched off: the round is told, and where the person turns it on (the work layer says what follows).
-    if (this.ports.memory?.() && !this.memoryTools(work)) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
-      "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能长期记住或忘掉任何事。"));
+    if (this.ports.memory?.() && !this.memoryTools(work)?.remember && !work.delegated_by) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
+      "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能长期记住新内容；读取和停用是否可用，以本轮提供的工具为准。"));
     // Changes a stopped round left running, and how each ended (the base says not to submit an unsettled one again blindly).
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     if (unsettled.length) {
@@ -1642,17 +1639,9 @@ export class AssistantService {
     return memory;
   }
 
-  /** The Assistant acting for the person in one work (or the person themselves, for the settings and the panel). */
-  private memoryCaller(work: StoredWork | null, projectId: string | null, person = false): MemoryCaller {
-    return { actor_id: this.actorId, project_id: work ? work.project_ref?.project_id ?? null : projectId, consumer: "assistant",
-      ...(work ? { work: { work_id: work.work_id, title: work.title } } : {}), ...(person ? { person: true } : {}),
-      // The Character carrying this work: its own memories come along, and only in its work.
-      ...(work?.character && work.project_ref ? { character: { id: work.character.artifact_id, title: work.character.title } } : {}) };
-  }
-
   /** The person's memories: personal ones, and — given a project — that project's. Disabled ones are listed as such. */
   async memories(projectId?: string | null): Promise<AssistantMemory[]> {
-    const { items } = await this.memory().list(this.memoryCaller(null, projectId ?? null, true), { scope: "all" });
+    const { items } = await this.memory().list(assistantMemoryCaller(this.actorId, null, projectId ?? null, true), { scope: "all" });
     return items.sort((a, b) => (a.scope === b.scope ? 0 : a.scope === "personal" ? -1 : 1) || (a.created_at === null ? b.created_at === null ? 0 : 1 : b.created_at === null ? -1 : a.created_at.localeCompare(b.created_at)))
       .map(item => ({ memory_id: item.memory_id, scope: item.scope, ...(item.project_id ? { project_id: item.project_id } : {}), text: item.text, origin: item.origin, disabled: item.state !== "active" }));
   }
@@ -1670,7 +1659,7 @@ export class AssistantService {
   /** Change, switch off or delete one memory, in the scope it lives in (a project's only from that project's page). */
   async changeMemory(input: { memory_id: string; action: "update" | "disable" | "enable" | "remove"; text?: string }, projectId?: string | null): Promise<AssistantMemory[]> {
     if (!["update", "disable", "enable", "remove"].includes(input?.action)) throw assistantErrors.invalid("不支持的操作");
-    await this.memory().change(this.memoryCaller(null, projectId ?? null, true), { memory_id: String(input?.memory_id ?? ""), action: input.action, ...(typeof input.text === "string" ? { text: input.text } : {}) });
+    await this.memory().change(assistantMemoryCaller(this.actorId, null, projectId ?? null, true), { memory_id: String(input?.memory_id ?? ""), action: input.action, ...(typeof input.text === "string" ? { text: input.text } : {}) });
     return this.memories(projectId);
   }
 
@@ -1684,13 +1673,13 @@ export class AssistantService {
 
   /** The person keeps a suggestion (as it was, or as they reworded it): written like anything they asked to remember. */
   async acceptMemoryCandidate(candidateId: string, input: { text?: string } = {}): Promise<AssistantMemoryCandidate> {
-    const { candidate } = await this.memory().accept(this.memoryCaller(null, null, true), candidateId, input);
+    const { candidate } = await this.memory().accept(assistantMemoryCaller(this.actorId, null, null, true), candidateId, input);
     return assistantCandidate(candidate);
   }
 
   /** The person declines a suggestion: it goes, and the same one is not suggested again. */
   async discardMemoryCandidate(candidateId: string): Promise<AssistantMemoryCandidate> {
-    return assistantCandidate((await this.memory().discard(this.memoryCaller(null, null, true), candidateId)).candidate);
+    return assistantCandidate((await this.memory().discard(assistantMemoryCaller(this.actorId, null, null, true), candidateId)).candidate);
   }
 
   /** The round's memory tools (see assistant-memory-tools.ts), or none when forming memories is off. */
@@ -1698,7 +1687,7 @@ export class AssistantService {
     const memory = this.ports.memory?.();
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
-    return assistantMemoryTools({ memory, controlled: (control, bindChangeTarget) => this.ports.memory?.(control, bindChangeTarget), sources: this.ports.memorySources, currentWork: () => this.store.get(this.actorId, work.work_id), currentInput: this.continuations.currentInput(work.work_id), actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
+    return assistantMemoryTools({ memory, controlled: (control, bindChangeTarget) => this.ports.memory?.(control, bindChangeTarget), sources: this.ports.memorySources, currentWork: () => this.store.get(this.actorId, work.work_id), currentInput: this.continuations.currentInput(work.work_id), actorId: this.actorId, work, projectId, recipe: this.chosenMemory.get(work.work_id),
       onSourceWithdrawal: listener => { this.memorySourceWithdrawals.add(listener); return () => { this.memorySourceWithdrawals.delete(listener); }; },
       spoken: async () => memoryInputSnapshots(this.actorId, (await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.sourceViews ?? []) });
   }
@@ -1720,7 +1709,7 @@ export class AssistantService {
     // Where the person is (plugin, object kind, Goal) decides which limited memories apply; the page's claim only narrows.
     const situation = context ? { ...(context.source.plugin_id ? { plugin_id: context.source.plugin_id } : {}), ...(context.object ? { object_kind: context.object.kind } : {}),
       ...(context.object?.kind === "goal" ? { goal_id: context.object.id } : {}) } : {};
-    const chosen = await memory.forRun(this.memoryCaller(work, null), { query: `${task} ${work.title}`.slice(0, 2000), limit: 16, budget_chars: 3000,
+    const chosen = await memory.forRun(assistantMemoryCaller(this.actorId, work, null), { query: `${task} ${work.title}`.slice(0, 2000), limit: 16, budget_chars: 3000,
       ...(Object.keys(situation).length ? { situation } : {}) }).catch(() => null);
     if (chosen) this.recalled.set(work.work_id, chosen.receipt_id);
     this.chosenMemory.set(work.work_id, chosen);
@@ -1732,7 +1721,7 @@ export class AssistantService {
     facts: ReadonlyMap<string, import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact>): Promise<{ changes: MemoryChange[] }> {
     const memory = this.ports.memory?.();
     if (!memory) return { changes: [] };
-    const caller = this.memoryCaller(null, work.project_ref?.project_id ?? null, true);
+    const caller = assistantMemoryCaller(this.actorId, null, work.project_ref?.project_id ?? null, true);
     const receipts = new Map(stored.filter(round => round.memory_receipt).map(round => [round.run_id, round.memory_receipt!]));
     if (receipts.size || facts.size) {
       const items = new Map((await memory.list(caller, { scope: "all" }).catch(() => ({ items: [] as MemoryItem[] }))).items.map(item => [item.memory_id, item]));

@@ -1,5 +1,22 @@
 # 公共类型与协议
 
+## Run 记忆展开合同（实施中，未验证）
+
+依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，`AgentMemoryTools.list` 改为无正文展开回执，保留纠正所需 memory_id/version。Agent Action 调用控制与 Host 私有 `ActionCallContext` 携带仅供同 Run 的展开窄口，不可从业务输入建立，不序列化或暴露给插件回调。`memory.list@5` / `memory.recall@3` 用明确输出 union 区分既有非 Run 查询与运行中 Agent 的无正文展开；按当前开发阶段同步所有消费者，不增加兼容层。SDK 类型只留 AgentHost Adapter 边界，contracts 只提供本仓 DTO。具体字段已按核对合同接入；快照由统筹统一生成，尚未验证。
+
+最小输出变化：共享 `mode: "run-expansion"` DTO，仅含 receipt_id/outcome/可选错误码、queued/omitted memory_id/version、tokens/basis/remaining_tokens；list@5 和 recall@3 分别将它与原响应组成 union，原管理分支不加必填字段。list 工具直接返回此 DTO。输入不增加任何授权字段，Host 仅为已校验的现有 Memory 读取意图建立 explicit 用途；任意 runtime Action 不凭身份自动获得。当前 role/install/read/场景和原冻结权限仍要重新求交。
+
+## Memory 管理分页合同
+
+`memory.list@4` 保留合法可见正式项及 personal/project 数；pending 与 auto_this_week 为 number|null。null 明确表示该调用未查询管理计数：非本人调用不读取候选或旁账统计，本人管理仍返回实际数值。不以零替代未知，也不为计数提升非本人权限。助理工具与工作轨迹只消费 items，现设置页使用独立 page/candidates/changes。
+
+Agent Memory 的候选 get 绑定固定 scope/owner/candidate_id 与可选取消信号，沿现 SDK get 返回已授权 canonical 候选或真实缺失的 undefined；拒权与存储错误不变成空结果。仅内部形成查询可据明确 MEMORY_SCOPE_DENIED 排除不可见项，本人管理完整性检查不放宽。
+
+`services/memory` 提供 `memory.page@2` 与 `MemoryPageRequest/Response/MemoryManagementItem`。管理请求没有 owner；响应中的 canonical owner 支持固定选集，新增必填输出字段因此升为 v2。六种管理类别不扩大写入/形成四类。响应的真实状态与 expired 分开，classification 缺失为 null，total 和物理成本用 exact/unknown 明示。`services/agent-host` 的 page DTO 复用 SDK 管理查询语义，只有 Adapter 翻译 scope、字段和成本；不建立另一个分页主人。
+
+`memory.prefs.read@3` / `memory.prefs.write@3` 使用九字段 `MemoryPrefs`，新增必填 `class_restrictions`。每行的可信 consumer/current_scene 与可选 scene/kind/lifecycle 选择条件只收紧原权限；read 与 form 独立。合同提供 `isMemoryClassRestrictions` 严格拒绝未知字段/值和重复 selector（不按对象字段顺序区分）；同一选择条件即使决策不同也不能重复。`isCompleteMemoryPrefs` 只接受完整当前设置，旧数据转换由离线采用入口负责。输入省略数组保持原值，显式数组完整替换；重复 selector 的拒绝由 MemoryService 写入口再次执行，JSON Schema 不伪称可以表达该语义。验证入口为 `tests/memory-class-restrictions.test.ts`。
+
+
 让 Module、Host、Plugin 和 App 通过一致的输入输出协作。这里提供真实的公共类型、schema 和解析规则，而不是功能实现。
 
 包名：`@molis-ai/molis-work-contracts`。工作区内部包，通过仓库构建和 Host 装配使用。
@@ -88,3 +105,20 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 `retainBackgroundAuthority(additionalPermissions?)` 只增加已有权限的持续检查，不改变动作引用或扩大授权。传入数组被复制，额外权限必须属于原调用者；未提供独立可信入口授权时仍受原取消边界。绑定客户端分别保留父动作与子动作权限，不能彼此替代。回归见 `tests/action-background-authority.test.ts` 与 `tests/security-invariants-alchemist-resumption.test.ts`。
 
 `PluginModelClient` 的 `images` 只收字节与可选名称，在首次等待前复制；`execution` 保留同次真实推理回执，注入文字替身不伪造。成功结果与可记账失败的 `validateResult()` 必须在原 `beforeEffect()` 之后、同步提交之前调用；它绑定原动作及模型配置，不能跨动作持有。`choices()` 只返回现行模型名称和能力，不给地址或凭据。
+
+`services/memory` 的正式 `MemoryFormalKind` 含六类，自动形成、工具写入与插件默认许可沿原四类 `MemoryKind`。`memory.change@3` 的 `reclassify` 需要所见版本、明确 kind 和 scenes/lifecycle；可与原正文、适用情境同次修改，期限省略/null/时间分别保留/移除/设置。`memory.history@2` 仅输出原 canonical snapshot 的分类、期限及完整性事实，不暴露内部 snapshot，也不表示当前授权恢复必定成功。正式条目输出同步升 `memory.recall@2`、`memory.list@3`、`memory.write@3`、`memory.candidates.accept@3`，输入形成类别仍四类；已有六类管理页和 v2 记忆包信封保持原版本。验证入口为 `tests/memory-classification-edit-http.test.ts`、`tests/memory-actions.test.ts` 与 `tests/memory-mcp.test.ts`。
+
+固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面测试待统筹构建槽验证；未跑不算通过。合同见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
+
+`AgentMemoryPreviewMutation` 的 `purge` 与 SDK 实际遗忘命令一致；`remove` 仍只是墓碑命令，两者不替换授权。
+
+`AgentMemoryCapability.previewPurge` 是当前管理 caller 的在线无正文删除预览，平台只转换字段，不开放插件 Action。返回 canonical 身份、所见版本、状态、Session 绑定与候选已记录来源；`sources: null` 不表示无来源。调用方累计每页 completed、无 issues 且最终 exhausted，并在跨页及执行期间持有原写屏障；partial、cancelled、错误或游标不前进都不能证明为空。单 `session_ref` 为 canonical 精确筛选，不以 evidence 引用代替。此接口不接离线维护权限，也不改变现 Memory Action schema/version。
+
+`ActionCallContext.runtime_memory` 只由 Host 绑定原 Run 的插件、场景与分类限制，和 `runtime_session_id` 一起传递；不接受业务输入，不授予 Action 权限，不持久化第二份策略。
+
+
+### 明确续期（2026-10-24，实现中）
+
+`memory.change@4` 增加本人 renew 决定，输入为原 memory_id、所见 expected_version 和 UTC ISO expires_at；仅改期限，拒绝附带其他变更。AgentMemoryCapability 增加 renew 窄口，保留原 mutation/执行控制合同。历史/变更沿 edited，不新增历史 schema；SDK 包及公开 API/Action 快照由统筹统一更新。
+
+候选显式分类采用的当前合同：`MemoryCandidate` 增加 canonical 分类、正式期限意图和独立等待期限；`MemoryCandidateDecision.formal` 由本人明确给出完整 kind/classification/expires_at，不接收 owner、来源或 Session 授权。按现行合同规则，受候选输出影响的 `memory.write@4`、`memory.candidates.list@3`、`memory.candidates.accept@4`、`memory.candidates.discard@3` 同步升版本。Host HTTP、助理接线和内部查询均从现 `memoryActions` 引用，不保留旧版本兼容；存量固定旧 Action 的工作流引用按原规则保留并报版本不可用，不静默改为新版本。统筹已在 SDK99 整体构建后生成两个受影响 API 快照和一份 Action 快照；API/Action 生成检查通过，其余动作与 API 不变。验收复用 `tests/memory-candidate-adoption.test.ts`、`tests/memory-actions.test.ts` 与既定合同回归。

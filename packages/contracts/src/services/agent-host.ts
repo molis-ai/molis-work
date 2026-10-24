@@ -11,6 +11,7 @@ import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
 import type { AgentSkillDefinition } from "../platform/plugin-agent.js";
 // Declared by domain in the agent-host-*.ts files beside this one (W5-09); this subpath exports all of them.
 export { AGENT_RUNTIME_CAPABILITIES, defaultAgentRuntime, hostsAgentSessions, isTerminalAgentPhase, resolveProjectRuntime } from "./agent-host-runtime.js";
+export { agentSessionLifecycleActions } from "./agent-host-lifecycle.js";
 export type {
   AgentRuntimeCapability,
   AgentCapabilitySupport,
@@ -20,6 +21,11 @@ export type {
   AgentRuntimeHealthStatus,
   AgentRuntimeHealth,
   AgentSessionRef,
+  AgentSessionDecision,
+  AgentSessionPurgePreview,
+  AgentSessionLifecycleView,
+  AgentSessionLifecycleReceipt,
+  AgentSessionLifecycle,
   AgentRunRef,
   AgentRunPhase,
   AgentRuntimeDiagnostics,
@@ -148,8 +154,8 @@ export { agentOfferActions, type AgentActionOffer, type AgentOfferRunRequest, ty
 export { agentWriteCheckerActions, type AgentWriteChecker, type AgentWriteCheckerList, type AgentWriteCheckerSave, type AgentWriteCheckerStore, type AgentWriteCheckNote } from "./agent-host-write-checkers.js";
 
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
-export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentMemoryUseReceipt, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability,
-  AgentMemoryCaller, AgentMemoryMutation, AgentMemoryChange, AgentMemoryPreviewMutation, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemorySourceRequest, AgentMemoryPromotionIdentity, AgentMemoryPromotionRequest, AgentMemoryPromotionPreparation, AgentMemoryPromotionApplied, AgentMemoryPromotionReceipt, AgentMemoryPromotion, AgentMemoryPromotionPendingError, AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryClearResult } from "./agent-host-memory.js";
+export type { AgentMemoryClassPolicy, AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentMemoryUseReceipt, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability,
+  AgentMemoryPage, AgentMemoryPageQuery, AgentMemoryPurgeQuery, AgentMemoryPurgeItem, AgentMemoryPurgePage, AgentMemoryCaller, AgentMemoryMutation, AgentMemoryChange, AgentMemoryPreviewMutation, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemorySourceRequest, AgentMemoryPromotionIdentity, AgentMemoryPromotionRequest, AgentMemoryPromotionPreparation, AgentMemoryPromotionApplied, AgentMemoryPromotionReceipt, AgentMemoryPromotion, AgentMemoryPromotionPendingError, AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryClearResult } from "./agent-host-memory.js";
 
 export const servicesAgentHostContract = {
   contractId: "io.molis.work.service.agent-host.v1",
@@ -300,7 +306,7 @@ const runRefOutput = { type: "object", required: ["run_id", "session_id"], addit
 const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "turns", "activity", "usage", "awaiting_input", "started_at", "ended_at"], additionalProperties: false, properties: {
   step_board: object, step_board_error: { type: "string" }, ref: runRefOutput, phase: { enum: RUN_PHASES }, frozen: object, turns: objects, activity: objects,
   command_outputs: { type: "array", items: { type: "object", required: ["call_id", "run_id"], properties: { call_id: { type: "string" }, run_id: { type: "string" } } } },
-  usage: object, awaiting_input: objects, stop_reason: { type: "string" }, original_input: object, memory_recalled: object, todo: objects, turn_changes: objects, sleeping_until: { type: "string" },
+  usage: object, awaiting_input: objects, stop_reason: { type: "string" }, original_input: object, memory_recalled: object, class_restrictions: object, memory_scene: { type: "string" }, todo: objects, turn_changes: objects, sleeping_until: { type: "string" },
   retry_wait: object, model_switch: object, offers: objects, started_at: { type: "string" }, ended_at: { type: ["string", "null"] } } } as const;
 const sessionViewOutput = { type: "object", required: ["owner", "session", "title", "runs", "latest_run"], additionalProperties: false, properties: {
   workspace: { enum: ["required", "none", "business"] }, checkpoint_busy: { type: "boolean" }, recovery: { type: "object", required: ["required", "reason"], properties: { required: { const: true }, reason: { type: "string" } } },
@@ -403,7 +409,7 @@ export const agentHostCapabilities = {
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
   readSession: {
-    capability_id: "agent.session.read.v1", version: 2, operation: "query",
+    capability_id: "agent.session.read.v1", version: 3, operation: "query",
     action: { title: "读 Agent 会话", description: "自己的一条会话：标题、各轮的引用和最近一轮。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionViewOutput },
   } as ActionDefinition<[session: AgentSessionRef], AgentSessionView>,
@@ -558,7 +564,7 @@ export const agentHostCapabilities = {
       output_schema: { type: "object", required: ["ref", "frozen"], additionalProperties: false, properties: { ref: runRefOutput, frozen: object } } },
   } as ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>,
   readRun: {
-    capability_id: "agent.run.read.v1", version: 2, operation: "query",
+    capability_id: "agent.run.read.v1", version: 3, operation: "query",
     action: { title: "读一轮执行", description: "自己会话里一轮的过程、状态和用量。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: runViewOutput },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
@@ -587,7 +593,7 @@ export const agentHostCapabilities = {
    * a timer; nothing is replayed. Concurrent, beside the project's queue; the Host stops it at 30 s whatever it does.
    */
   waitRun: {
-    capability_id: "agent.run.wait.v1", version: 2, operation: "query",
+    capability_id: "agent.run.wait.v1", version: 3, operation: "query",
     action: { title: "等一轮执行变化", description: "自己会话里的一轮有了变化就回答，最多等 25 秒；到时还没变就回答它现在的样子。", kind: "query", ...pluginOnly,
       scheduling: "concurrent", execution: { timeout_ms: 30_000 },
       input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false,

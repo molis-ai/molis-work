@@ -3,6 +3,7 @@
  * `codingText` and `codingError` (words.ts): a part of `CODING_MESSAGES`, which spreads it.
  */
 export const CODING_SERVER_MESSAGES = {
+  "coding.server.archive-changed": { zh: "归档确认与当前会话不一致，请重新核对；未重做旧决定。", en: "The archive confirmation no longer matches this session. Review it again; the old decision was not repeated." },
   "coding.server.session-unreadable": { zh: "会话暂不可读", en: "The session can't be read right now" },
   "coding.server.choose-workspace": { zh: "请先为这个项目选择已授权的工作区目录", en: "Choose an authorized workspace directory for this project first" },
   "coding.server.compact-unclear": { zh: "请说明是否在下一轮整理上下文", en: "Say whether to tidy the context next turn" },

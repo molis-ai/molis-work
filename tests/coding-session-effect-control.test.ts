@@ -119,8 +119,8 @@ const privateStorage = (): PluginPrivateStorage => {
 /** A Coding route over a fresh in-memory library whose every write first runs `onWrite`: the moment between a handler having prepared a write and its commit. */
 function routesOver(services: { capabilities?: PluginCapabilityClient; agent?: Pick<PluginActionClient, "invoke"> }) {
   const database = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["board"]);
-  const hooks = { onWrite: () => {} };
-  const watched: PluginDatabase = { ...database, transaction: (beforeEffect, write) => { hooks.onWrite(); return database.transaction(beforeEffect, write); } };
+  const hooks: { onWrite: () => void | Promise<void> } = { onWrite: () => {} };
+  const watched: PluginDatabase = { ...database, transaction: async (beforeEffect, write) => { await hooks.onWrite(); return database.transaction(beforeEffect, write); } };
   const sessions = new CodingSessionStore(watched);
   // Coding's routes need the Host's client; one the test does not give answers nothing.
   const capabilities = services.capabilities ?? { availability: () => ({ available: true }), invoke: async (definition: { capability_id: string }) => {
@@ -171,7 +171,8 @@ for (const stop of ["cancel", "revoke"] as const) {
       const made = await h.call("coding.create-session", { method: "POST", params: {}, body: { title: "留下来" }, execution: callControl().execution });
       assert.equal(made.status, 200, JSON.stringify(made.body));
       const id = (made.body as { session: { session_id: string } }).session.session_id;
-      for (const body of [{ title: "改过的名字" }, { archive: true }]) {
+      const original = await h.call("coding.archive-preview", { method: "GET", params: { sessionId: id } });
+      for (const body of [{ title: "改过的名字" }, { archive: true, archive_decision: (original.body as { archive_decision: unknown }).archive_decision }]) {
         const again = callControl();
         h.hooks.onWrite = () => again.stop(stop);
         const refusedUpdate = await h.call("coding.update-session", { method: "PATCH", params: { sessionId: id }, body, execution: again.execution });
@@ -268,4 +269,43 @@ test("RAC-189 Coding message reads also carry their request control into the act
   assert.deepEqual(seen, []);
   assert.equal((await fixture.call("/sessions/app/messages"))?.status, 200);
   assert.deepEqual(seen, ["read"]);
+});
+
+test("COD-MEM-ARCH-05 the final Coding transaction refuses a local confirmation whose binding changes while the write waits", async () => {
+  const h = routesOver({ agent: directory() });
+  try {
+    await h.sessions.create(noEffect, { project_id: "board", session_id: "binding", title: "Original", runtime_id: "prologue", at: AT });
+    const preview = await h.call("coding.archive-preview", { method: "GET", params: { sessionId: "binding" } });
+    assert.equal(preview.status, 200);
+    assert.equal((preview.body as { archive_decision: { mode: string } }).archive_decision.mode, "local");
+    let changed = false;
+    h.hooks.onWrite = async () => {
+      h.hooks.onWrite = () => {};
+      await h.sessions.setRuntimeSession(noEffect, "board", "binding", "new-binding", "2026-10-24T00:00:00Z");
+      changed = true;
+    };
+    const result = await h.call("coding.update-session", { method: "PATCH", params: { sessionId: "binding" },
+      body: { archive: true, archive_decision: (preview.body as { archive_decision: unknown }).archive_decision }, execution: callControl().execution });
+    assert.equal(changed, true); assert.ok(result.status >= 400);
+    assert.equal(h.sessions.get("board", "binding").runtime_session_id, "new-binding");
+    assert.equal(h.sessions.get("board", "binding").archived, false);
+  } finally { h.database.close(); }
+});
+
+
+test("Store archive keeps default duplicate refusal; only an explicit verified retry may return the existing row", async () => {
+  const database = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, [P]), sessions = new CodingSessionStore(database);
+  try {
+    await sessions.create(noEffect, { project_id: P, session_id: "duplicate", title: "Original", runtime_id: "prologue", at: AT });
+    const original = await sessions.archive(noEffect, P, "duplicate", AT);
+    await assert.rejects(sessions.archive(noEffect, P, "duplicate", "2026-10-24T00:00:00Z"), /会话已归档/);
+    let checked = false;
+    await assert.rejects(sessions.archive(noEffect, P, "duplicate", AT, () => { checked = true; }), /会话已归档/);
+    assert.equal(checked, true, "an arbitrary guard must not opt into repeat success");
+    await assert.rejects(sessions.archive(noEffect, P, "duplicate", AT, () => { throw new Error("stale original decision"); }, { allowAlreadyArchived: true }), /stale original decision/);
+    assert.deepEqual(await sessions.archive(noEffect, P, "duplicate", "2026-10-24T00:00:00Z", current => {
+      assert.deepEqual(current, original);
+    }, { allowAlreadyArchived: true }), original);
+    assert.deepEqual(sessions.get(P, "duplicate"), original);
+  } finally { database.close(); }
 });

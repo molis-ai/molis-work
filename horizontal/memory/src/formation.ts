@@ -1,5 +1,6 @@
+import { CANDIDATE_TTL_MS } from "./shapes.js";
 import type { AgentMemorySourceRef, AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MEMORY_KINDS, type MemoryCandidateRecord, type MemoryKind, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_KINDS, MEMORY_LIFECYCLES, type MemoryPrefs, type MemoryCandidateRecord, type MemoryKind, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendCandidate, MemoryFormationInput } from "./backend.js";
 import type { MemoryCaller } from "./service.js";
 import type { Located } from "./scope-commands.js";
@@ -9,6 +10,8 @@ import { automaticMemoryHold } from "./policy.js";
 import { theirWords } from "./spoken.js";
 import { looksLikeInstruction, sameWords } from "./text.js";
 import { memoryErrors } from "./errors.js";
+import { consumerAccess } from "./prefs.js";
+import { memoryClassReadPossible, memoryClassReadAllowed, memoryClassFormationAllowed, type MemoryClassTarget } from "./class-restrictions.js";
 
 export interface FormationPlace { scope: MemoryScope; owner: string; project: string | null; auto: boolean; kinds: readonly MemoryKind[] }
 export interface FormationSnapshot {
@@ -18,6 +21,49 @@ export interface FormationSnapshot {
 }
 export type FormationSlot = NonNullable<MemoryFormationInput["slots"]>[number];
 const WAITING_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Current and Run-frozen restrictions share the same canonical target; they cannot restore one another. */
+export function formationClassAllowed(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope, target: MemoryClassTarget): boolean {
+  const context = { consumer: caller.consumer, current_scene: newMemoryClassification(caller, null).classification!.scenes[0]! };
+  const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"];
+  return memoryClassFormationAllowed(prefs.class_restrictions, context, target)
+    && (!frozen || memoryClassFormationAllowed(frozen, context, target));
+}
+
+/** An unreadable scope must not hydrate formal bodies merely to discard them later. */
+export function formationReadPossible(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope): boolean {
+  if (caller.session_id && !caller.class_restrictions) return false;
+  const access = consumerAccess(prefs, caller.consumer, caller.plugin_id, caller.run_explicit ? "explicit" : "task");
+  const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, caller.run_explicit ? "explicit" : "task") : undefined;
+  if (!access.allowed || (plugin && !plugin.allowed)) return false;
+  const kinds = access.kinds && plugin?.kinds ? access.kinds.filter(kind => plugin.kinds!.includes(kind)) : access.kinds ?? plugin?.kinds;
+  if (kinds?.length === 0) return false;
+  const context = { consumer: caller.consumer, current_scene: newMemoryClassification(caller, null).classification!.scenes[0]! };
+  const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"];
+  return memoryClassReadPossible([...prefs.class_restrictions, ...(frozen ?? [])], context, caller.run_explicit ? "explicit" : "task", kinds ? { kinds } : {});
+}
+
+/** Recheck already-captured context synchronously after the last asynchronous canonical read. */
+export function formationReferenceAllowed(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope, target: MemoryClassTarget, mode: "read" | "form"): boolean {
+  if (caller.session_id && !caller.class_restrictions) return false;
+  const accessMode = mode === "read" && !caller.run_explicit ? "task" : "explicit";
+  const access = consumerAccess(prefs, caller.consumer, caller.plugin_id, accessMode);
+  const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, accessMode) : undefined;
+  if (!access.allowed || (plugin && !plugin.allowed)
+    || (target.kind && (access.kinds && !access.kinds.some(kind => kind === target.kind) || plugin?.kinds && !plugin.kinds.some(kind => kind === target.kind)))) return false;
+  if (mode === "form") return prefs.form && (caller.source_use === "explicit" || prefs.learn_from_work) && formationClassAllowed(caller, prefs, scope, target);
+  const context = { consumer: caller.consumer, current_scene: newMemoryClassification(caller, null).classification!.scenes[0]! };
+  const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"];
+  return memoryClassReadAllowed(prefs.class_restrictions, context, target, caller.run_explicit ? "explicit" : "task")
+    && (!frozen || memoryClassReadAllowed(frozen, context, target, caller.run_explicit ? "explicit" : "task"));
+}
+
+/** Keep a kind if a new or replacement destination in the declared current scenes could still be formed. */
+export function formationKindPossible(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope, kind: MemoryKind): boolean {
+  const scene = newMemoryClassification(caller, null).classification!.scenes[0]!;
+  return [scene, "common"].some(value => MEMORY_LIFECYCLES.some(lifecycle =>
+    formationClassAllowed(caller, prefs, scope, { kind, classification: { scenes: [value], lifecycle } })));
+}
 
 /** Pending review context is not formal recall: apply the App's current scene and private namespace boundary. */
 export function formationPending(caller: MemoryCaller, entry: MemoryBackendCandidate): boolean {
@@ -90,7 +136,8 @@ export function formedRecord(caller: MemoryCaller, slot: FormationSlot, entry: M
   const target = slot.replacement ? snapshot.existing.find(one => one.entry.memory_id === slot.replacement!.memory_id) : undefined;
   const single = entry.meta.kind === "fact" ? "背景事实" : entry.meta.kind === "experience" ? "经验" : "这项要求";
   const why = basis === "repeated" ? "你在两份独立的原始输入里都这样要求" : basis === "explicit" ? "你在这次原始输入里完整表达了这项要求" : "从这次工作里推断";
-  return { candidate_id: entry.candidate_id, version: entry.version, source_refs: refs.map(({ event_id, version }) => ({ event_id, version })),
+  return { candidate_id: entry.candidate_id, version: entry.version,
+    classification: entry.meta.classification ?? null, waiting_expires_at: new Date(Math.min(entry.created_at_ms + CANDIDATE_TTL_MS, entry.meta.expires_at_ms ?? Infinity)).toISOString(), source_refs: refs.map(({ event_id, version }) => ({ event_id, version })),
     actor_id: caller.actor_id, owner: slot.owner, scope: slot.scope, project_id: place.project, formal_expires_at: target?.meta.expires_at ?? null,
     kind: entry.meta.kind as MemoryKind, text: entry.text, applies: facts.applies, basis, why, from: "extraction", work: caller.work ?? null,
     hold_reason: looksLikeInstruction(entry.text) ?? (basis === "inferred" ? "只是推断或缺少可核验的原件，需要你认可才会生效"

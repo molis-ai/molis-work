@@ -65,6 +65,8 @@ export class ProjectService {
 
   register(record: ProjectRecord, eventType: string, actorId: string): void {
     this.repository.transaction(() => {
+      if (this.repository.listProjectDeletions().some(receipt => receipt.project_id === record.project_id && receipt.cleanup_state === "pending"))
+        throw catalogErrors.project_storage_invalid("原项目删除尚未完成，不能登记同一标识的后继项目");
       this.repository.insertProject(record);
       for (const pluginId of new Set(["goals", ...this.plugins.initial?.() ?? []])) {
         if (!this.plugins.has(pluginId)) throw catalogErrors.plugin_not_found("新项目的默认插件未在目录登记");
@@ -217,7 +219,7 @@ export class ProjectService {
 
   updateDeletionCleanup(
     deletionId: string,
-    input: { state: "complete" | "pending"; error: string | null; cleaned_at: string | null },
+    input: { state: "complete" | "pending"; error: string | null; cleaned_at: string | null; add_binding_count?: number },
   ): StoredProjectDeletion {
     this.repository.updateDeletionCleanup(deletionId, input);
     return this.getDeletion(deletionId);

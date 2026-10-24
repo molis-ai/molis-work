@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,7 +22,7 @@ const worker: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJ
 const automatic = { scope: "project" as const, text: "以后周报把风险放在前面", kind: "convention" as const,
   basis: "repeated" as const, why: "两项独立工作中重复提出", from: "extraction" as const };
 const originalPrefs = { enabled: true, task_recall: true, form: true, auto: true, learn_from_work: true, learn_from_ui: true,
-  consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: false }, plugins: {} };
+  consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: false }, plugins: {}, class_restrictions: [] };
 
 function scratch(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "molis-memory-adoption-"));
@@ -99,7 +100,7 @@ test("a new Home is reviewed; manual saving and reading work, and a later saved 
     await env.close(); env = await open(home);
     assert.equal((await env.actions.invoke(memoryActions.prefs, { scope: "personal" })).prefs.auto, true);
     assert.equal((await env.service.recall(worker, { query: "周报风险" })).items.length, 0);
-    assert.equal((await env.actions.invoke(memoryActions.list, { scope: "personal" })).items.length, 1);
+    assert.equal((memoryData(await env.actions.invoke(memoryActions.list, { scope: "personal" }))).items.length, 1);
   } finally { await env.close(); }
 });
 
@@ -161,7 +162,7 @@ function files(directory: string): Record<string, string> {
 }
 
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.
-for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs", "adopting"] as const) {
+for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs", "eight-field-prefs", "project-old-prefs", "other-actor-old-prefs", "adopting"] as const) {
   test(`an existing Home with ${shape} is refused without interpreting it as a new user`, async t => {
     const home = scratch(t);
     mkdirSync(join(home, "agent-runtime")); writeFileSync(join(home, "agent-runtime", "existing"), "keep SDK bytes");
@@ -173,9 +174,16 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", originalPrefs);
       }
       if (shape === "six-field-prefs") {
-        const { enabled: _enabled, task_recall: _task, ...prior } = originalPrefs;
+        const { enabled: _enabled, task_recall: _task, class_restrictions: _restrictions, ...prior } = originalPrefs;
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", prior);
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", prior);
+      }
+      if (shape === "eight-field-prefs" || shape === "project-old-prefs" || shape === "other-actor-old-prefs") {
+        const { class_restrictions: _restrictions, ...prior } = originalPrefs;
+        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", shape === "eight-field-prefs" ? prior : originalPrefs);
+        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", shape === "eight-field-prefs" ? prior : originalPrefs);
+        if (shape === "project-old-prefs") ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, `project:${PROJECT_A}`, prior);
+        if (shape === "other-actor-old-prefs") ledger.savePrefs("other-person", "personal", prior);
       }
       if (shape === "adopting") {
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", originalPrefs);
@@ -186,6 +194,7 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
       if (shape === "wrong-version") { const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)); db.exec("PRAGMA user_version = 2"); db.close(); }
     }
     const before = files(join(home, "agent-runtime"));
+    const ledgerBefore = existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) ? readFileSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) : null;
     const directories = readdirSync(home).sort();
     const refused = { code: shape === "wrong-version" ? "storage.schema_version_mismatch" : "memory.unavailable" };
     assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), refused);
@@ -200,6 +209,7 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
       await assert.rejects(generate("must not dispatch", { timeoutMs: 500 }), { code: "actions.service_unavailable", message: "AI 执行服务尚未就绪或已停止，请稍后重试；材料已保留" });
     } finally { await unbound.close(); }
     assert.deepEqual(files(join(home, "agent-runtime")), before);
+    if (ledgerBefore) assert.deepEqual(readFileSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)), ledgerBefore, "refusal must not repair stored profiles or mutate the ledger");
     assert.deepEqual(readdirSync(home).sort(), directories, "the refused startup created no other Home stores");
     if (shape === "missing-ledger") assert.equal(existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)), false);
   });

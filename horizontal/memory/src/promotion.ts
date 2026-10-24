@@ -30,6 +30,18 @@ const journalKey = (operation: string) => `memory-operation:${operation}:promoti
 const sourcesKey = (memory: string) => `memory-source-links:${memory}`;
 const forgottenKey = (scope: MemoryScope, owner: string, event: string) => `memory-source-forgotten:${JSON.stringify([scope, owner, event])}`;
 
+/** Body-free source identities belong to the existing ledger, including after the formal item has gone. */
+export function memorySourceLinks(ledger: MemoryLedgerPort, actor: string, memory: string): readonly AgentMemorySourceRef[] {
+  return (ledger.marker(actor, sourcesKey(memory))?.body as { sources?: AgentMemorySourceRef[] } | undefined)?.sources ?? [];
+}
+
+export function suppressMemorySources(ledger: MemoryLedgerPort, actor: string, scope: MemoryScope, owner: string,
+  sources: readonly AgentMemorySourceRef[], at: string): void {
+  ledger.transaction(() => {
+    for (const ref of sources) ledger.setMarker(actor, forgottenKey(scope, owner, ref.event_id), { event_id: ref.event_id }, at);
+  });
+}
+
 /** App approval and durable undo share the existing ledger; the SDK remains the only formal/candidate writer. */
 export class MemoryPromotion {
   readonly capability: AgentMemoryPromotion = {
@@ -44,7 +56,7 @@ export class MemoryPromotion {
   }
 
   linked(actor: string, memory: string): readonly AgentMemorySourceRef[] {
-    return (this.ports.ledger.marker(actor, sourcesKey(memory))?.body as { sources?: AgentMemorySourceRef[] } | undefined)?.sources ?? [];
+    return memorySourceLinks(this.ports.ledger, actor, memory);
   }
 
   /** Retain every source that ever contributed to this canonical memory, including replaced versions. */
@@ -57,10 +69,8 @@ export class MemoryPromotion {
 
   /** Suppression survives a failed delete and applies to later versions of the same original event. */
   suppress(actor: string, scope: MemoryScope, owner: string, memories: readonly string[], extra: readonly AgentMemorySourceRef[] = []): void {
-    this.ports.ledger.transaction(() => {
-      const refs = [...extra, ...memories.flatMap(id => this.linked(actor, id))];
-      for (const ref of refs) this.ports.ledger.setMarker(actor, forgottenKey(scope, owner, ref.event_id), { event_id: ref.event_id }, this.ports.now().toISOString());
-    });
+    suppressMemorySources(this.ports.ledger, actor, scope, owner,
+      [...extra, ...memories.flatMap(id => this.linked(actor, id))], this.ports.now().toISOString());
   }
 
   change(actor: string, operation: string): MemoryChangeRecord {

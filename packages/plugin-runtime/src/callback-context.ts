@@ -13,5 +13,7 @@ export function pluginCallbackContext<C extends ActionCallContext>(caller: C): C
     ...(caller.original_input ? { original_input: structuredClone(caller.original_input) } : {}),
   };
   Reflect.deleteProperty(view, "host_plugin");
+  Reflect.deleteProperty(view, "runtime_memory");
+  Reflect.deleteProperty(view, "runtime_memory_read");
   return view;
 }

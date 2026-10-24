@@ -9,34 +9,36 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512",
-    "mergedUpstream": {
-      "pullRequest": 94,
-      "head": "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512",
-      "merge": "d94a99fb3d3cd33c95cd97393c4d1949366ffa81",
-      "note": "Main tree equals the verified PR head; no local SDK patch."
-    },
+    "commit": "28e6f0491753bcaef3fab536670e82e78cc290c6",
     "dirty": false,
     "dirtyPaths": [],
-    "patches": []
+    "patches": [],
+    "mergedUpstream": {
+      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/101",
+      "head": "ac914852dc6a92e1f8d777e400b3714a37478606",
+      "mergeCommit": "6523abb47d25bd45d22dc47db1d3a679bf9327d5",
+      "note": "Archive built at clean production commit 28e6f049; ac914852 only appends the upstream verification record. Coordinator verified and merged PR 101 without repacking."
+    }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1340202,
-    "sha256": "119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1",
-    "integrity": "sha512-SYdscK7+Essw33sGQce1JEuZvT5Sc5LJJRSYniLRf47URlpu869mEsFR1iwxw+2pR7ujvc4WC/y2wTsGFp2bXQ=="
+    "bytes": 1369124,
+    "sha256": "632d8b3b6f7485d68badfd917370227e124ba6dfdc4b6cf4139667d621ee8b90",
+    "integrity": "sha512-Rz6rjrAJIilNAoG6aoHsCH98R24vjhr6IfXxXTh7byU390yj5HRh1qT/Mv2Gi+QmjVEGwX+j4n01K2r13F6h1g=="
   },
   "build": {
-    "node": "24.19.0",
+    "node": "24.14.0",
     "pnpm": "11.9.0",
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "pnpm quality",
-      "cd packages/sdk && pnpm pack --out <isolated-package-output>",
-      "Copy the verified package to the Molis vendor path"
+      "Build clean frozen SDK source with Node 24.14.0 and pnpm 11.9.0; no local SDK patch",
+      "Compare all 784 archive files against the frozen build tree",
+      "Run affected real Node/Registry tests and install the exact archive into an offline public JS/TS consumer",
+      "Independent public package probes reject malformed scope headers and confirm cursor v2",
+      "Replace the existing Molis Memory archive and its one lock integrity; Molis integration verification follows"
     ],
-    "packedOn": "2026-10-23",
-    "note": "Clean PR94 head; complete quality including 684 stable tests, clean installed SDK and Rust passed; 193 related tests include 23 new Node cases. Root independently installed this exact archive and ran the public consumer. Fixed replacement target/version and conservative suggestedBasis persist in shape5 with creation-input consistency. Actual prior PR93 package rejects five related entrypoints with zero commits and unchanged disk bytes. Ordinary cancellation and explicit purge retain existing semantics. Not a release or Molis acceptance; no independent reproducible rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
+    "packedOn": "2026-10-25",
+    "note": "Merged upstream PR 101. Frozen production 28e6f049 and its exact archive were retained. Original pnpm quality passed: 70 files, 723 tests, clean installed consumer, Rust, types, build and API checks. Legal dotted owner-prefix ambiguity requires reconciliation; no real Home or product/user acceptance claimed."
   }
 }

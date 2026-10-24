@@ -2,7 +2,7 @@ import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-cont
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, agentOfferActions, agentSessionLifecycleActions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -81,6 +81,7 @@ export const codingManifest: PluginManifest = {
       "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
       ...Object.values(agentCollaborationActions).map((entry) => entry.capability_id),
+      agentSessionLifecycleActions.read.capability_id, agentSessionLifecycleActions.archive.capability_id, agentSessionLifecycleActions.unarchive.capability_id,
       ...Object.values(agentInputActions).map((entry) => entry.capability_id),
       ...Object.values(agentOfferActions).map((entry) => entry.capability_id),
       ...Object.values(goalPluginActions).map(entry => entry.capability_id),
@@ -140,6 +141,10 @@ export const codingManifest: PluginManifest = {
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [
+    { route_id: "coding.archived-sessions", method: "GET", path: "/sessions/archived" },
+    { route_id: "coding.unarchive-preview", method: "GET", path: "/sessions/:sessionId/unarchive-preview" },
+    { route_id: "coding.unarchive-session", method: "POST", path: "/sessions/:sessionId/unarchive" },
+    { route_id: "coding.archive-preview", method: "GET", path: "/sessions/:sessionId/archive-preview" },
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },
     { route_id: "coding.prepare-writer-directory", method: "POST", path: "/workspaces/:workspaceId/writers" },

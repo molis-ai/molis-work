@@ -1,23 +1,24 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryRecallResponse } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryRecallResponse, type MemoryRunReadResult } from "@molis-ai/molis-work-contracts/services/memory";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 /** What the server answers to tools/list and tools/call, as far as this test reads it. */
-interface McpResult { tools: Array<{ name: string }>; isError?: boolean; content: Array<{ text: string }> }
+interface McpResult { tools: Array<{ name: string }>; isError?: boolean; content: Array<{ text: string }>; structuredContent?: Record<string, unknown> }
 
 // Decision 19 (specs/repository-anti-corruption, W2-03): the MCP audience of memory stays, and this is the use case that goes through the
 // person's grant (`config/mcp-tools.json`, which only the person's own settings write) the way a real external client meets it: nothing is
 // visible or callable before the grant, only `memory.recall` can be granted, what it reads follows the person's switches, and revoking the
 // grant takes the tool away.
-const RECALL_TOOL = "molis_work_v1_action_memory.recall__v1";
+const RECALL_TOOL = `molis_work_v1_action_memory.recall__v${memoryActions.recall.version}`;
 
 test("an external MCP client reads memory only through the person's grant for memory.recall, by the person's switches, and loses it when the grant is revoked", { timeout: 240_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-mcp-"));
@@ -52,10 +53,18 @@ test("an external MCP client reads memory only through the person's grant for me
   const recalled = async (client: typeof codex, query: string) => {
     const result = await client.call(RECALL_TOOL, { query });
     assert.equal(result.isError, false, JSON.stringify(result));
-    return JSON.parse(result.content[0].text) as MemoryRecallResponse;
+    // recall@3 has a union output schema: the existing MCP adapter puts it in its object `result` envelope.
+    const envelope = JSON.parse(result.content[0].text) as { result: MemoryRecallResponse | MemoryRunReadResult };
+    assert.ok(envelope && typeof envelope === "object" && !Array.isArray(envelope), JSON.stringify(result));
+    assert.deepEqual(Object.keys(envelope), ["result"], JSON.stringify(result));
+    assert.deepEqual(result.structuredContent, envelope, "MCP text and structured content carry the same complete result");
+    assert.ok(envelope.result && typeof envelope.result === "object", JSON.stringify(result));
+    const data = memoryData(envelope.result);
+    assert.ok(Array.isArray(data.items), JSON.stringify(result));
+    return data;
   };
   // The person's grant, as the settings page records it: one record per client, action, version and provider; memory.recall is a Home action.
-  const grant = { client_id: "runtime:codex", project_id: null, capability_id: "memory.recall", version: 1, provider_id: MEMORY_PROVIDER_ID, permissions: ["memory:recall"], enabled: true };
+  const grant = { client_id: "runtime:codex", project_id: null, capability_id: "memory.recall", version: memoryActions.recall.version, provider_id: MEMORY_PROVIDER_ID, permissions: ["memory:recall"], enabled: true };
   const record = (enabled: boolean) => served!.web.post("/api/settings/mcp/actions", {
     client_id: grant.client_id, project_id: grant.project_id, capability_id: grant.capability_id,
     version: grant.version, provider_id: grant.provider_id, enabled,
@@ -70,7 +79,7 @@ test("an external MCP client reads memory only through the person's grant for me
   // What an MCP client can be granted of memory is memory.recall and nothing else: listing everything, writing and managing stay closed to it.
   const mcpCaller: ActionCallContext = { actor_id: "runtime:codex", project_id: projectId, audience: "mcp", permissions: [] };
   const inspected = (await host.inspectActions(mcpCaller, reference)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID);
-  assert.deepEqual(inspected.map(view => [view.capability_id, view.version, view.action.permissions]), [["memory.recall", 1, ["memory:recall"]]]);
+  assert.deepEqual(inspected.map(view => [view.capability_id, view.version, view.action.permissions]), [["memory.recall", memoryActions.recall.version, ["memory:recall"]]]);
 
   await record(true);
   const granted = await readMcpToolPreference(home), generation = granted.action_grants[0]?.generation;
@@ -95,7 +104,7 @@ test("an external MCP client reads memory only through the person's grant for me
   assert.equal(forged.isError, true);
   const returned = await recalled(codex, "周报 风险");
   assert.equal(returned.items.length, 2);
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => item.last_used), [null, null],
+  assert.deepEqual((memoryData(await asPerson.invoke(memoryActions.list, {}))).items.map(item => item.last_used), [null, null],
     "MEM-30: returning a tool result does not prove an external client sent it to a model");
   const ledger = openMemoryLedger({ homeDirectory: home });
   try {

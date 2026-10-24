@@ -17,6 +17,7 @@ import { memoryServiceHome } from "./fixtures/memory-service-home.js";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
+const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
 
 test("I6-02: a real Node questionnaire refusal preserves each problem and the pending can still be answered", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "agent-question-errors-"));
@@ -174,7 +175,7 @@ test("typed start revocation at SDK commit rejects only its invocation; accepted
 });
 
 // W2-18-CODING-EFFECT-03: check both commits of actual SDK Session creation, including rejected half completion.
-for (const phase of ["sdk-session", "owner-index"] as const) test(`new Session revoked at ${phase} leaves no unpublished SDK Session or index`, async t => {
+for (const phase of ["sdk-session", "owner-index"] as const) test(`new Session revoked at ${phase} leaves no readable unpublished SDK Session or index`, async t => {
   const home = await mkdtemp(join(tmpdir(), "agent-session-effects-")), appId = "io.molis.work.session-effects-test";
   const adapter = await createPrologueNodeAdapter({ app: { appId, appVersion: "1.0.0" }, storageRoot: home });
   const inspector = createNodeHost({ storageRoot: home }), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let current = true;
@@ -186,13 +187,30 @@ for (const phase of ["sdk-session", "owner-index"] as const) test(`new Session r
   }, assert_current: () => { if (!current) throw new Error("original session guard revoked"); } },
     () => adapter.createSession({ project_id: "project", plugin_id: "coding", install_id: "install", actor_id: "person", title: "Held", directory: { canonical_path: home, realpath_verified: true } }));
   const rejected = assert.rejects(pending); await entered.promise;
-  assert.equal((await inspector.storage.list({ kind: appId + "~sessions" })).records.length, phase === "owner-index" ? 1 : 0, "the second barrier is after the SDK's actual Session commit");
+  const before = (await inspector.storage.list({ kind: appId + "~sessions" })).records;
+  assert.equal(before.length, phase === "owner-index" ? 1 : 0, "the second barrier is after the SDK's actual Session commit");
   current = false; release.resolve(); await rejected;
-  assert.deepEqual((await inspector.storage.list({ kind: appId + "~sessions" })).records, [], "a rejected half-complete Session is purged by its SDK owner");
+  const after = (await inspector.storage.list({ kind: appId + "~sessions" })).records;
+  assert.equal(after.length, before.length, "only an already-created Session retains its body-free purge receipt");
+  for (const record of after) {
+    assert.equal(record.id, before[0]!.id);
+    assert.equal(record.hasSecureBody, false);
+    assert.deepEqual(record.metadata, { state: "purged", purge: { phase: "complete", preview: {
+      sessionRef: { kind: "session", id: record.id, revision: 1 }, atVersion: before[0]!.version,
+      destroysKey: true, runs: 0, resources: 0,
+    } } });
+    await assert.rejects(inspector.storage.readSecure({ kind: appId + "~sessions", id: record.id }));
+  }
   const indexKind = `molis-agent-index-${createHash("sha256").update(appId).digest("hex").slice(0, 24)}`;
   assert.deepEqual((await inspector.storage.list({ kind: indexKind })).records, []);
   const fresh = await adapter.createSession({ project_id: "project", plugin_id: "coding", install_id: "install", actor_id: "person", title: "Fresh", directory: { canonical_path: home, realpath_verified: true } });
   assert.equal((await adapter.readSession(fresh)).title, "Fresh");
+  await adapter.close();
+  const reopened = await createRuntime({ app: { appId, appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: home }) });
+  try {
+    for (const record of after) assert.equal(await reopened.sessions.open({ kind: "session", id: record.id, revision: 1 }), undefined);
+    assert.ok(await reopened.sessions.open({ kind: "session", id: fresh.session_id, revision: 1 }), "an unrelated accepted Session remains usable after restart");
+  } finally { await reopened.shutdown(); }
 });
 
 

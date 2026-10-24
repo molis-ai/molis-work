@@ -85,11 +85,13 @@ async function sourceHome(t: test.TestContext, response: (turn: number) => Respo
   const owner = { actor_id: actor, project_id: project, plugin_id: coding, install_id: "actual-test-install" };
   const directory = { canonical_path: home, realpath_verified: true };
   const session = await adapter.createSession({ ...owner, directory, title: "Canonical sources" });
+  const original: AgentMemoryCaller = { actor_id: actor, project_id: project, plugin_id: coding, consumer: "agent", session_id: session.session_id,
+    current_scene: "coding", purpose: "management", source_use: "learning" };
+  const recipe = await service.forRun(original, { query: "Canonical sources" }); assert.ok(recipe);
+  const caller: AgentMemoryCaller = { ...original, class_restrictions: recipe.class_restrictions };
   const start = (text: string, extra: { continued_from?: AgentRunRef; original_input?: { input_id: string; text: string; written_by: "person" | "host"; occurred_at: string } } = {}) =>
     adapter.start({ ...owner, directory, session, task: text, role_id: "reader", queued: "carry", ...extra,
-      role: { role_id: "reader", version: 1, execution: "read-only", prompts: [], host_tools: ["read-file"] } });
-  const caller: AgentMemoryCaller = { actor_id: actor, project_id: project, plugin_id: coding, consumer: "agent", session_id: session.session_id,
-    current_scene: "coding", purpose: "management", source_use: "learning" };
+      role: { role_id: "reader", version: 1, execution: "read-only", prompts: [], host_tools: ["read-file"], memory: recipe } });
   const request = (refs: AgentMemorySourceRef[]) => ({ app_id: "io.molis.work", target: { scope: "user" as const, owner: actor }, refs });
   const completed = (run: AgentRunRef) => untilSetup(async () => { const view = await adapter.read(run); return view.phase === "completed" ? view : undefined; }, "real source Run completion");
   const propose = (ref: AgentMemorySourceRef, bound = caller) => adapter.memory!.withCaller(bound).candidates.propose({ scope: "user", owner: actor,

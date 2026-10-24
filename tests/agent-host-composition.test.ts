@@ -188,6 +188,8 @@ test("an Agent round carries the number of the call that started it: its tool ca
   const start: AgentStartInput = { session: { runtime_id: "probe", session_id: "s" }, task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true }, action_tools: [action] };
   // A request body that names a number of its own is refused by the action's schema: the round's number is never the plugin's to give.
   await assert.rejects(client.invoke(agentHostCapabilities.startRun, ["probe", { ...start, call_id: "forged" } as AgentStartInput]), { code: "actions.input_invalid" });
+  for (const forged of [{ owner: { project_id: "another-project" } }, { role: { memory: {} } }, { memory_context: {} }, { class_restrictions: {} }])
+    await assert.rejects(client.invoke(agentHostCapabilities.startRun, ["probe", { ...start, ...forged } as AgentStartInput]), { code: "actions.input_invalid" });
   assert.equal(request, undefined, "the refused start reached no Runtime");
   const started = newCallId();
   await withCallId(started, () => client.invoke(agentHostCapabilities.startRun, ["probe", start]));

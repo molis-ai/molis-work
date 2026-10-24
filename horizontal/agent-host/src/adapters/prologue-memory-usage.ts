@@ -1,4 +1,4 @@
-import type { AgentMemoryUseReceipt, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryUseReceipt, AgentRecalledMemory, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { RunRecord } from "./prologue.js";
 
 /** Deliver body-free Run observations; a failed projection never replays model execution. */
@@ -23,4 +23,16 @@ export class PrologueMemoryUsage {
   }
 
   async flush(): Promise<void> { await Promise.all(this.#pending.values()); }
+  async flushRuns(ids: readonly string[]): Promise<void> { await Promise.all(ids.map(id => this.#pending.get(id))); }
+}
+
+
+/** The same body-free provenance accompanies the persisted attempt and its live observation record. */
+export function runMemoryContext(memory: AgentRecalledMemory | undefined): {
+  memory_context?: Pick<AgentRecalledMemory, "consumer" | "current_scene" | "facts" | "usage" | "class_restrictions">;
+} {
+  if (!memory) return {};
+  return { memory_context: structuredClone({ consumer: memory.consumer, current_scene: memory.current_scene,
+    class_restrictions: memory.class_restrictions, ...(memory.facts ? { facts: memory.facts } : {}),
+    ...(memory.usage ? { usage: memory.usage } : {}) }) };
 }

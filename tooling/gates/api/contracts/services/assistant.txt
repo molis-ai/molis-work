@@ -295,6 +295,7 @@ export interface AssistantMemory {
 }
 
 export interface AssistantMemoryCandidate {
+    needs_formal_decision?: boolean;
     candidate_id: string;
     work_id: string;
     work_title: string;

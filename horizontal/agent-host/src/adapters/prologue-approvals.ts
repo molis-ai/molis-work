@@ -51,6 +51,7 @@ export interface ProloguePendingPort {
 export interface PrologueApprovalBridgeOptions {
   queue: AgentReviewQueue;
   pendings: ProloguePendingPort;
+  capture?(sessionId: string): () => void;
   now?: () => Date;
   /** Persist the Host's decision before waking SDK execution; not an effect receipt. */
   recordDecision?(pending: ProloguePending, receipt: AgentReviewReceipt): Promise<void>;
@@ -75,6 +76,7 @@ export class PrologueApprovalBridge {
   readonly #recordDecision: PrologueApprovalBridgeOptions["recordDecision"];
   readonly #allowAppForRound: PrologueApprovalBridgeOptions["allowAppForRound"];
   readonly #recordRequest: PrologueApprovalBridgeOptions["recordRequest"];
+  readonly #capture: PrologueApprovalBridgeOptions["capture"];
   readonly #pendingByReview = new Map<string, ProloguePendingRef>();
   readonly #answered = new Set<(run: AgentRunRef, pendingId: string) => void>();
 
@@ -91,7 +93,10 @@ export class PrologueApprovalBridge {
     this.#recordDecision = options.recordDecision;
     this.#allowAppForRound = options.allowAppForRound;
     this.#recordRequest = options.recordRequest;
+    this.#capture = options.capture;
   }
+
+  forget(reviewIds: readonly string[]): void { for (const id of reviewIds) this.#pendingByReview.delete(id); }
 
   /**
    * Put one Prologue pending in front of the user. The document comes from the
@@ -141,11 +146,13 @@ export class PrologueApprovalBridge {
     owner: MirrorPendingInput["owner"];
     run: AgentRunRef;
   }): Promise<AgentReviewRequest> {
+    const current = this.#capture?.(input.run.session_id);
     const pending = await this.#pendings.read(input.pendingRef);
     if (!pending) {
       throw agentErrors.pending_unknown("执行主人那边找不到这笔待批");
     }
     const document = await this.#pendings.document(pending);
+    current?.();
     const request = this.mirror({
       pending,
       owner: input.owner,
@@ -154,6 +161,7 @@ export class PrologueApprovalBridge {
       document,
     });
     await this.#recordRequest?.(pending, request);
+    current?.();
     return request;
   }
 

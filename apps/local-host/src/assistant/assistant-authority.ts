@@ -41,8 +41,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   delegation?: AgentDelegation,
   /** Told of a change its owner was still running when the round stopped or ran out of time, to learn how it ended. */
   unsettled?: (view: Omit<ActionView, "availability">, call: Promise<unknown>) => void,
-  /** Remember, list and forget for the person (absent when forming memories is switched off). */
-  memory?: AgentMemoryTools,
+  /** Capture this round's prepared memory tools when Host.start assembles its client; discovery before preparation has none. */
+  memory?: () => AgentMemoryTools | undefined,
   /** Changes the person wants confirmed each time even though they could be undone (action keys). */
   confirmAlways?: () => ReadonlySet<string>,
   /** Told the moment a change is really handed to its owner (a stopped round's step that never was reads as not run). */
@@ -93,7 +93,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       discover: () => discover(validate),
       ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
       ...(delegation ? { delegate: delegation } : {}),
-      ...(memory ? { memory } : {}),
+      memory: memory?.(),
       // A delegated work reports to the work that handed it over, which reads it with the identifiers it needs.
       ...(work.delegated_by ? { reader: "work" as const } : {}),
       // A change that can be undone runs without a confirmation unless the person asked to confirm it each time.

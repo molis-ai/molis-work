@@ -1,7 +1,8 @@
-import type { PluginDatabase, PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingStoreErrors } from "./store-errors.js";
 import type { CodingSessionEntry, CodingSessionState } from "./projection.js";
 import type { CodingPlanDraft } from "./plans.js";
+import { CodingSessionLifecycleStore, assertCodingSessionWritable } from "./session-lifecycle.js";
 
 /**
  * Coding's own table in the project database.
@@ -56,6 +57,7 @@ export const CODING_SCHEMA_SQL = `
       steps_json TEXT,
       -- Background commands the session left running, as last read: lets the list across projects show and stop them.
       background_json TEXT,
+      lifecycle_json TEXT,
       PRIMARY KEY (project_id, session_id)
     );
     CREATE INDEX IF NOT EXISTS coding_sessions_project_updated_idx
@@ -108,12 +110,17 @@ const sessionIn = (reader: PluginDatabaseReader, projectId: string, sessionId: s
   return mapSession(row);
 };
 
+const writeSession = <T>(db: PluginDatabase, beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string,
+  write: (tx: PluginDatabaseTransaction) => T): Promise<T> => db.transaction(beforeEffect, tx => {
+  assertCodingSessionWritable(tx, projectId, sessionId);
+  return write(tx);
+});
+
 const planIn = (reader: PluginDatabaseReader, projectId: string, sessionId: string): CodingPlanDraft | null => {
   sessionIn(reader, projectId, sessionId);
   const row = reader.get("SELECT draft_json FROM coding_plan_drafts WHERE project_id = ? AND session_id = ?", [projectId, sessionId]);
   return row ? JSON.parse(String(row.draft_json)) as CodingPlanDraft : null;
 };
-
 /**
  * The session tables, over the project library the platform lends the plugin (`services.project_database`). Reads are
  * synchronous. Every write is one transaction that first waits for `beforeEffect`; the platform checks the original call again at
@@ -122,7 +129,8 @@ const planIn = (reader: PluginDatabaseReader, projectId: string, sessionId: stri
  */
 export class CodingSessionStore {
   /** The tables are already there: the platform made them when the project's library opened with Coding. */
-  constructor(private readonly db: PluginDatabase) {}
+  readonly lifecycle: CodingSessionLifecycleStore;
+  constructor(private readonly db: PluginDatabase) { this.lifecycle = new CodingSessionLifecycleStore(db, sessionIn, mapSession); }
 
   plan(projectId: string, sessionId: string): CodingPlanDraft | null {
     return planIn(this.db, projectId, sessionId);
@@ -130,7 +138,7 @@ export class CodingSessionStore {
 
   async savePlan(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, expected: number, draft: CodingPlanDraft,
     guard?: CodingWriteGuard): Promise<CodingPlanDraft> {
-    return this.db.transaction(beforeEffect, tx => {
+    return writeSession(this.db, beforeEffect, projectId, sessionId, tx => {
       guard?.();
       sessionIn(tx, projectId, sessionId);
       if (!Number.isSafeInteger(expected) || expected < 0 || draft.revision !== expected + 1) throw new Error("计划修订无效");
@@ -146,7 +154,7 @@ export class CodingSessionStore {
 
   async confirmPlan(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, draft: CodingPlanDraft,
     guard?: CodingWriteGuard): Promise<CodingPlanDraft> {
-    return this.db.transaction(beforeEffect, tx => {
+    return writeSession(this.db, beforeEffect, projectId, sessionId, tx => {
       guard?.();
       const result = tx.run("UPDATE coding_plan_drafts SET draft_json = ? WHERE project_id = ? AND session_id = ? AND revision = ?",
         [JSON.stringify(draft), projectId, sessionId, draft.revision]);
@@ -193,14 +201,14 @@ export class CodingSessionStore {
 
   /** Record who holds the session's unfinished plan steps; null when none are open. Not a change to the session. */
   async setSteps(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, steps: CodingStepHolders | null): Promise<void> {
-    await this.db.transaction(beforeEffect, tx => {
+    await writeSession(this.db, beforeEffect, projectId, sessionId, tx => {
       tx.run("UPDATE coding_sessions SET steps_json = ? WHERE project_id = ? AND session_id = ?", [steps ? JSON.stringify(steps) : null, projectId, sessionId]);
     });
   }
 
   /** Record the background commands the session has running; null when none. Not a change to the session. */
   async setBackground(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, running: CodingRunningCommand[] | null): Promise<void> {
-    await this.db.transaction(beforeEffect, tx => {
+    await writeSession(this.db, beforeEffect, projectId, sessionId, tx => {
       tx.run("UPDATE coding_sessions SET background_json = ? WHERE project_id = ? AND session_id = ?", [running?.length ? JSON.stringify(running) : null, projectId, sessionId]);
     });
   }
@@ -216,7 +224,7 @@ export class CodingSessionStore {
   }
 
   async setState(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, state: CodingSessionState, at: string): Promise<CodingSessionRecord> {
-    return this.db.transaction(beforeEffect, tx => {
+    return writeSession(this.db, beforeEffect, projectId, sessionId, tx => {
       sessionIn(tx, projectId, sessionId);
       tx.run("UPDATE coding_sessions SET state = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [state, at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);
@@ -229,7 +237,7 @@ export class CodingSessionStore {
    */
   async roundStarted(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string,
     rename: { readonly from: string; readonly to: string } | null): Promise<CodingSessionRecord> {
-    return this.db.transaction(beforeEffect, tx => {
+    return writeSession(this.db, beforeEffect, projectId, sessionId, tx => {
       const record = sessionIn(tx, projectId, sessionId);
       if (rename && record.title === rename.from) tx.run("UPDATE coding_sessions SET title = ? WHERE project_id = ? AND session_id = ?", [rename.to, projectId, sessionId]);
       tx.run("UPDATE coding_sessions SET state = 'running', updated_at = ? WHERE project_id = ? AND session_id = ?", [at, projectId, sessionId]);
@@ -237,27 +245,23 @@ export class CodingSessionStore {
     });
   }
 
-  async rename(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, title: string, at: string): Promise<CodingSessionRecord> {
-    return this.db.transaction(beforeEffect, tx => {
-      sessionIn(tx, projectId, sessionId);
+  async rename(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, title: string, at: string, guard?: (current: CodingSessionRecord) => void): Promise<CodingSessionRecord> {
+    return writeSession(this.db, beforeEffect, projectId, sessionId, tx => {
+      const current = sessionIn(tx, projectId, sessionId);
+      guard?.(current);
       tx.run("UPDATE coding_sessions SET title = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [title, at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);
     });
   }
 
-  async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string, guard?: CodingWriteGuard): Promise<CodingSessionRecord> {
-    return this.db.transaction(beforeEffect, tx => {
-      guard?.();
-      if (sessionIn(tx, projectId, sessionId).archived) throw codingStoreErrors.session_unknown("会话已归档");
-      tx.run("UPDATE coding_sessions SET archived = 1, updated_at = ? WHERE project_id = ? AND session_id = ?", [at, projectId, sessionId]);
-      return sessionIn(tx, projectId, sessionId);
-    });
+  async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string, guard?: (current: CodingSessionRecord) => void, options?: { allowAlreadyArchived: true }): Promise<CodingSessionRecord> {
+    return this.lifecycle.archive(beforeEffect, projectId, sessionId, at, guard, options);
   }
 
   /** Attaching a Goal is optional and reversible; passing null detaches. */
   async setGoal(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, goalId: string | null, at: string,
     guard?: CodingWriteGuard): Promise<CodingSessionRecord> {
-    return this.db.transaction(beforeEffect, tx => {
+    return writeSession(this.db, beforeEffect, projectId, sessionId, tx => {
       guard?.();
       sessionIn(tx, projectId, sessionId);
       tx.run("UPDATE coding_sessions SET goal_id = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [goalId, at, projectId, sessionId]);
@@ -266,7 +270,7 @@ export class CodingSessionStore {
   }
 
   async setRuntimeSession(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, runtimeSessionId: string, at: string): Promise<CodingSessionRecord> {
-    return this.db.transaction(beforeEffect, tx => {
+    return writeSession(this.db, beforeEffect, projectId, sessionId, tx => {
       sessionIn(tx, projectId, sessionId);
       tx.run("UPDATE coding_sessions SET runtime_session_id = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [runtimeSessionId, at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);

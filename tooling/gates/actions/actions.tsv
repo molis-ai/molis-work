@@ -109,9 +109,13 @@ coding.runs.list	1	io.molis.work.coding	io.molis.work.coding	query	query	project
 coding.runs.queued	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	artifact:read,storage:private	coding_session	-	-	da6ad19016c7	a2c799262a3c	613063238287
 coding.runs.start	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	artifact:read,storage:private	coding_session	-	-	5939250200b3	a2c799262a3c	613063238287
 coding.search.entries	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	artifact:read	coding_session	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	29db9185f4f9
+coding.sessions.archive.preview	2	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user	artifact:read	coding_session	-	-	f7c20bffe580	77e9935c4d77	-
+coding.sessions.archived.list	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	user	artifact:read	coding_session	-	-	d746974fa9af	a2c799262a3c	-
 coding.sessions.create	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	agent,mcp,user,workflow	storage:private	coding_session	-	-	5da338271f9e	a2c799262a3c	-
 coding.sessions.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	99b79dcdbfe7	a2c799262a3c	-
-coding.sessions.update	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	storage:private	coding_session	-	-	4aabd3af2f6e	a2c799262a3c	-
+coding.sessions.unarchive	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	storage:private	coding_session	-	-	b08a56d7d6a8	a2c799262a3c	-
+coding.sessions.unarchive.preview	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user	artifact:read	coding_session	-	-	f7c20bffe580	3721f2b45a6a	-
+coding.sessions.update	3	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	storage:private	coding_session	-	-	b2b118a5ffe1	a2c799262a3c	-
 coding.state	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	d746974fa9af	a2c799262a3c	-
 coding.subject.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	artifact:read	coding_session	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	bfc8de56588a	-
 cognia.directory.scan	2	io.molis.work.cognia	io.molis.work.cognia	query	query	home	read	concurrent	user	directory:read	cognia_material	-	-	799db27b19e8	2a9db3372b05	-

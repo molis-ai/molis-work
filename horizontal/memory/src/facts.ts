@@ -1,6 +1,6 @@
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isDeepStrictEqual } from "node:util";
-import type { MemoryApplies, MemoryEvidence, MemoryKind, MemoryMetaRecord, MemoryRevision, MemoryScope, MemorySource, MemoryState } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryApplies, MemoryEvidence, MemoryFormalKind, MemoryMetaRecord, MemoryRevision, MemoryScope, MemorySource, MemoryState } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors } from "./errors.js";
 
 /**
@@ -94,7 +94,7 @@ export function fromEntryMeta(input: { memory_id: string; scope: MemoryScope; ow
   };
   const { state, state_reason } = stateOf(input.paused, input.disabled);
   return {
-    memory_id: input.memory_id, scope: input.scope, owner: input.owner, kind: meta.kind as MemoryKind, source: meta.source as MemorySource,
+    memory_id: input.memory_id, scope: input.scope, owner: input.owner, kind: meta.kind as MemoryFormalKind, source: meta.source as MemorySource,
     ...provenance(meta), applies, state, state_reason, expires_at: iso(meta.expires_at_ms), plugin_id: meta.namespace ?? null,
     created_at: input.created_at_ms > 0 ? iso(input.created_at_ms) : null,
     updated_at: input.updated_at_ms > 0 ? iso(input.updated_at_ms) : null,

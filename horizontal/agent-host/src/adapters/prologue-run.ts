@@ -1,3 +1,4 @@
+import { runMemoryContext } from "./prologue-memory-usage.js";
 import { recordOriginalInput } from "./prologue-original-inputs.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -33,7 +34,7 @@ import { placeOf, type createPrologueTaskBoards } from "./prologue-taskboard.js"
 import type { createPrologueWaits } from "./prologue-waits.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
 import type { PrologueRuntimePort, PrologueStartInput } from "./prologue.js";
-import { prologueToolName, sameRef, stageInstructions, stageTextResource, type DispatchGuards, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
+import { prologueToolName, retainRunObserver, sameRef, stageInstructions, stageTextResource, type DispatchGuards, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
 import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-guard.js";
 
@@ -64,6 +65,7 @@ export interface RunDeps {
   readonly dispatchGuards: DispatchGuards;
   readonly surfaces: () => PrologueSurfaces | undefined;
   readonly mcpLibrary: ReturnType<typeof createPrologueMcpLibrary>;
+  readonly memoryAuthority: Pick<ReturnType<typeof import("./prologue-memory-authority.js").createPrologueMemoryAuthority>, "forAttempt">;
   readonly platformMemory: ReturnType<typeof createPrologueMemory>;
   readonly credentials: PrologueCredentialBridge;
   readonly stepBoards: ReturnType<typeof createPrologueTaskBoards>;
@@ -113,10 +115,10 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   const changesDone = client ? { client, invoked: [] as ExactActionReference[] } : undefined;
   if (changesDone) state.changeRounds.set(input.session_id, changesDone); else state.changeRounds.delete(input.session_id);
   const gatewayForRun = input.action_gateway && client ? { ...input.action_gateway, client: { ...client,
-    invoke: async (reference: ExactActionReference, value: unknown, signal?: AbortSignal) => { const result = await client.invoke(reference, value, signal); changesDone!.invoked.push(reference); return result; },
+    invoke: async (...args: Parameters<typeof client.invoke>) => { const [reference] = args; const result = await client.invoke(...args); changesDone!.invoked.push(reference); return result; },
     ...(memory ? { memory: {
       ...(memory.remember ? { remember: async (...args: Parameters<NonNullable<typeof memory.remember>>) => { const kept = await memory.remember!(...args); memoryDone.keep += 1; return kept; } } : {}),
-      list: memory.list.bind(memory),
+      ...(memory.list ? { list: memory.list.bind(memory) } : {}),
       ...(memory.forget ? { forget: async (...args: Parameters<NonNullable<typeof memory.forget>>) => { const result = await memory.forget!(...args); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),
@@ -322,11 +324,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
  * initial durable Run commit. `abandon` takes back an intent the SDK never accepted.
  */
 async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: SessionIndex["attempts"][number]): Promise<{ attemptIndex: number; abandon: () => Promise<void> }> {
-  const intent = structuredClone({ ...attempt, ...(input.memory ? { memory_context: {
-    consumer: input.memory.consumer, current_scene: input.memory.current_scene,
-    ...(input.memory.facts ? { facts: input.memory.facts } : {}),
-    ...(input.memory.usage ? { usage: input.memory.usage } : {}),
-  } } : {}) });
+  const intent = structuredClone({ ...attempt, ...runMemoryContext(input.memory) });
   await input.beforeStart?.(); requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成");
   let attemptIndex = -1;
   await deps.index.update(input.session_id, index => {
@@ -347,14 +345,24 @@ async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: 
  */
 function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, children: { readonly roles: Map<string, ChildRole>; readonly roots: PrologueSubagentRoot[]; readonly root: { ref: ExactRef<"authorized-root"> } | undefined }) {
   const { runtime, state } = deps;
+  const assertParentCurrent = deps.index.capture(input.session_id);
   return async (observed: Parameters<NonNullable<NonNullable<Parameters<Runtime["startAgentRun"]>[0]["subagents"]>["onStarted"]>>[0]) => {
+    const assertChildCurrent = deps.index.capture(observed.childSession.ref.id);
+    const assertCurrent = () => { assertParentCurrent(); assertChildCurrent(); };
+    const current = () => { try { assertCurrent(); return true; } catch { return false; } };
+    assertCurrent();
     verifySubagentStart(runtime, children.roles, children.roots)(observed);
     const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
     const role = children.roles.get(exactCharacterKey(registered.character!))!;
     // Every child's run hears what its neighbours on the task graph send it (letters are handed over by the Host).
-    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text, source: "app" }); } });
+    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: text => deps.index.starting(input.session_id, current => deps.effects.admit(current, async () => { await observed.control.steer({ text, source: "app" }); })) });
+    state.runSessions.set(observed.run.ref.id, observed.childSession.ref.id);
+    state.runRefs.set(observed.run.ref.id, observed.run.ref);
     state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
-    observed.run.subscribe(event => { if (["completed", "failed", "cancelled"].includes(event.type) && state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id); });
+    retainRunObserver(state, observed.run.ref.id, observed.run.subscribe(event => {
+      if (!current()) return;
+      if (["completed", "failed", "cancelled"].includes(event.type) && state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id);
+    }));
     // A child with operations to review is tracked by the Host: one in its own directory, or one in the main
     // workspace that may run commands. A read-only child in the main workspace has nothing to review.
     // Without its own directory or a main workspace (workspace:none) there is nothing the Host could review.
@@ -368,8 +376,10 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
           subagent_workspaces: undefined, character: undefined, compaction: undefined, execution_plan: undefined, workspace: "required", directory: { canonical_path: granted.path, realpath_verified: true },
           host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
           prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: prompt.layer ?? "role" })) } }] });
+    assertCurrent();
     state.runRoots.set(childRun.run_id, granted.rootRef);
     const bridgeFailed = async () => {
+      if (!current()) return;
       const reason = "子任务的宿主审查或归属记录失败，已停止执行；请核对原工具结果后继续";
       const errors = state.subagentBridgeErrors.get(observed.parentRun.id) ?? {};
       errors[childRun.run_id] = reason;
@@ -377,23 +387,26 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
       observed.control.stop("cancelled");
       try {
         await deps.index.update(observed.parentSession.id, saved => {
+          assertCurrent();
           const attempt = saved.attempts.find(attempt => attempt.run_id === observed.parentRun.id)!;
           attempt.subagent_errors = { ...attempt.subagent_errors, [childRun.run_id]: reason };
         });
-      } catch { errors[childRun.run_id] = reason + "；失败原因未能持久保存，请保留当前记录"; }
+      } catch { if (current()) errors[childRun.run_id] = reason + "；失败原因未能持久保存，请保留当前记录"; }
     };
-    observed.run.subscribe(event => {
+    retainRunObserver(state, observed.run.ref.id, observed.run.subscribe(event => {
+      if (!current()) return;
       if (event.type === "command-receipt") {
         const events = state.commandEvents.get(childRun.run_id) ?? [];
         if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
         state.commandEvents.set(childRun.run_id, events);
       }
       if (event.type === "prompt" && event.role === "user") void deps.index.update(childRun.session_id, saved => {
+        assertCurrent();
         if (!saved.attempts[0]!.task) saved.attempts[0]!.task = event.text;
       }).catch(bridgeFailed);
       if (event.type === "awaiting-approval") void deps.approvals!.mirrorPending({ pendingRef: event.pendingRef, owner: index.owner, run: childRun })
         .catch(bridgeFailed);
-    });
+    }));
   };
 }
 
@@ -488,9 +501,9 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
   catch (error) { at.actionController.abort(); started.control.stop("cancelled"); throw error; }
   if (at.hasActions) state.actionControllers.set(started.run.ref.id, at.actionController);
   // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
-  state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
+  if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
   state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && !at.stopping(),
-    steer: async text => { await started.control.steer({ text, source: "app" }); } });
+    steer: text => deps.index.starting(session.ref.id, current => deps.effects.admit(current, async () => { await started.control.steer({ text, source: "app" }); })) });
   if (at.stepBoard) deps.stepBoards.follow(at.stepBoard, { session_id: session.ref.id, run_id: started.run.ref.id });
   // A main round is work under way in its project until it ends; a subtask's work is its parent's.
   if (!at.none && input.root_path && !index.parent_run) {
@@ -528,6 +541,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
   readonly stepBoard: { ref: { id: string } } | undefined; readonly stopping: { current: Promise<void> | undefined };
 }): Awaited<ReturnType<PrologueRuntimePort["startAgentRun"]>> {
   const { started, actionController } = at;
+  const current = deps.index.capture(input.session_id);
   const control = started.control;
   // The Host stops a round itself (an interaction refused twice) before its next model call, then keeps why it did,
   // so the stop reads back with its reason live and after a restart; a failed save leaves only the live reason.
@@ -538,10 +552,24 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
     void deps.index.update(input.session_id, index => { Object.assign(index.attempts[at.attemptIndex]!, { stop_intent: "stopped", stop_reason: reason }); }).catch(() => undefined);
   };
   return {
+    memory: {
+      expand: (references, signal) => deps.memoryAuthority.forAttempt(input.session_id, at.attemptIndex, async () => {
+        await input.beforeDispatch?.();
+        signal?.throwIfAborted();
+        const receipt = await started.memory.expand({ references: references.map(({ memory_id, ...reference }) => ({ ...reference,
+          ref: { kind: "memory" as const, id: memory_id, revision: 1 as const } })), ...(signal ? { signal } : {}) });
+        return { mode: "run-expansion" as const, receipt_id: receipt.receiptId, outcome: receipt.outcome,
+          ...(receipt.errorCode ? { error_code: receipt.errorCode } : {}),
+          queued: receipt.queued.map(({ ref, version }) => ({ memory_id: ref.id, version })),
+          omitted: receipt.omitted.map(({ ref, version }) => ({ memory_id: ref.id, version })),
+          tokens: receipt.tokens, basis: receipt.basis, remaining_tokens: receipt.remainingTokens };
+      }),
+    },
     run: {
       ref: { id: started.run.ref.id },
       subscribe: (listener: (event: PrologueEvent) => void) =>
         started.run.subscribe(withInteractionRepairLimit(stopForHost, (event) => {
+          try { current(); } catch { return; }
           if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController);
           if (event.type === "command-receipt") {
             const events = deps.state.commandEvents.get(started.run.ref.id) ?? [];
@@ -568,7 +596,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
           deps.effects.detach(() => { actionController.abort(); control.stop(reason); });
         })().catch(error => { at.stopping.current = undefined; throw error; });
       },
-      pause: () => control.pause(), resume: () => control.resume(),
+      pause: () => control.pause(), resume: () => { current(); deps.index.assertAdmission(at.session.ref.id); deps.effects.assertCurrent(); control.resume(); },
       // The new model's key is exchanged first; the runtime refuses a target or frozen settings it cannot carry.
       beforeModelSwitch: deps.effects.beforeEffect,
       switchModel: async (target, beforeAccept) => {
@@ -576,7 +604,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         await deps.effects.beforeEffect();
         return control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef }, { beforeAccept: () => { deps.effects.assertCurrent(); beforeAccept(); } });
       },
-      steer: input => control.steer(input), withdrawSteer: steerId => control.withdrawSteer(steerId), subscribe: listener => control.subscribe(listener),
+      steer: input => deps.index.starting(at.session.ref.id, current => deps.effects.admit(current, () => control.steer(input))), withdrawSteer: steerId => control.withdrawSteer(steerId), subscribe: listener => control.subscribe(listener),
     },
   };
 }
@@ -597,6 +625,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     executors: { ...actionTools!.executors, ...(afterWrite ? { [AFTER_WRITE_EXECUTOR]: afterWrite } : {}) }, ...(parameterBranches ? { parameterBranches } : {}) } : undefined);
   if (bindActions && session) state.actionToolSessions.add(input.session_id);
   if (session === undefined) throw new Error("agent.session_unknown");
+  if (session.state !== "active") throw agentErrors.session_busy("会话已归档，取消归档后才能开始新一轮");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
   const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], systemTools(input), prologueToolName);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
@@ -625,9 +654,9 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   // instructions on the round's own model, behind the same pre-dispatch check.
   guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
     model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
-  const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
+  const started = await deps.memoryAuthority.forAttempt(input.session_id, attemptIndex, () => deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
     session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
-  }))).catch(async (error: unknown) => {
+  })))).catch(async (error: unknown) => {
     // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
     // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
     if (!deps.effects.accepted()) {
@@ -643,10 +672,11 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     throw error;
   });
   attempted.run_id = started.run.ref.id;
+  state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref);
   watchRoundFacts(state, started.run);
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
-  state.dispatchChecks.set(started.run.ref.id, dispatchGuard);
+  state.dispatchChecks.set(started.run.ref.id, async () => { await dispatchGuard(); deps.index.assertAdmission(input.session_id); });
   await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
     project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
   return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, stepBoard: materials.stepBoard, stopping }),

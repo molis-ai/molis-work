@@ -159,8 +159,15 @@ test("a real inserted SDK step and its verdict are saved in a fixed report that 
   const path = `/sessions/A/runs/${execution.run_id}/report`, saved = body<{ report: { body_markdown: string; steps: { board: typeof board } }; reference: ArtifactReference }>(await fixture.call(path, {}));
   assert.deepEqual(saved.report.steps.board, board); assert.match(saved.report.body_markdown, /Inserted test/); assert.match(saved.report.body_markdown, /New evidence is recorded/);
   assert.match(saved.report.body_markdown, /用户已通过此步骤/); assert.doesNotMatch(saved.report.body_markdown, /步骤回报与原计划不一致/);
+  await until("the real Coding follower did not commit its completed state", () => fixture.sessions.get(DEMO_PROJECT_ID, "A").state === "done");
+  const original = body<{ archive_decision: unknown }>(await fixture.call("/sessions/A/archive-preview")).archive_decision;
+  const fault = t.mock.method(fixture.adapter.sessionLifecycle!, "archive", async () => { throw new Error("Coding prepared; SDK archive not committed"); });
+  assert.ok((await fixture.call("/sessions/A", { archive: true, archive_decision: original }, "PATCH"))!.status >= 400); fault.mock.restore();
+  const pending = fixture.sessions.lifecycle.current(DEMO_PROJECT_ID, "A"); assert.equal(pending?.completed, false);
   body(await fixture.call(evaluation, { action: "needs-work", project_id: board.project_id, board_version: board.version, expected_revision: 1, notes: "A later opinion." }));
+  assert.deepEqual(fixture.sessions.lifecycle.current(DEMO_PROJECT_ID, "A"), pending, "step rating does not finish or replace the pending lifecycle original");
   await fixture.reopenSdk(); assert.deepEqual(body(await fixture.call(path)), saved, "fixed report preserves its original graph, verdict, Markdown and version");
+  assert.equal((await fixture.call("/sessions/A", { archive: true, archive_decision: original }, "PATCH"))?.status, 200);
 });
 
 // Materials are pieces of project knowledge (specs/project-knowledge PMAT-18); a fixed report is named by its subject.

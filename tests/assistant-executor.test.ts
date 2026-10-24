@@ -3,7 +3,7 @@ import test from "node:test";
 import { ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { bindActionClient, defineSubjectContextAction, type ActionCallContext, type ActionDefinition, type ActionView, type BoundActionClient,
+import { bindActionClient, defineSubjectContextAction, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionView, type BoundActionClient,
   type WorkExecutorRole, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AssistantService, AssistantStore, assistantServiceFor, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
@@ -377,4 +377,43 @@ test("MEM-35 executor supplements bind personal provenance to the installed gene
       assert.equal(originals.length, 1);
     } finally { withdraw(); }
   } finally { await runtime.stop(installed.install_id); }
+});
+
+for (const role of ["run.start", "run.control"] as const) test(`AST-MEM-ARCH: a real installed executor refuses late ${role} after its Work archives`, { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("归档与执行交错"), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const system = ensureSystemAgentService(home.host, home.home); await system.ready;
+  const { service, store } = assistantServiceFor({ localHost: home.host, homeDirectory: home.home, agentHost: system.agentHost,
+    agentReady: () => system.ready, projectTitle: async () => null, pages: async () => ["home"] });
+  const exec = fakeExecutor(), definitions = roleDefinitions(PLUGIN, KIND).map(definition => ({ ...definition,
+    action: { ...definition.action, scheduling: "concurrent" as const } })); let armed = false;
+  const handlers = definitions.map(definition => ({ ...definition, async handle(context: ActionExecutionContext, input: unknown) {
+    if (armed && roleOfCapability(PLUGIN, definition.capability_id) === role) {
+      entered.resolve(); await release.promise; await context.beforeEffect();
+    }
+    return exec.respond(roleOfCapability(PLUGIN, definition.capability_id), input as Input);
+  } }));
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "任意执行方", kind: "app",
+    publisher: { publisher_id: "example", signature: "executor-lifecycle" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: definitions },
+    async start() { return { kind: "app", actions: handlers }; } });
+  const repository = await home.host.withProject(project.reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: home.host.actionRegistry(project.reference), project_id: project.project_id } });
+  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [] }).install;
+  try {
+    await runtime.start(installed.install_id);
+    const caller = { project_ref: project.reference }, first = await service.send({ executor: { kind: "plugin", plugin_id: PLUGIN },
+      scope: { kind: "project", project_id: project.project_id }, text: "第一轮", request_id: randomUUID() }, caller);
+    assert.equal(store.get("web-user", first.work.work_id).session_id, null, "the executor's Session is never an Assistant owner");
+    const session = exec.sessions.get((first.work.executor as { session_id: string }).session_id)!;
+    if (role === "run.control") session.runs.at(-1)!.phase = "running";
+    const rounds = store.rounds(first.work.work_id), starts = exec.started.length, controls = exec.controls().length;
+    armed = true;
+    const late = service.send({ work_id: first.work.work_id, text: "迟到的请求", request_id: randomUUID() }, caller);
+    await entered.promise;
+    if (role === "run.control") session.runs.at(-1)!.phase = "completed";
+    await service.archive(first.work.work_id, await service.lifecycle.preview(first.work.work_id, true), { beforeEffect: async () => {}, assert_current: () => {} });
+    release.resolve(); await assert.rejects(late, { code: "assistant.conflict" });
+    assert.equal(exec.started.length, starts); assert.equal(exec.controls().length, controls);
+    assert.deepEqual(store.rounds(first.work.work_id), rounds); assert.equal(store.get("web-user", first.work.work_id).archived, true);
+  } finally { release.resolve(); await runtime.stop(installed.install_id); }
 });

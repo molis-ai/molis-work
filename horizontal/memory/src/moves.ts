@@ -45,6 +45,7 @@ export class MemoryMoves {
     if (source.scope === to) throw memoryErrors.invalid(to === "project" ? "它已经是项目记忆" : "它已经是个人记忆");
     this.ports.bindTarget?.({ scope: source.scope, owner: source.owner, project: source.scope === "project" ? source.owner : located?.project ?? null });
     const target = placeOf(caller, to);
+    operations.changeRequest(caller, request, { scope: source.scope, owner: source.owner, version: source.entry.version });
     const stamp = located ? operations.begin(caller, `change:${request.memory_id}`, { kind: "move", scope: source.scope, owner: source.owner,
       memory_id: request.memory_id, expected_version: request.expected_version ?? located.entry.version, original_state: located.meta.state })
       : operations.find(caller, `change:${request.memory_id}`)!;

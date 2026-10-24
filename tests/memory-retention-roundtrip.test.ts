@@ -15,7 +15,7 @@ const caller = (operation_id: string, extra: Partial<MemoryCaller> = {}): Memory
 const proposal = (text: string) => ({ scope: "project" as const, kind: "convention" as const, text, basis: "inferred" as const,
   why: "A bounded suggestion", from: "extraction" as const });
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, extraDimensions = false) {
   t.mock.timers.enable({ apis: ["Date"], now: START });
   const home = await mkdtemp(join(tmpdir(), "molis-memory-retention-"));
   let ledger = openMemoryLedger({ homeDirectory: home }), service!: MemoryService, beforeProject: (() => Promise<void>) | undefined;
@@ -24,7 +24,10 @@ async function fixture(t: TestContext) {
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: async id => { await beforeProject?.(); return id === "project-a"; }, deletingProject: () => undefined };
   let calls = 0;
-  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), memory: { ...memoryRuntimePolicy(() => owner),
+  const memory = memoryRuntimePolicy(() => owner);
+  if (extraDimensions) memory.policy = { ...memory.policy!, taxonomy: { ...memory.policy!.taxonomy,
+    extra: [{ id: "topic", label: "Topic", cardinality: "many", values: [{ id: "format", label: "Format" }, { id: "timing", label: "Timing" }] }] } };
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), memory: { ...memory,
       promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION, decide: (caller, request) => service.promotion.decide(caller, request),
         undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
           record: (caller, request) => service.promotion.undo.record(caller, request) } } },
@@ -45,7 +48,8 @@ test("formal retention shorter and longer than the candidate window survives acc
   for (const days of [1, 30]) {
     const expires = new Date(START + days * DAY).toISOString();
     const pending = await f.service.propose(caller(`propose-${days}`, { current_scene: "assistant" }), proposal(`Use afternoon appointments for ${days} days`), { formal_expires_at: expires });
-    assert.equal("formal_expires_at" in pending, false, "internal retention is absent from the public candidate projection");
+    assert.equal(pending.formal_expires_at, expires, "formal retention is visible separately from the waiting deadline");
+    assert.equal(pending.waiting_expires_at, new Date(START + Math.min(days, 14) * DAY).toISOString());
     const raw = (await f.raw().candidates.list("project", "project-a")).find(item => item.candidate_id === pending.candidate_id)!;
     assert.equal(raw.meta.expires_at_ms, START + Math.min(days, 14) * DAY);
     await f.reopen();
@@ -123,6 +127,51 @@ test("v2 export and import retain classification, namespace, repeated basis and 
   assert.equal(formal.meta.namespace, "example.plugin"); assert.equal(formal.meta.basis, "repeated");
   assert.equal(formal.meta.expires_at_ms, expires);
   assert.deepEqual(await f.service.importScope(caller("import-again"), "project", pack), { written: 0, skipped: 1, refused: 0 });
+});
+
+// IMPORT-04: importing an unchanged current package again adds nothing despite canonical omission of empty extra.
+test("IMPORT-04: empty extra dimensions deduplicate under a new operation without changing the stored entry across restart", async t => {
+  const f = await fixture(t), expires = START + 30 * DAY;
+  const pack = { format: "molis.memory", version: 2, exported_at: new Date(START).toISOString(), scope: "personal", redactions: [],
+    entries: [{ text: "Use concise status reports", kind: "convention", source: "manual", basis: "repeated",
+      origin: "Portable convention", applies: { task: "Before release" }, expires_at: new Date(expires).toISOString(),
+      namespace: "example.plugin", classification: { scenes: ["assistant"], lifecycle: "short-term", extra: {} } }] };
+  const original = structuredClone(pack);
+  assert.deepEqual(await f.service.importScope(caller("empty-extra-first"), "project", pack), { written: 1, skipped: 0, refused: 0 });
+  const stored = structuredClone(await f.raw().list("project", "project-a"));
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0]!.text, "Use concise status reports");
+  assert.deepEqual(stored[0]!.meta, { kind: "convention", source: "imported", basis: "repeated",
+    classification: { scenes: ["assistant"], lifecycle: "short-term" }, namespace: "example.plugin",
+    applies_when: { task: "Before release" }, expires_at_ms: expires });
+  await f.reopen();
+  assert.deepEqual(await f.raw().list("project", "project-a"), stored);
+  // Keep the original package, including extra: {}; exporting again would conceal the different representation.
+  assert.deepEqual(await f.service.importScope(caller("empty-extra-second"), "project", pack), { written: 0, skipped: 1, refused: 0 });
+  assert.deepEqual(await f.raw().list("project", "project-a"), stored);
+  await f.reopen();
+  assert.deepEqual(await f.raw().list("project", "project-a"), stored);
+  assert.deepEqual(pack, original);
+});
+
+test("IMPORT-04: different nonempty extra dimensions remain independent across import and restart", async t => {
+  const f = await fixture(t, true);
+  const pack = { format: "molis.memory", version: 2, exported_at: new Date(START).toISOString(), scope: "personal", redactions: [],
+    entries: ["format", "timing"].map(topic => ({ text: "Use concise status reports", kind: "convention", source: "manual", basis: "repeated",
+      origin: "Portable convention", applies: { task: "Before release" }, expires_at: null,
+      classification: { scenes: ["assistant"], lifecycle: "long-term", extra: { topic: [topic] } } })) };
+  const original = structuredClone(pack);
+  assert.deepEqual(await f.service.importScope(caller("distinct-extra-first"), "project", pack), { written: 2, skipped: 0, refused: 0 });
+  const read = async () => (await f.raw().list("project", "project-a")).toSorted((a, b) => a.memory_id.localeCompare(b.memory_id));
+  const stored = structuredClone(await read());
+  assert.equal(stored.length, 2); assert.notEqual(stored[0]!.memory_id, stored[1]!.memory_id);
+  assert.deepEqual(stored.map(one => one.meta.classification!.extra!.topic).sort(), [["format"], ["timing"]]);
+  for (const item of stored) assert.equal(item.text, "Use concise status reports");
+  await f.reopen(); assert.deepEqual(await read(), stored);
+  assert.deepEqual(await f.service.importScope(caller("distinct-extra-second"), "project", pack), { written: 0, skipped: 2, refused: 0 });
+  assert.deepEqual(await read(), stored);
+  await f.reopen(); assert.deepEqual(await read(), stored);
+  assert.deepEqual(pack, original);
 });
 
 test("expiry undo cannot turn a short-term item into permanent memory", async t => {

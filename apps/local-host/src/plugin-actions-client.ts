@@ -109,6 +109,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: outer?.caller.actor_id ?? options.actor_id, project_id: projectId,
+      ...(outer ? { actor_kind: outer.caller.actor_kind, audit_actor_id: outer.caller.audit_actor_id, runtime_session_id: outer.caller.runtime_session_id, runtime_memory: outer.caller.runtime_memory, runtime_memory_read: outer.caller.runtime_memory_read } : {}),
       audience: "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
       allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: ownProvider })), ...required],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,

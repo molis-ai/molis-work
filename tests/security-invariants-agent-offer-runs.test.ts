@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentHost, actionDigest, emptyCapabilityMatrix, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentOfferActions, type AgentRunOffer, type AgentRunView, type AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentOfferActions, type AgentRecalledMemory, type AgentRunOffer, type AgentRunView, type AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "actor" };
 const WRITE: ActionView = { capability_id: "fixture.notes.write", version: 1, operation: "command",
@@ -18,23 +18,27 @@ const offer: AgentRunOffer = { offer_id: "offer-1", offered_at: "2026-10-16T08:0
   input: { text: "会后发纪要" }, editable: ["text"], action_digest: actionDigest(WRITE) };
 
 /** `agent.offers.run` as the Host registers it, over a runtime holding one finished round with one suggestion. */
-function registered(options: { views?: ActionView[]; sessionOwner?: typeof owner; frozen?: ExactActionReference[] } = {}) {
+function registered(options: { views?: ActionView[]; sessionOwner?: typeof owner; frozen?: ExactActionReference[];
+  memory?: Pick<AgentRunView, "class_restrictions" | "memory_scene">; latestMemory?: Pick<AgentRunView, "class_restrictions" | "memory_scene"> } = {}) {
   const host = new AgentHost(), handlers = new Map<string, (source: unknown, input: unknown, invocation: unknown) => Promise<unknown>>();
-  const counts = { checked: 0, invoked: [] as Array<{ reference: ExactActionReference; input: unknown }> };
-  const run: Pick<AgentRunView, "offers"> & { frozen: Pick<AgentRunView["frozen"], "action_tools"> } = { offers: [offer], frozen: { action_tools: options.frozen ?? [refOf(WRITE), refOf(DELETE)] } };
+  const counts = { checked: 0, invoked: [] as Array<{ reference: ExactActionReference; input: unknown }>,
+    readRuns: [] as string[], memory: [] as Array<Pick<AgentRecalledMemory, "class_restrictions" | "current_scene"> | null | undefined> };
+  const run = { offers: [offer], frozen: { action_tools: options.frozen ?? [refOf(WRITE), refOf(DELETE)] }, ...options.memory };
+  const original = { session_id: "own-session", run_id: "own-run" }, latest = { session_id: "own-session", run_id: "latest-run" };
+  const latestView = options.latestMemory ? { ...run, ...options.latestMemory, ref: latest } as AgentRunView : null;
   const adapter = { descriptor: { runtime_id: "fixture", display_name: "Fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
-    async readSession(ref) { return { session: ref, owner: options.sessionOwner ?? owner, title: "Owned", runs: [{ session_id: "own-session", run_id: "own-run" }], latest_run: null }; },
-    async read() { return structuredClone(run) as AgentRunView; },
+    async readSession(ref) { return { session: ref, owner: options.sessionOwner ?? owner, title: "Owned", runs: latestView ? [original, latest] : [original], latest_run: structuredClone(latestView) }; },
+    async read(ref) { counts.readRuns.push(ref.run_id); return structuredClone(ref.run_id === latest.run_id ? latestView : run) as AgentRunView; },
   } as AgentRuntimeAdapter;
   host.register(adapter);
   registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler as never); return () => {}; } },
     { agentHost: () => host, projectId: () => owner.project_id, authority: () => ({ manifest: { roles: [], prompts: [] }, authorizedDirectories: [],
-      actions: async () => ({
+      actions: async (_runtimeId, _context, _session, memory) => { counts.memory.push(memory); return {
         discover: async () => options.views ?? [WRITE, DELETE],
         check: async (_reference, input) => { counts.checked++; if (typeof (input as { text?: unknown }).text !== "string") throw new ActionError("actions.input_invalid", "text must be a string"); },
         // As the composition's client does: the call's signal is checked again right before the action's effect.
         invoke: async (reference, input, signal) => { signal?.throwIfAborted(); counts.invoked.push({ reference, input }); return { saved: "ran" }; },
-      }) }) });
+      }; } }) });
   const call = (input: Record<string, unknown>, invocation: Record<string, unknown>) => handlers.get(agentOfferActions.run.capability_id)!({}, input, invocation);
   return { call, counts };
 }
@@ -115,4 +119,31 @@ test("S-29 (D25) the offer's own action runs once with the person's input, under
   assert.deepEqual(await call(input, live()), { output: { saved: "ran" } });
   assert.deepEqual(counts.invoked, [{ reference: refOf(WRITE), input: { text: "会后发纪要，抄送小林" } }]);
   assert.equal(counts.checked, 1);
+});
+
+const oldMemory: Pick<AgentRunView, "class_restrictions" | "memory_scene"> = {
+  class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [], project: [
+    { selector: { consumer: "agent", current_scene: "coding", kind: "convention" }, read: "off", form: "inherit" },
+  ] }, memory_scene: "coding",
+};
+const latestMemory: Pick<AgentRunView, "class_restrictions" | "memory_scene"> = {
+  class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [], project: [] }, memory_scene: "assistant",
+};
+
+test("S-29 an old round's offer carries its original memory restrictions and scene, even when the session has a newer round", async () => {
+  const { call, counts } = registered({ memory: oldMemory, latestMemory });
+  assert.deepEqual(await call(input, live()), { output: { saved: "ran" } });
+  assert.deepEqual(counts.memory, [{ class_restrictions: oldMemory.class_restrictions, current_scene: "coding" }]);
+  assert.deepEqual(counts.readRuns, ["own-run"]);
+  assert.equal(counts.invoked.length, 1);
+});
+
+test("S-29 an offer without its complete original memory snapshot passes null rather than borrowing the newer round's policy", async () => {
+  for (const memory of [{}, { class_restrictions: oldMemory.class_restrictions }, { memory_scene: oldMemory.memory_scene }]) {
+    const { call, counts } = registered({ memory, latestMemory });
+    assert.deepEqual(await call(input, live()), { output: { saved: "ran" } });
+    assert.deepEqual(counts.memory, [null]);
+    assert.deepEqual(counts.readRuns, ["own-run"]);
+    assert.equal(counts.invoked.length, 1, "the ordinary action stays usable without granting memory access");
+  }
 });

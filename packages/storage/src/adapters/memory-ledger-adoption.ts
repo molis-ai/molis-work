@@ -7,7 +7,7 @@ import { MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE } from "./memory-ledger.js"
 
 export interface MemoryLedgerAdoptionProfile { readonly actor_id: string; readonly key: string; readonly prefs: MemoryPrefs }
 export interface MemoryLedgerAdoptionSnapshot {
-  readonly version: 3;
+  readonly version: 3 | 4;
   readonly profiles: readonly { readonly actor_id: string; readonly key: string; readonly prefs: unknown }[];
   readonly adoptions: readonly { readonly actor_id: string; readonly at: string; readonly body: unknown }[];
   readonly owners: readonly { readonly scope: MemoryScope; readonly owner: string; readonly project_id: string | null }[];
@@ -19,12 +19,12 @@ function conflict(message: string): never {
 
 function snapshot(db: DatabaseSync, path: string): MemoryLedgerAdoptionSnapshot {
   const found = Number(db.prepare("PRAGMA user_version").get()!.user_version);
-  if (found !== 3) throw new SqliteSchemaVersionError(path, found, 3);
+  if (found !== 3 && found !== 4) throw new SqliteSchemaVersionError(path, found, MEMORY_LEDGER_BASELINE.version);
   if (!isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(MEMORY_LEDGER_BASELINE))) {
     conflict("记忆账本结构不符合可采用的旧格式");
   }
   return {
-    version: 3,
+    version: found,
     profiles: db.prepare("SELECT actor_id, key, body FROM memory_prefs ORDER BY actor_id, key").all()
       .map(row => ({ actor_id: String(row.actor_id), key: String(row.key), prefs: JSON.parse(String(row.body)) as unknown })),
     adoptions: db.prepare("SELECT actor_id, at, body FROM memory_markers WHERE key='strategy-adoption' ORDER BY actor_id").all()
@@ -43,7 +43,7 @@ export function inspectMemoryLedgerAdoption(input: { homeDirectory: string }): M
   } finally { db.close(); }
 }
 
-function change<T>(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot }, work: (db: DatabaseSync) => T): T {
+export function changeMemoryLedgerAdoption<T>(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot }, work: (db: DatabaseSync) => T, assertCurrent?: () => void): T {
   // Opening read-only first prevents this explicit maintenance command from creating an absent store.
   const path = homeSqlitePath(input.homeDirectory, MEMORY_LEDGER_STORE);
   const existing = openReadOnlyHomeSqlite(input.homeDirectory, MEMORY_LEDGER_STORE);
@@ -53,7 +53,17 @@ function change<T>(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptio
     db.exec("PRAGMA busy_timeout=5000; BEGIN IMMEDIATE");
     try {
       if (!isDeepStrictEqual(snapshot(db, path), input.snapshot)) conflict("记忆设置或采用记录已改变，请重新检查副本");
+      const check = () => {
+        const checked: unknown = assertCurrent?.();
+        if (checked !== undefined) {
+          if (checked !== null && (typeof checked === "object" || typeof checked === "function") && "then" in checked)
+            void Promise.resolve(checked).catch(() => undefined);
+          conflict("维护事务的当前权限必须同步确认");
+        }
+      };
+      check();
       const result = work(db);
+      check();
       db.exec("COMMIT");
       return result;
     } catch (error) { db.exec("ROLLBACK"); throw error; }
@@ -73,7 +83,7 @@ function originalOrigin(body: Record<string, unknown>): "new-home" | "existing-h
 
 /** Blocks normal startup before SDK conversion; a failed conversion intentionally leaves this state in place. */
 export function beginMemoryLedgerAdoption(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot }): MemoryLedgerAdoptionSnapshot {
-  return change(input, db => {
+  return changeMemoryLedgerAdoption(input, db => {
     if (!input.snapshot.adoptions.length) conflict("旧记忆账本没有采用记录");
     for (const marker of input.snapshot.adoptions) {
       const body = adoptionBody(marker.body);
@@ -85,10 +95,14 @@ export function beginMemoryLedgerAdoption(input: { homeDirectory: string; snapsh
 }
 
 /** The Host validates/maps full profiles; this owner atomically checks the old snapshot and publishes ledger 4. */
-export function completeMemoryLedgerAdoption(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot; profiles: readonly MemoryLedgerAdoptionProfile[] }): void {
-  change(input, db => {
+export function completeMemoryLedgerAdoption(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot; profiles: readonly MemoryLedgerAdoptionProfile[]; assertCurrent?: () => void }): void {
+  changeMemoryLedgerAdoption(input, db => {
+    for (const row of db.prepare("SELECT body FROM memory_markers WHERE key LIKE 'memory-operation:%:adoption-cleanup'").all()) {
+      const mark = adoptionBody(JSON.parse(String(row.body)));
+      if (mark.kind !== "adoption-cleanup" || mark.phase !== "committed") conflict("仍有未完成的确认清理，不能完成记忆采用");
+    }
     const keys = (rows: readonly { actor_id: string; key: string }[]) => rows.map(row => JSON.stringify([row.actor_id, row.key])).sort();
-    if (input.profiles.some(profile => !isCompleteMemoryPrefs(profile.prefs))) conflict("采用结果必须是完整的八字段设置");
+    if (input.profiles.some(profile => !isCompleteMemoryPrefs(profile.prefs))) conflict("采用结果必须是完整的九字段设置");
     if (!isDeepStrictEqual(keys(input.profiles), keys(input.snapshot.profiles))) conflict("采用结果必须保留全部原设置身份");
     if (!input.snapshot.adoptions.length) conflict("记忆采用尚未开始");
     for (const marker of input.snapshot.adoptions) {
@@ -101,5 +115,5 @@ export function completeMemoryLedgerAdoption(input: { homeDirectory: string; sna
     for (const profile of input.profiles) db.prepare("UPDATE memory_prefs SET body=? WHERE actor_id=? AND key=?")
       .run(JSON.stringify(profile.prefs), profile.actor_id, profile.key);
     db.exec("PRAGMA user_version=4");
-  });
+  }, input.assertCurrent);
 }

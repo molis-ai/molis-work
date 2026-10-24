@@ -61,7 +61,8 @@ test("PLIB-02: the plugins' tables are the ones version 7 had in the baseline, t
         if (table !== "boards") assert.deepEqual(now, then, table);
         continue;
       }
-      assert.deepEqual(now, { ...then, foreign_keys: then.foreign_keys.map(key => key.table === "boards" ? { ...key, table: "project_root" } : key) }, table);
+      const expectedColumns = table === "coding_sessions" ? [...then.columns, { name: "lifecycle_json", type: "TEXT", notnull: false, default: null, pk: 0 }] : then.columns;
+      assert.deepEqual(now, { ...then, columns: expectedColumns, foreign_keys: then.foreign_keys.map(key => key.table === "boards" ? { ...key, table: "project_root" } : key) }, table);
     }
   }
 });
@@ -93,7 +94,7 @@ test("a new project database is made at the baseline, its plugins' tables made a
   } finally { created.close(); }
   assert.deepEqual(shapeOf(project.database_path), opened);
   const ledger = ledgerOf(project.database_path);
-  assert.deepEqual(ledger.map(row => [row.plugin_id, row.publisher_signature, row.store_name, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.publisher.signature, manifest.databases!.project!.store_name, 1]).sort());
+  assert.deepEqual(ledger.map(row => [row.plugin_id, row.publisher_signature, row.store_name, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.publisher.signature, manifest.databases!.project!.store_name, manifest.databases!.project!.version]).sort());
 
   // Opening the project's pages starts its plugins and their owners; none of them makes a table of its own any more.
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: "project-database-baseline-token-123456789" });

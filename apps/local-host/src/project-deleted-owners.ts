@@ -3,9 +3,10 @@ import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modu
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
 import { existsSync } from "node:fs";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
-import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { memoryLedgerHasOnlyPreferences, MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -26,12 +27,52 @@ export const SEARCH_OWNER = { id: "search", label: null } as const;
  * project.
  */
 export function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
+  const plans = new AsyncLocalStorage<{ original: boolean; active: boolean; recreation?: string }>();
   const check = () => {
     if (existsSync(agentRuntimeDirectory(home))) throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，这个入口不运行它；由运行中的 Molis Work 清理，它会接着做", true);
   };
   return {
     ...MEMORY_OWNER, check,
-    async clear(projectId) {
+    async withRecreation(input, work) {
+      const frame = { original: false, active: true, recreation: input.project_id };
+      const current = () => {
+        if (!frame.active) throw new ProjectDeletedDeferred("示例空态证明已结束，请重试", true);
+        check();
+        if (existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) && !memoryLedgerHasOnlyPreferences({ homeDirectory: home }))
+          throw new ProjectDeletedDeferred("已有记忆账注但当前入口不能确认空态，请由运行中的 Molis Work 核对", true);
+      };
+      current();
+      try { return await plans.run(frame, () => work(current)); }
+      finally { frame.active = false; }
+    },
+    async withRecovery(input, work) {
+      if (input.original && input.original.kind !== "absent") throw new ProjectDeletedDeferred("原删除计划需要运行时主人恢复", true);
+      const completed = !!input.original && input.memory_complete === true;
+      if (!completed) {
+        check();
+        if (existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) && !memoryLedgerHasOnlyPreferences({ homeDirectory: home })) throw new ProjectDeletedDeferred("已有记忆账注但当前入口不能确认原件范围，请由记忆主人核对", true);
+      }
+      const frame = { original: completed, active: true };
+      try { return await plans.run(frame, () => work(input.original ?? { version: 1, kind: "absent", project_id: input.project_id, operation_id: input.operation_id })); }
+      finally { frame.active = false; }
+    },
+    async clear(projectId, receipt) {
+      if (receipt) {
+        const frame = plans.getStore();
+        if (!frame?.active || receipt.recovery.kind !== "absent")
+          throw new ProjectDeletedDeferred("原删除计划需要运行时主人恢复", true);
+        if (!frame.original) {
+          check();
+          if (existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) && !memoryLedgerHasOnlyPreferences({ homeDirectory: home }))
+            throw new ProjectDeletedDeferred("接受计划前运行时范围发生变化，保留原收据核对", true);
+        }
+        if (existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE))) {
+          const ledger = openMemoryLedger({ homeDirectory: home });
+          try { ledger.forgetScopes({ project_id: projectId, scopes: [], prefs_keys: [`project:${projectId}`], signal_prefixes: [], marker_keys: [] }); }
+          finally { ledger.close(); }
+        }
+        return;
+      }
       check();
       if (!existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE))) return;
       const ledger = openMemoryLedger({ homeDirectory: home });

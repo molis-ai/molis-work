@@ -8,6 +8,7 @@ import test from "node:test";
 import { createDesktopWebHost, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { AssistantStore, MolisWorkLocalHost, resolveWebControlToken, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { openHomeSqliteDatabase, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { asideReply } from "./fixtures/ending-review.js";
@@ -15,13 +16,23 @@ import { isKnowledgeOrganize, organizedCard } from "./fixtures/knowledge-organiz
 
 interface Status { work_id: string; revision: number; state: string; error?: string }
 
-for (const race of ["reply-last-wait", "stop-post-start-reader"] as const)
-test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") + ": real thread " + race + " refuses the late write", { timeout: 90_000 }, async t => {
+for (const race of ["reply-last-wait", "stop-post-start-reader", "create-return-revoked"] as const)
+test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : race === "stop-post-start-reader" ? "PAS-10 S-18-102-03" : "AST-MEM-ARCH") + ": real thread " + race + " refuses the late write", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "thread-final-fence-"));
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let current = true, armed = race === "reply-last-wait", intercepted = false, priorRounds = 0;
   const pending: ServerResponse[] = [];
+  let created: Awaited<ReturnType<AgentHost["createSession"]>> | undefined, creatingHost: AgentHost | undefined, modelRequests = 0;
+  if (race === "create-return-revoked") {
+    const create = AgentHost.prototype.createSession;
+    t.mock.method(AgentHost.prototype, "createSession", async function (this: AgentHost, ...args: Parameters<typeof create>) {
+      const session = await create.apply(this, args);
+      if (args[1].role_id === "thread-reply") { created = session; creatingHost = this; entered.resolve(); await release.promise; }
+      return session;
+    });
+  }
   const model = createServer(async (req, res) => {
+    modelRequests++;
     let raw = ""; for await (const chunk of req) raw += chunk;
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
@@ -118,7 +129,22 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
           observedStart.then(value => { if (value.status !== 200) throw new Error("Thread start refused before the barrier: " + JSON.stringify(value)); return new Promise<never>(() => {}); }),
           new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("the real thread barrier was not reached")), 15_000); })]);
       } finally { if (timer) clearTimeout(timer); }
-      const accepted = readOwner()!; assert.ok(accepted.rounds.length > priorRounds);
+      const accepted = readOwner()!;
+      if (race === "create-return-revoked") {
+        assert.equal(accepted.work.session_id, null); assert.equal(accepted.rounds.length, 0);
+        assert.ok(created && creatingHost);
+        current = false; release.resolve();
+        const refused = await observedStart;
+        assert.equal(refused.body.code, "actions.revoked");
+        const storedSession = await creatingHost.adapter("prologue").readSession(created);
+        assert.equal(storedSession.session.session_id, created.session_id, "the completed SDK Session remains observable");
+        assert.deepEqual(storedSession.runs, []);
+        assert.equal(readOwner()!.work.session_id, null, "revoked thread authority cannot bind its already-created Session");
+        assert.equal(readOwner()!.rounds.length, 0); assert.equal(modelRequests, 0);
+        assert.deepEqual((await request(path)).body.threads, before);
+        return;
+      }
+      assert.ok(accepted.rounds.length > priorRounds);
       if (race === "reply-last-wait") current = false;
       else assert.equal((await request("/api/assistant/threads/stop", { work_id: accepted.work.work_id })).status, 200);
       release.resolve(); await observedStart;
@@ -222,8 +248,47 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
       assert.equal(delivered.messages.length, 2);assert.equal(delivered.messages[1]!.body, "只在原评论里的答复");
       assert.deepEqual((await api<{ threads: PagesCommentThread[] }>(path(b.id))).threads, []);assert.equal(requests.length, 1);
       const next = await api<{ thread: PagesCommentThread }>(path(a.id), { thread_id: thread.thread_id, request_id: "next", body: "继续解释这一点", reply_to: delivered.messages[1]!.message_id });
+      const archivePath = `/api/assistant/works/${started.work_id}/archive`;
+      const previewDb = openHomeSqliteDatabase(home, "assistant"), previewStore = new AssistantStore(previewDb);
+      const beforePreview = previewStore.get("web-user", started.work_id);
+      const original = await api<{ revision: number; session_id: string; archived: boolean; decision: { operation_id: string; expected_version: number; expected_state: string } }>(archivePath + "-preview?archived=true");
+      assert.deepEqual(previewStore.get("web-user", started.work_id), beforePreview, "preview never archives or updates the Work");
+      for (const body of [null, [], true, "invalid", { archived: true }, { ...original, revision: 0 }, { ...original, session_id: "" }, { ...original, extra: true },
+        { ...original, decision: { ...original.decision, expected_version: 0 } }, { ...original, decision: { ...original.decision, extra: true } }]) {
+        const rejected = await fetch(prefix + archivePath, { method: "POST", headers: { "content-type": "application/json", origin,
+          "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
+        const result = await rejected.json(); assert.equal(rejected.status, 400); assert.equal(result.code, "assistant.invalid");
+        assert.deepEqual(previewStore.get("web-user", started.work_id), beforePreview, "HTTP rejects malformed originals before any Work effect");
+      }
+      previewDb.close();
+      const archived = await api<{ work: { archived: boolean } }>(archivePath, original);
+      assert.equal(archived.work.archived, true);
+      const assistantDb = openHomeSqliteDatabase(home, "assistant"), assistantStore = new AssistantStore(assistantDb);
+      try {
+        const before = assistantStore.get("web-user", started.work_id), beforeModels = requests.length;
+        assistantDb.exec("CREATE TRIGGER refuse_restore BEFORE UPDATE ON assistant_works WHEN OLD.archived=1 AND NEW.archived=0 BEGIN SELECT RAISE(ABORT, 'restore commit refused'); END");
+        const failed = await fetch(prefix + "/api/assistant/threads/start", { method: "POST", headers: { "content-type": "application/json", origin,
+          "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ target, message_id: next.thread.messages.at(-1)!.message_id }) });
+        assert.equal(failed.ok, false); await failed.json();
+        assert.deepEqual(assistantStore.get("web-user", started.work_id), before, "SDK restore failure at the business commit creates no reply round");
+        assert.equal(requests.length, beforeModels, "failed restoration cannot start another model request");
+        assistantDb.exec("DROP TRIGGER refuse_restore");
+        const revised = assistantStore.update("web-user", started.work_id, before.revision, { title: "恢复期间由本人修改的工作" });
+        hold = true;
+        const changedRetry = await fetch(prefix + "/api/assistant/threads/start", { method: "POST", headers: { "content-type": "application/json", origin,
+          "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ target, message_id: next.thread.messages.at(-1)!.message_id }) });
+        const changedResult = await changedRetry.json();
+        assert.equal(changedRetry.ok, false, "the original thread restore cannot adopt a new Work revision");
+        assert.equal(changedResult.code, "assistant.conflict");
+        assert.deepEqual(assistantStore.get("web-user", started.work_id), revised, "a stale restore does not rebind or create a reply round");
+        assert.equal(requests.length, beforeModels, "revision drift starts no model request");
+      } finally { assistantDb.close(); }
+      const restore = await api<object>(archivePath + "-preview?archived=false");
+      await api(archivePath, restore);
       hold = true;
       await api<Status>("/api/assistant/threads/start", { target, message_id: next.thread.messages.at(-1)!.message_id });
+      assert.equal((await api<{ work: { archived: boolean } }>(`/api/assistant/works/${started.work_id}`)).work.archived, false);
+
       await until(async () => pending !== null, Boolean);
       await api<Status>("/api/assistant/threads/stop", { work_id: started.work_id });
       const response = pending as ServerResponse | null;

@@ -7,11 +7,13 @@ import type {
   MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
+import { isCompleteMemoryPrefs } from "@molis-ai/molis-work-contracts/services/memory";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { homeSqlitePath, openHomeSqliteDatabase, openReadOnlyHomeSqlite } from "../home-sqlite.js";
 import { isDeepStrictEqual } from "node:util";
 import { createMemoryLedgerRetention } from "./memory-ledger-retention.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
-import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
+import { applySqliteBaseline, describeSqliteBaseline, describeSqliteSchema, SqliteSchemaVersionError, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
  * The Host's memory ledger (specs/archive/memory-system §5.1): what the platform knows around Prologue memory entries —
@@ -60,6 +62,39 @@ CREATE TABLE memory_markers (
 ` };
 
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
+
+/** Startup inspects every stored profile before opening a writer; missing stores and other versions are never repaired. */
+export function readMemoryLedgerProfiles(options: { homeDirectory: string }): readonly { actor_id: string; key: string; prefs: unknown }[] {
+  const db = openReadOnlyHomeSqlite(options.homeDirectory, MEMORY_LEDGER_STORE);
+  try {
+    const found = Number(db.prepare("PRAGMA user_version").get()!.user_version);
+    if (found !== MEMORY_LEDGER_BASELINE.version) throw new SqliteSchemaVersionError(
+      homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), found, MEMORY_LEDGER_BASELINE.version);
+    return db.prepare("SELECT actor_id, key, body FROM memory_prefs ORDER BY actor_id, key").all()
+      .map(row => ({ actor_id: String(row.actor_id), key: String(row.key), prefs: JSON.parse(String(row.body)) as unknown }));
+  } finally { db.close(); }
+}
+
+/** A never-used new Home may contain only preferences. This is not a scope-list completeness claim. */
+export function memoryLedgerHasOnlyPreferences(options: { homeDirectory: string }): boolean {
+  const db = openReadOnlyHomeSqlite(options.homeDirectory, MEMORY_LEDGER_STORE);
+  try {
+    const version = Number(db.prepare("PRAGMA user_version").get()!.user_version);
+    if (version !== MEMORY_LEDGER_BASELINE.version) throw new SqliteSchemaVersionError(
+      homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), version, MEMORY_LEDGER_BASELINE.version);
+    if (!isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(MEMORY_LEDGER_BASELINE))) return false;
+    for (const table of ["memory_revisions", "memory_candidates", "memory_changes", "memory_signal_events", "memory_uses", "memory_owners", "memory_pairs"])
+      if (db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get()) return false;
+    const profiles = db.prepare("SELECT actor_id,key,body FROM memory_prefs").all();
+    if (!profiles.every(row => row.actor_id === LOCAL_PERSON_ACTOR_ID
+      && (row.key === "personal" || row.key === "project-default" || String(row.key).startsWith("project:"))
+      && isCompleteMemoryPrefs(JSON.parse(String(row.body))))) return false;
+    const markers = db.prepare("SELECT actor_id,key,body FROM memory_markers").all();
+    if (markers.length !== 1 || markers[0]!.actor_id !== LOCAL_PERSON_ACTOR_ID || markers[0]!.key !== "strategy-adoption") return false;
+    const marker: unknown = JSON.parse(String(markers[0]!.body));
+    return !!marker && typeof marker === "object" && Object.keys(marker).length === 1 && "origin" in marker && marker.origin === "new-home";
+  } finally { db.close(); }
+}
 
 export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
   const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);

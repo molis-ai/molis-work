@@ -1,9 +1,10 @@
+import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type ActionView, type DueReminderCollection, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, requireSynchronous, type ActionView, type DueReminderCollection, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantErrors } from "./assistant-errors.js";
 
@@ -75,6 +76,8 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   readonly timeZone?: string;
   /** The work by id; throws when it no longer exists. */
   work(workId: string): W;
+  /** Recheck the owning Work's lifecycle admission synchronously before saving a new standing request. */
+  assertCanSchedule(work: W): void;
   notify(notice: Pick<AssistantNotice, "kind" | "work_id" | "work_title" | "text" | "open">, dedupe: string): boolean;
   setting(key: string): string | null;
   setSetting(key: string, value: string): void;
@@ -124,6 +127,10 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     if (this.list(work.work_id).filter(item => item.enabled).length >= MAX_FOLLOW_UPS_PER_WORK) throw assistantErrors.limit(`一项工作最多 ${MAX_FOLLOW_UPS_PER_WORK} 个定时`);
     if (!work.session_id) throw assistantErrors.state("这项工作还没有开始过：先让助理做一轮，再给它加定时");
     const schedule = await ports.schedule();
+    requireSynchronous(ports.assertCanSchedule(work), "最终定时检查必须同步完成");
+    const current = ports.work(work.work_id);
+    if (current.reply_target || current.archived) throw assistantErrors.state("评论回复或已归档工作不能添加定时");
+    if (current.session_id !== work.session_id) throw assistantErrors.conflict("这项工作的会话已变化，请核对后重新安排定时");
     const followUp: AssistantFollowUp = { followup_id: randomUUID(), work_id: work.work_id, label, text, repeat, next_at: at.toISOString(),
       time_zone: input.time_zone || ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: ports.now().toISOString() };
     ports.records.save(ports.actorId, followUp);
@@ -140,11 +147,20 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   }
 
   /** The work is put away: its timed rounds stop with it, each saying why. */
-  async stopForArchive(workId: string): Promise<void> {
-    const { ports } = this, schedule = await ports.schedule().catch(() => null), at = ports.now().toISOString();
-    for (const { next_at, ...rest } of this.list(workId).filter(item => item.enabled)) {
-      if (next_at) await schedule?.cancel(followUpTask({ ...rest, next_at }, "").key).catch(() => null);
-      ports.records.save(ports.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: "这项工作已归档，定时已停用" } });
+  async stopForArchive(workId: string, control: AgentMemoryExecutionControl): Promise<void> {
+    await control.beforeEffect(); control.assert_current();
+    const { ports } = this, schedule = await ports.schedule(), at = ports.now().toISOString();
+    for (const original of this.list(workId).filter(item => item.enabled)) {
+      const { next_at, ...rest } = original;
+      await control.beforeEffect(); control.assert_current();
+      if (next_at) {
+        const task = await schedule.cancel(followUpTask({ ...rest, next_at }, "").key);
+        if (task?.state === "running") throw assistantErrors.state("这项工作的定时轮次已经开始，先停止或处理它再归档");
+      }
+      await control.beforeEffect(); control.assert_current();
+      if (!ports.records.save(ports.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: "这项工作已归档，定时已停用" } }, original)) {
+        throw assistantErrors.conflict("原定时安排已经改变，请核对当前状态后继续归档");
+      }
     }
   }
 

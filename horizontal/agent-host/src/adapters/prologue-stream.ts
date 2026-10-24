@@ -751,11 +751,12 @@ function applyPrologueEvent(
  * The facts a Run's view carries beside its turns, as the projection holds them now: what it took from memory, its own
  * step list, the files each turn wrote, a wait it sleeps in. A fact that no longer holds is not carried forward.
  */
-export function withRunFacts(state: PrologueStreamState, ended: boolean, view: AgentRunView): AgentRunView {
+export function withRunFacts(state: PrologueStreamState, ended: boolean, view: AgentRunView, memory?: { class_restrictions?: AgentRunView["class_restrictions"]; current_scene?: string }): AgentRunView {
   const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, retry_wait: _retry, model_switch: _switch, offers: _offers, ...rest } = view;
   const requested = ended ? undefined : state.model_requested;
   return {
     ...rest,
+    ...(memory?.class_restrictions ? { class_restrictions: structuredClone(memory.class_restrictions), memory_scene: memory.current_scene } : {}),
     ...(state.memory_recalled ? { memory_recalled: structuredClone(state.memory_recalled) } : {}),
     ...(state.todo?.length ? { todo: state.todo.map(item => ({ ...item })) } : {}),
     ...(state.turn_changes.length ? { turn_changes: structuredClone(state.turn_changes) } : {}),

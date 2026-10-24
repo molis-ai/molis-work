@@ -7,6 +7,7 @@ import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-wo
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
 import type { CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
 import { initializeProjectDatabase, validateManagedProject } from "./managed-project-database.js";
+import { catalogErrors } from "./project-catalog-contract.js";
 
 /** Own recoverable file staging; formal Project records stay with Projects. */
 export class ManagedProjectFiles {
@@ -17,6 +18,8 @@ async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjec
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.project_id) {
       if (!/^project-onboarding-[0-9a-f]{8}-[0-9a-f-]{27}$/u.test(input.project_id)) throw new Error("无效的恢复项目标识");
+      if (this.projects.lifecycle.pendingDeletions(input.project_id).length)
+        throw catalogErrors.project_storage_invalid("原项目删除尚未完成，不能用同一标识建立后继项目");
       const existing = this.projects.query.listProjects().find(p => p.project_id === input.project_id);
       if (existing) return existing;
     }

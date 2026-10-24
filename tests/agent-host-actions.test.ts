@@ -294,9 +294,11 @@ async function roundsSetup(t: TestContext, home = false) {
 }
 const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", frozen: {}, turns: [], activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
   original_input: { ref: { session_id: "s1", input_id: "original-1", version: 1 }, text: "Use pnpm", written_by: "person", occurred_at: "2026-10-23T00:00:00.000Z" },
+  class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [], project: [{ selector: { consumer: "agent", current_scene: "coding", kind: "convention" }, read: "off", form: "inherit" }] },
+  memory_scene: "coding",
   started_at: "2026-10-23T00:00:00.000Z", ended_at: null };
 
-test("original-input Action shapes reject fixed version 1 through the real plugin dispatcher", async t => {
+test("current original-input and classification Action shapes reject old fixed versions through the real plugin dispatcher", async t => {
   const { consumer, seen, owner } = await roundsSetup(t), actions = consumer.actions(PROJECT);
   owner.current = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
   const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
@@ -306,6 +308,8 @@ test("original-input Action shapes reject fixed version 1 through the real plugi
   ] as const;
   for (const [definition, input] of calls) {
     await assert.rejects(actions.invoke({ ...definition, version: 1 } as ActionDefinition, input), { code: "actions.dependency_missing" }, definition.capability_id);
+    if (definition.capability_id !== agent.startRun.capability_id)
+      await assert.rejects(actions.invoke({ ...definition, version: 2 } as ActionDefinition, input), { code: "actions.dependency_missing" }, definition.capability_id);
   }
   assert.deepEqual(seen, [], "none of the old references reached the Runtime");
 });
@@ -392,6 +396,17 @@ test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing
   assert.equal((await actions.invoke(agent.readRun, [session, run])).phase, "running");
   assert.deepEqual((await actions.invoke(agent.readRun, [session, run])).original_input, ROUND_VIEW.original_input);
   assert.deepEqual((await actions.invoke(agent.readSession, [session])).latest_run?.original_input, ROUND_VIEW.original_input);
+  const discovered = await actions.discover();
+  for (const definition of [agent.readSession, agent.readRun, agent.waitRun]) {
+    assert.equal(definition.version, 3);
+    assert.ok(!discovered.some(item => item.capability_id === definition.capability_id), "a plugin lists its own actions; declared dependencies resolve through invoke");
+  }
+  for (const view of [await actions.invoke(agent.readRun, [session, run]), (await actions.invoke(agent.readSession, [session])).latest_run!]) {
+    assert.deepEqual(view.class_restrictions, ROUND_VIEW.class_restrictions);
+    assert.equal(view.memory_scene, "coding");
+  }
+  await assert.rejects(actions.invoke({ ...agent.readSession, version: 1 }, [session]), { code: "actions.dependency_missing" });
+  await assert.rejects(actions.invoke({ ...agent.readRun, version: 1 }, [session, run]), { code: "actions.dependency_missing" });
   assert.deepEqual(await actions.invoke(agent.readRunReviews, [session, run]), []);
   assert.deepEqual(await actions.invoke(agent.listSubagents, [session, run]), []);
   // A rewind is prepared only for a role that edits files; this plugin declares none, so it is refused past the session check.
@@ -441,6 +456,9 @@ test("RAC-181 following a round is a concurrent plugin-only query on the caller'
   const first = await waitFor(null, 0);
   assert.equal(first.view.phase, "running");
   assert.deepEqual(first.view.original_input, ROUND_VIEW.original_input);
+  assert.deepEqual(first.view.class_restrictions, ROUND_VIEW.class_restrictions);
+  assert.equal(first.view.memory_scene, "coding");
+  await assert.rejects(actions.invoke({ ...agent.waitRun, version: 1 }, [session, run, null, 0]), { code: "actions.dependency_missing" });
   // Nothing changed within the wait: the same round comes back, as a success, and the call log keeps no row of it.
   const quiet = await waitFor(first.version, 50);
   assert.equal(quiet.version, first.version, "a wait that reached its time answers the round as it is");

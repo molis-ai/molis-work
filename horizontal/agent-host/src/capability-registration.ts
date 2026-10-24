@@ -288,7 +288,7 @@ export function registerAgentHostCapabilities<Context>(
     }),
     // What this project's sessions wait for and how they go on, and what a plugin tells one of their rounds (session-actions), and the person's after-write checkers (write-checker-actions).
     ...registerSessionActions(register, { pluginFor, originalInput: call => owners.originalInput?.(call.source, pluginFor(call)), adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun,
-      ownsSession: (call, session) => readScopedSession(call, session).then(() => true, () => false), actions: async (call, runtimeId, session) => { const authority = await ports.authority(call); return authority.actions ? authority.actions(runtimeId, undefined, session) : undefined; } }),
+      ownsSession: (call, session) => readScopedSession(call, session).then(() => true, () => false), actions: async (call, runtimeId, session, memory) => { const authority = await ports.authority(call); return authority.actions ? authority.actions(runtimeId, undefined, session, memory) : undefined; } }),
     ...registerWriteCheckerActions(register, { pluginFor, projectId: ports.projectId, writeCheckers: call => owners.writeCheckers?.(call.source) ?? Promise.reject(agentErrors.capability_unavailable("宿主没有接通写后检查器")) }),
     // Like waitRun: one of the caller's places to wait, only its own sessions' continuations. Another plugin's that are ready
     // join `exclude` and the wait goes on, so they neither show nor end the wait early.

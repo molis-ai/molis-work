@@ -1,7 +1,19 @@
-import type { MemoryEntry, MemoryMeta, MemorySourceIdentity, MemorySourceSnapshot, ScopedCandidate } from "@prologue/sdk";
-import type { AgentMemoryEntry as Entry, AgentMemoryMeta as Meta, AgentMemoryCandidateEntry as Candidate, AgentMemorySourceIdentity, AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { MemoryEntry, MemoryMeta, MemorySourceIdentity, MemorySourceSnapshot, ScopedCandidate, MemoryPurgePreviewInput, MemoryPurgePreviewPage } from "@prologue/sdk";
+import type { AgentMemoryEntry as Entry, AgentMemoryMeta as Meta, AgentMemoryCandidateEntry as Candidate, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemoryPurgeQuery, AgentMemoryPurgePage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentErrors } from "../errors.js";
 
 type SdkMeta = MemoryMeta;
+export const purgeQuery = ({ session_ref, ...query }: AgentMemoryPurgeQuery): MemoryPurgePreviewInput =>
+  ({ ...query, ...(session_ref ? { sessionRef: session_ref } : {}) });
+export const purgePageView = (page: MemoryPurgePreviewPage): AgentMemoryPurgePage => ({ ...page,
+  issues: page.issues.map(issue => ({ ...issue })), items: page.items.map(item => {
+    if (!["user", "project", "character"].includes(item.identity.scope)) throw agentErrors.capability_unavailable("清理预览不属于平台记忆范围");
+    const identity = { scope: item.identity.scope as Entry["scope"], owner: item.identity.owner };
+    const common = { identity, expected_version: item.expectedVersion, ...(item.sessionRef ? { session_ref: { ...item.sessionRef } } : {}) };
+    return item.kind === "memory" ? { ...common, kind: item.kind, memory_id: item.ref.id, state: item.state }
+      : { ...common, kind: item.kind, candidate_id: item.ref.id, state: item.state,
+        sources: item.sources?.map(source => ({ event_id: source.eventId, version: source.version })) ?? null };
+  }) });
 /** The SDK boundary owns the complete value translation, shared by public reads and promotion callbacks. */
 export const sourceIdentityView = (source: MemorySourceIdentity): AgentMemorySourceIdentity => ({ event_id: source.eventId, version: source.version,
   speaker: { ...source.speaker }, derivation: source.derivation, occurred_at_ms: source.occurredAtMs,

@@ -1,3 +1,4 @@
+import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { memoryServiceHome } from "./fixtures/memory-service-home.js";
@@ -162,5 +163,5 @@ test("plugins are not an audience of memory yet: the directory offers them none 
   await assert.rejects(call(memoryActions.recall, { query: "表格 日期 排序" }), forbidden);
   await assert.rejects(call(memoryActions.list, {}), forbidden);
   await assert.rejects(call(memoryActions.change, { memory_id: "m1", action: "remove" }), forbidden);
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, []);
+  assert.deepEqual((memoryData(await asPerson.invoke(memoryActions.list, {}))).items, []);
 });

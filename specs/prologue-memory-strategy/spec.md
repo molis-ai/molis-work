@@ -1033,6 +1033,9 @@ M2 重试收束实测（2026-10-24）：父 `448838622` 导入片完成 build/ty
 
 普通保存片最终静态门：当前源代码的 typecheck、health（对 main `27bb3c212`，仅收紧 Service 文件/类计数）、boundary、实际资源、API 与 Action 快照检查均通过。没有新增资源额度；工程回归闭合不代表 #1064 全套通过，也不代表最终 App 或用户验收。
 
+M3 分页依赖集成检查点（2026-10-24，尚未完成本轮验证）：本地 `a59b712f4` 合入父 `e8e800810`，保留分页 Queries 与固定重复保存/候选等待恢复；新增候选读取改接既有 Queries，读取后的当前来源/Action 复核顺序不变。整体 build 通过，Memory/分页/HTTP/权限/CAS/Action/恢复 23/23 文件通过（CAS 79/79、Action 15/15），日志 `/private/tmp/molis-memory-pages-integration-20261024-{build,memory}.log`。为先验证 #1064 灵光与续期，当前小阶段完成后主动结束调度器（exit 143），不是测试失败；其余 README 强制回归与浏览器尚未运行，不合成为完整通过。
+
+两棵实际构建产物资源对比：父 `e8e800810` 为 27 项 7,815,997 B，分页 `a59b712f4` 为 27 项 7,819,434 B；唯一差异为 workbench 1,193,918→1,197,355 B，净增恰为本人已批准的 +3,437 B，其余 26 项相同。原一次性额度按这组实测基点重新登记，没有增加额度；资源门对父通过。报告 `/private/tmp/molis-memory-e8e800810-parent-assets-20261024.json`、`/private/tmp/molis-memory-pages-a59-assets-20261024.json`。分页根类型、API/Action 快照、包边界和 health 对当前 main `27bb3c212` 的实际 merge-base `b3f2f4b1` 通过；资源脚本更新之后仍须重新刷新构建指纹再继续行为回归。分类纠正本地依赖合并为 `6589b89c8`，本轮尚未构建或实测资源，不拿分页结果或算术推导代替它的 +5,635 B 验收。
 
 CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e758f6db031600749881ac0a88`，与本片 head 整树一致。当前 head 的完整 build、类型/健康/边界/资源/secret 及运行器 36/36 通过；正常 CI `40032899399` 的 Linux 两片实际 210/210、209/209，零失败、重试、超时、跳过、未执行和隔离。读取 artifact 后核实际并集 419、交集 0；正常 merge_group `40036593062` 通过。未改预算、断言或 required checks。#1064 合入这个依赖后复用相同运行器，自己的新 CI 仍须单独验证。
 
@@ -1040,6 +1043,21 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 
 后续独立片检查点：Prologue #96 已按私仓既定本地门禁合入 main `d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11`，clean head `15c38aed`；quality 684 项、Memory 680 项、干净包安装/重开及旧 SDK 拒绝 shape 8 均通过。Molis 续期的本地采用另在独立树，未混进 #1064 当前 SDK。分页 #1101 的本地父集成与 23 文件核心回归通过；实测 workbench `1193918 → 1197355`，沿用户原批准净增 3437 B 登记，其余 26 资源不变。分类纠正 #1111 的新父仅完成本地集成/静态检查，后续构建与浏览器仍待完成；父子未进入 main 不记已交付。
 
+M3 分页本轮验证完成（2026-10-24，本地生产 head `86872848d`）：已合入父候选 `ecec96b981`，相对先前 `e8e800810` 仅三份文档变化；保留上轮 23/23 核心证据，本轮增量 build、其余 README 97/97 文件、分页与 CAS 浏览器 2/2（1/1、20/20 用例）、README 工作台浏览器 10/10 全部通过。根与全包类型、health 对最新 main `afaa4fea` 及父 `ecec96b981`、包边界、API 和 Action 快照均通过，无生成快照变化。资源重新实测仍为 27 项 7,819,434 B，workbench 1,197,355 B，对父构建仅增加已批准的 3,437 B，其余 26 项相同；资源门通过。完整逐步结果与日志：`/private/tmp/molis-memory-pages-integration-resumed-20261024.results.json`，资源报告同 stem 的 `-assets.log`。本地相关工程与指定浏览器路径验证通过；不据此关闭 #1064 灵光全套失败或宣称用户验收、进入 main。
+
+M3 逐条分类纠正本轮验证完成（2026-10-24，本地生产 head `68564e9ef`，父分页 `24cc645c2`）：整体 build 及资源登记后的构建指纹刷新通过；26/26 核心文件（分类编辑 12/12、HTTP 2/2、期限往返 13/13、CAS 79/79、Action 15/15，含分页、学习及维护恢复）、97/97 README 共用文件、目标浏览器 3/3（分类设置 2/2、分页 1/1、CAS 23/23）和 README 工作台浏览器 10/10 均通过。根与全包类型、health 对检查时 origin/main `abc052bcb` 的共同祖先 `afaa4fea` 及实际父 `24cc645c2`、包边界、API/Action 快照和资源门均通过；未把新 main 合入本轮验证。快查基线只收紧 Service 文件 1106→1084 行、类 966→940 行，方法仍 47，无门禁阈值变动或新增快照差异。
+
+纠正与分页均按实际构建逐项测量 27 资源：分页总计 7,819,434 B，纠正总计 7,825,069 B；唯一差异是 workbench 1,197,355→1,202,990 B，恰为本人原批准的 +5,635 B，其余 26 项相同。一次性额度只按这组精确父/子实测值登记，没有扩大额度。逐步结果与全部日志：`/private/tmp/molis-memory-classification-verify-20261024.results.json`，最终资源报告同 stem 的 `-assets.log`；首次整体构建与实测另保留 `/private/tmp/molis-memory-classification-measure-20261024.results.json`。本轮产品源未因回归改动，证据限本地相关工程与上述隔离 Home 浏览器路径，不代表用户验收、进入 main 或关闭 #1064 原灵光全套失败。
+
+矩阵依赖再次整合（2026-10-24）：本地 `0072640fd` 合入纠正候选 `3a11c545e`；SDK #95 产物与其锁完整性保持，父分支的声明闭包、取消/来源和重复保存恢复进入同一树。候选查询在矩阵内返回 canonical entry 与 note，新 candidate-hold 显式取 note，再经原异步 beforeEffect 才提交；没有恢复 ledger 直读旁路。当前仅完成合并检查，须重新构建并跑分类权限/形成交错、父恢复回归、实际页面与全部规定门禁，不能用父片绿色代替本片结果。资源尚未实测或新增批准。
+
+矩阵 `70ef9ee1f` 集成验证进展（2026-10-24，尚未通过全部交付门）：第一次整体 build 通过，核心 47 文件中 44 通过、3 失败。实际核对后只修三处过时夹具：分类纠正屏障移到真实 SDK update；合法 explicit 候选管理按已冻结的读取/形成分离合同保留，继续拒绝 task、缺来源用途、异项目、namespace 与原 Run/当前形成关闭；来源重开夹具由原 Run 启动时的真实 forRun 冻结 recipe，不执行时借最新偏好。仅复验失败三文件，分类纠正 12/12、Runtime policy 15/15、来源 owner 9/9 通过。原失败保留在 `/private/tmp/molis-memory-matrix-first-20261024-core.log`，复验见 `/private/tmp/molis-memory-matrix-fixture-recheck-20261024.log`。
+
+其余 README 与受影响共用回归 125/125 文件通过；首轮目标浏览器 5/6 文件通过，分类限制页失败。独立最小反例证明 fieldset 已启用但 consumer/current_scene/kind/lifecycle 的真实选择器按钮仍禁用，原因是设计系统只观察 select 本身的属性。仅在本分类组件同步 select.disabled，保留 fieldset、保存失败和重试语义；复验原失败文件 1/1 通过，覆盖真实按钮启用、真实 HTTP 回应被暂缓交付时禁用、完成后恢复及持久结果。回应屏障不伪造保存；原失败证据 `/private/tmp/molis-memory-classes-disabled-red-20261024.log`。后续 README 浏览器 10/10、客户端脚本检查、根与全包类型、boundary、API/Action 快照均通过；未机械重跑已通过的 125 文件及另 5 个目标浏览器。
+
+本轮 health 对 origin/main 的共同祖先 `afaa4fea` 仍失败：新共享助理夹具引入包内部 import，以及 SDK 95 历史材料未在 commitsChecked 登记 f4bbbd88；尚未修复或视为通过，父 health/基线收紧尚未执行。逐步结果见 `/private/tmp/molis-memory-matrix-rest-20261024.results.json`、`/private/tmp/molis-memory-matrix-finish-20261024.results.json` 和 `/private/tmp/molis-memory-matrix-independent-gates-20261024.results.json`。最终当前构建实测 27 资源共 7,828,058 B，对父纠正 `3a11c545e` 的 7,825,069 B，唯一差异为 workbench 1,202,990→1,205,979 B，净增 2,989 B；其余 26 项相同。报告 `/private/tmp/molis-memory-matrix-independent-gates-20261024-assets.log` 与父 `/private/tmp/molis-memory-classification-verify-20261024-assets.log`。本片增量尚未获批或登记，不借用前两片额度，资源门尚未通过；亦不关闭 #1064 灵光全套失败，不宣称进入 main 或用户验收。
+
+矩阵本轮收尾补记：撤销仅为一个新增场景进行的额外测试拆分，把原帮助函数与新增分类场景放回既有 `tests/assistant-memory.test.ts` 的原装配主人；没有新增生产导出、复制受控账本或更换内部 import 路径。原文件 18 项及新增 1 项共 19 项名字、顺序与断言保留（含一项纯关键词用例），逐项映射 `/private/tmp/molis-memory-assistant-case-map-20261024.json`；完整重验 19/19，零取消、零跳过。根与全包类型、boundary、API/Action 再次通过，health 对 main 只剩 SDK 95 的 f4bbbd88 登记失败，交统筹单独接线；未修改 SDK 或锁。`--update --base 3a11c545e` 只收紧快查：AssistantService 文件 1863→1855、类 1504→1496、方法 91→90；MemoryService 文件 1084→1082、类 940→934、方法仍 47。该生成命令不等于完整 health 通过。结果 `/private/tmp/molis-memory-matrix-assistant-recheck-20261024.results.json`，最终资源再次测量与前段相同；资源额度及整体 health 仍待完成，不覆盖前段失败事实。
 ### M2 整包导入的固定输入身份（2026-10-24，本地工程验证通过，待统筹审查集成）
 
 本片落实 MEM-03/20 的同一操作重试：已有逐项 SDK/ledger 回执会固定开始过的子操作，但导入中途失败时，尚未开始的后续条目没有原包约束。目标是本人以同一操作号恢复时，只能继续原范围和原有序有效输入，不能替换、增删或调换后续条目；保持原逐项拒绝、部分结果、duplicate 与 append 的重开恢复，不把整个导入改成原子写入。
@@ -1063,3 +1081,11 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 统筹集成补记（2026-10-24）：独立深度评审核对 `94a126d6f` 的六文件差异、SQLite 事务、完整输入/caller 隔离及删除后的原操作屏障，未发现确定 P1/P2；本次评审未另跑测试。该片已快进接入 #1064 候选，并无冲突合入 main `abc052bcb` 的调度器变更，形成 `e6f870615`。实际合并结果完整 build、12 个 Memory/调度器集成文件（含 CAS 85/85）、根类型、health 对当前 main、boundary、API/Action 快照、资源和 secret 全部通过，逐步退出码与原始日志见 `/private/tmp/molis-memory-1064-import-integration-20261024.results.json`。27 项实际资源仍为 7,815,997 B，无新额度。此前 CI 通过对应 `ecec96b98`，本次新 head 的 CI 尚待执行，不能继承绿色。
 
 已推送的独立后续片：#1101 head `24cc645c2` 与 #1111 head `3a11c545e` 均保留 Draft 和原依赖，分别完成 97 个 README 普通文件、目标及 README 浏览器、静态门与准确资源登记；两片仍未进入 main。灵光一次完整 Back/Forward 的被动 HTTP 诊断通过，未触发预定的失败后 A/B/C，故没有尺寸或初始化根因结论；旧全套 1398/1399 的阻塞仍保留，未把成功重跑当作修复或降低门禁。完整工程、最终 App、B2 质量/token 与用户验收继续按原 P0 范围推进。
+
+分类限制刷新失败修复短合同（2026-10-24）：独立评审确认成功保存后丢弃 POST 返回、随后 overview 读取失败会留下旧规则数组，下一次保存其他分类时误撤销首条已持久限制。页面必须先采用本次 POST 返回的真实 prefs，再刷新其他数据；刷新失败保留已确认值，并继续显示现有读取失败提示。写主人仍为原 memory.prefs.write，禁止把本地拟保存值当作成功回执，不新增重试、状态账或公开接口。仅修改现设置页接线与原分类浏览器用例；真实 HTTP 验收为首 POST 持久成功→下一次 overview 失败且可见→保存另一 selector 保留首条及无关规则→关闭重开仍保持。红例已在未修改生产代码时实际失败，日志 `/private/tmp/molis-memory-matrix-prefs-refresh-red-20261024.log`；修复后构建、单文件浏览器及资源实测待执行，不沿用此前绿色作为本修复结果。
+
+上述刷新失败修复已完成实际红绿验证：原生产代码在“另一个 selector 保存后保留首条已确认限制”断言失败；最小修复后整体 build 与原真实浏览器文件 1/1 通过，零取消/跳过，原保存失败、控件禁用、个人/项目隔离、其他规则保留及关闭重开断言全部保留。结果 `/private/tmp/molis-memory-matrix-prefs-refresh-green-20261024.results.json`。最终资源实测 27 项共 7,828,093 B，workbench 1,206,014 B，对父纠正 `3a11c545e` 的 1,202,990 B 净增 3,024 B，其余 26 项相同；报告同 stem 的 `-assets.log`。较修复前实际值增加 35 B，未登记或扩大资源额度。统筹另跑已准备的 16 文件集成及门禁，本片不重复其批次；此单文件通过不代表整体交付门或用户验收。
+
+统筹矩阵集成收尾（2026-10-24，源 head `7b96eea2b`）：已合入 #1064 `843a30368` 与 main `abc052bcb`。同树 `pnpm build` 命中有效构建缓存；16/16 Memory/调度器集成文件、根类型、health 对 origin/main、boundary、API/Action、secrets、diff 全部通过。逐步结果 `/private/tmp/molis-memory-matrix-current-integration-20261024.results.json`，同 stem 日志保留。此前 SDK 来源登记阻塞按实际 Git 关系闭合：原包 f4bbbd88 经 #94 squash，和 d94a99fb 的 tree 相同；只有后者是 SDK 95 的祖先。独立评审已只读复核刷新失败修复与真实浏览器红绿证据，关闭该 P2，未将复核描述为再次亲测。
+
+本片已交付为 Draft #1153（依赖 #1111）；当前资源为 27 项 7,828,093 B，workbench 1,206,014 B，对 #1111 净增 3,024 B，其余 26 项相同。`assets --report` 只是实测成功，不是资源门通过；增量已单独提交用户评审，尚未获批或登记，原 #1101/#1111 授权未扩用。本片仍待资源门、上游 #1064 全套失败收束及依赖合并，不宣称产品整体或用户验收。

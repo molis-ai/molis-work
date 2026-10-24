@@ -33,10 +33,17 @@ test("classification controls save independent personal/project restrictions, ke
   }
   const read = (scope: MemoryScope) => client.invoke(memoryActions.prefs, { scope });
   const savePrefs = MemoryService.prototype.savePrefs;
-  let failNext = false;
+  let failNext = false, failOverviewAfterSave = false, failPrefsRead = false, failedRefreshes = 0;
   t.mock.method(MemoryService.prototype, "savePrefs", function(this: MemoryService, ...args: Parameters<MemoryService["savePrefs"]>) {
     if (failNext) { failNext = false; throw new Error("保存分类限制失败，请重试"); }
-    return savePrefs.apply(this, args);
+    const saved = savePrefs.apply(this, args);
+    if (failOverviewAfterSave) { failOverviewAfterSave = false; failPrefsRead = true; }
+    return saved;
+  });
+  const prefs = MemoryService.prototype.prefs;
+  t.mock.method(MemoryService.prototype, "prefs", function(this: MemoryService, ...args: Parameters<MemoryService["prefs"]>) {
+    if (failPrefsRead) { failPrefsRead = false; failedRefreshes++; throw new Error("刷新分类限制失败，请重新读取"); }
+    return prefs.apply(this, args);
   });
   directory = await mkdtemp(join(tmpdir(), "memory-classes-browser-"));
   browser = await ChromeHarness.start(directory, { executable });
@@ -49,11 +56,36 @@ test("classification controls save independent personal/project restrictions, ke
     await page.wait("document.documentElement.dataset.oldMemoryClasses !== '1' && [...document.querySelectorAll('[data-memory-settings]')].some(node => node.checkVisibility())");
     await page.evaluate(`(() => { const node = [...document.querySelectorAll('[data-memory-settings]')].find(node => node.checkVisibility()); node.setAttribute('data-memory-classes-test', ''); })()`);
     await page.wait(`document.querySelector('${root} [data-memory-class-form] fieldset')?.disabled === false`);
+    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('${root} [data-memory-class]')].filter(node =>
+      node.closest('.mw-select-picker')?.querySelector('button')?.disabled).map(node => node.dataset.memoryClass)`), [],
+    "the loaded form enables its actual picker controls, not only the fieldset");
     assert.equal(await page.evaluate(`document.querySelectorAll('${root} [data-memory-id]').length`), 1, "management stays visible with restrictions");
   };
   const submit = async () => {
-    await page.click(root + " [data-memory-class-form] button[type=submit]");
+    // Hold delivery of the real HTTP response so the pending UI can be observed without faking persistence.
+    await page.evaluate(`(() => {
+      const original = globalThis.fetch;
+      globalThis.memoryClassResponseHeld = false;
+      globalThis.fetch = async (...args) => {
+        const response = await original(...args);
+        if (String(args[0]).endsWith('/api/memory/prefs') && args[1]?.method === 'POST') {
+          globalThis.fetch = original;
+          await new Promise(resolve => { globalThis.releaseMemoryClassResponse = resolve; globalThis.memoryClassResponseHeld = true; });
+        }
+        return response;
+      };
+    })()`);
+    try {
+      await page.click(root + " [data-memory-class-form] button[type=submit]");
+      await page.wait("globalThis.memoryClassResponseHeld === true");
+      assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-class-form] fieldset').disabled`), true);
+      assert.equal(await page.evaluate(`[...document.querySelectorAll('${root} [data-memory-class]')].every(node =>
+        node.disabled && node.closest('.mw-select-picker')?.querySelector('button')?.disabled)`), true,
+      "the actual picker controls stay disabled while the save response is pending");
+    } finally { await page.evaluate("globalThis.releaseMemoryClassResponse?.()"); }
     await page.wait(`document.querySelector('${root} [data-memory-class-status]').textContent === '分类限制已保存'`);
+    assert.equal(await page.evaluate(`[...document.querySelectorAll('${root} [data-memory-class]')].every(node =>
+      !node.disabled && node.closest('.mw-select-picker')?.querySelector('button')?.disabled === false)`), true);
   };
   const expected = new Map<string, MemoryClassRestriction[]>();
   for (const scope of ["personal", "project"] as const) {
@@ -71,9 +103,20 @@ test("classification controls save independent personal/project restrictions, ke
       assert.deepEqual((await read(scope)).prefs.class_restrictions, [retained]);
       assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-class=read]').value`), "explicit-only");
     }
+    if (scope === "personal") failOverviewAfterSave = true;
     await submit(); expected.set(scope, [retained, rule]);
     const stored = (await read(scope)).prefs;
     assert.deepEqual(stored.class_restrictions, expected.get(scope)); assert.equal(stored.enabled, true); assert.equal(stored.form, true);
+    if (scope === "personal") {
+      assert.equal(failedRefreshes, 1, "the successful POST is followed by a real overview read failure");
+      assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-error]').hidden`), false);
+      assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-page-status]').textContent`), "读取未完成，请重新读取。");
+      const second: MemoryClassRestriction = { selector: { ...selector, kind: "fact" }, read: "off", form: "inherit" };
+      await choose(page, "kind", "fact"); await choose(page, "read", second.read); await choose(page, "form", second.form);
+      await submit(); expected.set(scope, [retained, rule, second]);
+      assert.deepEqual((await read(scope)).prefs.class_restrictions, expected.get(scope),
+        "saving another selector after refresh failure preserves the first confirmed restriction");
+    }
     await navigate(scope);
     const buttons = root + " [data-memory-class-list] button";
     await page.evaluate(`document.querySelectorAll('${buttons}')[1].setAttribute('data-edit-class-rule', '')`);

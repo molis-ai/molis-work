@@ -162,8 +162,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     // The reason shows at the top of the page and, since the action may be far below it, in the toast where the person is.
     const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
     const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
-    const paintClasses = (${MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT})(root, L, () => data?.prefs, async rules => {
-      await api("/prefs", { scope, prefs: { class_restrictions: rules } }); await load();
+    const paintClasses = (${MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT})(L, part, el, button, () => data?.prefs, async rules => {
+      const saved = await api("/prefs", { scope, prefs: { class_restrictions: rules } });
+      data.prefs = saved.prefs; await load();
     });
     const pendingCommands = new Map();
     const commandTitle = (path, payload) => {

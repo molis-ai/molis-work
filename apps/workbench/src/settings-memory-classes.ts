@@ -1,7 +1,7 @@
 /** The person's restrictions over the App's declared memory classes; never a permission grant. */
 export function renderMemoryClassSettings(L: (text: string) => string): string {
   const field = (key: string, title: string, values: readonly (readonly [string, string])[]) =>
-    `<label class="setting-copy"><span>${L(title)}</span><select class="mw-select" data-memory-class="${key}" aria-label="${L(title)}">${values.map(([value, text]) => `<option value="${value}">${L(text)}</option>`).join("")}</select></label>`;
+    `<label class="setting-copy"><span>${L(title)}</span><select class="mw-select" disabled data-memory-class="${key}" aria-label="${L(title)}">${values.map(([value, text]) => `<option value="${value}">${L(text)}</option>`).join("")}</select></label>`;
   return `<section class="settings-section" aria-labelledby="memory-classes-title" data-memory-classes>
     <h2 id="memory-classes-title">${L("按分类控制记忆")}</h2>
     <p class="settings-muted">${L("选择谁在什么场景下使用哪类记忆，再分别限制读取与自动形成。多条限制同时适用时，采用更严格的一条；总开关和原有权限仍然有效。")}</p>
@@ -29,9 +29,9 @@ export function renderMemoryClassSettings(L: (text: string) => string): string {
 
 /** Bound by the existing page; read/save callbacks keep HTTP and preference ownership there. */
 export const MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT = String.raw`
-(root, L, readPrefs, savePrefs) => {
-  const section = root.querySelector("[data-memory-classes]"), form = section.querySelector("form"), fields = form.querySelector("fieldset");
-  const status = section.querySelector("[data-memory-class-status]"), error = section.querySelector("[data-memory-class-error]"), list = section.querySelector("ul");
+(L, part, el, button, readPrefs, savePrefs) => {
+  const section = part("classes"), form = section.querySelector("form"), fields = form.querySelector("fieldset");
+  const status = part("class-status"), error = part("class-error"), list = part("class-list");
   const controls = Object.fromEntries([...form.querySelectorAll("select")].map(node => [node.dataset.memoryClass, node]));
   const keys = ["consumer", "current_scene", "scene", "kind", "lifecycle"];
   let saving = false, loaded = false;
@@ -50,14 +50,14 @@ export const MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT = String.raw`
   for (const key of keys) controls[key].addEventListener("change", selectRule);
   const paint = () => {
     const rows = rules(); fields.disabled = saving || !rows; list.inert = saving; list.replaceChildren();
+    for (const control of Object.values(controls)) control.disabled = fields.disabled;
     if (!rows) return;
     if (!loaded) { loaded = true; selectRule(); }
-    if (!rows.length) { const empty = document.createElement("li"); empty.className = "settings-muted"; empty.textContent = L("没有额外分类限制，沿用原设置。"); list.append(empty); }
+    if (!rows.length) list.append(el("li", "settings-muted", L("没有额外分类限制，沿用原设置。")));
     for (const row of rows) {
-      const item = document.createElement("li"), copy = document.createElement("span"), edit = document.createElement("button");
-      item.className = "memory-row"; copy.className = "memory-row-copy";
+      const item = el("li", "memory-row"), copy = el("span", "memory-row-copy");
       copy.textContent = keys.map(key => text(key, row.selector[key])).join(" · ") + "：" + text("read", row.read) + " / " + text("form", row.form);
-      edit.type = "button"; edit.className = "mw-btn mw-btn--ghost mw-btn--sm"; edit.textContent = L("修改"); edit.setAttribute("aria-label", L("修改") + "：" + copy.textContent);
+      const edit = button(L("修改"), null, L("修改") + "：" + copy.textContent);
       edit.addEventListener("click", () => { for (const key of keys) controls[key].value = row.selector[key] || ""; selectRule(); for (const key of keys) value(key, controls[key].value); controls.read.focus(); });
       item.append(copy, edit); list.append(item);
     }

@@ -11,6 +11,14 @@ export interface Lifetime {
   clearTimeout(timer: number | undefined): void;
   observe<Observer extends MutationObserver | ResizeObserver | IntersectionObserver>(observer: Observer, target: Element, options?: MutationObserverInit): Observer;
   assertCurrent(signal?: AbortSignal): void;
+  readonly signal: AbortSignal;
+  /** Runs a cleanup when the page's lifetime ends (or at once, when it already has); the result runs it early. */
+  own(cleanup: () => void): () => void;
+  /** Runs `start` while the page is visible and stops what it returned (and aborts its signal) when it is not. */
+  whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
+  /** Reads `read` every `delay` ms while the page is visible; a failure goes to `onError`. */
+  poll(read: (signal: AbortSignal) => unknown, delay: number, onError?: (error: unknown) => void): () => void;
+  fetch(input: string, init?: RequestInit): Promise<Response>;
 }
 
 /** One Element lookup under the Coding page's root; a missing element is a bug in the page, so it throws. */

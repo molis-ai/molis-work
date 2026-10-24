@@ -664,11 +664,11 @@
   "hybridPlugins": {
     "coding#host-files": 1
   },
-  "pluginOutsideMentionsTotal": 288,
+  "pluginOutsideMentionsTotal": 287,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 11,
     "artifacts#outside-files": 19,
-    "coding#outside-files": 12,
+    "coding#outside-files": 11,
     "cognia#outside-files": 6,
     "dataset#outside-files": 7,
     "diff#outside-files": 8,

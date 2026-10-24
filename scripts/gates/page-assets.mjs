@@ -238,9 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Explicit adoption of old history text reuses the history panel, confirmation and update/CAS retry.
-  // The user approved #1155's +480 B on 2026-10-24, only against expiry-renewal parent #1154.
-  "/assets/molis-work-workbench.js": [1207694, 1208174],
+  // COD-MEM-ARCH: explicit archive confirmation and original-operation retry share the existing client lifecycle.
+  // User approved #1196 on 2026-10-24: exactly +570 B against Session lifecycle parent #1192.
+  "/assets/molis-work-plugins/coding.js": [376126, 376696],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

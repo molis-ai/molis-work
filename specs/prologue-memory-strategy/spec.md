@@ -1196,3 +1196,9 @@ M4 独立交付准备（2026-10-24）：源码提交 `3786cdbc6`，将准确父 
 验收编号：COD-MEM-ARCH-01 非空真实 Coding route/Action→AgentHost→Node SDK/SQLite→列表，重启后两层一致，未启动会话零 SDK 创建；COD-MEM-ARCH-02 prepared start/归档交错及其他 Session 独立；COD-MEM-ARCH-03 SDK 已提交/Index 中断、业务提交失败、回应丢失分别按原决定重开恢复，普通读取零修补；COD-MEM-ARCH-04 等待及 SDK 成功后取消/撤权分别保留已发生事实并拒绝后续写；COD-MEM-ARCH-05 伪造身份、跨项目/安装、缺 manifest grant、binding 改变及后来 unarchive 拒绝旧决定。工程验证需正式 SDK 整体 build、类型/API/Action/health/boundary/资源门和两包 README 必跑项；真实非空页面确认、取消、失败重试与重启另记，模拟模型不证明真实模型质量或用户验收。
 
 Coding 归档交付前统筹复核（2026-10-24）：已独立核真实 backend/typed browser/进程夹具差异及原日志；独立深审亦未发现确定 P1/P2。SDK #100 的原决定、当前身份、事务复核与不逆向补偿保持；实际非空页面确认/取消/丢回应原请求重试、两次新 PID 恢复通过。这里只证明隔离 Home、本机模型替身下指定产品路径，未代替最终 Memory 全旅程或真实模型质量。生产构建、根/工作区类型、API/Action、health 对准确父8386b2355、boundary已通过；正式提交后继续secrets扫描。唯一资源门仍为 Coding.js 376,126→376,696 B（+570），其余26项不变；已复用现确认框、客户端生命周期和typed bundle，未登记新额度。保持Draft待这项单独授权、父链与最终集成，不因局部测试通过合并。
+
+
+用户已于2026-10-24明确批准 Draft #1196 的coding.js一次性+570 B。仅对准确父8386b235515818b123c1692c6c14a991339ab34d登记376126→376696，其余26项不变；替换已消耗的父额度。原失败记录保留，批准后重新核实际资源、资源门回归及精确父静态门；不将资源批准等同父链合并或产品/用户验收。
+
+
+#1196批准后验证完成：整体build、实际资源update/check、原资源门回归171/171、health对精确父8386b2355、boundary、secrets/diff全部通过。结果 `/private/tmp/molis-coding-archive-approved-assets-20261024.results.json`。生产源码与原功能回归状态不变，只有上述批准资源脚本、预算与本记录更新，未机械重跑不变功能路径。父链、最终集成CI与完整P0验收仍未完成，保持Draft。

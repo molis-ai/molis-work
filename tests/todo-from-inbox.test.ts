@@ -16,28 +16,25 @@ const entry = (status: InboxUiEntry["status"]): InboxUiEntry => ({
   available: true, open: { kind: "feed", item_id: "item-1" }, attention_rank: 1, suggested_behavior_ids: [],
 } as InboxUiEntry);
 
-test("an Inbox entry offers 转为待办 whether or not it is handled, carrying what the todo keeps; the status line is where the result shows", () => {
+test("RAC-135 an Inbox entry offers 转为待办 whether or not it is handled, naming the creation entry and the entry itself; nothing names Todo's own input", () => {
   for (const status of ["open", "done"] as const) {
     const html = renderInboxWorkbench({ route_prefix: "", entries: [entry(status)], filter: "active" as never,
       primitives: { escape, icon: () => "", text: value => value, formatDate: value => value } });
-    const button = /<button[^>]*data-make-todo="inbox"[^>]*>/u.exec(html)?.[0] ?? "";
+    const button = /<button[^>]*data-context-intake="todo"[^>]*>/u.exec(html)?.[0] ?? "";
     assert.ok(button, status);
-    assert.match(button, /data-make-todo-id="entry-1"/u);
-    assert.match(button, /data-make-todo-subject="inbox_entry"/u);
-    assert.match(button, /data-make-todo-surface="inbox"/u);
-    assert.match(button, /data-make-todo-title="回复&quot;供应商&quot;报价"/u, "标题转义后放进属性");
-    assert.match(button, /data-make-todo-reason="你从 Inbox 转为待办"/u);
-    assert.match(html, /data-inbox-detail="entry-1"[^>]*data-make-todo-scope/u);
-    assert.match(html, /data-inbox-action-status data-make-todo-status/u);
+    assert.match(button, /data-context-id="entry-1"/u);
+    assert.match(button, /data-context-title="回复&quot;供应商&quot;报价"/u, "标题转义后放进属性");
+    assert.doesNotMatch(html, /data-make-todo/u, "页面不再写待办的来源格式");
   }
 });
 
-test("灵光 offers 转为待办 from its editor; its client script parses (the button is filled from what is on screen)", () => {
+test("RAC-135 灵光 offers 转为待办 from its editor; its client script parses (the button is filled from what is on screen)", () => {
   const html = renderLingguangWorkbench({ primitives: { escape, text: value => value } });
-  assert.match(html, /data-make-todo-scope/u);
-  assert.match(html, /<button[^>]*data-lingguang-todo data-make-todo="lingguang" data-make-todo-subject="lingguang_spark" data-make-todo-surface="lingguang" data-make-todo-reason="你从灵光转为待办">转为待办<\/button>/u);
-  assert.match(html, /data-lingguang-note data-make-todo-status/u);
+  assert.match(html, /<button[^>]*data-lingguang-todo data-context-intake="todo">转为待办<\/button>/u);
+  assert.doesNotMatch(html, /data-make-todo/u);
   assert.doesNotThrow(() => new Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT});`));
+  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /dataset\.contextId = selected\.id/u, "the button carries the spark that is on screen");
+  assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /makeTodo/u);
 });
 
 test("a todo made from an Inbox entry or a 灵光 keeps it as its source; converting the same one again finds that todo; unknown kinds are refused", async t => {
@@ -64,4 +61,20 @@ test("a todo made from an Inbox entry or a 灵光 keeps it as its source; conver
   const afresh = await inA.invoke(todoActions.create, fromInbox);
   assert.equal(afresh.replayed, false);
   assert.notEqual(afresh.item.id, first.item.id);
+});
+
+test("RAC-135 a whole object made into a todo lands where the call comes from; a selected passage and the personal space are left as they are", async t => {
+  const home = mkdtempSync(join(tmpdir(), "todo-offers-"));
+  const store = openTodoStore(home);
+  const service = new ActionService();
+  service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
+    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)) }) });
+  t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
+  const from = (project: string) => bindActionClient(service, () => ({ actor_id: "web-user", project_id: project, audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
+  const object = { kind: "inbox_entry", id: "entry-9", title: "回复报价" };
+  const asked = (granularity: "object" | "range", project: string) => from(project).invoke(todoActions.fragmentOffers, { request_id: "r", fragment: { object, granularity,
+    targets: [{ kind: granularity === "object" ? "object" : "text_range", text: "回复报价" }] } }).then(out => (out.offers[0]!.input as { placement?: string }).placement);
+  assert.equal(await asked("object", "project-a"), "project", "the project is the caller's; nothing in the input names it");
+  assert.equal(await asked("object", "personal"), "personal");
+  assert.equal(await asked("range", "project-a"), undefined, "a passage leaves the place to the person");
 });

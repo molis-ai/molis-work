@@ -22,7 +22,7 @@ export const ISSUES_MESSAGES = {
   "issues.list.title": { zh: "我的 Issue", en: "My issues" },
   "issues.list.screenshots": { zh: "截图 ×{count}", en: "Screenshot ×{count}" },
   "issues.list.organizing": { zh: "整理中…", en: "Organising…" },
-  "issues.list.shot-count": { zh: "{count} 张截图", en: "{count} screenshots" },
+  "issues.list.shot-count": { zh: "{count} 张截图", en: "{count} {count|screenshot|screenshots}" },
   "issues.list.empty": { zh: "还没有记录。遇到问题时按 {keys} 随手记一笔。", en: "Nothing recorded yet. When something goes wrong, press {keys} and jot it down." },
   "issues.list.read-failed": { zh: "列表没读出来。", en: "The list could not be read." },
   "issues.list.retry": { zh: "重试", en: "Retry" },

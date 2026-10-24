@@ -214,3 +214,11 @@
      - 推荐 **B（零代码改动）**：#1114 保留 BL-440～448；统筹把 ac-snapshot/ac-errors 的未来号段改到 543+（README 派单表/LINES.md 各一行）。
      - 备选 **A**：#1114 把 440～448 重编为 543～551（依次顺延），合并 Agent 可在 30 分钟内完成并重推；无其它引用需要同步。
 - 本会话不合并、不入队；Codex 侧合并认领后即可合。
+
+## 2026-10-24 06:40 UTC — 防腐存量审计收尾（ac-code-auditor）
+
+- 审计文件 `coordination/2026-10-14/ANTICORRUPTION-AUDIT.md` §13 已交付（commit `9a38240`，88KB：覆盖矩阵、AC-AUDIT-01..16 状态表、E1–E22 清单、未核边界）。7 主题完成 + 基线 50 条（48 PASS/已知，2 FAIL=文档漂移并入 E，1 UNVERIFIED=MCP 作用域），**无 blocker**。
+- 要派修 5 条：AC-AUDIT-05（P2，HANDOFF-TO-CODEX → ac-platform：`apps/local-host/src/context-onboarding-service.ts` 直接 import pages/artifacts/todo 运行时包）；AC-AUDIT-07（ac-shell 下次动 page-assets 门禁时清死键/过期放行，需评审）；AC-AUDIT-08/10（安全线：门禁正则漏 `.e2e` 安全测试、CI 覆盖叙述过时）；AC-AUDIT-16（#1168 同 PR 文档补丁，已派 plugin-frame-fixes）。
+- 其余 10 条为纯文档，建议统筹批量写：E1–E22（privileges.md，基准 `89c9a7194`，§7 有原文→新文）+ AC-AUDIT-12..15（SSOT 行）。
+- AC-AUDIT-06 = #1168（审计复核 PASS）：等 CI 全绿 → 转 ready + ac-review 一轮 → 合入；合入后 PG-058 九份→4 份、`NATIVE_PLUGIN_HTTP_FILES` 5→4。
+- 常驻审计继续待命：main 前进（#1168 合入、批量写落地）后刷新基准、复跑 5 条只读命令并更新 E/AC 状态。

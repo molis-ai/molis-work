@@ -1,5 +1,5 @@
 {
-  "giantUnits": 113,
+  "giantUnits": 109,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -132,10 +132,6 @@
       "methods": 31
     },
     "function modules/shelf/src/store.ts#runJob": 183,
-    "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
-    "file packages/design-system/src/primitives/catalog.ts": 945,
-    "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
-    "file packages/design-system/src/styles/craft-finish.ts": 2017,
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "file packages/im-ui/src/browser/controller.ts": 961,

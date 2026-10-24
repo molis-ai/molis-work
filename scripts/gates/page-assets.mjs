@@ -239,7 +239,7 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // VUX-TOAST-01: existing button qualifier keeps diagnostic links readable on hover/active.
-  // User approved #1198 on 2026-10-24: each stylesheet grows exactly 7 B; this provisional base is #1162 candidate edacefba.
+  // User approved #1198 on 2026-10-24: each stylesheet grows exactly 7 B from actual #1162 merge 2b253d45.
   "/assets/molis-work-arrival.css": [694936, 694943],
   "/assets/molis-work-settings.css": [983223, 983230],
   "/assets/molis-work-workbench.css": [1552477, 1552484],

@@ -25,15 +25,21 @@ interface Ports {
   saveFacts(caller: MemoryCaller, located: Located, meta: MemoryMetaRecord, before?: MemoryMetaRecord): Promise<MemoryBackendEntry>;
 }
 
+function sameClassification(left: AgentMemoryMeta["classification"], right: AgentMemoryMeta["classification"]): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  // SDK writes omit empty extra dimensions; only that representation difference is equivalent.
+  return isDeepStrictEqual({ ...left, extra: left.extra ?? {} }, { ...right, extra: right.extra ?? {} });
+}
+
 /** Duplicate selection and adoption retain one target and decision across delivery and restart. */
 export class MemoryDuplicates {
   constructor(private readonly ports: Ports) {}
 
   async settle(caller: MemoryCaller, input: Input, entries: Located[], retrying: boolean, unsaid: string | null, appliesText: string): Promise<MemoryWriteResult | null> {
     const matches = (one: Located) => sameWords(one.entry.text, input.text) && visibleTo(caller, one.meta)
-      && (!input.retainedMeta || isDeepStrictEqual(
-        [one.entry.meta.classification, one.entry.meta.session_ref, one.entry.meta.namespace, one.meta.expires_at, one.meta.kind, one.meta.applies],
-        [input.retainedMeta.classification, input.retainedMeta.session_ref, input.retainedMeta.namespace, input.expires_at, input.kind, input.applies]));
+      && (!input.retainedMeta || sameClassification(one.entry.meta.classification, input.retainedMeta.classification) && isDeepStrictEqual(
+        [one.entry.meta.session_ref, one.entry.meta.namespace, one.meta.expires_at, one.meta.kind, one.meta.applies],
+        [input.retainedMeta.session_ref, input.retainedMeta.namespace, input.expires_at, input.kind, input.applies]));
     const importing = input.source === "imported" && this.ports.operations.find(caller, "import") !== undefined;
     const key = importing ? "import-duplicate" : "duplicate", mark = this.ports.operations.find(caller, key);
     const same = mark ? entries.find(one => one.entry.memory_id === mark.memory_id && one.scope === mark.scope && one.owner === mark.owner)

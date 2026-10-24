@@ -1,10 +1,10 @@
 {
   "giantUnits": 113,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1845,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1494,
-      "methods": 90
+      "lines": 1515,
+      "methods": 91
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -40,7 +40,7 @@
     "file apps/workbench/src/i18n/en.ts": 3316,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 285,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2046,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -220,7 +220,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 442,
+  "testInternalImports": 443,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -250,6 +250,7 @@
     "tests/assistant-attachments.test.ts": 1,
     "tests/assistant-attention.test.ts": 2,
     "tests/assistant-business-gateway.test.ts": 5,
+    "tests/assistant-coding-executor.test.ts": 2,
     "tests/assistant-contributions.test.ts": 1,
     "tests/assistant-diagnostics.test.ts": 2,
     "tests/assistant-followups.test.ts": 2,
@@ -371,7 +372,7 @@
     "tests/pages-input-rules.test.ts": 1,
     "tests/pages-surface-naming.test.ts": 1,
     "tests/personal-planning-actions.test.ts": 1,
-    "tests/personal-plugins-review-fixes.test.ts": 6,
+    "tests/personal-plugins-review-fixes.test.ts": 5,
     "tests/plugin-builder-diagnostics.e2e.test.ts": 1,
     "tests/plugin-composition.e2e.test.ts": 2,
     "tests/plugin-composition.test.ts": 2,
@@ -664,7 +665,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 126,
+  "typedCapabilitiesTotal": 118,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 1,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -677,8 +678,8 @@
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,
-    "packages/contracts/src/services/agent-host.ts#type-refs": 30,
-    "packages/contracts/src/services/agent-host.ts#without-action": 30,
+    "packages/contracts/src/services/agent-host.ts#type-refs": 26,
+    "packages/contracts/src/services/agent-host.ts#without-action": 26,
     "packages/kernel/src/action-service.ts#register-calls": 1,
     "packages/kernel/src/index.ts#type-refs": 5,
     "packages/kernel/src/index.ts#register-calls": 2,
@@ -744,7 +745,7 @@
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
-  "translationConflictTotal": 180,
+  "translationConflictTotal": 172,
   "translationConflicts": {
     "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": 2,
     "{count} 次": 2,
@@ -790,7 +791,6 @@
     "风险": 2,
     "根据工具说明确认作用范围；点击后会执行该工具，包括它声明的写入操作。": 2,
     "更多操作": 2,
-    "更新": 2,
     "关联": 2,
     "关系": 3,
     "还没有来源": 2,
@@ -845,7 +845,6 @@
     "确定": 2,
     "仍需拆分": 2,
     "日期": 2,
-    "日志": 2,
     "删列": 2,
     "删行": 2,
     "上次成果发布尚未完成。恢复使用上次固定内容，后续编辑可另存一版。": 2,
@@ -858,9 +857,8 @@
     "说明": 5,
     "所有来源的流水": 2,
     "替换": 2,
-    "添加材料": 2,
     "条": 2,
-    "跳过": 3,
+    "跳过": 2,
     "停用": 3,
     "通过": 2,
     "图片": 2,
@@ -869,7 +867,6 @@
     "完成要求": 2,
     "网址": 2,
     "未安排": 2,
-    "未分类": 2,
     "未说明": 2,
     "未指定": 2,
     "文档": 2,
@@ -881,7 +878,6 @@
     "先记下还没想清楚的想法，再决定留下或丢掉。": 2,
     "显式继续": 2,
     "项目": 2,
-    "新增": 2,
     "修改": 2,
     "选项": 2,
     "选择文件、网页或工作往来，整理背景、进展与下一步。": 2,
@@ -909,7 +905,6 @@
     "整理": 2,
     "整篇": 2,
     "正在处理": 3,
-    "正在处理…": 2,
     "正在读取…": 2,
     "正在做": 2,
     "证据不足": 2,
@@ -917,11 +912,9 @@
     "执行时检查，登录尚未确认": 2,
     "执行受阻": 2,
     "执行中": 2,
-    "重试读取": 2,
     "重新读取": 3,
     "注意": 2,
     "状态": 2,
-    "资料": 2,
     "自动记住": 2,
     "自动停用": 2,
     "组织": 2,
@@ -967,7 +960,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 163,
+  "unknownCastsTotal": 168,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1034,6 +1027,7 @@
     "tests/artifacts-actions.test.ts": 1,
     "tests/artifacts-module.test.ts": 2,
     "tests/assistant-business-gateway.test.ts": 5,
+    "tests/assistant-coding-executor.test.ts": 5,
     "tests/coding-characters-http.test.ts": 1,
     "tests/coding-commit-draft.test.ts": 1,
     "tests/coding-continuation.test.ts": 1,
@@ -1080,7 +1074,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 475,
+  "explicitAnyTotal": 480,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1116,6 +1110,7 @@
     "tests/assistant-answers.test.ts": 2,
     "tests/assistant-business-gateway.test.ts": 8,
     "tests/assistant-character.test.ts": 4,
+    "tests/assistant-coding-executor.test.ts": 5,
     "tests/assistant-delegation.test.ts": 1,
     "tests/assistant-followups.test.ts": 2,
     "tests/assistant-memory.test.ts": 17,
@@ -1305,8 +1300,9 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 26,
+  "errorSubclassTotal": 27,
   "errorSubclasses": {
+    "apps/local-host/src/assistant/assistant-coding.ts": 1,
     "apps/local-host/src/browser/cdp.ts": 1,
     "apps/local-host/src/connector-api-oauth.ts": 1,
     "apps/local-host/src/connector-cli.ts": 1,

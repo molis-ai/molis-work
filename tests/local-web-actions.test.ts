@@ -282,8 +282,11 @@ test("S-15 with todo:write revoked from its installation, Todo's web route refus
 // PG-007 stage 4 (RAC-339): moving the person's permissions onto each Host provider takes nothing away from a provider the Host
 // registers today. Every Host-registered action whose permissions the person may carry is still offered, in a project and at Home.
 test("RAC-339 every action a Host provider registers today is still the person's after the owner permissions move onto providers", { timeout: 90_000 }, async t => {
-  const { host, project } = await serveHomeRuntime(t);
+  const { host, project, request } = await serveHomeRuntime(t);
   const { reference } = await project("宿主提供方的全部动作");
+  // RAC-339-REVIEW-01: the Assistant's HTTP composition conditionally folds thread actions into its rules provider.
+  const prepared = await request("/api/assistant/works");
+  assert.equal(prepared.status, 200, await prepared.clone().text());
   for (const scope of [reference, undefined]) {
     const base = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: scope?.project_id ?? null, audience: "user" as const, permissions: LOCAL_OWNER_PERMISSIONS };
     const hostOwned = (await host.inspectActions(base, scope)).filter(view => view.provider.plugin_install_id === undefined
@@ -293,6 +296,57 @@ test("RAC-339 every action a Host provider registers today is still the person's
     const offered = new Set(((await localWebActionContext(host, scope, LOCAL_OWNER_PERMISSIONS)).allowed_actions ?? []).map(entry => `${entry.provider_id} ${entry.capability_id}@${entry.version}`));
     const missing = hostOwned.map(view => `${view.provider.provider_id} ${view.capability_id}@${view.version}`).filter(key => !offered.has(key));
     assert.deepEqual(missing, [], scope ? "in a project" : "at Home");
+  }
+  const full = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+  const withoutModel = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS.filter(permission => permission !== "model:invoke"));
+  const rule = full.allowed_actions!.find(entry => entry.capability_id === "assistant.rules.list");
+  assert.ok(rule, "the conditionally registered rules are offered");
+  assert.ok(withoutModel.allowed_actions!.some(entry => entry.capability_id === rule.capability_id));
+  const listed = await host.actionClient(reference).invoke(withoutModel, rule, {}) as { rules: unknown[] };
+  assert.ok(Array.isArray(listed.rules), "rules can still be read without a model permission");
+  for (const [capability, input] of [
+    ["assistant.threads.start", { target: { provider_id: "absent", subject_kind: "note", subject_id: "one", thread_id: "one" }, message_id: "one" }],
+    ["assistant.threads.retry", { work_id: "absent", revision: 1 }],
+  ] as const) {
+    const action = full.allowed_actions!.find(entry => entry.capability_id === capability);
+    assert.ok(action, `${capability} retains the model permission its definition requires`);
+    assert.equal(action.provider_id, rule.provider_id, "threads and rules share their actual provider");
+    await full.validate_authority!(action);
+    assert.ok(!withoutModel.allowed_actions!.some(entry => entry.capability_id === capability));
+    await assert.rejects(withoutModel.validate_authority!(action), { code: "actions.forbidden" });
+    await assert.rejects(host.actionClient(reference).invoke(withoutModel, action, input), { code: "actions.forbidden" });
+  }
+});
+
+test("RAC-339-REVIEW-02 external MCP providers hold only mcp:external and remain bounded by the route", { timeout: 90_000 }, async t => {
+  const { host, project } = await serveHomeRuntime(t);
+  const { reference } = await project("外部 MCP 提供方权限");
+  for (const [providerId, scope] of [["system.connectors#mcp:review-connection", "home"], ["io.molis.work.example#mcp:review-server", "project"]] as const) {
+    let handled = 0;
+    const tool: ActionDefinition = { capability_id: `review.${scope}.mcp`, version: 1, operation: "query", action: {
+      title: "外部工具", description: "提供方权限验证", kind: "query", scope, audiences: ["user"], permissions: ["mcp:external"], subject_kinds: [],
+      input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "boolean" },
+    } };
+    const extra = { ...tool, capability_id: `${tool.capability_id}.extra`, action: { ...tool.action, permissions: ["mcp:external", "artifact:write"] } };
+    const registry = scope === "home" ? host.actionRegistry() : host.actionRegistry(reference);
+    const withdraw = registry.registerProvider({ provider: { provider_id: providerId, title: "MCP", kind: scope === "home" ? "system" : "mcp",
+      ...(scope === "project" ? { project_id: reference.project_id } : {}) }, definitions: [tool, extra],
+      handlers: [tool, extra].map(definition => ({ ...definition, handle: () => { handled++; return true; } })) });
+    try {
+      const caller = await localWebActionContext(host, reference, ["mcp:external", "artifact:write"]);
+      const ref = { ...tool, provider_id: providerId }, extraRef = { ...extra, provider_id: providerId };
+      assert.ok(caller.allowed_actions!.some(entry => entry.capability_id === tool.capability_id && entry.provider_id === providerId));
+      await caller.validate_authority!(ref);
+      assert.equal(await host.actionClient(reference).invoke(caller, ref, {}), true);
+      assert.ok(!caller.allowed_actions!.some(entry => entry.capability_id === extra.capability_id));
+      await assert.rejects(caller.validate_authority!(extraRef), { code: "actions.forbidden" });
+      await assert.rejects(host.actionClient(reference).invoke(caller, extraRef, {}), { code: "actions.forbidden" });
+      const capped = await localWebActionContext(host, reference, ["artifact:write"]);
+      assert.ok(!capped.allowed_actions!.some(entry => entry.capability_id === tool.capability_id));
+      await assert.rejects(capped.validate_authority!(ref), { code: "actions.forbidden" });
+      await assert.rejects(host.actionClient(reference).invoke(capped, ref, {}), { code: "actions.forbidden" });
+      assert.equal(handled, 1, "only the authorized MCP tool invocation reached a handler");
+    } finally { withdraw(); }
   }
 });
 

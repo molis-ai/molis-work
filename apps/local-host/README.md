@@ -103,6 +103,8 @@ node scripts/run-tests.mjs tests/local-host.test.ts tests/web-home-isolation.tes
 
 Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受当前同安装动作 scope，保留原调用者并交给同一动作服务检查。HTTP 在既有 routedControls 保存可信 caller；项目来自已核路径，Home 无项目不借项目，复制 control 不能取得身份。本机 owner 的 native 读取集合由原 LOCAL_OWNER_PERMISSIONS 提供，来源插件自身仍必须声明并持有目标权限。本人对宿主自己登记的提供方持有什么，按提供方给（PG-007 阶段 4）：`local-owner-permissions.ts` 的 `localOwnerPermissionsOver(provider_id)` 逐个写出，`localWebActionContext` 只在动作要的权限都在路由给的上限里、也都在本人对这个提供方持有的里面时放行；没写进去的宿主提供方，本人一项也调不到（`tests/local-web-actions.test.ts` 的 RAC-338、RAC-339）。请求 signal 归 route control，接受前断开拒绝；已接受的后台工作保留现 entry-owned lifetime。Home 插件内使用底层已有 client，避免 start 内 discover 重入 Home ready；公开入口仍负责原 Runtime 准备。相关验证：`tests/plugin-action-query-http.test.ts`、`tests/plugin-action-query-home-http.test.ts`、`tests/plugin-action-query-mcp.test.ts` 与 `tests/security-invariants-plugin-background.test.ts`。
 
+权限表与首页、连接、信息助手、判断规则、项目工作目录、个人规划的实际登记共用提供方 id；判断规则、工作目录和助理的权限从动作定义汇总。助理同一提供方还承载条件登记的评论线程 start/retry，因此保留它们声明的 `model:invoke`，规则读取本身仍不要求模型权限。`tests/local-web-actions.test.ts` 的 RAC-339-REVIEW-01/02 验证条件登记及两种外部 MCP 提供方的路由上限和拒绝。
+
 ## 开发要求
 
 生成插件的 SDK 声明由 Host 从已构建的 contracts 提供：`src/plugin-builder/build-sdk-declarations.ts` 持有 `SandboxSdk` 的声明依赖集合，`build-project.ts` 创建只读文件，`build-checks.ts` 的 G1 逐文件校验，隔离检查只复制这份 Host 集合。`developer/sdk.d.ts` 仍是作者的入口，依赖声明保留在 `developer/contracts/` 的原相对目录；不复制运行时代码，不增加插件权限，不改变公开合同。声明闭包修复只涉及这条生成、校验与快照链，不改变取消、恢复或执行语义。缺少构建声明时明确失败；声明被改动时在 G1 拒绝；错误的交互参数由 G2 拒绝，`skipLibCheck: false`、无 Node 环境类型、文件白名单与 Seatbelt 保持不变。验收是正常交互调用通过原六道门、错误参数不进入执行、篡改依赖不进入编译；整体构建后运行 `node scripts/run-tests.mjs tests/agent-built-plugins-checks.test.ts`。这证明生成插件的工程检查路径，不代表创作台完整体验或用户验收。

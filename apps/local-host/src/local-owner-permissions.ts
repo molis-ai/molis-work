@@ -1,13 +1,17 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { CHARACTER_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-characters";
-import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
-import { CONNECTOR_ACCOUNT_PERMISSIONS } from "./connector-account-actions.js";
+import { HOME_ACTION_PERMISSIONS, HOME_PROVIDER_ID } from "./home-actions.js";
+import { CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_PROVIDER_ID } from "./connector-account-actions.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { connectorRecordActions } from "./connector-record-actions.js";
-import { informationActions } from "./information-actions.js";
-import { PERSONAL_PLANNING_PERMISSIONS } from "./personal-planning-actions.js";
-import { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
+import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actions.js";
+import { PERSONAL_PLANNING_PERMISSIONS, PERSONAL_PLANNING_PROVIDER_ID } from "./personal-planning-actions.js";
+import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS } from "./assistant/assistant-rule-actions.js";
+import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
+import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-functions";
+import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { PROJECT_WORKSPACE_PROVIDER_ID } from "./project-workspace-actions.js";
 import { HOST_PROVIDER_ID } from "./local-host.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
@@ -33,14 +37,14 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
   const entries: Array<readonly [string, readonly string[]]> = [
     ...BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.kind === "native" && !entry.runtime)
       .map(entry => [entry.manifest.plugin_id, asks(entry.manifest.actions ?? [])] as const),
-    ["system.home", HOME_ACTION_PERMISSIONS],
-    ["system.connectors", [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
-    ["system.information", asks(Object.values(informationActions))],
-    ["system.functions", ["functions:invoke", "functions:manage"]],
-    ["system.project-workspaces", ["projects:settings"]],
+    [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
+    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
+    [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
+    [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
+    [PROJECT_WORKSPACE_PROVIDER_ID, asks(Object.values(projectWorkspaceActions))],
     [CHARACTER_PLUGIN_ID, CHARACTER_ACTION_PERMISSIONS],
-    ["io.molis.work.goals.home", PERSONAL_PLANNING_PERMISSIONS],
-    [ASSISTANT_RULES_PROVIDER, ["model:invoke"]],
+    [PERSONAL_PLANNING_PROVIDER_ID, PERSONAL_PLANNING_PERMISSIONS],
+    [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(assistantThreadActions)])],
     [SEARCH_PROVIDER_ID, SEARCH_PERMISSIONS],
     [KNOWLEDGE_PROVIDER_ID, [...KNOWLEDGE_PERMISSIONS, "model:invoke"]],
     [PLACEMENT_PROVIDER_ID, PLACEMENT_PERMISSIONS],

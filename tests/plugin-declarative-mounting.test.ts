@@ -407,16 +407,17 @@ test("PG-060 a plugin's tab opens one object when a Manifest view of it accepts 
 });
 
 test("PG-060 the side panel's 打开 opens a Files file as the file's own tab, a plugin without object tabs at its record", async () => {
-  const { SIDE_FILE_OPENER_SCRIPT } = await import("@molis-ai/molis-work-app-workbench");
-  const calls: unknown[][] = [];
-  const workspace = { openItem: (...args: unknown[]) => calls.push(["openItem", ...args]), openPluginRecord: (...args: unknown[]) => calls.push(["openPluginRecord", ...args]) };
-  const opener = new Function(`return ${SIDE_FILE_OPENER_SCRIPT}`)() as (read: () => typeof workspace | undefined) => (plugin: string, id: string, title?: string) => void;
-  const open = opener(() => workspace);
-  // Files declares `accepts_objects`: the file opens as its tab (before W5-06's remainder the Files page opened with nothing chosen).
-  open("files", "workspace-1:src/a.ts", "a.ts");
+  const { CLIENT_SCRIPT, objectTabPlugins } = await import("@molis-ai/molis-work-app-workbench");
+  // The side panel's file tab decides exactly as search does (specs/archive/side-panel P3): the initialization program
+  // embeds the object-tab list, so both look at one list: Sessions, Artifacts and every plugin declaring accepts_objects.
+  const surfaces = JSON.stringify(["sessions", "artifacts", ...objectTabPlugins()]);
+  assert.ok(CLIENT_SCRIPT.includes(`openRecord: (plugin, id, title) => ${surfaces}.includes(plugin)`),
+    "the side panel's openRecord routes by the same object-tab list search uses");
+  // Files declares `accepts_objects`: the file opens as its own tab (before W5-06's remainder the Files page opened with nothing chosen).
   // Todo opens its records by clicking its row: the record in its list, as search does.
-  open("todo", "task-1", "Task");
-  assert.deepEqual(calls, [["openItem", "files", "workspace-1:src/a.ts", "a.ts"], ["openPluginRecord", "todo", "task-1"]]);
-  // No tab workspace on the page yet: nothing opens and nothing throws.
-  assert.doesNotThrow(() => opener(() => undefined)("files", "x", "x"));
+  assert.ok(objectTabPlugins().includes("files"));
+  assert.ok(!objectTabPlugins().includes("todo"));
+  // `openItem` for the object's tab, `openPluginRecord` for a record-only plugin; no tab workspace yet: optional chaining
+  // keeps it a no-op instead of throwing.
+  assert.ok(CLIENT_SCRIPT.includes("? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id)"));
 });

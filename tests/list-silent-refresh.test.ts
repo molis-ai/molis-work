@@ -26,6 +26,7 @@ import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixtu
 const lingguangSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
 const datasetSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
 const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
+const scheduleSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/schedule/src/browser/${file}`, import.meta.url)), "utf8");
 const pptSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/ppt/src/browser/${file}`, import.meta.url)), "utf8");
 
 const csrClients = {
@@ -147,8 +148,11 @@ test("Inbox fragment and Schedule isolated view refresh retain their presentatio
   assert.equal(inboxPage?.status, 200);
   assert.match(String(inboxPage?.html), /data-inbox-list/);
 
-  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /await host\.view\.readDocument\(\)/);
-  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /const refreshStage = async/);
-  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /await refreshStage\(/);
-  assert.doesNotMatch(SCHEDULE_CLIENT_FACTORY_SCRIPT, /location\.reload\(/);
+  // Schedule's page is TypeScript bundled and minified into its client pack: what its code does is read in the sources.
+  const stage = scheduleSource("stage.ts"), actions = scheduleSource("actions.ts"), form = scheduleSource("form.ts");
+  assert.match(stage, /await host\.view\.readDocument\(\)/);
+  assert.match(stage, /export async function refreshStage/);
+  assert.match(actions + form, /await refreshStage\(|refreshStage\(page/);
+  assert.doesNotMatch(stage + actions + form, /location\.reload\(/);
+  assert.ok(SCHEDULE_CLIENT_FACTORY_SCRIPT.includes("readDocument"), "and the bundle carries it");
 });

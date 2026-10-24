@@ -234,7 +234,7 @@ test("renaming an event in its dispatcher only is caught from both sides", () =>
 test("deleting a registry entry leaves its dispatchers and listeners unregistered", () => {
   const entryOf = /  \{\n    name: "molis:placement-request"[\s\S]*?\n  \},\n/;
   const problems = domEventProblems(withRegistry(entryOf, ""));
-  assert.ok(problems.some((problem) => /shelf\/src\/client\.ts:\d+ dispatches "molis:placement-request", which is not registered/.test(problem)), problems.join("\n"));
+  assert.ok(problems.some((problem) => /shelf\/src\/browser\/material\.ts:\d+ dispatches "molis:placement-request", which is not registered/.test(problem)), problems.join("\n"));
   assert.ok(problems.some((problem) => /placement\.ts:\d+ listens to "molis:placement-request", which has a page event prefix but is not registered/.test(problem)), problems.join("\n"));
 });
 

@@ -4,7 +4,7 @@ import { checkOrigin } from "./input-origin.js";
 import { ActionError, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
-import { agentOfferActions, type AgentActionClient, type AgentRunRef, type AgentRuntimeAdapter, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentOfferActions, type AgentActionClient, type AgentRecalledMemory, type AgentRunRef, type AgentRuntimeAdapter, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { trustedSupplementInput } from "./original-inputs.js";
@@ -22,7 +22,7 @@ interface SessionActionPorts<C extends Call> {
   requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<{ owner: { actor_id: string; install_id: string } }>;
   originalInput(call: C): HostOfferedOriginalInput | undefined;
   /** The actions the plugin's rounds are granted through this runtime, as that grant reads now, carrying the session the Host checked; absent when it grants none. */
-  actions(call: C, pluginId: string, runtimeId: string, session: AgentSessionRef): Promise<AgentActionClient | undefined>;
+  actions(call: C, pluginId: string, runtimeId: string, session: AgentSessionRef, memory: Pick<AgentRecalledMemory, "class_restrictions" | "current_scene"> | null): Promise<AgentActionClient | undefined>;
 }
 
 const sameReference = (a: ExactActionReference, b: ExactActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
@@ -95,7 +95,9 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       if (!sameReference(offer.reference, reference) || !view.frozen.action_tools?.some(entry => sameReference(entry, offer.reference))) {
         throw agentErrors.offer_mismatch("只能执行这条建议点名的那个动作");
       }
-      const client = await ports.actions(call, caller.plugin_id, runtime_id, session);
+      const memory = view.class_restrictions !== undefined && view.memory_scene !== undefined
+        ? { class_restrictions: structuredClone(view.class_restrictions), current_scene: view.memory_scene } : null;
+      const client = await ports.actions(call, caller.plugin_id, runtime_id, session, memory);
       const current = (await client?.discover())?.find(row => sameReference({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id }, offer.reference));
       if (!client || !current || !current.action.audiences.includes("agent")) throw new ActionError("actions.missing", "这项能力已不可用或已对这一轮关闭");
       if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason, { kind: "unavailable" });

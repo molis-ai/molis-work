@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { beginMemoryLedgerAdoption, completeMemoryLedgerAdoption, homeSqlitePath, inspectMemoryLedgerAdoption,
-  MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE, type MemoryLedgerAdoptionSnapshot } from "@molis-ai/molis-work-storage";
+  MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE, readMemoryLedgerProfiles, type MemoryLedgerAdoptionSnapshot } from "@molis-ai/molis-work-storage";
 import type { MemoryPrefs } from "@molis-ai/molis-work-contracts/services/memory";
 
 const full: MemoryPrefs = { enabled: true, task_recall: true, form: true, auto: false, learn_from_work: true, learn_from_ui: false,
-  consumers: { assistant: false, agent: true, ui: true, plugin: true, mcp: false }, plugins: { blocked: { allowed: false, kinds: ["preference"] } } };
+  consumers: { assistant: false, agent: true, ui: true, plugin: true, mcp: false }, plugins: { blocked: { allowed: false, kinds: ["preference"] } }, class_restrictions: [] };
 
 function fixture(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "molis-ledger-adoption-"));
@@ -22,7 +22,7 @@ async function oldLedger(t: TestContext) {
   mkdirSync(join(home, MEMORY_LEDGER_STORE));
   const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE));
   db.exec(MEMORY_LEDGER_BASELINE.schema); db.exec("PRAGMA user_version=3");
-  const { enabled: _enabled, task_recall: _task, ...old } = full;
+  const { enabled: _enabled, task_recall: _task, class_restrictions: _restrictions, ...old } = full;
   for (const key of ["personal", "project-default", "project:blocked"]) db.prepare("INSERT INTO memory_prefs VALUES (?,?,?)")
     .run("person", key, JSON.stringify(key === "project:blocked" ? { form: false, plugins: full.plugins } : old));
   db.prepare("INSERT INTO memory_markers VALUES (?,?,?,?)").run("person", "strategy-adoption", "2026-10-22T00:00:00Z", JSON.stringify({ origin: "existing-home", retained: "keep" }));
@@ -93,4 +93,34 @@ test("adoption rejects malformed complete profiles and an owner set changed afte
   const current = inspectMemoryLedgerAdoption({ homeDirectory: home });
   assert.deepEqual(current.owners, [{ scope: "character", owner: "character-new", project_id: "project-new" }]);
   assert.equal(current.version, 3);
+});
+
+test("startup profile inspection is read-only, includes every actor and key, and refuses noncurrent ledger versions", async t => {
+  const empty = fixture(t);
+  assert.throws(() => readMemoryLedgerProfiles({ homeDirectory: empty }));
+  assert.equal(existsSync(homeSqlitePath(empty, MEMORY_LEDGER_STORE)), false);
+  const home = await oldLedger(t), path = homeSqlitePath(home, MEMORY_LEDGER_STORE), oldBytes = readFileSync(path);
+  assert.throws(() => readMemoryLedgerProfiles({ homeDirectory: home }), { code: "storage.schema_version_mismatch" });
+  assert.deepEqual(readFileSync(path), oldBytes);
+  const db = new DatabaseSync(path);
+  db.exec("PRAGMA user_version=4");
+  db.prepare("INSERT INTO memory_prefs VALUES (?,?,?)").run("another-person", "personal", JSON.stringify(full));
+  db.close();
+  const before = readFileSync(path), snapshot = inspectMemoryLedgerAdoption({ homeDirectory: home });
+  assert.equal(snapshot.version, 4);
+  assert.deepEqual(readMemoryLedgerProfiles({ homeDirectory: home }), snapshot.profiles);
+  assert.equal(snapshot.profiles.length, 4);
+  assert.deepEqual(readFileSync(path), before);
+});
+
+test("completion rejects eight-field results without clearing existing nine-field rules", async t => {
+  const home = await oldLedger(t), snapshot = inspectMemoryLedgerAdoption({ homeDirectory: home });
+  const blocked = beginMemoryLedgerAdoption({ homeDirectory: home, snapshot });
+  const incomplete = profiles(blocked).map(row => {
+    const { class_restrictions: _restrictions, ...eight } = row.prefs;
+    return { ...row, prefs: eight };
+  });
+  // @ts-expect-error Old profile shapes are only input to offline mapping, never a valid completed result.
+  assert.throws(() => completeMemoryLedgerAdoption({ homeDirectory: home, snapshot: blocked, profiles: incomplete }), { code: "memory.adoption_conflict" });
+  assert.deepEqual(inspectMemoryLedgerAdoption({ homeDirectory: home }), blocked);
 });

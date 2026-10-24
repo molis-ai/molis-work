@@ -1,6 +1,7 @@
 import { openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentRuntimeAdapter, AgentRunView, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isMemoryClassRestrictions } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryLearningRequest } from "../memory/memory-learning.js";
 import { ASSISTANT_STORE_NAME, AssistantStore, assistantWorkForSession } from "./assistant-store.js";
 import { typedMemorySources, memorySourceIdentity, type AssistantMemorySourceRef } from "./assistant-inputs.js";
@@ -59,7 +60,9 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
       if (run.ref.session_id !== task.session_id || run.ref.run_id !== id || run.phase !== "completed") return null;
       views.set(id, run); return run;
     };
-    if (!await readRun(trigger.run_id)) return null;
+    const policy = (await readRun(trigger.run_id))?.class_restrictions;
+    if (!policy || policy.policy_version !== 2 || policy.taxonomy_version !== 1
+      || !isMemoryClassRestrictions(policy.personal) || !isMemoryClassRestrictions(policy.project)) return null;
     let refs: AssistantMemorySourceRef[];
     if (body.sources !== undefined) {
       if (!Array.isArray(body.sources) || !body.sources.length || body.sources.length > 6) return null;
@@ -102,7 +105,7 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
     if (current.archived || current.delegated_by || current.continuation_hold || current.session_id !== task.session_id
       || (current.project_ref?.project_id ?? null) !== projectId) return null;
     return { source: { actor_id: actor, work_id: workId, session_id: task.session_id, run_id: trigger.run_id, sources: refs },
-      request: { caller: { actor_id: actor, project_id: projectId, consumer: "assistant", session_id: task.session_id, operation_id: task.key,
+      request: { caller: { class_restrictions: structuredClone(policy), actor_id: actor, project_id: projectId, consumer: "assistant", session_id: task.session_id, operation_id: task.key,
         work: { work_id: workId, title: current.title } }, said, sources: snapshots } };
   } finally { db.close(); }
 }
@@ -118,6 +121,7 @@ export async function assistantMemorySources(home: string, adapter: AgentRuntime
     const now = await readSources(home, adapter, fixed).catch(() => null);
     return now !== null && now.request.caller.project_id === first.request.caller.project_id
       && now.request.said.length === first.request.said.length && now.request.said.every((text, index) => text === first.request.said[index])
-      && JSON.stringify(now.request.sources) === JSON.stringify(first.request.sources);
+      && JSON.stringify(now.request.sources) === JSON.stringify(first.request.sources)
+      && JSON.stringify(now.request.caller.class_restrictions) === JSON.stringify(first.request.caller.class_restrictions);
   } };
 }

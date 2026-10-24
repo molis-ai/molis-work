@@ -15,6 +15,8 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 `eventCursor(projectId, objectType?)` 可以只读取某类对象的 journal 游标。Host 用它发现同项目其他连接已提交的变化；调用方负责避开本连接尚未提交的事务。它不提供业务订阅身份、确认或副作用重放，这些仍由各 owner 管理。
 
+`readMemoryLedgerProfiles` 只读枚举 ledger 4 中所有 actor/key 的原始偏好，供 Host 在打开写连接前严格检查九字段设置；它不补字段，不扩大 `MemoryLedgerPort`。旧六/八字段只由显式离线采用入口处理：`inspectMemoryLedgerAdoption` 保留实际 SQLite 版本（3 或 4），同一 `adopting → SDK 核验 → completeMemoryLedgerAdoption` 路径原子写入完整九字段并完成 ledger 4。已有分类限制、所有身份、原 origin 和历史保持；失败保留阻断，不新增版本或表。相关回归：`tests/memory-ledger-adoption.test.ts`、`tests/memory-adoption-maintenance.test.ts`、`tests/memory-adoption.test.ts`。
+
 ## 从哪里读代码
 
 公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。

@@ -42,12 +42,14 @@ export interface MemoryHomeAdoptionResult {
   verification: VerificationOutcome | "not-run";
 }
 
-/** No defaults are inferred: ledger 3 already materialized its effective six switches; draft eight-field choices survive. */
+/** Only explicit offline adoption fills the known prior shapes; all stored choices and current restrictions survive. */
 function profilesForAdoption(snapshot: MemoryLedgerAdoptionSnapshot): MemoryLedgerAdoptionProfile[] {
   const profiles = snapshot.profiles.map(profile => {
     const value = profile.prefs;
     if (!value || typeof value !== "object" || Array.isArray(value)) throw memoryErrors.invalid("旧记忆设置不完整，不能推断缺失的开关");
-    const prefs = Object.keys(value).length === 6 ? { enabled: true, task_recall: true, ...value } : value;
+    const count = Object.keys(value).length;
+    const prefs = count === 6 ? { enabled: true, task_recall: true, ...value, class_restrictions: [] }
+      : count === 8 ? { ...value, class_restrictions: [] } : value;
     if (!isCompletePrefs(prefs)) throw memoryErrors.invalid("旧记忆设置不完整，不能推断缺失的开关");
     if (!profile.actor_id || !(profile.key === "personal" || profile.key === "project-default" || /^project:.+/.test(profile.key))) {
       throw memoryErrors.invalid("旧记忆设置身份无法确认");

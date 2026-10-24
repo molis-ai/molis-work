@@ -438,6 +438,7 @@ export interface AgentMcpToolRef {
 }
 
 export interface AgentMemoryCaller {
+    readonly class_restrictions?: AgentMemoryClassPolicy;
     actor_id: string;
     character_id?: string;
     project_id: string | null;
@@ -466,6 +467,9 @@ export interface AgentMemoryCandidateCapability {
         signal?: AbortSignal;
     }): Promise<AgentMemoryCandidateEntry>;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
+    get(input: AgentCandidateLocation & {
+        signal?: AbortSignal;
+    }): Promise<AgentMemoryCandidateEntry | undefined>;
     accept(input: AgentCandidateLocation & AgentMemoryMutation & {
         text?: string;
         origin?: string;
@@ -549,6 +553,9 @@ export interface AgentMemoryCapability {
         reason: string;
     }): Promise<AgentMemoryEntry>;
     resume(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+    renew(input: AgentMemoryLocation & AgentMemoryMutation & {
+        expires_at_ms: number;
+    }): Promise<AgentMemoryEntry>;
     previewMutation(input: AgentMemoryLocation & AgentMemoryMutation & {
         mutation: AgentMemoryPreviewMutation;
     }): Promise<void>;
@@ -585,6 +592,13 @@ export interface AgentMemoryChange {
     text: string;
     origin?: string;
     meta?: AgentMemoryMeta;
+}
+
+export interface AgentMemoryClassPolicy {
+    readonly policy_version: 2;
+    readonly taxonomy_version: 1;
+    readonly personal: readonly MemoryClassRestriction[];
+    readonly project: readonly MemoryClassRestriction[];
 }
 
 export interface AgentMemoryClearResult {
@@ -1150,6 +1164,7 @@ export interface AgentProjectWorkOverlap {
 export type AgentReasoningEffort = "low" | "medium" | "high";
 
 export interface AgentRecalledMemory {
+    readonly class_restrictions: AgentMemoryClassPolicy;
     pinned: AgentPinnedMemory[];
     consumer: string;
     current_scene: string;
@@ -1362,6 +1377,8 @@ export interface AgentRunUsage {
 }
 
 export interface AgentRunView {
+    readonly class_restrictions?: import("services/agent-host-memory").AgentMemoryClassPolicy;
+    readonly memory_scene?: string;
     original_input?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentOriginalInput;
     step_board?: AgentStepBoard;
     step_board_error?: string;

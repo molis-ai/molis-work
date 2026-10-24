@@ -4,7 +4,7 @@ import { candidateView, memoryView, toSdkMemoryMeta } from "./prologue-memory-va
 import { randomUUID } from "node:crypto";
 import type { PrologueEffects } from "./prologue-effects.js";
 import { agentErrors } from "../errors.js";
-import { redactText, screenInbound, type ExactRef, type Runtime, type MemoryCallerContext } from "@prologue/sdk";
+import { isPrologueError, redactText, screenInbound, type ExactRef, type Runtime, type MemoryCallerContext } from "@prologue/sdk";
 import type { AgentMemoryCaller, AgentMemoryFormationContext, AgentMemoryMutation, AgentMemoryChange, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /**
@@ -15,7 +15,7 @@ export interface PrologueMemoryBinding {
   context(caller: AgentMemoryCaller): MemoryCallerContext;
   run<T>(caller: AgentMemoryCaller, work: () => Promise<T>, formation?: AgentMemoryFormationContext, validateContext?: () => Promise<void>): Promise<T>;
 }
-export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEffects, "call">, binding: PrologueMemoryBinding): {
+export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEffects, "memory">, binding: PrologueMemoryBinding): {
   capability: AgentMemoryCapability;
 } {
   type Entry = AgentMemoryEntry;
@@ -42,7 +42,10 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
       if (!caller) return Promise.reject(agentErrors.capability_unavailable("记忆调用缺少可信身份绑定"));
       return binding.run(caller, () => {
         const operation = () => work(runtime.bindMemory(binding.context(caller)));
-        return (control ? effects.call(control, operation) : operation()).catch(error => { throw memoryPromotionFailure(error); });
+        return (control ? effects.memory(control, operation) : operation()).catch(error => {
+          if (isPrologueError(error) && error.code === "STORAGE_CONFLICT") throw agentErrors.memory_conflict("记忆已变化，请重新查看后再决定");
+          throw memoryPromotionFailure(error);
+        });
       }, formation, validateContext);
     };
     return {
@@ -65,6 +68,7 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
       pause: input => call(async bound => memoryView(await bound.memory.pause(await formal(bound, input), input.reason, mutation(input)))),
       disable: input => call(async bound => memoryView(await bound.memory.disable(await formal(bound, input), input.reason, mutation(input)))),
       resume: input => call(async bound => memoryView(await bound.memory.resume(await formal(bound, input), mutation(input)))),
+      renew: input => call(async bound => memoryView(await bound.memory.renew(await formal(bound, input), input.expires_at_ms, mutation(input)))),
       previewMutation: input => call(async bound => {
         const proposed = input.mutation;
         await bound.memory.preview({ scope: input.scope, owner: input.owner, ...(input.signal ? { signal: input.signal } : {}),
@@ -110,6 +114,15 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
           text: input.text, origin: input.origin, ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}),
           ...(input.sources ? { sources: input.sources.map(source => ({ eventId: source.event_id, version: source.version })) } : {}) }, mutation(input)))),
         list: (scope, owner) => call(async bound => (await bound.candidates.list({ scope, owner })).map(candidateView)),
+        get: ({ scope, owner, candidate_id, signal }) => call(async bound => {
+          signal?.throwIfAborted();
+          await bound.candidates.hydrate([{ scope, owner }]);
+          signal?.throwIfAborted();
+          const found = await bound.candidates.get(ref("memory-candidate", candidate_id));
+          signal?.throwIfAborted();
+          if (found && (found.scope !== scope || found.owner !== owner)) throw agentErrors.capability_unavailable("候选不属于指定范围");
+          return found && candidateView(found);
+        }),
         accept: input => call(async bound => memoryView(await bound.candidates.accept(await candidate(bound, input), mutation(input), {
           ...(input.text !== undefined ? { text: input.text } : {}), ...(input.origin !== undefined ? { origin: input.origin } : {}),
           ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}) }))),

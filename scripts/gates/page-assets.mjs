@@ -239,8 +239,9 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Correct formal classifications and expiry in the existing editor: the user approved this slice's +5635 B on 2026-10-24.
-  // The editor, confirmation and classification display are reused. This admission is only against the paging parent.
-  "/assets/molis-work-workbench.js": [1196274, 1201909],
+  // The editor, confirmation and classification display are reused. Paging 24cc645c2 and classification 68564e9ef
+  // measured 1197355 and 1202990 B; the same +5635 B admission is only against this paging parent.
+  "/assets/molis-work-workbench.js": [1197355, 1202990],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

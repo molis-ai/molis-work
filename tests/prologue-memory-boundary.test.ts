@@ -58,7 +58,7 @@ test("a pinned memory that writes a system or fence marker reaches the model wit
   const owner = { project_id: "test", plugin_id: caller.plugin_id, install_id: "test", actor_id: caller.actor_id };
   const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "reader", title: "Memory boundary" });
   const role = { role_id: "reader", version: 1, workspace: "none" as const, execution: "read-only" as const, host_tools: [], prompts: [],
-    memory: { pinned: [{ scope: "user" as const, owner: caller.actor_id, memory_id: memory.memory_id, version: memory.version }],
+    memory: { class_restrictions: { policy_version: 2 as const, taxonomy_version: 1 as const, personal: [], project: [] }, pinned: [{ scope: "user" as const, owner: caller.actor_id, memory_id: memory.memory_id, version: memory.version }],
       consumer: "agent", current_scene: "coding", scopes: [{ scope: "user" as const, owner: caller.actor_id }],
       facts: { plugins: [caller.plugin_id] }, task: false, skip: false, budget_tokens: 800, budget_chars: 3000 } };
   const handle = await adapter.start({ ...owner, session, workspace: "none", role_id: "reader", task: "Where do release notes go?", role });

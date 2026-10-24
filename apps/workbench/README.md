@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Local Host 提供页面模型和操作端口；Workbench renderer 组合公共样式、导航与 Plugin UI，浏览器脚本处理选择、滚动恢复、刷新和请求。终端资产入口委托 Work Plugin 的 terminal-client。
+Local Host 提供页面模型和操作端口；Workbench renderer 组合公共样式、导航与 Plugin UI，浏览器脚本处理选择、滚动恢复、刷新和请求。Goal 终端（xterm 画面、面板的开关与重开、连接与自动补全）在 `src/terminal/`；`src/terminal-client.ts` 相对导入 `src/terminal/client.ts`，由 `pnpm build:pty-client` 打包。子路径 `@molis-ai/molis-work-app-workbench/terminal` 为测试提供公开入口。
 
 ## 从哪里读代码
 
@@ -19,6 +19,7 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 | [src/home-plugin-page.ts](src/home-plugin-page.ts) | 无项目时的 Home 工作台；复用文档壳和 UI Host 生命周期，装配 Runtime 提供的内容片段 |
 | [src/scripts/client/initialization.ts](src/scripts/client/initialization.ts) | 客户端初始化与恢复 |
 | [src/browser-assets.ts](src/browser-assets.ts) | 浏览器资产入口 |
+| [src/terminal/index.ts](src/terminal/index.ts) | Goal 终端：面板、xterm 画面与连接（`./terminal` 子路径），请求都走共同 UiRequest；面板路由在 Host 的 `apps/local-host/src/web-panel-routes.ts` |
 | [src/write-checkers-section.ts](src/write-checkers-section.ts) | 项目设置「写后检查」的宿主标记：每句话都由宿主按页面语言写出（`data-say`、三个 `<template>` 带 `{槽}`、catalog 的表单对话框与删除用的警示对话框），页面程序不带任何中文 |
 | [src/browser/write-checkers.ts](src/browser/write-checkers.ts) | 项目设置「写后检查」的页面程序：有类型的 TypeScript（`tsconfig.browser.json` 按 DOM 检查），构建时 esbuild 从 `write-checkers-factory.ts` 打成 `dist/write-checkers-client.js`（页面全局 `molisWorkWriteCheckers = (host) => {…}`），`src/scripts/write-checkers-client.ts` 读这份包；只有画这一段的两处（工作台脚本、项目设置页）带它，全局设置页不带，`project-settings.ts` 有它才绑定 |
 | [src/assistant-text-html.ts](src/assistant-text-html.ts)、[src/assistant-text-parts.ts](src/assistant-text-parts.ts) | Assistant 正文、代码与审查的 Host HTML 投影；原始文字始终转义，浏览器只绑定阅读与决定操作 |
@@ -110,7 +111,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 ## 开发要求
 
 - 浏览器交互回归先等待生产界面的可操作状态，再取点：按 [VUX-22 自然高度折叠合同](../../specs/visual-ui-experience/spec.md#disclosure-segmented)，展开到容纳目标按钮后，才由现有点击助手滚动并验证命中（`tests/goals-planning.e2e.test.ts`、`tests/feed-capture.e2e.test.ts`）。保留原等待上限、严格点击与业务结果断言；超时或遮挡仍失败，不增加固定睡眠、不关闭动效、不改产品布局。Feed 的预览零入箱、规则保存与真实消费、停用提供方后保留绑定仍由原用例验收。
-- 负责：工作台界面的组合根：导航、插件选择、设置页、Functions 编辑器，以及进入工作台之前的页面——项目选择页与简介、开场与 Welcome、新建项目引导、更新页（`src/arrival/`、`src/context-onboarding-renderer.ts`、`src/scripts/context-onboarding.ts`）。
+- 负责：工作台界面的组合根：导航、插件选择、设置页、Functions 编辑器、Goal 终端（`src/terminal/`），以及进入工作台之前的页面——项目选择页与简介、开场与 Welcome、新建项目引导、更新页（`src/arrival/`、`src/context-onboarding-renderer.ts`、`src/scripts/context-onboarding.ts`）。
 - 不负责：业务 Store、Node 专用实现、Tauri 命令。
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
@@ -118,10 +119,12 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
   - 正式记忆的六类管理与自动形成的四类许可分开。现「修改」编辑器的「分类与期限」可纠正场景、类型、长期/短期及期限；仅正文/适用情境编辑按控件初始值判定未改类，沿原 update 保留未知分类；编辑区显示原分类，明确移除未声明场景/生命周期时点名确认，实际分类变化通过 memory.change@3 的 reclassify 一次提交正文、适用情境与分类。期限默认保留原绝对时间，移除须明确选择，扩大场景或保留时间先展示前后值并确认；不传 namespace、session 或 classification.extra。到期与会话绑定分类在本片明确拒绝，停用/暂停不会因纠正复活。历史显示分类、期限与完整快照事实，恢复仍受当前权限和期限限制。原版本冲突、操作重试和撤销入口保留。定向回归：`tests/memory-settings-classification.e2e.test.ts`、`tests/memory-settings-cas.e2e.test.ts`、`tests/memory-settings-pages.e2e.test.ts`；完整 M3 的分类开关、批量及旧格式采用仍待后续。
   - 窄屏仍显示完整内容（`DESIGN.md` Layout、VUX-40）：放置完成卡的长项目名在卡内换行，移动与关闭按钮留在视口内；Home 日期条为「今天」与事件点统一预留底部空间，日期数字不与状态字相叠，各日期仍对齐。手机沿用现有 70px 高度，比原来的 64px 多出 6px 容纳三层字形及后备字体，列宽仍为 49px。不改文字与日期行为，不加截断与审计例外。回归 `tests/chinese-completion-layout.e2e.test.ts`、原 `tests/chinese-layers.e2e.test.ts` 与 `tests/placement-card-clearance.e2e.test.ts`。
   - Home 工具（目录项 `runtime.keys`，现在是 Issue 的 `Mod+Shift+I`）是开关：按钮或组合键打开它的侧栏视图并把键盘送进视图文档，从视图里再按一次收起。组合键在同源框架里（侧栏视图、嵌入窗格，以及本机 Host 发的讨论页）由 `homeToolKeysScript()` 转交给外壳；从视图里收起时键盘回到打开它的地方，打开前没有焦点就离开侧栏；带组合键的视图在页面空闲时预载，第一次按下就可用。视图可回报 `molis:side-status`（`busy` / `attention`），外壳在它的页签和按钮上标点，侧栏收起时也看得到。Home 插件侧栏始终只展示当前页。验证见 `tests/issue-global-navigation.e2e.test.ts`。
+  - 历史版本缺少完整快照时仍明确标为不能恢复，但本人可选择「使用这段旧文字」。确认只替换正文，保留当前分类、适用条件、期限、来源与状态；沿现 update 提交原版本与原操作号，取消不写入，丢回应可重试，后继版本冲突不覆盖。完整快照继续用原「回到这一版」，到期/删除/会话及权限限制均由现写门拒绝；不猜旧未知事实。回归复用 `tests/memory-settings-classification.e2e.test.ts` 的真实 SDK、ledger、页面及重启动线。
   - 侧栏脚本（`side-panel*.ts`）发出时去掉整行注释：说明留在源码里，不进页面资源。
   - 跨请求的页面操作固定点击时的对象：浏览器文件选择绑定 chooser 与网页，网站决定绑定原审查和显示的网站；文件预览绑定 source/kind/id 与本次打开。迟到结果不改后来打开的对象，设置与引用预览的失败也遵守同一约束。判断规则样例与草稿删除更新原记录，保留另一规则或同一规则的新编辑。标签恢复只收当前保存格式，保留当前组、分屏与设置页撤下规则。回归见 `tests/workbench-browser-targets.e2e.test.ts`、`tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/workbench-current-tabs.e2e.test.ts`。
   - 插件市场从 Host 重读项目成员；既有 `molis-work:plugins-changed` 使这份投影失效，过期读取不覆盖新事实。后台命令停止失败通过共同 UiRequest 显示拒绝、结果未知与可复制的诊断编号，不自动重试；真实命令状态及 Coding 的持久投影仍归它们的 owner。回归见 `tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-stop-feedback.e2e.test.ts`；后者用公开 Runtime 端口控制隔离子进程，不调用模型。
   - 导航与区域从 Manifest 派生（`BUILTIN_PLUGIN_CATALOG`），不按插件名写分支。
+  - 终端用 xterm 的命名空间导入并兼容 default 导出，两种打包形态都能加载；终端的请求走共同 UiRequest，不直接 `fetch`。改 `src/terminal/` 加跑 `node scripts/run-tests.mjs tests/work-terminal-client.test.ts tests/desktop-tui.test.ts tests/work-session-ui.test.ts`。
   - 目录条目可标 `developer: true`（Text Stats，平台的最小参考插件和测试依托）：只在 Host 开着开发者模式时进插件选择器和市场（`pluginMarketCards({ developerMode })`、`renderPluginRail`/`renderPluginMarket` 的 `developerMode`，由页面视图的 `developer_mode` 传入）；仍然登记、仍可安装，项目里已经添加的照常显示、可移除（W2-18 决定 5，2026-10-09）。开发者模式只是 Host 进程的启动开关（`MOLIS_WORK_DEVELOPER_MODE=1`），不是用户设置，设置里没有开关（用户 2026-10-09 已定，见 `apps/local-host/README.md`）。
   - 目录条目的浏览器脚本发出去时，`registration.workbench` 设 `clientServed: true` 即可去掉整行 `//` 注释、独占行的 `/* */` 注释和每行行首的缩进（页面资源预算只许减少；`/* */` 与代码共用一行的不动；脚本里有跨行字符串或模板时缩进是内容，不能用它）：作者在源码里保留注释和缩进，`tests/plugin-client-served.test.ts` 证明发出去的是同一段程序；用它的条目要进这个测试的名单。
   - 内置 build 只在各包 `src/registration.ts` 的 `registration` 绑定一次 Manifest、目录信息、Agent 正文与 UI/静态资源；`builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 由 `node scripts/generate-plugin-registry.mjs` 从它们生成，不手改（`pnpm health:check` 跑它的 `--check`），目录加载时 `catalogProblems`（`plugin-catalog.ts`）自检重复的 id 与位置、悬空的 `companions` / `clientFrom` / `clientUses`。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；新的内置插件只走 Plugin Runtime 装配，但仍在自己的 `registration` 登记一条（该测试要求每个 Runtime 装配的 id 都有目录条目），所以目录本身不是冻结名单；`plugin-catalog.ts` 和 `plugin-workbench.ts` 派生相应投影。资源 order 保持 CSS 与客户端初始化顺序，不改变 Manifest 的导航 order。公共动作发现与授权仍归 Kernel/Host。
@@ -173,6 +176,8 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 ### 正式记忆的有界管理页
 
+个人/项目记忆页的「按分类控制记忆」复用现设置和选择控件，按使用方、工作场景、记忆场景、六类正式类别和保留类型保存读取与自动形成限制。它只收紧原权限；重叠取更严格者，明确保存/认可仍受原写入门。编辑一行保留其它规则，两项均沿用原设置会移除该行。保存等待时禁用此区，失败保留输入并显示未保存；管理列表、逐条纠正和分页仍可用。界面回归为 `tests/memory-settings-classes.e2e.test.ts`，最终权限与 Run 冻结由真实 SDK/Host 专项证明。
+
 沿 [memory strategy §9.4 M3](../../specs/prologue-memory-strategy/spec.md)，现个人/项目页通过共同请求助手读取管理分页，筛选和正文搜索由 Service/SDK 在授权范围及共享扫描预算内执行。浏览器仅保存当前页与导航游标，不拉全库后筛选，不推算完整总数：`exact` 才显示总量，未知显示本页条数；零匹配且未穷尽仍可继续查找。项目页保留授权角色记忆，每页只读取本页所需的 Goal 名称。过滤变更从第一页开始，取消旧读取且拒绝迟到结果覆盖新查询；读取失败可重新读取，失败业务命令仍保留原独立重试快照。
 
 列表只读展示原分类或“未分类”、实际状态与独立到期事实，不补 common、不把到期改成停用。SDK 六类可显示和筛选，habit/project-decision 暂仅查看，不进入原四类编辑器；分类/期限编辑、分类策略和选中条目的固定批量操作留给后续 P0 切片。候选、历史、撤销、导入导出与固定清空入口保留，候选不声称已分页。复用现行、选择器、按钮和错误组件，不增加页面、全局状态或客户端查询索引。
@@ -184,3 +189,10 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面测试待统筹构建槽验证；未跑不算通过。合同见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
 
 页面以 localStorage 保存绑定当前项目路径的 preview_id/action，不存正文、选集或执行进度；新页面与 App 重启可重试原预览。该引用不授权，Host 重核 actor/project/scope/owner 与原选集；完成或本人明确放弃才清理，部分失败/未知/取消保留。
+
+
+### 明确续期（2026-10-24，实现中）
+
+到期正式记忆在现更多操作里明确续期：空的本地时间输入、原期限与状态说明、前后期限确认；不猜默认期限。仍用原 mutation 冻结 memory_id/所见版本/绝对期限/operation_id，失败可重试原决定；成功重新读取管理页。续期不启用 paused/disabled，会话记忆暂不提供该入口。新增文案有英文，真实浏览器与资源检查待统筹机器槽。
+
+原预览引用无法保存时，本次确认停在执行前，本页保留同 preview 供存储恢复后重试并明确提示关闭页面的恢复限制。完成后的引用清理失败仍重新读取真实管理结果，不保留遗忘正文，也不把完成改称未知；原引用重试只返回原回执。明确放弃时清理失败则保留当前预览。读取失败明确提示，需恢复读取或本人明确放弃后才能新选。故障验收在 `tests/memory-settings-cas.e2e.test.ts`，真实 Host 关闭重开恢复在 `tests/memory-settings-pages.e2e.test.ts`；本轮尚未运行。

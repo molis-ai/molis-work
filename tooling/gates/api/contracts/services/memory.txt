@@ -12,6 +12,8 @@ export declare const MEMORY_FORMAL_KINDS: readonly MemoryFormalKind[];
 
 export declare const MEMORY_KINDS: readonly MemoryKind[];
 
+export declare const MEMORY_LIFECYCLES: readonly ["session", "short-term", "long-term"];
+
 export declare const MEMORY_PERMISSIONS: readonly ["memory:read", "memory:recall", "memory:write", "memory:configure", "memory:export"];
 
 export declare const MEMORY_PROVIDER_ID = "system.memory";
@@ -19,6 +21,8 @@ export declare const MEMORY_PROVIDER_ID = "system.memory";
 export declare const MEMORY_READ_PERMISSION = "memory:read";
 
 export declare const MEMORY_RECALL_PERMISSION = "memory:recall";
+
+export declare const MEMORY_SCENES: readonly ["coding", "assistant", "common"];
 
 export declare const MEMORY_SOURCES: readonly MemorySource[];
 
@@ -110,7 +114,7 @@ export interface MemoryChangeRecord extends MemoryChange {
 export interface MemoryChangeRequest {
     memory_id: string;
     expected_version?: number;
-    action: "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
+    action: "renew" | "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
     text?: string;
     kind?: MemoryFormalKind;
     classification?: MemoryClassificationCorrection;
@@ -123,6 +127,18 @@ export interface MemoryChangeRequest {
 export interface MemoryChangeResult {
     memory: MemoryItem | null;
     change: MemoryChange;
+}
+
+export interface MemoryClassRestriction {
+    selector: {
+        consumer: MemoryConsumer;
+        current_scene: typeof MEMORY_SCENES[number];
+        scene?: typeof MEMORY_SCENES[number];
+        kind?: MemoryFormalKind;
+        lifecycle?: typeof MEMORY_LIFECYCLES[number];
+    };
+    read: "inherit" | "explicit-only" | "off";
+    form: "inherit" | "off";
 }
 
 export type MemoryClassification = NonNullable<import("services/agent-host-memory").AgentMemoryMeta["classification"]>;
@@ -312,8 +328,8 @@ export interface MemoryListResponse {
     counts: {
         personal: number;
         project: number;
-        auto_this_week: number;
-        pending: number;
+        auto_this_week: number | null;
+        pending: number | null;
     };
 }
 
@@ -397,6 +413,7 @@ export interface MemoryPrefs {
         allowed: boolean;
         kinds: MemoryKind[];
     }>;
+    class_restrictions: MemoryClassRestriction[];
 }
 
 export interface MemoryPrefsView {
@@ -604,6 +621,8 @@ export interface MemoryWriteResult {
 }
 
 export declare function isCompleteMemoryPrefs(value: unknown): value is MemoryPrefs;
+
+export declare function isMemoryClassRestrictions(value: unknown): value is MemoryClassRestriction[];
 
 export declare const memoryActions: {
     page: ActionDefinition<import("services/memory-queries").MemoryPageRequest, import("services/memory-queries").MemoryPageResponse>;

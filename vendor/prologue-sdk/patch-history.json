@@ -11,7 +11,7 @@
     "repository": "https://github.com/molis-ai/molis-prologue",
     "checkedOn": "2026-10-23",
     "mainHead": "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
-    "statement": "2026-10-23 对上游 main 2c7feba5a6ea85e81e4a263671fb5e68f536d86a（Prologue #60，含 #59、#58、#53、#57、#56、#55、#54、#52、#51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/molis-prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。上游仓库此后改名为 molis-ai/molis-prologue（原 molis-ai/prologue）。",
+    "statement": "2026-10-23 对上游 main 2c7feba5a6ea85e81e4a263671fb5e68f536d86a（Prologue #60，含 #59、#58、#53、#57、#56、#55、#54、#52、#51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/molis-prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：当时核查的 commitsChecked 列表中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。上游仓库此后改名为 molis-ai/molis-prologue（原 molis-ai/prologue）。 2026-10-24 补核 SDK 94 的原包来源 f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512：本地完整 Git 树确认该原提交经 #94 squash 为 d94a99fb，两者 tree 均为 53a36182941605e75fb8c899a51a92d859ac8982；d94a99fb 是 SDK 95 来源 a875be89c2186e79ecf35bf0867a8bac20da1887 的祖先，原 f4bbbd88 提交本身不是其祖先。本次将原包完整来源加入 commitsChecked，不改写上面 2026-10-23 的 main 核查时点。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -53,7 +53,8 @@
       "3adc5e87e81567af59983d1e7ac411a703454167",
       "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6",
       "753dbae8359e56a74397d030af4d18abf402d5b5",
-      "2c7feba5a6ea85e81e4a263671fb5e68f536d86a"
+      "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
+      "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512"
     ]
   },
   "patches": [
@@ -774,6 +775,14 @@
       "gitBlob": "2eb0b2d6f108edfb6ce457aa08effd6352a723e1",
       "commit": "753dbae8359e56a74397d030af4d18abf402d5b5",
       "description": "上游 main 753dbae8（Prologue #57，含 #54、#55 效果与 awaiting-input 的来源、#56 附件占位串加 -END 结尾、#57 多张图按给出的顺序到模型与此前各项）。2026-10-23 被包含 #53（已答的 ask-user 结果用 answered 带题号）、#58（运行时准入与关机边界）、#59（收窄内部导出）与 #60（retry-waiting 事件）的统一包替换；旧包及其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
+      "bytes": 1340202,
+      "sha256": "119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1",
+      "gitBlob": "d641817f33368b976cff1491533abd8c854341d6",
+      "commit": "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512",
+      "description": "Prologue #94：固定候选替换目标与版本、保守 suggestedBasis、shape5 创建输入核对。2026-10-24 被 #95 最终授权与网络派发复核包替换；旧包和来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

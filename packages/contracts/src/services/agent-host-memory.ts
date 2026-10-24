@@ -2,6 +2,7 @@
  * Memory and documents through the Agent Host's runtime: part of the `services/agent-host` contract (re-exported there),
  * declared in their own file.
  */
+import type { MemoryClassRestriction } from "./memory.js";
 import type { AgentMemoryFormationInput, AgentMemoryFormationResult } from "./agent-host-memory-formation.js";
 
 /** One remembered item in the runtime's memory store (Prologue Memory), in one scope and owner. */
@@ -64,8 +65,17 @@ export interface AgentMemoryCandidateEntry {
 /** A memory the Host chose for one run, by the Prologue scope and owner it lives in. */
 export interface AgentPinnedMemory { scope: "user" | "project" | "character"; owner: string; memory_id: string; version?: number }
 
+/** App interpretation versions and exact effective restrictions captured by the Host for one Run. */
+export interface AgentMemoryClassPolicy {
+  readonly policy_version: 2;
+  readonly taxonomy_version: 1;
+  readonly personal: readonly MemoryClassRestriction[];
+  readonly project: readonly MemoryClassRestriction[];
+}
+
 /** App-owned reading recipe. Selection, current authorization and final token accounting belong to the SDK. */
 export interface AgentRecalledMemory {
+  readonly class_restrictions: AgentMemoryClassPolicy;
   /** Only explicitly selected resident references; initial Molis policy keeps this empty. */
   pinned: AgentPinnedMemory[];
   consumer: string;
@@ -208,6 +218,8 @@ export type AgentMemoryPreviewMutation = { kind: "update"; change: AgentMemoryCh
   | { kind: "pause" | "disable"; reason: string } | { kind: "resume" | "remove" | "purge" };
 /** Supplied only by trusted App/Host code, independently of business/model input. */
 export interface AgentMemoryCaller {
+  /** Trusted Run snapshot; absent callers cannot recover a Run memory grant. */
+  readonly class_restrictions?: AgentMemoryClassPolicy;
   actor_id: string;
   character_id?: string;
   project_id: string | null;
@@ -282,6 +294,8 @@ export interface AgentMemoryCapability {
   pause(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
   disable(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
   resume(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+  /** Explicit expiry renewal preserves the canonical identity, metadata and raw state. */
+  renew(input: AgentMemoryLocation & AgentMemoryMutation & { expires_at_ms: number }): Promise<AgentMemoryEntry>;
   previewMutation(input: AgentMemoryLocation & AgentMemoryMutation & { mutation: AgentMemoryPreviewMutation }): Promise<void>;
   /** Logical removal preserves the original SDK operation receipt for maintenance reconciliation. */
   tombstone(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
@@ -297,6 +311,8 @@ export interface AgentMemoryCandidateCapability {
   form(input: AgentMemoryFormationInput): Promise<AgentMemoryFormationResult>;
   propose(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; sources?: AgentMemorySourceRef[]; expected_version: 0; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryCandidateEntry>;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
+  /** Missing is distinct from denied; the original scope and owner remain binding. */
+  get(input: AgentCandidateLocation & { signal?: AbortSignal }): Promise<AgentMemoryCandidateEntry | undefined>;
   accept(input: AgentCandidateLocation & AgentMemoryMutation & { text?: string; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
   promote(input: AgentCandidateLocation & AgentMemoryMutation & { policy: string; version: number; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
   /** The SDK changes the formal text/meta and then reconciles the candidate; the App never pre-updates it. */

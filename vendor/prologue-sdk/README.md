@@ -4,13 +4,13 @@
 
 目录里现在有这些东西：
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,340,202 字节），SHA-256 `119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1`。来源为 Prologue [#94](https://github.com/molis-ai/molis-prologue/pull/94) 的干净提交 `f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512`，已合 main `d94a99fb3d3cd33c95cd97393c4d1949366ffa81`，整树一致，无补丁。包含此前 Memory CAS/分类管理、可信来源/晋升/采用、有界地址、过期管理及混合输入原件。本片固定候选替换目标与版本，task 只补缺或逐字相同，suggestedBasis 与正式依据分开，inferred 不自动晋升。候选 shape5 同创建输入核对意图，实际旧 #93 包五个相关入口零提交拒绝，磁盘不变；旧无字段候选可继续管理，普通取消及显式 purge 语义不变。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,359,578 字节），SHA-256 `bb0b6b79c3f744a2bb64c214472a53b74b0a50d5c61d5f0b026c1f02b5a086c5`。来源为 Prologue [#96](https://github.com/molis-ai/molis-prologue/pull/96) 的干净提交 `15c38aed0bde2f8f0540a3e390f2e03033cdb717`，已合 main `d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11`，整树一致，无补丁。保留 #95 最终权限保护，新增本人明确续期与同 Runtime Session 转换的提交失效保护；正式记录 shape 8，旧 shape 7 包对新记录拒写。Molis 续期入口及分类接线按对应切片验收。
 - 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `f4bbbd88` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 31 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
+- `patch-history.json`：已删除的 26 份历史补丁和 32 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
-该 head 的完整 `pnpm quality`、干净安装消费者和新旧包兼容专项通过。制包环境为 macOS arm64、Node 24.19.0、pnpm 11.9.0；实际 Node 与仓库声明的 24.14.0 有差异。本次未作独立逐字节重建，不宣称完成 Molis 采用、模型收益或用户验收。Molis 集成与严格 baseline 切换状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
+该 head 的完整 `pnpm quality`（68 文件 684 项）、Memory 专项（41 文件 680 项）及干净安装真实 Node/本机 HTTP 消费者通过；原归档反例与首次粒度门失败保留。制包环境 macOS arm64、Node 24.14.0、pnpm 11.9.0；实际 tgz 独立离线安装后，上一版 #95 实包读取/更新续期记录被拒，正式写入为零、磁盘不变，新包重开结果保持。干净提交重打包与已测试产物逐字节一致，775 个非 manifest 文件与构建树一致；未作独立重复构建。不宣称 Molis 采用、模型收益或用户验收通过，集成状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 
@@ -392,7 +392,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：31 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `packagesWithoutPatch`：32 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
 - `upstream`：41 个 Prologue 提交于 2026-10-23 对 main `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`（上游仓库已改名 `molis-ai/molis-prologue`）逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
 
 怎么取回并核对：

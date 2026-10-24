@@ -33,7 +33,7 @@ import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
 import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
 import { controlFailure } from "./prologue-control-errors.js";
-import { PrologueMemoryUsage } from "./prologue-memory-usage.js";
+import { PrologueMemoryUsage, runMemoryContext } from "./prologue-memory-usage.js";
 import { restoredSessionRecords, restorePrologueRun } from "./prologue-restored-session.js";
 import { inputsPort, type RoundInputs, type SessionQueue } from "./prologue-inputs.js";
 import { readSupplementaryInput, type SupplementaryLocation } from "./prologue-original-inputs.js";
@@ -238,7 +238,7 @@ export interface PrologueRestoredSession {
     started_at: string;
     task: string;
     original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
-    memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage">;
+    memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage"> & Partial<Pick<AgentRecalledMemory, "class_restrictions" | "current_scene">>;
     stop_intent?: "stopped" | "cancelled";
     /** Why the Host stopped this run itself, when it did. */ stop_reason?: string;
     /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */
@@ -309,7 +309,7 @@ export interface RunRecord {
   timingReady?: boolean;
   timingError?: string;
   observedEndAt?: string;
-  memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage">;
+  memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage"> & Partial<Pick<AgentRecalledMemory, "class_restrictions" | "current_scene">>;
 }
 
 /** Validate a frozen role and any continued plan against this Runtime before preparing an execution. */
@@ -581,6 +581,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async #start(request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
+    const memory = request.role?.memory ? structuredClone(request.role.memory) : undefined;
     if ((request.original_input || request.continued_from) && !this.#runtime.sessions.originalInput) throw agentErrors.capability_unavailable("当前运行时没有初始原件读取能力");
     const original = await this.#runtime.sessions.originalInput?.(request.session.session_id, request);
     const { textMaterials, imageMaterials } = validateRunAttachments(request, Boolean(this.#runtime.imageAttachments));
@@ -616,7 +617,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       },
       ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
       task: request.task,
-      ...(role.memory ? { memory: structuredClone(role.memory) } : {}),
+      ...(memory ? { memory } : {}),
       ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
       ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
       text_materials: textMaterials,
@@ -657,8 +658,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       state,
       control: started.control,
       model,
-      ...(request.role?.memory ? { memory_context: { consumer: request.role.memory.consumer,
-        ...(request.role.memory.usage ? { usage: structuredClone(request.role.memory.usage) } : {}) } } : {}),
+      ...runMemoryContext(memory),
       unsubscribe: () => {},
       listeners: new Set(),
     };
@@ -873,7 +873,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.#now().toISOString() }
         : {}),
-    });
+    }, record.memory_context);
     const snapshot = structuredClone(record.view);
     for (const listener of record.listeners) listener(structuredClone(snapshot));
   }

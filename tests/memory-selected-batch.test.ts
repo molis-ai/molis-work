@@ -149,8 +149,11 @@ test("batch forgetting an accepted original suppresses the same event and versio
   service.savePrefs(caller("formation-personal"), "personal", { learn_from_work: false });
   const text = "以后发布说明先列风险与核对步骤", original = originals.add("selected-original-event", text);
   extraction.set([{ text, scope: "project", kind: "convention", basis: "explicit", quote: text }]);
-  const learn = (operation_id: string) => service!.learnFromWork(caller(operation_id, { person: false, consumer: "assistant",
-    current_scene: "assistant", source_use: "learning" }), { said: [text], sources: [original] });
+  const worker = caller("source-recipe", { person: false, consumer: "assistant", current_scene: "assistant",
+    source_use: "learning", purpose: "task", session_id: "selected-source-session" });
+  const recipe = await service.forRun(worker, { query: "发布核对" }); assert.ok(recipe);
+  const learn = (operation_id: string) => service!.learnFromWork({ ...worker, operation_id, class_restrictions: recipe.class_restrictions },
+    { said: [text], sources: [original] });
   const formed = await learn("form-original");
   assert.equal(formed.recording_error, undefined); assert.equal(formed.formation.outcome, "completed");
   assert.equal(formed.formation.extraction.calls, 1); assert.equal(formed.learned[0]!.outcome, "candidate");
@@ -177,4 +180,52 @@ test("batch forgetting an accepted original suppresses the same event and versio
   await unchanged("relearn-same-event-version");
   await f.close(); service = await f.open();
   await unchanged("relearn-after-restart");
+});
+
+
+test("the fixed maximum accepts 100 real identities across legal owners and rejects the 101st before saving", { timeout: 90_000 }, async t => {
+  const f = await fixture(t), items: MemoryBatchItem[] = [];
+  for (let index = 0; index < MEMORY_BATCH_MAX_ITEMS + 1; index++) {
+    const scope = index % 2 ? "personal" as const : "project" as const, owner = scope === "personal" ? LOCAL_PERSON_ACTOR_ID : "project-a";
+    const entry = await f.raw(caller("seed-maximum")).write({ scope, owner, operation_id: "maximum-" + index,
+      text: "Explicitly selected rule number " + index, origin: "Person's fixed selection",
+      meta: { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } } });
+    items.push({ scope, owner, memory_id: entry.memory_id, expected_version: entry.version });
+  }
+  await assert.rejects(f.service.batches.preview(caller("too-large"), { action: "disable", items }), { code: "memory.invalid" });
+  assert.equal(f.ledger().marker(LOCAL_PERSON_ACTOR_ID, "memory-selection:too-large"), null);
+  const fixed = items.slice(0, MEMORY_BATCH_MAX_ITEMS), preview = await f.service.batches.preview(caller("maximum-preview"), { action: "disable", items: fixed });
+  assert.deepEqual(preview.items, fixed);
+  const done = await f.service.batches.apply(caller("maximum-apply"), preview.preview_id);
+  assert.equal(done.complete, true); assert.equal(done.items.length, MEMORY_BATCH_MAX_ITEMS);
+  for (const [scope, owner] of [["personal", LOCAL_PERSON_ACTOR_ID], ["project", "project-a"]] as const) {
+    for (const entry of await f.raw().list(scope, owner)) {
+      assert.equal(!!entry.disabled, fixed.some(item => item.memory_id === entry.memory_id));
+      assert.equal(entry.version, entry.memory_id === items.at(-1)!.memory_id ? 1 : 2);
+    }
+  }
+});
+
+test("overlapping applies reconcile one original child while its committed SDK response is delayed", { timeout: 30_000 }, async t => {
+  const f = await fixture(t), item = await seed(f.service, "Concurrent original");
+  const preview = await f.service.batches.preview(caller("concurrent-preview"), { action: "disable", items: [selected(item)] });
+  let entered!: () => void, release!: () => void, delayed = false;
+  const reached = new Promise<void>(resolve => { entered = resolve; }), barrier = new Promise<void>(resolve => { release = resolve; });
+  const backend = observeMemoryBackend(prologueMemoryBackend(async () => f.adapter().memory!), bound => ({ ...bound, disable: async input => {
+    const result = await bound.disable(input);
+    if (!delayed) { delayed = true; entered(); await barrier; }
+    return result;
+  } }));
+  const service = new MemoryService({ ledger: f.ledger(), backend });
+  const first = service.batches.apply(caller("first-overlap"), preview.preview_id);
+  try {
+    await reached;
+    const second = await service.batches.apply(caller("second-overlap"), preview.preview_id);
+    assert.equal(second.complete, true);
+    release(); assert.deepEqual(await first, second);
+    const final = (await f.raw().list("project", "project-a")).find(entry => entry.memory_id === item.memory_id)!;
+    assert.equal(final.version, item.version + 1); assert.ok(final.disabled);
+    assert.equal(f.ledger().changesOf(item.memory_id).filter(change => change.kind === "disabled").length, 1);
+    assert.deepEqual(await service.batches.apply(caller("after-overlap"), preview.preview_id), second);
+  } finally { release(); await first; }
 });

@@ -1,12 +1,20 @@
 import type { MemoryCandidate, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import type { AssistantMemoryCandidate } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { AgentMemoryExecutionControl, AgentMemorySourceSnapshot, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryExecutionControl, AgentMemorySourceSnapshot, AgentMemoryTools, AgentRecalledMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isDeepStrictEqual } from "node:util";
 import { characterOwner, consumerAccess, memoryErrors, theirWords, type MemoryCaller, type MemoryService, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import type { memorySources } from "../memory/memory-sources.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
+
+/** The Assistant acting for the person in one work (or the person themselves, for the settings and the panel). */
+export function assistantMemoryCaller(actorId: string, work: StoredWork | null, projectId: string | null, person = false): MemoryCaller {
+  return { actor_id: actorId, project_id: work ? work.project_ref?.project_id ?? null : projectId, consumer: "assistant",
+    ...(work ? { work: { work_id: work.work_id, title: work.title } } : {}), ...(person ? { person: true } : {}),
+    // The Character carrying this work: its own memories come along, and only in its work.
+    ...(work?.character && work.project_ref ? { character: { id: work.character.artifact_id, title: work.character.title } } : {}) };
+}
 
 interface AssistantMemoryToolsInput {
   memory: MemoryService;
@@ -19,7 +27,8 @@ interface AssistantMemoryToolsInput {
   work: StoredWork;
   /** The work's project, when it has one. */
   projectId: string | null;
-  caller: MemoryCaller;
+  /** Prepared for this exact round, before Host.start assembles its tools. */
+  recipe: AgentRecalledMemory | null | undefined;
   /** What the person typed in this work, one message each: the Runtime-owned originals and the supplements they sent them (`typedWords`), including the accepted Run before its display round exists. Words the Host, the Assistant or a page wrote are not among them. */
   spoken(): Promise<readonly AgentMemorySourceSnapshot[]>;
 }
@@ -27,7 +36,7 @@ interface AssistantMemoryToolsInput {
 type ToolControl = Parameters<NonNullable<AgentMemoryTools["remember"]>>[1];
 
 /** One tool invocation retains its authority through every SDK commit and synchronous ledger operation. */
-async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolControl, scope?: MemoryScope,
+async function memoryInvocation(input: AssistantMemoryToolsInput & { caller: MemoryCaller }, call: ToolControl, scope?: MemoryScope,
   selectSources?: (available: readonly AgentMemorySourceSnapshot[]) => readonly AgentMemorySourceSnapshot[], suggesting = false) {
   if (!call?.signal || !call.operation_id) throw memoryErrors.forbidden("记忆工具缺少本次执行控制");
   const withdrawn = new AbortController(), signal = AbortSignal.any([call.signal, withdrawn.signal]);
@@ -112,13 +121,17 @@ async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolCont
  * work's brief) is given neither: it can read what is kept, and suggest.
  */
 export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMemoryTools | undefined {
-  const { memory, work, projectId, caller } = input;
+  const { memory, work, projectId, recipe } = input;
+  if (!work.session_id || !recipe?.class_restrictions) return undefined;
+  const caller: MemoryCaller = { ...assistantMemoryCaller(input.actorId, work, projectId), session_id: work.session_id,
+    current_scene: recipe.current_scene, class_restrictions: structuredClone(recipe.class_restrictions) };
+  const prepared = { ...input, caller };
   const personal = memory.prefsFor(input.actorId, "personal", null), project = projectId ? memory.prefsFor(input.actorId, "project", projectId) : null;
   if (!(personal.enabled && personal.form) && !(project?.enabled && project.form)) return undefined;
   // Suggesting is its own switch per scope: a project's work suggests for that project only where the person allows it.
   const mayPropose = (personal.enabled && personal.form && personal.learn_from_work) || (!!project?.enabled && project.form && project.learn_from_work);
   const propose: AgentMemoryTools["propose"] = async (request, call) => {
-    const invocation = await memoryInvocation(input, call, request.scope, sources => sources, true), { sources } = invocation;
+    const invocation = await memoryInvocation(prepared, call, request.scope, sources => sources, true), { sources } = invocation;
     try {
       const candidate = await invocation.memory.propose({ ...invocation.caller, source_use: "explicit" }, { scope: request.scope, text: request.text, kind: request.scope === "project" ? "convention" : "preference", applies: request.applies.trim() ? { task: request.applies.trim().slice(0, 200) } : {},
         basis: "inferred", why: request.why, from: "work" }, sources.length ? { sources: sources.map(({ event_id, version }) => ({ event_id, version })) } : {});
@@ -132,7 +145,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
       if (request.scope === "character" && !caller.character) throw assistantErrors.scope("这一轮不是由某个角色承担的，不能记为角色记忆");
       // “You said” is the person's only when the text is the whole of a message they typed in this work: the gate judges it against these saved messages (not against the quote the model gives), and what is kept
       // is that message as they wrote it. A paraphrase, a part of a message or anything else is the Assistant's own suggestion, which waits for the person.
-      const invocation = await memoryInvocation(input, call, request.scope, sources => {
+      const invocation = await memoryInvocation(prepared, call, request.scope, sources => {
         const latest = [...sources].reverse(), said = theirWords(request.text, latest.map(source => source.text));
         // A later explicit request is a new authorization: unrelated historical inputs do not become this memory's sources.
         return said === null ? sources : latest.filter(source => theirWords(request.text, [source.text]) !== null).slice(0, 1);
@@ -149,7 +162,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
       } finally { invocation.dispose(); }
     } }),
     list: async call => {
-      const invocation = await memoryInvocation(input, call);
+      const invocation = await memoryInvocation(prepared, call);
       try {
         const items = (await invocation.memory.list(invocation.caller, { scope: "all" })).items;
         call.signal.throwIfAborted();
@@ -158,7 +171,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
     },
     ...(work.delegated_by ? {} : { forget: async (memoryId: string, call: ToolControl) => {
       // Forgetting is switching off, in the Assistant's name: it is no longer used, stays the person's to switch back on or delete in settings.
-      const invocation = await memoryInvocation(input, call);
+      const invocation = await memoryInvocation(prepared, call);
       try { await invocation.memory.change(invocation.caller, { memory_id: memoryId, action: "disable" }); return { forgotten: true, note: "已停用：以后不会再用到这条；它还在用户的记忆设置里，用户可以重新启用或彻底删除。" }; }
       catch (error) { if (error instanceof ActionError && error.code === "memory.not_found") return { forgotten: false }; throw error; }
       finally { invocation.dispose(); }

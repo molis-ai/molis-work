@@ -28,6 +28,7 @@ export interface MemoryBackendPort {
   pause(input: Formal & { reason: string }): Promise<MemoryBackendEntry>;
   disable(input: Formal & { reason: string }): Promise<MemoryBackendEntry>;
   resume(input: Formal): Promise<MemoryBackendEntry>;
+  renew(input: Formal & { expires_at_ms: number }): Promise<MemoryBackendEntry>;
   previewMutation(input: Scoped<Parameters<AgentMemoryCapability["previewMutation"]>[0]>): Promise<void>;
   tombstone(input: Formal): Promise<MemoryBackendEntry>;
   remove(input: Formal): Promise<void>;
@@ -40,6 +41,7 @@ export interface MemoryCandidatePort {
   form(input: MemoryFormationInput): Promise<AgentMemoryFormationResult>;
   propose(input: Scoped<Parameters<AgentMemoryCandidateCapability["propose"]>[0]>): Promise<MemoryBackendCandidate>;
   list(scope: MemoryScope, owner: string): Promise<MemoryBackendCandidate[]>;
+  get(input: Scoped<Parameters<AgentMemoryCandidateCapability["get"]>[0]>): Promise<MemoryBackendCandidate | undefined>;
   accept(input: Candidate & { text?: string; origin?: string; meta?: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
   promote(input: Candidate & { policy: string; version: number; origin?: string; meta?: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
   settleInto(input: { scope: MemoryScope; owner: string; candidate_id: string; candidate_expected_version: number;

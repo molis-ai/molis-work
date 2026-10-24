@@ -125,3 +125,7 @@ Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插�
 ### 补充输入的作者边界
 
 `agent.inputs.send.v3` / `coding.runs.control` v8 的业务输入不收 `original`，自报 `source: person` 不授予本人身份。本人 HTTP 发送由 Host 以 `use: supplement` 证明绑定当前安装、动作与 `send.<input_id>`；附材料或选区只改变外层模型 text，raw 原话沿同一 SDK 输入记录保存，不能拆标记推断。无证明的 Action 输入按 Host 处理；初始原件证明与补充证明不能互换。
+
+### Memory 原 Run 权限
+
+通用 Memory Action 与内置记忆工具使用同一轮 recipe，Host 在装配动作客户端前捕获分类限制。经插件代办或点击原 Run 建议时，保留原插件、Session、场景和分类快照；不能从模型参数或最新 attempt 补身份。`runtime_memory` 只在 Host 调用上下文中传递，插件 callback view 不暴露它；缺原快照的记忆调用明确不可用。当前规则只能收紧原许可，设置重开不扩大旧 Run。具体范围与待验收项以 `specs/prologue-memory-strategy/spec.md` M3 第三片为准。

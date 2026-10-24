@@ -1,3 +1,4 @@
+import { runMemoryContext } from "./prologue-memory-usage.js";
 import { recordOriginalInput } from "./prologue-original-inputs.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -64,6 +65,7 @@ export interface RunDeps {
   readonly dispatchGuards: DispatchGuards;
   readonly surfaces: () => PrologueSurfaces | undefined;
   readonly mcpLibrary: ReturnType<typeof createPrologueMcpLibrary>;
+  readonly memoryAuthority: Pick<ReturnType<typeof import("./prologue-memory-authority.js").createPrologueMemoryAuthority>, "forAttempt">;
   readonly platformMemory: ReturnType<typeof createPrologueMemory>;
   readonly credentials: PrologueCredentialBridge;
   readonly stepBoards: ReturnType<typeof createPrologueTaskBoards>;
@@ -322,11 +324,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
  * initial durable Run commit. `abandon` takes back an intent the SDK never accepted.
  */
 async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: SessionIndex["attempts"][number]): Promise<{ attemptIndex: number; abandon: () => Promise<void> }> {
-  const intent = structuredClone({ ...attempt, ...(input.memory ? { memory_context: {
-    consumer: input.memory.consumer, current_scene: input.memory.current_scene,
-    ...(input.memory.facts ? { facts: input.memory.facts } : {}),
-    ...(input.memory.usage ? { usage: input.memory.usage } : {}),
-  } } : {}) });
+  const intent = structuredClone({ ...attempt, ...runMemoryContext(input.memory) });
   await input.beforeStart?.(); requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成");
   let attemptIndex = -1;
   await deps.index.update(input.session_id, index => {
@@ -625,9 +623,9 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   // instructions on the round's own model, behind the same pre-dispatch check.
   guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
     model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
-  const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
+  const started = await deps.memoryAuthority.forAttempt(input.session_id, attemptIndex, () => deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
     session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
-  }))).catch(async (error: unknown) => {
+  })))).catch(async (error: unknown) => {
     // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
     // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
     if (!deps.effects.accepted()) {

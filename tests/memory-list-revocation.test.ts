@@ -12,7 +12,7 @@ import { connectorAssistantModel, untilSetup } from "./fixtures/connector-assist
 
 // MEM-20/31: Hold the real second scope read after the first scope's body has been accumulated.
 // The model reply, public preference change, SDK storage and Service result remain real.
-for (const change of ["none", "revoke", "form-off"] as const) {
+for (const change of ["none", "revoke", "form-off", "class-read-off", "class-filtered-off", "class-form-off"] as const) {
   test(`list-memories retains current read authority across scopes: ${change}`, { timeout: 60_000 }, async t => {
     const gate = Promise.withResolvers<void>(), reached = Promise.withResolvers<void>();
     t.after(() => gate.resolve());
@@ -33,6 +33,7 @@ for (const change of ["none", "revoke", "form-off"] as const) {
     t.mock.method(MemoryService.prototype, "list", async function (this: MemoryService, ...args: Parameters<MemoryService["list"]>) {
       if (args[0].consumer !== "assistant" || args[1]?.scope !== "all") return list.apply(this, args);
       listing = true;
+      if (change === "class-filtered-off") args[1] = { ...args[1], kinds: ["experience"] };
       try { const result = await list.apply(this, args); completed.resolve({ items: result.items }); return result; }
       catch (error) { completed.resolve({ error: String(error) }); throw error; }
       finally { listing = false; }
@@ -58,7 +59,9 @@ for (const change of ["none", "revoke", "form-off"] as const) {
     await untilSetup(async () => held ? true : undefined, "list has accumulated personal and reached the real project read");
     await reached.promise;
     if (change !== "none") await home.web.post("/api/memory/prefs", {
-      scope: "personal", prefs: change === "revoke" ? { consumers: { assistant: false } } : { form: false },
+      scope: "personal", prefs: change === "revoke" ? { consumers: { assistant: false } } : change === "form-off" ? { form: false }
+        : { class_restrictions: [{ selector: { consumer: "assistant", current_scene: "assistant", kind: "preference" },
+          read: change === "class-form-off" ? "inherit" : "off", form: change === "class-form-off" ? "off" : "inherit" }] },
     });
     gate.resolve();
     const result = await completed.promise;
@@ -68,7 +71,10 @@ for (const change of ["none", "revoke", "form-off"] as const) {
     }, "the actual list tool Run settles");
     assert.deepEqual(await owner.list("user", LOCAL_PERSON_ACTOR_ID), before, "reading or revocation never rewrites formal memory");
     t.diagnostic(JSON.stringify({ change, ...result }));
-    if (change === "revoke") assert.equal(result.items?.some(item => item.text === text) ?? false, false,
+    if (change === "class-read-off" || change === "class-filtered-off") {
+      assert.match(result.error ?? "", /记忆读取权限已变化/, "revocation rejects the whole projection, including counts before item filters");
+      assert.equal(result.items, undefined);
+    } else if (change === "revoke") assert.equal(result.items?.some(item => item.text === text) ?? false, false,
       "a body accumulated before withdrawal is not returned after its read permission was revoked");
     else {
       assert.equal(result.error, undefined);

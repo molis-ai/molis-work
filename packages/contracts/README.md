@@ -2,7 +2,13 @@
 
 ## Memory 管理分页合同
 
+`memory.list@4` 保留合法可见正式项及 personal/project 数；pending 与 auto_this_week 为 number|null。null 明确表示该调用未查询管理计数：非本人调用不读取候选或旁账统计，本人管理仍返回实际数值。不以零替代未知，也不为计数提升非本人权限。助理工具与工作轨迹只消费 items，现设置页使用独立 page/candidates/changes。
+
+Agent Memory 的候选 get 绑定固定 scope/owner/candidate_id 与可选取消信号，沿现 SDK get 返回已授权 canonical 候选或真实缺失的 undefined；拒权与存储错误不变成空结果。仅内部形成查询可据明确 MEMORY_SCOPE_DENIED 排除不可见项，本人管理完整性检查不放宽。
+
 `services/memory` 提供 `memory.page@2` 与 `MemoryPageRequest/Response/MemoryManagementItem`。管理请求没有 owner；响应中的 canonical owner 支持固定选集，新增必填输出字段因此升为 v2。六种管理类别不扩大写入/形成四类。响应的真实状态与 expired 分开，classification 缺失为 null，total 和物理成本用 exact/unknown 明示。`services/agent-host` 的 page DTO 复用 SDK 管理查询语义，只有 Adapter 翻译 scope、字段和成本；不建立另一个分页主人。
+
+`memory.prefs.read@3` / `memory.prefs.write@3` 使用九字段 `MemoryPrefs`，新增必填 `class_restrictions`。每行的可信 consumer/current_scene 与可选 scene/kind/lifecycle 选择条件只收紧原权限；read 与 form 独立。合同提供 `isMemoryClassRestrictions` 严格拒绝未知字段/值和重复 selector（不按对象字段顺序区分）；同一选择条件即使决策不同也不能重复。`isCompleteMemoryPrefs` 只接受完整当前设置，旧数据转换由离线采用入口负责。输入省略数组保持原值，显式数组完整替换；重复 selector 的拒绝由 MemoryService 写入口再次执行，JSON Schema 不伪称可以表达该语义。验证入口为 `tests/memory-class-restrictions.test.ts`。
 
 
 让 Module、Host、Plugin 和 App 通过一致的输入输出协作。这里提供真实的公共类型、schema 和解析规则，而不是功能实现。
@@ -29,7 +35,10 @@ Home 插件的 `PluginDatabaseDeclaration` / `PluginDatabase` 从 `platform/plug
 | 文件 | 用途 |
 | --- | --- |
 | [src/modules/goals.ts](src/modules/goals.ts) | 目标 Command/Query 契约 |
-| [src/platform/plugin.ts](src/platform/plugin.ts) | Plugin Manifest 与运行协议 |
+| [src/platform/plugin.ts](src/platform/plugin.ts) | Plugin 运行协议（启动上下文、定义、Runtime）；`platform/plugin` 子路径的入口 |
+| [src/platform/plugin-manifest.ts](src/platform/plugin-manifest.ts) | Plugin Manifest 与各项声明 |
+| [src/platform/plugin-host-services.ts](src/platform/plugin-host-services.ts) | 插件拿到的平台服务（`PluginHostServices`） |
+| [src/platform/plugin-routes.ts](src/platform/plugin-routes.ts) | 插件路由的请求、回应与执行控制 |
 | [src/platform/app-host.ts](src/platform/app-host.ts) | Host Client 与 capability 契约 |
 | [package.json](package.json) | 完整公共 exports |
 
@@ -96,3 +105,10 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面测试待统筹构建槽验证；未跑不算通过。合同见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
 
 `AgentMemoryPreviewMutation` 的 `purge` 与 SDK 实际遗忘命令一致；`remove` 仍只是墓碑命令，两者不替换授权。
+
+`ActionCallContext.runtime_memory` 只由 Host 绑定原 Run 的插件、场景与分类限制，和 `runtime_session_id` 一起传递；不接受业务输入，不授予 Action 权限，不持久化第二份策略。
+
+
+### 明确续期（2026-10-24，实现中）
+
+`memory.change@4` 增加本人 renew 决定，输入为原 memory_id、所见 expected_version 和 UTC ISO expires_at；仅改期限，拒绝附带其他变更。AgentMemoryCapability 增加 renew 窄口，保留原 mutation/执行控制合同。历史/变更沿 edited，不新增历史 schema；SDK 包及公开 API/Action 快照由统筹统一更新。

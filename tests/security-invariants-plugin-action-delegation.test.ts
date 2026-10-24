@@ -6,6 +6,7 @@ import test, { type TestContext } from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
+import { currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { openTestHome } from "./fixtures/test-home.js";
 
 /**
@@ -305,6 +306,69 @@ test("W5-01-DELEGATE-03 S-43 a plugin calling its own action through services.ac
   const inner = selfcall.seen.at(-1)!;
   assert.equal(inner.audience, "user"); assert.deepEqual(inner.allowed_actions?.map(item => item.capability_id), [selfcall.action.capability_id]);
   assert.deepEqual(s.ran, []); assert.equal(selfcall.delivered(), null);
+});
+
+test("W5-01-DELEGATE-04 S-43 same-plugin invoke and directory delegation preserve the original runtime memory authority across audience changes", async t => {
+  const selfcall = delegateProbe("memoryselfcall");
+  const query: ActionDefinition = { ...HOME_OPEN, capability_id: "memoryselfcall.read", operation: "query",
+    action: { ...HOME_OPEN.action, kind: "query", permissions: ["storage:private"] } };
+  const runtimeMemory: NonNullable<ActionCallContext["runtime_memory"]> = { plugin_id: selfcall.id, current_scene: "coding",
+    class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [],
+      project: [{ selector: { consumer: "agent", current_scene: "coding", kind: "convention" }, read: "off", form: "inherit" }] } };
+  const originalPolicy = structuredClone(runtimeMemory), audiences: ActionAudience[] = [];
+  let observed = 0, projectId: string;
+  const inspectPluginView = (caller: ActionExecutionContext) => {
+    audiences.push(caller.audience);
+    assert.equal(Object.hasOwn(caller, "runtime_memory"), false, "the plugin cannot inspect the Host's Run snapshot");
+    assert.equal(caller.runtime_memory, undefined);
+    const fake = structuredClone(runtimeMemory);
+    fake.class_restrictions.project[0]!.read = "inherit";
+    Reflect.set(caller, "runtime_memory", fake);
+    assert.deepEqual(runtimeMemory, originalPolicy, "editing the plugin view cannot relax the original snapshot");
+  };
+  // Test-only Host observation of the public Runtime scope; the plugin callback receives only its projected view.
+  const observeHostCaller = () => {
+    const scope = currentPluginAction();
+    assert.ok(scope);
+    assert.equal(scope.definition.capability_id, query.capability_id);
+    const caller = scope.caller;
+    assert.equal(caller.actor_id, "agent:prologue");
+    assert.equal(caller.actor_kind, "runtime");
+    assert.equal(caller.audit_actor_id, "agent:prologue:memory-session");
+    assert.equal(caller.runtime_session_id, "memory-session");
+    assert.equal(caller.project_id, projectId);
+    assert.equal(caller.audience, "workflow");
+    assert.equal(caller.delegated_by, selfcall.id);
+    assert.equal(caller.runtime_memory, runtimeMemory, "the final invocation retains the original Host snapshot object");
+    assert.deepEqual(caller.runtime_memory, originalPolicy, "neither wrapper can substitute its permissive fake");
+    observed++;
+  };
+  const base = selfcall.definition;
+  selfcall.definition = { ...base, manifest: { ...base.manifest, actions: [selfcall.action, query] }, async start(context) {
+    const contribution = await base.start(context);
+    return { ...contribution, actions: [...(contribution.actions ?? []), { ...query, handle: caller => {
+      inspectPluginView(caller);
+      observeHostCaller();
+      return "done";
+    } }] };
+  } };
+  const s = await setup(t, [selfcall]);
+  projectId = s.project.project_id;
+  let depth = 0;
+  selfcall.behavior.handle = async (context, caller) => {
+    inspectPluginView(caller);
+    return depth++ === 0
+      ? context.services!.actions!.invoke(selfcall.action, { op: "query" }, caller)
+      : context.services!.actions!.directory!.invoke(ref(query), {});
+  };
+  const original: ActionCallContext = { ...s.caller, actor_id: "agent:prologue", actor_kind: "runtime", audience: "agent",
+    audit_actor_id: "agent:prologue:memory-session", runtime_session_id: "memory-session", runtime_memory: runtimeMemory };
+  assert.equal(await s.run({ op: "query" }, original, selfcall), "done");
+  assert.equal(depth, 2);
+  assert.deepEqual(audiences, ["agent", "user", "workflow"]);
+  assert.equal(observed, 1, "the declared query actually executed after both nested calls");
+  assert.equal(original.runtime_memory, runtimeMemory);
+  assert.deepEqual(original.runtime_memory, originalPolicy);
 });
 
 for (const mutation of ["source-stop", "source-revoke", "target-replace", "parent-revoke", "cancel"] as const) {

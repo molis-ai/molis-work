@@ -111,7 +111,7 @@ interface MemoryHostPorts {
  * this Home's person and the run's project, under the Agent consumer's switch. Null when there is no memory host yet.
  */
 export async function memoryForAgentRun(localHost: MolisWorkLocalHost, input: { project_id: string | null; task: string; used_for: string; plugin_id?: string;
-  character?: { artifact_id: string; title: string } }) {
+  character?: { artifact_id: string; title: string } }): ReturnType<MemoryService["forRun"]> {
   const host = memoryHostFor(localHost);
   if (!host) return null;
   return host.service.forRun({ actor_id: LOCAL_PERSON, project_id: input.project_id, consumer: "agent", ...(input.plugin_id ? { plugin_id: input.plugin_id } : {}), ...(input.character ? { character: { id: input.character.artifact_id, title: input.character.title } } : {}) },

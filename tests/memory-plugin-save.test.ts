@@ -108,7 +108,7 @@ test("two plugin replacements keep the original CAS version instead of overwriti
   const reached = new Promise<void>(resolve => { entered = resolve; }), wait = new Promise<void>(resolve => { release = resolve; });
   f.beforeUpdate(async request => { if (request.operation_id.startsWith("slow:")) { entered(); await wait; } });
   const stale = f.service.write(plugin("slow"), { ...input("Use monthly notes"), replaces: original.memory!.memory_id });
-  const rejected = assert.rejects(stale, { code: "STORAGE_CONFLICT" });
+  const rejected = assert.rejects(stale, { code: "agent.memory_conflict" });
   await reached;
   const winner = await f.service.write(plugin("winner"), { ...input("Use daily notes"), replaces: original.memory!.memory_id });
   release(); await rejected; f.beforeUpdate(undefined); await f.reopen();

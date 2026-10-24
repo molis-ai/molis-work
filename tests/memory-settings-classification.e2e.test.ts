@@ -7,6 +7,7 @@ import { ChromeHarness, locateTestChrome, type ChromePage } from "@molis-ai/moli
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, memoryActions, type MemoryChangeRequest, type MemoryPageResponse, type MemoryHistoryResponse } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryService } from "@molis-ai/molis-work-service-memory";
+import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { person } from "./fixtures/home-runtime.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
@@ -64,7 +65,7 @@ async function enterDeadline(page: ChromePage, selector: string, year: number) {
   assert.equal(await page.evaluate(`document.querySelector(${JSON.stringify(selector)}).value`), `${year}-10-24T16:45:30`);
 }
 
-async function setup(t: TestContext) {
+async function setup(t: TestContext, legacyText?: string) {
   const executable = locateTestChrome(); assert.ok(executable, "Chrome is required for the real classification journey");
   let browser: ChromeHarness | undefined, directory: string | undefined;
   // Close browser-held HTTP/WebSocket connections before the Home fixture closes its server.
@@ -73,9 +74,26 @@ async function setup(t: TestContext) {
   const request = (path: string) => fetch(env.origin + path, { headers: { origin: env.origin, "x-molis-work-control-token": env.controlToken } });
   const client = bindActionClient(env.host.actionClient(project.reference), () => person(MEMORY_PERMISSIONS, project.project_id));
   const expires = new Date(Date.now() + 86_400_000).toISOString();
-  const written = await client.invoke(memoryActions.write, { scope: "project", kind: "convention", text: "交付前逐条核对事实与来源", expires_at: expires });
-  assert.ok(written.memory);
-  const id = written.memory.memory_id;
+  let id: string;
+  if (legacyText) {
+    const system = ensureSystemAgentService(env.host, env.home); await system.ready;
+    const raw = system.agentHost.adapter("prologue").memory!.withCaller({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id,
+      person: true, consumer: "ui", purpose: "management", current_scene: "common" });
+    const old = await raw.write({ scope: "project", owner: project.project_id, operation_id: "legacy-original", text: legacyText, origin: "旧记录的原始来源",
+      meta: { kind: "fact", source: "manual", classification: { scenes: ["common"], lifecycle: "short-term" }, expires_at_ms: Date.parse(expires),
+        evidence: [{ kind: "observation", text: "保留原始依据" }], applies_when: { task: "交付前核对" } } });
+    id = old.memory_id;
+    const ledger = openMemoryLedger({ homeDirectory: env.home });
+    try {
+      assert.deepEqual(ledger.revisions(id), [], "the owner creates a missing legacy revision, never overwrites one");
+      ledger.addRevision(id, { version: old.version, text: legacyText, kind: "fact", applies: { task: "交付前核对" }, change: "created", by: "maintenance", at: new Date().toISOString() });
+    } finally { ledger.close(); }
+    const current = await client.invoke(memoryActions.change, { memory_id: id, expected_version: old.version, action: "update", text: "交付前逐条核对事实与来源", kind: "convention" });
+    await client.invoke(memoryActions.change, { memory_id: id, expected_version: current.memory!.version, action: "disable" });
+  } else {
+    const written = await client.invoke(memoryActions.write, { scope: "project", kind: "convention", text: "交付前逐条核对事实与来源", expires_at: expires });
+    assert.ok(written.memory); id = written.memory.memory_id;
+  }
   const requests: MemoryChangeRequest[] = [];
   const original = MemoryService.prototype.change;
   let loseReply = false;
@@ -141,6 +159,56 @@ async function setup(t: TestContext) {
 }
 
 // MEM-04/08/15/17/28/29/34: production settings + Action/HTTP + SDK + real Node storage; no model provider.
+test("legacy history requires consent for text-only use, preserves current facts and retries one committed operation across refresh", { timeout: 120_000 }, async t => {
+  const oldText = "较早记录的正文，不能代表旧分类或期限", f = await setup(t, oldText), { page, id } = f;
+  const before = await f.canonical(), historyBefore = await f.revisions();
+  assert.equal(historyBefore[0]!.snapshot_available, false); assert.equal(historyBefore[0]!.classification, null);
+  assert.equal(historyBefore[1]!.snapshot_available, true);
+  await history(page, id);
+  await page.evaluate(`document.querySelectorAll('${row(id)} .memory-history-list button').forEach(button => { if (button.textContent === '使用这段旧文字') button.dataset.legacyText = ''; })`);
+  await page.click("[data-legacy-text]"); await page.wait("document.querySelector('.memory-confirm[open]')");
+  assert.match(await page.evaluate<string>("document.querySelector('.memory-confirm').textContent"), /只替换正文，保留当前分类、适用条件、期限、来源和状态/);
+  await page.click(".memory-confirm button:not([data-memory-confirm-yes])");
+  await page.wait("!document.querySelector('.memory-confirm')");
+  assert.equal(f.deliveries.length, 0); assert.deepEqual(await f.canonical(), before); assert.deepEqual(await f.revisions(), historyBefore);
+  f.loseNextReply(); await page.click("[data-legacy-text]"); await page.click("[data-memory-confirm-yes]");
+  await page.wait(`!document.querySelector('${root} [data-memory-error]').hidden`);
+  const submitted = structuredClone(f.deliveries.at(-1)!);
+  assert.deepEqual(Object.keys(submitted).sort(), ["action", "expected_version", "memory_id", "operation_id", "text"].sort());
+  assert.equal(submitted.action, "update"); assert.equal(submitted.text, oldText); assert.equal(submitted.expected_version, before.version);
+  const applied = await f.canonical();
+  assert.equal(applied.text, oldText); assert.equal(applied.version, before.version + 1);
+  assert.deepEqual(applied.meta, before.meta); assert.equal(applied.origin, before.origin); assert.equal(applied.owner, before.owner);
+  assert.deepEqual(applied.disabled, before.disabled); assert.deepEqual(applied.paused, before.paused);
+  assert.equal((await f.current()).kind, "convention", "old revision kind is not restored");
+  assert.equal((await f.current()).state, "disabled"); assert.equal((await f.current()).expires_at, f.expires);
+  assert.equal((await f.current()).basis, null, "unknown basis stays unknown");
+  await page.click(root + " [data-memory-reload]"); await ready(page);
+  await page.click(root + " [data-memory-retry]"); await page.wait(`document.querySelector('${root} [data-memory-retries]').hidden`);
+  assert.deepEqual(f.deliveries.at(-1), submitted); assert.deepEqual(await f.canonical(), applied);
+  const afterHistory = await f.revisions(); assert.equal(afterHistory.length, historyBefore.length + 1);
+  assert.equal(afterHistory[0]!.snapshot_available, false); assert.equal(afterHistory.at(-1)!.snapshot_available, true);
+  const reopened = await f.restart(); assert.deepEqual(reopened.canonical, applied);
+  assert.equal(reopened.item!.text, oldText); assert.equal(reopened.item!.state, "disabled");
+});
+
+test("legacy text confirmation keeps its observed version and never overwrites a later edit", { timeout: 120_000 }, async t => {
+  const f = await setup(t, "旧文字不能覆盖另一次编辑"), { page, id } = f;
+  const observed = await f.current(); await history(page, id);
+  await page.evaluate(`document.querySelectorAll('${row(id)} .memory-history-list button').forEach(button => { if (button.textContent === '使用这段旧文字') button.dataset.legacyText = ''; })`);
+  await page.click("[data-legacy-text]"); await page.wait("document.querySelector('.memory-confirm[open]')");
+  await f.client.invoke(memoryActions.change, { memory_id: id, expected_version: observed.version, action: "update", text: "另一次已确认的正文" });
+  const newer = await f.canonical(), newerHistory = await f.revisions();
+  await page.click("[data-memory-confirm-yes]"); await page.wait(`!document.querySelector('${root} [data-memory-error]').hidden`);
+  assert.match(await page.evaluate<string>(`document.querySelector('${root} [data-memory-error]').textContent`), /记忆已变化/);
+  const original = structuredClone(f.deliveries.at(-1)!); assert.equal(original.expected_version, observed.version);
+  await page.click(root + " [data-memory-reload]"); await ready(page);
+  await page.click(root + " [data-memory-retry]");
+  await page.wait(`!document.querySelector('${root} [data-memory-retry]').disabled && !document.querySelector('${root} [data-memory-error]').hidden`);
+  assert.deepEqual(f.deliveries.at(-1), original); assert.deepEqual(await f.canonical(), newer); assert.deepEqual(await f.revisions(), newerHistory);
+  assert.deepEqual((await f.restart()).canonical, newer);
+});
+
 test("one Memory editor corrects all six formal kinds, preserves expiry/state, filters and restores same-text history", { timeout: 180_000 }, async t => {
   const f = await setup(t), { page, id } = f;
   await f.client.invoke(memoryActions.change, { memory_id: id, expected_version: (await f.current()).version, action: "disable" });

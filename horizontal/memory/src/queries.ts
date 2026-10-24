@@ -1,11 +1,12 @@
 import { MEMORY_KINDS, MEMORY_SOURCES, type MemoryCandidate, type MemoryCandidateRecord, type MemoryScope, type MemoryItem, type MemoryLedgerPort,
   type MemoryListRequest, type MemoryListResponse, type MemoryManagementItem, type MemoryManagementKind,
   type MemoryChange, type MemoryHistoryResponse, type MemoryPageRequest, type MemoryPageResponse } from "@molis-ai/molis-work-contracts/services/memory";
-import type { MemoryBackendPort } from "./backend.js";
+import type { MemoryBackendEntry, MemoryBackendPort } from "./backend.js";
 import type { MemoryCaller } from "./service.js";
 import { MemoryScopeCommands } from "./scope-commands.js";
 import { fromEntryMeta } from "./facts.js";
 import { consumerAccess } from "./prefs.js";
+import { formationReferenceAllowed, type FormationSnapshot } from "./formation.js";
 import { isExpired, personOnly, visibleTo } from "./places.js";
 import { changeView, revisionView } from "./shapes.js";
 import { memoryErrors } from "./errors.js";
@@ -45,6 +46,7 @@ export class MemoryQueries {
   async list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> {
     const scopes = this.ports.scopes.scopesFor(caller, request.scope === "all" || !request.scope ? undefined : [request.scope]);
     const items: MemoryItem[] = [], readScopes: typeof scopes = [];
+    const readTargets: Array<{ where: typeof scopes[number]; target: MemoryBackendEntry["meta"] }> = [];
     let personal = 0, project = 0;
     for (const where of scopes) {
       if (!caller.person) {
@@ -54,6 +56,7 @@ export class MemoryQueries {
       readScopes.push(where);
       for (const located of await this.ports.scopes.located(caller, where.scope, where.owner)) {
         if (!visibleTo(caller, located.meta)) continue;
+        readTargets.push({ where, target: located.entry.meta });
         if (where.scope === "personal") personal += 1; else project += 1;
         const item = this.ports.scopes.item(located);
         if (request.kinds?.length && !request.kinds.some(kind => kind === item.kind)) continue;
@@ -64,13 +67,17 @@ export class MemoryQueries {
       }
     }
     items.sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
-    const weekAgo = this.ports.now().getTime() - 7 * 24 * 60 * 60 * 1000;
-    const owners = new Set(scopes.map(where => `${where.scope}:${where.owner}`));
-    const auto_this_week = this.ports.ledger.changes(caller.actor_id, 500).filter(change => change.kind === "auto_kept" && change.state === "active"
-      && owners.has(`${change.scope}:${change.owner}`) && Date.parse(change.at) >= weekAgo).length;
-    const pending = (await this.ports.candidates(caller, { scope: request.scope ?? "all" })).length;
+    let auto_this_week: number | null = null, pending: number | null = null;
+    if (caller.person) {
+      const weekAgo = this.ports.now().getTime() - 7 * 24 * 60 * 60 * 1000;
+      const owners = new Set(scopes.map(where => `${where.scope}:${where.owner}`));
+      auto_this_week = this.ports.ledger.changes(caller.actor_id, 500).filter(change => change.kind === "auto_kept" && change.state === "active"
+        && owners.has(`${change.scope}:${change.owner}`) && Date.parse(change.at) >= weekAgo).length;
+      pending = (await this.ports.candidates(caller, { scope: request.scope ?? "all" })).length;
+    }
     caller.signal?.throwIfAborted();
-    if (!caller.person && readScopes.some(where => !consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed))
+    if (!caller.person && (readScopes.some(where => !consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed)
+      || readTargets.some(({ where, target }) => !formationReferenceAllowed(caller, this.ports.scopes.prefsAt(caller.actor_id, where), where.scope, target, "read"))))
       throw memoryErrors.forbidden("记忆读取权限已变化，请重新查看");
     return { items, counts: { personal, project, auto_this_week, pending } };
   }
@@ -137,14 +144,23 @@ export class MemoryQueries {
   }
 
   /** Join the ledger's notes with the current candidate owner; reading never repairs missing facts. */
-  async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string): Promise<MemoryCandidateRecord[]> {
-    const held = new Map((await this.ports.backend.withCaller(caller).candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
-    const out: MemoryCandidateRecord[] = [];
+  async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string, options: { formation?: boolean } = {}): Promise<FormationSnapshot["pending"]> {
+    const candidates = this.ports.backend.withCaller(caller).candidates;
+    const held = new Map((await candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
+    const out: FormationSnapshot["pending"] = [];
     for (const note of this.ports.ledger.candidates(caller.actor_id).filter(item => item.scope === scope && item.owner === owner)) {
-      const found = held.get(note.candidate_id);
+      let found = held.get(note.candidate_id);
+      if (!found && options.formation && !caller.person) {
+        try { found = await candidates.get({ scope, owner, candidate_id: note.candidate_id, ...(caller.signal ? { signal: caller.signal } : {}) }); }
+        catch (error) {
+          caller.signal?.throwIfAborted();
+          if (error instanceof Error && "code" in error && error.code === "MEMORY_SCOPE_DENIED") continue;
+          throw error;
+        }
+      }
       if (!found) throw memoryErrors.not_found("记忆建议的原记录不可读；请核对存储后继续");
       const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
-      out.push({ ...note, version: found.version, state, memory_id: found.memory_id ?? note.memory_id });
+      out.push({ note: { ...note, text: found.text, version: found.version, state, memory_id: found.memory_id ?? note.memory_id }, entry: found });
     }
     return out;
   }
@@ -153,7 +169,7 @@ export class MemoryQueries {
     const note = this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === candidateId);
     if (!note) throw memoryErrors.not_found("没有这条建议");
     const holder = caller.person && caller.project_id === null ? { ...caller, project_id: note.project_id } : caller;
-    const record = (await this.candidateRecords(holder, note.scope, note.owner)).find(item => item.candidate_id === candidateId);
+    const record = (await this.candidateRecords(holder, note.scope, note.owner)).find(item => item.note.candidate_id === candidateId)?.note;
     if (!record) throw memoryErrors.not_found("没有这条建议");
     return record;
   }

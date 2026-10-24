@@ -525,8 +525,14 @@ jobs:
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
   # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
   # writes its report on that signal, and the upload below is `if: always()`.
+  # Two disjoint shards cover the same full list once; each keeps the phase/attempt limits above.
+  # fail-fast is off so one failed shard does not hide the other shard's results.
   product-subset:
-    name: Product subset (not required yet)
+    name: Product subset (not required yet, ${{ matrix.shard }}/2)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`.
     if: ${{ github.event_name != 'merge_group' }}
     runs-on: ubuntu-latest
@@ -564,13 +570,13 @@ jobs:
 
       # `exec` makes the runner the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
       - name: Run the product subset
-        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --out "$RUNNER_TEMP/product-subset" --jobs 4 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
+        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --shard ${{ matrix.shard }}/2 --out "$RUNNER_TEMP/product-subset" --jobs 4 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
 
       - name: Keep the report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: product-subset
+          name: product-subset-${{ matrix.shard }}
           path: ${{ runner.temp }}/product-subset
           retention-days: 30
           if-no-files-found: warn

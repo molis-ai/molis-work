@@ -246,8 +246,14 @@ test("a pending SDK commit reserves the change request against a later classific
   const committing = new Promise<void>(resolve => { entered = resolve; }), resume = new Promise<void>(resolve => { release = resolve; });
   const competing = new Promise<void>(resolve => { queued = resolve; });
   t.after(() => release());
+  let updating = false;
+  const controlled = prologueMemoryBackend(async () => f.memory(), {
+    beforeEffect: async () => { if (updating) { entered(); await resume; } }, assert_current() {} });
   const waitingService = new MemoryService({ ledger: f.ledger(), now: () => new Date(START),
-    backend: prologueMemoryBackend(async () => f.memory(), { beforeEffect: async () => { entered(); await resume; }, assert_current() {} }) });
+    // Authority also checks reads; hold the update's real SDK guard after the request has claimed its target.
+    backend: observeMemoryBackend(controlled, bound => ({ ...bound, update: async input => {
+      updating = true; try { return await bound.update(input); } finally { updating = false; }
+    } })) });
   const competingService = new MemoryService({ ledger: f.ledger(), now: () => new Date(START), backend: observeMemoryBackend(f.raw(), bound => ({ ...bound,
     setMeta: async input => { queued(); return bound.setMeta(input); } })) });
   const who = caller("commit-interleaved-request");

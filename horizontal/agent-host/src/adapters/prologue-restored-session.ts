@@ -17,7 +17,8 @@ export function restoredSessionRecords(restored: PrologueRestoredSession): { ses
       stop: unavailable, pause: unavailable, resume: unavailable, steer: unavailable, subscribe: () => () => {} };
     const view: AgentRunView = { ref: saved.ref, frozen: saved.frozen, started_at: saved.started_at, ended_at: endedAt,
       phase: state.phase, turns: [], activity: [], usage: state.usage, awaiting_input: [],
-      ...(saved.original_input ? { original_input: structuredClone(saved.original_input) } : {}) };
+      ...(saved.original_input ? { original_input: structuredClone(saved.original_input) } : {}),
+      ...(saved.memory_context?.class_restrictions ? { class_restrictions: structuredClone(saved.memory_context.class_restrictions), memory_scene: saved.memory_context.current_scene } : {}) };
     records.push({ view, state, control, unsubscribe: () => {}, listeners: new Set(), timingReady: true,
       ...(saved.memory_context ? { memory_context: saved.memory_context } : {}) });
     session.runs.push(saved.ref);

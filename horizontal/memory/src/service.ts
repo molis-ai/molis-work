@@ -47,8 +47,10 @@ import {
   type MemoryWriteResult,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
+import { memoryRunRecipe, type MemoryRunRecipe } from "./run-recipe.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations, type MemoryPurgeTarget } from "./operations.js";
+import { EXPLICIT_SOURCES, MemoryDuplicates } from "./duplicates.js";
 import { MemoryMoves } from "./moves.js";
 import { MemoryUpkeep } from "./upkeep.js";
 import { memoryUses } from "./usage.js";
@@ -62,6 +64,7 @@ import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
 import { MemoryEdits } from "./edits.js";
 import { newMemoryClassification } from "./classification.js";
 import { MemoryBatches } from "./batches.js";
+import { formationReferenceAllowed } from "./formation.js";
 import { MemoryQueries, type MemoryPageLimits } from "./queries.js";
 import { MemoryScopeCommands, type Located } from "./scope-commands.js";
 import type { AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory, AgentMemorySourceRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -73,6 +76,8 @@ import type { MemoryBackendEntry, MemoryBackendPort, MemoryBackendCandidate } fr
 
 /** Who is asking, from the trusted Host context. Never read from input. */
 export interface MemoryCaller {
+  /** Host-owned policy of the original Run; never accepted from an Action input. */
+  readonly class_restrictions?: AgentRecalledMemory["class_restrictions"];
   actor_id: string;
   /** A trusted logical invocation; retries retain it and any persisted child operation identities. */
   operation_id?: string;
@@ -132,7 +137,6 @@ const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const PENDING_PER_WORK = 3;
 /** What Prologue's `redactText` puts where a credential was. */
 const REDACTED_CREDENTIAL = "[redacted]";
-const EXPLICIT_SOURCES: readonly MemorySource[] = ["said", "manual", "accepted", "imported"];
 /** Written by a policy rather than by the person: what an automatic change may take back. */
 const AUTOMATIC_SOURCES: readonly MemorySource[] = ["auto", "plugin"];
 /** Two memories at least this alike (character pairs) may be about the same thing: upkeep's bar for putting the pair to the person. */
@@ -156,6 +160,7 @@ export class MemoryService {
   private readonly queries: MemoryQueries;
   private readonly edits: MemoryEdits;
   private readonly moves: MemoryMoves;
+  private readonly duplicates: MemoryDuplicates;
 
   constructor(private readonly ports: MemoryServicePorts) {
     this.preferences = new MemoryPreferences(ports.ledger);
@@ -176,9 +181,13 @@ export class MemoryService {
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
     this.edits = new MemoryEdits({ backend: ports.backend, ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands, now: this.now,
+      beforeEffect: () => ports.beforeEffect?.(),
       record: (caller, input) => this.recordChange(caller, input) });
     this.queries = new MemoryQueries({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, now: this.now,
       limits: ports.managementPages, candidates: (caller, request) => this.candidates(caller, request) });
+    this.duplicates = new MemoryDuplicates({ ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
+      promotions: this.promotions, beforeEffect: ports.beforeEffect,
+      saveFacts: (caller, located, meta, before) => this.saveFacts(caller, located, meta, before) });
     this.moves = new MemoryMoves({ backend: ports.backend, ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
       preferences: this.preferences, date: at => this.date(at), bindTarget: ports.bindChangeTarget,
       purge: (caller, target, version) => this.purge(caller, target, version),
@@ -291,21 +300,8 @@ export class MemoryService {
   }
 
   /** Build a trusted recipe without reading memory bodies or recording unconfirmed use. */
-  async forRun(caller: MemoryCaller, request: MemoryRecallRequest, options: { skip?: boolean; budgetTokens?: number } = {}): Promise<(AgentRecalledMemory & {
-    receipt_id: string; omitted: Array<{ memory_id: string; reason: "budget" | "limit" | "conflict" }>;
-  }) | null> {
-    const places = this.scopeCommands.scopesFor(caller, request.scopes);
-    const automatic = !options.skip && places.some(where => consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, "task").allowed);
-    const plugin = caller.plugin_id ?? request.situation?.plugin_id;
-    const facts = { ...(plugin ? { plugins: [plugin] } : {}),
-      ...(request.situation?.object_kind ? { object_kinds: [request.situation.object_kind] } : {}),
-      ...(request.situation?.goal_id ? { goals: [request.situation.goal_id] } : {}) };
-    return { pinned: [], consumer: caller.consumer, usage: { title: useTitle(caller, request.used_for), ...(caller.work ? { work_id: caller.work.work_id } : {}) },
-      current_scene: caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common"),
-      scopes: places.map(where => ({ scope: where.scope === "personal" ? "user" : where.scope, owner: where.owner })),
-      task: automatic, skip: !automatic, budget_tokens: options.budgetTokens ?? 800,
-      budget_chars: Math.max(100, Math.min(4000, request.budget_chars ?? 3000)),
-      ...(Object.keys(facts).length ? { facts } : {}), receipt_id: `recall-${this.newId()}`, omitted: [] };
+  async forRun(caller: MemoryCaller, request: MemoryRecallRequest, options: { skip?: boolean; budgetTokens?: number } = {}): Promise<MemoryRunRecipe | null> {
+    return memoryRunRecipe(caller, request, options, { scopes: this.scopeCommands, preferences: this.preferences, newId: () => this.newId() });
   }
 
   /* ---- writing ---- */
@@ -391,37 +387,24 @@ export class MemoryService {
     const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
       ? "这段话像是在给 AI 下指令（例如要求忽略规则或跳过确认），不能自动记住，需要你看过再决定"
       : screened && screened.redacted !== text ? "这段话里有本机文件路径之类的内容，先请你看一下再决定记不记" : unsaid;
-    const same = entries.find(located => sameWords(located.entry.text, text) && visibleTo(caller, located.meta)
-      && (!input.retainedMeta || isDeepStrictEqual(
-        [located.entry.meta.classification, located.entry.meta.session_ref, located.entry.meta.namespace, located.meta.expires_at, located.meta.kind, located.meta.applies],
-        [input.retainedMeta.classification, input.retainedMeta.session_ref, input.retainedMeta.namespace, input.expires_at, input.kind, input.applies])));
-    if (same && !retrying) {
-      // Said again: an automatic one becomes the person's own when its text is the same words as theirs (for “they said it”, `text` is their message itself), not merely alike in its marks.
-      if (EXPLICIT_SOURCES.includes(input.source) && same.meta.source === "auto" && !unsaid) {
-        await this.saveFacts(caller,same, { ...same.meta, source: input.source, basis: input.basis,
-          approved_by: input.approved_by, evidence: [...same.meta.evidence, ...input.evidence].slice(-6), updated_at: this.now().toISOString() });
-        disownAutomatic(this.ports.ledger, same.entry.memory_id);
-      }
-      if (!unsaid) this.promotions.link(caller.actor_id, same.entry.memory_id, input.sources ?? []);
-      return { outcome: "duplicate", reason: same.meta.state === "disabled" ? "已经记着这一条（目前停用）" : "已经记着这一条了", applies_text: appliesText,
-        memory: this.scopeCommands.item(await this.scopeCommands.find(caller, same.entry.memory_id)), candidate: null, change_id: null };
-    }
+    const duplicate = await this.duplicates.settle(caller, { ...input, text }, entries, retrying, unsaid, appliesText);
+    if (duplicate) return duplicate;
     if (input.replaces && !target) throw memoryErrors.not_found("要替换的那条记忆不在这个范围里（可能已删除，或属于别的范围）");
     const asCandidate = async (why: string, basis: MemoryBasis | null = input.basis): Promise<MemoryWriteResult> => {
       if (!formationKind) return refused("正式扩展类别不能自动形成候选");
       if (basis === null) return refused("原记忆依据未知，不能替它生成新的候选依据");
-      // Already waiting (suggested once before): it keeps waiting, now saying why it was not kept automatically.
-      const waiting = input.candidate_id ? this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === input.candidate_id) : undefined;
-      if (waiting) {
-        const held: MemoryCandidateRecord = { ...waiting, hold_reason: why, ...(input.why ? { why: input.why.slice(0, 300) } : {}) };
-        this.ports.ledger.saveCandidate(held);
-        return { outcome: "candidate", reason: why, applies_text: appliesText, memory: null, candidate: candidateView(held), change_id: null };
+      const waiting = input.candidate_id ? (await this.queries.candidateRecords(caller, input.scope, where.owner)).find(item => item.note.candidate_id === input.candidate_id)?.note : undefined;
+      await this.ports.beforeEffect?.();
+      if (input.candidate_id || this.operations.find(caller, "candidate-hold")) {
+        const held = this.operations.holdCandidate(caller, waiting, input, why);
+        return { outcome: "candidate", reason: held.hold_reason ?? why, applies_text: appliesText, memory: null, candidate: candidateView(held), change_id: null };
       }
       const candidate = await this.propose(caller, { scope: input.scope, text, kind: formationKind, applies: input.applies, basis, why: input.why ?? why,
         from: input.from ?? "gate", hold_reason: why, supersedes: target?.entry.memory_id ?? null }, { gate: true, classificationMeta: target?.entry.meta ?? input.retainedMeta ?? input.classificationMeta ?? {},
         formal_expires_at: input.expires_at ?? target?.meta.expires_at ?? null, ...(input.sources ? { sources: input.sources } : {}) });
       return { outcome: "candidate", reason: why, applies_text: appliesText, memory: null, candidate, change_id: null };
     };
+    if (this.operations.find(caller, "candidate-hold")) return asCandidate(hold ?? "等你认可");
     if (hold) return asCandidate(hold, hold === unsaid ? "inferred" : input.basis);
     if (target && input.basis === "inferred" && EXPLICIT_SOURCES.includes(target.meta.source)) return asCandidate("推断出来的内容不能覆盖你明确说过的，先请你看一下");
     if (input.source === "auto") {
@@ -551,7 +534,7 @@ export class MemoryService {
     const at = stamp.at;
     const by = "person" as const;
     switch (request.action) {
-      case "update": case "reclassify": case "restore": return this.edits.apply(caller, located, request, at, undoing);
+      case "renew": case "update": case "reclassify": case "restore": return this.edits.apply(caller, located, request, at, undoing);
       case "disable": case "enable": {
         // Asked by the person through the Assistant: switched off in the Assistant's name, and the person can switch it back on.
         const assistant = !caller.person;
@@ -588,7 +571,7 @@ export class MemoryService {
     for (const where of owners.values()) {
       if (!caller.person && !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed) continue;
       const holder = anywhere ? { ...caller, project_id: where.project } : caller;
-      for (const record of await this.queries.candidateRecords(holder, where.scope, where.owner)) {
+      for (const { note: record } of await this.queries.candidateRecords(holder, where.scope, where.owner)) {
         if (record.state !== "pending") continue;
         if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
         if (Date.parse(record.created_at) < stale) { await this.settleCandidate(holder,record, "expired"); continue; }
@@ -600,7 +583,7 @@ export class MemoryService {
 
   /**
    * Suggest keeping something the person did not ask for (spec §6.1): a candidate only, until they accept it. The
-   * first version's rules hold: one suggestion of the same text ever, at most three waiting per work, never what is kept.
+   * In the authorized canonical candidate set: suggest the same text once, at most three waiting per work, never what is kept.
    */
   async propose(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
     from: MemoryCandidate["from"]; hold_reason?: string | null; supersedes?: string | null; evidence?: MemoryEvidenceInput[] }, options: { gate?: boolean; classificationMeta?: Pick<AgentMemoryMeta, "classification" | "session_ref" | "namespace">; formal_expires_at?: string | null; sources?: readonly AgentMemorySourceRef[]; combines?: string } = {}): Promise<MemoryCandidate> {
@@ -611,10 +594,18 @@ export class MemoryService {
     const text = input.text.trim();
     if (!text || text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 1–${MAX_TEXT} 字之间`);
     if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
-    const earlier = await this.queries.candidateRecords(caller, input.scope, where.owner);
+    // Candidate context is internal formation work; formal reads and the proposal retain the original caller.
+    const candidateCaller: MemoryCaller = { ...caller, purpose: "management", source_use: caller.source_use === "learning" ? "learning" : "explicit" };
+    const captured = await this.queries.candidateRecords(candidateCaller, input.scope, where.owner, { formation: true });
     const work = caller.work ?? null;
     if (options.sources && !this.sourceAllowed(caller.actor_id, input.scope, where.owner, options.sources)) throw memoryErrors.forbidden("这份来源已遗忘，不能重新形成候选");
-    const prior = options.combines ? (await this.ports.backend.withCaller(caller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
+    const prior = options.combines ? (await this.ports.backend.withCaller(candidateCaller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
+    const entries = !this.operations.find(caller, "propose") || input.supersedes ? await this.scopeCommands.located(caller, input.scope, where.owner) : [];
+    const target = input.supersedes ? entries.find(item => item.entry.memory_id === input.supersedes) : undefined;
+    caller.signal?.throwIfAborted();
+    // All canonical reads have finished. Revoked candidates cannot influence deduplication or this work's quota.
+    const prefs = this.scopeCommands.prefsAt(caller.actor_id, where);
+    const earlier = captured.filter(row => caller.person || formationReferenceAllowed(candidateCaller, prefs, input.scope, row.entry.meta, "form")).map(row => row.note);
     const combines = prior?.state === "pending" && prior.sources?.length && options.sources
       && prior.sources.every(old => options.sources!.some(ref => ref.event_id === old.event_id && ref.version === old.version))
       && options.sources.some(ref => !prior.sources!.some(old => old.event_id === ref.event_id))
@@ -624,10 +615,9 @@ export class MemoryService {
     if (!this.operations.find(caller, "propose") && earlier.some(item => !(combines && item.candidate_id === options.combines) && item.state !== "expired" && (sameText(item.text, text)
       || (item.state === "pending" && work !== null && item.work?.work_id === work.work_id && similarity(item.text, text) >= 0.6))))
       throw memoryErrors.invalid("这条已经建议过了（用户认可、拒绝或还在等），不要再提");
-    if (!this.operations.find(caller, "propose") && (await this.scopeCommands.located(caller, input.scope, where.owner)).some(located => sameWords(located.entry.text, text))) throw memoryErrors.invalid("已经记着这一条了");
+    if (!this.operations.find(caller, "propose") && entries.some(located => sameWords(located.entry.text, text))) throw memoryErrors.invalid("已经记着这一条了");
     if (!this.operations.find(caller, "propose") && work && earlier.filter(item => item.work?.work_id === work.work_id && item.state === "pending").length >= PENDING_PER_WORK)
       throw memoryErrors.limit(`这项工作已有 ${PENDING_PER_WORK} 条建议在等用户，先不要再提`);
-    const target = input.supersedes ? (await this.scopeCommands.located(caller, input.scope, where.owner)).find(item => item.entry.memory_id === input.supersedes) : undefined;
     const formalExpiry = options.formal_expires_at === undefined ? target?.meta.expires_at ?? null : options.formal_expires_at;
     if (formalExpiry !== null && !Number.isFinite(Date.parse(formalExpiry))) throw memoryErrors.invalid("候选的正式期限不合格");
     const retained: AgentMemoryMeta = options.classificationMeta ?? target?.entry.meta ?? newMemoryClassification(caller, formalExpiry);

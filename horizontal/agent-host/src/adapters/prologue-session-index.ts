@@ -27,7 +27,7 @@ export interface SessionIndex {
     original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
     original_input_ref?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInputRef;
     /** Trusted applicability facts for this attempt; body-free and never inferred from the model's query. */
-    memory_context?: { consumer: string; current_scene: string; facts?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["facts"]; usage?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["usage"] };
+    memory_context?: { class_restrictions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryClassPolicy; consumer: string; current_scene: string; facts?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["facts"]; usage?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["usage"] };
     /** The round's after-write checks, by the SDK's key for each: which checker answered (prologue-after-write.ts). */
     write_checks?: Record<string, AgentWriteCheckNote> }>;
   rewinds?: PrologueRewindIntent[];

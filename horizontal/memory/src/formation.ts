@@ -1,5 +1,5 @@
 import type { AgentMemorySourceRef, AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MEMORY_KINDS, type MemoryCandidateRecord, type MemoryKind, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_KINDS, MEMORY_LIFECYCLES, type MemoryPrefs, type MemoryCandidateRecord, type MemoryKind, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendCandidate, MemoryFormationInput } from "./backend.js";
 import type { MemoryCaller } from "./service.js";
 import type { Located } from "./scope-commands.js";
@@ -9,6 +9,8 @@ import { automaticMemoryHold } from "./policy.js";
 import { theirWords } from "./spoken.js";
 import { looksLikeInstruction, sameWords } from "./text.js";
 import { memoryErrors } from "./errors.js";
+import { consumerAccess } from "./prefs.js";
+import { memoryClassReadPossible, memoryClassReadAllowed, memoryClassFormationAllowed, type MemoryClassTarget } from "./class-restrictions.js";
 
 export interface FormationPlace { scope: MemoryScope; owner: string; project: string | null; auto: boolean; kinds: readonly MemoryKind[] }
 export interface FormationSnapshot {
@@ -18,6 +20,49 @@ export interface FormationSnapshot {
 }
 export type FormationSlot = NonNullable<MemoryFormationInput["slots"]>[number];
 const WAITING_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Current and Run-frozen restrictions share the same canonical target; they cannot restore one another. */
+export function formationClassAllowed(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope, target: MemoryClassTarget): boolean {
+  const context = { consumer: caller.consumer, current_scene: newMemoryClassification(caller, null).classification!.scenes[0]! };
+  const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"];
+  return memoryClassFormationAllowed(prefs.class_restrictions, context, target)
+    && (!frozen || memoryClassFormationAllowed(frozen, context, target));
+}
+
+/** An unreadable scope must not hydrate formal bodies merely to discard them later. */
+export function formationReadPossible(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope): boolean {
+  if (caller.session_id && !caller.class_restrictions) return false;
+  const access = consumerAccess(prefs, caller.consumer, caller.plugin_id, "task");
+  const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, "task") : undefined;
+  if (!access.allowed || (plugin && !plugin.allowed)) return false;
+  const kinds = access.kinds && plugin?.kinds ? access.kinds.filter(kind => plugin.kinds!.includes(kind)) : access.kinds ?? plugin?.kinds;
+  if (kinds?.length === 0) return false;
+  const context = { consumer: caller.consumer, current_scene: newMemoryClassification(caller, null).classification!.scenes[0]! };
+  const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"];
+  return memoryClassReadPossible([...prefs.class_restrictions, ...(frozen ?? [])], context, "task", kinds ? { kinds } : {});
+}
+
+/** Recheck already-captured context synchronously after the last asynchronous canonical read. */
+export function formationReferenceAllowed(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope, target: MemoryClassTarget, mode: "read" | "form"): boolean {
+  if (caller.session_id && !caller.class_restrictions) return false;
+  const accessMode = mode === "read" ? "task" : "explicit";
+  const access = consumerAccess(prefs, caller.consumer, caller.plugin_id, accessMode);
+  const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, accessMode) : undefined;
+  if (!access.allowed || (plugin && !plugin.allowed)
+    || (target.kind && (access.kinds && !access.kinds.some(kind => kind === target.kind) || plugin?.kinds && !plugin.kinds.some(kind => kind === target.kind)))) return false;
+  if (mode === "form") return prefs.form && (caller.source_use === "explicit" || prefs.learn_from_work) && formationClassAllowed(caller, prefs, scope, target);
+  const context = { consumer: caller.consumer, current_scene: newMemoryClassification(caller, null).classification!.scenes[0]! };
+  const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"];
+  return memoryClassReadAllowed(prefs.class_restrictions, context, target, "task")
+    && (!frozen || memoryClassReadAllowed(frozen, context, target, "task"));
+}
+
+/** Keep a kind if a new or replacement destination in the declared current scenes could still be formed. */
+export function formationKindPossible(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope, kind: MemoryKind): boolean {
+  const scene = newMemoryClassification(caller, null).classification!.scenes[0]!;
+  return [scene, "common"].some(value => MEMORY_LIFECYCLES.some(lifecycle =>
+    formationClassAllowed(caller, prefs, scope, { kind, classification: { scenes: [value], lifecycle } })));
+}
 
 /** Pending review context is not formal recall: apply the App's current scene and private namespace boundary. */
 export function formationPending(caller: MemoryCaller, entry: MemoryBackendCandidate): boolean {

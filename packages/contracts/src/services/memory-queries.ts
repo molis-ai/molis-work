@@ -12,7 +12,8 @@ export interface MemoryListRequest {
 
 export interface MemoryListResponse {
   items: MemoryItem[];
-  counts: { personal: number; project: number; auto_this_week: number; pending: number };
+  /** Management counts are null when this caller did not query them; null never means zero. */
+  counts: { personal: number; project: number; auto_this_week: number | null; pending: number | null };
 }
 
 /** Management displays all declared kinds; write and formation retain their narrower product contract. */

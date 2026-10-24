@@ -6,6 +6,7 @@ import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentStartExec
 export interface PrologueEffects {
   readonly host: PrologueHost;
   call<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T>;
+  memory<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T>;
   start<T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T>;
   session(target: Session): Session;
   beforeEffect(): Promise<void>;
@@ -17,11 +18,14 @@ export interface PrologueEffects {
 
 /** Per-invocation SDK commit checks; accepted runs detach from the start call before driving background work. */
 export function prologueEffects(host: PrologueHost): PrologueEffects {
-  const calls = new AsyncLocalStorage<{ control: AgentMemoryExecutionControl; active: boolean; accepted: boolean }>();
+  const calls = new AsyncLocalStorage<{ control: AgentMemoryExecutionControl; active: boolean; accepted: boolean; memory: boolean }>();
   const beforeEffect = async () => { const frame = calls.getStore(); if (frame?.active) await frame.control.beforeEffect(); };
   const assertCurrent = () => { const frame = calls.getStore(); if (frame?.active) requireSynchronous(frame.control.assert_current(), "最终授权检查必须同步完成"); };
   const commit = <T>(write: () => Promise<T>): Promise<T> => {
     if (!calls.getStore()?.active) return write();
+    // Memory's async gate runs before SDK authorization. Do not reopen an async window
+    // after the SDK has checked the exact target's final authority fence.
+    if (calls.getStore()?.memory) { assertCurrent(); return write(); }
     return (async () => { await beforeEffect(); assertCurrent(); return write(); })();
   };
   const storage: PrologueHost["storage"] = {
@@ -37,11 +41,11 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
       const value: unknown = Reflect.get(object, key);
       if (key === "candidates" && value && typeof value === "object") return wrap(value, control);
       if (typeof value !== "function") return value;
-      return (...args: unknown[]) => calls.run({ control, active: true, accepted: false }, () => Reflect.apply(value, object, args));
+      return (...args: unknown[]) => call(control, () => Reflect.apply(value, object, args), true);
     },
   });
-  const call = <T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T> => {
-    const frame = { control, active: true, accepted: false };
+  const call = <T>(control: AgentMemoryExecutionControl, work: () => Promise<T>, memory = false): Promise<T> => {
+    const frame = { control, active: true, accepted: false, memory };
     return calls.run(frame, work);
   };
   const start = <T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T> => {
@@ -57,5 +61,5 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
     };
     const value: unknown = Reflect.get(object, key); return typeof value === "function" ? value.bind(object) : value;
   } });
-  return { host: { ...host, storage }, call, start, session, beforeEffect, assertCurrent, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
+  return { host: { ...host, storage }, call, memory: (control, work) => call(control, work, true), start, session, beforeEffect, assertCurrent, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
 }

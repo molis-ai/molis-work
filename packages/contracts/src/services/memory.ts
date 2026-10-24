@@ -49,6 +49,16 @@ export const MEMORY_KINDS: readonly MemoryKind[] = ["preference", "convention", 
 export const MEMORY_FORMAL_KINDS: readonly MemoryFormalKind[] = [...MEMORY_KINDS, "habit", "project-decision"];
 export const MEMORY_SOURCES: readonly MemorySource[] = ["said", "accepted", "auto", "imported", "manual", "plugin"];
 export const MEMORY_CONSUMERS: readonly MemoryConsumer[] = ["assistant", "agent", "ui", "plugin", "mcp"];
+export const MEMORY_SCENES = ["coding", "assistant", "common"] as const;
+export const MEMORY_LIFECYCLES = ["session", "short-term", "long-term"] as const;
+
+/** Restrictions only: matching never grants access beyond existing permissions. */
+export interface MemoryClassRestriction {
+  selector: { consumer: MemoryConsumer; current_scene: typeof MEMORY_SCENES[number];
+    scene?: typeof MEMORY_SCENES[number]; kind?: MemoryFormalKind; lifecycle?: typeof MEMORY_LIFECYCLES[number] };
+  read: "inherit" | "explicit-only" | "off";
+  form: "inherit" | "off";
+}
 
 /**
  * When a memory applies. Every field that is present must match (plugin, object kind and Goal by id, the time window
@@ -199,6 +209,8 @@ export interface MemoryPrefs {
   consumers: Record<MemoryConsumer, boolean>;
   /** Per plugin: whether it may read, and which kinds. Absent: plugins follow `consumers.plugin` with preferences and conventions only. */
   plugins: Record<string, { allowed: boolean; kinds: MemoryKind[] }>;
+  /** Updates replace this profile's array; omission keeps it. */
+  class_restrictions: MemoryClassRestriction[];
 }
 
 export type MemoryPreset = "off" | "manual" | "reviewed" | "assisted";
@@ -313,11 +325,12 @@ export interface MemoryChangeRequest {
   memory_id: string;
   /** Observed current version; distinct from the historical version selected by restore. */
   expected_version?: number;
-  action: "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
+  action: "renew" | "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
   text?: string;
   kind?: MemoryFormalKind;
   classification?: MemoryClassificationCorrection;
   applies?: MemoryApplies;
+  /** renew requires the explicit canonical UTC ISO instant produced by Date.toISOString(); never null. */
   expires_at?: string | null;
   /** restore: the version to go back to. */
   version?: number;
@@ -369,11 +382,41 @@ export interface MemoryUpkeepReport {
 
 /* ---- export / import / clear ---- */
 
+/** Exact shapes also apply to trusted in-process preference writes. */
+function isMemoryClassRestriction(value: unknown): value is MemoryClassRestriction {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>, selector = row.selector;
+  if (Object.keys(row).length !== 3 || !Object.keys(row).every(key => ["selector", "read", "form"].includes(key)) || !["inherit", "explicit-only", "off"].includes(row.read as string)
+    || !["inherit", "off"].includes(row.form as string) || !selector || typeof selector !== "object" || Array.isArray(selector)) return false;
+  const fields = selector as Record<string, unknown>;
+  return Object.keys(fields).every(key => ["consumer", "current_scene", "scene", "kind", "lifecycle"].includes(key))
+    && Object.hasOwn(fields, "consumer") && MEMORY_CONSUMERS.includes(fields.consumer as MemoryConsumer)
+    && Object.hasOwn(fields, "current_scene") && MEMORY_SCENES.includes(fields.current_scene as typeof MEMORY_SCENES[number])
+    && (!Object.hasOwn(fields, "scene") || MEMORY_SCENES.includes(fields.scene as typeof MEMORY_SCENES[number]))
+    && (!Object.hasOwn(fields, "kind") || MEMORY_FORMAL_KINDS.includes(fields.kind as MemoryFormalKind))
+    && (!Object.hasOwn(fields, "lifecycle") || MEMORY_LIFECYCLES.includes(fields.lifecycle as typeof MEMORY_LIFECYCLES[number]));
+}
+
+/** Selector identity ignores property order; duplicate selectors cannot silently override one another. */
+export function isMemoryClassRestrictions(value: unknown): value is MemoryClassRestriction[] {
+  if (!Array.isArray(value)) return false;
+  const selectors = new Set<string>();
+  for (const row of value) {
+    if (!isMemoryClassRestriction(row)) return false;
+    const { consumer, current_scene, scene, kind, lifecycle } = row.selector;
+    const key = JSON.stringify([consumer, current_scene, scene, kind, lifecycle]);
+    if (selectors.has(key)) return false;
+    selectors.add(key);
+  }
+  return true;
+}
+
 /** Adoption requires a complete current profile: missing switches must not silently become enabled defaults. */
 export function isCompleteMemoryPrefs(value: unknown): value is MemoryPrefs {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const prefs = value as Record<string, unknown>;
-  if (Object.keys(prefs).length !== 8 || !["enabled", "task_recall", "form", "auto", "learn_from_work", "learn_from_ui"].every(key => typeof prefs[key] === "boolean")) return false;
+  if (Object.keys(prefs).length !== 9 || !["enabled", "task_recall", "form", "auto", "learn_from_work", "learn_from_ui"].every(key => typeof prefs[key] === "boolean")
+    || !isMemoryClassRestrictions(prefs.class_restrictions)) return false;
   const consumers = prefs.consumers, plugins = prefs.plugins;
   if (!consumers || typeof consumers !== "object" || Array.isArray(consumers)
     || Object.keys(consumers).length !== MEMORY_CONSUMERS.length
@@ -465,15 +508,21 @@ const changeSchema = { type: "object", properties: {
   change_id: text, kind: text, memory_id: nullableText, scope: scopeSchema, project_id: nullableText, text, by: { enum: ["person", "policy", "maintenance", "assistant"] },
   rule: nullableText, reason: nullableText, work: workRef, at: text, undoable: { type: "boolean" }, state: { enum: ["active", "undone"] } },
   required: ["change_id", "kind", "memory_id", "scope", "project_id", "text", "by", "rule", "reason", "work", "at", "undoable", "state"], additionalProperties: false };
+const classRestrictionsSchema = { type: "array", items: { type: "object", properties: {
+  selector: { type: "object", properties: { consumer: { enum: [...MEMORY_CONSUMERS] }, current_scene: { enum: [...MEMORY_SCENES] },
+    scene: { enum: [...MEMORY_SCENES] }, kind: formalKindSchema, lifecycle: { enum: [...MEMORY_LIFECYCLES] } },
+    required: ["consumer", "current_scene"], additionalProperties: false },
+  read: { enum: ["inherit", "explicit-only", "off"] }, form: { enum: ["inherit", "off"] } },
+  required: ["selector", "read", "form"], additionalProperties: false } };
 const prefsSchema = { type: "object", properties: {
   enabled: { type: "boolean" }, task_recall: { type: "boolean" }, form: { type: "boolean" }, auto: { type: "boolean" }, learn_from_work: { type: "boolean" }, learn_from_ui: { type: "boolean" },
   consumers: { type: "object", properties: Object.fromEntries(MEMORY_CONSUMERS.map(key => [key, { type: "boolean" }])), required: [...MEMORY_CONSUMERS], additionalProperties: false },
-  plugins: { type: "object", additionalProperties: { type: "object", properties: { allowed: { type: "boolean" }, kinds: { type: "array", items: kindSchema } }, required: ["allowed", "kinds"], additionalProperties: false } } },
-  required: ["enabled", "task_recall", "form", "auto", "learn_from_work", "learn_from_ui", "consumers", "plugins"], additionalProperties: false };
+  plugins: { type: "object", additionalProperties: { type: "object", properties: { allowed: { type: "boolean" }, kinds: { type: "array", items: kindSchema } }, required: ["allowed", "kinds"], additionalProperties: false } }, class_restrictions: classRestrictionsSchema },
+  required: ["enabled", "task_recall", "form", "auto", "learn_from_work", "learn_from_ui", "consumers", "plugins", "class_restrictions"], additionalProperties: false };
 const prefsInputSchema = { type: "object", properties: {
   enabled: { type: "boolean" }, task_recall: { type: "boolean" }, form: { type: "boolean" }, auto: { type: "boolean" }, learn_from_work: { type: "boolean" }, learn_from_ui: { type: "boolean" },
   consumers: { type: "object", properties: Object.fromEntries(MEMORY_CONSUMERS.map(key => [key, { type: "boolean" }])), additionalProperties: false },
-  plugins: { type: "object", maxProperties: 200, additionalProperties: { type: "object", properties: { allowed: { type: "boolean" }, kinds: { type: "array", maxItems: 4, items: kindSchema } }, required: ["allowed"], additionalProperties: false } } },
+  plugins: { type: "object", maxProperties: 200, additionalProperties: { type: "object", properties: { allowed: { type: "boolean" }, kinds: { type: "array", maxItems: 4, items: kindSchema } }, required: ["allowed"], additionalProperties: false } }, class_restrictions: classRestrictionsSchema },
   additionalProperties: false };
 const prefsViewSchema = { type: "object", properties: { scope: scopeSchema, project_id: nullableText, prefs: prefsSchema }, required: ["scope", "project_id", "prefs"], additionalProperties: false };
 const recalledSchema = { type: "object", properties: { memory_id: text, version: { type: "integer", minimum: 1 }, scope: scopeSchema, kind: formalKindSchema, text, source: sourceSchema,
@@ -528,12 +577,12 @@ export const memoryActions = {
     output_schema: { type: "object", properties: { state: { enum: ["ok", "off"] }, reason: nullableText, items: { type: "array", items: recalledSchema },
       omitted: { type: "array", items: { type: "object", properties: { memory_id: text, scope: scopeSchema, reason: { enum: ["budget", "limit", "conflict"] } }, required: ["memory_id", "scope", "reason"], additionalProperties: false } },
       method: { enum: ["keyword-cjk", "keyword", "vector"] }, receipt_id: text }, required: ["state", "reason", "items", "omitted", "method", "receipt_id"], additionalProperties: false } } } as ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>,
-  list: { capability_id: "memory.list", version: 3, operation: "query", action: { ...reads, ...notForPlugins, audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [MEMORY_READ_PERMISSION],
+  list: { capability_id: "memory.list", version: 4, operation: "query", action: { ...reads, ...notForPlugins, audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [MEMORY_READ_PERMISSION],
     title: "列出记住的事", description: "列出个人记忆与当前项目的记忆（正文、类别、来源、适用情境、状态与最近使用），可按范围、类别、来源、状态筛选。用于回答“你记住了我什么”。",
     input_schema: { type: "object", properties: { scope: { enum: ["personal", "project", "character", "all"] }, kinds: { type: "array", maxItems: 4, items: kindSchema },
       sources: { type: "array", maxItems: 6, items: sourceSchema }, states: { type: "array", maxItems: 3, items: stateSchema }, query: { type: "string", maxLength: 200 } }, additionalProperties: false },
     output_schema: { type: "object", properties: { items: { type: "array", items: itemSchema },
-      counts: { type: "object", properties: { personal: { type: "integer" }, project: { type: "integer" }, auto_this_week: { type: "integer" }, pending: { type: "integer" } }, required: ["personal", "project", "auto_this_week", "pending"], additionalProperties: false } },
+      counts: { type: "object", properties: { personal: { type: "integer" }, project: { type: "integer" }, auto_this_week: { anyOf: [{ type: "integer" }, { type: "null" }] }, pending: { anyOf: [{ type: "integer" }, { type: "null" }] } }, required: ["personal", "project", "auto_this_week", "pending"], additionalProperties: false } },
       required: ["items", "counts"], additionalProperties: false } } } as ActionDefinition<MemoryListRequest, MemoryListResponse>,
   write: { capability_id: "memory.write", version: 3, operation: "command", action: { ...writes, ...notForPlugins, audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [MEMORY_WRITE_PERMISSION],
     title: "记住一件事", description: "按用户的明确要求记住一条偏好、约定、背景或经验（个人或当前项目）。经写入门：形似秘密的不写，像指令的文字只作为待认可的建议；与已有的冲突时新的明确要求替换旧的。Agent 调用时必须在 said 里附上用户原话，但宿主没有保存用户对这个 Agent 说过的话，没法核对，said 是 Agent 自己写的，不算；所以经这个动作写的一律只是待认可的建议，等用户认可才生效，不记作“用户说的”（只有助理自己的工具，把宿主保存的用户原话交给写入门核对后，才可能记作“用户说的”）。",
@@ -543,9 +592,9 @@ export const memoryActions = {
     output_schema: { type: "object", properties: { outcome: { enum: ["written", "replaced", "duplicate", "candidate", "refused"] }, reason: text, applies_text: text,
       memory: { anyOf: [{ type: "null" }, itemSchema] }, candidate: { anyOf: [{ type: "null" }, candidateSchema] }, change_id: nullableText },
       required: ["outcome", "reason", "applies_text", "memory", "candidate", "change_id"], additionalProperties: false } } } as ActionDefinition<MemoryWriteRequest, MemoryWriteResult>,
-  change: { capability_id: "memory.change", version: 3, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
-    title: "修改、停用或删除一条记忆", description: "改正文、类别或适用情境；停用（保留但不再使用）或重新启用；回到某个历史版本；在个人与项目之间移动；或删除（从存储里清除，任何路径都不再带出）。",
-    input_schema: { type: "object", properties: { memory_id: memoryId, action: { enum: ["reclassify", "update", "disable", "enable", "remove", "restore", "move"] }, text: memoryText, kind: formalKindSchema, classification: classificationSchema,
+  change: { capability_id: "memory.change", version: 4, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
+    title: "修改、续期、停用或删除一条记忆", description: "明确续期已到期正式记忆（UTC ISO 截止时间，原状态保持）；改正文、类别或适用情境；停用（保留但不再使用）或重新启用；回到某个历史版本；在个人与项目之间移动；或删除（从存储里清除，任何路径都不再带出）。",
+    input_schema: { type: "object", properties: { memory_id: memoryId, action: { enum: ["renew", "reclassify", "update", "disable", "enable", "remove", "restore", "move"] }, text: memoryText, kind: formalKindSchema, classification: classificationSchema,
       applies: appliesSchema, expires_at: nullableText, version: { type: "integer", minimum: 1 }, expected_version: { type: "integer", minimum: 1 }, to: scopeSchema }, required: ["memory_id", "action", "expected_version"], additionalProperties: false },
     output_schema: { type: "object", properties: { memory: { anyOf: [{ type: "null" }, itemSchema] }, change: changeSchema }, required: ["memory", "change"], additionalProperties: false } } } as ActionDefinition<MemoryChangeRequest, MemoryChangeResult>,
   history: { capability_id: "memory.history", version: 2, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_READ_PERMISSION],
@@ -574,12 +623,12 @@ export const memoryActions = {
     title: "撤销一次记忆变动", description: "自动记住的删除；自动替换的回到旧版本；自动停用的、助理按要求停用的重新启用。之后用户自己说过、认可过或改过的记忆，不能再按自动记住撤销。",
     input_schema: { type: "object", properties: { change_id: memoryId }, required: ["change_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { change: changeSchema }, required: ["change"], additionalProperties: false } } } as ActionDefinition<{ change_id: string }, { change: MemoryChange }>,
-  prefs: { capability_id: "memory.prefs.read", version: 2, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
+  prefs: { capability_id: "memory.prefs.read", version: 3, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
     title: "记忆开关", description: "个人或当前项目的记忆开关：允许记住、自动记住、从工作与界面里学习、谁可以用。",
     input_schema: { type: "object", properties: { scope: scopeSchema }, additionalProperties: false },
     output_schema: prefsViewSchema } } as ActionDefinition<{ scope?: MemoryScope }, MemoryPrefsView>,
-  savePrefs: { capability_id: "memory.prefs.write", version: 2, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
-    title: "修改记忆开关", description: "只有本人能改。改动下一次使用时生效。",
+  savePrefs: { capability_id: "memory.prefs.write", version: 3, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
+    title: "修改记忆开关", description: "只有本人能改。分类限制即时收紧；重新开放从下一轮生效。",
     input_schema: { type: "object", properties: { scope: scopeSchema, prefs: prefsInputSchema, preset: { enum: ["off", "manual", "reviewed", "assisted"] } }, oneOf: [{ required: ["prefs"], not: { required: ["preset"] } }, { required: ["preset"], not: { required: ["prefs"] } }], additionalProperties: false },
     output_schema: prefsViewSchema } } as ActionDefinition<MemoryPrefsWriteRequest, MemoryPrefsView>,
   signal: { capability_id: "memory.signals.report", version: 1, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION], scheduling: "concurrent" as const,

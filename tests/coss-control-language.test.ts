@@ -144,7 +144,6 @@ test("product stylesheets stop painting mw-btn fills through descendant button r
   const workbench = renderMolisWorkWorkbenchStylesheet();
   const arrival = renderMolisWorkArrivalStylesheet();
   assert.doesNotMatch(workbench, /\.feed-list-empty button \{[^}]*background: transparent;[^}]*color: var\(--blue-dark\)/);
-  assert.doesNotMatch(workbench, /\.project-operation-surface-empty button\[data-open-session-add\] \{[^}]*background: var\(--ink\)/);
   assert.doesNotMatch(workbench, /\.goal-canvas-empty button,[^{]*\{[^}]*background: var\(--paper\)/);
   assert.match(arrival, /\.mw-btn--primary/);
   assert.doesNotMatch(arrival, /\.onboarding-actions button \{[^}]*background: transparent;/);

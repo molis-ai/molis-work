@@ -143,7 +143,7 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
       try { found = value.get((input as { subject_id: string }).subject_id, ports.access(caller)); }
       catch { throw todoErrors.not_found("这份整理结果不在当前范围内"); }
       return subjectContext({ subject: { kind: TODO_BATCH_SUBJECT_KIND, id: found.batch_id }, revision: String(found.revision), title: found.title, content: batchText(found),
-        goal_ids: [], session_id: null, open: { surface: TODO_PROJECT_PLUGIN_ID, id: "batch:" + found.batch_id } });
+        goal_ids: [], open: { surface: TODO_PROJECT_PLUGIN_ID, id: "batch:" + found.batch_id } });
     }) },
   ];
 }

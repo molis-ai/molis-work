@@ -168,11 +168,35 @@ export interface AssistantEffectDetail {
 export type AssistantExecutor = {
     kind: "assistant";
 } | {
-    kind: "coding";
+    kind: "plugin";
+    plugin_id: string;
     title: string;
     session_id: string | null;
     mode?: string;
 };
+
+export type AssistantExecutorChoice = {
+    kind: "assistant";
+} | {
+    kind: "plugin";
+    plugin_id: string;
+};
+
+export interface AssistantExecutorOffer {
+    plugin_id: string;
+    title: string;
+    modes: Array<{
+        id: string;
+        title: string;
+    }>;
+    default_mode: string;
+    session_kind: string;
+    capability_ids: {
+        "session.update": string;
+        "run.start": string;
+    };
+    problem?: string;
+}
 
 export interface AssistantFollowUp {
     followup_id: string;
@@ -193,7 +217,7 @@ export interface AssistantFollowUp {
 }
 
 export interface AssistantHandover {
-    to: "coding" | "assistant";
+    to: AssistantExecutorChoice;
     mode?: string;
 }
 
@@ -448,7 +472,7 @@ export interface AssistantReplyTarget {
 
 export interface AssistantRound {
     run_id: string;
-    executor?: "assistant" | "coding";
+    executor?: "assistant" | "plugin";
     character?: AssistantCharacter;
     text: string;
     written_by?: "host";
@@ -578,9 +602,9 @@ export type AssistantScope = {
 
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     work_id?: string;
-    executor?: "assistant" | "coding";
+    executor?: AssistantExecutorChoice;
     mode?: string;
-    coding_session_id?: string;
+    executor_session_id?: string;
     character?: AssistantCharacterRef | null;
     scope?: AssistantScope;
     text: string;
@@ -738,7 +762,7 @@ export interface AssistantWorkSurroundings {
             project_id: string;
             title: string | null;
         };
-        coding?: {
+        executor?: {
             workspace: {
                 name: string;
                 path: string;
@@ -750,7 +774,7 @@ export interface AssistantWorkSurroundings {
     connections: AssistantWorkConnection[];
     connections_problem?: string;
     tools: {
-        executor: "assistant" | "coding";
+        executor: "assistant" | "plugin";
         callable: Array<{
             provider: string;
             count: number;

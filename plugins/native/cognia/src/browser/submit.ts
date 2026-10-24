@@ -19,7 +19,7 @@ async function previewImport(page: CogniaPage, data: FormData): Promise<boolean>
   if (!chosen.length) {
     const grant = await grantDirectory(page.host, L("cognia.import.grant-failed"));
     if (grant.status === "cancelled") return false;
-    result = await page.api<{ preview: Preview }>("/import/preview", { grant_id: grant.grant_id, path: ".", ...common });
+    result = await page.api<{ preview: Preview }>("/import/preview", { grant_id: grant.grant_id, path: ".", locator: "local:" + grant.root, ...common });
   } else {
     result = await page.api<{ preview: Preview }>("/import/preview", { ...common, files: await uploadFiles(chosen, L("cognia.import.too-many")), name: chosen[0].webkitRelativePath.split("/")[0] });
   }

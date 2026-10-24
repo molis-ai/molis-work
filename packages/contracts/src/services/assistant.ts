@@ -236,14 +236,32 @@ export interface AssistantMaterial {
 }
 
 /**
- * Who carries a work. The Assistant itself, or a plugin's own Agent: then the work is that plugin's session, driven
- * through the plugin's own actions, and its professional page shows the same session.
+ * Who carries a work. The Assistant itself, or a plugin's own Agent: then the work is that plugin's session, driven through the
+ * six actions of the work-executor protocol it publishes, and its own page shows the same session. The plugin is kept by `plugin_id`
+ * and found again in the project's action directory at each call; if it is gone the call is refused, never moved to another.
  */
 export type AssistantExecutor =
   | { kind: "assistant" }
-  | { kind: "coding"; title: string; session_id: string | null;
-      /** The session's own next-round mode, shared with the Coding page: discuss, plan, edit, execute, review… */
+  | { kind: "plugin"; plugin_id: string; title: string; session_id: string | null;
+      /** The session's own next-round mode, shared with the plugin's page: one of the modes its `state` offers. */
       mode?: string };
+
+/** Who the person picks to carry a new work, or to take over an existing one. */
+export type AssistantExecutorChoice = { kind: "assistant" } | { kind: "plugin"; plugin_id: string };
+
+/** A plugin that can carry a work in this project (`GET /api/assistant/executors`): the whole work-executor protocol, open to the local person. */
+export interface AssistantExecutorOffer {
+  plugin_id: string;
+  title: string;
+  modes: Array<{ id: string; title: string }>;
+  default_mode: string;
+  /** The subject kind of the sessions it opens: a page showing such an object can offer to continue it. */
+  session_kind: string;
+  /** The role actions whose effect the plugin's page hears of after a mode is set or a round starts. */
+  capability_ids: { "session.update": string; "run.start": string };
+  /** Why it cannot be chosen now, from its own state read; absent when it can. */
+  problem?: string;
+}
 
 export interface AssistantWork {
   /** This work replies into an owner-held discussion; its scope cannot become global. */
@@ -287,8 +305,8 @@ export interface AssistantCharacterChoice { reference: AssistantCharacterRef; ti
 /** One round the person started, with the run's own facts. */
 export interface AssistantRound {
   run_id: string;
-  /** Who ran it: the Assistant, or the professional Agent the work was handed to. */
-  executor?: "assistant" | "coding";
+  /** Who ran it: the Assistant, or the plugin's Agent the work was handed to. */
+  executor?: "assistant" | "plugin";
   /** The Character that really carried this round, frozen at its start; absent when the Assistant itself did. */
   character?: AssistantCharacter;
   /** What the person sent this round. */
@@ -384,14 +402,14 @@ export interface AssistantWorkObject {
 export interface AssistantWorkSurroundings {
   environment: {
     scope: { kind: "personal" } | { kind: "project"; project_id: string; title: string | null };
-    /** For a work Coding carries: its session's directory, and that directory's repository as the project's workspace reads it. */
-    coding?: { workspace: { name: string; path: string } | null; git: AssistantWorkGit | null; problem?: string };
+    /** For a work a plugin carries: its session's directory, and that directory's repository as the project's workspace reads it. */
+    executor?: { workspace: { name: string; path: string } | null; git: AssistantWorkGit | null; problem?: string };
   };
   /** The person's connections, each as its own status says: set up, signed in, and whether its tools can be called. */
   connections: AssistantWorkConnection[];
   connections_problem?: string;
-  /** What this work's executor can call now: the Assistant's actions by provider, and the ones that cannot run with their owner's reason. Coding keeps its own tools. */
-  tools: { executor: "assistant" | "coding"; callable: Array<{ provider: string; count: number }>; unavailable: Array<{ title: string; provider: string; reason: string }>; problem?: string };
+  /** What this work's executor can call now: the Assistant's actions by provider, and the ones that cannot run with their owner's reason. A plugin that carries the work keeps its own tools. */
+  tools: { executor: "assistant" | "plugin"; callable: Array<{ provider: string; count: number }>; unavailable: Array<{ title: string; provider: string; reason: string }>; problem?: string };
   read_at: string;
 }
 /** A directory's repository: its branch (null on a detached HEAD), how far it is from its upstream, and what is not committed. */
@@ -455,7 +473,7 @@ export interface AssistantWorkView {
   problem?: { message: string; action?: string };
   /**
    * What waits in the work's own session for its next round (specs/ai-input-receipts §4.4, D31), read only while none of its
-   * rounds is live. Absent: not read this time (a round is live, or Coding runs the work); `[]`: read, and nothing waits.
+   * rounds is live. Absent: not read this time (a round is live, or a plugin runs the work); `[]`: read, and nothing waits.
    */
   queued_inputs?: AgentQueuedInput[];
 }
@@ -466,11 +484,11 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
   /** For a new work: who carries it. An existing work keeps its executor. */
-  executor?: "assistant" | "coding";
-  /** For a new work carried by Coding: the mode of its first round. Later rounds use the session's own setting. */
+  executor?: AssistantExecutorChoice;
+  /** For a new work carried by a plugin: the mode of its first round. Later rounds use the session's own setting. */
   mode?: string;
-  /** For a new work carried by Coding: continue this existing session (the one open on the Coding page) instead of a new one. */
-  coding_session_id?: string;
+  /** For a new work carried by a plugin: continue this existing session (the one open on the plugin's page) instead of a new one. */
+  executor_session_id?: string;
   /** The Character to carry this and later rounds (null: the Assistant itself); omitted keeps the work's choice. */
   character?: AssistantCharacterRef | null;
   /** Required for a new work; ignored for an existing one, whose scope never changes. */
@@ -502,12 +520,12 @@ export interface AssistantSendResult {
 }
 
 /**
- * Hand a work to another agent and keep it one work: to Coding (in its project, with a note of what was agreed and
- * produced so far), or back to the Assistant (whose next round reads what Coding did). Only between rounds.
+ * Hand a work to another agent and keep it one work: to a plugin's Agent (in its project, with a note of what was agreed and
+ * produced so far), or back to the Assistant (whose next round reads what the plugin did). Only between rounds.
  */
 export interface AssistantHandover {
-  to: "coding" | "assistant";
-  /** For Coding: the mode its first round runs in. */
+  to: AssistantExecutorChoice;
+  /** For a plugin: the mode its first round runs in. */
   mode?: string;
 }
 

@@ -46,15 +46,15 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
   assert.equal(read()[0]!.rows.length, 2); assert.equal(read()[0]!.rows[1]!.cells[descriptionColumn], '隐藏行');
   await input('[data-dataset-filter]', '');
   // Delay the first real HTTP response while a second edit is made.
-  await evaluate(`(() => { const original = window.fetch; window.datasetSaveRequests = 0;
-    window.fetch = async (url, init) => {
+  await evaluate(`(() => { const original = window.molisWorkRequest; window.datasetSaveRequests = 0;
+    window.molisWorkRequest = Object.assign(async (url, init) => {
       const response = await original(url, init);
       if (init?.method === 'POST' && new URL(url, ${JSON.stringify(origin)}).pathname.endsWith('/api/plugins/io.molis.work.dataset/datasets/${id}')) {
         window.datasetSaveRequests++;
         if (window.datasetSaveRequests === 1) await new Promise(resolve => { window.releaseDatasetSave = resolve; });
       }
       return response;
-    }; window.restoreDatasetFetch = () => { window.fetch = original; };
+    }, original); window.restoreDatasetFetch = () => { window.molisWorkRequest = original; };
   })()`);
   await input('[data-dataset-title]', '第一笔'); await waitFor("typeof window.releaseDatasetSave === 'function'");
   await input('[data-dataset-title]', '第二笔'); assert.equal(read()[0]!.title, '第一笔');

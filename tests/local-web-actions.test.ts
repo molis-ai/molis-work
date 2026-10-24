@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +17,7 @@ import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { bindLocalWebActions, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { HOME_TALK_PERMISSIONS } from "../apps/local-host/dist/home-talk-actions.js";
+import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 test("real Home HTTP and capability library use installed plugin grants without a Host permission list", { timeout: 60_000 }, async () => {
@@ -34,7 +33,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "newcomer:read", required: false, reason: "读取这份原始材料" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => {
-      reads++; return subjectContext({ subject: { kind: "newcomer-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "原始插件标题", content: "来自插件 owner 的真实正文", goal_ids: [], session_id: null });
+      reads++; return subjectContext({ subject: { kind: "newcomer-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "原始插件标题", content: "来自插件 owner 的真实正文", goal_ids: [] });
     } }] }; } });
   let runtime: PluginRuntime | undefined, installId: string | undefined;
   let stopImposter: (() => void) | undefined;
@@ -49,32 +48,30 @@ test("real Home HTTP and capability library use installed plugin grants without 
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const request = (authorized = true, projectId = project.project_id) => fetch(`${origin}/projects/${projectId}/api/home/talk/prepare`, { method: "POST", headers: {
-      "content-type": "application/json", origin, ...(authorized ? { "x-molis-work-control-token": token } : {}), "x-molis-work-idempotency-key": randomUUID(),
-    }, body: JSON.stringify({ subject: { kind: "newcomer-note", id: "note-42" } }) });
-    assert.equal((await request(false)).status, 403); assert.equal(reads, 0);
-    assert.notEqual((await request()).status, 200); assert.equal(reads, 0, "declaration alone confers no grant");
+    // The person's own call context is built per call from the installation's current grants, as the Workbench's routes do.
+    const read = async (projectReference = reference) => host.actionClient(projectReference).invoke(
+      await localWebActionContext(host, projectReference, HOME_ACTION_PERMISSIONS), definition, { subject_id: "note-42" }) as { content: string };
+    await assert.rejects(read(), { code: "actions.forbidden" }); assert.equal(reads, 0, "declaration alone confers no grant");
     await runtime.stop(installId);
     runtime.grant(installId, ["newcomer:read"]);
     // Grant changes revoke the old contribution; activation republishes the same original installation.
     await runtime.start(installId);
-    const prepared = await request(); assert.equal(prepared.status, 200, await prepared.clone().text());
-    const body = await prepared.json();
-    assert.equal(body.context.content, "来自插件 owner 的真实正文"); assert.equal(body.reader.provider_id, installId); assert.equal(body.selected_session_id, null);
-    assert.equal(reads, 2, "Home revalidates original context after Session lookup");
+    assert.equal((await read()).content, "来自插件 owner 的真实正文");
+    assert.equal(reads, 1, "the granted installation's reader runs once for the person's call");
     const directory = await (await fetch(`${origin}/capabilities/library?project=${project.project_id}&action=${definition.capability_id}&version=1`)).text();
     assert.ok(directory.includes("原始插件标题") === false, "capability metadata does not execute the object reader");
     assert.ok(directory.includes("新插件事项")); assert.ok(directory.includes(definition.capability_id)); assert.ok(!directory.includes(imposter.capability_id));
-    const local = await localWebActionContext(host, reference, HOME_TALK_PERMISSIONS);
+    const local = await localWebActionContext(host, reference, HOME_ACTION_PERMISSIONS);
     assert.equal(local.locale, undefined, "a context no page asked for names no language: the handler keeps its own default (VUX-40)");
     await assert.rejects(host.actionClient(reference).invoke(local, imposter, { subject_id: "note" }), { code: "actions.forbidden" });
     await assert.rejects(host.actionClient(reference).invoke({ actor_id: "external-client", project_id: project.project_id, audience: "mcp", permissions: [] }, definition, { subject_id: "note" }), { code: "actions.forbidden" });
     const foreign = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "其他项目", actor_id: "owner" }));
-    assert.notEqual((await request(true, foreign.project_id)).status, 200);
+    await assert.rejects(read(molisWorkHostProjectReference({ databasePath: foreign.database_path, projectId: foreign.project_id })));
+    assert.equal(reads, 1, "another project never reaches this installation's reader");
     await runtime.stop(installId);
     runtime.grant(installId, []); await runtime.start(installId);
     await assert.rejects(async () => local.validate_authority!({ ...definition, provider_id: installId }), { code: "actions.forbidden" });
-    assert.notEqual((await request()).status, 200); assert.equal(reads, 2);
+    await assert.rejects(read(), { code: "actions.forbidden" }); assert.equal(reads, 1);
     const revoked = await (await fetch(`${origin}/capabilities/library?project=${project.project_id}&action=${definition.capability_id}&version=1`)).text();
     assert.ok(revoked.includes("引用的能力或版本已不可访问"));
     await runtime.stop(installId); await runtime.uninstall(installId);
@@ -84,8 +81,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     await runtime.start(installId);
     assert.notEqual(installId, previousId);
     await assert.rejects(async () => local.validate_authority!(definition), { code: "actions.forbidden" });
-    const replacement = await request(); assert.equal(replacement.status, 200, await replacement.clone().text());
-    assert.equal((await replacement.json()).reader.provider_id, installId);
+    assert.equal((await read()).content, "来自插件 owner 的真实正文");
   } finally {
     stopImposter?.();
     if (runtime && installId && runtime.get(installId).state === "running") await runtime.stop(installId);

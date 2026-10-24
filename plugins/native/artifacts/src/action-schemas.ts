@@ -18,7 +18,5 @@ export const origin = { oneOf: [
   object({ kind: { const: "pinned" }, subject: object({ kind: id, id }), revision: id }),
   object({ kind: { const: "imported" }, file_name: id }),
 ] };
-/** A process item (A2): exchange data between plugins, without a place in the 成果库. */
-export const processRecord = object(fixedFields);
 /** A 成果: what people keep and cite, with its origin, title, media type and the process items it came from. */
 export const record = object({ ...fixedFields, origin, title: id, media_type: id, trace: array(reference) });

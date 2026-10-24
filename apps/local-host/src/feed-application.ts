@@ -32,7 +32,7 @@ import {
   writeListenerCursor,
 } from "@molis-ai/molis-work-service-listener-host";
 import { FEED_PLUGIN_ID, FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
-import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+import { projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedHistoryRelease } from "./feed-history-release.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
@@ -93,7 +93,8 @@ export function createLocalFeedApplication(
     journal.appendEvent({ eventId: `event-${randomUUID()}`, projectId, actorId: LOCAL_PERSON_ACTOR_ID,
       objectType, objectId, type, reason, payload, at });
   }
-  const artifactsModule = new ArtifactsModule({
+  // The project library's one pair of version stores, opened only when no producer was handed in (the first call that writes).
+  const artifactsModule = () => projectVersionStores({
     db: db as unknown as ArtifactsSqliteDatabase,
     homeOwner: LOCAL_PERSON_ACTOR_ID,
     appendEvent: (input) => journal.appendEvent({
@@ -108,15 +109,15 @@ export function createLocalFeedApplication(
       at: input.at,
     }),
     eventCursor: (projectId) => journal.eventCursor(projectId),
-  });
+  }).artifacts;
   return new FeedApplication({
     sources, feed: feedItems, attention, appendEvent,
     subscribeInboxCreated: listener => { inboxCreated = listener; },
     // A refused Feed library leaves the project without capture rules; the rest of Feed is the Modules' and goes on.
     ...projectPluginDatabaseRefusal(db, FEED_PLUGIN_ID) ? {} : { outRules: new FeedOutRuleStore(db) },
     artifacts: options.artifacts ?? {
-      registerVersion: (input) => artifactsModule.commands.registerVersion(input),
-      latestVersion: (projectId, artifactId) => artifactsModule.query.latestArtifactVersion(projectId, artifactId),
+      registerVersion: (input) => artifactsModule().commands.registerVersion(input),
+      latestVersion: (projectId, artifactId) => artifactsModule().query.latestArtifactVersion(projectId, artifactId),
     },
     history: createFeedHistoryRelease(db),
     captureJudgment: options.captureJudgment,

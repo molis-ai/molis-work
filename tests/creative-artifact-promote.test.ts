@@ -2,13 +2,13 @@ import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
-  DATASET_CLIENT_FACTORY_SCRIPT,
   datasetActions,
   openDatasetStore,
   renderDatasetWorkbench,
@@ -50,7 +50,7 @@ test("四个创作插件的列表和顶栏都有存为固定版本（放进 Arti
   const dataset = renderDatasetWorkbench({ primitives });
   assert.match(dataset, /data-dataset-artifact-bar/);
   assert.match(dataset, /data-dataset-snapshot/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /data-dataset-artifact/);
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/dataset/src/browser/commands.ts", import.meta.url)), "utf8"), /data-dataset-artifact/);
 
   const ppt = renderPptWorkbench({ primitives });
   assert.match(ppt, /data-ppt-artifact-bar/);

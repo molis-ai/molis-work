@@ -59,7 +59,7 @@ test("something that just landed carries the one wash", () => {
   assert.ok(readdirSync(issuesBrowser).filter(file => file.endsWith(".ts"))
     .some(file => /["'] data-craft-new["']/.test(readFileSync(new URL(file, issuesBrowser), "utf8"))),
   "the Issues page marks the row that just landed with data-craft-new");
-  assert.match(readFileSync(new URL("packages/design-system/src/plugin-component-client.ts", root), "utf8"), /item\.dataset\.craftNew = ''/);
+  assert.match(readFileSync(new URL("packages/design-system/src/plugin-component-output.ts", root), "utf8"), /item\.dataset\.craftNew = ''/);
 });
 
 test("Feed's reader rises once: the Workbench does not animate the frame around it", () => {

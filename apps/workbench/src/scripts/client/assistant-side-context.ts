@@ -85,10 +85,10 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
  * so a read older than 15 s is asked again whenever the side is in sight and redrawn (the page coming back to the front
  * redraws) or focus enters it (opening it does); a failed read is tried again 3 s later. A part its owner could not answer
  * says so in its own row.
- * - 工作环境: the scope (personal, or the project); for Coding, the session's directory and its repository, branch, distance to
+ * - 工作环境: the scope (personal, or the project); for a work a plugin carries, the session's directory and its repository, branch, distance to
  *   upstream and what is not committed. A conflict is the summary and stands out.
  * - 连接与工具: each of the person's connections (headed 你的连接: they are the person's, not what this work was given) by its own status (signed in, needs signing in, failed, off) and whether its tools can run;
- *   then what the Assistant can call now by provider, and what it cannot with its owner's reason. Coding keeps its own tools.
+ *   then what the Assistant can call now by provider, and what it cannot with its owner's reason. A plugin that carries the work keeps its own tools.
  */
 export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock, toolsBlock }) => {
   let asked = "", held = null, at = 0, asking = false, last = null;
@@ -102,16 +102,16 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
     if (env.dataset.signature === signature) return;
     env.dataset.signature = signature;
     if (!work || !read) { paintBlock(env, "", "", null); paintBlock(tools, "", "", null); return; }
-    const { environment, connections, tools: can } = read, coding = environment.coding, git = coding && coding.git;
+    const { environment, connections, tools: can } = read, carried = environment.executor, git = carried && carried.git;
     keepFocus(env, () => {
       const rows = [card({ icon: environment.scope.kind === "project" ? "folder" : "user", title: environment.scope.kind === "project" ? environment.scope.title || L("本项目") : L("个人"),
         sub: environment.scope.kind === "project" ? L("项目范围：只用这个项目的能力与资料") : L("个人范围：不属于任何项目") })];
-      if (coding && coding.workspace) rows.push(card({ icon: "folder", title: coding.workspace.name, sub: L("目录") + " · " + coding.workspace.path, detail: coding.workspace.path }));
+      if (carried && carried.workspace) rows.push(card({ icon: "folder", title: carried.workspace.name, sub: L("目录") + " · " + carried.workspace.path, detail: carried.workspace.path }));
       if (git) rows.push(card({ icon: "git-branch", tone: git.conflicted ? "blocked" : "", title: (git.repository ? git.repository + " · " : "") + (git.branch || L("分离的 HEAD")),
         sub: [git.ahead ? count("领先 {n}", git.ahead) : "", git.behind ? count("落后 {n}", git.behind) : "",
           git.changed ? count("{n} 处未提交", git.changed) : L("没有未提交的改动"), git.conflicted ? count("{n} 处冲突", git.conflicted) : ""].filter(Boolean).join(" · "),
         subTone: git.conflicted ? "blocked" : "" }));
-      else if (coding) rows.push(card({ icon: "folder", tone: coding.problem ? "attention" : "", title: coding.workspace ? L("不是 Git 仓库") : L("还没有工作目录"), sub: coding.problem || "", subTone: coding.problem ? "attention" : "" }));
+      else if (carried) rows.push(card({ icon: "folder", tone: carried.problem ? "attention" : "", title: carried.workspace ? L("不是 Git 仓库") : L("还没有工作目录"), sub: carried.problem || "", subTone: carried.problem ? "attention" : "" }));
       paintBlock(env, L("工作环境"), "folder", stack(rows), git && git.conflicted ? count("{n} 处冲突", git.conflicted) : git ? git.branch || L("分离的 HEAD") : "", Boolean(git && git.conflicted));
     });
     keepFocus(tools, () => {
@@ -122,7 +122,7 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
       if (read.connections_problem) linked.push(card({ icon: "link", tone: "attention", title: L("连接暂时读不到"), sub: read.connections_problem, subTone: "attention" }));
       if (linked.length) box.append(group(L("你的连接"), stack(linked, work.work_id + ":tools:connections")));
       const callable = can.callable.map((one) => card({ icon: "zap", title: one.provider, sub: count("{n} 项可用", one.count) }));
-      if (can.executor === "coding") callable.unshift(card({ icon: "terminal", title: "Coding Agent", sub: can.callable.length || can.unavailable.length ? L("自己的读写与命令，加上为这个会话选的 MCP 工具") : L("自己的读写与命令；MCP 工具在 Coding 里为会话选择") }));
+      if (can.executor === "plugin") callable.unshift(card({ icon: "terminal", title: work.executor.title || L("执行方"), sub: can.callable.length || can.unavailable.length ? L("自己的读写与命令，加上为这个会话选的 MCP 工具") : L("自己的读写与命令；MCP 工具在执行方的页面里为会话选择") }));
       if (can.problem) callable.push(card({ icon: "zap", tone: "attention", title: L("工具暂时读不到"), sub: can.problem, subTone: "attention" }));
       if (callable.length) box.append(group(L("可调用"), stack(callable, work.work_id + ":tools:callable")));
       const blocked = can.unavailable.map((one) => card({ icon: "zap", tone: "blocked", title: one.title, sub: one.provider + (one.reason ? " · " + L(one.reason) : ""), subTone: "blocked" }));

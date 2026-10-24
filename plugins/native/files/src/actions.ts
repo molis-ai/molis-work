@@ -46,21 +46,33 @@ const MEDIA: Record<string, string> = { md: "text/markdown", markdown: "text/mar
   csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
 const mediaOf = (name: string) => MEDIA[name.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain";
 
-export function filesActionHandlers(context: PluginStartContext): ActionHandlerBinding[] {
+/** The folder Files browses. A switch since it last looked withdraws the snapshots it handed on from the old folder. */
+export function filesBrowsing(context: PluginStartContext) {
+  const services = context.services;
+  let previousWorkspace = services?.storage?.get("last-workspace") ?? null;
+  return {
+    /** The folder selected now, or null; with `beforeWrite`, a switch is recorded and the old folder's snapshots withdrawn. */
+    async confirm(beforeWrite?: () => Promise<void>) {
+      const selected = await services?.capabilities?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
+      const id = selected?.workspace_id ?? null;
+      if (beforeWrite && id !== previousWorkspace) {
+        await beforeWrite();
+        if (id) services?.storage?.set("last-workspace", id);
+        else services?.storage?.delete("last-workspace");
+        for (const port of ["files", "before", "after", "selection"]) services?.outputs?.invalidate(port, "工作目录已切换，请在当前目录重新固定快照");
+        previousWorkspace = id;
+      }
+      return selected ?? null;
+    },
+  };
+}
+
+export function filesActionHandlers(context: PluginStartContext, folder = filesBrowsing(context)): ActionHandlerBinding[] {
   const services = context.services;
   const browsing = [projectSettingsCapabilities.browsingWorkspace];
   let openSequence = 0;
-  let previousWorkspace = services?.storage?.get("last-workspace") ?? null;
   const workspace = async (beforeWrite?: () => Promise<void>) => {
-    const selected = await services?.capabilities?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
-    const id = selected?.workspace_id ?? null;
-    if (beforeWrite && id !== previousWorkspace) {
-      await beforeWrite();
-      if (id) services?.storage?.set("last-workspace", id);
-      else services?.storage?.delete("last-workspace");
-      for (const port of ["files", "before", "after", "selection"]) services?.outputs?.invalidate(port, "工作目录已切换，请在当前目录重新固定快照");
-      previousWorkspace = id;
-    }
+    const selected = await folder.confirm(beforeWrite);
     if (!selected) throw filesErrors.invalid("请在项目设置的工作目录中选择可用浏览目录");
     return { workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id };
   };

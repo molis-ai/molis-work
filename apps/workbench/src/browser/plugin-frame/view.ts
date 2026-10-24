@@ -30,7 +30,7 @@ export function pageSelection(root: HTMLElement, scope: FrameScope, row: FramePa
 export function collapsePage(root: HTMLElement): void {
   if (root.dataset.expanded === "false") return;
   root.dataset.expanded = "false";
-  const workspace = root.querySelector<HTMLElement>(".plugin-stage-workspace, [data-session-stage-workspace], [data-artifact-stage-workspace], [data-schedule-stage-workspace]");
+  const workspace = root.querySelector<HTMLElement>(".plugin-stage-workspace, [data-artifact-stage-workspace], [data-schedule-stage-workspace]");
   if (workspace) workspace.hidden = true;
   root.querySelectorAll(".is-selected").forEach(row => {
     row.classList.remove("is-selected");

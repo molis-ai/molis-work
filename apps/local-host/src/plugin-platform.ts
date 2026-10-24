@@ -148,7 +148,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     invalidateView,
     providerFor,
     databaseFor: identity.databaseFor,
-    projectLibrary: projectLibraryOf(options.db), scheduler: options.scheduler,
+    projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     filesFor: identity.filesFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
@@ -270,6 +270,8 @@ function rememberingRestored(entry: PluginPlatformEntry, remember: (entries: rea
  * The project's library, when the platform runs on the Host's own connection to its file (better-sqlite3, which says its file
  * and whether it is in a transaction); otherwise none, and a plugin that declares tables there does not start.
  */
-function projectLibraryOf(db: PluginPlatformDatabase): ProjectLibrary | null {
-  return typeof db.name === "string" && typeof db.inTransaction === "boolean" ? { db, path: db.name } : null;
+function projectLibraryOf(options: PluginPlatformOptions): ProjectLibrary | null {
+  const { db, journal } = options;
+  if (typeof db.name !== "string" || typeof db.inTransaction !== "boolean") return null;
+  return { db, path: db.name, ...(journal ? { journal: { project_id: options.project_id, actor_id: options.actor_id, writer: journal } } : {}) };
 }

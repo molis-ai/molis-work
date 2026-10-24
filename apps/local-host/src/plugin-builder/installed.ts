@@ -3,9 +3,9 @@
  * uninstall; this definition only proxies to the plugin's sandboxed process. The plugin's code never runs in the
  * host process, and its interface is the host's component renderer, so no plugin script runs in the page either.
  */
-import type { PluginDefinition, PluginManifest, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginDefinition, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, sandboxDatabase, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { createSandboxRunner, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall, validatePluginPresentation, PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
@@ -13,36 +13,9 @@ import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperat
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
 export const releaseVersion = (version: number) => `${version}.0.0`;
-const ENTRIES = 'sandbox:entries';
 const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const uiContribution = (pluginId: string) => pluginId + '.ui.v1';
-
-/** The sandbox's storage transactions over the installation's private store: serialized and atomically committed. */
-export function storageTransactions(storage: PluginPrivateStorage): NonNullable<SandboxServices['storage']> {
-  if (!storage.compareAndSet) throw new Error('插件存储不支持原子写入');
-  let chain: Promise<unknown> = Promise.resolve();
-  return {
-    transaction(context, mutate) {
-      const run = async () => {
-        await context.beforeEffect?.();
-        context.signal.throwIfAborted();
-        const raw = storage.get(ENTRIES);
-        const working = new Map<string, SandboxJson>(raw ? JSON.parse(raw) as Array<[string, SandboxJson]> : []);
-        const before = JSON.stringify([...working]);
-        const result = mutate(working);
-        await context.beforeEffect?.();
-        context.signal.throwIfAborted();
-        const after = JSON.stringify([...working]);
-        if (after !== before && !storage.compareAndSet!(ENTRIES, raw, after)) throw new Error('数据被同时修改，请重试');
-        return result;
-      };
-      const next = chain.then(run, run);
-      chain = next.then(() => undefined, () => undefined);
-      return next;
-    },
-  };
-}
 
 /**
  * What a generated plugin declares to the Host: a release's Manifest, or for a trial of a build that has none yet, the one it
@@ -75,14 +48,8 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
     execution: 'sandbox',
     async start(context) {
       context.requireGrant('storage:private');
-      const storage = context.services?.storage;
-      if (!storage) throw new Error('插件存储尚未装配');
-      // The project's library only when the Manifest declares the plugin's tables there (`databases.project`).
-      const database = context.services?.project_database;
-      const services: SandboxServices = { storage: storageTransactions(storage), ...(database ? { projectDatabase: sandboxDatabase(database) } : {}),
-        ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}),
-        // The activation's drawing of questions, cards and next steps, reached through the broker like every other service.
-        ...(context.services?.interaction ? { interaction: context.services.interaction } : {}) };
+      // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
+      const services = sandboxServicesFor(context.services, host);
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,

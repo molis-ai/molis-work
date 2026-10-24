@@ -61,7 +61,7 @@ export async function readAssistantInputs(adapter: AgentRuntimeAdapter, sessionR
   return { session, views };
 }
 
-/** The round a Send reaches, whichever executor carries it (the Assistant's own runtime or a Coding session). */
+/** The round a Send reaches, whichever executor carries it (the Assistant's own runtime or an executor plugin's session). */
 interface RunningRoundPort {
   answer(control: AgentAnswerControl & { pending_revision: number }): Promise<void>;
   send(input: AgentInputSend): Promise<AgentSteerReceipt | undefined>;
@@ -80,11 +80,11 @@ export function inputsOf(adapter: { readonly inputs?: AgentInputsPort }): AgentI
  * or from the session where it waits. The runtime refuses one already read: the person sends a correction then.
  */
 export async function withdrawInput(work: StoredWork, rounds: ReadonlyArray<{ run_id: string }>, { run_id, input_id }: { run_id: string; input_id: string },
-  via: { coding(): Promise<{ withdraw(sessionId: string, runId: string, inputId: string): Promise<void> }>; runtime(): Promise<AgentInputsPort>; beforeWithdraw(sessionId: string, inputId: string): void }): Promise<void> {
+  via: { executor(): Promise<{ withdraw(sessionId: string, runId: string, inputId: string): Promise<void> }>; runtime(): Promise<AgentInputsPort>; beforeWithdraw(sessionId: string, inputId: string): void }): Promise<void> {
   if (typeof run_id !== "string" || !run_id || typeof input_id !== "string" || !input_id) throw assistantErrors.invalid("撤回要指明是哪一轮的哪一条补充");
-  if (work.executor.kind === "coding") {
-    if (!work.executor.session_id) throw assistantErrors.state("这项工作还没有交给 Coding 的补充");
-    return (await via.coding()).withdraw(work.executor.session_id, run_id, input_id);
+  if (work.executor.kind === "plugin") {
+    if (!work.executor.session_id) throw assistantErrors.state("这项工作还没有交给执行方的补充");
+    return (await via.executor()).withdraw(work.executor.session_id, run_id, input_id);
   }
   if (!work.session_id || !rounds.some(round => round.run_id === run_id)) throw assistantErrors.scope("这条补充不属于这项工作");
   const inputs = await via.runtime();
@@ -111,7 +111,7 @@ export function exactRevision(...revisions: Array<number | undefined>): number {
 /**
  * The person's words to a round under way (specs/ai-input-receipts §4.1): an answer to its one open free-text question
  * (a question in words, or a questionnaire whose one question asks for words: specs/ai-interaction-experience D34),
- * or a supplement it reads at its next boundary. One place decides, for the Assistant's own rounds and for the Coding
+ * or a supplement it reads at its next boundary. One place decides, for the Assistant's own rounds and for the executor
  * sessions it carries, so the two never disagree on where the same words go.
  */
 export class AssistantInputs {

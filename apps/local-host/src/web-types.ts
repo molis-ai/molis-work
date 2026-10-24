@@ -1,4 +1,3 @@
-import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { FeedSourceScheduler } from "@molis-ai/molis-work-plugin-feed";
 import type { ScheduleService } from "@molis-ai/molis-work-service-scheduler";
@@ -30,7 +29,6 @@ export interface WebServerOptions {
   /** Test-only deterministic local Web control token. Production persists one per Molis Work home. */
   controlToken?: string;
   /** Test/host injection. Production starts a private Codex app-server lazily on first read/resume. */
-  runtimeSessionTransport?: RuntimeSessionTransport;
   /** Shared Local Host fixture or embedding owner. Production Web owns one when omitted. */
   localHost?: MolisWorkLocalHost;
   /** How often (milliseconds, default one minute) the server finishes project deletions that other processes left pending. */

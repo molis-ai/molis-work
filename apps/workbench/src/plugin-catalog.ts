@@ -106,7 +106,7 @@ export const ALWAYS_ON_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLUGIN_C
   .map((entry) => entry.project_plugin_id);
 
 /** The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer). */
-export const DOCK_DEFAULT_PINS: readonly string[] = ["goals", "inbox", "feed", "sessions"];
+export const DOCK_DEFAULT_PINS: readonly string[] = ["goals", "inbox", "feed"];
 
 /**
  * Plugins whose page parts the workbench wires once, when the page loads and cannot change after, so adding or removing one

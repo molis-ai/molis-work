@@ -48,7 +48,7 @@ const SURFACES: Surface[] = [
   {
     id: "side-files",
     open: async ({ evaluate }) => { await evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'files', focus: true } }))"); },
-    ready: visible("[data-side-panel]"),
+    ready: `${visible("[data-side-panel]")} && [...document.querySelectorAll('[data-side-files-list][aria-busy=false] [data-side-file]')].some(row => row.querySelector('span')?.textContent === '试用示例.pdf' && row.getClientRects().length && !row.closest('[hidden]'))`,
   },
   {
     id: "settings-appearance",
@@ -174,6 +174,45 @@ const STYLES_BEGIN = `(() => {
   return true;
 })()`;
 const STYLES_STEP = "window.__visualStyles(1000)";
+
+test("VUX-TOAST-01: side-files readiness rejects loading and missing seeded material", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
+  const surface = SURFACES.find(item => item.id === "side-files"); assert.ok(surface);
+  const { evaluate, waitFor, navigate, command, origin, projectId, sessionId } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor(visible(".workbench-bar"), 30_000);
+  await evaluate(`(() => {
+    const original = window.fetch;
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    window.releaseVisualFiles = () => release();
+    window.restoreVisualFilesFetch = () => { window.fetch = original; release(); };
+    window.fetch = async (...args) => {
+      const response = await original(...args);
+      if (new URL(String(args[0]), location.href).pathname.endsWith('/api/side/files/sources')) {
+        window.visualFilesHeld = true; await held;
+      }
+      return response;
+    };
+  })()`);
+  try {
+    await surface.open(browser);
+    await waitFor("window.visualFilesHeld === true");
+    assert.equal(await evaluate(visible("[data-side-panel]")), true, "the old readiness condition already accepts the visible panel");
+    assert.equal(await evaluate("document.querySelector('[data-side-files-list]').getAttribute('aria-busy')"), "true");
+    assert.equal(await evaluate(surface.ready), false, "a visible loading list is not ready for capture");
+    await evaluate("window.releaseVisualFiles()");
+    await waitFor(surface.ready, 15_000);
+    assert.match(await evaluate<string>("document.querySelector('[data-side-files-list]').innerText"), /试用示例\.pdf/);
+    await evaluate("window.visualFileRow = [...document.querySelectorAll('[data-side-files-list] [data-side-file]')].find(row => row.querySelector('span')?.textContent === '试用示例.pdf'); window.visualFileRow.remove()");
+    assert.equal(await evaluate("document.querySelector('[data-side-files-list]').getAttribute('aria-busy')"), "false");
+    assert.equal(await evaluate(surface.ready), false, "a finished list without the seeded material is not a successful capture");
+    await evaluate("document.querySelector('[data-side-files-list] .side-files-group').append(window.visualFileRow)");
+    assert.equal(await evaluate(surface.ready), true, "the real completed material list is ready");
+  } finally {
+    await evaluate("window.restoreVisualFilesFetch()");
+  }
+});
 
 test("key surfaces settle to the same picture at every width, light and dark (W4-12)", { timeout: 1_200_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;

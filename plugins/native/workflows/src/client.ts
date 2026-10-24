@@ -57,12 +57,12 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const formEl = $('[data-wf-dialog-form]');
   const toastEl = $('[data-wf-toast]');
   const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '') ? '⌘' : 'Ctrl';
-  const KINDS = { judgment: '判断规则', function: '模板转换', ai: 'AI', manual: '手动' };
+  const KINDS = { judgment: 'workflows.kind.judgment', function: 'workflows.kind.function', ai: 'AI', manual: 'workflows.kind.manual' };
   const KIND_HELP = {
-    function: '按定好的规则，把上一步的结果变成下一步能直接用的内容，中间不再问人。',
-    ai: 'AI 读上一步的结果，整理成下一步能接着用的内容。整理出的内容会留在这一次的记录里。',
-    manual: '人看完这一步，自己决定交不交、交什么过去。',
-    judgment: '用一条已发布的判断规则看这一步的内容：结果是勾选的那几种才原样交给下一站，否则这一次停在这里，并记下判断。',
+    function: 'workflows.kind.function-help',
+    ai: 'workflows.kind.ai-help',
+    manual: 'workflows.kind.manual-help',
+    judgment: 'workflows.kind.judgment-help',
   };
   const headers = () => typeof molisWorkControlHeaders === 'function' ? molisWorkControlHeaders() : { 'content-type': 'application/json' };
   async function api(path, body) {
@@ -71,7 +71,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const res = await reply.json().catch(() => ({}));
-    if (!reply.ok) { const err = new Error((body === undefined && host.readRefusal?.(reply.status, res.code)) || res.error || L('工作流程请求失败')); err.status = reply.status; throw err; }
+    if (!reply.ok) { const err = new Error((body === undefined && host.readRefusal?.(reply.status, res.code)) || res.error || L('workflows.error.request')); err.status = reply.status; throw err; }
     return res;
   }
 
@@ -113,7 +113,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     workflows: [], stations: [], ai: false, loaded: false, judgments: null, actionSteps: null, stepDraft: null, stepQuery: '', stepIndex: null, workflow: null, instances: [], instance: null, step: 0,
     handoff: null, busy: null, openLink: null, openGap: null, returnTo: null,
   };
-  const stnMeta = (plug) => plug === 'action' ? { plugin:plug, label: '动作', icon: 'zap', supported: true }
+  const stnMeta = (plug) => plug === 'action' ? { plugin:plug, label: 'workflows.station.action', icon: 'zap', supported: true }
     : ui.stations.find((item) => item.plugin === plug) || { plugin:plug, label: plug, icon: 'grid', supported: false };
   const label = (val) => val && typeof val === 'object' ? (val.action ? val.action.title : L(stnMeta(val.plugin).label)) : L(stnMeta(val).label);
   const tint = (plug) => 'var(--plugin-' + plug + ', var(--muted))';
@@ -126,20 +126,20 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (link.kind === 'manual') return { ready: true, reason: '' };
     if (link.kind === 'judgment') {
-      if (!link.judgment) return { ready: false, reason: '还没选判断规则' };
+      if (!link.judgment) return { ready: false, reason: 'workflows.ready.no-judgment' };
       const known = (ui.judgments || []).find(row => ruleKey(row.ref) === ruleKey(link.judgment));
-      if (ui.judgments && !known) return { ready: false, reason: '所选判断规则已不可用或版本已变化' };
-      if (known && !known.available) return { ready: false, reason: known.reason || '所选判断规则暂不可用' };
-      return (link.pass || []).length ? { ready: true, reason: '' } : { ready: false, reason: '还没选哪些结果可以交过去' };
+      if (ui.judgments && !known) return { ready: false, reason: 'workflows.ready.rule-gone' };
+      if (known && !known.available) return { ready: false, reason: known.reason || 'workflows.ready.rule-unavailable' };
+      return (link.pass || []).length ? { ready: true, reason: '' } : { ready: false, reason: 'workflows.ready.no-pass' };
     }
-    if (link.kind === 'function') return link.body_template.trim() ? { ready: true, reason: '' } : { ready: false, reason: '还没写交接规则' };
-    if (!link.instructions.trim()) return { ready: false, reason: '还没写 AI 要整理成什么' };
-    if (!ui.ai) return { ready: false, reason: '还没有可用的文字模型' };
+    if (link.kind === 'function') return link.body_template.trim() ? { ready: true, reason: '' } : { ready: false, reason: 'workflows.ready.no-template' };
+    if (!link.instructions.trim()) return { ready: false, reason: 'workflows.ready.no-instructions' };
+    if (!ui.ai) return { ready: false, reason: 'workflows.ready.no-model' };
     return { ready: true, reason: '' };
   };
   const handLink = () => ({ kind: 'manual', title_template: '', body_template: '', instructions: '' });
-  const ruleText = (verdict) => verdict.status === 'needs_review' ? L('需要人确认') : L('结果「{choice}」', { choice: verdict.choice || L('无') })
-    + (verdict.confidence == null ? '' : ' · ' + L('把握 {value}%', { value: Math.round(verdict.confidence * 100) }));
+  const ruleText = (verdict) => verdict.status === 'needs_review' ? L('workflows.verdict.needs-review') : L('workflows.verdict.result', { choice: verdict.choice || L('workflows.verdict.none') })
+    + (verdict.confidence == null ? '' : ' · ' + L('workflows.verdict.confidence', { value: Math.round(verdict.confidence * 100) }));
   const ruleKey = (ref) => ref ? ref.capability_id + '@' + ref.version + '@' + ref.provider_id : '';
   async function loadRules(force) {
     if (ui.judgments && !force) return ui.judgments;
@@ -210,7 +210,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const stateKey = () => 'molis-workflows:' + host.route('/');
   const remember = () => { try { sessionStorage.setItem(stateKey(), JSON.stringify({ workflow: ui.workflow?.workflow_id || null, instance: ui.instance?.instance_id || null, step: ui.step })); } catch {} };
   const emitCtx = () => {
-    const ctx = { plugin_id: "io.molis.work.native.workflows", surface_title: L('工作流程') };
+    const ctx = { plugin_id: "io.molis.work.native.workflows", surface_title: L('workflows.page.title') };
     const mode = root.dataset.wfMode;
     const flow = mode === 'workflow' ? ui.workflow : null;
     const runOf = mode === 'instance' && ui.instance ? { id: ui.instance.workflow_id, title: ui.instanceWorkflowTitle } : null;
@@ -230,23 +230,23 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
 
   function chainText(chain) {
-    if (!chain.stations.length) return '<span class="wf-muted">' + tx('还没有站') + '</span>';
+    if (!chain.stations.length) return '<span class="wf-muted">' + tx('workflows.chain.no-stations') + '</span>';
     return chain.stations.map((stn, idx) => (idx ? '<i class="wf-mini-link" data-kind="' + chain.links[idx - 1].kind + '">' + esc(L(KINDS[chain.links[idx - 1].kind])) + '</i>' : '')
       + '<b style="--station-tint:' + tint(stn.plugin) + '">' + esc(label(stn)) + '</b>').join('');
   }
   function drawList() {
     if (!ui.loaded) return;
     if (!ui.workflows.length) {
-      listEl.innerHTML = '<div class="mw-empty wf-empty"><span class="mw-empty__mark">' + ico('workflow') + '</span><strong>' + tx('还没有工作流程') + '</strong>'
-        + '<p>' + tx('把已有插件按顺序串起来，定好上一步的结果怎样交给下一步。每走一次都会留下这一次自己的内容。') + '</p>'
-        + '<p class="wf-example"><b>Feed</b><i>' + tx('手动') + '</i><b>Inbox</b><i>AI</i><b>Pages</b></p>'
-        + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="example">' + ico('sparkles') + '<span>' + tx('用这个例子新建') + '</span></button></div>';
+      listEl.innerHTML = '<div class="mw-empty wf-empty"><span class="mw-empty__mark">' + ico('workflow') + '</span><strong>' + tx('workflows.list.empty-title') + '</strong>'
+        + '<p>' + tx('workflows.list.empty-hint') + '</p>'
+        + '<p class="wf-example"><b>Feed</b><i>' + tx('workflows.kind.manual') + '</i><b>Inbox</b><i>AI</i><b>Pages</b></p>'
+        + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="example">' + ico('sparkles') + '<span>' + tx('workflows.list.example') + '</span></button></div>';
       return;
     }
-    listEl.innerHTML = '<nav class="mw-dir__list wf-rows" aria-label="' + tx('工作流程') + '">' + ui.workflows.map((flow) => {
+    listEl.innerHTML = '<nav class="mw-dir__list wf-rows" aria-label="' + tx('workflows.page.title') + '">' + ui.workflows.map((flow) => {
       const selected = ui.workflow?.workflow_id === flow.workflow_id;
-      const runs = flow.instance_count ? L('{count} 次', { count: flow.instance_count }) + (flow.active_count ? ' · ' + L('{count} 次进行中', { count: flow.active_count }) : '') : L('还没走过');
-      const live = flow.active_count ? '<i class="wf-row__live" title="' + esc(L('{count} 次进行中', { count: flow.active_count })) + '"></i>' : '';
+      const runs = flow.instance_count ? L('workflows.list.run-count', { count: flow.instance_count }) + (flow.active_count ? ' · ' + L('workflows.list.active-count', { count: flow.active_count }) : '') : L('workflows.list.not-run');
+      const live = flow.active_count ? '<i class="wf-row__live" title="' + esc(L('workflows.list.active-count', { count: flow.active_count })) + '"></i>' : '';
       return '<button type="button" class="wf-row directory-list-row' + (selected ? ' is-selected' : '') + '" data-wf-open="' + esc(flow.workflow_id) + '"' + (selected ? ' aria-current="page"' : '') + '>'
         + '<span class="wf-row__title"><span>' + esc(flow.title) + '</span>' + live + '</span><span class="wf-row__chain" data-overflow-fade>' + chainText(flow) + '</span><span class="wf-row__meta">' + esc(runs) + '</span></button>';
     }).join('') + '</nav>';
@@ -258,15 +258,15 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function stationHtml(stn, idx, count) {
     const info = stnMeta(stn.plugin); const name = label(stn);
     return '<div class="wf-station" role="listitem" tabindex="0" draggable="true" data-wf-station="' + idx + '" data-station-id="' + esc(stn.station_id) + '" style="--station-tint:' + tint(stn.plugin) + '"'
-      + ' aria-label="' + esc(L('{plugin} · 第 {n} 站', { plugin: name, n: idx + 1 })) + '" aria-description="' + esc(L('拖动或用 {mod} ← → 调顺序，Delete 拿掉', { mod: MOD === '⌘' ? '⌥' : 'Alt +' })) + '">'
+      + ' aria-label="' + esc(L('workflows.station.label', { plugin: name, n: idx + 1 })) + '" aria-description="' + esc(L('workflows.station.hint', { mod: MOD === '⌘' ? '⌥' : 'Alt +' })) + '">'
       + '<span class="wf-station__icon">' + ico(info.icon) + '</span>'
-      + (stn.action ? '<button type="button" class="wf-station__name wf-station__edit" tabindex="-1" data-wf-action="edit-step" data-index="' + idx + '" title="' + tx('设置这一步的动作和字段') + '">' + esc(name)
+      + (stn.action ? '<button type="button" class="wf-station__name wf-station__edit" tabindex="-1" data-wf-action="edit-step" data-index="' + idx + '" title="' + tx('workflows.station.edit-step') + '">' + esc(name)
         + (stn.action.group ? '<small>' + esc(stn.action.group) + '</small>' : '') + '</button>' : '<span class="wf-station__name">' + esc(name) + '</span>')
       + (stn.availability?.available === false ? '<span class="wf-station__warning" role="img" aria-label="' + esc(stn.availability.reason) + '" title="' + esc(stn.availability.reason) + '">' + ico('alert') + '</span>' : '')
       + '<span class="wf-station__tools">'
-      + (idx > 0 ? '<button type="button" class="wf-tool" tabindex="-1" data-wf-action="move" data-from="' + idx + '" data-gap="' + (idx - 1) + '" aria-label="' + tx('往前挪') + '" title="' + tx('往前挪') + '">' + ico('chevron-left') + '</button>' : '')
-      + (idx < count - 1 ? '<button type="button" class="wf-tool" tabindex="-1" data-wf-action="move" data-from="' + idx + '" data-gap="' + (idx + 2) + '" aria-label="' + tx('往后挪') + '" title="' + tx('往后挪') + '">' + ico('chevron-right') + '</button>' : '')
-      + '<button type="button" class="wf-tool wf-tool--danger" tabindex="-1" data-wf-action="remove" data-index="' + idx + '" aria-label="' + tx('拿掉这一站') + '" title="' + tx('拿掉这一站') + '">' + ico('x') + '</button>'
+      + (idx > 0 ? '<button type="button" class="wf-tool" tabindex="-1" data-wf-action="move" data-from="' + idx + '" data-gap="' + (idx - 1) + '" aria-label="' + tx('workflows.station.move-earlier') + '" title="' + tx('workflows.station.move-earlier') + '">' + ico('chevron-left') + '</button>' : '')
+      + (idx < count - 1 ? '<button type="button" class="wf-tool" tabindex="-1" data-wf-action="move" data-from="' + idx + '" data-gap="' + (idx + 2) + '" aria-label="' + tx('workflows.station.move-later') + '" title="' + tx('workflows.station.move-later') + '">' + ico('chevron-right') + '</button>' : '')
+      + '<button type="button" class="wf-tool wf-tool--danger" tabindex="-1" data-wf-action="remove" data-index="' + idx + '" aria-label="' + tx('workflows.station.remove') + '" title="' + tx('workflows.station.remove') + '">' + ico('x') + '</button>'
       + '</span></div>';
   }
   function linkHtml(flow, idx) {
@@ -276,38 +276,38 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const open = ui.openLink === idx;
     return '<div class="wf-link' + (ui.openGap === idx + 1 ? ' is-picking' : '') + '" data-wf-gap="' + (idx + 1) + '" data-link-key="' + esc(from.station_id + '>' + to.station_id) + '" data-kind="' + link.kind + '" data-ready="' + ready.ready + '">'
       + '<span class="wf-link__line" aria-hidden="true"></span>'
-      + '<button type="button" class="wf-link__pill' + (open ? ' is-open' : '') + '" data-wf-action="link" data-link="' + idx + '" aria-haspopup="dialog" aria-expanded="' + open + '" aria-label="' + esc(between + ' · ' + L(KINDS[link.kind]) + (ready.ready ? '' : ' · ' + L('未接上'))) + '">'
+      + '<button type="button" class="wf-link__pill' + (open ? ' is-open' : '') + '" data-wf-action="link" data-link="' + idx + '" aria-haspopup="dialog" aria-expanded="' + open + '" aria-label="' + esc(between + ' · ' + L(KINDS[link.kind]) + (ready.ready ? '' : ' · ' + L('workflows.link.not-connected'))) + '">'
       + (ready.ready ? '' : ico('alert')) + '<span>' + esc(L(KINDS[link.kind])) + '</span></button>'
-      + '<button type="button" class="wf-add" data-wf-action="gap" data-gap="' + (idx + 1) + '" aria-label="' + esc(L('在 {a} 和 {b} 之间加入插件', { a: label(from), b: label(to) })) + '" title="' + tx('在这里加入插件') + '">' + ico('plus') + '</button>'
+      + '<button type="button" class="wf-add" data-wf-action="gap" data-gap="' + (idx + 1) + '" aria-label="' + esc(L('workflows.gap.between', { a: label(from), b: label(to) })) + '" title="' + tx('workflows.gap.here') + '">' + ico('plus') + '</button>'
       + '<span class="wf-link__line" aria-hidden="true"></span></div>';
   }
   function chainBody(flow) {
     if (!flow.stations.length) {
       return '<div class="wf-drop' + (ui.openGap === 0 ? ' is-picking' : '') + '" data-wf-gap="0"><span class="wf-drop__mark">' + ico('workflow') + '</span>'
-        + '<button type="button" class="mw-btn mw-btn--ghost" data-wf-action="gap" data-gap="0">' + ico('plus') + '<span>' + tx('加入第一站') + '</span></button><span class="wf-muted">' + tx('也可以把下面的插件拖到这里') + '</span></div>';
+        + '<button type="button" class="mw-btn mw-btn--ghost" data-wf-action="gap" data-gap="0">' + ico('plus') + '<span>' + tx('workflows.gap.first') + '</span></button><span class="wf-muted">' + tx('workflows.gap.drag-here') + '</span></div>';
     }
     const end = (gap, name) => '<div class="wf-end' + (ui.openGap === gap ? ' is-picking' : '') + '" data-wf-gap="' + gap + '"><button type="button" class="wf-add" data-wf-action="gap" data-gap="' + gap + '" aria-label="' + tx(name) + '" title="' + tx(name) + '">' + ico('plus') + '</button></div>';
-    const parts = [end(0, '在开头加入插件')];
+    const parts = [end(0, 'workflows.gap.at-start')];
     flow.stations.forEach((stn, idx) => {
       parts.push(stationHtml(stn, idx, flow.stations.length));
       if (idx < flow.links.length) parts.push(linkHtml(flow, idx));
     });
-    parts.push(end(flow.stations.length, '在末尾加入插件'));
+    parts.push(end(flow.stations.length, 'workflows.gap.at-end'));
     return parts.join('');
   }
   function faultHtml(flow) {
     const issues = chainIssues(flow);
     if (!issues.length) return '';
-    return '<p class="wf-issues" role="status">' + ico('alert') + '<span>' + esc(L('{count} 段还没接上：', { count: issues.length })) + issues.map((item) => {
+    return '<p class="wf-issues" role="status">' + ico('alert') + '<span>' + esc(L('workflows.issues.count', { count: issues.length })) + issues.map((item) => {
       const msg = esc(label(flow.stations[item.index]) + ' → ' + label(flow.stations[item.index + 1]) + '（' + L(item.state.reason) + '）');
       if (flow.stations.slice(item.index, item.index + 2).some(stn => stn.availability?.available === false)) return '<span>' + msg + '</span>';
       return '<button type="button" class="wf-issue" data-wf-action="link" data-link="' + item.index + '">' + msg + '</button>';
     }).join('<span aria-hidden="true">；</span>') + '</span></p>';
   }
   function runStatus(run) {
-    if (run.status === 'done') return { tone: 'done', state: 'done', text: L('已走完') };
-    if (run.status === 'stopped') return { tone: 'quiet', state: 'stopped', text: L('已结束 · 停在第 {n} 步', { n: run.current + 1 }) };
-    return { tone: 'progress', state: 'doing', text: L('第 {n}/{total} 步 · {plugin}', { n: run.current + 1, total: run.chain.stations.length, plugin: label(run.chain.stations[run.current]) }) };
+    if (run.status === 'done') return { tone: 'done', state: 'done', text: L('workflows.run.done') };
+    if (run.status === 'stopped') return { tone: 'quiet', state: 'stopped', text: L('workflows.run.stopped', { n: run.current + 1 }) };
+    return { tone: 'progress', state: 'doing', text: L('workflows.run.progress', { n: run.current + 1, total: run.chain.stations.length, plugin: label(run.chain.stations[run.current]) }) };
   }
   function pipsHtml(run) {
     return '<span class="wf-pips" aria-hidden="true">' + run.chain.stations.map((stn, i) => '<i data-state="' + stepState(run, i) + '" style="--station-tint:' + tint(stn.plugin) + '"></i>').join('') + '</span>';
@@ -316,11 +316,11 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const absent = flow.stations.find(stn => stn.availability?.available === false);
     const failed = edits.get(flow.workflow_id)?.error;
     const canStart = flow.stations.length >= 2 && !absent && !failed;
-    const startReason = failed ? L('保存失败') : absent ? absent.availability.reason : L('至少要有两站才能开始');
-    const head = '<div class="wf-section__head"><h2>' + tx('走过的每一次') + '</h2><span class="wf-muted">' + esc(ui.instances.length ? L('{count} 次', { count: ui.instances.length }) : '') + '</span>'
-      + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="start"' + (canStart ? '' : ' disabled title="' + esc(startReason) + '"') + '>' + ico('play') + '<span>' + tx('开始一次') + '</span></button></div>';
+    const startReason = failed ? L('workflows.save.failed') : absent ? absent.availability.reason : L('workflows.run.need-two');
+    const head = '<div class="wf-section__head"><h2>' + tx('workflows.run.heading') + '</h2><span class="wf-muted">' + esc(ui.instances.length ? L('workflows.list.run-count', { count: ui.instances.length }) : '') + '</span>'
+      + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="start"' + (canStart ? '' : ' disabled title="' + esc(startReason) + '"') + '>' + ico('play') + '<span>' + tx('workflows.run.start') + '</span></button></div>';
     if (!ui.instances.length) {
-      return head + '<p class="wf-muted wf-runs-empty">' + esc(absent ? L('先恢复不可用的站点，再开始第一次。') : canStart ? L('还没走过。开始一次时，先在 {plugin} 里选这一次的内容。', { plugin: label(flow.stations[0]) }) : L('先把至少两站排好，再开始第一次。')) + '</p>';
+      return head + '<p class="wf-muted wf-runs-empty">' + esc(absent ? L('workflows.run.restore-first') : canStart ? L('workflows.run.none-yet', { plugin: label(flow.stations[0]) }) : L('workflows.run.arrange-first')) + '</p>';
     }
     return head + '<div class="wf-runs">' + ui.instances.map((run) => {
       const status = runStatus(run);
@@ -330,14 +330,14 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   function returnHtml() {
     if (!ui.returnTo) return '';
-    return '<button class="mw-btn mw-btn--ghost wf-return" type="button" data-wf-action="return-to-run">' + ico('back') + '<span>' + esc(L('回到「{title}」', { title: ui.returnTo.title })) + '</span></button>';
+    return '<button class="mw-btn mw-btn--ghost wf-return" type="button" data-wf-action="return-to-run">' + ico('back') + '<span>' + esc(L('workflows.return.back', { title: ui.returnTo.title })) + '</span></button>';
   }
   function paletteHtml() {
     const joinable = ui.stations.filter((info) => info.supported);
     const others = ui.stations.filter((info) => !info.supported);
-    return joinable.map((info) => '<button type="button" class="wf-chip" draggable="true" data-wf-plugin="' + esc(info.plugin) + '" data-wf-action="append" title="' + tx('拖到链上，或点一下加到末尾') + '" style="--station-tint:' + tint(info.plugin) + '">' + ico(info.icon) + '<span>' + esc(L(info.label)) + '</span></button>').join('')
-      + '<button type="button" class="wf-chip wf-chip--action" data-wf-action="add-step" title="' + tx('在末尾加一步：执行某个插件的动作，字段从交过来的内容里填') + '">' + ico('zap') + '<span>' + tx('加一步动作') + '</span></button>'
-      + (others.length ? '<span class="wf-palette__others" title="' + esc(others.map((info) => L(info.label)).join('、')) + '">' + esc(L('其余 {count} 个插件暂不能串进流程', { count: others.length })) + '</span>' : '');
+    return joinable.map((info) => '<button type="button" class="wf-chip" draggable="true" data-wf-plugin="' + esc(info.plugin) + '" data-wf-action="append" title="' + tx('workflows.palette.chip-hint') + '" style="--station-tint:' + tint(info.plugin) + '">' + ico(info.icon) + '<span>' + esc(L(info.label)) + '</span></button>').join('')
+      + '<button type="button" class="wf-chip wf-chip--action" data-wf-action="add-step" title="' + tx('workflows.palette.action-hint') + '">' + ico('zap') + '<span>' + tx('workflows.palette.add-action') + '</span></button>'
+      + (others.length ? '<span class="wf-palette__others" title="' + esc(others.map((info) => L(info.label)).join('、')) + '">' + esc(L('workflows.palette.others', { count: others.length })) + '</span>' : '');
   }
   function drawFlow() {
     const flow = ui.workflow;
@@ -346,16 +346,16 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const cur = view.querySelector('.wf-editor');
     if (cur && cur.dataset.id === flow.workflow_id) { patchFlowRow(cur); paintSave(); return; }
     view.innerHTML = '<article class="wf-editor" data-id="' + esc(flow.workflow_id) + '">'
-      + '<header class="plugin-stage-detail-bar wf-editor__bar"><button class="plugin-stage-back" type="button" data-wf-action="back" aria-label="' + tx('返回流程列表') + '" title="' + tx('返回流程列表') + '">' + ico('chevron-right') + '</button>'
-      + '<input class="mw-input wf-title-input" data-wf-title data-inline-title value="' + esc(flow.title) + '" aria-label="' + tx('流程名称') + '" maxlength="120">'
+      + '<header class="plugin-stage-detail-bar wf-editor__bar"><button class="plugin-stage-back" type="button" data-wf-action="back" aria-label="' + tx('workflows.editor.back') + '" title="' + tx('workflows.editor.back') + '">' + ico('chevron-right') + '</button>'
+      + '<input class="mw-input wf-title-input" data-wf-title data-inline-title value="' + esc(flow.title) + '" aria-label="' + tx('workflows.editor.name') + '" maxlength="120">'
       + '<span class="wf-return-slot" data-wf-return>' + returnHtml() + '</span>'
-      + '<span class="wf-save-state" data-wf-save-state data-state="idle" aria-live="polite">' + tx('已保存') + '</span>'
-      + '<button class="mw-btn mw-btn--ghost wf-danger" type="button" data-wf-action="delete">' + ico('trash') + '<span>' + tx('删除流程') + '</span></button></header>'
+      + '<span class="wf-save-state" data-wf-save-state data-state="idle" aria-live="polite">' + tx('workflows.save.saved') + '</span>'
+      + '<button class="mw-btn mw-btn--ghost wf-danger" type="button" data-wf-action="delete">' + ico('trash') + '<span>' + tx('workflows.editor.delete') + '</span></button></header>'
       + '<div class="wf-editor__scroll">'
-      + '<section class="wf-section"><h2>' + tx('顺序与交接') + '</h2><p class="wf-hint">' + tx('插件是站，两站之间是衔接。点衔接换方式；点 + 或把插件拖到两站中间来加入。') + '</p>'
-      + '<div class="wf-chain' + (flow.stations.length ? '' : ' is-empty') + '" data-wf-chain' + (flow.stations.length ? ' role="list"' : '') + ' aria-label="' + tx('流程顺序') + '">' + chainBody(flow) + '</div>'
+      + '<section class="wf-section"><h2>' + tx('workflows.chain.heading') + '</h2><p class="wf-hint">' + tx('workflows.chain.hint') + '</p>'
+      + '<div class="wf-chain' + (flow.stations.length ? '' : ' is-empty') + '" data-wf-chain' + (flow.stations.length ? ' role="list"' : '') + ' aria-label="' + tx('workflows.chain.label') + '">' + chainBody(flow) + '</div>'
       + '<div class="wf-issues-slot" data-wf-issues>' + faultHtml(flow) + '</div>'
-      + '<div class="wf-palette" aria-label="' + tx('可以加入的插件') + '"><span class="wf-palette__label">' + tx('插件') + '</span>' + paletteHtml() + '</div></section>'
+      + '<div class="wf-palette" aria-label="' + tx('workflows.palette.label') + '"><span class="wf-palette__label">' + tx('workflows.palette.plugins') + '</span>' + paletteHtml() + '</div></section>'
       + '<section class="wf-section" data-wf-runs>' + runsHtml(flow) + '</section></div></article>';
     arrive(view.querySelector('.wf-editor'));
     paintSave();
@@ -417,7 +417,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     idx = flow.stations.findIndex(item => item.station_id === stn.station_id);
     if (idx < 0) return;
     if (keyboard) { const next = flow.stations[idx + 1] || flow.stations[idx - 1]; focusNext = next ? next.station_id : null; }
-    saveFlow({ chain: removeStn(chainOf(), idx), undoable: true, announce: L('已拿掉 {plugin}', { plugin: label(flow.stations[idx]) }) });
+    saveFlow({ chain: removeStn(chainOf(), idx), undoable: true, announce: L('workflows.toast.removed', { plugin: label(flow.stations[idx]) }) });
   }
   function insertAt(gap, plug, { focus = false } = {}) {
     const id = uid();
@@ -470,35 +470,35 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   ${WORKFLOW_GAP_PICKER_SCRIPT}
   function linkView(link) {
     const field = (name, title, val, rows, placeholder) => '<label class="mw-field"><span class="mw-field__label">' + tx(title) + '</span>'
-      + (rows === 1 ? '<input class="mw-input" data-wf-link-field="' + name + '" value="' + esc(val) + '" placeholder="' + tx(placeholder) + '">' : '<textarea class="mw-textarea" rows="' + rows + '" data-wf-link-field="' + name + '" placeholder="' + tx(placeholder) + '">' + esc(val) + '</textarea>') + '</label>';
+      + (rows === 1 ? '<input class="mw-input" data-wf-link-field="' + name + '" value="' + esc(val) + '" placeholder="' + esc(placeholder) + '">' : '<textarea class="mw-textarea" rows="' + rows + '" data-wf-link-field="' + name + '" placeholder="' + esc(placeholder) + '">' + esc(val) + '</textarea>') + '</label>';
     if (link.kind === 'function') {
-      return field('title_template', '标题规则', link.title_template, 1, '{标题}') + field('body_template', '正文规则', link.body_template, 5, '例如：来源：{来源}\n链接：{链接}\n\n{正文}')
-        + '<p class="wf-tokens"><span>' + tx('点选插入') + '</span>' + ['标题', '正文', '来源', '链接', '日期'].map((name) => '<button type="button" class="wf-token" data-wf-token="{' + name + '}" title="' + tx('插入到正文规则') + '">{' + esc(name) + '}</button>').join('') + '</p>'
-        + '<p class="wf-hint">' + tx('标题规则留空时沿用上一步的标题。') + '</p>';
+      return field('title_template', 'workflows.rule.title', link.title_template, 1, '{标题}') + field('body_template', 'workflows.rule.body', link.body_template, 5, L('workflows.rule.body-placeholder', { source: '{来源}', link: '{链接}', body: '{正文}' }))
+        + '<p class="wf-tokens"><span>' + tx('workflows.rule.insert') + '</span>' + ['标题', '正文', '来源', '链接', '日期'].map((name) => '<button type="button" class="wf-token" data-wf-token="{' + name + '}" title="' + tx('workflows.rule.insert-into-body') + '">{' + esc(name) + '}</button>').join('') + '</p>'
+        + '<p class="wf-hint">' + tx('workflows.rule.title-empty-note') + '</p>';
     }
-    if (link.kind === 'ai') return field('instructions', '要整理成什么', link.instructions, 4, '例如：整理成一页说明，分成背景、要点和待确认的问题，保留原文链接。');
+    if (link.kind === 'ai') return field('instructions', 'workflows.ai.target', link.instructions, 4, 'workflows.ai.placeholder');
     if (link.kind === 'judgment') {
       if (!ui.judgments) return '<div class="wf-judgment" aria-busy="true"><span class="mw-skeleton" style="width:70%"></span><span class="mw-skeleton wf-skeleton-small"></span></div>';
       const rows = [...ui.judgments];
-      if (link.judgment && !rows.some(row => ruleKey(row.ref) === ruleKey(link.judgment))) rows.unshift({ ref: link.judgment, title: link.judgment.title || link.judgment.capability_id, choices: [], available: false, reason: '已不可用' });
+      if (link.judgment && !rows.some(row => ruleKey(row.ref) === ruleKey(link.judgment))) rows.unshift({ ref: link.judgment, title: link.judgment.title || link.judgment.capability_id, choices: [], available: false, reason: 'workflows.judgment.gone' });
       const cur = rows.find(row => ruleKey(row.ref) === ruleKey(link.judgment));
       const picker = rows.length
-        ? '<label class="mw-field"><span class="mw-field__label">' + tx('判断规则') + '</span><select class="mw-select" data-wf-judgment>'
-          + (link.judgment ? '' : '<option value="" selected>' + tx('选一条判断规则') + '</option>')
-          + rows.map(row => '<option value="' + esc(ruleKey(row.ref)) + '"' + (row === cur ? ' selected' : '') + '>' + esc(row.title + ' · v' + row.ref.version + (row.available ? '' : ' · ' + L(row.reason || '不可用'))) + '</option>').join('') + '</select></label>'
-        : '<p class="wf-hint">' + tx('还没有可用的 Choice 判断规则。') + ' <a href="/capabilities/rules">' + tx('去写一条判断规则') + '</a></p>';
-      const choices = cur ? '<fieldset class="wf-pass"><legend class="mw-field__label">' + tx('结果是这些时交过去') + '</legend>'
+        ? '<label class="mw-field"><span class="mw-field__label">' + tx('workflows.kind.judgment') + '</span><select class="mw-select" data-wf-judgment>'
+          + (link.judgment ? '' : '<option value="" selected>' + tx('workflows.judgment.choose') + '</option>')
+          + rows.map(row => '<option value="' + esc(ruleKey(row.ref)) + '"' + (row === cur ? ' selected' : '') + '>' + esc(row.title + ' · v' + row.ref.version + (row.available ? '' : ' · ' + L(row.reason || 'workflows.judgment.unavailable'))) + '</option>').join('') + '</select></label>'
+        : '<p class="wf-hint">' + tx('workflows.judgment.none') + ' <a href="/capabilities/rules">' + tx('workflows.judgment.write') + '</a></p>';
+      const choices = cur ? '<fieldset class="wf-pass"><legend class="mw-field__label">' + tx('workflows.judgment.pass-when') + '</legend>'
         + (cur.choices.length ? cur.choices.map(choice => '<label class="mw-check-row"><input class="mw-check" type="checkbox" data-wf-pass value="' + esc(choice) + '"' + ((link.pass || []).includes(choice) ? ' checked' : '') + '><span>' + esc(choice) + '</span></label>').join('')
-          : '<p class="wf-muted">' + tx('这条规则现在读不到可选结果；原选择已保留。') + '</p>') + '</fieldset>' : '';
-      return picker + choices + '<p class="wf-hint">' + tx('交过去的是这一步的原内容；判断结果会记在这一次里。判断要人确认时也不会交过去。') + '</p>';
+          : '<p class="wf-muted">' + tx('workflows.judgment.unreadable') + '</p>') + '</fieldset>' : '';
+      return picker + choices + '<p class="wf-hint">' + tx('workflows.judgment.note') + '</p>';
     }
-    return '<p class="wf-hint">' + tx('走到这里时会停下来，人看完上一步的内容，改好要交的标题和正文，再决定交不交。') + '</p>';
+    return '<p class="wf-hint">' + tx('workflows.manual.note') + '</p>';
   }
   function backFoot(ready) {
     if (!ui.returnTo) return '';
-    return '<footer class="wf-pop__foot"><button class="mw-btn mw-btn--primary" type="button" data-wf-action="return-to-run" data-wf-return-button' + (ready.ready ? '' : ' disabled') + '>' + ico('arrow') + '<span>' + esc(L('回到「{title}」继续', { title: ui.returnTo.title })) + '</span></button></footer>';
+    return '<footer class="wf-pop__foot"><button class="mw-btn mw-btn--primary" type="button" data-wf-action="return-to-run" data-wf-return-button' + (ready.ready ? '' : ' disabled') + '>' + ico('arrow') + '<span>' + esc(L('workflows.link.return-continue', { title: ui.returnTo.title })) + '</span></button></footer>';
   }
-  const LABEL = { title: '标题', body: '正文', source: '来源', url: '链接', date: '日期' };
+  const LABEL = { title: 'workflows.field.title', body: 'workflows.field.body', source: 'workflows.field.source', url: 'workflows.field.link', date: 'workflows.field.date' };
   const refKey = ruleKey;
   async function loadActions() {
     if (ui.actionSteps) return ui.actionSteps;
@@ -507,67 +507,67 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   const stepOf = (draft) => (ui.actionSteps || []).find(row => refKey(row.ref) === refKey(draft.ref));
   function stepError(draft, choice) {
-    if (!draft.ref) return L('还没选动作');
-    if (!choice) return L('这个动作已不可用或版本已变化');
-    if (!choice.available) return L(choice.reason || '这个动作暂不可用');
-    for (const field of choice.fields) if (field.required && !draft.mapping[field.name]) return L('还没填「{field}」', { field: field.title || field.name });
+    if (!draft.ref) return L('workflows.step.no-action');
+    if (!choice) return L('workflows.step.action-gone');
+    if (!choice.available) return L(choice.reason || 'workflows.step.action-unavailable');
+    for (const field of choice.fields) if (field.required && !draft.mapping[field.name]) return L('workflows.step.field-empty', { field: field.title || field.name });
     for (const [name, originEl] of Object.entries(draft.mapping)) {
       const field = choice.fields.find(item => item.name === name);
-      if (!field) return L('动作已不再接受「{field}」', { field: name });
-      if ('value' in originEl && (originEl.value === '' || originEl.value === undefined || (typeof originEl.value === 'number' && Number.isNaN(originEl.value)))) return L('「{field}」的固定值还没填', { field: field.title || name });
+      if (!field) return L('workflows.step.field-dropped', { field: name });
+      if ('value' in originEl && (originEl.value === '' || originEl.value === undefined || (typeof originEl.value === 'number' && Number.isNaN(originEl.value)))) return L('workflows.step.fixed-empty', { field: field.title || name });
     }
     return '';
   }
   function formHtml(draft, choice) {
     if (!choice) return '';
-    if (!choice.fields.length) return '<p class="wf-hint">' + tx('这个动作不需要输入。') + '</p>';
-    return '<div class="wf-map" role="group" aria-label="' + tx('字段怎么填') + '">' + choice.fields.map((field) => {
+    if (!choice.fields.length) return '<p class="wf-hint">' + tx('workflows.step.no-input') + '</p>';
+    return '<div class="wf-map" role="group" aria-label="' + tx('workflows.step.fields-heading') + '">' + choice.fields.map((field) => {
       const originEl = draft.mapping[field.name];
       const cur = !originEl ? '' : 'from' in originEl ? 'from:' + originEl.from : 'value';
       const named = field.title || field.name;
       const mappable = field.type === 'string' && !field.enum;
-      const opts = (field.required ? (cur === '' ? '<option value="" selected disabled>' + tx('选一个来源') + '</option>' : '') : '<option value=""' + (cur === '' ? ' selected' : '') + '>' + tx('不填') + '</option>')
-        + (mappable ? Object.keys(LABEL).map((key) => '<option value="from:' + key + '"' + (cur === 'from:' + key ? ' selected' : '') + '>' + esc(L('交过来的{field}', { field: L(LABEL[key]) })) + '</option>').join('') : '')
-        + '<option value="value"' + (cur === 'value' ? ' selected' : '') + '>' + tx('固定值') + '</option>';
+      const opts = (field.required ? (cur === '' ? '<option value="" selected disabled>' + tx('workflows.step.pick-source') + '</option>' : '') : '<option value=""' + (cur === '' ? ' selected' : '') + '>' + tx('workflows.step.leave-empty') + '</option>')
+        + (mappable ? Object.keys(LABEL).map((key) => '<option value="from:' + key + '"' + (cur === 'from:' + key ? ' selected' : '') + '>' + esc(L('workflows.step.from-handed', { field: L(LABEL[key]) })) + '</option>').join('') : '')
+        + '<option value="value"' + (cur === 'value' ? ' selected' : '') + '>' + tx('workflows.step.fixed-value') + '</option>';
       let valueEl = '';
       if (cur === 'value') {
-        const val = originEl.value; const aria = ' aria-label="' + esc(L('「{field}」的固定值', { field: named })) + '"';
+        const val = originEl.value; const aria = ' aria-label="' + esc(L('workflows.step.fixed-value-for', { field: named })) + '"';
         valueEl = field.enum ? '<select class="mw-select" data-wf-map-value="' + esc(field.name) + '"' + aria + '>' + field.enum.map((option) => '<option value="' + esc(String(option)) + '"' + (option === val ? ' selected' : '') + '>' + esc(String(option)) + '</option>').join('') + '</select>'
-          : field.type === 'boolean' ? '<select class="mw-select" data-wf-map-value="' + esc(field.name) + '"' + aria + '><option value="true"' + (val === true ? ' selected' : '') + '>' + tx('是') + '</option><option value="false"' + (val === false ? ' selected' : '') + '>' + tx('否') + '</option></select>'
+          : field.type === 'boolean' ? '<select class="mw-select" data-wf-map-value="' + esc(field.name) + '"' + aria + '><option value="true"' + (val === true ? ' selected' : '') + '>' + tx('workflows.step.yes') + '</option><option value="false"' + (val === false ? ' selected' : '') + '>' + tx('workflows.step.no') + '</option></select>'
           : '<input class="mw-input" data-wf-map-value="' + esc(field.name) + '"' + aria + (field.type === 'string' ? '' : ' type="number" inputmode="decimal"' + (field.type === 'integer' ? ' step="1"' : '')) + ' value="' + esc(val === undefined ? '' : String(val)) + '">';
       }
-      return '<div class="wf-map__row"><span class="wf-map__name">' + esc(named) + (field.required ? '<i aria-label="' + tx('必填') + '">*</i>' : '')
+      return '<div class="wf-map__row"><span class="wf-map__name">' + esc(named) + (field.required ? '<i aria-label="' + tx('workflows.step.required') + '">*</i>' : '')
         + (field.title && field.title !== field.name ? '<small>' + esc(field.name) + '</small>' : '') + '</span>'
-        + '<select class="mw-select" data-wf-map-source="' + esc(field.name) + '" aria-label="' + esc(L('「{field}」从哪里来', { field: named })) + '">' + opts + '</select>' + valueEl + '</div>';
+        + '<select class="mw-select" data-wf-map-source="' + esc(field.name) + '" aria-label="' + esc(L('workflows.step.comes-from', { field: named })) + '">' + opts + '</select>' + valueEl + '</div>';
     }).join('') + '</div>';
   }
   function readyView(problem) {
     if (problem) return ico('alert') + '<span>' + esc(problem) + '</span>';
-    return ico('check') + '<span>' + tx(Object.keys(ui.stepDraft.mapping).length ? '字段都填好了' : '没有必填字段，可以直接执行') + '</span>';
+    return ico('check') + '<span>' + tx(Object.keys(ui.stepDraft.mapping).length ? 'workflows.step.all-filled' : 'workflows.step.no-required') + '</span>';
   }
   function editHtml() {
     const draft = ui.stepDraft; const rows = [...(ui.actionSteps || [])];
-    if (draft.ref && ui.actionSteps && !stepOf(draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || '', fields: [], available: false, reason: '已不可用' });
+    if (draft.ref && ui.actionSteps && !stepOf(draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || '', fields: [], available: false, reason: 'workflows.judgment.gone' });
     const choice = rows.find(row => refKey(row.ref) === refKey(draft.ref));
     const query = (ui.stepQuery || '').trim().toLowerCase();
     const visible = query ? rows.filter(row => row === choice || [row.title, row.group, row.description || ''].join(' ').toLowerCase().includes(query)) : rows;
     const groups = [...new Set(visible.map(row => row.group))];
-    const search = rows.length > 12 ? '<label class="mw-field"><span class="mw-field__label">' + tx('找动作') + '</span><input class="mw-input" type="search" data-wf-step-search value="'
-      + esc(ui.stepQuery || '') + '" placeholder="' + esc(L('按名称、插件或用途筛选')) + '" aria-label="' + esc(L('按名称、插件或用途筛选')) + '"></label>' : '';
+    const search = rows.length > 12 ? '<label class="mw-field"><span class="mw-field__label">' + tx('workflows.step.find') + '</span><input class="mw-input" type="search" data-wf-step-search value="'
+      + esc(ui.stepQuery || '') + '" placeholder="' + esc(L('workflows.step.filter-hint')) + '" aria-label="' + esc(L('workflows.step.filter-hint')) + '"></label>' : '';
     const picker = !ui.actionSteps ? '<div class="wf-judgment" aria-busy="true"><span class="mw-skeleton" style="width:70%"></span><span class="mw-skeleton wf-skeleton-small"></span></div>'
-      : rows.length ? search + (visible.length ? '<label class="mw-field"><span class="mw-field__label">' + tx('执行哪个动作') + (query ? '<small>' + esc(L('{count} 项匹配', { count: String(visible.length) })) + '</small>' : '') + '</span><select class="mw-select" data-wf-step-action>'
-        + (draft.ref ? '' : '<option value="" selected disabled>' + tx('选一个动作') + '</option>')
+      : rows.length ? search + (visible.length ? '<label class="mw-field"><span class="mw-field__label">' + tx('workflows.step.which') + (query ? '<small>' + esc(L('workflows.step.match-count', { count: String(visible.length) })) + '</small>' : '') + '</span><select class="mw-select" data-wf-step-action>'
+        + (draft.ref ? '' : '<option value="" selected disabled>' + tx('workflows.step.choose') + '</option>')
         + groups.map(group => '<optgroup label="' + esc(group) + '">' + visible.filter(row => row.group === group).map(row => '<option value="' + esc(refKey(row.ref)) + '"' + (row === choice ? ' selected' : '') + '>'
-          + esc(row.title + (row.available ? '' : ' · ' + L(row.reason || '不可用'))) + '</option>').join('') + '</optgroup>').join('') + '</select></label>'
-        : '<p class="wf-hint" role="status">' + tx('没有匹配的动作，换个词试试') + '</p>')
+          + esc(row.title + (row.available ? '' : ' · ' + L(row.reason || 'workflows.judgment.unavailable'))) + '</option>').join('') + '</optgroup>').join('') + '</select></label>'
+        : '<p class="wf-hint" role="status">' + tx('workflows.step.no-match') + '</p>')
         + (choice?.description ? '<p class="wf-hint">' + esc(choice.description) + '</p>' : '')
-      : '<p class="wf-hint">' + tx('现在没有可以放进流程的动作。插件声明了接受流程调用的动作后，会自动出现在这里。') + '</p>';
+      : '<p class="wf-hint">' + tx('workflows.step.none-available') + '</p>';
     const problem = ui.actionSteps ? stepError(draft, choice) : '';
     const editing = ui.stepIndex !== null;
-    return '<header class="wf-pop__head"><strong>' + tx(editing ? '这一步执行的动作' : '加一步动作') + '</strong><span class="wf-muted">' + tx('字段从前一步交过来的内容里取，或填固定值') + '</span></header>'
+    return '<header class="wf-pop__head"><strong>' + tx(editing ? 'workflows.step.running-heading' : 'workflows.palette.add-action') + '</strong><span class="wf-muted">' + tx('workflows.step.running-hint') + '</span></header>'
       + '<div class="wf-link-fields">' + picker + '<div data-wf-step-fields>' + formHtml(draft, choice) + '</div>'
       + (ui.actionSteps && rows.length ? '<p class="wf-readiness" data-ready="' + !problem + '" data-wf-step-ready>' + readyView(problem) + '</p>' : '') + '</div>'
-      + '<footer class="wf-pop__foot"><button class="mw-btn mw-btn--primary" type="button" data-wf-action="step-save"' + (problem || !ui.actionSteps ? ' disabled' : '') + '>' + ico(editing ? 'check' : 'plus') + '<span>' + tx(editing ? '保存这一步' : '加到末尾') + '</span></button></footer>';
+      + '<footer class="wf-pop__foot"><button class="mw-btn mw-btn--primary" type="button" data-wf-action="step-save"' + (problem || !ui.actionSteps ? ' disabled' : '') + '>' + ico(editing ? 'check' : 'plus') + '<span>' + tx(editing ? 'workflows.step.save' : 'workflows.step.append') + '</span></button></footer>';
   }
   function drawStep() {
     pop.innerHTML = editHtml();
@@ -596,7 +596,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const id = uid(); focusNext = id;
       const inserted = insertStn(chain, chain.stations.length, 'action', id);
       inserted.stations[inserted.stations.length - 1] = { station_id: id, plugin: 'action', action: draft };
-      saveFlow({ chain: inserted, undoable: true, announce: L('已加入「{action}」', { action: draft.title }) });
+      saveFlow({ chain: inserted, undoable: true, announce: L('workflows.toast.action-added', { action: draft.title }) });
       return;
     }
     const { availability, ...kept } = chain.stations[ui.stepIndex];
@@ -618,8 +618,8 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const ready = readyState(link);
     ui.openLink = idx; ui.openGap = null;
     pop.dataset.mode = 'link'; pop.dataset.link = String(idx);
-    pop.innerHTML = '<header class="wf-pop__head"><strong>' + esc(from + ' → ' + to) + '</strong><span class="wf-muted">' + tx('这一段的交接') + '</span></header>'
-      + '<div class="mw-toggle-group wf-kinds" role="radiogroup" aria-label="' + tx('交接方式') + '">'
+    pop.innerHTML = '<header class="wf-pop__head"><strong>' + esc(from + ' → ' + to) + '</strong><span class="wf-muted">' + tx('workflows.link.heading') + '</span></header>'
+      + '<div class="mw-toggle-group wf-kinds" role="radiogroup" aria-label="' + tx('workflows.link.type') + '">'
       + ['judgment', 'function', 'ai', 'manual'].map((kind) => '<button type="button" class="mw-toggle' + (kind === link.kind ? ' is-current' : '') + '" role="radio" aria-checked="' + (kind === link.kind) + '" data-wf-action="kind" data-kind="' + kind + '" data-link="' + idx + '">' + esc(L(KINDS[kind])) + '</button>').join('')
       + '</div><p class="wf-kind-help" data-wf-kind-help>' + tx(KIND_HELP[link.kind]) + '</p><div class="wf-link-fields" data-wf-link-fields>' + linkView(link) + '</div>'
       + '<p class="wf-readiness" data-ready="' + ready.ready + '" data-wf-readiness>' + readyRow(ready) + '</p>' + backFoot(ready);
@@ -661,9 +661,9 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (back) back.disabled = !ready.ready;
   }
   function readyRow(ready) {
-    if (ready.ready) return ico('check') + '<span>' + tx('已接上') + '</span>';
-    const fix = ready.reason === '还没有可用的文字模型' ? ' <a href="/settings/models">' + tx('打开模型设置') + '</a>' : '';
-    return ico('alert') + '<span>' + esc(L('未接上：{reason}', { reason: L(ready.reason) })) + fix + '</span>';
+    if (ready.ready) return ico('check') + '<span>' + tx('workflows.link.connected') + '</span>';
+    const fix = ready.reason === 'workflows.ready.no-model' ? ' <a href="/settings/models">' + tx('workflows.link.open-model-settings') + '</a>' : '';
+    return ico('alert') + '<span>' + esc(L('workflows.link.not-connected-reason', { reason: L(ready.reason) })) + fix + '</span>';
   }
 
   let submitForm = null; dlg.addEventListener('cancel', (ev) => { if (dlg.querySelector('[data-loading]')) ev.preventDefault(); }); // Esc and Close do not pretend to cancel a submit on its way (VUX-29).
@@ -683,22 +683,22 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const flow = ui.workflow; flushSave(); await queue;
     if (ui.workflow !== flow || edits.get(flow.workflow_id)?.error || flow.stations.length < 2) return;
     const first = flow.stations[0].plugin;
-    const hint = '<p class="wf-hint">' + esc(L('这一次从 {plugin} 里的一条内容开始。每一次的内容互不相串。', { plugin: label(first) })) + '</p>';
-    showForm(L('开始一次'), hint + skeletonPicks(), L('开始'), null);
+    const hint = '<p class="wf-hint">' + esc(L('workflows.run.starts-from', { plugin: label(first) })) + '</p>';
+    showForm(L('workflows.run.start'), hint + skeletonPicks(), L('workflows.run.started'), null);
     try {
       const res = await api('/stations/' + first + '/items');
       const items = res.items;
-      const blank = res.can_start_blank ? '<label class="mw-check-row wf-pick wf-pick--blank"><input class="mw-radio" type="radio" name="start" value="" ' + (items.length ? '' : 'checked') + '><span><strong>' + esc(L('在 {plugin} 里新建一份', { plugin: label(first) })) + '</strong><input class="mw-input" name="blank_title" maxlength="120" placeholder="' + tx('这一次的名字') + '"></span></label>' : '';
-      const filterEl = items.length > 6 ? '<label class="wf-pick-filter">' + ico('search') + '<input class="mw-input" type="search" data-wf-pick-filter placeholder="' + tx('筛选…') + '" aria-label="' + tx('筛选…') + '"></label>' : '';
-      const list = items.length ? '<div class="wf-picks" role="radiogroup" aria-label="' + tx('先选这一次从哪条内容开始') + '">' + items.map((item, idx) => '<label class="mw-check-row wf-pick" data-wf-pick-text="' + esc((item.title + ' ' + item.caption).toLowerCase()) + '"><input class="mw-radio" type="radio" name="start" value="' + esc(item.item_id) + '"' + (idx === 0 ? ' checked' : '') + '><span><strong>' + esc(item.title) + '</strong><small>' + esc([item.caption, when(item.at)].filter(Boolean).join(' · ')) + '</small></span></label>').join('') + '<p class="wf-muted wf-picks-none" data-wf-picks-none hidden>' + tx('没有匹配的内容') + '</p></div>'
-        : (blank ? '' : '<p class="wf-muted">' + esc(L('{plugin} 里还没有可以开始的内容。', { plugin: label(first) })) + '</p>');
+      const blank = res.can_start_blank ? '<label class="mw-check-row wf-pick wf-pick--blank"><input class="mw-radio" type="radio" name="start" value="" ' + (items.length ? '' : 'checked') + '><span><strong>' + esc(L('workflows.run.create-new', { plugin: label(first) })) + '</strong><input class="mw-input" name="blank_title" maxlength="120" placeholder="' + tx('workflows.run.name') + '"></span></label>' : '';
+      const filterEl = items.length > 6 ? '<label class="wf-pick-filter">' + ico('search') + '<input class="mw-input" type="search" data-wf-pick-filter placeholder="' + tx('workflows.run.filter') + '" aria-label="' + tx('workflows.run.filter') + '"></label>' : '';
+      const list = items.length ? '<div class="wf-picks" role="radiogroup" aria-label="' + tx('workflows.run.pick-first') + '">' + items.map((item, idx) => '<label class="mw-check-row wf-pick" data-wf-pick-text="' + esc((item.title + ' ' + item.caption).toLowerCase()) + '"><input class="mw-radio" type="radio" name="start" value="' + esc(item.item_id) + '"' + (idx === 0 ? ' checked' : '') + '><span><strong>' + esc(item.title) + '</strong><small>' + esc([item.caption, when(item.at)].filter(Boolean).join(' · ')) + '</small></span></label>').join('') + '<p class="wf-muted wf-picks-none" data-wf-picks-none hidden>' + tx('workflows.run.no-match') + '</p></div>'
+        : (blank ? '' : '<p class="wf-muted">' + esc(L('workflows.run.nothing-to-start', { plugin: label(first) })) + '</p>');
       if (!dlg.open) return;
       const body = dlg.querySelector('[data-wf-dialog-body]');
       body.innerHTML = hint + filterEl + blank + list;
       settle(body.querySelector('.wf-picks') || body.lastElementChild);
       submitForm = async () => {
         const picked = formEl.querySelector('input[name=start]:checked');
-        if (!picked) throw new Error(L('先选这一次从哪条内容开始'));
+        if (!picked) throw new Error(L('workflows.run.pick-first'));
         const request = picked.value ? { item_id: picked.value } : { title: formEl.querySelector('input[name=blank_title]')?.value || '' };
         const started = await api('/' + flow.workflow_id + '/instances', request);
         dlg.close();
@@ -739,10 +739,10 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   function runBarHtml(run) {
     const status = runStatus(run);
-    return '<button class="plugin-stage-back" type="button" data-wf-action="back-to-flow" aria-label="' + tx('回到这条流程') + '" title="' + tx('回到这条流程') + '">' + ico('chevron-right') + '</button>'
+    return '<button class="plugin-stage-back" type="button" data-wf-action="back-to-flow" aria-label="' + tx('workflows.run.back-to-flow') + '" title="' + tx('workflows.run.back-to-flow') + '">' + ico('chevron-right') + '</button>'
       + '<div class="wf-run__title"><h1>' + esc(run.title) + '</h1><span class="wf-muted">' + esc(ui.instanceWorkflowTitle || '') + '</span></div>'
       + pipsHtml(run) + '<span class="mw-status mw-status--' + status.tone + ' mw-status--plain wf-run__status" data-mw-state="' + status.state + '">' + esc(status.text) + '</span>'
-      + (run.status === 'active' ? '<button class="mw-btn mw-btn--ghost" type="button" data-wf-action="stop">' + ico('pause') + '<span>' + tx('结束这一次') + '</span></button>' : '');
+      + (run.status === 'active' ? '<button class="mw-btn mw-btn--ghost" type="button" data-wf-action="stop">' + ico('pause') + '<span>' + tx('workflows.run.end') + '</span></button>' : '');
   }
   function vchainHtml(run, selected) {
     const chain = run.chain;
@@ -752,17 +752,17 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       let linkRow = '';
       if (i < chain.links.length) {
         const link = chain.links[i]; const ls = linkState(run, i); const kind = L(KINDS[link.kind]);
-        const text = ls === 'done' ? L('{kind} · 已交 {time}', { kind, time: when(s.handoff.at) })
-          : ls === 'working' ? (link.kind === 'ai' ? L('AI 正在整理…') : L('正在交接…'))
-          : ls === 'waiting' ? (link.kind === 'manual' ? L('手动 · 等你交') : L('{kind} · 等你继续', { kind }))
-          : ls === 'blocked' ? L('{kind} · 未接上', { kind }) : kind;
+        const text = ls === 'done' ? L('workflows.run.kind-handed', { kind, time: when(s.handoff.at) })
+          : ls === 'working' ? (link.kind === 'ai' ? L('workflows.run.ai-working') : L('workflows.run.handing'))
+          : ls === 'waiting' ? (link.kind === 'manual' ? L('workflows.run.manual-waiting') : L('workflows.run.waiting-continue', { kind }))
+          : ls === 'blocked' ? L('workflows.run.kind-not-connected', { kind }) : kind;
         linkRow = '<div class="wf-vlink" data-wf-vlink="' + i + '" data-kind="' + link.kind + '" data-state="' + ls + '"><span class="wf-vlink__line" aria-hidden="true"></span><span class="wf-vlink__label" data-mw-state="' + ({done:'done',working:'running',waiting:'answer',blocked:'blocked',future:'idle'}[ls]) + '">' + esc(text) + '</span></div>';
       }
       const on = i === selected;
       return '<button type="button" class="wf-vstep is-' + st + (on ? ' is-selected' : '') + '" data-wf-step="' + i + '" tabindex="' + (on ? '0' : '-1') + '" style="--station-tint:' + tint(stn.plugin) + '"' + (on ? ' aria-current="step"' : '') + '>'
         + '<span class="wf-vstep__mark">' + mark + '</span><span class="wf-station__icon">' + ico(stnMeta(stn.plugin).icon) + '</span>'
-        + '<span class="wf-vstep__copy"><strong>' + esc(label(stn)) + '</strong><small>' + esc(stn.action ? (s.item ? L('已在{place}执行', { place: stn.action.group || L('对应插件') }) : run.steps[i - 1]?.pending?.attempted_at ? L('结果未确认') : st === 'pending' ? L('还没走到') : '')
-          : s.item ? s.item.title : (st === 'pending' ? L('还没走到') : '')) + '</small></span></button>' + linkRow;
+        + '<span class="wf-vstep__copy"><strong>' + esc(label(stn)) + '</strong><small>' + esc(stn.action ? (s.item ? L('workflows.run.ran-in', { place: stn.action.group || L('workflows.run.the-plugin') }) : run.steps[i - 1]?.pending?.attempted_at ? L('workflows.run.unconfirmed') : st === 'pending' ? L('workflows.run.not-reached') : '')
+          : s.item ? s.item.title : (st === 'pending' ? L('workflows.run.not-reached') : '')) + '</small></span></button>' + linkRow;
     }).join('');
   }
   let lastRun = { id: null, steps: null, links: null };
@@ -771,7 +771,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     let article = view.querySelector('.wf-run');
     if (!article || article.dataset.id !== run.instance_id) {
       view.innerHTML = '<article class="wf-run" data-id="' + esc(run.instance_id) + '"><header class="plugin-stage-detail-bar wf-run__bar" data-wf-run-bar></header>'
-        + '<div class="wf-run__body"><nav class="wf-vchain" data-wf-vchain aria-label="' + tx('这一次的步骤') + '"></nav>'
+        + '<div class="wf-run__body"><nav class="wf-vchain" data-wf-vchain aria-label="' + tx('workflows.run.steps-heading') + '"></nav>'
         + '<section class="wf-stage"><header class="wf-stage__head" data-wf-stage-head></header><div class="wf-handoff" data-wf-handoff></div>'
         + '<div class="wf-stage__frame" data-wf-frame-slot></div></section></div></article>';
       article = view.querySelector('.wf-run');
@@ -797,7 +797,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
     lastRun.steps = steps; lastRun.links = links;
     if (stepFocus !== null && stepFocus !== undefined) vchain.querySelector('[data-wf-step="' + stepFocus + '"]')?.focus({ preventScroll: true });
-    article.querySelector('[data-wf-stage-head]').innerHTML = '<span class="wf-stage__step">' + esc(L('第 {n} 步', { n: idx + 1 })) + '</span><span class="wf-station__icon" style="--station-tint:' + tint(step.plugin) + '">' + ico(stnMeta(step.plugin).icon) + '</span><strong>' + esc(label(run.chain.stations[idx])) + '</strong>' + (step.item && step.plugin !== 'action' ? '<span class="wf-muted">' + esc(step.item.title) + '</span>' : '');
+    article.querySelector('[data-wf-stage-head]').innerHTML = '<span class="wf-stage__step">' + esc(L('workflows.run.step-n', { n: idx + 1 })) + '</span><span class="wf-station__icon" style="--station-tint:' + tint(step.plugin) + '">' + ico(stnMeta(step.plugin).icon) + '</span><strong>' + esc(label(run.chain.stations[idx])) + '</strong>' + (step.item && step.plugin !== 'action' ? '<span class="wf-muted">' + esc(step.item.title) + '</span>' : '');
     const handoffBox = article.querySelector('[data-wf-handoff]');
     const actionFocus = handoffBox.contains(document.activeElement) ? document.activeElement.dataset.wfAction : null;
     const key = handoffKey(run, idx);
@@ -814,15 +814,15 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       slot.dataset.src = key; slot.className = 'wf-stage__frame is-empty';
       const res = step.result_presentation;
       slot.innerHTML = step.item
-        ? '<div class="wf-stage__result"><div class="wf-result-summary" data-wf-result-summary><h3>' + tx(res?.summary || '动作已返回') + '</h3>'
+        ? '<div class="wf-stage__result"><div class="wf-result-summary" data-wf-result-summary><h3>' + tx(res?.summary || 'workflows.result.returned') + '</h3>'
           + (res?.title ? '<p class="wf-result-title">' + esc(res.title) + '</p>' : '')
           + (res?.text ? '<p class="wf-result-text">' + esc(res.text) + '</p>' : '')
-          + (res?.text_truncated ? '<p class="wf-muted">' + tx(step.result_truncated ? '正文仅显示节选。' : '正文仅显示节选，完整返回值见技术详情。') + '</p>' : '')
+          + (res?.text_truncated ? '<p class="wf-muted">' + tx(step.result_truncated ? 'workflows.result.excerpt' : 'workflows.result.excerpt-full') + '</p>' : '')
           + (res?.link ? '<a class="mw-btn mw-btn--secondary" data-wf-result-link href="' + esc(res.link.href) + '">' + tx(res.link.label) + '</a>' : '') + '</div>'
-          + '<details class="wf-result-details"><summary>' + tx('技术详情') + '</summary>'
-          + (step.result_truncated ? '<p class="wf-muted">' + tx('返回内容过长，这次记录只保留了摘要。') + '</p>' : '<pre class="wf-rule">' + esc(JSON.stringify(step.result ?? null, null, 2)) + '</pre>') + '</details>'
-          + '<details class="wf-result-details"><summary>' + tx('交给动作的内容') + '</summary>' + dataHtml(step.payload || { title: '', body: '' }) + '</details></div>'
-        : '<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">' + ico('zap') + '</span><strong>' + tx('还没走到这一步') + '</strong><p>' + esc(L('前一步交过来后，这一步会执行「{action}」。', { action: stn.action.title })) + '</p></div>';
+          + '<details class="wf-result-details"><summary>' + tx('workflows.result.technical') + '</summary>'
+          + (step.result_truncated ? '<p class="wf-muted">' + tx('workflows.result.too-long') + '</p>' : '<pre class="wf-rule">' + esc(JSON.stringify(step.result ?? null, null, 2)) + '</pre>') + '</details>'
+          + '<details class="wf-result-details"><summary>' + tx('workflows.result.input') + '</summary>' + dataHtml(step.payload || { title: '', body: '' }) + '</details></div>'
+        : '<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">' + ico('zap') + '</span><strong>' + tx('workflows.run.not-at-step') + '</strong><p>' + esc(L('workflows.run.will-run', { action: stn.action.title })) + '</p></div>';
       settle(slot.firstElementChild);
       return;
     }
@@ -830,7 +830,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (slot.dataset.src === '') return;
       slot.dataset.src = '';
       slot.className = 'wf-stage__frame is-empty';
-      slot.innerHTML = '<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">' + ico(stnMeta(step.plugin).icon) + '</span><strong>' + tx('还没走到这一步') + '</strong><p>' + esc(L('前一步交过来后，这里就是 {plugin} 里这一次的内容。', { plugin: label(step.plugin) })) + '</p></div>';
+      slot.innerHTML = '<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">' + ico(stnMeta(step.plugin).icon) + '</span><strong>' + tx('workflows.run.not-at-step') + '</strong><p>' + esc(L('workflows.run.will-show', { plugin: label(step.plugin) })) + '</p></div>';
       settle(slot.firstElementChild);
       return;
     }
@@ -867,21 +867,21 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const chain = run.chain;
     if (step.handoff) {
       const h = step.handoff; const next = label(chain.stations[idx + 1]);
-      const who = h.actor === 'ai' ? L('AI 整理后交给了 {next}', { next }) : h.actor === 'function' ? L('按规则交给了 {next}', { next })
-        : h.actor === 'judgment' ? L('判断为「{choice}」，交给了 {next}', { choice: h.verdict?.choice || '', next }) : L('你手动交给了 {next}', { next });
+      const who = h.actor === 'ai' ? L('workflows.handoff.ai-done', { next }) : h.actor === 'function' ? L('workflows.handoff.rule-done', { next })
+        : h.actor === 'judgment' ? L('workflows.handoff.judged', { choice: h.verdict?.choice || '', next }) : L('workflows.handoff.manual-done', { next });
       return '<details class="wf-record mw-disclosure"' + (h.actor === 'ai' ? ' open' : '') + '><summary><span class="wf-handoff__kind" data-kind="' + h.kind + '">' + esc(L(KINDS[h.kind])) + '</span><span>' + esc(who) + '</span><span class="wf-muted">' + esc(when(h.at)) + '</span></summary>'
-        + '<div class="wf-record__body"><p class="wf-record__label">' + tx(h.actor === 'ai' ? 'AI 整理出的内容' : '交过去的内容') + '</p>' + dataHtml(h.output)
-        + (h.rule ? '<p class="wf-record__label">' + tx(h.actor === 'ai' ? '这段交接的要求' : h.actor === 'judgment' ? '判断规则' : '规则') + '</p><pre class="wf-rule">' + esc(h.rule) + '</pre>' : '')
-        + (h.verdict ? '<p class="wf-record__label">' + tx('判断结果') + '</p><p class="wf-verdict">' + esc(ruleText(h.verdict)) + '</p>' : '')
-        + '<button class="mw-btn mw-btn--ghost" type="button" data-wf-step="' + (idx + 1) + '"><span>' + esc(L('去 {next} 看这一次', { next })) + '</span>' + ico('arrow') + '</button></div></details>';
+        + '<div class="wf-record__body"><p class="wf-record__label">' + tx(h.actor === 'ai' ? 'workflows.handoff.ai-output' : 'workflows.handoff.handed-content') + '</p>' + dataHtml(h.output)
+        + (h.rule ? '<p class="wf-record__label">' + tx(h.actor === 'ai' ? 'workflows.handoff.instruction' : h.actor === 'judgment' ? 'workflows.kind.judgment' : 'workflows.handoff.rule') + '</p><pre class="wf-rule">' + esc(h.rule) + '</pre>' : '')
+        + (h.verdict ? '<p class="wf-record__label">' + tx('workflows.handoff.judgment') + '</p><p class="wf-verdict">' + esc(ruleText(h.verdict)) + '</p>' : '')
+        + '<button class="mw-btn mw-btn--ghost" type="button" data-wf-step="' + (idx + 1) + '"><span>' + esc(L('workflows.handoff.see-run', { next })) + '</span>' + ico('arrow') + '</button></div></details>';
     }
     if (idx >= chain.links.length) {
-      return run.status === 'done' ? '<p class="wf-handoff__note is-done"><span data-mw-state="done" aria-hidden="true"></span>' + '<span>' + tx('这是最后一站，这一次已经走完。') + '</span></p>' : '';
+      return run.status === 'done' ? '<p class="wf-handoff__note is-done"><span data-mw-state="done" aria-hidden="true"></span>' + '<span>' + tx('workflows.handoff.last-station') + '</span></p>' : '';
     }
     if (run.status !== 'active' || idx !== run.current) {
       if (run.status === 'stopped' && idx === run.current) {
         if (run.stopped && run.stopped.from === idx) return '<p class="wf-handoff__note is-held">' + ico('pause') + '<span>' + esc(L(run.stopped.reason)) + (run.stopped.verdict ? ' · ' + esc(ruleText(run.stopped.verdict)) : '') + '</span></p>';
-        return '<p class="wf-handoff__note">' + ico('pause') + '<span>' + tx('这一次在这里结束了，后面的站没有继续。') + '</span></p>';
+        return '<p class="wf-handoff__note">' + ico('pause') + '<span>' + tx('workflows.handoff.ended-here') + '</span></p>';
       }
       return '';
     }
@@ -891,27 +891,27 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (tgt.action && step.pending?.attempted_at && !busy) {
       // The action was called and never confirmed: nothing repeats it until the person has checked.
       return '<div class="wf-handoff__bar is-blocked wf-uncertain" role="status"><span data-mw-state="verify" aria-hidden="true"></span><span>'
-        + esc(step.pending.attempt_error ? L('上次执行「{action}」时出错：{error}', { action: tgt.action.title, error: step.pending.attempt_error }) : L('上次执行「{action}」没有确认结果', { action: tgt.action.title }))
-        + ' · ' + esc(L('先到{place}核对，确认没有生效再重新执行。', { place: tgt.action.group || L('对应插件') })) + '</span>'
-        + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="stop">' + tx('结束这一次') + '</button>'
-        + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="retry-action" data-index="' + idx + '">' + ico('refresh') + '<span>' + tx('重新执行') + '</span></button></div>';
+        + esc(step.pending.attempt_error ? L('workflows.action.last-failed', { action: tgt.action.title, error: step.pending.attempt_error }) : L('workflows.action.last-unconfirmed', { action: tgt.action.title }))
+        + ' · ' + esc(L('workflows.action.check-first', { place: tgt.action.group || L('workflows.run.the-plugin') })) + '</span>'
+        + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="stop">' + tx('workflows.run.end') + '</button>'
+        + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="retry-action" data-index="' + idx + '">' + ico('refresh') + '<span>' + tx('workflows.action.run-again') + '</span></button></div>';
     }
     if (ui.handoff?.index === idx && ui.handoff.mode === 'manual') {
       const draft = ui.handoff.draft;
-      return '<form class="wf-manual" data-wf-manual><header><strong>' + esc(L('手动交给 {next}', { next })) + '</strong><span class="wf-muted">' + tx('看完再决定交不交、交什么。改好的内容会交过去。') + '</span></header>'
-        + '<label class="mw-field"><span class="mw-field__label">' + tx('标题') + '</span><input class="mw-input" name="title" maxlength="200" value="' + esc(draft.title) + '"></label>'
-        + '<label class="mw-field"><span class="mw-field__label">' + tx('正文') + '</span><textarea class="mw-textarea" name="body" data-fit rows="5">' + esc(draft.body) + '</textarea></label>'
-        + '<footer><span class="wf-kbd-hint"><kbd class="mw-kbd">' + esc(MOD) + ' ↵</kbd>' + tx('交过去') + '<kbd class="mw-kbd">Esc</kbd>' + tx('先不交') + '</span>'
-        + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="handoff-cancel">' + tx('先不交') + '</button>'
-        + '<button class="mw-btn mw-btn--primary" type="submit" data-wf-action="handoff-submit"' + (busy ? ' data-loading aria-disabled="true"' : '') + '>' + (busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : '') + '<span>' + esc(L('交给 {next}', { next })) + '</span></button></footer></form>';
+      return '<form class="wf-manual" data-wf-manual><header><strong>' + esc(L('workflows.manual.hand-to', { next })) + '</strong><span class="wf-muted">' + tx('workflows.manual.hint') + '</span></header>'
+        + '<label class="mw-field"><span class="mw-field__label">' + tx('workflows.field.title') + '</span><input class="mw-input" name="title" maxlength="200" value="' + esc(draft.title) + '"></label>'
+        + '<label class="mw-field"><span class="mw-field__label">' + tx('workflows.field.body') + '</span><textarea class="mw-textarea" name="body" data-fit rows="5">' + esc(draft.body) + '</textarea></label>'
+        + '<footer><span class="wf-kbd-hint"><kbd class="mw-kbd">' + esc(MOD) + ' ↵</kbd>' + tx('workflows.manual.hand-over') + '<kbd class="mw-kbd">Esc</kbd>' + tx('workflows.manual.not-now') + '</span>'
+        + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="handoff-cancel">' + tx('workflows.manual.not-now') + '</button>'
+        + '<button class="mw-btn mw-btn--primary" type="submit" data-wf-action="handoff-submit"' + (busy ? ' data-loading aria-disabled="true"' : '') + '>' + (busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : '') + '<span>' + esc(L('workflows.manual.submit-to', { next })) + '</span></button></footer></form>';
     }
     if (!ready.ready) {
-      return '<p class="wf-handoff__bar is-blocked">' + ico('alert') + '<span>' + esc(L('下一段 {kind} → {next} 还没接上：{reason}', { kind: L(KINDS[link.kind]), next, reason: L(ready.reason) })) + '</span><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="edit-link" data-link="' + idx + '">' + tx('去配置') + '</button></p>';
+      return '<p class="wf-handoff__bar is-blocked">' + ico('alert') + '<span>' + esc(L('workflows.handoff.next-blocked', { kind: L(KINDS[link.kind]), next, reason: L(ready.reason) })) + '</span><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="edit-link" data-link="' + idx + '">' + tx('workflows.handoff.configure') + '</button></p>';
     }
-    const act = link.kind === 'manual' ? L('看内容并交给 {next}', { next }) : link.kind === 'ai' ? L('AI 整理后交给 {next}', { next })
-      : link.kind === 'judgment' ? L('判断后交给 {next}', { next }) : L('按规则交给 {next}', { next });
-    const working = busy ? (ui.busy.kind === 'preview' ? L('正在读取…') : tgt.action && link.kind !== 'ai' && link.kind !== 'judgment' ? L('正在执行…') : link.kind === 'ai' ? L('AI 正在整理…') : link.kind === 'judgment' ? L('正在判断…') : L('正在交接…')) : act;
-    return '<p class="wf-handoff__bar' + (busy ? ' is-working' : '') + '"><span class="wf-handoff__kind" data-kind="' + link.kind + '">' + esc(L(KINDS[link.kind])) + '</span><span>' + esc(L('下一段：{kind}交给 {next}', { kind: link.kind === 'manual' ? L('人看完后') : link.kind === 'ai' ? L('AI 整理后') : link.kind === 'judgment' ? L('判断通过后') : L('按规则'), next })) + '</span>'
+    const act = link.kind === 'manual' ? L('workflows.handoff.review-and-hand', { next }) : link.kind === 'ai' ? L('workflows.handoff.ai-and-hand', { next })
+      : link.kind === 'judgment' ? L('workflows.handoff.judge-and-hand', { next }) : L('workflows.handoff.rule-and-hand', { next });
+    const working = busy ? (ui.busy.kind === 'preview' ? L('workflows.handoff.loading') : tgt.action && link.kind !== 'ai' && link.kind !== 'judgment' ? L('workflows.handoff.running') : link.kind === 'ai' ? L('workflows.run.ai-working') : link.kind === 'judgment' ? L('workflows.handoff.judging') : L('workflows.run.handing')) : act;
+    return '<p class="wf-handoff__bar' + (busy ? ' is-working' : '') + '"><span class="wf-handoff__kind" data-kind="' + link.kind + '">' + esc(L(KINDS[link.kind])) + '</span><span>' + esc(L('workflows.handoff.next', { kind: link.kind === 'manual' ? L('workflows.handoff.after-person') : link.kind === 'ai' ? L('workflows.handoff.after-ai') : link.kind === 'judgment' ? L('workflows.handoff.after-judgment') : L('workflows.handoff.by-rule'), next })) + '</span>'
       + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="continue" data-index="' + idx + '"' + (busy ? ' aria-disabled="true" aria-busy="true"' : '') + '>' + (busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ico('arrow')) + '<span>' + esc(working) + '</span></button></p>';
   }
   async function resumeRun(idx, manualEl, opts = {}) {
@@ -932,7 +932,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const res = await api('/instances/' + run.instance_id + '/continue', { from: idx, updated_at: run.updated_at, ...(manualEl || {}), ...(opts.retry ? { retry_action: true } : {}) });
       ui.instance = res.instance; ui.handoff = null; ui.step = idx + 1;
       const tgt = run.chain.stations[idx + 1];
-      toast(tgt.action ? L('已执行「{action}」', { action: tgt.action.title }) : L('已交给 {next}', { next: label(tgt) }));
+      toast(tgt.action ? L('workflows.toast.action-ran', { action: tgt.action.title }) : L('workflows.toast.handed-to', { next: label(tgt) }));
       refreshFlow();
     } catch (err) {
       toast(err.message, 'error');
@@ -963,9 +963,9 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         const example = act === 'example';
         const chain = example
           ? { stations: [{ station_id: uid(), plugin: 'feed' }, { station_id: uid(), plugin: 'inbox' }, { station_id: uid(), plugin: 'pages' }],
-              links: [handLink(), { kind: 'ai', title_template: '', body_template: '', instructions: L('把这条消息整理成一页说明：先写一句结论，再分成背景、要点和待确认的问题，保留原文链接。') }] }
+              links: [handLink(), { kind: 'ai', title_template: '', body_template: '', instructions: L('workflows.example.instructions') }] }
           : { stations: [], links: [] };
-        const created = await api('', { title: example ? L('把消息写成一页') : L('新的流程'), chain });
+        const created = await api('', { title: example ? L('workflows.example.title') : L('workflows.flow.new-title'), chain });
         await loadList();
         await showFlow(created.workflow.workflow_id);
         if (!example) view.querySelector('[data-wf-title]')?.select();
@@ -976,7 +976,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (act === 'return-to-run') { const back = ui.returnTo; if (back) await openRun(back.instance, back.step); return; }
       if (act === 'retry-save') { retrySave(); return; }
       if (act === 'delete') {
-        showForm(L('删除流程'), '<p>' + esc(L('删除「{title}」后它不再出现在列表里。已经走过的每一次，以及交到各插件里的内容，都会保留。', { title: ui.workflow.title })) + '</p>', L('删除'), async () => {
+        showForm(L('workflows.editor.delete'), '<p>' + esc(L('workflows.dialog.delete-body', { title: ui.workflow.title })) + '</p>', L('workflows.dialog.delete'), async () => {
           await api('/' + ui.workflow.workflow_id + '/delete', {}); dlg.close(); ui.workflow = null; ui.returnTo = null; remember(); setMode('list'); await loadList();
         }, { tone: 'danger' });
         return;
@@ -984,7 +984,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (act === 'gap') { openGapPicker(Number(tgt.dataset.gap)); return; }
       if (act === 'append') { insertAt(ui.workflow.stations.length, tgt.dataset.wfPlugin); return; }
       if (act === 'add-step') {
-        if (!ui.workflow.stations.length) { toast(L('先放一个能挑出内容的插件，动作接在它后面'), 'error'); return; }
+        if (!ui.workflow.stations.length) { toast(L('workflows.step.start-with-picker'), 'error'); return; }
         await openStep(null, () => view.querySelector('[data-wf-action=add-step]')); return;
       }
       if (act === 'edit-step') { const idx = Number(tgt.dataset.index); await openStep(idx, () => view.querySelector('[data-wf-chain] [data-wf-action=edit-step][data-index="' + idx + '"]')); return; }
@@ -1008,7 +1008,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (act === 'dialog-close') { if (!dlg.querySelector('[data-loading]')) dlg.close(); return; }
       if (act === 'stop') {
         const run = ui.instance;
-        showForm(L('结束这一次？'), '<p>' + tx('后面的站不会再继续。已经交出去的内容都会留在各自的插件里。') + '</p>', L('结束这一次'), async () => {
+        showForm(L('workflows.dialog.end-title'), '<p>' + tx('workflows.dialog.end-body') + '</p>', L('workflows.run.end'), async () => {
           const res = await api('/instances/' + run.instance_id + '/stop', {});
           dlg.close(); ui.instance = res.instance; ui.handoff = null; drawRun(); refreshFlow();
         });
@@ -1139,13 +1139,13 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const saveName = (fieldEl) => {
     flushSave();
     if (!ui.workflow) return;
-    const title = fieldEl.value.trim() || L('新的流程');
+    const title = fieldEl.value.trim() || L('workflows.flow.new-title');
     if (title !== ui.workflow.title) saveFlow({ title });
   };
   root.addEventListener('input', (ev) => {
     if (pop.contains(ev.target)) return;
     const title = ev.target.closest('[data-wf-title]');
-    if (title) { debounce(ui.workflow, { title: title.value.trim() || L('新的流程') }, 'title', 600); return; }
+    if (title) { debounce(ui.workflow, { title: title.value.trim() || L('workflows.flow.new-title') }, 'title', 600); return; }
     const filterEl = ev.target.closest('[data-wf-pick-filter]');
     if (filterEl) { filterPicks(filterEl.value); return; }
     const manualEl = ev.target.closest('[data-wf-manual]');
@@ -1295,7 +1295,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const selectFlow = async (id, rev) => {
     if (id) {
       try { await showFlow(id, { revision:rev }); }
-      catch (err) { if (rev !== navId) return; if (err.status !== 404 && err.status !== 403) { if (!pickedQuiet) toast(err.message, 'error'); return; } root.dispatchEvent(new CustomEvent('molis-work:item-unreadable', { bubbles: true, detail: { itemId: id } })); ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList(); const note = root.querySelector('[data-wf-gone]'); if (!pickedQuiet || err.status === 403) { note.textContent = err.status === 403 ? err.message : L('这条流程不存在或已删除'); note.hidden = false; } }
+      catch (err) { if (rev !== navId) return; if (err.status !== 404 && err.status !== 403) { if (!pickedQuiet) toast(err.message, 'error'); return; } root.dispatchEvent(new CustomEvent('molis-work:item-unreadable', { bubbles: true, detail: { itemId: id } })); ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList(); const note = root.querySelector('[data-wf-gone]'); if (!pickedQuiet || err.status === 403) { note.textContent = err.status === 403 ? err.message : L('workflows.flow.gone'); note.hidden = false; } }
       return;
     }
     ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList();

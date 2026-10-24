@@ -13,7 +13,7 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
     catch { /* The live editor still retains its draft if session storage is unavailable. */ }
   }
   try {
-    for (const [id, edit] of JSON.parse(sessionStorage.getItem(draftId()) || '[]')) edits.set(id, { ...edit, pending: 0, error: edit.error || L('保存失败') });
+    for (const [id, edit] of JSON.parse(sessionStorage.getItem(draftId()) || '[]')) edits.set(id, { ...edit, pending: 0, error: edit.error || L('workflows.save.failed') });
   } catch { /* An unreadable saved draft does not prevent opening the stored workflow. */ }
   const draftOf = (flow) => {
     if (!edits.has(flow.workflow_id)) edits.set(flow.workflow_id, { flow, patch: {}, pending: 0, error: null });
@@ -32,8 +32,8 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
     const el = root.dataset.wfMode === 'workflow' && view.querySelector('[data-wf-save-state]');
     if (!el) return;
     el.dataset.state = mode; el.dataset.mwState = mode === 'error' ? 'failed' : mode; el.title = edit?.error || '';
-    el.innerHTML = mode === 'error' ? tx('保存失败') + ' <button type="button" class="mw-btn mw-btn--link" data-wf-action="retry-save"' + (edit?.pending ? ' disabled' : '') + '>' + tx('重试') + '</button>'
-      : mode === 'saving' ? '<span class="mw-spinner" aria-hidden="true"></span><span>' + tx('正在保存…') + '</span>' : mode === 'unsaved' ? tx('尚未保存') : ico('check') + '<span>' + tx('已保存') + '</span>';
+    el.innerHTML = mode === 'error' ? tx('workflows.save.failed') + ' <button type="button" class="mw-btn mw-btn--link" data-wf-action="retry-save"' + (edit?.pending ? ' disabled' : '') + '>' + tx('workflows.save.retry') + '</button>'
+      : mode === 'saving' ? '<span class="mw-spinner" aria-hidden="true"></span><span>' + tx('workflows.save.saving') + '</span>' : mode === 'unsaved' ? tx('workflows.save.unsaved') : ico('check') + '<span>' + tx('workflows.save.saved') + '</span>';
   }
   function flushSave() {
     const pending = [...pendingEdits.values()]; pendingEdits.clear();
@@ -51,7 +51,7 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
     const flow = ui.workflow; const last = undos.pop();
     if (!flow || !last || last.id !== flow.workflow_id) { undos.length = 0; return false; }
     if (pop.matches(':popover-open')) pop.hidePopover();
-    saveFlow({ chain: last.chain, undo: true }); toast(L('已撤回这次改动')); return true;
+    saveFlow({ chain: last.chain, undo: true }); toast(L('workflows.toast.undone')); return true;
   }
   function saveFlow(patch, flow = ui.workflow) {
     if (!flow) return;
@@ -67,8 +67,8 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
     if (!edit.error) edit.pending += 1;
     if (ui.workflow === flow) {
       drawFlow(); drawList();
-      if (patch.announce) toast(patch.announce, '', { label: L('撤销'), run: undo });
-      else if (lost > 0) toast(L('{count} 段交接变回了手动', { count: lost }), '', { label: L('撤销'), run: undo });
+      if (patch.announce) toast(patch.announce, '', { label: L('workflows.toast.undo'), run: undo });
+      else if (lost > 0) toast(L('workflows.toast.back-to-manual', { count: lost }), '', { label: L('workflows.toast.undo'), run: undo });
     }
     if (edit.error) { if (ui.workflow === flow) paintSave(); return; }
     clearTimeout(saveId); saveId = setTimeout(() => { if (ui.workflow === flow && edit.pending) paintSave('saving'); }, 260);

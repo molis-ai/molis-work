@@ -36,7 +36,7 @@ agent.run.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060
 agent.run.reviews.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	710c08a0c3d9	-
 agent.run.start.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	a135c67e7581	0fdb50912f18	-
 agent.run.wait.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	3ae8db7426c4	1830d589b7cb	046efc93b6ac
-agent.runtimes.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	9cecb8ebe607	2d71ed8711cd	-
+agent.runtimes.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	9cecb8ebe607	49f5b25c9d4a	-
 agent.session.create.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	36c1b12fe97d	8237effa9721	-
 agent.session.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	307d132bdd42	-
 agent.session.recover.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	d6b6b8bc631d	6f8c8fdfd5a3	-

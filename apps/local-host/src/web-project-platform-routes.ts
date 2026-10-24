@@ -2,7 +2,7 @@ import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { agentHostCapabilities, agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -97,7 +97,7 @@ export const projectWorkspacesRoute: WebRoute<ProjectRuntimeContext> = { id: "pr
  * route adapts the form, and says which Runtimes can be picked now and, when the pick is no longer one of them, why: the picker
  * stays in view then so the pick can be changed or reset.
  */
-export const projectRuntimeRoute: WebRoute<ProjectRuntimeContext> = { id: "project-runtime", handle: async ({ request, response, url, options, localHost, hostReference }) => {
+export const projectRuntimeRoute: WebRoute<ProjectRuntimeContext> = { id: "project-runtime", handle: async ({ request, response, url, options, localHost, hostReference, agentHost, agentReady }) => {
   if (url.pathname !== "/api/project-settings/runtime" || !options.project || !["GET", "POST"].includes(request.method ?? "")) return false;
   const actions = bindLocalWebActions(localHost, hostReference, ["projects:settings"]);
   try {
@@ -106,7 +106,9 @@ export const projectRuntimeRoute: WebRoute<ProjectRuntimeContext> = { id: "proje
       if (runtimeId !== null && typeof runtimeId !== "string") throw new ActionError("actions.input_invalid", "请选择一个运行时，或恢复为默认运行时");
       await actions.invoke(projectSettingsCapabilities.selectRuntime, [runtimeId]);
     }
-    const runtimes = await localHost.client(hostReference).invoke(agentHostCapabilities.listRuntimes, []), selected = await actions.invoke(projectSettingsCapabilities.runtime, []);
+    // The directory is the Host's own (`agent.runtimes` is for plugins); the person's pick is the registered project setting.
+    await agentReady();
+    const runtimes = agentHost.descriptors(), selected = await actions.invoke(projectSettingsCapabilities.runtime, []);
     const resolved = resolveProjectRuntime(runtimes, selected);
     sendJson(response, 200, { runtimes: runtimes.filter(hostsAgentSessions).map(({ runtime_id, display_name }) => ({ runtime_id, display_name })),
       selected, problem: resolved.picked && !resolved.runtime ? resolved.reason : null });

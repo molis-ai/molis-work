@@ -12,8 +12,10 @@ import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
  * reaches them only through these methods, never by a statement.
  *
  * The journal is shared by every owner of the project, so each plugin has its own part of it: the names it writes (an event's type
- * and object type, an idempotency operation) are stored under its `plugin_id` and a dot, and it reads, counts and looks up only
- * those. The plugin passes and gets back bare names; it never sees, and cannot pass, the namespace.
+ * and object type, an idempotency operation) are stored under its `plugin_id` and a colon, and it reads, counts and looks up only
+ * those. The separator is a colon because a plugin id (`PLUGIN_ID`: letters, digits, dots and hyphens) can never contain one: with a dot,
+ * `io.molis.work.a` would own the names of `io.molis.work.a.b` (its namespace would contain the other's), and bare names would collide.
+ * The plugin passes and gets back bare names; it never sees, and cannot pass, the namespace.
  */
 export interface ProjectJournalPorts {
   readonly project_id: string;
@@ -49,7 +51,8 @@ function assertActor(instance: PluginInstance, host_actor: string, actorId: stri
  */
 export function projectJournalBinding(ports: ProjectJournalPorts, authorize: (permission: string) => void, instance: PluginInstance, owner: string): ProjectJournalBinding {
   const { project_id: projectId } = ports;
-  const namespace = `${owner}.`;
+  if (owner.includes(":")) throw new Error(`插件号 ${owner} 含冒号，不能做日志的命名空间`);
+  const namespace = `${owner}:`;
   const named = (name: string) => namespace + name;
   const bare = (name: string) => name.slice(namespace.length);
   const permit = (check: () => void) => () => { check(); authorize(PROJECT_JOURNAL_PERMISSION); };

@@ -40,8 +40,8 @@ function journalCall(tx: PluginProjectDatabaseTransaction, method: Method, actor
 interface ProbeInput { readonly name: string; readonly step: string; readonly method?: Method; readonly actor?: string; readonly project?: string }
 
 /** A plugin that exists only for the test, with a table of its own in the project's library; `journal` says whether it asks for the journal permission. */
-function probe(short: string, journal: boolean, peer?: () => PluginHostServices) {
-  const id = `io.molis.work.example.${short}`, read = `${short}:read`, write = `${short}:write`;
+function probe(short: string, journal: boolean, peer?: () => PluginHostServices, idOf = `io.molis.work.example.${short}`) {
+  const id = idOf, read = `${short}:read`, write = `${short}:write`;
   const gate = { entered: deferred(), release: deferred(), left: undefined as Promise<unknown> | undefined, hook: () => {}, inner: undefined as unknown };
   let services: PluginHostServices | undefined;
   const table: PluginDatabaseDeclaration = { store_name: short, version: 1, read_permission: read, write_permission: write,
@@ -92,7 +92,7 @@ function probe(short: string, journal: boolean, peer?: () => PluginHostServices)
     reset() { gate.entered = deferred(); gate.release = deferred(); gate.left = undefined; gate.hook = () => {}; gate.inner = undefined; } };
 }
 
-/** The project platform the Host builds, with three plugins: two that hold the journal permission (`main`, `peer`) and one that does not (`bare`). */
+/** The project platform the Host builds, with four plugins: three that hold the journal permission (`main`, `peer`, and `child`, whose id extends `main`'s) and one that does not (`bare`). */
 async function platform(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "plugin-project-journal-")), file = join(home, "project.db");
   seedDemoBoard(file);
@@ -109,21 +109,22 @@ async function platform(t: TestContext) {
     } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
   const main = probe("journalmain", true), peer = probe("journalpeer", true, () => main.services()), bare = probe("journalbare", false);
-  assert.deepEqual((await running.start([main, peer, bare].map(item => ({ definition: item.definition, bundled: true })))).running.toSorted(),
-    [main.id, peer.id, bare.id].toSorted());
+  const child = probe("journalchild", true, undefined, `${main.id}.child`);
+  assert.deepEqual((await running.start([main, peer, bare, child].map(item => ({ definition: item.definition, bundled: true })))).running.toSorted(),
+    [main.id, peer.id, bare.id, child.id].toSorted());
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
   const event = (name: string) => store.db.prepare("SELECT seq, project_id, actor_id, type, object_id FROM events WHERE event_id = ?").get(`ev-${name}`) as
     { seq: number; project_id: string; actor_id: string; type: string; object_id: string } | undefined;
-  const record = (name: string) => store.db.prepare("SELECT project_id, actor_id, request_hash FROM idempotency_records WHERE operation LIKE '%.probe.note' AND idempotency_key = ?")
+  const record = (name: string) => store.db.prepare("SELECT project_id, actor_id, request_hash FROM idempotency_records WHERE operation LIKE '%:probe.note' AND idempotency_key = ?")
     .get(name) as { project_id: string; actor_id: string; request_hash: string } | undefined;
   const records = (key: string) => (store.db.prepare("SELECT operation, request_hash FROM idempotency_records WHERE idempotency_key = ? ORDER BY operation").all(key) as
     Array<{ operation: string; request_hash: string }>);
   /** An event the Host's own code wrote, in the bare name the journal's other owners (Governance, the native modules) use. */
-  const hostEvent = (name: string) => store.appendEvent({ eventId: `host-${name}`, projectId: DEMO_PROJECT_ID, actorId: HOST_ACTOR, type: "board.noted",
+  const hostEvent = (name: string) => store.appendEvent({ eventId: `ev-${name}`, projectId: DEMO_PROJECT_ID, actorId: HOST_ACTOR, type: "board.noted",
     objectType: "board", objectId: name, reason: "测试", payload: { name }, at: AT });
   /** Nothing of this name in the plugin's table, the events or the idempotency records. */
   const nothing = (short: string, name: string) => !noted(short, name) && event(name) === undefined && record(name) === undefined;
-  return { client: actions.client, main, peer, bare, noted, event, record, records, hostEvent, nothing, stop: (item: { id: string }) =>
+  return { client: actions.client, main, peer, bare, child, noted, event, record, records, hostEvent, nothing, stop: (item: { id: string }) =>
     running.runtime.stop(running.runtime.list().find(install => install.plugin_id === item.id)!.install_id) };
 }
 
@@ -283,7 +284,7 @@ test("S-61 a plugin reads and counts only its own events: another owner's events
   hostEvent("later");
   const mainSeq = event("main-note")!.seq, peerSeq = event("peer-note")!.seq;
   assert.ok(peerSeq > mainSeq, "the other owner's event is the newer one, so a cursor that counted it would be higher");
-  assert.equal(event("main-note")!.type, `${NAMESPACE}journalmain.probe.noted`, "stored under the plugin's id");
+  assert.equal(event("main-note")!.type, `${NAMESPACE}journalmain:probe.noted`, "stored under the plugin's id and a colon");
   const mine = main.services().project_database!.journal, theirs = peer.services().project_database!.journal;
   assert.deepEqual(mine.readEventsDescending().map(item => `${item.object_id} ${item.type} ${item.object_type}`), ["main-note probe.noted probe"], "main: its own event, bare");
   assert.deepEqual(theirs.readEventsDescending().map(item => `${item.object_id} ${item.type} ${item.object_type}`), ["peer-note probe.noted probe"], "peer: its own event, bare");
@@ -308,12 +309,43 @@ test("S-61 an idempotency operation is the plugin's own: two owners using the sa
   const get = (item: typeof main, key = "shared") => item.services().project_database!.transaction(async () => {}, tx => tx.journal.getIdempotency(HOST_ACTOR, "probe.note", key));
   await put(main, "main-hash");
   await put(peer, "peer-hash");
-  assert.deepEqual(records("shared"), [{ operation: `${NAMESPACE}journalmain.probe.note`, request_hash: "main-hash" },
-    { operation: `${NAMESPACE}journalpeer.probe.note`, request_hash: "peer-hash" }], "two records, each under its owner's id");
+  assert.deepEqual(records("shared"), [{ operation: `${NAMESPACE}journalmain:probe.note`, request_hash: "main-hash" },
+    { operation: `${NAMESPACE}journalpeer:probe.note`, request_hash: "peer-hash" }], "two records, each under its owner's id");
   assert.deepEqual(await get(main), { request_hash: "main-hash", outcome: { by: "main-hash" } });
   assert.deepEqual(await get(peer), { request_hash: "peer-hash", outcome: { by: "peer-hash" } });
   await main.services().project_database!.transaction(async () => {}, tx => tx.journal.putIdempotency({ actorId: HOST_ACTOR, operation: "probe.note", key: "only-main",
     requestHash: "x", outcome: null, at: AT }));
   assert.equal(await get(peer, "only-main"), null, "a key one owner stored is not found by another");
   await assert.rejects(put(main, "main-again"), "the same owner repeating its own operation and key is still the conflict it was");
+});
+
+// RAC-296
+test("S-61 two installs whose ids are dot-prefixes of each other are strangers to the journal: no reads of each other's events, no writes under each other's names, no collisions of operations", async t => {
+  const { main, child, event, records, hostEvent } = await platform(t);
+  assert.ok(child.id.startsWith(`${main.id}.`), "the child's id extends the parent's at a dot");
+  const parent = main.services().project_database!, kid = child.services().project_database!;
+  const append = (database: typeof parent, id: string, type: string, objectType: string) => database.transaction(async () => {}, tx => tx.journal.appendEvent({
+    eventId: id, actorId: HOST_ACTOR, type, objectType, objectId: id, reason: "测试", payload: { id }, at: AT }));
+  // The bare names a dot-separated namespace would have stored as one and the same string: `a.b` + `c.x` and `a.b.c` + `x`.
+  await append(parent, "ev-parent", "child.probe.noted", "child.probe");
+  await append(kid, "ev-child", "probe.noted", "probe");
+  hostEvent("unprefixed");
+  assert.deepEqual(parent.journal.readEventsDescending().map(item => `${item.object_id} ${item.type}`), ["ev-parent child.probe.noted"], "the parent reads its own event and not the child's");
+  assert.deepEqual(kid.journal.readEventsDescending().map(item => `${item.object_id} ${item.type}`), ["ev-child probe.noted"], "the child reads its own event and not the parent's");
+  const parentSeq = event("parent")!.seq, childSeq = event("child")!.seq, hostSeq = event("unprefixed")!.seq;
+  assert.ok(parentSeq < childSeq && childSeq < hostSeq, "written in this order, so a cursor that counted a stranger's event would end later");
+  assert.equal(parent.journal.eventCursor(), parentSeq, "the parent's log ends at its own event");
+  assert.equal(parent.journal.eventCursor("child.probe"), parentSeq, "and so does the cursor of its own object type");
+  assert.equal(kid.journal.eventCursor(), childSeq, "the child's log ends at its own event, not at the Host's later one");
+  assert.equal(kid.journal.eventCursor("probe"), childSeq);
+  assert.equal(parent.journal.eventCursor("probe"), 0, "the child's object type is nothing of the parent's");
+  const put = (database: typeof parent, operation: string, hash: string) => database.transaction(async () => {}, tx => tx.journal.putIdempotency({
+    actorId: HOST_ACTOR, operation, key: "same", requestHash: hash, outcome: { by: hash }, at: AT }));
+  const get = (database: typeof parent, operation: string) => database.transaction(async () => {}, tx => tx.journal.getIdempotency(HOST_ACTOR, operation, "same"));
+  await put(parent, "child.probe.note", "parent-hash");
+  await put(kid, "probe.note", "child-hash");
+  assert.equal(records("same").length, 2, "two records, not one record the second could not write");
+  assert.deepEqual(await get(parent, "child.probe.note"), { request_hash: "parent-hash", outcome: { by: "parent-hash" } });
+  assert.deepEqual(await get(kid, "probe.note"), { request_hash: "child-hash", outcome: { by: "child-hash" } });
+  assert.equal(await get(parent, "probe.note"), null, "the parent does not find the child's record under the child's name");
 });

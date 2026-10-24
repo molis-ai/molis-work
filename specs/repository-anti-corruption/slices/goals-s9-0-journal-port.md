@@ -31,11 +31,13 @@ Goals 搬进 Plugin Runtime 之后，它的动作仍要写项目的 `events`（�
 - **RAC-271**：日志写和插件自己的行同事务：幂等键重复使该次事务整体回滚。（同上）
 - **RAC-272**：`tooling/gates/table-owners.json` 不变，`apps/local-host` 里没有对 `events`、`idempotency_records` 的 SQL；`pnpm boundary:check`、`pnpm health:check --base origin/main` 通过。（门禁）
 - **RAC-294**：只读自己的：两个插件（同一个项目库、都有 `journal:project`）各自 `appendEvent`，`readEventsDescending` 只返回自己的、是裸名，`eventCursor`（有无 `objectType`）只数自己的；一个插件读不到另一个的 payload；库里别的名字（宿主写的无前缀事件）同样不在答案里。（`tests/security-invariants-plugin-project-journal.test.ts`）
-- **RAC-295**：幂等操作名带主人的命名空间：两个插件用同一个 `operation` 和 `key` 各存一条记录互不冲突，各自只取回自己的 `request_hash` 与结果；一个插件取另一个已经存过的 `operation`/`key` 得到 `null`；表里存的是「`plugin_id`、点、名字」。（同上）
+- **RAC-295**：幂等操作名带主人的命名空间：两个插件用同一个 `operation` 和 `key` 各存一条记录互不冲突，各自只取回自己的 `request_hash` 与结果；一个插件取另一个已经存过的 `operation`/`key` 得到 `null`；表里存的是「`plugin_id`、冒号、名字」。（同上）
+- **RAC-296**：插件号互为点分段前缀的两个安装（`…example.journalmain` 与 `…example.journalmain.child`）互不相干：父不读子的事件、子的 payload 与游标，父写的裸名 `child.probe.noted` 不落在子的 `probe.noted` 上，各自读回的只有自己写的；同一个 key 下父的 `child.probe.note` 与子的 `probe.note` 是两条幂等记录、互取不到。（同上）
 
 ## 4. 不做、留给 S9
 
-- 命名空间现在就做（统筹 10-24 评审裁定，「不留隐患」：还没有 Manifest 声明它，现在改不花代价）：日志是项目里所有主人共用的，所以端口替每个插件加自己的命名空间。`appendEvent` 的 `type`、`objectType` 和 `putIdempotency`/`getIdempotency` 的 `operation` 由平台存成「`plugin_id`、一个点、名字」（与 S9-2 对 Goals 存量改的前缀同一个写法），读 `readEventsDescending`、数 `eventCursor` 只看类型与对象类型都在自己名下的事件，读回来去掉前缀；命名空间取自装配的安装，不是参数。所以别的主人（含存量里还没有前缀的事件，它们归宿主里的 Governance 等）的事件读不到、算不进游标，同一个操作名在两个主人名下是两条互不相干的记录；要别的主人的事件，调那个主人的动作。Goals 的存量事件在 S9-2 的维护改名之后才落在自己的命名空间里（S9-2 的 `GOALS_JOURNAL_NAMESPACE` 就由本端口给，Goals 的仓库不再自己加）。已知的限制：命名空间是前缀，`plugin_id` 若恰好是另一个插件 `plugin_id` 的点分段前缀（`a.b` 与 `a.b.c`），`a.b` 名下的裸名 `c.x` 与 `a.b.c` 名下的裸名 `x` 存成同一个字符串；跨发布者的这种 id 由 BL-506（ac-trust T6）在安装时拒绝，同发布者的不在其内，需要时在安装处另加同样的检查。
+- 命名空间现在就做（统筹 10-24 评审裁定，「不留隐患」：还没有 Manifest 声明它，现在改不花代价）：日志是项目里所有主人共用的，所以端口替每个插件加自己的命名空间。`appendEvent` 的 `type`、`objectType` 和 `putIdempotency`/`getIdempotency` 的 `operation` 由平台存成「`plugin_id`、一个冒号、名字」，读 `readEventsDescending`、数 `eventCursor` 只看类型与对象类型都在自己名下的事件，读回来去掉前缀；命名空间取自装配的安装，不是参数。所以别的主人（含存量里还没有前缀的事件，它们归宿主里的 Governance 等）的事件读不到、算不进游标，同一个操作名在两个主人名下是两条互不相干的记录；要别的主人的事件，调那个主人的动作。
+- **分隔符是冒号，不是点**（评审第二轮裁定）：`PLUGIN_ID`（`^io\.molis\.work\.[a-z0-9][a-z0-9.-]*$`）里有点，用点做分隔符时 `io.molis.work.a` 的命名空间包住 `io.molis.work.a.b` 的，前者能读后者的事件、写后者名下的名字、撞后者的操作名（与 R-37/BL-506 同一类问题）；冒号在插件号里永远出现不了，命名空间用 `substr` 比较精确的「`plugin_id`:」前缀，一个插件号是另一个的点分段前缀也互不相干，同发布者的也一样，不需要另加安装时的检查；端口在构造时还断言 `plugin_id` 不含冒号。存量里没有这种格式的行，不需要维护。S9-2 把 Goals 存量改成带前缀时，前缀也是「`io.molis.work.goals:`」（S9-2 的脚本与常量随之改，那一片还没开 PR）。
 - 沙箱桥转发 `journal`：沙箱里的插件目前没有；有需要时在桥上加。
 - Governance 的事件仍由 `modules/governance` 经 `LocalSqliteJournal` 写，不经这个端口。
 - Goals 本体的迁移（S9 三个 PR）与 PG-087 的注意力、上下文账本服务（S9-0b）。

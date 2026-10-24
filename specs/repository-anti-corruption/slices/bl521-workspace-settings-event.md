@@ -1,4 +1,4 @@
-# BL-521：工作目录设置的变化发 `host.workspace.changed@1`（第一片，发事件）
+# BL-521：工作目录设置的变化发 `host.workspace.changed@1`（第一片发事件，第二片删钩子）
 
 状态：已实现、本地验证，PR 已开（2026-10-24，防腐线 ac-coding 片；叠片的第一片，已同步 #1191 所在的 main `2dd535912`；删 `filesOutputsRefresh` 钩子的第二片叠在它上面）。
 
@@ -29,3 +29,21 @@
 
 - 第二片（删 `filesOutputsRefresh`，连同 BL-366、BL-521 删行；`codingRouteHooks` 已随 #1191 改名）叠在这一片上。
 - 浏览器里没有走一遍；全量没跑。
+
+## 6. 第二片：删 `filesOutputsRefresh`（BL-366、BL-521 完成）
+
+状态：已实现、本地验证，叠在第一片（#1230）上，未开 PR（每线最多两个在开的 PR，等位置）。
+
+- 删 `apps/local-host/src/project-plugin-input-refresh.ts`（`filesOutputsRefresh`、`readsFilesOutputs`）及 `apps/local-host` 的两处导出；`handleProjectPluginHttp` 不再收 `hooks` 参数，`ProjectPluginRouteHooks` 类型删除；`RuntimePluginRouteHooks.beforeDispatch` 没有调用方了，一并删（只剩 `afterDispatch`，入口自己用它等输入图落定）。
+- 约 20 个测试里传给 `handleProjectPluginHttp` 的第五个参数去掉；`RAC-439` 由「钩子只为读 Files 产物的插件读 Files」改成「钩子不在了、宿主里没有文件再点它的名字」；`RAC-438` 的 Files 导入者只剩监督器；`PG062-13`、`PG037-01` 等读源码的断言跟着改。
+- BACKLOG 删 BL-366、BL-521 两行；`apps/local-host/README.md`、`skills/molis-plugin-dev/host.md`、`privileges.md` PG-037、C9 切片说明改成现状。
+
+### 6.1 删掉之后谁来保证「换了目录，消费方不读旧快照」
+
+两段合起来：项目设置里换目录 → 第一片发 `workspace-settings`（RAC-461）→ Files 收到后重新确认浏览目录、换了就作废旧目录的快照（RAC-332，`tests/files-plugin.test.ts`）。Agent 批准的写入同理（`agent-change`，RAC-331）。这两个测试各证明一半，没有一条把整条链接在真实平台上走通的用例。
+
+### 6.2 删掉之后留下的一个窗口（没有补，需要统筹定）
+
+钩子是每个消费方路由前都读一次 Files，所以「设置变化时项目平台没在运行」也被它兜住；事件只发给**正在运行**的平台（第一片就是这样定的，不为发事件启动平台），Files 的 `start()` 也不确认浏览目录。所以：平台没在运行时换了工作目录，下次启动后，到 Files 的第一个动作（`files.state`、读目录、打开、固定）或下一个工作区事件之前，读 Files 输出的插件（Diff、Text Stats 等）会读到旧目录的快照。典型路径是宿主重启或项目换出再换回时设置变过；人在项目页里改设置时平台一般在运行，走事件。
+
+可选的补法（都不在本片）：Files 在 `start()` 里确认一次浏览目录（要改 `S18-FILES-RETRY` 对持久化次数的断言，且 start 内的写入要核对启动期间被撤权的不变量）；或设置变化的发送方在平台没在运行时也把它起来（要给 `project-workspace-actions` 带上起平台所需的端口）。

@@ -128,7 +128,7 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
 
 test("PG062-09: the Host no longer draws Coding's change reader or integration preview", () => {
   // coding-surface.ts is gone (PG-036 C9); what took over its stage and route work must not use these names either.
-  const surface = ["project-plugin-stages.ts", "project-plugin-input-refresh.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
+  const surface = ["project-plugin-stages.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
   for (const name of ["renderDiff", "compareRunChangeSet", "unifiedPatch", "codingNetChange", "/integration"]) {
     assert.equal(surface.includes(name), false, `the Host's stage and route code no longer uses ${name}`);
   }

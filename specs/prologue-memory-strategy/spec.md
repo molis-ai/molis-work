@@ -1329,7 +1329,7 @@ boundary、API/Action与diff通过；实际27资源共7,806,260 B，只有workbe
 #1154 针对首批两处CDP超时的有效观测补记（2026-10-24）：在保留前次无效探针及原失败日志后，仅对原CAS/Home侧栏两文件挂已实际核验启用的只读send/receive/dispatch观察；jobs1/browser1/retries0，原用例/断言/超时均不改。CAS23/23、Home5/5单次完成；目标观测分别32和270个请求均收到且分发，丢弃0。Home47次releaseObject均收到回复。未复现旧超时，原因仍未定位，不能表述为已修复。探针已精确移除，两测试恢复原HEAD blob，无产品或测试交付差异；日志、开关预检、探针补丁和两份transport数据见 `/private/tmp/molis-memory-renewal-cdp-valid-20261024.results.json` 及同名前缀文件。此前18文件首批16通过、70/72与无效诊断保留，不改写成首次全绿；这次仅补两个原失败文件的有效当前运行。该独立片保持Draft，父链/最终合流全量与用户验收仍待完成。
 
 
-### #1154 接入准确分类控制父 c10c22ac3（2026-10-25，准备集成）
+### #1154 接入准确分类控制父 c10c22ac3（2026-10-25，本地集成）
 
 本轮从已推送且干净的 `588955503e9669899c0a1819fa9ea8c43fa8e3be` 合入 #1153 `c10c22ac3ce8573c71845de7a7186ef722b88909`，沿「M3 到期正式记忆的明确续期」短合同闭合既有本人续期，不增加功能或接口。保留当前绝对期限决定、原 memory_id/expected_version/operation_id、失败补账与后继冲突；续期不恢复 paused/disabled、不处理 Session 绑定、不猜新期限。硬边界、App 输入、用户决定及允许路径沿原合同；复用现 MemoryEdits、SDK renew 与 marker/ledger，不增加写主人、表、状态机或兼容层。
 
@@ -1341,4 +1341,15 @@ boundary、API/Action与diff通过；实际27资源共7,806,260 B，只有workbe
 
 后续依赖提醒（本轮不实施）：统筹正于 #1064 的 main112 集成线将原件 start/read 形状变更的 startRun/readSession/readRun/wait 从version1升2；将来 #1153 接该新父时，分类字段涉及的三项读取 Action 必须再从2升3，不能自动合并后静默停在2。本轮仅继承已推送c10的读取version2，既有证据仍按该准确父解释，不提前猜改版本。
 
-本轮准备计划 `/private/tmp/molis-memory-renewal-parentc10-20261025.plan.json`：原79加Contracts遗漏9项，再补原件callback/后台证明两个父边界，共90非浏览器；七浏览器为续期、分类控制、分类纠正、分页、CAS、Home侧栏和frame就绪。外围tabs/requests/model-ready/Assistant页面复用祖先#1101 f27的12浏览器证据（`/private/tmp/molis-memory-pages-parent-ebdb-20261024-tests.results.json`），只作未改变外围路径的已有证据，不记成本子片SDK96实跑；issue-home-locale只有旧#1154/d148证据且不在本次续期影响面。当前尚未安装、构建、测试或测量。
+本轮准备计划 `/private/tmp/molis-memory-renewal-parentc10-20261025.plan.json`：原79加Contracts遗漏9项，再补原件callback/后台证明两个父边界，共90非浏览器；七浏览器为续期、分类控制、分类纠正、分页、CAS、Home侧栏和frame就绪。外围tabs/requests/model-ready/Assistant页面复用祖先#1101 f27的12浏览器证据（`/private/tmp/molis-memory-pages-parent-ebdb-20261024-tests.results.json`），只作未改变外围路径的已有证据，不记成本子片SDK96实跑；issue-home-locale只有旧#1154/d148证据且不在本次续期影响面。上述为集成前计划，不代表当时已安装、构建、测试或测量；实际结果见下。
+
+
+本轮本地合并提交 `11f44cfdb83bc0319d59e010b3cc81e40f27481f`，merge-base 精确为 c10c22ac3ce8573c71845de7a7186ef722b88909。实际四处冲突仅 agent-host README、资源脚本/登记和 spec 追加；生产错误映射同时保留 memory_conflict 与 wait_limit_reached，没有额外业务修复或 Action 变更。callback/后台原件边界、AgentRunView、三项读取注册与正式调用测试、分类冻结测试、MCP v3 fixture 这九条受保护路径逐 blob 等于准确父；SDK96 vendor 八文件逐 blob 等于原 588955503，锁对父只有 SDK95→96 的原 integrity 差异。
+
+固定 Node24.14.0/pnpm11.9.0 下，获准现 store 的冻结离线安装0（3.61秒）、整体构建0（45.15秒）、根类型与workspace类型0、boundary0。API 生成0文件变更，Action快照不变；health实际生成无变化。README补齐后的90个非浏览器文件1212/1212，jobs2/retries0，288.23秒，全部本轮首次通过；覆盖真实Node/SQLite/HTTP、SDK96来源78项、续期冲突/拒绝/取消/原操作恢复与父原件/分类策略边界。资源实际27项共7,659,650 B（父7,657,970），仅workbench 1,145,353→1,147,033 B，恰为原批准+1,680，另26项逐项相同；没有额外资源额度。
+
+七个浏览器文件首轮在未提权执行外壳下22.23秒全部失败：pages明确为loopback listen EPERM，Home为Chrome在debugger启动前退出；renewal/CAS/classification出现Node InternalCallbackScope execution_async_id原生断言，根因仍为UNKNOWN，不因同批权限失败而推定为权限问题。该轮未构成业务验收，原日志与结果保留。随后经统筹授权以require_escalated提供本机Chrome/loopback权限，使用同一固定运行时、原文件/断言/超时和jobs1/browser1/retries0，结果独立登记，禁止覆盖首败或自动重试。
+
+本轮日志前缀 `/private/tmp/molis-memory-renewal-parentc10-20261025`：`-build.results.json` 为安装构建，`-static.results.json` 为类型/快照/资源报告/health/boundary，`-assets.results.json` 为实际资源登记，`-unit.results.json` 为90非浏览器，`-browser.log`及`-browser.results.json`保留首轮失败，`-authorized-browser.log`及`-authorized-browser.results.json`记录获准本机运行；最终提交门记录于`-final-gates.results.json`。未运行全量、真实付费模型、新main112及其后提交；不能将工程证据写成完整P0或用户验收。
+
+获准本机浏览器组7/7文件、36/36项通过，83.66秒，零重试；覆盖续期、分类控制、分类纠正、分页、CAS、Home侧栏及frame就绪。首批原生断言本轮未复现，根因仍UNKNOWN；旧父18文件70/72及CDP未知失败记录保留，不能改写首次全绿。本轮实际97个不同文件1248项通过，仅支持所覆盖隔离Home和Chrome路径的工程结论。

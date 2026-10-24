@@ -82,13 +82,13 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 | 表 | 列 | 说明 |
 | --- | --- | --- |
 | `plugin_publishers` | `key_id`（公钥指纹）、`public_key_spki_base64`、`label`、`pinned_at`、`pinned_by`、`revoked_at` | 发布者固定表。固定一次，对整个 Home 生效 |
-| `plugin_consents` | `consent_id`、`plugin_id`、`publisher_signature`、`kind`（`always_on` / `default_wiring` / `default_group`，预留 `local_directory` 给 PG-049 的本机目录读取）、`subject`（该类声明的规范化字符串）、`manifest_digest`、`granted_at`、`granted_by`（`user` / `host_build`）、`revoked_at`、`revocable` | 一行一项同意。`manifest_digest` 记同意时的 Manifest，声明变了（新增一条默认连线）就是新的一项，需要新的同意 |
+| `plugin_consents` | `consent_id`、`plugin_id`、`publisher_signature`、`kind`（`always_on` / `default_wiring` / `default_group`，预留 `local_directory` 给 PG-049 的本机目录读取）、`subject`（该类声明的规范化字符串）、`manifest_digest`、`granted_at`、`granted_by`（`user` / `host_build`）、`revoked_at` | 一行一项同意。`manifest_digest` 记同意时的 Manifest，声明变了（新增一条默认连线）就是新的一项，需要新的同意 |
 
 撤回（`plugins.consent.revoke`）把 `revoked_at` 写上，按撤权处理：
 
 1. **收回在途调用**：并入 S-15/S-18 已有的授权世代检查，撤回让这个安装的授权世代前进，执行中的调用在 `beforeEffect()` 和每次写之前被拒，不再写任何业务记录；处理器开始之前被拒的，只留一行「未执行」的诊断行（硬约束，不记内容）。实现片先核 `validate_authority` 现在怎么算世代，再把「同意」并进去，不另写第二套收回。
 2. **效果随类**：`always_on` 撤回后，它不再出现在常开名单里（§3.4），人可以在项目里隐藏或移除它；`default_wiring` 撤回后，来源为 `default` 且对应这一项的绑定被解开，并且记着不再自动绑；`default_group` 同理；发布者撤回（`plugins.publisher.revoke`）后，这个发布者的所有已装插件停用、不能再升级，数据保留（`THIRD-PARTY-PLUGINS.md` §4）。
-3. **host 等级的 `always_on` 同意可不可撤：按 §10 待定 2 的结论**（用户答复前未定）。稿里账本有 `revocable` 列，两种结论都只改这一列的取值，别处不动；其余同意一律可撤。
+3. **所有等级的同意都可撤**（用户 2026-10-24 定，不分等级）：`host` 等级的 `always_on` 仍是宿主代为同意、默认开，但和别的等级一样可撤；撤回后它就是普通插件，可以从项目里隐藏、移除。所以 `plugin_consents` 不需要 `revocable` 列。
 
 ### 3.4 常开从安装记录生成（PG-004）
 
@@ -97,6 +97,21 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - 项目成员关系对常开插件是**派生**的：`listPlugins` 返回「存的成员 ∪ 常开名单」，不再靠建项目时写行，所以以后装上的外部常开插件对已有项目也立刻生效，撤回后也立刻不强制。Goals 与 Shelf 的区别（Goals 是项目级插件、Shelf 是个人插件）不再靠常开名单区分，仍由各自的 Manifest 和放置声明决定。
 - `ProjectPluginCatalog.isAlwaysOn?` 与「常开必须是 `personal`」的过滤（`plugin-catalog.ts:105`）都删掉，改成 `alwaysOn(): readonly ProjectPluginId[]`，每次求值，由宿主适配器从安装记录与同意账本算出。
 - 服务端拒绝卸载、停用、从项目里移除常开插件（`catalogErrors.plugin_always_on`，复现见 `privileges.md` V-01）；这一条拒绝现在只在 `removePlugin` 里，实现片补上卸载与停用两个入口。
+
+#### 3.4.1 Goals 不在项目里时要核的地方（T1/T3 的验收）
+
+常开同意都可撤，所以 Goals 也可能被撤掉常开后从某个项目里移除。按插件同等待遇，别的部分本来就不该假定 Goals 在；实现片逐处核，每处写一条「Goals 不在时」的用例（RAC-386a），不留隐患：
+
+| 地方 | 现状 | 要的结果 |
+| --- | --- | --- |
+| 建项目 | `ProjectService.register` 写死 `"goals"`（`modules/projects/src/project-service.ts`） | 改读 `alwaysOn()` 与 `initial()`；没有 Goals 的建项目也成功 |
+| 工作台外壳 | `immersive-shell.ts` 的 `RAIL_CORE_ORDER` 与 `plugin.id === "goals"` 的锁定；`shell-page-renderer.ts` 里默认启用名单 `["goals", "sessions", "inbox", "feed", "artifacts"]`；`plugin-catalog.ts` 的 `DOCK_DEFAULT_PINS` | 名单里没有的插件不显示，不是空位；锁定改读常开名单 |
+| 首页与搜索 | `project-home.ts` 打开 Goal、`global-search.ts` 的 `goals` 来源、`placement.ts` 里打开 Goal | 来源或目标插件没启用就不列、不报错 |
+| 标签页与分屏 | `tab-workspace.ts`、`frame-container.ts`、`editing-graph.ts` 里对 `goals` 的特判 | 没有 Goals 时不尝试打开 Goal 视图，恢复旧布局时跳过丢掉的标签 |
+| 宿主动作 | `goals-actions.ts` 的 `readProjectGuidance`、`goal-project-application.ts` | 项目里没有 Goals 时返回「没有」，不抛错 |
+| 调 Goal 动作的插件 | Coding、Work 等经动作目录调 Goal 动作 | 动作目录里没有时按「能力不可用」处理，不崩 |
+
+这些是现状的调用点，不是完整清单；T1 开工时用 `git grep` 补全，补出来的也归这一条验收。
 
 ### 3.5 默认连线要同意（PG-005）
 
@@ -125,7 +140,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 | PG-002 可选权限开关（连 BL-353、BL-362） | 开关的界面在 #1098 的插件详情页；它读写的授权与本片同一份。安装预览里的平台权限说明文字（BL-353）和随激活作业（BL-362）与同意清单在同一页呈现。本片不做界面，只定数据 |
 | PG-013 隐藏后动作仍可调 | 与同意无关；`plugin_disabled` 的判断在 `project-action-availability.ts`。本片只保证「常开插件不能隐藏」的判断读 §3.4 的名单 |
 | PG-015 S-32 去掉「内置在前」 | 无依赖。对象种类的配额按 `plugin_id` 排序，不再看等级 |
-| PG-049 本机目录读取 | 复用 §3.3 的账本（`kind: "local_directory"`，`subject` 是目录的规范化路径，`revocable: true`）。服务本身的设计由 PG-049 那一片出，不在这里 |
+| PG-049 本机目录读取 | 复用 §3.3 的账本（`kind: "local_directory"`，`subject` 是目录的规范化路径）。服务本身的设计由 PG-049 那一片出，不在这里 |
 
 ## 4. 合同改动（现在不留兼容期，同一个 PR 改完所有消费者）
 
@@ -150,7 +165,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 
 ### 5.1 S-34 改写、S-15 补充
 
-- **S-34（改）**：常开插件（`always_on: true`）是否生效，看安装记录里有没有一行有效同意，不看安装来源；`host` 等级由宿主代为同意，可不可撤按 §10 待定 2 的结论；其余等级未同意的，安装时那一项不生效（不是装不上，依据统筹 10-24 定的待定 1）。服务端拒绝卸载、停用、项目内移除常开插件。`tests/security-invariants-always-on.test.ts` 的三条断言按新语义重写（见 RAC-384～386）。
+- **S-34（改）**：常开插件（`always_on: true`）是否生效，看安装记录里有没有一行有效同意，不看安装来源；`host` 等级由宿主代为同意，同意不分等级都可撤（用户 2026-10-24）；其余等级未同意的，安装时那一项不生效（不是装不上，依据统筹 10-24 定的待定 1）。服务端拒绝卸载、停用、项目内移除常开插件。`tests/security-invariants-always-on.test.ts` 的三条断言按新语义重写（见 RAC-384～386）。
 - **S-15（补）**：在 `bundled` 一段改成「`host` 等级」；其余内容不变。
 
 ### 5.2 新增
@@ -214,7 +229,8 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | RAC-382 | `pinned` 每次安装、升级、回滚都验签；验不过、指纹对不上、发布者没固定、已撤销，各自拒绝并带对应码（S-67.5） | `tests/plugin-package.test.ts` 扩展 |
 | RAC-383 | 非 `host` 等级只在沙箱：`execution` 与等级不一致被拒；映射不了沙箱形态的 Manifest 安装时拒绝 | Runtime 单元测试 |
 | RAC-384 | `unsigned` 声明 `always_on` 且没有同意：装得上、不生效（不在常开名单，可移除，依据统筹 10-24 定的待定 1）；有同意则生效（S-34 新语义） | 重写后的 `tests/security-invariants-always-on.test.ts` |
-| RAC-385 | `host` 等级的 `always_on` 默认同意、不弹窗；能不能撤回按 §10 待定 2 的结论（答复前断言只钉「默认同意、不弹窗」）；`pinned` 同意后可撤 | 同上 |
+| RAC-385 | 同意不分等级都可撤（用户 2026-10-24）：`host` 等级的 `always_on` 默认同意、不弹窗；撤回后它不再出现在常开名单里，能被隐藏、移除；`pinned` 同意后可撤 | 同上 |
+| RAC-386a | Goals 不在项目里（常开被撤回后移除）时，首页、建项目流程、Dock、搜索、Inbox/Feed/Sessions 等照常工作，不报错、不出空白；清单见 §3.4.1 | 新增非浏览器用例加两个浏览器冒烟（少量） |
 | RAC-386 | 常开从记录生成：外部常开插件对已有项目立刻生效；撤回后立刻不强制；服务端拒绝卸载、停用、移除（V-01）；Goals 与 Shelf 常开仍然成立，建项目不再写死 `"goals"` | `tests/project-plugins.test.ts` 扩展 |
 | RAC-387 | 没签名的包经 `plugin install` 被拒（`plugin.signature_invalid`），不会得到 `unsigned` 等级；`unsigned` 只有开发目录和创作台产物两个来源 | `tests/plugin-package.test.ts` 扩展 |
 | RAC-388 | 默认连线：`unsigned`/`pinned` 声明的 `default_source` 没有同意不绑，有同意才绑；`host` 等级的行为与今天一致 | `tests/plugin-default-bindings.test.ts` 扩展 |
@@ -236,10 +252,10 @@ BL-555～562 写在 `specs/BACKLOG.md`（T1～T8 各一行），BL-563 是 T1 �
 
 ## 10. 待定
 
-统筹 10-24 已定的几项标明；只有第 2 项还在等用户答复，答复前稿里所有相关文字（§3.3、S-34、RAC-385）都写成「按待定 2 的结论」。
+七项都已定：第 2 项用户 2026-10-24 定，其余统筹 10-24 定。
 
 1. **拒绝单项声明还装不装。统筹 10-24 定：装，那一项不生效。** S-34 与 RAC-384 保留这个写法。
-2. **`host` 等级的 `always_on` 可不可撤。待用户定**（统筹已弹窗问）。Goals 是每个项目都带的产品结构，推荐不可撤；若连 Shelf 也要能关，只改 `revocable` 的取值。
+2. **`host` 等级的 `always_on` 可不可撤。用户 2026-10-24 定：所有等级的常开同意都可撤**，不设「内置不可撤」。S-34 与 RAC-385 按此写；连带要核的 Goals 缺席场景见 §3.4.1。
 3. **内置插件的 `publisher.signature` 仍是标签。统筹 10-24 定：内置仍靠启动名单的对象身份，不走真签名。**
 4. **外部插件的安装范围。统筹 10-24 定：本片不动。** 同意与发布者固定放在 Home 级，每个项目的安装记录仍各自一份；T1 开工前先核 PG-022 P1b（#1147）Home 库账本的列（BL-563，owner ac-trust）。
 5. **包信封带公钥（C9）。统筹 10-24 定：带公钥。** 已有的签名包要重打，现在没有外部在用的包。

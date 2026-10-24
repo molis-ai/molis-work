@@ -44,6 +44,10 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 
 ## 当前流水线（2026-10-24 15:51 UTC）
 
+- **最新接续（2026-10-24 16:03 UTC）**：1198原作者docs-only20e9bef8新增两行历史UNKNOWN已guard识别，6386367670公开FIX2当前owner/请此轮原分支spec不并写，普通merge保留；真实ready对照先红绿仍排公共browser，原正式3图红不豁免。UI真正fixed/release后 **C1 RAC115→C2 B2b** 已Root明确同意，不等前片CI/merge/旧full、不作为1198额外门。C1真Input.*吞错有界片与C2空vault/backend+readonly CLI密封已具体允许路径/验收，详TASKS§0同一合同，当前不第二writer。
+- **1222当前2d剩P2**：REVIEW6386273574/Root确认ready后原2500到close与真FIFO控制核心已修；实际owner/blocked未传t.signal、pre-aborted/stop后late-ready须同原Claude两test内补齐。4次7/7原raw（仅rb4有phase）不盖真实test取消，新头独立复审/Linux待，不挪旧b99两Security绿、原Linux未知不改。当前不是另C2同修。
+- **1225有限Review已PASS6386329302**，原full32三红/新CI/478of479单live skip分别核，不以Review代；新增BL387字段旧文案、C9仍称HYBRID剩shelf两nonblock已明确实际FIX1（6386368000，依本批真merge+writer短窗/原作者先修则证据去重），尚未实施，不挡本批/不关W5或PG060。
+
 - **新full原始核收**：full30/5b93634a已TEST6385143866核16raw+aggregate，1364=1360首过+2retry过+2最终红（旧S15/1440Placement）；context原72实际choose(2)第三次选择，interaction-reference347另retry过。full31/4025e773已TEST6385291567核16raw+aggregate，15worker成功/仅typed结构锚点case85of86+retryFAIL，1366=1361首过+4retry过+1红，原1220/ac-kernel按R8事实改3组旧锚点、85变异fixture/算法阈值不放松。四retry为Assistant110.7ms、reference347、Alchemist148、PPT390 artifact_version0expected1/106，均未定因；新S15/Placement这次首过不回写旧红。全Mac27skip不冒本机全覆盖，Claude唯一组新full。
 
 - **full29独立核收已完成且不通过**：run40094734962@52c09a2801a72289466ebf48a79f92542a78b91e，TEST6384738853亲读16worker raw同52、四源头祖先均0；最终15worker success/仅worker4 failure、aggregate failure非另一产品文件。1364实分=1361首过+2retry过+1红，27Mac被Linux明确skip。唯一S15 line337撤可选images:read后restart failed，实际Images.start→recover→ownerFiles.list要read授权，DB仍storageprivate；后续403/连接断言未达，原ac-sandbox已被6384626399明确交必须修，未冒称已实施/权限漏拒/flaky。AC05草稿PATCH/PGP02selection首红retry过因未定保留；当前27Mac原stdout已向Claude公开索既存路径，未核不冒全27通过，不由TEST另起批。handoff/raw在/tmp/molis-verify-2026-10-24/full29-52c09a28/。 新1212/d266035d5841fcf580430a559bbe46a131db7b48已修，REVIEW6384912989静态PASS/TEST6384963617亲读1222/a4e组合适用原raw：S1510/10原running/403/connections均达、Images14/14，四源祖先0/源码对d266逐字同。27Mac与32批清单missing[]，实际31/32首过/331of333case（一个live skip）；Keychain首7/8 ETIMEDOUT、后另红/8过两单跑raw仍缺，6384963869索Claude既存路径，不冒负载根因已证。1222已有Claude6384908885认领，流水线不重复入队。
@@ -90,6 +94,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | #1218 readGoalResumeFacts/README，ac-review6384460634第1项与流水线实际patch | FIX2已明确接受，公开6384588280 | 依1218真merge，鲜核全调用方，将前100/焦点最多2策略移回Host、同步消费者/两测试/API与CLI/MCP门禁准确文字；现P1/W5后实际source窗 | 当前未实施，不阻1218；修复PR/精确head/独立审验/真merge后闭环，非登记完成 |
 | #1200真正同键重排焦点P2，REVIEW6382734693 | 修复2，原作者保持 | 本主修复不挡；后续同域源码窗口补同组重排/跨组移动且不抢用户已转移焦点，独立回归 | 未修；不得把节点复用当焦点移动全覆盖，实际提交/审验/merge后关闭 |
 | ACA004后台链/装配文档P2 | 修复2已实际确认，纳现E22/SSOT文档队列 | 下一实际文档source窗口鲜核main：CALL-CHAINS154–161/180、plugin-dev SKILL52，最小更正不拿在途当主线；1114不覆盖 | 未实施；独立差异/引用验证/真实merge后关闭，当前不占C2 B2 |
+| #1225 BL387/C9两句过时文档（REVIEW6386329302） | 修复1 | 1225实际merge+唯一source短窗；鲜核原作者是否已先修，两句最小准确文案/活引用 | 6386368000已公开实际owner并直派，尚未实施；PR/独立薄复审/必要docs校验/实际merge才闭，不挡1225 |
 | #784 Shelf与成果库验收BL400重号 | 修复1 | 旧BL595预留已撤（Claude595–604给kernel）；tmp提案STALE，实际source窗鲜核后定唯一新号及活引用 | 未修，保留两真实待做/QA/本人验收与历史；不盲另占号，不以准备闭环 |
 | [#1112二轮6380756955](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380756955)：Skill构建期范围、PG060/RAC证据映射、Files侧栏真实打开B并选中（冷/热两态） | 修复2 `01a16b08-de51-7cd0-a4c5-d45d89d9cdb3`，沿已有认领 | 当前C1→C2 B1保持；C2 B1固定head释放后，在其独立审验窗口给修复2一个完整短片。开工鲜核当前head/claim、真实依赖及更高优先级must-fix，1107旧认领已由Claude6381877118释放、真代码同步交同一FIX2，不与本片并写；完成释放即还C2 B2 | 目前尚无这三项修复提交，不能称完成。固定head直发REVIEW/TEST/流水线，随后记录实际PR/提交、验证和最终merge SHA；#1112本身安全/full/W5依赖另核 |
 | #1174 BL544侧视图慢加载可点无响应 | 修复1 `01a1682d-0a26-7522-b2b2-4446d904a7b7`，ac-shell领域归属保留 | 依原PR顺序在C片审验/CI插空；鲜核side-view在途认领，唯一spec＋真实延迟bundle/严格pointer回归；不调整R44期限 | 未实现；独立审验/实际提交与merge后关闭，不以BL登记代替 |

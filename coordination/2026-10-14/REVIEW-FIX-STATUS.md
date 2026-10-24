@@ -56,3 +56,9 @@
 - #1141：**一轮评审可合**（03:24Z，034056a26，CI 绿）→ 等合并侧入队。
 - #1114：CI 全绿（run 40056381607）；尚未评审；已派 review-fix-owner 做机械同步到当前 main `f4df5b471`（认领后动手，只机械合并）。
 - #1135：draft，等 ac-review 一轮后由统筹决定是否转 ready。
+
+## #1112 修复线接续（2026-10-24 04:0xZ）
+- 已接手 Codex 超 2h 未推送的认领，按 02:14 裁定 (b) 收口：新 head `8d700173c`（普通 push），CI run 40059620166 pending。
+- 规格板插件格改 `pluginMarketCards()` 构建期目录：亮格=新项目默认启用（Goals/Inbox/Feed/Sessions+个人），灰格=其余；developer 不进；创作台按真实机制放选择器头部；新增 RAC-80～84 与 `tests/primitive-catalog-bar.test.ts`；删内联脚本改为 initialization 程序（`*_SCRIPT` 门禁不增）。
+- 证据：build/workspace:build、定向 4 文件 66 用例、6 张截图（亮/灰/点击转亮）、health/page-assets/boundary/verify-release/secrets、affected-tests（325 用例，`full`=assembly+spans-packages）全过。
+- 待办：ac-review 二轮 + 集成批（批由 Codex 起）；未入队、不动队列。

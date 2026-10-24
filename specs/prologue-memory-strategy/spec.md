@@ -1162,3 +1162,9 @@ main191 的合并候选 `05e4c1b09` 及准确基线均已整体构建；类型�
 从已验 main191 候选合入准确 main `0060920a314224b2eda6b71ee21b7e29323f6962`。实际三方检查只有发布库表及安全不变量文档两处冲突；主干插件声明、沙箱 owner-files、材料原件、Home 数据归属、配置备份保护和 Characters 收口均保留。Memory 的原件校验、启动保护、会话 owner、版本合同与 SDK94 不变，不恢复主干已删除的 plugin-files 口，不新加兼容、授权例外或资源额度。当前必须是整合既有同一路径和文档事实；无需新模块或并行服务。
 
 允许仅处理两处真实文档冲突及自动合并造成的实际消费者问题、生成快照与基线。复核 Memory 原件经过 personActions/安装身份/Action 的同步和异步权限边界，以及 Home store 的 memory ledger 版本保留。整体构建后验证准确父类型/health/公开合同/资源/secret，新增沙箱与原件归属和受影响安装入口按现测试验收；main191 未跑的 toast/UI 增量并到这一最终状态，已有无变化证据不重复。冻结最终源码后统一跑完整 CI/Full suite，合并队列检查实际合并产物；不因主干前进放宽已有完成门，不将基线已有结果当本头实测。
+
+本次两文档解冲保留 main 的 Issue 库位置、秘密备份/沙箱规则，同时保留 ledger4、原件来源和晋升取消边界。第一次文档合并脚本因范围断言失败提前退出，后续 shell 未停止而误提交了未解标记；该本地中间提交没有推送或被计作有效结果，随后按两处实际冲突逐行修复，`git diff --check` 和真实文档门重新通过。当前候选 `faf7f8a76` 干净，安全文档对准确 main 只含原 Memory 约束和 SDK 来源记录；独立权限审查未发现新增 P1/P2。
+
+准确 main006 基线及整合树均整体构建通过；根/工作区类型、boundary、准确父 health、API/Action、资源、secret/diff 通过，快照生成没有额外修改。实际 27 项为 7,637,929 → 7,641,839 B，仍只含原 Workbench +3,193、Coding +717，其他 25 项逐项相同。增量 32/32 文件、470/470 用例首轮通过（jobs2/browser1/retries0，4.4 分钟）；其中 toast 状态整文件 3/3、UI 生命周期、新沙箱原件/owner-files、Home 库/Memory 采用、当前四口 @2/原件/后台、Characters、安装包/卸载/配置备份恢复均实际执行。测试清单及结果 `/private/tmp/molis-memory-main006-delta-results-20261025.json`；静态与资源逐命令 `/private/tmp/molis-memory-main006-final-20261025.results.json`、`/private/tmp/molis-memory-main006-assets-comparison-20261025.json`。SDK94 九个既有文件对 `8f8fc71a1` 无差异；没有真实 Home 或付费调用。
+
+上一冻结 `1c2ddcbe4` 的普通 CI `40112089348` 及完整 Full suite `40112085538` 均已成功：16 片与汇总 success，1393/1393 Linux 文件；其中 onboarding-journey、interaction-no-crosstalk、composer-steady、web 四文件依原一次 retry 通过。前三者为 DOM/请求观察/CDP 首败，web 首败实际 `starting !== ok`；没有据重试成功解释为环境原因，均保留原日志和 UNKNOWN。汇总 `/private/tmp/molis-memory-1064-full1c2-20261025.summary.json`。该结果只属于旧头，不替代本次 main006 最终头 CI；原 macOS 三项 skip、付费 B2、最终用户旅程、真实 Home 与用户验收边界不变。全站 toast #1198 已合入主干，原视觉差异由其自身记录承接，本任务不再将它误列为待合 Draft。

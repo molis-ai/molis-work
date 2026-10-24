@@ -12,6 +12,9 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 
+> **2026-10-24 16:45 UTC 用户最新方法覆盖旧逐PR次序**：一骏要求若旧执行方不再做就合成一个，避免合来合去。Root已鲜核原Claude仍推进、1222已普通push a788e1a413f8ffce6d60c922f3c18092e9b343d3，故当前source owner仍原ac-batch29pr，不另起重复writer。以a788已含四源为核心，把1109@8921、1112@08b、1223@8af统一**一个最终共同carrier**，复用integration33/d3的1112六真冲突解法但不把1226–29新增当依赖；原分支全线成果保留。原writer须给唯一branch/worktree/head与所含源，不逐个leaf合main/刷baseline。原1222 CI自然跑作现成证据、不取消，暂不与共同结果竞争入队；仅真实共同树一次共用文件/必要build/security/full/增量双审、最终一个queue actualmain后一起关8目标。1198临时明确交Root唯一Ready/queue/actual核，流水线不重复命令；C1已在当前有界RAC115安全固定后release，之后source优先8真实修复，原Claude明确不再写该组才交可用FIX2接共同候选。当前3focus中Cognia390需真实Back回列表、不改隐藏规则；MCP唯一有界/tmp阶段取证已派TEST，原45s不加、不新full/第三次盲跑；HomeAgg已有6/6新raw保首取消。
+
+
 > 2026-10-24 16:35 UTC **最新人类指令覆盖下列旧source排期**
 >
 > **一骏新明确合并授权（Root刚转达并鲜核8个）**：“把1225之前的除了memory相关的非draft PR（784，734也除外），都解决合并掉”。准确集合 **1109、1112、1209、1210、1211、1212、1222、1223**；Memory实质相关（包括Memory base的1196）、784/734与其余Draft排除，不自动Ready，不自动扩新PR>1225。可用清楚包含旧目标的合规carrier，不混未经授权新目标；旧非阻塞owner责任保留。#1198原单独任务独立继续，Root据四完整PNG交叉同bytes/空toast无匹配button已判剩6px非本分支回归，底层仍UNKNOWN、formal exit1/阈值0/首败全保留、无新capture/算法/期望图变更；可Ready正常队列，不挡这8目标。

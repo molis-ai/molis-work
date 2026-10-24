@@ -626,10 +626,10 @@ export class PluginRuntime implements PluginRuntimeApi {
       uninstalled_at: at,
     };
     if (!replayed) this.repository.save(updated);
-    await this.executor.uninstalled?.(updated);
-    // No implementation survives its installation. A later explicit reinstall may supply a new in-memory object.
-    for (const [key, definition] of this.definitions) {
-      if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) this.definitions.delete(key);
+    try {
+      await this.executor.uninstalled?.(updated);
+    } finally {
+      forgetUninstalledDefinitions(this.definitions, current);
     }
     return this.receipt("uninstall", updated, replayed);
   }
@@ -738,6 +738,13 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private now(): string {
     return (this.options.now?.() ?? new Date()).toISOString();
+  }
+}
+
+function forgetUninstalledDefinitions(definitions: Map<string, PluginDefinition>, current: PluginInstanceRecord): void {
+  // No implementation survives its installation. A later explicit reinstall may supply a new in-memory object.
+  for (const [key, definition] of definitions) {
+    if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) definitions.delete(key);
   }
 }
 

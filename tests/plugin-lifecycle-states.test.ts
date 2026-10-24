@@ -18,7 +18,7 @@ import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-
  */
 const ID = "io.molis.work.lifecycle-probe";
 
-test("RAC-196-U2 uninstall cleanup retries stay revoked, serialized and replayable across a Runtime restart", async t => {
+test("RAC-196-U2 RAC-357-U1 uninstall cleanup retries stay revoked, serialized and replayable across a Runtime restart", async t => {
   for (const restart of [false, true]) await t.test(restart ? "new Runtime" : "same Runtime", async () => {
     const repository = new MemoryPluginRuntimeRepository(), native = new NativePluginExecutor();
     const contexts: PluginStartContext[] = [];
@@ -48,6 +48,7 @@ test("RAC-196-U2 uninstall cleanup retries stay revoked, serialized and replayab
     assert.equal(saved.state, "uninstalled");
     assert.equal(original.contribution(id), null);
     assert.throws(() => contexts[0]!.requireGrant("storage:private"), { code: "plugin.grant_denied" });
+    assert.doesNotThrow(() => original.register({ ...definition }), "failed Host cleanup has already released the earlier implementation");
 
     const runtime = restart ? new PluginRuntime(repository, executor) : original;
     const receipts = await Promise.all([runtime.uninstall(id, { retain_private_data: false }), runtime.uninstall(id)]);

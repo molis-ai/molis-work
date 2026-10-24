@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginOwnerFilesClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -319,6 +319,69 @@ test("S-64 RAC-357 the cleanup never follows a link out of the Home: a folder th
   symlinkSync(outside, holder);
   await assert.rejects(r.project.runtime.uninstall(r.install.install_id, { retain_private_data: false }), { code: pluginErrors.declaration_invalid("x").code });
   assert.equal(readFileSync(join(outside, r.install.install_id, "keep.txt"), "utf8"), "not the plugin's");
+});
+
+for (const scope of ["project", "home"] as const) test(`S-64 RAC-357-U1 ${scope}: a refused owner-files cleanup releases definitions while preserving the error, uninstall record and retry`, { timeout: 90_000 }, async t => {
+  const r = await rig(t, { name: "uninstallfault", scope }), runtime = r.project.runtime;
+  const command = operation("command", WRITE), other = ownerFilesProbe("uninstallother", scope);
+  let stops = 0;
+  r.probe.behavior.stop = () => { stops += 1; };
+  const peers = [
+    { ...other.definition, execution: "sandbox" as const, manifest: { ...other.definition.manifest, publisher: r.probe.definition.manifest.publisher } },
+    { ...r.probe.definition, manifest: { ...r.probe.definition.manifest, publisher: { publisher_id: "other-publisher", signature: "owner-files-other-publisher" } } },
+  ].map(definition => {
+    const record = runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(p => p.permission) }).install;
+    const base = r.project.base(record.install_id);
+    mkdirSync(base, { recursive: true });
+    writeFileSync(join(base, "marker.txt"), record.install_id);
+    return { definition, record };
+  });
+  await r.ok(command, "ownerFiles.write", write({ op: "replace_atomic", path: "catalog.json", data_base64: b64("owned data") }));
+  await runtime.stop(r.install.install_id);
+  const holder = dirname(r.project.base(r.install.install_id)), backup = holder + "-before-link";
+  const outside = mkdtempSync(join(tmpdir(), "uninstall-owner-files-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  mkdirSync(join(outside, r.install.install_id));
+  const external = join(outside, r.install.install_id, "keep.txt");
+  writeFileSync(external, "outside must survive");
+  renameSync(holder, backup);
+  symlinkSync(outside, holder);
+  const refused = (error: unknown) => error instanceof ActionError && error.code === pluginErrors.declaration_invalid("x").code;
+  await assert.rejects(runtime.uninstall(r.install.install_id, { retain_private_data: false }), refused);
+  const saved = runtime.get(r.install.install_id);
+  assert.equal(saved.state, "uninstalled");
+  assert.equal(saved.retain_private_data, false);
+  assert.equal(runtime.contribution(r.install.install_id), null);
+  assert.equal(stops, 1);
+  // A different same-version object cannot replace a still-cached definition. This public call proves the old one was released.
+  assert.doesNotThrow(() => runtime.register({ ...r.probe.definition }), "a rejected real cleanup must still release this installation's code");
+  const assertPeers = (parent: string) => {
+    for (const peer of peers) {
+      assert.deepEqual(runtime.get(peer.record.install_id), peer.record);
+      assert.throws(() => runtime.register({ ...peer.definition }), { code: pluginErrors.definition_conflict("x").code });
+      assert.equal(readFileSync(join(parent, peer.record.install_id, "marker.txt"), "utf8"), peer.record.install_id);
+    }
+  };
+  assertPeers(backup);
+  assert.equal(readFileSync(external, "utf8"), "outside must survive");
+  assert.equal(readFileSync(join(backup, r.install.install_id, r.probe.owner_files.store_name, "catalog.json"), "utf8"), "owned data");
+  // An unsuccessful replay also clears a definition registered while the installation remained uninstalled.
+  await assert.rejects(runtime.uninstall(r.install.install_id, { retain_private_data: true }), refused);
+  assert.deepEqual(runtime.get(r.install.install_id), saved);
+  assert.doesNotThrow(() => runtime.register({ ...r.probe.definition }));
+  assertPeers(backup);
+  rmSync(holder);
+  renameSync(backup, holder);
+  const retried = await runtime.uninstall(r.install.install_id, { retain_private_data: true });
+  assert.equal(retried.replayed, true);
+  assert.deepEqual(retried.install, saved, "the original generation, timestamps and data choice survive cleanup retries");
+  assert.equal(existsSync(r.project.base(r.install.install_id)), false, "retry really removes the restored installation directory");
+  assertPeers(holder);
+  assert.equal(readFileSync(external, "utf8"), "outside must survive");
+  assert.deepEqual((await runtime.uninstall(r.install.install_id)).install, saved);
+  assert.equal(stops, 1, "cleanup retries do not stop the old code again");
+  assert.equal(r.probe.contexts.length, 1, "cleanup retries do not restart code");
+  assert.doesNotThrow(() => runtime.register({ ...r.probe.definition }));
 });
 
 test("S-64 RAC-358 on the Home Runtime a sandboxed installation has its own folder of the Home and the same bounded service, with the same refusals", { timeout: 90_000 }, async t => {

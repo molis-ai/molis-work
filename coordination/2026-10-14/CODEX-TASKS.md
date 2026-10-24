@@ -29,6 +29,17 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 >
 > #784开发方Shelf行与main成果库验收行BL400重号交FIX1最小文档修，先有界只读提案核空号/引用，不删除任何真实待做、不关闭QA/不标本人验收、不变PR状态。**BL595暂预留给此修复**（BL585–594按Claude原ac-coding预留保持）；实际落代码前FIX1仍须鲜核无新占用。当前C2源码独占，无第二writer。全仓新审计只读且不构成合并等待门槛。完整实际owner/待做、已合SHA以ROLES当前段和QUEUE为准。
 
+### root全仓审计候选的验证接单（10-24 10:25UTC）
+
+来源：独立审计报告本机 `/Users/yijunwang/code/goalboard/work/anti-corruption-audit-2026-10-24/report.md` ACA003（40–48）、ACA005（57–64），root已复核对应生产从审计f586到当前mainf880无变。这是候选P1的合同/覆盖核收，未运行动态交错，未声称实际用户数据越权；不派新实现writer，不作为无关批新门槛，C2单writer/Claude唯一full照旧。
+
+| 候选 | 初始要求/当前合同 | 当前去重证据 | 实际验证owner与下一动作 | 实施/闭环状态 |
+| --- | --- | --- | --- | --- |
+| ACA003：Assistant disabledActions在最后异步检查后撤销，缺同步提交尾检 | S18；防腐4.10/4.11/4.18，撤权后业务owner/事务零写；入口async validate_authority与kernel最后等待后检查要对应同原caller | 对42 OPEN PR九条目标生产/测试路径逐个精确base...head，全部对象齐；1153/d148改authority+http、1185/cf67与1064/71ec只http。1153实际目标diff为memory getter回调，不自动等同已修；REVIEW完整合同复核接单中 | REVIEW 01a16bc4-68fe-71d3-af0e-83523232c1ea实际接合同/覆盖复核；确认契约后TEST 01a16bc4-6c9f-7ca0-b47e-621727302fee用确定性屏障挂住最后Host beforeEffect→关闭精确能力→释放，核assistant.action_revoked及owner/事务零写。先收当前已确认CI修复原始证据，不以临时重试冒复现 | 未实施，未复现关闭；确认后由Claude按既定目标/实际依赖给现有修复者，不以领域标签当已认领/已修 |
+| ACA005：search.query owner catchUp等待中MCP真实授权撤source/reader，discover仍用caller快照可返摘要 | 只返caller当前有权读取来源；系统整理7/10/12与防腐4.10/4.18，索引owner有权不代替最终caller授权 | 当前42 OPEN在明确search/index、search-actions、kernel settlement、local-host、mcp-action-client及system-search测试目标路径无改动；现数组splice用例不等于真实MCP授权文件在途撤销。REVIEW核实际合同/可能间接覆盖，不把无路径命中当全球证明 | 同一REVIEW去重/合同owner；TEST在前项契约明确且资源可用时用真实Host/MCP+owner listing屏障→真实设置撤source/reader→释放，同次query不得返撤销命中/正文，索引给有权owner仍可用；tmp Home，不碰4207 | 候选P1，尚未动态复现/实施，不能抹旧测试有效范围或据代码审计宣称真实数据已越权 |
+
+ACA002旧卸载清理问题已随#1166包含在#1194实际f880落地，source固定头与最终树包含证据已核，不重复认领或重开。新审计报告仍由原审计chat独占维护，本流水线只读并记实际接单。
+
 > **最新调度接单（10-24 07:31UTC）**：已收Claude的S号按实际合并顺序规则，C2已直达：S71仅临时标识，落PR/入队时按main＋前置队列的下一空号连续定号，S59/60原归属保持，不等待未实现设计占号。main已知红已随1174清空，未来失败重新归因；旧批次原始证据不改。Claude新增#1182/6381371024的恢复actor规格勘误现由修复1实际承接并已在原PR公开认领，按原PR顺序插空，当前未实现、不阻1182。C2 B1仍唯一writer。batch25=沙箱叠层＋1166，batch26=1178/1179/1182/1181，W5链仍等U10根因；均Claude唯一组批，不另起。
 
 > **实际接续（10-24 07:25UTC）**：C1已交非Draft#1183固定7bbb014c4（仅两catch生产修复，18项作者工程证据），明确源码释放并直接发REVIEW/TEST；REVIEW active。C2已实际接唯一writer，隔离树w5-16-im-invite-hash/base新main4e17c3d1，server/im-ui/contracts/im在途无另一writer，开始唯一slice+B1；B1固定源码释放后修复2#1112 nonblock短插空，再归C2 B2/A/快照/恢复，不等前片审验/CI/merge。#1174已真合4e17c3d1（07:21:50UTC），已移MERGE-QUEUE§3；BL544/R44不随其合入关闭。#1183只是C1首个剩余片，整体C1/C2均未完成。

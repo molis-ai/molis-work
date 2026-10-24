@@ -1,4 +1,4 @@
-import { archiveCodingSession, previewCodingArchive, type CodingArchiveDecision } from "./session-archive.js";
+import { archiveCodingSession, previewCodingArchive, previewCodingUnarchive, unarchiveCodingSession, type CodingArchiveDecision } from "./session-archive.js";
 import { readCodingSessions } from "./session-observation.js";
 import { characterSelection, characterSkillSelection } from "./characters.js";
 import { materialSelection } from "./materials.js";
@@ -147,6 +147,11 @@ const ROUTES: RouteMaker[] = [
       return { compact_requested: on };
     });
   },
+  a => a.route("coding.archived-sessions", async (_request, _api, execution) => ({ sessions: execution.sessions.lifecycle.archived(a.projectId) })),
+  a => a.route("coding.unarchive-preview", async (request, _api, execution, beforeWrite) =>
+    previewCodingUnarchive(a, execution, selected(a, request, execution), beforeWrite)),
+  a => a.route("coding.unarchive-session", async (request, _api, execution, beforeWrite) =>
+    unarchiveCodingSession(a, execution, selected(a, request, execution), bodyOf(request).unarchive_decision as CodingArchiveDecision | undefined, beforeWrite)),
   a => a.route("coding.archive-preview", async (request, _api, execution, beforeWrite) =>
     previewCodingArchive(a, execution, selected(a, request, execution), beforeWrite)),
   (a) => {

@@ -167,9 +167,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const showBoard=(open)=>{root.dataset.codingBoardOpen=String(open);
     root.querySelectorAll('[data-coding-view]').forEach(button=>{const on=(button.dataset.codingView==='board')===open;button.setAttribute('aria-pressed',String(on));button.classList.toggle('is-current',on);});
     if(open)taskboard.show();else taskboard.hide();};
-  const archive=host.archive?.({api,path:sessionPath,current:id=>current===id,assertCurrent:()=>lifetime.assertCurrent(),question:L('coding.session.archive-confirm'),
-    archived:async id=>{if(current===id){generation++;current='';lastRun=null;root.dataset.codingDetail='false';sessionOnShow=false;taskboard.loading('');renderGoalFace();}
-      await refreshState();status(L('coding.session.archived'));},failed:message=>status(message+' '+L('coding.session.archive-retry'),true)});
+  host.archive?.({root,listen:(node,event,fn)=>lifetime.listen(node,event,fn),api,path:sessionPath,current:()=>current,assertCurrent:()=>lifetime.assertCurrent(),text:L,
+    changed:async(id,archived)=>{if(archived&&current===id){generation++;current='';lastRun=null;root.dataset.codingDetail='false';sessionOnShow=false;taskboard.loading('');renderGoalFace();}
+      await refreshState();status(L(archived?'coding.session.archived':'coding.session.restored'));},failed:message=>status(message,true)});
   // A session is "on show" from the moment it is opened until its tab closes or it is archived. Going back to the
   // directory on a narrow screen does not end it: the faces there describe the session the person just left.
   let sessionOnShow=false;
@@ -1339,7 +1339,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         catch(error) { status(error.message,true); } finally { controls(); }
       }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api(sessionPath(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status(L('coding.run.stop-received'));await readCurrent(); }
-      if(target.matches('[data-coding-archive]') && current) await archive(current,target);
       if(target.matches('[data-coding-rename]') && current) {
         const title=q('[data-coding-title]'); if(title.querySelector('input')) return;
         const field=make('input');field.className='mw-input';field.value=title.textContent;field.setAttribute('aria-label',L('coding.session.name'));title.replaceChildren(field);field.focus();field.select();

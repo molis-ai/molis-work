@@ -2,6 +2,7 @@ import type { PluginDatabase, PluginDatabaseReader } from "@molis-ai/molis-work-
 import { codingStoreErrors } from "./store-errors.js";
 import type { CodingSessionEntry, CodingSessionState } from "./projection.js";
 import type { CodingPlanDraft } from "./plans.js";
+import { CodingSessionLifecycleStore } from "./session-lifecycle.js";
 
 /**
  * Coding's own table in the project database.
@@ -56,6 +57,7 @@ export const CODING_SCHEMA_SQL = `
       steps_json TEXT,
       -- Background commands the session left running, as last read: lets the list across projects show and stop them.
       background_json TEXT,
+      lifecycle_json TEXT,
       PRIMARY KEY (project_id, session_id)
     );
     CREATE INDEX IF NOT EXISTS coding_sessions_project_updated_idx
@@ -113,7 +115,6 @@ const planIn = (reader: PluginDatabaseReader, projectId: string, sessionId: stri
   const row = reader.get("SELECT draft_json FROM coding_plan_drafts WHERE project_id = ? AND session_id = ?", [projectId, sessionId]);
   return row ? JSON.parse(String(row.draft_json)) as CodingPlanDraft : null;
 };
-
 /**
  * The session tables, over the project library the platform lends the plugin (`services.project_database`). Reads are
  * synchronous. Every write is one transaction that first waits for `beforeEffect`; the platform checks the original call again at
@@ -122,7 +123,8 @@ const planIn = (reader: PluginDatabaseReader, projectId: string, sessionId: stri
  */
 export class CodingSessionStore {
   /** The tables are already there: the platform made them when the project's library opened with Coding. */
-  constructor(private readonly db: PluginDatabase) {}
+  readonly lifecycle: CodingSessionLifecycleStore;
+  constructor(private readonly db: PluginDatabase) { this.lifecycle = new CodingSessionLifecycleStore(db, sessionIn, mapSession); }
 
   plan(projectId: string, sessionId: string): CodingPlanDraft | null {
     return planIn(this.db, projectId, sessionId);
@@ -247,16 +249,7 @@ export class CodingSessionStore {
   }
 
   async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string, guard?: (current: CodingSessionRecord) => void, options?: { allowAlreadyArchived: true }): Promise<CodingSessionRecord> {
-    return this.db.transaction(beforeEffect, tx => {
-      const current = sessionIn(tx, projectId, sessionId);
-      guard?.(current);
-      if (current.archived) {
-        if (options?.allowAlreadyArchived) return current;
-        throw codingStoreErrors.session_unknown("会话已归档");
-      }
-      tx.run("UPDATE coding_sessions SET archived = 1, updated_at = ? WHERE project_id = ? AND session_id = ?", [at, projectId, sessionId]);
-      return sessionIn(tx, projectId, sessionId);
-    });
+    return this.lifecycle.archive(beforeEffect, projectId, sessionId, at, guard, options);
   }
 
   /** Attaching a Goal is optional and reversible; passing null detaches. */

@@ -7,7 +7,7 @@ import { CODING_SCHEMA_SQL } from "./store.js";
  */
 export const CODING_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "coding",
-  version: 1,
+  version: 2,
   schema: CODING_SCHEMA_SQL,
   read_permission: "storage:private",
   write_permission: "storage:private",

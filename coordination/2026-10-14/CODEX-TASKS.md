@@ -69,8 +69,8 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | 序 | 独立片 | 状态 |
 | --- | --- | --- |
 | C1 | W5-13 收尾：宿主日志与吞掉的错误（§2） | 原owner实现1保持；115/bf09待batch34，116/#1238已actual584，117/#1240修后2f双PASS待batch35，118/119/#1244由FIX4本题修复；C1整线未完成 |
-| C2 | W5-16 B2b/A：Home 快照与恢复（§2） | B1/645、B2a/006 actual，B2b/5e双PASS待35；实现2原owner完整A在行，源码未提交/推送/开PR。作者已报整体build/scoped tsc、真实shipped stdio MCP→resident Host、原context resolve/list/bind/unbind/reject/create+bind与panel alias/重启、idle/晚绑定、插件stop等待、真实SDK及borrowed Web/Catalog close失败显式重试通过；物理跨进程锁、伪造borrow/无root拒绝、取消后零Catalog/目录写入有针对性原件待固定交付。newHome仅真实owner认证的纯技术锁目录，memory.close→SDK dispose顺序保持，未采用Memory Draft业务实现。现337明确回归（326非浏览器+11独立browser）/merge-base health在行，live opt-in排除、不另full/真Home/Keychain；这仅作者进展非独立PASS。完整A固定一次非DraftPR→Claude FIRST，修后才Codex REVIEW增量；保5e B2b/e3 Memory独立hunk，C2/全恢复/本人验收未完成。 |
-| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元（§2） | Gmail完整区域#1249修后516已双PASS/source释放；Root已START实现1下一完整horizontal区域：listener-host、search、placement三index类及im-ui/views createViews，一独立树/一PR，API行为保持、共用生成物留批，不等Gmail合入空置 |
+| C2 | W5-16 B2b/A：Home 快照与恢复（§2） | B1/B2a actual、5e B2b双PASS待35；C2 A当前337冻结批中MCP access触发真实storage.owner.busy：旧production-action-mcp-server每stdio新Home Host与A互斥冲突，锁拒绝正确。作者等批自然结束后才让fixture显式转发resident origin，复验MCP access/production MCP/Artifacts/Schedule/Companion五消费者真实授权撤权；不改FIX1两公共Home fixture、不放宽锁。旧离线context期望改accepted typed unavailable+零写，resume沿既有public runtimeContextHost setter而非绕immutable metadata，固定diff/证据留首评核边界。TLS一首败仍UNKNOWN，拟精确干净同断言对照。Memory作者最新已核1101 c8c23d/1064 9e055相关独立差异，保业务/README不采用或等待Draft。 |
+| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元（§2） | 实现1 C3第二区域已实际应用四单元4→0：Listener289/18、Search283/21、Placement286/20、createViews149，同文件职责函数，无新框架/全局状态/门禁例外。原实现109+IM真实浏览器1先过，拆后同110+直接消费者等95＝作者28files205/205候选、build/API双向/strict/Biome/boundary/assets与准确584 health均报0；IM私有脚本-198B，controller未改。原/变同症SQL聚合行TS2339仅补精确n类型，原断言/运行代码不变，原件待固定交付核。未跑两非直接browser及selector回归/选择器full四包仅Claude，完整一个非DraftPR正收尾尚无fixed head，不冒独立PASS；Gmail516已35吸收，C1/C3整体未完成，不接未授第三域。 |
 | C4 | W5-11：OAuth 移进官方集成插件（统筹 10-23 定） | 待开工，接在 C3 后（同一块代码）；号段开工前问统筹 |
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）

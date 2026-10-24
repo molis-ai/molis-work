@@ -3582,3 +3582,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 02:55：#1157 二轮可合（等 #1130）；#1130 合 main 的解冲突（换了 S4-04 的故障注入点）交 `ac-review` 核；#1116 一轮交 `ac-review`。
 - 10-24 03:05：用户弹窗三项：真实 Home 维护走同一个时段（先在拷贝上跑 `list` 交用户，时段由用户定）；沙箱的 `ownerFiles` 与材料 `fetch_local`/`original` 都**做**（不按推荐），经 broker 给有界版本，归 `ac-sandbox-sched` 的 PG-017 P2c、P2d。
 - 10-24 03:20：开 #1159（BACKLOG 加 BL-540～542，纯文档，CI 绿即由统筹入队）。batch-18（#1147）只红 `onboarding-goals-actions.test.ts`（`agent.role_not_declared`），合并 Agent 已把测试改成经运行中插件起轮（`36f137eaa`），交 `ac-review` 核有没有人直接以插件角色起轮的产品路径；cognia-actions 重试后过（flaky）。
+- 10-24 03:35：统筹起 batch-1024-19（main `aa4de404f` + #1157（含 #1130）+ #1148），run 40054696653。W5-06 链（#1098/#1107）试合与 main 冲突 3 个文件，退回作者合 main。#1116 一轮可合，统筹入队。S9 `list`（拷贝上）：真实 Home 的 18 个项目库还在 user_version 7，BL-413 的 v8→v9 维护没跑过；维护时段要按 BL-413 → W5-17 → S9 的顺序，已让 `ac-sc3` 核 main 现在要求的版本。

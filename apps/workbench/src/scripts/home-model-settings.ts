@@ -60,11 +60,18 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
   dialog.addEventListener('click', event => { if (backdrop && event.target === dialog) dialog.close(); });
   retry.addEventListener('click', () => void load());
   back.addEventListener('click', () => void load('/settings/models'));
+  const openSettings = href => {
+    if (typeof href !== 'string') return false;
+    let url;
+    try { url = new URL(href, location.origin); } catch { return false; }
+    if (url.origin !== location.origin || !['/settings/models', '/settings/connectors', '/capabilities/connections'].includes(url.pathname)) return false;
+    if (!dialog.open) dialog.showModal(); void load(url.pathname + url.search);
+    return true;
+  };
+  document.addEventListener('molis-work:open-settings-path', event => { openSettings(event.detail?.href); });
   document.addEventListener('click', event => {
     const link = event.target.closest('a[href]');
     if (!link || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-    const url = new URL(link.href, location.origin);
-    if (url.origin !== location.origin || !['/settings/models', '/settings/connectors', '/capabilities/connections'].includes(url.pathname)) return;
-    event.preventDefault(); if (!dialog.open) dialog.showModal(); void load(url.pathname + url.search);
+    if (openSettings(link.href)) event.preventDefault();
   });
 })();`;

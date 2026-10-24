@@ -246,5 +246,6 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 - 交接时卡在用户这里的：
   - 原机器上约 110 个本地工作树，和 ⑤ 留下的 `integration/batch-*` 远端分支，清不清由用户定。见 `HANDOFF-yijunw0212.md` §8。
   - 接手人能自己批什么（推送、开 PR、合并、裁决）：① 的 10-22 授权不随交接转移，要用户另外说。
-| R-42 | 新（10-24，#1171 评审）：设置地址从插件页转到外壳时 `url.search` 原样带过去；工作台的 `settings-directory` 和独立 Home 的 `home-model-settings` 做法一致，不是 #1171 新开的口子，但两边都没限定查询参数 | `ac-platform`（两边一起收紧成只认已知参数，另开一片；号段用统筹 BL-543） | 收紧的 PR 合入后关 |
+| R-42 | 新（10-24，#1171 评审）：设置地址从插件页转到外壳时 `url.search` 原样带过去；工作台的 `settings-directory` 和独立 Home 的 `home-model-settings` 做法一致，不是 #1171 新开的口子，但两边都没限定查询参数 | `ac-platform`（两边一起收紧成只认已知参数，另开一片；登记为 **BL-543**，#1176） | 收紧的 PR 合入后关 |
 | R-43 | 新（10-24，#1172 评审发现）：远端分支 `personal`（zhz，19 个提交，未开 PR）在 `SECURITY-INVARIANTS.md` 自定 S-54～S-84，和 main 已有的 S-54～58、防腐线在途的 S-59～68 含义全撞，合进来会大面积重号 | 用户（转告 zhz；用户 10-24 定：防腐线照用现号，对方合 main 时整体改到 main 最大号之后。统筹不动对方分支、不以用户账号留言） | 那条线合入 main 且 S 号连续、无重号时关 |
+| R-44 | 新（10-24，#1174 评审）：Pages 插件框在负载下一次 `uiClientState=failed / Missing frame`（`work-placement-journeys` AC4 第 227 行），没复现；像插件框 10 秒就绪期限（`apps/workbench/src/browser/plugin-frame/parent.ts:101`）在 CI 负载下太紧。日志在 #1174 正文所指的 handoff | `ac-shell`（插件框；再出现就进隔离名单并核期限，和 BL-544 的加载守护一起看） | 期限核定或连续 5 批不再出现时关 |

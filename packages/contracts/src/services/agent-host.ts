@@ -243,6 +243,20 @@ const messageOutput = { type: "object", additionalProperties: false,
 const backgroundOutput = { type: "object", required: ["task_id", "session_id", "summary", "state", "started_at_ms"], additionalProperties: false,
   properties: { task_id: { type: "string" }, session_id: { type: "string" }, run_id: { type: "string" }, summary: { type: "string" },
     state: { enum: ["running", "succeeded", "failed", "stopped", "interrupted"] }, exit_code: { type: "number" }, started_at_ms: { type: "number" }, ended_at_ms: { type: "number" } } } as const;
+/** A project's work item and a session's standing, as the Runtime reports them (R8 batch 2). */
+const projectWorkOutput = { type: "object", required: ["work_id", "session_id", "title", "task", "state", "directory", "paths", "updated_at_ms"], additionalProperties: false,
+  properties: { work_id: { type: "string" }, session_id: { type: "string" }, run_id: { type: "string" }, title: { type: "string" }, task: { type: "string" },
+    state: { enum: ["waiting", "running", "done", "failed", "stopped"] }, directory: { type: "string" }, paths: { type: "array", items: { type: "string" } },
+    waits_for: { type: "array", items: { type: "string" } }, updated_at_ms: { type: "number" }, wait_id: { type: "string" } } } as const;
+const sessionStatusOutput = { oneOf: [
+  { type: "object", required: ["session_id", "latest_phase", "recovery", "checkpoint_busy"], additionalProperties: false,
+    properties: { session_id: { type: "string" }, recovery: { type: "boolean" }, checkpoint_busy: { type: "boolean" },
+      latest_phase: { enum: ["starting", "running", "awaiting-review", "awaiting-input", "paused", "compacting", "completed", "failed", "cancelled", "stopped", "reconcile-required", null] },
+      steps: { type: "object", required: ["mine", "subtasks", "unowned"], additionalProperties: false,
+        properties: { mine: { type: "number" }, subtasks: { type: "number" }, unowned: { type: "number" } } } } },
+  { type: "object", required: ["session_id", "error"], additionalProperties: false, properties: { session_id: { type: "string" }, error: { type: "string" } } },
+] } as const;
+const sessionRef = { type: "object", required: ["session_id", "runtime_id"], additionalProperties: false, properties: { session_id: entryId, runtime_id: runtimeId } } as const;
 /** Offered to plugins only, which reach them through `services.actions` once their Manifest consumes them; nothing else needed. */
 const pluginOnly = { scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [] } as const;
 
@@ -287,14 +301,20 @@ export const agentHostCapabilities = {
    * this project cannot read comes back with an error of its own rather than failing the others.
    */
   readSessionStatuses: {
-    capability_id: "agent.sessions.status.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | { session_id: string; error: string }>>,
+    capability_id: "agent.sessions.status.v1", version: 1, operation: "query",
+    action: { title: "读会话的状态", description: "这个项目里几条会话各自最近一轮的阶段、要不要人来接、步骤由谁拿着；读不了的那条单独带原因。", kind: "query", ...pluginOnly,
+      output_schema: { type: "array", items: sessionStatusOutput },
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, { type: "array", maxItems: 1000, items: entryId }], additionalItems: false } },
+  } as ActionDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | { session_id: string; error: string }>>,
   /** The project's work under way; with a probe, what overlaps a round about to start. */
   readProjectWork: {
     capability_id: "agent.project-work.read.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, probe?: { session_id?: string; directory: string; text: string }], { items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }>,
+    action: { title: "读项目里在做的事", description: "这个项目里各会话在做和在等的工作；带上将要开始的一轮时，另给出和它的文件重叠的。", kind: "query", ...pluginOnly,
+      output_schema: { type: "object", required: ["items", "overlaps"], additionalProperties: false, properties: { items: { type: "array", items: projectWorkOutput },
+        overlaps: { type: "array", items: { type: "object", required: ["work", "paths"], additionalProperties: false, properties: { work: projectWorkOutput, paths: { type: "array", items: { type: "string" } } } } } } },
+      input_schema: { type: "array", minItems: 1, maxItems: 2, additionalItems: false, items: [runtimeId, { type: "object", required: ["directory", "text"], additionalProperties: false,
+        properties: { session_id: entryId, directory: { type: "string", minLength: 1, maxLength: 4096 }, text: { type: "string", maxLength: 1_000_000 } } }] } },
+  } as ActionDefinition<[runtimeId: string, probe?: { session_id?: string; directory: string; text: string }], { items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }>,
   /** Messages between the project's sessions; one session's sent and received when a session is named. */
   readMessages: {
     capability_id: "agent.messages.read.v1", version: 1, operation: "query",
@@ -337,7 +357,12 @@ export const agentHostCapabilities = {
   /** Hold a round until another piece of work in the project finishes. */
   queueProjectRound: {
     capability_id: "agent.project-work.queue.v1", version: 2, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }], AgentProjectWork>,
+    action: { title: "让一轮等别的工作做完", description: "本人决定让这条会话的一轮等项目里另一项工作结束后再开始。", kind: "operation", ...pluginOnly,
+      output_schema: projectWorkOutput,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, additionalItems: false, items: [runtimeId, { type: "object", required: ["session", "directory", "task", "after"], additionalProperties: false,
+        properties: { session: sessionRef, directory: { type: "string", minLength: 1, maxLength: 4096 }, task: { type: "string", minLength: 1, maxLength: 1_000_000 }, after: entryId,
+          title: { type: "string", maxLength: 2000 } } }] } },
+  } as ActionDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }], AgentProjectWork>,
   /**
    * Continuations of the project's sessions that are ready to go on, or held for the person, but for `exclude` (request
    * keys); waits up to `timeoutMs` for one. A wait, so it stays a Host channel: reading and controlling are the actions
@@ -362,7 +387,9 @@ export const agentHostCapabilities = {
   /** Give up a waiting round's item. */
   releaseProjectRound: {
     capability_id: "agent.project-work.release.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, workId: string, note: string], void>,
+    action: { title: "不再等", description: "放下一项还在等的工作，并写明为什么。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, entryId, { type: "string", maxLength: 2000 }], additionalItems: false } },
+  } as ActionDefinition<[runtimeId: string, workId: string, note: string], void>,
   listSkills: {
     capability_id: "agent.skills.list.v1", version: 1, operation: "query",
   } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>,

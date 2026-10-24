@@ -239,9 +239,9 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Classification paging: the existing +3437 B approval follows the updated #1064 parent.
-  // Reusing 34 selectors saved 316 B. Parent 24b1266af freezes 1194297 B; no additional growth is authorized.
+  // Reusing 34 selectors saved 316 B. Parent 71ec9c7a7 freezes 1193899 B; no additional growth is authorized.
   // The integrated build must be measured before the budget is updated or this slice is delivered.
-  "/assets/molis-work-workbench.js": [1194297, 1197734],
+  "/assets/molis-work-workbench.js": [1193899, 1197336],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

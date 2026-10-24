@@ -190,3 +190,41 @@ test("SYS-15-U7 S-47 embedded content is host owned, confined to the page and ca
   await child.evaluate("slot.remove()");
   await browser.waitFor("!document.querySelector('iframe[data-plugin-embedded]')");
 });
+
+// W2-18-HOME-LOCALE-01: the standalone Home settings host consumes the same restricted request.
+test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept the existing connection pages", { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t, b, "issues");
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=%2Fplugins%2Fissues` }, b.sessionId));
+  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
+  const address = await b.evaluate("location.href");
+  const refuse = () => b.evaluate(`(async () => {
+    const fetch = window.fetch, requests = [], field = document.querySelector('[data-model-base-url]');
+    window.fetch = function(url, init) { requests.push(String(url)); return fetch.call(this, url, init); };
+    try {
+      for (const detail of [undefined, null, {}, {href:null}, {href:42}, {href:'http://['},
+        {href:'https://example.invalid/settings/models'}, {href:'/settings/appearance'},
+        {href:'/projects/another-project/settings'}, {href:'/api/plugins/io.molis.work.issues/list'}]) {
+        document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', {detail}));
+      }
+      await Promise.resolve();
+      return {requests, open:document.querySelector('[data-home-model-settings]').open, address:location.href,
+        draft:field?.value ?? null, sameField:field === document.querySelector('[data-model-base-url]')};
+    } finally { window.fetch = fetch; }
+  })()`);
+  assert.deepEqual(await refuse(), { requests: [], open: false, address, draft: null, sameField: true }, "unsupported settings requests neither fetch, open nor navigate");
+  await b.evaluate("document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', {detail:{href:'/settings/models'}}))");
+  await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]')", 15_000);
+  await b.click("[data-model-template=deepseek]");
+  await b.waitFor("document.querySelector('[data-model-base-url]')");
+  const draft = "https://example.invalid/unsaved-model";
+  await b.evaluate(`(() => { const field = document.querySelector('[data-model-base-url]'); field.value = ${JSON.stringify(draft)}; field.dispatchEvent(new Event('input', {bubbles:true})); })()`);
+  assert.deepEqual(await refuse(), { requests: [], open: true, address, draft, sameField: true }, "unsupported settings requests preserve the open settings draft");
+  await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
+  for (const href of ["/settings/connectors", "/capabilities/connections"]) {
+    await b.evaluate(`document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', {detail:{href:${JSON.stringify(href)}}}))`);
+    await b.waitFor("document.querySelector('[data-home-model-settings]').open && document.querySelector('[data-home-model-content] [data-connectors-settings]') && document.querySelector('[data-home-model-status]').hidden", 15_000);
+    assert.equal(await b.evaluate("location.href"), address);
+    await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
+  }
+});

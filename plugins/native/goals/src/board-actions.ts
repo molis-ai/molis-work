@@ -1,15 +1,12 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export type InitializeBoardOutput = { project_id: string; replayed: boolean; observed_event_cursor: number };
+import { goalActor } from "./action-contract.js";
+import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+export type { InitializeBoardOutput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 /** What board initialization needs from the Goals owner. */
 export interface GoalsBoardPorts {
   initializeBoard: GoalsCommandApi["initializeBoard"];
-}
-function management<I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> {
-  return { ...definition, action: { ...definition.action, audiences: ["user"] } };
 }
 function requireManagement(caller: ActionCallContext): void {
   if (caller.audience !== "user" || caller.actor_kind !== "user" || !caller.actor_id.trim()
@@ -18,10 +15,7 @@ function requireManagement(caller: ActionCallContext): void {
   }
 }
 export const goalsBoardActions = {
-  /** Version 2 (S8): the project's name is the directory's, not Goals', so the input no longer carries a title. */
-  initialize: { ...management(goalAction<{ idempotency_key: string }, InitializeBoardOutput>("goals.board.initialize", "初始化目标资料库",
-    "在当前可信管理上下文中为本项目初始化尚不存在的目标资料库；不创建项目目录绑定，不覆盖已有资料库，重试保留原请求键", "command",
-    object({ idempotency_key: identifier }), object({ project_id: text, replayed: boolean, observed_event_cursor: count }))), version: 2 },
+  initialize: goalEntryActions.initialize,
 } as const;
 export function createGoalsBoardActionHandlers(projectId: string, ports: GoalsBoardPorts): ActionHandlerBinding[] {
   const protect = (binding: ActionHandlerBinding): ActionHandlerBinding => ({ ...binding,

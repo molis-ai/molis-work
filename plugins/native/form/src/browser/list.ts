@@ -10,13 +10,13 @@ import type { Translate } from "./types.js";
 // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
 const fixedCell = (L: Translate, record: FormRecord) => {
   const node = make("span", "mw-status mw-status--plain feed-entry-status");
-  if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
-  else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
+  if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = L("form.fixed.unfinished"); }
+  else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = L("form.fixed.label") + " v" + record.artifact_version; }
   else node.setAttribute("aria-hidden", "true");
   return node;
 };
 
-const artifactLabel = (L: Translate, record: FormRecord | null) => record?.publication_pending ? L("继续保存上次固定版本") : record && record.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
+const artifactLabel = (L: Translate, record: FormRecord | null) => record?.publication_pending ? L("form.fixed.resume") : record && record.artifact_version > 0 ? L("form.fixed.again") : L("form.fixed.save");
 
 const listRow = (page: FormPage, record: FormRecord) => {
   const { L, sel } = page;
@@ -33,10 +33,10 @@ const listRow = (page: FormPage, record: FormRecord) => {
   const published = record.status === "published";
   const status = document.createElement("span");
   status.className = "mw-status mw-status--plain mw-status--" + (published ? "progress" : "quiet") + " feed-entry-status";
-  status.dataset.mwState = published ? "doing" : record.status === "closed" ? "stopped" : "idle"; status.textContent = published ? L("正在收集") : record.status === "closed" ? L("已停止收集") : L("未开始收集");
+  status.dataset.mwState = published ? "doing" : record.status === "closed" ? "stopped" : "idle"; status.textContent = published ? L("form.list.collecting") : record.status === "closed" ? L("form.collect.stopped") : L("form.collect.off");
   row.append(
     leading,
-    textCell("plugin-stage-fact", (record.questions || []).length + " " + L("题")),
+    textCell("plugin-stage-fact", L("form.list.question-count", { count: (record.questions || []).length })),
     textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
     status,
     fixedCell(L, record),
@@ -125,9 +125,9 @@ export const loadList = async (page: FormPage) => {
   button.disabled = !page.aiAvailable;
   const reason = one("[data-form-ai-reason]")!;
   reason.hidden = page.aiAvailable;
-  reason.replaceChildren(document.createTextNode(page.aiUnavailableReason || L("当前没有可用的文字模型，请检查模型设置和服务连接。")));
+  reason.replaceChildren(document.createTextNode(page.aiUnavailableReason || L("form.ai.no-model")));
   if (!page.aiAvailable) {
-    const link = make("a", "", L("打开模型设置"));
+    const link = make("a", "", L("form.ai.open-settings"));
     link.href = "/settings/models";
     reason.append(document.createTextNode(" "), link);
   }
@@ -140,11 +140,11 @@ export const listFailed = (page: FormPage, error: Error | undefined) => {
   const box = make("div", "mw-empty mw-empty--error");
   box.setAttribute("role", "alert");
   box.innerHTML = '<span class="mw-empty__mark">' + icon("icon-circle-alert") + '</span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
-  box.querySelector("strong")!.textContent = L("列表暂时读不到");
+  box.querySelector("strong")!.textContent = L("form.list.failed-title");
   const text = box.querySelector("p")!;
-  text.textContent = error?.message || L("请稍后重试");
+  text.textContent = error?.message || L("form.list.failed-hint");
   const retry = box.querySelector("button")!;
-  retry.textContent = L("重试");
-  retry.addEventListener("click", () => { retry.disabled = true; void loadList(page).then(() => box.remove(), (next: Error | undefined) => { retry.disabled = false; text.textContent = next?.message || L("请稍后重试"); }); });
+  retry.textContent = L("form.list.retry");
+  retry.addEventListener("click", () => { retry.disabled = true; void loadList(page).then(() => box.remove(), (next: Error | undefined) => { retry.disabled = false; text.textContent = next?.message || L("form.list.failed-hint"); }); });
   page.rowsEl.replaceChildren(box);
 };

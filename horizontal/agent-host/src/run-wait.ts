@@ -1,5 +1,6 @@
 import { agentErrors } from "./errors.js";
 import type { AgentRunRef, AgentRunView, AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentCollaborationSessionView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 
 /**
  * A cheap, stable mark of what a surface would draw differently: phase, text growth, tool progress, questions, usage,
@@ -55,4 +56,23 @@ export function installationWaits(limit: number) {
       };
     },
   };
+}
+
+/**
+ * Waits for continuations of the caller's own sessions alone. Another's that are ready join `skipped` and the wait goes on, so they
+ * neither show nor end it early; at the deadline the answer is what is the caller's (possibly nothing).
+ */
+export async function awaitOwnContinuations(awaitReady: (timeoutMs: number, exclude: string[], signal?: AbortSignal) => Promise<AgentCollaborationSessionView[]>,
+  owns: (view: AgentCollaborationSessionView) => Promise<boolean>, timeoutMs: number, exclude: readonly string[], signal?: AbortSignal) {
+  const skipped = [...exclude];
+  for (const deadline = Date.now() + timeoutMs; ;) {
+    const ready = await awaitReady(Math.max(0, deadline - Date.now()), skipped, signal);
+    signal?.throwIfAborted();
+    const own: AgentCollaborationSessionView[] = [];
+    for (const view of ready) {
+      if (await owns(view)) own.push(view);
+      else if (view.continuation) skipped.push(view.continuation.request_key);
+    }
+    if (own.length || Date.now() >= deadline) return own;
+  }
 }

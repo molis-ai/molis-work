@@ -36,6 +36,10 @@
 
 包名：`@molis-ai/molis-work-service-memory`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+## Character 候选的原归属
+
+首次 Character proposal 在 SDK 创建前，将可信项目与原角色 id/title 记入既有 owner 映射；登记失败不创建候选，SDK 已创建而候选账注失败时映射保留，重开后按原操作补齐同一候选。候选提案的完整校验、去重、原操作和投影由 `src/proposals.ts` 持有，Service 入口不变。异步读取期间调用方改写角色不能更换已固定的 owner/subject。此接线只防新增漏映射，不补猜历史未知归属，也不把 `sources:null` 当作空来源；历史项目清除完整性仍按原 spec 保留限制。直接真实 Node/SQLite 回归为 `tests/memory-character-proposal-owner.test.ts`。
+
 ## 整包导入的固定重试输入
 
 `importScope` 在派发任何条目前完整读取当前 v2 包并复制可变输入和调用身份（保留原取消信号），以可信 scope/owner 和有序有效条目的 SHA-256 摘要固定本次操作。它是业务重试输入身份，不是源码或流程校验；现 ledger 只保存摘要，不保存正文副本或 encoded request。对象键序不影响身份，条目和语义数组顺序保持，分类、原出处、来源/依据、期限、适用条件、Session 与 namespace 均参与固定。同操作换包在新副作用前报 `memory.conflict`，原包仍按既有逐项回执恢复，拒绝数、部分结果与已提交事实不变。

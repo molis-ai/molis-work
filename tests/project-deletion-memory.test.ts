@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
@@ -92,14 +92,14 @@ test("deleting a project clears its memories and its Characters' from the store 
   assert.deepEqual(await purge("project-gone"), { removed: 0 });
 });
 
-test("deleting a project also purges the suggestions waiting in its Characters' scopes, found from the notes on the candidates", { timeout: 90_000 }, async t => {
+test("deleting a project also purges the suggestions waiting in its Characters' scopes under their recorded owners", { timeout: 90_000 }, async t => {
   const { service, backend, ledger, purge, reopen } = await memoryHome(t);
-  // Nothing of this Character was written, so the ledger noted no owner for it: all it has in the project is a suggestion.
+  // A first suggestion records the Character owner before its SDK creation, even without a formal memory.
   const held = await service.offer(work("project-gone", writer), { scope: "character", text: "回复先给结论", kind: "preference", basis: "inferred", why: "这次看起来喜欢先给结论", from: "extraction" });
   const other = await service.offer(work("project-kept", writer), { scope: "character", text: "回复要带出处", kind: "preference", basis: "inferred", why: "这次看起来喜欢带出处", from: "extraction" });
   assert.equal(held.outcome, "candidate");
   assert.equal(other.outcome, "candidate");
-  assert.deepEqual(ledger.owners("project-gone"), [], "no owner was noted, so the purge cannot find this scope from the owners");
+  assert.deepEqual(ledger.owners("project-gone"), [{ scope: "character", owner: characterOwner("project-gone", writer.id), title: writer.title, subject: writer.id }]);
   const notes = () => ledger.candidates(LOCAL_PERSON_ACTOR_ID).filter(note => note.scope === "character");
   const goneNote = notes().find(note => note.project_id === "project-gone")!, keptNote = notes().find(note => note.project_id === "project-kept")!;
   const gone = backend.withCaller(work("project-gone", writer)), kept = backend.withCaller(work("project-kept", writer));
@@ -111,4 +111,21 @@ test("deleting a project also purges the suggestions waiting in its Characters' 
   assert.equal((await gone.candidates.list("character", goneNote.owner)).length, 0, "the suggestion's text is gone from Prologue's box");
   assert.deepEqual(notes().map(note => note.project_id), ["project-kept"], "and from the ledger");
   assert.equal((await kept.candidates.list("character", keptNote.owner)).length, 1, "another project's Character keeps its waiting suggestion");
+});
+
+test("project purge retains the candidate-notes fallback for a historical Character without an owner mapping", { timeout: 90_000 }, async t => {
+  const { service, backend, ledger, purge, reopen } = await memoryHome(t);
+  // Seed the previous producer's state: a real SDK candidate and App note, but no owner registration.
+  const ownerWrite = t.mock.method(ledger, "noteOwner", () => {});
+  const held = await service.offer(work("project-gone", writer), { scope: "character", text: "旧候选保留原项目", kind: "preference", basis: "inferred", why: "历史候选的项目归属来自候选账", from: "extraction" });
+  ownerWrite.mock.restore();
+  assert.equal(held.outcome, "candidate");
+  const owner = characterOwner("project-gone", writer.id), bound = backend.withCaller(work("project-gone", writer));
+  assert.deepEqual(ledger.owners("project-gone"), []);
+  assert.deepEqual(ledger.candidateOwners("project-gone"), [{ scope: "character", owner }]);
+  assert.equal((await bound.candidates.list("character", owner)).length, 1);
+  await purge("project-gone"); await reopen();
+  assert.deepEqual(await bound.candidates.list("character", owner), []);
+  assert.deepEqual(ledger.candidates(LOCAL_PERSON_ACTOR_ID), []);
+  assert.deepEqual(ledger.candidateOwners("project-gone"), []);
 });

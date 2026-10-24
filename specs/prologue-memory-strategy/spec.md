@@ -2337,3 +2337,17 @@ GitHub当前返回#1064可合并，reviews与review threads为空，不等于人
 先冻结可独立证明的最小防新增修复：Character proposal在SDK写入前，复用现memory_owners及commitApproved的noteOwner做法，保存可信placeOf/caller.character给出的project与subject；失败不进入SDK，SDK后账注失败仍保留该准确映射。允许修改现MemoryService及必要同模块内聚代码、相关直接行为测试和本spec，不新增registry、第二owner真相、迁移或权限放宽。验收覆盖首次ledger失败后重开可找到原SDK候选及正确项目归属、原操作重试不重复创建、owner保存失败则SDK零写、其他项目不受影响；不以此单项修复宣称历史全覆盖或项目完整删除通过。历史未知归属与单Session完整选择的合同继续核对，当前P1保留。
 
 MEM-40桥接补充：沿原exclusive owner先取得唯一写权，再通过仅用于建立adopting的同步窄回调持久阻断，随后才打开SDK maintenance；锁忙不得提前改ledger。回调失败/返回异步值应在SDK初始化前拒绝并释放已得owner；close失败不得发布或提前释放。只读previewMemoryHomeAdoptionCleanup改走inspection的同名旧cleanup语义，复用原decoder/权限，不能换成previewPurge的不同选择集合，也不能借只读预览启动writer。源/目标协议及验收仍为前两段MEM-40合同；该接线尚未实现。
+
+#### Character 首次 proposal owner 前置：独立实施补充（2026-10-25）
+
+准确父 c8c23dbec543f34185e8fa94737cf00c22270864，独立树 codex/memory-character-owner-first。沿现 MemoryService.propose 入口，将完整候选提案职责抽入同模块 proposals，依赖仅 backend/ledger、现 queries/preferences/operations 和原 sourceAllowed；不传整个Service、不复制权限或来源算法、不新增公开API。Character 在首个异步读取前仅冻结其 id/title，避免调用方在等待中改写角色使已固定where与所记subject不一致，其余输入不顺手重构。最终formation检查后、SDK candidates.propose前沿现noteOwner登记可信project/subject；失败SDK零创建，候选账注失败则映射保留。原marker、SDK原operation、错误/返回与sources:null语义不改。
+
+直接真实Node/SQLite回归覆盖owner写拒绝、SDK提交后saveCandidate故障及adapter+ledger重开、原请求重试单候选、本人范围可发现、另项目不混，以及真实候选读取等待期间角色id/title被调用方改写仍保持原角色。新回归先在父已构建公开包运行取red，再修生产。此证据只防新增漏映射，不解决历史无映射P1、source未知或全项目/Session清理完整性。未授权SDK/资源/CI/门变化；build须统筹释放机器槽。
+
+实施证据：新文件 `tests/memory-character-proposal-owner.test.ts` 在父已构建公开包取得0/3 red：owner故障没有拒绝、SDK成功后账注失败未记owner、等待中角色被改导致SDK scope拒绝。修复后同三例3/3通过；SDK与ledger完整关闭重开仅证明这两位主人的持久恢复，不冒充完整App进程重启。候选账注失败后管理列表不会凭空补候选，直接SDK预览可以在已保留准确owner的范围找到原候选，原operation重试才补齐App投影；原`null`来源保持未知。
+
+固定Node24.14.0/pnpm11.9.0，frozen/offline安装0；首次整体build因抽取后未用sameWords及原maintenance仍需similarity的导入错误失败，修正import后整体build0，原日志保留。根types与workspace:typecheck、精确父health、boundary、API（72份）与Action快照核对均0，未更新门禁或公开合同。24文件批次（README18文件及CAS/候选采用/形成/新分类/source-owner/晋升6文件）23/24文件、352/353项通过；唯一旧project-deletion-memory第二例要求新Character提议后owner为空，与本次必要行为相反，首败保留。按下段授权同步直接消费者后，仅该整文件复验3/3通过，其余已绿23文件有效复用，不写成新批次全跑。取消、当前授权与原版本断言未放宽。
+
+资源由最终构建实测27项、7,678,780 B，与父有效产物逐项相同，本片净增0 B；资源门仍准确拒绝父已存在Coding +1,333 B，未挪用额度/修改基线。原red、build首败、最终build、green、24批、types、workspace-types、health、boundary、api、actions、assets及assets-gate日志均为 `/private/tmp/molis-memory-character-owner-first-*-20261025.*`，结果索引随交接提供。未跑浏览器/全量/真实Home/付费模型，也未宣称历史P1或完整项目清除验收通过。
+
+统筹核准将直接消费者 `tests/project-deletion-memory.test.ts` 纳入本刀：新提议应断言精确owner映射，保留全部项目删除、重开和旁项目不变断言；另复用同一真实fixture，用仅种入旧数据时抑制noteOwner的明确故障注入保留“候选账在、owner映射缺失”的历史fallback用例，不把旧状态要求施加到新提议，也不复制整条长流程。这类已存在候选账的旧状态可走原candidateOwners；SDK成功且账/映射均缺失的历史P1仍未解决。仅复验该文件，不重跑已有效24批。

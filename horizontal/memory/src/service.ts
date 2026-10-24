@@ -58,13 +58,13 @@ import { memoryErrors } from "./errors.js";
 import { disownAutomatic, personOnly, placeOf } from "./places.js";
 import { MAX_TEXT, CANDIDATE_TTL_MS, candidateView, changeView, pairKey } from "./shapes.js";
 import { UNCHECKED, UNSAID, theirWords } from "./spoken.js";
-import { looksLikeInstruction, looksLikeSecret, sameText, sameWords, similarity } from "./text.js";
+import { looksLikeInstruction, looksLikeSecret, similarity } from "./text.js";
 import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
 import { MemoryCandidateDecisions } from "./candidate-decisions.js";
 import { MemoryEdits } from "./edits.js";
 import { newMemoryClassification } from "./classification.js";
 import { MemoryBatches } from "./batches.js";
-import { formationReferenceAllowed } from "./formation.js";
+import { MemoryProposals } from "./proposals.js";
 import { MemoryQueries, type MemoryPageLimits } from "./queries.js";
 import { MemoryScopeCommands, type Located } from "./scope-commands.js";
 import type { AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory, AgentMemorySourceRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -135,7 +135,6 @@ interface MemoryCommitInput {
 
 /** Interface signals: at least this many, from at least this many different occasions, before a candidate is made. */
 export const SIGNAL_THRESHOLD = { count: 3, distinct: 2 } as const;
-const PENDING_PER_WORK = 3;
 /** What Prologue's `redactText` puts where a credential was. */
 const REDACTED_CREDENTIAL = "[redacted]";
 /** Written by a policy rather than by the person: what an automatic change may take back. */
@@ -157,6 +156,7 @@ export class MemoryService {
   private readonly maintenance: MemoryUpkeep;
   private readonly queries: MemoryQueries;
   private readonly edits: MemoryEdits;
+  private readonly proposals: MemoryProposals;
   private readonly candidateDecisions: MemoryCandidateDecisions;
   private readonly moves: MemoryMoves;
   private readonly duplicates: MemoryDuplicates;
@@ -184,6 +184,9 @@ export class MemoryService {
       record: (caller, input) => this.recordChange(caller, input) });
     this.queries = new MemoryQueries({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, now: this.now, newId: this.newId, beforeEffect: () => ports.beforeEffect?.(),
       limits: ports.managementPages, candidates: (caller, request) => this.candidates(caller, request) });
+    this.proposals = new MemoryProposals({ backend: ports.backend, ledger: ports.ledger, operations: this.operations,
+      preferences: this.preferences, queries: this.queries, scopes: this.scopeCommands,
+      sourceAllowed: (...args) => this.sourceAllowed(...args) });
     this.candidateDecisions = new MemoryCandidateDecisions({ backend: ports.backend, ledger: ports.ledger, operations: this.operations,
       scopes: this.scopeCommands, queries: this.queries, preferences: this.preferences, promotions: this.promotions, now: this.now,
       date: at => this.date(at), beforeEffect: ports.beforeEffect, record: (caller, input) => this.recordChange(caller, input) });
@@ -528,65 +531,10 @@ export class MemoryService {
     return out.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
-  /**
-   * Suggest keeping something the person did not ask for (spec §6.1): a candidate only, until they accept it. The
-   * In the authorized canonical candidate set: suggest the same text once, at most three waiting per work, never what is kept.
-   */
+  /** Suggest once in the authorized canonical set; the proposal owner keeps its operation and projection together. */
   async propose(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
     from: MemoryCandidate["from"]; hold_reason?: string | null; supersedes?: string | null; evidence?: MemoryEvidenceInput[] }, options: { gate?: boolean; classificationMeta?: Pick<AgentMemoryMeta, "classification" | "session_ref" | "namespace">; formal_expires_at?: string | null; sources?: readonly AgentMemorySourceRef[]; combines?: string } = {}): Promise<MemoryCandidate> {
-    assertFormationFacts(input.basis, input.evidence);
-    caller = this.operations.caller(caller);
-    const where = placeOf(caller, input.scope);
-    this.preferences.assertFormation(caller.actor_id, where, input.from, options.gate === true);
-    const text = input.text.trim();
-    if (!text || text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 1–${MAX_TEXT} 字之间`);
-    if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
-    // Candidate context is internal formation work; formal reads and the proposal retain the original caller.
-    const candidateCaller: MemoryCaller = { ...caller, purpose: "management", source_use: caller.source_use === "learning" ? "learning" : "explicit" };
-    const captured = await this.queries.candidateRecords(candidateCaller, input.scope, where.owner, { formation: true });
-    const work = caller.work ?? null;
-    if (options.sources && !this.sourceAllowed(caller.actor_id, input.scope, where.owner, options.sources)) throw memoryErrors.forbidden("这份来源已遗忘，不能重新形成候选");
-    const prior = options.combines ? (await this.ports.backend.withCaller(candidateCaller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
-    const entries = !this.operations.find(caller, "propose") || input.supersedes ? await this.scopeCommands.located(caller, input.scope, where.owner) : [];
-    const target = input.supersedes ? entries.find(item => item.entry.memory_id === input.supersedes) : undefined;
-    caller.signal?.throwIfAborted();
-    // All canonical reads have finished. Revoked candidates cannot influence deduplication or this work's quota.
-    const prefs = this.scopeCommands.prefsAt(caller.actor_id, where);
-    const earlier = captured.filter(row => caller.person || formationReferenceAllowed(candidateCaller, prefs, input.scope, row.entry.meta, "form")).map(row => row.note);
-    const combines = prior?.state === "pending" && prior.sources?.length && options.sources
-      && prior.sources.every(old => options.sources!.some(ref => ref.event_id === old.event_id && ref.version === old.version))
-      && options.sources.some(ref => !prior.sources!.some(old => old.event_id === ref.event_id))
-      && earlier.some(note => note.candidate_id === prior.candidate_id && sameText(note.text, text) && note.kind === input.kind && isDeepStrictEqual(note.applies, input.applies ?? {}));
-    if (options.combines && !combines && !this.operations.find(caller, "propose")) throw memoryErrors.conflict("合并来源需要当前候选与另一份独立原件");
-    // Source accumulation creates a new candidate; it never edits the old candidate's immutable source identities.
-    if (!this.operations.find(caller, "propose") && earlier.some(item => !(combines && item.candidate_id === options.combines) && item.state !== "expired" && (sameText(item.text, text)
-      || (item.state === "pending" && work !== null && item.work?.work_id === work.work_id && similarity(item.text, text) >= 0.6))))
-      throw memoryErrors.invalid("这条已经建议过了（用户认可、拒绝或还在等），不要再提");
-    if (!this.operations.find(caller, "propose") && entries.some(located => sameWords(located.entry.text, text))) throw memoryErrors.invalid("已经记着这一条了");
-    if (!this.operations.find(caller, "propose") && work && earlier.filter(item => item.work?.work_id === work.work_id && item.state === "pending").length >= PENDING_PER_WORK)
-      throw memoryErrors.limit(`这项工作已有 ${PENDING_PER_WORK} 条建议在等用户，先不要再提`);
-    const formalExpiry = options.formal_expires_at === undefined ? target?.meta.expires_at ?? null : options.formal_expires_at;
-    if (formalExpiry !== null && !Number.isFinite(Date.parse(formalExpiry))) throw memoryErrors.invalid("候选的正式期限不合格");
-    const retained: AgentMemoryMeta = options.classificationMeta ?? target?.entry.meta ?? newMemoryClassification(caller, formalExpiry);
-    const mark = this.operations.begin(caller, "propose", { kind: "propose", scope: input.scope, owner: where.owner, expected_version: 0,
-      ...(input.supersedes ? { memory_id: input.supersedes } : {}), formal_expires_at: formalExpiry });
-    const at = mark.at;
-    const evidence = input.evidence ?? [{ kind: "work" as const, text: input.why.trim().slice(0, 200), ...(work ? { ref: { kind: "work", id: work.work_id } } : {}), at }];
-    const facts = { kind: input.kind, source: "accepted" as MemorySource, basis: input.basis, evidence, applies: input.applies ?? {}, expires_at: null, approved_by: { by: "person" } as MemoryApproval,
-      plugin_id: caller.consumer === "plugin" ? caller.plugin_id ?? null : null };
-    this.preferences.assertFormation(caller.actor_id, where, input.from, options.gate === true);
-    const classified = toEntryMeta({ ...facts, plugin_id: retained.namespace ?? facts.plugin_id }, retained);
-    const held = await this.ports.backend.withCaller(caller).candidates.propose({ scope: input.scope, owner: where.owner, text, origin: `建议 · ${input.from}`, tags: [input.from, input.kind], meta: { ...classified, expires_at_ms: Math.min(formalExpiry ? Date.parse(formalExpiry) : Infinity, Date.parse(at) + CANDIDATE_TTL_MS) },
-      ...(options.sources?.length ? { sources: [...options.sources] } : {}),
-      expected_version: 0, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}) });
-    const record: MemoryCandidateRecord = { candidate_id: held.candidate_id, version: held.version,
-      classification: held.meta.classification ?? null, waiting_expires_at: new Date(Math.min(held.created_at_ms + CANDIDATE_TTL_MS, held.meta.expires_at_ms ?? Infinity)).toISOString(),
-      ...(held.sources?.length ? { source_refs: held.sources.map(({ event_id, version }) => ({ event_id, version })) } : {}), actor_id: caller.actor_id, owner: where.owner, scope: input.scope,
-      project_id: where.project, formal_expires_at: formalExpiry, kind: input.kind, text, applies: input.applies ?? {}, basis: input.basis, why: input.why.trim().slice(0, 300),
-      // Instruction-like text says so however it came in, so the person sees why before accepting.
-      from: input.from, work, hold_reason: input.hold_reason ?? looksLikeInstruction(text), supersedes: input.supersedes ?? null, state: held.state === "promoted" ? "accepted" : held.state, created_at: at, memory_id: held.memory_id ?? null };
-    this.ports.ledger.transaction(() => { this.ports.ledger.saveCandidate(record); this.operations.committed(caller, mark, { candidate_id: held.candidate_id, version: held.version }); });
-    return candidateView(record);
+    return this.proposals.propose(caller, input, options);
   }
 
   /**

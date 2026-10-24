@@ -40,6 +40,15 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 2. 顺序与现状
 
+> 2026-10-24 16:35 UTC **本轮新授权只此8旧目标，1222最高优先**
+>
+> **一骏新明确合并授权（Root刚转达并鲜核8个）**：“把1225之前的除了memory相关的非draft PR（784，734也除外），都解决合并掉”。准确集合 **1109、1112、1209、1210、1211、1212、1222、1223**；Memory实质相关（包括Memory base的1196）、784/734与其余Draft排除，不自动Ready，不自动扩新PR>1225。可用清楚包含旧目标的合规carrier，不混未经授权新目标；旧非阻塞owner责任保留。#1198原单独任务独立继续，Root据四完整PNG交叉同bytes/空toast无匹配button已判剩6px非本分支回归，底层仍UNKNOWN、formal exit1/阈值0/首败全保留、无新capture/算法/期望图变更；可Ready正常队列，不挡这8目标。
+>
+> **立即最高优先1222（用户再催“修了1222，有好几个应该就能直接关，快”）**：source owner仍原Claude `ac-batch29pr`，不重复writer。remote acf89a9cc4b16a1442349c8c725d4557363ae955/DIRTY/checks[]；现成local a788e1a413f8ffce6d60c922f3c18092e9b343d3=acf+actual2dd，Root已薄核5处remerge/两FIFO测试零diff，REVIEW6386623257已关闭取消P2。真正待修是b29m2-focus119文件116过3红：Cognia390两场景上级.cognia-list display:none阻住68/148点击（非timeout），cognia-mcp45s取消、home-aggregate末两15s取消；build exit0不等focus全绿。已6386688449公开急单返当前原writer，TEST复用full32对应raw/生产fixture基线只读归因，不能一概负载/flaky/改断言/新起重复full。修实缺口→仅必要差异验证→固定newhead/实际diff/raw DIRECT REVIEW/TEST→normalpush/正式适用CI→唯一正常queue→actualmain SHA/四固定头包含→立即关1209/1210/1211/1212；不等1198或其他新片。共享曾计划full-suite，目前API未见新头/CI/label，不把计划当已运行，统一full仍仅Claude决定。
+>
+> **source接续变更**：C1已实际START RAC115，managed c1-uninstall-inspection/goalboard、branch anticorr/codex-w5-13-browser-input、准确base2dd，32openPR全路径无冲突；按Root让当前有界片安全fixed/release。之后source优先这8旧PR真实修复，**不再按旧条件立即开C2B2b**；B2b完整合同/原owner保留后移，Root/Claude最新具体WO覆盖。FIX1只读1109/1223已有owner/承载及真实障碍；FIX2只读1112：对2dd六真冲突已Claude现成integration-33/d3cd76473e38ce4930548063ba81a99758e37906解决，08b与2dd均其祖先/树clean，但无remote/PR且夹1226–1229新片，须按本次边界与Claude明确选carrier，不另source重复sync。所有8当前fresh仍DIRTY、无queue；1109有旧autoMerge（10-23）不等已入队，不重复调用。
+
+
 「就绪」只在 1～5 条全满足时写「可合」。
 
 | 序 | PR | 内容 | 依赖 | 批 | 现状（按行最近固定头与回执读取） |
@@ -302,3 +311,5 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 - 10-24 16:15 UTC：ac-kernel S-57 X1 推送 `ac-kernel/s57-x1-services` `074597676`（未开 PR，要 full）：connector-host 的 `origin` → `origins[]` + `refresh`，登记 GitHub、Gmail 与 24 个 Bearer 服务；RAC-346；分支上暂写 S-64，正式号 S-71（合入时按末号改）。租户型服务拆 BL-595。PR 顺序 giants-a → PG-031 余项 → PG-007 → X1。
 
 - 2026-10-24 16:16 UTC 实际收口：1225 actual2dd/treead24278=f2、四源固定祖先+真正main包含/队列Verify核齐，移§3；1107早前15:17下层merge不冒当时main。1112进33保持未合/整W5不关，48raw/原full32红与一live未执行保留。1198 fixed fd3源码/spec已FIX2公开6386459129明确RELEASE，按Root具体指令仍Draft、CI40110037944与必要新formal93507并行；结果+guard恢复未齐不PASS。唯一Codex writer授C1RAC115 freshmain2dd53591276982b6947369e345ddfcffcc21afd2实际START，固定release即C2B2b，不为等CI/full/merge空占；FIX2需改源先返槽。新full32 web.test health actualstarting/expectedok首红retry过交FIX1/R44只读归因，原因未证不标flaky。
+
+- 2026-10-24 16:35 UTC 新用户优先指令已鲜核8 PR/head/base/comments/真实认领与DIRTY/queue状态并挂本chat：Root催先1222，公开6386688449返原Claude现成a788与3真红；不为1198/下一新片延后。1112现成未发布integration33 carrier已找到但混1226–29，须先明确旧目标优先范围。C1当前安全有界片后source优先旧8，C2B2b合同owner保留但后移；普通fix/merge授权已够，不再问同一许可。

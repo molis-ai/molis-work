@@ -1,5 +1,5 @@
 import { isSubjectReader, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PersonActions } from "./assistant-coding.js";
+import type { PersonActions } from "./assistant-executor.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 

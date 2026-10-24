@@ -33,8 +33,7 @@ const COORDINATOR_HOLDERS: Record<string, { references: number; why: string }> =
   "apps/local-host/src/goal-project-application.ts": { references: 1, why: "builds the coordinator from Goals' factory; S9 moves the composition into the plugin" },
   "apps/local-host/src/goals-actions.ts": { references: 19, why: "hands the coordinator's parts to Goals' action handlers; S9 deletes this file" },
   "apps/local-host/src/project-host.ts": { references: 7, why: "the open project's runtime carries the coordinator; S9 (the supervisor starts Goals) removes it" },
-  "apps/local-host/src/managed-project-database.ts": { references: 2, why: "a new project library's identity is a Goals board; S8's other half (PG094-10, X-5)" },
-  "apps/local-host/src/local-plugin-development.ts": { references: 1, why: "the isolated developer door starts its library with a board; S8's other half, with the one above" },
+  "apps/local-host/src/local-plugin-development.ts": { references: 1, why: "the isolated developer door makes its own library a project with a board, as `goals.board.initialize` does for the management door; S9 (PG094-11) calls the action instead" },
   "apps/local-host/src/artifact-actions.ts": { references: 1, why: "the Artifacts provider's `goalTitle` port; waits for T1 with Coding's family (PG-091)" },
   "apps/local-host/src/demo-seed.ts": { references: 40, why: "the sample project writes Goal facts directly; S9 and the sample seed" },
 };
@@ -43,9 +42,7 @@ const COORDINATOR_HOLDERS: Record<string, { references: number; why: string }> =
 const TABLE_READERS: Record<string, { references: number; why: string }> = {
   "apps/local-host/src/project-database.ts": { references: 6, why: "the library opens Goals' read services and the board snapshot; S8's other half (PG094-10)" },
   "apps/local-host/src/goals-actions.ts": { references: 1, why: "hands `goalsQuery` to the configuration handlers; S9 deletes this file" },
-  "apps/local-host/src/managed-project-database.ts": { references: 1, why: "lists the library's projects from the board; S8's other half (PG094-10)" },
   "apps/local-host/src/demo-seed.ts": { references: 1, why: "the sample project; S9 and the sample seed" },
-  "apps/local-host/src/demo-plugin-seed.ts": { references: 1, why: "the demo plugin seed asks whether the demo project's board exists: the library's identity is the board, which S8's other half (PG094-10) replaces with the project root" },
   "apps/local-host/src/feed-application.ts": { references: 2, why: "Feed's attention checks whether a Goal exists; Feed moves to the Runtime with PG-093" },
 };
 

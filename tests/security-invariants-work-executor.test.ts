@@ -11,6 +11,7 @@ import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
+import { EXECUTOR_MODES, roleDefinitions, roleOfCapability } from "./fixtures/work-executor-fake.js";
 
 // S-51 (specs/repository-anti-corruption PG-036, C8-1): the Assistant calls a work's executor as the person at this computer, through
 // the same installation-grant checks the person's own page goes through, and a dispatch (a Send, a follow-up's round) binds the
@@ -34,33 +35,28 @@ async function until(read: () => boolean | Promise<boolean>): Promise<void> {
   throw new Error("The expected state was not reached");
 }
 
-const USE = "executor:use", EXECUTOR_ID = "io.molis.work.example.executor";
+const USE = "executor:use", EXECUTOR_ID = "io.molis.work.example.executor", PREFIX = "example.executor";
 
-/** A plugin that takes on a Coding work, as any installed plugin may: each of its actions needs its installation's one grant, and counts its runs. */
+/** A plugin that takes on a work through the work-executor protocol, as any installed plugin may: each of its actions needs its installation's one grant, and counts its runs. */
 function executorPlugin() {
-  const handled: string[] = [], runs: string[] = [], sessions = new Map<string, unknown>();
-  const definitions: ActionDefinition[] = ["state", "sessions.create", "sessions.read", "sessions.update", "runs.start"].map(name => {
-    const query = name === "state" || name === "sessions.read";
-    return { capability_id: `coding.${name}`, version: 1, operation: query ? "query" : "command", action: { title: name, description: `执行方的 ${name}`,
-      kind: query ? "query" : "operation", scope: "project", audiences: ["user"], permissions: [USE], subject_kinds: [],
-      input_schema: { type: "object" }, output_schema: { type: "object" } } };
-  });
+  const handled: string[] = [], runs: string[] = [], sessions = new Set<string>();
+  const definitions = roleDefinitions(PREFIX, "example_session", [USE]);
   const handle = async (name: string, context: ActionExecutionContext, input: Record<string, unknown>): Promise<unknown> => {
     handled.push(name);
-    if (name !== "state" && name !== "sessions.read") await context.beforeEffect();
-    if (name === "state") return { models: [{ provider_id: "fixture", model_id: "fixture" }], workspace: { workspace_id: "workspace" } };
-    if (name === "sessions.create") { const id = `session-${sessions.size + 1}`; sessions.set(id, null); return { session: { session_id: id } }; }
-    if (name === "sessions.read") return { session: { session_id: String(input.session_id), runtime_session_id: null }, runs: [], configuration: sessions.get(String(input.session_id)) ?? null };
-    if (name === "sessions.update") sessions.set(String(input.session_id), input.configuration ?? null);
-    if (name === "runs.start") runs.push(String(input.task));
-    return {};
+    if (name !== "state" && name !== "session.read") await context.beforeEffect();
+    if (name === "state") return { modes: EXECUTOR_MODES, default_mode: "execute", images: false };
+    if (name === "session.open") { const id = `session-${sessions.size + 1}`; sessions.add(id); return { session_id: id }; }
+    if (name === "session.read") return { session_id: String(input.session_id), title: "会话", mode: null, runs: [], runtime_session_id: null, recovery: null };
+    if (name === "session.update") return { session_id: String(input.session_id), mode: String(input.mode) };
+    if (name === "run.start") { runs.push(String(input.task)); return { run_id: `run-${runs.length}` }; }
+    return { accepted: true };
   };
   const definition = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: EXECUTOR_ID, version: "1.0.0", name: "执行方样例",
     kind: "app", publisher: { publisher_id: "example", signature: "executor" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: USE, required: false, reason: "接手助理交来的工作" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] }, actions: definitions },
     async start() { return { kind: "app", actions: definitions.map(entry => ({ ...entry,
-      handle: (context: ActionExecutionContext, input: unknown) => handle(entry.capability_id.slice("coding.".length), context, input as Record<string, unknown>) })) }; } });
+      handle: (context: ActionExecutionContext, input: unknown) => handle(roleOfCapability(PREFIX, entry.capability_id), context, input as Record<string, unknown>) })) }; } });
   return { definition, handled, runs };
 }
 
@@ -84,14 +80,13 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, 
     await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true });
   });
   await runWithMolisWorkHome(home, async () => {
-    // The executor plugin takes Coding's action names before the project's own plugins start, so the project's Coding is refused
-    // them (a name is registered once per project) and the work this test hands over goes to the plugin below.
+    // The executor plugin is one of the project's executors beside Coding; the work this test hands over names it by its plugin id.
     const repository = await local.withProject(reference, project => new SqlitePluginRuntimeRepository(project.store.db));
     runtime = new PluginRuntime(repository, undefined, { actions: { registry: local.actionRegistry(reference), project_id: reference.project_id } });
     installId = runtime.install({ definition: executor.definition, deployment: "local", grants: [USE] }).install.install_id;
     await runtime.start(installId);
     const views = await local.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: reference.project_id, permissions: [] }, reference);
-    assert.equal(views.find(view => view.capability_id === "coding.state")?.provider.plugin_id, EXECUTOR_ID, "the person reaches the executor plugin's actions");
+    assert.equal(views.find(view => view.capability_id === `${PREFIX}.state`)?.provider.plugin_id, EXECUTOR_ID, "the person reaches the executor plugin's actions");
 
     // The Assistant as the Host composes it, with the person's own clients.
     const { service, store } = assistantServiceFor({ localHost: local, homeDirectory: home, agentHost: agents, agentReady: async () => {},
@@ -99,8 +94,8 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, 
     assert.equal(await service.attachSchedule(), true);
     const sent = await service.send({ text: "先整理一下这项工作", request_id: "executor-revoked-0001" }, { project_ref: reference });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");
-    await service.handover(sent.work.work_id, { to: "coding" });
-    assert.ok(executor.handled.includes("sessions.create"), "the work's session is opened with the executor plugin");
+    await service.handover(sent.work.work_id, { to: { kind: "plugin", plugin_id: EXECUTOR_ID } });
+    assert.ok(executor.handled.includes("session.open"), "the work's session is opened with the executor plugin");
     const ranOnce = async (label: string) => {
       const standing = await service.followUps.save({ work_id: sent.work.work_id, text: label, at: new Date(Date.now() + 1200).toISOString(), repeat: "daily", label, time_zone: "UTC" });
       return { standing, ran: () => until(() => service.followUps.list(sent.work.work_id).find(row => row.followup_id === standing.followup_id)?.last?.due_at === standing.next_at) };
@@ -120,7 +115,7 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, 
     await pending.ran();
     const last = service.followUps.list(sent.work.work_id).find(row => row.followup_id === pending.standing.followup_id)!.last!;
     assert.equal(last.outcome, "failed", "the round is refused when it comes due");
-    assert.match(last.detail ?? "", /没有可用的 Coding 插件/u, "refused because the person's directory no longer offers the executor's actions, not by something else failing");
+    assert.match(last.detail ?? "", /执行方现在找不到/u, "refused because the person's directory no longer offers the executor's actions, not by something else failing");
     assert.deepEqual(executor.handled.slice(handledBefore), [], "none of the executor's actions ran after its grant was withdrawn, reads included");
     assert.equal(executor.runs.length, 1, "no round started in the executor");
     assert.equal(store.rounds(sent.work.work_id).length, roundsBefore, "the work records no round for the refused follow-up");
@@ -135,7 +130,7 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, 
     await stopping.ran();
     const stopped = service.followUps.list(sent.work.work_id).find(row => row.followup_id === stopping.standing.followup_id)!.last!;
     assert.equal(stopped.outcome, "failed", "the round is refused when it comes due");
-    assert.match(stopped.detail ?? "", /没有可用的 Coding 插件/u, "refused because the stopped executor's actions are gone, not by something else failing");
+    assert.match(stopped.detail ?? "", /执行方现在找不到/u, "refused because the stopped executor's actions are gone, not by something else failing");
     assert.deepEqual(executor.handled.slice(handledBeforeStop), [], "none of the stopped executor's actions ran");
     assert.equal(executor.runs.length, 1, "no round started in the stopped executor");
     assert.equal(store.rounds(sent.work.work_id).length, roundsBefore, "the work records no round for either refused follow-up");

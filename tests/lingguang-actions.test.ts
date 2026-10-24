@@ -214,9 +214,9 @@ test("a spark reads back by the shared subject protocol: what it says now, its r
     assert.equal((await bound.invoke(actions.subject, { subject_id: spark.id })).revision, `${edited.spark.updated_at}:inbox`, "an edit shows as a new revision");
   });
   // The page names the spark it shows by the same revision, or a work started there reads as changed at once.
-  const client = readFileSync(new URL("../plugins/native/lingguang/src/client.ts", import.meta.url), "utf8");
-  assert.equal(client.split('version: selected.updated_at + ":" + (selected.status || "inbox")').length - 1, 2);
-  assert.equal(client.split("version: selected.updated_at").length - 1, 2, "no other place names it by its time alone");
+  const browser = ["editor.ts", "chat.ts", "list.ts", "load.ts", "commands.ts", "material.ts", "page.ts"].map(file => readFileSync(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url), "utf8")).join("\n");
+  assert.equal(browser.match(/version: [\w.]+\.updated_at \+ ":" \+ \([\w.]+\.status \|\| "inbox"\)/g)?.length, 2, "the context it publishes and the hand-over to the Assistant");
+  assert.equal(browser.match(/version: [\w.]+\.updated_at/g)?.length, 2, "no other place names it by its time alone");
 });
 
 // specs/prologue-adoption §4.5 (item 10): a reply streams its text as a preview over the same Host action; closing the
@@ -279,12 +279,14 @@ test("a streamed reply shows the model's text as it comes; closing the request s
     assert.deepEqual((await bound.invoke(actions.getConversation, { id: conversation.id })).messages.map((message: { body: string }) => message.body), ["继续", "第一句，第二句。"]);
     const hostSource = readFileSync(new URL("../apps/local-host/src/plugin-route-stream.ts", import.meta.url), "utf8");
     for (const word of ["waiting", "extracting", "writing"]) assert.equal(hostSource.includes(word), false, `the host still names ${word}`);
-    const client = readFileSync(new URL("../plugins/native/lingguang/src/client.ts", import.meta.url), "utf8");
-    const submit = client.slice(client.indexOf('chatForm.addEventListener("submit"'), client.indexOf('chatForm.addEventListener("keydown"'));
+    const client = readFileSync(new URL("../plugins/native/lingguang/src/browser/chat.ts", import.meta.url), "utf8");
+    const submit = client.slice(client.indexOf('el.chatForm.addEventListener("submit"'), client.indexOf('el.chatForm.addEventListener("keydown"'));
+    assert.ok(submit.length > 200, "the submit handler is found");
     const caught = submit.slice(submit.indexOf("} catch"), submit.indexOf("} finally"));
+    assert.ok(caught.length > 50, "the failure branch is found");
     assert.equal(caught.includes("chatInput.value"), false, "closing the request leaves the typed input in the box");
     // Cleared only when the box still holds what was sent; the emptied box is fitted again (VUX-16, data-fit).
-    assert.match(submit, /if \(chatInput\.value === body\) \{ chatInput\.value = ""; window\.molisFit\?\.\(chatInput\); \}/);
+    assert.match(submit, /if \(el\.chatInput\.value === body\) \{ el\.chatInput\.value = ""; window\.molisFit\?\.\(el\.chatInput\); \}/);
   } finally {
     finish.resolve();
     if (server.listening) await new Promise<void>(resolve => { server.closeAllConnections?.(); server.close(() => resolve()); });

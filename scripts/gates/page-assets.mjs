@@ -238,11 +238,14 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // W5-10 (R4a): the generated-plugin renderer (design-system `createPluginComponentClient`, 753 lines) is cut into layers so no
-  // unit is over the function limit: 116132 → 118672 (+2540). The layers are sent as source (`toString`), and the
-  // object keys of the shared state they destructure and return survive minification (about 1.6 KB of the growth); the rest is the
-  // layer wrappers. Positional hand-over would win ~1.2 KB back at the cost of unreadable layer signatures; not taken.
-  "/assets/molis-work-plugins/plugin-builder.js": [116132, 118672],
+  // SYS-15-U10 (#1200): the Git list keeps a row's identity and the pending click across a revision refresh, so a refresh
+  // no longer drops what the person was pressing: 376282 → 377227 (+945). Reviewed in #1200 (Codex 6382757918).
+  "/assets/molis-work-plugins/coding.js": [376282, 377227],
+  // #1114: Cognia's directory rows get a stable locator for the real-code sync path: 22133 → 22157 (+24). Reviewed in #1114 (Codex 6382529211).
+  "/assets/molis-work-plugins/cognia.js": [22133, 22157],
+  // PG-036 C8-3 (#1185): the bar and the side panel render the executors the Host lists (`GET /api/assistant/executors`, modes by
+  // `plugin_id`) instead of a table naming Coding: 1129753 → 1130064 (+311). Reviewed in #1185 (ac-review 6381652434 (d)).
+  "/assets/molis-work-workbench.js": [1129753, 1130064],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

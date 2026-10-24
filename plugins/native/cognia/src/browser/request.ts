@@ -1,4 +1,5 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
+import type { PluginDirectoryGrant } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import type { CogniaApi, CogniaClientHost } from "./types.js";
 
 /**
@@ -14,7 +15,9 @@ export function cogniaApi(host: CogniaClientHost): CogniaApi {
 export const libraryUrl = (host: CogniaClientHost, path: string): string => host.pluginRoute("/library" + path);
 
 /** The Host's answer to "may Cognia read a folder of this machine": a grant to scan, or the person's cancel. */
-export interface DirectoryGrant { status?: string; grant_id?: string }
+export type DirectoryGrant =
+  | ({ readonly status: "picked" } & PluginDirectoryGrant)
+  | { readonly status: "cancelled" };
 
 export function grantDirectory(host: CogniaClientHost, fallback: string): Promise<DirectoryGrant> {
   return molisWorkRequest<DirectoryGrant>(host.route("/api/host/directory-grants"), { method: "POST", body: { plugin_id: host.pluginId }, fallback });

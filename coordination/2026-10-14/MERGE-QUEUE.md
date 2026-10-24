@@ -78,6 +78,7 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 >   - R8 余项选 A：一个 PR「删 typed 通道」（删 `registerCapability` 与 typed 登记、调用支；删 `services.capabilities`/`PluginCapabilityClient`，调用方改走 `services.actions`；`HostCapabilityDefinition` 留作 `ActionDefinition` 的身份基类）。外部 API 不留兼容期，创作台和 Alchemist 不能弄坏，跑全量。
 >   - PG-022 由 ac-sandbox-sched 先合一次 main 解真代码冲突，#1234 二轮可合后开 PR；BL-490/491 叠在它后面。
 >   - 远端分支 `claude/ac-pg017-p2-fetch` 等 p2e 落地再删。
+> - #1236 全量 40117579239 全绿（16 个分片加汇总），macOS 专属 26 个文件过，PR CI 绿，已写「可入队」；入队由 Codex 收尾会话 `01a16f02` 来做。`privileges.md` 的状态（#1236：BL-372、W5-06/PG-060 外壳手写行）不另开状态 PR，并进 batch-34 的批 PR 一起改。
 > - batch-34 候选：#1227（一轮可合，无修复）+ 修完二轮的 #1226 #1228 #1229 #1232 #1230 + #1231（已二轮）+ #1234（待一轮）。修复单在 CODEX-TASKS §0a。
 
 

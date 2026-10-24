@@ -27,6 +27,7 @@ export interface SandboxEffects {
     projectDatabase?: Array<'read' | 'write'>;
     connections?: string[];
     materials?: Array<'read'>;
+    ownerFiles?: Array<'read' | 'write'>;
 }
 
 export type SandboxHostMessage = {
@@ -104,6 +105,48 @@ export interface SandboxOperationExample {
 }
 
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
+
+export type SandboxOwnerFileChange = {
+    op: 'mkdir';
+    path: string;
+} | {
+    op: 'write';
+    path: string;
+    data_base64: string;
+    mode: 'create' | 'replace';
+} | {
+    op: 'replace_atomic';
+    path: string;
+    data_base64: string;
+} | {
+    op: 'copy';
+    from: string;
+    to: string;
+} | {
+    op: 'remove';
+    path: string;
+} | {
+    op: 'set_access';
+    path: string;
+    access: 'readonly' | 'readwrite';
+};
+
+export interface SandboxOwnerFileContent {
+    data_base64: string;
+    byte_length: number;
+}
+
+export interface SandboxOwnerFileEntry {
+    name: string;
+    kind: 'file' | 'directory';
+}
+
+export type SandboxOwnerFileInfo = {
+    kind: 'file';
+    byte_length: number;
+} | {
+    kind: 'directory';
+};
 
 export interface SandboxPluginContract {
     version: 1;
@@ -199,10 +242,16 @@ export interface SandboxSdk {
         readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<import('../services/materials.js').MaterialDocumentBatch>;
         extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<import('../services/materials.js').MaterialExtraction>;
     };
+    ownerFiles: {
+        stat(path: string): Promise<SandboxOwnerFileInfo | null>;
+        list(path: string): Promise<SandboxOwnerFileEntry[]>;
+        read(path: string): Promise<SandboxOwnerFileContent | null>;
+        write(changes: SandboxOwnerFileChange[]): Promise<void>;
+    };
     interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
 
-export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
+export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 export type SandboxSqlRow = {
     [column: string]: SandboxSqlValue;

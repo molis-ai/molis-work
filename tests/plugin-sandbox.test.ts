@@ -100,6 +100,29 @@ test('SDK reads files and sends requests through the Host services of the activa
   } finally { await f.close(); }
 });
 
+test('SDK reaches the declared files by relative path and bounded base64 only, and has no location or callback to give (S-65)', mac, async () => {
+  const effects: SandboxEffects = { ownerFiles: ['read', 'write'] };
+  const files = new Map<string, Uint8Array>(), seen: string[] = [];
+  const reader = {
+    stat: (path: string) => { const bytes = files.get(path); return bytes ? { kind: 'file' as const, byte_length: bytes.byteLength } : path === 'documents' ? { kind: 'directory' as const } : null; },
+    read: (path: string) => files.get(path) ?? null,
+    list: (path: string) => [...files.keys()].filter(key => key.startsWith(`${path}/`)).map(key => ({ name: key.slice(path.length + 1), kind: 'file' as const })),
+  };
+  const f = await fixture(`export const operations={run:async(_,sdk)=>{
+    await sdk.ownerFiles.write([{op:'mkdir',path:'documents'},{op:'write',path:'documents/a.txt',data_base64:Buffer.from('中文').toString('base64'),mode:'create'}]);
+    const read=await sdk.ownerFiles.read('documents/a.txt');
+    let refused; try{await sdk.ownerFiles.write([{op:'write',path:'documents/b.bin',data_base64:Buffer.alloc(262145).toString('base64'),mode:'create'}])}catch(e){refused=e.code}
+    return JSON.stringify([Buffer.from(read.data_base64,'base64').toString(),await sdk.ownerFiles.stat('documents/a.txt'),await sdk.ownerFiles.list('documents'),await sdk.ownerFiles.read('documents/none.txt'),refused,Object.keys(sdk.ownerFiles).sort()]);
+  }};`, { effects, grants: effects, services: { ownerFiles: { ...reader, async write(run) {
+    return run({ ...reader, mkdir: path => { seen.push(`mkdir:${path}`); }, writeFile: (path, bytes, mode) => { seen.push(`write:${path}:${mode}`); files.set(path, bytes); },
+      replaceFileAtomic: () => { throw new Error('unused'); }, copyFile: () => { throw new Error('unused'); }, removeTree: () => { throw new Error('unused'); }, setAccess: () => { throw new Error('unused'); } });
+  } } } });
+  try {
+    assert.equal(await f.runner.call('run', ''), JSON.stringify(['中文', { kind: 'file', byte_length: 6 }, [{ name: 'a.txt', kind: 'file' }], null, 'sandbox.owner_file_too_large', ['list', 'read', 'stat', 'write']]));
+    assert.deepEqual(seen, ['mkdir:documents', 'write:documents/a.txt:create']);
+  } finally { await f.close(); }
+});
+
 test('SDK requests run in the operation that made the call, not in the one that started the process', mac, async () => {
   const effects = { capabilities: ['who'] };
   const seen: string[] = [];

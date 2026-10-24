@@ -37,6 +37,7 @@ import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
+import { sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginConnectionsFor } from "./plugin-connections-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
@@ -90,6 +91,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
     projectLibrary = openProjectTables(options, definition, context, assertActive);
+    const ownerFiles = sandboxOwnerFilesFor(options, definition, context, assertActive);
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, project_id: options.project_id,
       ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
@@ -101,7 +103,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     agents = pluginAgentsFor(options.home, manifest, context, pluginCaller, () => options.record?.(context.install_id) ?? null);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client,
-      database: library?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
+      database: library?.client, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       background: background?.client, directory: directory?.client });
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
@@ -164,6 +166,8 @@ interface SessionParts {
   readonly isActive: () => boolean;
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
+  /** A sandboxed plugin's declared files, in the project's directory (`sandboxOwnerFilesFor`, S-65); none for any other plugin. */
+  readonly ownerFiles: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesClient | undefined;
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
   readonly project_database: PluginDatabase | undefined;
   /** The same tables for a plugin the Host runs outside its own process: its statements run in a process the Host can kill (`openProjectTables`). It gets this in place of `project_database`. */
@@ -200,6 +204,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ui: ui.client,
       interaction: pluginInteraction,
       ...(parts.database === undefined ? {} : { database: parts.database }),
+      ...(parts.ownerFiles === undefined ? {} : { ownerFiles: parts.ownerFiles }),
       ...(parts.project_statements !== undefined ? { project_statements: parts.project_statements } : parts.project_database === undefined ? {} : { project_database: parts.project_database }),
       ...(parts.scheduler === undefined ? {} : { scheduler: parts.scheduler }),
       ...(parts.agents === undefined ? {} : { agents: parts.agents }),

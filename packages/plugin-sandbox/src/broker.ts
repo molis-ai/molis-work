@@ -4,6 +4,7 @@ import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkReques
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
 import { materialRequest, materialSource, materialUploads, plainJson } from './materials.js';
+import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 
@@ -28,6 +29,8 @@ export interface SandboxServices {
   connections?: PluginConnectionsClient;
   /** The activation's `services.materials`, the readers of files the plugin already holds: the Host decides which of them exist (S-60). */
   materials?: PluginMaterialsClient;
+  /** The activation's `services.ownerFiles` without its `rootPath`: the plugin's own declared files by relative path (S-65). */
+  ownerFiles?: SandboxOwnerFiles;
 }
 interface BrokerLimits { sdkQueue: number; sdkPerMinute: number; eventsPerMinute: number; serviceTimeoutMs: number; storageBytes: number; messageBytes: number }
 
@@ -128,6 +131,27 @@ export class SandboxBroker {
       }
       const source = materialSource(args[0]), request = materialRequest(args[1]);
       return materials?.extract ? plainJson(await materials.extract(source, { ...request, signal: context.signal })) : missing();
+    }
+    if (method.startsWith('ownerFiles.')) {
+      // By relative path and in bounded JSON: the Host's client checks the Manifest's permissions, the grant, the running action and its original
+      // caller, and its port that the path is inside a declared entry with no link or special node on the way; the folder's location and the
+      // writer callback have no method here, and a query reads only.
+      if (method !== 'ownerFiles.stat' && method !== 'ownerFiles.list' && method !== 'ownerFiles.read' && method !== 'ownerFiles.write') throw new SandboxError('sandbox.invalid_request', 'Unknown owner files method');
+      count(1);
+      const files = this.services.ownerFiles;
+      if (method === 'ownerFiles.write') {
+        permit('ownerFiles', 'write');
+        if (operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot write files');
+        const steps = ownerFileChanges(args[0]);
+        if (!files) return missing();
+        await context.beforeEffect?.();
+        await files.write(writer => applyOwnerFileChanges(writer, steps));
+        return null;
+      }
+      permit('ownerFiles', 'read');
+      const path = ownerFilePath(args[0]);
+      if (!files) return missing();
+      return plainJson(method === 'ownerFiles.stat' ? ownerFileInfo(files, path) : method === 'ownerFiles.list' ? ownerFileList(files, path) : ownerFileRead(files, path));
     }
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.

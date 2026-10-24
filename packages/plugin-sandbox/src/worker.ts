@@ -45,6 +45,12 @@ function sdk(callId: string): SandboxSdk {
       readDocuments: (files, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['readDocuments']>>>(invoke('materials.readDocuments', [json(files), json(request ?? {})])),
       extract: (file, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['extract']>>>(invoke('materials.extract', [json(file), json(request ?? {})])),
     },
+    ownerFiles: {
+      stat: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['stat']>>>(invoke('ownerFiles.stat', [path])),
+      list: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['list']>>>(invoke('ownerFiles.list', [path])),
+      read: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['read']>>>(invoke('ownerFiles.read', [path])),
+      write: async changes => { await invoke('ownerFiles.write', [json(changes)]); },
+    },
     interaction: {
       questionHtml: (question, options) => invoke('interaction.questionHtml', [json(question), json(options ?? {})]) as Promise<string>,
       cardHtml: (card, options) => invoke('interaction.cardHtml', [json(card), json(options ?? {})]) as Promise<string>,

@@ -35,6 +35,11 @@ export interface SandboxEffects {
   connections?: string[];
   /** `read`: the Host's document and file readers (`sdk.materials`); the plugin's package also declares `materials:read`. */
   materials?: Array<'read'>;
+  /**
+   * `read`: `stat`, `list` and `read` of the files the plugin's Manifest declares (`owner_files`, PG-017 P2c); `write`: `write`, never in a query.
+   * The package also declares `storage:private` and the Manifest's read and write permissions.
+   */
+  ownerFiles?: Array<'read' | 'write'>;
 }
 
 export interface SandboxOperationExample {
@@ -120,6 +125,23 @@ export interface SandboxMaterialRequest {
   ocrLanguages?: Array<'zh-Hans' | 'zh-Hant' | 'en-US'>;
 }
 
+/**
+ * One file or folder of the plugin's own files (`owner_files`) as it crosses the channel. A path is relative to the files' root, `/`-separated,
+ * and starts with one of the top-level entries the Manifest declares; the Host refuses anything else, links and special nodes included.
+ */
+export type SandboxOwnerFileInfo = { kind: 'file'; byte_length: number } | { kind: 'directory' };
+export interface SandboxOwnerFileEntry { name: string; kind: 'file' | 'directory' }
+/** A file's bytes as base64; one file is at most 256 KiB, so a read fits the channel. */
+export interface SandboxOwnerFileContent { data_base64: string; byte_length: number }
+/** One step of a write; the steps of one call run in order on the Host's side and stop at the first one it refuses. */
+export type SandboxOwnerFileChange =
+  | { op: 'mkdir'; path: string }
+  | { op: 'write'; path: string; data_base64: string; mode: 'create' | 'replace' }
+  | { op: 'replace_atomic'; path: string; data_base64: string }
+  | { op: 'copy'; from: string; to: string }
+  | { op: 'remove'; path: string }
+  | { op: 'set_access'; path: string; access: 'readonly' | 'readwrite' };
+
 /** What a statement in the project's library takes and gives back across the channel: no BLOBs, no integers past 2^53. */
 export type SandboxSqlValue = null | number | string;
 export type SandboxSqlRow = { [column: string]: SandboxSqlValue };
@@ -166,6 +188,17 @@ export interface SandboxSdk {
     readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<import('../services/materials.js').MaterialDocumentBatch>;
     extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<import('../services/materials.js').MaterialExtraction>;
   };
+  /**
+   * The plugin's own files, the ones its Manifest declares (`owner_files`): by relative path only, never the folder's location. `read` is
+   * one file of at most 256 KiB (`null` when there is none); `write` takes up to 16 steps and 512 KiB of bytes at once, each file at most
+   * 256 KiB. Declare `effects.ownerFiles: ['read']` or `['read', 'write']` on the operation; a query cannot write.
+   */
+  ownerFiles: {
+    stat(path: string): Promise<SandboxOwnerFileInfo | null>;
+    list(path: string): Promise<SandboxOwnerFileEntry[]>;
+    read(path: string): Promise<SandboxOwnerFileContent | null>;
+    write(changes: SandboxOwnerFileChange[]): Promise<void>;
+  };
   /** The platform's question card, action card and next-step row as html, in the call's language (`services.interaction`); nothing to declare. */
   interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
@@ -175,6 +208,7 @@ export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' 
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request'
   | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract'
+  | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'
   | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 /** Only one active operation per channel. Every host request belongs to that invocation. */

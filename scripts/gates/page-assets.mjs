@@ -241,6 +241,13 @@ const APPROVED_CEILINGS = {
   // Shelf S4: keep a partial-success warning and refresh link visible when sample restoration fails.
   // Shared success text and button handling reduce duplication; reviewed growth is 1190725 → 1191104 (+379).
   "/assets/molis-work-workbench.js": [1190725, 1191104],
+  // RAC-138/139: typed Issue client 24145 → 27806 (+3661), reviewed 2026-10-23.
+  // Object state keeps property names (the original +3605); malformed write receipts and same-id recovery add 56.
+  // Combining the failure branches saved 5 bytes; retain the necessary recovery and read-refusal behavior.
+  "/assets/molis-work-plugins/issues.js": [24145, 27806],
+  // RAC-132: carry the Manifest id into the opaque frame and supply its own plugin route (+88 bytes).
+  // Reviewed 2026-10-23: direct fields/path construction; no smaller equivalent without changing surrounding behavior.
+  "/assets/molis-work-plugin-frame.js": [191104, 191192],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

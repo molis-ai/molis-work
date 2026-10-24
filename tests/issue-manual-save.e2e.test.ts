@@ -75,8 +75,8 @@ test("W2-18-ISSUE-01 ISSUE-15 ISSUE-37 repeated save clicks and shortcuts with a
   assert.deepEqual(await v.ask("d.defaultView.issueCaptures"), [id]);
 });
 
-for (const recovery of ["retry", "reload"] as const) {
-  test(`W2-18-ISSUE-02 ISSUE-15 ISSUE-37 ${recovery} checks the same record after a committed capture loses its receipt`, { timeout: 90_000 }, async t => {
+for (const [recovery, receipt] of [["retry", "lost"], ["reload", "lost"], ["retry", "malformed"]] as const) {
+  test(`RAC-139 W2-18-ISSUE-02 ISSUE-15 ISSUE-37 ${recovery} checks the same record after a committed capture has a ${receipt} receipt`, { timeout: 90_000 }, async t => {
     const setup = await manual(t); if (!setup) return;
     const { b, v, image } = setup;
     await v.ask(`(() => {
@@ -85,7 +85,11 @@ for (const recovery of ["retry", "reload"] as const) {
         const capture = String(url).endsWith('/capture');
         if (capture) w.issueCaptures.push(JSON.parse(init.body).draft_id);
         const response = await fetch(url, init);
-        if (capture && w.issueCaptures.length === 1) { await response.clone().json(); throw new TypeError('receipt lost after commit'); }
+        if (capture && w.issueCaptures.length === 1) {
+          await response.clone().json();
+          if (${JSON.stringify(receipt)} === 'malformed') return new w.Response('{broken', { status: 200 });
+          throw new TypeError('receipt lost after commit');
+        }
         return response;
       }; return true;
     })()`);
@@ -136,4 +140,46 @@ test("W2-18-ISSUE-02 ISSUE-15 an uncommitted capture is checked before an explic
   const captures = calls.map((call, index) => ({ ...call, index })).filter(call => call.path.endsWith('/capture'));
   assert.deepEqual(captures.map(call => call.body!.draft_id), [id, id]);
   assert.ok(calls.slice(captures[0]!.index + 1, captures[1]!.index).some(call => call.path.endsWith('read?id=' + id)), "retry reads the previous identity before any new capture");
+});
+
+
+test("RAC-139 background naming with a malformed receipt reads the committed record instead of keeping a failed draft", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
+  const { namings } = await issueModel(t, b.homeDirectory);
+  const v = await issueView(t, b);
+  await v.viewport(1440); await v.go("/plugins/issues");
+  await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await v.press("[data-issue-composer] [name=description]"); await v.type(description); await v.paste();
+  await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1 && !$('[data-issue-submit]').disabled");
+  const image = await v.ask<string>("$('[data-issue-thumbs] img').src");
+  await v.ask(`(() => {
+    const w = d.defaultView, fetch = w.fetch.bind(w); w.issueCalls = []; w.issueNamed = null;
+    w.fetch = async (url, init) => {
+      w.issueCalls.push({ path: String(url), body: init?.body && JSON.parse(init.body) });
+      const response = await fetch(url, init);
+      if (String(url).endsWith('/name-draft')) {
+        w.issueNamed = await response.clone().json();
+        return new w.Response('{broken', { status: 200 });
+      }
+      return response;
+    }; return true;
+  })()`);
+  await v.send();
+  await v.until("d.defaultView.issueNamed && !$('[data-state]') && $('[data-issue-list] .issues-row')", 30_000);
+  const records = stored(b);
+  assert.equal(records.length, 1);
+  const id = String(records[0]!.id);
+  assert.equal(records[0]!.description, description);
+  assert.deepEqual(JSON.parse(String(records[0]!.images_json)), [{ name: "shot.png", data_url: image }]);
+  const issue = await v.read(id);
+  assert.equal(issue.entered_via, "assistant");
+  assert.equal(namings.length, 1);
+  assert.deepEqual(await v.ask("JSON.parse(localStorage.getItem('molis:issue-unsent'))"), []);
+  const calls = await v.ask<Array<{ path: string; body?: { draft_id: string } }>>("d.defaultView.issueCalls");
+  const naming = calls.findIndex(call => call.path.endsWith('/name-draft'));
+  assert.equal(calls[naming]!.body!.draft_id, id);
+  assert.ok(calls.slice(naming + 1).some(call => call.path.endsWith('read?id=' + id)), "malformed JSON must trigger a read of the actual saved identity");
+  assert.equal(calls.filter(call => call.path.endsWith('/name-draft')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/capture')).length, 0, "recovery must not issue another capture");
+  assert.match(await v.ask<string>("$('[data-issue-toast] span').textContent"), /已记录：/);
 });

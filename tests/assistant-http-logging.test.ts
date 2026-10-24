@@ -102,15 +102,20 @@ test("RAC-116: learning enqueue refusal stays observable and private while the c
       const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "assistant", title: text });
       const work = store.create({ actor_id: LOCAL_PERSON_ACTOR_ID, title: text, scope: { kind: "personal" }, origin: null });
       store.update(LOCAL_PERSON_ACTOR_ID, work.work_id, null, { session_id: session.session_id });
+      // MEM-35: a prepared task is not evidence of authorship; the real Runtime owns the person's original.
+      const original = { input_id: randomUUID(), text, written_by: "person" as const, occurred_at: new Date().toISOString() };
+      const originalRef = { session_id: session.session_id, input_id: original.input_id, version: 1 as const };
       const run = await adapter.start({ ...owner, session, task: text, workspace: "none", role_id: "assistant",
+        original_input: original,
         role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
       store.addRound(work.work_id, { run_id: run.ref.run_id, text, materials: [], context: null, started_at: new Date().toISOString() });
       await until(async () => (await service.list()).find(item => item.work_id === work.work_id)?.state, state => state === "running", "real work running before completion");
       finishModel();
       await until(async () => (await adapter.read(run.ref)).phase, phase => phase === "completed", "real SDK round completion");
+      assert.deepEqual((await adapter.read(run.ref)).original_input, { ref: originalRef, text, written_by: "person", occurred_at: original.occurred_at });
       const completed = await withCallId(CALL_ID, () => service.list());
       assert.equal(completed.find(item => item.work_id === work.work_id)?.state, "completed");
-      return { work, run, session, key: `memory-learn:${work.work_id}:${run.ref.run_id}` };
+      return { work, run, session, originalRef, key: `memory-learn:${work.work_id}:${run.ref.run_id}` };
     };
     const first = await round(PRIVATE_TEXT);
     await until(() => attempts.length, count => count === 1, "the production Memory Host's enqueue refusal");
@@ -126,7 +131,7 @@ test("RAC-116: learning enqueue refusal stays observable and private while the c
     await until(() => schedule.find(second.key), Boolean, "next explicit round's real queued task");
     assert.equal(attempts.length, 2);
     assert.deepEqual(attempts[1]!.payload, { actor_id: LOCAL_PERSON_ACTOR_ID, work_id: second.work.work_id, run_id: second.run.ref.run_id,
-      session_id: second.session.session_id, sources: [{ run_id: second.run.ref.run_id, input_id: null, version: "1" }] });
+      session_id: second.session.session_id, sources: [{ run_id: second.run.ref.run_id, input_id: null, version: "1", original: second.originalRef }] });
     assert.equal(Boolean(schedule.find(first.key)), false);
     assert.equal(f.entries.filter(entry => entry.event === "learning_not_queued").length, 1);
     assert.deepEqual(f.warnings, []);

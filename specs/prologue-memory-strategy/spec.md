@@ -581,6 +581,14 @@ write 的 manual/said/plugin 与 offer 的 auto 同用此分支；公开候选 a
 允许路径为 horizontal/memory 的 duplicates/service/operations、README、本节和原真实 memory-service-cas、memory-actions 测试；不改 SDK、schema、UI、包锁或门禁，不新建账本或正文快照。验收覆盖 manual 与可信 said 重启重复、plugin/auto 共同入口、自动项采用有界证据的 SDK 回应/账本失败恢复、取消/撤权、后继同文编辑/删除和跨项目拒绝，核条目/version/evidence/history/change/marker及零 append；保留导入与原创建恢复用例。本片构建、受影响行为回归和静态门的实测见 §13；全套与最终合并仍依赖 #1064 已记录的失败收束。
 
 
+#### M2 合并新增 Assistant 日志回归的原件合同适配（2026-10-25）
+
+准确组合为基础头 `71d345f5f363c351b417fb8b5192eedc340babf8` 与主干 `584112c65477baf907620d86657d1582d92e9eda`。主干 #1238 新增的 `assistant-http-logging` 首例直接把 task 当学习来源；MEM-35 已要求由 Runtime 保存本人原件，task 和展示轮次不证明作者。本片先在未改测试的准确合并产物保存定向失败，再只修该夹具的公开 `adapter.start` 输入与精确来源断言，显式创建并核对同一个 canonical original，不放宽生产来源校验。
+
+沿用原 RAC-116 的拒绝、完成状态、无自动重排、下一明确轮次恢复、队列载荷及安全日志断言；补充同一原件身份核验。范围限该测试、本节与必要 README 说明，不改生产代码、SDK、依赖、门禁、timeout 或 retries，不新增执行路径。原件可信性是不可配置的硬边界，本片不增插件、App 配置或终端设置。验收为原失败明确复现、修后全文件与 host-log、原件 owner/Assistant 原件专项通过；现有 README 的完整包级证据由统筹按受影响范围核对，不以专项冒充整包或最终用户验收。
+
+实测合并预览 `d41257f9da9edb6b5b744da906dec5e80f9d484b`（上述两父提交）在独立共享 clone 上完整构建后，原文件 4/5 通过；唯一失败为首例等待 `the production Memory Host's enqueue refusal` 超时，日志 `/private/tmp/molis-memory-http-logging-red.log`。调用链为完成观测 → `memoryLearningSources` → `typedMemorySources` → `learnLater` → `assistantMemorySources`；无原件的 task 得到空 sources，在 enqueue 前退出。补入真实 `original_input` 并精确核原件回读及队列引用后，日志全文件、host-log、memory-source-owner、assistant-original-inputs 共 4 文件 21/21 首轮通过、零 skip、jobs2/retries0，日志 `/private/tmp/molis-memory-http-logging-green.log`。严格定向 TypeScript、该测试 Biome 与 diff 检查通过；生产文件、原故障/恢复/隐私断言、超时和重试均未变。README 仅补夹具遵守原件边界的说明，未触及包主链；完整包级/CI/全量结果仍由统筹整合，未重跑或冒认。安装与本机构建先遇 pnpm store/Swift 缓存的沙箱写入限制，按对应权限完成后实际构建 exit0，日志 `/private/tmp/molis-memory-http-logging-build-resume.log`；这些是独立环境准备记录，不解释上述确定产品合同适配红例。无付费模型、真实 Home、浏览器或用户验收。
+
 ### 9.5 Q0 基线记录与证据边界
 
 本轮固定的 B1 为 Molis `f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10`，实际使用 `attachment-order` SDK 包，上游来源 `753dbae8359e56a74397d030af4d18abf402d5b5`。Prologue 的实现起点是 `f481d53726b3a896a525386d8e93225f6091e947`，两者不能当作同一版本。B0 在相同初始材料和任务下关闭记忆；B2 只在新生产路径可运行后测量，缺席不是零成本。必要时补“新 SDK + 原 Molis 配方”的归因对照，区分 SDK 既有修复与新记忆策略的收益，不把其差异全部归功于本方案。

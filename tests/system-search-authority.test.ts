@@ -5,15 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
-import { setTimeout as delay } from "node:timers/promises";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, subjectContext,
-  type ActionDefinition, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
-import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
+  type ActionDefinition, type ActionExecutionContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SEARCH_PROVIDER_ID, searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const marker = "ACA005ORIGINALAUTHORITYBODY";
@@ -29,12 +28,15 @@ async function fixture(t: TestContext, defaultOpen = false) {
     { kind: "unrelated_note", title: "Other kind", surface: "fixture" }], "HTTP notes", permissions);
   const reader = defineSubjectContextAction("fixture.search.reader", "authority_note", "Read note", permissions);
   const unrelatedReader = defineSubjectContextAction("fixture.search.other-reader", "unrelated_note", "Read another kind", permissions);
-  const peer: ActionDefinition = { capability_id: "fixture.search.peer", version: 1, operation: "query", action: {
-    title: "Independent grant", description: "Shares permissions without authority over this note", kind: "query", scope: "project",
+  const peer: ActionDefinition = { capability_id: "fixture.search.peer", version: 1, operation: "command", action: {
+    title: "Independent grant", description: "Shares permissions without authority over this note", kind: "operation", scope: "project",
     audiences: ["user", "mcp"], permissions: ["form:read"], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "boolean" },
   } };
   const entered = Promise.withResolvers<void>();
+  const accepted = Promise.withResolvers<void>();
+  const clientId = "runtime:search-authority";
+  let queryArmed = false;
   let release = () => {};
   let hold = false;
   const unblock = () => { hold = false; const answer = release; release = () => {}; answer(); };
@@ -52,6 +54,13 @@ async function fixture(t: TestContext, defaultOpen = false) {
   const ownerUrl = `http://127.0.0.1:${address.port}/entries`;
   const dispose = home.host.actionRegistry(project.reference).registerProvider({ provider: {
     provider_id: providerId, plugin_id: providerId, title: "HTTP owner", kind: defaultOpen ? "system" : "plugin", project_id: project.project_id,
+  }, availability: caller => {
+    const running = (caller as Partial<ActionExecutionContext>).current_action;
+    // Observe the real query handler, not MCP's earlier catalog request or the owner's background refresh.
+    if (queryArmed && caller.actor_id === clientId && caller.project_id === project.project_id && caller.audience === "mcp"
+      && caller.call_id && running?.capability_id === searchActions.query.capability_id
+      && running.version === searchActions.query.version && running.provider_id === SEARCH_PROVIDER_ID) accepted.resolve();
+    return { available: true };
   }, definitions: [entries, reader, unrelatedReader, peer], handlers: [
     bindSearchEntriesHandler(entries, async () => {
       const response = await fetch(ownerUrl);
@@ -88,7 +97,6 @@ async function fixture(t: TestContext, defaultOpen = false) {
     }
   });
   await sdk.connect(transport);
-  const clientId = "runtime:search-authority";
   const views = await home.inspect(clientId, project.project_id);
   const view = (definition: ActionDefinition) => {
     const found = views.find(item => item.capability_id === definition.capability_id && item.version === definition.version);
@@ -112,8 +120,13 @@ async function fixture(t: TestContext, defaultOpen = false) {
     const accepted = (await home.inspect(clientId, project.project_id)).find(item => item.capability_id === next.capability_id);
     assert.ok(accepted); await home.grant(clientId, project.project_id, [accepted]);
   };
-  return { home, project, entries, reader, unrelatedReader, peer, clientId, entered: entered.promise, release: unblock, addReader,
-    ask, refresh: async () => { await delay(3_100); hold = true; },
+  return { home, project, entries, reader, unrelatedReader, peer, clientId, entered: entered.promise, accepted: accepted.promise, release: unblock, addReader,
+    ask, refresh: async () => {
+      // A completed provider command marks its sources dirty; background knowledge refresh may have renewed their age.
+      await home.host.actionClient(project.reference).invoke(await home.host.localPersonContext(project.reference), { ...peer, provider_id: providerId }, {});
+      hold = true;
+      queryArmed = true;
+    },
     ownerQuery: () => home.web.post<SearchQueryResponse>(`/projects/${project.project_id}/api/search/query`, input),
     grant: (actions: ActionDefinition[]) => home.grant(clientId, project.project_id, actions.map(view)),
     revoke: (actions: ActionDefinition[]) => home.revoke(clientId, project.project_id, actions.map(view)),
@@ -126,7 +139,7 @@ async function duringOwnerWait(f: Fixture, change: () => Promise<unknown>) {
   let finished = false;
   const pending = f.ask().finally(() => { finished = true; });
   try {
-    await Promise.race([f.entered, pending.then(() => { throw new Error("Query answered without entering its owner's HTTP wait"); })]);
+    await Promise.race([Promise.all([f.accepted, f.entered]), pending.then(() => { throw new Error("Query answered before its handler and owner's HTTP wait were both observed"); })]);
     assert.equal(finished, false, "the real owner's HTTP fetch is still pending");
     await change();
     assert.equal(finished, false, "the product settings request completed before the same query answered");

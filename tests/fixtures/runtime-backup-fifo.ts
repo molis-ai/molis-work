@@ -7,6 +7,7 @@ export const READY_BUDGET_MS = 2500;
 export type FifoChildMode = "owner" | "block";
 
 export interface FifoChildResult {
+  readonly spawned: boolean;
   readonly ready: boolean;
   readonly entered: boolean;
   readonly refused: string | null;
@@ -18,6 +19,17 @@ export interface FifoChildResult {
   readonly startupElapsedMs: number | null;
   readonly ownerElapsedMs: number | null;
   readonly stderrTail: string;
+}
+
+/** The part of a node:test context the children are tied to: its cancellation and its `after` hooks. */
+export interface FifoChildLifecycle {
+  readonly signal: AbortSignal;
+  after(hook: () => unknown): void;
+}
+
+export interface FifoChildren {
+  run(mode: FifoChildMode, input: { home: string; plan: string; fifo: string },
+    options?: { onEntered?: (pid: number) => void; signal?: AbortSignal }): Promise<FifoChildResult>;
 }
 
 // The child loads the public Host package before it says ready, so loading never counts against the budget. "owner" reads through
@@ -37,20 +49,44 @@ const CHILD = [
 ].join("\n");
 
 /**
- * Runs one owner read of a FIFO in a fresh process. The budget starts at the first `ready` and is cleared only by the child's
- * close; on expiry or abort only this child is killed, and the result is returned after it has closed.
+ * Children tied to one test. Create it before the test's fixtures: `after` hooks run in the order they were added, so its hook,
+ * which kills what is still running and waits for every child to close, runs before a fixture removes the Home. The test's own
+ * cancellation reaches every child, together with any signal a single run adds.
  */
-export function runFifoChild(mode: FifoChildMode, input: { home: string; plan: string; fifo: string },
-  options: { onEntered?: () => void; signal?: AbortSignal } = {}): Promise<FifoChildResult> {
+export function fifoChildren(lifecycle: FifoChildLifecycle): FifoChildren {
+  const open = new Set<Promise<FifoChildResult>>(), owned = new AbortController();
+  lifecycle.after(async () => { owned.abort(); await Promise.all(open); });
+  return {
+    run(mode, input, options = {}) {
+      const signal = AbortSignal.any([lifecycle.signal, owned.signal, ...(options.signal ? [options.signal] : [])]);
+      const closed = runFifoChild(mode, input, { onEntered: options.onEntered, signal });
+      open.add(closed);
+      return closed.finally(() => open.delete(closed));
+    },
+  };
+}
+
+/**
+ * Runs one owner read of a FIFO in a fresh process. A signal that is already aborted starts nothing. Otherwise the budget starts
+ * at the first `ready` and is cleared only by the child's close; on expiry or abort only this child is killed, nothing it sends
+ * afterwards starts the budget or the read, and the result is returned after it has closed.
+ */
+function runFifoChild(mode: FifoChildMode, input: { home: string; plan: string; fifo: string },
+  options: { onEntered?: (pid: number) => void; signal: AbortSignal }): Promise<FifoChildResult> {
+  if (options.signal.aborted) {
+    return Promise.resolve({ spawned: false, ready: false, entered: false, refused: null, succeeded: false, timedOut: false,
+      cancelled: true, status: null, signal: null, startupElapsedMs: null, ownerElapsedMs: null, stderrTail: "" });
+  }
   return new Promise(resolve => {
     const started = performance.now();
     const child = spawn(process.execPath, ["--input-type=module", "-e", CHILD, mode, input.home, input.plan, input.fifo],
       { stdio: ["ignore", "ignore", "pipe", "ipc"], env: process.env });
     let ready = false, entered = false, refused: string | null = null, succeeded = false, timedOut = false, cancelled = false;
-    let readyAt: number | null = null, enteredAt: number | null = null, answeredAt: number | null = null, stderr = "";
+    let stopped = false, readyAt: number | null = null, enteredAt: number | null = null, answeredAt: number | null = null, stderr = "";
     let timer: NodeJS.Timeout | undefined;
     const stop = (why: "timeout" | "abort") => {
-      if (child.exitCode !== null || child.signalCode !== null) return;
+      if (stopped || child.exitCode !== null || child.signalCode !== null) return;
+      stopped = true;
       if (why === "timeout") timedOut = true; else cancelled = true;
       clearTimeout(timer);
       child.kill("SIGKILL");
@@ -59,24 +95,26 @@ export function runFifoChild(mode: FifoChildMode, input: { home: string; plan: s
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => { stderr = (stderr + chunk).slice(-2000); });
     child.on("message", (message: { type: string; code?: string }) => {
+      if (stopped) return;
       if (message.type === "ready" && !ready) {
         ready = true; readyAt = performance.now();
         timer = setTimeout(() => stop("timeout"), READY_BUDGET_MS);
         child.send({ type: "run" });
       } else if (message.type === "entered") {
-        entered = true; enteredAt = performance.now(); options.onEntered?.();
+        entered = true; enteredAt = performance.now(); options.onEntered?.(child.pid ?? 0);
       } else if (message.type === "refused") {
         refused = message.code ?? null; answeredAt = performance.now();
       } else if (message.type === "succeeded") {
         succeeded = true; answeredAt = performance.now();
       }
     });
-    options.signal?.addEventListener("abort", abort, { once: true });
+    options.signal.addEventListener("abort", abort, { once: true });
     child.once("close", (status, signal) => {
+      stopped = true;
       clearTimeout(timer);
-      options.signal?.removeEventListener("abort", abort);
+      options.signal.removeEventListener("abort", abort);
       child.removeAllListeners("message");
-      resolve({ ready, entered, refused, succeeded, timedOut, cancelled, status, signal,
+      resolve({ spawned: true, ready, entered, refused, succeeded, timedOut, cancelled, status, signal,
         startupElapsedMs: readyAt === null ? null : Math.round(readyAt - started),
         ownerElapsedMs: enteredAt === null || answeredAt === null ? null : Math.round(answeredAt - enteredAt), stderrTail: stderr });
     });

@@ -5,9 +5,10 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalProjectDatabase, openHostShelfStore, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 // specs/project-knowledge §9: what Shelf saves into a project is an imported document there, saved through the 成果库's own import
 // as the confirming person; the project's agents find and read it like any other piece (Coding's side: tests/coding-materials-http.test.ts).
@@ -77,7 +78,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
     const item = (await request(shelf + "/items", { filename, bytes_base64: bytes.toString("base64") })).body.item;
     assert.equal((await request(`${at(project)}/items/${item.item_id}/project-material`)).status, 400, filename);
   }
-  const sample = await openHostShelfStore(home, { disabled: true }).seedSample();
+  const sample = await openTestShelfStore(home, { disabled: true }).seedSample();
   assert.equal((await request(`${at(project)}/items/${sample.item_id}/project-material`)).status, 400);
   assert.deepEqual([...new Set(documents().listArtifacts(project.project_id, { artifact_type_id: IMPORTED_DOCUMENT_TYPE }).map(row => row.artifact_id))], [save.body.reference.artifact_id]);
 });

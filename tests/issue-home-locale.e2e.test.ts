@@ -99,3 +99,15 @@ test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language
   assert.equal(await b.evaluate("document.documentElement.lang"), "zh-CN");
   assert.equal(await b.evaluate("document.querySelector('[data-home-lifecycle=retry]').textContent"), "重试启动");
 });
+
+test("RAC-138 English Home translates the server refusal for a missing Issue", { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const v = await issueView(t, b, "issue-home-locale");
+  await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fissues");
+  await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await b.evaluate("document.querySelector('[data-work-surface=issues]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: 'missing-issue-locale' } }))");
+  await v.until("$('[data-issue-gone]')?.textContent === 'This issue does not exist or was deleted'", 20_000);
+  assert.equal(await v.ask("d.documentElement.lang"), "en");
+  assert.equal(await v.ask("$('[data-issue-gone]').checkVisibility()"), true);
+  assert.equal((await v.list()).items.length, 0, "a missing-item read does not write a record");
+});

@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -55,7 +55,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host(), [agent.draftText]), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const send = async (task: string) => {
@@ -145,7 +145,7 @@ test("a round whose digest the model is still writing runs beside the project's 
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host(), [agent.draftText]), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const send = async (task: string) => {
@@ -232,7 +232,7 @@ test("PG035-07 with model:invoke switched off Coding's two drafts are refused wi
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host(), [agent.draftText]), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const base = `http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/long`;

@@ -1,8 +1,9 @@
+import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
-import type { UiPageActions } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 import { childMessages } from "./messages.js";
 import { pageFiles } from "./files.js";
 import { childTerminal } from "./terminal.js";
@@ -11,7 +12,7 @@ import { pageDialogs } from "./dialogs.js";
 import { childView, collapsePage, pageSelection } from "./view.js";
 import { childDrafts } from "./drafts.js";
 import { childNavigation } from "./navigation.js";
-import { childTodo } from "./todo.js";
+import { childIntake } from "./intake.js";
 import { childWorkspaces } from "./workspaces.js";
 import { childModal } from "./modal.js";
 import { childPresentation } from "./presentation.js";
@@ -20,7 +21,7 @@ import { childNativeFiles } from "./native-files.js";
 import { pageEventSource } from "./events.js";
 import { createFrameFetch } from "./fetch.js";
 import { childContext } from "./context-child.js";
-import type { FrameConfig, FrameDown, FrameHost, FrameUp, Translate } from "./types.js";
+import type { FrameConfig, FrameDown, FrameUp, Translate } from "./types.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
   for (const area of ["localStorage", "sessionStorage"] as const) {
@@ -53,11 +54,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   globalThis.molisWorkControlHeaders = call.headers;
   const root = document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
   root.style.setProperty("--stage-title", config.stage.title); root.style.setProperty("--stage-desc", config.stage.description);
-  root.hidden = false; document.body.toggleAttribute("data-todo-available", config.todoAvailable); document.body.dataset.projectId = config.projectId; document.body.dataset.routePrefix = config.routePrefix;
+  root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.routePrefix = config.routePrefix;
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(L), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
-  childTodo(port, scope, L);
+  childIntake(port, scope);
   childContext(port, scope, root); ui.surfaceFocus({ translate: L, surfaceOnly: true });
   globalThis.EventSource = pageEventSource(scope, config.origin);
   const copyText = childCopy(port, scope);
@@ -66,21 +67,23 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const terminal = globalThis.molisPageTerminal = childTerminal(port, scope, config.origin);
   const select = pageSelection(root, scope, config.searchRow);
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
-  const host: FrameHost & UiPageActions & Record<string, unknown> = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
+  const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
     terminal,
     messages: childMessages(port),
-    invokeAction: (reference, input) => call(route("/api/host/plugin-page-actions"), { body: { reference, input }, scope }),
+    invokeAction: <Output = unknown>(reference: ActionReference, input: unknown) => call<Output>(route("/api/host/plugin-page-actions"), { body: { reference, input }, scope }),
+    surfaceFor: (kind: string) => config.subjectSurfaces[kind] ?? null,
+    pluginId: config.pluginId, pluginRoute: (path: string) => route("/api/plugins/" + config.pluginId + path),
     projectId: () => config.projectId, projectTitle: () => config.projectTitle, route, headers: call.headers,
     // What a page says when the Host's router refused its read for who-may-read reasons (403 `actions.*`); empty for any other failure.
     readRefusal: (status: number, code: unknown) => status === 403 && String(code).startsWith("actions.") ? L(code === "actions.plugin_disabled" ? "这个项目停用了这个插件，所以显示不了。到插件市场重新添加后就能打开。" : "没有权限读取这里的内容，所以显示不了。授权在设置里管理。") : "",
     api: (path: string, method: "GET" | "POST", body: unknown, fallback = L("来源操作失败")) => call(route(path), { method, body, fallback }),
-    openItem: (...args) => intent("openItem", args), openBeside: (...args) => intent("openBeside", args), openPlugin: (...args) => intent("openPlugin", args),
-    hideDirectory: () => intent("hideDirectory", []), showToast: (...args) => intent("showToast", args), page: () => config.page,
-    status: status => intent("status", [status]), interaction: (element: Element, options: Record<string, unknown>) => ui.interaction(element, {
+    openItem: (...args: unknown[]) => intent("openItem", args), openBeside: (...args: unknown[]) => intent("openBeside", args), openPlugin: (...args: unknown[]) => intent("openPlugin", args),
+    hideDirectory: () => intent("hideDirectory", []), showToast: (...args: unknown[]) => intent("showToast", args), page: () => config.page,
+    status: (status: unknown) => intent("status", [status]), interaction: (element: HTMLElement, options: { onSubmit?: () => void }) => ui.interaction(element, {
       references: (source: string, query: string) => call<SearchReferencesResponse>(route("/api/host/plugin-page-actions"), {
         body: { reference: { capability_id: "search.references", version: 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,
       }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })),
@@ -120,5 +123,5 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(L("无法加载界面，请重试"));
-  childPresentation(port, scope); childModal(port, scope); factory(host); childPlacement(port, scope); childNavigation(port, scope, config); context(); send({ type: "ready" });
+  childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childNavigation(port, scope, config); context(); send({ type: "ready" });
 }

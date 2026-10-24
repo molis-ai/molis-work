@@ -27,14 +27,13 @@ import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
-import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
 import {
-  DATASET_CLIENT_FACTORY_SCRIPT,
   datasetManifest,
 } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_CLIENT_FACTORY_SCRIPT, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
   pagesActions,
@@ -43,7 +42,6 @@ import {
 import { PPT_CLIENT_FACTORY_SCRIPT, pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { homeStores, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { handlePersonalNativePluginHttp } from "../apps/local-host/dist/personal-native-plugin-http.js";
 import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
 import { MolisWorkUninstallService } from "../apps/local-host/dist/installer/uninstall.js";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
@@ -68,13 +66,12 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 async function listenDispatcher(
   home: string,
-  ports: Parameters<typeof handlePersonalNativePluginHttp>[3] = {},
 ): Promise<{ origin: string; close(): Promise<void> }> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "test", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] }));
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    void handleFunctionsHttp(request, response, url, home, { actions }).then(handled => handled || handlePersonalNativePluginHttp(request, response, url, ports)).then((handled) => {
+    void handleFunctionsHttp(request, response, url, home, { actions }).then((handled) => {
       if (!handled && !response.headersSent) {
         response.writeHead(404);
         response.end();
@@ -98,7 +95,7 @@ async function listenDispatcher(
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
-    "placement", "agent-definitions", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
+    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
@@ -181,23 +178,36 @@ test("个人插件 Manifest 声明 storage:private，Pages 另有 artifact:write
 });
 
 test("客户端使用当前插件路径，保留的 Host 适配按合同改写", () => {
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/pages/abc/promote"), "/api/pages/abc/promote");
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.form"), "/api/form");
+  // The `/api/plugins/<plugin id>` short-name alias bridge is gone (W6-01/PG-058); only the functions adapter remains.
+  // Form and Pages keep their Manifest routes, so the removed short names leave their paths untouched.
+  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.form"), "/api/plugins/io.molis.work.form");
+  assert.equal(rewriteNativePluginApiPath("/api/plugins/pages/abc/promote"), "/api/plugins/pages/abc/promote");
+  // The functions adapter is the one retained rewrite (W6-01).
+  assert.equal(rewriteNativePluginApiPath("/api/plugins/functions"), "/api/functions");
+  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.functions/items"), "/api/functions/items");
   // Shelf's Home half is a Home Runtime instance (PG-026 S2): its routes are served under its own id, with no short native path.
   assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.shelf/file"), "/api/plugins/io.molis.work.shelf/file");
   assert.equal(rewriteNativePluginApiPath("/api/pages/abc"), "/api/pages/abc");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/unknown/x"), "/api/plugins/unknown/x");
   // W5-01-PAGES-02: the Runtime client uses its Manifest route, including the resource path.
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.pages\/pages/);
-  // Forms runs on the Plugin Runtime (W4-04): its page calls the routes its Manifest declares, under the project, with no short path to rewrite to.
-  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
+  // RAC-132: Forms uses the Manifest route supplied by the shared client host (W4-04): its page calls the routes its Manifest declares, under the project, with no short path to rewrite to.
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/forms"/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\("\/forms"/);
   // W5-01-DATASET-05: the Runtime client uses the exact declared collection route.
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.dataset\/datasets/);
+  // RAC-150: Dataset's page names its routes under the plugin ("/datasets") and asks the shared host for the full path.
+  const datasetBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(datasetBrowser("page.ts"), /api: "\/datasets"/);
+  assert.match(datasetBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(datasetManifest.routes?.some(route => route.method === "GET" && route.path === "/datasets"), "and the Manifest declares that collection route");
   // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path.
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.ppt\/ppt/);
   // RAC-31: the Runtime client targets its declared route; the HTTP discovery test rejects the removed URL.
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.lingguang\/sparks/);
+  // RAC-146: 灵光's page names its routes under the plugin ("/sparks") and asks the shared host for the full path.
+  const lingguangBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(lingguangBrowser("page.ts"), /api: "\/sparks"/);
+  assert.match(lingguangBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(lingguangManifest.routes?.some(route => route.method === "GET" && route.path === "/sparks"), "and the Manifest declares that collection route");
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 
@@ -242,63 +252,52 @@ test("W5-01-PAGES-05 promote through the HTTP route and through the action write
 
 test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和样例", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
+    const provider: TypeSafeProvider = { async evaluate() { return { primitive: "choice", choice: "yes", noul: null, score: null, legend: null,
+      probabilities: { yes: 0.9, no: 0.1 }, confidence: 0.8, model: "jev-1.13.0" }; } };
+    const functions = createFunctionsService({ home, credential: () => null, env: { TYPESAFE_API_KEY: "fixture-only" }, provider });
     try {
-      const created = store.createChoice({ name: "cas" });
-      store.updateDraft(created.id, { name: "first" });
+      const created = functions.createChoice({ name: "cas" });
+      functions.updateDraft(created.id, { name: "first" });
       const stale = "2000-01-01T00:00:00.000Z";
       assert.throws(
-        () => store.updateDraft(created.id, { name: "mine" }, stale),
+        () => functions.updateDraft(created.id, { name: "mine" }, stale),
         (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
       );
-      assert.equal(store.get(created.id)?.name, "first");
+      assert.equal(functions.get(created.id).name, "first");
 
-      const live = store.get(created.id)!;
-      store.addSample(live.id, { input: "样例一" });
+      const live = functions.get(created.id);
+      functions.addSample(live.id, { input: "样例一" });
       assert.throws(
-        () => store.addSample(live.id, { input: "样例二" }, stale),
+        () => functions.addSample(live.id, { input: "样例二" }, stale),
         (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
       );
-      assert.equal(store.get(created.id)?.samples.length, 1);
+      assert.equal(functions.get(created.id).samples.length, 1);
 
-      const ready = store.updateDraft(created.id, { instructions: "判断说明要够长才能试跑。" });
-      const preview = {
-        input: "请退款",
-        outcome: "ok" as const,
-        primitive: "choice" as const,
-        choice: "yes",
-        probabilities: { yes: 0.9, no: 0.1 },
-        confidence: 0.8,
-        noul: null,
-        score: null,
-        legend: null,
-        model: "jev-1.13.0",
-        config_hash: ready.config_hash,
-        at: "2026-09-21T00:00:00.000Z",
-      };
-      store.savePreview(ready.id, preview);
-      assert.throws(
-        () => store.savePreview(ready.id, preview, stale),
+      const ready = functions.updateDraft(created.id, { instructions: "判断说明要够长才能试跑。",
+        criteria: [{ key: "yes", description: "是" }, { key: "no", description: "否" }] });
+      await functions.preview(ready.id, "请退款");
+      await assert.rejects(
+        functions.preview(ready.id, "请退款", stale),
         (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
       );
     } finally {
-      store.close();
+      functions.close();
     }
   });
 });
 
 test("再次打开库不改已有 published 内置函数的 instructions", async () => {
   await withHome(async (home) => {
-    const store = openFunctionsStore(home);
+    const functions = createFunctionsService({ home, credential: () => null });
     try {
-      assert.ok(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY));
+      assert.ok(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY));
     } finally {
-      store.close();
+      functions.close();
     }
     const db = new DatabaseSync(homeSqlitePath(home, "functions"));
     db.prepare("UPDATE functions SET instructions = ? WHERE function_key = ?").run("用户改过", SYSTEM_HOME_DOCK_FUNCTION_KEY);
     db.close();
-    const again = openFunctionsStore(home);
+    const again = createFunctionsService({ home, credential: () => null });
     try {
       assert.equal(again.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.instructions, "用户改过");
     } finally {
@@ -330,7 +329,7 @@ test("Host 文本补全口暂无模型；注入后 Pages AI 返回模型的候�
   assert.equal(body.text, "host-outline");
 });
 
-test("Host 不再从插件包进口 openFunctionsStore；错误类型来自 contracts", async () => {
+test("Host 不再进口 Functions 的库（FunctionsStore）；错误类型来自 contracts", async () => {
   assert.equal("MolisWorkV1Error" in goalsPluginExports, false, "W3-02-H-01 the retired error is not a plugin export");
   const error = new ContractsError("pages.unavailable", "当前环境不能发出 Artifact");
   assert.equal(error.name, "ActionError");
@@ -346,10 +345,7 @@ test("Host 不再从插件包进口 openFunctionsStore；错误类型来自 cont
   ];
   for (const relative of files) {
     const source = await readFile(join(ROOT, "..", relative), "utf8");
-    if (source.includes("openFunctionsStore")) {
-      assert.match(source, /from "@molis-ai\/molis-work-module-functions"/);
-      assert.doesNotMatch(source, /openFunctionsStore[\s\S]{0,80}plugin-functions/);
-    }
+    assert.doesNotMatch(source, /openFunctionsStore|\bFunctionsStore\b/, `${relative}: the Functions library stays inside its Module`);
     assert.doesNotMatch(source, /MolisWorkV1Error[\s\S]{0,80}plugin-goals/);
   }
   // Current judgments come from the authorized Inbox/Feed actions; the web view no longer snapshots the Functions store.

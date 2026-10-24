@@ -1,5 +1,5 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
-import type { ImReadState, ImInvite, ImMessage, ImRoom, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
+import { createHash, randomUUID } from "node:crypto";
+import type { ImReadState, ImMessage, ImRoom, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
 import type { ImDatabase, ImEvents, ImSession } from "./types.js";
 import { clientId, ImError, textInput } from "./errors.js";
 import { ImReads } from "./reads.js";
@@ -19,12 +19,14 @@ export class ImWrites {
     for (const room of rooms) this.event(room.room_id, "member", memberId);
   }
 
-  mutate<T>(session: ImSession, pathname: string, body: Record<string, unknown>, operation: () => T): T {
+  mutate<T>(session: ImSession, pathname: string, body: Record<string, unknown>, operation: () => T, authorize?: () => void): T {
     const key = clientId(body.client_id);
     const fingerprint = hash(`${pathname}\n${JSON.stringify(Object.fromEntries(Object.entries(body).sort(([a], [b]) => a.localeCompare(b))))}`);
     const previousMemberId = session.member_id;
     try {
       const committed = this.db.transaction(() => {
+        // A receipt proves a past commit, never permission to read it now.
+        authorize?.();
         // Recovery issues a new session for the same member; its pending sends
         // must reuse the original receipt. Anonymous naming remains session-scoped.
         const prior = (session.member_id
@@ -48,8 +50,8 @@ export class ImWrites {
 
   createRoom(memberId: string, value: unknown): { room: ImRoom } {
     const title = textInput(value, "群名称", 80), id = randomUUID(), now = new Date().toISOString();
-    this.db.prepare("INSERT INTO im_rooms(id, title, owner_id, invite_token, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(id, title, memberId, inviteToken(), now, now);
+    this.db.prepare("INSERT INTO im_rooms(id, title, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+      .run(id, title, memberId, now, now);
     this.db.prepare("INSERT INTO im_members(room_id, member_id, joined_at) VALUES (?, ?, ?)").run(id, memberId, now);
     this.event(id, "member", memberId);
     return { room: this.reads.room(id) };
@@ -57,7 +59,7 @@ export class ImWrites {
 
   join(memberId: string, value: unknown): { room: ImRoom } {
     const token = textInput(value, "邀请凭证", 100);
-    const room = this.db.prepare<unknown[], { id: string }>("SELECT id FROM im_rooms WHERE invite_token = ?").get(token);
+    const room = this.db.prepare<unknown[], { id: string }>("SELECT id FROM im_rooms WHERE invite_token_hash = ?").get(hash(token));
     if (room && this.reads.room(room.id).project_id) throw new ImError("im.project_invite", "请通过项目邀请加入讨论", 403);
     if (!room) throw new ImError("im.invite_not_found", "邀请已失效，请向群创建者索取新链接", 404);
     const roomId = String(room.id);
@@ -65,19 +67,6 @@ export class ImWrites {
       .run(roomId, memberId, new Date().toISOString());
     if (added.changes) this.event(roomId, "member", memberId);
     return { room: this.reads.room(roomId) };
-  }
-
-  invite(roomId: string, memberId: string, origin: string, rotate = false): ImInvite {
-    const room = this.reads.room(roomId);
-    if (room.project_id) throw new ImError("im.project_invite", "成员由项目权限统一管理", 403);
-    if (room.owner_id !== memberId) throw new ImError("im.owner_required", "只有群创建者可以管理邀请链接", 403);
-    if (rotate) {
-      this.db.prepare("UPDATE im_rooms SET invite_token = ? WHERE id = ?").run(inviteToken(), roomId);
-      this.event(roomId, "invite", roomId);
-    }
-    const token = String(this.db.prepare<unknown[], { invite_token: string }>("SELECT invite_token FROM im_rooms WHERE id = ?").get(roomId)!.invite_token);
-    const path = `/im?invite=${encodeURIComponent(token)}`;
-    return { room_id: roomId, token, path, url: new URL(path, origin).href };
   }
 
   createThread(roomId: string, memberId: string, body: Record<string, unknown>): ImThreadState {
@@ -128,7 +117,5 @@ export class ImWrites {
     this.events.append({ scopeKind: "room", scopeId: roomId, kind, entityId, ...(threadId ? { threadId } : {}) });
   }
 }
-
-function inviteToken(): string { return randomBytes(24).toString("base64url"); }
 
 function hash(value: string): string { return createHash("sha256").update(value).digest("hex"); }

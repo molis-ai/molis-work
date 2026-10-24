@@ -1,8 +1,7 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
+import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
-import { sessionsProjectData } from "@molis-ai/molis-work-module-private-work-context";
-import { createSessionLedger } from "./session-registry.js";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
@@ -53,22 +52,20 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
  * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it. Each
  * built-in plugin says on its catalog entry (`project_data`) what it keeps and how to clear it, and those come from the
  * catalog without the Host naming them: a plugin added to the catalog with a declaration is cleared by the next deletion.
- * The two modules that are no plugin, Functions and the Sessions registry, export the same declaration, and the Host names
- * them here. Sessions is marked `survivesRebuild` here because keeping it is the demo reset's rule, not the module's: the
- * reset keeps the panels and Runtime bindings that name those Sessions. They run in the order the declarations ask
- * (`order`, then catalog order), which is the order the confirmation dialog lists them in.
+ * The one module that is no plugin, Functions, exports the same declaration, and the Host names it here. They run in the
+ * order the declarations ask (`order`, then catalog order), which is the order the confirmation dialog lists them in.
  */
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
-  const declared: Array<{ id: string; data: ProjectDataDeclaration; survivesRebuild?: true; partitioned?: string }> = [
+  const declared: Array<{ id: string; data: ProjectDataDeclaration; partitioned?: string }> = [
     ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data,
       ...entry.runtime?.database?.partition === "project" ? { partitioned: entry.runtime.database.store_name } : {} }] : []),
+    // Characters keeps its native runs by project in a library of the Home; the drafts it also keeps are the person's and stay.
+    { id: "characters", data: charactersProjectData },
     { id: "functions", data: functionsProjectData },
-    // The demo's reset keeps its panels and Runtime bindings, so the Sessions they name stay with them.
-    { id: "sessions", data: sessionsProjectData(db => createSessionLedger(db)), survivesRebuild: true },
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.data.order ?? Number.MAX_SAFE_INTEGER) - (b.data.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
-    .map(({ id, data, survivesRebuild, partitioned }) => ({ id, label: data.label, ...(survivesRebuild ? { survivesRebuild } : {}),
+    .map(({ id, data, partitioned }) => ({ id, label: data.label,
       clear: partitioned ? removePartition(home, data, partitioned) : purgeOf(home, id, data) }));
 }
 

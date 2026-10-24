@@ -1,7 +1,7 @@
-import type { UiRequest, UiRequestInit, UiPageWorkspaces, UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
+import type {} from "@molis-ai/molis-work-plugin-sdk";
+import type { UiRequestInit, UiPageWorkspaces, UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
 
-/** The page's one request helper (packages/ui-host request-client, W3-10); clients receive it as `host.request` from W5-04. */
-declare const molisWorkRequest: UiRequest;
+/** The page's one request helper (packages/ui-host request-client, W3-10). */
 
 /** A mounted root's lifetime (packages/ui-host client-lifecycle): its listeners, timers and reads end with the root. */
 interface ClientLifetime {

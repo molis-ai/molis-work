@@ -4,6 +4,7 @@ import { readImBody, imFailure, imJson } from "./http.js";
 import { ImReads } from "./reads.js";
 import { createImSchema } from "./schema.js";
 import { ImWrites } from "./writes.js";
+import { ImInvites, invitationTokenHash } from "./invites.js";
 import { ensureProjectRoom } from './project.js';
 
 export type { ImDomainOptions, ImSession, ImIdentity, ImEvents, ImRequest, ImDatabase } from "./types.js";
@@ -13,6 +14,7 @@ export { ImError } from "./errors.js";
 export function createImDomain({ db, identity, events }: ImDomainOptions) {
   createImSchema(db);
   const reads = new ImReads(db), writes = new ImWrites(db, reads, events);
+  const invites = new ImInvites(db, reads, events);
   const requireSession = (session: ImSession | null): ImSession => {
     if (!session || session.expires_at <= Date.now()) throw new ImError("im.unauthenticated", "请先设置你的名字", 401);
     return session;
@@ -32,7 +34,7 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
       // Body reading yields. Recheck expiration before any domain operation.
       requireSession(current);
       const get = request.method === "GET";
-      const mutation = <T>(operation: () => T): T => writes.mutate(current, parts.join("/"), body, operation);
+      const mutation = <T>(operation: () => T, authorize?: () => void): T => writes.mutate(current, parts.join("/"), body, operation, authorize);
       let result: unknown;
       if (parts.length === 1 && parts[0] === "session") {
         if (current.member_id) identity.requireMember(current);
@@ -57,9 +59,13 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
           else if (parts.length === 3 && parts[2] === 'search' && get) result = reads.searchMessages(roomId,url.searchParams.get('q') ?? '');
           else if (parts.length === 3 && parts[2] === 'read') result = get ? reads.readPositions(roomId,member.id)
             : mutation(() => writes.markRead(roomId,member.id,textInput(body.message_id,'消息',100)));
-          else if (parts.length === 3 && parts[2] === "invite" && get) result = writes.invite(roomId, member.id, url.origin);
+          else if (parts.length === 3 && parts[2] === "invite" && get) result = invites.state(roomId, member.id);
           else if (parts.length === 4 && parts[2] === "invite" && parts[3] === "rotate" && !get) {
-            result = mutation(() => writes.invite(roomId, member.id, url.origin, true));
+            invites.state(roomId, member.id);
+            const tokenHash = invitationTokenHash(body.token);
+            mutation(() => invites.rotate(roomId, tokenHash), () => { identity.requireMember(current); invites.state(roomId, member.id); });
+            // A successful old receipt must never present its superseded link as current.
+            result = invites.state(roomId, member.id);
           } else if (parts.length === 3 && parts[2] === "threads" && !get) {
             result = mutation(() => writes.createThread(roomId, member.id, body));
           } else if (parts.length === 4 && threadId && get) result = reads.threadState(roomId, threadId);

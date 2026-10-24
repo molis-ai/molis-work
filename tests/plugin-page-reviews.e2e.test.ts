@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
+// GITREF-02: keep this real Host confirmation, refusal, index and commit flow unchanged in both controlled refresh orders.
 test("SYS-15-U10 S-47 Git reviews remain Host-owned and require a real Host confirmation", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "git");
@@ -36,11 +37,15 @@ test("SYS-15-U10 S-47 Git reviews remain Host-owned and require a real Host conf
   await browser.waitFor("document.querySelector('[data-page-dialog=confirm]')?.textContent.includes('note.md')");
   await browser.evaluate("document.querySelector('[data-page-dialog=confirm] [type=submit]').click();document.querySelector('[data-page-dialog=confirm] form').requestSubmit()");
   assert.equal(git("diff", "--cached", "--name-only"), "", "scripted dialog submission is not approval");
+  // The Host delivers the settled outcome to the page asynchronously after the real confirmation, and that delivery
+  // changes the notice before it refreshes the list. Record the change so the next open waits for it deterministically.
+  await child.evaluate("const notice=document.querySelector('[data-git-notice]');notice.dataset.decisionBefore=notice.textContent;new MutationObserver(()=>{if(notice.textContent!==notice.dataset.decisionBefore)notice.dataset.decisionNoticed='1'}).observe(notice,{childList:true,characterData:true,subtree:true})");
   await browser.click("[data-page-dialog=confirm] [type=submit]");
   await child.waitFor("[...document.querySelectorAll('[data-git-path]')].some(node=>node.textContent.includes('note.md'))");
   await browser.waitFor("!document.querySelector('[data-host-review-slot] [data-agent-review-approve]')");
   assert.equal(git("diff", "--cached", "--name-only").trim(), "note.md", "real confirmation stages the exact requested file");
   await child.waitFor("!document.querySelector('[data-git-refresh]').disabled && [...document.querySelectorAll('[data-git-path]')].some(node=>JSON.parse(node.dataset.gitPath)[1]==='index')");
+  await child.waitFor("document.querySelector('[data-git-notice]').dataset.decisionNoticed==='1' && !document.querySelector('[data-git-refresh]').disabled");
   await child.click("[data-git-path]");
   try { await child.click("[data-git-index-action]"); } catch(error){t.diagnostic(await child.evaluate("document.querySelector('[data-git-notice]').textContent"));throw error;}
   await browser.waitFor("document.querySelector('[data-host-review-slot] [data-agent-review-reject]')?.getClientRects().length");

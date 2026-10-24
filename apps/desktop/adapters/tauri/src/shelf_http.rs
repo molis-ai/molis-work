@@ -11,11 +11,17 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const SHELF_ORIGIN: &str = "http://127.0.0.1:4173";
 const SHELF_HOST: &str = "127.0.0.1:4173";
+/// Shelf's routes on its Home instance, outside any project.
+const SHELF_API: &str = "/api/plugins/io.molis.work.shelf";
+/// The header that tells the Host the person chose this file here; the Host reads it, page script cannot send it.
+const ORIGINAL_PATH_HEADER: &str = "sec-molis-work-original-path";
+const FOLDER_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 struct AdmitResponse {
     item: Option<AdmitItem>,
     error: Option<String>,
+    original_registered: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -23,7 +29,73 @@ struct AdmitItem {
     item_id: String,
 }
 
-pub fn admit_file(path: &Path) -> Result<String, String> {
+/// A saved copy is still a successful admission when only original registration failed.
+#[derive(Debug)]
+pub struct AdmitReceipt {
+    item_id: String,
+    original_registered: Option<bool>,
+}
+
+impl AdmitReceipt {
+    pub fn into_item_id(self, warn: impl FnOnce(&'static str)) -> String {
+        if self.original_registered == Some(false) {
+            warn("副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。");
+        }
+        self.item_id
+    }
+}
+
+/// Collect a complete native batch before choosing its one visible outcome.
+pub fn collect_admissions(
+    admissions: impl IntoIterator<Item = Result<AdmitReceipt, String>>,
+) -> (Vec<String>, Result<Option<&'static str>, String>) {
+    let mut admitted = Vec::new();
+    let mut warning = None;
+    let mut last_error = None;
+    for admission in admissions {
+        match admission {
+            Ok(receipt) => admitted.push(receipt.into_item_id(|message| warning = Some(message))),
+            Err(error) => last_error = Some(error),
+        }
+    }
+    let feedback = finish_capture(admitted.len(), warning, last_error);
+    (admitted, feedback)
+}
+
+/// Background entry points notify once, after every result; a later warning cannot replace an error.
+pub fn notify_admissions(
+    admissions: impl IntoIterator<Item = Result<AdmitReceipt, String>>,
+    notify: impl FnOnce(&str, bool),
+) -> Vec<String> {
+    let (admitted, feedback) = collect_admissions(admissions);
+    match feedback {
+        Ok(Some(message)) => notify(message, true),
+        Err(error) => notify(&error, false),
+        Ok(None) => {}
+    }
+    admitted
+}
+
+fn finish_capture(
+    admitted: usize,
+    warning: Option<&'static str>,
+    last_error: Option<String>,
+) -> Result<Option<&'static str>, String> {
+    if admitted == 0 {
+        Err(last_error.unwrap_or_else(|| crate::shelf_hotkeys::FILES_EMPTY.to_string()))
+    } else if let Some(error) = last_error {
+        let mut message = format!("已收下 {admitted} 项，另有文件未收下：{error}");
+        if let Some(warning) = warning {
+            message.push('\n');
+            message.push_str(warning);
+        }
+        Err(message)
+    } else {
+        Ok(warning)
+    }
+}
+
+pub fn admit_file(path: &Path) -> Result<AdmitReceipt, String> {
     if path.is_dir() {
         return admit_folder(path);
     }
@@ -35,14 +107,25 @@ pub fn admit_file(path: &Path) -> Result<String, String> {
     admit_bytes(filename, &bytes, Some(path))
 }
 
-pub fn admit_bytes(filename: &str, bytes: &[u8], origin: Option<&Path>) -> Result<String, String> {
-    let body = serde_json::json!({
+/// With `origin`, the file it came from is offered to Shelf so a later recipe can check it has not changed.
+pub fn admit_bytes(
+    filename: &str,
+    bytes: &[u8],
+    origin: Option<&Path>,
+) -> Result<AdmitReceipt, String> {
+    let original = origin
+        .and_then(|path| fs::canonicalize(path).ok())
+        .and_then(|path| path.to_str().map(str::to_owned));
+    let mut body = serde_json::json!({
         "filename": filename,
         "bytes_base64": encode_base64(bytes),
         "mime": mime_for(filename),
-        "origin_realpath": origin.and_then(|path| path.to_str()),
     });
-    post_json("/api/shelf/items", &body).and_then(parse_item_id)
+    if original.is_some() {
+        body["original"] = serde_json::Value::Bool(true);
+    }
+    post_json_offering(&format!("{SHELF_API}/items"), &body, original.as_deref())
+        .and_then(parse_admit_receipt)
 }
 
 fn folder_entries(root: &Path) -> Result<Vec<serde_json::Value>, String> {
@@ -68,8 +151,8 @@ fn folder_entries(root: &Path) -> Result<Vec<serde_json::Value>, String> {
                 walk(root, &file, entries, size)?;
             } else if kind.is_file() {
                 *size += entry.metadata().map_err(|error| error.to_string())?.len();
-                if *size > 64 * 1024 * 1024 {
-                    return Err("这个文件夹超过 64 MB".into());
+                if *size > FOLDER_MAX_BYTES {
+                    return Err("这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来".into());
                 }
                 let bytes = fs::read(&file).map_err(|error| format!("读不了这份文件：{error}"))?;
                 let relative = file
@@ -86,19 +169,19 @@ fn folder_entries(root: &Path) -> Result<Vec<serde_json::Value>, String> {
     Ok(entries)
 }
 
-fn admit_folder(path: &Path) -> Result<String, String> {
+fn admit_folder(path: &Path) -> Result<AdmitReceipt, String> {
     let name = path
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or("文件夹名称无效")?;
-    let body = serde_json::json!({"name": name, "entries": folder_entries(path)?, "origin_realpath": path});
-    post_json("/api/shelf/folders", &body).and_then(parse_item_id)
+    let body = serde_json::json!({"name": name, "entries": folder_entries(path)?});
+    post_json(&format!("{SHELF_API}/folders"), &body).and_then(parse_admit_receipt)
 }
 
 /// The wheel's 发给终端 hands the link itself over; it does not fetch the page.
 pub fn admit_text_capturing(text: &str, capture_pages: bool) -> Result<String, String> {
     let body = serde_json::json!({ "text": text, "capture_pages": capture_pages });
-    post_json("/api/shelf/items", &body).and_then(parse_item_id)
+    post_json(&format!("{SHELF_API}/items"), &body).and_then(parse_item_id)
 }
 
 pub fn admit_website(title: &str, url: &str, markdown: &str) -> Result<String, String> {
@@ -108,13 +191,13 @@ pub fn admit_website(title: &str, url: &str, markdown: &str) -> Result<String, S
         "bytes_base64": encode_base64(markdown.as_bytes()),
         "mime": "text/x-shelf-website",
     });
-    post_json("/api/shelf/items", &body).and_then(parse_item_id)
+    post_json(&format!("{SHELF_API}/items"), &body).and_then(parse_item_id)
 }
 
 /// Record a system clipboard entry. Concealed types never get this far.
 pub fn record_clip(text: &str, types: &[String]) -> Result<(), String> {
     let body = serde_json::json!({ "text": text, "types": types });
-    post_json("/api/shelf/clipboard", &body).map(|_| ())
+    post_json(&format!("{SHELF_API}/clipboard"), &body).map(|_| ())
 }
 
 /// Appearance can turn the wheel off. Read straight from the catalog so the
@@ -164,7 +247,7 @@ pub fn refresh_wheel_gates() {
         return;
     }
     thread::spawn(|| {
-        let parsed = get_json("/api/shelf")
+        let parsed = get_json(&format!("{SHELF_API}/"))
             .ok()
             .and_then(|payload| parse_wheel_gates(&payload));
         // A temporarily unavailable host should not grey out a working agent.
@@ -229,7 +312,7 @@ pub fn run_recipe(recipe: &str, item_ids: &[String]) -> Result<(), String> {
         "recipe": recipe,
         "item_ids": item_ids,
     });
-    let payload = post_json("/api/shelf/jobs", &body)?;
+    let payload = post_json(&format!("{SHELF_API}/jobs"), &body)?;
     if payload.contains("\"error\"") {
         return Err(json_error(&payload).unwrap_or_else(|| "这次动作没跑成".into()));
     }
@@ -237,6 +320,10 @@ pub fn run_recipe(recipe: &str, item_ids: &[String]) -> Result<(), String> {
 }
 
 fn parse_item_id(payload: String) -> Result<String, String> {
+    parse_admit_receipt(payload).map(|receipt| receipt.item_id)
+}
+
+fn parse_admit_receipt(payload: String) -> Result<AdmitReceipt, String> {
     let parsed: AdmitResponse =
         serde_json::from_str(&payload).map_err(|error| format!("置物架响应无效：{error}"))?;
     if let Some(error) = parsed.error {
@@ -244,7 +331,10 @@ fn parse_item_id(payload: String) -> Result<String, String> {
     }
     parsed
         .item
-        .map(|item| item.item_id)
+        .map(|item| AdmitReceipt {
+            item_id: item.item_id,
+            original_registered: parsed.original_registered,
+        })
         .ok_or_else(|| "置物架没有收下这份材料".to_string())
 }
 
@@ -255,9 +345,20 @@ fn json_error(payload: &str) -> Option<String> {
 }
 
 fn post_json(path: &str, body: &serde_json::Value) -> Result<String, String> {
+    post_json_offering(path, body, None)
+}
+
+fn post_json_offering(
+    path: &str,
+    body: &serde_json::Value,
+    original: Option<&str>,
+) -> Result<String, String> {
     let token = control_token()?;
     let encoded = body.to_string();
     let key = idempotency_key();
+    let offered = original
+        .map(|file| format!("{ORIGINAL_PATH_HEADER}: {}\r\n", percent_encode_path(file)))
+        .unwrap_or_default();
     let request = format!(
         "POST {path} HTTP/1.1\r\n\
          Host: {SHELF_HOST}\r\n\
@@ -267,6 +368,7 @@ fn post_json(path: &str, body: &serde_json::Value) -> Result<String, String> {
          Connection: close\r\n\
          x-molis-work-control-token: {token}\r\n\
          x-molis-work-idempotency-key: {key}\r\n\
+         {offered}\
          \r\n\
          {encoded}",
         encoded.len()
@@ -274,8 +376,21 @@ fn post_json(path: &str, body: &serde_json::Value) -> Result<String, String> {
     exchange_http(
         &request,
         Duration::from_millis(800),
-        Duration::from_secs(if path == "/api/shelf/jobs" { 620 } else { 30 }),
+        Duration::from_secs(if path.ends_with("/jobs") { 620 } else { 30 }),
     )
+}
+
+/// The Host decodes the header with `decodeURIComponent`; everything but a path's plain characters is escaped.
+fn percent_encode_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'-' | b'_' | b'.' | b'~') {
+            out.push(byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
 }
 
 fn get_json(path: &str) -> Result<String, String> {
@@ -423,7 +538,10 @@ fn encode_base64(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_base64, folder_entries, http_payload, parse_wheel_gates};
+    use super::{
+        encode_base64, finish_capture, folder_entries, http_payload, notify_admissions,
+        parse_admit_receipt, parse_wheel_gates, percent_encode_path,
+    };
     use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -453,6 +571,157 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    // PG-026-S1-S3-2: real batch failures remain errors, without hiding a saved copy's warning.
+    #[test]
+    fn batch_feedback_preserves_success_and_failure_outcomes() {
+        let warning = "副本已收下，但未能登记原件";
+        assert_eq!(finish_capture(2, None, None), Ok(None));
+        assert_eq!(finish_capture(2, Some(warning), None), Ok(Some(warning)));
+        assert_eq!(
+            finish_capture(1, Some(warning), Some("读取失败".into())),
+            Err(format!("已收下 1 项，另有文件未收下：读取失败\n{warning}"))
+        );
+        assert_eq!(
+            finish_capture(1, None, Some("读取失败".into())),
+            Err("已收下 1 项，另有文件未收下：读取失败".into())
+        );
+        assert_eq!(
+            finish_capture(0, None, Some("读取失败".into())),
+            Err("读取失败".into())
+        );
+        assert_eq!(
+            finish_capture(0, None, None),
+            Err(crate::shelf_hotkeys::FILES_EMPTY.into())
+        );
+    }
+
+    // PG-026-S1-S3-6: wheel and clipboard share this exact production notifier, in either result order.
+    #[test]
+    fn batch_notice_keeps_failure_priority_regardless_of_admission_order() {
+        let warning = "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。";
+        for reversed in [false, true] {
+            let mut admissions = vec![
+                parse_admit_receipt(
+                    r#"{"item":{"item_id":"saved-copy"},"original_registered":false}"#.into(),
+                ),
+                Err("读取失败".into()),
+            ];
+            if reversed {
+                admissions.reverse();
+            }
+            let mut notices = Vec::new();
+            let ids = notify_admissions(admissions, |message, partial| {
+                notices.push((message.to_string(), partial))
+            });
+            assert_eq!(ids, ["saved-copy"]);
+            assert_eq!(
+                notices,
+                [(
+                    format!("已收下 1 项，另有文件未收下：读取失败\n{warning}"),
+                    false
+                )]
+            );
+        }
+    }
+
+    // PG-026-S1-S3-6: no error means silent success or a single partial; all failures still notify once as errors.
+    #[test]
+    fn batch_notice_preserves_ids_and_notifies_only_when_needed() {
+        let mut notices = Vec::new();
+        let ids = notify_admissions(
+            [
+                parse_admit_receipt(
+                    r#"{"item":{"item_id":"registered"},"original_registered":true}"#.into(),
+                ),
+                parse_admit_receipt(r#"{"item":{"item_id":"copy-only"}}"#.into()),
+            ],
+            |message, partial| notices.push((message.to_string(), partial)),
+        );
+        assert_eq!(ids, ["registered", "copy-only"]);
+        assert!(notices.is_empty());
+        let ids = notify_admissions(
+            [
+                parse_admit_receipt(
+                    r#"{"item":{"item_id":"first"},"original_registered":false}"#.into(),
+                ),
+                parse_admit_receipt(
+                    r#"{"item":{"item_id":"second"},"original_registered":false}"#.into(),
+                ),
+            ],
+            |message, partial| notices.push((message.to_string(), partial)),
+        );
+        assert_eq!(ids, ["first", "second"]);
+        assert_eq!(
+            notices,
+            [(
+                "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。".into(),
+                true
+            )]
+        );
+        notices.clear();
+        assert!(notify_admissions(
+            [Err("第一个失败".into()), Err("最后一个失败".into())],
+            |message, partial| notices.push((message.to_string(), partial))
+        )
+        .is_empty());
+        assert_eq!(notices, [("最后一个失败".into(), false)]);
+    }
+
+    // PG-026-S1-S3-1/2: execute the parser and the same consumer used by all native admission paths.
+    #[test]
+    fn successful_admissions_preserve_order_and_warn_only_for_false_original_registration() {
+        let mut warnings = Vec::new();
+        let mut ids = Vec::new();
+        for (id, registration) in [
+            ("partial", Some(false)),
+            ("registered", Some(true)),
+            ("copy-only", None),
+        ] {
+            let mut body = serde_json::json!({"item": {"item_id": id}});
+            if let Some(value) = registration {
+                body["original_registered"] = value.into();
+            }
+            let json = body.to_string();
+            let raw = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{json}",
+                json.len()
+            );
+            let receipt = http_payload(raw.as_bytes())
+                .and_then(parse_admit_receipt)
+                .unwrap();
+            assert_eq!(receipt.original_registered, registration);
+            ids.push(receipt.into_item_id(|warning| warnings.push(warning)));
+        }
+        assert_eq!(ids, ["partial", "registered", "copy-only"]);
+        assert_eq!(
+            warnings,
+            ["副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。"]
+        );
+    }
+
+    // PG-026-S1-S3-1: a rejected or unreadable admission never becomes a warning with a successful id.
+    #[test]
+    fn unsuccessful_admissions_remain_errors_without_consuming_a_receipt() {
+        let mut warnings = Vec::new();
+        for payload in [
+            r#"{"error":"没有收下","original_registered":false}"#,
+            r#"{"original_registered":false}"#,
+            "not-json",
+        ] {
+            let result = parse_admit_receipt(payload.into())
+                .map(|receipt| receipt.into_item_id(|warning| warnings.push(warning)));
+            assert!(result.is_err(), "{payload}");
+        }
+        let raw = "HTTP/1.1 403 Forbidden\r\n\r\n{\"error\":\"没有权限\"}";
+        assert_eq!(
+            http_payload(raw.as_bytes())
+                .and_then(parse_admit_receipt)
+                .unwrap_err(),
+            "没有权限"
+        );
+        assert!(warnings.is_empty());
     }
 
     #[test]
@@ -499,17 +768,28 @@ mod tests {
     }
 
     #[test]
-    fn shelf_folder_rejects_a_total_over_64_mib_before_reading_the_large_file() {
+    fn shelf_folder_rejects_a_total_over_32_mib_before_reading_the_large_file() {
         let temp = TestDirectory::new();
         fs::write(temp.0.join("a.txt"), b"x").unwrap();
-        // A sparse file exercises the actual metadata limit without allocating 64 MiB.
+        // A sparse file exercises the actual metadata limit without allocating 32 MiB.
         fs::File::create(temp.0.join("z-large.bin"))
             .unwrap()
-            .set_len(64 * 1024 * 1024)
+            .set_len(32 * 1024 * 1024)
             .unwrap();
         let error =
             folder_entries(&temp.0).expect_err("the limit applies to the combined folder size");
-        assert_eq!(error, "这个文件夹超过 64 MB");
+        assert_eq!(
+            error,
+            "这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来"
+        );
+    }
+
+    #[test]
+    fn original_path_header_survives_spaces_and_non_ascii_names() {
+        assert_eq!(
+            percent_encode_path("/Users/me/中文 资料/a&b.pdf"),
+            "/Users/me/%E4%B8%AD%E6%96%87%20%E8%B5%84%E6%96%99/a%26b.pdf"
+        );
     }
 
     #[test]

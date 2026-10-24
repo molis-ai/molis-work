@@ -52,15 +52,11 @@ export const COSS_CONTROL_STYLES = `
   .frame-picker-tools select,
   .inline-settings-form input[type=text],
   .project-settings-identity .inline-settings-form input[type=text],
-  .project-record-tools input,
   .connection-action-form input,
   .connection-action-form select,
   .dialog-body input:not([type=checkbox]):not([type=radio]),
   .dialog-body textarea,
   .dialog-body select,
-  .project-operation-dialog input:not([type="checkbox"]),
-  .project-operation-dialog select,
-  .project-operation-dialog textarea,
   .runtime-plan-dialog input:not([type=checkbox]),
   .artifact-reference-label input,
   .artifact-content-reference input,
@@ -79,8 +75,7 @@ export const COSS_CONTROL_STYLES = `
     outline: 0;
     box-shadow: none;
   }
-  .dialog-body textarea,
-  .project-operation-dialog textarea {
+  .dialog-body textarea {
     height: auto;
     min-height: 72px;
     padding: 8px 12px;
@@ -90,7 +85,6 @@ export const COSS_CONTROL_STYLES = `
   .create-dialog,
   .runtime-plan-dialog,
   .project-delete-dialog,
-  .project-operation-dialog,
   .home-shortcut-dialog {
     border: 1px solid var(--control-border);
     border-radius: var(--radius-surface);
@@ -101,7 +95,6 @@ export const COSS_CONTROL_STYLES = `
   .create-dialog::backdrop,
   .runtime-plan-dialog::backdrop,
   .project-delete-dialog::backdrop,
-  .project-operation-dialog::backdrop,
   .home-shortcut-dialog::backdrop {
     background: var(--scrim);
   }
@@ -156,7 +149,6 @@ export const COSS_CONTROL_STYLES = `
     .mw-btn--secondary,
     .mw-btn--danger,
     .create-dialog footer button,
-    .project-operation-dialog footer button,
     .runtime-plan-shell > footer button {
       min-height: 44px;
     }
@@ -235,8 +227,8 @@ export const COSS_CONTROL_STYLES = `
   .form-actions > button { min-height: 36px; }
   @media (max-width: 760px) { .form-actions > button, .feed-plan-actions > button { min-height: 44px; } }
 
-  :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog) { --control-h: 36px; }
-  @media (max-width: 760px) { :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog, .project-operation-surface-empty) { --control-h: 44px; } }
+  :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 36px; }
+  @media (max-width: 760px) { :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; } }
   @media (max-width: 760px), (pointer: coarse) {
     :is(.frame-picker, .frame-goal-actions, .frame-empty) { --control-h: 44px; }
     .frame-goal-actions button, .frame-empty button, .frame-picker > header button { min-height: 44px; }

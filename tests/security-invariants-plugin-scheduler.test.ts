@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction, PluginScheduleWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DEMO_PROJECT_ID, captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import Database from "better-sqlite3";
+import { DEMO_PROJECT_ID, captureHostLog, scheduleServiceFor, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginSchedulerFixture as fixture } from "./fixtures/plugin-scheduler.js";
@@ -160,4 +161,22 @@ test("SYS-15-S5: real process death after an action claim cannot consume an unpr
   const result = await f.scheduler.tick();
   assert.equal(result.invoked, 1); assert.equal(result.failed, 0); assert.equal(calls, 1); assert.equal(owner.count(), 1);
   assert.equal(f.scheduler.get(jobId!)?.enabled, false); assert.equal((await f.scheduler.tick()).invoked, 0);
+});
+
+test("PG-039 RAC-206: the Host's project clock has no handler of its own: it cannot register a job without an installation, and an unbound row left in the library is never woken", async () => {
+  const db = new Database(":memory:");
+  const later = new Date("2026-01-02T00:00:00.000Z"), clock = scheduleServiceFor(db, () => later);
+  try {
+    // Before: the Host built its clock with an in-process index, which any code in the Host could register a handler on, and a `register()` for jobs without an installation.
+    assert.equal("register" in clock, false, "the only way to register a job is an installation's own, with its binding");
+    assert.throws(() => clock.registerAction({ plugin_id: "io.molis.work.example.host-handler", capability_id: "host.wakeup", object_ref: "o", title: "t", due_at: due },
+      { install_id: "host", installation_generation: "g", action_version: 1 }, effect => effect()), { code: "scheduler.handler_missing" }, "no activation is connected to the Host's clock");
+    assert.equal(clock.list().length, 0, "nothing was stored");
+    // A row an older library left behind, with no installation binding: it is claimed and fails as unavailable; nothing runs for it.
+    db.prepare(`INSERT INTO schedule_jobs (job_id, plugin_id, capability_id, object_ref, title, recurrence_kind, interval_ms, next_due_at, enabled, created_at, updated_at)
+      VALUES ('job_left_behind', 'io.molis.work.example.host-handler', 'host.wakeup', 'o', 't', 'once', NULL, ?, 1, ?, ?)`).run(due, due, due);
+    assert.deepEqual(await clock.tick(later), { invoked: 1, failed: 1, skipped: 0 });
+    assert.equal(clock.get("job_left_behind")?.last_wakeup?.status, "plugin_unavailable");
+    assert.equal(clock.actionBinding("job_left_behind"), undefined, "it never had an installation to be delivered through");
+  } finally { await clock.close(); db.close(); }
 });

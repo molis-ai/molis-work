@@ -2,7 +2,7 @@ import { createHomeShelfPlugin } from "./home-plugin.js";
 import { SHELF_OWNER_FILES } from "./plugin.js";
 import { initializeShelfFiles } from "@molis-ai/molis-work-module-shelf";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { SHELF_INSTRUCTIONS, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "./index.js";
+import { SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "./index.js";
 import { shelfBoardSpecimens } from "./board-specimens.js";
 
 /**
@@ -12,7 +12,6 @@ import { shelfBoardSpecimens } from "./board-specimens.js";
 export const registration: PluginRegistration = {
   project_plugin_id: SHELF_PROJECT_PLUGIN_ID, catalog_order: 11,
   manifest: shelfManifest,
-  instructions: SHELF_INSTRUCTIONS,
   personal: true,
   home_store: { path: "shelf" },
   // The Home half of a dual-instance plugin; each project's half is in the Host's project start list. The sample goes on a new

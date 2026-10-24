@@ -20,7 +20,7 @@
 
 `schedule.tasks.list` 返回定时操作的原功能、输入、排期、当前安装和执行历史；没有定义的历史等待项单列，不猜测执行内容。管理者经 `schedule.operations.recover` 决定 resume/retry/skip，普通启用不能绕过未知结果核对。Action 显式 `plugin: false`，Host 重读实际安装及版本，所见任务/历史 revision 防止过期决定；确认只恢复排期，不直接派出。未知结果重试可能重复外部作用，必须明确选择；跳过只处理最早的未知记录，其他未知仍需核对，一次性任务跳过后完成。决定及之前的未知说明随 occurrence 保留，HTTP、UI、授权 MCP 使用同一实现。
 
-插件经宿主内的 `schedule.register/cancel/setEnabled/list` 管自己的 job：主人由 Scheduler 的处理器从可信调用（`HostCapabilityInvocation.plugin`）取，输入没有 `plugin_id`，Host 的插件端口不按能力名改输入；没有插件身份的调用和已停止的安装被拒绝。
+插件经 `services.scheduler`（`PluginScheduleClient`）管自己的 job：在自己项目库的事务里登记、取消、启停，主人由平台从这次安装取，输入没有 `plugin_id`；到点只叫醒 Manifest `background.wakeups` 声明过的命令。原来的宿主能力 `schedule.register/cancel/setEnabled/list` 没有插件调用方，已删（#1018）。
 
 **不拥有：** cron 表达式、Automation rule、Source schedule intent、Action parameters 或 Attention 内容。
 

@@ -30,8 +30,10 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
   - 失败使用 `jellyErrors` 的 `jelly.<原因>` 声明，状态只由 kind 推出；Runtime、模型与授权错误保留其 owner 码，不包装成另一份状态表。Host 里读公开来源的失败是 `material.source.<原因>`（`materialSourceErrors`，`apps/local-host/src/material-source-reader.ts`），读上传文件的是 `material.<原因>`（`materialErrors`，`apps/local-host/src/material-text.ts`；上传入口在 `apps/local-host/src/material-upload.ts`）：这两组归 Host 的素材服务，不带 `jelly.` 前缀。灵光靠 `material.model_required` 按名字问「要不要下载语音模型」，大小在 `details.approximate_bytes`（`plugins/native/lingguang/src/client.ts`）。
   - `services.model.configuration` 独占原 preferences.json v1 的模型选择；设置 read/save 只在声明的动作里使用，保存不调用模型，无效选择不回退。SQL 仍经插件的 database 事务，模型等待前后复查授权。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-jelly run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/jelly-actions.test.ts tests/jelly-content.test.ts tests/jelly-mcp.test.ts tests/jelly-model.test.ts tests/plugin-model-configuration.test.ts tests/jelly-http-stream.test.ts tests/jelly-plugin.test.ts tests/lingguang-material.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
-- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
+- 改动后必跑：`node scripts/run-tests.mjs tests/jelly-actions.test.ts tests/jelly-content.test.ts tests/jelly-mcp.test.ts tests/jelly-model.test.ts tests/plugin-model-configuration.test.ts tests/jelly-http-stream.test.ts tests/jelly-plugin.test.ts tests/lingguang-material.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/jelly-client-bundle.test.ts`
+- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/jelly-actions.e2e.test.ts tests/jelly-outside-changes.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/jelly-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `jelly.<区域>.<名称>`（`registration.messages`），请求只经共同的 `molisWorkRequest`，不直接 `fetch`。`src/en.ts` 只留 3 个宿主还按中文原文翻译的词（搜索结果种类名 `笔记`、`日程` 和动作标题 `新建笔记`，BL-456）；别的主人查的词在各自的词典里。
 
 读取文件与网页（文字提取、图片识别、音视频转写）现在归灵光，经 Host 的 `materials` 契约执行。

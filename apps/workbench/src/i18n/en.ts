@@ -3,7 +3,6 @@ import { COGNIA_EN } from "@molis-ai/molis-work-plugin-cognia";
 import { IMAGES_EN } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_EN } from "@molis-ai/molis-work-plugin-jelly";
 import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
-import { WORK_EN } from "@molis-ai/molis-work-plugin-work";
 import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
 import { SHELF_EN } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_EN } from "../functions/en.js";
@@ -16,22 +15,14 @@ import { TODO_EN } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_EN } from "@molis-ai/molis-work-plugin-alchemist";
 import { WORKFLOWS_EN } from "@molis-ai/molis-work-plugin-workflows";
 import { SCHEDULE_EN } from "@molis-ai/molis-work-plugin-schedule";
-import { GOALS_POLICY_EN, GOALS_SAFETY_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_RELATION_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_TREE_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_WORKSPACE_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_MOMENTUM_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_DOCUMENT_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_PLANNING_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_STATUS_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_DIALOGS_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_CONTEXT_EN } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_POLICY_EN, GOALS_SAFETY_EN, GOALS_RELATION_EN, GOALS_TREE_EN, GOALS_WORKSPACE_EN, GOALS_MOMENTUM_EN, GOALS_DOCUMENT_EN, GOALS_PLANNING_EN, GOALS_STATUS_EN, GOALS_DIALOGS_EN, GOALS_CONTEXT_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
 import { PLACEMENT_EN } from "./placement-en.js";
 import { CONTEXTUAL_EN } from "./contextual-en.js";
 import { SIDE_PANEL_EN } from "./side-panel-en.js";
+import { TERMINAL_EN } from "./terminal-en.js";
 import { ONBOARDING_EN } from "./onboarding-en.js";
 import { ARRIVAL_EN } from "./arrival-en.js";
 import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
@@ -240,11 +231,7 @@ export const EN: Record<string, string> = {
   "当天": "Today",
   "当天的事件": "Today's events",
   "这件事": "This item",
-  "对着这件事说一句": "Say something about this item",
-  "说一句": "Say something",
-  "收起对话": "Close conversation",
   "收起详情": "Close detail",
-  "带着这件事说一句": "Say something about this item",
   "打开 Session": "Open Session",
   "今天还没有事件走进来": "Nothing arrived today yet",
   "这一天没有事件": "Nothing on this day",
@@ -262,10 +249,8 @@ export const EN: Record<string, string> = {
   "个人事件": "Personal event",
   "组织事件": "Org event",
   "重新授权": "Reconnect",
-  "问问怎么回事": "Ask what happened",
   "接着做": "Continue",
   "做完了": "Done",
-  "说一句会打开这条工作对应的 Session。首页不另开一套聊天。": "Saying something opens the Session for this work. Home does not start a separate chat.",
   "月历": "Calendar",
   "上个月": "Previous month",
   "下个月": "Next month",
@@ -1488,7 +1473,7 @@ export const EN: Record<string, string> = {
   "退回补全": "Send the completion back",
   "项目已改名为“": "Project renamed to “",
   "项目默认与当前 Goal 规则在下方独立维护": "Project defaults and extra Goal rules are maintained separately below",
-  ...WORK_EN,
+  ...TERMINAL_EN,
 };
 
 Object.assign(EN, {

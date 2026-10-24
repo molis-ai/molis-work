@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Local Host 提供页面模型和操作端口；Workbench renderer 组合公共样式、导航与 Plugin UI，浏览器脚本处理选择、滚动恢复、刷新和请求。终端资产入口委托 Work Plugin 的 terminal-client。
+Local Host 提供页面模型和操作端口；Workbench renderer 组合公共样式、导航与 Plugin UI，浏览器脚本处理选择、滚动恢复、刷新和请求。Goal 终端（xterm 画面、面板的开关与重开、连接与自动补全）在 `src/terminal/`；`src/terminal-client.ts` 相对导入 `src/terminal/client.ts`，由 `pnpm build:pty-client` 打包。子路径 `@molis-ai/molis-work-app-workbench/terminal` 为测试提供公开入口。
 
 ## 从哪里读代码
 
@@ -19,6 +19,7 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 | [src/home-plugin-page.ts](src/home-plugin-page.ts) | 无项目时的 Home 工作台；复用文档壳和 UI Host 生命周期，装配 Runtime 提供的内容片段 |
 | [src/scripts/client/initialization.ts](src/scripts/client/initialization.ts) | 客户端初始化与恢复 |
 | [src/browser-assets.ts](src/browser-assets.ts) | 浏览器资产入口 |
+| [src/terminal/index.ts](src/terminal/index.ts) | Goal 终端：面板、xterm 画面与连接（`./terminal` 子路径），请求都走共同 UiRequest；面板路由在 Host 的 `apps/local-host/src/web-panel-routes.ts` |
 | [src/write-checkers-section.ts](src/write-checkers-section.ts) | 项目设置「写后检查」的宿主标记：每句话都由宿主按页面语言写出（`data-say`、三个 `<template>` 带 `{槽}`、catalog 的表单对话框与删除用的警示对话框），页面程序不带任何中文 |
 | [src/browser/write-checkers.ts](src/browser/write-checkers.ts) | 项目设置「写后检查」的页面程序：有类型的 TypeScript（`tsconfig.browser.json` 按 DOM 检查），构建时 esbuild 从 `write-checkers-factory.ts` 打成 `dist/write-checkers-client.js`（页面全局 `molisWorkWriteCheckers = (host) => {…}`），`src/scripts/write-checkers-client.ts` 读这份包；只有画这一段的两处（工作台脚本、项目设置页）带它，全局设置页不带，`project-settings.ts` 有它才绑定 |
 | [src/assistant-text-html.ts](src/assistant-text-html.ts)、[src/assistant-text-parts.ts](src/assistant-text-parts.ts) | Assistant 正文、代码与审查的 Host HTML 投影；原始文字始终转义，浏览器只绑定阅读与决定操作 |
@@ -66,7 +67,9 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 | 无用键 | 词典里的键，源码里没有任何地方以字面量出现 | 只报告。动态拼出的键先改成常量或稳定键，再删（[路线图](../../specs/repository-anti-corruption/roadmap-2026-10-07.md) W5-03） |
 | 稳定键 | 见下 | 一出现就检查 |
 
-算翻译调用的有：`L(…)`、`x.L(…)`、`p.text(…)`、`translate(…)`、`this.t(…)`；类型写成 `(text: string, values?: Record<string, string | number>) => string` 的参数；同一文件里把参数转交给翻译调用的函数（如 `const t = v => p.escape(p.text(v))`；转交了几个参数就查几个，`relationGroup("上游", "这个 Goal 的归属与完成依赖", …)` 的两句都要有英文）；模板字符串里的浏览器脚本（按 JavaScript 解析；`String.raw` 的模板按原文解析，不先转义，否则 `'\n'` 会变成换行、`/^https?:\/\//` 会变成注释，后面的调用都读不到；本身不完整的片段按容错解析读）。`L(a ? "x" : "y")` 和 `L(表[键])`（同一文件里的常量表）按字面量读。一个浏览器程序常由几个文件拼成（Alchemist 的 `client.ts` 定义 `tx`、`button`，再拼上 `client-views.ts`（定义 `section`）、`client-flows.ts`（定义 `field`、`show`）、`work-reuse/client.ts` 的脚本，四个文件互相调用对方定义的包装函数），所以同一个插件里、靠相对 import 连起来的脚本文件共用彼此定义的包装函数，紧挨着它们的文件（import 它们或被它们 import）也带着这些包装函数读；没连起来的文件各用各的名字（`linkPrograms`；`tests/translation-check.test.ts` 的 `program` 用例）。**已知的限制（没有关上）**：包装函数按名字对上，不按作用域。一个浏览器程序里，别的文件定义的名字压过本文件自己定义的同名函数：`src/settings-memory.ts` 自己的 `button(text, variant, label)` 从不翻译，却按 `home-talk.ts` 的 `button(action, label)` 读，于是它的 13 处 `button("mw-btn--secondary")` 被记成翻译调用（这个文件单独扫一个也没有）。没有汉字的键所有规则都不看，所以现在没有影响；会出问题的只有一种：给这样的同名函数，在共用的那一个会翻译的参数位置上传一句中文——检查会要这句的英文，而这个函数其实不显示它。要关上它得按作用域解析名字（看一次调用实际落在哪个绑定上），那是解析器的活；真遇到了，改本地函数的名字。`L(变量)` 只计数；服务端文件里定义、别的文件 import 的包装函数不跟（2026-10-08 试过：跟进去只多 9 处调用、没有缺英文，却多出 90 个动态调用）。没有汉字的名字（Gmail）两种语言相同，不要英文；汉字占位符（`{标题}`）如果运行时就按汉字替换，英文条目原样保留它。
+算翻译调用的有：`L(…)`、`x.L(…)`、`p.text(…)`、`translate(…)`、`this.t(…)`；类型写成 `(text: string, values?: Record<string, string | number>) => string` 的参数；同一文件里把参数转交给翻译调用的函数（如 `const t = v => p.escape(p.text(v))`；转交了几个参数就查几个，`relationGroup("上游", "这个 Goal 的归属与完成依赖", …)` 的两句都要有英文）；模板字符串里的浏览器脚本（按 JavaScript 解析；`String.raw` 的模板按原文解析，不先转义，否则 `'\n'` 会变成换行、`/^https?:\/\//` 会变成注释，后面的调用都读不到；本身不完整的片段按容错解析读）。`L(a ? "x" : "y")` 和 `L(表[键])`（同一文件里的常量表）按字面量读。一个浏览器程序常由几个文件拼成（Alchemist 的 `client.ts` 定义 `tx`、`button`，再拼上 `client-views.ts`（定义 `section`）、`client-flows.ts`（定义 `field`、`show`）、`work-reuse/client.ts` 的脚本，四个文件互相调用对方定义的包装函数），所以同一个插件里、靠相对 import 连起来的脚本文件共用彼此定义的包装函数，紧挨着它们的文件（import 它们或被它们 import）也带着这些包装函数读；没连起来的文件各用各的名字（`linkPrograms`；`tests/translation-check.test.ts` 的 `program` 用例）。**已知的限制（没有关上）**：包装函数按名字对上，不按作用域。一个浏览器程序里，别的文件定义的名字压过本文件自己定义的同名函数：`src/settings-memory.ts` 自己的 `button(text, variant, label)` 从不翻译，却按另一个文件的 `button(action, label)` 读，于是它的 13 处 `button("mw-btn--secondary")` 被记成翻译调用（这个文件单独扫一个也没有）。没有汉字的键所有规则都不看，所以现在没有影响；会出问题的只有一种：给这样的同名函数，在共用的那一个会翻译的参数位置上传一句中文——检查会要这句的英文，而这个函数其实不显示它。要关上它得按作用域解析名字（看一次调用实际落在哪个绑定上），那是解析器的活；真遇到了，改本地函数的名字。`L(变量)` 只计数；服务端文件里定义、别的文件 import 的包装函数不跟（2026-10-08 试过：跟进去只多 9 处调用、没有缺英文，却多出 90 个动态调用）。没有汉字的名字（Gmail）两种语言相同，不要英文；汉字占位符（`{标题}`）如果运行时就按汉字替换，英文条目原样保留它。
+
+**另一类看不到的（#958 → #990）**：服务端固定 prompt 里的中文常量。它经模型往返后是运行时的动态字符串，页面用 `L(动态值)` 显示；门禁只按字面量认翻译调用，所以把它的英文条目从词典里删掉，「缺英文」仍是零。#958 删掉 Issue 的固定追问句（`plugins/native/issues/src/prompts.ts` 的 `ISSUE_ASK`）的英文后门禁放行，靠 `tests/issue-naming.test.ts` 的 `PRR-08` 断言拦下，英文条目已随 #990 恢复。补偿做法是把这类固定句子钉成测试：断言英文词典含该确切字符串（`PRR-08` 就是这么写的）；改这类句子时在同一个 PR 里改那条断言，不要只改词典。
 
 看数字和细节：`node scripts/check-health-gates.mjs --report`；`node scripts/gates/translations.mjs --missing | --conflicts | --dead | --calls | --owners`。规则的变异测试在 [`tests/translation-check.test.ts`](../../tests/translation-check.test.ts)；[`tests/i18n.test.ts`](../../tests/i18n.test.ts)（要先构建，CI 不跑）另查扫描读到的键与 Host 实际提供的 `EN` 完全一致。「词典没接上」一条靠名字追引用，不需要构建，所以 CI 里就能拦；它认的根是 `translations.mjs` 里的 `SERVED_ROOT`，`EN` 以后换地方组装时要一起改（`tests/translation-check.test.ts` 钉住了根还在）。缺英文时检查会指出该加到哪个词典（Workbench 渲染器与宿主文件加到 [`src/i18n/renderer-gap-en.ts`](src/i18n/renderer-gap-en.ts)）。
 
@@ -110,7 +113,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 ## 开发要求
 
 - 浏览器交互回归先等待生产界面的可操作状态，再取点：按 [VUX-22 自然高度折叠合同](../../specs/visual-ui-experience/spec.md#disclosure-segmented)，展开到容纳目标按钮后，才由现有点击助手滚动并验证命中（`tests/goals-planning.e2e.test.ts`、`tests/feed-capture.e2e.test.ts`）。保留原等待上限、严格点击与业务结果断言；超时或遮挡仍失败，不增加固定睡眠、不关闭动效、不改产品布局。Feed 的预览零入箱、规则保存与真实消费、停用提供方后保留绑定仍由原用例验收。
-- 负责：工作台界面的组合根：导航、插件选择、设置页、Functions 编辑器，以及进入工作台之前的页面——项目选择页与简介、开场与 Welcome、新建项目引导、更新页（`src/arrival/`、`src/context-onboarding-renderer.ts`、`src/scripts/context-onboarding.ts`）。
+- 负责：工作台界面的组合根：导航、插件选择、设置页、Functions 编辑器、Goal 终端（`src/terminal/`），以及进入工作台之前的页面——项目选择页与简介、开场与 Welcome、新建项目引导、更新页（`src/arrival/`、`src/context-onboarding-renderer.ts`、`src/scripts/context-onboarding.ts`）。
 - 不负责：业务 Store、Node 专用实现、Tauri 命令。
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
@@ -121,10 +124,11 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
   - 跨请求的页面操作固定点击时的对象：浏览器文件选择绑定 chooser 与网页，网站决定绑定原审查和显示的网站；文件预览绑定 source/kind/id 与本次打开。迟到结果不改后来打开的对象，设置与引用预览的失败也遵守同一约束。判断规则样例与草稿删除更新原记录，保留另一规则或同一规则的新编辑。标签恢复只收当前保存格式，保留当前组、分屏与设置页撤下规则。回归见 `tests/workbench-browser-targets.e2e.test.ts`、`tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/workbench-current-tabs.e2e.test.ts`。
   - 插件市场从 Host 重读项目成员；既有 `molis-work:plugins-changed` 使这份投影失效，过期读取不覆盖新事实。后台命令停止失败通过共同 UiRequest 显示拒绝、结果未知与可复制的诊断编号，不自动重试；真实命令状态及 Coding 的持久投影仍归它们的 owner。回归见 `tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-stop-feedback.e2e.test.ts`；后者用公开 Runtime 端口控制隔离子进程，不调用模型。
   - 导航与区域从 Manifest 派生（`BUILTIN_PLUGIN_CATALOG`），不按插件名写分支。
+  - 终端用 xterm 的命名空间导入并兼容 default 导出，两种打包形态都能加载；终端的请求走共同 UiRequest，不直接 `fetch`。改 `src/terminal/` 加跑 `node scripts/run-tests.mjs tests/work-terminal-client.test.ts tests/desktop-tui.test.ts`。
   - 目录条目可标 `developer: true`（Text Stats，平台的最小参考插件和测试依托）：只在 Host 开着开发者模式时进插件选择器和市场（`pluginMarketCards({ developerMode })`、`renderPluginRail`/`renderPluginMarket` 的 `developerMode`，由页面视图的 `developer_mode` 传入）；仍然登记、仍可安装，项目里已经添加的照常显示、可移除（W2-18 决定 5，2026-10-09）。开发者模式只是 Host 进程的启动开关（`MOLIS_WORK_DEVELOPER_MODE=1`），不是用户设置，设置里没有开关（用户 2026-10-09 已定，见 `apps/local-host/README.md`）。
   - 目录条目的浏览器脚本发出去时，`registration.workbench` 设 `clientServed: true` 即可去掉整行 `//` 注释、独占行的 `/* */` 注释和每行行首的缩进（页面资源预算只许减少；`/* */` 与代码共用一行的不动；脚本里有跨行字符串或模板时缩进是内容，不能用它）：作者在源码里保留注释和缩进，`tests/plugin-client-served.test.ts` 证明发出去的是同一段程序；用它的条目要进这个测试的名单。
   - 内置 build 只在各包 `src/registration.ts` 的 `registration` 绑定一次 Manifest、目录信息、Agent 正文与 UI/静态资源；`builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 由 `node scripts/generate-plugin-registry.mjs` 从它们生成，不手改（`pnpm health:check` 跑它的 `--check`），目录加载时 `catalogProblems`（`plugin-catalog.ts`）自检重复的 id 与位置、悬空的 `companions` / `clientFrom` / `clientUses`。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；新的内置插件只走 Plugin Runtime 装配，但仍在自己的 `registration` 登记一条（该测试要求每个 Runtime 装配的 id 都有目录条目），所以目录本身不是冻结名单；`plugin-catalog.ts` 和 `plugin-workbench.ts` 派生相应投影。资源 order 保持 CSS 与客户端初始化顺序，不改变 Manifest 的导航 order。公共动作发现与授权仍归 Kernel/Host。
-  - 插件的 Agent 提示词与方法正文随 `registration` 的 `agent` 声明，Manifest 只写声明。
+  - 插件的 Agent 提示词、方法正文与模型指令随插件定义（`PluginDefinition` 的 `agent_prompts`、`agent_skills`、`methods`、`instructions`）走，不在 `registration` 上；Manifest 只写声明（PG-051）。
   - 界面文字走 i18n，新增中文文案同时补英文，缺英文、词典没并进 `EN` 由 `pnpm health:check` 拦下（CI 里也跑；做法与稳定键的迁移见上节「界面文字」）；控件只用 design-system，不引入系统弹窗或原生下拉。
   - `development: true` 只标明隔离预览，不能当作真实团队接通的证明。
   - 浏览器端程序由 `src/scripts/client/*` 字符串片段拼成，类型检查看不到里面：改动后跑 `tests/client-script-undeclared.test.ts`，它检查拼接结果里没有未声明的名称（页面全局在测试里列白名单）；进入工作台之前的三段程序（选择页、引导、动效）也在其中。

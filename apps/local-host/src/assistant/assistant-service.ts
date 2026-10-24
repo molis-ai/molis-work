@@ -9,7 +9,7 @@ import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-servic
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { failedStep } from "./activity-failure.js";
-import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView, type BoundActionClient, type WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
@@ -22,12 +22,14 @@ import {
   type AssistantActivity, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantMaterialText,
-  type AssistantDiagnostics, type AssistantRoundDiagnostics,
+  type AssistantDiagnostics, type AssistantRoundDiagnostics, type AssistantExecutorOffer,
 } from "@molis-ai/molis-work-contracts/services/assistant";
+import { L } from "../web-locale.js";
 import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
 import { agentActions, capabilityDirectory, knowledgeDirectory, knowledgeFact, type AssistantRoundFactPorts } from "./assistant-directory.js";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from "./assistant-material-scan.js";
+import { adoptSession, openSession } from "./assistant-executor-session.js";
 import { identity, linkSent, revisionOf } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { type AssistantStore, type StoredRound, type StoredWork } from "./assistant-store.js";
@@ -38,7 +40,7 @@ import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-too
 import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
-import { CodingExecutor, dispatchControl, type CodingControl, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
+import { WorkExecutor, dispatchControl, executorProviders, offerExecutors, type ExecutorControl, type PersonActions } from "./assistant-executor.js";
 import { AssistantInputs, exactRevision, inputsOf, queuedInputs, memoryLearningSources, typedWords, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
@@ -68,8 +70,8 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   projectTitle?(projectId: string): Promise<string | null>;
   /** IANA zone the person works in, so "tomorrow" means their tomorrow. */
   timeZone?: string;
-  /** The person's own client in a work's project, to drive a plugin's Agent (Coding) as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
-  personActions?(work: StoredWork, use?: "dispatch"): Promise<BoundActionClient>;
+  /** The person's own client in a work's project, to drive the plugin that carries it as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
+  personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch"): Promise<BoundActionClient>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
   scopeActions?(work: StoredWork): Promise<PersonActions>;
   /** The person's own actions in their Home, for reading the reminders they set in Plugins. */
@@ -157,8 +159,6 @@ function chunked(base: Omit<AgentTextMaterial, "text" | "material_id">, id: stri
 type CapabilityTitles = Map<string, { title: string; provider: string }>;
 
 /** Activity in the person's terms: what was looked up, read or changed — not the tool log. */
-/** Coding sessions as a related object; Coding's own subject reader serves this kind. */
-export const CODING_SESSION_KIND = "coding_session";
 
 const RELATION_WORDS: Record<AssistantWorkObject["relation"], string> = { origin: "起点", material: "材料", result: "产出", session: "专业会话" };
 
@@ -186,7 +186,7 @@ export function spokenTurns<T extends { kind: string; text: string }>(turns: rea
   });
 }
 
-/** How many of a work's objects, and how much of each, travel to Coding when the work is handed over. */
+/** How many of a work's objects, and how much of each, travel to the executor when the work is handed over. */
 const HANDOVER_OBJECTS = 3, HANDOVER_OBJECT_CHARS = 6000;
 /** How much of a material text the person gets back to look at (what a round may give the model). */
 const MATERIAL_PREVIEW_CHARS = 20_000;
@@ -256,8 +256,6 @@ export function stopInWords(reason: string, workBudget?: number): string {
   return reason;
 }
 
-/** The modes a Coding round can run in, as Coding's own page offers them. */
-const CODING_MODES: readonly string[] = ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"];
 
 export function presentActivity(activity: readonly AgentToolActivity[], titles: CapabilityTitles | undefined, ended = false): AssistantActivity[] {
   const verbs: Record<string, string> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "change-reversible": "change", "ask-user": "ask", "update-todo": "todo",
@@ -514,22 +512,22 @@ export class AssistantService {
   /** A work's view when it differs from `since`, or as it is once the wait runs out: the page follows a live work this way. */
   waitForChange(workId: string, since: string | null, timeoutMs: number, signal?: AbortSignal) {
     return waitForAssistantWork({ store: this.store, actorId: this.actorId, host: () => this.ports.host(), read: () => this.read(workId),
-      codingRun: async work => { const session = work.executor.kind === "coding" ? work.executor.session_id : this.linkedCodingSession(work);
-        return session ? (await (await this.coding(work)).read(session, 1).catch(() => null))?.runs.at(-1)?.ref : undefined; } }, workId, since, timeoutMs, signal);
+      executorRun: async work => { const carried = await this.carried(work).catch(() => null);
+        return carried ? (await (await this.executorOf(work, carried.plugin_id)).read(carried.session_id, 1).catch(() => null))?.runs.at(-1)?.ref : undefined; } }, workId, since, timeoutMs, signal);
   }
 
   async read(workId: string): Promise<AssistantWorkView> {
     const work = await this.named(this.store.get(this.actorId, workId));
-    // One work, whoever ran each round: the Assistant's own session, and the Coding session it carries or handed to.
+    // One work, whoever ran each round: the Assistant's own session, and the executor's session it carries or handed to.
     const assistant = work.session_id ? await this.assistantPart(work) : null;
-    const sessionId = work.executor.kind === "coding" ? work.executor.session_id : this.linkedCodingSession(work);
-    const coding = sessionId ? await this.codingPart(work, sessionId) : null;
-    const rounds = this.settleUnsent(work, [...(assistant?.rounds ?? []), ...(coding?.rounds ?? [])].sort((a, b) => a.started_at.localeCompare(b.started_at)));
+    const carried = await this.carried(work).catch(() => null);
+    const plugin = carried ? await this.executorPart(work, carried) : null;
+    const rounds = this.settleUnsent(work, [...(assistant?.rounds ?? []), ...(plugin?.rounds ?? [])].sort((a, b) => a.started_at.localeCompare(b.started_at)));
     const latest = rounds.at(-1);
-    const problem = assistant?.problem ?? coding?.problem;
-    const state = coding?.unreadable && work.executor.kind === "coding" ? "needs-check"
-      : await this.continuations.state(work, stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(assistant?.recovery || coding?.recovery)));
-    const shown: StoredWork = work.executor.kind === "coding" && coding?.mode ? { ...work, executor: { ...work.executor, mode: coding.mode } } : work;
+    const problem = assistant?.problem ?? plugin?.problem;
+    const state = plugin?.unreadable && work.executor.kind === "plugin" ? "needs-check"
+      : await this.continuations.state(work, stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(assistant?.recovery || plugin?.recovery)));
+    const shown: StoredWork = work.executor.kind === "plugin" && plugin?.mode ? { ...work, executor: { ...work.executor, mode: plugin.mode } } : work;
     // Its task board: the sub-tasks it handed out, each as its own work.
     const delegated = await this.delegations.parts(work);
     const scheduled = this.followUps.list(work.work_id);
@@ -539,9 +537,9 @@ export class AssistantService {
     const undoable = this.store.undos(this.actorId, work.work_id).slice(-10).map(({ work_id: _work, reference, input: _input, told: _told, ...view }) => ({ ...view, capability_id: reference.capability_id }));
     const memory_candidates = await this.memoryCandidates(work.work_id);
     const { changes: memory_changes } = await this.memoryTrail(work, rounds, this.store.rounds(work.work_id), assistant?.memory ?? new Map()).catch(() => ({ changes: [] as MemoryChange[] }));
-    const usage = work.executor.kind === "coding" ? null : await this.workUsage(work).catch(() => null);
+    const usage = work.executor.kind === "plugin" ? null : await this.workUsage(work).catch(() => null);
     await this.offers.sweep(work);
-    return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
+    return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(plugin?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
       ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}), ...(memory_changes.length ? { memory_changes } : {}),
       ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}),
@@ -554,7 +552,7 @@ export class AssistantService {
     queued: Pick<AssistantWorkView, "queued_inputs"> }> {
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
-    const stored = this.store.rounds(work.work_id).filter(round => round.executor !== "coding");
+    const stored = this.store.rounds(work.work_id).filter(round => round.executor !== "plugin");
     const session = await adapter.readSession(sessionRef(work)).catch(() => null);
     const recovery = session?.recovery;
     const views = new Map<string, AgentRunView>();
@@ -574,73 +572,78 @@ export class AssistantService {
       ...sessionProblem(recovery, rounds, session) };
   }
 
-  /** The rounds run in a Coding session the work carries, read through Coding's own actions. */
-  private async codingPart(work: StoredWork, sessionId: string): Promise<{ rounds: AssistantRound[]; reviews: AssistantPendingReview[]; recovery: boolean; unreadable?: boolean;
+  /** The rounds run in the executor's session the work carries, read through the executor's own actions. */
+  private async executorPart(work: StoredWork, carried: { plugin_id: string; session_id: string }): Promise<{ rounds: AssistantRound[]; reviews: AssistantPendingReview[]; recovery: boolean; unreadable?: boolean;
     mode?: string; problem?: { message: string; action?: string } }> {
-    let read: CodingSessionRead;
-    try { read = await (await this.coding(work)).read(sessionId, 6); }
-    catch (error) { return { rounds: [], reviews: [], recovery: false, unreadable: true, problem: { message: `Coding 会话暂时读不到：${error instanceof Error ? error.message : String(error)}` } }; }
+    let read: WorkExecutorSession;
+    try { read = await (await this.executorOf(work, carried.plugin_id)).read(carried.session_id, 6); }
+    catch (error) { return { rounds: [], reviews: [], recovery: false, unreadable: true, problem: { message: `执行方的会话暂时读不到：${error instanceof Error ? error.message : String(error)}` } }; }
     const stored = new Map(this.store.rounds(work.work_id).map(round => [round.run_id, round]));
     const rounds: AssistantRound[] = read.runs.map(run => {
       const own = stored.get(run.ref.run_id);
       const first = run.turns.find(turn => turn.kind === "user")?.text ?? "";
       const view = this.roundView(own ?? { run_id: run.ref.run_id, text: first, materials: [], context: null, started_at: run.started_at }, run, undefined);
-      // The handover note travels in Coding's task; the person's own message is what they read as theirs.
+      // The handover note travels in the executor's task; the person's own message is what they read as theirs.
       const turns = own ? view.turns.map(turn => turn.kind === "user" && turn.text?.startsWith(HANDOVER_MARK) ? { ...turn, text: own.text } : turn) : view.turns;
-      return { ...view, turns, executor: "coding" as const };
+      return { ...view, turns, executor: "plugin" as const };
     });
     const host = await this.ports.host();
-    const runtimeSession = read.session.runtime_session_id ?? null;
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
-    const reviews = runtimeSession ? this.reviewsFor(host, { ...work, session_id: runtimeSession }).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
-    return { rounds, reviews, recovery: Boolean(read.recovery_required), ...(read.configuration?.intent ? { mode: read.configuration.intent } : {}),
-      ...(read.recovery_required ? { problem: { message: read.error ?? "Coding 会话有需要核对的中断操作", action: "打开 Coding 核对" } } : {}) };
-  }
-
-  /** The Coding session a work handed to, if any (its latest one). */
-  private linkedCodingSession(work: StoredWork): string | null {
-    if (work.scope.kind !== "project") return null;
-    return this.store.relations.forWork(identity(work)).filter(row => row.relation === "session" && row.object.kind === CODING_SESSION_KIND).at(-1)?.object.id ?? null;
+    const reviews = read.runtime_session_id ? this.reviewsFor(host, { ...work, session_id: read.runtime_session_id }).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
+    return { rounds, reviews, recovery: Boolean(read.recovery), ...(read.mode ? { mode: read.mode } : {}),
+      ...(read.recovery ? { problem: { message: read.recovery.message, action: L("到执行方的页面核对") } } : {}) };
   }
 
   /**
-   * Hand the work to Coding or back to the Assistant, between rounds. It stays one work: its relations, materials and
-   * results carry over; Coding's first round is told what was agreed and produced; the Assistant's next round reads
-   * what Coding did from the session itself.
+   * The plugin that carries a work and its session: the one it is handed to, or, for a work handed back to the Assistant, the one whose
+   * session it last linked (found in the directory by the kind of that session). None when it has no session or no executor offers that kind now.
+   */
+  private async carried(work: StoredWork): Promise<{ plugin_id: string; session_id: string } | null> {
+    if (work.executor.kind === "plugin") return work.executor.session_id ? { plugin_id: work.executor.plugin_id, session_id: work.executor.session_id } : null;
+    if (work.scope.kind !== "project" || !this.ports.personActions) return null;
+    const row = this.store.relations.forWork(identity(work)).filter(item => item.relation === "session").at(-1);
+    const provider = row && executorProviders(await (await this.ports.personActions(work)).discover()).find(item => item.session_kind === row.object.kind);
+    return row && provider ? { plugin_id: provider.plugin_id, session_id: row.object.id } : null;
+  }
+
+  /**
+   * Hand the work to a plugin's Agent or back to the Assistant, between rounds. It stays one work: its relations, materials and
+   * results carry over; the executor's first round is told what was agreed and produced; the Assistant's next round reads
+   * what the executor did from the session itself.
    */
   async handover(workId: string, input: AssistantHandover): Promise<AssistantWorkView> {
     let work = this.store.get(this.actorId, workId);
     if (work.reply_target) throw assistantErrors.scope("请回到原评论继续这项回复");
-    if (input?.to !== "coding" && input?.to !== "assistant") throw assistantErrors.invalid("只能交给 Coding Agent 或助理");
+    const to = input?.to;
+    if (to?.kind !== "assistant" && !(to?.kind === "plugin" && typeof to.plugin_id === "string" && to.plugin_id)) throw assistantErrors.invalid("只能交给执行方插件或助理");
     const state = await this.stateSafely(work);
     if (["running", "waiting-input", "waiting-review", "paused"].includes(state)) throw assistantErrors.state("这一轮还没有结束：结束或停止后再转交");
-    if (input.to === "coding") {
-      if (work.executor.kind === "coding") throw assistantErrors.invalid("这项工作已经由 Coding Agent 执行");
-      if (work.scope.kind !== "project") throw assistantErrors.scope("Coding Agent 在项目里工作；个人工作不能交给它");
-      if (input.mode !== undefined && !CODING_MODES.includes(input.mode)) throw assistantErrors.invalid("不认识的方式");
-      const coding = await this.coding(work);
-      let sessionId = this.linkedCodingSession(work);
+    if (to.kind === "plugin") {
+      if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作已经由执行方插件承担：先交回助理，再交给别的");
+      if (work.scope.kind !== "project") throw assistantErrors.scope("执行方插件在项目里工作；个人工作不能交给它");
+      const executor = await this.executorOf(work, to.plugin_id);
+      const { provider } = executor;
+      let sessionId = this.store.relations.forWork(identity(work)).filter(row => row.relation === "session" && row.object.kind === provider.session_kind).at(-1)?.object.id ?? null;
       if (!sessionId) {
-        sessionId = await coding.createSession(work.title);
-        this.store.relations.link(identity(work), "session", { kind: CODING_SESSION_KIND, id: sessionId, revision: null }, "助理把这项工作交给 Coding 继续");
-      }
-      if (input.mode) await coding.setMode(sessionId, input.mode);
+        sessionId = await executor.createSession(work.title, input.mode);
+        this.store.relations.link(identity(work), "session", { kind: provider.session_kind, id: sessionId, revision: null }, `助理把这项工作交给「${provider.title}」继续`);
+      } else if (input.mode) await executor.setMode(sessionId, input.mode);
       const brief = await this.handoverBrief(work);
-      work = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId }, handover_brief: brief });
+      work = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "plugin", plugin_id: provider.plugin_id, title: provider.title, session_id: sessionId }, handover_brief: brief });
     } else {
-      if (work.executor.kind !== "coding") throw assistantErrors.invalid("这项工作已经由助理执行");
+      if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作已经由助理执行");
       work = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "assistant" }, handover_brief: undefined });
     }
     return this.read(work.work_id);
   }
 
-  /** What Coding is told when the Assistant hands it a work: the person's requests, where it got to, and its objects. */
+  /** What the executor is told when the Assistant hands it a work: the person's requests, where it got to, and its objects. */
   private async handoverBrief(work: StoredWork): Promise<string> {
-    const asked = this.store.rounds(work.work_id).filter(round => round.executor !== "coding").slice(-8).map(round => `- ${round.text.slice(0, 600)}`);
+    const asked = this.store.rounds(work.work_id).filter(round => round.executor !== "plugin").slice(-8).map(round => `- ${round.text.slice(0, 600)}`);
     const part = work.session_id ? await this.assistantPart(work).catch(() => null) : null;
     const reply = part?.rounds.at(-1)?.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n").slice(-1500) ?? "";
     const objects = await this.workObjects(work);
-    // Coding reads files, not the plugins' objects: what this work made or started from travels as it reads now.
+    // The executor reads files, not the plugins' objects: what this work made or started from travels as it reads now.
     const readable = objects.filter(object => object.relation !== "session" && (object.state === "current" || object.state === "changed"))
       .sort((a, b) => Number(b.relation === "result") - Number(a.relation === "result"))
       .filter((object, index, all) => all.findIndex(other => other.subject.kind === object.subject.kind && other.subject.id === object.subject.id) === index).slice(0, HANDOVER_OBJECTS);
@@ -667,23 +670,20 @@ export class AssistantService {
     let materials = checkMaterials(input.materials);
     checkHeldImages(materials, this.images);
     const context = checkContext(input.context);
-    if (input.mode !== undefined && (input.work_id || input.executor !== "coding" || !CODING_MODES.includes(input.mode))) throw assistantErrors.invalid("只有新的 Coding 工作可以在这里选择第一轮的方式");
-    if (input.coding_session_id !== undefined && (input.work_id || input.executor !== "coding" || typeof input.coding_session_id !== "string" || !input.coding_session_id)) {
-      throw assistantErrors.invalid("只有新的 Coding 工作可以接着一个已有的 Coding 会话");
-    }
-    // A session another work already carries stays with it: say which, before anything is created.
-    if (input.coding_session_id && !input.work_id) {
-      const holder = this.sessionHolder(caller.project_ref?.project_id ?? null, input.coding_session_id);
-      if (holder) throw assistantErrors.conflict(`这个 Coding 会话已属于工作「${holder.title}」，请切换到那项工作继续`);
+    const choice = input.executor;
+    if (choice !== undefined && choice.kind !== "assistant" && !(choice.kind === "plugin" && typeof choice.plugin_id === "string" && choice.plugin_id)) throw assistantErrors.invalid("不认识的执行者");
+    if (input.mode !== undefined && (input.work_id || choice?.kind !== "plugin" || typeof input.mode !== "string" || !input.mode)) throw assistantErrors.invalid("只有交给执行方插件的新工作可以在这里选择第一轮的方式");
+    if (input.executor_session_id !== undefined && (input.work_id || choice?.kind !== "plugin" || typeof input.executor_session_id !== "string" || !input.executor_session_id)) {
+      throw assistantErrors.invalid("只有交给执行方插件的新工作可以接着一个已有的会话");
     }
     const claim = this.store.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined;
     try {
       const created = !input.work_id;
-      work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, input.executor);
+      work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, choice);
       if (work.reply_target && caller.thread_request !== work.thread_round?.attempt_id) throw assistantErrors.scope("请在原评论内继续这项讨论");
-      if (created && input.coding_session_id) work = await this.adoptCodingSession(work, input.coding_session_id);
+      if (created && input.executor_session_id) work = await adoptSession(this.store, this.actorId, work, await this.executorOf(work), input.executor_session_id);
       if (!writtenBy && !input.written_by && work.executor.kind === "assistant") {
         inputHold = this.continuations.begin(work, text); work = inputHold.work;
         const previous = stillCurrent; stillCurrent = () => inputHold!.current() && (!previous || previous());
@@ -715,21 +715,21 @@ export class AssistantService {
   async control(workId: string, control: AssistantControl): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     if (control?.kind === "withdraw") {
-      await withdrawInput(work, this.store.rounds(work.work_id), control, { coding: () => this.coding(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)) });
+      await withdrawInput(work, this.store.rounds(work.work_id), control, { executor: () => this.executorOf(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)) });
     } else await controlAssistantWork(work, control, { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
-      host: () => this.ports.host(), coding: work => this.coding(work), latest: (host, work) => this.latestRun(host, work), cancelSetups: this.ports.cancelSetups, retainSetups: this.ports.retainSetups });
+      host: () => this.ports.host(), executor: work => this.executorOf(work), latest: (host, work) => this.latestRun(host, work), cancelSetups: this.ports.cancelSetups, retainSetups: this.ports.retainSetups });
     return this.read(workId);
   }
 
   async answer(workId: string, input: { run_id: string; pending_id: string; pending_revision?: number; text?: string;
     answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }, caller: AssistantCaller = {}): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    if (work.executor.kind === "coding") {
-      const coding = await this.coding(work);
-      const run = work.executor.session_id ? (await coding.read(work.executor.session_id, 6)).runs.find(item => item.ref.run_id === input.run_id) : undefined;
+    if (work.executor.kind === "plugin") {
+      const executor = await this.executorOf(work);
+      const run = work.executor.session_id ? (await executor.read(work.executor.session_id, 6)).runs.find(item => item.ref.run_id === input.run_id) : undefined;
       const question = run?.awaiting_input.find(item => item.pending_id === input.pending_id);
       if (!run || !question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
-      await coding.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: exactRevision(input.pending_revision, question.pending_revision),
+      await executor.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: exactRevision(input.pending_revision, question.pending_revision),
         ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
       return this.read(workId);
     }
@@ -750,14 +750,14 @@ export class AssistantService {
     const work = this.store.get(this.actorId, workId);
     const host = await this.ports.host();
     const review = host.reviews.get(String(input.review_id));
-    // A Coding work's confirmations are Coding's own, in the same queue its page decides from.
-    const session = work.executor.kind === "coding" && work.executor.session_id
-      ? (await (await this.coding(work)).read(work.executor.session_id, 1)).session.runtime_session_id ?? null : work.session_id;
+    // A plugin-carried work's confirmations are the plugin's own, in the same queue its page decides from.
+    const session = work.executor.kind === "plugin" && work.executor.session_id
+      ? (await (await this.executorOf(work)).read(work.executor.session_id, 1)).runtime_session_id ?? null : work.session_id;
     if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)) throw assistantErrors.scope("这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw assistantErrors.invalid("请选择允许或拒绝");
     await host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) });
     // The runtime tells the round only that policy blocked the change; the round must know the person declined it.
-    if (input.decision === "reject" && work.executor.kind !== "coding" && review.run) {
+    if (input.decision === "reject" && work.executor.kind !== "plugin" && review.run) {
       const latest = await this.latestRun(host, work).catch(() => null);
       if (latest && latest.ref.run_id === review.run.run_id && !isTerminalAgentPhase(latest.phase)) {
         const why = input.note ? `，理由：${String(input.note).slice(0, 500)}` : "";
@@ -767,7 +767,6 @@ export class AssistantService {
     return this.read(workId);
   }
 
-  /** A Coding work, read from Coding's session: the same rounds, questions and confirmations its page shows. */
   /**
    * How the scope's capabilities are called, for showing a round's steps by name. Kept from the last dispatch; after a
    * restart it is read again from the current catalog rather than showing internal identifiers.
@@ -818,7 +817,7 @@ export class AssistantService {
     return rounds.map(round => {
       const began = Date.parse(round.started_at);
       // Only rounds this Host saw from their start: before that, what was sent is not known here.
-      if (round.executor === "coding" || !Number.isFinite(began) || began < this.#hostStarted || !["stopped", "cancelled", "failed"].includes(round.phase)) return round;
+      if (round.executor === "plugin" || !Number.isFinite(began) || began < this.#hostStarted || !["stopped", "cancelled", "failed"].includes(round.phase)) return round;
       const activity = round.activity.map(item => item.verb === "change" && item.state === "unknown" && !item.reason && item.capability_id
         && !sent.some(entry => entry.capability_id === item.capability_id && entry.at >= began) ? { ...item, state: "failed" as const, reason: "interrupted" as const } : item);
       return { ...round, activity };
@@ -1004,7 +1003,8 @@ export class AssistantService {
     let actions: PersonActions | null = null;
     try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { return null; }
     if (!actions) return null;
-    const readers = (await actions.discover().catch(() => [] as ActionView[])).filter(view => isSubjectReader(view.action) && view.availability.available);
+    const offered = await actions.discover().catch(() => [] as ActionView[]);
+    const readers = offered.filter(view => isSubjectReader(view.action) && view.availability.available);
     const read = async (kind: string, id: string): Promise<ActionSubjectContext | null> => {
       const reader = readers.find(view => view.action.subject_kinds.includes(kind));
       if (!reader) return null;
@@ -1022,7 +1022,6 @@ export class AssistantService {
     const claimed = object.version === undefined ? null : String(object.version);
     return [`${context.title}（${object.kind}，标识 ${object.id}），当前版本 ${context.revision}${claimed && claimed !== context.revision ? `（页面显示的是版本 ${claimed}）` : ""}。`,
       goals.length ? `关联目标：${goals.join("、")}` : "",
-      context.session_id && object.kind !== "coding_session" ? `所在会话：${context.session_id}` : "",
       others.length ? `与它相关的其他工作：${others.map(row => `「${row.title}」（${RELATION_WORDS[row.relation]}，${row.state}）`).join("；")}` : "",
       `正文${context.truncated ? "（节选，完整内容可用读取能力获取）" : ""}：\n${context.content.slice(0, 6000)}`].filter(Boolean).join("\n");
   }
@@ -1073,12 +1072,12 @@ export class AssistantService {
    * the person chooses it or the round reads it, and only for that round.
    */
   async methods(work: StoredWork | null, caller: AssistantCaller = {}): Promise<AssistantMethod[]> {
-    const registered = this.ports.methods?.list() ?? [];
-    if (!registered.length) return [];
+    if (!this.ports.methods) return [];
     let actions: PersonActions | null = null;
     try { actions = await this.ports.scopeActions?.(work ?? ({ project_ref: caller.project_ref ?? undefined } as StoredWork)) ?? null; } catch { actions = null; }
     const live = new Set((actions ? await actions.discover().catch(() => [] as ActionView[]) : []).filter(view => view.availability.available).map(view => view.provider.provider_id));
-    return registered.filter(method => live.has(method.owner_id)).map(method => ({ method_id: method.key, plugin_id: method.owner_id,
+    // Read after the scope is open: opening it starts its plugins, and a plugin's methods are registered by its running definition (PG-051).
+    return this.ports.methods.list().filter(method => live.has(method.owner_id)).map(method => ({ method_id: method.key, plugin_id: method.owner_id,
       plugin_title: method.source.kind === "plugin" ? method.source.title : method.owner_id, version: method.version, name: method.name, summary: method.summary }));
   }
 
@@ -1135,42 +1134,14 @@ export class AssistantService {
     return out.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   }
 
-  /**
-   * A new work that continues a session the person started on the Coding page: the same session, so both entries show
-   * one conversation. The session must exist in this project; a session another work already carries stays with it.
-   */
-  private async adoptCodingSession(work: StoredWork, sessionId: string): Promise<StoredWork> {
-    const coding = await this.coding(work);
-    await coding.read(sessionId, 1);
-    const holder = this.sessionHolder(identity(work).project_id, sessionId, work.work_id);
-    if (holder) throw assistantErrors.conflict(`这个 Coding 会话已属于工作「${holder.title}」，请切换到那项工作继续`);
-    const adopted = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId } });
-    this.store.relations.link(identity(adopted), "session", { kind: CODING_SESSION_KIND, id: sessionId, revision: null }, "接着用户在 Coding 里开始的会话");
-    return adopted;
-  }
-
-  /** The work (not archived) that already carries a Coding session, if any. */
-  private sessionHolder(projectId: string | null, sessionId: string, except?: string): StoredWork | null {
-    for (const row of this.store.relations.forObject(projectId, { kind: CODING_SESSION_KIND, id: sessionId })) {
-      if (row.relation !== "session" || row.work_id === except) continue;
-      try { const work = this.store.get(this.actorId, row.work_id); if (!work.archived) return work; } catch { /* gone */ }
-    }
-    return null;
-  }
-
-  /** A Coding work's next-round mode, kept on Coding's session so both entries agree. */
+  /** A plugin-carried work's next-round mode, kept on the executor's session so both entries agree. */
   async setExecutorMode(workId: string, mode: string): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    if (work.executor.kind !== "coding") throw assistantErrors.invalid("这项工作不由专业 Agent 执行");
-    if (!CODING_MODES.includes(mode)) throw assistantErrors.invalid("不认识的方式");
-    const coding = await this.coding(work);
+    if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
+    const executor = await this.executorOf(work);
     let sessionId = work.executor.session_id;
-    if (!sessionId) {
-      sessionId = await coding.createSession(work.title);
-      this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId } });
-      this.store.relations.link(identity(work), "session", { kind: CODING_SESSION_KIND, id: sessionId, revision: null }, "Coding 会话承接这项工作");
-    }
-    await coding.setMode(sessionId, mode);
+    if (!sessionId) sessionId = (await openSession(this.store, this.actorId, work, executor, mode)).executor.session_id;
+    else await executor.setMode(sessionId, mode);
     return this.read(workId);
   }
 
@@ -1254,57 +1225,60 @@ export class AssistantService {
   }
 
   private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller,
-    executor: AssistantSendInput["executor"]): Promise<StoredWork> {
+    choice: AssistantSendInput["executor"]): Promise<StoredWork> {
     const wanted: AssistantScope = scope ?? (caller.project_ref ? { kind: "project", project_id: caller.project_ref.project_id } : { kind: "personal" });
-    if (executor === "coding" && wanted.kind !== "project") throw assistantErrors.scope("Coding Agent 在项目里工作；个人工作请交给助理");
-    if (executor !== undefined && executor !== "assistant" && executor !== "coding") throw assistantErrors.invalid("不认识的执行者");
+    if (choice?.kind === "plugin" && wanted.kind !== "project") throw assistantErrors.scope("执行方插件在项目里工作；个人工作请交给助理");
     if (wanted.kind === "project" && wanted.project_id !== caller.project_ref?.project_id) {
       throw assistantErrors.scope("只能在当前打开的项目里为它新建工作；个人工作不需要项目");
     }
+    // Chosen only among the executors this project offers now, and kept by the plugin's id.
+    const executor = choice?.kind === "plugin" ? await this.executorOf({ project_ref: caller.project_ref }, choice.plugin_id) : null;
     const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;
     return this.store.create({ actor_id: this.actorId, title: titleFrom(text), scope: wanted, origin: context?.source ?? null, ...(scopeTitle ? { scope_title: scopeTitle } : {}),
-      ...(executor === "coding" ? { executor: { kind: "coding" as const, title: "Coding Agent", session_id: null } } : {}),
+      ...(executor ? { executor: { kind: "plugin" as const, plugin_id: executor.provider.plugin_id, title: executor.provider.title, session_id: null } } : {}),
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
-  private async coding(work: StoredWork, dispatch?: { control?: CodingControl }): Promise<CodingExecutor> {
-    if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用 Coding Agent");
-    return new CodingExecutor(await this.ports.personActions(work, dispatch ? "dispatch" : undefined), dispatch?.control);
+  /** The executor a work is kept with (or the plugin named), found again in the project's directory as the person; refused, not replaced, when it is not there. */
+  private async executorOf(work: Pick<StoredWork, "project_ref" | "executor"> | Pick<StoredWork, "project_ref">, pluginId?: string, dispatch?: { control?: ExecutorControl }): Promise<WorkExecutor> {
+    if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用执行方插件");
+    const id = pluginId ?? ("executor" in work && work.executor.kind === "plugin" ? work.executor.plugin_id : undefined);
+    if (!id) throw assistantErrors.invalid("这项工作不由执行方插件承担");
+    return WorkExecutor.bind(await this.ports.personActions(work, dispatch ? "dispatch" : undefined), id, dispatch?.control);
   }
 
-  /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
-  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent): Promise<AssistantSendResult> {
-    if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
-    const coding = await this.coding(work, { control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
-    let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
-    if (!sessionId) {
-      sessionId = await coding.createSession(work.title);
-      work = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId } });
-      this.store.relations.link(identity(work), "session", { kind: CODING_SESSION_KIND, id: sessionId, revision: null }, "Coding 会话承接这项工作");
-      // The mode chosen before the first Send is saved on the session, where the Coding page reads it too.
-      if (mode) await coding.setMode(sessionId, mode);
-    }
-    const read = await coding.read(sessionId, 2);
+  /** The plugins that can carry a work in the project the page is on, with the ways each offers; none for personal work. */
+  async executors(caller: AssistantCaller): Promise<AssistantExecutorOffer[]> {
+    return caller.project_ref && this.ports.personActions ? offerExecutors(await this.ports.personActions({ project_ref: caller.project_ref })) : [];
+  }
+
+  /** A work carried by a plugin: its round starts, continues or is answered in the plugin's own session. */
+  private async executorDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent): Promise<AssistantSendResult> {
+    if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("这项工作的执行方暂时不能带图片；可以把图里的要点写成文字再发");
+    const executor = await this.executorOf(work, undefined, { control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
+    if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
+    // The mode chosen before the first Send is saved on the session, where the plugin's page reads it too.
+    if (!work.executor.session_id) work = await openSession(this.store, this.actorId, work, executor, mode);
+    const sessionId = (work.executor as { session_id: string }).session_id;
+    const read = await executor.read(sessionId, 2);
     assertSendCurrent(stillCurrent);
-    if (read.recovery_required) throw assistantErrors.needs_check(read.error ?? "Coding 会话有需要核对的中断操作", { action: "打开 Coding 核对" });
+    if (read.recovery) throw assistantErrors.needs_check(read.recovery.message, { action: L("到执行方的页面核对") });
     const latest = read.runs.at(-1);
     if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
-      // Coding's own control carries both: every answer with the revision it answers, every supplement with its receipt and its source, so words a page wrote reach the round as a note (BL-144).
-      const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => coding.control(sessionId, latest.ref.run_id, control),
-        send: input => coding.send(sessionId, latest.ref.run_id, input) }, intent);
+      // The executor's own control carries both: every answer with the revision it answers, every supplement with its receipt and its source, so words a page wrote reach the round as a note (BL-144).
+      const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => executor.control(sessionId, latest.ref.run_id, control),
+        send: input => executor.send(sessionId, latest.ref.run_id, input) }, intent);
       return this.result(work, outcome, latest.ref.run_id, stillCurrent);
     }
     const task = work.handover_brief ? `${work.handover_brief}\n\n用户现在的要求：${text}` : text;
-    await coding.start(sessionId, this.inputs.compose(task, materials, context), read);
+    const runId = await executor.start(sessionId, this.inputs.compose(task, materials, context));
     if (work.handover_brief) work = this.store.update(this.actorId, work.work_id, null, { handover_brief: undefined }, false);
-    const after = await coding.read(sessionId, 1);
-    const run = after.runs.at(-1);
-    if (run) this.store.addRound(work.work_id, { run_id: run.ref.run_id, executor: "coding", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}) });
-    return this.result(work, "started", run?.ref.run_id ?? "");
+    this.store.addRound(work.work_id, { run_id: runId, executor: "plugin", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}) });
+    return this.result(work, "started", runId);
   }
 
   private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, intent?: SendIntent): Promise<AssistantSendResult> {
-    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, intent);
+    if (work.executor.kind === "plugin") return this.executorDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, intent);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     let base = await this.ports.authority(work);
@@ -1433,7 +1407,7 @@ export class AssistantService {
     const handed = await this.delegations.material(work, base);
     if (handed) out.push(handed);
     // Professional roles this work may hand a part to (published here, runnable now): delegation names one by its id.
-    if (!work.delegated_by && work.project_ref && this.ports.characters && work.executor.kind !== "coding") {
+    if (!work.delegated_by && work.project_ref && this.ports.characters && work.executor.kind !== "plugin") {
       const roles = (await this.ports.characters(work.project_ref).catch(() => [])).filter(item => item.available);
       if (roles.length) out.push(...chunked({ ...base, title: "可委托的专业角色" }, "roles",
         roles.map(item => `- 「${item.title}」 v${item.reference.version}（id：${item.reference.artifact_id}）`).join("\n")));
@@ -1470,7 +1444,7 @@ export class AssistantService {
     }
     for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`)]] as const) if (text) out.push(...chunked({ ...base, title }, id, text));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
-    const methods = work.executor.kind === "coding" ? [] : await this.methods(work).catch(() => [] as AssistantMethod[]);
+    const methods = work.executor.kind === "plugin" ? [] : await this.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));
     const listed = methods.filter(method => !chosen.has(method.method_id)).slice(0, 20);
     if (listed.length) out.push(...chunked({ ...base, title: "可用的方法" }, "methods", [`插件提供的做事方法，这里只列出名称和摘要。方法的步骤经 read-capability 读取：capability_id 为 assistant.methods.read，version 为 1，provider_id 为 ${ASSISTANT_RULES_PROVIDER}，input 是对象，例如 {"method_id": "${listed[0]!.method_id}"}。`,
@@ -1503,9 +1477,9 @@ export class AssistantService {
   }
 
   private async stateFor(host: AgentHost, work: StoredWork): Promise<AssistantWorkState> {
-    if (work.executor.kind === "coding") {
+    if (work.executor.kind === "plugin") {
       if (!work.executor.session_id) return "idle";
-      try { const read = await (await this.coding(work)).read(work.executor.session_id, 1); return stateOf(read.runs.at(-1)?.phase, Boolean(read.recovery_required)); }
+      try { const read = await (await this.executorOf(work)).read(work.executor.session_id, 1); return stateOf(read.runs.at(-1)?.phase, Boolean(read.recovery)); }
       catch { return "needs-check"; }
     }
     if (!work.session_id) return "idle";
@@ -1563,7 +1537,7 @@ export class AssistantService {
 
   /** Finished rounds' reported usage, kept once per round; running rounds are counted when they end. */
   private async settleUsage(rounds: Array<{ work_id: string; round: StoredRound }>): Promise<void> {
-    const own = rounds.filter(item => item.round.executor !== "coding");
+    const own = rounds.filter(item => item.round.executor !== "plugin");
     const kept = this.store.usage.recorded(own.map(item => item.round.run_id));
     const open = own.filter(item => !kept.has(item.round.run_id));
     if (!open.length) return;
@@ -1598,7 +1572,7 @@ export class AssistantService {
   async saveWorkBudget(workId: string, tokens: unknown): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     if (work.delegated_by) throw assistantErrors.invalid(`子任务按委托它的工作「${work.delegated_by.title}」的上限计算，请在那项工作里设置`);
-    if (work.executor.kind === "coding") throw assistantErrors.invalid("这项工作由 Coding 负责，它的用量在 Coding 会话里管理");
+    if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作由执行方插件负责，它的用量在插件自己的会话里管理");
     const value = tokens === null || tokens === "" || tokens === undefined ? null : Number(tokens);
     if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw assistantErrors.invalid("这项工作的上限至少 1000 tokens，或留空表示不单独设限");
     this.store.update(this.actorId, workId, null, { budget_tokens: value ?? undefined }, false);
@@ -1789,7 +1763,7 @@ export class AssistantService {
   async characters(workId: string | undefined, caller: AssistantCaller): Promise<AssistantCharacterChoice[]> {
     const work = workId ? this.store.get(this.actorId, workId) : undefined;
     const project = work ? work.project_ref : caller.project_ref;
-    if (!project || !this.ports.characters || work?.executor.kind === "coding") return [];
+    if (!project || !this.ports.characters || work?.executor.kind === "plugin") return [];
     return this.ports.characters(project);
   }
 
@@ -1798,7 +1772,7 @@ export class AssistantService {
     if (choice === undefined) return work;
     if (choice === null) return work.character ? this.store.update(this.actorId, work.work_id, null, { character: undefined }, false) : work;
     if (typeof choice !== "object" || typeof choice.artifact_id !== "string" || !Number.isSafeInteger(choice.version)) throw assistantErrors.invalid("Character 版本引用无效");
-    if (work.executor.kind === "coding") throw assistantErrors.invalid("这项工作由 Coding 负责，它的角色在 Coding 会话里选择");
+    if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作由执行方插件负责，它的角色在插件自己的会话里选择");
     if (!work.project_ref || !this.ports.characters) throw assistantErrors.invalid("Character 发布在项目里，个人工作暂时不能指定角色；在项目里发起这项工作就可以选择");
     const found = (await this.ports.characters(work.project_ref)).find(item => item.reference.artifact_id === choice.artifact_id && item.reference.version === choice.version);
     if (!found) throw assistantErrors.invalid("这个项目里没有这个 Character 版本");
@@ -1809,13 +1783,13 @@ export class AssistantService {
 
   /**
    * The developer diagnostics page: the runtime's own account of its assembly, and the Assistant's latest rounds of the
-   * past week with the exact identities and versions they ran with. Coding's rounds are traced in Coding.
+   * past week with the exact identities and versions they ran with. A plugin's rounds are traced by the plugin.
    */
   async diagnostics(limit = 15): Promise<AssistantDiagnostics> {
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const since = new Date(this.now().getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const recent = this.store.roundsSince(this.actorId, since).filter(({ round }) => round.executor !== "coding").slice(0, Math.max(1, Math.min(limit, 50)));
+    const recent = this.store.roundsSince(this.actorId, since).filter(({ round }) => round.executor !== "plugin").slice(0, Math.max(1, Math.min(limit, 50)));
     const works = new Map<string, StoredWork | null>();
     const workOf = (workId: string) => {
       if (!works.has(workId)) { try { works.set(workId, this.store.get(this.actorId, workId)); } catch { works.set(workId, null); } }

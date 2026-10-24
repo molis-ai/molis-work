@@ -8,8 +8,8 @@ import { artifactReferenceOf } from "./materials.js";
 import { CODING_COMMIT_DRAFT } from "./prompts.js";
 import { codingReportSteps } from "./report-steps.js";
 import { codingReportPreview, codingReportPublication, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
-import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
-import type { CodingBeforeWrite } from "./route-entry.js";
+import { type CodingActivation, selected } from "./route-activation.js";
+import { codingActions, type CodingBeforeWrite } from "./route-entry.js";
 import { bodyOf } from "./route-selections.js";
 import { text } from "./run-inputs.js";
 import type { CodingSessionRecord } from "./store.js";
@@ -20,7 +20,7 @@ import { codingFailure } from "./words.js";
 /** Coding routes for what a round fixes: its change set, its report, their outputs, the outputs listed, and a commit message drafted from them. */
 
 /** A round's report: the fixed version when there is one; built from the round and, when asked, fixed now. */
-export const roundReport = async (a: CodingActivation, record: CodingSessionRecord, runId: string, api: Capabilities, save: boolean, beforeWrite: CodingBeforeWrite, fixedOnly = false) => {
+export const roundReport = async (a: CodingActivation, record: CodingSessionRecord, runId: string, save: boolean, beforeWrite: CodingBeforeWrite, fixedOnly = false) => {
   const { context } = a;
   const artifacts = codingArtifacts(context);
   const existing = readCodingExecutionReport(artifacts, record.session_id, runId);
@@ -28,14 +28,14 @@ export const roundReport = async (a: CodingActivation, record: CodingSessionReco
   if (fixedOnly) throw codingFailure("coding.server.report-unreadable");
   if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
   const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-  const snapshot = await api.invoke(agent.readSession, [session]);
+  const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
   const ref = snapshot.runs.find(entry => entry.run_id === runId);
   if (!ref) throw codingFailure("coding.server.run-elsewhere");
-  const run = await api.invoke(agent.readRun, [session, ref]);
+  const run = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]);
   if (!isTerminalAgentPhase(run.phase)) throw codingFailure("coding.server.report-not-ready");
   const commands = await Promise.all((run.command_outputs ?? []).map(async command => {
     try {
-      const output = await api.invoke(agent.readCommandOutput, [session, { run_id: runId, call_id: command.call_id }]);
+      const output = await codingActions(context, beforeWrite).invoke(agent.readCommandOutput, [session, { run_id: runId, call_id: command.call_id }]);
       return { call_id: command.call_id, output };
     } catch { return { call_id: command.call_id, output: null }; }
   }));
@@ -52,8 +52,8 @@ export const roundReport = async (a: CodingActivation, record: CodingSessionReco
     content: { kind: "inline", payload: JSON.parse(JSON.stringify(report)) }, ...codingReportPublication(report, record.session_id, runId, artifacts) });
   return { report, reference, saved_at: result.artifact.created_at };
 };
-const reportRoute = (a: CodingActivation, save: boolean) => a.route(save ? "coding.save-report" : "coding.read-report", async (request, api, execution, beforeWrite) =>
-  roundReport(a, selected(a, request, execution), text(request.params.runId, "coding.field.run"), api, save, beforeWrite, request.query?.fixed === "1"));
+const reportRoute = (a: CodingActivation, save: boolean) => a.route(save ? "coding.save-report" : "coding.read-report", async (request, _api, execution, beforeWrite) =>
+  roundReport(a, selected(a, request, execution), text(request.params.runId, "coding.field.run"), save, beforeWrite, request.query?.fixed === "1"));
 const reportOutput = (a: CodingActivation, write: boolean) => a.route(write ? "coding.select-report-output" : "coding.report-output", async (request, _api, execution) => {
   const session = selected(a, request, execution);
   const saved = readCodingExecutionReport(codingArtifacts(a.context), session.session_id, text(request.params.runId, "coding.field.run"));
@@ -73,7 +73,7 @@ type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBindi
 const ROUTES: RouteMaker[] = [
   (a) => {
     const { context, route } = a;
-    return [false, true].map(save => route(save ? "coding.save-changeset" : "coding.read-changeset", async (request, api, execution, beforeWrite) => {
+    return [false, true].map(save => route(save ? "coding.save-changeset" : "coding.read-changeset", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), runId = text(request.params.runId, "coding.field.run");
       const artifacts = codingArtifacts(context);
       const existing = readCodingChangeSet(artifacts, record.session_id, runId);
@@ -81,10 +81,10 @@ const ROUTES: RouteMaker[] = [
       if (request.query?.fixed === "1") throw codingFailure("coding.server.change-unreadable");
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api!.invoke(agent.readSession, [session]), ref = snapshot.runs.find(run => run.run_id === runId);
+      const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]), ref = snapshot.runs.find(run => run.run_id === runId);
       if (!ref) throw codingFailure("coding.server.run-elsewhere");
-      const run = await api!.invoke(agent.readRun, [session, ref]);
-      const change = createCodingChangeSet(record.session_id, run, await api!.invoke(agent.readRunReviews, [session, ref]));
+      const run = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]);
+      const change = createCodingChangeSet(record.session_id, run, await codingActions(a.context, beforeWrite).invoke(agent.readRunReviews, [session, ref]));
       if (!save) return { change, reference: null, saved_at: null, output: context.services!.outputs!.reference("changeset") };
       await beforeWrite(); beforeWrite.assert_current();
       const saved = readCodingChangeSet(artifacts, record.session_id, runId);
@@ -144,19 +144,19 @@ const ROUTES: RouteMaker[] = [
   // The model drafts a commit message from the rounds that changed files; the person edits it and commits under review.
   (a) => {
     const { projectId, route } = a;
-    return route("coding.commit-draft", async (request, api, execution, beforeWrite) => {
+    return route("coding.commit-draft", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), runId = text(request.params.runId, "coding.field.run"), body = bodyOf(request);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
       const at = snapshot.runs.findIndex(run => run.run_id === runId);
       if (at < 0) throw codingFailure("coding.server.run-elsewhere");
       const rounds: Array<{ number: number; run: AgentRunView; change: ReturnType<typeof createCodingChangeSet> }> = [];
       for (let index = at; index >= 0 && rounds.length < COMMIT_DRAFT_ROUNDS; index--) {
-        const ref = snapshot.runs[index]!, run = await api!.invoke(agent.readRun, [session, ref]);
+        const ref = snapshot.runs[index]!, run = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]);
         if (!isTerminalAgentPhase(run.phase)) continue;
         let change: ReturnType<typeof createCodingChangeSet>;
-        try { change = createCodingChangeSet(record.session_id, run, await api!.invoke(agent.readRunReviews, [session, ref])); } catch { continue; }
+        try { change = createCodingChangeSet(record.session_id, run, await codingActions(a.context, beforeWrite).invoke(agent.readRunReviews, [session, ref])); } catch { continue; }
         if (change.files.some(file => file.review?.execution === "applied")) rounds.unshift({ number: index + 1, run, change });
       }
       if (!rounds.length) throw codingFailure("coding.server.no-saved-edits");

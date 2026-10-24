@@ -277,6 +277,51 @@ export interface UiRequestScope {
   assertCurrent(signal?: AbortSignal): void;
 }
 
+export type UiClientTranslate = (key: string, values?: Record<string, string | number>) => string;
+
+/** The current mounted client only. Removing its view cancels reads and releases owned work. */
+export interface UiClientScope extends UiRequestScope {
+  readonly alive: boolean;
+  readonly visible: boolean;
+  readonly signal: AbortSignal;
+  own(cleanup: () => void): () => void;
+  dispose(): void;
+  frame(callback: () => void): number;
+  whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
+}
+
+/** The shared question card operations consumed by plugin pages. */
+export interface UiPageInteraction {
+  read(): Record<string, unknown>;
+  showErrors(errors: Record<string, string>, options?: { focus?: boolean }): void;
+  focusField(fieldId: string): void;
+  destroy(): void;
+}
+
+/** The public client factory input. DOM types are supplied by browser consumers, never imported by this package. */
+export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media = Element> extends UiPageFiles<Media>, UiPageDialogs, UiPageActions {
+  readonly root: Element;
+  readonly scope: UiClientScope;
+  readonly translate: UiClientTranslate;
+  /** From the owning Manifest; presentation only, never accepted as authority by the parent. */
+  readonly pluginId: string;
+  projectId(): string;
+  projectTitle(): string;
+  /** A platform path in the current project (or Home). */
+  route(path: string): string;
+  /** A relative path under this plugin's Manifest identity and current project (or Home). */
+  pluginRoute(path: string): string;
+  /**
+   * The surface that opens objects of this kind, as the plugins declare it (their search sources), or `null` when no surface
+   * does or several do. A page links an object it holds only by `kind` and `id` through it, and shows plain text when it is `null`.
+   */
+  surfaceFor(kind: string): string | null;
+  readRefusal(status: number, code: unknown): string;
+  confirmBox(dialog: Dialog, ok: Element, run?: () => Promise<unknown>): Promise<boolean>;
+  interaction(card: Element, options: { onSubmit?: () => void }): UiPageInteraction;
+  readonly drafts: UiPageDrafts;
+}
+
 /**
  * What a page asks of the Host over HTTP (specs/repository-anti-corruption W3-10). Every request goes out with
  * `cache: "no-store"` and none is ever sent twice by the helper: whether to ask again is the person's decision.
@@ -371,5 +416,5 @@ export interface UiFailureView {
   toast(target: UiToastTarget, error: unknown, fallback?: string, options?: UiToastOptions): void;
 }
 
-/** One per page (`globalThis.molisWorkRequest`); plugin clients receive it as `host.request` from W5-04. */
+/** The shared request helper installed once per page. */
 export type UiRequest = UiRequestCall & UiFailureView;

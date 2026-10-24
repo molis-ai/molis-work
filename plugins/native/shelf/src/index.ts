@@ -24,7 +24,6 @@ export { SHELF_STYLES } from "./styles.js";
 export { SHELF_EN } from "./en.js";
 export { SHELF_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { SHELF_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
-export { SHELF_NATIVE_PLUGIN_ROUTES, ShelfPluginRouteTable } from "./routes.js";
 export type { ShelfPluginRouteHandler, ShelfPluginRouteRequest, ShelfPluginRouteResponse } from "./routes.js";
 export { createShelfRouteHandlers } from "./route-handlers.js";
 export type { ShelfRouteHandlerPorts } from "./route-handlers.js";

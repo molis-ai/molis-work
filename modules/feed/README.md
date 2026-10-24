@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition 等命令更新处置。Attention 经注入的公开 API 协作；Feed → Goal 关联通过 Context Ledger 端口维护。正文引用也有独立存储入口。
+FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition 等命令更新处置。Attention 经注入的公开 API 协作；Feed → Goal 关联通过 Context Ledger 端口维护。
 
 ## 从哪里读代码
 
@@ -14,9 +14,12 @@ FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition �
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | FeedModule 与表结构 |
+| [src/index.ts](src/index.ts) | FeedModule（`query` / `commands` / `events`）与包出口 |
+| [src/schema.ts](src/schema.ts) | Feed 的表（`FEED_SCHEMA_SQL`） |
+| [src/records.ts](src/records.ts) | 读取与事件写入（包内部） |
+| [src/ingest.ts](src/ingest.ts)、[src/dispositions.ts](src/dispositions.ts) | 导入与材料写入、处置/已读/升格/随来源删除（包内部） |
 | [src/goal-links.ts](src/goal-links.ts) | Feed/Goal 关联端口 |
-| [Storage evidence-content](../../packages/storage/src/adapters/evidence-content.ts) | 公共密文保存实现；本模块仅保留旧 API 导出别名 |
+| [Storage evidence-content](../../packages/storage/src/adapters/evidence-content.ts) | 正文引用的密文保存，只有 Storage 这一份；调用方从 `@molis-ai/molis-work-storage` 取 `createEvidenceContentStore` |
 
 可对照现有调用方 [apps/local-host/src/feed-application.ts](../../apps/local-host/src/feed-application.ts) 阅读装配方式。
 
@@ -50,7 +53,7 @@ node scripts/run-tests.mjs tests/feed-module-repositories.test.ts tests/feed-goa
 - 公开入口：`@molis-ai/molis-work-module-feed`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/feed`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - `FeedModule` 是 `feed_items`、`feed_materials`、处置与 Feed 事件的唯一写入者。
+  - `FeedModule` 是 `feed_items`、`feed_materials`、处置与 Feed 事件的唯一写入者。包入口不导出 Repository 或 Store，也不再转出 Storage 的证据正文库（RAC-170）。
   - 别的包要读 `feed_materials` 里的正文引用，调导出的 `listFeedMaterialContentRefs`，不写 SQL（`scripts/gates/table-owners.mjs`）。
   - 不直接创建 Goal，升格经 Goals 的公开入口。
   - `linked_goal_id` 等兼容输出由 Ledger 推导，不恢复旧字段双写。

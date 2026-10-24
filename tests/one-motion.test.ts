@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
@@ -53,8 +53,13 @@ test("something that just landed carries the one wash", () => {
   const motion = readFileSync(new URL(MOTION, root), "utf8");
   assert.match(motion, /\[data-craft-new\]::after \{[^}]*background: var\(--accent-soft\);[^}]*animation: craft-landed var\(--dur-moment, 640ms\)/);
   assert.match(motion, /prefers-reduced-motion: reduce\) \{ \[data-craft-new\]::after \{ animation: none; \} \}/);
-  assert.match(readFileSync(new URL("plugins/native/issues/src/client.ts", root), "utf8"), /' data-craft-new'/);
-  assert.match(readFileSync(new URL("packages/design-system/src/plugin-component-client.ts", root), "utf8"), /item\.dataset\.craftNew = ''/);
+  // The Issues page's browser code lives in src/browser/ (the page client is bundled from there); the row that has just
+  // landed carries the marker in the list that draws it.
+  const issuesBrowser = new URL("plugins/native/issues/src/browser/", root);
+  assert.ok(readdirSync(issuesBrowser).filter(file => file.endsWith(".ts"))
+    .some(file => /["'] data-craft-new["']/.test(readFileSync(new URL(file, issuesBrowser), "utf8"))),
+  "the Issues page marks the row that just landed with data-craft-new");
+  assert.match(readFileSync(new URL("packages/design-system/src/plugin-component-output.ts", root), "utf8"), /item\.dataset\.craftNew = ''/);
 });
 
 test("Feed's reader rises once: the Workbench does not animate the frame around it", () => {

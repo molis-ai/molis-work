@@ -1,5 +1,6 @@
 /** English for the way in: the project chooser, the opening, and the new-project journey (specs/archive/project-arrival-flow). Whole sentences with placeholders keep English word order. */
 export const ARRIVAL_EN: Record<string, string> = {
+  "昨天": "Yesterday",
   // Chooser
   "暂停标题动画": "Pause the title animation",
   "播放标题动画": "Play the title animation",

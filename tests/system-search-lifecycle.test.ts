@@ -16,8 +16,6 @@ import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { assistantAuthority, actionKey } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import type { StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
@@ -36,7 +34,7 @@ test("a plugin disabled in the project leaves the results and comes back when en
   let host = open();
   try {
     const call = async <I, O>(definition: ActionDefinition<I, O>, input: I) =>
-      await host.actionClient(reference).invoke(await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS), definition, input) as O;
+      await host.actionClient(reference).invoke(await host.localPersonContext(reference), definition, input) as O;
     // A query waits a short budget for its sources to catch up, then answers what is indexed with `indexing` (on a loaded Linux
     // runner the first listing takes longer): ask again until the sources have caught up.
     const search = async (query: string) => {
@@ -92,7 +90,7 @@ test("an external MCP client searches through the same action with only what it 
   const served = await serveTestHost(t, { home, host });
   let sdk: Client | undefined;
   try {
-    const owner = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+    const owner = await host.localPersonContext(reference);
     const form = (await host.actionClient(reference).invoke(owner, formActions.create, { title: "采购审批问卷" }) as { form: { id: string; version: number } }).form;
     await host.actionClient(reference).invoke(owner, formActions.update, { id: form.id, expected_version: form.version, description: "预算审批流程" });
     const origin = served.origin;
@@ -142,7 +140,7 @@ test("the Assistant finds content through search.query and reads the hit through
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
-    const owner = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+    const owner = await host.localPersonContext(reference);
     const form = (await host.actionClient(reference).invoke(owner, formActions.create, { title: "新员工入职问卷" }) as { form: { id: string; version: number } }).form;
     await host.actionClient(reference).invoke(owner, formActions.update, { id: form.id, expected_version: form.version, description: "入职第一周的设备与账号准备" });
     const work = { work_id: "work-search", actor_id: "web-user", project_ref: reference, session_id: null } as unknown as StoredWork;

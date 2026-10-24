@@ -12,6 +12,7 @@ import { configuredModelChoices, openConfiguredModels, selectConfiguredTextModel
 import { withPluginModelImages } from "./plugin-model-images.js";
 import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 import type { PluginPlatformHome } from "./home-side.js";
+import { MODEL_PERMISSIONS } from "./plugin-service-permissions.js";
 
 /**
  * `services.model` for a plugin this Host runs itself: declared `model:read` or `model:invoke`, not sandboxed, on a platform that
@@ -23,21 +24,23 @@ export function pluginModelFor(home: PluginPlatformHome | null | undefined, defi
   assertActive: () => void, declaration?: PluginModelConfigurationDeclaration): PluginModelClient | undefined {
   if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
   const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
-  return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home), gate),
+  return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home, definition.instructions ?? []), gate),
     ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),
   });
 }
 
 /** Either builds the service: `model:read` for the list and availability, `model:invoke` for those and requests. */
-const MODEL_PERMISSIONS: readonly string[] = ["model:read", "model:invoke"];
 
 const unavailable = (reason: string): ActionAvailability => ({ available: false, code: "actions.connection_required", reason });
 
 /**
  * The Host's model for one Home. What the Host was built with decides first, read when a call needs it and never kept: a function
  * stands in for the model (tests), `null` says there is none; otherwise the Home's own configuration, as for every other caller.
+ * A call sends only instructions the calling definition carries: the register also keeps other installations' and not-running ones
+ * (PG-051 Q1 b), which are not this one's to send.
  */
-export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort {
+export function createPluginModelPort(home: PluginPlatformHome, carried: readonly Pick<InstructionPrompt, "owner_id" | "prompt_id">[]): PluginModelPort {
+  const carries = (instruction: InstructionPrompt) => carried.some(item => item.owner_id === instruction.owner_id && item.prompt_id === instruction.prompt_id);
   const configured = (selection?: PluginModelSelection) => hostTextGeneration({ homeDirectory: home.directory, selection });
   return {
     choices: () => configuredModelChoices(home.directory),
@@ -63,6 +66,9 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
     complete: (owner, prompt, dispatch) => runWithMolisWorkHome(home.directory, () => withPluginModelImages(dispatch, async images => {
       const injected = home.completeText();
       if (injected === null) throw textModelRequired();
+      for (const instruction of [prompt.instruction, ...dispatch.system ? [dispatch.system] : []]) {
+        if (!carries(instruction)) throw pluginModelErrors.model_instruction_refused(`指令 ${instruction.prompt_id} 不在本插件的定义里：在 PluginDefinition.instructions 里登记这段指令`);
+      }
       const { text, system } = resolved(home.directory, owner, prompt, dispatch.system);
       const options: HostTextRequestOptions = { ...(images ? { images } : {}), signal: dispatch.signal, beforeDispatch: dispatch.beforeDispatch,
         timeoutMs: dispatch.timeout_ms, maxOutputTokens: dispatch.max_output_tokens, ...(system === undefined ? {} : { system }),

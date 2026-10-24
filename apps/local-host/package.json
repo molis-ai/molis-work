@@ -85,7 +85,6 @@
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "@molis-ai/molis-work-plugin-shelf": "workspace:*",
     "@molis-ai/molis-work-plugin-text-stats": "workspace:*",
-    "@molis-ai/molis-work-plugin-work": "workspace:*",
     "@molis-ai/molis-work-plugin-workflows": "workspace:*",
     "@molis-ai/molis-work-service-agent-host": "workspace:*",
     "@molis-ai/molis-work-service-connector-host": "workspace:*",

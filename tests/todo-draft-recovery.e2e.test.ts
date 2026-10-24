@@ -19,20 +19,20 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   await waitFor(`document.querySelector('[data-todo-id="${first!.id}"]') && document.querySelector('[data-todo-id="${second!.id}"]')`);
   await click(`[data-todo-id="${first!.id}"]`);
   await waitFor("document.querySelector('[data-todo-field=title]')?.value === '保存原件'", 10_000);
-  await evaluate(`(() => { window.todoFetch = window.fetch; window.todoWrites = []; window.todoFailures = []; window.todoErrors = []; window.todoMode = '500';
+  await evaluate(`(() => { window.todoRequest = window.molisWorkRequest; window.todoWrites = []; window.todoFailures = []; window.todoErrors = []; window.todoMode = '500';
     addEventListener('unhandledrejection', event => window.todoErrors.push(String(event.reason)));
-    window.fetch = async (url, options) => {
+    window.molisWorkRequest = Object.assign(async (url, options) => {
       if (options?.method === 'POST' && String(url).includes('/api/plugins/io.molis.work.todo/')) {
-        window.todoWrites.push({ url: String(url), body: JSON.parse(options.body || '{}') });
+        window.todoWrites.push({ url: String(url), body: options.body || {} });
         if (String(url).endsWith('/items/' + ${JSON.stringify(first!.id)})) {
           if (window.todoMode === 'network') { window.todoFailures.push('network'); throw new TypeError('fixture offline'); }
-          if (window.todoMode === '500') { window.todoFailures.push('500'); return new Response(JSON.stringify({ error: 'fixture save refused' }), { status: 500, headers: { 'content-type': 'application/json' } }); }
-          const response = await window.todoFetch(url, options);
-          if (!response.ok) window.todoFailures.push(String(response.status)); return response;
+          if (window.todoMode === '500') { window.todoFailures.push('500'); throw Object.assign(new Error('fixture save refused'), { code: 'fixture.save_refused', status: 500 }); }
+          try { return await window.todoRequest(url, options); }
+          catch (error) { window.todoFailures.push(String(error.status)); throw error; }
         }
       }
-      return window.todoFetch(url, options);
-    };
+      return window.todoRequest(url, options);
+    }, window.todoRequest);
     for (const [key,value] of [['title','保留输入'],['notes','尚未保存的说明'],['due_date','2026-10-30'],['due_time','11:00']]) {
       const control = document.querySelector('[data-todo-field="' + key + '"]'); control.value = value; control.dispatchEvent(new Event(control.type === 'date' || control.type === 'time' ? 'change' : 'input', { bubbles: true }));
     }
@@ -104,14 +104,14 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   await waitFor("document.querySelector('[data-todo-field=title]').value === '保留输入'");
   assert.deepEqual(await evaluate("window.todoErrors"), []);
   // Explicit delete waits for the already-dispatched save to settle, even when that save fails.
-  await evaluate(`(() => { window.deleteOrder = []; window.fetch = async (url, options) => {
+  await evaluate(`(() => { window.deleteOrder = []; window.molisWorkRequest = Object.assign(async (url, options) => {
     if (options?.method === 'POST' && String(url).endsWith('/items/' + ${JSON.stringify(first!.id)})) {
       window.deleteOrder.push('save-start'); await new Promise(resolve => { window.deleteSaveRelease = resolve; });
-      window.deleteOrder.push('save-end'); return new Response(JSON.stringify({ error: 'fixture pending save failed' }), { status: 500, headers: { 'content-type': 'application/json' } });
+      window.deleteOrder.push('save-end'); throw Object.assign(new Error('fixture pending save failed'), { code: 'fixture.save_refused', status: 500 });
     }
     if (options?.method === 'POST' && String(url).endsWith('/delete')) window.deleteOrder.push('delete');
-    return window.todoFetch(url, options);
-  }; const notes = document.querySelector('[data-todo-field=notes]'); notes.value = '明确删除的草稿'; notes.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    return window.todoRequest(url, options);
+  }, window.todoRequest); const notes = document.querySelector('[data-todo-field=notes]'); notes.value = '明确删除的草稿'; notes.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await waitFor("typeof window.deleteSaveRelease === 'function'", 10_000);
   await evaluate("document.querySelector('[data-todo-delete]').closest('details').open = true");
   await click("[data-todo-delete]"); await waitFor("document.querySelector('[data-todo-confirm]').open");
@@ -123,5 +123,5 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   const deletedOwner = openTodoStore(homeDirectory);
   try { assert.throws(() => deletedOwner.get(first!.id, access), { code: "todo.not_found" }); assert.equal(deletedOwner.get(second!.id, access).status, "open"); } finally { deletedOwner.close(); }
   assert.deepEqual(await evaluate("window.todoErrors"), []);
-  await evaluate("window.fetch = window.todoFetch");
+  await evaluate("window.molisWorkRequest = window.todoRequest");
 });

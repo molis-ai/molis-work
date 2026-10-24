@@ -148,7 +148,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     invalidateView,
     providerFor,
     databaseFor: identity.databaseFor,
-    projectLibrary: projectLibraryOf(options.db), scheduler: options.scheduler,
+    projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     filesFor: identity.filesFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
@@ -243,7 +243,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       assertOwnerFilesEntries(options.home ? homeOwnerFilesEntries(options.home.directory) : [], entries, options.home);
       assertFilesEntries(entries, options.home);
       identity.remember(entries);
-      const report = await supervisor.start(entries);
+      const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)));
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
       await events.resume(options.project_id);
@@ -253,9 +253,25 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
 }
 
 /**
+ * A definition the supervisor restores from a kept release stands in for the listed one, so the Host's marks on the listed entry
+ * (`bundled`, `dual_instance`, its declarations) carry over to it, as the Home side does for its own (BL-394).
+ */
+function rememberingRestored(entry: PluginPlatformEntry, remember: (entries: readonly PluginPlatformEntry[]) => void): PluginPlatformEntry {
+  const release = entry.releaseArtifact;
+  if (!release) return entry;
+  return { ...entry, releaseArtifact: { capture: () => release.capture(), async restore(source) {
+    const definition = await release.restore(source);
+    remember([{ ...entry, definition }]);
+    return definition;
+  } } };
+}
+
+/**
  * The project's library, when the platform runs on the Host's own connection to its file (better-sqlite3, which says its file
  * and whether it is in a transaction); otherwise none, and a plugin that declares tables there does not start.
  */
-function projectLibraryOf(db: PluginPlatformDatabase): ProjectLibrary | null {
-  return typeof db.name === "string" && typeof db.inTransaction === "boolean" ? { db, path: db.name } : null;
+function projectLibraryOf(options: PluginPlatformOptions): ProjectLibrary | null {
+  const { db, journal } = options;
+  if (typeof db.name !== "string" || typeof db.inTransaction !== "boolean") return null;
+  return { db, path: db.name, ...(journal ? { journal: { project_id: options.project_id, actor_id: options.actor_id, writer: journal } } : {}) };
 }

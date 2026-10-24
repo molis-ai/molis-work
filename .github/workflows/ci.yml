@@ -47,7 +47,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # The version is the root package.json "packageManager" (pnpm@x.y.z), so local, CI and release use one pin.
       - name: Install pnpm
@@ -129,7 +129,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
@@ -164,7 +164,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
@@ -202,8 +202,12 @@ jobs:
       - name: Typecheck product launchers
         run: pnpm exec tsc --noEmit -p tsconfig.json
 
+      # The last test is the frozen list of the Host's holders of Goals' coordinator and tables (PG094-06): it needs no build, only the
+      # tracked sources, and it counts per file, so it runs on every pull request, not only in the full suite.
       - name: Verify Goal boundaries
-        run: node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
+        run: |
+          node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
+          node scripts/run-tests.mjs tests/goals-host-no-direct-reads.test.ts
 
       # Rules that read the build, each mutation-verified or asserted on the built host: the page asset budget rules (a grown
       # asset, a new asset, a raised budget, a slack left unlowered, a missing build and the laundering moves each fail; a route
@@ -256,7 +260,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
@@ -290,7 +294,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # API keys, GitHub/Slack tokens, AWS keys, private keys, JWTs and `api_key|secret|password|token = "…"` literals in
       # the lines this change adds. Known test fixtures are listed in tooling/gates/secret-allowlist.txt, each with a reason.
@@ -321,7 +325,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install the pinned Rust toolchain
         run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt
@@ -362,7 +366,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # shellcheck ships on the GitHub ubuntu runners. Warnings and errors fail; style notes do not.
       - name: shellcheck on every tracked shell script
@@ -432,7 +436,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
@@ -482,7 +486,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # The version is the root package.json "packageManager", the pin the other jobs use.
       - name: Install pnpm
@@ -525,8 +529,14 @@ jobs:
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
   # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
   # writes its report on that signal, and the upload below is `if: always()`.
+  # Two disjoint shards cover the same full list once; each keeps the phase/attempt limits above.
+  # fail-fast is off so one failed shard does not hide the other shard's results.
   product-subset:
-    name: Product subset (not required yet)
+    name: Product subset (not required yet, ${{ matrix.shard }}/2)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`.
     if: ${{ github.event_name != 'merge_group' }}
     runs-on: ubuntu-latest
@@ -537,7 +547,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.14.0
 
       # The version is the root package.json "packageManager", the pin the other jobs use.
       - name: Install pnpm
@@ -564,13 +574,13 @@ jobs:
 
       # `exec` makes the runner the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
       - name: Run the product subset
-        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --out "$RUNNER_TEMP/product-subset" --jobs 4 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
+        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --shard ${{ matrix.shard }}/2 --out "$RUNNER_TEMP/product-subset" --jobs 4 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
 
       - name: Keep the report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: product-subset
+          name: product-subset-${{ matrix.shard }}
           path: ${{ runner.temp }}/product-subset
           retention-days: 30
           if-no-files-found: warn

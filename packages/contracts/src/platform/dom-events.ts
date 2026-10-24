@@ -80,8 +80,8 @@ export const PAGE_STATE_OWNERS = {
     state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
-    files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
-    state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it.",
+    files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
+    state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it, including the standalone Home settings host.",
   },
   attention: {
     files: ["apps/workbench/src/scripts/client/attention.ts"],
@@ -264,7 +264,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:open-settings-path", kind: "request", owner: "settings-directory", on: "document",
     detail: "{ href }",
-    summary: "Open the settings page at a settings address, global or of the project.",
+    summary: "Open the settings page at a settings address, global or of the project. The standalone Home host accepts only same-origin /settings/models, /settings/connectors and /capabilities/connections in its existing dialog; invalid detail, foreign origins and other paths open nothing, send no request and never navigate the owner document.",
   },
   {
     name: "molis-work:open-settings-section", kind: "request", owner: "settings-directory", on: "document",

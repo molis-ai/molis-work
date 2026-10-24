@@ -1,6 +1,6 @@
 # PG-031 另一半：平台入口不再从 Goals 插件包 import 动作
 
-状态：设计稿，未动代码（2026-10-24，防腐线 ac-kernel）。等 batch-28 合入、统筹给构建时段后再实现；做的是 `privileges.md` PG-031 里「CLI 和 MCP 经动作目录调用，去掉 import」那一半。Goals 管理调用的提供方那一半是 BL-501（PR #1207）。代码按 main `c6093a2e9` 核过。
+状态：设计已定，未动代码（2026-10-24，防腐线 ac-kernel）。统筹 10-24 裁定用 contracts 描述符、不走目录查找（第 2 节「裁定」）；等 batch-28 合入、统筹给构建时段后再实现。做的是 `privileges.md` PG-031 里「CLI 和 MCP 经动作目录调用，去掉 import」那一半；Goals 管理调用的提供方那一半是 BL-501（PR #1207）。代码按 main `c6093a2e9` 核过。
 
 ## 1. 要解决的
 
@@ -39,7 +39,9 @@
 3. **插件改成引用这份**：`goalsActions` 里这 12 项写成 `goalEntryActions.X`，和现在 `contract: goalPluginActions.contract` 一个写法；处理器、可用性、授权检查都留在插件。插件原来导出的同名类型改成从 contracts 转出，插件内部用法不变。
 4. **`readGoalResumeFacts` 搬进 contracts**（与描述符同文件）：它是 12 行、只经调用者的 `invoke` 读 list 与 directoryItem 的纯函数，符合 contracts「无副作用的小 helper」（`contracts-purity` 的 20 行线以内、没有 effects）。插件不再导出它；两份测试改从 contracts 取。
 5. **平台入口改从 contracts 取**：表里 9 个文件把 import 换成 `@molis-ai/molis-work-contracts/modules/goal-actions`；`content-action-providers.ts` 用 `goalPluginActions.contract`，类型断言随之删掉。`apps/cli`、`apps/mcp` 的 `package.json` 去掉对 Goals 插件的依赖，两份 README 的依赖句跟着改。
-6. **不改调用方式**：CLI 与管理 MCP 仍经 `bindGoalsManagementActions`（BL-501 之后精确钉随宿主发布的 Goals）；其余入口用的客户端也不变。
+6. **不改调用方式**：描述符只给 `capability_id@version`、说明与 schema，不带提供方；调用照旧经 `LocalHost` 的动作网关分发。CLI 与管理 MCP 仍经 `bindGoalsManagementActions`，按 #1207 精确钉随宿主发布的 Goals（`allowed_actions` 不放宽，第三方提供方由分发器拒）；其余几个入口（引导、Feed 升格、到达页、Feed 关联上下文、MCP 上下文）用的客户端和授权也原样不动，本片既不给它们新加钉、也不放宽。放宽钉死等 ac-trust 的同意清单（R-45）。分发之前不加任何查目录或别的会被取消的步骤，取消与拒绝照旧走中央结算、只留「未执行」行（batch-28 那次红的教训）。
+
+**裁定**（统筹 10-24）：用 contracts 描述符 `goalEntryActions`，放 `modules/goal-actions` 子路径，不走目录查找。理由：有 `goalPluginActions` 的先例；MCP 工具要静态 schema；分发前不留会因取消而抛错的步骤。约束：①见第 6 步；②`readGoalResumeFacts` 守合同包规则（无副作用、无模块级可变状态、函数不到 20 行）；③改合同要跑 `pnpm api:update`，PR 里写对调用方的影响；属于共享核心，进集成批跑全量（统筹起）。
 
 ## 3. 不在本片
 

@@ -7,13 +7,12 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
-import { openHostShelfFiles } from "@molis-ai/molis-work-app-local-host";
 import { ShelfStore } from "../modules/shelf/dist/store.js";
 import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
 import { createShelfRouteHandlers } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_STYLES } from "@molis-ai/molis-work-plugin-shelf";
 import { renderShelfWorkbench } from "@molis-ai/molis-work-plugin-shelf";
-import { directShelfActions, ShelfPluginRouteTable } from "./shelf-direct-actions.js";
+import { directShelfActions, ShelfPluginRouteTable, openTestShelfFiles } from "./shelf-direct-actions.js";
 
 // The only stub is runtime availability, so client handoffs can be exercised
 // without installing or launching an agent. Storage and HTTP handlers are real.
@@ -27,7 +26,7 @@ async function openShelfBrowser(t: TestContext) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Shelf boundary E2E"); return null; }
   const home = await mkdtemp(join(tmpdir(), "shelf-client-boundaries-"));
-  const shelf = new FixtureShelfStore(join(home, "shelf"), openHostShelfFiles(home), { disabled: true });
+  const shelf = new FixtureShelfStore(join(home, "shelf"), openTestShelfFiles(home), { disabled: true });
   await shelf.admit({ filename: "目录材料.md", bytes: Buffer.from("# Shelf 专用测试页\n"), mime: "text/markdown" });
   const routes = new ShelfPluginRouteTable(createShelfRouteHandlers({ actions: directShelfActions(shelf) }));
   const requests: string[] = [];

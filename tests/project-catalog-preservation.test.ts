@@ -114,17 +114,41 @@ test("demo reset lock timeout restores the original body and catalog record, and
   });
 });
 
-test("a failure in demo post-initialization restores the previous database before any reset receipt", async () => {
+test("PG-026-S4-04 a failure in demo post-initialization restores the previous database before any reset receipt", async t => {
   await withHome(async home => {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const created = (await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true })).project;
       catalog.removeProjectPlugin({ project_id: created.project_id, plugin_id: "pages", actor_id: "user" });
       const project = catalog.getProject(created.project_id), before = mark(project), plugins = catalog.listProjectPlugins(project.project_id);
-      await fs.rename(join(home, "shelf"), join(home, "shelf-preserved"));
-      await fs.writeFile(join(home, "shelf"), "fixture: storage temporarily unavailable");
-      // Shelf keeps its files through the owner-files port now, which refuses a plain file where its folder should be.
-      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), { code: "host.owner_file_unsafe" });
+      const projectDirectory = join(home, "projects", project.project_id);
+      const rename = fs.rename, mkdir = fs.mkdir;
+      let backupDirectory: string | undefined, promoted = false, faults = 0;
+      t.mock.method(fs, "rename", async (...args: Parameters<typeof fs.rename>) => {
+        await rename(...args);
+        const from = String(args[0]), to = String(args[1]);
+        if (from === projectDirectory && to.startsWith(join(home, "projects", `.reset-backup-${project.project_id}-`))) backupDirectory = to;
+        if (to === projectDirectory && from.startsWith(join(home, "projects", `.resetting-${project.project_id}-`))) promoted = true;
+      });
+      const failure = Object.assign(new Error("fixture: demo post-initialization storage unavailable"), { code: "EACCES" });
+      t.mock.method(fs, "mkdir", async (...args: Parameters<typeof fs.mkdir>) => {
+        if (String(args[0]) === join(home, "sessions") && promoted && faults === 0) {
+          faults++;
+          // Rebuild owners preserve Sessions; this is seedDemoProjectExtras opening its registry after promotion.
+          assert.ok(backupDirectory, "the original database was moved aside before the new one was promoted");
+          assert.equal(snapshot(project).goals.some(goal => goal.goal_id === "retained-content"), false, "the official path already holds the newly seeded database");
+          assert.deepEqual(snapshot({ ...project, database_path: join(backupDirectory, "molis-work.db") }), before);
+          assert.deepEqual(catalog.getProject(project.project_id), project);
+          assert.deepEqual(catalog.listProjectPlugins(project.project_id), plugins);
+          const db = new Database(catalog.databasePath, { readonly: true });
+          try { assert.equal(db.prepare("SELECT count(*) FROM project_events WHERE type='project.demo_reset'").pluck().get(), 0); }
+          finally { db.close(); }
+          throw failure;
+        }
+        return mkdir(...args);
+      });
+      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), error => error === failure);
+      assert.equal(faults, 1, "the post-promotion registry open was reached and failed exactly once");
       assert.deepEqual(catalog.getProject(project.project_id), project);
       assert.deepEqual(snapshot(project), before);
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), plugins);

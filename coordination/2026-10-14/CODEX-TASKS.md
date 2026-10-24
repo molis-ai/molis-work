@@ -12,6 +12,9 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 
+> **批28落地校正（12:46UTC）**：#1214固定d134于12:33:15Z实际merge9ed0e7a5c37e7b0395f58e7d399db22e713ff682，5固定源头祖先/landing=批准树cdd5f115/Claude带SHA关闭与merge-group40094052722 success已核，QUEUE移§3。原full28两红仍保留，最后修正仅Goalse精确invoke/文档引号/基线；共享核心与旧受测树逐字不变、最终相关3+27Mac=30作者证据按Claude判merge-only。1207新65已独立代码REVIEW6384313623及TEST6384365097有效管理4/4+正式61核收；metadata误叙已实际API修，main两source slice旧叙述P2仍具体FIX2 E22/SSOT待源窗，不能因元数据改就关source。1208公共context实际已可用，不再假等待；其两nonblock仍未实施。1213独立TEST6384262843/CI已齐，只剩最终共享快产品清单一行与真实合入按原门槛，不机械重跑83/80/full。当前source唯一FIX1 ACA005，basec609与baseline0保留，需新public接口才在有真实依赖时一次sync9ed，不为公共冲突机械同步；root v3/generation/S18独立范围不变。
+
+
 > **当前实际source（12:24UTC，覆盖下列旧source快照）**：C1 RAC114已自然固定非Draft#1213/8fce66c6349b47476e7a2f131cd7f7ee12e0b377，3files+204/-2/prod+6/-2，作者2红2绿→4files17首过/必要门禁0，REVIEW6384157844过、独立TEST接续，source明确RELEASE/treeclean无自有运行。**FIX1 ACA005已正式START唯一writer**且实际接单，先同一slice ACA005-01..07再实现root已批generation/v3/最终原source-reader授权。build优先序FIX1 baseline→TEST1213必要正确build→FIX1green按公共槽，作者可先source准备不空转，不并发build/新full。原C2 e20独立REVIEW6384019404/TEST6384047094两mustfix已闭合，已6384076618向Claude提新storage/full候选，source仍释放。#1213新增快产品测试共享清单一行明确交Claude实际最终批writer（1213/6384200965），未实际写入/核CI/真merge不当完成；原作者不重开槽。P1固定释放后FIX2 W5真main依赖已满足接续，不等P1审验/CI/merge；ACA003/S18 P2原边界与C1其他余项/C2完整后续保持，不停在台账、不并写。
 
 

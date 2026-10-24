@@ -12,7 +12,7 @@ Migration: `goal-reorg-f2`
 
 本地显式恢复生成独立的目标项目标识，`continuity/<source-project-id>.json` 保存来源映射与目标摘要。原成果 ID/version/content digest/producer 由原 Artifacts owner 校验，缺插件或来源凭据保留提示。目标历史与完成验收不被伪造为已迁移。
 
-命令结果与启动指引写 stdout，JSON 保留两格缩进。SIGINT/SIGTERM 依次关闭 HTTP 服务与库，重复信号不重复关闭；失败仍尝试其余清理，以 1 退出，并通过现有 Host 日志在 stderr 记录 `server / shutdown_failed` 和固定阶段名，只记错误名与码，不记消息、栈或路径；全部关闭成功以 0 退出。
+命令结果与启动指引经本地统一输出函数写 stdout，JSON 保留两格缩进。管道读端提前关闭产生的 EPIPE 被忽略，命令仍正常结束、serve 继续服务；其他输出错误仍抛出。SIGINT/SIGTERM 依次关闭 HTTP 服务与库，重复信号不重复关闭；失败仍尝试其余清理，以 1 退出，并通过现有 Host 日志在 stderr 记录 `server / shutdown_failed` 和固定阶段名，只记错误名与码，不记消息、栈或路径；全部关闭成功以 0 退出。关闭过程没有显式超时；等待期间第二次信号也不会强制退出，若底层清理卡住需外部强制终止。
 
 ## 开发要求
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +9,9 @@ import test, { type TestContext } from "node:test";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const entry = join(root, "apps/server/dist/main.js"); // The package's documented `start` entry, launched as a program.
+assert.ok(existsSync(entry), "Server CLI build is missing; run pnpm build before tests/server-cli.test.ts");
 const fixture = fileURLToPath(new URL("./fixtures/server-cli-close.mjs", import.meta.url));
+const stdoutFixture = fileURLToPath(new URL("./fixtures/server-cli-stdout.mjs", import.meta.url));
 const help = "serve --state DIR --config FILE --host-home DIR [--host-url http://127.0.0.1:4173] [--port 4187]\n"
   + "For LAN add --hostname ADDRESS --origin https://ADDRESS:PORT --cert FILE --key FILE\n"
   + "authorize --state DIR --member ID --project ID --control-token-file FILE [--host-url URL] [--revoke]\n"
@@ -46,6 +49,28 @@ function serve(t: TestContext, mode: string, signal = "SIGINT", repeat = false) 
   return { result, directory, state };
 }
 
+function closedPipe(t: TestContext, args: (directory: string) => string[]) {
+  const directory = mkdtempSync(join(tmpdir(), "molis-server-pipe-"));
+  const child = spawn(process.execPath, ["--no-warnings", "--unhandled-rejections=strict", "--import", stdoutFixture, entry, ...args(directory)], {
+    cwd: root, stdio: ["ignore", "pipe", "pipe", "ipc"],
+    env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "" },
+  });
+  let stderr = "";
+  child.stderr!.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", (code, signal) => resolve({ code, signal }));
+  });
+  t.after(async () => {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    await exited;
+    rmSync(directory, { recursive: true, force: true });
+  });
+  // Close the real pipe's read end before the product imports finish, without mocking stdout.write.
+  child.stdout!.destroy();
+  return { child, exited, stderr: () => stderr };
+}
+
 test("RAC-110: server help, JSON output and startup instructions retain stdout and stay out of stderr", t => {
   const directory = home(t);
   const result = command(directory, []);
@@ -71,6 +96,52 @@ test("RAC-110: server help, JSON output and startup instructions retain stdout a
   assert.equal(listed.status, 0, listed.stderr);
   assert.equal(listed.stderr, "");
   assert.equal(listed.stdout, JSON.stringify([{ id: owner.id, display_name: owner.display_name, project_id: null, role: null }], null, 2) + "\n");
+});
+
+test("RAC-110: help and members exit 0 without stderr when the stdout reader closes early", { timeout: 30_000 }, async t => {
+  for (const args of [() => [], (directory: string) => ["members", "--state", join(directory, "server")]]) {
+    const running = closedPipe(t, args);
+    assert.deepEqual(await running.exited, { code: 0, signal: null }, running.stderr());
+    assert.equal(running.stderr(), "");
+  }
+});
+
+test("RAC-110: serve responds over HTTP after stdout closes and still shuts down normally", { timeout: 30_000 }, async t => {
+  const running = closedPipe(t, directory => {
+    const config = join(directory, "config.json");
+    writeFileSync(config, JSON.stringify({ projects: [] }));
+    return ["serve", "--state", join(directory, "server"), "--config", config, "--host-home", directory, "--port", "0"];
+  });
+  const [port] = await Promise.race([
+    once(running.child, "message"),
+    running.exited.then(result => { throw new Error(`Server exited before readiness: ${JSON.stringify(result)} ${running.stderr()}`); }),
+  ]);
+  assert.equal(typeof port, "number");
+  const response = await fetch(`http://127.0.0.1:${port}/continuity/api/session`, { signal: AbortSignal.timeout(5_000) });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { member: null, projects: [], devices: [] });
+  assert.equal(running.child.exitCode, null);
+  assert.equal(running.stderr(), "");
+  running.child.kill("SIGTERM");
+  assert.deepEqual(await running.exited, { code: 0, signal: null }, running.stderr());
+  assert.equal(running.stderr(), "");
+});
+
+test("RAC-110: stdout errors other than EPIPE remain visible and fail the command", t => {
+  const directory = home(t), file = join(directory, "read-only.txt");
+  writeFileSync(file, "not a writable output");
+  const fd = openSync(file, "r");
+  try {
+    const result = spawnSync(process.execPath, ["--no-warnings", entry], {
+      cwd: root, stdio: ["ignore", fd, "pipe"], encoding: "utf8", timeout: 30_000,
+      env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "" },
+    });
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /EBADF/);
+    assert.equal(readFileSync(file, "utf8"), "not a writable output");
+  } finally { closeSync(fd); }
 });
 
 test("RAC-111: shutdown failure logs each phase without private details, closes storage and exits 1", t => {

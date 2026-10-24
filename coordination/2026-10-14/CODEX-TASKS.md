@@ -29,6 +29,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 >
 > #784开发方Shelf行与main成果库验收行BL400重号交FIX1最小文档修，先有界只读提案核空号/引用，不删除任何真实待做、不关闭QA/不标本人验收、不变PR状态。**BL595暂预留给此修复**（BL585–594按Claude原ac-coding预留保持）；实际落代码前FIX1仍须鲜核无新占用。当前C2源码独占，无第二writer。全仓新审计只读且不构成合并等待门槛。完整实际owner/待做、已合SHA以ROLES当前段和QUEUE为准。
 
+> **C2 B2真实恢复边界待裁（不阻独立前置）**：C2 B2独立前置已实际7文件39项作者候选绿（新进程恢复、维护I/O/SIGKILL/外原件、缺错key/链接预检零写），未冒独立审验；实际库存/tmp/molis-verify-2026-10-24/c2-b2/owner-inventory.json。managed CLI的HOME/XDG实际指向runtime/connectors/installs/<id>/.home，有原始登录文件，HOME-DATA称runtime不存凭据不成立；不能整树当缓存导出。仅这个恢复边界已送root复杂裁定：A只记录同Home认证目录依赖/保留原目录，丢失明确拒绝/本人重新接入；B若完整承诺含丢失auth目录恢复，须现有AES密封目录payload并还原第三方格式的跨owner协议。既有browser/profile排除/主密钥不导出保持，不能静默降低完整或擅改第三方格式。当前独立owner封存/只读预检继续，尚无固定PR不称B2整体完成，真实Home/R41未触。
+
 ### root全仓审计最终接单与验证（2026-10-24 10:55UTC，覆盖先前候选等级/验证顺序）
 
 独立报告 `/Users/yijunwang/code/goalboard/work/anti-corruption-audit-2026-10-24/report.md` 终点afabfcbef：范围71→70包/8生产链，非新增359文件逐行复审，未构建/测试或操作真实Home。最终1个P1（ACA005）、3个未修P2（ACA001/003/004），ACA002随1194/1166已修。审计已交付不等于整改完成，四原始目标均尚不能整体关闭。

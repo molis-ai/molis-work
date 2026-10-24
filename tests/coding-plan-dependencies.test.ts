@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { executionSteps, parseCodingPlan, planMaterial } from "../plugins/native/coding/dist/plans.js";
+import { executionSteps, parseCodingPlan } from "../plugins/native/coding/dist/plan-content.js";
+import { planMaterial } from "../plugins/native/coding/dist/plans.js";
 
 const response = (text: string, tool?: { name: string; input: unknown }) => {
   const events: string[] = [], emit = (type: string, value: any) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);

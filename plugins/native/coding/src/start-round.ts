@@ -13,7 +13,8 @@ import { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { MODEL_UNAVAILABLE } from "./models.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
-import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
+import { executionSteps } from "./plan-content.js";
+import { confirmedPlan, planMaterial } from "./plans.js";
 import { reaskMaterial } from "./reask.js";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 import { limitsCharacters } from "./runtime-choice.js";

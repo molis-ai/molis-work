@@ -12,6 +12,15 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 
+> 2026-10-24 16:35 UTC **最新人类指令覆盖下列旧source排期**
+>
+> **一骏新明确合并授权（Root刚转达并鲜核8个）**：“把1225之前的除了memory相关的非draft PR（784，734也除外），都解决合并掉”。准确集合 **1109、1112、1209、1210、1211、1212、1222、1223**；Memory实质相关（包括Memory base的1196）、784/734与其余Draft排除，不自动Ready，不自动扩新PR>1225。可用清楚包含旧目标的合规carrier，不混未经授权新目标；旧非阻塞owner责任保留。#1198原单独任务独立继续，Root据四完整PNG交叉同bytes/空toast无匹配button已判剩6px非本分支回归，底层仍UNKNOWN、formal exit1/阈值0/首败全保留、无新capture/算法/期望图变更；可Ready正常队列，不挡这8目标。
+>
+> **立即最高优先1222（用户再催“修了1222，有好几个应该就能直接关，快”）**：source owner仍原Claude `ac-batch29pr`，不重复writer。remote acf89a9cc4b16a1442349c8c725d4557363ae955/DIRTY/checks[]；现成local a788e1a413f8ffce6d60c922f3c18092e9b343d3=acf+actual2dd，Root已薄核5处remerge/两FIFO测试零diff，REVIEW6386623257已关闭取消P2。真正待修是b29m2-focus119文件116过3红：Cognia390两场景上级.cognia-list display:none阻住68/148点击（非timeout），cognia-mcp45s取消、home-aggregate末两15s取消；build exit0不等focus全绿。已6386688449公开急单返当前原writer，TEST复用full32对应raw/生产fixture基线只读归因，不能一概负载/flaky/改断言/新起重复full。修实缺口→仅必要差异验证→固定newhead/实际diff/raw DIRECT REVIEW/TEST→normalpush/正式适用CI→唯一正常queue→actualmain SHA/四固定头包含→立即关1209/1210/1211/1212；不等1198或其他新片。共享曾计划full-suite，目前API未见新头/CI/label，不把计划当已运行，统一full仍仅Claude决定。
+>
+> **source接续变更**：C1已实际START RAC115，managed c1-uninstall-inspection/goalboard、branch anticorr/codex-w5-13-browser-input、准确base2dd，32openPR全路径无冲突；按Root让当前有界片安全fixed/release。之后source优先这8旧PR真实修复，**不再按旧条件立即开C2B2b**；B2b完整合同/原owner保留后移，Root/Claude最新具体WO覆盖。FIX1只读1109/1223已有owner/承载及真实障碍；FIX2只读1112：对2dd六真冲突已Claude现成integration-33/d3cd76473e38ce4930548063ba81a99758e37906解决，08b与2dd均其祖先/树clean，但无remote/PR且夹1226–1229新片，须按本次边界与Claude明确选carrier，不另source重复sync。所有8当前fresh仍DIRTY、无queue；1109有旧autoMerge（10-23）不等已入队，不重复调用。
+
+
 > **当前交槽（2026-10-24 16:16 UTC）**：FIX2已明确1198源码/spec全部FROZEN/RELEASED，远端 `fd3e56b8485462985d71630b8c14ec2ebd841919`，normalpush20e→fd3/secrets342/准确base2b health+asset0/完整handoff6386459129已交。仅readonly formal93507（base13/13、head进行）、CI40110037944与metadata剩余；Root最新明确**保持Draft**到正式结果齐，忽略此前可提前Ready建议，不妨碍CI/formal并行。原ready真红/1绿已独立薄核，仍无整体formal PASS，baseline测试guard恢复待自然结束实核。**唯一Codex writer现授C1 RAC115 START**，fresh main `2dd53591276982b6947369e345ddfcffcc21afd2`，先鲜核路径认领/同slice再实现；C1 fixed+release即C2B2b，不等审验/CI/merge。FIX2如需改任何source/doc先返槽，不能并写。
 >
 > **实际W5片落地**：#1225已16:04:33Z actualmerge2dd53591276982b6947369e345ddfcffcc21afd2，singleparent112、actualtree ad24278b75f296a4f20fc7bdb87b6a237802b3fc=f2e580352固定候选。1098原91e、1107f25、1191d184、1173f45均f2祖先；1107在15:17的REST merged/d09只是入1098下层（tree等f25），**本次2dd才核实际main包含**，非提前完结。原统筹已带2dd关闭1098/1191/1173，source有效逐片/组合REVIEW6386329302与queue40109483030/Verify120919029355成功保留。full32原bc6d 13worker过3红/一web health starting首红retry过均保留，后者FIX1接R44只读归因，不称负载/flaky。TEST继续本机48raw与真实新修有限核收；一live未执行不吞。1112明确下一batch33/三个P2未闭，W5/PG060整线不完成。1225两句doc实际FIX1原稿/实际2dd同blob已核仍未修，唯一writer后续短窗真正实施。

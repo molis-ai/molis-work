@@ -17,14 +17,13 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 > C2 S行具体落点已由root按当前事实裁定：main安全表最大58、沙箱顶1144/61a0da5df真实包含59/60，B1以S61为集成候选（非永久占号），不造占位、不放宽连续门禁；当前独立head只缺前序须如实记health红。C2完成必要源修后立即固定非DraftPR/head及原始证据直发REVIEW/TEST/流水线、释放source；拿固定候选才向Claude申请加入当前26或下一安全批，Claude决定冻结/最终编号/唯一full，不为编号等着不开发，也不要求各片再次机械sync main。当前26计划已变为沙箱顶＋1181 e70160a6e＋1188 d6d1da98a；同批编号随实际顺序一次一致调整。C2 B2/A/快照/恢复及真实HomeR41边界保持。
 
 
-> **流水线实际接续（10-24 08:06UTC）**：#1164/#1165/#1167已于07:50:52Z真合（3e96b40e/531e43fb/21257170），#1148于07:57:43Z真合38b27b06，已按实际SHA移MERGE-QUEUE§3。#1114现7733对main真实Cognia/资产冲突，原修复2已接公开6381709344；按Claude6381691853等1169先真合后一次merge最新main，不并写/不重复入队。C2曾a86dd1c2干净checkpoint暂释，但1169尚未合且health两项必需收尾，已明确RESUME C2 B1；FIX2自动START条件已撤，等1169实际merge+C2新release+执行明确START才写。固定新head直达REVIEW/TEST、源码固定即还C2，不等browser/CI。
+> **流水线当前接续（10-24 08:46UTC）**：#1169已08:32:42Z真合1ae1e41a，#1183同时真合f586496e，已核实际SHA并移MERGE-QUEUE§3，只关RAC113本片不关C1。C2 B1非Draft#1190原58bc独立REVIEW发现维护敏感work清理P1，原作者已实际修至bc0160f06（四文件+54/-8，真实rm/SIGKILL/marker拒绝恢复，旧5pass1fail→6/6），增量REVIEW6382074609通过，TEST/统一批仍待。S61仅候选/独立health缺59/60如实红，root/Claude§1a统一定号，不加占位/不author sync或刷baseline。
 >
-> #1183固定7bbb014c4的REVIEW6381427633与最终TEST6381742635均通过，README主56份已由独立32文件239项和当前CI原始24项完整核对，CI40073797867/Verify120819091266及适用项全绿；Claude6381754001已认领，实际队列第5/AWAITING_CHECKS，不再记仅排CI，未真合仍不关C1整体。1180固定5e26父295的TEST24项和1178固定203dd的TEST68项均实际公开，精确版本/堆叠/full边界见队列。
+> 1190固定bc/tree clean明确release后，已实际START修复2在自有1114树一次合最新main f586（真实包含1167/1169），迁真正打包客户端locator/正确公开目录类型，保留main共用预算/批准，交新base22133与实测Y给Claude batch27统一更新；不止读预案。当前source writer=FIX2，C2只读B2准备，FIX1无写。新固定头作者直发REVIEW/TEST/流水线、源码固定释放后接既有1112短片/独立C2后续，不为等CI/browser/full占writer；mustfix随到随排同owner串行。
 >
-> batch24唯一VUX16失败由TEST原始16分片核清：5e781d4b实际基底61bfc2b8，缺已合1174，旧测试blob/失败位置与已修故障一致；retry仍红、不称flaky或全绿，公开1168/6381642802及1169/6381644742。最新Claude排期已经变更：batch25=df5984613/run40075168266（1166/1178/1179/1182），沙箱叠层+改main的1181进26；1185/1186进27，旧25/26计划只作历史。full始终Claude唯一发。
+> full25固定df598实际含4e17+1166/1178/1179/1182。当前最终失败为session-workspace（goals.board.not_found，0/2且retry仍红）与PG026-S4-03 reset视口外；interaction-no-crosstalk首红但文件retry过，非最终失败。Claude6382047968已将两故障交原ac-sc3，Fix1只读诊断已6382084983交接止，不重开writer。最新批25按Claude现行§1a去1182、纳1157顶层（含1130）与1166/1178/1179一次落地，最终full适用与冲突证据由TEST按实际树核，不把旧df598全量直接冒充新批全绿。1190依最新Claude排27或之后；不自起或取消full/CI。
 >
-> nonblock新接续已落具体owner/来源：1181 waitRun撤权无view缺测→修复2/6381654508；1185成果执行方仍写死Coding→修复2/6381689882（1175 A6仅模板搬迁，尚未覆盖清单语义，开工再核实际ac-artifacts片避免重复）。均原PR真合后小PR。1175原二轮两建议已经ac-giants c2e8c33e6实际修、b3e保留，已去重更正6381674820；另有新R41/spec口径冲突→修复1，root6381682215具体裁定工程正常隔离审验后可合、真实Home切换须用户统一维护计划/存量维护同窗，Claude已备案同意，原PR真合后最小doc片。不能把原作者已修重做或把认领当闭环。
-
+> TEST正按Claude6381702011将W5-06 SYS15U10根因置最高：已实际跑8d revision-first真实回执/刷新受控观测1/1，receipt-first与f4df对照接续，保留所有原断言，不用本机单绿冒充Linux归因。1178/1179必要补证分别68项/112项及各自CI原始复用已公开；1190修后证据、1114新头按风险接，既有有效证据不机械重跑。完整逐项owner/claim/依赖与真实闭环以ROLES当前段和MERGE-QUEUE实际记录为准。
 
 > **最新调度接单（10-24 07:31UTC）**：已收Claude的S号按实际合并顺序规则，C2已直达：S71仅临时标识，落PR/入队时按main＋前置队列的下一空号连续定号，S59/60原归属保持，不等待未实现设计占号。main已知红已随1174清空，未来失败重新归因；旧批次原始证据不改。Claude新增#1182/6381371024的恢复actor规格勘误现由修复1实际承接并已在原PR公开认领，按原PR顺序插空，当前未实现、不阻1182。C2 B1仍唯一writer。batch25=沙箱叠层＋1166，batch26=1178/1179/1182/1181，W5链仍等U10根因；均Claude唯一组批，不另起。
 
@@ -153,14 +152,16 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 
 按区域修吞掉的错误；宿主里的 `console.*` 换成最小的结构化日志。W5-13 第一片和补片已在 main 上：先读 spec 里 W5-13 的各节，沿用已定的日志接口，不另起一套。
 
-- 现状：`console` 还剩 28 处（`pnpm health:check` 的 console calls）。范围：`apps/server/src/main.ts`、`apps/cli/**`、`apps/local-host/src/assistant/assistant-http.ts`、`apps/desktop/**`，以及 `pnpm lint` 列出的空 `catch`、没处理的 promise（只改 TypeScript）。命令行程序与脚本里 `biome.jsonc` 本来允许的 `console` 不动。
+- 原派单基线：`console` 为28处（历史，不是当前计数；开工以真实main诊断为准）。范围：`apps/server/src/main.ts`、`apps/cli/**`、`apps/local-host/src/assistant/assistant-http.ts`、`apps/desktop/**`，以及 `pnpm lint` 列出的空 `catch`、没处理的 promise（只改 TypeScript）。命令行程序与脚本里 `biome.jsonc` 本来允许的 `console` 不动。
 - 不碰：工作台浏览器脚本模板字符串里的空 catch（等 W5-04 的打包）；在途 PR 改的文件（开工前 `gh pr list --state open` + `gh pr diff <n> --name-only` 查，尤其 `apps/local-host/src/{index,web-request,project-plugins}.ts`、`apps/workbench/src/scripts/client/*`）。
 - 修法：带上下文记日志，或按错误模型（`defineErrorCodes`、`<主人>.<原因>`）向上抛；不能只换成 `void`。成功路径的行为不变。
-- 按区域拆成两三个 PR（如 server+cli、desktop、local-host）。这些计数只许减少，改完跑 `node scripts/check-health-gates.mjs --update --base origin/main` 把降下来的数写进本地快查。
+- 按区域拆成两三个PR（如server+cli、desktop、local-host）。计数只许减少；按现行§1a，作者交下降与检查证据，不在功能PR反复刷新共用baseline，由批分支统一生成。server+CLI已合1151、RAC113已合1183，C1剩余完整范围保持。
 
 ### C2 W5-16 Home 快照与恢复
 
 `molis-work home snapshot --to <dir>` 与对应的恢复。
+
+**现行执行合同以§0的root/Claude A/B裁定及唯一slice为准：离线、同一Home lease早于业务初始化，不做在线quiesce；允许必要最小早期Host接线，保持真实文件认领、密钥不外带、真实Home R41窗口。** 下方“路线图原文”为历史来源，不复活已被后续明确裁定替换的在线/枢纽限制；B1只是前置片，B2/A/完整快照恢复仍由C2实际实施。
 
 - 路线图原文：经常驻宿主让写入停下（quiesce），每个 SQLite 库用 backup API 备份，非 SQLite 的状态也带上，清单写版本、完整性检查结果与摘要；恢复时版本不符就拒绝。测试覆盖每一个登记的库（W4-11 的登记表）。备份口径用户已定，见 `specs/repository-anti-corruption/spec.md` §1 里「备份」那一行（决定 #20，搜 backup / 备份）。
 - 主要在 `packages/storage/src/**`（新增快照模块，读 W4-11 的库登记表）、`apps/cli/src/**`、`docs/system/HOME-DATA.md`、`docs/releases/{CHECKLIST,POLICY}.md` 与新测试。

@@ -20,7 +20,7 @@ export const TOAST_STYLES = `
     transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   /* A diagnostic ID is a link inside the sentence, in the toast's ink; its touch height is padding that takes no line room. */
-  .mw-toast [data-molis-call-id] { min-height: 0; padding-block: var(--reach, 10px); margin-block: calc(-1 * var(--reach, 10px)); color: inherit; text-decoration: underline; }
+  .mw-toast .mw-btn[data-molis-call-id] { min-height: 0; padding-block: var(--reach, 10px); margin-block: calc(-1 * var(--reach, 10px)); color: inherit; text-decoration: underline; }
   .mw-toast__action--primary { background: color-mix(in srgb, currentColor 12%, transparent); }
   .mw-toast__action:hover { background: color-mix(in srgb, currentColor 18%, transparent); }
   .mw-toast__action:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }

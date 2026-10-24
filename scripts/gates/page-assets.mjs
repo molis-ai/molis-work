@@ -239,7 +239,7 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Memory retries and usage states retain the approved +3093 B and +105 B, tightened by 5 B of equivalent reuse.
-  // Main c6093a2e9 includes the executor UI; only the same Memory +3193 B is admitted here.
+  // Main 191acc418 already includes the toast CSS; only the same Memory +3193 B is admitted here.
   "/assets/molis-work-workbench.js": [1130064, 1133257],
   // Stable original-input identity retains the approved +738 B, tightened by 21 B of equivalent reuse to +717 B.
   "/assets/molis-work-plugins/coding.js": [377227, 377944],

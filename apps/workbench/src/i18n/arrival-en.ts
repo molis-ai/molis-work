@@ -1,5 +1,6 @@
 /** English for the way in: the project chooser, the opening, and the new-project journey (specs/archive/project-arrival-flow). Whole sentences with placeholders keep English word order. */
 export const ARRIVAL_EN: Record<string, string> = {
+  "昨天": "Yesterday",
   // Chooser
   "暂停标题动画": "Pause the title animation",
   "播放标题动画": "Play the title animation",
@@ -95,9 +96,9 @@ export const ARRIVAL_EN: Record<string, string> = {
   "可以离开此页，回来时从断点继续。": "You can leave this page and pick up where it left off.",
   "文件夹里的条目太多，只扫描了一部分；未列出的文件不会读取，可以选更小的文件夹。": "The folder has too many entries to scan them all. Files not listed won't be read; choose a smaller folder.",
   "第 {k} / {n} 份": "{k} of {n}",
-  "整理分 {n} 批，第 {k} 批": "In {n} batches: batch {k}",
+  "整理分 {n} 批，第 {k} 批": "In {n} {n|batch|batches}: batch {k}",
   "待办草稿": "Todo drafts",
-  "{done} / {total} 批": "{done} of {total} batches",
+  "{done} / {total} 批": "{done} of {total} {total|batch|batches}",
   "逐项确认": "Confirm one by one",
   "已选 {n} 份 · {size}": "{n} selected · {size}",
   "先补齐上方来源，或跳过本次不需要的内容。": "Finish the sources above, or skip what you don't need this time.",

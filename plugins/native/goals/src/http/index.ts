@@ -1,24 +1,26 @@
-import { handleGoalRelationsHttp } from "./relations.js";
-import type { GoalsHttpContext } from "./types.js";
-import { respondGoalsFailure } from "./failure.js";
-import { handleGoalCreateHttp } from "./create.js";
-import { handleGoalPolicyGuidanceHttp } from "./policy-guidance.js";
-import { handleGoalLifecycleHttp } from "./lifecycle.js";
-import { handleGoalDecisionsHttp } from "./decisions.js";
-import { handleGoalEventDecisionHttp } from "./event-decisions.js";
-import { handleGoalEventHttp } from "./events.js";
-import { handleGoalDeliverablesHttp } from "./deliverables.js";
-import { handleGoalInputsHttp } from "./inputs.js";
+import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { goalRelationRoutes } from "./relations.js";
+import type { GoalsRoutePorts } from "./types.js";
+import { goalCreateRoutes } from "./create.js";
+import { goalPolicyGuidanceRoutes } from "./policy-guidance.js";
+import { goalLifecycleRoutes } from "./lifecycle.js";
+import { goalDecisionRoutes } from "./decisions.js";
+import { goalEventDecisionRoutes } from "./event-decisions.js";
+import { goalEventRoutes } from "./events.js";
+import { goalDeliverableRoutes } from "./deliverables.js";
+import { goalInputRoutes } from "./inputs.js";
 
-export async function handleGoalsWebHttp(context: GoalsHttpContext): Promise<boolean> {
-  try { return await handleGoalCreateHttp(context)
-    || await handleGoalPolicyGuidanceHttp(context)
-    || await handleGoalRelationsHttp(context)
-    || await handleGoalLifecycleHttp(context)
-    || await handleGoalDecisionsHttp(context)
-    || await handleGoalEventHttp(context)
-    || await handleGoalEventDecisionHttp(context)
-    || await handleGoalDeliverablesHttp(context)
-    || await handleGoalInputsHttp(context); }
-  catch (error) { return respondGoalsFailure(context, error); }
+/** Every route `goalsManifest.routes` declares, one handler each (PG094-09); whoever mounts them supplies the ports. */
+export function goalsRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
+  return [
+    ...goalCreateRoutes(ports),
+    ...goalPolicyGuidanceRoutes(ports),
+    ...goalRelationRoutes(ports),
+    ...goalLifecycleRoutes(ports),
+    ...goalDecisionRoutes(ports),
+    ...goalEventRoutes(ports),
+    ...goalEventDecisionRoutes(ports),
+    ...goalDeliverableRoutes(ports),
+    ...goalInputRoutes(ports),
+  ];
 }

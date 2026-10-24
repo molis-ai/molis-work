@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-UiHost.register 保存 contribution，render 调用对应渲染器；mount 检查 surface 与目标 slot 的兼容性。createPluginUiClient 为 Plugin 提供受权限约束的注册接口，以及让自己页面重新读取的 `invalidate()`：宿主给它这次激活的推送函数和「是否仍在运行」，client 检查声明了视图、激活没停，再推。
+UiHost.register 保存 contribution，render 调用对应渲染器；mount 检查 surface 与目标 slot 的兼容性；mountDeclared 只要 contribution 与 surface，按 surface 声明的 `target_slot_id` 从宿主构造时给的 slot 里取出那一个，再走 mount 的同一套检查，调用方不再自己维护 surface→slot 表（W5-06）。createPluginUiClient 为 Plugin 提供受权限约束的注册接口，以及让自己页面重新读取的 `invalidate()`：宿主给它这次激活的推送函数和「是否仍在运行」，client 检查声明了视图、激活没停，再推。
 
 ## 从哪里读代码
 
@@ -15,6 +15,7 @@ UiHost.register 保存 contribution，render 调用对应渲染器；mount 检�
 | 文件 | 用途 |
 | --- | --- |
 | [src/index.ts](src/index.ts) | UiHost 注册、渲染与挂载 |
+| [src/surface-renderers.ts](src/surface-renderers.ts) | 按插件给的「方法→surface」表造一组渲染方法：每个方法把 `{ kind, args, primitives }` 挂到声明的 slot，外壳不再为每个插件写挂载转接文件 |
 | [src/plugin-client.ts](src/plugin-client.ts) | Plugin UI 访问边界 |
 | [src/client-lifecycle.ts](src/client-lifecycle.ts) | 浏览器挂载、取消及资源释放，由 Host 注入 |
 | [src/call-id.ts](src/call-id.ts) | 诊断编号（调用编号）给人看的短形式 `shortCallId`：前 8 位，设置页服务端渲染用；怎样显示一个编号归界面，所以不在内核 |
@@ -51,7 +52,7 @@ UI Host 不解释 Goal、Feed 或 Artifact 状态。Plugin 客户端的注册释
 
 **保留到 W5-04 的两处**（不是兼容层，各有删除条件）：
 - `molisWorkControlHeaders()` 是同一助手只给头的入口，供还没迁的调用方使用（工作台主程序里还没迁的脚本、编进主程序的 Goals 工厂、插件客户端和约 25 个浏览器用例）。它会把令牌加到调用方给的任何地址上，所以「令牌只发同源」只对经助手本身发出的请求成立。删除条件：W5-04 迁完最后一个插件客户端、用例改用 `molisWorkRequest` 之后，若再无调用方就删（W5-04 收尾 PR 决定）。
-- PTY 客户端包（`apps/workbench/src/character-terminal-client.ts`，与 Shelf、Work 的终端客户端一起打成 `dist/web/pty-client.js`）认证 PTY socket 时自己读页面 meta：它是打包的 TypeScript，不发 HTTP 请求，读不到模板脚本里的全局。删除条件：W5-04 把工作台客户端段落改成打包代码时，从宿主注入的 `request.token()` 取。
+- PTY 客户端包（`apps/workbench/src/character-terminal-client.ts`，与 Shelf、工作台 `src/terminal/` 的终端客户端一起打成 `dist/web/pty-client.js`）认证 PTY socket 时自己读页面 meta：它是打包的 TypeScript，不发 HTTP 请求，读不到模板脚本里的全局。删除条件：W5-04 把工作台客户端段落改成打包代码时，从宿主注入的 `request.token()` 取。
 
 ## 本地开发
 
@@ -78,6 +79,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host
 - 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 挂载前检查 surface 与目标 slot 兼容、身份与格式。
+  - `mountDeclared` 只在宿主自己的 slot 里找 surface 声明的那一个；找不到就拒绝（`ui_host.slot_incompatible`），不退回别的 slot。
   - 注册与渲染协议不等于任意 HTML 或脚本获得隔离执行。
   - 插件客户端的注册释放由 Host 生命周期负责；不解释 Goal、Feed、Artifact 状态。
   - `invalidate()` 只推调用者自己的 revision，没有参数；没声明 `ui.views`、激活已停时拒绝（`ui_host.plugin_denied`），不记任何东西。

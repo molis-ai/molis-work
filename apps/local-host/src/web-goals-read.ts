@@ -1,4 +1,3 @@
-import { builderWorkbenchPanel } from "./plugin-builder-surface.js";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
@@ -8,7 +7,6 @@ import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 import { lookingForArea, withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
@@ -39,7 +37,7 @@ async function projectPluginStages(ports: CodingSurfacePorts, enabled: readonly 
   await ensureProjectPlugins(ports);
   const builtin = await builtinStagePanels(ports, enabled);
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
-  return { html: [characters, ...builtin.html, await builderWorkbenchPanel(ports)], ids: builtin.ids };
+  return { html: [characters, ...builtin.html], ids: builtin.ids };
 }
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
@@ -119,7 +117,7 @@ export function createLocalGoalsReadHttp(ports: {
   }
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, workActions: BoundActionClient, controlToken: string, goalActions: BoundActionClient, artifactActions: BoundActionClient,
-    coordinator?: GoalProjectApplication, store?: LocalProjectDatabase,
+    store?: LocalProjectDatabase,
     pluginServices?: Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "artifacts" | "processItems">,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
@@ -170,7 +168,7 @@ export function createLocalGoalsReadHttp(ports: {
           : { sessions: [], workspaces: [] };
         if (url.searchParams.has("workbenchPane")) view = { ...view, pane_plugin: url.searchParams.get("panePlugin") || "home" };
         return renderMolisWorkWeb(
-          coordinator && store
+          store
             ? await withSelectedGoalDocument(
                 view,
                 requestedGoalId ?? view.active_goal_id ?? undefined,
@@ -178,8 +176,6 @@ export function createLocalGoalsReadHttp(ports: {
                 artifactActions,
                 trashView ? "trash" : archiveView ? "archive" : "current",
               )
-            : coordinator
-              ? await withSelectedEventDocument(view, requestedGoalId ?? view.active_goal_id ?? undefined, goalActions)
             : view,
           requestedGoalId,
           archiveView,

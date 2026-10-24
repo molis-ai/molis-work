@@ -405,13 +405,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
     readonly actor_kind?: "user" | "runtime" | null;
-    readonly user_action?: {
-        readonly source: string;
-        readonly conversation_ref: string;
-        readonly message_ref: string;
-        readonly whole_confirmation_prompted?: boolean;
-        readonly prompted_subject_id?: string;
-    };
+    readonly user_action?: ActionUserAction;
     readonly project_id: string | null;
     readonly audience: ActionAudience;
     readonly plugin_install_id?: string;
@@ -470,6 +464,7 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
+    readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
         readonly audience?: "workflow";
     }) => RetainedActionAuthority;
@@ -765,6 +760,14 @@ export interface ActionUsage {
 
 export interface ActionUsagesInput {
     action: ActionReference;
+}
+
+export interface ActionUserAction {
+    readonly source: string;
+    readonly conversation_ref: string;
+    readonly message_ref: string;
+    readonly whole_confirmation_prompted?: boolean;
+    readonly prompted_subject_id?: string;
 }
 
 export interface ActionView extends ActionReference {
@@ -2814,6 +2817,7 @@ export interface PluginExecutor {
     validateUpgrade?(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void>;
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
+    uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
 }
 
 export interface PluginExecutorHandle {
@@ -2851,10 +2855,12 @@ export interface PluginHostServices {
     readonly model?: PluginModelClient;
     readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
     readonly materials?: PluginMaterialsClient;
+    readonly connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsClient;
     readonly directory?: import("@molis-ai/molis-work-contracts/platform/plugin-directory").PluginDirectoryService;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
+    readonly interaction?: import("platform/plugin-interaction").PluginInteractionClient;
     readonly events?: PluginEventsClient;
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
@@ -3024,6 +3030,29 @@ export interface PluginIntegrationContribution {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
 }
 
+export interface PluginInteractionClient {
+    questionHtml(question: AgentPendingQuestion, options?: {
+        readonly reask?: boolean;
+    }): Promise<string>;
+    cardHtml(card: AssistantCard, options?: {
+        readonly redo?: boolean;
+    }): Promise<string>;
+    nextStepsHtml(input: PluginInteractionNextSteps): Promise<string>;
+}
+
+export interface PluginInteractionNextSteps {
+    readonly questions: readonly AgentPendingQuestion[];
+    readonly cards: readonly AssistantCard[];
+    readonly finished?: boolean;
+    readonly follow_ups?: readonly PluginInteractionStep[];
+}
+
+export interface PluginInteractionStep {
+    readonly id: string;
+    readonly label: string;
+    readonly source: string;
+}
+
 export interface PluginJobControl {
     readonly job: string;
     readonly signal: AbortSignal;
@@ -3130,6 +3159,7 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
+    connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
@@ -3638,7 +3668,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -4848,9 +4878,7 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
     reader: ActionReference;
 }>;
 
-export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference & {
-    provider_id: string;
-}, beforeEffect?: () => Promise<void>): Context;
+export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 

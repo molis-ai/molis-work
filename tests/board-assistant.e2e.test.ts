@@ -34,7 +34,7 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
   // The strip: three parameters, each at its first value; the frame says what is simulated.
   const strip = await evaluate<{ params: string[]; current: string[] }>(`(() => { const groups = [...document.querySelectorAll('[data-asst-params] [data-slot=toggle-group]')];
     return { params: groups.map((g) => g.querySelector('[data-cond-param]').dataset.condParam), current: groups.map((g) => g.querySelector('.is-current').dataset.condValue) }; })()`);
-  assert.deepEqual(strip, { params: ["lang", "work", "width"], current: ["zh", "plan", "1280"] });
+  assert.deepEqual(strip, { params: ["lang", "text", "work", "answer", "width"], current: ["zh", "zh", "plan", "ok", "1280"] });
   assert.match(await inFrame<string>("return d.querySelector('[data-asst-note]').textContent;"), /^模拟：/);
   assert.equal(await inFrame<boolean>("return !!d.querySelector('.workbench-bar [data-assistant-island] [data-assistant-composer]');"), true, "the island stands in the bar the workbench composes");
 
@@ -260,8 +260,9 @@ test("VUX-39 the board's Assistant shows delegated sub-tasks, the bell's notices
   // A question answered: the card goes, the round runs on to its end and says what it made.
   await inFrame("[...d.querySelectorAll('.assistant-tab-title')].find((n) => n.textContent === '给王一骏回邮件').click();");
   await waitFor(inside("!!d.querySelector('[data-question] [type=submit]')"), 10_000);
-  await inFrame(`const card = d.querySelector('[data-question]'); const zh = [...card.querySelectorAll('input[type=radio], [role=radio], button')].find((n) => (n.value === 'zh' || n.textContent.trim() === '中文'));
-    zh.click(); await new Promise((r) => setTimeout(r, 100)); card.querySelector('[type=submit]').click();`);
+  // The question is a questionnaire now (VUX-39: one choice, several, other words); the recommended language and one arrangement.
+  await inFrame(`const card = d.querySelector('[data-question]'); card.querySelector('[data-ix-field=q1] [data-ix-option="1"]').click();
+    card.querySelector('[data-ix-field=q2] [data-ix-option="1"]').click(); await new Promise((r) => setTimeout(r, 100)); card.querySelector('[type=submit]').click();`);
 
   await waitFor(inside("!d.querySelector('[data-question]') && d.querySelector('[data-assistant-thread]').textContent.includes('回复草稿写好了')"), 10_000);
 

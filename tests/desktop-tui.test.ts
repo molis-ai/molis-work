@@ -2,7 +2,7 @@ import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -32,9 +32,12 @@ import {
 import { createMolisWorkWebServer as createBaseMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";
-const PTY_CLIENT_SOURCE = readFileSync(new URL("../plugins/native/work/src/terminal/client.ts", import.meta.url), "utf8");
-const TERMINAL_AUTOFILL_SOURCE = readFileSync(new URL("../plugins/native/work/src/terminal/autofill.ts", import.meta.url), "utf8");
-const TERMINAL_PANELS_SOURCE = readFileSync(new URL("../plugins/native/work/src/terminal/panels.ts", import.meta.url), "utf8");
+// The Goal terminal's client, split by concern since SC-3 (apps/workbench/src/terminal/client*.ts); read together as one program.
+const TERMINAL_DIRECTORY = new URL("../apps/workbench/src/terminal/", import.meta.url);
+const terminalSource = (...names: string[]) => names.map((name) => readFileSync(new URL(name, TERMINAL_DIRECTORY), "utf8")).join("\n");
+const PTY_CLIENT_SOURCE = terminalSource(...readdirSync(TERMINAL_DIRECTORY).filter((name) => /^client.*\.ts$/.test(name)).sort());
+const TERMINAL_AUTOFILL_SOURCE = terminalSource("autofill.ts");
+const TERMINAL_PANELS_SOURCE = terminalSource("panels.ts", "panel-spawn.ts");
 const WEB_RENDER_SOURCE = readFileSync(new URL("../apps/workbench/src/renderer.ts", import.meta.url), "utf8");
 const WORKBENCH_UI_SOURCE = [WEB_RENDER_SOURCE, CLIENT_SCRIPT].join("\n");
 const DESKTOP_CAPABILITIES = JSON.parse(
@@ -446,7 +449,6 @@ test("launch recipes resume Codex, Claude, OpenCode, Pi Agent, and Grok Build", 
   const env = desktopPanelEnv({
     homeDirectory: "/tmp/molis-work-home",
     runtimeId: "opencode",
-    sessionId: "session-1",
     panelId: "panel-1",
     workContextId: "panel-1",
     goalId: "LEAF-1",
@@ -455,7 +457,8 @@ test("launch recipes resume Codex, Claude, OpenCode, Pi Agent, and Grok Build", 
   assert.equal(env.MOLIS_WORK_PANEL_ID, "panel-1");
   assert.equal(env.MOLIS_WORK_WORK_CONTEXT_ID, "panel-1");
   assert.equal(env.MOLIS_WORK_RUNTIME_ID, "opencode");
-  assert.equal(env.MOLIS_WORK_SESSION_ID, "session-1");
+  // Sessions are retired (BL-177): a panel has no Molis Work Session to name.
+  assert.equal(env.MOLIS_WORK_SESSION_ID, undefined);
   assert.equal(env.MOLIS_WORK_WEB_URL, "http://127.0.0.1:4173");
   assert.equal(
     desktopPanelEnv({
@@ -894,6 +897,16 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.match(desktopPage, /添加终端/);
     assert.match(desktopPage, /data-native-desktop="true"/);
 
+    // A caller's mistake is refused as invalid with its code, never answered as a Host fault (SC-3).
+    for (const [url, body, code] of [
+      [panelsUrl, { runtime_kind: "generic" }, "desktop.launch_command_required"],
+      [`${origin}${prefix}/api/goals/%E0%A4%A/panels`, { runtime_kind: "generic", command: "cat" }, "host.request_path_invalid"],
+    ] as const) {
+      const refused = await webFetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      assert.equal(refused.status, 400, await refused.clone().text());
+      assert.equal((await refused.json() as { code: string }).code, code);
+    }
+
     const opened = await webFetch(panelsUrl, {
       method: "POST",
       headers: {
@@ -911,7 +924,8 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.equal(payload.spawn.env.MOLIS_WORK_GOAL_ID, "TUI-GOAL");
     assert.equal(payload.spawn.env.MOLIS_WORK_PANEL_ID, payload.panel.panel_id);
     assert.equal(payload.spawn.env.MOLIS_WORK_WORK_CONTEXT_ID, payload.panel.work_context_id);
-    assert.match(payload.spawn.env.MOLIS_WORK_SESSION_ID ?? "", /^session-/);
+    assert.equal(payload.spawn.env.MOLIS_WORK_SESSION_ID, undefined);
+    assert.equal(Object.hasOwn(payload.spawn, "sessionId"), false);
     assert.equal(payload.spawn.env.MOLIS_WORK_WEB_URL, origin);
     assert.equal(payload.spawn.cwd, realpathSync.native(fixture.homeDirectory));
 

@@ -1,29 +1,14 @@
-import { isTerminalAgentPhase, type AgentRunPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ensureProjectPlugins, projectPluginProblem } from "./project-plugins.js";
 import type { ProjectPluginHttpPorts, ProjectPluginRouteHooks } from "./project-plugin-http.js";
-import { agentQuestionHtml } from "./agent-question-card.js";
-import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agent-next-steps.js";
-import { assistantCardHtml, cardView } from "./assistant/assistant-card-view.js";
-import type { StoredCard } from "./assistant/assistant-store.js";
 import { L } from "./web-locale.js";
-import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar, renderInteractionNextSteps, type InteractionNextStep } from "@molis-ai/molis-work-design-system";
+import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
   CODING_PROJECT_PLUGIN_ID,
   CODING_UI_CONTRIBUTION_ID,
-  renderCodingReport,
-  codingNetChange,
-  HISTORY_DIGEST_MARKER,
-  codingFollowUps,
-  type CodingFollowUpRun,
   type CodingUiHostModel,
 } from "@molis-ai/molis-work-plugin-coding";
-import {
-  DIFF_UI_CONTRIBUTION_ID,
-  renderDiff,
-  unifiedPatch,
-  compareRunChangeSet,
-} from "@molis-ai/molis-work-plugin-diff";
+import { DIFF_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-diff";
 import {
   FILES_PLUGIN_ID,
   renderFilesBrowserDirectory,
@@ -34,13 +19,6 @@ import {
   renderGitBrowserResult,
 } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-text-stats";
-
-import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
-import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
-
-import type { PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IncomingMessage } from "node:http";
-import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -121,11 +99,10 @@ function readsFilesOutputs(platform: { supervisor: { manifest(pluginId: string):
 
 /**
  * What the Coding family still adds around a project's plugin route (project-plugin-http.ts): a consumer of Files' outputs reads
- * them fresh first, and Coding's answers carry markup the Host renders for it. Diff and Text Stats draw their own (PG-062); Coding's
- * markup goes with the rest of the result decoration's move to Coding (C7), the Files refresh once the workspace has a platform
- * notice (N-14); then the hooks go too.
+ * them fresh first. Diff and Text Stats draw their own, Coding its words, its change reader, its cards and its next-step row
+ * (PG-062); the Files refresh goes once the workspace has a platform notice (N-14), and the hooks with it.
  */
-export const codingRouteHooks: ProjectPluginRouteHooks = ({ platform, pluginId, request, url, ports }) => ({
+export const codingRouteHooks: ProjectPluginRouteHooks = ({ platform, pluginId, ports }) => ({
   async beforeDispatch(router) {
     // Existing workspace outputs need a settings refresh before their consumers
     // read them. Unrelated plugins must not cause Files reads or publications.
@@ -133,94 +110,7 @@ export const codingRouteHooks: ProjectPluginRouteHooks = ({ platform, pluginId, 
     await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
     await platform.wiring.drain();
   },
-  async afterDispatch(result) { if (pluginId === CODING_PLUGIN_ID) decorateCodingResult(result, request, url); },
 });
-
-/**
- * The row beside Coding's composer (AC-25; AC-06, H4): the round's questions and cards as the Assistant's are, then, once
- * the round is over, the result of its card that ran last, then the round card's own follow-ups. Every step presses a
- * control already on screen; a card result's 「打开」 is named by its selector, as Coding's follow-ups are.
- */
-export function codingNextSteps(run: CodingFollowUpRun & { awaiting_input: readonly AgentPendingQuestion[] }, cards: readonly AssistantCard[],
-  say: (text: string, values?: Record<string, string | number>) => string): InteractionNextStep[] {
-  const ran = isTerminalAgentPhase(run.phase as AgentRunPhase)
-    ? cardOutcomeSteps(cards, "", say, card => `[data-card=${JSON.stringify(card.card_id)}] [data-ix-press=${JSON.stringify(CARD_RESULT_OPEN)}]`) : [];
-  return interactionNextSteps(run.awaiting_input, cards, [], [...ran, ...codingFollowUps(run, say)], say);
-}
-
-/** A card of a Coding session as Coding keeps it: the SDK's card, with no work of the Assistant's around it. */
-type CodingCard = Omit<StoredCard, "work_id">;
-
-function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL): void {
-  // The existing sanitized rich-text renderer is supplied by the composition;
-  // Coding neither imports another plugin nor trusts model-produced HTML.
-  const body = result.body as { runs?: Array<CodingFollowUpRun & { turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[]; cards?: CodingCard[] }> } | undefined;
-  if (body?.runs) for (const run of body.runs) {
-    // Recovery reports also list runs, but carry receipt facts rather than turns.
-    if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
-    // A digest round's opening is drawn by the page from its text; rendering it as well would double what travels.
-    // After the SDK compacts context, earlier replies reach the model labelled "[retained assistant …]" or
-    // "[historical … run:…]", and it sometimes opens its answer with one or several of them. They are the SDK's
-    // bookkeeping, not something said to the person; only labels at the very start are dropped.
-    for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
-      html: renderRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
-    // The same question card the Assistant shows, in the person's language; Coding's page restores its own drafts into it.
-    for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L, undefined, undefined, true) });
-    // The row beside the composer: the round's questions as the Assistant's are, then what its card offers next (AC-25).
-    // Drawn on every round the page receives in full, so a round it keeps unchanged keeps its row; it shows the latest one's.
-    // The round's suggestions as the Assistant's cards are drawn; Coding keeps them and runs them (D25).
-    const cards = (run.cards ?? []).map(card => cardView({ ...card, work_id: "" }));
-    run.cards?.forEach((card, index) => Object.assign(card, { html: assistantCardHtml(cards[index]!, L, undefined, false) }));
-    const steps = codingNextSteps(run, cards, L);
-    Object.assign(run, { next_html: steps.length ? renderInteractionNextSteps(steps, L("下一步"), { max: steps.length }) : "" });
-  }
-  const childBody = result.body as { subagents?: Array<{ children: Array<{ result: string | null }> }> } | undefined;
-  if (childBody?.subagents) for (const group of childBody.subagents) for (const child of group.children) {
-    if (child.result) Object.assign(child, { result_html: renderRichText(child.result) });
-  }
-  const reportBody = result.body as { report?: { title: string; body_markdown: string; run_id: string } } | undefined;
-  const changeBody = result.body as { change?: import("@molis-ai/molis-work-contracts/modules/workspace-artifacts").CodingChangeSet; reference?: { version: number }; html?: string } | undefined;
-  if (result.status === 200 && changeBody?.change) {
-    const change = changeBody.change, changeIndex = Number(url.searchParams.get("change_index") ?? 0);
-    const index = Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1, chosen = change.files[index];
-    // A file written several times reads best as one net change, but only when that is exactly what happened.
-    const requested = url.searchParams.get("net"), net = chosen && (requested === "1" || requested === "auto") ? codingNetChange(change, chosen.path) : null;
-    const netFiles = net?.available ? (() => {
-      const first = change.files[net.indices[0]!]!, last = change.files[net.indices.at(-1)!]!;
-      return [{ ...last, kind: first.kind, review: { ...last.review!, before_text: net.before_text } }];
-    })() : null;
-    const view = compareRunChangeSet({ content: netFiles ? { ...change, files: netFiles } : change, source_plugin_id: CODING_PLUGIN_ID, content_version: changeBody.reference?.version ?? 1 }, undefined,
-      netFiles ? 0 : index);
-    const groups = [...new Set(change.files.map(file => file.path))].map(path => ({ path, ...codingNetChange(change, path) })).filter(group => group.indices.length > 1);
-    Object.assign(changeBody, { view_mode: netFiles ? "net" : "write",
-      net_groups: groups.map(group => ({ path: group.path, indices: group.indices, available: group.available, ...(group.available ? {} : { reason: group.reason }) })) });
-    // The reader picks unified or side by side; anything else reads as unified.
-    changeBody.html = renderDiff({ view: { ...view, mode: url.searchParams.get("layout") === "split" ? "split" : "unified" }, line_feedback: Boolean(changeBody.reference), fold_context: 3, sides: false,
-      primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) } });
-    // 复制补丁 copies the change on show as a patch git takes (VUX-33), written from the same rows.
-    Object.assign(changeBody, { patch: chosen && view.phase === "ready" ? unifiedPatch(view.rows, { path: chosen.path, created: (netFiles?.[0] ?? chosen).kind === "added", removed: (netFiles?.[0] ?? chosen).kind === "deleted" }) : "" });
-  }
-  // A child's results read as diffs against the main workspace, folded like the change reader, not as two full copies.
-  const integrationBody = result.body as { files?: Array<{ path: string[]; before_text?: string | null; after_text?: string | null; diff_html?: string }> } | undefined;
-  if (result.status === 200 && (request.method ?? "GET") === "GET" && url.pathname.endsWith("/integration") && Array.isArray(integrationBody?.files)) {
-    for (const file of integrationBody.files) {
-      if (file.before_text === undefined || file.after_text === undefined) continue;
-      const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "integration", applied: false, coverage: "text-reviews", files: [{ path: file.path.join("/"),
-        kind: file.before_text === null ? "added" : file.after_text === null ? "deleted" : "modified", added_lines: 0, removed_lines: 0, diff: "",
-        review: { review_id: "integration", before_text: file.before_text, after_text: file.after_text ?? "", decision: "approved", execution: "applied" } }] } as never,
-        source_plugin_id: CODING_PLUGIN_ID, content_version: 1 }, undefined, 0);
-      file.diff_html = renderDiff({ view, fold_context: 3, sides: false,
-        primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) } });
-    }
-  }
-  if (result.status === 200 && reportBody?.report) {
-    const report = reportBody.report;
-    Object.assign(reportBody, { html: renderCodingReport({ title: report.title, run_id: report.run_id,
-      body_html: renderRichText(report.body_markdown), primitives: { escape: value => escapeHtml(String(value)),
-        icon: name => icon(name as Parameters<typeof icon>[0]), text: L, formatDate: value => value },
-    }) });
-  }
-}
 
 function failedStage(plugin: string, message: string): string {
   return renderPluginStageShell({ surface: plugin, label: plugin, dataset: plugin + "-error",

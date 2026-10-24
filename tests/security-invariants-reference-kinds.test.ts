@@ -83,7 +83,8 @@ test("PRR-13 a Runtime built-in plugin is recognized by its provider id, not by 
   assert.deepEqual(projectReferenceKinds(todo, new Set(["goals", "todo"]), new Set(["todo"])), [], "a hidden built-in offers nothing");
 });
 
-test("S-32 another project's plugin is not in this project's round, and only the local person's rounds list a project's kinds", { timeout: 60_000 }, async () => {
+// AAP-04: the project lookup is lightweight while actor/project isolation remains enforced.
+test("S-32 another project's plugin is not in this project's round, and only the local person's rounds list a project's kinds", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "reference-kinds-projects-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
@@ -98,12 +99,14 @@ test("S-32 another project's plugin is not in this project's round, and only the
         definitions: [search, reader], handlers: [{ ...search, handle: () => ({ entries: [], next_cursor: null, collection_revision: "1" }) }, { ...reader, handle: () => null }] });
     });
     await host.withProject(refB, () => undefined);
+    const status = t.mock.method(host, "status", () => { throw new Error("reference kinds need projects only"); });
     const port = referenceKindsPort(host, home, () => (options, operation) => withCatalog(options, operation));
     const kinds = async (project_id: string, actor_id = LOCAL_PERSON_ACTOR_ID) => (await port({ project_id, actor_id })).map(entry => entry.kind);
     assert.ok((await kinds(refA.project_id)).includes("x_note"), "the project that installed it offers its kind");
     assert.ok(!(await kinds(refB.project_id)).includes("x_note"), "S-32: another project's round does not");
     assert.deepEqual(await kinds(refA.project_id, "runtime:someone"), [], "a round owned by anyone but the local person keeps the Runtime's built-in list");
     assert.deepEqual(await kinds("not-open"), [], "a project that is not open lists nothing");
+    assert.equal(status.mock.callCount(), 0);
   } finally {
     await host.close();
     await rm(home, { recursive: true, force: true });

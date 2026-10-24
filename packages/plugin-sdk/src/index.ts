@@ -1,3 +1,8 @@
+/** The page runtime installs this helper; its shape is owned by the UI contract. */
+declare global {
+  var molisWorkRequest: import("@molis-ai/molis-work-contracts/platform/ui").UiRequest;
+}
+
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
@@ -20,7 +25,7 @@ export { fillMessage } from "./message-text.js";
 export { redactSecrets } from "./redact-secrets.js";
 export { questionAnswer } from "./question-answers.js";
 export { QUESTION_REASK, questionDraftMaterial } from "./question-drafts.js";
-export { cardSubject, draftActionCard, runActionCard, dismissActionCard, sweepActionCard, type ActionCard, type ActionCardStatus, type ActionCardPorts, type ActionCardRefusal, type CardStore, type CardAuthority } from "./action-cards.js";
+export { actionCardView, cardSubject, draftActionCard, runActionCard, dismissActionCard, sweepActionCard, type ActionCard, type ActionCardStatus, type ActionCardPorts, type ActionCardRefusal, type CardStore, type CardAuthority } from "./action-cards.js";
 export { cardInputValues, instantIn, wallClockIn } from "./card-values.js";
 /** The rules of a question set and its answer, for a plugin that asks without an Agent run; the same verdicts as the Agent runtime's. */
 export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";
@@ -30,7 +35,7 @@ export { defineAction } from "./actions.js";
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
 /** One error model: raise `ActionError`s whose codes your plugin declares once with `defineErrorCodes`; the Host's edge answers them by kind. */
 export { ActionError, defineErrorCodes, type ActionErrorKind, type ActionErrorOptions } from "@molis-ai/molis-work-contracts/platform/actions";
-export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse, actionErrorFromResponse, type ActionErrorBody, type ActionErrorBodyOptions } from "./errors.js";
+export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse, actionErrorFromResponse, isCodedFailure, type ActionErrorBody, type ActionErrorBodyOptions } from "./errors.js";
 export { defineSubjectContextAction, subjectContext, resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineActionUsagesAction, referencesAction, type ActionUsage, type ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -65,7 +70,7 @@ export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plu
 export { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt, InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-export type { UiContribution, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type {
   IntegrationProviderPort,

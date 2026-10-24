@@ -7,10 +7,9 @@ export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
 export { openWorkSessionRegistry } from "./session-registry.js";
-export { RuntimeSessionHost } from "./runtime-session.js";
 export { RuntimeProjectConnection } from "./runtime-project-connection.js";
 export { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
-export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnvironment, sessionSignalsForHost } from "./runtime-context.js";
+export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnvironment } from "./runtime-context.js";
 export type { MolisWorkRuntimeContextHost } from "./runtime-context.js";
 export { prepareLocalProjectStorage } from "./project-storage.js";
 export { PluginHostExecutor } from "./plugin-executor.js";
@@ -22,10 +21,10 @@ export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, typ
 export { openPluginDatabase } from "./plugin-database.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { createPluginPlatform } from "./plugin-platform.js";
+export { dispatchDeclaredPluginRoutes, type DeclaredPluginRoutes } from "./plugin-route-operations.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
-export { openHostShelfFiles, openHostShelfStore } from "./shelf-actions.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
 export { ORIGINAL_FILE_MAX_BYTES, readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
@@ -85,6 +84,7 @@ export { seedDemoBoard, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
   seedDemoPluginSurfaces,
   seedDemoProjectExtras,
+  seedDemoHomeSamples,
   enableDemoProjectPlugins,
   DEMO_GITHUB_SOURCE_ID,
   DEMO_GMAIL_SOURCE_ID,
@@ -109,6 +109,8 @@ export { installManagedConnectorTool, removeManagedConnectorTool } from "./conne
 export { retainConnectorSetupsForSession } from "./connector-setup-retain.js";
 export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 export { connectorUsagesAction } from "./connector-usage-actions.js";
+export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
+export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";
 export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
@@ -136,7 +138,6 @@ export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
-export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
@@ -165,7 +166,6 @@ export { sendLocalWebJson, sendUnhandledWebError, readLocalWebBody, authorizeLoc
 export { createLocalWebAssets } from "./web-assets.js";
 
 export * from "./web-session.js";
-export { panelSessionInput, recordDesktopPanelSessions } from "./panel-sessions.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
@@ -205,7 +205,6 @@ export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
-  codingNextSteps,
   codingRouteHooks,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
@@ -239,6 +238,7 @@ export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type Assi
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
 export { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview, type OutcomeCard } from "./agent-next-steps.js";
 export { withPluginInteraction } from "./plugin-interaction-answer.js";
+export { pluginInteraction } from "./plugin-interaction.js";
 export { assistantCardHtml } from "./assistant/assistant-card-view.js";
 export { assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
 export { assistantOutcomeSteps } from "./assistant/assistant-outcome.js";

@@ -90,9 +90,9 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
 
 /** The ports over this Host: its open projects, and the local person's own context in each, as the Web uses it. */
 export function homeAggregatePorts(host: MolisWorkLocalHost): HomeAggregatePorts {
-  const open = (projectId: string) => host.status().projects.some(row => row.project_id === projectId && row.state !== "closing");
+  const open = (projectId: string) => host.projects().some(row => row.project_id === projectId && row.state !== "closing");
   return {
-    openProjects: () => host.status().projects.filter(row => row.state !== "closing"),
+    openProjects: () => host.projects().filter(row => row.state !== "closing"),
     // Checked and entered in the same turn: once inside, the project stays open until the work ends, and a close begun meanwhile refuses new calls.
     whileOpen: (reference, work) => open(reference.project_id) ? host.withProject(reference, work) : Promise.resolve(undefined),
     client: reference => host.actionClient(reference),

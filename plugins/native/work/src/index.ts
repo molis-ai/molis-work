@@ -13,7 +13,6 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { workActions, WORK_ACTION_PERMISSIONS, createWorkActionHandlers, publicWorkSessionSchema } from "./actions.js";
 export type { WorkSessionDirectory, PublicWorkSession, PublicSessionContent, WorkSessionActionResources } from "./actions.js";
 export { handleWorkSessionHttp } from "./http/index.js";
-export { handleWorkPanelHttp, type WorkPanelHttpContext } from "./http/panels.js";
 export { publicSessionRecord, publicSessionHandoff } from "./http/public-records.js";
 export type { WorkSessionHttpContext, WorkSessionHttpResources } from "./http/types.js";
 
@@ -23,13 +22,11 @@ export { SessionHandoffService } from "./handoff.js";
 export { buildSessionHandoffPackage } from "./handoff-package.js";
 export { RegistryFallbackSessionAdapter } from "./registry-fallback-adapter.js";
 export { SessionTuiRecorder, stripTerminalControl } from "./tui-recorder.js";
-export { repairProjectWorkspace, unlinkProjectWorkspace, type ProjectWorkspaceActionRecord, type WorkspaceActionCatalog } from "./workspace-actions.js";
 export type { SessionTimelineEvent, SessionContentMode, SessionContentResult, SessionResumeResult, SessionHandoffGoalContext, PrepareSessionHandoffInput, SendSessionHandoffInput, SessionHandoffResult } from "./types.js";
 
 export { workUiContribution, WORK_UI_CONTRIBUTION_ID } from "./ui/contribution.js";
-export { workTerminalUiContribution, WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "./ui/terminal.js";
 export { WORK_EN } from "./ui/en.js";
-export { buildWorkSessionView, sessionWorkspaceId, type WorkSessionViewInput } from "./ui/read-model.js";
+export { buildWorkSessionView, type WorkSessionViewInput } from "./ui/read-model.js";
 export { PROJECT_OPERATIONS_STYLES } from "./ui/styles.js";
 export { PROJECT_OPERATIONS_CLIENT_SCRIPT } from "./ui/browser.js";
 export type { WorkUiModel, WorkUiSurface, ProjectOperationsProject, ProjectOperationsSlice, ProjectOperationsData, ProjectSessionRecord, ProjectWorkspaceRecord } from "./ui/types.js";

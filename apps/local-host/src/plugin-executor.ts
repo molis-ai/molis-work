@@ -1,9 +1,10 @@
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { PluginCapabilityPort, PluginEventBus, PluginHostEvents, PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
+import { StoppedServiceCalls, type PluginCapabilityPort, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
+import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -74,6 +75,7 @@ export interface PluginHostExecutorOptions {
 /** Trusted in-process Host composition, not an isolation boundary for arbitrary JavaScript. */
 export class PluginHostExecutor implements PluginExecutor {
   private readonly sessions = new Map<string, HostSession>();
+  private readonly stoppedCalls = new StoppedServiceCalls();
   private options: PluginHostExecutorOptions;
 
   constructor(options: PluginHostExecutorOptions) {
@@ -86,6 +88,15 @@ export class PluginHostExecutor implements PluginExecutor {
 
   restorePrivateData(installId: string, snapshot: unknown): Promise<void> | void {
     return this.options.restorePrivateData?.(installId, snapshot);
+  }
+
+  uninstalled(record: PluginInstanceRecord): void {
+    forgetPluginAgentDefinitions(this.options.home, record.install_id);
+  }
+
+  /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */
+  stoppedServiceCalls(instance: PluginInstance): number {
+    return this.stoppedCalls.count(instance);
   }
 
   /**
@@ -104,7 +115,7 @@ export class PluginHostExecutor implements PluginExecutor {
   }
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
-    const session = openHostSession(this.options, definition, context);
+    const session = openHostSession(this.options, definition, context, this.stoppedCalls);
     try {
       const contribution = await session.starting(() => definition.start(session.context));
       this.sessions.set(context.install_id, session);

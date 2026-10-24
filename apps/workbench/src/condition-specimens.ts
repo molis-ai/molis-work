@@ -23,10 +23,10 @@ const PARAMS: readonly BoardFrameParam[] = [
 ];
 const NATIVE = new Set(["中文", "English"]);
 
-/** A frame's parameter as one toggle group, its first value current; the board's strip program (conditions-section.ts) reads it. */
-export function boardFrameParam(say: Say, [name, label, options]: BoardFrameParam): string {
-  return `<div class="mw-cond-param"><span>${escapeHtml(say(label))}</span>${renderToggleGroup({ label: say(label), items: options.map(([value, text], index) => ({
-    value, label: NATIVE.has(text) ? text : say(text), current: index === 0, attrs: { "data-cond-param": name, "data-cond-value": value },
+/** A frame's parameter as one toggle group, `current` (else its first value) current; the board's strip program (conditions-section.ts) reads it. */
+export function boardFrameParam(say: Say, [name, label, options]: BoardFrameParam, current = options[0]![0]): string {
+  return `<div class="mw-cond-param"><span>${escapeHtml(say(label))}</span>${renderToggleGroup({ label: say(label), items: options.map(([value, text]) => ({
+    value, label: NATIVE.has(text) ? text : say(text), current: value === current, attrs: { "data-cond-param": name, "data-cond-value": value },
   })) })}</div>`;
 }
 
@@ -34,13 +34,14 @@ function preference(say: Say, label: string, attribute: string, options: readonl
   return `<div class="mw-cond-param"><span>${escapeHtml(say(label))}</span><div class="mw-choice-group" role="group" aria-label="${escapeHtml(say(label))}">${options.map(([value, text]) => renderChoice({ label: say(text), attrs: { [attribute]: value } })).join("")}</div></div>`;
 }
 
-export function renderConditionsSection(say: Say): string {
+/** `lang` is the board's own language: the frame starts in it. */
+export function renderConditionsSection(say: Say, lang: "zh" | "en" = "zh"): string {
   const preferences = preference(say, "明暗", "data-theme-option", [["light", "浅色"], ["dark", "深色"]])
     + preference(say, "界面密度", "data-density-option", [["standard", "标准"], ["compact", "紧凑"]]);
   return `<section class="mw-catalog__section" id="conditions" data-primitive="conditions"><h2>${escapeHtml(say("条件与状态"))}</h2>
     <p class="mw-catalog__hint">${escapeHtml(say("同一块生产内容放在真实的工作台环境里（下面的框架用工作台的样式表与页面程序），一次只换一个参数对照：界面语言、正文语言与混排、编程与非编程、后备字体、复制成败、容器宽度，明暗与密度用页面的偏好。缩放、触控与减少动态效果由浏览器给，框架只读出当前值。示例内容固定，不连接任何服务；标「模拟」的是板上造出的条件，不代替生产验证。"))}</p>
-    <div class="mw-cond-params" data-cond-params>${PARAMS.map((one) => boardFrameParam(say, one)).join("")}${preferences}</div>
-    <iframe class="mw-cond-frame" data-cond-frame src="/__ui/catalog/conditions?lang=zh&amp;text=zh&amp;kind=code&amp;font=system&amp;copy=ok" title="${escapeHtml(say("条件与状态样例"))}" style="width:760px" loading="lazy"></iframe>
+    <div class="mw-cond-params" data-cond-params>${PARAMS.map((one) => boardFrameParam(say, one, one[0] === "lang" ? lang : undefined)).join("")}${preferences}</div>
+    <iframe class="mw-cond-frame" data-cond-frame src="/__ui/catalog/conditions?lang=${lang}&amp;text=zh&amp;kind=code&amp;font=system&amp;copy=ok" title="${escapeHtml(say("条件与状态样例"))}" style="width:760px" loading="lazy"></iframe>
     <script>${CONDITIONS_SECTION_SCRIPT}</script>
   </section>`;
 }

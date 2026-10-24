@@ -273,7 +273,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       projectMenus.forEach((menu) => {
         if (menu.open && menu !== activeProjectMenu) menu.open = false;
       });
-      if (!feedFilterPanel?.hidden && !target.closest("[data-feed-filter-panel], [data-feed-filter-trigger]")) setFeedFilterOpen(false);
+      if (feedFilterPanel?.hidden === false && !target.closest("[data-feed-filter-panel], [data-feed-filter-trigger]")) setFeedFilterOpen(false);
       const feedFilterOption = target.closest("[data-feed-filter-option]");
       if (feedFilterOption) {
         const control = {

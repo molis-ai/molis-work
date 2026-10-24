@@ -238,13 +238,16 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Onboarding without limits (slice 101, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
-  // original route, its name in a header. 26516 → 26900 (+384).
-  "/assets/molis-work-knowledge.js": [26516, 26900],
-  // Onboarding without limits (slice 101): the shared request client sends a Blob as a raw body. It is bundled into the
-  // workbench and the isolated plugin frame: 1186577 → 1186715 (+138) and 187730 → 187841 (+111).
-  "/assets/molis-work-workbench.js": [1186577, 1186715],
-  "/assets/molis-work-plugin-frame.js": [187730, 187841],
+  // Shelf S4: keep a partial-success warning and refresh link visible when sample restoration fails.
+  // Shared success text and button handling reduce duplication; reviewed growth is 1190725 → 1191104 (+379).
+  "/assets/molis-work-workbench.js": [1190725, 1191104],
+  // RAC-138/139: typed Issue client 24145 → 27806 (+3661), reviewed 2026-10-23.
+  // Object state keeps property names (the original +3605); malformed write receipts and same-id recovery add 56.
+  // Combining the failure branches saved 5 bytes; retain the necessary recovery and read-refusal behavior.
+  "/assets/molis-work-plugins/issues.js": [24145, 27806],
+  // RAC-132: carry the Manifest id into the opaque frame and supply its own plugin route (+88 bytes).
+  // Reviewed 2026-10-23: direct fields/path construction; no smaller equivalent without changing surrounding behavior.
+  "/assets/molis-work-plugin-frame.js": [191104, 191192],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

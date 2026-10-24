@@ -15,7 +15,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 export function referenceKindsPort(localHost: MolisWorkLocalHost, homeDirectory: string, withCatalog: () => LocalWebCatalogRunner | undefined): ReferenceKindsFor {
   return async owner => {
     if (owner.actor_id !== LOCAL_PERSON_ACTOR_ID) return [];
-    const reference = localHost.status().projects.find(row => row.project_id === owner.project_id && row.state !== "closing");
+    const reference = localHost.projects().find(row => row.project_id === owner.project_id && row.state !== "closing");
     if (!reference) return [];
     const views = await localHost.actionClient(reference).discover(await localWebActionContext(localHost, reference, LOCAL_OWNER_PERMISSIONS));
     const catalog = withCatalog();

@@ -1,4 +1,4 @@
-import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiDeclaredMountHost } from "@molis-ai/molis-work-ui-host";
 import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, type ArtifactBrowserUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
 import { FILE_PREVIEW_STYLES } from "@molis-ai/molis-work-design-system";
 
@@ -70,13 +70,9 @@ export const ARTIFACT_WORKBENCH_STYLES = `${FILE_PREVIEW_STYLES}
   }
 `;
 
-export function createArtifactWorkbenchRenderer(
-  host: UiHostApi,
-  slots: { readonly directory: UiSlotDescriptor; readonly main: UiSlotDescriptor },
-) {
-  const mount = (surface: "directory" | "detail" | "embed" | "frame-block", model: ArtifactBrowserUiModel) => host.mount({
-    slot: surface === "directory" ? slots.directory : slots.main,
-    contribution: { contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, surface, model },
+export function createArtifactWorkbenchRenderer(host: UiDeclaredMountHost) {
+  const mount = (surface: "directory" | "detail" | "embed" | "frame-block", model: ArtifactBrowserUiModel) => host.mountDeclared({
+    contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, surface, model,
   }).html;
   return {
     fragments: (model: ArtifactBrowserUiModel, surface: "detail" | "frame-block" = "detail"): string =>

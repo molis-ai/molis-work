@@ -1,5 +1,5 @@
 import { GIT_ACTIONS } from "./action-definitions.js";
-import { HOST_REVIEW_SETTLED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_CHANGESET_TYPE,
@@ -108,6 +108,9 @@ export const gitManifest: PluginManifest = {
       },
       // Operations Git asked for, once a person approved and the Host ran them. Only the Host sends it, so no source is named.
       { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1 },
+      // Every person-approved workspace operation of this project, whoever asked: a Coding worktree or integration too (BL-379).
+      // The Host broadcasts it to each installation that subscribes and holds `workspace:read`.
+      { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1 },
     ],
   },
   routes: [

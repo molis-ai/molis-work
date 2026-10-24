@@ -9,6 +9,7 @@ import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, validateInstalledManifest } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 import { outsidePluginAction } from "./action-scope.js";
+import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
 import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
@@ -33,6 +34,7 @@ export type {
 
 export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, currentPluginAction, currentPluginInvocation, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
 export type { PluginInstance } from "./action-scope.js";
+export { inertAfterStop, StoppedServiceCalls, type StoppedServiceCall } from "./stopped-services.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
 export type { PluginOwnerFilesGate } from "./owner-files-service.js";
 export { createPluginBackgroundClient } from "./background-service.js";
@@ -109,7 +111,7 @@ export const packageDescriptor = {
 
 export class PluginRuntime implements PluginRuntimeApi {
   private readonly definitions = new Map<string, PluginDefinition>();
-  private readonly contributions = new Map<string, PluginContribution>();
+  private readonly contributions = new OfferedContributions();
   private readonly contexts = new Map<string, { context: PluginStartContext; revoke(): void }>();
   /** Serializes lifecycle mutations for one install so start cannot overlap stop. */
   private readonly operations = new Map<string, Promise<void>>();
@@ -439,11 +441,10 @@ export class PluginRuntime implements PluginRuntimeApi {
         updated_at: this.now(),
       };
       this.repository.save(updated);
-      this.contributions.set(installId, handle.contribution);
+      this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("start", updated, false);
     } catch (error) {
       this.revokeContext(installId);
-      this.contributions.delete(installId);
       const updated = {
         ...current,
         state: "crashed" as const,
@@ -467,7 +468,6 @@ export class PluginRuntime implements PluginRuntimeApi {
     // Nothing in this process was activated. Do not grant a context just to stop it.
     if (!this.hasLiveInstance(installId)) {
       this.revokeContext(installId);
-      this.contributions.delete(installId);
       const updated = {
         ...current,
         state: preserveEnabled ? "installed" as const : "disabled" as const,
@@ -481,7 +481,6 @@ export class PluginRuntime implements PluginRuntimeApi {
     const live = this.liveContext(installId);
     // Cleanup may await user code; withdraw the activation before yielding to it.
     this.revokeContext(installId);
-    this.contributions.delete(installId);
     try {
       if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
     } catch (error) {
@@ -524,7 +523,6 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
     }
     this.revokeContext(installId);
-    this.contributions.delete(installId);
     const updated = {
       ...current,
       state: "crashed" as const,
@@ -564,11 +562,10 @@ export class PluginRuntime implements PluginRuntimeApi {
         updated_at: this.now(),
       };
       this.repository.save(updated);
-      this.contributions.set(installId, handle.contribution);
+      this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("recover", updated, false);
     } catch (error) {
       this.revokeContext(installId);
-      this.contributions.delete(installId);
       const quarantined = releaseQuarantine || recoveryCount >= maxAttempts;
       const updated = {
         ...current,
@@ -609,18 +606,15 @@ export class PluginRuntime implements PluginRuntimeApi {
       const definition = this.requireDefinition(current);
       const live = this.liveContext(installId);
       this.revokeContext(installId);
-      this.contributions.delete(installId);
       try {
         if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
       } catch (error) {
         this.revokeContext(installId);
-        this.contributions.delete(installId);
         this.repository.save({ ...current, state: "crashed", last_error_code: safeErrorCode(error), updated_at: this.now() });
         throw pluginErrors.executor_failed("Plugin 停止失败，已撤销权限并记录为 crashed，可重试卸载");
       }
     }
     this.revokeContext(installId);
-    this.contributions.delete(installId);
     const at = this.now();
     const updated = restore ? cloneRecord(restore) : {
       ...current,
@@ -631,6 +625,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       uninstalled_at: at,
     };
     this.repository.save(updated);
+    await this.executor.uninstalled?.(updated);
     // No implementation survives its installation. A later explicit reinstall may supply a new in-memory object.
     for (const [key, definition] of this.definitions) {
       if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) this.definitions.delete(key);
@@ -716,7 +711,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     this.actionDisposers.get(installId)?.();
     this.actionDisposers.delete(installId);
     this.contexts.get(installId)?.revoke();
-    if (!retainForCleanup) this.contexts.delete(installId);
+    // Kept for a queued cleanup hook, the context and the contribution stay until it runs; otherwise both go now.
+    if (!retainForCleanup) { this.contexts.delete(installId); this.contributions.delete(installId); }
   }
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
@@ -767,3 +763,4 @@ const runtimeFailureCodes = {
 } as const;
 
 export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate, type PluginOriginalFileKey } from "./materials-service.js";
+export { createPluginConnectionsClient, type PluginConnectionsPort, type PluginConnectionDispatch, type PluginConnectionTarget, type PluginConnectionsGate } from "./connections-service.js";

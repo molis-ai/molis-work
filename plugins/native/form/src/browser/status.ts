@@ -20,7 +20,7 @@ export const placed = (detail: Record<string, unknown>) => { window.dispatchEven
 
 /** The form on screen, for the placement bar and the Assistant. */
 export const publishContext = (page: FormPage) => {
-  const context: Record<string, unknown> = { plugin_id: "io.molis.work.form", surface_title: "Forms" };
+  const context: Record<string, unknown> = { plugin_id: page.host.pluginId, surface_title: "Forms" };
   const { sel } = page;
   if (sel) {
     context.object = { kind: "form", id: sel.id, version: sel.version, title: page.titleInput.value || sel.title };
@@ -64,20 +64,14 @@ export const setBusy = (page: FormPage, value: boolean) => {
   if (page.sel) paintStatus(page, page.sel);
 };
 
-/** The page's confirmation dialog; resolves true only for its OK button. */
-export const ask = (page: FormPage, message: string, okLabel: string) => new Promise<boolean>((resolve) => {
+/** The page's confirmation dialog, through the shared box; resolves true only for its OK button (and, with `run`, once that succeeded). */
+export const ask = (page: FormPage, message: string, okLabel: string, run?: () => Promise<unknown>) => {
   const dialog = page.confirmDialog;
-  if (!dialog) { resolve(false); return; }
-  dialog.querySelector("[data-confirm-text]")!.textContent = message;
-  dialog.querySelector("[data-confirm-ok]")!.textContent = okLabel;
-  dialog.returnValue = "cancel";
-  const onClose = () => {
-    dialog.removeEventListener("close", onClose);
-    resolve(dialog.returnValue === "ok");
-  };
-  dialog.addEventListener("close", onClose);
-  dialog.showModal();
-});
+  if (!dialog) return Promise.resolve(false);
+  const ok = dialog.querySelector<HTMLElement>("[data-confirm-ok]")!;
+  dialog.querySelector("[data-confirm-text]")!.textContent = message; ok.textContent = okLabel;
+  return page.host.confirmBox(dialog, ok, run);
+};
 
 export const setTab = (page: FormPage, next: string) => {
   page.tab = next;

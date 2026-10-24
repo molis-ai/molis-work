@@ -2,7 +2,7 @@
 
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
-新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：项目级的在 `apps/local-host/src/project-plugins.ts` 加监督器条目，Home 级的（个人数据跨项目一致、没有项目也能用）在插件自己 `src/registration.ts` 的 `registration` 上声明 `runtime: { scope: "home", … }`，由宿主的 Home 监督器装配（写法见 `skills/molis-plugin-dev/host.md`）；不再手接 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是目录里要有它的条目：写在插件包的 `src/registration.ts`（导出 `registration: PluginRegistration`，Manifest、`summary`、`workbench` 次序与客户端资源都在里面；`package.json` 声明 `exports["./registration"]` 与 `"molis-work": { "registration": "./registration" }`），运行 `node scripts/generate-plugin-registry.mjs` 生成 `apps/workbench/src/builtin-plugins.ts`（不手改，`pnpm health:check` 跑它的 `--check`）；还要在 `scripts/workspace-packages.mjs` 加这个包的一行，在 `apps/workbench/package.json` 与 `apps/local-host/package.json` 里加这个插件包的依赖（这两处今天仍手写，`specs/repository-anti-corruption/privileges.md` PG-069 跟踪）；并把它的 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（门禁要求每个 Runtime 装配的 id 都有目录条目）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
+新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：项目级的在 `apps/local-host/src/project-plugins.ts` 加监督器条目，Home 级的（个人数据跨项目一致、没有项目也能用）在插件自己 `src/registration.ts` 的 `registration` 上声明 `runtime: { scope: "home", … }`，由宿主的 Home 监督器装配（写法见 `skills/molis-plugin-dev/host.md`）；不再手接 `ui-composition.ts` → `renderer.ts` → `shell-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是目录里要有它的条目：写在插件包的 `src/registration.ts`（导出 `registration: PluginRegistration`，Manifest、`summary`、`workbench` 次序与客户端资源都在里面；`package.json` 声明 `exports["./registration"]` 与 `"molis-work": { "registration": "./registration" }`），运行 `node scripts/generate-plugin-registry.mjs` 生成 `apps/workbench/src/builtin-plugins.ts`（不手改，`pnpm health:check` 跑它的 `--check`）；还要在 `scripts/workspace-packages.mjs` 加这个包的一行，在 `apps/workbench/package.json` 与 `apps/local-host/package.json` 里加这个插件包的依赖（这两处今天仍手写，`specs/repository-anti-corruption/privileges.md` PG-069 跟踪）；并把它的 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（门禁要求每个 Runtime 装配的 id 都有目录条目）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
@@ -273,7 +273,7 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 - **平台的码**（`actions.missing`、`actions.plugin_disabled`、`actions.scope_mismatch` 等）在合同的 `ACTION_ERROR_KINDS` 里一码一行，已经有 kind，直接 `new ActionError("actions.missing", "…")`。
 - **抛 `ActionError`，不要自己造 Error 子类**：Host 里还有按 `instanceof ActionError` 认错误的入口（MCP 的错误文本、首页的动作回答、放置面板里「原对象已删除」与「暂时读不到」的区分等；它们还没有换成按形状读，SDK 的函数已经是按形状读的），只有 `ActionError` 才被当作带码的失败。Todo 原来的 `TodoError` 不是 `ActionError`，所以它的动作失败在这些入口里被当作未知失败，换成 `todoErrors` 后才各自回答成它本来的样子（Todo 读对象的那条路径本来就抛 `ActionError`，放置面板读到「原对象已删除」与首页准备对话的回答没有变）。
 - **没有 kind 的错误**：带我们格式的码（`<主人>.<原因>`）但没人给 kind，按调用者的错误处理，400；没有码、码不是我们的格式（例如系统错误码 `ENOENT`），或根本不是 Error，按内部失败处理，500，响应体的码是 `actions.execution_failed`。调用者写错了才会遇到的情形要先给它一个自己的码（kind `invalid`），别靠 500。动作的可用性对象（`{ available: false, code, reason, kind? }`）也可由主人给 kind；内核的动作与 typed 派发、SDK 的 owner 绑定在抛 `ActionError` 时保留它。Pages、PPT、Dataset、Form 的「当前环境不能发出成果」带 `conflict`，回答 409，原稿保留。没有 kind 的对象仍按主人码的默认 invalid（400）或平台表（例如 `actions.connection_required` 503）处理。
-- **响应体**统一是 `{ error, code, details? }`；`error` 是消息。**按 kind 答的入口**：Host 的 Native 插件 HTTP 分发器（`dispatchNativePluginJsonHttp`），不传 `mapError` 时让错误抛出来即可（Todo 是样例，Pages、PPT、Dataset、Form、Lingguang、Workflows、Shelf、Jelly、Cognia、Functions 同样）；要自己写 HTML、图片字节、跳转或头部的入口（Feed、Inbox、Schedule、Images），它们在 `try` 里用 `readNativePluginJsonBody` 读请求体，出错写 SDK 的 `actionErrorResponse(error)`；SDK 的 `bindPluginActionRoute`，Runtime 插件的路由用它兑现动作：动作抛出的错误按它自己的 kind 答，没有我们的码的错误答 500 `actions.execution_failed`，路由自己的请求映射函数拒绝了请求答 400 `actions.input_invalid`（带着映射函数的那句话）；还有 Plugin Runtime 路由器自己的拒绝，用的是动作层已有的码和句子：没有路由要的权限 403 `actions.forbidden`，本项目没有启用该插件 403 `actions.plugin_disabled`（页面外层对「这个项目没有启用这个插件」答的也是它），插件未运行 503 `actions.plugin_unavailable`，声明了路由却没有处理器 500 `actions.execution_failed`。Host 自己的几个入口同样按 kind 答（成果入口还在这一个地方把消息翻成当前语言，`/api/project-references/`，设置页的项目插件开关），Host 对 Host、Origin、控制令牌检查的拒绝统一是 `host.request_refused`（403，不说哪一项没过）；读不出请求体也是同样的错误：`actions.input_invalid`（400）、`actions.input_too_large`（413）；仍带 `mapError` 的入口，读不出请求体时也由它回答（多数答 400，Agent 定义入口答 500、不带码，助理入口答 500、码 `assistant.failed`）。
+- **响应体**统一是 `{ error, code, details? }`；`error` 是消息。**按 kind 答的入口**：Host 的 Native 插件 HTTP 分发器（`dispatchNativePluginJsonHttp`），不传 `mapError` 时让错误抛出来即可（Todo 是样例，Pages、PPT、Dataset、Form、Lingguang、Workflows、Shelf、Jelly、Cognia、Functions 同样）；要自己写 HTML、图片字节、跳转或头部的入口（Feed、Inbox、Schedule、Images），它们在 `try` 里用 `readNativePluginJsonBody` 读请求体，出错写 SDK 的 `actionErrorResponse(error)`；SDK 的 `bindPluginActionRoute`，Runtime 插件的路由用它兑现动作：动作抛出的错误按它自己的 kind 答，没有我们的码的错误答 500 `actions.execution_failed`，路由自己的请求映射函数拒绝了请求答 400 `actions.input_invalid`（带着映射函数的那句话）；不经它、自己写 `handle` 的路由，处理器抛出的带码错误由 Plugin Runtime 的路由派发按 kind 答（BL-404，不用自己写 catch），没有码的交给 Host 答通用句子，不带原消息；还有 Plugin Runtime 路由器自己的拒绝，用的是动作层已有的码和句子：没有路由要的权限 403 `actions.forbidden`，本项目没有启用该插件 403 `actions.plugin_disabled`（页面外层对「这个项目没有启用这个插件」答的也是它），插件未运行 503 `actions.plugin_unavailable`，声明了路由却没有处理器 500 `actions.execution_failed`。Host 自己的几个入口同样按 kind 答（成果入口还在这一个地方把消息翻成当前语言，`/api/project-references/`，设置页的项目插件开关），Host 对 Host、Origin、控制令牌检查的拒绝统一是 `host.request_refused`（403，不说哪一项没过）；读不出请求体也是同样的错误：`actions.input_invalid`（400）、`actions.input_too_large`（413）；仍带 `mapError` 的入口，读不出请求体时也由它回答（多数答 400，Agent 定义入口答 500、不带码，助理入口答 500、码 `assistant.failed`）。
 - **页面和调用方按 `code` 判断**（例如 `todo.conflict` 提示重新读取），不按 HTTP 状态；`actionErrorFromResponse(status, body)` 把响应还原成同样的错误。读错误一律按形状（有 `code` 和 `message`），不用 `instanceof`：Runtime 包和创作台页面里可能有另一份 `ActionError`。
 
 ## 连续工作：对象上下文、版本前提与助理
@@ -342,7 +342,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 插件可以把本领域的做事方法（Skill）提供给助理和 Character 在业务工作里使用，例如 Pages 的“会议纪要整理”。
 
 - 在 Manifest 的 `methods` 声明：`skill_id`、`version`、`name`、`summary`（何时适用），以及 `tools`。`tools` 只能是业务工具，即 `METHOD_TOOLS`：能力网关（find/read/change-capability、suggest-action），加上 ask-user、update-todo 等不碰目录的工具。校验不通过，Manifest 就无效。
-- 正文放在包里（例如 `src/methods.ts` 导出 `AgentSkillDefinition[]`），标识、版本与 Manifest 一致；内置插件在自己的 `registration` 里带上 `methods`，Host 启动时登记；没有目录条目、由 Host 自己运行的 Runtime 插件与已安装插件把正文放在 `PluginDefinition.methods`，插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02；`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，用例 `tests/plugin-methods-runtime.test.ts`）。两处都只按标识与版本给出正文；声明了但没有正文的方法不登记，开发者诊断里会说明。目录已经为这个插件登记了任何定义时，定义里再带方法会被拒绝启动（一个主人的定义只在一处）；沙箱执行的生成插件不登记方法。
+- 正文放在包里（例如 `src/methods.ts` 导出 `AgentSkillDefinition[]`），标识、版本与 Manifest 一致；内置插件在自己的 `registration` 里带上 `methods`，Host 启动时登记；没有目录条目、由 Host 自己运行的 Runtime 插件与已安装插件把正文放在 `PluginDefinition.methods`，插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02；`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，用例 `tests/plugin-methods-runtime.test.ts`）。停用后，这个安装最近一次登记的角色、Prompt 与指令按「未运行」留在设置里（Host 重启后从 Home 的 `agent-declarations` 库恢复），让本人先看、先改；方法不再给别的 Agent；卸载才删（PG-051 Q1 b）。两处都只按标识与版本给出正文；声明了但没有正文的方法不登记，开发者诊断里会说明。目录已经为这个插件登记了任何定义时，定义里再带方法会被拒绝启动（一个主人的定义只在一处）；沙箱执行的生成插件不登记方法。
 - 与 `agent.skills` 的区别：`agent.skills` 是插件自己的 Agent 用的方法；`methods` 给别的 Agent 用。
 - 助理会在“可用的方法”里看到它（只列名称和适用说明），合适时读取正文照做；用户也可以用“/”直接选定。方法只对采用它的那一轮有效。插件停用后，方法就不再列出。
 - 正文写步骤和边界，不要写死对象标识；需要改数据的步骤照常经 change-capability，由用户确认。
@@ -403,7 +403,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 ## 异步动作与原调用授权
 
-等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后调用 dispatcher 提供的 `caller.beforeEffect()`，再按原对象或配置版本提交。发起嵌套动作/场景时用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查；仅复查权限字符串不能识别同名提供方已被替换。来源同步另持有按数据库、项目和来源隔离的活动租约。失去授权时保留此前的未确认记录用于恢复，不补写失败记录或伪造成功。
+等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后调用 dispatcher 提供的 `caller.beforeEffect()`，再按原对象或配置版本提交。发起嵌套动作/场景时用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查（原动作就是正在执行的这个时不写 `provider_id`）；仅复查权限字符串不能识别同名提供方已被替换。来源同步另持有按数据库、项目和来源隔离的活动租约。失去授权时保留此前的未确认记录用于恢复，不补写失败记录或伪造成功。
 
 提供方在 `action.execution` 声明执行事实：`timeout_ms` 是处理器开始执行后的等待上限，`cost` 为 `none` / `metered` / `unknown`，`max_calls_per_minute` 是同一 actor、项目、安装实例滚动一分钟内的接受次数。未声明费用保持 unknown；未声明时限/频率不自动加限。Kernel 对声明的时限与频率统一执行，切换用户、Agent、Workflow、MCP 或插件入口不能重置同一身份的预算。限额是当前注册实例的本机保护，不是跨进程计费账本；重启或重新注册会重置计数。
 
@@ -452,6 +452,33 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 连接的业务使用位置由消费方通过 `defineConnectorUsagesAction` 报告（contracts 的 `services/connector-host`）。输入是连接 id，输出是 owner 当前保存的使用位置、启用状态和已有业务动作引用及非敏感对象参数。共同目录按 `molis.connector-usages.input.v1` / `output.v1` 发现查询，由 `connectors.usages.read` 以原调用者权限汇总；没有宿主插件白名单和第二份绑定库。Feed 只返回当前项目来源，Images 返回原生图配置，Functions 返回使用当前绑定账号的已发布规则；模型配置不伪称所有文本动作都固定使用该账号。查询不调用业务操作，展示的操作仍按当前目录权限、作用域与可用性决定是否可用。
 
 
+## 用本人的服务账号发请求（`services.connections`）
+
+插件要以用户本人的身份读写某个服务（例如读 GitHub 通知），不自己存令牌，也不让人把令牌填进插件：Manifest 声明权限 `connections:use`，并在 `connections.slots` 里列出连接槽：
+
+```json
+"connections": { "slots": [{ "slot_id": "github", "service_id": "github", "reason": "读取本人的 GitHub 通知" }] }
+```
+
+`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`，现在只有 `github` → `https://api.github.com`）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放；插件设置里的选择界面是 S0b-2b）；没绑时请求照发，不带凭据。
+
+在本插件自己声明了 `connections:use` 的并发动作（`scheduling: "concurrent"`）里调：
+
+```ts
+const response = await context.services.connections!.request("github", { url: "https://api.github.com/notifications" });
+// { status, headers, body, authenticated }
+await caller.beforeEffect(); // 写业务记录之前
+```
+
+- 地址必须是该服务的固定来源；别的地址（没绑账号也一样）都是 `connector.plugin_requests.origin_refused`。
+- 不能自己写 `Authorization`、`Cookie`、`Proxy-Authorization`、`Host` 与连接类的头，不带账号密码与片段；GET/HEAD 不带内容，内容不超过 256 KB；只读动作只能发 GET/HEAD。
+- 绑了账号时宿主加 `Bearer`，插件看不到凭据，`authenticated` 说这次带没带；绑的账号断开或不能用时拒绝（`connector.plugin_requests.connection_unavailable`），不改成匿名发。
+- 不跟随跳转（3xx 原样交回，`location` 在头里）；返回的头只留内容类型、缓存、`link`、`x-ratelimit-*` 等固定的一组；15 秒超时，1 MB 上限；令牌过期的 401 原样交回。
+- 只能在本实例自己的动作或保留的后台作业里用；`start`、路由、场景回调、别的安装的调用都拒（`plugin.connections_call_required`）。授权每次都重查，取消、撤权、停用后不发也不交回。
+- 沙箱插件没有这项服务。
+
+规则与拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` S-57。
+
 ## Home 主人的私有文件树
 
 可信 Home 条目可声明 `owner_files` 与可选的 `initialize_owner_files`，根目录沿唯一 HomeStoreRegistry 验证 owner；同一根不能同时被 database、旧 files 或第二份 owner_files 占用，完整声明校验在受管开库和初始化之前完成。声明绑定实际 definition 并深复制冻结。项目、沙箱、升级预检以及 Manifest 自报字段均不能获得服务。它是平台前置，现 Shelf owner 和正式装配保持现状。
@@ -469,3 +496,7 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 删项目时插件不被通知，也不跑自己的代码：平台在同一轮里先停掉它经 `services.background` 在这个项目里受理的执行和登记的作业（control 的 signal 中止，结果与失败都不交付），再关这个项目的库、跑声明的 project_data purge，中间不 await。项目只是关闭时，项目实例随项目停；Home 实例在这个项目里的作业也停，它受理的有限执行照旧带着原调用的授权。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理或登记。停用/卸载后没有运行实例时仍走原离线 purge，结束 Home 才释放 owner 注册。
 
 非流式路由的 bytes 默认作为附件。PluginRouteResponse 可显式给 disposition 为 inline 或 attachment；Host 只保留 image/png、image/jpeg、image/webp，其他 MIME 强制 octet-stream 附件。nosniff、sandbox、no-store 始终由 Host 设置，插件不能覆盖。HTTP 项目来自已核对存在且显示该插件的路径，query/body 不授予身份。
+
+### 打包的插件客户端公共类型
+
+Todo 与 Form 的浏览器工厂使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，宿主构造同一类型，插件用 `Pick` 取实际消费的字段。`UiClientTranslate`、`UiClientScope` 与 `UiRequest` 形状由合同提供；全局 `molisWorkRequest` 仅在 Plugin SDK 公共入口声明，浏览器文件以类型导入纳入；作用域请求在卸载时取消，迟到结果被拒绝。宿主从 Manifest 提供展示身份 `pluginId`，`pluginRoute(path)` 拼当前项目与插件路径，`route(path)` 保留平台路径语义；这些展示字段不授予权限，父框架仍用可信安装与页面授权。源码中的 DOM 类型作为泛型参数，contracts 不依赖 DOM 或私有实现。现有问卷卡通过 `UiPageInteraction` 返回读取、报错、聚焦和销毁操作。

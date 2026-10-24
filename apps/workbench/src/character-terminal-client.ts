@@ -1,7 +1,8 @@
-import { createTerminalConnection, createTerminalScreens } from "@molis-ai/molis-work-plugin-work/terminal";
+import { createTerminalConnection } from "./terminal/connection.js";
+import { createTerminalScreens } from "./terminal/screens.js";
 import type { PtySpawnRequest } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
-/** Character terminals share Runtime Host PTYs and Work Session recording. Reconnect never launches. */
+/** Character terminals share Runtime Host PTYs; what they print is shown, not recorded. Reconnect never launches. */
 /** Runs `start` once `selector` is in the page: a plugin surface is filled in when it first opens (#150). */
 function whenPresent(selector: string, start: () => void): void {
   const observer = new MutationObserver(() => {
@@ -39,9 +40,9 @@ export function startCharacterTerminalClient(): void {
       if (value.type === "spawned") {
         connection.resetReconnect();
         if (value.replay) { screen.term.reset(); screen.term.write(value.replay); }
-        note(value.started || value.attached ? "原生 Agent · 授权、提问和操作状态显示在终端中" : "进程未运行：可能启动失败、已退出或宿主已重启。查看保存记录了解原因；可从“发布并使用”明确发起新任务。");
+        note(value.started || value.attached ? "原生 Agent · 授权、提问和操作状态显示在终端中" : "进程未运行：可能启动失败、已退出或宿主已重启。终端内容不保存；可从“发布并使用”明确发起新任务。");
       }
-      if (value.type === "exit") note(`进程已结束 · 退出码 ${value.exitCode ?? "未知"}。点击执行记录可读取已保存输出。`);
+      if (value.type === "exit") note(`进程已结束 · 退出码 ${value.exitCode ?? "未知"}。终端内容不保存。`);
       if (value.type === "error") note(value.message ?? "终端启动失败");
     },
   });
@@ -63,7 +64,7 @@ export function startCharacterTerminalClient(): void {
   new ResizeObserver(fit).observe(host);
   window.addEventListener("molis-work:character-terminal-reset", () => {
     active = null; for (const [, screen] of screens.entries()) screen.wrapper.hidden = true;
-    note("选择一条执行记录连接终端。");
+    note("选择一条执行记录，在终端里看。");
   });
   window.addEventListener("molis-work:character-terminal", event => {
     const request = (event as CustomEvent<PtySpawnRequest>).detail;
@@ -72,6 +73,6 @@ export function startCharacterTerminalClient(): void {
     void attach(request).catch(error => note(error.message));
   });
   root.querySelector("[data-character-terminal-stop]")?.addEventListener("click", () => {
-    if (active) void connection.send({ type: "kill", panelId: active.panelId }).then(() => note("已请求停止进程。已保存的输出仍保留。")).catch(error => note(error.message));
+    if (active) void connection.send({ type: "kill", panelId: active.panelId }).then(() => note("已请求停止进程。")).catch(error => note(error.message));
   });
 }

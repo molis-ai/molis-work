@@ -38,7 +38,7 @@
 
 全局只有一处导航与对话入口：底部常驻栏（左侧 Dock 菜单与常驻插件，中间插件切换 + Assistant 输入，右侧 Shelf、灵光、侧栏按钮与项目）。侧栏在工作右边打开，放讨论、浏览器、文件和插件声明的 `side` 标签。插件不要再做全局侧栏、第二个对话入口或自己的顶栏导航；插件内部的目录、树、列表与详情可以分栏。
 
-Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side`。不能往未声明 Slot 塞 HTML。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。
+Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side`。不能往未声明 Slot 塞 HTML。舞台页照 Manifest 挂：打开舞台的那个视图（有 `stage` 视图就是它，否则是 `navigator` 入口）用 `contribution_id` 指向一个贡献，工作台把这个贡献的 `workbench` surface 挂到它声明的 `workbench.main`（`apps/workbench/src/declared-stages.ts`），model 是 `{ primitives: { escape, text } }`；没有这个 surface 就没有舞台，宿主和工作台里不另写按插件名的行。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。
 
 ### 侧栏标签（`side`）
 
@@ -88,6 +88,8 @@ renderPluginStageShell({
 对照：`inbox/src/ui.ts`、`pages/src/ui.ts`、`form/src/ui.ts`（Feed 现在是专门的阅读布局，不再是列表 + 详情的样板）。合同：`specs/archive/plugin-stage-master-detail/spec.md`，版式以根 `DESIGN.md`「Plugin stage lists」为准。
 
 ## 浏览器客户端
+
+打包的 TypeScript 客户端使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，用 `Pick` 只取需要的字段，不另写一套宿主接口；DOM 类型由浏览器消费者传入泛型。`molisWorkRequest` 的形状也来自该合同；全局声明由 Plugin SDK 公共入口提供，浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk"` 纳入，页面不重复声明、不另建请求实现。用 `host.pluginRoute(relativePath)` 请求自己的路由，用 `host.route(platformPath)` 请求已获准的平台路径；`host.pluginId` 来自 Manifest，仅作展示，授权仍由宿主绑定。生命周期 `scope.fetch` 与 `assertCurrent` 保留取消及迟到回应拒绝。打包器作为包的直接开发依赖，与根目录同版；词典和测试写法见 [逐插件客户端方案](../../specs/repository-anti-corruption/slices/w5-04-plugin-client-bundles.md)。
 
 Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在包 `registration` 里声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 
@@ -157,7 +159,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 Files/Git 的目录子树独立挂载，避免和 Coding 根节点争用同一个挂载。Host 审查组件接收调用方生命周期和当前可见性 signal，并以自己的容器管理监听与卸载；不要用审查容器因空数据而 hidden 来判断是否该读取，也不要让旧显示世代的决定回调操作重新进入的界面。普通刷新不使同一显示世代的在途决定失效，过期回执只可触发读取当前状态，不能重放命令。
 
-需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。服务端让自己的页面重新读取，调 `context.services.ui.invalidate()`：不带参数，只推自己的 revision；Manifest 声明了 `ui.views` 就能调，不要权限；动作里、事件回调或定时器里都行。`start()` 里还没运行时调用什么也不做，激活停了（停用、重启）再调被拒（`ui_host.plugin_denied`）。被拒是同步抛错：会调它的定时器、监听器要在 `stop` 里清掉，否则停用或重启以后它们再触发，抛出的错没人接，会让整个宿主进程退出（BL-411）。
+需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。服务端让自己的页面重新读取，调 `context.services.ui.invalidate()`：不带参数，只推自己的 revision；Manifest 声明了 `ui.views` 就能调，不要权限；动作里、事件回调或定时器里都行。`start()` 里还没运行时调用什么也不做，激活停了（停用、重启）再调被拒，版本号不动。`stop` 钩子里被拒是同步抛错（`ui_host.plugin_denied`）；钩子返回以后，留下的定时器、监听器再调什么也不做、不抛错，在还没返回的动作或还没答复的路由里调照常抛错（BL-411，见 [host.md](host.md)「停止以后」）。会调它的定时器、监听器仍要在 `stop` 一开始清掉：它们停用后白跑，日志里留下这个插件。
 
 ## 生成插件的页面组合
 

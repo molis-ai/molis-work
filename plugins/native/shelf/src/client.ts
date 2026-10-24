@@ -37,8 +37,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const reading = (${SHELF_READING_FACTORY_SCRIPT})(escText, escapeAttr);
   let editTimer = 0;
   let arranging = false;
-  let lastBarKind = "empty";
-  let stickyHint = "";
+  let lastBarKind = "empty"; const hintDefault = bench.querySelector("[data-shelf-bar-hint]")?.textContent || "";
+  let stickyHint = "", admitRetry = null; // admitRetry: the files of a partial add that did not go in, with the words they were reported with
   const projectPrefix = document.body.dataset.routePrefix || "";
   const api = projectPrefix + "/api/plugins/io.molis.work.shelf";
   let materialPreview = null, materialTicket = 0;
@@ -491,8 +491,9 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (stickyHint) {
         hint.hidden = false;
         hint.textContent = stickyHint;
+        if (admitRetry?.hint === stickyHint) hint.insertAdjacentHTML("beforeend", ' <button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-shelf-retry-admit>' + escText(L("重试没加上的")) + "</button>");
       } else {
-        hint.hidden = !(kind === "pdf" || kind === "text" || kind === "markdown" || kind === "image" || kind === "url" || kind === "website") || !agentMissing();
+        hint.textContent = hintDefault; hint.hidden = !(kind === "pdf" || kind === "text" || kind === "markdown" || kind === "image" || kind === "url" || kind === "website") || !agentMissing();
       }
     }
     if (kind === "empty") {
@@ -753,7 +754,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const admitFolderEntry = async (entry) => {
     const found = [];
     for (const child of await readEntries(entry.createReader())) await walkEntry(child, "", found);
-    if (!found.length) return null;
+    if (!found.length) return null; if (found.reduce((total, file) => total + file.file.size, 0) > 32 * 1024 * 1024) throw new Error(L("这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来"));
     const entries = [];
     for (const file of found) {
       const bytes = new Uint8Array(await file.file.arrayBuffer());
@@ -763,18 +764,22 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     applySnapshot(payload.snapshot, payload.item?.item_id);
     return payload.item;
   };
+  // Every file is tried; a partial add says how many went in, which did not and why, and carries the others for one retry button.
   const admitFiles = async (files) => {
-    let lastId = "";
+    let lastId = "", added = 0; const refused = [];
     try {
       for (const file of files) {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const payload = await post(api + "/items", { filename: file.name, mime: file.type, bytes_base64: bufferToBase64(bytes) });
-        lastId = payload.item?.item_id || lastId;
-        snapshot = payload.snapshot;
+        try { const payload = await post(api + "/items", { filename: file.name, mime: file.type, bytes_base64: bufferToBase64(new Uint8Array(await file.arrayBuffer())) }); lastId = payload.item?.item_id || lastId; snapshot = payload.snapshot; added += 1; }
+        catch (error) { if (!lifetime.alive || files.length === 1) throw error; refused.push({ file, reason: error.message }); }
       }
     } finally { if (lastId) applySnapshot(snapshot, lastId); }
+    if (!refused.length) return;
+    const failure = new Error(L("已加入 {done} 个，{count} 个没加进去：{list}", { done: added, count: refused.length, list: refused.map((entry) => entry.file.name + "（" + entry.reason + "）").join("；") }));
+    failure.retryFiles = refused.map((entry) => entry.file); throw failure;
   };
+  lifetime.listen(bench, "click", (event) => { if (!event.target.closest("[data-shelf-retry-admit]") || !admitRetry) return; const files = admitRetry.files; admitRetry = null; stickyHint = ""; renderBar(lastBarKind); admitFiles(files).catch((error) => { if (lifetime.alive) showAdmissionError(error); }); });
   const showAdmissionError = (error) => {
+    admitRetry = error.retryFiles ? { files: error.retryFiles, hint: error.message } : null;
     expandShelfStage(true);
     if (!selected) preview.innerHTML=docHtml("Shelf",L("无法添加材料"),error.message);
     stickyHint=error.message;renderBar(lastBarKind);
@@ -881,16 +886,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
 
   const joinClips = async (ids) => {
-    let lastId = "";
-    let next = snapshot;
-    for (const id of ids) {
-      const payload = await post(api + "/clipboard/" + encodeURIComponent(id) + "/material");
-      lastId = payload.item?.item_id || lastId;
-      next = payload.snapshot;
-    }
-    selClip = null;
-    clipSelection = new Set();
-    applySnapshot(next, lastId);
+    let lastId = "", done = 0, next = snapshot;
+    try { for (const id of ids) { const payload = await post(api + "/clipboard/" + encodeURIComponent(id) + "/material"); lastId = payload.item?.item_id || lastId; next = payload.snapshot; done += 1; } }
+    catch (error) { if (done) error.message = L("已加入 {done} 条，其余没加进去：{reason}", { done, reason: error.message }); throw error; }
+    finally { if (done) { selClip = null; clipSelection = new Set(); applySnapshot(next, lastId); } }
   };
 
   lifetime.listen(directory,"click", async (event) => {
@@ -1466,7 +1465,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
         try {
           if(entry.isDirectory) await admitFolderEntry(entry);
           else if(entry.isFile) await admitFiles([await new Promise((resolve,reject)=>entry.file(resolve,reject))]);
-        } catch(error){if(!lifetime.alive)return;failures.push(error.message);}
+        } catch(error){if(!lifetime.alive)return;failures.push(entry.name+"（"+error.message+"）");}
       }
       if(failures.length)showAdmissionError(new Error(failures.join(" · ")));
       return;

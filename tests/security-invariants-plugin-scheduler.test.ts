@@ -7,10 +7,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction, PluginScheduleWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import Database from "better-sqlite3";
+import { DEMO_PROJECT_ID, captureHostLog, scheduleServiceFor, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginSchedulerFixture as fixture } from "./fixtures/plugin-scheduler.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 const wakeup = "scheduler-a.wakeup", due = "2026-01-01T00:00:00.000Z";
 const job = (object_ref: string) => ({ action: { capability_id: wakeup, version: 1 }, object_ref, title: object_ref, due_at: due });
@@ -40,9 +42,16 @@ test("SYS-15-S1: the Runtime scheduler joins its owner's project transaction and
     tx.run("INSERT INTO scheduler_a_notes VALUES ('revoked')"); schedule.register(job("revoked")); revoked = true;
   })); }, { assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "revoked"); } }));
   assert.equal(a.count(), 1); assert.deepEqual(a.schedule.list().map(item => item.object_ref), ["kept"]);
-  await a.stop();
-  assert.throws(() => a.schedule.list(), { code: "actions.forbidden" });
-  await assert.rejects(a.database.transaction(async () => {}, tx => a.schedule.join(tx, schedule => schedule.register(job("stopped")))));
+  const logged: HostLogEntry[] = [], restore = captureHostLog(logged);
+  try {
+    await a.stop();
+    // BL-411: outside every call the stopped activation's services are refused and throw nothing: the list is nothing, and the
+    // joined write never answers. The Host logs both refusals; the scheduler below still holds only the job kept before the stop.
+    assert.equal(a.schedule.list(), undefined);
+    assert.equal(await within(a.database.transaction(async () => {}, tx => a.schedule.join(tx, schedule => schedule.register(job("stopped"))))), PENDING);
+  } finally { restore(); }
+  assert.deepEqual(logged.filter(entry => entry.event === "stopped_service_call").map(entry => `${String(entry.fields?.service)}.${String(entry.fields?.method)}`).sort(),
+    ["project_database.transaction", "scheduler.list"]);
   assert.equal(f.scheduler.list().length, 1);
 });
 
@@ -152,4 +161,22 @@ test("SYS-15-S5: real process death after an action claim cannot consume an unpr
   const result = await f.scheduler.tick();
   assert.equal(result.invoked, 1); assert.equal(result.failed, 0); assert.equal(calls, 1); assert.equal(owner.count(), 1);
   assert.equal(f.scheduler.get(jobId!)?.enabled, false); assert.equal((await f.scheduler.tick()).invoked, 0);
+});
+
+test("PG-039 RAC-206: the Host's project clock has no handler of its own: it cannot register a job without an installation, and an unbound row left in the library is never woken", async () => {
+  const db = new Database(":memory:");
+  const later = new Date("2026-01-02T00:00:00.000Z"), clock = scheduleServiceFor(db, () => later);
+  try {
+    // Before: the Host built its clock with an in-process index, which any code in the Host could register a handler on, and a `register()` for jobs without an installation.
+    assert.equal("register" in clock, false, "the only way to register a job is an installation's own, with its binding");
+    assert.throws(() => clock.registerAction({ plugin_id: "io.molis.work.example.host-handler", capability_id: "host.wakeup", object_ref: "o", title: "t", due_at: due },
+      { install_id: "host", installation_generation: "g", action_version: 1 }, effect => effect()), { code: "scheduler.handler_missing" }, "no activation is connected to the Host's clock");
+    assert.equal(clock.list().length, 0, "nothing was stored");
+    // A row an older library left behind, with no installation binding: it is claimed and fails as unavailable; nothing runs for it.
+    db.prepare(`INSERT INTO schedule_jobs (job_id, plugin_id, capability_id, object_ref, title, recurrence_kind, interval_ms, next_due_at, enabled, created_at, updated_at)
+      VALUES ('job_left_behind', 'io.molis.work.example.host-handler', 'host.wakeup', 'o', 't', 'once', NULL, ?, 1, ?, ?)`).run(due, due, due);
+    assert.deepEqual(await clock.tick(later), { invoked: 1, failed: 1, skipped: 0 });
+    assert.equal(clock.get("job_left_behind")?.last_wakeup?.status, "plugin_unavailable");
+    assert.equal(clock.actionBinding("job_left_behind"), undefined, "it never had an installation to be delivered through");
+  } finally { await clock.close(); db.close(); }
 });

@@ -116,6 +116,17 @@ export interface AgentTodoItem {
   state: "pending" | "in-progress" | "done" | "abandoned";
 }
 
+/**
+ * A model call the runtime is about to try again: the wall-clock time it will (`until`), the attempt that failed and why —
+ * the provider limited the rate, was unavailable after the request went out, or the request was never sent. The page counts
+ * down to `until`; it never retries on its own.
+ */
+export interface AgentRetryWait {
+  until: string;
+  reason: "rate-limited" | "unavailable" | "not-sent";
+  attempt: number;
+}
+
 export interface AgentRunView {
   step_board?: AgentStepBoard;
   step_board_error?: string;
@@ -151,6 +162,8 @@ export interface AgentRunView {
    * cancel act at once, an added instruction waits for it to wake. The wait counts against its time budget.
    */
   sleeping_until?: string;
+  /** While a model call waits to try again (the runtime's `retry-waiting`): when, and why. Gone once a call answers or the Run ends. */
+  retry_wait?: AgentRetryWait;
   /**
    * The person switched this Run's model: `now` is where its calls go since (`frozen.model_id` stays the start), and
    * `requested` one asked for that takes effect at the next model call. Context tidying keeps the start model.

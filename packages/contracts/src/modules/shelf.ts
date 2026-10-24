@@ -3,10 +3,20 @@ import type { ArtifactReference } from "./artifacts.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition } from "../platform/actions.js";
 import type { MaterialExtractor, MaterialWebsiteReader } from "../services/materials.js";
+import type { PluginOwnerFilesReader } from "../platform/plugin-owner-files.js";
 
 /** Execution authority is supplied by the Host, never by a serialized Shelf request. */
 export interface ShelfExecutionControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }
-export interface ShelfMaterialPorts { readWebsite?: MaterialWebsiteReader; extract?: MaterialExtractor; imageTextAvailable?(): boolean }
+/**
+ * The platform's material readers, as Shelf's store uses them. The original-file three are the platform's register of the file the
+ * person handed in, kept under the Shelf item's id: the store never names a path.
+ */
+export interface ShelfMaterialPorts {
+  readWebsite?: MaterialWebsiteReader; extract?: MaterialExtractor; imageTextAvailable?(): boolean;
+  claimOriginal?(item_id: string): Promise<void>;
+  readOriginal?(item_id: string, request?: { signal?: AbortSignal }): Promise<{ bytes: Uint8Array }>;
+  releaseOriginal?(item_id: string): Promise<void>;
+}
 
 export interface ShelfModelSelection { readonly provider_id: string; readonly model_id: string }
 export interface ShelfAiStatus {
@@ -14,12 +24,15 @@ export interface ShelfAiStatus {
   readonly selected: ShelfModelSelection | null;
   readonly choices: readonly (ShelfModelSelection & { readonly label: string; readonly vision: boolean })[];
 }
-/** Trusted Host sources are built by the store, never accepted from an Action input. */
+/**
+ * Sources are the job's frozen copies, built by the store and never accepted from an Action input: `root` is their folder in
+ * Shelf's own files, read through `files`.
+ */
 export interface ShelfAiPorts {
   status(selection?: ShelfModelSelection | null): ShelfAiStatus;
   generate(input: {
     recipe: Exclude<ShelfRecipeId, "extract_text">; option_id: string | null; shortcut_prompt?: string;
-    selection: ShelfModelSelection; root: string;
+    selection: ShelfModelSelection; files: PluginOwnerFilesReader; root: string;
     sources: readonly { relative_path: string; name: string; kind: ShelfItemKind; mime: string }[];
   }, control: ShelfExecutionControl): Promise<{ text: string; execution?: BoundedInferenceReceipt; coverage?: readonly string[]; validateResult?(): void }>;
 }
@@ -58,27 +71,27 @@ export const modulesShelfContract = {
   ssot: "docs/modules/shelf.md",
 } as const satisfies ContractDescriptor;
 
-/** The input of `shelf.items.admit`: a text (whose web pages may be captured) or a file copy. */
+/** The input of `shelf.items.admit`: a text or a file copy. A link in the text is kept as a link; fetching its page is `shelf.items.capture`'s. */
 export interface ShelfAdmitActionInput {
-  text?: string; title?: string; capture_pages?: boolean;
-  filename?: string; bytes_base64?: string; mime?: string; origin_realpath?: string;
+  text?: string; title?: string;
+  filename?: string; bytes_base64?: string; mime?: string;
 }
 /**
  * `shelf.items.admit`, defined once: Shelf registers its handler for this definition, and another plugin that puts a
  * file it made into the person's Shelf (Images' 放进 Shelf) invokes it through the action directory, never reaching
- * Shelf's implementation.
+ * Shelf's implementation. Admitting reads the shelf and writes the copy, and reads a PDF's text for its preview (`materials:read`).
+ * It fetches nothing and names no original file: those are `shelf.items.capture` and `shelf.items.original`.
  */
 export const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput, { item: ShelfItemRecord }> = {
-  capability_id: "shelf.items.admit", version: 1, operation: "command",
+  capability_id: "shelf.items.admit", version: 2, operation: "command",
   action: {
-    title: "放进 Shelf", description: "把一段文字（可抓取其中网页）或一个文件副本放进置物架；同一原件重复加入保留原副本", kind: "operation",
-    scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:read", "shelf:write", "materials:read", "materials:fetch"], subject_kinds: ["shelf_item"],
+    title: "放进 Shelf", description: "把一段文字或一个文件副本放进置物架；文字里的网址按链接保存，不抓取网页", kind: "operation",
+    scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:read", "shelf:write", "materials:read"], subject_kinds: ["shelf_item"],
     input_schema: {
       type: "object",
       properties: {
-        text: { type: "string", maxLength: 2_000_000, title: "文字" }, title: { type: "string", maxLength: 200, title: "标题" }, capture_pages: { type: "boolean", title: "抓取其中的网页" },
+        text: { type: "string", maxLength: 2_000_000, title: "文字" }, title: { type: "string", maxLength: 200, title: "标题" },
         filename: { type: "string", maxLength: 500, title: "文件名" }, bytes_base64: { type: "string", maxLength: 128 * 1024 * 1024, title: "文件内容（Base64）" }, mime: { type: "string", maxLength: 200, title: "文件类型" },
-        origin_realpath: { type: "string", maxLength: 4096, title: "原文件位置", description: "仅本机界面拖入文件时提供，用于任务前核对原件未变" },
       },
       required: [], additionalProperties: false,
     },
@@ -329,7 +342,6 @@ export interface ShelfFolderEntryInput {
 export interface ShelfAdmitFolderInput {
   readonly name: string;
   readonly entries: readonly ShelfFolderEntryInput[];
-  readonly origin_realpath?: string | null;
 }
 
 export interface ShelfAdmitInput {
@@ -337,7 +349,6 @@ export interface ShelfAdmitInput {
   readonly filename: string;
   readonly bytes: Uint8Array;
   readonly mime?: string;
-  readonly origin_realpath?: string | null;
 }
 
 export interface ShelfRunJobInput {

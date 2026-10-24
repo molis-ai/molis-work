@@ -301,6 +301,8 @@ export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/a
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { UiClientScope } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageActions } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -315,7 +317,9 @@ export type { UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalCommand } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -327,6 +331,12 @@ export type { WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/a
 export type { WorkExecutorRunControl } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function actionCardView(card: ActionCard & {
+    readonly run_id?: string | null;
+    readonly from?: AssistantCard["from"];
+    readonly source_object?: AssistantCard["source_object"];
+}): AssistantCard;
 
 export declare function actionErrorBody(error: unknown, options?: ActionErrorBodyOptions): ActionErrorBody;
 
@@ -433,6 +443,8 @@ export declare function inspectActionDeclarations(definitions: unknown, scenes: 
 export declare function instantIn(day: string, time: string, zone: string | undefined): string | null;
 
 export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+
+export declare function isCodedFailure(error: unknown): boolean;
 
 export declare function isHomeAggregateQuery(definition: {
     readonly operation: string;

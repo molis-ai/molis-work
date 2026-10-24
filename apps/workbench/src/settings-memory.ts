@@ -33,7 +33,7 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
       <div class="memory-toolbar" role="group" aria-label="${L("筛选记忆")}">
         <select class="mw-select" data-memory-filter="kind" aria-label="${L("类别")}"><option value="">${L("全部类别")}</option><option value="preference">${L("偏好")}</option><option value="convention">${L("约定")}</option><option value="fact">${L("背景事实")}</option><option value="experience">${L("经验")}</option></select>
         <select class="mw-select" data-memory-filter="source" aria-label="${L("来源")}"><option value="">${L("全部来源")}</option><option value="said">${L("你说的")}</option><option value="accepted">${L("你认可的")}</option><option value="auto">${L("自动记住")}</option><option value="manual">${L("手动添加")}</option><option value="imported">${L("导入")}</option><option value="plugin">${L("插件记下")}</option></select>
-        <select class="mw-select" data-memory-filter="state" aria-label="${L("状态")}"><option value="">${L("全部状态")}</option><option value="active">${L("生效")}</option><option value="disabled">${L("停用")}</option><option value="paused">${L("暂停")}</option></select>
+        <select class="mw-select" data-memory-filter="state" aria-label="${L("状态")}"><option value="">${L("全部状态")}</option><option value="active">${L("生效")}</option><option value="disabled">${L("停用")}</option><option value="paused">${L("已暂停")}</option></select>
         <input class="mw-input memory-search" type="search" data-memory-filter="query" placeholder="${L("搜索记忆")}" aria-label="${L("搜索记忆")}">
       </div>
       <div class="memory-editor-slot" data-memory-new hidden></div>
@@ -110,9 +110,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     });
     const KIND = { preference: "偏好", convention: "约定", fact: "背景事实", experience: "经验" };
     const SOURCE = { said: "你说的", accepted: "你认可的", auto: "自动记住", manual: "手动添加", imported: "导入", plugin: "插件记下" };
-    const STATE = { active: "生效", disabled: "停用", paused: "暂停" };
+    const STATE = { active: "生效", disabled: "停用", paused: "已暂停" };
     const CHANGE = { kept: "记住", auto_kept: "自动记住", replaced: "替换", auto_replaced: "自动替换", merged: "合并", edited: "修改", restored: "回到旧版本", moved: "改范围",
-      disabled: "停用", auto_disabled: "自动停用", enabled: "启用", paused: "暂停", resumed: "恢复", removed: "删除", accepted: "认可", imported: "导入", cleared: "清空" };
+      disabled: "停用", auto_disabled: "自动停用", enabled: "启用", paused: "已暂停", resumed: "恢复", removed: "删除", accepted: "认可", imported: "导入", cleared: "清空" };
     const day = (iso) => { const date = new Date(iso); return isNaN(date.getTime()) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
     const appliesText = (applies, itemScope) => {
       const parts = [];

@@ -143,7 +143,7 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 
 **等待一轮后台 Agent：`services.agents.run`**（`packages/contracts/src/platform/plugin-agents.ts`，`apps/local-host/src/plugin-agent-service.ts`）。项目插件声明 `agent:run` 与自己的角色，在声明同项权限的 concurrent command 或保留 job 中调用；只传角色、任务、标题、可选工作区 id 和至多十分钟的时限。平台从实际激活派生身份，核项目工作区，复用本 Home 的同一个 Prologue 与现行提示/记忆装配。完成时返回正文与会话/运行引用。原动作取消、停用、撤权、超时或等待人工交互时取消本次运行；不留下脱离原调用的 Agent，也不向插件开放其他运行的控制句柄。真实 Runtime、HTTP 模型与取消零写回归在 `tests/security-invariants-plugin-agents.test.ts`。
 
-**Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke` 或只读的 `model:read`、定义不是沙箱执行、平台有 Home，`context.services.model` 才存在；`model:read` 只开 `choices()` 与 `availability()`（二者认 `model:read` 或 `model:invoke`，既声明又持有其一即可），发请求的 `complete()` 只认 `model:invoke`；它不是 typed 能力，沙箱插件（生成插件）仍走 `model.generate`。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginAgentDefinitions`（同时登记 Manifest `methods`，W4-02），Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时撤指令，不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
+**Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke` 或只读的 `model:read`、定义不是沙箱执行、平台有 Home，`context.services.model` 才存在；`model:read` 只开 `choices()` 与 `availability()`（二者认 `model:read` 或 `model:invoke`，既声明又持有其一即可），发请求的 `complete()` 只认 `model:invoke`；它不是 typed 能力，沙箱插件（生成插件）仍走 `model.generate`。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginAgentDefinitions`（同时登记 Manifest `methods`，W4-02），Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时把它的声明改成「未运行」（设置里仍可看、可改，方法不给别的 Agent，卸载才删，PG-051 Q1 b），不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
 
 - **只在插件自己的动作里**：处理器所在的动作要在 `action.permissions` 里写 `model:invoke`，并且 `scheduling: "concurrent"`。Runtime 给每个动作处理器包一层（`action-scope.ts`，`AsyncLocalStorage`），记下正在执行的动作和这次调用的 `beforeEffect`；插件不传、也伪造不了。`start()`、路由、定时器、别的插件的动作、串行动作、没声明权限的动作里调用，在发出之前就以 `plugin.model_action_required`、`plugin.model_action_not_concurrent`、`plugin.model_permission_undeclared` 拒绝。
 - **发出前和返回后各问一次**：实例仍在运行、安装仍持有 `model:invoke`、这次调用的 `beforeEffect()` 通过，才发出；模型返回后再问一遍，才把结果交给插件。动作已经返回的调用得到 `actions.expired`（定时器里迟到的调用就是这样被挡下的），取消、撤权、停用的调用拿不到结果。插件写入前仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。
@@ -227,7 +227,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 | --- | --- | --- |
 | Agent 中途问人 | 角色 `host_tools` 带 `ask-user` → Runtime 级配置的题型 `hostQuestionTypes()` 与种类 `hostReferenceKinds()`（`horizontal/agent-host/src/adapters/prologue-node-port.ts` 交给 SDK）→ Run 停在 `awaiting_input` → `agentQuestionHtml` 画卡 → 页面读回字段、`questionAnswer` → Run 的控制动作 → Runtime 逐题检查，退回 `agent.answer_invalid` 与 `problems`，`questionErrors` 写成字段旁的一行 | `tests/agent-question-types.test.ts`、`tests/agent-typed-questions.test.ts`、`tests/interaction-examples.test.ts` |
 | 对象引用题 | 种类从内置 Manifest 的搜索来源与主体读取算出 → 模型只能问这些种类（`askUserReferenceKinds`）→ 卡在人打字时调 `search.references` → 交给 Run 前宿主以会话主人的身份重读（S-26），用主人此刻的标题 | `tests/agent-reference-questions.test.ts`、`tests/security-invariants-object-references.test.ts` |
-| 建议一步（操作卡） | 有冻结 `action_tools` 的一轮，`host_tools` 带 `suggest-action` → 建议进 `AgentRunView.offers`，不执行 → 调用方用插件 SDK 的 `draftActionCard` 落成卡、`runActionCard` 执行（只经 `agent.offers.run.v1`，S-29）、`sweepActionCard` 标出失效 | `tests/action-cards.test.ts`、`tests/agent-host-offers.test.ts`、`tests/security-invariants-agent-suggestions.test.ts` |
+| 建议一步（操作卡） | 有冻结 `action_tools` 的一轮，`host_tools` 带 `suggest-action` → 建议进 `AgentRunView.offers`，不执行 → 调用方用插件 SDK 的 `draftActionCard` 落成卡、`runActionCard` 执行（只经 `agent.offers.run.v1`，S-29）、`sweepActionCard` 标出失效；插件自己的页面用 `actionCardView` 得到人读的卡，交给 `services.interaction` 画卡和下一步行（S-56） | `tests/action-cards.test.ts`、`tests/agent-host-offers.test.ts`、`tests/security-invariants-agent-suggestions.test.ts` |
 | 不跑 Agent 的动作先问 | 动作返回 `{ status: "needs_input", interaction }` → 宿主在插件路由上画同一张卡（`apps/local-host/src/plugin-interaction-answer.ts`）→ 带着回答再调一次 → 插件用 `questionProblems` 检查，与 Runtime 同一套规则 | `tests/form-draft-questions.test.ts`、`tests/plugin-interaction-answer.test.ts`、`tests/question-rules-consistency.test.ts` |
 
 三个代表性例子（spec §15.8）：
@@ -263,7 +263,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
   | 文字补全的默认 | 120 秒，`max_output_tokens` 5000 | `apps/local-host/src/host-complete-text.ts` |
   | Runtime 插件的 `services.model` | 默认 120 秒、至多 600 秒；5000、至多 12000 个输出 token | `PLUGIN_MODEL_LIMITS`（`packages/contracts/src/platform/plugin-model.ts`） |
   | 生成插件的 `model.generate` | 110 秒 | `apps/local-host/src/plugin-builder/model.ts` |
-  | Shelf 的自动处理 | 600 秒、12000 个输出 token | `apps/local-host/src/shelf-ai.ts` |
+  | Shelf 的自动处理 | 600 秒、12000 个输出 token | `plugins/native/shelf/src/ai.ts`（Home 实例经 `services.model`） |
   | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `plugins/native/cognia/src/plugin.ts`、`apps/local-host/src/alchemist-prologue.ts` |
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
   | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-run.ts`（`MODEL_CALL_TIMEOUT_MS`） |

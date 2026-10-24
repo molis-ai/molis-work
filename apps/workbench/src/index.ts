@@ -1,8 +1,8 @@
 export { renderSideViewDocument, type SideViewDocumentInput, type SideViewModel } from "./side-view-document.js";
-export { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
+export { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
 export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
-export type { WorkbenchGoalsPageView, WorkbenchGoalsPageOwners } from "./goals-page-renderer.js";
+export type { WorkbenchShellPageView, WorkbenchShellPageOwners } from "./shell-page-renderer.js";
 export { ARTIFACT_EMBED_STYLES } from "./artifact-ui.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";
@@ -118,12 +118,13 @@ export type { ProjectSettingsFoldId } from "./project-settings-folds.js";
 export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRenderer } from "./renderer.js";
 export { renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "./primitive-catalog.js";
 export { parseConditionFrame, renderMolisWorkConditionsSpecimen } from "./condition-frame.js";
-export { parseAssistantFrame, renderMolisWorkAssistantSpecimen } from "./assistant-board-frame.js";
+export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFrameOptions } from "./assistant-board-frame.js";
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";
 export { ALWAYS_ON_PLUGIN_IDS, availableProjectPluginIds, catalogProblems, shownProjectPlugins, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, objectTabPlugins } from "./plugin-catalog.js";
 export type { PluginMarketCard, RailEntry } from "./plugin-catalog.js";
+export { stageContributionId } from "./declared-stages.js";
 export { pluginWorkbenchPacks } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export {

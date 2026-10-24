@@ -28,9 +28,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | --- | --- | --- | --- | --- | --- |
 | 4 | [#1098](https://github.com/molis-ai/molis-work/pull/1098) | W5-06 第 2b 片：视图声明分组、新建、首页起点、设置图标 | #1087 | 下一批（和 #1107 同批） | 叠在 #1087 上 |
 | 5 | [#1107](https://github.com/molis-ai/molis-work/pull/1107) | W5-06 第 3 片：项目级 Runtime 实例的舞台 | #1098 | 同 #1098 | 叠在 #1098 上；`ac-review` 一轮：**可合**（[评论](https://github.com/molis-ai/molis-work/pull/1107)） |
-| 7 | [#1083](https://github.com/molis-ai/molis-work/pull/1083) | Shelf S4 | #1076 已合（squash），要合 main 解 18 个文件的历史冲突 | 同 #1076 | 头 `14d4849e8`；`ac-review` 一轮：**修后可合**，2 条挡合并（演示示例的生产路径无测试且吞 `forbidden`；合 main 后再核），[评论](https://github.com/molis-ai/molis-work/pull/1083)；Codex 已认领，排在 #1119 之后串行做 |
 | 8 | [#1112](https://github.com/molis-ai/molis-work/pull/1112) | W5-06 余项第一片（草稿） | 排在 #1076、#1099 之后 | 同 #1076 | `ac-review` 一轮：修后可合，2 条交 Codex（[评论](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6370952389)）；统筹裁定规格板选 (b)、补 RAC-80～84（[裁定](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6371157480)）；Codex 合 main、重量 page-assets、转 ready |
-| 11 | [#1117](https://github.com/molis-ai/molis-work/pull/1117) | R7：可信 `user_action` 来源（PG-029、PG-030、BL-374，S-58） | — | `full` 非空（shared-core、spans-packages），进下一批 | 头 `a1eae5555`：S-58 已补（`kernel.user_action_untrusted`），合了 main；`ac-review` 一轮待审；改了安全不变量，合前看 Security invariants |
 | 13 | [#1119](https://github.com/molis-ai/molis-work/pull/1119) | BL-395 整片：沙箱项目库语句跑在宿主能杀的子进程里（时间、内存、结果、递归上限；S-59，改 S-46） | **#1117 先合**（S 号连续的门禁要 S-58 在 main 上） | `full` 非空（shared-core、spans-packages，219 文件），进下一批 | 头 `a699e421c`；子进程已补齐、BL-480 已删；`ac-review` 排队审；改了安全不变量，合前看 Security invariants |
 | 14 | [#1120](https://github.com/molis-ai/molis-work/pull/1120) | R5：Feed/Functions 入口不再导出 Repository/Store、PG-010 首页规则目标按声明找、两包巨大单元 | — | `full` 非空（shared-core、storage、spans-packages、deletes-code，141 文件），进下一批 | 头 `0cd8cc7b6`；`ac-review` 一轮「修后可合」，修复已推（19:37Z：CHECKLIST 路径、HOME-DATA、巨大单元、RAC-176 回归等）；**等二轮确认**；合并 Agent 已起批-1023-14（Full suite run 40021912725） |
 | 15 | [#1121](https://github.com/molis-ai/molis-work/pull/1121) | R8 第 1 批：agent 宿主会话间消息与后台命令 7 条 typed 改成只给插件的动作（BL-365） | — | `full` 非空（shared core，205 文件），进下一批 | 头 `d63657e40`；`ac-review` 一轮修后可合（Coding 路由丢了请求防护），Codex 已修并**二轮：可合**；改动作，合前确认动作快照已刷新；#1148 叠在它上面 |
@@ -81,3 +79,5 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1131 | `abc052bcb` | 10-23 23:09 UTC |
 | #1138 | `7b1819e44` | 10-24 00:20 UTC |
 | #1152 | `53a8c464c` | 10-24 00:42 UTC |
+| #1083 | `b30325bd5` | 10-24 01:08 UTC |
+| #1117 | `acb8941b0` | 10-24 01:08 UTC |

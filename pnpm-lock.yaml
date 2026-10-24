@@ -395,9 +395,6 @@ importers:
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-artifacts':
-        specifier: workspace:*
-        version: link:../../plugins/native/artifacts
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:../../plugins/native/plugin-builder

@@ -8,7 +8,7 @@ import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import type { ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ARTIFACT_ACTION_PERMISSIONS, artifactsActions, type ArtifactImportResult } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_ACTION_PERMISSIONS, artifactsActions, type ArtifactImportResult } from "@molis-ai/molis-work-module-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // specs/project-knowledge PMAT-48, docs/system/SECURITY-INVARIANTS.md S-39: an audio or video file imported before the speech

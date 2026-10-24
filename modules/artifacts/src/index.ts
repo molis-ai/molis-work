@@ -142,3 +142,17 @@ export {
   type ArtifactsServiceOptions,
   type VersionStoreKind,
 } from "./service.js";
+
+export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, ARTIFACTS_PROVIDER } from "./artifact-provider.js";
+export { artifactsActions, ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, createArtifactActionHandlers } from "./artifact-actions.js";
+export type { ArtifactActionPorts, ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult, ArtifactPluginInput } from "./artifact-actions.js";
+export { artifactsErrors } from "./artifact-errors.js";
+export { openArtifactProjectReference } from "./artifact-project-reference.js";
+export type { ArtifactProjectReferencePorts } from "./artifact-project-reference.js";
+export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, importedFileOf, requireArtifactAnalysisRecord, artifactAnalysisContext } from "./artifact-browser.js";
+export type { ArtifactBrowserView, ArtifactBrowserRoute } from "./artifact-browser.js";
+export { importArtifactDocument, documentErrors, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, EXTERNAL_DOCUMENT_SOURCES } from "./artifact-document-import.js";
+export type { ArtifactDocumentImportPorts, ArtifactOriginalFile, ImportedArtifactDocument, ExternalDocumentSource, ModelRequired, OfferedOriginal } from "./artifact-document-import.js";
+export { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, ARTIFACTS_HOME_STORE, artifactOriginalPath, artifactsProjectData, openArtifactOriginal, purgeArtifactOriginals, storeArtifactOriginal } from "./artifact-original-store.js";
+export type { StoredArtifactOriginal } from "./artifact-original-store.js";
+export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./artifact-goal-context.js";

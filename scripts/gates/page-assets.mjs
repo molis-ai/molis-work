@@ -240,9 +240,9 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   // Memory retries and usage states retain the approved +3093 B and +105 B, tightened by 5 B of equivalent reuse.
   // Main's independent growth is already in the exact base; the integrated build must fit the same +3193 B.
-  "/assets/molis-work-workbench.js": [1191104, 1194297],
+  "/assets/molis-work-workbench.js": [1190706, 1193899],
   // Stable original-input identity retains the approved +738 B, tightened by 21 B of equivalent reuse to +717 B.
-  // Main 89c9a7194 already includes the holder translation's +873 B; it is not an extra Memory allowance.
+  // Main f586496e4 already includes the holder translation's +873 B; it is not an extra Memory allowance.
   "/assets/molis-work-plugins/coding.js": [376282, 376999],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

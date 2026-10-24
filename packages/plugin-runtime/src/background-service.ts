@@ -1,7 +1,7 @@
 import { ActionError, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginBackgroundClient, PluginExecutionControl, PluginJobControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
-import { currentPluginAction, inPluginInstance, runInPluginAction, type PluginInstance } from "./action-scope.js";
+import { currentPluginAction, inPluginInstance, pluginActionBeforeEffect, runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { backgroundErrors as errors, createActivationJobs, type ActivationJobGate } from "./activation-jobs.js";
 
 /**
@@ -30,7 +30,9 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
       if (!scope || !inPluginInstance(scope, gate) || !scope.caller.retainBackgroundAuthority) {
         throw errors.background_action_required("后台执行只能由本插件正在执行的动作受理");
       }
-      const { definition, caller } = scope;
+      // The work shares the call's `checked` record, and with it the model answers the call holds (PG-047); a call without one
+      // passed its last check once its `beforeEffect` below returns.
+      const { definition, caller } = scope, checked = scope.checked ?? { passed: true };
       if (definition.operation !== "command" || definition.action.scheduling !== "concurrent" || !definition.action.background_job) {
         throw errors.background_undeclared("后台执行需要并发 command，并声明 background_job 查询合同");
       }
@@ -54,11 +56,11 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
         control = { ...caller, signal: lifetime.signal, on_progress: undefined,
           retainAuthority: undefined, retainBackgroundAuthority: undefined, retain_background_authority: undefined,
           assert_authority_current: () => { lifetime.assertActive(); check(); },
-          beforeEffect: async () => { lifetime.assertActive(); check(); await authority(); lifetime.assertActive(); check(); } };
+          beforeEffect: pluginActionBeforeEffect(async () => { lifetime.assertActive(); check(); await authority(); lifetime.assertActive(); check(); }, checked) };
       } catch (error) { active.delete(controller); throw error; }
       const pending = Promise.resolve().then(() => {
         control.assert_authority_current!();
-        return runInPluginAction({ ...scope, caller: control }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
+        return runInPluginAction({ ...scope, caller: control, checked }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
           assert_authority_current: control.assert_authority_current, page_context: control.page_context, locale: control.locale, ...(control.project_id ? { project_id: control.project_id } : {}) }));
       }).then(value => { control.assert_authority_current!(); return value; });
       const result = lifetime.wait(pending).finally(() => { running = false; active.delete(controller); lifetime.dispose(); });

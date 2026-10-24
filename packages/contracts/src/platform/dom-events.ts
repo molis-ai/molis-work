@@ -375,6 +375,11 @@ export const DOM_EVENTS = [
     summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.",
   },
   {
+    name: "molis:context-intake", kind: "request", owner: "context-actions", on: "element", bubbles: true,
+    detail: "{ intake_id, id, title, text }",
+    summary: "A control on a plugin's page (`data-context-intake`) asks to put the object it holds into the creation entry `intake_id`. Sent on the control, or on the surface that holds the plugin's frame; the surface says which plugin and which kind of object it is, and the entry's own provider drafts and makes it.",
+  },
+  {
     name: "molis:context-panel-open", kind: "request", owner: "context-toolbar", on: "element", bubbles: true, cancelable: true,
     detail: "{ context_id, node, label, onClose?, keep? }",
     summary: "A plugin asks the toolbar for a small form under it (a link's address, a comment): the toolbar places `node` below the bar, one at a time, takes the event with preventDefault(), and closes it on Esc, a click elsewhere or another context, calling onClose. `keep` leaves a result the person is waiting for where it is when the context changes. `node: null` takes it down. Not taken (no bar for that context): the plugin shows the form itself.",

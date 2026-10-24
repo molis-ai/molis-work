@@ -1057,3 +1057,9 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 隔离 Darwin arm64 的最小 ObjectWrap、实际 better-sqlite3 同49文件源码及同一生产 QA command 均完成有界 A/B。固定 Node24.21 runtime、编译器和依赖源码，只换 headers：24.14构建件通过；24.21构建件在自然 GC 的 Statement 析构触发相同 env-null 原生断言。原 cross-device-launcher 第二用例的完整 HTTP、回执与重启断言亦在24.14件通过；24.21件捕获同类 UND_ERR_SOCKET，同时保存 QA 子进程原生断言与 SIGABRT。后者仅在临时诊断子进程用窄加载钩子选择已记录二进制，未改仓库、实际 node_modules 或测试；没有增加 GC 压力或重复全量。记录见 `/private/tmp/molis-memory-1064-native-darwin-ab-20261024/sqlite-ab/results.json`、`/private/tmp/molis-memory-1064-qa-socket-ab-20261024/results.json` 及同目录 README/child-stderr。此证据证明本机同一生产链的机制，支持 Linux 失败同源的推断；没有原 Linux child stderr，不能替代原平台复验或宣称 CI 修复。
 
 现已准备只将 ci.yml/full-suite.yml 的11个浮动 Node24改为24.14.0的具体补丁，`git apply --check`通过，文件 `/private/tmp/molis-memory-1064-node-runtime-pin-proposal-20261024.patch`。按 AGENTS 的 CI 修改审批与 PARALLEL-DEVELOPMENT 的独立 PR 要求，已请用户决定，未获答复前未应用。任何测试、断言、重试、隔离、作业和合并门保持原值；如获批准，独立交付后在最终候选执行原完整全量，再按结果处理，不把版本固定提案当作失败关闭。其余独立 Memory 切片继续。
+
+### #1064 主干集成 f586496e4（2026-10-24，验证中）
+
+本次以已推送 333189df3 合入准确 main f586496e463308995319499f836bb8cfeb654898。三处冲突限于安全不变量记录和资源账：同时保留 Memory 可信原件/晋升控制与主干 PG-047 的模型结果最终校验；原 Memory 资源净增仍为 workbench +3,193 B、Coding +717 B，按主干新基数复核，不新增额度。其余主干改动按原合同保留。验收为整体构建、受影响授权/形成/页面路径、精确父 health 与原静态/实际资源门通过；零自动重试，失败保留。尚未得到该合并候选的最终全量或 CI 结果，不将旧绿色结果移用。Node CI 固定版本补丁仍待此前独立审批，未应用。
+
+本合并树冻结离线安装、整体 build、根与工作区类型、10 个受影响非浏览器文件及 8 个浏览器文件首轮通过，jobs2/browser1/retries0。API/Action、boundary、secrets 与 diff 通过；独立静态深审未发现确定 P1/P2，确认原件与 PG-047 最终检查未互相覆盖。首次资源检查因合并尚未提交，git merge-base 仍落在 4e17c3d1，错误比较旧主干基数而拒绝 Todo/灵光和工作台；失败日志保留。先完成合并提交，再以 f586496e4 重新跑 health、实际资源和提交级 secrets，不能将该首轮 health 当成已按新主干验证。其余已通过内容不变，不重复构建或浏览器全批。日志索引 `/private/tmp/molis-memory-1064-main-integration-f586-20261024.results.json`。

@@ -181,3 +181,8 @@
 - **#906 复跑**只是本机 macOS 证据（2/2 pass）；报告要求 Linux CI 记录，若严格按报告销项，建议在集成批或 CI 补一次 Linux 复跑。
 - 另：`#1147` 已合（`8a7277f8e9`，lead 2026-10-24 通知），队列随之前移；本审计不改队列。
 - 审计未改代码、未提 PR、未评审批次、未动合并队列、未动 BACKLOG。
+
+## #1114 合并侧备注已发（审计结论官方出口，2026-10-24 04:34:56Z）
+
+- 合并线已把审计结论的三件事——BL 号段冲突需合入前重编、`cognia.js` +28B 放行与 `cognia.import.directory_preview@2→@3` 调用方影响待确认、本闭环表链接——作为官方出口发到 #1114：[issuecomment-6379916609](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6379916609)（2026-10-24T04:34:56Z）。
+- 后续：BL-44x 重编号等统筹裁定（BL-442/444/445/446/448 已可删行，剩 BL-440/441/443/447 待重编）；#1126 合入 main `89c9a7194` 后 #1114 再次 CONFLICTING，机械同步由 review-fix-owner 按 lead task-12 在 04:4xZ 认领（[issuecomment-6379925378](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6379925378)），本轮不动 BL。

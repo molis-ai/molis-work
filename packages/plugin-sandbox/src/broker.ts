@@ -1,7 +1,9 @@
-import type { PluginInteractionClient } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginInteractionClient, PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginConnectionMethod, PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
+import { materialRequest, materialSource, materialUploads, plainJson } from './materials.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 
@@ -22,6 +24,10 @@ export interface SandboxServices {
   projectDatabase?: SandboxDatabaseService;
   /** The activation's `services.interaction`: drawing only, so no effect is declared or granted for it (S-56). */
   interaction?: PluginInteractionClient;
+  /** The activation's `services.connections`: requests through the account the person bound to a slot (S-57, S-60). */
+  connections?: PluginConnectionsClient;
+  /** The activation's `services.materials`, the readers of files the plugin already holds: the Host decides which of them exist (S-60). */
+  materials?: PluginMaterialsClient;
 }
 interface BrokerLimits { sdkQueue: number; sdkPerMinute: number; eventsPerMinute: number; serviceTimeoutMs: number; storageBytes: number; messageBytes: number }
 
@@ -42,14 +48,15 @@ export class SandboxBroker {
       const context: SandboxServiceContext = { identity: this.identity, signal: lifetime.signal, operationId: operation.id, beforeEffect };
       try {
         await lifetime.wait(beforeEffect());
-        const result = await lifetime.wait(this.dispatch(context, operation.effects, method, args));
+        const result = await lifetime.wait(this.dispatch(context, operation, method, args));
         await lifetime.wait(beforeEffect()); assertJson(result);
         if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('sandbox.response_too_large', 'Host service response exceeds channel limit');
         return result;
       } finally { lifetime.dispose(); }
     });
   }
-  private async dispatch(context: SandboxServiceContext, effects: SandboxEffects, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
+  private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
+    const effects = operation.effects;
     const permit = (key: keyof SandboxEffects, value: string) => {
       if (!(effects[key] as string[] | undefined)?.includes(value) || !(this.grants[key] as string[] | undefined)?.includes(value)) throw new SandboxError('sandbox.not_authorized', `Undeclared or unapproved ${key}: ${value}`);
     };
@@ -94,6 +101,34 @@ export class SandboxBroker {
       if (!database) return missing();
       return method === 'projectDatabase.get' ? database.get(context, statement) : database.all(context, statement);
     }
+    if (method === 'connections.request') {
+      // The slot is the Manifest's, the account is the person's: the plugin names neither the origin nor a credential. The Host's client
+      // checks the slot, the grant, the address and the call's own action again; here the operation's declared slot and the request's shape.
+      count(2);
+      const slot = string(0, 64);
+      permit('connections', slot);
+      const request = connectionRequest(args[1]);
+      if (operation.kind === 'query' && request.method !== undefined && request.method !== 'GET' && request.method !== 'HEAD') throw new SandboxError('sandbox.not_authorized', 'A query can only read through a connection');
+      if (!this.services.connections) return missing();
+      // Only the four fields cross: the answer is rebuilt as plain JSON, so nothing the Host's client carries besides them reaches the plugin.
+      const { status, headers, body, authenticated } = await this.services.connections.request(slot, { ...request, signal: context.signal });
+      return { status, headers: { ...headers }, body, authenticated };
+    }
+    if (method.startsWith('materials.')) {
+      // Reading is the one effect (`materials: ['read']`), and it reads bytes the plugin sent, never a path or an address: what reaches out
+      // to a network, a machine's own pages or the Host's saved originals has no method here. The Host's client checks the rest.
+      const materials = this.services.materials;
+      permit('materials', 'read');
+      if (method === 'materials.imageTextAvailable') { count(0); return materials?.imageTextAvailable ? materials.imageTextAvailable() : missing(); }
+      if (method !== 'materials.readDocuments' && method !== 'materials.extract') throw new SandboxError('sandbox.invalid_request', 'Unknown materials method');
+      count(2);
+      if (method === 'materials.readDocuments') {
+        const files = materialUploads(args[0]), { timeoutMs } = materialRequest(args[1], ['timeoutMs']);
+        return materials?.readDocuments ? plainJson(await materials.readDocuments(files, { signal: context.signal, ...(timeoutMs !== undefined ? { timeoutMs } : {}) })) : missing();
+      }
+      const source = materialSource(args[0]), request = materialRequest(args[1]);
+      return materials?.extract ? plainJson(await materials.extract(source, { ...request, signal: context.signal })) : missing();
+    }
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.
       const object = <T>(index: number): T => {
@@ -134,4 +169,15 @@ export class SandboxBroker {
       default: throw new SandboxError('sandbox.invalid_request', 'Unknown SDK method');
     }
   }
+}
+
+const CONNECTION_FIELDS = new Set(['url', 'method', 'headers', 'body']);
+/** The shape of a connection request across the channel: plain strings only, nothing the plugin could use to pass a signal or a credential of its own. */
+function connectionRequest(value: SandboxJson | undefined): { url: string; method?: PluginConnectionMethod; headers?: Record<string, string>; body?: string } {
+  const invalid = (): never => { throw new SandboxError('sandbox.invalid_request', 'Invalid connection request'); };
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !CONNECTION_FIELDS.has(key))) return invalid();
+  const { url, method, headers, body } = value as { [key: string]: SandboxJson };
+  if (typeof url !== 'string' || (method !== undefined && typeof method !== 'string') || (body !== undefined && typeof body !== 'string')) return invalid();
+  if (headers !== undefined && (!headers || typeof headers !== 'object' || Array.isArray(headers) || Object.values(headers).some(item => typeof item !== 'string'))) return invalid();
+  return { url, ...(method === undefined ? {} : { method: method as PluginConnectionMethod }), ...(headers === undefined ? {} : { headers: headers as Record<string, string> }), ...(body === undefined ? {} : { body }) };
 }

@@ -281,5 +281,6 @@ export { connectorLocalActions } from "./connector-local-actions.js";
 export { connectorCliActions } from "./connector-cli-actions.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
+export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 
 export { pluginPagesFor } from "./plugin-page-authority.js";

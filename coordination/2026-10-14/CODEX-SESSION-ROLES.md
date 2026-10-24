@@ -9,26 +9,26 @@
 | 防腐线总统筹 | Claude现行统筹 | 共享CODEX-TASKS/LINES/README现行派单 | 整线范围、优先级、跨线依赖、任务分配和唯一full组批；Codex从其共享派单或明确回执领取独立任务 | 原开发与有效认领保留 |
 | 总目标与用户沟通 | 统筹｜Work 全线进度 · Codex | 01a12a80-ede2-7b81-93ea-521a5abcc35c | gpt-6-astra/xhigh；完整目标、复杂裁决、跨线范围、需要用户决定的事项与汇报 | 日常派单和合并已交给下行，不重复操作 |
 | 流水线与合并执行 | 专职｜防腐流水线与合并执行 · Codex | 01a16c88-7956-7e10-a5f4-5baf476c3634 | gpt-6.1-sol/max（06:45:56UTC实际回合已核）；按Claude已定合同接单、派单、证据与CI/队列接续、正常合并、共享状态与已派任务交付接续 | Claude总统筹，root管复杂裁决/用户沟通；不自行改产品、架构、安全或授权决定；不写实现、不替代独立审验 |
-| 评审 | 专职｜防腐 PR 评审与复审 · Codex | 01a16bc4-68fe-71d3-af0e-83523232c1ea | 核spec、精确diff和全部有效意见，修后复审、给正式结论 | 只读、不构建/测试、不合并；block与non-block分别记录 |
+| 评审 | 专职｜防腐 PR 评审与复审 · Codex | 01a16bc4-68fe-71d3-af0e-83523232c1ea | 修复后按精确head只读二轮，复用ac-review有效一轮并给正式结论；gpt-6-astra/xhigh | 一轮全归Claude ac-review；不改源/构建/测试/合并，block/nonblock分别保留 |
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
-| 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | 已派评审问题、CI失败及机械冲突；必要红绿自测；交精确head和日志 | 不自主领新片、不独立评审或统筹测试、不合并 |
-| 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | 独立树可与修复1并行，一次一个明确问题；无写入安排时按已派准备 | 同上；两个修复会话互不代派，同文件/合同/候选不并写 |
-| 修复3（#1228当前专职） | Root新建单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | 只修a89/6387362602本PR有效意见与同根CI fixture，固定头直交二轮/TEST | 不接FIX1/2同题，不改C1 HTTP日志、不放宽权限/断言 |
-| 修复4（#1232当前专职） | Root新建单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | 3525/TEST6387620017：先定位实际render match/DOM，再修确证CI负断言问题及同PR有效验证文档意见，一轮攒齐原PR推送 | 不删真实DOM拒绝断言、不盲定词典根因，不扩BL464或全英文体验，直交二轮/TEST |
-| 修复5（#1234当前专职） | Root新建单题专职，gpt-6.1-sol/max | 01a16f24-7a33-76f2-80b4-f20c55006d09 | 71e4d059/6387698407本轮：S67引号CI红、broker stop/start交错、cancel目标核实、S66/67引用/本机栏与真实沙箱拒绝测试 | 仅原PR一次齐修，不扩未定生产接入，不抢FIX1 S54行，不另一轮/full |
-| 两来源最终闭环 | 专职合并｜PR 1109、1112 收尾 · Codex | 01a16f02-8e7e-7a92-8976-fb7befe916fd | 独占1109/1112实际包含后来源关闭/交付归档；331 Mac缺项核验 | 原Claude唯一共同1236 queue；不另carrier/full/公共生成物，不关1223 |
-| 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | 从Claude的C1领取desktop/local-host后续片，保留server+CLI已合1151 | RAC113随1183/f586已合，RAC114随1215/1712于12:52:01Z实际落地，独立审验/快例CI登记均核；当前源码释放只读，C1其他剩余仍由原owner按Claude后续排期实施，不记整体完成 |
-| 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | 从Claude的C2领取全库/非SQLite状态快照恢复，密钥不外带 | B1随1202/645已合；B2a现e20双独立通过/冻结释放，在full29受测，原S15失败另交ac-sandbox，尚无最终真merge。B2b/早期lease/全Home快照恢复按已接受合同后续实际交槽，不碰真实Home，不记C2整体完成 |
+| 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | #1235/52c已actual7d闭README P2；#1230本轮现c887e11c、二轮6388234113/TEST6388250799 PASS，源码释放，等待Root下一具体独立题 | 整功能批/full/CI及实际merge仍流水线与Claude；一次一题，不混未闭的其他nonblock |
+| 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | #1237/7eb已二轮/TEST/PRCI通过，流水线唯一正常队列中；#1229过时注释现c2a66516，二轮6388272667 PASS，未改断言 | 各原PR实际merge后才闭；旧1112三P2等完整责任保留，无当前重复writer |
+| 修复3（当前#1226） | Root新建单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | #1228已交ed3985f1、二轮6388105405/TEST6388119074 PASS并释放；Root已转#1226/ef71一轮6387391426 readDecision receiver实际回归 | 只当前原PR同轮，不抢已交1228；不改C1 HTTP/放宽权限断言，新头直交二轮/TEST |
+| 修复4（当前#1239） | Root新建单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | #1232已交887b8ee7、二轮6387989321/TEST6388063111 PASS并释放；Root转#1239/b9一轮全部有效意见，C2已零改动释放，由FIX4唯一修 | B2b payload用途隔离/限额/严格原后端恢复/S12文档一起收口，不改既有vault格式或另切ENV后端；新头二轮/TEST |
+| 修复5（当前#1238） | Root新建单题专职，gpt-6.1-sol/max | 01a16f24-7a33-76f2-80b4-f20c55006d09 | #1234已交7cfff92a、二轮6388064603/TEST6388103144 PASS并释放；#1238现55fc9f14，三catch同轮修齐，二轮6388469609 PASS、独立TEST/新CI接续 | 保原降级/权限/Thread+rules，不写公共CI清单或C1 desktop；源码已固定释放，不关闭整C1 |
+| 两来源最终闭环（已交付归档） | 专职合并｜PR 1109、1112 收尾 · Codex | 01a16f02-8e7e-7a92-8976-fb7befe916fd | #1236已actual bde02c59；实际树/包含核实后仅1109/1112已19:05关闭，6388316807/6388317402；本人已向Root交付并官方归档该专职 | 未重复queue/full、未动原树；1223已原Claude6388301030关闭，旧三nonblock仍FIX2，不因专职完成关闭整线 |
+| 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | 保留完整C1 owner；RAC117 desktop launch_args按Root严格A已真实实施，124/124与native有效，最终完整非Draft PR收尾；只补desktop新测试CI一行已Root明确放行 | #1238评审三catch已FIX5 sole，作者不并改；1231/bf09 README缺32 TEST已自然32/32，C1整体/本人验收未完成 |
+| 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | B1/1202/645、B2a/1222/006实际合；B2b #1239/b9完整交付一轮后已18:53:15Z零改动释放，FIX4唯一修后接续；原完整C2 owner保持 | 不再并写/构建旧b9；早期lease、全Home快照恢复、真实Home R41和本人验收未完成，不拿局部工程证据关闭 |
 
-已有角色 owner 与有效技术裁定保持。用户明确授权新统筹组织四个专职会话；专职交付回新统筹，由其接续。修复与新增独立实现chat合计最多一个Codex实现writer；可同时只读准备，实施顺序听Claude；整机仍是一份build、一批浏览器，公共machine-slot排队。旧文中由root日常派单/合并之处自本次交接起均由新流水线统筹承担。
+已有角色 owner 与有效技术裁定保持。独立树、独立明确问题且无真实重叠可多writer；同文件/合同/候选串行。Claude唯一组批/full/批PR队列；Root唯一定时发现/初始派单/复杂裁决；本流水线交付驱动接续与既有普通小PR合并职责保持。整机一份build、一批browser，machine-slot排队。
 
 ## 流水线接续合同
 
-**本次实际交付与现行角色证据**：1236已发布331/base006、full40117579239与PRCI40117632751，源码/public生成物/full/queue原Claude唯一；两源专职只关1109/1112并补Mac缺项，TEST只一份selector。#1235/52c二轮PASS/CI在途，FIX1转Root已派1230同题；#1237/e425类型P2仍FIX2本单；C1RAC116与C2B2b并行，FIX3只1228。具体原件/状态只见[CODEX-TASKS§0](CODEX-TASKS.md#0-接手合并-agent10-24-0340-起先于-2-的开发片)和既有QUEUE。新模式来源70e009698已由Root与流水线分别只读核原Claude统筹 `local_3826a2d5-8299-458e-8ae9-b4770f56080c` UI Message22的人类原话，非仅文档自称；更晚多writer/专职委托照各当前人类明确授权。
+**本次实际交付与现行角色证据**：旧8目标已actual闭环：1222/006及四源先合；1236/331已19:02:08Z正常merge bde02c59eb9a1d794a442419570819a80585708a，真实parent7d、tree972177be=实际试合，1109/1112专职已关闭归档、1223原Claude已关。1235/52c已actual7d关闭原1212README P2；1237/7eb原any漏检已修、二轮/TEST/PRCI通过，本流水线6388458800一次正常match-head唯一队列pos1，实际前原1216P2不闭。新模式70e009698已由Root与流水线独立核原Claude人类Message22，非文档自称；各FIX当前一题/固定头见上表及TASKS§0a。
 
 **多writer现行规则（Root转达人类最新明确：“可以提升writer数量，不局限1个，不影响速度”）**：不同独立工作树、不同明确问题/实现项、真实依赖已满足且无重复owner时可以同时写，不设整个Codex协作组只有1人的上限。同一文件/合同、同一候选及有真实代码依赖的部分仍串行；公共冲突/生成物由当前carrier owner统一。每个FIX仍一次专注一个问题、gpt-6.1-sol/max，未收尾不塞无关任务。公共build一个、browser批一个、full仅Claude唯一排期不变，等资源不等于停止独立编码；只有Root周期巡检，原交付直接接续与现有角色不变。此条覆盖以下旧“单writer/唯一writer/串行轮换”上限，仅改变并行数量，不凭共享一处文字取消已有授权或在途owner。
 
-当前已实际派单：实现1/C1接 assistant-http 两处结构错误日志剩余（该文件/该slice）；实现2/C2已START B2b原后端密钥绑定及受管CLI私有态，隔离树 `w5-16-cli-private-state/goalboard`、base006；FIX1接 #1212 REVIEW6384912989 的 Images README 恢复/回收权限单问题；FIX2接 #1216 REVIEW6384484840 的 ImCtx 分阶段类型单问题。四项互不转派，开工各自鲜核真实文件/认领；carrier331原Claude owner与审验保持。共享logger、App index追加、共同assets/actions/API/S/baseline及实际候选冲突先协调，不并写同文件。
+当前独立实施：FIX3→1226、FIX4→1239 sole、FIX5→1238已55fc二轮PASS/TEST接续，C1作者→RAC117 desktop（CI产品子集仅该新行，已Root明确授权；1238助手行/1064Memory段无同一行重叠）。FIX1/1230及FIX2/1229已各固定释放，后续题由Root初始派单；不把等待CI/merge当占用writer。C2 b9原树clean冻结/零修改释放，完整C2归属仍原实现2，不重复修复。新head直达既有REVIEW/TEST/流水线，full仅Claude，不另起批/周期巡检。
 
 **最新专职修复规则（Root转达人类明确指令，已实际设置并读回）**：现有协作chat归侧栏「Molis Work 协作组」（a2ee8e9c-6853-4ac4-a420-5277e25f02cb）。修复1/2为gpt-6.1-sol/max；新Review问题由专职修复承接，一次一个明确问题，未收尾不塞无关任务，不用长期通用队列打断当前修复。需要独立问题会话时由主聊天按需新建同模型/max并归组；设置模型不代表占用writer。已有原作者实际在修的本项先沿原owner完成，不抢写；本项后按新规则交接。C2 B2b已accepted且实际START的owner仍实现2，不混为FIX任务。一轮评审/二轮、组批/full/批PR入队按[MERGE-QUEUE§0](MERGE-QUEUE.md#0-现行协作模式用户-2026-10-24-晚覆盖本文codex-tasksmdslice-rulesmd-里与它不一致的旧说法)现行具体合同组织，保留Root唯一定时和交付驱动直接接续；现有旧问题表保留来源/责任，只在真正派单后实施，不把归属当闭环。
 
@@ -104,7 +104,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | 项目与来源 | 实际实施owner | 可执行下一步/触发 | 交付及闭环 |
 | --- | --- | --- | --- |
 | 用户新授权1162→1198 actual MERGED | 唯一source FIX2，Root/REVIEW/TEST只核/流水线Git队列 | 1162当前freshmain一次同步/build/真实footer/资源下降→fixed Ready→DIRECT审验/原PR真merge；1198再真新base、原批准三CSS各+7语义精确重锚，重建当前24态/原3case/404复制证据，旧tmp缺失不冒亲读 | 当前执行中，未合；不新建替代批/不重复问人类权限，不因W5/1222归因新增门槛，source自然固定即释放 |
-| #1212 d266后README19/42启动清理/授权文档P2，REVIEW6384912989 | FIX1已明确接受；原ac-sandbox实现贡献保持 | 依1212真实merge后既有1210 plugin-executor文档源窗最小修：recoverInterrupted只需storage，reclaimAssets仅有可选read才做，保fileswrite/生命周期/逐原语检查，不改生产/Manifest/断言 | source未实施/不挡1212；真实修复diff/独立核事实/真merge后关。PR首旧head已实际API334→d266且Review原位核关，仅metadata |
+| #1212 d266后README19/42启动清理/授权文档P2，REVIEW6384912989 | FIX1实际修复#1235/52c，保原ac-sandbox贡献 | README+4/-2准确区分storage-only恢复与可选read回收；二轮6387516202/TEST6387748949 PASS、全适用PR CI与queueVerify成功 | 已18:34:28Z actual7d25794e9e7d9985bf22b863ac57b6d0e2dc6b90，树等真实试合，6388326951带actual关闭该P2；其他原1212/1210建议各保留，不把旧full29红写绿 |
 | #1210评审6384193830-1：RAC355重复编号 | FIX1已明确接，公开6384708725 | 依1210/12真实merge后唯一文档源窗，鲜核全局/在途编号再改第二条及spec映射，不改断言 | 未实施；固定修复提交/独立复核/真merge闭环 |
 | #1210评审6384193830-2：清owner-files抛错跳过卸载definition清理/重放再抛 | FIX2已明确接，公开6384708725 | 依1210/12真合，沿1166/1138生命周期最小修并真实链接/剩余definition/replay验证，保路径拒绝/其他安装/取消 | 未实施；源窗不插P1/W5/C2，修复PR/head/独立审验/真merge闭环 |
 | #1210评审6384193830-3：plugin-executor database注释误含Home侧 | FIX1已明确接，公开6384708725 | 同前文档源窗，区分project homeLibraryFor与Home进程内安装openInstalledPluginLibrary账本，最小文字 | 未实施；真实源提交/独立复核/真merge闭环 |
@@ -112,7 +112,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | #1211评审6384204115-2：1+N动作且逐次全项目扫描造成N²读取 | FIX1已明确接，公开6384708923 | Characters owner最小消重复扫描，保身份/签名/权限/真实审计/冻结尾检；若必须改公开list形状/版本给root具体裁定，与下一owner诊断项去重 | 未实施，不盲增API/缓存授权；实际修复PR/性能行为证据/独立审验/真merge闭环 |
 | #1211 Claude6384231304-①：selector失败须可读错误不能空白 | FIX1已明确接，公开6384708923 | 先核既有UI真实错误路径，有证据已覆盖则据证关闭；缺失才最小修，保已接受当前fail语义 | 未验证是否已覆盖，不能凭记录关；实际证据/必要修复/独立核收/真merge闭环 |
 | #1211 Claude6384231304-②：Characters单坏行诊断且其余正常 | FIX1已明确接，公开6384708923 | 主人统一输出让页面/Assistant受益，scope/输出版本必要取舍直接root；与N²项同一最小owner方案，不消费方跳坏行 | 未实施；当前整selector失败仍被接受/不阻原PR；源/独立证据/真merge闭环 |
-| #1216评审6384484840-1：Object.assign前as ImCtx伪完整 | FIX2已明确接，公开6384709080 | 依1216真合后收窄factory输入/分阶段类型，保46函数/装配/序列化，按新差异核两浏览器适用证据，不造第二状态 | 当前无已知运行错误，未实施/nonblock；真实修复PR/head/独立审验/真merge闭环 |
+| #1216评审6384484840-1：Object.assign前as ImCtx伪完整 | FIX2已实现#1237，现7ebef08b252f675891ae1eca91b84d7200bed349 | 首次e425九参assign仍any已真实反证并回修；新生产结构/四反例红绿、必跑16与未变89复用、两browser覆盖；二轮6387881227/TEST6388153277、PRCI40120148369十四适用成功 | actual full/storage=[]；试合main bde无冲突；6388458800本流水线一次正常唯一queue pos1/AWAITING_CHECKS，actual前不关闭。首navigate失败与唯一恢复/UNKNOWN边界保留，不称首批2/2 |
 | #1218 readGoalResumeFacts/README，ac-review6384460634第1项与流水线实际patch | FIX2已明确接受，公开6384588280 | 依1218真merge，鲜核全调用方，将前100/焦点最多2策略移回Host、同步消费者/两测试/API与CLI/MCP门禁准确文字；现P1/W5后实际source窗 | 当前未实施，不阻1218；修复PR/精确head/独立审验/真merge后闭环，非登记完成 |
 | #1200真正同键重排焦点P2，REVIEW6382734693 | 修复2，原作者保持 | 本主修复不挡；后续同域源码窗口补同组重排/跨组移动且不抢用户已转移焦点，独立回归 | 未修；不得把节点复用当焦点移动全覆盖，实际提交/审验/merge后关闭 |
 | ACA004后台链/装配文档P2 | 修复2已实际确认，纳现E22/SSOT文档队列 | 下一实际文档source窗口鲜核main：CALL-CHAINS154–161/180、plugin-dev SKILL52，最小更正不拿在途当主线；1114不覆盖 | 未实施；独立差异/引用验证/真实merge后关闭，当前不占C2 B2 |

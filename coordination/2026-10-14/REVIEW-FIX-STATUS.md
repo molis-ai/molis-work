@@ -283,3 +283,11 @@ lead 对审计结论抽查确认（读 main `8aa62a65b` 的原始文件，GitHub
 - **审计第 10 轮（主题 h：Manifest 声明 vs 实际消费）**：完成，无新派修项；仅 **AC-AUDIT-17**（`docs/SSOT-MATRIX.md:142` coding 行「19 项 coding.* 动作」过时，实际 actions.tsv 有 28 条，含 C8-2 执行器/计划面）→ 交统筹批量写。库存：声明动作 601 条/24 provider；宿主注册但无 Manifest 271 条/29 provider（非 system/platform 132 条均落已有 PG）。构建未跑成（node_modules 符号链接 + 非 TTY），改用动作合同快照 + main tip CI 证据，未动源码。
 - **#1107**（W5-06 第二批，叠 #1098）：main 上 3 处冲突，Codex 线尚未认领；转 review-pr-fixer 按认领流程做机械同步（若 Codex 先认领则让行）。
 - 门禁正则扩 `.e2e`（AC-AUDIT-08 门禁侧）仍待用户批准。
+
+## 交接快照（2026-10-24 07:2x UTC，本会话停止派新活）
+
+- **已提交 PR**：#1173（task-17，AC-AUDIT-08/09/10/11 表侧/注释；head `47cf31b286`，已转 ready 并请 ac-review 一轮；与 #1165 同文件——建议先合 #1165 后本 PR 重生成，若 S-47 被改写则把 AC-08 追加句并入新行）。
+- **在途 PR（等 CI，只读）**：#1114 head `6bac03b45`（task-18 完成：正文更正 + cognia-workbench locator 回归；run 40069541221 排队）；#1168 head `98906bfad`（AC-06/16，run 40068914495 0 failed/10 pending）。
+- **#1107**：已转 review-pr-fixer 做机械同步（认领→冲突→定向→推），完成即停；若 Codex 先认领让行。
+- **审计终态**：ANTICORRUPTION-AUDIT.md 第 10 轮 + §15.6（commit 43e736ff，100530 B）；AC-AUDIT-17（SSOT:142 coding 19→28）待统筹批量写；AC-AUDIT-08 门禁侧（正则扩 `.e2e`）待用户批准；#1168 合入后 AC-06/16 标 done、E14 九→4。
+- **本会话边界**：不碰合并队列/§3/privileges/coordination 他人文件；定时巡查已按用户要求关闭；所有常驻子会话已冻结（只收尾在途一步）。

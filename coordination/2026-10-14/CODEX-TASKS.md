@@ -36,20 +36,20 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 
 | PR | 一轮评论 | 要修 | 二轮 |
 | --- | --- | --- | --- |
-| #1228 | 6387362602 | 提供方 id 改引登记处常量；权限从动作声明派生（助理规则多给的 `model:invoke`）；RAC-339 覆盖面写准 | Codex 已认领（6387458462） |
-| #1226 | 6387391426 | `settleReview` 解构 `readDecision` 丢 `this`，包一层箭头函数 | |
-| #1229 | 6387428971 | `translation-check:467` 的过时注释 | |
-| #1232 | ac-review6387465387 / Codex6387505760复用 | `plugin-client-served` 名单补灵光，注释改准 |专职FIX4 `01a16f15-e025-71a3-adac-2e84f0e83fdd` 已实际START |
-| #1230 | 6387490072 | S-54 行列上 RAC-463 的测试；`announceProjectOpened` 失败后重试，capabilities 不在时不广播空 `workspace_id` | |
+| #1228 | 6387362602 | 提供方 id 常量与权限来源；RAC-339 证据范围 | FIX3已修固定 `ed3985f188856e829fd5233aa23ada80cd8a26b5`；二轮6388105405、TEST6388119074 PASS。Assistant线程本来需model:invoke，原“多给”仅该子结论不成立并保留实际权限；旧Search fixture只迁合法身份。80唯一文件706项有效，CI40121335561/最终批仍另核；源码释放后FIX3按Root转#1226 |
+| #1226 | 6387391426 | `settleReview` 解构 `readDecision` 丢 `this`，包一层箭头函数并补真实 receiver 回归 | Root已交FIX3 `01a16f01-0e2c-7450-a0f8-8ad03f18b32e`，原 `ef71a03c19a64a80fb1ed05fd0e0922813e08b4e` / ac-kernel/agent-host-giants-a，当前唯一修复者；固定新头后直交二轮/TEST，不重复writer |
+| #1229 | 6387428971 | `translation-check:467` 的过时注释 | FIX2固定 `c2a66516784bb1c6341ccecdd2b6eec5de343bc4`，仅注释+2/-1，断言不变、去注释JS逐字相同、语法/diff/secrets0；二轮6388272667 PASS。整个Workflows原PR待最终批，不能把注释修复当全PR已合 |
+| #1232 | ac-review6387465387 / Codex6387505760复用 | 页面真实DOM负断言与灵光已minify的served源码检查，文档范围写准 | FIX4固定 `887b8ee76361289cd46eec27a0e85569776c5243`，二轮6387989321、TEST6388063111 PASS。实际词只在i18n脚本，3种真实UI变异仍拒绝；灵光保内容/字节23209一致。原首败保留，未改生产/门禁；整条#1229→#1232进最终批。FIX4已转#1239 |
+| #1230 | 6387490072 | S-54补RAC-463；opened失败能重试，缺能力不误播空workspace | FIX1固定 `c887e11c985632b1f5add9a3f83a4dd503bf0f8d`，二轮6388234113、TEST6388250799 PASS；修复真实3红→新8/8，62唯一文件563项有效。仅S54引用、不动drain契约，CI40122537049/整功能最终批另核；FIX1源码已释放 |
 | #1227 | 6387370902 | 无，直接进批 | 不需要 |
-| #1238 | 6388105657 | 不挡合并：同一文件第 194、372、393 行三处静默 catch，就在本 PR 一起改（同文件、同主题，不另开 PR）：先分清是回答还是失败，失败的写 `hostLog`，不带密钥与用户内容 | |
-| #1239 | 6388031418 | 不挡合并：①S-12 的不变量、代码位置两栏补上 B2b；②封存数据与 vault 条目分开用途（派生专用子 key 或加附加数据）；③采集加体积上限，不把整个 .home 读进内存。④（用户 10-24 晚定：照 PR 严格钉住）`resolveMasterKey` 保持「secrets.json 在就只认原后端、钥匙丢了拒绝打开、不悄悄换钥匙」；补清楚的报错，并在 `docs/system/HOME-DATA.md` 写恢复办法：找回钥匙串条目或设 `MOLIS_WORK_ENCRYPTION_KEY`，本人确认放弃旧数据时手动移开 `secrets.json` | |
+| #1238 | 6388105657 | 同一文件三处catch分清回答与失败，精确not_found安静，其余安全hostLog | FIX5已一轮齐修并正常push固定 `55fc9f14715a574d122c87da479e516215748d55`（相对c72仅3文件+183/-15）；真实HTTP/SQLite/SDK三红→日志5PASS，6文件37有效，旧23+19按范围复用。源码clean/released，已直交二轮/TEST，尚待正式结论/新头CI；原c72绿不跨推。C1作者只做独立desktop，不同时改此文件 |
+| #1239 | 6388031418 / 6388049535 | B2b用途隔离、采集限额、S12与严格原后端恢复文档 | 唯一修复owner FIX4 `01a16f15-e025-71a3-adac-2e84f0e83fdd`，以冻结b9af98fd430e7451ad0a267e3fc2bc9aab1d7944接同轮全意见；C2已18:53:15Z明确零改动释放认领6388158312，不开第二writer。payload加用途/owner/Home绑定且不改既有vault格式，限额拒绝不截断/跳cache；恢复只找回原file/env/Keychain后端钥匙，不凭新ENV切后端。具体行为/额度按Root现行裁定；新头后修后复审/TEST。旧Functions首次超时、Keychain候选/干净006各8/8证据保留，不能判负载或首全绿 |
 | #1234 | 6387698407 | **挡合并**：`SECURITY-INVARIANTS.md:81` S-67 正文的「操作 id + 输入」换别的引号（S-20 把「」当测试名，Security invariants 1/2 红，同 #1187）。不挡合并：①受理期间 broker 停止，那条运行逃过取消；②cancel 不查被取消运行的目标；③S-67 三条真进程用例只在 mac 跑，挪到「只在本机跑」那栏，S-66 行补缺的一栏；④S-67 第②道门（宿主客户端）在沙箱路径补测试 |专职FIX5 `01a16f24-7a33-76f2-80b4-f20c55006d09` 已Root实际START，原71e4d059分支一轮齐修 |
 
 | 序 | 独立片 | 状态 |
 | --- | --- | --- |
-| C1 | W5-13 收尾：宿主日志与吞掉的错误（§2） | 在做；#1231 已过评审，进下一批 |
-| C2 | W5-16 B2b：Home 快照与恢复（§2） | B2a 已随 #1222 合入；接 B2b |
+| C1 | W5-13 收尾：宿主日志与吞掉的错误（§2） | #1231 bf09已逐片审验，README缺32补齐；#1238现55fc同轮修后待二轮；作者独立RAC117 desktop完整PR收尾，不算C1整线完成 |
+| C2 | W5-16 B2b：Home 快照与恢复（§2） | B2a随1222/006已合；#1239 b9已一轮，当前FIX4唯一同轮修复，C2原writer零修改释放。完整A/快照恢复仍原owner未完成 |
 | C3 | W5-10 的一部分：官方集成与横向服务的巨大单元（§2） | 待开工 |
 | C4 | W5-11：OAuth 移进官方集成插件（统筹 10-23 定） | 待开工，接在 C3 后（同一块代码）；号段开工前问统筹 |
 
@@ -57,15 +57,15 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 
 > **当前唯一定时调度（用户最新明确、Root已官方工具读回）**：只有Root `01a12a80-ede2-7b81-93ea-521a5abcc35c` 的 `molis-work` 每10分钟周期巡检；其他定时任务维持PAUSED。本次只改变周期发现来源，原职责和交付直达接续不变：新PR交REVIEW、可合并项交流水线执行、新独立片交对应实现、有效Review问题交原作者/修复、修复新head即交REVIEW增量复查并按风险交TEST；固定头/证据直接传递并抄Root，不等heartbeat或Root二次许可。Root负责周期发现、初始派单与复杂裁决，流水线/专职不恢复自己的定时器或周期扫描全项目。Claude整线范围/优先级/唯一full排期、既有owner和单writer/公共资源槽不变。
 >
-> **当前真实核收（覆盖17:15等下列旧状态；不覆盖上方现行模式§0a）**：#1222已原Claude按公开6387065309例外正常入队，17:17:56Z actual main `0060920a314224b2eda6b71ee21b7e29323f6962`，singleparent191acc、tree `c739f57f745958777bdd7d6ccfe43a0dbd43eb29` 精确等于merge-tree(191acc,a788)。四固定来源e20/b6fb/087/d266均a788祖先；1209/1210/1211/1212已原统筹17:19带actual006关闭，6387216568/6387217164/6387217787/6387218361均已核。PR CI40112378526十四适用jobs成功、probe预期skip；同actual头queue40114534899/Verify120935646372成功，queue Sec/Product条件skip有别。活动行已移MERGE-QUEUE§3，不重复关闭/集成/入队，旧8整体尚未完成。
+> **当前真实核收（交付驱动，覆盖下列旧快照）**：用户指定旧8个目标1109/1112/1209/1210/1211/1212/1222/1223，核心#1222已actual006；最后#1236已19:02:08Z正常merge `bde02c59eb9a1d794a442419570819a80585708a`。actual tree972177be84f824edb61053c19909f930b725fe00=merge-tree(真实parent7d25794e,冻结331)，受测331相比仅先合Images README/Coding spec两文档。1109/1112专职已核包含并19:05带actual关闭，评论6388316807/6388317402；1223原Claude6388301030已核ade为331祖先并19:04关闭。本流水线鲜核1223已CLOSED，不重复关闭。旧8合并目标实际闭环，仅各源片工程结果；所有原nonblock、C1/C2/W5整线和本人验收保持。
 >
-> **最后3目标已发布一个共同候选**：[#1236](https://github.com/molis-ai/molis-work/pull/1236)，非Draft，`batch/1024-33@331cd096cd78981ba90a8755b511094f7f95ec84` / base actual006，原Claude仍own源码/共用生成物/唯一full与唯一queue。新专职 `01a16f02-8e7e-7a92-8976-fb7befe916fd` 独占1109/1112实际main包含后的两源关闭/交付归档，并核Mac必要缺项；本流水线协调1223，不重复两源或入队。异步交错的‘专职入队’中间建议已实际撤回，1236/6387535966及专职6387549880最终一致为Claude唯一queue，暂无任何额外queue调用。
+> **共同载体实际审验**：#1236冻结331cd096cd78981ba90a8755b511094f7f95ec84，原Claude唯一队列已自然完成，无额外queue。PR CI40117632751十四适用成功；full40117579239同331十六worker+aggregate成功，TEST正核各原件分母/retry/skip，不把metadata称首轮全case绿；merge-group40122786015同actual bde，Verify120959586844成功、10成功/3条件skip。REVIEW6387363344/6387547375、TEST6387369093/6387961395有效；Mac原26ts+独立native22/22合27唯一文件，各首红及定向恢复原件保留。selector七态最终attempt4 exit0/清理0，隔离Home/fake adapter，不冒模型执行/真实Home/本人验收。完整实际证明 `/tmp/molis-pr1109-1112-20261024/landing-proof.json`，专职两源收尾已交Root并归档。
 >
-> **331适用审验与真实剩余**：REVIEW6387363344已关版本P2，6387547375补1109一轮源码/1112真正批增量PASS；TEST6387369093已核全根构建fingerprint MATCH与现成27唯一文件209case通过，4既有browser不冒selector。专职新独立health/assets均exit0（27资源7638717B、72API2943），raw `/tmp/molis-pr1109-1112-20261024/331-{health,assets}.log`。准确新full40117579239（push `integration/carrier-1024-33@331`）与PR CI40117632751已触发，原c0b/40112466492另一组不替代、不取消/重复。TEST已实际START本PR明确交付的/tmp-only selector真实浏览器（单隐藏→双出现/改选/重载→所选消失不回退→恢复默认），公共browser单槽。原Claude已有b33-macos.log26ts/jobs5在跑，专职先去重、补缺native-checks.mjs已22/22 exit0，再只对已退出installed-plugin-host/keychain-retry两红jobs1定向核验，不重跑26整批/未退出uninstall；原首红/未结束summary保留，不能叫flaky或全首绿。全部最终适用CI/full/Mac/selector及actual包含核齐后才由Claude入队并各owner关源。原foreman scratchpad `/private/tmp/claude-501/-Users-yijunwang-code-goalboard/a8d0c51f-3071-4520-b7e1-548f6ca97ad6/scratchpad/`，b33-tests原路径已复用，旧35与新27原件由TEST分别保存。
+> **独立已合文档修复**：#1235/52c14058f931c074d5f58e46bcbd34d0397cad95已18:34:28Z actual `7d25794e9e7d9985bf22b863ac57b6d0e2dc6b90`，singleparent7a2/tree8433129e=真实试合，只README+4/-2；二轮6387516202、TEST6387748949、PRCI40117331601十四适用成功、queue40120134604/Verify120953043097成功。原1212/6384912989 README P2由6388326951实际关闭，其他问题不吞。raw `/tmp/molis-verify-2026-10-24/images-recovery-doc/merge-proof.json`。
 >
-> **独立多writer具体接续**：C1实现1在 `c1-assistant-http-logs/goalboard@006` 实际RAC116：两真实失败缺warning红2/2→仅hostLog导入/两catch+3/-2，保174注册组合语义，不改Memory功能/共用logger，整建及相关验证接续；C2实现2在 `w5-16-cli-private-state/goalboard@006` 实际B2b原合同，未交最终头。FIX1已交#1235/52c14058 Images README +4/-2，二轮6387516202 PASS、docs/secrets0，CI40117331601在途；pipeline实际affected full/storage/uncovered均[]，P2待真实merge才闭。其source释放后Root/流水线同题单已对齐接#1230/dfa3064be本轮6387490072（失败缓存重试、缺能力不误播、S54补RAC463；不改drain契约），只一认领/树。FIX2首次#1237/e425的生产Object.assign any问题已二轮6387623263返修；新固定7ebef08b252f675891ae1eca91b84d7200bed349相对3file+57/-13，实际生产类型四反例已红绿，等待独立增量/CI；邀请browser过、follow初次navigate首红尚未进入讨论，已排一次定向复跑，原因UNKNOWN不称flaky、不改断言，不能提前关P2。
+> **当前独立接续**：#1237固定7ebef08b252f675891ae1eca91b84d7200bed349，二轮6387881227、TEST6388153277 PASS；原生产any真实反证已修，邀请首过/follow初次navigate失败后唯一复跑过，原因UNKNOWN。PRCI40120148369十四适用成功/probe skip，actual full/storage=[]，uncovered六工厂为启发式未直接映射，未称空；必跑/实际类型及两browser按范围核收。鲜核main bde试合无冲突tree1f9b385babfa64ae94d01ac436ef1d7fd56a4450，6388458800公开认领后本流水线一次正常match-head已入唯一队列pos1/AWAITING_CHECKS；actual前不关1216原P2。FIX2现#1229已二轮PASS；其余当前各FIX固定头/阶段见§0a，不为等待前片CI/merge空占独立writer。
 >
-> **新增确认问题与owner**：Root新建FIX3 `01a16f01-0e2c-7450-a0f8-8ad03f18b32e` 专修#1228/a89/6387362602同轮provider id/权限来源。它已用实际assistant-http174→assistant-thread-actions9–18证明线程extra确需model:invoke，原‘多给一项’仅该结论不成立；保真实权限，从规则/跟进/线程组合声明派生，其余有效意见仍修。TEST已交同头Security1原raw：91文件90pass、唯一system-search-authority2/12，10个失败均旧fixture未知provider合法正控失效；FIX3核真调用链后只迁合法fixture身份，不加生产allowlist/不改12case断言。#1232是独立Pages3525，不是旧3carrier；ac-review6387465387 PASS已复用，Product1真实204/205唯一accordion全HTML负断言失败，词典命中只是待writer核假设，尚未找到实际片段，不称flaky/不删断言；Root已实际START专职FIX4 `01a16f15-e025-71a3-adac-2e84f0e83fdd`（Sol/max），先取真实render match定位再修，保DOM负断言；同PRclientServed名单/证据数字先核，不扩BL464/全英文，不塞FIX3。C1与FIX3若需同assistant-http文件先串行（当前FIX3明确未动），S54只原1230单行，其他独立路径可并行，公build/browser单槽不变。C1/C2/W5/整Home及本人验收均未完成。
+> **C1/C2当前实际实施与边界**：C1作者RAC117 desktop launch_args已实现固定fe285（最终PR头待发布），Root定A保持string[]严格解析，真实公开入口红绿/124项与native有效；Root已明确授权本独立分支只补CI产品子集 `tests/desktop-launch-args.test.ts` 一行，和冻结1238助手行、1064 Memory段不重叠，不需要第二份登记/二次归属审批。最终完整非Draft PR交ac-review一轮；FIX5只修1238同轮。C2仍完整B2b/A/全Home目标owner，冻结b9交FIX4唯一评审修复，无新build/test/源码并写。C1 README bf09缺32已TEST自然跑32/32 exit0，同头clean；c72那批未启动且正被55fc替代，不拿331 full或旧头替新候选。共享logger/合同/同文件真实重叠串行，公共build/browser各一槽，full仍仅Claude。
 
 > 2026-10-24 16:35 UTC **最新人类指令覆盖下列旧source排期**
 >
@@ -326,8 +326,8 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | 序 | 片 | 号段 | 现状 |
 | --- | --- | --- | --- |
 | C0 | **main 的 macOS 红（先于 C1）**：自 #1079（S-56）起 `SandboxSdk.interaction` 写成 `import('./plugin-interaction.js')` 的相对导入，发给生成项目的 `developer/sdk.d.ts` 解析不了，`tests/agent-built-plugins-checks.test.ts`（创作台 G2）与 `tests/agent-built-plugins-workflow.test.ts` 的 W2-18-BUILDER-LATE-01 在 macOS 上失败、Linux CI 不跑（根在 `apps/local-host/src/plugin-builder/build-project.ts` 的 `sdkDeclaration()` 只拷 plugin-sandbox 一份声明，#1147 作者 10-23 核过）。修法：让发出去的 SDK 声明自包含（内联该类型或在生成时一并带上），断言不放宽；创作台本轮不删只绕过，但 main 的红要修。写进 `known-red-main.md` 直到修好 | — | **已完成**：#1136 合入 main（`15b656648`，10-23）。`known-red-main.md` 里这条由 Codex 移除 |
-| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 实际owner实现1。1151/ee2958、1183/f586、1215/1712已真实落地并核；完整余项未关。下一独立RAC115人工Input.*吞错已具合同且Root同意UI真fixed/release后实际START；不增巨大类/不泄露输入/不自动重发，详§0。assistant-http在途冲突及desktop launch_args恢复行为另列，不混此片，不长期只读 |
-| C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 实际owner实现2 `01a16c97-5b6a-7343-b245-dc63b65e1e11`。B1随1202/645已合；B2a e20双独立PASS但1222尚未实际merge，S12新b99测试deadline P1返当前原批作者、不另C2同修。B2b/早期Home lease(A)/全库与非SQLite snapshot/restore仍原完整目标；A/B现行root裁定已接受，不复活旧待批/online quiesce限制。C2正只读鲜核下一独立片与1210/P2c真实重叠，具备合同/依赖且UI release即实际接source，不长期准备、不碰真实Home |
+| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 实现1保持完整owner。1151/ee2958、1183/f586、1215/1712已合；1231 bf09单片及32README缺例有效，1238日志55fc由FIX5修后待二轮，desktop RAC117按Root严格A已实际收尾及CI唯一行。固定PR后ac-review一轮，实际merge前各片不关闭，C1整体未完成 |
+| C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 实现2保持完整owner。B1随1202/645、B2a e20随1222/006实际合；B2b #1239 b9已完整交付一轮，FIX4接全部有效意见且C2已零改动释放，避免重复writer。A早期同Home lease、全库/非SQLite完整snapshot/restore与真实Home R41未完成；沿已接受A/B合同，不复活online quiesce或旧待批限制 |
 | C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | 待开工 |
 
 ### C1 W5-13 收尾

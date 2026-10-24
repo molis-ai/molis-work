@@ -91,7 +91,7 @@ test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of 
     assert.equal(reads.contexts.length, 1);
     const materials = reads.contexts[0]!.services!.materials!;
     assert.deepEqual(Object.keys(materials).sort(), ["extract", "imageTextAvailable", "readDocuments"]);
-    // A page on this machine and the saved original files are given (S-66): the Host's client has the methods that are declared, the broker forwards them.
+    // A page on this machine and the saved original files are given (S-65): the Host's client has the methods that are declared, the broker forwards them.
     const local = materialsProbe("boxedlocal", { execution: "sandbox", permissions: ["materials:read", "materials:fetch_local", "materials:original"] });
     await platform.start([{ definition: local.definition, grants: local.permissions }]);
     assert.deepEqual(Object.keys(local.contexts[0]!.services!.materials!).sort(), ["claimOriginal", "extract", "imageTextAvailable", "readDocuments", "readLocalPage", "readOriginal", "readOriginalRange", "releaseOriginal"]);

@@ -10,7 +10,7 @@ import { assertEffects, DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFo
 // S-60 for `services.materials` (PG-017 P2): a sandboxed plugin reads files it already holds through the Host's readers, over the broker. Two
 // gates in series: the broker asks the operation's declared and approved `materials: ["read"]` and the shape of the request, then the Host's own
 // client asks what it asks every plugin (the Manifest's permission, the grant, the running concurrent action that declares the permission). What
-// reaches the network (a page from the web) has no method on the broker; a page on this machine and the Host's saved originals are S-66's, in
+// reaches the network (a page from the web) has no method on the broker; a page on this machine and the Host's saved originals are S-65's, in
 // tests/security-invariants-sandbox-local-original.test.ts. These tests assert the refusals, with the real client behind the broker.
 
 const PLUGIN_ID = "io.molis.work.example.sbxmaterials";

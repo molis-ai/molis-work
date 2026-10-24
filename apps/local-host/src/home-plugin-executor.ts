@@ -107,7 +107,7 @@ export class HomePluginExecutor implements PluginExecutor {
         const open = () => openPluginDatabase(this.options.home, library.declaration, authorize, context);
         database = library.installed ? openInstalledPluginLibrary(this.options.home, library.installed, library.declaration, home.stores, open) : open();
       }
-      // A sandboxed package is installed, not on the start list: its files are its installation's folder of the Home (S-65), the same client over the same port.
+      // A sandboxed package is installed, not on the start list: its files are its installation's folder of the Home (S-64), the same client over the same port.
       const owned = definition.execution === "sandbox" ? undefined : ownerFilesGiven(definition, this.options.ownerFiles(definition));
       const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
         { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: authorize }, join(realpathSync(this.options.home), owned.declaration.store_name))

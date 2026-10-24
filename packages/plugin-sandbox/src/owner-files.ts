@@ -2,7 +2,7 @@ import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from '@molis-ai/m
 import type { SandboxJson, SandboxOwnerFileChange, SandboxOwnerFileContent, SandboxOwnerFileEntry, SandboxOwnerFileInfo } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxError } from './schema.js';
 
-// The plugin's own files over the channel (`sdk.ownerFiles`, PG-017 P2c, S-65). The reader and writer are the activation's `services.ownerFiles`,
+// The plugin's own files over the channel (`sdk.ownerFiles`, PG-017 P2c, S-64). The reader and writer are the activation's `services.ownerFiles`,
 // the one the Host's own plugins get: it checks the Manifest's permissions, the grant, the running action, the original caller and, in the port
 // below it, that every path is a strict relative path inside a declared top-level entry, with no link or special node on the way. This side
 // takes out of the request what the Host's client would hand a plugin and a channel cannot carry: the folder's location (`rootPath`) and the

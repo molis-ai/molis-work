@@ -12,7 +12,7 @@ import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxOperationCont
 import { createPluginMaterialsClient, runInPluginAction, type PluginMaterialsPort } from "@molis-ai/molis-work-plugin-runtime";
 import { assertContract, DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
 
-// S-66 for `services.materials`, the two reads that reach outside the sandbox's own bytes (PG-017 P2d): a page on this machine (`fetch_local`) and the
+// S-65 for `services.materials`, the two reads that reach outside the sandbox's own bytes (PG-017 P2d): a page on this machine (`fetch_local`) and the
 // file the person handed the Host's entry (`original`). The sandbox gets no socket, no address and no path: the plugin names an address as data and the
 // Host decides and fetches (its loopback rule, its own ports, every redirect), and only extracted text comes back; the plugin names a file by its own
 // key and the Host's registry holds the path, and the bytes come back in parts of at most 256 KiB, each part a Host read with all of its checks.
@@ -112,7 +112,7 @@ async function rig(t: TestContext, options: { install?: string; home?: string; p
 
 const LOCAL_OP = operation("command", LOCAL), ORIGINAL_OP = operation("command", ORIGINAL), BOTH_OP = operation("command", BOTH);
 
-test("S-66 RAC-360 a page on this machine is fetched by the Host and only its extracted text comes back: no address, no header, no cookie, no socket for the plugin", { timeout: 60_000 }, async t => {
+test("S-65 RAC-360 a page on this machine is fetched by the Host and only its extracted text comes back: no address, no header, no cookie, no socket for the plugin", { timeout: 60_000 }, async t => {
   const r = await rig(t), page = await pageServer(t);
   const answer = await r.ok(LOCAL_OP, "materials.readLocalPage", [`${page.origin}/page`]) as { text: string; title?: string };
   assert.match(answer.text, /local page 正文/u);
@@ -125,7 +125,7 @@ test("S-66 RAC-360 a page on this machine is fetched by the Host and only its ex
   assert.deepEqual(r.calls, [`readLocalPage ${page.origin}/page`, `readLocalPage http://localhost:${page.port}/page`]);
 });
 
-test("S-66 RAC-361 the Host's address rule decides, and a refused address is never connected to: only a loopback name over plain HTTP, never the Host's own ports, never through a redirect", { timeout: 90_000 }, async t => {
+test("S-65 RAC-361 the Host's address rule decides, and a refused address is never connected to: only a loopback name over plain HTTP, never the Host's own ports, never through a redirect", { timeout: 90_000 }, async t => {
   const r = await rig(t), page = await pageServer(t), own = await pageServer(t), release = trackHostPort(own.port);
   t.after(release);
   const NOT_LOCAL = "material.local_page.not_local";
@@ -143,7 +143,7 @@ test("S-66 RAC-361 the Host's address rule decides, and a refused address is nev
   assert.deepEqual(page.hits.map(hit => hit.split(" cookie=")[0]), ["GET /redirect"], "the redirect was fetched once and not followed");
 });
 
-test("S-66 RAC-362 a page larger than the channel is refused, not cut; a request of the wrong shape never reaches the Host", { timeout: 60_000 }, async t => {
+test("S-65 RAC-362 a page larger than the channel is refused, not cut; a request of the wrong shape never reaches the Host", { timeout: 60_000 }, async t => {
   const r = await rig(t), page = await pageServer(t);
   await r.refused("a page that does not fit the channel", "sandbox.response_too_large", LOCAL_OP, "materials.readLocalPage", [`${page.origin}/big`]);
   const before = r.calls.length;
@@ -153,7 +153,7 @@ test("S-66 RAC-362 a page larger than the channel is refused, not cut; a request
   assert.equal(r.calls.length, before, "none reached the Host's client");
 });
 
-test("S-66 RAC-363 the file the person handed the Host's entry is kept under the plugin's own key and read back in parts of at most 256 KiB; the whole file comes back equal", { timeout: 90_000 }, async t => {
+test("S-65 RAC-363 the file the person handed the Host's entry is kept under the plugin's own key and read back in parts of at most 256 KiB; the whole file comes back equal", { timeout: 90_000 }, async t => {
   const r = await rig(t), content = Buffer.alloc(PART * 2 + 12_345); for (let index = 0; index < content.length; index++) content[index] = (index * 7 + 3) & 0xff;
   r.state.offered = r.file("import.bin", content);
   assert.equal(await r.ok(ORIGINAL_OP, "materials.claimOriginal", ["import-1"]), null);
@@ -173,7 +173,7 @@ test("S-66 RAC-363 the file the person handed the Host's entry is kept under the
   assert.ok(content.equals(readFileSync(r.state.offered!)), "the person's file is untouched");
 });
 
-test("S-66 RAC-364 a claim needs a file the Host's entry offered to this installation, in a call of the person's: nothing else registers a file", { timeout: 60_000 }, async t => {
+test("S-65 RAC-364 a claim needs a file the Host's entry offered to this installation, in a call of the person's: nothing else registers a file", { timeout: 60_000 }, async t => {
   const r = await rig(t);
   const NOT_OFFERED = "plugin.materials_original_not_offered";
   await r.refused("no file was offered", NOT_OFFERED, ORIGINAL_OP, "materials.claimOriginal", ["k"]);
@@ -194,7 +194,7 @@ test("S-66 RAC-364 a claim needs a file the Host's entry offered to this install
   await r.refused("a path as a key", "material.original.not_registered", ORIGINAL_OP, "materials.readOriginalRange", ["/etc/hosts", 0, 10, null]);
 });
 
-test("S-66 RAC-365 a registration belongs to its installation and its project: another installation or project reads nothing under the same key", { timeout: 60_000 }, async t => {
+test("S-65 RAC-365 a registration belongs to its installation and its project: another installation or project reads nothing under the same key", { timeout: 60_000 }, async t => {
   const one = await rig(t);
   one.state.offered = one.file("a.txt", "mine");
   await one.ok(ORIGINAL_OP, "materials.claimOriginal", ["shared-key"]);
@@ -208,7 +208,7 @@ test("S-66 RAC-365 a registration belongs to its installation and its project: a
   assert.equal(Buffer.from((await one.ok(ORIGINAL_OP, "materials.readOriginalRange", ["shared-key", 0, 10, null]) as { data_base64: string }).data_base64, "base64").toString(), "mine", "the release of another's key forgot nothing of ours");
 });
 
-test("S-66 RAC-366 the Host re-checks the file on every part: a path that now leads somewhere else, a changed file, a folder, a pipe or a file past 32 MiB is refused", { timeout: 90_000 }, async t => {
+test("S-65 RAC-366 the Host re-checks the file on every part: a path that now leads somewhere else, a changed file, a folder, a pipe or a file past 32 MiB is refused", { timeout: 90_000 }, async t => {
   const r = await rig(t), content = Buffer.alloc(PART + 100, 9);
   const claim = async (key: string, path: string) => { r.state.offered = path; await r.ok(ORIGINAL_OP, "materials.claimOriginal", [key]); };
   // The file changes between two parts of one read: the revision of the first part no longer matches.
@@ -244,7 +244,7 @@ test("S-66 RAC-366 the Host re-checks the file on every part: a path that now le
   assert.equal(Buffer.from((await r.ok(ORIGINAL_OP, "materials.readOriginalRange", ["hard", 0, 10, null]) as { data_base64: string }).data_base64, "base64").toString(), "hard");
 });
 
-test("S-66 RAC-367 a part is bounded: 256 KiB at most, a start inside the Host's cap, a revision only the Host gave", { timeout: 60_000 }, async t => {
+test("S-65 RAC-367 a part is bounded: 256 KiB at most, a start inside the Host's cap, a revision only the Host gave", { timeout: 60_000 }, async t => {
   const r = await rig(t);
   r.state.offered = r.file("secret-place.bin", "bytes");
   await r.ok(ORIGINAL_OP, "materials.claimOriginal", ["k"]);
@@ -260,7 +260,7 @@ test("S-66 RAC-367 a part is bounded: 256 KiB at most, a start inside the Host's
   assert.equal(longest.byte_length, PART);
 });
 
-test("S-66 RAC-368 the operation's declared effect and the person's approval decide for every method, a query declares neither, and the two effects are separate", { timeout: 60_000 }, async t => {
+test("S-65 RAC-368 the operation's declared effect and the person's approval decide for every method, a query declares neither, and the two effects are separate", { timeout: 60_000 }, async t => {
   const r = await rig(t), page = await pageServer(t);
   r.state.offered = r.file("a.txt", "a");
   const methods: Array<[SandboxSdkMethod, SandboxJson[], "fetch_local" | "original"]> = [["materials.readLocalPage", [`${page.origin}/page`], "fetch_local"], ["materials.claimOriginal", ["k"], "original"],
@@ -288,7 +288,7 @@ test("S-66 RAC-368 the operation's declared effect and the person's approval dec
   }
 });
 
-test("S-66 RAC-369 a service the Host did not build answers service_unavailable, and the Host's own client refuses a read outside the plugin's concurrent action", { timeout: 60_000 }, async t => {
+test("S-65 RAC-369 a service the Host did not build answers service_unavailable, and the Host's own client refuses a read outside the plugin's concurrent action", { timeout: 60_000 }, async t => {
   const r = await rig(t), page = await pageServer(t);
   r.state.offered = r.file("a.txt", "a");
   await r.refused("a page outside any action", "plugin.materials_action_required", LOCAL_OP, "materials.readLocalPage", [`${page.origin}/page`], { where: "outside" });
@@ -301,7 +301,7 @@ test("S-66 RAC-369 a service the Host did not build answers service_unavailable,
   }
 });
 
-test("S-66 RAC-369 a stopped installation, a taken-back grant, a cancelled call and a refused guard fetch nothing and register nothing", { timeout: 60_000 }, async t => {
+test("S-65 RAC-369 a stopped installation, a taken-back grant, a cancelled call and a refused guard fetch nothing and register nothing", { timeout: 60_000 }, async t => {
   const r = await rig(t), page = await pageServer(t);
   r.state.offered = r.file("a.txt", "a");
   await r.ok(ORIGINAL_OP, "materials.claimOriginal", ["kept"]);

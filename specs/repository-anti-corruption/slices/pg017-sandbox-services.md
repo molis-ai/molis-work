@@ -1,6 +1,6 @@
 # PG-017：沙箱插件经 broker 拿到宿主服务（设计稿）
 
-状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-65，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-66，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
+状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
 
 ## 1. 现状
 
@@ -73,8 +73,8 @@
 
 - **第一批只给不联网的部分**：`imageTextAvailable()`（只读状态）和 `readDocuments`（字节来自沙箱已有的存储/成果，不联网）。
 - **联网的 `readSource`/`extract(url)`**：只在 broker 额外对 URL 的主机做 `permit("networkDomains", host)` 之后放行，**且**材料读取器要接受“允许域名列表、不跟出列表外的重定向”这个选项（现在没有，要在 `material-source-providers` 里加）——这个宿主侧改动做完才开，登记为 BL-492（分片叫 P2e）。
-- **`fetch_local`**（P2d，S-66，用户 2026-10-24 定：给）：沙箱拿不到 socket 和地址，所以不是“让沙箱探本机网络”：插件把一个地址当数据交给 broker，宿主用已有的规则（`material-local-page.ts`：只有 `http://` 的 loopback 名、没有凭据、不是宿主自己的端口、每次重定向再查）判断并去取，回给插件的只有抽出的文字，不带地址、头和 cookie。效果键 `materials: ["fetch_local"]`，只在命令操作里。规则是宿主的一份，沙箱这边不另写 loopback 判断（S-09）。
-- **`original`**（P2d，S-66）：句柄是宿主登记表里的一行（插件、安装、项目、插件自己起的键），不是路径，路径不出宿主。认领只能在人驱动的调用里、带着宿主入口交给本安装的那个文件（和宿主内的插件一样）。读取分段：沙箱通道一次带不了 32 MiB，所以宿主客户端加了 `readOriginalRange`（起点、长度至多 1 MiB，broker 只要 256 KiB 一段，返回文件大小和不透明的 `revision`），每一段都是一次完整的宿主读取（动作作用域、授权、`beforeEffect`、路径与文件身份在读前读后各查一遍），第一段的 `revision` 在后面每段带回去，文件中途变了就拒绝，不读成混合内容。我没选“broker 里读一次整份、按段发”：那样后面的段不再过宿主的闸门，撤权后还会继续发。沙箱 SDK 的 `readOriginal(key, { maxBytes })` 是 worker 里对这个方法的循环，和宿主内插件同名同形。
+- **`fetch_local`**（P2d，S-65，用户 2026-10-24 定：给）：沙箱拿不到 socket 和地址，所以不是“让沙箱探本机网络”：插件把一个地址当数据交给 broker，宿主用已有的规则（`material-local-page.ts`：只有 `http://` 的 loopback 名、没有凭据、不是宿主自己的端口、每次重定向再查）判断并去取，回给插件的只有抽出的文字，不带地址、头和 cookie。效果键 `materials: ["fetch_local"]`，只在命令操作里。规则是宿主的一份，沙箱这边不另写 loopback 判断（S-09）。
+- **`original`**（P2d，S-65）：句柄是宿主登记表里的一行（插件、安装、项目、插件自己起的键），不是路径，路径不出宿主。认领只能在人驱动的调用里、带着宿主入口交给本安装的那个文件（和宿主内的插件一样）。读取分段：沙箱通道一次带不了 32 MiB，所以宿主客户端加了 `readOriginalRange`（起点、长度至多 1 MiB，broker 只要 256 KiB 一段，返回文件大小和不透明的 `revision`），每一段都是一次完整的宿主读取（动作作用域、授权、`beforeEffect`、路径与文件身份在读前读后各查一遍），第一段的 `revision` 在后面每段带回去，文件中途变了就拒绝，不读成混合内容。我没选“broker 里读一次整份、按段发”：那样后面的段不再过宿主的闸门，撤权后还会继续发。沙箱 SDK 的 `readOriginal(key, { maxBytes })` 是 worker 里对这个方法的循环，和宿主内插件同名同形。
 - **仍不给**：联网的 `readSource`（`materials:fetch`，BL-492，P2e）。
 - 授权：broker `permit("materials", "read"|"fetch")` + 上面的域名门；宿主 `createPluginMaterialsClient` 的权限与 `assertActive`。字节结果 base64、有界。
 
@@ -90,7 +90,7 @@
 ### 3.6 私有文件（`files.*`）、主人文件（`ownerFiles`）
 
 - **`files`**：形状是字节读写（`list/read/create/remove`），可以做成 base64 且有上限的 broker 方法；**但声明只在条目上**（PG-102），且有两套服务要合成一套（PG-104、§4 n）。所以：等 PG-102/104 把声明放进 Manifest、文件服务合成一套之后，沙箱经 broker 拿同一套（BL-491）；这一组里不给。
-- **`ownerFiles`**（P2c，S-65，用户 2026-10-24 定：给，有界）：沙箱包在 Manifest 里声明 `owner_files`，经 broker 读写自己的文件。**不**把宿主的 `rootPath()` 和 writer 回调递进去：沙箱 SDK 只有 `stat`、`list`、`read`（一个文件，至多 256 KiB，没有就是 `null`）、`write`（至多 16 步，每步是 `mkdir`、`write`、`replace_atomic`、`copy`、`remove`、`set_access` 之一，字节是 base64，每个文件 ≤ 256 KiB，一次调用合计 ≤ 512 KiB，`list` 至多 1000 项），路径一律是相对路径，由宿主已有的 port 按声明的顶层条目查（越界、链接、硬链接、特殊节点、非严格相对路径全部拒绝）。效果键 `ownerFiles: ["read"]` / `["read", "write"]`，查询不能写；写在 broker 一侧先等这次调用的 `beforeEffect()`，宿主客户端自己再查一遍授权与动作作用域。
+- **`ownerFiles`**（P2c，S-64，用户 2026-10-24 定：给，有界）：沙箱包在 Manifest 里声明 `owner_files`，经 broker 读写自己的文件。**不**把宿主的 `rootPath()` 和 writer 回调递进去：沙箱 SDK 只有 `stat`、`list`、`read`（一个文件，至多 256 KiB，没有就是 `null`）、`write`（至多 16 步，每步是 `mkdir`、`write`、`replace_atomic`、`copy`、`remove`、`set_access` 之一，字节是 base64，每个文件 ≤ 256 KiB，一次调用合计 ≤ 512 KiB，`list` 至多 1000 项），路径一律是相对路径，由宿主已有的 port 按声明的顶层条目查（越界、链接、硬链接、特殊节点、非严格相对路径全部拒绝）。效果键 `ownerFiles: ["read"]` / `["read", "write"]`，查询不能写；写在 broker 一侧先等这次调用的 `beforeEffect()`，宿主客户端自己再查一遍授权与动作作用域。
   - **根放哪里**（统筹 10-24 认可）：宿主内的插件根在 Home 里按插件的店名登记；沙箱包是装进来的，没有登记项，所以根是这个安装自己的目录，`<store_name>`（Manifest 的）是里面的一层。**项目里**：`<Home>/projects/<项目>/plugin-files/<安装>/<store_name>/`——按项目、按安装各一份，删项目时随项目目录一起删。**Home Runtime 里**（统筹 10-24 追加：用户定沙箱插件有主人文件，Home 级的也有）：`<Home>/plugin-files/<安装>/<store_name>/`，`plugin-files` 登记为宿主的 Home 库（`home-stores.ts`，owner `apps/local-host`），所以 `uninstall --purge-user-data` 覆盖它。项目 ID 与安装 ID 只许是普通目录名（`plugin-sandbox-owner-files.ts`）；没有 Home 的平台启动即拒。沙箱包不经启动名单，只走 `runtime.install`，所以 `assertHomeOnlyDeclarations` 与启动名单上对沙箱条目的拒绝（`assertOwnerFilesEntries`）与它无关；Home 执行器对沙箱定义不走 `ownerFilesGiven`（那是启动名单给的），走 `sandboxOwnerFilesFor`。
   - **卸载时的清理**（统筹 10-24 要求二选一，选“平台清理”：两个执行器的 `uninstalled` 钩子，不是创作台生命周期里的一行）：运行时存下卸载这一行之后调执行器的 `uninstalled(record)`，沙箱安装且这次卸载不留私有数据（`retain_private_data: false`，含装到一半失败被收回）就删这个安装的目录，只删这一个；留数据的卸载留着目录，重装沿用同一个安装 ID，找回的就是它，和私有数据同口径。重装时放弃上次卸载保留的数据（`discard_kept_data`）：运行时存下新的安装行之后调新增的可选钩子 `keptDataDiscarded(earlier)`（`PluginExecutor`，合同里多一个可选成员），执行器删目录，在新代码启动之前。删除前父目录解析到 Home 之外就拒，符号链接不跟（只解开链接本身）。不靠插件自己交 `purge`（RAC-239 的口径）。
   - **和宿主内同样待遇**：同一份 `PluginOwnerFilesClient`、同一个 port，所以 R1（动作之内凭动作与原调用者、动作之外凭安装现行授权）、`beforeEffect`、模式 0600/0700 都不另写一套。
@@ -127,8 +127,8 @@
 2. **P1 模型 + 指令**（V-20 的指令部分，排 PG-051 P2 后）：3.1、3.2。
 3. **P2 连接 + 材料（不联网部分）**：3.3、3.4 第一批。
 4. **P3 后台**：3.5，runner 多一条道。
-4a. **P2c 主人文件**（S-65，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
-4b. **P2d 本机页面与原文件**（S-66，本地分支，叠在 P2c 上）：3.4 的 `fetch_local` 与 `original`，验收见下面「P2d 验收」。
+4a. **P2c 主人文件**（S-64，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
+4b. **P2d 本机页面与原文件**（S-65，本地分支，叠在 P2c 上）：3.4 的 `fetch_local` 与 `original`，验收见下面「P2d 验收」。
 5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库/文件/模型设置/生图（BL-490/491）、方法与角色（BL-493）。
 
 ## 5. 验收与安全不变量
@@ -149,7 +149,7 @@
 | RAC-238（条目一半，PG-022/PG-102 之后；`ownerFiles` 已由 P2c 给） | 现在只在宿主条目上声明的项（`ownerFiles`、Home 库、`files`、模型设置、生图）：声明搬进 Manifest 之后，沙箱定义里声明它们时同样带码拒绝或给出，不再是六处无码的 `Error`；在那之前它们在沙箱里根本没有入口，这一半不算做完 |
 | RAC-239 | 声明式清理对沙箱插件成立：删项目时它的私有存储、项目库里的表、后台执行被平台清掉，不需要它交 `purge` |
 
-**P2c 验收**（S-65，统筹 10-24 给 RAC-350～369：本片 RAC-350～359，P2d 用 RAC-360～369）：`tests/security-invariants-sandbox-owner-files.test.ts`
+**P2c 验收**（S-64，统筹 10-24 给 RAC-350～369：本片 RAC-350～359，P2d 用 RAC-360～369）：`tests/security-invariants-sandbox-owner-files.test.ts`
 
 | 编号 | 断言 |
 | --- | --- |
@@ -164,7 +164,7 @@
 | RAC-358 | Home Runtime 里：沙箱包得到 `<Home>/plugin-files/<安装>/<store_name>/`，同一个有界服务、同样的拒绝（未声明的效果、查询写、根之外的路径、错误形状、`rootPath`）；没有项目目录、没有按登记的 Home 库建目录 |
 | RAC-359 | Home Runtime 里各安装各一份；留数据的卸载留着，不留的删掉，别的安装的不动；`plugin-files` 登记为宿主的 Home 库（purge 覆盖，`homeStores()` 与钉死的清单一致） |
 
-**P2d 验收**（S-66，RAC-360～369，统筹 10-24 分配）：`tests/security-invariants-sandbox-local-original.test.ts`
+**P2d 验收**（S-65，RAC-360～369，统筹 10-24 分配）：`tests/security-invariants-sandbox-local-original.test.ts`
 
 | 编号 | 断言 |
 | --- | --- |

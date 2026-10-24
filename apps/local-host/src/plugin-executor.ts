@@ -92,7 +92,7 @@ export class PluginHostExecutor implements PluginExecutor {
 
   uninstalled(record: PluginInstanceRecord): void {
     forgetPluginAgentDefinitions(this.options.home, record.install_id);
-    // A sandboxed installation that keeps no data keeps no files either (S-65); one that keeps it leaves its folder to the same installation id.
+    // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
   }
 

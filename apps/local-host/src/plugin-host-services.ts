@@ -166,7 +166,7 @@ interface SessionParts {
   readonly isActive: () => boolean;
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
-  /** A sandboxed plugin's declared files, in the project's directory (`sandboxOwnerFilesFor`, S-65); none for any other plugin. */
+  /** A sandboxed plugin's declared files, in the project's directory (`sandboxOwnerFilesFor`, S-64); none for any other plugin. */
   readonly ownerFiles: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesClient | undefined;
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
   readonly project_database: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectDatabase | undefined;

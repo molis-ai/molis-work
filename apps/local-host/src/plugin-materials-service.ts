@@ -13,7 +13,7 @@ import { MATERIAL_PERMISSIONS } from "./plugin-service-permissions.js";
 /**
  * A platform without a Home receives no material service (the model service is refused to a sandboxed activation; this one is not). A sandboxed activation is given this
  * client like any other (PG-017): the sandbox's broker forwards the readers of bytes, a page on this machine and the saved original files, one
- * method at a time, and refuses a package that asks for a network page (S-60, S-66). `project_id` is the
+ * method at a time, and refuses a package that asks for a network page (S-60, S-65). `project_id` is the
  * project the Host started this activation for (`null` for a Home-level one): original-file registrations are kept per project.
  */
 export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,

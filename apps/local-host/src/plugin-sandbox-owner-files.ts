@@ -4,7 +4,7 @@ import { pluginErrors, type PluginDefinition, type PluginOwnerFilesClient, type 
 import { createPluginOwnerFilesClient } from "@molis-ai/molis-work-plugin-runtime";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 
-// The declared files of a sandboxed plugin (`owner_files`, PG-017 P2c, S-65). A shipped plugin's root is a directory of the Home its store registry holds
+// The declared files of a sandboxed plugin (`owner_files`, PG-017 P2c, S-64). A shipped plugin's root is a directory of the Home its store registry holds
 // for it. A sandboxed package is installed, not registered, so it has no registry entry and its root is one installation's: in a project,
 // <Home>/projects/<project>/plugin-files/<installation>/<store_name>/ (another project's activation of the same package has another root, and deleting the
 // project deletes the files with it); on the Home Runtime, <Home>/plugin-files/<installation>/<store_name>/ (a registered Home store, so a purge takes it).
@@ -43,7 +43,7 @@ export function sandboxOwnerFilesFor(scope: SandboxOwnerFilesScope, definition: 
 }
 
 /**
- * The platform's cleanup when a sandboxed installation is uninstalled and keeps no private data: its folder goes, and nothing else (S-65). The instance has
+ * The platform's cleanup when a sandboxed installation is uninstalled and keeps no private data: its folder goes, and nothing else (S-64). The instance has
  * stopped by then. A name that is not a plain directory name, a folder that is not where the Host made it (the parent resolves outside the Home), and a link
  * are never followed: a link is unlinked, never what it points at.
  */

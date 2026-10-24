@@ -100,7 +100,7 @@ test('SDK reads files and sends requests through the Host services of the activa
   } finally { await f.close(); }
 });
 
-test('SDK reaches the declared files by relative path and bounded base64 only, and has no location or callback to give (S-65)', mac, async () => {
+test('SDK reaches the declared files by relative path and bounded base64 only, and has no location or callback to give (S-64)', mac, async () => {
   const effects: SandboxEffects = { ownerFiles: ['read', 'write'] };
   const files = new Map<string, Uint8Array>(), seen: string[] = [];
   const reader = {
@@ -123,7 +123,7 @@ test('SDK reaches the declared files by relative path and bounded base64 only, a
   } finally { await f.close(); }
 });
 
-test('SDK reads a page on this machine and the saved original file in parts, passing the first revision back, and the plugin never sees an address or a path (S-66)', mac, async () => {
+test('SDK reads a page on this machine and the saved original file in parts, passing the first revision back, and the plugin never sees an address or a path (S-65)', mac, async () => {
   const effects: SandboxEffects = { materials: ['fetch_local', 'original'] };
   const file = Buffer.alloc(600 * 1024, 7), revision = 'a'.repeat(32), seen: string[] = [];
   const f = await fixture(`export const operations={run:async(_,sdk)=>{

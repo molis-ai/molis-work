@@ -29,7 +29,7 @@ export interface SandboxServices {
   connections?: PluginConnectionsClient;
   /** The activation's `services.materials`, the readers of files the plugin already holds: the Host decides which of them exist (S-60). */
   materials?: PluginMaterialsClient;
-  /** The activation's `services.ownerFiles` without its `rootPath`: the plugin's own declared files by relative path (S-65). */
+  /** The activation's `services.ownerFiles` without its `rootPath`: the plugin's own declared files by relative path (S-64). */
   ownerFiles?: SandboxOwnerFiles;
 }
 interface DispatchGuards {
@@ -80,7 +80,7 @@ export class SandboxBroker {
     return { permit, count, string, missing };
   }
   private async dispatchMaterials(context: SandboxServiceContext, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
-    // `read` reads bytes the plugin sent. `fetch_local` and `original` are effects of their own (S-66): the first hands the Host an address as
+    // `read` reads bytes the plugin sent. `fetch_local` and `original` are effects of their own (S-65): the first hands the Host an address as
     // data and takes back extracted text, the second names the Host's saved file by the plugin's own key and takes it back in parts; neither
     // gives the plugin a socket, an address that was resolved, or a path. A network page (`materials:fetch`) has no method here. The Host's
     // client checks the Manifest's permission, the grant and the running action each time, and the Host's readers the address and the file.

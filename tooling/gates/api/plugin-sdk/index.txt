@@ -260,6 +260,8 @@ export type { PluginNotificationClient } from "@molis-ai/molis-work-contracts/pl
 export type { PluginNotificationInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginOriginalRangeContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginOriginalRangeRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginProjectDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";

@@ -4,6 +4,7 @@ export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWork
 export { computeBuildSourceDigest, writeMolisWorkBuildManifest, digestPaths } from "./installer/fingerprint.js";
 export type { MolisWorkBuildManifest } from "./installer/fingerprint.js";
 export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
+export { readRuntimeConfigBackup, sealRuntimeConfigBackup, RUNTIME_CONFIG_BACKUP_OWNER, type RuntimeConfigBackupReference } from "./installer/runtime-config-backups.js";
 export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
 export { RuntimeProjectConnection } from "./runtime-project-connection.js";
@@ -24,7 +25,7 @@ export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
-export { ORIGINAL_FILE_MAX_BYTES, readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
+export { ORIGINAL_FILE_MAX_BYTES, ORIGINAL_RANGE_MAX_BYTES, readOriginalFile, readOriginalRange, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
 export type { PluginHostExecutorOptions } from "./plugin-executor.js";
 export { runPluginDevelopment } from "./plugin-development.js";

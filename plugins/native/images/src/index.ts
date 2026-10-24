@@ -19,4 +19,6 @@ export { IMAGES_DATABASE, IMAGES_HOME_STORE, purgeImagesProject } from "./store.
 export { imagesProjectData } from "./project-data.js";
 export type { ImageGeneration, ImageProviderRequest } from "./providers.js";
 
-export { createImagesPlugin, IMAGES_FILES, IMAGES_IMAGE_GENERATION } from "./plugin.js";
+export { createImagesPlugin } from "./plugin.js";
+export { IMAGES_OWNER_FILES, IMAGES_FILES_WRITE } from "./owner-files.js";
+export { IMAGES_IMAGE_GENERATION } from "./image-generation.js";

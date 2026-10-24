@@ -8,7 +8,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HomePluginHost, MolisWorkLocalHost, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
-import { createImagesPlugin, imagesManifest, imagesProjectData, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION, IMAGES_ACTION_PERMISSIONS,
+import { createImagesPlugin, imagesManifest, imagesProjectData, IMAGES_ACTION_PERMISSIONS,
   imagesActions, type ImageJob } from "@molis-ai/molis-work-plugin-images";
 
 export const IMAGE_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==";
@@ -27,7 +27,7 @@ export async function imageRuntimeFixture(t: TestContext, options: {
       const definition = createImagesPlugin(), original = definition.start;
       definition.start = context => { contexts.push(context); return original(options.context?.(context) ?? context); };
       return options.definition?.(definition) ?? definition;
-    }, database: IMAGES_DATABASE, files: IMAGES_FILES, image_generation: IMAGES_IMAGE_GENERATION,
+    },
     project_data: { owner_id: "images", declaration: imagesProjectData }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
   const provider = createServer(async (request, response) => {
     let raw = ""; for await (const chunk of request) raw += chunk;

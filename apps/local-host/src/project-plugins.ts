@@ -8,12 +8,12 @@ import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
-import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
-import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
-import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
-import { PAGES_DATABASE, createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
-import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
-import { WORKFLOWS_DATABASE, createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
+import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
+import { createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
+import { createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
+import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
+import { createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
+import { createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -219,27 +219,27 @@ function projectPluginEntries(ports: ProjectPluginPorts): PluginPlatformEntry[] 
 /** Project instances whose own libraries live in this Home. */
 function homeLibraryPlugins(): PluginPlatformEntry[] {
   return [{
-    definition: createDatasetPlugin(), bundled: true, database: DATASET_DATABASE,
+    definition: createDatasetPlugin(), bundled: true,
     releaseArtifact: nativePluginReleaseArtifact<typeof createDatasetPlugin>(
       "@molis-ai/molis-work-plugin-dataset", "createDatasetPlugin", factory => factory()),
   }, {
-    definition: createFormPlugin(), bundled: true, database: FORM_DATABASE,
+    definition: createFormPlugin(), bundled: true,
     releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>(
       "@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()),
   }, {
-    definition: createLingguangPlugin(), bundled: true, database: LINGGUANG_DATABASE,
+    definition: createLingguangPlugin(), bundled: true,
     releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
       "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
   }, {
-    definition: createPagesPlugin(), bundled: true, database: PAGES_DATABASE,
+    definition: createPagesPlugin(), bundled: true,
     releaseArtifact: nativePluginReleaseArtifact<typeof createPagesPlugin>(
       "@molis-ai/molis-work-plugin-pages", "createPagesPlugin", factory => factory()),
   }, {
-    definition: createPptPlugin(), bundled: true, database: PPT_DATABASE,
+    definition: createPptPlugin(), bundled: true,
     releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(
       "@molis-ai/molis-work-plugin-ppt", "createPptPlugin", factory => factory()),
   }, {
-    definition: createWorkflowsPlugin(), bundled: true, database: WORKFLOWS_DATABASE,
+    definition: createWorkflowsPlugin(), bundled: true,
     releaseArtifact: nativePluginReleaseArtifact<typeof createWorkflowsPlugin>(
       "@molis-ai/molis-work-plugin-workflows", "createWorkflowsPlugin", factory => factory()),
   }];

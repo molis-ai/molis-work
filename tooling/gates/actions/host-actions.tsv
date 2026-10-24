@@ -62,7 +62,7 @@ characters.launch	2	io.molis.work.characters	command	operation	project	write	-	u
 characters.list	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read	character	-	-	d746974fa9af	e35d0f308bd4	-
 characters.publications.file	1	io.molis.work.characters	query	query	project	read	-	user	artifact:read	character	-	-	697fcc6c755e	a2c799262a3c	-
 characters.publish	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	artifact:read,artifact:write	character	-	-	e6533a213e48	ba5e9b539702	-
-characters.runnable	1	io.molis.work.characters	query	query	project	read	-	plugin	artifact:read	character	-	-	c8e7ccee276b	8800b89773f1	-
+characters.runnable	1	io.molis.work.characters	query	query	project	read	-	plugin,user	artifact:read	character	-	-	c8e7ccee276b	8800b89773f1	-
 characters.runs	2	io.molis.work.characters	query	query	project	read	-	user	-	character	-	-	de2f7e460673	d536ab86c0cc	-
 characters.search.entries	1	io.molis.work.characters	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	-	character	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	a3a409432585
 characters.state	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	a1b10c56536a	478e0598d946	-

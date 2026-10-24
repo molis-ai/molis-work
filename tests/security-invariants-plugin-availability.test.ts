@@ -24,7 +24,11 @@ test("SYS-15-F4 availability reads owned settings, cannot write, and expires bef
       }) };
     },
   };
-  const entry = { ...probe.entry(writer => writer.replaceFileAtomic("catalog.json", Buffer.from("chosen-model"))), definition };
+  // The plugin writes the chosen model into its own files in its own start (no host initializer: PG-103).
+  probe.behavior.start = async context => {
+    if (context.grants.includes(probe.write)) await context.services!.ownerFiles!.write(writer => writer.replaceFileAtomic("catalog.json", Buffer.from("chosen-model")));
+  };
+  const entry = { ...probe.entry(), definition };
   const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [entry] } });
   await grantOwnerFiles(host, probe);
   const client = host.homeActionClient(), directory = await client.discover(probe.caller());

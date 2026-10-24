@@ -13,6 +13,7 @@ import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/a
 import { AgentHost, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { withLibrary } from "./fixtures/home-library.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home registration and genuine project scopes", { timeout: 60_000 }, async t => {
@@ -144,7 +145,7 @@ test("W3-06-F-02 a Home database comes from the trusted definition entry, never 
   const probe = homeProbe("dbprobe");
   const declaration: PluginDatabaseDeclaration = { store_name: "dbprobe-notes", version: 1, schema: "CREATE TABLE notes (text TEXT NOT NULL);",
     read_permission: "dbprobe:read", write_permission: "dbprobe:write" };
-  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [{ definition: probe.definition, database: declaration }] } });
+  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [{ definition: withLibrary(probe.definition, declaration) }] } });
   const platform = await host.homePlugins!.ready();
   const record = host.homePlugins!.installation(probe.id)!;
   assert.equal(record.state, "running");
@@ -183,14 +184,14 @@ test("W3-06-F-02 a fixture cannot take the Host's Issue library or declare an in
   for (const [store, message] of [["issues", /登记的主人是 io\.molis\.work\.issues，/u], ["plugin-runtime", /登记的主人是 apps\/local-host，/u],
     ["dataset", /登记的主人是 io\.molis\.work\.dataset，/u], ["feed", /归 packages\/storage，不是库/u], ["../dataset", /一个目录名/u]] as const) {
     const home = mkdtempSync(join(tmpdir(), "home-store-owner-")), probe = homeProbe();
-    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [{ definition: probe.definition,
-      database: { store_name: store, version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: "homeprobe:read", write_permission: "homeprobe:write" } }] } });
+    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [{ definition: withLibrary(probe.definition,
+      { store_name: store, version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: "homeprobe:read", write_permission: "homeprobe:write" }) }] } });
     try { await assert.rejects(host.homePlugins!.ready(), message); assert.equal(probe.contexts.length, 0); }
     finally { await host.close(); rmSync(home, { recursive: true, force: true }); }
   }
   const home = mkdtempSync(join(tmpdir(), "home-duplicate-store-")), one = homeProbe("one-store"), two = homeProbe("two-store");
-  const entry = (probe: ReturnType<typeof homeProbe>) => ({ definition: probe.definition,
-    database: { store_name: "shared-notes", version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: `${probe.definition.manifest.name}:read`, write_permission: `${probe.definition.manifest.name}:write` } });
+  const entry = (probe: ReturnType<typeof homeProbe>) => ({ definition: withLibrary(probe.definition,
+    { store_name: "shared-notes", version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: `${probe.definition.manifest.name}:read`, write_permission: `${probe.definition.manifest.name}:write` }) });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [entry(one), entry(two)] } });
   try {
     // The first fixture is given the free name; the second cannot take a library registered as another's.

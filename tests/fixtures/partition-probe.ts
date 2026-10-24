@@ -10,6 +10,7 @@ import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modu
 import type { HomePluginDatabaseDeclaration, PluginBackgroundExecution, PluginDatabase, PluginDefinition, PluginExecutionControl, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ActionService } from "@molis-ai/molis-work-kernel";
+import { withLibrary } from "./home-library.js";
 import { person } from "./home-runtime.js";
 
 // A Home plugin whose library is partitioned by project (specs/plugin-project-partition), shipped the way a built-in one is: an entry
@@ -76,7 +77,7 @@ function createProbe(): PluginDefinition {
   return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: PROBE_ID, version: "1.0.0", name: PROBE, kind: "app",
     publisher: { publisher_id: "example", signature: `home-${PROBE}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: PROBE_PERMISSIONS.map(permission => ({ permission, required: true, reason: "分区探针读写自己的库" })),
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions,
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions, databases: { home: PROBE_DATABASE },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } },
   async start(context) {
     probe.contexts.push(context);
@@ -105,8 +106,13 @@ const todo = catalog.find(entry => entry.project_plugin_id === "todo")?.runtime;
 assert.ok(todo, "the Todo entry lends its package for the Runtime's release archive");
 const shipped = createProbe();
 catalog.push({ project_plugin_id: PROBE, catalog_order: 10_000, manifest: shipped.manifest, summary: "分区探针", project_data: projectData,
-  runtime: { scope: "home", create: createProbe, database: PROBE_DATABASE, package_name: todo.package_name, factory_export: todo.factory_export },
+  runtime: { scope: "home", create: createProbe, package_name: todo.package_name, factory_export: todo.factory_export },
   workbench: { order: 10_000, contributions: [] } });
+
+/** The probe, declaring `library` as its Home library instead of the catalog's (or none): what a Manifest that disagrees with the registry looks like. */
+export function probeWithLibrary(library: HomePluginDatabaseDeclaration | undefined): () => PluginDefinition {
+  return () => withLibrary(createProbe(), library);
+}
 
 /** The Home entry the Host makes of a catalog entry (project-host.ts), with what a test changes about it. */
 export function probeEntry(change: Partial<HomePluginEntry> = {}): HomePluginEntry {

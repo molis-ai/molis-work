@@ -2818,25 +2818,11 @@ export interface PluginExecutor {
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
     uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
+    keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 
 export interface PluginExecutorHandle {
     contribution: PluginContribution;
-}
-
-export interface PluginFilesClient {
-    list(): readonly string[];
-    read(name: string): Uint8Array | null;
-    create(control: PluginExecutionControl, name: string, bytes: Uint8Array): Promise<void>;
-    remove(control: PluginExecutionControl, name: string): Promise<void>;
-}
-
-export interface PluginFilesDeclaration {
-    readonly store_name: string;
-    readonly directory: string;
-    readonly max_file_bytes: number;
-    readonly read_permission: string;
-    readonly write_permission: string;
 }
 
 export interface PluginHostServices {
@@ -2850,7 +2836,6 @@ export interface PluginHostServices {
     readonly project_database?: import("platform/plugin-database").PluginProjectDatabase;
     readonly project_statements?: import("platform/plugin-database").PluginProjectStatements;
     readonly scheduler?: import("platform/plugin-scheduler").PluginScheduleClient;
-    readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly terminal?: PluginTerminalClient;
     readonly model?: PluginModelClient;
@@ -3208,6 +3193,9 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
+    owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
+    model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
+    image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
@@ -3219,6 +3207,7 @@ export interface PluginManifest {
 
 export interface PluginManifestDatabases {
     readonly project?: PluginDatabaseDeclaration;
+    readonly home?: HomePluginDatabaseDeclaration;
 }
 
 export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
@@ -3235,6 +3224,7 @@ export interface PluginMaterialsClient {
     readLocalPage?(url: string, request?: PluginLocalPageRequest): Promise<MaterialExtraction>;
     claimOriginal?(record_key: string): Promise<void>;
     readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
+    readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
 }
 
@@ -3365,6 +3355,19 @@ export interface PluginNotificationReceipt {
 
 export interface PluginOriginalContent {
     readonly bytes: Uint8Array;
+}
+
+export interface PluginOriginalRangeContent {
+    readonly bytes: Uint8Array;
+    readonly size: number;
+    readonly revision: string;
+}
+
+export interface PluginOriginalRangeRequest {
+    readonly offset: number;
+    readonly length: number;
+    readonly revision?: string;
+    readonly signal?: AbortSignal;
 }
 
 export interface PluginOriginalRequest {

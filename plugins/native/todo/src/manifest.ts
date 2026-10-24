@@ -3,6 +3,7 @@ import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-con
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
 import { TODO_UI_CONTRIBUTION_ID } from "./ui.js";
 import { todoAgentManifest, todoMethods } from "./roles.js";
+import { TODO_DATABASE } from "./database.js";
 
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID };
 
@@ -26,6 +27,7 @@ export const todoManifest: PluginManifest = {
   artifacts: { produces: [], consumes: [] },
   actions: [...TODO_ACTIONS],
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
+  databases: { home: TODO_DATABASE },
   routes: [
     { route_id: "todo.list", method: "GET", path: "/items" },
     { route_id: "todo.create", method: "POST", path: "/items", max_body_bytes: TODO_BODY_BYTES },

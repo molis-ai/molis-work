@@ -1,6 +1,6 @@
 # 交给 Codex 的独立开发片
 
-> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「专职｜防腐流水线与合并执行 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，用户最新指定gpt-6.1-sol/max，06:45:56UTC实际回合已核；root/REVIEW保留gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；每10分钟兜底接续。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献、Claude开发owner及唯一full组批职责分别保留；review-pr-fixer旧认领已由Claude6381877118明确释放并交FIX2接续；Codex侧协调不替代Claude总统筹。
+> **2026-10-23 23:26（洛杉矶）最新分工：** 一骏明确整条防腐线听Claude总统筹：范围、优先级、跨线依赖和全量排期由Claude决定。Codex侧「专职｜防腐流水线与合并执行 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`，用户最新指定gpt-6.1-sol/max，06:45:56UTC实际回合已核；root/REVIEW保留gpt-6-astra/xhigh）从Claude当前共享派单或明确回执领取独立任务，组织专职实现/评审/测试/修复，按Claude顺序核证据并执行正常合并；Root唯一定时调度，本chat仅接明确派单及其交付接续。原主chat保留完整目标、用户沟通并建立1–2个实现入口后交Codex侧接续，不重复建chat。全部Codex实现chat合计仍单writer、公共build/browser槽；四专职入口及所有有效block/non-block闭环见[CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。DeepSeek历史贡献、Claude开发owner及唯一full组批职责分别保留；review-pr-fixer旧认领已由Claude6381877118明确释放并交FIX2接续；Codex侧协调不替代Claude总统筹。
 
 状态：2026-10-23 起生效。用户 10-23 定：独立的开发任务可以派给 Codex，不必都在 Claude 子会话里做。统筹（本机 Claude）在这里派片、排序；Codex 做完一片在本表写 PR 号，再接下一片。
 
@@ -12,7 +12,14 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 
-> **2026-10-24 16:45 UTC 用户最新方法覆盖旧逐PR次序**：一骏要求若旧执行方不再做就合成一个，避免合来合去。Root已鲜核原Claude仍推进、1222已普通push a788e1a413f8ffce6d60c922f3c18092e9b343d3，故当前source owner仍原ac-batch29pr，不另起重复writer。以a788已含四源为核心，把1109@8921、1112@08b、1223@8af统一**一个最终共同carrier**，复用integration33/d3的1112六真冲突解法但不把1226–29新增当依赖；原分支全线成果保留。原writer须给唯一branch/worktree/head与所含源，不逐个leaf合main/刷baseline。原1222 CI自然跑作现成证据、不取消，暂不与共同结果竞争入队；仅真实共同树一次共用文件/必要build/security/full/增量双审、最终一个queue actualmain后一起关8目标。1198临时明确交Root唯一Ready/queue/actual核，流水线不重复命令；C1已在当前有界RAC115安全固定后release，之后source优先8真实修复，原Claude明确不再写该组才交可用FIX2接共同候选。当前3focus中Cognia390需真实Back回列表、不改隐藏规则；MCP唯一有界/tmp阶段取证已派TEST，原45s不加、不新full/第三次盲跑；HomeAgg已有6/6新raw保首取消。
+> **当前唯一定时调度（用户最新明确、Root已官方工具读回）**：只有Root `01a12a80-ede2-7b81-93ea-521a5abcc35c` 的 `molis-work` 每10分钟定时；其他定时任务维持PAUSED。流水线与专职不自行定时巡检、恢复自动任务或周期领取新任务；当前已派在途工作继续，交付即接续并向Root回报，之后仅接Root发现可行动事项后的明确派单。Claude整线范围/优先级/唯一full排期、既有owner和单writer/公共资源槽不变。
+>
+> **当前共同候选（2026-10-24 17:15 UTC实核；覆盖下列历史排期）**：旧8目标1109/1112/1209/1210/1211/1212/1222/1223保持**一个共同carrier整体actual main后关闭**，1222不独立入队。原Claude统筹已发布 `batch/1024-33` / `eae618248eff94ffb71da917f2aef9eee23b0877`，树 `ac-batch33`，已含1222/a788四源及1112/08b、1109/8921。BL-372原writer正在 `ac-coding-93b25f` 把该头合回1223：本地固定 `0c026b18ea6ebb28ee4879fad581b18f288ee460`（8af+eae），远端仍8af；当前schema、HTTP route、fixture、host-actions.tsv四项未提交改动，尚无新固定修复头。REVIEW [6387093917](https://github.com/molis-ai/molis-work/pull/1223#issuecomment-6387093917) 两P1+fixture必须修由原作者闭环，流水线 [6387188326](https://github.com/molis-ai/molis-work/pull/1223#issuecomment-6387188326) 已公开接续；不启FIX2重复writer。
+>
+> **证据/下一步**：旧bl372-tests为121文件103过18红exit1，现成中间rerun16/18、余workspace-project-actions与runtime-declarations；不声称18项仍全待修或已全绿。原作者交固定head/diff/raw直接REVIEW/TEST/流水线→原批统筹折回唯一carrier→以实际main `191acc418dee3e48b2d7f7238015a479de14372e` 统一真实代码合成及共用文件/生成物一次处理→必要增量审验、设置选择器真实浏览器路径与Claude唯一full排期→正常单queue→核actual SHA及八目标包含再关源片。另一 `integration/batch-1024-33` / c0b82a1含1226–1229，不能把其既存full40112466492当此最终同头证据，也不取消/重复full。a788取消P2已REVIEW6386623257关闭，组合REVIEW6387053343通过；原3focus已有TEST6386748136有效分次覆盖（116首过+3后来过、非119首绿），无需新/tmp MCP观察，原红/取消原因UNKNOWN保留。
+>
+> **已释放/落地边界**：C1 #1231/bf09cc3已固定并完全RELEASED，REVIEW6386882837 PASS；不因等旧8审验空占writer，C2B2b仍按旧8优先后移。#1198已由Root唯一正常队列于16:58:08Z actual main `191acc418dee3e48b2d7f7238015a479de14372e`，树0844a43fa66df00c7ea7fa17077261922d835fa2；记录见MERGE-QUEUE§3，不重复命令。旧正式视觉exit1/6px及UNKNOWN保留，Root和独立Review已按完整交叉原图作本分支非回归裁定，未改阈值/覆盖/期望图；不冒本人验收。
+
 
 
 > 2026-10-24 16:35 UTC **最新人类指令覆盖下列旧source排期**
@@ -165,7 +172,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 
 固定PR/head＋spec/diff/原始日志由作者直接发REVIEW、TEST和流水线，收到即自动增量审验；must-fix直接回原作者并抄流水线，新head立即复审，不等用户、二次转发、CI完成或heartbeat。源码固定并明确释放即可交下一独立片，不为等待审验/CI/merge占writer；单Codex writer、整机一build/一浏览器批及Claude唯一full保持。模型分工、已有认领和工作不中断，不新建重复入口。
 
-本组共享协调文件由流水线chat串行维护，root和六专职不抢写。上述现行规则取代历史无真实依赖的“仅准备”“等root再次派”表述；真实源码占用、在途文件冲突、必要外部权限或合同依赖才暂停相关部分。常规交付、排队和内部可解决失败只更新共享；只有必须一骏决定或补权限/信息时通知。
+本组共享协调文件由流水线chat串行维护，root和六专职不抢写。已派任务不因无真实依赖的“仅准备”或等待重复派单而空置；新任务由Root明确派发。真实源码占用、在途文件冲突、必要外部权限或合同依赖才暂停相关部分。常规交付、排队和内部可解决失败只更新共享；只有必须一骏决定或补权限/信息时通知。
 
 > **下一non-block实际插空**：C1→C2 B1现行顺序不变；C2 B1固定head并释放源码后，修复2接#1112三项有效nonblock（Skill构建期范围、PG060/RAC证据映射、Files真实冷/热打开选中），按现有认领鲜核依赖/无重复writer，在B1独立审验期间完整交付后还C2 B2；更高优先级must-fix优先。此三项当前尚无修复提交，不能称闭环。来源/owner/触发/实际修复与审验合入的逐项记录见CODEX-SESSION-ROLES「下一项non-block实施触发」。BL544实际owner修复1；AC05实际owner修复2，领域归属保留，依原W5合同接续，新跨模块取舍交root。
 

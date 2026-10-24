@@ -20,6 +20,8 @@ export interface Child {
   readonly result_html?: string;
   readonly error?: string;
   readonly integration_available?: boolean;
+  /** The run the subagent is executing (while it runs). */
+  readonly child_run?: { readonly run_id: string };
   readonly verdict?: { readonly status: string; readonly notes?: string; readonly revision?: number };
 }
 

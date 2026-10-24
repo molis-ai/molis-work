@@ -12,6 +12,7 @@ const pieces = [
   { out: "subagents-bundle.js", module: "subagents", create: "subagentGroups" },
   { out: "writers-bundle.js", module: "writers", create: "writerDirectories" },
   { out: "writer-integration-bundle.js", module: "writer-integration", create: "writerIntegration" },
+  { out: "subagent-cards-bundle.js", module: "subagent-cards", create: "subagentCards" },
 ];
 
 const shared = { bundle: true, format: "iife", platform: "browser", minify: true, charset: "utf8", logLevel: "warning" };

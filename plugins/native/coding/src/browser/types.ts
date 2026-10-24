@@ -39,3 +39,12 @@ export interface ReceiptLinks {
 
 /** Draws the Host's review cards for the runs it is given in a container (`host.showReviews`). */
 export type ShowReviews = (container: Element, refs: readonly { readonly run_id: string }[], sessionId?: string | null, workspaceId?: string | null) => unknown;
+
+/** A model-facing explanation of a failure: what it was, and what to do. */
+export interface FailureExplanation { readonly title: string; readonly hint: string }
+
+/** The page's timeline (src/timeline.ts): how it draws one run's steps, and what it says about a failure. */
+export interface TimelineApi {
+  renderGroup(target: HTMLElement, activity: readonly unknown[], run: { readonly ref: { readonly run_id: string }; readonly phase: string; readonly activity: readonly unknown[] }, live: boolean): unknown;
+  explainFailure?(error: string): FailureExplanation | undefined;
+}

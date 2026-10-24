@@ -16,6 +16,7 @@ import { codingGoalTitles } from "./goal-titles.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
 import { codingResultDocumentHandler } from "./results-document.js";
 import { codingHomeBackgroundTasksHandler } from "./home-background.js";
+import { CODING_INSTRUCTIONS } from "./prompts.js";
 
 /**
  * Coding as something Plugin Runtime starts, isolated, rather than something
@@ -64,6 +65,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
     event_types: codingEventTypes,
     agent_prompts: codingPrompts,
     agent_skills: codingMethods,
+    instructions: CODING_INSTRUCTIONS,
     async start(context: PluginStartContext): Promise<PluginAppContribution> {
       for (const permission of codingManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
@@ -76,8 +78,11 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       // (goal-titles.ts); the routes and the directory share this one cache.
       const sessions = new CodingSessionStore(database), goalTitles = codingGoalTitles(context);
       const surface = codingSurface(context, sessions, goalTitles);
-      // No round survives this activation: what the Home lists as under way from before it was cut off (home-background.ts).
-      const startedAt = new Date().toISOString();
+      // No round survives the Home process: what the Home lists as under way from before this process started was cut off
+      // (home-background.ts). Stopping and starting Coding again is not a restart: it stops only this activation's background jobs
+      // (the follower and the wake loop, PG-038, S-52), while the round itself stays in the Home-level agent host. So the boundary is
+      // when this process started, not when this activation did.
+      const startedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
       return {
         kind: "app",
         // The page's session directory is read from this store at render, not by the Host from Coding's tables.

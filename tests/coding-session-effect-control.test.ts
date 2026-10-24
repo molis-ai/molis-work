@@ -213,3 +213,47 @@ for (const stop of ["cancel", "revoke"] as const) {
     } finally { h.database.close(); }
   });
 }
+
+
+test("RAC-189 Coding message cancel and background stop keep the request fence through real Host actions", async t => {
+  const fixture = await codingSdkRuntime(t); await fixture.create("app");
+  const seen: string[] = [];
+  fixture.adapter.messages!.cancel = async () => { seen.push("cancel"); };
+  fixture.adapter.background!.stop = async () => { seen.push("stop"); return true; };
+  const dispatch = (path: string, beforeEffect: () => Promise<void>, signal?: AbortSignal) => fixture.platform.router().dispatch({
+    method: "POST", pathname: `/api/plugins/io.molis.work.coding/sessions/app/${path}`, actor_id: "web-user", body: {},
+    execution: { beforeEffect, assert_authority_current: () => {}, ...(signal ? { signal } : {}) },
+  });
+  for (const [path, method] of [["messages/m1/cancel", "cancel"], ["background/t1/stop", "stop"]]) {
+    seen.length = 0;
+    let checks = 0;
+    const refused = await dispatch(path!, async () => { if (++checks > 1) throw new ActionError("actions.forbidden", "request withdrawn after entry"); });
+    assert.equal(refused?.status, 403, JSON.stringify(refused));
+    assert.equal((refused?.body as { code?: string }).code, "actions.forbidden");
+    assert.ok(checks > 1, "the request was checked again after entering the route");
+    assert.deepEqual(seen, [], "the Runtime must not see a cancelled write");
+    const accepted = await dispatch(path!, async () => {});
+    assert.equal(accepted?.status, 200, JSON.stringify(accepted));
+    assert.deepEqual(seen, [method], "the real Host handler reaches the Runtime for a current request");
+    seen.length = 0;
+    const aborted = new AbortController(); checks = 0;
+    const cancelled = await dispatch(path!, async () => { if (++checks > 1) aborted.abort(new ActionError("actions.forbidden", "request aborted")); }, aborted.signal);
+    assert.equal(cancelled?.status, 403, JSON.stringify(cancelled));
+    assert.equal((cancelled?.body as { code?: string }).code, "actions.forbidden");
+    assert.deepEqual(seen, [], "request cancellation still reaches the action's effect boundary");
+  }
+});
+
+test("RAC-189 Coding message reads also carry their request control into the actual Host action", async t => {
+  const fixture = await codingSdkRuntime(t); await fixture.create("app");
+  await fixture.sessions.setRuntimeSession(noEffect, P, "app", "sdk-app", new Date().toISOString());
+  const seen: string[] = [];
+  fixture.adapter.messages!.read = async () => { seen.push("read"); return []; };
+  const response = await fixture.platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.coding/sessions/app/messages", actor_id: "web-user",
+    execution: { beforeEffect: revoked, assert_authority_current: () => {} } });
+  assert.equal(response?.status, 403, JSON.stringify(response));
+  assert.equal((response?.body as { code?: string }).code, "actions.forbidden");
+  assert.deepEqual(seen, []);
+  assert.equal((await fixture.call("/sessions/app/messages"))?.status, 200);
+  assert.deepEqual(seen, ["read"]);
+});

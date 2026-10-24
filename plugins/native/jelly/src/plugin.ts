@@ -7,6 +7,7 @@ import { jellyRoutes } from "./plugin-routes.js";
 import { createJellyServiceHandlers } from "./service-actions.js";
 import { JellyStore, type JellyStores } from "./store.js";
 import { jellyUiContribution } from "./ui.js";
+import { JELLY_INSTRUCTIONS } from "./prompts.js";
 
 /** Trusted startup declaration. Runtime only honors the copy carried by the Host entry. */
 export const JELLY_MODEL_CONFIGURATION: PluginModelConfigurationDeclaration = {
@@ -18,7 +19,7 @@ const unavailable = (): ActionAvailability => ({ available: false, code: "action
 
 /** One Home Runtime instance owns every Jelly action, view, and HTTP route. */
 export function createJellyPlugin(): PluginDefinition {
-  return { manifest: jellyManifest, async start(context) {
+  return { manifest: jellyManifest, instructions: JELLY_INSTRUCTIONS, async start(context) {
     for (const permission of jellyManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, model = context.services?.model, configuration = model?.configuration;
     if (!database || !configuration) throw new ActionError("actions.unredeemed", "宿主未提供 Jelly 库或模型设置服务");

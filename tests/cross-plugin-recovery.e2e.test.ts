@@ -1,12 +1,12 @@
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { openHostShelfStore } from '@molis-ai/molis-work-app-local-host';
 import { openCharacters } from '@molis-ai/molis-work-module-characters';
 import { CHARACTER_PLUGIN_ID } from '@molis-ai/molis-work-contracts/modules/characters';
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { openTestShelfStore } from './shelf-direct-actions.js';
 
 test('Characters still lists the person\'s drafts in a project that keeps the removed Characters plugin\'s install record', { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
@@ -35,7 +35,7 @@ test('Shelf saves the last keystroke before returning and keeps a failed draft a
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
   const child = await pluginFrameBrowser(t,b,'shelf');
-  const shelf = openHostShelfStore(b.homeDirectory, { disabled: true });
+  const shelf = openTestShelfStore(b.homeDirectory, { disabled: true });
   const a = await shelf.admit({ filename: '最后输入.md', bytes: Buffer.from('# A\n原文 A'), mime: 'text/markdown' });
   const second = await shelf.admit({ filename: '独立材料.md', bytes: Buffer.from('# B\n原文 B'), mime: 'text/markdown' });
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=window.fetch;window.failShelfEdit=false;window.fetch=(url,options)=>window.failShelfEdit && String(url).endsWith('/${a.item_id}/edit')?Promise.resolve(new Response(JSON.stringify({error:'暂时无法写入副本'}),{status:503})):original(url,options)})()`},sessionId);

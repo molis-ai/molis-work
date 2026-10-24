@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
+import ts from "typescript";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -334,13 +335,32 @@ function sourceFiles(directory: string): string[] {
 }
 const read = (path: string): string => readFileSync(join(REPOSITORY, path), "utf8");
 
-/** The owners' server-side sources: their plugin, module and the Host files that serve them (the browser programs are strings inside `*client*.ts` and are not read). */
+/** The owners' server-side sources: their plugin, module and the Host files that serve them (the browser programs, strings inside `*client*.ts` or typed files under `src/browser/`, are not read). */
 function ownerSources(): string[] {
   const hostFiles = readdirSync(join(REPOSITORY, "apps/local-host/src")).filter(name => /^(?:shelf|jelly|cognia|images|material)-.*\.ts$/u.test(name))
     .map(name => `apps/local-host/src/${name}`);
   return [...["plugins/native/shelf/src", "modules/shelf/src", "plugins/native/jelly/src", "plugins/native/cognia/src", "plugins/native/images/src"]
-    .flatMap(directory => sourceFiles(join(REPOSITORY, directory)).map(path => relative(REPOSITORY, path))).filter(path => !/client/u.test(path.split("/").at(-1)!)), ...hostFiles];
+    .flatMap(directory => sourceFiles(join(REPOSITORY, directory)).map(path => relative(REPOSITORY, path))).filter(path => !/client/u.test(path.split("/").at(-1)!) && !/^plugins\/native\/[^/]+\/src\/browser\//u.test(path)), ...hostFiles];
 }
+
+// RAC-143: only standalone plugin browser programs can be omitted from the server error-model checks.
+test("RAC-143 excluded plugin browser files stay outside the actual server TypeScript program, including transitive imports and exports", () => {
+  for (const owner of OWNERS) {
+    const root = join(REPOSITORY, "plugins/native", owner);
+    const browserFiles = sourceFiles(join(root, "src")).filter(path => relative(root, path).startsWith("src/browser/"));
+    if (!browserFiles.length) continue;
+    const configPath = join(root, "tsconfig.json");
+    const config = ts.readConfigFile(configPath, ts.sys.readFile);
+    assert.equal(config.error, undefined, `${owner} config is readable`);
+    const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root, undefined, configPath);
+    assert.deepEqual(parsed.errors, [], `${owner} config parses with its real extends and exclude`);
+    const roots = new Set(parsed.fileNames);
+    for (const file of browserFiles) assert.ok(!roots.has(file), `${file} is excluded from the server's root files`);
+    const program = ts.createProgram({ rootNames: parsed.fileNames, options: parsed.options });
+    const loaded = new Set(program.getSourceFiles().map(file => file.fileName));
+    for (const file of browserFiles) assert.ok(!loaded.has(file), `${file} cannot enter server code through a transitive import or export`);
+  }
+});
 
 test("no error class, no route-error mapper, no mapError and no readBody is left in the owners' sources", () => {
   const removed = ["JellyError", "CogniaError", "ImagesError", "ShelfError", "isShelfError", "JellySourceError", "JellyMaterialError", "MaterialExtractionError",

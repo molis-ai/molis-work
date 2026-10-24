@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -29,35 +29,36 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
   let waits = 0;
   let waitSignal: AbortSignal | undefined, releaseWait: (() => void) | undefined;
   const view = (phase: string) => ({ ref: { session_id: "sdk", run_id: "r1" }, phase, frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] });
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
+  const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input, options?: { signal?: AbortSignal }): Promise<Output> {
+    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
+    if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+    if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
+    if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
+    if (definition.capability_id === agent.startRun.capability_id) {
+      if (mode === "cancel-receipt") controller.abort(new ActionError("actions.cancelled", "original call cancelled after Run acceptance"));
+      return { ref: { session_id: "sdk", run_id: "r1" }, frozen: {} } as Output;
+    }
+    if (definition.capability_id === agent.readMessages.capability_id) {
+      if (mode === "revoke-receipt") valid = false;
+      return [] as Output;
+    }
+    if (definition.capability_id === agent.waitRun.capability_id) {
+      const [, run, since] = args as unknown as [unknown, { run_id: string }, string | null];
+      assert.equal(run.run_id, "r1");
+      assert.equal(since, waits ? `v${waits}` : null, "each wait continues from the version the last one returned");
+      waitSignal = options?.signal;
+      if (stop) await new Promise<void>(resolve => { releaseWait = resolve; });
+      // Each wait answers with the next phase, as the Host does when the run's view changes.
+      await new Promise(resolve => setTimeout(resolve, 20));
+      seenStates.push(sessions.get(DEMO_PROJECT_ID, "s").state);
+      const phase = phases[Math.min(waits, phases.length - 1)]!; waits++;
+      return { version: `v${waits}`, view: view(phase) } as Output;
+    }
+    throw new Error(`Unexpected capability ${definition.capability_id}`);
+  } };
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(pluginActions(store, DEMO_PROJECT_ID), (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input, options?: { signal?: AbortSignal }): Promise<Output> {
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
-      if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
-      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
-      if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
-      if (definition.capability_id === agent.startRun.capability_id) {
-        if (mode === "cancel-receipt") controller.abort(new ActionError("actions.cancelled", "original call cancelled after Run acceptance"));
-        return { ref: { session_id: "sdk", run_id: "r1" }, frozen: {} } as Output;
-      }
-      if (definition.capability_id === agent.readMessages.capability_id) {
-        if (mode === "revoke-receipt") valid = false;
-        return [] as Output;
-      }
-      if (definition.capability_id === agent.waitRun.capability_id) {
-        const [, run, since] = args as unknown as [unknown, { run_id: string }, string | null];
-        assert.equal(run.run_id, "r1");
-        assert.equal(since, waits ? `v${waits}` : null, "each wait continues from the version the last one returned");
-        waitSignal = options?.signal;
-        if (stop) await new Promise<void>(resolve => { releaseWait = resolve; });
-        // Each wait answers with the next phase, as the Host does when the run's view changes.
-        await new Promise(resolve => setTimeout(resolve, 20));
-        seenStates.push(sessions.get(DEMO_PROJECT_ID, "s").state);
-        const phase = phases[Math.min(waits, phases.length - 1)]!; waits++;
-        return { version: `v${waits}`, view: view(phase) } as Output;
-      }
-      throw new Error(`Unexpected capability ${definition.capability_id}`);
-    } },
+    capabilities: agentHost,
   });
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -133,30 +134,31 @@ async function codingJobs() {
   const actions = pluginActions(store, DEMO_PROJECT_ID);
   actions.registry.registerProvider({ provider: { provider_id: "fixture.agent-host", title: "fixture", kind: "system" }, definitions: [collaboration.read], handlers: [
     { ...collaboration.read, handle: async () => ({ sessions: held ? [structuredClone(held)] : [] }) }] });
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    const id = definition.capability_id, input = args as unknown[];
+    if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
+    if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+    if (id === agent.listActions.capability_id) return [] as Output;
+    if (id === agent.readSession.capability_id) return { runs: [] } as Output;
+    if (id === agent.readMessages.capability_id) { on.readMessages?.(); return [] as Output; }
+    if (id === agent.createSession.capability_id) { calls.createSession++; return { runtime_id: "prologue", session_id: "sdk" } as Output; }
+    if (id === agent.startRun.capability_id) {
+      calls.startRun++;
+      // The Host starts the round under the continuation's key when one may go on: it is taken up, once.
+      if (held?.continuation.state === "eligible") held.continuation.state = "started";
+      held ??= { session_id: "sdk",
+        wait: { wait_id: "w1", session_id: "sdk", run_id: "r1", graph_id: "g", node_id: "session", by: "agent", reason: "等答复", mode: "all", until: "success", on_failure: "block",
+          deadline_at: now(), conditions: [{ kind: "envelope", ref: "m1", label: "会话「改接口」的答复", last: { status: "pending", at: now() } }], state: "waiting", created_at: now() },
+        continuation: { graph_id: "g", node_id: "session", session_id: "sdk", request_key: "g.w1", state: "armed", auto: true } };
+      return { ref: { session_id: "sdk", run_id: `r${calls.startRun}` }, frozen: {} } as Output;
+    }
+    if (id === agent.waitRun.capability_id) return { version: "v1", view: { ref: input[1], phase: "completed", frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] } } as Output;
+    if (id === agent.awaitContinuations.capability_id) { calls.awaitContinuations++; return await (on.awaitContinuations ?? ready)() as Output; }
+    throw new Error(`Unexpected capability ${id}`);
+  } };
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(actions, (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      const id = definition.capability_id, input = args as unknown[];
-      if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
-      if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
-      if (id === agent.listActions.capability_id) return [] as Output;
-      if (id === agent.readSession.capability_id) return { runs: [] } as Output;
-      if (id === agent.readMessages.capability_id) { on.readMessages?.(); return [] as Output; }
-      if (id === agent.createSession.capability_id) { calls.createSession++; return { runtime_id: "prologue", session_id: "sdk" } as Output; }
-      if (id === agent.startRun.capability_id) {
-        calls.startRun++;
-        // The Host starts the round under the continuation's key when one may go on: it is taken up, once.
-        if (held?.continuation.state === "eligible") held.continuation.state = "started";
-        held ??= { session_id: "sdk",
-          wait: { wait_id: "w1", session_id: "sdk", run_id: "r1", graph_id: "g", node_id: "session", by: "agent", reason: "等答复", mode: "all", until: "success", on_failure: "block",
-            deadline_at: now(), conditions: [{ kind: "envelope", ref: "m1", label: "会话「改接口」的答复", last: { status: "pending", at: now() } }], state: "waiting", created_at: now() },
-          continuation: { graph_id: "g", node_id: "session", session_id: "sdk", request_key: "g.w1", state: "armed", auto: true } };
-        return { ref: { session_id: "sdk", run_id: `r${calls.startRun}` }, frozen: {} } as Output;
-      }
-      if (id === agent.waitRun.capability_id) return { version: "v1", view: { ref: input[1], phase: "completed", frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] } } as Output;
-      if (id === agent.awaitContinuations.capability_id) { calls.awaitContinuations++; return await (on.awaitContinuations ?? ready)() as Output; }
-      throw new Error(`Unexpected capability ${id}`);
-    } },
+    capabilities: agentHost,
   });
   const platform = (await ensureProjectPlugins(host())).platform!, install = platform.supervisor.state("io.molis.work.coding")!.install_id!;
   const send = (execution: { signal: AbortSignal; beforeEffect(): Promise<void>; assert_authority_current(): void }) => platform.router().dispatch({ method: "POST",

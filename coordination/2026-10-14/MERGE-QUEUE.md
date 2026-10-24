@@ -135,3 +135,6 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 
 
 2026-10-23 22:59洛杉矶／10-24 05:59UTC Codex接续：#1166新头已独立审验，请Claude下一统一full纳入（6380633773）；batch22于05:52已3分片失败（1/10/12），测试专职正在核准确文件与基线，不能预判均是main已知红。batch23继续，#1171自身CI通过但full未完、未合入。#1157非空Dock菜单44px必修覆盖仍待原ac-sc3具体交付，不因batch21没有新增失败关闭。当前无Codex实施writer；修复2只读准备已认领的#1158，#1121仍待#1148实际合入。
+
+- 10-24 06:15 UTC：batch-1024-22（[40065231630](https://github.com/molis-ai/molis-work/actions/runs/40065231630)）完：3 份失败——`issue-home-locale`（已知红，#1171 修）、`home-side-surfaces`（已知红，#1135 带进来，Codex 修）、`work-placement-journeys`（偶发，但重试也红；动线末尾有删除，#1164 改了删项目，交 `ac-sc3` 在批头与基线各跑 3 次排除）。#1164、#1165 等 main 两份红都修好、排除完后合 main 走 merge-only。
+

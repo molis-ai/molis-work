@@ -116,6 +116,27 @@ test("RAC-287 list reads only: it says what a rewrite renames, row counts by old
   } finally { fresh.dispose(); aged.dispose(); }
 });
 
+test("RAC-293 the two shapes the real Home's libraries showed: an old Goals contract event is renamed with the rest, and Feed's event on a board object keeps its name", () => {
+  const aged = library();
+  try {
+    age(aged.path);
+    const db = open(aged.path);
+    try {
+      const insert = db.prepare("INSERT INTO events (event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at) VALUES (?, ?, 'user-1', ?, ?, ?, 'x', '{}', '2026-10-24T00:09:00Z')");
+      insert.run("event-contract-old", PROJECT, "contract.downstream_revalidation_required", "goal", "goal-a");
+      insert.run("event-feed-board", PROJECT, "feed.relay_ownership_migrated", "board", PROJECT);
+    } finally { db.close(); }
+    const run = cli("rewrite", aged.path);
+    assert.equal(run.status, 0, run.stderr);
+    const after = open(aged.path);
+    try {
+      const row = (id: string) => after.prepare("SELECT type, object_type FROM events WHERE event_id = ?").get(id) as { type: string; object_type: string };
+      assert.deepEqual(row("event-contract-old"), { type: `${NS}contract.downstream_revalidation_required`, object_type: `${NS}goal` });
+      assert.deepEqual(row("event-feed-board"), { type: "feed.relay_ownership_migrated", object_type: "board" });
+    } finally { after.close(); }
+  } finally { aged.dispose(); }
+});
+
 test("RAC-288 rewrite gives an aged library exactly the rows the current build writes, in one transaction, and a second run writes nothing", () => {
   const fresh = library(); const aged = library();
   try {

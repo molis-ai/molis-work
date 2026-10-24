@@ -51,9 +51,11 @@
 - **RAC-290**：五类冲突一个字都不写，文件字节不变，退出码 1，不做备份。
 - **RAC-291**：第 n 次更新后注入故障，对每个 n 都回滚；库忙时退出码 2。
 - **RAC-292**：账本行仍是版本 1 的库，Goals 单独被拒（`plugin.project_database.version_mismatch`），库本身与别的插件照常。（`tests/goals-project-database-refusal.test.ts`）
+- **RAC-293**：真实 Home 的试跑里出现的两种形状：旧的 Goals 合同事件（`contract.` 开头、挂在 goal 对象上）和改名一起改；Feed 的迁移事件（`feed.` 开头、挂在 board 对象上）保持原名并算「别人的」，不再让整笔停下。（`tests/goals-names-prefix-maintenance.test.ts`）
 
 ## 5. 不做、留给后续
 
-- 真实 Home 的维护：用户确认后，在停宿主、整份备份之后做；先对真实 Home 的备份副本只读跑 `list`（要用户同意），看旧名字里有没有脚本名单之外的形状（夹具里已见到旧的 `policy` 对象类型和旧操作名）。
+- 真实 Home 的维护：用户定在与 W5-17 同一个维护窗口、由用户选时间（10-24）；在停宿主、整份备份之后做。
+- 2026-10-24 对真实 Home 的一次性副本（SQLite 备份接口，用户在对话里同意，副本已删）只读试跑，只记数：18 个项目库**都是库版本 7**，没有 `plugin_project_databases`，所以脚本要在 v8→v9 的项目库维护（BL-413）之后才能跑；给副本补一行 Goals 版本 1 的账本后，`events` 5,408 行（29 种类型/对象类型）、`idempotency_records` 5,580 行（34 个操作名，含已下线功能的 `claim_goal`、`start_run`、`submit_evidence`、`report_run`、`submit_review` 等）、`context_edges` 0、`input_bindings` 0；两种名单外的形状（共 68 行）使脚本停下，已在 RAC-293 里处理。幂等记录的「旧名都是 Goals 的」这条假设在这批数据上成立（别的主人没有写进这张表），但名字里有已下线功能留下的，改名后仍是 Goals 前缀下的死名字，维护窗口时可一并问用户要不要清。
 - 代码搬进 `plugins/native/goals`、保存点预检换法、客户端改用 `services.project_database`：切到 Runtime 时一并做（搬家会抬高「插件包名在自己包之外被点名」的计数，要等装配改成 Runtime 才一并降）。
 - `personal_planning_method_packs`（目录库）：个人规划那一块。

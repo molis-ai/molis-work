@@ -33,7 +33,17 @@ export const GOALS_OBJECT_TYPES = [
   "policy",
 ];
 /** The event types Goals writes start with one of these; a Goals object with a type outside them is a name nobody listed. */
-export const GOALS_EVENT_FAMILIES = ["goal.", "relation.", "board.", "planning.", "policy.", "project.guidance_", "goal_tree_proposal."];
+export const GOALS_EVENT_FAMILIES = [
+  "goal.", "relation.", "board.", "planning.", "policy.", "project.guidance_", "goal_tree_proposal.",
+  // The contract workflow Goals had before the event workflow (`contract.downstream_revalidation_required` on a goal object, 65 rows
+  // in the 18 libraries of the real Home that a read-only trial on a disposable copy listed on 2026-10-24).
+  "contract.",
+];
+/**
+ * Another owner's events that sit on an object type Goals also uses: Feed's migration wrote `feed.relay_ownership_migrated` against the
+ * `board` object (3 rows in that same trial). They keep their names, and are reported as outside rather than stopping the run.
+ */
+export const FOREIGN_EVENT_FAMILIES = ["feed."];
 /** The edges Goals writes into the context ledger (`relation_type`); their keys are renamed with them. */
 export const GOALS_EDGE_TYPES = ["goal.input", "goal.output", "goal.input.proposal", "goal.output.proposal"];
 
@@ -47,6 +57,10 @@ function plan(db) {
   for (const row of events) {
     const goalsObject = GOALS_OBJECT_TYPES.includes(row.object_type) || own(row.object_type);
     const goalsType = GOALS_EVENT_FAMILIES.some(prefix => row.type.startsWith(prefix)) || own(row.type);
+    if (FOREIGN_EVENT_FAMILIES.some(prefix => row.type.startsWith(prefix))) {
+      outside.set(`events ${row.type} / ${row.object_type}`, (outside.get(`events ${row.type} / ${row.object_type}`) ?? 0) + 1);
+      continue;
+    }
     if (!goalsObject) {
       if (goalsType && !own(row.type)) conflicts.push(`events seq ${row.seq}: type ${row.type} looks like Goals' but its object type ${row.object_type} is not`);
       else outside.set(`events ${row.type} / ${row.object_type}`, (outside.get(`events ${row.type} / ${row.object_type}`) ?? 0) + 1);

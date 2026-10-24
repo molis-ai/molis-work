@@ -6,7 +6,7 @@ import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, 
 import { GATEWAY_TOOLS, MEMORY_TOOLS } from "./prologue-action-gateway.js";
 import { REVIEW_TIMEOUT_MS, reviewEnding, type EndingRound, type ReviewModel } from "./ending-review.js";
 import type { PrologueStartInput } from "./prologue.js";
-import type { HeldKind, RoundState } from "./prologue-node-kit.js";
+import { retainRunObserver, type HeldKind, type RoundState } from "./prologue-node-kit.js";
 
 /** How a held ending reads in the round: what was wrong with it, and that the round was let go on to correct it. */
 const HELD_LABELS: Record<HeldKind, { target: string; summary: string }> = {
@@ -51,11 +51,12 @@ async function changedThisRound(done: { client: AgentActionClient; invoked: Exac
 export function watchRoundFacts(state: RoundState, run: { ref: { id: string }; subscribe(listener: (event: { type: string }) => void): () => void }): void {
   const facts = emptyRoundFacts();
   state.roundFacts.set(run.ref.id, facts);
-  run.subscribe(event => {
+  retainRunObserver(state, run.ref.id, run.subscribe(event => {
+    if (state.roundFacts.get(run.ref.id) !== facts) return;
     noteRoundEvent(facts, event as { type: string; [key: string]: unknown });
     // A completed run's facts are read once more for how it ended (endedOnPromise), and dropped there.
     if (event.type === "failed" || event.type === "cancelled") { state.roundFacts.delete(run.ref.id); state.stopGuards.forEach(guard => guard.runs.delete(run.ref.id)); }
-  });
+  }));
 }
 
 /** The round now starting, for the session's stop check: what it may do, who reads it, and how its ending is reviewed. */

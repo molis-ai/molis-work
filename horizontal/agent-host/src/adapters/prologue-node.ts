@@ -156,7 +156,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const remember = createReviewMemory(reviews);
   const approvals = createApprovals(reviews, pendings, remember);
   const detachReviews = restoreReviewHistory(reviews, pendings, remember);
-  const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex: index.read, readResource: ref => readResource(runtime, ref),
+  const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex: index.read, capture: index.capture, readResource: ref => readResource(runtime, ref),
     remember: (id, intent) => index.update(id, saved => { (saved.rewinds ??= []).push(intent); }),
     decision: (id, pendingId, receipt) => index.update(id, saved => {
       (saved.review_decisions ??= {})[pendingId] = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note };
@@ -166,7 +166,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
   const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, memoryAuthority, credentials, stepBoards, projectWork, workGraphs,
-    messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
+    messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion, checks,
     shutdown: async () => {
       mcpLibrary.dispose();
       await closeInference();
@@ -180,7 +180,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
 
   return Object.assign(new PrologueAgentAdapter({
     runtime: { ...port, startAgentRun: input => effects.start(input, async () => {
+      const current = index.capture(input.session_id);
       const started = await port.startAgentRun(input);
+      current();
       // What the waits this round registers are checked against, look after look.
       const client = input.actions?.client ?? input.action_gateway?.client;
       checks.remember(started.run.ref.id, { session_id: input.session_id, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}), ...(input.root_path ? { root_path: input.root_path } : {}),

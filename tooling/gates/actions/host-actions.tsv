@@ -12,6 +12,11 @@ agent.draft-text.v1	1	platform	command	operation	project	write	concurrent	plugin
 agent.inputs.send.v3	3	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	b6b41fbf8db7	fcdd65c576a7	-
 agent.inputs.withdraw.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	197c6a2226e7	b7688d6d45cd	-
 agent.offers.run.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	6fe14e4fdb6a	3f7d96ddf0df	-
+agent.session.lifecycle.archive.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	bd1b830879f3	49b5a7ddfc1a	-
+agent.session.lifecycle.preview-purge.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	2bf329391661	4479c9bb591d	-
+agent.session.lifecycle.purge.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	c408539ee3bd	49b5a7ddfc1a	-
+agent.session.lifecycle.read.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	2bf329391661	a67448fb7bea	-
+agent.session.lifecycle.unarchive.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	bd1b830879f3	49b5a7ddfc1a	-
 agent.write_checkers.list.v1	2	platform	query	query	project	read	-	user	-	project	-	-	99334726611c	26cb7ff8df01	-
 agent.write_checkers.save.v1	2	platform	command	operation	project	write	-	user	projects:settings	project	-	-	498e1a9ea182	20465c4fd1d3	-
 characters.actions.catalog	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	character	-	-	d746974fa9af	42fe29f1a110	-

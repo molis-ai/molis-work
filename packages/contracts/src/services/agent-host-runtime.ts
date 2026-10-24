@@ -70,6 +70,49 @@ export interface AgentSessionRef {
   runtime_id: string;
 }
 
+/** Trusted business owner, supplied by the Host invocation, never by an action payload. */
+export interface AgentSessionOwner { project_id: string; plugin_id: string; install_id: string; actor_id: string }
+export interface AgentSessionDecision {
+  operation_id: string;
+  /** SDK canonical Session revision observed by the caller, not an App-side counter. */
+  expected_version: number;
+  expected_state: "active" | "archived";
+}
+export interface AgentSessionPurgePreview {
+  session: AgentSessionRef;
+  version: number;
+  state: "active" | "archived";
+  runs: number;
+  resources: number;
+  destroys_key: boolean;
+}
+export interface AgentSessionLifecycleView {
+  session: AgentSessionRef;
+  /** Unknown means the original decision needs reconciliation; missing never means purged. */
+  state: "active" | "archived" | "purged" | "unknown";
+  version: number | null;
+  /** Original owner decision for explicit recovery, not a replacement for current canonical state. */
+  operation?: { action: "archive" | "unarchive" | "purge"; decision: AgentSessionDecision; completed: boolean;
+    preview?: AgentSessionPurgePreview; receipt?: AgentSessionLifecycleReceipt };
+}
+export interface AgentSessionLifecycleReceipt {
+  /** This does not certify Memory ledger or business-owner copies have been deleted. */
+  scope: "agent-host-session";
+  session: AgentSessionRef;
+  operation_id: string;
+  action: "archive" | "unarchive" | "purge";
+  state: "active" | "archived" | "purged";
+  version: number;
+}
+export interface AgentSessionLifecycle {
+  read(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionLifecycleView>;
+  archive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+  /** Unlike historical Session restore, this changes the canonical lifecycle. */
+  unarchive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+  previewPurge(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionPurgePreview>;
+  purge(session: AgentSessionRef, decision: AgentSessionDecision, preview: AgentSessionPurgePreview, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+}
+
 export interface AgentRunRef {
   run_id: string;
   session_id: string;
@@ -127,6 +170,7 @@ export interface AgentRuntimeAdapter {
   readonly schedule?: AgentScheduleCapability;
   readonly memory?: AgentMemoryCapability;
   readonly documents?: AgentDocumentCapability;
+  readonly sessionLifecycle?: AgentSessionLifecycle;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;

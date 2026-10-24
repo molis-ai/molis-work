@@ -17,6 +17,28 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 
 包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
 
+## 可信 Session 生命周期（M4 合同，定向工程验证通过，待父集成）
+
+purge 还清除同 project/plugin/session 的 ReviewQueue 正文、处理器及本会话批准；无 Session 或其他会话的审查保留。迟到历史恢复和审批结果沿 Index 代际与原行身份拒绝发布。手动回退准备复用同一 admission，不在预检后插入新工作。
+
+命令输出在 Adapter 与 Node 的最后一次读取等待后复核 Session 代际。清理中的异步等待后和每次 surface close 前复核原 effects 权限；撤权不继续后续清理，已完成部分保留、prepared 原决定可续。重启遗留启动意图沿现 recovery 的完整 SDK 账判断：无未认领工作且无 unavailable 才允许继续，意图不删、不伪造 refused。
+
+2026-10-24 已在正式 SDK #100 上完成安装、构建与根/工作区类型检查。`tests/prologue-session-lifecycle.test.ts` 走公共 Action 和真实 Node/SQLite，20/20 通过；`tests/prologue-session-cache-lifecycle.test.ts` 用受控外部读 Port 验证公共 Adapter 的迟到结果拒绝，6/6 通过。影响面首轮失败及定向修复结果见下；完整集成、产品实操和用户验收另记。
+
+M4 取消回归复用上述 Action 阶段用例：真实完成一轮后，在 SDK 根 `cleaning` 已持久化的下一次异步授权回调中取消原 signal，回调正常返回，由原 Host 同步门拒绝后续写入。断言取消点后的持久记录字节不变、Run 子记录与 Index 原决定/输入保留；关闭重开不自行继续，换 operation 被拒且零写，原决定重试才完成子记录清除与最小 Index。这里使用真实生产 Action 注册、Adapter 和 Node 存储，调用身份及取消门由测试提供的 `HostCapabilityInvocation` 承担；不等于完整本地 Host/插件入口实操。该例现已随 SDK #100 的生命周期文件通过；早先 SDK #96 缺少恢复入口、SDK #99 归档读取失败的记录仍保留在 spec。当前绿色不能表述为这条取消用例的先红后绿证据。
+
+AgentHost 拥有业务主人与 SDK Session 的可信映射、SessionIndex 和本层 Run/观察/缓存生命周期。当前 actor/project/plugin/install 必须与 canonical Session 的 Index owner 一致；生命周期 Port 的 owner 由 Host 上下文绑定，普通 Memory 管理页不能用 raw session_ref 代替业务归属。`restore` 仍是历史装配，`unarchive` 才是取消归档。
+
+每 Session 沿现 Index 写队列与 CAS 记录原 operation、观察到的 SDK canonical revision/状态及清除原 preview；pending 拒绝相反决定，旧归档重试不能撤销后来取消归档。沿 Assistant/Coding 现有忙碌拒绝语义，非终态/未对账工作或在途 prepared start 必须先经原入口处理，本能力不自动停止用户工作。previewPurge 纯读且仅允许静止 Session；预览后的新工作导致 busy/stale，零新清理。purge 原决定先持久化，封 start admission，停止该 Session 观察、清缓存，再沿 SDK 恢复入口完成清除。Index 仅保存决定/观察revision/阶段，不另存 SDK 状态真相。清正文仅保留最小 owner、canonical ref、原决定和阶段；迟到索引写回、历史恢复和缓存填充不得重新发布。缺失不等于清除成功，其他 Session 不受影响，不调用全局 close。
+
+生命周期 `read` 的 `operation` 拷贝现 Index 的原 action/decision 与 completed，purge 另投影原公开 preview；仅 complete 阶段返回原 receipt。当前 canonical state/version 单独读取，消费者恢复必须使用原 decision/preview，不能用当前版本重造原请求。read 不续跑或修补，修改返回对象不影响原决定。现公共 Action 回归补了归档及 purge 故障后重开、从 read 恢复原请求、返回对象隔离、异 owner 拒绝、纯读零写，以及完成归档回执与后来取消归档的区分；上述回归已随 SDK #100 的生命周期文件通过，不代表 Coding 消费者接线已完成。
+
+`read` 复用现 SessionIndex lifecycle lane，在同一 Session 的命令或读取进行中明示 busy，避免 SDK open 的状态与随后 previewPurge 的版本跨越归档提交；读取回调不调用 save，不新增锁或持久状态。并发回归经公开 Action 把真实 SDK 归档提交挂在下一 Index 完成前，检查 read 拒绝、其他 Session 仍可读写、完成后状态/版本一致；公开 Adapter 的同轮双读检查读期间互斥与零写。现 Node Adapter 无公开 SDK 读取暂停口，这些反例未精确重放旧 state/new revision 的内部拼接时序；这两份定向文件已在 SDK #100 上通过；该证据边界保持不变。
+
+硬边界：可信 owner、版本/原决定绑定、唯一写门和永久清除不能配置关闭。可替换的是 Runtime adapter；未实现 lifecycle 就明确不可用。App 选择操作与业务 Session，终端用户的归档/取消归档/清除选择由业务 UI 承担，本片不新增阈值或设置。归档不改变 Memory expiry/paused，Run 终态不自动归档。公开回执只证明 `agent-host-session` 范围；Memory ledger、业务副本与 Project 删除依赖仍由各主人编排完成。完整短合同与下一片依赖见记忆策略 spec M4。
+
+影响面验证：直接相关 3 文件、Review 4 文件、单列浏览器 2 文件通过；去重的其余 108 文件为 107 通过、1 失败，其中普通依赖安装文件有 1 条原环境开关跳过。`prologue-writer-authority.test.ts` 的 child stop 场景曾在 ReviewQueue 刷新时因 SessionIndex 并发版本变化报 `agent.session_busy`，单场景重跑同样失败；公开 Index read 复用原写队列后，未改原测试即 1/1 转绿。update 在已持队列时用 inspect，保留前后代际校验；生命周期已核 owner 后直接读 SDK 同 Session 后台状态，避免通用项目投影重入。新增真实后台命令用例验证 running 拒绝、stopped 后归档和重启后 purge，生命周期 20/20、缓存 6/6、Checkpoint 4/4、恢复 15/15 通过。108 文件未整体重跑，原失败与定向修复记录分别保留。真实供应商 live 未运行，Memory promotion 的既有取消时序由统筹单独处理。原始结果见 `/private/tmp/molis-memory-session-lifecycle-sdk100-20261024-remaining.results.json`；这些工程回归不等于 Coding/Assistant 生命周期完整产品入口或用户验收。
+
 ## 它拥有什么
 
 - **哪些 Runtime 可用，以及它们真实支持什么**。能力矩阵由 adapter 如实申报；不支持的能力显示为真实不可用，不伪造成功。

@@ -214,11 +214,11 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // PR #94's tested head has the same tree as its upstream main merge; the package includes #60.
-    assert.equal(provenance.source.commit, "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512");
-    assert.equal(provenance.source.mergedUpstream.pullRequest, 94);
-    assert.equal(provenance.source.mergedUpstream.head, provenance.source.commit);
-    assert.equal(provenance.source.mergedUpstream.merge, "d94a99fb3d3cd33c95cd97393c4d1949366ffa81");
+    // PR #100's tested packing head has the same tree as its recorded upstream main merge.
+    assert.equal(provenance.source.commit, "a83e04761108a21f04f9a1b2a67c1dc8cb1582fe");
+    assert.equal(provenance.source.mergedUpstream.pullRequest, 100);
+    assert.equal(provenance.source.mergedUpstream.head, "bc0d996733e87bdd73d2ce01109ce2fb6309b0f8");
+    assert.equal(provenance.source.mergedUpstream.merge, provenance.source.commit);
     assert.equal(provenance.source.inFlight, undefined);
     // The historical ancestry audit remains pinned to the main commit it actually checked.
     assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");
@@ -232,12 +232,14 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 26 deleted patches and the 31 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 32 named packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 31);
-    // The 31st is the attachment-order package this one replaced.
-    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-attachment-order.tgz");
+    assert.equal(record.packagesWithoutPatch.length, 32);
+    // The repeated memory-p0 filename keeps its first archived version; later versions are recorded in notes.
+    assert.equal(record.packagesWithoutPatch.at(-2).file, "prologue-sdk-0.0.0-rc.1-attachment-order.tgz");
+    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-memory-p0.tgz");
+    assert.equal(record.packagesWithoutPatch.at(-1).commit, "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512");
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
     assert.deepEqual(kinds, { "upstream-commit": 8, "uncommitted-worktree": 17, "molis-repo": 1 });
@@ -246,7 +248,8 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 41);
+    assert.equal(record.upstream.commitsChecked.length, 44);
+    assert.deepEqual(record.upstream.commitsChecked.slice(-3), ["f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512", "15c38aed0bde2f8f0540a3e390f2e03033cdb717", "ca0de1c60c248b83c79d49f064f725ecb97664ee"]);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

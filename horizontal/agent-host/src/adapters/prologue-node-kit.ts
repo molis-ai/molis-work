@@ -93,6 +93,8 @@ export interface RoundState {
   readonly actionControllers: Map<string, AbortController>;
   readonly runRoots: Map<string, ExactRef<"authorized-root">>;
   readonly activeRuns: Map<string, { live(): boolean; steer(text: string): Promise<void> }>;
+  /** Raw SDK observers retained until their session's local view is released. */
+  readonly runObservers: Map<string, Set<() => void>>;
   /** Which session each run belongs to, and the run ref, so "allow in this app this round" binds to that run. */
   readonly runSessions: Map<string, string>;
   readonly runRefs: Map<string, ExactRef<"run">>;
@@ -112,10 +114,17 @@ export function createRoundState(): RoundState {
   return {
     registeredMethods: new Map(), sessions: new Map(), actionToolSessions: new Set(), gatewayRuns: new Map(), gatewayKnown: new Map(), gatewayOffered: new Map(),
     gatewayHooks: new Set(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
-    stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
+    stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runObservers: new Map(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
     liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(),
   };
+}
+
+/** Keep the original unsubscribe without creating another observer or execution lifecycle. */
+export function retainRunObserver(state: Pick<RoundState, "runObservers">, runId: string, unsubscribe: () => void): void {
+  const observers = state.runObservers.get(runId) ?? new Set<() => void>();
+  observers.add(unsubscribe);
+  state.runObservers.set(runId, observers);
 }
 
 export const sameRef = (a: { kind?: unknown; id?: unknown; revision?: unknown } | undefined, b: { kind: string; id: string; revision: number }) =>

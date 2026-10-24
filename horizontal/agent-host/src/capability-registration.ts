@@ -2,6 +2,7 @@ import { agentErrors } from "./errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withAgentEffect } from "./invocation-effects.js";
 import { registerSessionActions } from "./session-actions.js";
+import { registerSessionLifecycleActions } from "./session-lifecycle-actions.js";
 import { registerWriteCheckerActions } from "./write-checker-actions.js";
 import type { HostCapabilityDefinition, HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentRunView, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -124,6 +125,7 @@ export function registerAgentHostCapabilities<Context>(
     return view;
   };
   const disposers = [
+    ...registerSessionLifecycleActions(register, { pluginFor, projectId: ports.projectId, lifecycle: (call, id) => ports.agentHost(call).adapter(id).sessionLifecycle }),
     register(agentHostCapabilities.listActions, async (context, [runtimeId, pluginId]) => {
       if (!ports.agentHost(context).adapter(runtimeId).descriptor.supports_action_tools) return [];
       const authority = await ports.authority(context, pluginId);
@@ -131,7 +133,6 @@ export function registerAgentHostCapabilities<Context>(
       return (await authority.actions(runtimeId)).discover();
     }),
     register(agentHostCapabilities.listRuntimes, (context) => ports.agentHost(context).descriptors()),
-
     register(agentHostCapabilities.availableRoles, async (context, [runtimeId, pluginId]) =>
       // Role availability is read from that Plugin's own declarations, which are
       // public Manifest data; naming the Plugin keeps the answer unambiguous.

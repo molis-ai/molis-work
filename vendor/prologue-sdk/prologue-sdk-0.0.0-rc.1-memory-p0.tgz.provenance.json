@@ -9,12 +9,12 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "15c38aed0bde2f8f0540a3e390f2e03033cdb717",
+    "commit": "a83e04761108a21f04f9a1b2a67c1dc8cb1582fe",
     "mergedUpstream": {
-      "pullRequest": 96,
-      "head": "15c38aed0bde2f8f0540a3e390f2e03033cdb717",
-      "merge": "d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11",
-      "note": "Main tree equals the verified PR head; no local SDK patch."
+      "pullRequest": 100,
+      "head": "bc0d996733e87bdd73d2ce01109ce2fb6309b0f8",
+      "merge": "a83e04761108a21f04f9a1b2a67c1dc8cb1582fe",
+      "note": "Archive packed from clean PR #100 head; complete tree equals merged main. No local SDK patch."
     },
     "dirty": false,
     "dirtyPaths": [],
@@ -22,9 +22,9 @@
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1359578,
-    "sha256": "bb0b6b79c3f744a2bb64c214472a53b74b0a50d5c61d5f0b026c1f02b5a086c5",
-    "integrity": "sha512-JaL/borkeCntdwJh1PnqT0FoDCDzDiFVSKvyLL2TIUEZflndwJQikYyvPBPCP+CFNNLua4ewYrrl6qL9IrALtw=="
+    "bytes": 1365062,
+    "sha256": "d42b1699b0bd7a41db97521b27dadf892feff27d560047dcd4e8ec2f6eea700e",
+    "integrity": "sha512-uwWjKxOVRgITIfW8qzbM0rinJ//uwj3zqNsqHzKnISB7//P0vJd40yP9jXLFqSbHiru0PQf0M2qB9tuNAkhgvA=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,16 +32,14 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "pnpm build",
-      "pnpm quality:api:update",
-      "pnpm quality",
-      "pnpm exec vitest run memory --maxWorkers 2",
-      "cd packages/sdk && pnpm pack --pack-destination <isolated-package-output>",
-      "Install the exact archive offline and run public quality-consumer plus old shape 7 refusal/reopen probe",
-      "Repack from clean committed PR96 source and verify byte equality with the installed tested archive",
-      "Copy the verified package to the Molis vendor path"
+      "Run complete pnpm quality on final source: types, build, API, ratchet, docs, 723 tests, clean consumer, Rust checks",
+      "Run both affected real Node test files: 33/33; prior five related files: 91/91",
+      "Verify clean source head and merged main have identical complete Git trees",
+      "Pack exact built SDK into an isolated directory; compare all 781 non-manifest files",
+      "Install this exact archive offline into a clean consumer and run the public real-disk and loopback script",
+      "Copy archive/provenance and update only its lock integrity in Molis M4; Molis installation and behavior validation follow"
     ],
     "packedOn": "2026-10-24",
-    "note": "Clean PR96 head and identical merged main tree. Complete quality passed (68 files, 684 stable tests, clean installed SDK, Rust); Memory suite passed 41 files, 680 tests. First quality attempt failed five size ratchets; responsibilities were simplified without changing limits. Exact archive independently installed offline; SDK95 rejects renewed shape8 hydrate/update with zero formal writes and unchanged bytes, new SDK reopens the exact renewed entry. Clean repack equals the tested archive. 775 non-manifest files match the built tree byte-for-byte. No independent clean rebuild claimed. Molis integration and product acceptance remain pending; no real Home or paid model."
+    "note": "SDK #100 final complete quality passed (70 files, 723 tests); affected live files 33/33 passed with Runtime shutdown guards preserved. This exact archive passed clean offline installed consumer. No full SDK suite or paid model test claimed. Molis M4 integration results are tracked separately in its existing spec; not product or user acceptance."
   }
 }

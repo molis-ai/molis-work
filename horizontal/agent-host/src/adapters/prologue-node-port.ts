@@ -21,6 +21,8 @@ import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js"
 import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
+import { createSessionLifecycle } from "./prologue-session-lifecycle.js";
+import { cleanupSession } from "./prologue-session-cleanup.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
 /**
@@ -113,6 +115,7 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
 }
 
 interface PortDeps extends RunDeps {
+  readonly checks: { forgetSession(sessionId: string): void };
   readonly host: NodeHost;
   readonly schedule: ReturnType<typeof createPrologueSchedule>;
   readonly recovery: ReturnType<typeof createPrologueRecovery>;
@@ -183,6 +186,7 @@ function projectWorkPort(deps: PortDeps): NonNullable<PrologueRuntimePort["proje
 /** A command's receipt, read back from the exact resource the runtime published for it; anything inconsistent is refused. */
 function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["readCommandOutput"]> {
   return async (sessionId, ref) => {
+    const current = deps.index.capture(sessionId);
     const { runtime, state } = deps;
     const index = await deps.index.read(sessionId);
     if (!index) throw new Error("会话执行索引不可用");
@@ -201,6 +205,7 @@ function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["rea
     if (matches.length !== 1) throw new Error(matches.length ? "命令引用对应多次执行，请指定轮次" : "没有这次命令的持久回执；结果未知，不能当作成功或自动重跑");
     const { event, runId, root } = matches[0]!;
     const record = await readResource(runtime, event.receiptRef);
+    current();
     const receipt = record.receipt;
     if (record.kind !== WORKSPACE_COMMAND_RECEIPT_KIND || record.version !== 1 || !sameRef(record.rootRef, root)
       || typeof record.executable !== "string" || !Array.isArray(record.argv) || !record.argv.every((arg: unknown) => typeof arg === "string")
@@ -218,6 +223,17 @@ function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["rea
 /** Sessions: created with their Host index, restored with their runs, read for their status only. */
 function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
   return {
+    capture: deps.index.capture,
+    assertReadable: async id => { if (!await deps.index.read(id)) throw agentErrors.session_unknown("找不到这条会话"); },
+    lifecycle: createSessionLifecycle({ runtime: deps.runtime, index: deps.index, effects: deps.effects,
+      checkpointBusy: session => deps.checkpoints?.busy?.(session) ?? false,
+      // Lifecycle already binds the owner; the general project's projection would re-enter this Session's Index lane.
+      backgroundBusy: async id => deps.runtime.background.list({ session: id }).some(task => task.state === "running" || task.state === "interrupted"),
+      cleanup: async (id, owner, purge, runIds) => {
+        await cleanupSession(deps, id, runIds);
+        deps.effects.assertCurrent();
+        if (purge) deps.approvals?.forget(deps.options.reviewQueue?.forgetSession({ ...owner, session_id: id }) ?? []);
+      } }),
     create: (input, execution) => deps.effects.start(execution, async () => {
       const session = await deps.runtime.sessions.create();
       try { await deps.index.save({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
@@ -236,10 +252,12 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
     originalInput: (id, input) => resolveOriginalInput(deps.index, id, input),
     readOriginalInput: ref => readOriginalInput(deps.index, ref),
     async locateInput(sessionId, inputId) {
+      const current = deps.index.capture(sessionId);
       const index = await deps.index.read(sessionId);
       if (!index) return undefined;
       const session = await deps.runtime.sessions.open(index.ref);
       const found = await session?.locateInput(inputId);
+      current();
       if (!found) return undefined;
       if (found.state === "queued") return { state: "queued", input: queuedInput(found.input) };
       return found.state === "withdrawn" ? { state: "withdrawn" }
@@ -294,7 +312,8 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     inlineMethods: true,
     imageAttachments: true,
     compaction: true,
-    ...(deps.checkpoints ? { checkpoints: deps.checkpoints } : {}),
+    ...(deps.checkpoints ? { checkpoints: { ...deps.checkpoints,
+      prepareRewind: (session, checkpointId) => deps.index.starting(session.session_id, () => deps.checkpoints!.prepareRewind(session, checkpointId)) } } : {}),
     async saveRunTiming(run, timing) {
       await deps.index.update(run.session_id, index => {
         const attempt = index.attempts.find(item => item.run_id === run.run_id);
@@ -320,7 +339,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     },
     readCommandOutput: readCommandOutput(deps),
     sessions: sessionsPort(deps),
-    startAgentRun: input => startPrologueRun(deps, input),
+    startAgentRun: input => deps.index.starting(input.session_id, () => startPrologueRun(deps, input)),
     shutdown: deps.shutdown,
   };
 }

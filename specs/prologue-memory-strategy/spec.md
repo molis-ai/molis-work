@@ -2033,3 +2033,22 @@ Coding 夹具自行组装 learning caller 时遗漏已完成 Run 的 class_restr
 Assistant 界面资源批准与聚合（2026-10-25）：用户明确批准本片 workbench.js 一次性 +4,064 B，仅覆盖上文归档/恢复和候选导航修改。评测原 Run 快照、Assistant 界面及两处测试合同修复已按序并入同一个 #1101 集成分支；仅 spec 追加发生冲突，保留双方内容，生产无冲突。最终整树构建 exit0（`/private/tmp/molis-memory-p0-aggregate-ci-repairs-build-20261025.log`）。按准确父93b沿用现有 APPROVED_CEILINGS 登记，实际27资源总计7,676,659 B，workbench.js为1,166,147 B；相对dd975只增加已批准4,064 B，其余26项不变。实际生成预算与资源检查 exit0（`/private/tmp/molis-memory-p0-aggregate-approved-assets-20261025.log`）；此前未批准时的失败记录继续保留，既有未使用字节不转为新额度。两处浏览器全量失败仍在定位，完整新头 CI 与其余 P0 验收待完成，不将本次资源批准视为合并或整体验收。
 
 聚合后的四处非浏览器全量失败已定向复验：原 DOM 合同28/28、评测序列5/5、Coding原件8/8、路由表1/1，4文件42项通过；无业务断言、超时或自动重试改变。首次沙箱批仅DOM实际通过，其余三个文件在回环 listen 阶段被 EPERM 拒绝；原日志 `...-ci-repairs-delta-20261025.log` 保留，不计产品失败或通过。对同三个文件取得回环运行权限后零重试通过，日志 `/private/tmp/molis-memory-p0-aggregate-ci-repairs-loopback-20261025.log`。根类型与准确93b health通过（同前缀 `types/health-20261025.log`）。这仅关闭对应本地复现，远端完整全量仍须新提交执行。
+### P0 聚合 CI 导航夹具接缝（2026-10-25，修改前）
+
+准确修复父为 `702b96fc5ccfdf608760e7253374e584084af0bd`，隔离树 `codex/memory-settings-ci-fix`；最终仍并入同一 #1101。dd975 全量中 CAS 顶层4/16、候选采用3/4首败与既有重试失败继续保留，不以本机原样通过销账。CAS共16顶层，其中一个含10子例；本机顶层及子例全过才显示26/26，CI该顶层在fixture初始化失败未注册子例。
+
+真实受控导航已确认两处测试夹具问题：CAS在 Page.navigate 已答复但新文档尚无 documentElement 时读取 dataset；候选用服务端 panel markup 代表客户端已装配，在新项目文档仍 loading、真实 Workbench 304 响应未完成且 document 上 open listener为0时发出事件，随后原卡等待超时。诊断只在外部/tmp控制同份响应字节的送达与只读CDP观察，不改产品、共享harness或原业务断言。
+
+本刀只允许改这两份直接回归 `tests/memory-settings-cas.e2e.test.ts`、`tests/memory-settings-candidate-adoption.e2e.test.ts` 和本spec。CAS保留原visit排除旧文档及实际行就绪条件，只补根节点存在检查；候选navigate在操作前确认准确目标文档的DOMContentLoaded已完成，原卡可见、ID/版本/owner、取消零写、原请求重试与重开持久断言全部保留。无sleep、加超时、retry、known-gap、产品/SDK/CI/资源变化。先取受控红，再同一受控窗口绿，最后原两整文件jobs2/browser1/retries0；源码未改，不重复已有效的702b整体构建，不声称Linux原完整CI已重新通过。
+
+就绪实现修订（仍在正式绿色验证前）：首次使用location与NavigationTiming核对时，真实Settings shell在加载后合法replaceState到项目根URL，因此首次settings导航已complete但原URL不再恒定，导致新增就绪断言超时，日志 `...-candidate-controlled-green-20261025.log` 保留；不能把该失败称产品回归。最小实现改用已有ChromeHarness公开CDP能力：Page lifecycle事件中精确导航loaderId的DOMContentLoaded，并保留已经收到的事件，防止事件先于navigate回应。等待仍为原harness默认14,000ms，不依赖URL、首个iframe、固定sleep或新增产品ready字段。
+
+本刀实际证据：原文件未改时本机一次正式两文件全过，`/private/tmp/molis-memory-settings-ci-fix-original-20261025.log`（CAS顶层16+子例10，candidate4），不销CI首败。CAS有效受控红 `...-cas-controlled-red-fixed-20261025.log`：原相同HTML先送真实DOCTYPE，navigate已回答frame/loader，新文档root=false，原reset立即与CI相同null.dataset；绿色 `...-cas-controlled-green-20261025.log` 在同root=false窗口保持原业务判断，收到后续字节才通过1/1。候选有效受控红 `...-candidate-response-controlled-red-20261025.log`：真实Workbench304响应持有，新项目panel markup存在但open listener=0，原事件被丢弃，释放后原line190卡等待仍超时；准确loader绿色 `...-candidate-loader-controlled-green-20261025.log` 1/1，响应完成/目标loader DCL后才发原事件，listener=1且ready=complete。只读CDP/HTTP原时序分别保留 `/private/tmp/molis-memory-settings-navigation-{cas,candidate}-20261025.jsonl`，外部探针为 `...-navigation-probe-20261025.mjs`；受控响应3s释放仅用于诊断，不是产品或fixture新增sleep。
+
+正式最终两文件无探针运行 `/private/tmp/molis-memory-settings-ci-fix-final-20261025.log`：CAS16/16顶层及10/10子例、candidate4/4，runner两文件通过，jobs2/browser1/retries0；所有原版本/operation、编辑/取消/失败重试/owner/持久状态断言保留，未增加超时、retry或跳过。准确702b隔离树冻结离线安装及整体build先已0（`...-install-20261025.log`、`...-build-base-20261025.log`）；此后仅测试夹具与spec改变，产品构建仍有效，无新产品资源。
+
+中途故障明确保留而不计通过：首个诊断误用分离的test-name-pattern参数，runner将其值当目标并使子runner无文件，按已核自有PID链停止，0/2文件完成；日志 `...-cas-controlled-red-20261025.log`。首个候选HTML屏障未命中（实际脚本为外部资源），该轮单例通过；随后脚本诊断仍未命中，因为实际资源是无正文304响应，该轮同卡超时仅作待定位首败；补真实URL、缓存回应与listener观察的一轮通过也不作受控证明。相应 `...-candidate-controlled-red-20261025.log`、`...-candidate-script-controlled-red-20261025.log`、`...-candidate-script-trace-20261025.log` 均保留。直到明确持有原304完成响应、观测listener=0后才认定上段有效红；URL就绪方案失败同上段保留，最终只采用精确loader DCL。以上省略前缀均为 `/private/tmp/molis-memory-settings-ci-fix`。
+
+结论仅为这两个夹具的导航交错已获真实Chrome受控红绿与原整文件工程验证。没有确定Memory产品回归证据，亦不将原重试通过归因环境；Linux全量和最终#1101仍由统筹重新验证。恢复/purge提案继续暂停，本刀不改SDK/vendor/锁、共享harness、产品、API/Action、CI或资源额度，不触真实Home/付费模型。
+
+最终diff检查通过，仅上述3文件；27项实际资源与准确702b构建逐项相同，新增0 B（`/private/tmp/molis-memory-settings-ci-fix-assets-20261025.json`对原`molis-assistant-archive-ui-final-assets-20261025.json`）。不重新登记原已批准的Workbench +4,064 B。机器build/browser槽均free，所有临时探针仅在/tmp、正式回归未启用。

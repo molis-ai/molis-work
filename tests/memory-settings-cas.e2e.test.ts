@@ -67,7 +67,8 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const reset = async () => {
     await page.evaluate(`document.documentElement.dataset.memoryPreviousVisit = '${++visit}'`);
     await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?visit=${visit}` });
-    await page.wait(`document.documentElement.dataset.memoryPreviousVisit !== '${visit}' && document.querySelector('[data-memory-id=active]')`);
+    // Navigation can commit before the new document has parsed its root element.
+    await page.wait(`document.documentElement && document.documentElement.dataset.memoryPreviousVisit !== '${visit}' && document.querySelector('[data-memory-id=active]')`);
   };
   await reset();
   return { page, calls, reset, overview, directory, reads };

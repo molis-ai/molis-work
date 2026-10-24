@@ -80,9 +80,20 @@ async function fixture(t: TestContext, fromAssistant: boolean | "character" = fa
   directory = await mkdtemp(join(tmpdir(), "molis-candidate-browser-"));
   browser = await ChromeHarness.start(directory, { executable });
   const page = await browser.page(); await page.viewport(1280, 900);
+  await page.command("Page.enable");
+  await page.command("Page.setLifecycleEventsEnabled", { enabled: true });
+  const loaded = new Set<string>();
+  t.after(browser.on("Page.lifecycleEvent", (event, session) => {
+    if (session === page.sessionId && event.name === "DOMContentLoaded") loaded.add(String(event.loaderId));
+  }));
   const navigate = async (url: string) => {
     t.diagnostic(`Candidate journey navigation started: ${new URL(url).pathname}`);
-    try { await page.command("Page.navigate", { url }); }
+    try {
+      const navigation = await page.command<{ loaderId?: string }>("Page.navigate", { url });
+      // Server markup precedes the workbench script that registers Assistant's event listener.
+      if (navigation.loaderId && !loaded.has(navigation.loaderId)) await browser!.event("Page.lifecycleEvent",
+        event => event.loaderId === navigation.loaderId && event.name === "DOMContentLoaded", 14_000);
+    }
     catch (error) {
       t.diagnostic(JSON.stringify({ navigation: url, process: process.pid, host: host?.status() }));
       const state = await Promise.allSettled([

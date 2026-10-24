@@ -63,6 +63,33 @@ test("RAC-104: legacy backup list writes nothing; offline sealing retains exact 
   assert.equal(again.status, 0, again.stderr); assert.equal(JSON.parse(again.stdout).changed, false); assert.deepEqual(files(f.home), stable);
 });
 
+for (const original of [
+  { name: "empty", bytes: Buffer.alloc(0) },
+  { name: "UTF-8 BOM", bytes: Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('# 原配置\r\nmodel = "original"\n')]) },
+]) test(`RAC-104: offline ${original.name} originals retain exact bytes and mode after maintenance and a new process`, async t => {
+  const f = await source(t), id = randomUUID(), relative = join("runtime-config-backups", "codex", id + ".bak"), file = join(f.home, relative), backup = join(f.directory, "originals");
+  writeFileSync(file, original.bytes, { mode: 0o640, flag: "wx" });
+  const before = files(f.home), listed = run("list", f.home);
+  assert.equal(listed.status, 0, listed.stderr); assert.deepEqual(files(f.home), before);
+  const result = run("apply", f.home, backup); assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(join(f.home, markerRelative)), false);
+  assert.deepEqual(readFileSync(join(backup, relative)), original.bytes);
+  assert.equal(lstatSync(join(backup, relative)).mode & 0o777, 0o640);
+  const restarted = spawnSync(process.execPath, ["--input-type=module", "-e",
+    "import {readRuntimeConfigBackup} from '@molis-ai/molis-work-app-local-host';const value=await readRuntimeConfigBackup(process.argv[1],'codex',process.argv[2]);process.stdout.write(JSON.stringify({bytes:Buffer.from(value.contents,'utf8').toString('base64'),mode:value.mode}));",
+    f.home, id], { encoding: "utf8", env: process.env });
+  assert.equal(restarted.status, 0, restarted.stderr);
+  const recovered = JSON.parse(restarted.stdout) as { bytes: string; mode: number };
+  assert.deepEqual(Buffer.from(recovered.bytes, "base64"), original.bytes); assert.equal(recovered.mode, 0o640);
+  const destination = join(f.userHome, "restored-original.toml");
+  writeFileSync(destination, Buffer.from(recovered.bytes, "base64"), { mode: recovered.mode, flag: "wx" });
+  assert.deepEqual(readFileSync(destination), original.bytes); assert.equal(lstatSync(destination).mode & 0o777, 0o640);
+  assert.equal(readExistingSecret(f.home, "unrelated-owner"), f.unrelated);
+  const stable = files(f.home), repeated = run("apply", f.home, backup);
+  assert.equal(repeated.status, 0, repeated.stderr); assert.equal(JSON.parse(repeated.stdout).changed, false);
+  assert.deepEqual(files(f.home), stable);
+});
+
 test("RAC-104: maintenance rejects unsafe destinations, invalid text, vault versions and links before changing Home", async t => {
   for (const fault of ["destination", "encoding", "vault-version", "link"]) {
     const f = await source(t), first = join(f.runtimeDirectory, f.originals[0]!.id + ".bak");

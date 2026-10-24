@@ -43,6 +43,30 @@ test("S-12 RAC-104: sealed snapshot validation uses the original Home key and ne
   assert.deepEqual(unchanged(f.home), damaged);
 });
 
+test("S-12 RAC-104: empty plaintext is authenticated data; missing ciphertext, invalid nonce or tag and a wrong key still refuse without writes", t => {
+  const f = fixture(t), store = storage.createLazyFileSecretStore(f.home);
+  store.put("empty-entry", "");
+  const contents = readFileSync(f.file, "utf8"), parsed = JSON.parse(contents), inspect = inspector();
+  assert.equal(store.get("empty-entry"), "");
+  assert.equal(storage.readExistingSecret(f.home, "empty-entry"), "");
+  assert.equal(storage.readSealedSecretSnapshotEntry(f.home, contents, "empty-entry"), "");
+  assert.equal(inspect(f.home, contents).entries, 2);
+  for (const fault of ["missing-ciphertext", "nonstring-ciphertext", "missing-tag", "short-tag", "altered-tag", "invalid-nonce", "wrong-key"]) {
+    const altered = JSON.parse(contents), envelope = JSON.parse(Buffer.from(parsed.entries["empty-entry"], "base64").toString("utf8"));
+    if (fault === "missing-ciphertext") delete envelope.ct;
+    if (fault === "nonstring-ciphertext") envelope.ct = null;
+    if (fault === "missing-tag") delete envelope.tag;
+    if (fault === "short-tag") envelope.tag = Buffer.from(envelope.tag, "base64").subarray(0, 8).toString("base64");
+    if (fault === "altered-tag") { const tag = Buffer.from(envelope.tag, "base64"); tag[0] = tag[0]! ^ 1; envelope.tag = tag.toString("base64"); }
+    if (fault === "invalid-nonce") envelope.iv = Buffer.alloc(11).toString("base64");
+    if (fault === "wrong-key") writeFileSync(f.key, randomBytes(32).toString("base64"));
+    altered.entries["empty-entry"] = Buffer.from(JSON.stringify(envelope)).toString("base64");
+    const before = unchanged(f.home);
+    assert.throws(() => inspect(f.home, JSON.stringify(altered)));
+    assert.deepEqual(unchanged(f.home), before);
+  }
+});
+
 test("S-12 RAC-104: a missing or wrong key and invalid snapshots fail before any directory, lock or replacement key is written", t => {
   for (const fault of ["missing-key", "wrong-key", "hardlink-key", "symlink-key", "symlink-feed", "version", "backend", "ciphertext"]) {
     const f = fixture(t), inspect = inspector(), parsed = JSON.parse(f.contents);

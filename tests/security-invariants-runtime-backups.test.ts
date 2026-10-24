@@ -4,7 +4,7 @@ import { link, mkdir, readFile, rename, stat, symlink, unlink, writeFile } from 
 import { join } from "node:path";
 import test from "node:test";
 import * as localHost from "@molis-ai/molis-work-app-local-host";
-import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
+import { createLazyFileSecretStore, inspectSealedSecretsSnapshot, readExistingSecret } from "@molis-ai/molis-work-storage";
 import { runtimeBackupFixture } from "./fixtures/runtime-config-backups.js";
 
 function reader() {
@@ -34,6 +34,34 @@ test("RAC-104: a real Runtime integration retains only a sealed reference and re
   await writeFile(restored, first.contents, { mode: first.mode });
   assert.equal(await readFile(restored, "utf8"), f.contents);
   assert.equal((await stat(restored)).mode & 0o777, 0o640);
+});
+
+test("S-12 RAC-104: an existing empty Runtime configuration survives restart without poisoning other secrets or later backups", async t => {
+  const f = await runtimeBackupFixture(t), key = join(f.home, "feed", "secrets.key"), vault = join(f.home, "feed", "secrets.json");
+  await writeFile(f.config, "");
+  createLazyFileSecretStore(f.home).put("unrelated-owner", f.secret);
+  const originalKey = await readFile(key), runtime = f.service(), plan = await runtime.prepare("codex", "connect");
+  const connected = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
+  assert.equal(connected.status, "connected", connected.message); assert.ok(connected.backup_path);
+  assert.deepEqual(await reader()(f.home, "codex", plan.plan_id), { contents: "", mode: 0o640 });
+  const restarted = spawnSync(process.execPath, ["--input-type=module", "-e",
+    "import {readRuntimeConfigBackup} from '@molis-ai/molis-work-app-local-host';process.stdout.write(JSON.stringify(await readRuntimeConfigBackup(process.argv[1],'codex',process.argv[2])));",
+    f.home, plan.plan_id], { encoding: "utf8", env: process.env });
+  assert.equal(restarted.status, 0, restarted.stderr);
+  const recovered = JSON.parse(restarted.stdout) as { contents: string; mode: number };
+  assert.deepEqual(recovered, { contents: "", mode: 0o640 });
+  const restored = join(f.userHome, "empty-original.toml");
+  await writeFile(restored, recovered.contents, { mode: recovered.mode, flag: "wx" });
+  assert.deepEqual(await readFile(restored), Buffer.alloc(0)); assert.equal((await stat(restored)).mode & 0o777, 0o640);
+  assert.equal(readExistingSecret(f.home, "unrelated-owner"), f.secret);
+  assert.equal(inspectSealedSecretsSnapshot(f.home, await readFile(vault, "utf8")).entries, 2);
+  const configured = await readFile(f.config, "utf8"), remove = await runtime.prepare("codex", "remove");
+  const removed = await runtime.confirm({ runtime_id: "codex", plan_id: remove.plan_id, decision: "confirmed" });
+  assert.equal(removed.status, "removed", removed.message);
+  assert.deepEqual(await reader()(f.home, "codex", remove.plan_id), { contents: configured, mode: 0o640 });
+  assert.equal(readExistingSecret(f.home, "unrelated-owner"), f.secret);
+  assert.equal(inspectSealedSecretsSnapshot(f.home, await readFile(vault, "utf8")).entries, 3);
+  assert.deepEqual(await readFile(key), originalKey);
 });
 
 test("RAC-104: a backup refuses a missing original key and a reference to a different backup", async t => {

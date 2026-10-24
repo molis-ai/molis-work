@@ -365,12 +365,13 @@ function sealV2(plaintext: string, key: Buffer): string {
 function openV2(sealed: string, key: Buffer): string | null {
   try {
     const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedV2;
-    if (raw.v !== 2 || raw.alg !== ALG || !raw.iv || !raw.tag || !raw.ct) {
+    if (raw.v !== 2 || raw.alg !== ALG || typeof raw.iv !== "string" || typeof raw.tag !== "string" || typeof raw.ct !== "string") {
       return null;
     }
     const iv = Buffer.from(raw.iv, "base64");
     const tag = Buffer.from(raw.tag, "base64");
     const ct = Buffer.from(raw.ct, "base64");
+    if (iv.length !== 12 || tag.length !== 16) return null;
     const decipher = createDecipheriv(ALG, key, iv);
     decipher.setAuthTag(tag);
     const pt = Buffer.concat([decipher.update(ct), decipher.final()]);

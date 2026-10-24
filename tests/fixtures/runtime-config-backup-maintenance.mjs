@@ -52,9 +52,10 @@ async function inventory(home) {
   for (const entry of sourceEntries(home)) {
       const { source, runtime, plan } = entry;
       let text;
-      try { text = new TextDecoder("utf-8", { fatal: true }).decode(source.bytes); } catch { throw new Error("An original backup is not valid UTF-8 text"); }
+      try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(source.bytes); } catch { throw new Error("An original backup is not valid UTF-8 text"); }
       let parsed;
-      try { parsed = JSON.parse(text); } catch { /* Unversioned TOML and other original Runtime text is not JSON. */ }
+      // Ignore a BOM only for descriptor classification; the original text must retain every byte.
+      try { parsed = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text); } catch { /* Unversioned TOML and other original Runtime text is not JSON. */ }
       const claimsReference = parsed && typeof parsed === "object" && !Array.isArray(parsed)
         && (parsed.owner === RUNTIME_CONFIG_BACKUP_OWNER || "auth_ref" in parsed);
       if (claimsReference) {

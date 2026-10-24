@@ -4,7 +4,6 @@ import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
-import { pluginActionView } from "./plugin-action-provider.js";
 import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { PlanningMethodPack, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -76,19 +75,18 @@ export function bindGoalsWebActions(client: ActionClient, reference: LocalHostPr
 export async function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceView> {
   const read = goalsActions.guidanceRead;
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions };
-  return await invokeOneProvider(client, caller, read, {});
+  return await invokeGoals(client, caller, read, {});
 }
 
 /**
- * Calls `definition` as `caller` on its one provider in the project's directory (BL-501), pinned: the call reaches that provider and no
- * other. These calls carry the person's decision (management) or put what they read into prompts (guidance), and a capability id belongs
- * to no publisher (R-45): with Goals away, a third-party installation could register `goals.*` and receive them. So the provider found is
- * accepted only if it is the Goals that ships with the Host, by the provider id only the Host assigns (`plugin-entry-identity.ts`);
- * accepting a trusted publisher's installation instead is ac-trust's (BL-555 onwards). Without it: refused, nothing called.
+ * Calls `definition` as `caller` on the Goals that ships with the Host, pinned exactly (BL-501). These calls carry the person's decision
+ * (management) or put what they read into prompts (guidance), and a capability id belongs to no publisher (R-45): a third-party
+ * installation that registered `goals.*` while Goals is away must not receive them. The provider id `GOALS_PLUGIN_ID` is one only the Host
+ * assigns (`plugin-entry-identity.ts`), so the dispatcher refuses any other provider before a handler runs, and records the call like any
+ * other (a cancellation while it waits is settled there). Accepting a trusted publisher's installation instead is ac-trust's (BL-555 onwards).
  */
-async function invokeOneProvider<Input, Output>(client: ActionClient, caller: ActionCallContext, definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> {
-  // The Host-assigned provider is part of the lookup, so another provider of the same capability is never counted, let alone called.
-  const { provider: { provider_id } } = await pluginActionView(client, caller, { ...definition, provider_id: GOALS_PLUGIN_ID });
+async function invokeGoals<Input, Output>(client: ActionClient, caller: ActionCallContext, definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> {
+  const provider_id = GOALS_PLUGIN_ID;
   return await client.invoke({ ...caller, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id }] },
     { ...definition, provider_id }, input) as Output;
 }
@@ -153,7 +151,7 @@ export function bindGoalsManagementActions(client: ActionClient, reference: Loca
     async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output> {
       const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
       if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
-      return await invokeOneProvider(client, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
+      return await invokeGoals(client, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
         permissions: definition.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}),
         user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, definition, input);
     },

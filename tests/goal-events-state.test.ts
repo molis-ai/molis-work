@@ -3057,15 +3057,13 @@ test("without the project rule an acceptance of a requirement is not limited to 
   }
 });
 
-/** A directory in which `providers` each offer every Goals action: what the Host's own lookup of a provider reads (BL-501). */
-const goalsDirectory = (...providers: string[]) => async () => providers.flatMap(provider_id => GOALS_ACTIONS.map(definition =>
-  ({ capability_id: definition.capability_id, version: definition.version, provider: { provider_id } }))) as never;
 const REPLACEMENT = "io.molis.work.example.goals-provider";
 
-test("the management caller factory acts as the person on this machine, builds the authority of a decision itself, and pins the one provider its directory shows", async () => {
+
+test("the management caller factory acts as the person on this machine, builds the authority of a decision itself, and pins the Host's Goals", async () => {
   const seen: Array<{ caller: ActionCallContext; action: ActionReference; input: unknown }> = [];
-  // RAC-336: the provider is the one the directory shows for the action, pinned exactly.
-  const client: ActionClient = { discover: goalsDirectory(GOALS_PLUGIN_ID), invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
+  // RAC-336: the provider is the Goals that ships with the Host, pinned exactly; the call reads no directory first.
+  const client: ActionClient = { discover: async () => { throw new Error("no directory read"); }, invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
   const management = bindGoalsManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
   assert.equal(management.project_id, BOARD);
   const decision = { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "event-1" };
@@ -3119,24 +3117,30 @@ test("the management caller factory acts as the person on this machine, builds t
   assert.equal(seen.length, 1);
 });
 
-test("RAC-337: with no Goals the Host's call to a Goals action is refused with a code and reaches no one; beside another provider it reaches Goals alone", async () => {
-  const reference = { project_id: BOARD, storage_key: "fixture" };
-  const none: unknown[] = [];
-  const empty: ActionClient = { discover: goalsDirectory(), invoke: async (_caller, action) => { none.push(action); return {} as never; } };
-  await assert.rejects(bindGoalsManagementActions(empty, reference).invoke(goalsActions.snapshot, {}), { code: "actions.dependency_missing" }, "management");
-  await assert.rejects(readProjectGuidance(empty, reference), { code: "actions.dependency_missing" }, "guidance");
-  assert.deepEqual(none, [], "the Host guesses no provider");
-  const read = goalsActions.guidanceRead, snapshot = goalsActions.snapshot;
-  for (const providers of [[GOALS_PLUGIN_ID], [GOALS_PLUGIN_ID, REPLACEMENT], [REPLACEMENT, GOALS_PLUGIN_ID]]) {
-    const seen: Array<{ caller: ActionCallContext; action: ActionReference }> = [];
-    const client: ActionClient = { discover: goalsDirectory(...providers), invoke: async (caller, action) => { seen.push({ caller, action }); return {} as never; } };
-    await readProjectGuidance(client, reference);
-    await bindGoalsManagementActions(client, reference).invoke(snapshot, {});
-    assert.deepEqual(seen.map(({ caller, action }) => [action.capability_id, action.provider_id, caller.allowed_actions]), [
-      [read.capability_id, GOALS_PLUGIN_ID, [{ capability_id: read.capability_id, version: read.version, provider_id: GOALS_PLUGIN_ID }]],
-      [snapshot.capability_id, GOALS_PLUGIN_ID, [{ capability_id: snapshot.capability_id, version: snapshot.version, provider_id: GOALS_PLUGIN_ID }]],
-    ], `${providers.join(" + ")}: both calls reach Goals, pinned, and another provider is never called`);
-  }
+test("RAC-337: with no Goals in the project, the Host's management call and guidance read are refused by the dispatcher with a code", async () => {
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
+  const reference = { project_id: "a", storage_key: "a" };
+  try {
+    await assert.rejects(bindGoalsManagementActions(host.actionClient(reference), reference).invoke(goalsActions.snapshot, {}), { code: "actions.missing" }, "management");
+    await assert.rejects(readProjectGuidance(host.actionClient(reference), reference), { code: "actions.missing" }, "guidance");
+  } finally { await host.close(); }
+});
+
+test("RAC-341: a third-party installation that registers Goals' capabilities while Goals is away receives neither the person's management call nor the guidance read", async () => {
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
+  const reference = { project_id: "a", storage_key: "a" };
+  const reached: string[] = [];
+  const offered = [goalsActions.guidanceRead, goalsActions.snapshot, goalsActions.decide];
+  // The only provider of these `goals.*@v` is someone else's installation, under the installation id the Host gives it.
+  host.actionRegistry(reference).registerProvider({ provider: { provider_id: REPLACEMENT, plugin_id: GOALS_PLUGIN_ID, plugin_install_id: REPLACEMENT, title: "Third party", kind: "plugin" },
+    definitions: offered, handlers: offered.map(definition => ({ ...definition, handle: () => { reached.push(definition.capability_id); return {} as never; } })) });
+  try {
+    const management = bindGoalsManagementActions(host.actionClient(reference), reference);
+    await assert.rejects(management.invoke(goalsActions.decide, { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "third-party" }), { code: "actions.provider_changed" }, "management decision");
+    await assert.rejects(management.invoke(goalsActions.snapshot, {}), { code: "actions.provider_changed" }, "management read");
+    await assert.rejects(readProjectGuidance(host.actionClient(reference), reference), { code: "actions.provider_changed" }, "guidance");
+    assert.deepEqual(reached, [], "nothing reaches the third-party provider");
+  } finally { await host.close(); }
 });
 
 test("RAC-342: in the real assembly a second goals.*@v cannot stand beside Goals: the Host's one registry refuses it in the project and at the Home, and another project's never shows", async () => {
@@ -3156,19 +3160,6 @@ test("RAC-342: in the real assembly a second goals.*@v cannot stand beside Goals
       [GOALS_PLUGIN_ID], "the project's directory shows its own Goals only");
   } finally { await host.close(); }
 });
-
-test("RAC-341: a third-party installation that registers Goals' capabilities while Goals is away receives neither the person's management call nor the guidance read", async () => {
-  const reference = { project_id: BOARD, storage_key: "fixture" };
-  const seen: unknown[] = [];
-  // The only provider of `goals.*@v` is someone else's installation: the lookup finds it uniquely, and the Host still refuses it.
-  const client: ActionClient = { discover: goalsDirectory(REPLACEMENT), invoke: async (_caller, action) => { seen.push(action); return {} as never; } };
-  const decision = { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "third-party" };
-  await assert.rejects(bindGoalsManagementActions(client, reference).invoke(goalsActions.decide, decision), { code: "actions.dependency_missing" }, "management");
-  await assert.rejects(bindGoalsManagementActions(client, reference).invoke(goalsActions.snapshot, {}), { code: "actions.dependency_missing" }, "management read");
-  await assert.rejects(readProjectGuidance(client, reference), { code: "actions.dependency_missing" }, "guidance");
-  assert.deepEqual(seen, [], "nothing reaches the third-party provider");
-});
-
 
 test("R-GOALS-OWNER-02: create-intent rejects unpermitted fields before facts or an idempotency receipt, then the same intent succeeds once", () => {
   const data = fixture();

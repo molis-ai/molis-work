@@ -25,14 +25,18 @@
 6. 活跃期间收到交付即接续，不等待下一次定时唤醒。每10分钟heartbeat只作遗漏/停滞兜底；每轮有可行动任务就做具体动作，无变化则安静。普通完成与内部可解决失败只写共享记录，只有必须用户决定或补充权限/信息才通知。
 7. 当前完整防腐范围和C1/C2/C3、W5/W6未缩小；本次建立流水线不代表全线开发、真实Home或用户验收完成。
 
-## 交接时在途工作（10-24 06:18 UTC 快照）
+## 当前流水线（2026-10-23 23:24 洛杉矶／10-24 06:24 UTC）
 
-- 修复1继续唯一在途writer `feature/home-side-ci-recovery`，已由root在#1171评论6380709969派单；核batch22/23灵光侧栏真实空白及placement基线，做独立小修PR与红绿，不重复开工、不借他人工作树构建/测试。Claude在CODEX-TASKS 06:10也指向同一main回归，合并为同一责任。
-- 修复2已交#1166 `02299dad30fb02acbdc8ff7d1be1183d7d310c63`，二轮6380547913及独立29文件585项证据有效，当前冻结待CI/Claude统一full；后续#1158 Feed自引用provider只读方案已备，待新统筹释放启动。
-- #1112 `8d700173c306ea5c024f312239ab325be141b860`正式二轮已通过；测试专职核出Security 2/2 的SYS-15-U10仍红且不能证明flaky。需要基线`f4df5b47`与候选的Linux回执/列表刷新/按钮状态交错比较；W5链#1098/#1107/#1112统一full仍缺。#1098当前DIRTY的机械同步归既有Codex修复线，待writer空闲由新统筹明确启动，不能无限挂“原作者”。
-- batch23固定`74606d5e2`的shard12已独立核原始日志：Home4/4、S47 5/5、85/85文件无重试；#1171目标路径已过，但整批灵光侧栏失败仍保留，不能记full通过。#1170已正常队首等待检查，新统筹核实际合入，不重复入队。
-- R-42（#1171评审6380338601/BL-543）已核真实问题是Home连接设置A→B以及返回全部时复用A的缓存，query本身含合法筛选/配置语义，不能全部剥离。具体后续实施owner指定修复1，在当前main回归交付后按新统筹顺序启动；验收含A→B、取消只作用B、返回全部和同目标草稿保留。不阻塞#1171现有修复。
-- #1168的must-fix由原plugin-frame-fixes在6380681837认领，保留同一writer；#1157非空Dock44px、#1119引用、#1139三项建议、#1114正文及locator验证均保留原在途owner，不因其他CI绿关闭。下面未闭环队列逐项接续，不丢non-block。
+- 正式接管已由原root发出；本chat是唯一Codex日常派单/证据裁决/合并及共享状态维护者，已收四专职交接。DeepSeek历史贡献与review-pr-fixer认领保留；Claude原开发与唯一full组批职责另行保留，不以同一GitHub账户猜执行者。
+- 修复1为当前唯一Codex writer，`feature/home-side-ci-recovery`固定main `8aa62a65b`，候选参考 `74606d5e2`。原样两边各8/8本机通过未被归环境；统筹已读真实bundle延迟/ready+pointer恰好一次创建、旧document导航等待红/点击前navigate监听绿原日志。补丁仅两e2e和原spec、+12/-5；完整修后复跑home-side5/5、placement2/3，后段Pages挂载failed正由同一writer定位，尚未交PR、未宣称完成。公开防重复接续[#1164/6380869187](https://github.com/molis-ai/molis-work/pull/1164#issuecomment-6380869187)；原始日志位于 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/`。交付即并派REVIEW/TEST。
+- 修复2当前只读准备W5链依赖和#1112遗留。#1107原review-pr-fixer仍在[6380813962](https://github.com/molis-ai/molis-work/pull/1107#issuecomment-6380813962)收尾机械同步，本机`064cf2c5e7`尚未交远端；禁止第二writer重做。#1098远端`91e096524`对main冲突。明确核原认领后再派同步；不无限等待已停用的旧合并Agent。#1158 Feed自引用provider方案已备，排在W5阻塞后；不关闭PG-031/BL-501。
+- #1112 `8d700173c`正式二轮[6380756955](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380756955)通过；Security2/2的SYS-15-U10仍未归因。统筹[6380847528](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380847528)已公开保留红灯，TEST明确接固定`f4df5b47`/候选Linux回执、刷新、选择状态比较，不另起重复build/browser/full。三项non-block（技能文档构建期范围、PG060/RAC映射、Files打开后实际选中验证）由修复2准备并排入下一串行写入，不因二轮通过丢弃。W5统一full仍缺。
+- #1166冻结`02299dad3`：二轮6380547913及独立29文件585项/红绿有效，CI40066180122现Verify/Security/Product全绿；未在batch22/23，沿6380633773请求Claude下一统一full，尚未入队。#1138另存的两项目v1带声明/v2无声明交错与重启验收尚未补；模型测试旧注释:492已修、:553待修，不能算入#1166完成。
+- batch22固定`e76380003`已结束失败：issue-home-locale、home-side-surfaces、work-placement-journeys；batch23固定`74606d5e2`16分片15成功/1失败（home-side），汇总待。TEST核shard12 Home4/4、S475/5、85/85文件无重试；#1171目标通过且自身CI全绿，整批仍不称通过。Memory40068141974先前queued，仅核状态、不取消。
+- #1170 `4010b747d`正常队首AWAITING_CHECKS，原公开认领保持，核实际merge后才移§3；#1172 `e25131d78`沿6380681712认领已开auto-merge，必要CI未完，不重复入队。
+- Home连接A→B/back-all复用A缓存是确定既存功能缺陷，具体后续owner修复1；保留同目标草稿、取消仅B、全部连接和宿主/Issue状态验收。R42/BL543的query意见未证越权，合法provider/new/template/setup/connector及反馈/返回参数不能全剥离，不阻#1171既有结论。
+- #1168 must-fix仍由plugin-frame-fixes6380681837；#1157非空Dock44px、#1119引用、#1139三项建议保留原在途owner。#1114最新`6bac03b45`正文+locator已有二轮6380826646，仍缺6380810029要求的过期资源放行清理及该头CI；原DeepSeek仅收尾#1107的冻结边界须保留，不能默认为#1114仍在写。
+
 
 ## 未闭环评审问题的认领与修复
 

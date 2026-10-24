@@ -1117,3 +1117,10 @@ M3 逐条分类纠正本轮验证完成（2026-10-24，本地生产 head `68564e
 最终精确父为 #1101 `7c3bb8794f9d22dbe446469ce4c608cba56c7f75`，本片合并提交 `0d59e09fdc5f46a0eeeb39ffb8aed09617913ca3`。整体 build、根及 workspace types、Memory/合同/vendor/i18n 27/27 文件通过；五个浏览器文件首轮四个通过，CAS 文件一处新增的 null 分类标签断言仍期待“未分类”，而父文案已消歧为“未归类”。只同步这一个显示断言，未知分类保留、原请求及版本断言不变；单文件零重试复验 23/23 通过。保留首轮失败 `/private/tmp/molis-memory-classification-parent7c-20261024-browser.log` 和修复结果 `/private/tmp/molis-memory-classification-parent7c-label-repair-20261024.log`，不把原批次改记全绿。
 
 精确父 health、boundary、API/Action、资源、secrets、diff 均通过；结果索引 `/private/tmp/molis-memory-classification-parent7c-20261024.results.json`。实际27资源共7,801,556 B，workbench.js为1,202,971 B，恰为父1,197,336 B加原批准5,635 B，其余26项相同。SDK94/vendor/lock沿父，无额外包切换或额度。父 Home 侧栏修复已通过本片实际浏览器；toast悬停对比度独立修复为 Draft #1198，资源各7 B待批准。#1064完整全量及CI固定版本问题仍未关闭，以上为本片工程与覆盖路径验证，不代表 main、完整P0或用户验收。
+
+
+### #1111 接入准确分页父 f27f62263（2026-10-25，验证中）
+
+本轮只将分类纠正 head `825bedbf088d145067e3dde2bc270dd8fe333603` 合入已独立评审的 #1101 `f27f62263f21cbd3ba4e8ef374ae5debcce6147b`。沿 §9.3 M3 第二片短合同保留六类、期限三态、未知值和真实停用状态、SDK CAS、原操作身份及失败补账；不扩到续期、Session 管理、purge 或分类矩阵。沿父通用 WorkExecutor/R8 与 MCP v3 受保护设置写主人、generation 授权代际，同时保留本片 memory.recall@2 及原拒绝/授予/撤权/回执断言；不恢复旧 MCP 配置直写，不加入新兼容路径。SDK/vendor/lock 九项逐 blob 对齐准确父，不另采用 SDK，不从其他脏树取补丁。
+
+资源仅保留本片原批准 workbench +5,635 B：准确父实测 1,136,694 B，允许上限 1,142,329 B，其他资源不增长；此处仅为批准边界，子片结果须实际构建测量，不能复用父 +3,437 B 或其他历史额度。允许路径为本次父合并及必要冲突修复、现 spec/README、实际生成的 API/Action/health/资源登记；不改无关生产语义或门禁。固定 Node 24.14.0，冻结离线安装、独占整体 build；三包 README 与分类核心去重 53 个非浏览器及分类/分页/CAS 三个浏览器文件，jobs2/browser1/retries0；再以准确父核类型、边界、快照、资源、health、secrets/diff。首败保留，不以局部通过替代完整全量/CI、独立 Toast #1198 或用户验收。本轮允许本地 merge/fix commit，不 push、不合并 PR。

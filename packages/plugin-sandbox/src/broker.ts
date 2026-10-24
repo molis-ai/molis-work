@@ -1,5 +1,5 @@
 import type { PluginInteractionClient, PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { PluginConnectionMethod, PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
+import { PLUGIN_CONNECTION_RECORD_KEY_MAX, type PluginConnectionMethod, type PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
@@ -114,6 +114,19 @@ export class SandboxBroker {
       const { status, headers, body, authenticated } = await this.services.connections.request(slot, { ...request, signal: context.signal });
       return { status, headers: { ...headers }, body, authenticated };
     }
+    if (method === 'connections.describe' || method === 'connections.release') {
+      // A record key names one of the plugin's records on a `per_record` slot; the Host's client checks its form, the slot and the call.
+      count(2);
+      const slot = string(0, 64);
+      permit('connections', slot);
+      const record = args[1] === null && method === 'connections.describe' ? undefined : string(1, PLUGIN_CONNECTION_RECORD_KEY_MAX);
+      if (method === 'connections.release' && operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot release a connection');
+      if (!this.services.connections) return missing();
+      if (method === 'connections.release') { await this.services.connections.release(slot, record!); return null; }
+      // Rebuilt from the three fields as plain JSON.
+      const { bound, display_name, state } = await this.services.connections.describe(slot, record);
+      return { bound, ...(display_name === undefined ? {} : { display_name }), ...(state === undefined ? {} : { state }) };
+    }
     if (method.startsWith('materials.')) {
       // Reading is the one effect (`materials: ['read']`), and it reads bytes the plugin sent, never a path or an address: what reaches out
       // to a network, a machine's own pages or the Host's saved originals has no method here. The Host's client checks the rest.
@@ -171,13 +184,14 @@ export class SandboxBroker {
   }
 }
 
-const CONNECTION_FIELDS = new Set(['url', 'method', 'headers', 'body']);
+const CONNECTION_FIELDS = new Set(['url', 'record_key', 'method', 'headers', 'body']);
 /** The shape of a connection request across the channel: plain strings only, nothing the plugin could use to pass a signal or a credential of its own. */
-function connectionRequest(value: SandboxJson | undefined): { url: string; method?: PluginConnectionMethod; headers?: Record<string, string>; body?: string } {
+function connectionRequest(value: SandboxJson | undefined): { url: string; record_key?: string; method?: PluginConnectionMethod; headers?: Record<string, string>; body?: string } {
   const invalid = (): never => { throw new SandboxError('sandbox.invalid_request', 'Invalid connection request'); };
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !CONNECTION_FIELDS.has(key))) return invalid();
-  const { url, method, headers, body } = value as { [key: string]: SandboxJson };
+  const { url, record_key, method, headers, body } = value as { [key: string]: SandboxJson };
   if (typeof url !== 'string' || (method !== undefined && typeof method !== 'string') || (body !== undefined && typeof body !== 'string')) return invalid();
+  if (record_key !== undefined && (typeof record_key !== 'string' || record_key.length > PLUGIN_CONNECTION_RECORD_KEY_MAX)) return invalid();
   if (headers !== undefined && (!headers || typeof headers !== 'object' || Array.isArray(headers) || Object.values(headers).some(item => typeof item !== 'string'))) return invalid();
-  return { url, ...(method === undefined ? {} : { method: method as PluginConnectionMethod }), ...(headers === undefined ? {} : { headers: headers as Record<string, string> }), ...(body === undefined ? {} : { body }) };
+  return { url, ...(record_key === undefined ? {} : { record_key }), ...(method === undefined ? {} : { method: method as PluginConnectionMethod }), ...(headers === undefined ? {} : { headers: headers as Record<string, string> }), ...(body === undefined ? {} : { body }) };
 }

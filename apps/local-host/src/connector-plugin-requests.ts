@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
+import type { PluginConnectionDescription, PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { PluginConnectionDispatch, PluginConnectionsPort, PluginConnectionTarget } from "@molis-ai/molis-work-plugin-runtime";
 import { resolveApiConnection } from "./connector-access.js";
@@ -20,12 +21,19 @@ export const pluginRequestErrors = defineErrorCodes("connector.plugin_requests",
 });
 
 /**
- * The scope an installation's slot bindings live under. `install_id` is the installation identity (`installIdentity`: the plugin id and
- * the publisher's signature), the same in every project and after a reinstall, so a binding follows the plugin until it is unbound
- * (the uninstall gap is listed under S-57); another publisher's build of the same plugin id never reads it.
+ * The scope an installation slot's bindings live under (connector-host `pluginBindingScope` writes every plugin scope). `install_id` is
+ * the installation identity (`installIdentity`: the plugin id and the publisher's signature), the same in every project and after a
+ * reinstall, so a binding follows the plugin until it is unbound (the uninstall gap is listed under S-57); another publisher's build of
+ * the same plugin id never reads it.
  */
 export function pluginSlotScope(install_id: string): string {
-  return `plugin-installation:${install_id}`;
+  return pluginBindingScope({ install_id });
+}
+
+/** A target's scope: an installation slot's, or a `per_record` slot's, which is also the call's project's and the record's (S-72 provisional). */
+export function targetScope(target: Pick<PluginConnectionTarget, "install_id" | "project_id" | "record_key">): string {
+  return target.project_id === undefined && target.record_key === undefined ? pluginSlotScope(target.install_id)
+    : pluginBindingScope({ install_id: target.install_id, project_id: target.project_id!, record_key: target.record_key! });
 }
 
 /** Response headers a plugin may see: no cookies, nothing that names the credential. */
@@ -73,7 +81,24 @@ export function createPluginConnectionsPort(home: string, options: PluginConnect
         return send(sent, `Bearer ${await token(true)}`, options);
       });
     },
+    describe(target) {
+      return describeBinding(home, target);
+    },
+    release(target) {
+      if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.unbind(targetScope(target), target.plugin_id, target.slot_id));
+    },
   };
+}
+
+/** Whether the slot has an account, its name and how it stands; never the connection's id or anything about its credential. */
+function describeBinding(home: string, target: PluginConnectionTarget): PluginConnectionDescription {
+  if (!existsSync(homeSqlitePath(home, "connectors"))) return { bound: false };
+  return withConnectorConnections(home, store => {
+    const connection = store.binding(targetScope(target), target.plugin_id, target.slot_id);
+    if (!connection) return { bound: false };
+    const state = connection.service_id === target.service_id ? shownState(home, connection, store.state(connection)) : "disconnected";
+    return { bound: true, display_name: connection.display_name, state };
+  });
 }
 
 /** The connection bound to this installation's slot, `null` when none is; refuses one that cannot be used as it is. */
@@ -82,7 +107,7 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
   // A Home that has never saved an account has bound nothing; reading must not create its registry.
   if (!existsSync(homeSqlitePath(home, "connectors"))) return null;
   return withConnectorConnections(home, store => {
-    const binding = store.binding(pluginSlotScope(target.install_id), target.plugin_id, target.slot_id);
+    const binding = store.binding(targetScope(target), target.plugin_id, target.slot_id);
     if (!binding) return null;
     const connection = store.get(binding.connection_id);
     const usable = connection && connection.service_id === target.service_id && shownState(home, connection, store.state(connection)) === "connected"

@@ -356,3 +356,73 @@
 ### 10.5 下一轮
 
 - 主题队列 a–e 已完成；等待 lead 新指令。默认做「全表复核 + task-13 复核」：`git ls-remote --heads origin | grep personal-http` 返回空（且当时 GitHub 连通性异常，需重试确认），PR 出现后按审计文件 §6.2 v2 复核：删 `personal-native-plugin-http.ts` + 删 `/api/plugins/<id>` 别名重写、保留 alchemist 显式直连路由、冻结名单 5→4、assembly 路由条数净不变；跑五个测试文件（assembly-gate、personal-plugins-review-fixes、security-invariants-plugin-pages、alchemist-host、security-invariants-alchemist-resumption）+ 两个 alchemist e2e。
+
+## 11. 第 7 轮（主题 f：SECURITY-INVARIANTS.md 与代码/测试桥核对）
+
+- **基准**：origin/main `89c9a7194`（本轮内无新提交；task-13 分支 `anticorr/w6-01-personal-http-removal` 仍不存在）。
+- **方法**：全量解析 58 条 `S-01..S-58` 行 → 195 个测试引用；对照 `scripts/gates/security-invariants.mjs` 门禁语义、`test:security`/`test:contracts`/ci.yml 覆盖 tokens、测试文件编号标记；逐项抽查 §4 开放项。只读。
+- **结论**：机械一致性 **PASS**（无「表里有行、测试没有」，无失效测试引用）；4 条 non-blocker 文档/门禁问题（AC-AUDIT-08..11），§4 有 3 处需复核/更新、其余抽查仍成立。
+
+### 11.1 机械核验结果（行 → 现状）
+
+- 58 行 ID 连续、无重复；每行至少点名 1 个测试。
+- 195 个点名的测试文件全部存在；所有「标题片段」都能在文件里找到（与 health gate 绿一致）。
+- CI 列全部有覆盖；其中 2 条只由 ci.yml（非 `test:security`/`test:contracts`）覆盖：S-19 `tests/secret-scan.test.ts`（ci.yml:111 Verify 的文档/门禁步骤）、S-48 `tests/health-gates-dual-instance.test.ts`（ci.yml health-gate-rules 作业）。
+- 本机列 4 处实际在 CI 跑：S-31 `tests/home-plugin-platform.test.ts`（`test:security` 显式清单）、S-39/S-46/S-56 的同一文件同时写在两列（`tests/security-invariants-plugin-materials/project-database/interaction.test.ts`）。
+- `tests/security-invariants-*.test.ts` 共 84 个（含 3 个 `.e2e.test.ts`：plugin-pages、plugin-terminals、plugin-drafts）；门禁文件名正则 `[a-z0-9-]+\.test\.ts` 不匹配 `.e2e.`，只需 81 个被点名；实际未被点名的只有 `tests/security-invariants-plugin-drafts.e2e.test.ts`（SYS-15-D1：opaque page drafts 重载后仍在、拒非法写、按插件隔离）。
+- 4 行点名的测试没有 S 编号标记：S-16、S-19、S-22（测试头是 PA-22）、S-23（测试头是 PA-23）。
+- 代码位置列：仅 S-38 的 4 条路径在本仓不存在（Prologue 仓库路径，详见 AC-AUDIT-09）；其余均可解析。
+- CI 作业事实：`security-invariants` 作业 `continue-on-error: true`、不在 Verify `needs` 里（与文档「not required yet」一致）；**没有装 Chrome 的步骤**，e2e 安全用例经 `tests/fixtures/goal-browser.ts:25-26` 的 `locateTestChrome()` 为空时 `t.skip`；`linux-probe` 头注释明确「browser (needs Chrome; not run)」。
+
+### 11.2 行 → 现状 → 建议（需要动的行）
+
+| 行 | 现状 | 建议 | 归属 |
+| --- | --- | --- | --- |
+| S-16 | 测试存在、4 片段命中；文件头无 S-16 标记 | 测试头补 `// S-16`（或表内注明） | 安全线 |
+| S-19 | 测试存在、片段命中；无 S-19 标记；只由 ci.yml:111 跑 | 补 S-19 标记；前言 CI 集合句补「含 ci.yml 其它步骤」 | 安全线 |
+| S-22 | `tests/agent-review-standing.test.ts` 头是 `PA-22` | 表内注明 PA-22 映射或补 S-22 注释 | 安全线 |
+| S-23 | `tests/prologue-adoption-guard.test.ts` 注释是 `PA-23` + §4.6.10 | 同上 | 安全线 |
+| S-31 | 本机列 `home-plugin-platform.test.ts` 实际在 `test:security` 里跑 | 移到 CI 列或删除本机列条目 | 安全线 |
+| S-39/S-46/S-56 | 同一测试文件同时写在 CI 列与本机列 | 注明「该文件含 macOS 专属用例，本机跑」或拆分；不要两列重复 | 安全线 |
+| S-38 | 代码位置 4 条路径不在本仓：`packages/sdk/src/host/plugin/node-command-env.ts`、`crates/prologue-host-tauri/src/processes.rs`、`packages/sdk/test/host-command-path.test.ts`、`crates/prologue-host-tauri/tests/command_path.rs` | 标注「Prologue 仓库（上游 PR #44）；Molis 经 `horizontal/agent-host/src/adapters/prologue-node.ts` 的 Node Host 运行」；保留 Molis 测试引用 | 安全线/统筹 |
+| S-47 | CI 列已点名 directory/pages.e2e/terminals.e2e/page-files；本机列只有文字「页面隔离是 SYS-15 的另一验收项…」无测试；`security-invariants-plugin-drafts.e2e.test.ts`（SYS-15-D1）未被表点名 | 在 S-47 下补 plugin-drafts e2e 引用（本机列）；门禁文件名正则扩到 `.e2e.test.ts` | 安全线（Codex） |
+| S-48 | 测试只由 ci.yml health-gate-rules 作业覆盖 | 前言 CI 集合句补 ci.yml；或把测试加进 `test:security` | 安全线 |
+| S-10（§4 第 6 条） | 公网地址「仍五份」与实际不符：现见 4 处独立实现——`packages/plugin-sandbox/src/https-proxy.ts` 的 `isPublicAddress`（共享）、`apps/local-host/src/public-https.ts`（共享 + 198.18/15 例外）、`apps/local-host/src/anysearch-transport.ts`（node:net BlockList）、`plugins/official-integrations/rss/src/custom-rss.ts` | 重新计数并改写；确认是否只剩这几处 | 安全线 |
+| 门禁本身 | `security-invariants.mjs` 文件名正则不含 `.e2e.`；不要求测试标题带 S 编号 | 扩为 `(?:\.e2e)?\.test\.ts` 并要求登记（可选：文件/标题出现 `S-NN`） | 安全线（门禁改需评审） |
+
+### 11.3 发现
+
+**AC-AUDIT-08** | 违反需求：SECURITY-INVARIANTS §1 前言「每条不变量写…断言拒绝的测试是哪几个」+ 门禁「每个 `security-invariants-*` 文件被某行点名」 | 证据：`tests/security-invariants-plugin-drafts.e2e.test.ts` 断言 SYS-15-D1（opaque page drafts 重载后仍在、拒非法写、按插件隔离），但表里无任何行点名它；`scripts/gates/security-invariants.mjs` 文件名正则 `[a-z0-9-]+\.test\.ts` 不匹配 `.e2e.`，所以门禁也不要求 | 影响：SYS-15 草稿隔离的安全验收没有「表↔测试」映射；新增 e2e 安全测试可漏登 | 严重度 non-blocker | 证据强度 code-read+gate-script | 建议 owner 安全线/Codex | 验证：S-47 加引用后 health:check 绿；扩正则后不点名即红 | 无在途 PR（#1119 不相关）
+
+**AC-AUDIT-09** | 违反需求：表「守住它的代码在哪」一列应可核验 | 证据：S-38 的 4 条路径不在本仓库（Prologue 仓库路径，行内只提 Prologue PR #44）；Molis 侧 `tests/security-invariants-command-path.test.ts` 与 `horizontal/agent-host/src/adapters/prologue-node.ts` 存在 | 影响：读者按「代码位置」找不到文件，边界依据被削弱 | non-blocker | code-read | 安全线/统筹 | 验证：表内路径可 `ls` 或显式标为外部仓库 | 无
+
+**AC-AUDIT-10** | 违反需求：文档对 CI 覆盖的叙述与 ci.yml 实际一致 | 证据：(a) 2 个 CI 列测试只由 ci.yml 其它步骤/作业跑，与前言「CI 集合 = test:security + test:contracts 几条」不符；(b) 前言「新写的 7 个 security-invariants-* 文件…还没在 Linux 上跑过」已过时——security-invariants 作业在 Linux 跑全部 `test:security`（浏览器用例无 Chrome 时 skip）；(c) 「linux-probe 会把它们跑进它的报告」不成立——`scripts/ci-linux-probe.mjs` 头注释明确 browser 文件不跑；(d) 本机列语义冲突（S-31 的 CI 事实、S-39/46/56 两列重复） | 影响：读者会误判哪些安全测试真在 CI 断言、哪些只在 macOS | non-blocker | code-read+gate-script | 安全线/Codex 文档 | 验证：改后 health:check 绿 + diff 评审 | 无
+
+**AC-AUDIT-11** | 违反需求：测试名/注释写验收编号（§1 前言与门禁意图）| 证据：S-16/S-19/S-22/S-23 点名的测试没有 S 编号（S-22 测试头 PA-22、S-23 是 PA-23）；门禁只查「标题片段」，不查编号 | 影响：按编号 grep 审计会漏这 4 条，编号→测试链路不完整 | non-blocker | code-read | 安全线 | 验证：补注释后 grep `S-16` 能命中 | 无
+
+### 11.4 §4 开放项 spot-check（18 项）
+
+| # | 项 | 本轮只读复核结论 |
+| --- | --- | --- |
+| 1 | 桌面 IPC 可及范围无实测（S-14） | 未核（需真机/实测） |
+| 2 | 「是不是本机」两处实现未合并（桌面 Rust、OAuth Worker） | 未核 |
+| 3 | `/locale`、`/health` 等 GET 路由无只读断言 | **仍成立**（`web-server.ts:163,188`、`web-catalog.ts:228`、`web-project-platform-routes.ts:164` 路由在，未见过滤） |
+| 4 | 控制令牌文件已存在但权限过宽不收紧 | **仍成立**（`web-control-token.ts` 读已有文件直接返回；仅新建文件 `mode: 0o600`，不 chmod 存量） |
+| 5 | 提示注入中和随 vendored 包验证 | 依据仍在（`tests/prologue-memory-boundary.test.ts` 存在，30 KiB 预算） |
+| 6 | 公网地址实现仍五份 | **需复核**：现见 4 处（见 11.2 S-10 行），文档计数可能过时 |
+| 7 | Seatbelt 沙箱用例只在 macOS | 未核 |
+| 8 | Computer Use 真机拒绝无记录 | 未核 |
+| 9 | S-27 外部等待只证明存在（file-present） | 文档自述，未核代码 |
+| 10 | S-44 本机页面只挡本进程知道的监听口 | 文档自述，未核代码 |
+| 11 | S-45 卸载不留数据时 plugin-originals 登记不删 | **仍成立**：仅 `apps/local-host/src/project-deleted-owners.ts:109` 在项目删除时 `forgetProjectOriginalFiles`；未见卸载路径清理 |
+| 12 | S-57 插件连接槽绑定卸载后仍留 | **仍成立**：`connector_bindings` 表在 `horizontal/connector-host/src/connection-store.ts:92`；scope 键 `plugin-installation:${install_id}` 在 `apps/local-host/src/connector-plugin-requests.ts:27`；未见卸载清理动作 |
+| 13 | S-45 原始文件头没有网页之外的证明 | 文档自述 |
+| 14 | S-46 Goals 被拒时宿主直接读其表 | **仍成立**：`artifact-actions.ts`、`project-plugin-ports.ts`、`web-goals-read.ts` 存在；`goalDecisionAttention` 由 `plugins/native/goals/src/goals-application.ts:35,49` 提供、经 `apps/local-host/src/goal-project-application.ts:48,118` 暴露给宿主 |
+| 15 | S-46 沙箱插件项目库语句在宿主主线程同步跑（PLIB-10/BL-395） | **仍成立**：`packages/plugin-sandbox/src/database.ts:48 sandboxDatabase`；#1119 在途（未合） |
+| 16 | S-53 审查页没写会跑仓库配置程序 | 部分：`workspace-git-integration.ts:165`、`workspace-git-worktrees.ts:37` 用 `-c core.hooksPath=/dev/null` 规避 git apply/worktree 的 hooks；审查页文案/其它命令未核 |
+| 17 | S-53 列出过滤器与执行之间有两进程窗口 | 未核 |
+| 18 | GitHub secret scanning/push protection 公开仓库关着 | 需仓库设置，未核 |
+
+### 11.5 下一轮
+
+主题 **g) SSOT-MATRIX.md 与包清单/owner 漂移**（owner 列、成熟度、事实主人 vs 代码）；之后全表复核 + task-13 复核（PR 出现后按 §6.2 v2）+ 收尾报告。task-13 分支仍未出现，不空等。

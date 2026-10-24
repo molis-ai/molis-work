@@ -119,7 +119,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const result = await response.json();lifetime.assertCurrent(signal);
     if (!response.ok) throw Object.assign(new Error((method === 'GET' && host.readRefusal?.(response.status, result.code)) || result.error || L('coding.error.request')),{code:result.code,details:result.details,status:response.status});
     return result;
-  },ports={lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()};
+  },ports={lifetime,translate:L,q,api,current:()=>current,status,refresh:()=>readCurrent()};
   const ROLE_NAMES=Object.fromEntries(Object.entries({planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'}).map(([role,name])=>[role,L(name)]));
   const draft=(${CODING_DRAFT_CLIENT_FACTORY_SCRIPT})({...ports,input,key:draftKey,choices:{action_tools:actionSelections,character:characterSelections,character_skill_ids:characterSkills,
     configuration:configurations,materials:materialSelections,mcp_sources:mcpSourceSelections,mcp_tools:mcpSelections,methods:methodSelections,question_drafts:questionDrafts}});
@@ -339,8 +339,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const count=(methodSelections.get(current) || []).length;
     contextLabel('[data-coding-method-open]',L('coding.attach.method')+(count?' · '+count:''),count);
   };
-  const {renderCards}=(${CODING_ACTIONS_CLIENT})({lifetime,q,api,current:()=>current,selections:actionSelections,save:draft.saveChoices,controls,status,interaction:(node,options)=>host.interaction(node,options),make,sessionPath,readCurrent:()=>readCurrent()});
-  (${CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,selections:characterSelections,titles:characterTitles,skillSelections:characterSkills,
+  const {renderCards}=(${CODING_ACTIONS_CLIENT})({lifetime,translate:L,q,api,current:()=>current,selections:actionSelections,save:draft.saveChoices,controls,status,interaction:(node,options)=>host.interaction(node,options),make,sessionPath,readCurrent:()=>readCurrent()});
+  (${CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,q,api,current:()=>current,selections:characterSelections,titles:characterTitles,skillSelections:characterSkills,
     save:draft.saveChoices,controls,status});
   // Saved results read like the session rows: what it is by its icon, the title, when it was saved, and its version.
   const renderArtifacts = () => {

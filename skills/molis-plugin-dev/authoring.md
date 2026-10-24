@@ -34,6 +34,8 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 
 `PluginDefinition` 还可带 `event_types`、`agent_prompts`、`agent_skills`。可选 `stop` / `health`。
 
+Manifest 的 `agent.prompts` 只声明提示词标识、版本等元信息；作者在 `PluginDefinition.agent_prompts` 提供对应的正文，按 `prompt_id` 和 `version` 与声明配齐。运行中的非沙箱插件会由 Host 登记角色和提示词；角色引用的提示词缺少正文时，登记报 `agent_definitions.invalid`，整个插件启动失败。当前检查针对角色引用的提示词，不保证所有未被角色引用的声明都经过同样检查。内置目录的过渡安排见 [elements.md 的 agent 块](elements.md#agent-块)。
+
 ## CLI（第三方 / 本地样例）
 
 今天 `plugin create` 生成的是 **integration 样例**（私人计数 + Artifact + 一段 UI），不是 Native 一级入口插件。

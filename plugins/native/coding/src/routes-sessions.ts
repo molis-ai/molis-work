@@ -3,7 +3,7 @@ import { characterSelection, characterSkillSelection } from "./characters.js";
 import { materialSelection } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
-import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
+import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { codingError, codingFailure, codingText } from "./words.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
@@ -270,13 +270,13 @@ const ROUTES: RouteMaker[] = [
   // The person marks a session the priority: sessions whose work overlaps its own are asked to make way (only told).
   (a) => {
     const { context, projectId, route } = a;
-    return route("coding.priority", async (request, api, execution) => {
+    return route("coding.priority", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), on = bodyOf(request).on === true;
       const key = `priority:${record.session_id}`;
       if (!on) { context.services!.storage!.delete(key); return { priority: false, notified: [] }; }
       context.services!.storage!.set(key, new Date().toISOString());
       if (!record.runtime_session_id) return { priority: true, notified: [], paths: [] };
-      const told = await api!.invoke(agent.prioritizeSession, [record.runtime_id, record.runtime_session_id]);
+      const told = await codingActions(context, beforeWrite).invoke(agent.prioritizeSession, [record.runtime_id, record.runtime_session_id]);
       const sessions = execution.sessions.list(projectId);
       return { priority: true, paths: told.paths, notified: told.notified.map(runtime => sessions.find(entry => entry.runtime_session_id === runtime)?.title ?? runtime) };
     });

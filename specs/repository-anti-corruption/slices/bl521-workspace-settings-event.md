@@ -1,6 +1,6 @@
 # BL-521：工作目录设置的变化发 `host.workspace.changed@1`（第一片，发事件）
 
-状态：已实现、本地验证，未开 PR（2026-10-24，防腐线 ac-coding 片；叠片的第一片，从 main 开，删 `filesOutputsRefresh` 钩子的第二片等 #1191 合入后叠在它上面）。
+状态：已实现、本地验证，PR 已开（2026-10-24，防腐线 ac-coding 片；叠片的第一片，已同步 #1191 所在的 main `2dd535912`；删 `filesOutputsRefresh` 钩子的第二片叠在它上面）。
 
 ## 1. 现状
 
@@ -27,5 +27,5 @@
 
 ## 5. 没做、没验证
 
-- 第二片（删 `filesOutputsRefresh`、`codingRouteHooks`，连同 BL-366、BL-521 删行）等 #1191 合入。
+- 第二片（删 `filesOutputsRefresh`，连同 BL-366、BL-521 删行；`codingRouteHooks` 已随 #1191 改名）叠在这一片上。
 - 浏览器里没有走一遍；全量没跑。

@@ -209,7 +209,8 @@ it("a management call that names no project_id runs as database:<path>, and a la
       // W3-07-4-02: inspect the real facts without binding the Host to the catalog's project name first.
       const facts = () => {
         const store = new LocalProjectDatabase(project.database_path, { existingOnly: true });
-        try { return { snapshot: store.snapshot(project.project_id), events: store.readEventsDescending(project.project_id) }; }
+        // S8b: a new project has its root row and no board until it is first opened, so the facts are the rows, not a board snapshot.
+        try { return { boards: store.db.prepare("SELECT * FROM boards").all(), goals: store.db.prepare("SELECT * FROM goals").all(), events: store.readEventsDescending(project.project_id) }; }
         finally { store.close(); }
       };
       const before = facts();

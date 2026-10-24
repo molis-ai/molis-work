@@ -186,19 +186,23 @@ interface AgentFrozenStartFields {
 
 export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace & ActionCallOrigin;
 
-interface AgentCreateSessionFields {
+/** Who a session or a round is for: the project, plugin installation and person. The Host fills it in from the call, never from a plugin's input. */
+export interface AgentSessionOwner {
   project_id: string;
   plugin_id: string;
   install_id: string;
   actor_id: string;
-  title: string;
 }
 
-export type AgentCreateSessionInput = AgentCreateSessionFields & (
+/** What a plugin asks a session to be created with (`agent.session.create.v1`). */
+export type AgentCreateSessionInput = { title: string } & (
   | { workspace?: "required"; directory: AgentWorkingDirectory; role_id?: string }
   | { workspace: "none"; directory?: never; role_id: string }
   | { workspace: "business"; directory?: never; role_id: string }
 );
+
+/** The Host's request to a runtime: the plugin's input and who it is for, from the call. Host and adapters only. */
+export type AgentCreateSessionRequest = AgentCreateSessionInput & AgentSessionOwner;
 
 /**
  * The role as the Host froze it, taken from the Plugin's own declarations.
@@ -318,7 +322,7 @@ export interface AgentFrozenRole {
   host_tools: string[];
 }
 
-interface AgentStartRequestFields {
+interface AgentStartInputFields {
   /** Host-proven original text before assembly. Mutually exclusive with continued_from; person requires Host authority. */
   original_input?: import("./agent-inputs.js").AgentOriginalInputDraft;
   /** Reuse the original input of this exact Run in the same Session, without creating a new personal statement. */
@@ -359,10 +363,6 @@ interface AgentStartRequestFields {
   /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
   character?: ArtifactReference | null;
   session: AgentSessionRef;
-  project_id: string;
-  plugin_id: string;
-  install_id: string;
-  actor_id: string;
   /** The assembled task for this Run; it may contain Host-derived text and is not proof of personal authorship. */
   task: string;
   role_id: string;
@@ -370,11 +370,6 @@ interface AgentStartRequestFields {
   model_selection?: { provider_id: string; model_id: string };
   /** Refused unless the selected model is marked as taking a reasoning effort. */
   reasoning_effort?: AgentReasoningEffort;
-  /**
-   * Filled in by the Host before the adapter is called. Absent only on a direct
-   * adapter call, which an adapter must refuse rather than guess around.
-   */
-  role?: AgentFrozenRole;
   text_materials?: AgentTextMaterial[];
   /** Images for the model to see in this Run; refused when the selected model is marked as not seeing images. */
   image_materials?: AgentImageMaterial[];
@@ -384,4 +379,14 @@ interface AgentStartRequestFields {
   budget?: AgentRunBudget;
 }
 
-export type AgentStartRequest = AgentStartRequestFields & AgentWorkspace;
+/** What a plugin asks a Run to be started with (`agent.run.start.v1`): no identity, no role; the Host adds both. */
+export type AgentStartInput = AgentStartInputFields & AgentWorkspace;
+
+/** The Host's request to a runtime: the plugin's input, who it is for (from the call) and the role the Host froze. Host and adapters only. */
+export type AgentStartRequest = AgentStartInput & AgentSessionOwner & {
+  /**
+   * Filled in by the Host before the adapter is called. Absent only on a direct
+   * adapter call, which an adapter must refuse rather than guess around.
+   */
+  role?: AgentFrozenRole;
+};

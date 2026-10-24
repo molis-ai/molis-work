@@ -41,6 +41,10 @@ test("Coding protected HTTP keeps the exact original separately from the assembl
   assert.ok(Date.parse(view.original_input!.occurred_at) >= before && Date.parse(view.original_input!.occurred_at) <= Date.now());
   assert.deepEqual(view.frozen.original_input, view.original_input!.ref);
   assert.notEqual(view.turns.find(turn => turn.kind === "user")?.text, task, "assembled transcript is not used as the source owner");
+  const timeline = await f.call<{ runs: AgentRunView[] }>(f.project.project_id, coding + `/sessions/${id}`);
+  assert.equal(timeline.status, 200, JSON.stringify(timeline.body));
+  assert.deepEqual(timeline.body.runs.find(run => run.ref.run_id === view.ref.run_id)?.original_input, view.original_input,
+    "the production readSession/readRun Action schemas retain the canonical original in the HTTP timeline");
   await f.host.close();
   const reopened = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
   try {

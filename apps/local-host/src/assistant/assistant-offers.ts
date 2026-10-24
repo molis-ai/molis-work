@@ -113,7 +113,7 @@ export class AssistantOffers {
       if (work.archived) throw this.ports.fail("assistant.state", "这项工作已归档，不能再放入操作卡");
       if (work.scope.kind === "project" && work.scope.project_id !== caller.project_ref?.project_id) throw this.ports.fail("assistant.scope", "这项工作不在当前项目里");
     } else work = await this.ports.createWork(card.title, input.scope, context, caller);
-    if (work.executor.kind === "coding") throw this.ports.fail("assistant.unsupported", "Coding 负责的工作不放操作卡，请交给助理或新开一项工作");
+    if (work.executor.kind === "plugin") throw this.ports.fail("assistant.unsupported", "执行方插件负责的工作不放操作卡，请交给助理或新开一项工作");
     const client = await (await this.ports.authority(work)).actions?.(RUNTIME);
     if (!client) throw this.ports.fail("assistant.unsupported", "这里没有助理能用的能力");
     const { offer_id } = await this.recordOffer(work, { title: card.title, summary: card.summary, reference: card.reference, input: card.input,

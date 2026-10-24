@@ -44,8 +44,8 @@ test("W3-A3a: the Assistant answers with its current work only when the panel is
   assert.equal(parts.holds(other), true, "the same rule the strip uses");
   vm.runInContext(`state.open = false`, context);
   assert.equal(ask(context, doc), null, "panel closed");
-  vm.runInContext(`state.open = true; state.executor = "coding"`, context);
-  assert.equal(ask(context, doc), null, "a Coding work takes no cards");
+  vm.runInContext(`state.open = true; state.executor = "plugin"`, context);
+  assert.equal(ask(context, doc), null, "a work carried by a plugin takes no cards");
   vm.runInContext(`state.executor = "assistant"; state.current = null`, context);
   assert.equal(ask(context, doc), null, "no work on show");
   vm.runInContext(`delete state.current`, context);

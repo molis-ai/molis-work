@@ -2,10 +2,11 @@ import { agentErrors } from "./errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withAgentEffect } from "./invocation-effects.js";
 import { projectWorkScope } from "./project-work-scope.js";
+import { installationWaits, waitForRunChange } from "./run-wait.js";
 import { registerSessionActions } from "./session-actions.js";
 import { registerWriteCheckerActions } from "./write-checker-actions.js";
 import type { HostCapabilityDefinition, HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentRunView, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { type AgentHost, type AgentStartAuthority } from "./index.js";
@@ -52,25 +53,13 @@ export interface AgentCapabilityPorts<Context> {
   writeCheckers?(context: Context): Promise<{ workspaces: readonly ProjectWorkspaceRef[]; store: AgentWriteCheckerStore }>;
 }
 
-/**
- * A cheap, stable mark of what a surface would draw differently: phase, text growth, tool progress, questions, usage,
- * the files each turn wrote, a wait the Run sleeps in, a model switch asked for or taken, how far each supplement got.
- */
-export function runViewVersion(view: AgentRunView): string {
-  const last = view.turns[view.turns.length - 1];
-  return [view.phase, view.turns.length, last?.text.length ?? 0, view.activity.length,
-    view.activity.map(item => item.state[0] + (item.output?.length ?? 0)).join(""), view.awaiting_input.length,
-    view.usage.tokens.input + view.usage.tokens.output, view.step_board?.version ?? 0,
-    view.turn_changes?.length ?? 0, view.sleeping_until ?? "", view.retry_wait?.until ?? "", view.model_switch?.now ?? "", view.model_switch?.requested ?? "",
-    view.turns.map(turn => turn.steer?.state ?? "").join(",")].join(":");
-}
-
 export function registerAgentHostCapabilities<Context>(
   registrar: AgentCapabilityRegistrar<Context>,
   owners: AgentCapabilityPorts<Context>,
 ): () => void {
   type Call = { source: Context; invocation: HostCapabilityInvocation };
   const denied = () => agentErrors.session_unknown("调用身份与插件或会话归属不一致");
+  const waits = installationWaits(8);
   const pluginFor = (call: Call, pluginId?: string): (HostPluginCaller & { readonly project_id: string }) | undefined => {
     const caller = call.invocation.plugin;
     if (call.invocation.consumer === "plugin" && !caller) throw denied();
@@ -103,10 +92,11 @@ export function registerAgentHostCapabilities<Context>(
       await invocation.beforeEffect(); invocation.assertAuthorityCurrent();
       const result = await withAgentEffect(owners.agentHost(source), invocation, async () => handler(call, snapshot)); invocation.assertAuthorityCurrent(); return result;
     });
-  const assertInputOwner = (call: Call, input: { project_id?: string; plugin_id: string; install_id?: string; actor_id?: string }) => {
-    const caller = pluginFor(call, input.plugin_id);
-    if (caller && (input.project_id !== caller.project_id || input.install_id !== caller.install_id || input.actor_id !== caller.actor_id)) throw denied();
-    return caller;
+  /** Who a session or round is for: the calling plugin's installation and person, never an input (R8 rule 1). */
+  const ownerOf = (call: Call) => {
+    const caller = pluginFor(call);
+    if (!caller) throw denied();
+    return { caller, owner: { project_id: caller.project_id, plugin_id: caller.plugin_id, install_id: caller.install_id, actor_id: caller.actor_id } };
   };
   const readScopedSession = async (context: Call, session: AgentSessionRef) => {
     const view = await ports.agentHost(context).adapter(session.runtime_id).readSession(session);
@@ -177,12 +167,9 @@ export function registerAgentHostCapabilities<Context>(
     }),
 
     register(agentHostCapabilities.createSession, async (context, [runtimeId, input]) => {
-      const caller = assertInputOwner(context, input);
-      if (input.project_id !== ports.projectId(context)) throw agentErrors.session_unknown("不能为其他项目创建会话");
-      const authority = await ports.authority(context, input.plugin_id);
+      const { owner } = ownerOf(context), authority = await ports.authority(context, owner.plugin_id);
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      return ports.agentHost(context).createSession(runtimeId, { ...input,
-        ...(caller ? { project_id: caller.project_id, plugin_id: caller.plugin_id, install_id: caller.install_id, actor_id: caller.actor_id } : {}) }, authority);
+      return ports.agentHost(context).createSession(runtimeId, { ...input, ...owner }, authority);
     }),
 
     register(agentHostCapabilities.readSession, async (context, [session]) =>
@@ -210,18 +197,13 @@ export function registerAgentHostCapabilities<Context>(
       }));
     }),
 
-    register(agentHostCapabilities.startRun, async (context, [runtimeId, request]) => {
-      const caller = assertInputOwner(context, request);
-      const authority = await ports.authority(context, request.plugin_id);
-      const view = await readScopedSession(context, request.session);
-      if (request.project_id !== ports.projectId(context) || runtimeId !== request.session.runtime_id || request.plugin_id !== view.owner.plugin_id || request.install_id !== view.owner.install_id || view.owner.actor_id !== undefined && request.actor_id !== view.owner.actor_id) {
-        throw agentErrors.session_unknown("执行请求与会话归属不一致");
-      }
-      return ports.agentHost(context).start(
-        runtimeId,
-        { ...request, ...(caller ? { project_id: caller.project_id, plugin_id: caller.plugin_id, install_id: caller.install_id, actor_id: caller.actor_id } : {}) },
-        authority,
-      );
+    // The round is the caller's, in a session that is the caller's (readScopedSession), on the runtime that session is on.
+    register(agentHostCapabilities.startRun, async (context, [runtimeId, input]) => {
+      const { owner } = ownerOf(context);
+      if (runtimeId !== input.session.runtime_id) throw agentErrors.session_unknown("执行请求与会话所在的运行时不一致");
+      const authority = await ports.authority(context, owner.plugin_id);
+      await readScopedSession(context, input.session);
+      return ports.agentHost(context).start(runtimeId, { ...input, ...owner }, authority);
     }),
 
     register(agentHostCapabilities.readRun, async (context, [session, run]) => {
@@ -229,24 +211,17 @@ export function registerAgentHostCapabilities<Context>(
       return ports.agentHost(context).adapter(session.runtime_id).read(run);
     }),
 
-    // Following a live round: wake on the first change, gather the deltas that arrive within 40 ms, answer with the latest. A cancelled wait (its caller gone, its project closing) lets go of the round at once and answers nothing.
+    // Following a live round (run-wait.ts). The answer is dropped if the caller lost its authority while it waited.
     register(agentHostCapabilities.waitRun, async (context, [session, run, since, timeoutMs]) => {
+      const caller = pluginFor(context);
+      if (!caller) throw denied();
       await requireRun(context, session, run);
-      const adapter = ports.agentHost(context).adapter(session.runtime_id);
-      const limit = Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), signal = context.invocation.signal;
-      return new Promise<{ version: string; view: AgentRunView }>((resolve, reject) => {
-        let latest: AgentRunView | undefined, gather: ReturnType<typeof setTimeout> | undefined, stop: (() => void) | undefined, finished = false;
-        // The published view only names pending questions; a full read resolves them into something a person can answer.
-        const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); signal?.removeEventListener("abort", cancel);
-          const version = runViewVersion(latest!);
-          if (!latest!.awaiting_input.length) { resolve({ version, view: latest! }); return; }
-          adapter.read(run).then(view => resolve({ version, view }), () => resolve({ version, view: latest! })); };
-        const timer = setTimeout(finish, limit), cancel = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); reject(signal!.reason); };
-        try {
-          stop = adapter.observe(run, view => { latest = view; if (runViewVersion(view) !== since && !gather) gather = setTimeout(finish, 40); });
-          if (finished) stop(); else if (signal?.aborted) cancel(); else signal?.addEventListener("abort", cancel, { once: true });
-        } catch (error) { clearTimeout(timer); reject(error); }
-      });
+      const release = waits.hold(caller.install_id);
+      try {
+        const answer = await waitForRunChange(ports.agentHost(context).adapter(session.runtime_id), run, since, timeoutMs, context.invocation.signal);
+        await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
+        return answer;
+      } finally { release(); }
     }),
     register(agentHostCapabilities.listSubagents, async (context, [session, run]) => {
       await requireRun(context, session, run);
@@ -254,14 +229,14 @@ export function registerAgentHostCapabilities<Context>(
       if (!port) throw agentErrors.capability_unavailable("当前运行时未接通子代理");
       return port.list(run);
     }),
-    register(agentHostCapabilities.cancelSubagent, async (context, [session, run, childId, actorId]) => {
+    // Who stops it is the caller, never an input: requireRun has already held the session to the caller's own.
+    register(agentHostCapabilities.cancelSubagent, async (context, [session, run, childId]) => {
       await requireRun(context, session, run);
-      const port = ports.agentHost(context).adapter(session.runtime_id).subagents;
+      const caller = pluginFor(context), port = ports.agentHost(context).adapter(session.runtime_id).subagents;
+      if (!caller) throw denied();
       if (!port) throw agentErrors.capability_unavailable("当前运行时未接通子代理");
-      const caller = pluginFor(context);
-      if (caller && caller.actor_id !== actorId) throw denied();
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      await port.cancel(run, childId, caller?.actor_id ?? actorId);
+      await port.cancel(run, childId, caller.actor_id);
     }),
     // The project's work and its release, as far as it is the caller's own (project-work-scope.ts); no one else's.
     register(agentHostCapabilities.readProjectWork, async (context, [runtimeId, probe]) => {

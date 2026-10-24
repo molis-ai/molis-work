@@ -239,10 +239,10 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Memory retries and usage states retain the approved +3093 B and +105 B, tightened by 5 B of equivalent reuse.
-  // Main afabfcbef removes the retired Sessions UI; only the same Memory +3193 B is admitted here.
-  "/assets/molis-work-workbench.js": [1129753, 1132946],
+  // Main c6093a2e9 includes the executor UI; only the same Memory +3193 B is admitted here.
+  "/assets/molis-work-workbench.js": [1130064, 1133257],
   // Stable original-input identity retains the approved +738 B, tightened by 21 B of equivalent reuse to +717 B.
-  "/assets/molis-work-plugins/coding.js": [376282, 376999],
+  "/assets/molis-work-plugins/coding.js": [377227, 377944],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

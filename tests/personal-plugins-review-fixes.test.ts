@@ -29,12 +29,11 @@ import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
 import {
-  DATASET_CLIENT_FACTORY_SCRIPT,
   datasetManifest,
 } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_CLIENT_FACTORY_SCRIPT, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
   pagesActions,
@@ -196,11 +195,19 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/forms"/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\("\/forms"/);
   // W5-01-DATASET-05: the Runtime client uses the exact declared collection route.
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.dataset\/datasets/);
+  // RAC-150: Dataset's page names its routes under the plugin ("/datasets") and asks the shared host for the full path.
+  const datasetBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(datasetBrowser("page.ts"), /api: "\/datasets"/);
+  assert.match(datasetBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(datasetManifest.routes?.some(route => route.method === "GET" && route.path === "/datasets"), "and the Manifest declares that collection route");
   // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path.
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.ppt\/ppt/);
   // RAC-31: the Runtime client targets its declared route; the HTTP discovery test rejects the removed URL.
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.lingguang\/sparks/);
+  // RAC-146: 灵光's page names its routes under the plugin ("/sparks") and asks the shared host for the full path.
+  const lingguangBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(lingguangBrowser("page.ts"), /api: "\/sparks"/);
+  assert.match(lingguangBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(lingguangManifest.routes?.some(route => route.method === "GET" && route.path === "/sparks"), "and the Manifest declares that collection route");
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 

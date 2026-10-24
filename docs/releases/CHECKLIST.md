@@ -38,7 +38,7 @@
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 1 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 拒绝（只停 Schedule） |
 | 目录库 | `projects/catalog.db` | 22 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
-| 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
+| 助理 | `assistant/assistant.db` | 3 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
 | Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 2 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
 | 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 拒绝 |
 | Issue | `issues/issues.db` | 2 | `user_version` | `plugins/native/issues/src/store.ts#ISSUES_DATABASE` | 拒绝 |
@@ -60,7 +60,7 @@
 | Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/store.ts#TODO_DATABASE` | 拒绝 |
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/store.ts#WORKFLOWS_DATABASE` | 拒绝 |
 | 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝 |
-| server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
+| server（讨论） | `server/server.sqlite` | 2 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
 | 角色 | `characters/characters.sqlite` | 2 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 2 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 2 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
@@ -69,6 +69,8 @@
 
 - Pages 评论线程将库基线从 1 改为 2，新增 `page_comments`，正文与块备注保持原结构。旧 Home 仍拒绝直接打开；真实 Home 尚未执行这一项维护，发布前须在副本演练并取得维护授权。实现与隔离验证见 [Pages 与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 - 统一服务接入将连接库基线从 1 改为 2，授权结果增加接入方案与发起者字段，并由连接 owner 保存最近检查和调用观察。原连接、协议、绑定及凭据引用保留；隔离副本维护已演练，真实 Home 尚未维护，不能直接用新构建打开旧库。维护与回退边界见[统一服务接入规格](../../specs/assistant-service-connections/spec.md) §9.3。
+- W5-16 B1 将讨论库从 1 升至 2，邀请只存 SHA-256，生成/更换回执不含原文；新建群尚无邀请，页面只在本人明确操作时生成。旧 v1 由运行时拒绝，不自动升级。一次性维护与 W5-17、Goals S9 进入同一个批准窗口：先在副本 `node tests/fixtures/im-invite-maintenance.mjs list --home <副本> --json`，再在已停写的副本 `apply --home <副本> --backup <Home 外的新目录> --json`；原链接仍有效，其他业务事实保持，新文件及 backup API 副本无已知邀请原文字节。原件和 WAL 留在私有备份，不进新快照。若留下 `server/.invite-maintenance.json`，宿主拒绝打开，先按 HOME-DATA 3.4 恢复原件；真实 Home 本项尚未执行，不能勾为完成。演练：`tests/im-invite-maintenance.test.ts`。
+
 - Sessions 收尾 SC-2 将角色库基线从 1 改为 2，新增 `character_runs`（角色的原生执行记录：谁、哪个项目、哪个版本、任务、目录、是否派发成功；不存终端输出），草稿表不变。旧 Home 仍拒绝直接打开；真实 Home 尚未执行这一项维护，发布前须在停宿主、整份备份后按 `tests/fixtures/characters-maintenance-v2.sql` 维护（演练 `tests/characters-maintenance-v2.test.ts`，维护清单见 `specs/repository-anti-corruption/spec.md` §4.1）。以前记在会话库里的角色运行不迁。
 - 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`）。
 - Sessions 下线（SC-4，2026-10-23）：`sessions/sessions.db`（v7）从上表删去——没有任何代码再打开它，也没有升级路径；旧库与 `sessions/content/` 留在 Home 里，备份与 `uninstall --purge-user-data` 仍按存储登记处理，清理另做（SC-5，在备份副本上，经用户批准）。

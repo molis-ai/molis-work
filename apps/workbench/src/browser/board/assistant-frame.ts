@@ -20,7 +20,7 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 type Json = Record<string, unknown>;
 type View = { work: Json & { work_id: string }; [key: string]: unknown };
-type Samples = { project: { id: string; title: string }; works: Array<Json & { work_id: string; delegated_by?: unknown }>; views: Record<string, View>; surroundings: Record<string, Json>;
+type Samples = { project: { id: string; title: string }; works: Array<Json & { work_id: string; delegated_by?: unknown }>; views: Record<string, View>; surroundings: Record<string, Json>; executors: Json[];
   next: Record<string, View[]>; answered: Record<string, View>; closed: Record<string, View>; recovery: Record<string, Json>; notices: Array<Json & { notice_id: string; work_id: string }>;
   /** The lines beside each field for a questionnaire answer the Runtime refuses, by question, as the Host drew them. */
   refused: Record<string, Record<string, string>> };
@@ -87,7 +87,7 @@ const answerQuestion = (id: string, body: string | null) => new Promise<Response
 
 const READS: Record<string, () => unknown> = {
   works: () => ({ works: copy(S.works) }), notices: () => ({ notices: copy(S.notices) }), characters: () => ({ characters: [] }),
-  capabilities: () => ({ capabilities: [] }), methods: () => ({ methods: [] }), "surface-kinds": () => ({ kinds: [] }),
+  executors: () => ({ executors: copy(S.executors) }), capabilities: () => ({ capabilities: [] }), methods: () => ({ methods: [] }), "surface-kinds": () => ({ kinds: [] }),
 };
 function answer(url: URL, method: string, body: string | null, signal?: AbortSignal | null): Response | Promise<Response> {
   const parts = url.pathname.slice((PREFIX + "/api/assistant/").length).split("/").map(decodeURIComponent);

@@ -7,7 +7,7 @@ import type {
 
 import { filesManifest } from "./manifest.js";
 import { filesUiContribution } from "./ui.js";
-import { filesActionHandlers } from "./actions.js";
+import { filesActionHandlers, filesBrowsing } from "./actions.js";
 import { filesRoutes } from "./routes.js";
 
 /**
@@ -42,11 +42,12 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
       for (const permission of filesManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
       }
+      const folder = filesBrowsing(context);
       return {
         kind: "app",
         views: [filesUiContribution],
         routes: filesRoutes(context),
-        actions: filesActionHandlers(context),
+        actions: filesActionHandlers(context, folder),
         commandAvailability: (commandId) => {
           if (commandId !== "files.open-file") {
             return { available: false, reason: `未知命令：${commandId}` };
@@ -61,13 +62,17 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
           if (objectId === null) throw new Error("没有可打开的文件");
           return { ref: { view_id: "tree", object_id: objectId }, title: objectId };
         },
-        onEvent: (_event, delivery) => {
+        onEvent: async (_event, delivery) => {
           // Coding wrote, Git moved the working tree, or the Host ran a
-          // person-approved operation in the workspace, whoever asked for it
-          // (`host.workspace.changed@1`, BL-379). Either way what is on screen
-          // may no longer match the disk, so Files' own pages read again
-          // (PG-061). Only from a delivery: Files keeps no timer or watcher that
-          // could call it once this activation has stopped (BL-411).
+          // person-approved operation or an Agent's approved write in the
+          // workspace (`host.workspace.changed@1`, BL-379, BL-366). Either way
+          // what is on screen may no longer match the disk, so Files' own pages
+          // read again (PG-061), and it looks again at which folder it browses:
+          // a switch withdraws the old folder's snapshots. Only from a delivery:
+          // Files keeps no timer or watcher that could call it once this
+          // activation has stopped (BL-411).
+          delivery.beforeEffect();
+          await folder.confirm(async () => delivery.beforeEffect());
           delivery.beforeEffect();
           context.services?.ui.invalidate();
         },

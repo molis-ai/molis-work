@@ -1,7 +1,7 @@
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { isTerminalAgentPhase, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantControl } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { CodingExecutor } from "./assistant-coding.js";
+import type { WorkExecutor } from "./assistant-executor.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
@@ -10,7 +10,7 @@ import { assistantErrors } from "./assistant-errors.js";
 /** Controls both a live round and a parked work. Stopping a wait does not pretend its already committed effects vanished. */
 export async function controlAssistantWork(work: StoredWork, control: Exclude<AssistantControl, { kind: "withdraw" }>, ports: {
   actorId: string; store: AssistantStore; continuations: AssistantContinuations; delegations: AssistantDelegations;
-  host(): Promise<AgentHost>; coding(work: StoredWork): Promise<CodingExecutor>;
+  host(): Promise<AgentHost>; executor(work: StoredWork): Promise<WorkExecutor>;
   latest(host: AgentHost, work: StoredWork): Promise<AgentRunView | null>;
   cancelSetups?(sessionId: string): void;
   retainSetups?(sessionId: string): Promise<void>;
@@ -18,11 +18,11 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
   if (!["pause", "resume", "stop"].includes(control?.kind)) throw assistantErrors.invalid("不支持的操作");
   if ("keep_connections" in control && (control.kind !== "stop" || typeof control.keep_connections !== "boolean")) throw assistantErrors.invalid("保留接入必须由停止操作明确选择");
   if (control.kind === "stop" && control.keep_connections && (work.executor.kind !== "assistant" || !ports.retainSetups)) throw assistantErrors.state("当前工作不支持停止后保留接入");
-  if (work.executor.kind === "coding") {
-    const coding = await ports.coding(work);
-    const latest = work.executor.session_id ? (await coding.read(work.executor.session_id, 1)).runs.at(-1) : undefined;
+  if (work.executor.kind === "plugin") {
+    const executor = await ports.executor(work);
+    const latest = work.executor.session_id ? (await executor.read(work.executor.session_id, 1)).runs.at(-1) : undefined;
     if (!latest || isTerminalAgentPhase(latest.phase)) throw assistantErrors.state("这项工作当前没有在执行的一轮");
-    await coding.control(work.executor.session_id!, latest.ref.run_id, { kind: control.kind }); return;
+    await executor.control(work.executor.session_id!, latest.ref.run_id, { kind: control.kind }); return;
   }
   // Prevent a prepared automatic start while validating; an invalid request changes no durable work or setup.
   const release = ports.continuations.blockStart(work.work_id);

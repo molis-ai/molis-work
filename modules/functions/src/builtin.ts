@@ -31,9 +31,20 @@ const INBOX_NEXT_CRITERIA: readonly ChoiceCriterion[] = [
   { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" },
 ];
 
-/** Seeds the built-in rules once. `sceneMaps` gives a rule's option targets that only the host can name (by function key). */
-export function seedBuiltinFunctions(db: DatabaseSync, sceneMaps: Readonly<Record<string, FunctionSceneMap>> = {}): void {
-  seedChoice(db, sceneMaps, {
+/** What a built-in rule is about, for the composition root to resolve its option targets from. */
+export interface BuiltinRuleSubject {
+  readonly function_key: string;
+  readonly scene_id: string;
+  readonly subject_kinds: readonly string[];
+  readonly option_keys: readonly string[];
+}
+
+/**
+ * Seeds the built-in rules once. `sceneMap` gives a rule's option targets that only the composition root can name, asked for
+ * a rule only when it is first written; a rule that is already there keeps what it has.
+ */
+export function seedBuiltinFunctions(db: DatabaseSync, sceneMap: (rule: BuiltinRuleSubject) => FunctionSceneMap = () => ({})): void {
+  seedChoice(db, sceneMap, {
     id: "builtin-system_pick_home_dock",
     name: "首页事项处理建议",
     function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY,
@@ -42,7 +53,7 @@ export function seedBuiltinFunctions(db: DatabaseSync, sceneMaps: Readonly<Recor
     scene_id: HOME_DOCK_SCENE_ID,
     subject_kinds: ["inbox_entry"],
   });
-  seedChoice(db, sceneMaps, {
+  seedChoice(db, sceneMap, {
     id: "builtin-system_admit_inbox",
     name: "是否进 Inbox",
     function_key: SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
@@ -51,7 +62,7 @@ export function seedBuiltinFunctions(db: DatabaseSync, sceneMaps: Readonly<Recor
     scene_id: FEED_CAPTURE_SCENE_ID,
     subject_kinds: ["feed_item"],
   });
-  seedChoice(db, sceneMaps, {
+  seedChoice(db, sceneMap, {
     id: "builtin-system_pick_inbox_next",
     name: "挑 Inbox 下一步",
     function_key: SYSTEM_INBOX_NEXT_FUNCTION_KEY,
@@ -62,7 +73,7 @@ export function seedBuiltinFunctions(db: DatabaseSync, sceneMaps: Readonly<Recor
   });
 }
 
-function seedChoice(db: DatabaseSync, sceneMaps: Readonly<Record<string, FunctionSceneMap>>, input: {
+function seedChoice(db: DatabaseSync, sceneMap: (rule: BuiltinRuleSubject) => FunctionSceneMap, input: {
   id: string;
   name: string;
   function_key: string;
@@ -109,7 +120,8 @@ function seedChoice(db: DatabaseSync, sceneMaps: Readonly<Record<string, Functio
     JSON.stringify(input.criteria),
     input.scene_id,
     kindsJson,
-    JSON.stringify(sceneMaps[input.function_key] ?? {}),
+    JSON.stringify(sceneMap({ function_key: input.function_key, scene_id: input.scene_id, subject_kinds: input.subject_kinds,
+      option_keys: input.criteria.map(criterion => criterion.key) })),
     config_hash,
     JSON.stringify(preview),
     now,

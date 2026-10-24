@@ -17,7 +17,7 @@ import { openWorkflowsStore } from "@molis-ai/molis-work-plugin-workflows";
 import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
-import { FUNCTIONS_STORE_BASELINE, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { FUNCTIONS_STORE_BASELINE, createFunctionsService } from "@molis-ai/molis-work-module-functions";
 import { createSessionContentStore } from "@molis-ai/molis-work-module-private-work-context";
 
 /** A Home with a catalog and two projects: `gone` is deleted by the tests, `kept` must come through untouched. */
@@ -80,7 +80,7 @@ function seed(home: string, projectId: string): { image: string } {
     JSON.stringify([{ id: "i", filename: image, mime_type: "image/png", byte_length: 3 }]), "", new Date().toISOString(), new Date().toISOString(), null);
   images.close();
 
-  openFunctionsStore(home).close();
+  createFunctionsService({ home, credential: () => null }).close();
   const functions = openHomeSqliteDatabase(home, "functions");
   applySqliteBaseline(functions, homeSqlitePath(home, "functions"), FUNCTIONS_STORE_BASELINE);
   functions.prepare("INSERT INTO function_scene_bindings (scene_id, project_id, action_binding_json, binding_revision, updated_at) VALUES (?,?,?,?,?)")

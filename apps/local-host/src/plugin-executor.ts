@@ -1,11 +1,12 @@
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
-import { StoppedServiceCalls, type PluginCapabilityPort, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { StoppedServiceCalls, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
+import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -64,7 +65,8 @@ export interface PluginHostExecutorOptions {
   /** What the Host itself tells one installation (X-6). Never handed to a Plugin: only `stop` reaches it. */
   hostEvents?: PluginHostEvents;
   wiring?: PluginInputGraph;
-  capabilities?: PluginCapabilityPort;
+  /** Whether an action a plugin consumes is registered and ready in this project: what `services.actions.availability` asks. */
+  dependencyCheck?: PluginDependencyCheck;
   /**
    * Opaque scope key stamped on this Plugin's outputs, so the Host can tell two
    * inputs belong to the same scope without reading business fields.
@@ -114,7 +116,7 @@ export class PluginHostExecutor implements PluginExecutor {
     events?: PluginEventBus;
     hostEvents?: PluginHostEvents;
     wiring?: PluginInputGraph;
-    capabilities?: PluginCapabilityPort;
+    dependencyCheck?: PluginDependencyCheck;
     scopeKey?: string | null;
   }): void {
     this.options = { ...this.options, ...services };

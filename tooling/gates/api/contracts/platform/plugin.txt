@@ -440,7 +440,11 @@ export interface ActionClient {
     invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
 }
 
-export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
+export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
+    readonly __types__?: {
+        input: Input;
+        output: Output;
+    };
     readonly operation: "query" | "command";
     readonly provider_id?: string;
     readonly action: ActionMetadata;
@@ -2481,6 +2485,7 @@ export interface PlacementResult {
 }
 
 export interface PluginActionClient extends BoundActionClient {
+    availability(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
     invokeQuery<Input = unknown, Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: Input): Promise<Output>;
     readonly dependencies?: PluginActionDirectory;
     readonly directory?: PluginActionDirectory;
@@ -2548,11 +2553,6 @@ export interface PluginBackgroundClient {
 export interface PluginBackgroundExecution<T> {
     readonly result: Promise<T>;
     cancel(): void;
-}
-
-export interface PluginCapabilityClient {
-    availability(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
-    invoke<Input, Output>(capability: HostCapabilityDefinition<Input, Output>, input: Input, options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions): Promise<Output>;
 }
 
 export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommandInputOf<"object", {
@@ -2850,7 +2850,6 @@ export interface PluginHostServices {
     readonly events?: PluginEventsClient;
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
-    readonly capabilities?: PluginCapabilityClient;
 }
 
 export interface PluginIdempotencyPut {

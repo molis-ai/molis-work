@@ -23,10 +23,11 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const host = new MolisWorkLocalHost();
-  const protectedEntry = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" as const };
+  const protectedEntry = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" as const,
+    action: { title: "Development", description: "Removed", kind: "operation" as const, scope: "project" as const, audiences: ["plugin" as const], permissions: [], subject_kinds: [], input_schema: { type: "object" } } };
   const port = host.client({ project_id: DEMO_PROJECT_ID, storage_key: file });
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, port.project.project_id),
-    project_id: DEMO_PROJECT_ID, actor_id: "user", capabilities: port,
+    project_id: DEMO_PROJECT_ID, actor_id: "user", dependencyCheck: reference => port.availability(reference, { consumer: "plugin" }),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   }));
@@ -38,11 +39,11 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
     manifest: { ...base.manifest, plugin_id: "io.molis.work.example.protected-adapter",
       capabilities: { ...base.manifest.capabilities, consumes: [protectedEntry.capability_id] } },
     async start(context) {
-      const sdk = context.services!.capabilities!;
+      const sdk = context.services!.actions!;
       const availability = sdk.availability(protectedEntry);
       assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.dependency_missing");
       const forged = { ...protectedEntry, host_only: false };
-      await assert.rejects(sdk.invoke(forged, { authority: { actor_kind: "user" } }, { consumer: undefined }), { code: "actions.dependency_missing" });
+      await assert.rejects(sdk.invoke(forged, { authority: { actor_kind: "user" } }), { code: "actions.dependency_missing" });
       return base.start(context);
     },
   };
@@ -50,7 +51,7 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
   try {
     installId = runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(p => p.permission) }).install.install_id;
     await runtime.start(installId);
-    await assert.rejects(port.invoke(protectedEntry, {}), { code: "actions.dependency_missing" }, "the normal Host client cannot restore the removed protocol");
+    await assert.rejects(port.invoke(protectedEntry, {}), { code: "actions.missing" }, "the normal Host client cannot restore the removed protocol");
   } finally {
     if (installId && runtime.get(installId).state === "running") await runtime.stop(installId);
     await host.close(); store.close(); rmSync(directory, { recursive: true, force: true });

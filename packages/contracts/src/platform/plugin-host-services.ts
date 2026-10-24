@@ -5,7 +5,6 @@ import type { PluginEventsClient } from "./plugin-events.js";
 import type { PluginInputsClient, PluginOutputsClient } from "./plugin-wiring.js";
 import type { PluginModelClient } from "./plugin-model.js";
 import type { PluginMaterialsClient } from "./plugin-materials.js";
-import type { PluginCapabilityClient } from "./plugin.js";
 import type { PluginExecutionControl } from "./plugin-routes.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
@@ -48,6 +47,12 @@ export interface PluginActionDirectory {
 
 /** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
 export interface PluginActionClient extends BoundActionClient {
+  /**
+   * Whether an action this Manifest consumes is registered and ready, without calling it; synchronous, so an action's own
+   * availability can depend on it. Not consumed, a stopped instance, or a Host with no check answer unavailable. A call still
+   * checks its caller, input and authority.
+   */
+  availability(reference: import("./actions.js").ActionReference): import("./actions.js").ActionAvailability;
   invokeQuery<Input = unknown, Output = unknown>(reference: import("./actions.js").ActionReference, input: Input): Promise<Output>;
   /** Dynamic dependencies as this installation, with its own grants and plugin audience; requires actions:invoke. */
   readonly dependencies?: PluginActionDirectory;
@@ -118,8 +123,6 @@ export interface PluginHostServices {
   readonly inputs?: PluginInputsClient;
   /** Present when the Manifest declares output ports. */
   readonly outputs?: PluginOutputsClient;
-  /** Present when the Manifest declares consumed Capabilities. */
-  readonly capabilities?: PluginCapabilityClient;
 }
 
 /** A user-started interactive terminal in the plugin's declared owner-files directory. */

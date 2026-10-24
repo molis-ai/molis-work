@@ -2,7 +2,6 @@ export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobContro
 export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "./plugin-interaction.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
-import type { HostCapabilityDefinition } from "./app-host.js";
 import type { ContractDescriptor } from "./package.js";
 import type { UiCommandAvailability, UiContribution, UiOpenedObjectView } from "./ui.js";
 import type { PluginEventRecord, PluginEventDeliveryContext, PluginEventType } from "./plugin-events.js";
@@ -29,17 +28,6 @@ export { SURFACE_BROWSER_PERMISSION, browserSiteDeclarations } from "./plugin-ma
 import type { PluginDeployment, PluginManifest } from "./plugin-manifest.js";
 export type { PluginCommandInput, PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
 import type { PluginCommandInput, PluginRouteBinding } from "./plugin-routes.js";
-
-/** Narrow, grant-checked access to Capabilities the Manifest declared as consumed. */
-export interface PluginCapabilityClient {
-  /** Inspect a declared dependency without invoking it. Actual calls still validate their input and authority. */
-  availability(capability: import("./actions.js").ActionReference): import("./actions.js").ActionAvailability;
-  invoke<Input, Output>(
-    capability: HostCapabilityDefinition<Input, Output>,
-    input: Input,
-    options?: import("./app-host.js").HostCapabilityCallOptions,
-  ): Promise<Output>;
-}
 
 export const platformPluginContract = {
   contractId: "io.molis.work.platform.plugin.v1",

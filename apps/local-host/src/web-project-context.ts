@@ -13,6 +13,7 @@ import type { ContextualHttpPorts } from "./contextual/contextual-http.js";
 import type { ResolvedWebBoardOptions } from "./web-types.js";
 import type { WebRequestContext } from "./web-route-table.js";
 import type { HomeRouteProjectPlugins } from "./home-plugin-http.js";
+import { hostDependencyCheck } from "./plugin-actions-client.js";
 
 /** A request for one project that exists and has a database, before the project's runtime is opened. */
 export interface ProjectRequestContext extends WebRequestContext {
@@ -37,7 +38,7 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
 }
 
 /** The services every project plugin surface is given: the unified action client, the Home and settled reviews. */
-type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "observeReviewSettlements">;
+type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "observeReviewSettlements">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
@@ -66,7 +67,7 @@ export function projectPluginServices({ localHost, hostReference, options, agent
     actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
     observeReviewSettlements: listener => observeReviewSettlements(agentHost.reviews, options.projectId, listener),
     homeDirectory: serverOptions.homeDirectory,
-    capabilities: localHost.client(hostReference),
+    dependencyCheck: hostDependencyCheck(localHost.client(hostReference)),
   };
 }
 

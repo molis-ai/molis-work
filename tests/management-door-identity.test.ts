@@ -10,14 +10,12 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference, developInPrivateHost
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
 import { goalsActions, managementEventDecisionAuthority, type GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-plugin-goals";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityCallOptions, HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-const retiredDevelopment: HostCapabilityDefinition<unknown, unknown> = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" };
-import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
-import { filesManifest } from "@molis-ai/molis-work-plugin-files";
+/** The retired development entry as an old caller still holding the literal would pass it: no action behind it. */
+const retiredDevelopment = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" } as ActionDefinition<unknown, unknown>;
 import { managementGoals } from "./goal-management-caller.js";
-import { callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { callerPlugin, startProjectPlugins } from "./fixtures/plugin-callers.js";
 
 /**
  * The management door (the CLI and the management MCP) has no caller identity of its own: the Host records
@@ -256,29 +254,25 @@ test("the management MCP's goal_tree_decide schema names no identity", () => {
 
 /** A plugin that lists these entries under capabilities.consumes would otherwise be recorded as the person, or run unsigned code with the grants it names. */
 test("a plugin that lists the plugin development run under consumes is refused", async () => {
-  const writer = callerPlugin("doorwriter", "project");
-  const { host, ref, typed, decision, decisions, project_id, done } = await structureProject("plugin", [writer.definition]);
+  const writer = callerPlugin("doorwriter", "project", {}, [retiredDevelopment.capability_id]);
+  const { host, ref, typed, decisions, project_id, done } = await structureProject("plugin", [writer.definition]);
   try {
-    const probe = registerProbe(host.actionRegistry(ref), "project");
     await startProjectPlugins(host, ref);
-    // The caller the Host issued the plugin's session: the refusal below is the retired entry's, not the gateway's.
-    const asPlugin: HostCapabilityCallOptions = { consumer: "plugin", before_effect: async () => {}, plugin_caller: await issuedCaller(probe, writer, project_id) };
     const entries = [
       { name: "run plugin development", capability: retiredDevelopment,
         input: { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true } as unknown },
     ];
     // W3-07-6-02: the old protocol is absent from the actual Host, including the normal user client.
-    for (const { capability, input } of entries) await assert.rejects(typed.invoke(capability, input), { code: "actions.dependency_missing" });
-    const manifest = { ...filesManifest, plugin_id: "io.molis.work.test.door-writer", capabilities: { provides: [], consumes: entries.map(entry => entry.capability.capability_id) } };
-    const sdk = createPluginCapabilityClient(manifest, typed);
+    for (const { capability, input } of entries) await assert.rejects(typed.invoke(capability, input), { code: "actions.missing" });
+    // The plugin's own action client: listing the entry under consumes does not bring it back.
+    const sdk = writer.actions(project_id), control = { beforeEffect: async () => {} };
     for (const { name, capability, input } of entries) {
       const available = sdk.availability(capability);
       assert.equal(available.available, false, `${name} is not available to a plugin`);
       assert.equal(!available.available && available.code, "actions.dependency_missing", name);
-      await assert.rejects(sdk.invoke(capability, input), { code: "actions.dependency_missing" }, `${name}: through the plugin client`);
+      await assert.rejects(sdk.invoke(capability, input, control), { code: "actions.dependency_missing" }, `${name}: through the plugin client`);
       const forged = { ...capability, host_only: false };
-      await assert.rejects(sdk.invoke(forged, input), { code: "actions.dependency_missing" }, `${name}: through an unflagged copy`);
-      await assert.rejects(typed.invoke(capability, input, asPlugin), { code: "actions.dependency_missing" }, `${name}: with the plugin's own call context`);
+      await assert.rejects(sdk.invoke(forged, input, control), { code: "actions.dependency_missing" }, `${name}: through an unflagged copy`);
     }
     assert.deepEqual(await decisions(), [], "nothing was decided");
   } finally { await done(); }

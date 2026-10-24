@@ -40,7 +40,7 @@
 ## batch-1024-22/23 的判定（10-24 06:10 UTC）
 
 - `tests/home-side-surfaces.e2e.test.ts` 在 batch-23（基底 `8aa62a65b` + #1171 + #1167）同样失败，同一断言：**进「当前已知红」**（见上表）。
-- `tests/work-placement-journeys.e2e.test.ts` 在 batch-23 没红：留在偶发名单，batch-22 这次记一次「重试也失败」。
+- `tests/work-placement-journeys.e2e.test.ts` 在 batch-23 没红；`ac-sc3` 在 batch-22 批头 `e76380003` 与基线 `89c9a7194` 各单跑 3 次全过（删除那条动线 10.5–12.6 秒，两边一样），判**环境与时序**（负载）：留在偶发名单，batch-22 这次记一次「重试也失败」，不算 #1164 的红。
 
 ## 偶发（重试才过，不算红；记下来，看会不会变成稳定失败）
 

@@ -1100,3 +1100,11 @@ M1 原件证明隔离补充短合同（2026-10-24，修改前）：独立审查�
 提交527e78ca9的正常CI `40102013736` 已通过全部已执行job及Verify，Linux安全2/2明确本文件一次12/12；条件未触发的Linux probe为skipped，不算通过。这是上述夹具修正前的CI证据，修正后的最终head仍须正常CI与完整Full suite；本机定向通过、旧CI和用户资源额度批准均不替代该门。
 
 交付依赖说明：#1198是独立主干样式修复，不改变Memory存储、原件、形成或召回合同，因此其视觉诊断与#1064工程交付并行，各自保留完成门；不把#1198的失败算作通过，也不据此宣布P0产品验收完成。Todo准确c609专用诊断树同代码A1/A2在原零阈值下重现完全相同的11个像素差（坐标、RGBA方向均一致），证明差异无需该CSS补丁也能发生；原因仍UNKNOWN，原正式视觉比较仍红。原只读基线写入诊断被自动审批拒绝后已恢复干净，后续仅使用独立临时树；未改图、掩膜、阈值或产品。#1064仍须自身所有阻塞、最终普通CI与完整Full suite通过后才能合并，所有未完成P0切片与产品/用户验收继续保留。
+
+### #1064 最终平台补验与 Coding 授权夹具（2026-10-25）
+
+准确提交 `ebdb0d312044741f2a8ad5ff7bc2ff7cbfff08c8` 的正常 CI `40103927554` 全部已执行作业及 Verify 通过；条件未触发的 Linux probe 仍为 skipped。安全 2/2 中搜索撤权文件一次 12/12。Linux 排除集仍为原 27 个 macOS 文件；按旧已验 `24b1266af` 至本提交的真实调用链差异重跑 17 个受影响文件，全部通过，jobs1/retries0，其余 10 个未变路径沿用原准确提交证据。日志 `/private/tmp/molis-memory-ebdb-macos-affected-20261024.log` 与 `/private/tmp/molis-memory-ebdb-macos-studio-20261024.log`。原 dependency live 1 项和 native tool 2 项跳过仍为未验证，不算通过；Studio 使用本地脚本模型，不是真实供应商质量验收。
+
+本提交免费 B2 preflight 显示树与构建干净、已装 SDK94 来源一致，离线 20 行执行完成且 modelCalls=0。结果 `/private/tmp/molis-memory-b2-preflight-ebdb-20261024.json` 与 `/private/tmp/molis-memory-b2-offline-ebdb-20261024.json`。离线显式读取仍可包含无关记忆，只证明实际覆盖的确定性读取，不证明自动任务召回质量或 token 收益；未运行付费 B0/B1/B2 对照，§9 门槛不变。
+
+完整 Full suite `40103925781` 尚未全部结束时，第 9 片明确 86/87、`coding-action-cards.e2e.test.ts` 失败，原有一次重试仍失败。原文件在固定 Node24.14、本机构建也复现同一动作选项等待失败；生产读取口确认夹具手写的 MCP v2 缺少当前 v3/generation，报 `actions.configuration_unavailable` 且保留原文件。该夹具与主干612相同，不是 Memory 产品授权回归。最小修复只把原授权设置改走现受保护 `/api/settings/mcp/actions` HTTP 入口，让当前 owner 派生权限及 generation；不手造配置、不改生产代码、原时限、卡片编辑、只执行一次和唯一 Goal 断言。原文件单次复验 1/1 通过，零重试。红例、具体配置拒绝与绿例分别在 `/private/tmp/molis-memory-1064-ebdb-coding-action-cards-permitted-20261025.log`、`-coding-old-grant-read-20261025.log`、`-coding-action-cards-owner-grant-20261025.log`；首次沙箱 listen EPERM 单独保留，不当产品失败。其余云端分片继续收集，不取消来隐藏失败；修正后最终提交仍须完整 CI 和全量通过，不能沿用旧 head 绿色结论。

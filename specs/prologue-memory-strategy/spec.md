@@ -1202,3 +1202,9 @@ Coding 归档交付前统筹复核（2026-10-24）：已独立核真实 backend/
 
 
 #1196批准后验证完成：整体build、实际资源update/check、原资源门回归171/171、health对精确父8386b2355、boundary、secrets/diff全部通过。结果 `/private/tmp/molis-coding-archive-approved-assets-20261024.results.json`。生产源码与原功能回归状态不变，只有上述批准资源脚本、预算与本记录更新，未机械重跑不变功能路径。父链、最终集成CI与完整P0验收仍未完成，保持Draft。
+
+
+#1196 助理消费 Coding 现行动作版本的补充短合同（2026-10-24，修改前）：本片已把 coding.sessions.update 升为v2，助理 CodingExecutor 的固定版本仍是v1，导致真实目录发现时把已安装Coding误报不可用，首次保存配置和模式切换无法继续。现 assistant-coding-executor 用例从公开 codingRouteActions 读取生产版本，已在原b4e952eab构建上实际复现失败；不新增测试替身版本、兼容回落或配置。仅把既有消费者精确版本同步为v2，保留同一发现/授权/执行链，输入、SDK、UI、资源与归档语义不变；范围为assistant-coding.ts的一处常量及本记录。验收为原合同整文件、相关助理后续调用与Local Host README必跑、构建和准确父各门通过；原失败日志 `/private/tmp/molis-memory-1196-coding-consumer-red-20261024.log` 保留，验证前不宣称修复。
+
+
+#1196 消费版本补充验证（2026-10-24）：初次生产版本回归仅2/12通过，改为现行v2后原整文件12/12通过。Local Host README及相关58文件首轮57文件通过，followup-deletion中两个阶段等待超时；已定位其夹具把所有Coding动作硬编码v1，故未进入现行v2处理器。范围只补为从公开codingRouteActions读取真实版本，不改原取消/删除断言、等待时限或业务行为；随后原两文件20/20通过，包含删除期间零新增轮次与原持久化结果。整体build、根类型、health精确父8386b2355、boundary、API/Action、实际资源、secrets/diff均通过，资源仍为既批准coding.js+570 B，其余不变。日志保留 `/private/tmp/molis-memory-1196-coding-consumer-validation-20261024.results.json` 与 `...-related.log` 的初次失败，以及 `/private/tmp/molis-memory-1196-coding-consumer-fixture-recheck-20261024.log` 的定向复验。当前远端main c609已将Coding专用执行器改为通用WorkExecutor；该新主干的集成由#1064处理，本片基于SDK100父链的结果不证明新主干已通过，也不恢复已退役专用入口。

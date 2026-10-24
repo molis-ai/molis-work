@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 function reply(): Response {
@@ -117,7 +118,7 @@ for (const stage of ["state", "sessions.update", "runs.start"] as const) {
     let key = "", held = false;
     const names = ["state", "sessions.create", "sessions.read", "sessions.update", "runs.start", "runs.control"];
     const definitions: ActionDefinition[] = names.map(name => { const query = name === "state" || name === "sessions.read";
-      return { capability_id: `coding.${name}`, version: 1, operation: query ? "query" : "command", action: { title: name,
+      return { capability_id: `coding.${name}`, version: Object.values(codingRouteActions).find(entry => entry.definition.capability_id === `coding.${name}`)!.definition.version, operation: query ? "query" : "command", action: { title: name,
         description: name, kind: query ? "query" : "operation", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [],
         input_schema: { type: "object", additionalProperties: true } } }; });
     local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.coding", kind: "plugin", title: "Coding fixture" }, definitions,

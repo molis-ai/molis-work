@@ -1956,6 +1956,8 @@ README 与实际影响面精确去重77普通+2browser，文件/分类/命令输
 Assistant合入新父后的限定结果（2026-10-25）：231bd698e窄cherry为0aaf82f7c，仅spec追加冲突双方保留；源码13文件，原提交两生成快照在汇总已存在而无新增差异。整体build0，按`/private/tmp/molis-memory-p0-aggregate-20261025-assistant.plan.json`的10普通+2browser、jobs2/browser1/retries0，12/12文件113例通过（`-assistant-delta.log/results.json`）；包含真实Memory、生命周期、线程、通用执行方、委托、定时/删除、原件、Characters和S-62及README两browser。根/工作区类型、boundary、准确93b health、资源、secrets均0，API/Action实际生成unchanged（`-assistant-gates.results.json`）。health生成仅Service文件1829→1826、类1472→1469，89方法不变；资源仍27项7,672,595及原四项净增。此结果只覆盖冻结0aaf；独立评审另发现bindSession在SDK createSession等待后缺原authority.assertBeforeStart同步复核，原owner正在以实际屏障取得红例并修复，未将本轮绿判为该接缝已关闭。后继必要修复另按影响补验，不中途修改此批或删除首败。
 本地交接：源码/测试/短合同提交为 `231bd698e05a323dd2a2904a5bdc918c9f1ae434`，准确编译依赖基点 `817aa497b9`；提交后 `node scripts/check-secrets.mjs --base 817aa497b` 扫描本刀872新增行，结果0，日志 `/private/tmp/molis-memory-assistant-lifecycle-final-secret-commit-20261025.log`。本刀状态干净，未 push/另开 PR。统筹告知两处未改路径已在聚合修复；本刀原73批的两文件首败仍保留，不将聚合结果倒算成本树73全过。
 
+聚合后续责任边界（2026-10-25）：SDK100下完整项目删除协调仍待实现，现有registerMemoryProjectDeletion/purgeProjectMemories接线不代表项目、Session与Memory清理全链已闭合。previewAdoptionCleanup及App的previewMemoryHomeAdoptionCleanup属于原采用的停写维护期：必须满足独占写主人、固定原决定、原授权与关闭/重开合同；公开函数可调用不构成在线使用许可，不能挪为运行中项目删除的扫描或清理入口。后续应优先完成目标Memory清理并确认原结果，再进行Session purge；旧孤儿记录、缺owner记录及墓碑覆盖在该完整删除链仍待验证。维护切片已有故障/墓碑测试的局部通过不替代上述在线删除链验收。UI归档入口、完整项目删除及这些待验项继续属于原P0，当前大PR整合与工程门通过绝不等同P0全部完成。
+
 收束后评审增量合同（2026-10-25，修改前）：上述231状态仍有两处归档闭环待核实和修复，不以先前通过替代。第一，真实 SDK createSession 已提交、返回等待期间原 threads.start 调用撤权，Work 绑定前必须同步调用原 authority.assertBeforeStart；保留已经创建的 SDK Session，不绑定 Work、不新增 Run/回复。复用 requireSynchronous 和已有授权口，不增加锁或补偿删除。第二，followUps.save 在等待 schedule 时或 stopForArchive 的快照遍历中加入的新安排，不得留成归档 Work 的 enabled/queued 项。先真实屏障红例，再在 save 等待返回后核对当前 Work 及既有生命周期占用；复用迟到入队的原记录检查/取消，不依赖将来 tick，不改变 remove/tick 的无关语义。沿当前文件和依赖口装配，无新 ledger、owner、SDK、UI 或公开平台合同。两处最终源码一起构建，只补直接影响回归，保留原73批和两 browser证据及失败边界。
 
 评审增量真实结果：HTTP threads.start 的实际 AgentHost.createSession 已完成、返回屏障中撤销原 caller.assert_authority_current，原实现虽然返回 actions.revoked，却已把 Session id 写入 Work，`session_id === null` 的独立持久断言失败。SDK Session 本身可读、runs 为空；有效红日志 `/private/tmp/molis-memory-assistant-bind-authority-corrected-red-20261025.log`。首次测试误读 SDK view.session_id 而非 view.session.session_id，失败日志 `...-bind-authority-red-20261025.log` 保留，不算有效产品红。生产仅在既有 bindSession 的 Work 绑定前 requireSynchronous 原 authority.assertBeforeStart；不删除已创建 Session，不额外写业务轮次。
@@ -1979,3 +1981,8 @@ node scripts/gates/api-snapshot.mjs
 node scripts/gates/action-contract-snapshot.mjs
 node scripts/check-secrets.mjs --base 817aa497b
 ```
+
+
+最终必要权限修复在聚合验证（2026-10-25）：按序接f204facbd为22414f4d4、40d916464为bcb5b988d，只spec交接追加冲突保留双方；231不重复，产品8文件原样。真实SDK返回后同步复核原authority.assertBeforeStart与required assertCanSchedule复用既有控制口，原enqueue/tick/remove未改；红例与owner四文件结果见上文，不以旧12文件绿色代替新交错。整体build一次exit0（19.27s），最终仅三文件assistant-work-lifecycle17、assistant-thread-reply4、assistant-followups-collaborator5，共3/3文件26/26例、jobs2/retries0通过；无新browser变化，复用刚完成的12文件113例与原owner有效证据。
+
+最终根/LocalHost包类型、准确93b health、boundary、API/Action实际生成、资源及完整分支secrets/diff均exit0；API/Action unchanged，SDK100/锁与三read@3/start@2不变，资源仍新父7,641,839→7,672,595及原四项净增长。最新索引`/private/tmp/molis-memory-p0-aggregate-20261025-build-final-authority.results.json`、`-final-authority-delta.results.json`、`-final-authority-gates.results.json`；相邻同stem日志保留实际命令与结果。源码候选仅本地提交，未push/新PR/关闭Draft，完整共享全量及PR处置由统筹负责。此前MEM-SOURCE-01未知首败、完整项目删除和上述维护/purge边界继续保留，不宣称P0全部完成或用户验收通过。

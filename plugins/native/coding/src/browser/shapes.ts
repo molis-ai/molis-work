@@ -7,7 +7,7 @@ export interface StepNode {
   readonly title?: string;
   readonly state: string;
   readonly inserted?: boolean;
-  readonly owner?: { readonly kind: string; readonly label?: string; readonly expired?: boolean };
+  readonly owner?: { readonly kind: string; readonly label?: string; readonly expired?: boolean; readonly subagent_id?: string };
   readonly depends_on?: readonly string[];
   /** The supplements that asked for the step. */
   readonly origins?: readonly { readonly input_id: string }[];
@@ -20,6 +20,7 @@ export interface PlanEntry {
   readonly run_id: string;
   readonly revision: number;
   readonly board_error?: unknown;
+  readonly error?: string;
   readonly board?: { readonly project_id: string; readonly version: number; readonly terminal?: boolean; readonly nodes: readonly StepNode[] };
   readonly plan?: { readonly content: { readonly title?: string; readonly steps: readonly { readonly title: string; readonly acceptance: string }[] } };
   readonly verdicts?: Readonly<Record<string, StepVerdict>>;
@@ -34,3 +35,12 @@ export interface SessionRead {
   readonly recovery_required?: boolean;
   readonly checkpoint_busy?: boolean;
 }
+
+/** What a person may change on a round's step graph; the Host checks each against the graph's version. */
+export type Amendment =
+  | { kind: "insert"; after: string; title: string; acceptance: string; origin?: string; mine?: true }
+  | { kind: "move"; node: string; direction: "up" | "down" }
+  | { kind: "unblock"; node: string; note: string }
+  | { kind: "skip"; node: string; reason: string }
+  | { kind: "assign"; node: string; to: "me" | "session" }
+  | { kind: "resolve"; node: string; state: "succeeded" | "failed"; note: string };

@@ -171,7 +171,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // directory on a narrow screen does not end it: the faces there describe the session the person just left.
   let sessionOnShow=false;
   const onShow=()=>sessionOnShow&&Boolean(current);
-  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board:q('[data-coding-board]'),outline:directory.querySelector('[data-coding-board-outline]'),current:()=>current,onShow,status,ownTask,from:node=>inputReceipts.from(node,()=>showBoard(false)),roleName:id=>ROLE_NAMES[id]||id||'Agent',
+  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,board:q('[data-coding-board]'),outline:directory.querySelector('[data-coding-board-outline]'),current:()=>current,onShow,status,ownTask,from:node=>inputReceipts.from(node,()=>showBoard(false)),roleName:id=>ROLE_NAMES[id]||id||'Agent',
     progress:text=>{const count=q('[data-coding-view-board-count]');count.textContent=text?' '+text:'';count.hidden=!text;},
     amend:async(runId,version,amendment,live=true)=>{
       const id=current;
@@ -198,7 +198,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(target.kind==='child')node.open=true;
     if(turns.contains(node))follow.release();node.scrollIntoView({block:'nearest'});node.tabIndex=-1;node.focus({preventScroll:true});
   }});
-  const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({...ports,roleLabel:id=>ROLE_NAMES[id],openStep:(runId,stepId)=>stepReports.open(current,runId,stepId),from:node=>inputReceipts.from(node),stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:state=>host.receipts.step(state)});
+  const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({...ports,roleLabel:id=>ROLE_NAMES[id],openStep:(runId,stepId)=>stepReports.open(current,runId,stepId),from:node=>inputReceipts.from(node),word:state=>host.receipts.step(state)});
   const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({...ports,roleName:id=>ROLE_NAMES[id]||id||'Agent',openIntegration:integrations.open,usageSummary:usage=>codingUsageSummary(usage,L),prepareRework:async(id,runId,child,notes)=>{
     if(current!==id)return;
     const instruction=L('coding.rework.instruction',{subagent:child.subagent_id,run:runId,path:child.workspace_path,task:child.task,notes});

@@ -1,4 +1,4 @@
-import { el, errorMessage } from "./dom.js";
+import { el, errorMessage, part } from "./dom.js";
 import type { Child } from "./subagents.js";
 import type { PagePorts, ShowReviews, TimelineApi, Translate } from "./types.js";
 
@@ -27,12 +27,6 @@ export interface SubagentCards {
 }
 
 const WRITES = ["edit", "write"];
-
-const part = <Found extends HTMLElement = HTMLElement>(node: Element, selector: string): Found => {
-  const found = node.querySelector<Found>(selector);
-  if (!found) throw new Error("subagent card: " + selector);
-  return found;
-};
 
 const phaseOf = (child: Child) => child.state === "running" ? "running" : child.state === "completed" ? "completed" : child.state === "failed" ? "failed" : "stopped";
 const markOf = (child: Child) => child.state === "running" ? "running" : child.state === "completed" ? "round-ended" : child.state === "failed" ? "failed" : child.state === "reconcile-required" ? "verify" : "stopped";

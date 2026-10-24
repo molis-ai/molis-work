@@ -1,5 +1,6 @@
 import { el, errorMessage } from "./dom.js";
-import type { PlanEntry, StepNode } from "./shapes.js";
+import type { Amendment, PlanEntry, StepNode } from "./shapes.js";
+import { settled, skipped, stepOf } from "./taskboard-steps.js";
 import type { PagePorts, Translate } from "./types.js";
 
 /** The round the progress belongs to, as far as the card reads it. */
@@ -15,9 +16,6 @@ export interface ProgressPorts extends Pick<PagePorts, "lifetime" | "translate" 
   readonly openStep: (runId: string, stepId: string) => void;
   /** The receipt link of a step the person's words started, when there is one. */
   readonly from: (node: StepNode) => Node | null;
-  readonly stepOf: (plan: PlanEntry["plan"], node: StepNode) => { readonly title: string; readonly acceptance?: string };
-  readonly skipped: (node: StepNode) => boolean;
-  readonly settled: (node: StepNode) => boolean;
   /** A step state in the page's word. */
   readonly word: (state: string) => string;
   /** The name of a round's role, when the page knows the role. */
@@ -28,15 +26,6 @@ export interface PlanProgress {
   /** The card of a round's plan graph, or null when the round has none. */
   render(run: ProgressRun, entry: PlanEntry | undefined, live: boolean, latest?: boolean): HTMLElement | null;
 }
-
-/** What a person may change on the graph; the Host checks each against the graph's version. */
-type Amendment =
-  | { kind: "insert"; after: string; title: string; acceptance: string; origin?: string }
-  | { kind: "move"; node: string; direction: "up" | "down" }
-  | { kind: "unblock"; node: string; note: string }
-  | { kind: "skip"; node: string; reason: string }
-  | { kind: "assign"; node: string; to: "me" | "session" }
-  | { kind: "resolve"; node: string; state: "succeeded" | "failed"; note: string };
 
 /** An input of the inline form: its name, placeholder, longest text and starting text. */
 type FormField = readonly [name: string, placeholder: string, max: number, value?: string];
@@ -148,7 +137,7 @@ function holderText(L: Translate, value: NonNullable<StepNode["owner"]>) {
 
 /** The step's state: the verdict when the person has given one, else what the graph says. */
 function stateMark(d: Drawing, node: StepNode, decided: string | null) {
-  const { ports, run } = d, { translate: L, skipped, word } = ports;
+  const { ports, run } = d, { translate: L, word } = ports;
   const state = el("span", "", "coding-board-state coding-plan-state");
   state.dataset.tone = decided === "accepted" ? "accepted" : decided === "needs-work" ? "attention" : skipped(node) ? "quiet" : TONE[node.state] || "idle";
   const running = node.owner?.kind === "person" ? "doing" : ["starting", "running", "compacting"].includes(run.phase) ? "running" : ({ paused: "paused", pausing: "paused", "awaiting-input": "answer", "awaiting-review": "approval" } as Readonly<Record<string, string>>)[run.phase] || "doing";
@@ -161,7 +150,7 @@ function stateMark(d: Drawing, node: StepNode, decided: string | null) {
 
 /** What the step waits for, as a chip. */
 function depsChip(d: Drawing, node: StepNode) {
-  const { translate: L, settled, stepOf } = d.ports;
+  const { translate: L } = d.ports;
   const deps = (node.depends_on || []).map(id => d.board.nodes.find(other => other.id === id)).filter((dep): dep is StepNode => Boolean(dep));
   const waiting = deps.filter(dep => !settled(dep)), stuck = waiting.filter(dep => ["failed", "blocked"].includes(dep.state));
   const chip = el("span", "", "coding-board-deps " + (!deps.length ? "is-empty" : stuck.length ? "is-blocked" : waiting.length ? "is-waiting" : "is-ready"));
@@ -237,8 +226,8 @@ function stepTools(d: Drawing, row: HTMLElement, node: StepNode, index: number, 
 
 /** A row in the TaskBoard's grammar: state, prerequisites, when it last moved and who is doing it. */
 function stepRow(d: Drawing, node: StepNode, index: number) {
-  const { ports, entry, board } = d, step = ports.stepOf(entry.plan, node), row = el("li", "", "coding-board-item coding-plan-step");
-  row.dataset.state = ports.skipped(node) ? "skipped" : node.state;
+  const { entry, board } = d, step = stepOf(entry.plan, node), row = el("li", "", "coding-board-item coding-plan-step");
+  row.dataset.state = skipped(node) ? "skipped" : node.state;
   row.dataset.step = node.id;
   if (node.inserted) row.dataset.inserted = "true";
   const verdict = entry.verdicts?.[node.id], decided = verdict && verdict.board_version === board.version ? verdict.status : null;
@@ -255,7 +244,7 @@ const offersOf = (run: ProgressRun, board: Board) => {
   return (run.turns || []).filter(turn => turn.steer?.model_claim?.treatment === "new-task" && !taken.includes(turn.steer.id));
 };
 
-function drawHead(L: Translate, card: HTMLElement, entry: PlanEntry, board: Board, skipped: ProgressPorts["skipped"]) {
+function drawHead(L: Translate, card: HTMLElement, entry: PlanEntry, board: Board) {
   const total = board.nodes.filter(node => !skipped(node)).length, done = board.nodes.filter(node => node.state === "succeeded").length;
   const head = el("header", "", "coding-plan-head");
   head.innerHTML = svg("list");
@@ -277,7 +266,7 @@ function drawOffers(d: Drawing, list: HTMLElement, offers: ReturnType<typeof off
 function drawCard(ports: ProgressPorts, card: HTMLElement, run: ProgressRun, entry: PlanEntry, board: Board, live: boolean, latest: boolean) {
   const L = ports.translate;
   card.replaceChildren();
-  drawHead(L, card, entry, board, ports.skipped);
+  drawHead(L, card, entry, board);
   // The latest round's unfinished graph stays open to change after the round ends: a blocked step is decided, a
   // step skipped or added, and "继续计划" carries on from the graph as changed.
   const editable = (live || latest) && !board.terminal, list = el("ul", "", "coding-board-tree coding-board--compact coding-plan-steps");

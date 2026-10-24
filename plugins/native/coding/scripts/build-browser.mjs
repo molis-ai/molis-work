@@ -18,6 +18,7 @@ const pieces = [
   { out: "plan-progress-bundle.js", module: "plan-progress", create: "planProgress" },
   { out: "changeset-bundle.js", module: "changeset", create: "changesetClient" },
   { out: "cooperation-bundle.js", module: "cooperation", create: "cooperationClient" },
+  { out: "taskboard-bundle.js", module: "taskboard", create: "taskboard" },
 ];
 
 const shared = { bundle: true, format: "iife", platform: "browser", minify: true, charset: "utf8", logLevel: "warning" };

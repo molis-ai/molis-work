@@ -13,3 +13,10 @@ export function el<Tag extends keyof HTMLElementTagNameMap>(tag: Tag, text = "",
 export function errorMessage(error: unknown): string {
   return error !== null && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : String(error);
 }
+
+/** A part the page's markup always has under a node; a missing one is a bug in the page, so it throws. */
+export function part<Found extends HTMLElement = HTMLElement>(node: ParentNode, selector: string): Found {
+  const found = node.querySelector<Found>(selector);
+  if (!found) throw new Error("missing part: " + selector);
+  return found;
+}

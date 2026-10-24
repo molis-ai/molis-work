@@ -1,5 +1,7 @@
 # 四线交接（2026-10-14）
 
+> **2026-10-23（洛杉矶）最新分工：** 一骏已指定 Codex 全线统筹承担防腐 PR 合并，并把评审、测试、修复分别派给专职会话。会话入口、职责及第一批派单见 [CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。旧的有效技术裁定与评审/验证证据保留；涉及本批 Draft 和执行分工的旧文字以这份最新授权为准。
+
 Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回执、跨插件 AI 交互、情境动作。上一份交接是 [`coordination/2026-10-13/README.md`](../2026-10-13/README.md)（同一分支，规则原话、X1–X6 跨线约定、合并条件都在那里，仍然有效）；这一份只写 10-13 之后变了什么、现在停在哪、下一步谁做什么。
 
 本目录只在远端分支 `coordination/handoff-2026-10-14` 上，不开 PR、不合进 main。本机路径（`/Users/yijunwang/...`、`~/code/prologue-*`、`.claude/worktrees/...`）只在原机器上有效。

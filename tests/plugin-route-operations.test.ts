@@ -121,25 +121,23 @@ test("the shared route operations know no plugin: they are the only place that r
   assert.doesNotMatch(shared, /io\.molis\.work\./);
   assert.doesNotMatch(shared, /@molis-ai\/molis-work-plugin-(?!(?:runtime|sdk)\b)/);
   assert.doesNotMatch(shared, /@molis-ai\/molis-work-module-/);
-  const hooks = await readFile(path.join(repoRoot, "apps/local-host/src/project-plugin-input-refresh.ts"), "utf8");
   const entry = await readFile(path.join(repoRoot, "apps/local-host/src/project-plugin-http.ts"), "utf8");
   for (const operation of [/supervisor\.restart\(/, /platform\.upgrade\(/, /\.viewRevision\(/]) {
-    assert.doesNotMatch(hooks, operation, "the route hooks hand these to the shared operations");
     assert.doesNotMatch(entry, operation, "the project's entry hands these to the shared operations");
     assert.match(shared, operation);
   }
 });
 
-test("PG037-01: the project's plugin entry names no plugin; what the Host adds around it comes in from the caller (route operations)", async () => {
+test("PG037-01: the project's plugin entry names no plugin and takes no step of any plugin from its caller (route operations)", async () => {
   const entry = await readFile(path.join(repoRoot, "apps/local-host/src/project-plugin-http.ts"), "utf8");
   assert.match(entry, /export async function handleProjectPluginHttp\(/);
   assert.doesNotMatch(entry, /io\.molis\.work\./, "no plugin id is written in the entry");
   assert.doesNotMatch(entry, /@molis-ai\/molis-work-plugin-(?!(?:runtime|sdk)\b)/);
   assert.doesNotMatch(entry, /@molis-ai\/molis-work-module-/);
-  assert.doesNotMatch(entry, /coding-surface|_PLUGIN_ID\b/, "plugin-specific steps are handed in as hooks");
+  assert.doesNotMatch(entry, /coding-surface|_PLUGIN_ID\b|hooks/, "no plugin-specific step is written in the entry or handed to it");
   assert.equal(existsSync(path.join(repoRoot, "apps/local-host/src/coding-surface.ts")), false, "the Coding surface is gone (RAC-433)");
   const routes = await readFile(path.join(repoRoot, "apps/local-host/src/web-project-platform-routes.ts"), "utf8");
-  assert.match(routes, /handleProjectPluginHttp\(request, response, url, pluginPorts, filesOutputsRefresh\)/);
+  assert.match(routes, /handleProjectPluginHttp\(request, response, url, pluginPorts\)/);
   // Whether a plugin runs is read from the supervisor per plugin, not from one flag the Coding surface kept.
   const plugins = await readFile(path.join(repoRoot, "apps/local-host/src/project-plugins.ts"), "utf8");
   assert.doesNotMatch(plugins, /\brunning\??: boolean/);

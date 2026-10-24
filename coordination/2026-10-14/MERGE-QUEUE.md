@@ -55,6 +55,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1176](https://github.com/molis-ai/molis-work/pull/1176) | 统筹：BACKLOG 加 BL-543（设置地址只转声明参数，R-42）、BL-544（侧视图加载守护） | — | 纯文档 | 头 `cb8795f57`（合 main 解 BACKLOG 冲突，两边并列）；自动合并已设 |
 | 新 | [#1178](https://github.com/molis-ai/molis-work/pull/1178) | `ac-giants` W5-10 R4a：设计系统 4 个巨大单元纯搬移 | — | 进下一批（改 `packages/design-system`，有 full） | 头 `203dd7679`；交 ac-review（07:00 UTC）；浏览器与全量交 CI 批 |
 | 新 | [#1179](https://github.com/molis-ai/molis-work/pull/1179) | `ac-giants` W5-10 R4d | — | 进下一批（有 full） | 头 `bbc790f62`；排在 #1178 后交 ac-review；`ac-giants` 在审已满两个，暂不开新 PR |
+| 新 | [#1180](https://github.com/molis-ai/molis-work/pull/1180) | `ac-clients-1` W5-03/04 灵光页面客户端（稳定键、打包类型检查） | 叠在 #1169（base `ac-r11-intake`）；#1169 合入后改 base 为 main | 进下一批（有 full） | 头 `5e26ba1ef`；本机跑过 4 个灵光浏览器文件；7 个未跑的列在「待测（交 Codex 测试专职）」；排在 #1179 后交 ac-review |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 

@@ -1183,10 +1183,12 @@ M3 分类策略跟进最新分类纠正父（2026-10-24）：已合入 #1111 `85
 
 精确父 health、boundary、API/Action、资源、secrets、diff 均通过；结果索引 `/private/tmp/molis-memory-classification-parent7c-20261024.results.json`。实际27资源共7,801,556 B，workbench.js为1,202,971 B，恰为父1,197,336 B加原批准5,635 B，其余26项相同。SDK94/vendor/lock沿父，无额外包切换或额度。父 Home 侧栏修复已通过本片实际浏览器；toast悬停对比度独立修复为 Draft #1198，资源各7 B待批准。#1064完整全量及CI固定版本问题仍未关闭，以上为本片工程与覆盖路径验证，不代表 main、完整P0或用户验收。
 
-### #1153 最新分类纠正父接入（2026-10-24，验证中）
+### #1153 最新分类纠正父接入（2026-10-24，定向工程验证完成）
 
 从本片 `8f956fa89661a50e0c7a3e0d7b64494cdc01cb07` 合入正式父 #1111 `825bedbf088d145067e3dde2bc270dd8fe333603`。仅追加 spec、资源脚本和预算三处冲突，生产源码与公开快照自动合并；保留 SDK95 正式包及其来源，锁文件自动继承父 Cognia 的 esbuild 依赖。SDK 来源测试同步实际 #95 head/merge、已删除历史包32项及来源42项，保留原41项历史审计时点，不变更包或来源记录。
 
 本片原批准 workbench 增长仍为3,024 B，按父实测1,202,971 B重新绑定上限1,205,995 B，其他资源随父；该值暂为上限算术，构建后以实际测量为准。验证沿分类限制/形成、SDK当前授权、Coding真实入口、分类编辑、分页/CAS与设置页，README必跑及受影响父Home侧栏/frame路径；普通jobs=2、browser=1、retries=0，保留首次失败与修正结果。计划 `/private/tmp/molis-memory-category-parent-integration-20261024.plan.json`，结果沿同名前缀记录。当前尚未完成集成验证，不把父证据或此前绿色当成本次结果，不宣称完整P0或用户验收。
 
 本轮安装、整体构建、根与工作区类型通过；77/77 普通文件（803/803 项）及16/16浏览器文件（66/66项）零重试通过，含实际Coding HTTP分类策略、当前权限、分类形成、非空分页、分类纠正、CAS23项、Home侧栏与frame就绪及工作台README动线。SDK95来源回归78/78通过；本轮未出现新的测试失败，父链原失败记录保留。boundary、API/Action快照与diff通过。实际27资源共7,804,580 B，只有workbench从父1,202,971 B增至1,205,995 B，恰为原批准3,024 B，另外26项逐项等于父；没有额外资源额度。结果 `/private/tmp/molis-memory-category-parent-integration-20261024.results.json`。合并提交后再跑准确父health、资源与提交级secrets，避免未提交合并仍使用旧merge-base；未运行共享全量或真实付费模型，不代表完整P0或用户验收。
+
+合并产品提交 `1bf858e0e27ef0e7c1338d1d95844412d2c5d7e0` 后，health、资源、提交级secrets及diff均通过，工具确认merge-base正是`825bedbf088d145067e3dde2bc270dd8fe333603`；最终门索引 `/private/tmp/molis-memory-category-parent-integration-final-20261024.results.json`。SDK95 archive、SHA、provenance与patch-history逐blob保持合并前一致，锁文件只有父Cognia新增esbuild的4行。本轮源码没有额外产品修复，来源测试只同步已确认事实。上述是当前切片工程与已覆盖Chrome路径证据，未运行完整共享全量、真人使用或用户验收；toast独立修复不包含在此树。

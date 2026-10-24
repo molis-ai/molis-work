@@ -119,6 +119,23 @@ S8b 不依赖平台前置，可以现在做。S9 存储搬迁按表组拆三个�
 
 **待用户确认的问题**（统筹汇总）：是否做这次改名；与 W5-17 同窗口；是否允许先对真实 Home 的备份拷贝演练一次。回答之前 S9「事件与治理」那一组的名字改动不合入。
 
+## 6b. 统筹 10-24 裁：Goals 读日志的现状清单与跨插件数据的通道
+
+**裁定**：日志是各主人自己的存储，插件只读自己命名空间的事件（S-63，RAC-282，已推送），不加 Manifest 字段，也不借 `events.subscribes` 声明日志类型。数据要跨到别的插件，走公开通道：对方在事件总线上发布事件，Goals 用 `events.subscribes`（带版本、`from_plugin_ids`）订阅；是事实就调对方的查询动作。S9 之前 Goals 只读得到自己的事件没有用户可见的变化（Goals 还是宿主装配的）。
+
+**今天 Goals 的游标和活动流读到什么**（读了 `modules/goals`、`modules/governance-collaboration`、`plugins/native/goals`、`apps/local-host/src/goals-actions.ts`、`apps/workbench` 里所有读日志与游标的地方，并扫了所有非 Goals 的 `appendEvent` 写入点）：
+
+| # | 读到的 | 谁读 | 是不是跨插件 | S9 之后走的路 | 归 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Goals 自己写的事件类型：`goal.created`、`goal.updated`、`goal.accepted`、`goal.trashed`、`goal.restored_from_trash`、`goal.event_config.*`、`goal.event_state.*`（含 `closure_submitted`）、`goal.work_event.recorded`、`relation.*`、`goal_tree_proposal.*`（`decided` 等）、`board.*`、`planning.method_saved`、`policy.project_defaults_saved`、`project.guidance_added`；对象类型 `goal`、`relation`、`goal_work_event`、`goal_tree_proposal`、`board` 等 | 目标文档的历史与时间线（`mapJournalHistoryItems`、`createGoalDocumentIndex`）、动量（`goalActivityTimes` 按前缀 `goal.work_event.`、`goal.event_state.`、`goal.event_config.`、`relation.`）、决策结果（`goal_tree_proposal.decided`）、收尾判定（`isAppliedGoalCompletion`） | 不是，都是 Goals 自己写的 | 不需要通道。随第 6a 节的改名带上 `io.molis.work.goals.` 前缀，读成「自己命名空间的事件」 | ③ 本线，S9「事件与治理」那一组 |
+| 2 | `contract_` 前缀（`momentum-cadence.ts` 的 `PROGRESS_EVENT_PREFIXES`） | 动量 | 没有任何写入点写这个前缀，是死前缀 | 删掉 | ③ 本线，同上 |
+| 3 | `inbox_entry.*`（`inbox_entry.created` 等） | Goals 只写不读：现在由 `goal-project-application.ts` 经注意力模块写，S9-0b 之后由平台服务写；条目本身 Goals 经 `services.attention` 读，不读日志里的这些行 | 不是读 | 不需要通道 | ③ |
+| 4 | 别的写入者的事件：`artifact.*`/`process_item.*`（成果库）、`feed_source` 和 Feed 条目、`judgment`（首页）、项目与工作区、上下文绑定、Work 的交接与终端记录 | 历史按 Goal 和关系的 id 取事件，只会取到 Goals 自己的行；没有别的写入者拿 Goal 或关系的 id 当 `object_id` | 现在不读 | 不需要通道。S9 加一条对照测试：把日志缩成只有自己命名空间的事件，历史、动量、决策结果、时间线的输出不变（演示项目） | ③ |
+| 5 | 游标 `eventCursor`：全日志 `MAX(seq)`，约二十处，作 `observed_event_cursor`、`base_event_cursor`、确认有效性检查（`event-acknowledgement.ts` 拒绝大于当前游标的值） | Goals 的命令与查询、治理的提案基线、页面 | **是，实际上是**：任何插件的事件都推进它 | Goals 用自己的游标（日志端口 `eventCursor()`，自己事件的末尾）。混用风险要消掉：页面把宿主拼出来的 `view.snapshot.cursor`（全日志）当 `observed_event_cursor` 回传 Goals 的命令（`capsule.ts`），刷新判断拿 `/api/board/cursor`（宿主路由，全日志）对比 `snapshot.cursor`（`refresh-decisions.ts`）。所以三处要同一来源：`snapshot.cursor` 取 Goals 查询给的游标，`/api/board/cursor` 进 Goals Manifest 声明的路由并返回 Goals 的游标。通道是 **Goals 自己的查询动作**，不用总线 | ③ 本线（路由与查询）；拼页面的宿主端最小改动也由本线做，页面拼装整体归 S11 |
+| 6 | `/api/attention` 的 `board_cursor`（`attention-http.ts`） | 客户端把它当「有变化」的提示，收到后再取 `/api/board/cursor` 精确对比（`initialization.ts`） | 是宿主读自己存储的全项目游标，不是插件读 | 保持全日志、不改：多一次空请求，不会误判 | 不动 |
+
+**没有哪一项两条路都走不通**，所以没有要再问统筹的项。第 5 项是 S9「事件与治理」组里最容易漏的一块：三处游标换成同一来源要和日志读一起改，并带一条拒绝测试（页面带全日志游标回传，Goals 的确认不会把它当作未来的游标拒掉，或者页面的游标就是 Goals 的）。
+
 ## 7. 门禁与风险
 
 - 巨大单元只许变小：搬迁后 `GoalEventState`、`GoalEventFacts`、两个仓库类在新位置仍要在阈值内，不能因为搬家变成「新增的巨大单元」（对 merge-base 不是巨大单元的，登记也不放行）。

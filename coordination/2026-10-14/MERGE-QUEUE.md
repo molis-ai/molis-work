@@ -69,7 +69,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | PR | 合并提交 | 日期 |
 | --- | --- | --- |
-| #1202 | `645853cb60c0c76c4fa86ba27bbbbc0f35ba868a` | 2026-10-24T11:12:45Z（固定c4a40b84；GitHub实际merged；merge-group40088629727/Verify成功，Security/Product在merge-group是skip，适用原PR/full证据另计；tree e7a5a85与已测627e80bf相同；full26b40086400255@c4全16片+汇总success） |
+| #1202 | `645853cb60c0c76c4fa86ba27bbbbc0f35ba868a` | 2026-10-24T11:12:45Z（固定c4a40b84；GitHub实际merged；merge-group40088629727/Verify成功，Security/Product在merge-group是skip，适用原PR/full证据另计；tree e7a5a85与已测627e80bf相同；full26b40086400255@c4全16片+汇总success；独立TEST6383561599原raw/命令/153首过与弃证边界见`/tmp/molis-verify-2026-10-24/pr1202-test-c4a40b84/handoff.md`，流水线已亲读） |
 | #1119（随#1202） | `645853cb60c0c76c4fa86ba27bbbbc0f35ba868a` | 2026-10-24T11:12:45Z（固定3f8fadfb398072e84c24d3a02913592830041d70是c4祖先；源PR由Claude6383513873带SHA关闭，非单独merge） |
 | #1139（随#1202） | `645853cb60c0c76c4fa86ba27bbbbc0f35ba868a` | 2026-10-24T11:12:45Z（固定4dc43440c56486dbf9a3eb79fdfb1a037a6b6268是c4祖先；源PR6383514354关闭，叠层一起落地） |
 | #1143（随#1202） | `645853cb60c0c76c4fa86ba27bbbbc0f35ba868a` | 2026-10-24T11:12:45Z（固定a26ef6d757a32e4c33a11ac27aecd39c56c19cc9是c4祖先；源PR6383514843关闭） |

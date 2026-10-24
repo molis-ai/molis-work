@@ -283,3 +283,7 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 - 10-24 15:00 UTC：**用户弹窗定 S-57 扩展**（PG-045 前置，ac-kernel 稿 `slices/s57-connections-extension.md`，`privdocs/ac-kernel` `8efec423e`）：照稿批准；存量 Feed 账号一次性脚本带过去；`account_label` 删列；真实 Home 那次放同一维护时段。X1～X4 归 ac-kernel（号段 RAC-470～489、BL-595～604），排在 PG-031 宿主余项之后、PG-007 之前；`privdocs/ac-kernel` 并进下一个批 PR。
 
 - 2026-10-24 15:36 UTC 流水线：1162 actual2b253d45/tree da533975=edace/CI5435已核、移§3；1198唯一FIX2已本地1de12b8e整建/91例与三CSS各+7，原3case24态+零阈值66/22一轮待公共browser，有限base固定1162真SHA，后续main交queue。1224已Claude原claim排队，新Search6行与1222/b99S12协议已直派独立增量，不创建重复writer/full/queue。旧BL595预留撤销，595–604听最新Claude给kernel，#784FIX1真实待做及历史保留/提案STALE，实际短窗再鲜定新号。
+- 10-24 15:45 UTC：**#1224 合入 main `112114f23`**（batch-30：#1218、#1216、#1220、#1217、#1219 + ACA005 竞态修复 `337727f97`；Codex 增量 REVIEW 6386074856 通过）。五个切片 PR 已关。#1162（Codex，Pages 弹窗）先于它合入 `2b253d457`。
+- 10-24 15:45 UTC：#1222 新头 `2d2883c53`：Security 2/2 的 `security-invariants-runtime-backups` S-12 RAC-104 改成「ready 后 2500ms 覆盖调用、精确拒绝与自然退出」，加阻塞与取消对照（Codex REVIEW 6386075095 P1 指出统筹先前 `b99c3adf8` 的 1 秒检查挡不住同步阻塞、丢了自然退出约束，照 C2 方案改）。本机 4 次 7/7；旧 Linux 红的阶段没有观测，等新头 Linux CI 收口。另带 ACA005 修复（与 #1224 同内容）。等 REVIEW/TEST 与同头 CI。
+- 10-24 15:45 UTC：**批 PR #1225**（`batch/1024-32`，main `112114f23` + #1107（含 #1098）+ #1191 `d1843c3aa` + #1173 + 批里三处修复 + BL-387 + privileges（PG-036 C9、PG-037、PG-060 2b/3、PG-091 已做、PG-099 Coding 部分、PG-045）+ S-57 扩展稿）：本机 48/48，门禁过；等同头 CI。#1112 进 batch-33。
+- 10-24 15:45 UTC：BL-388、BL-430 在 privileges PG-060 里被引用但 BACKLOG 没有行（main 上本来就缺），ac-shell 开线时补行。

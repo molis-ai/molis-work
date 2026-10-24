@@ -1,5 +1,6 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。": "The copy was saved, but the original could not be registered. Later processing cannot check whether the original has changed.",
   "Shelf 示例未能恢复，请在 Shelf 中查看后重试。": "The Shelf sample could not be restored. Check Shelf and try again.",
   "请重新点击或拖动文件": "Click or drag the file again",
   "请重新点击该操作": "Click this action again",

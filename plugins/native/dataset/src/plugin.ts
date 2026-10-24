@@ -8,13 +8,14 @@ import { datasetErrors } from "./error.js";
 import { DatasetStore, type DatasetStores } from "./store.js";
 import { datasetUiContribution } from "./ui.js";
 import type { DatasetLineHeadPort, DatasetPublicationSnapshot, DatasetPublishArtifactPort, DatasetReadArtifactPort } from "./promote.js";
+import { DATASET_INSTRUCTIONS } from "./prompts.js";
 
 /**
  * Datasets as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
  * `dataset` store its Host entry declares; the 成果 it pins, the model and the actions it routes come from the Runtime's services.
  */
 export function createDatasetPlugin(): PluginDefinition {
-  return { manifest: datasetManifest, async start(context) {
+  return { manifest: datasetManifest, instructions: DATASET_INSTRUCTIONS, async start(context) {
     for (const permission of datasetManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, artifacts = context.services?.artifacts;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供数据表库");

@@ -22,6 +22,9 @@ import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { callerPlugin, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
+import { codingManifest, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** 产品装配真的构造了 Agent Host，插件经 Capability 够得到它。 */
 
@@ -37,6 +40,20 @@ function readOnlyRuntime(runtimeId: string): AgentRuntimeAdapter {
     createSession: unused, readSession: unused, start: unused, read: unused, control: unused, readCommandOutput: unused,
     observe() { throw new Error("Not used by this fixture"); },
   };
+}
+
+/**
+ * A running plugin that carries Coding's Agent block, and its typed client: a plugin's roles come only from its running declaration
+ * (PG-051 RAC-195), so a start or a role listing is the plugin's own call.
+ */
+async function codingCaller(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference, directory: string) {
+  const coding = createCodingPlugin();
+  const plugin = callerPlugin("coder", "project", {}, Object.values(agentHostCapabilities).map(entry => entry.capability_id),
+    { block: codingManifest.agent!, agent_prompts: coding.agent_prompts, agent_skills: coding.agent_skills });
+  const store = new LocalProjectDatabase(join(directory, "coder.sqlite"));
+  const { install_id } = await startPlugin(localHost, reference, store, plugin, { capabilities: localHost.client(reference) });
+  const owner = { project_id: reference.project_id, plugin_id: plugin.id, install_id, actor_id: LOCAL_PERSON_ACTOR_ID };
+  return { store, owner, client: plugin.context(reference.project_id).services!.capabilities! };
 }
 
 async function fixture(workspace: ProjectWorkspaceRef | null) {
@@ -220,16 +237,19 @@ test("装配之后，运行时列表经 Capability 就能拿到", async () => {
 });
 
 test("Coding 的角色从它自己的 Manifest 解析；只读的可用，会写的不可用", async () => {
-  const item = await fixture(null);
+  const item = await fixture(null), coder = await codingCaller(item.localHost, item.reference, item.directory);
   try {
-    const roles = await item.client.invoke(agentHostCapabilities.availableRoles,
-      [READ_ONLY, CODING]);
+    const roles = await coder.client.invoke(agentHostCapabilities.availableRoles,
+      [READ_ONLY, coder.owner.plugin_id]);
     const reader = roles.find((role) => role.role_id === "reader");
     const writer = roles.find((role) => role.role_id === "writer");
     assert.equal(reader?.available, true);
     assert.equal(writer?.available, false, "Runtime 没接宿主审批，会写的角色就该不可用");
     assert.match(writer?.reason ?? "", /text-edit/);
+    // RAC-195: a call no running plugin makes finds no roles in the catalog; it is answered with none, not refused.
+    assert.deepEqual(await item.client.invoke(agentHostCapabilities.availableRoles, [READ_ONLY, CODING]), []);
   } finally {
+    coder.store.close();
     await close(item);
   }
 });

@@ -64,10 +64,12 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | #1250 | Claude FIRST请求6389927751，尚待实际认领/结论 | ac-trust T1完整片/164文件 | 固定d4dee51faebb2a0467256d6ebd73b421002787e6；原writer保留，TEST已接原件核证/风险缺口，不冒334首绿。实际project9→10/runtime2→3、维护SQL/CHECKLIST/§4.1与1245候选同号及1246安装重装装配同carrier组合；T1信任范围按原accepted spec，不自定新产品门禁，full只Claude |
 | #1251 | Claude FIRST请求6389927962，尚待实际认领/结论 | ac-artifacts A2b完整片/47文件 | 固定7d79407c8937fff4afe7071039d5f720904ac58c；原writer保留，TEST核原123首败/所谓环境基线，未确认前均UNKNOWN，不机械重跑全集。三browser未跑，shared-core/assembly/spans full及1241/1227/1242/1245真实hunk归原carrier，不记Ready |
 
+**1245/1250实际四dump同hunk（Root核过，已补6389738857）**：tests/fixtures/goal-event-history/{legacy,mixed,approved,approved-completed}.sql及README双方同改。FIX5仅同步Attention DDL/两部分索引/候选版本，历史业务INSERT、独立v9拒绝样本、helper/生产/断言保持；action-read-compatibility四红为静态v9被候选v10严格拒绝，未证读取兼容回归。唯一carrier合成时保T1 trust+本题owner两套字段/索引并统一版本，不任选一方v10盖另一方。
+
 | 序 | 独立片 | 状态 |
 | --- | --- | --- |
 | C1 | W5-13 收尾：宿主日志与吞掉的错误（§2） | 原owner实现1保持；115/bf09待batch34，116/#1238已actual584，117/#1240修后2f双PASS待batch35，118/119/#1244由FIX4本题修复；C1整线未完成 |
-| C2 | W5-16 B2b/A：Home 快照与恢复（§2） | 原owner实现2；B1/645、B2a/006已actual，B2b/#1239现5e双PASS待35。A完整lease+Host/stdio可信转发实际实施，Memory proof/newHome与关闭hunk窄串行，尚未完整交付/验收 |
+| C2 | W5-16 B2b/A：Home 快照与恢复（§2） | B1/645、B2a/006 actual，B2b/5e双PASS待35；实现2原owner完整A在行，源码未提交/推送/开PR。作者已报整体build/scoped tsc、真实shipped stdio MCP→resident Host、原context resolve/list/bind/unbind/reject/create+bind与panel alias/重启、idle/晚绑定、插件stop等待、真实SDK及borrowed Web/Catalog close失败显式重试通过；物理跨进程锁、伪造borrow/无root拒绝、取消后零Catalog/目录写入有针对性原件待固定交付。newHome仅真实owner认证的纯技术锁目录，memory.close→SDK dispose顺序保持，未采用Memory Draft业务实现。现337明确回归（326非浏览器+11独立browser）/merge-base health在行，live opt-in排除、不另full/真Home/Keychain；这仅作者进展非独立PASS。完整A固定一次非DraftPR→Claude FIRST，修后才Codex REVIEW增量；保5e B2b/e3 Memory独立hunk，C2/全恢复/本人验收未完成。 |
 | C3 | W5-10 的一部分：官方集成与横向服务的巨大单元（§2） | Gmail完整区域#1249修后516已双PASS/source释放；Root已START实现1下一完整horizontal区域：listener-host、search、placement三index类及im-ui/views createViews，一独立树/一PR，API行为保持、共用生成物留批，不等Gmail合入空置 |
 | C4 | W5-11：OAuth 移进官方集成插件（统筹 10-23 定） | 待开工，接在 C3 后（同一块代码）；号段开工前问统筹 |
 

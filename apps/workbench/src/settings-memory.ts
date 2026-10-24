@@ -470,7 +470,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
             back.addEventListener("click", () => run(() => restore("/change", { memory_id: item.memory_id, expected_version: item.version, action: "restore", version: revision.version }), "已回到这一版"));
             entry.append(back);
             entry.append(el("span", "settings-muted", L("恢复时仍会核对当前权限、期限和会话条件。")));
-          } else entry.append(el("span", "memory-tag", L(revision.version === item.version ? "当前" : "缺少完整快照，不能恢复")));
+          } else if (revision.version !== item.version) {
+            const use = button(L("使用这段旧文字"), "mw-btn--link"), update = mutation();
+            use.addEventListener("click", async () => {
+              if (await ask(L("使用这段旧文字？"), L("只替换正文，保留当前分类、适用条件、期限、来源和状态。"), L("使用这段旧文字")))
+                await run(() => update("/change", { memory_id: item.memory_id, expected_version: item.version, action: "update", text: revision.text }), "已使用旧文字");
+            });
+            entry.append(el("span", "memory-tag", L("缺少完整快照，不能恢复")), use);
+          } else entry.append(el("span", "memory-tag", L("当前")));
           list.append(entry);
         });
         panel.append(list);

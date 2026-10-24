@@ -1089,3 +1089,17 @@ M3 逐条分类纠正本轮验证完成（2026-10-24，本地生产 head `68564e
 统筹矩阵集成收尾（2026-10-24，源 head `7b96eea2b`）：已合入 #1064 `843a30368` 与 main `abc052bcb`。同树 `pnpm build` 命中有效构建缓存；16/16 Memory/调度器集成文件、根类型、health 对 origin/main、boundary、API/Action、secrets、diff 全部通过。逐步结果 `/private/tmp/molis-memory-matrix-current-integration-20261024.results.json`，同 stem 日志保留。此前 SDK 来源登记阻塞按实际 Git 关系闭合：原包 f4bbbd88 经 #94 squash，和 d94a99fb 的 tree 相同；只有后者是 SDK 95 的祖先。独立评审已只读复核刷新失败修复与真实浏览器红绿证据，关闭该 P2，未将复核描述为再次亲测。
 
 本片已交付为 Draft #1153（依赖 #1111）；当前资源为 27 项 7,828,093 B，workbench 1,206,014 B，对 #1111 净增 3,024 B，其余 26 项相同。`assets --report` 只是实测成功，不是资源门通过；增量已单独提交用户评审，尚未获批或登记，原 #1101/#1111 授权未扩用。本片仍待资源门、上游 #1064 全套失败收束及依赖合并，不宣称产品整体或用户验收。
+
+### M3 旧历史仅采用文字短合同（2026-10-24，本地验证通过，资源待批准）
+
+对应 MEM-04/15/34：本人查看缺少完整快照的旧版本时，可明确选择「使用这段旧文字」，确认后仅以旧正文更新当前记忆；当前分类、适用条件、绝对期限、来源、状态和 owner 保留，未知历史事实不补猜。完整快照的「回到这一版」不变。
+
+现有 history DTO 已区分 snapshot_available，现有 memory.change 的 update 已支持仅正文与原版本 CAS；复用现 historyPanel、确认框和同操作重试即可，不新增 API、SDK 能力、存储状态或共享 helper。硬边界仍由现 Service/SDK 写门拥有：已删除、已到期、会话绑定或权限不满足时拒绝，失败不补新版本；停用/暂停不因使用旧文字激活。页面只传 action:update、text、memory_id、首次观察的 expected_version 与原 operation_id。本人可以确认或取消，取消不发送写请求；丢回应按固定原请求重试，后继版本冲突可见且不覆盖。
+
+范围仅 workbench 现设置脚本/英文词典、原分类浏览器回归、workbench README 和本 spec。不修改 SDK、锁文件、API/Action 快照或资源额度；Session 专项和完整 P0 验收不在本片。测试通过真实公开 SDK 与 openMemoryLedger owner 新建合法无快照历史，不覆盖已有 revision、不伪造 history 响应、不读写 foreign SQL。
+
+验收：完整构建后定向浏览器覆盖确认/取消、当前元数据和状态保留、原版本冲突、丢回应同操作重试、完整关闭重开及原 full restore；按 workbench README 跑相关回归、类型/脚本与翻译检查，并实测页面资源增量。只运行点名文件，重型任务服从 machine-slot；工程结果、实操范围、资源批准和用户验收分别记录。
+
+本地结果：以续期父 `5e79861a8904313e889c55a242ed60a13bef711e` 为基线，仅新增现 historyPanel 的文字采用入口和四条英文词典。真实 SDK 初写后由 ledger owner 新建原本不存在的 v1 无快照 revision，再通过公开 Action 编辑为当前分类并停用；页面确认/取消、丢回应后原操作重试、原版本冲突、当前完整 meta/origin/owner/状态与重启保持，以及原 full restore，共 4/4 浏览器用例通过。workbench 必需 18 文件加 Memory classification/CAS/actions 共 21/21 文件通过（其中 12/85/23 项）；README 界面必需 10/10 浏览器文件通过。完整 build、根类型、health 对精确父、secrets 和 diff 检查通过。首轮构建因沙箱禁止 Swift cache 写入失败，日志 `/private/tmp/molis-memory-history-text-build-20261024.log` 保留；允许的本机环境重跑通过，无产品断言失败或放宽断言。结果与同 stem 日志见 `/private/tmp/molis-memory-history-text-20261024.results.json`。
+
+资源实测 27 项共 7,830,253 B；相对续期父唯一变化为 workbench 1,207,694→1,208,174 B，净增 480 B，其余 26 项相同。未改资源额度，增量未批准，资源门尚未通过。未改 API/SDK/快照/锁文件、未运行全量、未访问真实 Home 或付费模型；已覆盖临时 Home 真实浏览器路径，不代替 Session 专项、最终集成或用户验收。

@@ -36,7 +36,8 @@ import { freezeRunStart, validateRunAttachments, assertSessionCreation } from ".
 import { switchRunModel } from "./prologue-model-switch.js";
 import { controlFailure } from "./prologue-control-errors.js";
 import { PrologueMemoryUsage } from "./prologue-memory-usage.js";
-import { restoredSessionRecords, restorePrologueRun } from "./prologue-restored-session.js";
+import { restorePrologueRun } from "./prologue-restored-session.js";
+import { PrologueSessionCache } from "./prologue-session-cache.js";
 import { inputsPort, type RoundInputs, type SessionQueue } from "./prologue-inputs.js";
 import { readSupplementaryInput, type SupplementaryLocation } from "./prologue-original-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
@@ -207,6 +208,9 @@ export interface PrologueRuntimePort {
   readPendingQuestion?(run: AgentRunRef, pendingId: string, revision: number): Promise<AgentPendingQuestion | null>;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
+    capture?(sessionId: string): () => void;
+    assertReadable?(sessionId: string): Promise<void>;
+    lifecycle?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionLifecycle;
     create(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
     originalInput?(sessionId: string, input: Pick<AgentStartRequest, "original_input" | "continued_from">): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput | undefined>;
     readOriginalInput?: AgentRuntimeAdapter["readOriginalInput"];
@@ -338,6 +342,7 @@ async function prepareRunRole(request: AgentStartRequest, runtime: PrologueRunti
 }
 
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
+  readonly sessionLifecycle?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionLifecycle;
   readonly subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   readonly projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
@@ -363,7 +368,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly #memoryUsage: PrologueMemoryUsage;
   readonly #now: () => Date;
   readonly #sessions = new Map<string, SessionRecord>();
-  readonly #restoring = new Map<string, Promise<SessionRecord>>();
+  readonly #cache: PrologueSessionCache;
   readonly #runs = new Map<string, RunRecord>();
   readonly #startingSessions = new Set<string>();
   readonly checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
@@ -374,6 +379,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
     this.#memoryUsage = new PrologueMemoryUsage(options.memoryUsage);
+    this.#cache = new PrologueSessionCache(options.runtime, this.#sessions, this.#runs, this.#startingSessions, id => this.#publish(id, false), ids => this.#memoryUsage.flushRuns(ids));
+    if (options.runtime.sessions.lifecycle) this.sessionLifecycle = this.#cache.bind(options.runtime.sessions.lifecycle);
     if (options.runtime.projectWork) this.projectWork = options.runtime.projectWork;
     if (options.runtime.messages) this.messages = options.runtime.messages;
     // A plan change goes through the adapter, which knows which round's graph may still change.
@@ -477,11 +484,12 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async readSession(session: AgentSessionRef): Promise<AgentSessionView> {
+    const current = this.#cache.capture(session.session_id);
     const record = await this.#loadSession(session.session_id);
     const latest = record.runs.at(-1), view = latest ? structuredClone(this.#requireRun(latest.run_id).view) : null;
     // Read only while no round is live (ended, or stopped for checking): what a live round takes is its own (specs/ai-input-receipts D31).
     const queued = view && !isTerminalAgentPhase(view.phase) && view.phase !== "reconcile-required" ? undefined : await this.#runtime.sessions.queued?.(session.session_id);
-    return {
+    current(); return {
       session: { ...session }, owner: { ...record.owner }, workspace: record.workspace, title: record.title,
       runs: record.runs.map((ref) => ({ ...ref })),
       checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
@@ -491,14 +499,16 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async readOriginalInput(ref: Parameters<NonNullable<AgentRuntimeAdapter["readOriginalInput"]>>[0]) {
-    return this.#runtime.sessions.readOriginalInput?.({ ...ref });
+    const current = this.#cache.capture(ref.session_id), result = await this.#runtime.sessions.readOriginalInput?.({ ...ref });
+    current(); return result;
   }
 
   async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {
+    const current = this.#cache.capture(session.session_id);
     let projected: Awaited<ReturnType<NonNullable<PrologueRuntimePort["sessions"]["readStatus"]>>>;
     if (!this.#sessions.has(session.session_id) && this.#runtime.sessions.readStatus) {
       // A detail restore already under way must win over a second cold projection.
-      const restoring = this.#restoring.get(session.session_id);
+      const restoring = this.#cache.restoring.get(session.session_id);
       if (restoring) await restoring;
       else {
         const saved = await this.#runtime.sessions.readStatus(session.session_id);
@@ -524,7 +534,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const facts = record ?? projected!;
     const phase = record ? (latest ? this.#requireRun(latest.run_id).view.phase : null)
       : (projected!.latest ? restorePrologueRun(projected!.latest).state.phase : null);
-    return { owner: { ...facts.owner }, status: { session_id: session.session_id, latest_phase: phase,
+    current(); return { owner: { ...facts.owner }, status: { session_id: session.session_id, latest_phase: phase,
       recovery: Boolean(facts.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
       ...(steps && (steps.mine || steps.subtasks || steps.unowned) ? { steps } : {}) } };
   }
@@ -568,6 +578,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async #start(request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
+    const current = this.#cache.capture(request.session.session_id);
     const memory = request.role?.memory ? structuredClone(request.role.memory) : undefined;
     if ((request.original_input || request.continued_from) && !this.#runtime.sessions.originalInput) throw agentErrors.capability_unavailable("当前运行时没有初始原件读取能力");
     const original = await this.#runtime.sessions.originalInput?.(request.session.session_id, request);
@@ -642,6 +653,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
     state.turns.push(view.turns[0]!);
 
+    current();
     const record = memoryBinding.record({
       view, state, control: started.control, model,
     }, started.memory);
@@ -650,6 +662,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
     let initialPromptPending = true;
     const unsubscribeEvents = started.run.subscribe((event) => {
+      try { current(); } catch { return; }
       // The Host already displays the submitted task before SDK replay starts.
       if (event.type === "prompt" && event.role === "user" && initialPromptPending) {
         initialPromptPending = false;
@@ -683,10 +696,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async read(run: AgentRunRef): Promise<AgentRunView> {
+    const current = this.#cache.capture(run.session_id);
     const session = await this.#loadSession(run.session_id);
     if (!session.runs.some(item => item.run_id === run.run_id)) throw agentErrors.run_unknown("这次执行不属于此会话");
     const record = this.#requireRun(run.run_id);
-    await this.#memoryUsage.record(record, session.owner);
+    current(); await this.#memoryUsage.record(record, session.owner);
     const view = structuredClone(record.view);
     if (view.frozen.execution_plan) {
       try {
@@ -705,10 +719,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         }
       }))).filter((question): question is AgentPendingQuestion => question !== null);
     }
-    return view;
+    current(); return view;
   }
 
   observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void {
+    this.#cache.capture(run.session_id)();
     const record = this.#requireRun(run.run_id);
     record.listeners.add(listener);
     listener(structuredClone(record.view));
@@ -778,10 +793,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     session: AgentSessionRef,
     ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
+    const current = this.#cache.capture(session.session_id);
     const record = await this.#loadSession(session.session_id);
+    current();
     if (!record.runs.some(run => run.run_id === ref.run_id)) throw agentErrors.run_unknown("这轮执行不属于所选会话");
     if (!this.#runtime.readCommandOutput) throw agentErrors.capability_unavailable("这个 Runtime 没有接通命令回执");
-    return this.#runtime.readCommandOutput(session.session_id, ref);
+    const output = await this.#runtime.readCommandOutput(session.session_id, ref);
+    current(); return output;
   }
 
   /** Release the underlying Runtime. The Host owns when this happens. */
@@ -805,6 +823,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   #publish(runId: string, stampTerminal = true): void {
     const record = this.#runs.get(runId);
     if (!record) return;
+    try { this.#cache.capture(record.view.ref.session_id)(); } catch { return; }
     const controlPhase = prologuePhaseOf(record.control.state);
     const awaitingCommit = isEnded(controlPhase) && !isEnded(record.state.phase);
     let phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
@@ -891,32 +910,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   #requireSession(sessionId: string) {
-    const record = this.#sessions.get(sessionId);
-    if (!record) throw agentErrors.session_unknown("找不到这条会话");
-    return record;
+    return this.#cache.require(sessionId);
   }
 
   async #loadSession(sessionId: string): Promise<SessionRecord> {
-    const existing = this.#sessions.get(sessionId);
-    if (existing) return existing;
-    const held = this.#restoring.get(sessionId);
-    if (held) return held;
-    const loading = this.#restoreSession(sessionId);
-    this.#restoring.set(sessionId, loading);
-    try { return await loading; }
-    finally { this.#restoring.delete(sessionId); }
-  }
-
-  async #restoreSession(sessionId: string): Promise<SessionRecord> {
-    const restored = await this.#runtime.sessions.restore?.(sessionId);
-    if (!restored) return this.#requireSession(sessionId);
-    const { session, records } = restoredSessionRecords(restored);
-    for (const record of records) {
-      this.#runs.set(record.view.ref.run_id, record);
-      this.#publish(record.view.ref.run_id, false);
-    }
-    this.#sessions.set(sessionId, session);
-    return session;
+    return this.#cache.load(sessionId);
   }
 
   #requireRun(runId: string): RunRecord {

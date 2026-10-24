@@ -11,6 +11,7 @@ import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
 import type { AgentSkillDefinition } from "../platform/plugin-agent.js";
 // Declared by domain in the agent-host-*.ts files beside this one (W5-09); this subpath exports all of them.
 export { AGENT_RUNTIME_CAPABILITIES, isTerminalAgentPhase } from "./agent-host-runtime.js";
+export { agentSessionLifecycleActions } from "./agent-host-lifecycle.js";
 export type {
   AgentRuntimeCapability,
   AgentCapabilitySupport,
@@ -19,6 +20,12 @@ export type {
   AgentRuntimeHealthStatus,
   AgentRuntimeHealth,
   AgentSessionRef,
+  AgentSessionOwner,
+  AgentSessionDecision,
+  AgentSessionPurgePreview,
+  AgentSessionLifecycleView,
+  AgentSessionLifecycleReceipt,
+  AgentSessionLifecycle,
   AgentRunRef,
   AgentRunPhase,
   AgentRuntimeDiagnostics,

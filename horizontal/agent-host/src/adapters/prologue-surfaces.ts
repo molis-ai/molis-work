@@ -3,6 +3,7 @@ import { APP_MODE_SURFACE_TOOLS, createSurfaceRefusal } from "@prologue/sdk";
 import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { isHostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { deliverDesktopAct } from "./desktop-act-delivery.js";
+import type { PrologueEffects } from "./prologue-effects.js";
 
 /**
  * The side panel's browser, as Prologue's interface control (specs/archive/side-panel D05–D10). The local Host implements
@@ -121,6 +122,8 @@ export interface PrologueSurfaces {
   releaseRun(run: ExactRef<"run">): void;
   /** The round's run started (after attach): name it on the desktop driver so the record names the run. */
   noteRun(sessionRefId: string, runId: string): void;
+  /** Detach one idle session's targets without closing another session's shared driver. */
+  closeSession(sessionRefId: string, control: Pick<PrologueEffects, "beforeEffect" | "assertCurrent">): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -180,6 +183,9 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
   const attached = new Map<string, { target: ExactRef<"ui-target">; driver: HostSurfaceDriver }>();
   const desktopAttached = new Map<string, { target: ExactRef<"ui-target">; driver: HostSurfaceDriver }>();
   const drivers = new Set<HostSurfaceDriver>();
+  const forgetUnusedDriver = (driver: HostSurfaceDriver) => {
+    if (![...attached.values(), ...desktopAttached.values()].some(entry => entry.driver === driver)) drivers.delete(driver);
+  };
 
   const attachBrowser = async (session: { readonly ref: ExactRef<"session"> }, owner: string, sessionId: string,
     options: { readonly readOnly: boolean; readonly live: (sessionRefId: string) => boolean }): Promise<"browser" | "held" | null> => {
@@ -203,7 +209,7 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
       scope: () => driver.scope(),
       observe: kind => driver.observe(kind, { session_id: sessionId }),
       perform: async action => { await driver.perform(await hostAction(action, readText), { session_id: sessionId }); },
-      close: async () => { drivers.delete(driver); attached.delete(session.ref.id); },
+      close: async () => { if (attached.get(session.ref.id)?.target.id === target.ref.id) attached.delete(session.ref.id); forgetUnusedDriver(driver); },
     };
     const target = runtime().surfaces.attach(surface, { owner: session.ref });
     attached.set(session.ref.id, { target: target.ref, driver });
@@ -230,7 +236,7 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
       observe: async kind => { try { return await driver.observe(kind, { session_id: sessionId }); } catch (error) { throw asRefusal(error); } },
       perform: async action => { try { return deliverDesktopAct(await driver.perform(await hostAction(action, readText), { session_id: sessionId })); } catch (error) { throw asRefusal(error); } },
       assess: async (action): Promise<UiAssessment> => driver.assess ? driver.assess(await hostAction(action, readText)) : { irreversible: false },
-      close: async () => { drivers.delete(driver); desktopAttached.delete(session.ref.id); },
+      close: async () => { if (desktopAttached.get(session.ref.id)?.target.id === target.ref.id) desktopAttached.delete(session.ref.id); forgetUnusedDriver(driver); },
     };
     const target = runtime().surfaces.attach(surface, { owner: session.ref });
     desktopAttached.set(session.ref.id, { target: target.ref, driver });
@@ -286,6 +292,25 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
     },
     noteRun(sessionRefId, runId) {
       desktopAttached.get(sessionRefId)?.driver.noteRun?.(sessionRefId, runId);
+    },
+    async closeSession(sessionRefId, control) {
+      // Driver leases were released when this session's round ended. A shared desktop driver may now serve another
+      // session, so closing this attachment must not call the driver's global release again.
+      for (const entries of [attached, desktopAttached]) {
+        const entry = entries.get(sessionRefId);
+        if (!entry) continue;
+        await control.beforeEffect(); control.assertCurrent();
+        try { await runtime().surfaces.close(entry.target); }
+        catch (error) {
+          // The SDK may have called the local close before reporting a failure. Retain the exact target for retry.
+          if (!entries.has(sessionRefId)) entries.set(sessionRefId, entry);
+          drivers.add(entry.driver);
+          throw error;
+        }
+        control.assertCurrent();
+        if (entries.get(sessionRefId) === entry) entries.delete(sessionRefId);
+        forgetUnusedDriver(entry.driver);
+      }
     },
     async close() {
       for (const { target } of [...attached.values(), ...desktopAttached.values()]) await runtime().surfaces.close(target).catch(() => undefined);

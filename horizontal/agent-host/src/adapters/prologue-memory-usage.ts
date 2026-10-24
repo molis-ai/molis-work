@@ -23,6 +23,7 @@ export class PrologueMemoryUsage {
   }
 
   async flush(): Promise<void> { await Promise.all(this.#pending.values()); }
+  async flushRuns(ids: readonly string[]): Promise<void> { await Promise.all(ids.map(id => this.#pending.get(id))); }
 }
 
 

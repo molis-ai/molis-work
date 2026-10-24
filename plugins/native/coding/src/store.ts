@@ -237,18 +237,23 @@ export class CodingSessionStore {
     });
   }
 
-  async rename(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, title: string, at: string): Promise<CodingSessionRecord> {
+  async rename(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, title: string, at: string, guard?: (current: CodingSessionRecord) => void): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
-      sessionIn(tx, projectId, sessionId);
+      const current = sessionIn(tx, projectId, sessionId);
+      guard?.(current);
       tx.run("UPDATE coding_sessions SET title = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [title, at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);
     });
   }
 
-  async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string, guard?: CodingWriteGuard): Promise<CodingSessionRecord> {
+  async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string, guard?: (current: CodingSessionRecord) => void, options?: { allowAlreadyArchived: true }): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
-      guard?.();
-      if (sessionIn(tx, projectId, sessionId).archived) throw codingStoreErrors.session_unknown("会话已归档");
+      const current = sessionIn(tx, projectId, sessionId);
+      guard?.(current);
+      if (current.archived) {
+        if (options?.allowAlreadyArchived) return current;
+        throw codingStoreErrors.session_unknown("会话已归档");
+      }
       tx.run("UPDATE coding_sessions SET archived = 1, updated_at = ? WHERE project_id = ? AND session_id = ?", [at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);
     });

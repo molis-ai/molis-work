@@ -575,6 +575,7 @@ export const CODING_MESSAGES = {
   "coding.run.resumed": { zh: "已恢复，这一轮从暂停处接着执行。", en: "Resumed; this turn carries on from where it paused." },
   "coding.run.stop-received": { zh: "停止请求已收到，正在确认执行结果。", en: "Stop received; checking what was carried out." },
   "coding.session.archive-confirm": { zh: "归档这条 Coding 会话？它会从活动列表移出，执行记录和固定成果仍会保留。", en: "Archive this Coding session? It leaves the active list; its run record and fixed results are kept." },
+  "coding.session.archive-retry": { zh: "再次点击归档会重试原确认；关闭重开后可重新核对。", en: "Click Archive again to retry the original confirmation; reopen the page to review it again." },
   "coding.session.archived": { zh: "会话已归档。", en: "Session archived." },
   "coding.session.name": { zh: "会话名称", en: "Session name" },
   "coding.session.name-saved": { zh: "会话名称已保存。", en: "Session name saved." },

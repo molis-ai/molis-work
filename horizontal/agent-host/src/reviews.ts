@@ -66,6 +66,25 @@ interface ReviewRow {
   receipt: AgentReviewReceipt;
 }
 
+type ReviewSession = { project_id: string; plugin_id: string; session_id: string };
+const belongsToSession = (request: AgentReviewRequest, owner: ReviewSession) => request.project_id === owner.project_id
+  && request.plugin_id === owner.plugin_id && (request.run?.session_id ?? request.operation?.session_id) === owner.session_id;
+
+/** Admit one immutable review document; repeated references cannot replace what the person saw. */
+function admitReview(rows: Map<string, ReviewRow>, listeners: ReadonlySet<(request: AgentReviewRequest) => void>, request: AgentReviewRequest): AgentReviewRequest {
+  assertOwned(request);
+  const existing = rows.get(request.review_id);
+  if (existing) {
+    if (!isDeepStrictEqual(existing.request, request)) throw agentErrors.review_already_decided("审查引用已绑定另一份内容，不能替换用户看到的操作");
+    return structuredClone(existing.request);
+  }
+  const stored = structuredClone(request);
+  rows.set(stored.review_id, { request: stored,
+    receipt: { review_id: stored.review_id, status: "pending", decided_by: null, decided_at: null, note: null, effect_settled: false, effect_error: null } });
+  for (const listener of listeners) listener(structuredClone(stored));
+  return structuredClone(stored);
+}
+
 type RecoveryObserver = (request: AgentReviewRequest) => Promise<AgentGitIndexObservation>;
 interface RecoveryHandler {
   inspect(observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView>;
@@ -109,21 +128,36 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     await Promise.all([...this.#refreshers].map(handler => handler(projectId)));
   }
 
-  /** Only a Host caller supplies current facts; Plugins receive no recovery capability. */
   registerRecoveryHandler(reviewId: string, handler: RecoveryHandler): void {
+    if (!this.#rows.has(reviewId)) throw agentErrors.review_unknown("找不到这条待审操作");
     this.#recoverers.set(reviewId, handler);
   }
 
   async inspectRecovery(reviewId: string, observe: RecoveryObserver): Promise<AgentReviewRecoveryView> {
     const request = this.get(reviewId), handler = this.#recoverers.get(reviewId);
     if (!request || !handler) throw agentErrors.capability_unavailable("此操作的核对入口尚不可用");
-    return handler.inspect(() => observe(request));
+    const result = await handler.inspect(() => observe(request));
+    if (this.#recoverers.get(reviewId) !== handler) throw agentErrors.review_unknown("原审查已释放，不能发布旧恢复结果");
+    return result;
   }
 
   async recover(input: AgentReviewRecoveryInput, observe: RecoveryObserver): Promise<AgentReviewRecoveryView> {
     const request = this.get(input.review_id), handler = this.#recoverers.get(input.review_id);
     if (!request || !handler) throw agentErrors.capability_unavailable("此操作的核对入口尚不可用");
-    return handler.resolve(input, () => observe(request));
+    const result = await handler.resolve(input, () => observe(request));
+    if (this.#recoverers.get(input.review_id) !== handler) throw agentErrors.review_unknown("原审查已释放，不能发布旧恢复结果");
+    return result;
+  }
+
+  /** Host lifecycle already proved quiescence and fenced publishers. Never use for an unresolved execution. */
+  forgetSession(owner: ReviewSession): string[] {
+    const ids = [...this.#rows].filter(([, row]) => belongsToSession(row.request, owner)).map(([id]) => id);
+    for (const id of ids) {
+      const key = standingKey(this.#rows.get(id)!.request); if (key) this.#standing.delete(key);
+      this.#rows.delete(id); this.#automatic.delete(id); this.#consumed.delete(id);
+      this.#deciders.delete(id); this.#recoverers.delete(id); this.#authorities.delete(id);
+    }
+    return ids;
   }
 
   recordReconciliation(reviewId: string, value: NonNullable<AgentReviewReceipt["reconciliation"]>): void {
@@ -139,7 +173,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   restoreDecision(request: AgentReviewRequest, decision: Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note"> | null): void {
     if (decision && !["approved", "rejected", "cancelled", "expired"].includes(decision.status)) throw new Error("无效的历史审查决定");
     if (this.#rows.has(request.review_id)) return;
-    this.#admit(request);
+    admitReview(this.#rows, this.#listeners, request);
     if (!decision) return;
     const row = this.#rows.get(request.review_id)!;
     row.receipt = { ...row.receipt, ...structuredClone(decision) };
@@ -157,35 +191,9 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     if (kind && (!authority || authority.plugin_id !== request.plugin_id || !authority.holds())) {
       throw agentErrors.review_not_permitted(`插件 ${request.plugin_id} 没有声明或没有获得 review:${kind}，不能发起这项需要人审查的操作`);
     }
-    const created = !this.#rows.has(request.review_id), stored = this.#admit(request);
+    const created = !this.#rows.has(request.review_id), stored = admitReview(this.#rows, this.#listeners, request);
     if (kind && created) this.#authorities.set(request.review_id, authority!);
     return stored;
-  }
-
-  #admit(request: AgentReviewRequest): AgentReviewRequest {
-    assertOwned(request);
-    const existing = this.#rows.get(request.review_id);
-    if (existing) {
-      if (!isDeepStrictEqual(existing.request, request)) {
-        throw agentErrors.review_already_decided("审查引用已绑定另一份内容，不能替换用户看到的操作");
-      }
-      return structuredClone(existing.request);
-    }
-    const stored = structuredClone(request);
-    this.#rows.set(stored.review_id, {
-      request: stored,
-      receipt: {
-        review_id: stored.review_id,
-        status: "pending",
-        decided_by: null,
-        decided_at: null,
-        note: null,
-        effect_settled: false,
-        effect_error: null,
-      },
-    });
-    for (const listener of this.#listeners) listener(structuredClone(stored));
-    return structuredClone(stored);
   }
 
   /** Host-only dispatch to the execution owner; never exposed as a Plugin capability. */
@@ -199,7 +207,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     const key = standingKey(row.request), rule = key ? this.#standing.get(key) : undefined;
     if (!rule || this.#status(row) !== "pending") return;
     queueMicrotask(() => {
-      if (this.#status(row) !== "pending") return;
+      if (this.#rows.get(reviewId) !== row || this.#status(row) !== "pending") return;
       this.#automatic.set(reviewId, rule);
       void this.respond({ review_id: reviewId, decision: "approve", actor_id: rule.set_by,
         note: `按本会话规则批准：同一命令已由 ${rule.set_by} 于 ${rule.set_at} 允许本会话内不再询问` })
@@ -217,6 +225,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       throw agentErrors.capability_unavailable("只有在宿主执行边界内的命令可以设为本会话内不再询问");
     }
     const receipt = await handler(input);
+    if (this.#rows.get(input.review_id) !== row) throw agentErrors.review_unknown("原审查已释放，不能恢复会话批准");
     if (key && row && this.#status(row) === "approved") this.#standing.set(key, { set_by: input.actor_id, set_at: row.receipt.decided_at ?? this.#now().toISOString() });
     return key && row ? structuredClone({ ...receipt, ...this.receipt(input.review_id) }) : receipt;
   }

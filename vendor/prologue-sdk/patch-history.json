@@ -11,7 +11,7 @@
     "repository": "https://github.com/molis-ai/molis-prologue",
     "checkedOn": "2026-10-23",
     "mainHead": "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
-    "statement": "2026-10-23 对上游 main 2c7feba5a6ea85e81e4a263671fb5e68f536d86a（Prologue #60，含 #59、#58、#53、#57、#56、#55、#54、#52、#51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/molis-prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：当时核查的 commitsChecked 列表中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。上游仓库此后改名为 molis-ai/molis-prologue（原 molis-ai/prologue）。 2026-10-24 补核 SDK 94 的原包来源 f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512：本地完整 Git 树确认该原提交经 #94 squash 为 d94a99fb，两者 tree 均为 53a36182941605e75fb8c899a51a92d859ac8982；d94a99fb 是 SDK 95 来源 a875be89c2186e79ecf35bf0867a8bac20da1887 的祖先，原 f4bbbd88 提交本身不是其祖先。本次将原包完整来源加入 commitsChecked，不改写上面 2026-10-23 的 main 核查时点。 2026-10-24 补核旧 #96 包来源 15c38aed0bde2f8f0540a3e390f2e03033cdb717 与合并 d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11 的 tree 同为 21527ff6c95cd6f37a388c01eba910f322e0a9b0；该 merge 是新包来源 ca0de1c60c248b83c79d49f064f725ecb97664ee 的祖先。保留上面历史 main 核查时点。",
+    "statement": "2026-10-23 对上游 main 2c7feba5a6ea85e81e4a263671fb5e68f536d86a（Prologue #60，含 #59、#58、#53、#57、#56、#55、#54、#52、#51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/molis-prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：当时核查的 commitsChecked 列表中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。上游仓库此后改名为 molis-ai/molis-prologue（原 molis-ai/prologue）。 2026-10-24 补核 SDK 94 的原包来源 f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512：本地完整 Git 树确认该原提交经 #94 squash 为 d94a99fb，两者 tree 均为 53a36182941605e75fb8c899a51a92d859ac8982；d94a99fb 是 SDK 95 来源 a875be89c2186e79ecf35bf0867a8bac20da1887 的祖先，原 f4bbbd88 提交本身不是其祖先。本次将原包完整来源加入 commitsChecked，不改写上面 2026-10-23 的 main 核查时点。 2026-10-24 补核旧 #96 包来源 15c38aed0bde2f8f0540a3e390f2e03033cdb717 与合并 d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11 的 tree 同为 21527ff6c95cd6f37a388c01eba910f322e0a9b0；该 merge 是新包来源 ca0de1c60c248b83c79d49f064f725ecb97664ee 的祖先。保留上面历史 main 核查时点。 2026-10-24 补核旧 #99 包来源 ca0de1c60c248b83c79d49f064f725ecb97664ee 是 #100 合并 a83e04761108a21f04f9a1b2a67c1dc8cb1582fe 的祖先；保留原 2026-10-23 历史核查时点。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -55,7 +55,8 @@
       "753dbae8359e56a74397d030af4d18abf402d5b5",
       "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
       "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512",
-      "15c38aed0bde2f8f0540a3e390f2e03033cdb717"
+      "15c38aed0bde2f8f0540a3e390f2e03033cdb717",
+      "ca0de1c60c248b83c79d49f064f725ecb97664ee"
     ]
   },
   "patches": [
@@ -791,6 +792,7 @@
     "ledger-status.patch 已并入 claims.patch；network-dispatch.patch 已包含在 assistant.patch 与 bounded-results.patch 中（当时 README 的说法）。",
     "2026-10-01 清理时这些工作树的未提交状态另存在开发机的 ~/code/prologue-cleanup-backup-20261001/wip.bundle，只在那台机器上，不属于本记录。",
     "最早的 prologue-sdk-0.0.0-rc.1.tgz 没有对应的源码提交，不能当作任何一个提交的构建；其余本地中间包不是依赖，也没有作为分发物提交过。",
-    "同名包的后续历史版本（packagesWithoutPatch 每个文件名只登记一次，保留其中 #94 原记录）：{\"file\":\"prologue-sdk-0.0.0-rc.1-memory-p0.tgz\",\"bytes\":1359578,\"sha256\":\"bb0b6b79c3f744a2bb64c214472a53b74b0a50d5c61d5f0b026c1f02b5a086c5\",\"gitBlob\":\"631dd0db93f3d08b637157351f9d461bdceadc35\",\"commit\":\"15c38aed0bde2f8f0540a3e390f2e03033cdb717\",\"description\":\"Prologue #96 干净 head 15c38aed，已合 main d46e76c61 且整树一致：明确续期与同 Runtime Session 转换提交保护，shape 8。2026-10-24 被已合并 #99 的正式 Memory 包替换，包含 #97 显式分类采用、#98 Session purge 及 #99 离线采用清理入口；旧包和来源记录从 Git 历史取回。\"}"
+    "同名包的后续历史版本（packagesWithoutPatch 每个文件名只登记一次，保留其中 #94 原记录）：{\"file\":\"prologue-sdk-0.0.0-rc.1-memory-p0.tgz\",\"bytes\":1359578,\"sha256\":\"bb0b6b79c3f744a2bb64c214472a53b74b0a50d5c61d5f0b026c1f02b5a086c5\",\"gitBlob\":\"631dd0db93f3d08b637157351f9d461bdceadc35\",\"commit\":\"15c38aed0bde2f8f0540a3e390f2e03033cdb717\",\"description\":\"Prologue #96 干净 head 15c38aed，已合 main d46e76c61 且整树一致：明确续期与同 Runtime Session 转换提交保护，shape 8。2026-10-24 被已合并 #99 的正式 Memory 包替换，包含 #97 显式分类采用、#98 Session purge 及 #99 离线采用清理入口；旧包和来源记录从 Git 历史取回。\"}",
+    "同名包后续历史版本（保留 packagesWithoutPatch 原 #94 条目）：{\"file\":\"prologue-sdk-0.0.0-rc.1-memory-p0.tgz\",\"bytes\":1365058,\"sha256\":\"1ce7089030708da3be43e0801802fff6bf87cf8d5a06a8f6504c2016971ac752\",\"gitBlob\":\"3beb4c84c7f64200c2d03e4038fa193303f07cea\",\"commit\":\"ca0de1c60c248b83c79d49f064f725ecb97664ee\",\"description\":\"已合 Prologue #99（干净 head 1c4cb31a 整树等同 ca0de1c6），2026-10-24 由 #100 归档历史限定只读补丁替换；旧包可从 Molis #1184 的 Git 对象取回。\"}"
   ]
 }

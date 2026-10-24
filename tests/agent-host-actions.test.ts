@@ -298,7 +298,7 @@ const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", 
   memory_scene: "coding",
   started_at: "2026-10-23T00:00:00.000Z", ended_at: null };
 
-test("original-input Action shapes reject fixed version 1 through the real plugin dispatcher", async t => {
+test("current original-input and classification Action shapes reject old fixed versions through the real plugin dispatcher", async t => {
   const { consumer, seen, owner } = await roundsSetup(t), actions = consumer.actions(PROJECT);
   owner.current = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
   const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
@@ -308,6 +308,8 @@ test("original-input Action shapes reject fixed version 1 through the real plugi
   ] as const;
   for (const [definition, input] of calls) {
     await assert.rejects(actions.invoke({ ...definition, version: 1 } as ActionDefinition, input), { code: "actions.dependency_missing" }, definition.capability_id);
+    if (definition.capability_id !== agent.startRun.capability_id)
+      await assert.rejects(actions.invoke({ ...definition, version: 2 } as ActionDefinition, input), { code: "actions.dependency_missing" }, definition.capability_id);
   }
   assert.deepEqual(seen, [], "none of the old references reached the Runtime");
 });
@@ -396,7 +398,7 @@ test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing
   assert.deepEqual((await actions.invoke(agent.readSession, [session])).latest_run?.original_input, ROUND_VIEW.original_input);
   const discovered = await actions.discover();
   for (const definition of [agent.readSession, agent.readRun, agent.waitRun]) {
-    assert.equal(definition.version, 2);
+    assert.equal(definition.version, 3);
     assert.ok(!discovered.some(item => item.capability_id === definition.capability_id), "a plugin lists its own actions; declared dependencies resolve through invoke");
   }
   for (const view of [await actions.invoke(agent.readRun, [session, run]), (await actions.invoke(agent.readSession, [session])).latest_run!]) {

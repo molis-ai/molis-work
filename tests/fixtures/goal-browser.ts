@@ -12,14 +12,30 @@ import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, projectActionAvaila
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { webServerProcess } from "./web-server-process.js";
 
 /** The control token every Goals browser fixture serves with; e2e files that call the server by hand use this one (`controlToken` in the return). */
 const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 
+/** Both modes share the same browser driver; only the process mode owns an independently restartable Host. */
+async function browserServer(options: WebServerOptions, separateProcess: boolean | undefined, connections: Set<Socket>) {
+  if (separateProcess) {
+    assert.ok(!options.databasePath && !options.localHost && !options.chooseDirectory, "process launcher uses the persisted catalog and production Host");
+    const processServer = await webServerProcess(options.homeDirectory!, CONTROL_TOKEN);
+    return { processServer, server: undefined, setFrameInitScript: (_source: string) => { throw new Error("Process launcher does not inject plugin frame scripts"); } };
+  }
+  const server = createMolisWorkWebServer(options), setFrameInitScript = observePluginFrames(server);
+  server.on("connection", connection => {
+    connections.add(connection);
+    connection.once("close", () => connections.delete(connection));
+  });
+  return { server, processServer: undefined, setFrameInitScript };
+}
+
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
-  webOptions: Pick<WebServerOptions, "chooseDirectory"> = {},
+  webOptions: Pick<WebServerOptions, "chooseDirectory"> & { processServer?: boolean } = {},
   pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[]) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
@@ -28,6 +44,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   let localHost: MolisWorkLocalHost | undefined;
   let harness: ChromeHarness | undefined;
   let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  let processServer: Awaited<ReturnType<typeof webServerProcess>> | undefined;
   const connections = new Set<Socket>();
   t.after(async () => {
     const failures: unknown[] = [];
@@ -44,6 +61,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     // and releases the pipe.
     await cleanup("Chrome exit", async () => { await harness?.close(); });
     await cleanup("HTTP server", async () => {
+      if (processServer) return processServer.close();
       if (!server?.listening) return;
       const closed = new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
       server.closeAllConnections();
@@ -91,13 +109,11 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   store = new LocalProjectDatabase(databasePath);
   localHost = completion === undefined && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
-  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
-    controlToken: CONTROL_TOKEN, ...webOptions });
-  const setFrameInitScript = observePluginFrames(server);
-  server.on("connection", connection => {
-    connections.add(connection);
-    connection.once("close", () => connections.delete(connection));
-  });
+  const { processServer: separateProcess, ...serverOptions } = webOptions;
+  const started = await browserServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory,
+    ...(localHost ? { localHost } : {}), controlToken: CONTROL_TOKEN, ...serverOptions }, separateProcess, connections);
+  server = started.server; processServer = started.processServer;
+  const { setFrameInitScript } = started;
   // The limits stop a hang; they are not speed checks. They are sized for the Linux CI runner, which runs these pages about
   // 2.5 times slower than a development Mac (one command or wait that takes 4 s there takes 10 s here).
   const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000, ...(chromeArgs ? { extraArgs: chromeArgs } : {}) });
@@ -106,10 +122,10 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
     return browser.command<T>(method, params, sessionId, timeoutMs);
   }
-  await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
+  if (server) await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
+  const address = server?.address();
+  assert.ok(processServer || address && typeof address === "object");
+  const origin = processServer?.origin ?? `http://127.0.0.1:${(address as { port: number }).port}`;
   await (await fetch(origin + "/health")).text();
   const before = store.snapshot(projectId ?? DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
@@ -261,5 +277,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
   const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
-  return { store, localHost, server, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setViewport, setFrameInitScript, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, server, restartServer: processServer?.restart, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setViewport, setFrameInitScript, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

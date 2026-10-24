@@ -21,6 +21,7 @@ interface Ports {
   runtime: Runtime;
   queue: AgentReviewQueue;
   readIndex(id: string): Promise<CheckpointIndex | undefined>;
+  capture?(id: string): () => void;
   remember(id: string, intent: PrologueRewindIntent): Promise<void>;
   decision(id: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void>;
   readResource(ref: ExactRef<"resource">): Promise<unknown>;
@@ -31,6 +32,22 @@ const sameRef = (a: unknown, b: ExactRef<"authorized-root">) => {
 };
 const safePath = (path: unknown): path is string => typeof path === "string" && path.length > 0
   && !path.startsWith("/") && !path.includes("\\") && !path.split("/").some(part => part === ".." || part === "." || !part);
+
+async function rewindDocument(ports: Ports, effect: Effect, intent: PrologueRewindIntent, sessionId: string): Promise<AgentRewindReviewDocument> {
+    if (!effect.proposal.reviewRef || effect.proposal.origin?.session !== sessionId || effect.proposal.origin.run !== undefined) throw new Error("手动回退归属不一致");
+    const value = await ports.readResource(effect.proposal.reviewRef) as Record<string, unknown>;
+    if (!value || value.kind !== WORKSPACE_REWIND_KIND || value.version !== 1 || value.operationKey !== intent.operation_id
+      || value.checkpointId !== intent.checkpoint_id || value.sessionId !== sessionId || !sameRef(value.rootRef, intent.root_ref)
+      || typeof value.previewFingerprint !== "string" || !Array.isArray(value.files) || value.files.length === 0) throw new Error("检查点完整预览不可用，不能批准");
+    const files = value.files.map((item: unknown) => {
+      const file = item as { path?: unknown; current?: { exists?: unknown; text?: unknown }; restored?: { exists?: unknown; text?: unknown } };
+      if (!safePath(file?.path) || typeof file.current?.exists !== "boolean" || typeof file.current.text !== "string"
+        || typeof file.restored?.exists !== "boolean" || typeof file.restored.text !== "string") throw new Error("回退预览缺少完整正文，不能批准");
+      return { path: file.path, change: !file.restored.exists ? "delete" as const : !file.current.exists ? "create" as const : "restore" as const,
+        before_text: file.current.exists ? file.current.text : null, after_text: file.restored.exists ? file.restored.text : null };
+    });
+    return { kind: "rewind", checkpoint_id: intent.checkpoint_id, files };
+}
 
 export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapability & {
   restore(sessionId: string): Promise<void>;
@@ -48,31 +65,18 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
     if (!index) throw new Error("检查点缺少原会话归属，不能回退");
     return index;
   };
-  const document = async (effect: Effect, intent: PrologueRewindIntent, sessionId: string): Promise<AgentRewindReviewDocument> => {
-    if (!effect.proposal.reviewRef || effect.proposal.origin?.session !== sessionId || effect.proposal.origin.run !== undefined) throw new Error("手动回退归属不一致");
-    const value = await ports.readResource(effect.proposal.reviewRef) as Record<string, unknown>;
-    if (!value || value.kind !== WORKSPACE_REWIND_KIND || value.version !== 1 || value.operationKey !== intent.operation_id
-      || value.checkpointId !== intent.checkpoint_id || value.sessionId !== sessionId || !sameRef(value.rootRef, intent.root_ref)
-      || typeof value.previewFingerprint !== "string" || !Array.isArray(value.files) || value.files.length === 0) throw new Error("检查点完整预览不可用，不能批准");
-    const files = value.files.map((item: unknown) => {
-      const file = item as { path?: unknown; current?: { exists?: unknown; text?: unknown }; restored?: { exists?: unknown; text?: unknown } };
-      if (!safePath(file?.path) || typeof file.current?.exists !== "boolean" || typeof file.current.text !== "string"
-        || typeof file.restored?.exists !== "boolean" || typeof file.restored.text !== "string") throw new Error("回退预览缺少完整正文，不能批准");
-      return { path: file.path, change: !file.restored.exists ? "delete" as const : !file.current.exists ? "create" as const : "restore" as const,
-        before_text: file.current.exists ? file.current.text : null, after_text: file.restored.exists ? file.restored.text : null };
-    });
-    return { kind: "rewind", checkpoint_id: intent.checkpoint_id, files };
-  };
   const requestOf = async (sessionId: string, effect: Effect, intent: PrologueRewindIntent, expiresAt: string | null): Promise<AgentReviewRequest> => {
     const index = await requireIndex(sessionId);
     if (!effect.pending) throw new Error("回退没有待审引用，不能批准");
     return { review_id: `prologue:${effect.pending.ref.id}`, run: null,
       operation: { operation_id: intent.operation_id, session_id: sessionId, kind: "checkpoint-rewind" },
-      ...index.owner, kind: "rewind", document: await document(effect, intent, sessionId), requested_at: intent.requested_at, expires_at: expiresAt };
+      ...index.owner, kind: "rewind", document: await rewindDocument(ports, effect, intent, sessionId), requested_at: intent.requested_at, expires_at: expiresAt };
   };
   const settle = async (effectRef: ExactRef<"effect">, reviewId: string, failure?: unknown) => {
     const effect = runtime.effects.get(effectRef);
+    const current = effect?.proposal.origin?.session ? ports.capture?.(effect.proposal.origin.session) : undefined;
     const dispatch = await runtime.effects.inspectDispatch(effectRef).catch(() => ({ state: "unknown" as const }));
+    current?.();
     const receipt = queue.receipt(reviewId);
     const sessionId = effect?.proposal.origin?.session;
     if (!effect || dispatch.state === "unknown" || effect?.state === "reconcile-required" || effect?.state === "dispatching") {
@@ -89,6 +93,7 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
   // the whole execution ledger on each refresh and each round's start found nothing new and cost a disk read per record.
   const settledSessions = new Set<string>(), settledBoards = new Set<string>();
   const restore = (sessionId: string): Promise<void> => {
+    const current = ports.capture?.(sessionId);
     if (settledSessions.has(sessionId)) return Promise.resolve();
     const held = restoring.get(sessionId);
     if (held) return held;
@@ -104,17 +109,19 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
         if (!intent || restored.has(intent.operation_id) || active.get(sessionId)?.operationId === intent.operation_id) continue;
         const request = queue.get(`prologue:${effect.pending.ref.id}`) ?? await requestOf(sessionId, effect, intent, null);
         const decision = index.review_decisions?.[effect.pending.ref.id];
+        current?.();
         if (decision) queue.restoreDecision(request, decision); else queue.request(request);
         // No live waiter survives restart. Only cancel states proven not to have dispatched.
         const dispatch = await runtime.effects.inspectDispatch(effect.ref);
         if (["prepared", "awaiting-approval", "authorized"].includes(effect.state) && dispatch.state === "not-dispatched") {
-          await runtime.effects.cancel(effect.ref);
+          current?.(); await runtime.effects.cancel(effect.ref);
+          current?.();
           queue.cancel(request.review_id, "应用已重启，原等待已撤回且没有派出文件写入；需要回退时重新预览");
         }
-        await settle(effect.ref, request.review_id);
+        current?.(); await settle(effect.ref, request.review_id); current?.();
         restored.add(intent.operation_id);
       }
-    })().then(() => { settledSessions.add(sessionId); }).finally(() => restoring.delete(sessionId));
+    })().then(() => { current?.(); settledSessions.add(sessionId); }).finally(() => restoring.delete(sessionId));
     restoring.set(sessionId, work);
     return work;
   };
@@ -123,15 +130,20 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
     const report = await runtime.effects.readRecovery();
     if (report.unavailable.length) throw new Error("执行账暂不可读");
     const sessions = new Set(report.effects.flatMap(effect => effect.proposal.origin?.session ? [effect.proposal.origin.session] : []));
-    for (const id of sessions) if ((await ports.readIndex(id))?.owner.project_id === projectId) await restore(id);
+    for (const id of sessions) {
+      const index = await ports.readIndex(id).catch(error => { if (error?.code === "agent.session_busy") return undefined; throw error; });
+      if (index?.owner.project_id === projectId) await restore(id);
+    }
     settledBoards.add(projectId);
   });
   const capability: AgentCheckpointsCapability & { restore: typeof restore; close(): Promise<void>; context(sessionId: string): Promise<string> } = {
     busy: session => active.has(session.session_id) || uncertain.has(session.session_id),
     restore,
     async context(sessionId) {
+      const current = ports.capture?.(sessionId);
       await restore(sessionId);
       const index = await requireIndex(sessionId);
+      current?.();
       const operations = queue.list(index.owner.project_id).filter(item => item.operation?.session_id === sessionId && item.kind === "rewind")
         .map(item => ({ operation_id: item.operation!.operation_id, at: item.requested_at, document: item.document,
           receipt: queue.receipt(item.review_id) }));
@@ -151,6 +163,7 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
         + `共 ${operations.length} 次回退，以下是最近 ${recent.length} 次：` + JSON.stringify(recent);
     },
     async list(session) {
+      const current = ports.capture?.(session.session_id);
       await restore(session.session_id);
       const index = await requireIndex(session.session_id);
       const directories = new Map(index.attempts.flatMap(attempt => attempt.frozen.directory
@@ -177,7 +190,7 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
             ...(rewound.has(item.checkpointId) ? { rewound_at: rewound.get(item.checkpointId)! } : {}) });
         }
       }
-      return result.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      current?.(); return result.sort((a, b) => b.created_at.localeCompare(a.created_at));
     },
     async prepareRewind(session, checkpointId) {
       if (closed) throw new Error("执行引擎正在关闭");

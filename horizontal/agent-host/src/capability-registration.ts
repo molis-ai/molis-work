@@ -4,6 +4,7 @@ import { withAgentEffect } from "./invocation-effects.js";
 import { projectWorkScope } from "./project-work-scope.js";
 import { awaitOwnContinuations, installationWaits, waitForRunChange } from "./run-wait.js";
 import { registerSessionActions } from "./session-actions.js";
+import { registerSessionLifecycleActions } from "./session-lifecycle-actions.js";
 import { registerWriteCheckerActions } from "./write-checker-actions.js";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -124,6 +125,7 @@ export function registerAgentHostCapabilities<Context>(
     return view;
   };
   const disposers = [
+    ...registerSessionLifecycleActions(register, { pluginFor, projectId: ports.projectId, lifecycle: (call, id) => ports.agentHost(call).adapter(id).sessionLifecycle }),
     register(agentHostCapabilities.listActions, async (context, [runtimeId]) => {
       const authority = await ports.authority(context);
       if (!ports.agentHost(context).adapter(runtimeId).descriptor.supports_action_tools || !authority.actions) return [];

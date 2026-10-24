@@ -9,12 +9,12 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "ca0de1c60c248b83c79d49f064f725ecb97664ee",
+    "commit": "a83e04761108a21f04f9a1b2a67c1dc8cb1582fe",
     "mergedUpstream": {
-      "pullRequest": 99,
-      "head": "1c4cb31a4811b9c2d46c7fe19adf1d8cd788f4dd",
-      "merge": "ca0de1c60c248b83c79d49f064f725ecb97664ee",
-      "note": "Archive packed from clean head 1c4cb31a4811b9c2d46c7fe19adf1d8cd788f4dd; its full tree equals merged source ca0de1c60c248b83c79d49f064f725ecb97664ee (tree 98bbe05a166e427ad1414ae6b760e73b0f5d7656). No local SDK patch."
+      "pullRequest": 100,
+      "head": "bc0d996733e87bdd73d2ce01109ce2fb6309b0f8",
+      "merge": "a83e04761108a21f04f9a1b2a67c1dc8cb1582fe",
+      "note": "Archive packed from clean PR #100 head; complete tree equals merged main. No local SDK patch."
     },
     "dirty": false,
     "dirtyPaths": [],
@@ -22,9 +22,9 @@
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1365058,
-    "sha256": "1ce7089030708da3be43e0801802fff6bf87cf8d5a06a8f6504c2016971ac752",
-    "integrity": "sha512-oOvWN+sgY8T1smX654X7uhosSvkWIulZUVXdpkrKqijET0ldvCerPYxeSddpsb7sKrFWxLB3WKdXiaPjEB/00g=="
+    "bytes": 1365062,
+    "sha256": "d42b1699b0bd7a41db97521b27dadf892feff27d560047dcd4e8ec2f6eea700e",
+    "integrity": "sha512-uwWjKxOVRgITIfW8qzbM0rinJ//uwj3zqNsqHzKnISB7//P0vJd40yP9jXLFqSbHiru0PQf0M2qB9tuNAkhgvA=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,14 +32,14 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Build the SDK and run the Memory suite (42 files, 734 tests)",
-      "Run quality: 717/718 tests passed; synchronize the public-name snapshot, then rerun its four tests (4/4) and pass the remaining quality steps",
-      "Install the exact archive in a clean consumer and run public types plus real-disk behavior checks",
-      "cd packages/sdk && pnpm pack --pack-destination <isolated-package-output>",
-      "Repack from clean committed PR99 head; compare with the installed tested archive and all 781 non-manifest built files",
-      "Copy the verified archive and provenance into the Molis vendor path; dependency installation and lock update remain pending"
+      "Run complete pnpm quality on final source: types, build, API, ratchet, docs, 723 tests, clean consumer, Rust checks",
+      "Run both affected real Node test files: 33/33; prior five related files: 91/91",
+      "Verify clean source head and merged main have identical complete Git trees",
+      "Pack exact built SDK into an isolated directory; compare all 781 non-manifest files",
+      "Install this exact archive offline into a clean consumer and run the public real-disk and loopback script",
+      "Copy archive/provenance and update only its lock integrity in Molis M4; Molis installation and behavior validation follow"
     ],
     "packedOn": "2026-10-24",
-    "note": "Memory passed 42 files / 734 tests. The quality test phase initially passed 717/718; its sole failure was the public-name snapshot. After synchronizing that snapshot, the targeted file passed 4/4 and the remaining quality steps passed. This is not a claim that the entire quality command passed in one run. Clean installed-package public types and real-disk behavior passed. The clean-head repack is byte-identical to the tested archive; 781 non-manifest files match the built tree. Source records the merged tree equivalent to the original clean packing head; no independent clean rebuild claimed. Molis M1 installation, lock, build and integration tests remain pending; SDK evidence is not Molis product or user acceptance."
+    "note": "SDK #100 final complete quality passed (70 files, 723 tests); affected live files 33/33 passed with Runtime shutdown guards preserved. This exact archive passed clean offline installed consumer. No full SDK suite or paid model test claimed. Molis M4 integration results are tracked separately in its existing spec; not product or user acceptance."
   }
 }

@@ -14,7 +14,7 @@
 | 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | 已派评审问题、CI失败及机械冲突；必要红绿自测；交精确head和日志 | 不自主领新片、不独立评审或统筹测试、不合并 |
 | 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | 与修复1串行轮换；无写入安排时做已派只读准备 | 同上；两个修复会话互不代派，不并写 |
 | 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | 从Claude的C1领取desktop/local-host后续片，保留server+CLI已合1151 | 已获RAC113条件式实施授权：FIX1#1173源码固定释放即自动接槽，无需二次确认；与修复chat合计单writer，不自行full |
-| 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | 从Claude的C2领取全库/非SQLite状态快照恢复，密钥不外带 | C1源码固定释放后接槽，先唯一slice+B1完整前置再B2/快照/恢复；B1合同已由root按本轮授权裁定，离线锁独立前置不挡B1/B2；不碰真实Home |
+| 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | 从Claude的C2领取全库/非SQLite状态快照恢复，密钥不外带 | C1源码固定释放后接槽，先唯一slice+B1完整前置再B2/快照/恢复；B1合同已由root按本轮授权裁定，离线锁前置亦由C2负责必要接线并协调在途窗口，不挡B1/B2；不碰真实Home |
 
 已有角色 owner 与有效技术裁定保持。用户明确授权新统筹组织四个专职会话；专职交付回新统筹，由其接续。修复与新增独立实现chat合计最多一个Codex实现writer；可同时只读准备，实施顺序听Claude；整机仍是一份build、一批浏览器，公共machine-slot排队。旧文中由root日常派单/合并之处自本次交接起均由新流水线统筹承担。
 
@@ -33,7 +33,7 @@
 ## 当前流水线（2026-10-23 23:54 洛杉矶／10-24 06:54 UTC）
 
 - 用户最新模型分工已实测生效：本执行chat当前`01a16ca8-9fc1-7df1-927a-0cb3e7fdc74c`（2026-10-24 06:45:56.285UTC）turn_context为gpt-6.1-sol/max；root与REVIEW为Astra/xhigh，TEST/FIX/C1/C2为6.1-sol/max。root已独立核全8个chat，无需再为模型重启。当前1173唯一writer、随后C1→C2顺序及现有CI继续。
-- Claude单writer顺序继续1114→1173→C1 RAC113→C2 slice/B1/B2/快照/恢复→C3。#1114最终7733c5541已交，正式增量审验均通过并已释放writer；修复1#1173已获明确启动并active（公开6381130928），交付后立即给C1实施，不等待1173 CI/合并占writer。nonblock在C片等审/CI时插空。C2已完成离线A/秘密B1-B2的只读差异核验，IM邀请hash-only新合同已获root裁定到位，C1释放后C2立即slice+B1；早期锁/转借独立对接Host入口owner，不阻B1/B2、不擅动Host禁区。
+- Claude单writer顺序继续1114→1173→C1 RAC113→C2 slice/B1/B2/快照/恢复→C3。#1114最终7733c5541已交，正式增量审验均通过并已释放writer；修复1#1173已获明确启动并active（公开6381130928），交付后立即给C1实施，不等待1173 CI/合并占writer。nonblock在C片等审/CI时插空。C2已完成离线A/秘密B1-B2的只读差异核验，IM邀请hash-only新合同已获root裁定到位，C1释放后C2立即slice+B1；早期锁/转借由root已授权C2做必要最小Host接线，先在同一slice写边界并协调在途文件，不阻B1/B2。
 - Claude是整条防腐线总统筹；本chat负责Codex侧按其范围、优先级、跨线依赖与全量排期接续。C1/C2两个实现chat已收到入口并开始只读准备，完整目标未缩小；不重复建chat，全部Codex修复/实现仍单writer。DeepSeek历史贡献与review-pr-fixer在途认领分别保留。
 - 修复1已交非Draft[#1174](https://github.com/molis-ai/molis-work/pull/1174) `5bbb4318697dbef4631e5db3870691c27fff2e94`，4文件+12/-5，仅两e2e同步与两原spec；已释放writer/build/browser。统筹已读真实bundle延迟旧点击0次→ready后严格pointer1次、旧document等待精确红→navigate-before-click完整AC4绿；完整main后续5+3/8及batch23同patch8/8保留。首次main-fixed7/8的Pages后段failed/Missing frame仍未归因，TEST接现有批次观察，不能称已修。原日志 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/handoff.md`；实际affected full=[]/storage=[]。REVIEW6380942452与TEST独立核原始diff/两有效探针/完整文件/门禁及最终affected均通过，无需重复本机运行；精确头CI40070310777已Verify/Security/Product及全部适用项成功；Claude公开合并认领6380951820。06:54已实际见queue位置1/AWAITING_CHECKS，同一精确头，不重复入队。ac-review6380946827补充BL544侧视图加载守护（当前仅ac-shell领域归属，仍需具体实施接续）和R44；10s期限/负载只是候选解释，缺少原始mount失败原因，未定因。
 - #1114最终远端`7733c554140f7d25e3aa8436ba2af4ae2c8c82e8`已交（回执6381127415），父9df80415b+d28794061；统筹读实际remerge-diff仅BACKLOG双方逐字并集/排序。REVIEW正式6381135401及TEST最终独立核验通过，9df的build/307项/27assets7792605B证据按未变部分复用，最终health对d287、affected full/storage/uncovered空与secrets178行均有效；不是最终头新build。CI40071861128排队，Claude原合并认领6381041047保持。修复2已明确释放writer不等CI，现只读待队列。
@@ -157,7 +157,7 @@
 - 两个Codex修复会话当前没有实施writer；修复1保留#1121及#1148后续认领，等#1148实际合入。专职评审、测试和修复2只读准备均已启动；C1后续/C2/C3未被这些局部交付记为完成。
 
 
-- 立即交槽触发已授权并通知双方：FIX1#1173固定head普通push、明确释放源码writer时，直接发C1与执行chat；C1鲜核无新重排即启动RAC113，不再等第二次许可。C1交固定head同样直接触发审验并释放给C2；C2的B1合同已由root依本轮人类授权具体裁定并直达实现2，已解除等待；锁前置单独对接Host owner，不挡B1/B2。当前FIX1 active，C1确认收到触发授权，尚未并写。
+- 立即交槽触发已授权并通知双方：FIX1#1173固定head普通push、明确释放源码writer时，直接发C1与执行chat；C1鲜核无新重排即启动RAC113，不再等第二次许可。C1交固定head同样直接触发审验并释放给C2；C2的B1合同已由root依本轮人类授权具体裁定并直达实现2，已解除等待；锁前置root也已裁由C2做必要最小启动接线，协调真实文件冲突，不挡B1/B2。当前FIX1 active，C1确认收到触发授权，尚未并写。
 
 ### 本轮明确后续实施与裁定入口
 

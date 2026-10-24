@@ -36,7 +36,7 @@
 | --- | --- | --- |
 | `host` | 这个 `PluginDefinition` 对象是宿主启动名单里的那个（对象身份，现在的 `pluginEntryIdentity` 做法），不看 Manifest 里写什么；它编进宿主构建 | 宿主，在进程内 |
 | `pinned` | 包里带 Ed25519 公钥，公钥的指纹等于 Manifest 的 `publisher.signature`，签名验得过，并且这个指纹在 Home 的发布者表里已被人固定（首次安装时由人在预览里固定） | `verifyPluginPackage` + 发布者表 |
-| `unsigned` | 没有可验的签名：开发目录（`--allow-unsigned-development`）、创作台产物，以及以后任何没签名的来源 | 无证据 |
+| `unsigned` | 没有可验的签名。**封闭清单，只有两个来源**：开发目录（`--allow-unsigned-development`）和创作台产物；新增来源要改本稿并经统筹。`molis-work plugin install` 对没签名的包仍一律拒绝（`THIRD-PARTY-PLUGINS.md` §3 第 2 步不变），没签名的包不会走到 `unsigned` 等级（RAC-387） | 无证据 |
 
 ### 2.1 等级决定什么（一张表，实现只读这张表）
 
@@ -88,7 +88,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 1. **收回在途调用**：并入 S-15/S-18 已有的授权世代检查，撤回让这个安装的授权世代前进，执行中的调用在 `beforeEffect()` 和每次写之前被拒，不再写任何业务记录；处理器开始之前被拒的，只留一行「未执行」的诊断行（硬约束，不记内容）。实现片先核 `validate_authority` 现在怎么算世代，再把「同意」并进去，不另写第二套收回。
 2. **效果随类**：`always_on` 撤回后，它不再出现在常开名单里（§3.4），人可以在项目里隐藏或移除它；`default_wiring` 撤回后，来源为 `default` 且对应这一项的绑定被解开，并且记着不再自动绑；`default_group` 同理；发布者撤回（`plugins.publisher.revoke`）后，这个发布者的所有已装插件停用、不能再升级，数据保留（`THIRD-PARTY-PLUGINS.md` §4）。
-3. **不可撤回的**：`host` 等级插件的 `always_on` 同意（`revocable: false`）。Goals 是「每个项目都带」的产品结构，Shelf 同理，它们不是人可以关掉的权限；其余同意都可撤。这一条是对「同意可撤回」的收窄，见 §10 待定 2。
+3. **host 等级的 `always_on` 同意可不可撤：按 §10 待定 2 的结论**（用户答复前未定）。稿里账本有 `revocable` 列，两种结论都只改这一列的取值，别处不动；其余同意一律可撤。
 
 ### 3.4 常开从安装记录生成（PG-004）
 
@@ -150,7 +150,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 
 ### 5.1 S-34 改写、S-15 补充
 
-- **S-34（改）**：常开插件（`always_on: true`）是否生效，看安装记录里有没有一行有效同意，不看安装来源；`host` 等级由宿主代为同意且不可撤；其余等级未同意的，安装时那一项不生效（不是装不上）。服务端拒绝卸载、停用、项目内移除常开插件。`tests/security-invariants-always-on.test.ts` 的三条断言按新语义重写（见 RAC-384～386）。
+- **S-34（改）**：常开插件（`always_on: true`）是否生效，看安装记录里有没有一行有效同意，不看安装来源；`host` 等级由宿主代为同意，可不可撤按 §10 待定 2 的结论；其余等级未同意的，安装时那一项不生效（不是装不上，依据统筹 10-24 定的待定 1）。服务端拒绝卸载、停用、项目内移除常开插件。`tests/security-invariants-always-on.test.ts` 的三条断言按新语义重写（见 RAC-384～386）。
 - **S-15（补）**：在 `bundled` 一段改成「`host` 等级」；其余内容不变。
 
 ### 5.2 新增
@@ -160,12 +160,13 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 2. 需要同意的声明（`always_on`、默认连线、默认输入组）没有有效同意就不生效，没有任何别的来源（插件名、等级、目录条目）能代替；`host` 等级的同意是安装时代记的，同样是账上的一行。
 3. 默认连线的同意带来源插件的发布者签名，运行时来源的签名对不上就不绑。
 4. 撤回按撤权处理：在途调用在最后一次检查处被拒、不再写业务记录；常开与默认连线随之失效；发布者撤销后其所有安装停用且不能升级，数据保留。
-5. `pinned` 等级每次安装、升级、回滚都验签；验不过 `plugin.signature_invalid`，指纹对不上 `plugin.signer_mismatch`，发布者没固定 `plugin.publisher_untrusted`，已撤销 `plugin.publisher_revoked`。
+5. `pinned` 等级每次安装、升级、回滚都验签；验不过 `plugin.signature_invalid`，指纹对不上 `plugin.signer_mismatch`，发布者没固定 `plugin.publisher_untrusted`，已撤销 `plugin.publisher_revoked`。没签名的包经 `plugin install` 一律 `plugin.signature_invalid`，不进 `unsigned` 等级。
 
 **S-68（暂定）提供方身份不可冒充。**
 1. 非 `pinned` 等级的 `publisher.signature` 不许是 `ed25519:sha256:` 形状。
 2. 两个不同发布者的 `plugin_id` 不许按点分段互为前缀。
 3. 动作提供方 id：`host` 等级用 `plugin_id`，其余用 `plugin-install-<hash>`；一个等级不是 `host` 的安装不能登记成 `plugin_id` 作提供方。
+4. 宿主启动名单里全部的 `plugin_id`，连同它们点分段的前缀（名单里有 `io.molis.work.goals`，则 `io.molis.work` 与 `io.molis` 也算），不许由非 `host` 等级的安装使用（`plugin.id_namespace_conflict`）；这条与第 2 条是两件事：第 2 条管外部发布者之间，这条管外部与宿主之间。
 
 每条都要有断言**拒绝本身**的测试（§8 逐条对应）；写测试时找不到拒绝，就是缺陷，先补最小的拒绝。
 
@@ -212,10 +213,10 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | RAC-381 | 一条安装路：宿主构建、签名包、开发目录、创作台产物都经 `resolvePluginTrust`，源码里不再有按 `bundled` 分叉的安装逻辑 | 门禁式测试：`install` 调用点都带 `trust` |
 | RAC-382 | `pinned` 每次安装、升级、回滚都验签；验不过、指纹对不上、发布者没固定、已撤销，各自拒绝并带对应码（S-67.5） | `tests/plugin-package.test.ts` 扩展 |
 | RAC-383 | 非 `host` 等级只在沙箱：`execution` 与等级不一致被拒；映射不了沙箱形态的 Manifest 安装时拒绝 | Runtime 单元测试 |
-| RAC-384 | `unsigned` 声明 `always_on` 且没有同意：装得上、不生效（不在常开名单，可移除）；有同意则生效（S-34 新语义） | 重写后的 `tests/security-invariants-always-on.test.ts` |
-| RAC-385 | `host` 等级的 `always_on` 默认同意、不弹窗、不可撤；`pinned` 同意后可撤 | 同上 |
-| RAC-386 | 常开从记录生成：外部常开插件对已有项目立刻生效；撤回后立刻不强制；服务端拒绝卸载、停用、移除（V-01） | `tests/project-plugins.test.ts` 扩展 |
-| RAC-387 | Goals 与 Shelf 常开仍然成立，建项目不再写死 `"goals"` | `tests/project-plugins.test.ts` |
+| RAC-384 | `unsigned` 声明 `always_on` 且没有同意：装得上、不生效（不在常开名单，可移除，依据统筹 10-24 定的待定 1）；有同意则生效（S-34 新语义） | 重写后的 `tests/security-invariants-always-on.test.ts` |
+| RAC-385 | `host` 等级的 `always_on` 默认同意、不弹窗；能不能撤回按 §10 待定 2 的结论（答复前断言只钉「默认同意、不弹窗」）；`pinned` 同意后可撤 | 同上 |
+| RAC-386 | 常开从记录生成：外部常开插件对已有项目立刻生效；撤回后立刻不强制；服务端拒绝卸载、停用、移除（V-01）；Goals 与 Shelf 常开仍然成立，建项目不再写死 `"goals"` | `tests/project-plugins.test.ts` 扩展 |
+| RAC-387 | 没签名的包经 `plugin install` 被拒（`plugin.signature_invalid`），不会得到 `unsigned` 等级；`unsigned` 只有开发目录和创作台产物两个来源 | `tests/plugin-package.test.ts` 扩展 |
 | RAC-388 | 默认连线：`unsigned`/`pinned` 声明的 `default_source` 没有同意不绑，有同意才绑；`host` 等级的行为与今天一致 | `tests/plugin-default-bindings.test.ts` 扩展 |
 | RAC-389 | 默认连线的来源签名对不上同意记录就不绑（防抢注，S-67.3） | 同上 |
 | RAC-390 | 撤回一项默认连线只解开对应的 `origin: "default"` 绑定，人手选的不动，且不再自动绑 | 同上 |
@@ -226,22 +227,24 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | RAC-395 | 两个不同发布者的 `plugin_id` 互为前缀被拒，同发布者允许（S-68.2，BL-506） | 同上 |
 | RAC-396 | 提供方 id：`host` 用 `plugin_id`，其余用 `plugin-install-…`；动作合同快照里内置插件的 `registered_provider` 不变（S-68.3） | `tests/action-contract-snapshot.test.ts` |
 | RAC-397 | 存量：旧基线的库被拒绝；新基线下 `publisher_trust` 与同意行由启动幂等补齐；在隔离 Home 演练维护步骤 | 隔离 Home 的演练记录 |
-| RAC-398 | 公开 API 与动作合同快照：只有 §4 列出的变化，PR 里逐项写对调用方的影响 | `pnpm api:update`、`pnpm actions:update` 的 diff |
-| RAC-399 | 文档一致：S-15、S-34、S-67、S-68 与 `SECURITY-INVARIANTS.md` 的测试列、POLICY 7.8、THIRD-PARTY-PLUGINS、手册 | `pnpm health:check` 的文档引用检查 |
+| RAC-398 | 公开 API 与动作合同快照：只有 §4 列出的变化，PR 里逐项写对调用方的影响；文档一致：S-15、S-34、S-67、S-68 与 `SECURITY-INVARIANTS.md` 的测试列、POLICY 7.8、THIRD-PARTY-PLUGINS、手册 | `pnpm api:update`、`pnpm actions:update` 的 diff；`pnpm health:check` 的文档引用检查 |
+| RAC-399 | 宿主启动名单里的 `plugin_id` 及其点分段前缀，非 `host` 等级的安装使用时被拒（S-68.4） | 同 RAC-394 的测试文件 |
 
 ## 9. 待办
 
-BL-555～562 写在 `specs/BACKLOG.md`（T1～T8 各一行，BL-563、564 空着）。
+BL-555～562 写在 `specs/BACKLOG.md`（T1～T8 各一行），BL-563 是 T1 开工前核 Home 库账本的列（§10 待定 4），BL-564 空着。
 
-## 10. 待定（不自己扩大信任边界，回统筹）
+## 10. 待定
 
-1. **拒绝单项声明还装不装。** 本稿按「装，那一项不生效」写。另一种是「要么全接受要么不装」。前者对人友好，代价是同一个插件在不同 Home 里行为不同；后者最保守。推荐前者。
-2. **`host` 等级的 `always_on` 不可撤是否合适。** 本稿写成不可撤（Goals 是每个项目都带的产品结构）。若用户希望连 Shelf 也能关，把它的 `revocable` 设为 true 即可，别处不用动。推荐维持不可撤。
-3. **内置插件的 `publisher.signature` 仍是标签。** 本稿让 `host` 等级靠「启动名单的对象身份」，不要求内置 Manifest 带真签名。若统筹想让内置也走真签名（宿主内置官方公钥、发布时签名、启动时验），需要发布流程的改动，不在本片。推荐不做。
-4. **外部插件的安装范围。** 现在项目 Runtime 的安装记录在各项目库里。本稿假设同意与发布者固定在 Home 级，每个项目的安装记录仍各自一份；外部常开插件要在每个项目都起一个实例。是否改成「外部插件在 Home 级装一次」，是更大的改动，要和 PG-022 P1b（#1147）的 Home 库账本一起看，推荐先不动，T1 开工前核一次那个账本的列。
-5. **包信封带公钥（C9）还是命令行 `--publisher-key`。** 本稿选带公钥，因为宿主才有固定表，命令行不该是信任来源。代价是已有的签名包要重打。现在没有外部在用的包，推荐按本稿。
-6. **提供方 id 对 `pinned` 是否用稳定的 `plugin_id`。** 本稿保持 `plugin-install-<hash>`，因为固定了提供方的工作流引用在重装后应该显式失效，而不是静默换主。若要稳定 id，需要先定重装时引用怎么办。推荐保持。
-7. **BL-506 的前缀规则落在哪几处命名空间。** 本稿只写了「不同发布者的 id 不许互为前缀」，没有逐处核对哪些地方按前缀匹配（日志命名空间、事件类型）。T6 开工时核，核完若发现某处是精确匹配，规则可以放宽。
+统筹 10-24 已定的几项标明；只有第 2 项还在等用户答复，答复前稿里所有相关文字（§3.3、S-34、RAC-385）都写成「按待定 2 的结论」。
+
+1. **拒绝单项声明还装不装。统筹 10-24 定：装，那一项不生效。** S-34 与 RAC-384 保留这个写法。
+2. **`host` 等级的 `always_on` 可不可撤。待用户定**（统筹已弹窗问）。Goals 是每个项目都带的产品结构，推荐不可撤；若连 Shelf 也要能关，只改 `revocable` 的取值。
+3. **内置插件的 `publisher.signature` 仍是标签。统筹 10-24 定：内置仍靠启动名单的对象身份，不走真签名。**
+4. **外部插件的安装范围。统筹 10-24 定：本片不动。** 同意与发布者固定放在 Home 级，每个项目的安装记录仍各自一份；T1 开工前先核 PG-022 P1b（#1147）Home 库账本的列（BL-563，owner ac-trust）。
+5. **包信封带公钥（C9）。统筹 10-24 定：带公钥。** 已有的签名包要重打，现在没有外部在用的包。
+6. **提供方 id 对 `pinned` 保持 `plugin-install-<hash>`。统筹 10-24 定。** 固定了提供方的引用在重装后显式失效。
+7. **BL-506 的前缀规则落在哪几处命名空间。统筹 10-24 定：T6 开工时核。** 核完若某处是精确匹配，规则可以放宽（S-68.4 的宿主名单规则同理）。
 
 ## 11. 防腐复查
 

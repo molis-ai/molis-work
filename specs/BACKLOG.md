@@ -185,6 +185,7 @@
 | BL-560 | 信任 T6：提供方身份不可冒充。非 `pinned` 的 `publisher.signature` 不许是指纹形状，不同发布者的 `plugin_id` 不许按点分段互为前缀（BL-506），S-68 | 同上 §7 T6（R-37） | 未实现 | 设计稿先审定，实现等 #1098 合入 | BL-555 | 中 | ac-trust |
 | BL-561 | 信任 T7：安装预览与插件详情里的同意清单与撤回界面，文字走翻译；平台权限说明（BL-353）与随激活作业（BL-362）同页 | 同上 §7 T7（PG-002 同页） | 未实现 | 设计稿先审定，实现等 #1098 合入 | BL-556、BL-559、#1098 | 中 | ac-trust |
 | BL-562 | 信任 T8：文档与手册。POLICY 7.8、`docs/system/THIRD-PARTY-PLUGINS.md`、`skills/molis-plugin-dev` 加「装的时候用户会被问哪些声明」，PG-016 版本跟随写明算安装信任 | 同上 §7 T8（PG-016） | 未实现 | 设计稿先审定，实现等 #1098 合入 | BL-555 | 中 | ac-trust |
+| BL-563 | 信任 T1 开工前：核 PG-022 P1b（#1147）的 Home 库账本记了安装记录的哪些列，决定同意账本与发布者固定表（`plugin_publishers`、`plugin_consents`）接在它旁边还是独立建表，核完把结论写回 `slices/ac-trust-install.md` §10 待定 4 | [slices/ac-trust-install.md](repository-anti-corruption/slices/ac-trust-install.md) §10 待定 4（统筹 10-24 定） | 未实现 | 设计稿先审定 | BL-555 开工 | 中 | ac-trust |
 | BL-366 | Agent 批准的写入也发 `host.workspace.changed@1`：v1 只在插件发起、人批准的工作区操作结算时广播（S-54），Agent 自己的文字编辑和命令改了工作区不发，Files 的快照照样会过期，所以 `apps/local-host/src/coding-surface.ts` 的 `readsFilesOutputs`（Coding 迁移里记的「先让 Files 刷新」的钩子，N-14 出口）还删不掉。补法（① 10-22 定）：Agent 批准的写入结算时也广播，`cause` 加一个值 `agent-change`（改合同，按 `docs/system/CONTRACT-CHANGES.md`）；Agent 的文字编辑只带 `workspace_path`，要先映射到 `workspace_id`。Files 订阅以后删 `readsFilesOutputs`，再删这一行 | ① 10-22 对 `host.workspace.changed@1` 的 D2 裁定 | 已知缺口 | v1 只接插件发起的审查结算；Agent 的写入要另做路径到工作区的映射，命令改了什么也说不准 | `host.workspace.changed@1`（②） | 中 | ② |
 
 ## 6. 连接、来源与 Onboarding

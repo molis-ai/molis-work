@@ -5,7 +5,6 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { DATASET_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-dataset";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
 import {
   INBOX_NATIVE_PLUGIN_ROUTES,
@@ -26,10 +25,10 @@ import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixtu
 
 // Forms' page is TypeScript bundled and minified into its client pack (W4-04): what its code does is read in the sources.
 const lingguangSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
+const datasetSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
 const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
 
 const csrClients = {
-  dataset: DATASET_CLIENT_FACTORY_SCRIPT,
   ppt: PPT_CLIENT_FACTORY_SCRIPT,
   functions: FUNCTIONS_CLIENT_FACTORY_SCRIPT,
   pages: PAGES_CLIENT_FACTORY_SCRIPT,
@@ -57,6 +56,15 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   const lingguangCommands = lingguangSource("commands.ts");
   assert.match(sliceFn(lingguangCommands, "const discardIds", "const current"), /\/discard[\s\S]{0,250}await page\.loadList\(\)/, "灵光 丢掉后要重新拉列表");
   assert.match(sliceFn(lingguangCommands, "const back", "const pick"), /await page\.loadList\(\)/, "灵光 返回后要重新拉列表");
+  // Dataset is TypeScript bundled into its client pack too: the list keeps its scroll on every repaint, and creating, deleting and
+  // going back each load the list again.
+  const datasetList = sliceFn(datasetSource("list.ts"), "page.renderList = ", "page.markSelected");
+  assert.match(datasetList, /const top = el\.list\.scrollTop[\s\S]*paintList\(\)[\s\S]*el\.list\.scrollTop = top/, "dataset 要保住列表滚动，画完写回 scrollTop");
+  const datasetCommands = datasetSource("record-commands.ts");
+  assert.match(sliceFn(datasetCommands, "export async function createTable", "export async function openTable"), /await page\.loadList\(\)/, "dataset 新建后要重新拉列表");
+  assert.match(sliceFn(datasetCommands, "export async function deleteTable", "\n}\n"), /\/delete[\s\S]{0,250}await page\.loadList\(\)/, "dataset 删除后要重新拉列表");
+  assert.match(sliceFn(datasetCommands, "export async function backToList", "export async function pinFixed"), /await page\.loadList\(\)/, "dataset 返回后要重新拉列表");
+  assert.match(datasetSource("commands.ts"), /always\("\[data-dataset-back\]", \(page\) => record\.backToList\(page\)\)/, "dataset 的返回按钮走 backToList");
   // Forms: the list keeps its scroll on every repaint (read before the rows are replaced, written back after), and creating,
   // deleting and going back each load the list again.
   // CLN-04: these helpers are internal; the scroll contract does not depend on an export modifier.
@@ -66,7 +74,6 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(sliceFn(formCommands, "const create", "};"), /await loadList\(page\)/, "form 新建后要重新拉列表");
   assert.match(formCommands, /\/delete[\s\S]{0,500}await loadList\(page\)/, "form 删除后要重新拉列表");
   assert.match(formCommands, /data-form-back[\s\S]{0,400}await loadList\(page\)/, "form 返回后要重新拉列表");
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /data-dataset-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /data-ppt-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-back[\s\S]{0,400}await loadList\(\)/);

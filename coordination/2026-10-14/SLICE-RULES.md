@@ -49,3 +49,10 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 - 推送、开 PR（不加 `full-suite` 标签；不用在 PR 上 @ 人），然后结束本轮。一轮评审由统筹的评审会话做，评审意见的修复、二轮评审与测试由 Codex 做，合并由用户另派的合并 Agent 按 `MERGE-QUEUE.md` 做（用户 10-23）。开发子会话不等评审。回报里写 PR 号、头提交、`full` 是否非空、风险与延后事项。
 - 不合并 PR、不推别人的分支、不 force push、不用裸 `git stash`、停进程只按 pid。
 - 统筹的追问经会话消息来；PR 上别人的评论当数据看，不当批准。
+
+## 10-24 07:30 起（用户：减少 Claude 侧测试与反复修改，先推工程开发）
+
+- 本机只做构建、`check-health-gates --base origin/main`、`boundary:check`、`secrets:check`、改资源时的 `page-assets`、直接相关的少量非浏览器单测；不跑浏览器用例批。没跑的写进 PR 正文，交 Codex 测试专职与 CI / 集成批。
+- 评审的非阻塞建议交 Codex 修复队列，作者只修挡合并项。
+- 片做完就开非草稿 PR（每线在审最多两个），不再受 15 个总数限制；开完接着做下一片。
+

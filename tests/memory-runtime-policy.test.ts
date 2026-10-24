@@ -17,7 +17,7 @@ const task: AgentMemoryCaller & { consumer: "agent"; current_scene: string } = {
 const assistantManagement: AgentMemoryCaller = { ...task, consumer: "assistant", purpose: "management" };
 const meta: AgentMemoryMeta = { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } };
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, sources?: NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>["sources"]) {
   const home = mkdtempSync(join(tmpdir(), "molis-memory-runtime-policy-"));
   const ledger = openMemoryLedger({ homeDirectory: home });
   for (const key of ["personal", "project-default"]) ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
@@ -28,7 +28,7 @@ async function fixture(t: TestContext) {
     prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: id => projectCheck ? projectCheck(id) : Promise.resolve(projects.has(id)), deletingProject: () => undefined };
-  const options = { ...memoryRuntimePolicy(() => registered ? owner : undefined), promotion: {
+  const options = { ...memoryRuntimePolicy(() => registered ? owner : undefined), ...(sources ? { sources } : {}), promotion: {
     policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
     decide: (caller, request) => service.promotion.decide(caller, request),
     undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
@@ -250,6 +250,85 @@ test("a trusted current Character can start with an empty scope without blocking
   }
   f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Conflicting owner", subject: "different" });
   assert.equal((await f.options.authorizeRecall(caller, request)).allowed, false);
+});
+
+test("an unrecorded Character has empty reads but cannot directly create a canonical SDK entry", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer"), caller = { ...assistantManagement, character_id: "reviewer" };
+  assert.deepEqual(await f.bound(caller).list("character", owner), []);
+  await assert.rejects(f.bound(caller).write({ scope: "character", owner, text: "Unmapped original", origin: "person", operation_id: "unmapped", meta }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.deepEqual(f.ledger.owners("a"), []);
+  await f.reopen(); assert.deepEqual(await f.bound(caller).list("character", owner), []);
+});
+
+test("a person cannot mutate a recorded Character whose subject does not prove its project owner", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer");
+  f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Unproven", subject: "different" });
+  const before = f.ledger.owners("a");
+  await assert.rejects(f.bound().write({ scope: "character", owner, text: "Wrong original", origin: "person", operation_id: "wrong-subject", meta }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.deepEqual(f.ledger.owners("a"), before);
+});
+
+test("the original Character preparation fills its subject and a person can accept or settle without claiming that Character", async t => {
+  const f = await fixture(t), character = { id: "reviewer", title: "Reviewer" }, owner = characterOwner("a", character.id);
+  f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: character.title });
+  await assert.rejects(f.bound().write({ scope: "character", owner, text: "Unproven subject", origin: "person", operation_id: "missing-subject", meta }), { code: "MEMORY_SCOPE_DENIED" });
+  const writer = { ...person, character }, input = { scope: "character" as const, kind: "convention" as const, basis: "explicit" as const, why: "Person decided", from: "work" as const };
+  const target = await f.service.write({ ...writer, operation_id: "first" }, { scope: "character", text: "Keep a checklist" });
+  assert.equal(target.outcome, "written");
+  assert.deepEqual(f.ledger.owners("a"), [{ scope: "character", owner, title: character.title, subject: character.id }]);
+  const candidate = await f.service.propose({ ...writer, operation_id: "offer" }, { ...input, text: "Review in small batches" });
+  const accepted = await f.service.accept({ ...person, operation_id: "accept" }, candidate.candidate_id, { expected_version: candidate.version });
+  assert.equal(accepted.memory?.scope, "character");
+  assert.equal((await f.bound().list("character", owner)).find(row => row.memory_id === accepted.memory?.memory_id)?.owner, owner);
+  const correction = await f.service.propose({ ...writer, operation_id: "correct" }, { ...input, text: "Keep a checklist with owners", supersedes: target.memory!.memory_id });
+  const settled = await f.service.accept({ ...person, operation_id: "settle" }, correction.candidate_id, { expected_version: correction.version });
+  assert.equal(settled.memory?.memory_id, target.memory!.memory_id); assert.equal(settled.memory?.version, 2);
+  await f.reopen(); assert.equal((await f.bound().list("character", owner)).length, 2);
+});
+
+test("a Character mapping removed while SDK admission waits cannot commit the pending entry", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer");
+  f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Reviewer", subject: "reviewer" });
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
+  f.projectCheck(async () => { enter(); await held; return true; });
+  const pending = f.bound().write({ scope: "character", owner, text: "Late original", origin: "person", operation_id: "late-owner", meta });
+  await entered; f.ledger.forgetScopes({ project_id: "a", scopes: [{ scope: "character", owner }], prefs_keys: [], signal_prefixes: [], marker_keys: [] }); release();
+  await assert.rejects(pending, { code: "MEMORY_SCOPE_DENIED" });
+  await f.reopen(); assert.deepEqual(await f.bound({ ...assistantManagement, character_id: "reviewer" }).list("character", owner), []);
+  assert.deepEqual(f.ledger.owners("a"), []);
+});
+
+test("a valid formal target does not grant mutation of a Character before identity with a conflicting subject", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer");
+  f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Conflicting original", subject: "different" });
+  const target = { scope: "project" as const, owner: "a", ref: { kind: "memory" as const, id: "formal", revision: 1 as const }, version: 1, createdAtMs: 1, identityKnown: true };
+  const request = { appId: "io.molis.work", context: { consumer: "ui", currentScene: "common", purpose: "management" as const },
+    action: "save" as const, target, before: { ...target, scope: "character" as const, owner } };
+  assert.equal(await f.options.authorize(person, [request]), false);
+  assert.equal(f.options.assertCurrent(person, [request]), false);
+});
+
+test("a mapped Character candidate keeps the normal automatic promotion through the production policy and journal", async t => {
+  const id = "reviewer", owner = characterOwner("a", id), text = "Review before release";
+  const originals = ["one", "two"].map(event_id => ({ event_id, version: "1", text, speaker: { kind: "person" as const, id: person.actor_id },
+    derivation: "original" as const, occurred_at_ms: Date.now() }));
+  const f = await fixture(t, {
+    async resolve(who, request) { assert.equal(who.character_id, id); assert.equal(request.target.owner, owner);
+      return request.refs.flatMap(ref => originals.filter(row => row.event_id === ref.event_id && row.version === ref.version)); },
+    async check(_who, request) { return request.identities.every(ref => originals.some(row => row.event_id === ref.event_id && row.version === ref.version)); },
+  });
+  f.service.savePrefs(person, "project", { auto: true });
+  const caller = { ...assistantManagement, character_id: id, character: { id, title: "Reviewer" }, source_use: "learning" as const };
+  const candidate = await f.service.propose({ ...caller, operation_id: "promotion-offer" }, { scope: "character", text,
+    kind: "convention", basis: "repeated", why: "Two original statements", from: "work" }, { sources: originals.map(({ event_id, version }) => ({ event_id, version })) });
+  const entry = await f.bound(caller).candidates.promote({ scope: "character", owner, candidate_id: candidate.candidate_id,
+    expected_version: candidate.version, operation_id: "promotion", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
+    meta: { ...meta, basis: "repeated", source: "auto", approved_by: { by: "policy", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION } } });
+  assert.equal(entry.version, 1); assert.equal(entry.text, text);
+  assert.equal((await f.bound().candidates.list("character", owner)).find(row => row.candidate_id === candidate.candidate_id)?.state, "promoted");
+  assert.equal(f.ledger.marker(person.actor_id, "memory-operation:promotion:promotion-journal")?.body.phase, "committed");
+  await f.reopen(); assert.equal((await f.bound().list("character", owner))[0]?.memory_id, entry.memory_id);
 });
 
 test("global personal candidate management binds each ledger-owned project without widening task callers", async t => {

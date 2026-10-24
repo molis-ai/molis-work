@@ -309,3 +309,5 @@ MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-
 固定分类选集批量管理沿现 memory.batch.preview/apply：本人明确选择最多 100 条 scope/owner/id/version，Host 校验并以无正文 marker 保留原选集和子操作；执行复用 Service.change 完整清理与回执，不另跑 SDK 批量写。管理分页公开 owner 不代表授权。取消/unknown 停后续，incomplete 显示逐项结果并重试原预览；完成项不覆盖后继编辑。页面只保留原预览身份，Host 重开继续原操作。相关真实 SDK/SQLite、Action、分页和页面测试待统筹构建槽验证；未跑不算通过。合同见 specs/prologue-memory-strategy/spec.md 的固定分类选集短合同。
 
 Agent 的通用 Memory Action 使用生产 startAuthority 绑定的原 Run `runtime_memory` 与 Session，不能以当前设置或最新 attempt 替代。Memory owner 将其作为 task caller 交同一 SDK；缺失时明确不可用。动作 grant、安装与取消检查保持原调用链。
+
+Character 的一般Memory mutation对目标及before原件均要求当前ledger中的准确项目/subject关系，并核`characterOwner(project,subject)`；本人采用不需要伪报caller.character。新写/提案沿Memory原准备口先登记关系，authority回调只读、不猜历史归属。空角色范围可读取为空且不登记关系；明确项目删除仍只沿原固定计划许可。专项回归见 `tests/memory-runtime-policy.test.ts`、`tests/memory-character-proposal-owner.test.ts` 与 `tests/memory-owner-relations.test.ts`。

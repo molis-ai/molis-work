@@ -43,6 +43,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `pages.<原因>`，状态由错误种类决定，Pages 不自带状态表）、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 导入、模板选择、命名和确认弹窗复用 `mw-dialog--form`：内容单独滚动，底部操作始终留在弹窗内；长列表、展开预览、错误提示和矮窗口不把按钮推到裁切区域。`tests/pages-import-entry.e2e.test.ts` 在点击助手自动滚动之前检查按钮完整可见与命中区域。
   - 新建、导入打开和提取返回时，先核对正在编辑的文档与本次编辑状态；新输入通过原版本保存，提取与输入冲突时保留草稿并明确报错，不用返回值确认未显示过的编辑。
   - 不支持的正文结构只读保留；返回、导入打开、发布、提取、导出和打印不把编辑器占位正文写回或当成原文。图片读取、写作候选及卡片浮层属于打开它们的文档；切文档结束这些资源，同文档的延迟图片沿原插入位置映射。
   - Markdown 与静态 HTML 保留表格单元格的所有段落和任务、日程、引用的可见文字；多篇合成沿现有 1500 个字符的节选范围，材料保留对象、版本与截断标记，成稿说明节选并链接原 Pages。

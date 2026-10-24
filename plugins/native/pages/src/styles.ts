@@ -407,8 +407,8 @@ export const PAGES_STYLES = `
   }
   .pages-folder-actions button svg { width: 12px; height: 12px; }
   .pages-folder-actions button:hover { background: var(--nav-hover); color: var(--ink); }
-  .pages-template-dialog { width: min(420px, calc(100vw - 32px)); }
-  .pages-template-list { display: flex; flex-direction: column; gap: 4px; max-height: min(60vh, 420px); overflow: auto; }
+  .mw-dialog.pages-template-dialog { width: min(420px, calc(100vw - 32px)); }
+  .pages-template-list { gap: 4px; }
   .pages-template-item {
     display: flex; flex-direction: row; align-items: flex-start; gap: 12px;
     width: 100%; height: auto; min-height: 48px; padding: 8px 12px; text-align: left;
@@ -422,9 +422,7 @@ export const PAGES_STYLES = `
   .pages-template-item strong { font-weight: inherit; }
   .pages-template-item em { font-size: 12px; color: var(--muted); font-style: normal; font-weight: 400; }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }
-  .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 16px; }
-  .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
-  .creative-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .creative-confirm .mw-form__body p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
   body.immersive-workbench .plugin-stage-workspace > .pages-workspace { flex: 1; min-height: 0; }
   .pages-block-handle {
     position: fixed; z-index: 12; display: inline-flex; gap: 0; width: 44px; height: 24px;

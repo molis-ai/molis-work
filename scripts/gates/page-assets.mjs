@@ -238,6 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
+  // Shelf S4: keep a partial-success warning and refresh link visible when sample restoration fails.
+  // Shared success text and button handling reduce duplication; reviewed growth is 1190725 → 1191104 (+379).
+  "/assets/molis-work-workbench.js": [1190725, 1191104],
   // RAC-138/139: typed Issue client 24145 → 27806 (+3661), reviewed 2026-10-23.
   // Object state keeps property names (the original +3605); malformed write receipts and same-id recovery add 56.
   // Combining the failure branches saved 5 bytes; retain the necessary recovery and read-refusal behavior.

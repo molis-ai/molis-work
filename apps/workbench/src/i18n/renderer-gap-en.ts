@@ -1,5 +1,6 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "Shelf 示例未能恢复，请在 Shelf 中查看后重试。": "The Shelf sample could not be restored. Check Shelf and try again.",
   "请重新点击或拖动文件": "Click or drag the file again",
   "请重新点击该操作": "Click this action again",
   "未上传文件时，预览导入会打开系统目录选择器。": "Without uploaded files, Preview import opens the system folder chooser.",

@@ -1129,6 +1129,13 @@ M1 原件证明隔离补充短合同（2026-10-24，修改前）：独立审查�
 交付依赖说明：#1198是独立主干样式修复，不改变Memory存储、原件、形成或召回合同，因此其视觉诊断与#1064工程交付并行，各自保留完成门；不把#1198的失败算作通过，也不据此宣布P0产品验收完成。Todo准确c609专用诊断树同代码A1/A2在原零阈值下重现完全相同的11个像素差（坐标、RGBA方向均一致），证明差异无需该CSS补丁也能发生；原因仍UNKNOWN，原正式视觉比较仍红。原只读基线写入诊断被自动审批拒绝后已恢复干净，后续仅使用独立临时树；未改图、掩膜、阈值或产品。#1064仍须自身所有阻塞、最终普通CI与完整Full suite通过后才能合并，所有未完成P0切片与产品/用户验收继续保留。
 
 
-### #1101 接入准确父 ebdb0d312（2026-10-24，验证中）
+### #1101 接入准确父 ebdb0d312（2026-10-24，本地定向工程验证通过）
 
 本轮只在分页独立树将原 head `7c3bb8794` 合入 #1064 `ebdb0d312044741f2a8ad5ff7bc2ff7cbfff08c8`，保留主干通用 WorkExecutor、MCP v3 授权与已验证原件保护。分页、分类/正文筛选、真实暂停/到期、按需配对及原 CAS 重试合同不变；SDK94/vendor 与锁逐 blob 对齐该准确父，不引入后继 SDK。冲突仅 spec 追加及两份资源登记，双方首败与未验收记录完整保留。资源仅沿本人原批准 workbench 净增 +3,437 B，相对父预算 1,133,257 B 的上限为 1,136,694 B；这是待构建实测的额度，不是实测结果，其余资源不增长，不复用父已消耗额度。冻结安装、整体构建、README 必需及分页/CAS 定向、类型/边界/快照/资源与准确父门待本轮实测；不将独立 Toast #1198 的失败计为通过，不代替最终 CI/全量或产品/用户验收。
+
+
+本轮本地 merge `901c61f95` 已使与 #1064 的 merge-base 精确等于 `ebdb0d312044741f2a8ad5ff7bc2ff7cbfff08c8`。首次 frozen offline 安装因默认 pnpm store 缺少 better-sqlite3 12.8.0 的缓存退出 1，保留原日志；改用本机该父已采用的 `/Users/oreal/Library/pnpm/store` 后同样冻结、离线安装退出 0，未改依赖或锁。固定 Node 24.14.0/pnpm 11.9.0 下，整体 build、根与 workspace types、boundary、API/Action 生成及准确父 health/资源/API/Action/secrets/diff 门均退出 0。SDK/vendor 与 lock 共 9 文件在安装构建后逐 blob 仍等于准确父；没有另行采用 SDK 或手编合同快照。
+
+定向验证结果（2026-10-25）：分页/权限/CAS 核心 7 文件 148 例、README 必需相关 112 文件 1,219 例、浏览器 12 文件 53 例均首轮通过，共 131 文件 1,420 例，jobs2/browser1/retries0。分页及 CAS 使用真实隔离非空 Home、Node/SQLite、HTTP 和 Chrome；该轮 request-failure-call-id 的 2 例通过，只代表此次回归，不覆盖或关闭 #1198 独立视觉比较及此前首败。未运行真实外部模型、最终本片完整 Full suite/CI 或用户验收。
+
+最终实测 27 项资源共 7,649,311 B，父为 7,645,874 B；唯一增量 workbench 1,133,257 → 1,136,694 B，严格等于原批准 +3,437 B，其余 26 项与父相同（Coding 377,944 B）。资源账由现脚本实际生成；health 快查由准确父门生成，MemoryService 行数/方法数下降，没有新增额度或调整其他门禁。命令、退出码及逐文件日志在 `/private/tmp/molis-memory-pages-parent-ebdb-20261024-build.results.json`、`-static.results.json`、`-tests.results.json` 与 `-final-gates.results.json`，首次安装日志为同 stem 的 `-install.log`。本轮仅本地集成与测量提交，不推送、不合并 PR；后续由统筹按依赖顺序完成最终交付门。

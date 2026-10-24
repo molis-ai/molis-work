@@ -121,8 +121,8 @@
     "function modules/shelf/src/store.ts#runJob": 183,
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
-    "file packages/im-ui/src/browser/controller.ts": 961,
-    "function packages/im-ui/src/browser/controller.ts#startIm": 952,
+    "file packages/im-ui/src/browser/controller.ts": 930,
+    "function packages/im-ui/src/browser/controller.ts#startIm": 920,
     "function packages/im-ui/src/views.ts#createViews": 162,
     "class packages/kernel/src/action-service.ts#ActionService": {
       "lines": 396,

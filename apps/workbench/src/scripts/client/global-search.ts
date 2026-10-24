@@ -4,6 +4,7 @@
  * are local shortcuts filtered here.
  */
 import { pluginSearchRows } from "../../plugin-workbench.js";
+import { objectTabPlugins } from "../../plugin-catalog.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Drop repeated plugin records before the result cap, so a second copy cannot crowd out a different record.
@@ -27,8 +28,9 @@ export function takeSearchHits(
   return matched.slice(0, limit);
 }
 
-/** Surfaces whose tab opens one object by id (they handle `molis-work:select-item` or a dedicated selector). */
-export const SEARCH_ITEM_TAB_SURFACES = ["goals", "inbox", "feed", "pages", "lingguang", "workflows", "coding", "artifacts"] as const;
+/** Surfaces whose tab opens one object by id (they handle `molis-work:select-item`, or name the row to click): the
+ *  platform's Artifacts, and every plugin a Manifest view of which `accepts_objects`. */
+export const SEARCH_ITEM_TAB_SURFACES: readonly string[] = ["artifacts", ...objectTabPlugins()];
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId } = host;

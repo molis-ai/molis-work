@@ -1,5 +1,6 @@
 import { hostErrors } from "./host-errors.js";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
+import { ProjectRuntimeSettings } from "./project-runtime-settings.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -62,6 +63,13 @@ export function registerProjectCapabilities(
       return new ProjectBrowsingSettings(runtime.store.db).select(runtime.project_id, workspaceId, workspaces);
     });
   }
+  // The Runtime pick does not depend on where the project's folders are kept: it is registered with the other current-project settings.
+  host.registerAction(projectSettingsCapabilities.runtime, runtime => new ProjectRuntimeSettings(runtime.store.db).read(runtime.project_id));
+  host.registerAction(projectSettingsCapabilities.selectRuntime, async (runtime, [runtimeId], invocation) => {
+    await invocation.beforeEffect?.();
+    invocation.assertAuthorityCurrent();
+    return new ProjectRuntimeSettings(runtime.store.db).select(runtime.project_id, runtimeId);
+  });
   if (workspaceFor !== undefined) {
     // Scoped to the runtime's own project: the Capability takes no project id,
     // so a Plugin cannot ask about another project. The answer carries the

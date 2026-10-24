@@ -1,10 +1,10 @@
-import { GIT_SENTENCE_TABLE, sayHostSentence } from "./sentences.js";
+import { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js";
 
 /** Reads through declared plugin routes; no Git process or approval lives in the browser. */
 export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const scope=host.root || document,L=host.translate;
   // A sentence the Host or an action wrote (a refusal, a result, a summary) in the page's language; the times the page shows are the page's too.
-  const say=${sayHostSentence.toString()},sentences=${JSON.stringify(GIT_SENTENCE_TABLE)},S=sentence=>say(L,sentences,sentence);
+  const say=${sayHostSentence.toString()},U=${sayUpstream.toString()},sentences=${JSON.stringify(GIT_SENTENCE_TABLE)},S=sentence=>say(L,sentences,sentence);
   const when=value=>new Date(value).toLocaleString(document.documentElement.lang||'zh-CN');
   const directory=scope.querySelector('[data-git-browser]'),result=scope.querySelector('[data-git-results]');
   if(!directory || !result)return null;
@@ -85,7 +85,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       workspace=value.workspace.workspace_id;selected=value.selected;reopen.hidden=!selected;
       await showReviews();if(!active(epoch))return;
       await loadSource();if(!active(epoch))return;
-      const view=value.view;notice.textContent=view.phase==='ready'?[S(view.head),S(view.tracking),view.message&&S(view.message)].filter(Boolean).join(' · '):S(view.message);
+      const view=value.view;notice.textContent=view.phase==='ready'?[S(view.head),U(L,view.upstream),view.message&&S(view.message)].filter(Boolean).join(' · '):S(view.message);
       const entries=[[L('git.group.conflicts'),view.conflicts,'worktree','conflict'],[L('git.group.staged'),view.staged,'index','staged'],[L('git.group.unstaged'),view.changes,'worktree','unstaged']];
       const groups=new Map([...list.children].map(group=>[group.dataset.gitGroup,group])),rows=new Map([...list.querySelectorAll('[data-git-path]')].map(row=>[row.dataset.gitPath,row]));
       const wanted=new Set(entries.flatMap(([,items,side])=>items.map(item=>JSON.stringify([item.path,side]))));

@@ -151,6 +151,8 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是空操作；改任何一段都要提高项目库的版本（`PROJECT_DATABASE_BASELINE.version`）。
 
+宿主自己按需建的表也不在基线里：`project_runtime_settings(project_id, runtime_id)`（`apps/local-host/src/project-runtime-settings.ts`）记项目选定的 Agent 运行时，第一次选择时才建表，没有行就是 Home 默认；读取不建表，删除项目时随项目库文件一起走。只有 `apps/local-host` 读写这张表，Coding 与 Characters 经 `projects.settings.runtime.read.v1` 取。
+
 插件自己的表不在基线里（`specs/plugin-project-database`）：插件在 Manifest 的 `databases.project` 声明，宿主开库时经平台的打开函数第一次建表、在 `plugin_project_databases` 记一行，之后每次打开核对发布者、版本和形状，不符只停这个插件（`apps/local-host/src/project-plugin-databases.ts`）。现在声明了的：
 
 | 插件 | 库名 | 表 |

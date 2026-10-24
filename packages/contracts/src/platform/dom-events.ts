@@ -116,7 +116,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).",
   },
   shelf: {
-    files: ["plugins/native/shelf/src/client.ts", "plugins/native/shelf/src/terminal-client.ts", "plugins/native/shelf/src/settings-client.ts"],
+    files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/terminal-client.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
     state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.",
   },
   coding: {

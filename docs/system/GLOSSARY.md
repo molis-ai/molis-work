@@ -363,8 +363,8 @@ A　指产品、导入来源或运行环境的（按 2.3 是 Runtime；已知是
 | `apps/workbench/src/character-terminal-client.ts:71` | 正在连接原生 Agent… | 正在连接本地 Runtime… |
 | `modules/characters/src/actions.ts:44,46,50,55,62` | 五个动作的标题与说明里的「用本机 Agent 运行」「查找可导入的 Agent」「本机 Agent 配置目录」「本机 Agent 设定」「启动本机 Agent 执行任务」（能力库和 Agent 看得到） | 同样只把「Agent」换成「Runtime」 |
 | `modules/shelf/src/runtimes.ts:182,186` | 未发现 Agent；未发现终端 Agent。 | 未发现 Runtime；未发现终端 Runtime。 |
-| `modules/shelf/src/runtimes.ts:195`、`plugins/native/shelf/src/client.ts:82,1452` | 还没有选定运行工具时的缺省名「Agent」 | 「Runtime」 |
-| `plugins/native/shelf/src/client.ts:231,1450,1457,1682` | 没有 Agent 也可以先提取 PDF 里的字；未发现终端 Agent。（及其后接「文件已留在架子上。」的两处） | 同样把「Agent」换成「Runtime」 |
+| `modules/shelf/src/runtimes.ts:195`、`plugins/native/shelf/src/browser/model.ts` | 还没有选定运行工具时的缺省名「Agent」 | 「Runtime」 |
+| `plugins/native/shelf/src/messages.ts` 里 `shelf.preview.*`、`shelf.bar.*` 的键 | 没有 Agent 也可以先提取 PDF 里的字；未发现终端 Agent。（及其后接「文件已留在架子上。」的两处） | 同样把「Agent」换成「Runtime」 |
 | `plugins/native/shelf/src/settings-ui.ts:209,213,224` | 本机文字提取不调用 Agent；不需要 Agent、授权或联网；未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。 | 同样把「Agent」换成「Runtime」 |
 | `plugins/native/shelf/src/terminal-client.ts:169` | 未发现终端 Agent。装一个再来对话。 | 未发现终端 Runtime。装一个再来对话。 |
 

@@ -220,13 +220,5 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     }
     /** The desktop shell's entries (Shelf's hotkey, the menu bar) name a plugin; the tab workspace decides where it opens. */
     globalThis.molisWorkOpenPlugin = tabWorkspace?.openPlugin;
-    document.addEventListener("click", (event) => {
-      if (frameContainer?.isFrameTabActive()) return;
-      const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
-      const select = target?.closest("[data-operation-select]");
-      const directory = select?.closest("[data-operation-directory]");
-      if (!select || !directory) return;
-      openDirectorySurface(directory.dataset.operationDirectory, select.dataset.operationSelect, select.getAttribute("data-frame-asset-title"), event);
-    }, true);
 
 `;

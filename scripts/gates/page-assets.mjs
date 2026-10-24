@@ -238,12 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // R11 (RAC-135/136): Inbox and 灵光 hand the object to Todo's creation entry instead of Todo-shaped attributes, so the source no
-  // longer carries its own `open`; Todo asks the host which surface opens the source's object kind (+102 bytes, 53955 → 54057),
-  // and 灵光's button carries the words on screen as one text (+24 bytes, 26094 → 26118). Trimmed once to the smallest equivalent.
-  // The workbench side fell by 398 bytes, the shared frame by 1146 and the stylesheets by 314 each.
-  "/assets/molis-work-plugins/todo.js": [53955, 54057],
-  "/assets/molis-work-plugins/lingguang.js": [26094, 26118],
+  // W5-10 (R4a): the generated-plugin renderer (design-system `createPluginComponentClient`, 753 lines) is cut into layers so no
+  // unit is over the function limit: 116132 → 118672 (+2540). The layers are sent as source (`toString`), and the
+  // object keys of the shared state they destructure and return survive minification (about 1.6 KB of the growth); the rest is the
+  // layer wrappers. Positional hand-over would win ~1.2 KB back at the cost of unreadable layer signatures; not taken.
+  "/assets/molis-work-plugins/plugin-builder.js": [116132, 118672],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

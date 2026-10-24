@@ -72,7 +72,7 @@ Git 审查把全部有效 push URL 纳入修订，执行固定的提交与目标
 
 插件调用自己的动作、声明消费的动作或 typed 能力时，Host 捕获 Runtime 中原动作或场景的调用者；下游写入前同步复查原调用者，不能只信插件传入的等待回调。只读场景的约束跟随调用，typed 口按真实注册的操作与费用拒绝写入或付费查询。回归：`tests/security-invariants-plugin-scenes.test.ts`。
 
-PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
+PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。
 
 Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。`schedule-operations.ts` 同样只装配安装执行器和 Inbox；计划与 occurrence、重装后的归属确认、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。
 
@@ -118,6 +118,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 公开入口：`@molis-ai/molis-work-app-local-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
+  - 沙箱项目库（S-59）：SQL 只在子进程的 Worker 中运行，子进程控制器独立执行截止时间、进程总 RSS 上限与宿主断线终止；宿主逐句复查授权并固定事务所属进程。`get`/`all` 的字节上限在 Worker 中拒绝，事务外写也拒绝；提交中断保持结果未知。回归：`tests/security-invariants-sandbox-project-database-limits.test.ts`，包括宿主同步写等锁与父宿主被杀的真实进程路径。
   - 页面 JS 交付统一经 `src/served-page-text.ts` 的 esbuild 转换，直接读原程序，压缩空白和等价语法但保留绑定名与文字；不能先剥注释或缩进改变换行返回、模板正文。工作台、能力页与插件脚本走同一路径，转换失败保留原文；回归见 `tests/served-script-text.test.ts`，缓存、locale 与 HEAD 的既有合同保持。
   - 产品版本在宿主代码里只有 `src/product-version.ts` 的 `PRODUCT_VERSION` 一处：Feed 的 User-Agent 与 `app.version`、搜索运行时的 `app.version`、MCP 客户端、Codex 会话传输的客户端版本都取它，不另写一份；发版脚本核对这一行（`docs/releases/POLICY.md` 第 1 节，`tests/verify-release-versions.test.ts`）。
   - Runtime 插件的动作提供方编号（用户 2026-10-10，W3-06 C）：`createPluginPlatform` 只把宿主自己启动名单里标 `bundled` 的定义对象（项目插件装配里交给监督器的 7 个条目）登记在 `plugin_id` 之下，其余一律 `install_id`；Home/项目执行器与 `PluginRuntime`（`actions.providerId`）复用 `plugin-entry-identity.ts` 的可信定义对象规则，插件自己的动作客户端靠登记上的 `plugin_install_id` 找回自己的动作。`localWebActionContext` 的授权也按 `plugin_install_id` 认安装，不按 `provider_id`：构建期的同名提供方（Shelf 的 Home 级与项目级）没有 `plugin_install_id`，借不到 Runtime 实例的授权。

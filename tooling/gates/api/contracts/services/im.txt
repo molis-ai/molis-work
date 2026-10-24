@@ -25,11 +25,9 @@ export interface ImFailure {
     error: string;
 }
 
-export interface ImInvite {
+export interface ImInviteState {
     room_id: string;
-    token: string;
-    path: string;
-    url: string;
+    token_hash: string | null;
 }
 
 export interface ImJoinInput extends ImMutation {
@@ -104,6 +102,10 @@ export interface ImRoomState {
     threads: ImThread[];
 }
 
+export interface ImRotateInviteInput extends ImMutation {
+    token: string;
+}
+
 export interface ImSearchResult {
     messages: ImMessage[];
 }
@@ -144,9 +146,9 @@ export interface ImThreadState {
 }
 
 export declare const servicesImContract: {
-    readonly contractId: "io.molis.work.service.im.v1";
+    readonly contractId: "io.molis.work.service.im.v2";
     readonly kind: "horizontal";
-    readonly schemaVersion: 1;
+    readonly schemaVersion: 2;
     readonly maturity: "partial";
     readonly ssot: "specs/archive/molis-work-im/spec.md";
 };

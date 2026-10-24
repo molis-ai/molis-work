@@ -86,7 +86,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | --- | --- | --- | --- | --- | --- |
 | `modules/identity-team-access` | User、Team、membership、Access Decision | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/projects` | Project 身份、Catalog、workspace membership | 正式 Project/Catalog 事实；Host 编排文件生命周期，Desktop 提供平台 | `partial` | AP1/AP2/Cutover；旧 Catalog 已删除 | Module：@yijunw0212 |
-| `modules/context-ledger` | ObjectRef、跨模块关系、publication、materialization | Feed / Session / Handoff / Runtime 关联、输入来源、临时重建与 Coordinator 归属审计已通过；未来 publication / 异步 materialization 未实现 | `partial` | AR2 已验收；[验收记录](../specs/molis-work-architecture-reorganization/ar2-validation.md) | Module：@yijunw0212 |
+| `modules/context-ledger` | ObjectRef、跨模块关系、publication、materialization | Feed / Runtime 关联、输入来源、临时重建与 Coordinator 归属审计已通过；未来 publication / 异步 materialization 未实现 | `partial` | AR2 已验收；[验收记录](../specs/molis-work-architecture-reorganization/ar2-validation.md) | Module：@yijunw0212 |
 | `modules/sync-replication` | 发布意图、replica、冲突和用户可见同步状态 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/sources` | “监听哪里”与用户期望的 Source 配置 | Source 配置、schedule 与同步策略事实；应用由 Native Feed 编排 | `partial` | FD1–FD4/Cutover；旧 service caller 清零 | Module：@yijunw0212 |
 | `modules/signals` | 已观察到的外部事件与去重 provenance | Signal/Revision、去重与来源事实；Host 装配 Provider 投递 | `partial` | FD1–FD3/Cutover | Module：@yijunw0212 |
@@ -94,7 +94,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `modules/actions` | 个人/外部 Action 请求、状态和结果引用 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/attention-resumption` | Attention reference、reason 与最小处置状态 | Attention reference/reason 与最小处置；旧 Inbox 转发已退出 | `partial` | FD2/Cutover；完整 snooze/resume 仍是未来能力 | Module：@yijunw0212 |
 | `modules/goals` | Goal、当前约定与要求、Graph、事件事实与工作状态、Planning、指导及历史 | `events` 唯一决定完成效果；当前意图／树使用同一事件归属；图分析读当前状态；项目规则（`policy_bindings`）及其历史可读；风险、Contract 修订与已退役的提案项已从存储删除（#272）；V3 一次性导入已删除（BL-083） | `partial` | GW1–GW6/DD1/DD2/Cutover；事件工作流收敛 | Module：@yijunw0212 |
-| `modules/private-work-context` | 私人 Session、内容引用、关联语义、Runtime context binding 与 Handoff 事实 | Session / Handoff / Runtime 当前 Project 关联经 Ledger API 保存；私人内容与控制历史留在 Work | `partial` | WK1–WK3 已迁移；AR2 切换 Session schema v5、Catalog v10 与应用层组合 | Module：@yijunw0212 |
+| `modules/private-work-context` | Runtime context binding（Runtime 工作入口与 Project 的绑定、事件、setup 幂等、拒绝建议） | Runtime 当前 Project 关联经 Ledger API 保存；控制历史留在本模块。Session、内容引用与 Handoff 随 Sessions 插件下线（SC-4）删除，重做见 BL-177 | `partial` | WK1–WK3 已迁移；SC-4 删除 Session 部分 | Module：@yijunw0212 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用与 provenance | AR1 已建立唯一正式事实；旧代码仅有各 owner 的字符串引用，没有第二套 Artifact Store | `partial` | AR1 已迁 Core；AR3 切换现有结果入口 | Module：@yijunw0212 |
 | `modules/shelf` | 个人置物架材料、副本任务、Hash 与本机抽字结果 | Home 下 `shelf/` 副本与 Jobs 沙箱；不写项目 Goal / Artifact | `partial` | Shelf 工作台切片；轮盘/热键仍待 Desktop | Module：@yijunw0212、@jingxusandra-gif |
 | `modules/characters` | 个人 Character 草稿、修订与启用状态，角色动作的声明、处理器与本人绑定，本机导入逻辑（CHR-0、CHR-1：角色不再是插件，Host 用它登记动作提供方，「设置 › 角色」是 Host 的设置节，界面在 `apps/workbench/src/characters/`） | 按本人隔离编辑，确认修订后交给 Artifact 发布；不拥有执行、权限和界面 | `partial` | `specs/coding-plugin/spec.md` §0 C12（产品接入中） | Module：@yijunw0212 |
@@ -112,7 +112,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `horizontal/connector-host` | Provider 连接、凭据引用和调用 Receipt | Provider-neutral 连接/Receipt；Integration contribution 提供 Driver | `partial` | FD1/FD3/AP2/Cutover | 横向服务：@yijunw0212 |
 | `horizontal/listener-host` | cursor、lease、重试、Raw Event 到 Signal Draft 投递 | Listener 技术 lease/cursor/去重/接收回执；Host 管 timer 生命周期 | `partial` | FD1/FD3/Cutover | 横向服务：@yijunw0212 |
 | `horizontal/scheduler` | Durable one-shot wakeup | sqlite job/lease/收据；Web timer 与 Feed timer 并行；once/interval 由 Schedule 插件拥有 | `partial` | `specs/archive/schedule-plugin/spec.md` | 横向服务：@yijunw0212 |
-| `horizontal/runtime-host` | Runtime 启动、恢复、中断、stream 与技术 Receipt | Runtime router、Codex app-server 与 PTY server host 已迁；浏览器 transport/reconnect 由 Work 消费 | `partial` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 | 横向服务：@yijunw0212 |
+| `horizontal/runtime-host` | 本机终端（PTY）进程的启动、接入、写入、缩放、结束与有限回放 | PTY server host；Codex 会话适配器与路由已随 Sessions 下线删除，Sessions 重做见 BL-177 | `partial` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 | 横向服务：@yijunw0212 |
 | `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | Prologue 为主执行引擎（文字/结构化/图片/判断推理、Agent 轮次、外部 MCP、任务板、子代理、检查点、后台命令与等待），没有第二个执行引擎（`claude` 命令行适配器已于 2026-10 删除，外部 Agent 运行时按口径暂缓）；同一 Home 只有一个执行归属（`.molis-runtime-owner.db` 锁）；审查队列；唯一直接依赖 `@prologue/sdk` 的包 | `partial` | Plugin Platform v2；`docs/platform/PROLOGUE-AI.md` | 共享核心：@yijunw0212、@jingxusandra-gif |
 | `horizontal/knowledge` | 项目资料：项目里所有 Agent 共用的资料查找与读取（卡片、分节、按节读原文、逐行查找），经系统搜索找、向对象主人读，用调用者的授权 | `KnowledgeService`；系统动作 `knowledge.list/search/outline/read/grep/glob` 由 Host 与系统搜索同处装配；不保存正文；内置 Agent 在项目里默认持有（可在对外接入撤销） | `partial` | `specs/archive/project-knowledge/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/search` | 系统搜索：经动作目录发现插件的搜索来源、维护可重建索引、按调用者权限聚合结果 | `SearchService`；系统动作 `search.query/open/status/rebuild` 由 Host 装配；索引持久化在 storage 适配；不读插件私有库 | `partial` | `specs/archive/system-search/spec.md` | 横向服务：@yijunw0212 |
@@ -152,7 +152,6 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `plugins/native/plugin-builder` | 插件创作台：从一句需求生成插件（2026-10-18 改：创作台是平台能力，不是插件；代码迁走前仍按插件装配，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行） | 见下文「插件创作工作台」 | `partial` | `specs/archive/plugin-builder/work-items/studio-v3/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/official-integrations/catalog` | 连接器目录与文档导入 Provider | 目录条目、Notion 等 OAuth 与文档导入；账号检查经 `connectors.account.read` | `partial` | `specs/archive/connector-method-directory/spec.md` | 官方集成：@yijunw0212 |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
-| `plugins/native/work` | Session、Runtime、resume、handoff 应用和 UI（2026-10-18 改：Sessions 这一轮只清理、以后重做（BL-177），不再是长期保留的插件；清理前用到的能力挪给平台或它的主人，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行） | WK3 已迁应用编排、Session/Terminal contribution、浏览器控制器、HTTP 用例和工作目录恢复。`GET/POST /api/goals/:id/panels`（无子路径，JSON）仍是 Runtime 终端面板，与已删除的 Goal 五 tab fragment 不同 | `partial` | WK3；边界与证据见 `specs/molis-work-architecture-reorganization/wk3-validation.md` | 内置插件：@yijunw0212 |
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `plugins/official-integrations/github` | GitHub connector/listener/signal adapter | GitHub Provider、Device OAuth 与账号呈现；研究库固定提交解析和发布哈希校验，Host 提供 Git 快照；Host 注入 Secret/env | `partial` | FD3/Cutover；无旧 connector caller | 官方集成：@yijunw0212 |
 | `plugins/official-integrations/gmail` | Gmail OAuth/connector/listener/signal adapter | Gmail OAuth/安装账号/scope/cursor/Provider；Host 注入安全存储 | `partial` | FD3/Cutover；无旧 connector caller | 官方集成：@yijunw0212 |

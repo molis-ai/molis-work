@@ -6,7 +6,6 @@ export type { MolisWorkBuildManifest } from "./installer/fingerprint.js";
 export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
-export { openWorkSessionRegistry } from "./session-registry.js";
 export { RuntimeProjectConnection } from "./runtime-project-connection.js";
 export { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
 export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnvironment } from "./runtime-context.js";
@@ -83,7 +82,6 @@ export * from "./project-catalog.js";
 export { seedDemoBoard, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
   seedDemoPluginSurfaces,
-  seedDemoProjectExtras,
   seedDemoHomeSamples,
   enableDemoProjectPlugins,
   DEMO_GITHUB_SOURCE_ID,
@@ -146,7 +144,7 @@ export * from "./onboarding.js";
 
 export { createLocalHostCapsule } from "./capsule.js";
 
-export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty-socket.js";
+export { attachMolisWorkPtySocket } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { developerMode } from "./developer-mode.js";
@@ -166,7 +164,6 @@ export { scheduleServiceFor } from "./project-clock.js";
 export { sendLocalWebJson, sendUnhandledWebError, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
 export { createLocalWebAssets } from "./web-assets.js";
 
-export * from "./web-session.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
@@ -177,7 +174,6 @@ export { projectActionAvailability } from "./project-action-availability.js";
 export { runLocalPluginDevelopment, developInPrivateHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { createLocalPanelHttp } from "./web-panel.js";
-export { createLocalWorkSessionHttp } from "./web-work-session.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
@@ -211,7 +207,7 @@ export {
 } from "./coding-surface.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";
 export { releaseProjectPlugins } from "./project-plugins.js";
-export { observeReviewSettlements, reviewSettlementForwarder, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
+export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
 export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";
 export { draftText } from "./model-draft.js";
@@ -285,5 +281,6 @@ export { connectorLocalActions } from "./connector-local-actions.js";
 export { connectorCliActions } from "./connector-cli-actions.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
+export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 
 export { pluginPagesFor } from "./plugin-page-authority.js";

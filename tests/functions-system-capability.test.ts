@@ -12,7 +12,6 @@ import {
   FEED_SAVE_BEHAVIOR_ID,
   HOME_CONTINUE_BEHAVIOR_ID,
   HOME_DOCK_SCENE_ID,
-  HOME_TALK_BEHAVIOR_ID,
   INBOX_ADMIT_BEHAVIOR_ID,
   INBOX_DONE_BEHAVIOR_ID,
   INBOX_DISMISS_BEHAVIOR_ID,
@@ -105,10 +104,6 @@ test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plu
       [HOME_CONTINUE_BEHAVIOR_ID],
       "not-a-behavior",
     ),
-    [],
-  );
-  assert.deepEqual(
-    filterSuggestedBehaviorIds([HOME_TALK_BEHAVIOR_ID], [HOME_TALK_BEHAVIOR_ID], HOME_TALK_BEHAVIOR_ID),
     [],
   );
 });

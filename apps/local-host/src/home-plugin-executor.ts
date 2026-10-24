@@ -9,6 +9,7 @@ import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
+import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
@@ -52,6 +53,8 @@ export class HomePluginExecutor implements PluginExecutor {
   }) {}
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
+    // Before anything is built: a package the sandbox cannot serve does not start here either (S-60).
+    refuseUngivenSandboxServices(definition, context);
     const manifest = definition.manifest;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
     if (!this.options.dualInstance(definition) && (manifest.ports?.inputs.length || manifest.ports?.outputs.length || manifest.events?.publishes.length || manifest.events?.subscribes.length

@@ -24,7 +24,7 @@ import { codingFailure, codingText } from "./words.js";
 /** A delegation's letters are the people's to answer, at their pace: they are kept a year before they lapse. */
 const DELEGATION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 /** Letters for a delegation go between runtime sessions: a session that has not run yet gets its own now. */
-export const runtimeSessionOf = async (a: CodingActivation, record: CodingSessionRecord, api: Capabilities, execution: CodingExecution, actorId: string, beforeWrite: CodingBeforeWrite) => {
+export const runtimeSessionOf = async (a: CodingActivation, record: CodingSessionRecord, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
   if (record.runtime_session_id) return record.runtime_session_id;
   const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
@@ -32,8 +32,7 @@ export const runtimeSessionOf = async (a: CodingActivation, record: CodingSessio
   const workspaces = await api.invoke(projectSettingsCapabilities.workspaces, []);
   const workspace = workspaces.find(entry => entry.workspace_id === chosen && entry.realpath_verified) ?? workspaces.find(entry => entry.realpath_verified);
   if (!workspace) throw codingFailure("coding.server.authorize-workspace");
-  const identity = { project_id: projectId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: actorId };
-  const session = await api.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: workspace.canonical_path, realpath_verified: true }, title: record.title }]);
+  const session = await codingActions(a.context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory: { canonical_path: workspace.canonical_path, realpath_verified: true }, title: record.title }]);
   await execution.sessions.setRuntimeSession(beforeWrite, projectId, record.session_id, session.session_id, new Date().toISOString());
   return session.session_id;
 };
@@ -107,14 +106,14 @@ const ROUTES: RouteMaker[] = [
       const task = text(body.task, "coding.field.delegation-task", 20_000), title = text(body.title ?? codingSessionTitleFrom(task), "coding.field.delegation-title", 80);
       const materials = materialSelection(body.materials ?? []);
       await resolveMaterials(context, materials, codingActionControl(beforeWrite));
-      const mine = await runtimeSessionOf(a, record, api!, execution, request.actor_id, beforeWrite);
+      const mine = await runtimeSessionOf(a, record, api!, execution, beforeWrite);
       // How far the work has been passed on: one more than the delegation this session was created for.
       const letters = await actions.invoke(agent.readMessages, [record.runtime_id, mine]);
       const hops = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1)?.hops ?? 0;
       if (hops + 1 > MAX_DELEGATION_HOPS) throw codingFailure("coding.server.delegation-hops", { max: MAX_DELEGATION_HOPS, hops });
       return dispatchCodingDelegation(context, execution, record,
         { mine, task, title, materials, hops, ttlMs: DELEGATION_TTL_MS }, beforeWrite,
-        target => runtimeSessionOf(a, target, api, execution, request.actor_id, beforeWrite), (letter, observed, side) => delegationView(a, side, letter, observed));
+        target => runtimeSessionOf(a, target, api, execution, beforeWrite), (letter, observed, side) => delegationView(a, side, letter, observed));
     });
   },
   (a) => {
@@ -154,7 +153,7 @@ const ROUTES: RouteMaker[] = [
   // The delivery is a reply to the delegation's letter.
   (a) => {
     const { context, route } = a;
-    return route("coding.delegation-deliver", async (request, api, execution, beforeWrite) => {
+    return route("coding.delegation-deliver", async (request, _api, execution, beforeWrite) => {
       const actions = codingActions(a.context, beforeWrite);
       const record = selected(a, request, execution), body = bodyOf(request);
       const { letter, view, mine } = await delegationOf(a, record, execution, text(request.params.delegationId, "coding.field.delegation"), body.expected_revision, actions);
@@ -165,7 +164,7 @@ const ROUTES: RouteMaker[] = [
       if (DELEGATION_ENDED.includes(view.state)) return lateOnly(actions, record.runtime_id, letter, view.state, "delivery-sent", note);
       if (view.deliveries.some(delivery => delivery.state === "sent")) throw codingFailure("coding.server.delivery-pending");
       let artifact, title;
-      if (kind === "report") { const saved = await roundReport(a, record, runId, api, true, beforeWrite); if (!saved.reference) throw codingFailure("coding.server.report-not-fixed"); artifact = saved.reference; title = saved.report.title; }
+      if (kind === "report") { const saved = await roundReport(a, record, runId, true, beforeWrite); if (!saved.reference) throw codingFailure("coding.server.report-not-fixed"); artifact = saved.reference; title = saved.report.title; }
       else { const saved = readCodingChangeSet(codingArtifacts(context), record.session_id, runId); if (!saved) throw codingFailure("coding.server.fix-change-first"); artifact = saved.reference; title = "固定变更"; }
       const reply = await actions.invoke(agent.sendPeopleMessage, [record.runtime_id, { from_session: mine, to_session: letter.from_session, kind: "reply", in_reply_to: letter.message_id,
         body: JSON.stringify({ kind, run_id: runId, title, note }), attachments: [asAttachment(artifact)], ttl_ms: DELEGATION_TTL_MS }]);

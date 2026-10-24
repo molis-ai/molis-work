@@ -50,11 +50,11 @@ test("command receipt route binds the selected app session and exact runtime run
   await sessions.create(noEffect, { project_id: "board", session_id: "app-session", title: "检查", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
   await sessions.setRuntimeSession(noEffect, "board", "app-session", "sdk-session", "2026-09-20T00:00:00Z");
   const reads: unknown[] = [];
-  const context = { project_id: "board", plugin_id: "io.molis.work.coding", services: { capabilities: { invoke: async (definition: { capability_id: string }, args: unknown[]) => {
+  const context = codingContext({ capabilities: { invoke: async (definition: { capability_id: string }, args: unknown[]) => {
     if (definition.capability_id === agent.readSession.capability_id) return { runs: [{ session_id: "sdk-session", run_id: "owned" }] };
     if (definition.capability_id === agent.readCommandOutput.capability_id) { reads.push(args); return { exit_code: 7, stdout: "saved", stderr: "check failed" }; }
     throw new Error("unexpected capability");
-  } } } } as unknown as PluginStartContext;
+  } } });
   const route = codingRoutes(context, sessions).find(route => route.route_id === "coding.command-output")!;
   try {
     const call = (runId: string) => route.handle({ params: { sessionId: "app-session", runId, callId: "call" } } as PluginRouteRequest);
@@ -64,8 +64,12 @@ test("command receipt route binds the selected app session and exact runtime run
   } finally { db.close(); }
 });
 
-/** A Coding context in project `board` with the services a test gives; the rest of the context is not read by these routes. */
-const codingContext=(services:Record<string,unknown>)=>({project_id:'board',plugin_id:'io.molis.work.coding',services}) as unknown as PluginStartContext;
+/**
+ * A Coding context in project `board` with the services a test gives; the rest of the context is not read by these routes.
+ * The Agent Host's actions answer through the same fake as its typed calls, after the route's write fence.
+ */
+const codingContext=(services:{capabilities:{invoke:(definition:{capability_id:string},args:unknown[])=>Promise<unknown>}}&Record<string,unknown>)=>({project_id:'board',plugin_id:'io.molis.work.coding',
+  services:{actions:{invoke:async(definition:{capability_id:string},input:unknown[],control?:{beforeEffect():Promise<void>})=>{await control?.beforeEffect();return services.capabilities.invoke(definition,input);}},...services}}) as unknown as PluginStartContext;
 
 test("answer route preserves the original run and questionnaire, rejects foreign runs and malformed selections",async()=>{
   const db = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["board"]);
@@ -162,6 +166,8 @@ test("AC-07 the round after a parked answer is started by the one who answered, 
   try {
     const answered=await route.handle({params:{sessionId:'app'},body:{kind:'answer',run_id:'parked',pending_id:'asked',pending_revision:1,answers:[{question:0,value:45}]}} as PluginRouteRequest);
     assert.equal(started.length,1,`the next round was asked for: ${JSON.stringify(answered.body)}`);
-    assert.equal(started[0]!.actor_id,'who-answered','under the identity of the call that answered');
+    // Who starts it is the answering call's caller, as the Host knows it (R8 batch 3): the input names no one, least of all who started the parked round.
+    assert.equal(started[0]!.actor_id,undefined,'the start names no actor of its own');
+    assert.doesNotMatch(JSON.stringify(started[0]),/who-started/,'nothing of the parked round\'s starter is carried over');
   }finally{db.close();}
 });

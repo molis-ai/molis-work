@@ -8,8 +8,9 @@ import { PROLOGUE_RUNTIME_ID } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { pluginAgentRuntime, type PluginPlatformHome } from "./home-side.js";
 import { hostLog } from "./host-log.js";
+import { AGENT_RUN_PERMISSION } from "./plugin-service-permissions.js";
 
-const permission = "agent:run";
+const permission = AGENT_RUN_PERMISSION;
 
 /** A run belongs to its invocation, including cancellation; only this service retains its cleanup handle. */
 export function pluginAgentsFor(home: PluginPlatformHome | null | undefined, manifest: PluginManifest, context: PluginStartContext,

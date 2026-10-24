@@ -3553,3 +3553,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 01:05：#1147 合 main（`10d814fda`），`ac-review` 快看。PG-022 P1b 统筹选 A（Home 库账本取安装记录的发布者、只保证装上后不可换），记 R-36（宿主不调 `verifyPluginPackage`，归 PG-001/`ac-trust`）。S9-0b 命名空间已做；统筹裁：日志读取只许自己命名空间加 Manifest 声明消费的事件类型；BL-506（id 互为前缀）归 `ac-trust`，记 R-37；Goals 旧名加前缀的存量改写要用户定，和 W5-17 放同一维护时段（ASK-USER 第二节）。
 
 - 10-24 01:10：#1152（privileges 状态 3）已合；`ac-priv3` 工作树与本地分支已删。
+
+- 10-24 01:20：#1147 合 main 后仍可合。PG-022 P2 统筹裁：R1 ownerFiles 可在动作外按安装当前授权调用（停用/卸载/撤权即拒、只限声明的条目），删钩子；R2 Images 加**必需**权限 `images:files:write`，jobs.start 2→3、jobs.delete 1→2，PR 写对 MCP 与工作流步骤的影响，不放宽 S-15；R3 留 `ownerFiles` 名、删 `files`、GLOSSARY 记旧称；P2 拆 P2a/P2b。

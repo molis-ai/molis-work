@@ -2305,3 +2305,17 @@ RAC-116本地结果：隔离`/private/tmp/molis-assistant-logging-policy-fixture
 产品路径只读核对：Assistant正常prepare先memoryForRound，Host authority.memory冻结同一recipe进role；这次手动SDK logging夹具遗漏了该步。新增source门合法拒绝缺policy旧Run，不能据9e曾5/5回退此门，也不能单独归因SDK101。聚合后来a617c210仅改同spec、产品与fe686逐路径不变，因此复用的公开构建仍准确；未新增安装/整体build/浏览器或资源实测，资源沿统筹本轮27项7,678,780 B证据，不冒充独立重测。临时node_modules只读链接验证后移除，未入库。Knowledge待批协议不碰，原首败继续披露；这是夹具合同对齐的工程验证，不扩张成完整App/用户验收。
 
 统筹最终复验（2026-10-25）：两路径候选正常合入为 `2df2daa3f1fa982c2c8d4d0e72f401901c81358e`，仅 spec 追加冲突并保留双方。聚合树原 runner 独立重跑 logging 整文件5/5、retries0、exit0，日志 `/private/tmp/molis-memory-application-logging-root-final-20261025.log`。本轮13文件范围已有12文件首批通过和该唯一失败文件修后通过；不表述为一次13文件全绿。生产仍为 fe686 的完整构建，未重复构建或无变化的其余12文件。推送前更新远端 main 仍为584112c65，全分支秘密扫描通过。资源、Knowledge、MEM-40及最终应用全量的未完成状态不变。
+
+### MEM-40 目标维护装配合同（2026-10-25，实施前）
+
+独立真实 Node 反例确认，当前 `openPrologueMemoryAdoption` 只 open/close、未调用 adopt/preview/purge，就会使未选中 board attempt 从 dispatching 变 refused（领域/存储版本2→3），到期 queue 从queued变failed（attempts/runs0→1、存储版本1→3）。模型/网络0；probe通过仅证明反例成立，非修复通过。报告 `/private/tmp/molis-memory-target-maintenance-startup-review-20261025.md`；生产是fe686，后续dc39只有spec/日志测试变化。本片不能继续借普通createRuntime及shutdown：版本冲突或保持adopting都不能撤销这些未选对象的变更。
+
+复杂度选择：SDK在现composition模块提供专门的Node维护装配，只接同一ScopedStorage、Registry、Memory/Candidate主人与MemoryAccess，以及现Session lifecycle/purge用例。复用现adopt/verify/cleanup及原版本、原决定、beforeCommit语义；不新建删除算法、执行核、全局registry或普通Runtime的skipRecovery档。只读源入口和可写target入口各有明确类型；没有普通Run、工具、模型、网络、队列、wait/board恢复或普通Runtime关机。现Memory装配若要共享，仅提取两边真正使用的依赖，不重抄策略/decoder。
+
+可写target始终显式root/app、固定management context/scopes及当前authority；无默认Home。Session只接受本次可信App主人明确允许的固定SessionRef集合及其当前preview，Memory scope权限不自动授权任意Session。每次异步后与实际提交前检查取消、close及App同步当前屏障；Host已派发提交不可撤销，失败保留adopting及原决定继续对账。未决CAS、缺钥、坏形状不能由初始化清理或默认空态掩盖；T0/T1仍不写。Molis沿现独占owner保证与在线入口互斥，不新建锁库。
+
+顺序：target源事实/允许集合固定 → 现ledger持久adopting → 打开窄维护句柄 → 各主人按原计划清理及补账 → 核对全部原决定 → close等本句柄在途调用并关闭写口 → ledger完成。普通Runtime恢复仅在发布后正常使用时发生，不能在维护期间提前启动。缺少Session binding或未知来源保持明确不完整，不收窄为只支持全部会话静止的备份。
+
+允许修改：SDK现composition与Node公开出口、必要Memory共享装配、相关模块Contract/README/唯一队列和直接行为测试；Molis现AgentHost维护桥、Home采用编排、必要公开类型/SDK受控包和原文档。不改普通Runtime恢复状态机、Knowledge/Search合同、资源门/CI或真实Home。源读取半段完成后在同一SDK分支继续目标维护，合为一份PR；App仍汇入#1101。
+
+验收在原MEM-40上补直接证据：非空target的未选board/queue/wait/effect/parked及eligible接续，在open/明确选项清理/close后正文与版本不变且没有新派发或Session输入；选中Memory/Candidate/Session沿原主人删除，未知、撤权、取消、关闭与原版本冲突拒绝，已经提交的部分能按原决定恢复。真实T0/T1/T2全主人旅程、WAL及最终验收尚未运行，不由新factory局部测试代替。

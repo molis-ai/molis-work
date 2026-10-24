@@ -117,6 +117,8 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 
 ## 3. 已合
 
+- 10-24 晚：**#1236 batch-33 载体合入 main `bde02c59e`**（#1112 `08b91a484`、#1109 `8921d80b2`、#1223 `ade38ec9c` 加 #1221 测试夹具、`agent.runtimes.v1` @2）。全量 40117579239 全绿，macOS 专属 26 个文件过。#1223 统筹已关，#1109、#1112 由 Codex 收尾会话关。远端 `batch/1024-33`、`integration/carrier-1024-33`、`claude/ac-coding-bl372` 已删，本地 `ac-batch33` 工作树已删。
+
 | PR | 合并提交 | 日期 |
 | --- | --- | --- |
 | #1222（batch29） | `0060920a314224b2eda6b71ee21b7e29323f6962` | 2026-10-24T17:17:56Z（固定a788e1a413f8ffce6d60c922f3c18092e9b343d3；singleparent191acc、actualtreec739f57f745958777bdd7d6ccfe43a0dbd43eb29=真实merge-tree191+a788。原统筹例外6387065309认领，PR CI40112378526十四适用jobs成功/probe预期skip；正常queue40114534899同actual006/Verify120935646372成功，queueSec/Product条件skip另记。REVIEW6386623257取消P2闭环、6387053343合main增量PASS；TEST6386748136为116首过+三后来过，非119首绿；原Linux FIFO首红及三focus UNKNOWN/取消不改写，未新增MCP观察或重复full） |

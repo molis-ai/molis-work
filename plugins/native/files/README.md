@@ -36,7 +36,7 @@ Directory candidates and browsing preferences come from the [current-project set
 - 负责：工作目录树与阅读器，发布有界的文本快照与选区。
 - 不负责：读目录本身（由 Host 提供）、文件系统授权、比较渲染。
 - 公开入口：`@molis-ai/molis-work-plugin-files`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`（伙伴舞台的外壳 `renderCompanionBrowserStage`）、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 插件自己不读目录，只经 Host 能力。
   - 快照有界并带版本，下游按 Artifact 类型消费，不指定生产者。

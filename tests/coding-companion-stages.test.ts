@@ -1,0 +1,210 @@
+import { fakeGoalDirectory, pluginActions } from "./fixtures/plugin-actions.js";
+import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+import {
+  DEMO_PROJECT_ID,
+  ensureProjectPlugins,
+  filesOutputsRefresh,
+  LocalProjectDatabase,
+  openProjectVersionStores,
+  releaseProjectPlugins,
+  renderProjectRuntimeStages,
+  seedDemoBoard,
+} from "@molis-ai/molis-work-app-local-host";
+import { CODING_COMPANION_DIRECTORY_SLOT, CODING_COMPANION_RESULT_SLOT, codingManifest } from "@molis-ai/molis-work-plugin-coding";
+
+// PG-036 C9: Coding's page and the stages of the plugins it embeds (Files, Git, Diff, Text Stats) are drawn by the plugins' own
+// contributions through the Host's generic stage channel; the Host has no file of its own that knows Coding (coding-surface.ts is gone).
+
+type State = Awaited<ReturnType<typeof ensureProjectPlugins>>;
+const repoRoot = process.cwd();
+const SHOWN = ["coding", "files", "git", "diff", "text-stats"];
+const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** The page's primitives with `text` answering the key itself, so the markup says which stable key each place uses. */
+const model = (shown: readonly string[] = SHOWN) => () => ({ route_prefix: "/p", shown_plugins: shown, primitives: { escape, text: (key: string) => key } });
+
+/** One project with its plugins running, and the stages the Host draws for them. */
+async function withProject<T>(run: (store: LocalProjectDatabase, state: State) => Promise<T>): Promise<T> {
+  const directory = mkdtempSync(join(tmpdir(), "coding-companions-"));
+  try {
+    const file = join(directory, "board.db");
+    seedDemoBoard(file);
+    const store = new LocalProjectDatabase(file);
+    try {
+      const state = await ensureProjectPlugins({ store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID,
+        actions: fakeGoalDirectory(pluginActions(store, DEMO_PROJECT_ID), () => ({})), actorId: "web-user", translate: (value: string) => value });
+      return await run(store, state);
+    } finally {
+      await releaseProjectPlugins(store, DEMO_PROJECT_ID);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+/** `target` with the members `override` names replaced; methods stay bound to `target`, whose private state they read. */
+function overriding<T extends object>(target: T, override: Record<string, unknown>): T {
+  return new Proxy(target, { get: (object, key) => {
+    if (typeof key === "string" && key in override) return override[key];
+    const value = Reflect.get(object, key, object);
+    return typeof value === "function" ? value.bind(object) : value;
+  } });
+}
+
+/** The state with `contribution(pluginId)` answered by `change`, which gets the real answer; everything else is the real one. */
+function withContribution(state: State, change: (pluginId: string, real: unknown) => unknown): State {
+  const real = state.platform!.supervisor;
+  const supervisor = overriding(real, { contribution: (pluginId: string) => change(pluginId, real.contribution(pluginId)) });
+  return overriding(state, { platform: overriding(state.platform!, { supervisor }) });
+}
+
+const stageOf = (html: readonly string[], surface: string) => html.find(item => item.includes(`data-work-surface="${surface}"`)) ?? "";
+
+test("RAC-433 Coding's stage is its running instance's page through the generic channel, with the embedded plugins' directories and readers in the slots in Manifest order", async () => {
+  await withProject(async (store, state) => {
+    const { html, ids, unavailable } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
+    assert.deepEqual(unavailable, []);
+    assert.equal(ids.length, 5, "one stage for each of the five plugins");
+    const coding = stageOf(html, "coding");
+    assert.match(coding, /data-coding-workbench/);
+    assert.match(coding, /data-coding-directory/);
+    // Manifest order: embedded_plugins lists Files before Git; both fill the directory and the result slot of the page.
+    assert.deepEqual(codingManifest.ui.embedded_plugins, ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"]);
+    const at = (text: string) => coding.indexOf(text);
+    for (const marker of ["data-files-browser", "data-git-browser", "data-files-results", "data-git-results"]) assert.ok(at(marker) > 0, `${marker} is in Coding's page`);
+    assert.ok(at("data-files-browser") < at("data-git-browser"), "directories: Files before Git");
+    assert.ok(at("data-files-results") < at("data-git-results"), "readers: Files before Git");
+    assert.ok(at("data-coding-directory") < at("data-files-browser") && at("data-git-browser") < at("data-coding-results-index"), "the directories are in the page's directory, the readers after the results index");
+    // Diff and Text Stats declare no surface for the two slots: they add nothing to Coding's page.
+    assert.doesNotMatch(coding, /data-companion=/);
+  });
+});
+
+test("RAC-434 each companion's own stage keeps the markup the Coding client fills, built from stable keys of the plugin's own words", async () => {
+  await withProject(async (store, state) => {
+    const { html } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
+    for (const surface of ["files", "git", "diff", "text-stats"]) {
+      const stage = stageOf(html, surface);
+      assert.match(stage, new RegExp(`data-coding-companion="workbench"[^>]*data-companion="${surface}"`), `${surface} keeps its companion hooks`);
+      assert.match(stage, /hidden/, `${surface} starts hidden until the client shows it`);
+      assert.match(stage, new RegExp(`${surface}\\.stage\\.`), `${surface} words its stage with its own keys`);
+    }
+    const files = stageOf(html, "files");
+    assert.match(files, /href="\/p\/settings\/workspaces"/);
+    assert.match(files, /companion-directory/); assert.match(files, /data-files-browser/); assert.match(files, /data-files-results/);
+    const git = stageOf(html, "git");
+    assert.match(git, /data-git-browser/); assert.match(git, /data-git-results/);
+    // A list companion reaches the files through Files when Files is shown, and through the market otherwise.
+    assert.match(stageOf(html, "diff"), /data-companion-open="files"/);
+    assert.match(stageOf(html, "text-stats"), /data-companion-open="files"/);
+    const without = renderProjectRuntimeStages(state, store, { shown: ["coding", "diff", "text-stats"], drawn: [], model: model(["coding", "diff", "text-stats"]) }).html;
+    assert.match(stageOf(without, "diff"), /data-companion-open="market"/);
+    assert.match(stageOf(without, "text-stats"), /data-companion-open="market"/);
+    assert.equal(stageOf(without, "files"), "", "a plugin the project does not show draws no stage");
+  });
+});
+
+test("RAC-435 an embedded plugin that is not running leaves its place in Coding's page empty; the page and the other embedded plugins still draw", async () => {
+  await withProject(async (store, state) => {
+    const stopped = withContribution(state, (pluginId, real) => pluginId === "io.molis.work.git" ? undefined : real);
+    const { html } = renderProjectRuntimeStages(stopped, store, { shown: SHOWN, drawn: [], model: model() });
+    const coding = stageOf(html, "coding");
+    assert.match(coding, /data-coding-workbench/);
+    assert.match(coding, /data-files-browser/, "Files still fills its place");
+    assert.doesNotMatch(coding, /data-git-browser|data-git-results/, "Git's places are empty");
+  });
+});
+
+test("RAC-436 an embedded surface that fails leaves its place empty and the page draws", async () => {
+  await withProject(async (store, state) => {
+    const failing = withContribution(state, (pluginId, real) => {
+      const contribution = real as { kind?: string; views?: Array<{ descriptor: unknown }> } | undefined;
+      if (pluginId !== "io.molis.work.files" || contribution?.kind !== "app") return real;
+      return { ...contribution, views: (contribution.views ?? []).map(view => ({ descriptor: view.descriptor, render: () => { throw new Error("the surface failed"); } })) };
+    });
+    const { html, unavailable } = renderProjectRuntimeStages(failing, store, { shown: SHOWN, drawn: [], model: model() });
+    const coding = stageOf(html, "coding");
+    assert.match(coding, /data-coding-workbench/);
+    assert.doesNotMatch(coding, /data-files-browser|data-files-results/, "Files' places are empty");
+    assert.match(coding, /data-git-browser/, "Git still fills its place");
+    assert.ok(unavailable.some(stage => stage.surface === "files"), "Files' own stage, which fails the same way, is the unavailable shell");
+    assert.ok(!unavailable.some(stage => stage.surface === "coding"));
+  });
+});
+
+test("RAC-437 a companion whose page is not there gets the unavailable shell with the reason, not a stage the Host made up", async () => {
+  await withProject(async (store, state) => {
+    const missing = withContribution(state, (pluginId, real) => pluginId === "io.molis.work.diff" ? undefined : real);
+    const { html, unavailable, ids } = renderProjectRuntimeStages(missing, store, { shown: SHOWN, drawn: [], model: model() });
+    assert.equal(stageOf(html, "diff"), "");
+    assert.deepEqual(unavailable.map(stage => stage.surface), ["diff"]);
+    assert.ok(unavailable[0]!.reason.length > 0);
+    assert.ok(ids.includes("io.molis.work.native.diff.ui.v1"), "the shell's declared stages do not draw it again");
+    assert.match(stageOf(html, "coding"), /data-coding-workbench/);
+  });
+});
+
+test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is gone, Coding is no hybrid, and only the supervisor starts the companions", () => {
+  assert.equal(existsSync(join(repoRoot, "apps/local-host/src/coding-surface.ts")), false);
+  const gate = readFileSync(join(repoRoot, "tests/builtin-plugin-assembly-gate.test.ts"), "utf8");
+  // Shelf left the hybrid list with S4, so Coding's exit empties it.
+  assert.match(gate, /HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>\(\);/);
+  const dir = join(repoRoot, "apps/local-host/src");
+  const importers = (pluginName: string) => readdirSync(dir).filter(file => file.endsWith(".ts"))
+    .filter(file => new RegExp(`from "@molis-ai/molis-work-plugin-${pluginName}"`).test(readFileSync(join(dir, file), "utf8")));
+  assert.deepEqual(importers("git"), ["project-plugins.ts"]);
+  assert.deepEqual(importers("diff"), ["project-plugins.ts"]);
+  assert.deepEqual(importers("text-stats"), ["project-plugins.ts"]);
+  assert.deepEqual(importers("files"), ["project-plugin-input-refresh.ts", "project-plugins.ts"]);
+  // The one stage module draws any plugin's page from its declarations: it names no plugin.
+  assert.doesNotMatch(readFileSync(join(dir, "project-plugin-stages.ts"), "utf8"), /molis-work-plugin-|["'`](coding|files|git|diff|text-stats)["'`]/);
+});
+
+test("RAC-439 the route hook that is left is named for what it does and reads Files only for a consumer of its outputs", async () => {
+  assert.equal(existsSync(join(repoRoot, "apps/local-host/src/project-plugin-input-refresh.ts")), true);
+  const dir = join(repoRoot, "apps/local-host/src");
+  const old = readdirSync(dir).filter(file => file.endsWith(".ts") && /codingRouteHooks/.test(readFileSync(join(dir, file), "utf8")));
+  assert.deepEqual(old, [], "the Coding-named hook is gone");
+
+  const manifests: Record<string, unknown> = {
+    "io.molis.work.files": { artifacts: { produces: [{ artifact_type_id: "files.snapshot", schema_version: 1 }] } },
+    "consumer": { artifacts: { consumes: [{ artifact_type_id: "files.snapshot", schema_version: 1 }] } },
+    "bystander": { artifacts: { consumes: [{ artifact_type_id: "other.thing", schema_version: 1 }] } },
+  };
+  let drained = 0;
+  const platform = { supervisor: { manifest: (pluginId: string) => manifests[pluginId] }, wiring: { drain: async () => { drained++; } } };
+  const dispatched: string[] = [];
+  const router = { dispatch: async (request: { pathname: string }) => { dispatched.push(request.pathname); return {}; } };
+  const run = async (pluginId: string) => filesOutputsRefresh({ platform, pluginId, ports: { actorId: "web-user" } } as never).beforeDispatch!(router as never);
+  await run("bystander");
+  assert.deepEqual(dispatched, [], "a plugin that does not consume Files' outputs causes no Files read");
+  await run("consumer");
+  assert.deepEqual(dispatched, ["/api/plugins/io.molis.work.files/state"]);
+  assert.equal(drained, 1);
+});
+
+test("RAC-449 every surface an embedded plugin puts into Coding's page targets a slot Coding declares and in a format the slot accepts", async () => {
+  await withProject(async (_store, state) => {
+    const supervisor = state.platform!.supervisor;
+    const coding = supervisor.contribution("io.molis.work.coding");
+    if (coding?.kind !== "app") throw new Error("Coding is not running as an app");
+    const slots = new Map((coding.views ?? []).flatMap(view => view.descriptor.slots).map(slot => [slot.slot_id, slot.accepts as readonly string[]] as const));
+    assert.deepEqual([...slots.keys()].sort(), [CODING_COMPANION_DIRECTORY_SLOT, CODING_COMPANION_RESULT_SLOT].sort());
+    const targets: string[] = [];
+    for (const embeddedId of codingManifest.ui.embedded_plugins ?? []) {
+      const embedded = supervisor.contribution(embeddedId);
+      if (embedded?.kind !== "app") continue;
+      for (const surface of (embedded.views ?? []).flatMap(view => view.descriptor.surfaces ?? [])) {
+        if (!surface.target_slot_id?.startsWith("coding.")) continue;
+        assert.ok(slots.has(surface.target_slot_id), `${embeddedId} ${surface.surface_id} targets ${surface.target_slot_id}, which Coding does not declare`);
+        assert.ok(slots.get(surface.target_slot_id)!.includes(surface.format), `${embeddedId} ${surface.surface_id} is ${surface.format}, which the slot does not accept`);
+        targets.push(`${embeddedId}:${surface.surface_id}`);
+      }
+    }
+    assert.deepEqual(targets.sort(), ["io.molis.work.files:browser-directory", "io.molis.work.files:browser-result", "io.molis.work.git:browser-directory", "io.molis.work.git:browser-result"]);
+  });
+});

@@ -8,11 +8,12 @@
 
 2026-10-23 20:40 UTC：batch-1023-13（run40013259093，6cff3977e）16片1341/1341文件最终通过；3份重试通过记入偶发。Linux跳过的macOS C0仍未验证，保留当前已知红。
 
-## 当前已知红（1 个文件）
+## 当前已知红（2 个文件）
 
 | 文件 | 带进来的 PR | 原因类别 | 谁修 | 依据 |
 | --- | --- | --- | --- | --- |
 | `tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01） | #1127（`c0b48111b`，10-24 03:33 合入；隔离页link改发`molis-work:open-settings-path`） | 产品回归：独立`/plugins/issues`仅装Home原设置dialog，没有工作台settings-directory；新事件无人消费，真实设置请求`loads=[]`。不能仅更换等待选择器 | Codex专职修复1（01a1682d-0a26-7522-b2b2-4446d904a7b7），root认领6380097295/裁定6380173758；已交[#1171](https://github.com/molis-ai/molis-work/pull/1171) b27b0cd8，正式review6380293028/独立32文件544项与门禁核验通过；CI/full/真实合入待，writer已释放 | batch20分片10首跑/重试都红；原main04435950a及鲜main89c9a7194复现line69；修后须保留S47禁导航，Home现有宿主限同源三路径消费事件，证明英文错误/真实Retry/关闭/草稿/拒绝；待PR独立评审测试及实际合入再移除 |
+| `tests/home-side-surfaces.e2e.test.ts`（VUX-16 (fallback)，第 101 行） | #1135（`a12347ae0`，新增这条用例；同一基底里 #1147 `1756f9842` 改了灵光的 `plugin.ts`/`registration.ts`） | 待查（产品回归或测试缺陷）：Home 侧栏里的灵光 frame 已挂上（`uiClientState: ready`、`parent: side-view`），但正文为空，`[data-lingguang-title]` 一直不出现 | Codex（CODEX-TASKS §0 顶行） | batch-1024-22 [40065231630](https://github.com/molis-ai/molis-work/actions/runs/40065231630)、batch-1024-23 [40066081993](https://github.com/molis-ai/molis-work/actions/runs/40066081993) 各重试仍失败 |
 
 
 2026-10-23：[C0修复 #1136](https://github.com/molis-ai/molis-work/pull/1136) 已于21:33:38 UTC合入 main `15b6566486282aef7fa4543251f6555bcf139510`，Codex现场核对GitHub合并状态及main历史；按统筹CODEX-TASKS的已完成裁定移除两条macOS已知红及机读项。创建/G1/G2现共用完整SDK声明集合，解决checks与workflow的W2-18-BUILDER-LATE-01同一声明依赖缺失。作者报告macOS checks17/17、workflow42/42；Codex核过实际diff与全部CI，未独立读取作者本机原始日志，不把Linux跳过说成macOS实测。
@@ -36,14 +37,10 @@
 | --- | --- | --- | --- | --- |
 | `workbench-deferred-clients.e2e` | 2/3 通过。「registered clients mount on demand, retry resources and retain their original surfaces」：`Error: CDP timeout: Network.setBlockedURLs`（`:50`，测试端 CDP 命令 20 秒超时） | 环境与时序（待查） | 超时出在第一条 `Network.setBlockedURLs`，早于用例碰到伴随面板，#1049 的改动（删宿主的伙伴面板装饰）不在这条路径上；同一 run 片内重试也红，重跑这一片 3/3 通过。BL-412 已把它列为重试才过的三份文件之一，根因未定 | batch-1023-3 第一次跑；batch-1023-1、batch-1023-2 都通过；batch-1023-4 第一次 2/3、重试通过；batch-1023-9 最终红；batch-1023-10 通过。BL-412 修掉就删 |
 
-## 待确认（batch-1024-22 新出现，等 batch-1024-23 判定是不是 main 的红）
+## batch-1024-22/23 的判定（10-24 06:10 UTC）
 
-batch-1024-22（[run 40065231630](https://github.com/molis-ai/molis-work/actions/runs/40065231630)，main `89c9a7194` + #1164 `d6b867b02` + #1165 `01de2cb48`）除已知红外又有两份重试也失败；batch-20/21（基底 `de103e5fa` 之前）都没有这两份：
-
-- `tests/home-side-surfaces.e2e.test.ts`：VUX-16 (fallback) 那条，灵光侧栏的 `[data-lingguang-title]` 没出现。这条用例由 #1135（`a12347ae0`，新增 235 行）带进 main；同一基底里 #1147（`1756f9842`）改了灵光的 `plugin.ts`/`registration.ts`。#1164、#1165 都不碰灵光和侧栏，初判是 main 的红（#1135 进来时没跑全量，或与 #1147 组合后失败）。
-- `tests/work-placement-journeys.e2e.test.ts`：`Inspected target navigated or closed`（CDP），偶发名单里已有，这次重试也失败。
-
-batch-1024-23（基底 `8aa62a65b`，同样含 #1135、#1147）跑完后：两份也红 → 进「当前已知红」，派 Codex 修；不红 → 记偶发，batch-22 按重跑判定。
+- `tests/home-side-surfaces.e2e.test.ts` 在 batch-23（基底 `8aa62a65b` + #1171 + #1167）同样失败，同一断言：**进「当前已知红」**（见上表）。
+- `tests/work-placement-journeys.e2e.test.ts` 在 batch-23 没红：留在偶发名单，batch-22 这次记一次「重试也失败」。
 
 ## 偶发（重试才过，不算红；记下来，看会不会变成稳定失败）
 
@@ -97,6 +94,7 @@ batch-1024-23（基底 `8aa62a65b`，同样含 #1135、#1147）跑完后：两�
 ```
 tests/issue-home-locale.e2e.test.ts
 tests/workbench-deferred-clients.e2e.test.ts
+tests/home-side-surfaces.e2e.test.ts
 ```
 
 在途 PR 自带、已认领的：当前无。`coding-interaction-html` 的修复已随 #1084 于10-23合入 `3f715261f`，从这份旧机读项删除；历史证据保留在上文。

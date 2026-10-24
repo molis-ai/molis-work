@@ -26,7 +26,8 @@ export const ASSISTANT_STORE_NAME = "assistant";
  *
  * Version 3: the work body's executor is `{ kind: "plugin", plugin_id, … }` and a round's `executor` is `"plugin"`, where
  * version 2 wrote the old Coding-only kind (PG-036, C8-3). The tables are the same; a version 2 store is refused until a maintenance step
- * rewrites those two fields, because a read does not translate them.
+ * rewrites those two fields and the work in each finished Send's stored result (`assistant_requests.result`), because a read does not
+ * translate them.
  */
 export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 3, schema: `
 CREATE TABLE assistant_works (

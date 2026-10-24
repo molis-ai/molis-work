@@ -15,7 +15,7 @@ PG-036 的 C8-3：助理把一项工作交给哪个插件，只看插件有没�
 - **会话关联。** 工作与执行方会话的关联种类取 `session.open` 声明的第一个主体种类（Coding 是 `coding_session`，与以前相同，所以存量关联不用改）。交回助理的工作，用关联的种类去目录里找回它原来的提供方，找不到就没有会话部分，不猜。
 - **调用。** 全部走 `WorkExecutor`（`assistant-executor.ts`），只调六个角色；一轮用 `run.start` 返回的 `run_id`；补充、回答、撤回、停止都走 `run.control`。调用以本人客户端发出，S-51 不变（`dispatchControl`）。
 - **选择入口。** `GET /api/assistant/executors` 返回 `AssistantExecutorOffer[]`；`POST /send` 的 `executor` 是 `{kind:"assistant"} | {kind:"plugin", plugin_id}`，`executor_session_id` 取代 `coding_session_id`；`POST /works/:id/handover` 的 `to` 同形。浏览器里的执行方清单、方式表、转交按钮都从这个清单来，页面事件 `molis:assistant-effect` 的 `capability_id` 取清单里的 `capability_ids`，不写 Coding 的动作 id。
-- **库版本。** 助理库 2→3：工作正文的执行方改记插件标识，轮次的 `executor` 由 `"coding"` 改为 `"plugin"`。表不变。读取不翻译旧值（`docs/system/CONTRACT-CHANGES.md`：现在不留兼容期），版本不符就拒；真实 Home 要先跑维护脚本 `tests/fixtures/assistant-maintenance-v3.sql`。
+- **库版本。** 助理库 2→3：工作正文的执行方改记插件标识，轮次的 `executor` 由 `"coding"` 改为 `"plugin"`，已发送请求的结果（`assistant_requests.result`，同一个请求标识再发会原样取回，完成的行不删）里的 `work.executor` 同工作正文那样改。表不变。读取不翻译旧值（`docs/system/CONTRACT-CHANGES.md`：现在不留兼容期），版本不符就拒；真实 Home 要先跑维护脚本 `tests/fixtures/assistant-maintenance-v3.sql`。
 - **没做的。** 助理的“个人工作”没有执行方（执行方在项目里工作）；执行方不能带图片的限制沿用原来的拒绝；Alchemist 与创作台不动。
 
 ## 验收标准
@@ -31,8 +31,8 @@ PG-036 的 C8-3：助理把一项工作交给哪个插件，只看插件有没�
 - **RAC-444**：助理库基线是版本 3，版本 2 的库不翻译着读，开库即拒。证明：同上。
 - **RAC-445**：真实 Home 里助理用协议找到 Coding，清单里的方式是 Coding 自己 `state` 给的五种。证明：`tests/assistant-executor-product.test.ts`。
 - **RAC-446**：真实 Home 里按插件标识把新工作交给 Coding，会话在 Coding 的页面里能看到，方式与那一轮都一致。证明：同上。
-- **RAC-447**：版本 2 的助理库开库即拒；维护后工作与轮次改记插件标识，库以版本 3 打开，内容不变。证明：`tests/assistant-maintenance-v3.test.ts`。
-- **RAC-448**：版本不对和中途失败整笔回滚。证明：同上。
+- **RAC-447**：版本 2 的助理库开库即拒；维护后工作、轮次和已发送请求的结果都改记插件标识（库里没有旧种类），库以版本 3 打开，内容不变，同一个请求标识再发取回的结果是现行形状。证明：`tests/assistant-maintenance-v3.test.ts`。
+- **RAC-448**：版本不对和中途失败（工作、轮次、请求结果三处各一次）整笔回滚。证明：同上。
 - **RAC-449**：保留。
 
 其余沿用的行为（方式记在执行方会话、补充走 `run.control`、RCPT-368 来源、RC-06 排队与回答版本、RC-14 去向、认领已有会话、转交带的说明与文件、跟进删除）由 `tests/assistant-executor.test.ts` 用一个不是 Coding 的协议插件重新断言，原断言一条没有放宽。

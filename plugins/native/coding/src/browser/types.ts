@@ -34,7 +34,7 @@ export interface PagePorts {
 
 /** The shared receipt of the workbench (`host.receipts`): a link from a step or a bubble to the receipt Coding's conversation drew. */
 export interface ReceiptLinks {
-  link(container: Element, inputId: string, afterOpen?: () => void): Node | null;
+  link(container: Element, inputId: string, afterOpen?: () => void, lead?: "关于补充「" | "来自补充「"): Node | null;
 }
 
 /** Draws the Host's review cards for the runs it is given in a container (`host.showReviews`). */

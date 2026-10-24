@@ -94,3 +94,10 @@
 - 合并队列 [#1147 pos1、#1126 pos2]；main `a12347ae0`。
 - 集成批：`batch-1024-20`（run 40061024962，main `04435950a`+#1148+#1139）与 **`batch-1024-21`**（run 40061758914，main `de103e5fa`+#1157 `2d15c6d41`+#1130）均 queued；batch-19 三红归因 #1157 已随其新头修复。
 - #1114 仍无评审；#1112 等二轮+批；#1098 缺 ac-review 一轮结论（W5-06 链卡点）。
+
+## 需要 Codex 统筹线动作（04:30Z，按优先级）
+1. **#1114 一轮评审**：head `f7836be2d`，14 项检查全过（1 skipping），MERGEABLE，评审包已发 [6379779293](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6379779293)、[6379774342](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6379774342)；待确认仅 28B 放行与动作 v2→v3 影响。
+2. **#1112 二轮评审**：head `8d700173c`，required CI 绿，二轮要点包已发 [6379774554](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6379774554)。
+3. **W5-06 三片集成批**：#1098（一轮可合已记）、#1107（一轮可合）、#1112（待二轮）一起进批；`full` 命中 assembly+spans-packages。当前 batch-20/21 均不含 #1098。
+4. **runner 排队**：此刻仓内 7 个 run queued、0 in_progress（repo public，非分钟数/并发配置问题），属 GitHub 侧分配停滞；merge group 与 full suite 只能等。
+完成后请回写本文件或 PR 评论；本会话接着盯合并与结果。

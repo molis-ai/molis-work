@@ -1,7 +1,7 @@
 import { rm } from "node:fs/promises";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { HomePluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePartitionDirectory } from "@molis-ai/molis-work-storage";
 import { hasPluginBackground } from "./plugin-background-service.js";
@@ -17,7 +17,6 @@ export interface PluginProjectCleanup {
 export interface PluginProjectCleanupEntry {
   readonly definition: PluginDefinition;
   readonly project_data?: PluginProjectCleanup;
-  readonly database?: HomePluginDatabaseDeclaration;
 }
 
 /**
@@ -28,7 +27,7 @@ export function assertProjectCleanupEntries(entries: readonly PluginProjectClean
   const owners = new Set<string>();
   for (const entry of entries) {
     const owner = entry.project_data;
-    const partitioned = entry.database?.partition === "project";
+    const partitioned = entry.definition.manifest.databases?.home?.partition === "project";
     if (!owner) {
       if (partitioned) throw new Error(`插件 ${entry.definition.manifest.plugin_id} 的库按项目分开，要声明项目数据（project_data），删项目时才清得到`);
       continue;
@@ -72,7 +71,8 @@ export function registerPluginProjectCleanup(home: string, runtime: PluginRuntim
     if (!owner) {
       return hasPluginBackground(entry.definition) ? [hooks.register({ id: `plugin-background:${pluginId}`, label: "{name} 的后台工作（将停止）", label_values: { name: entry.definition.manifest.name }, clear(projectId) { stopBackground(projectId); } })] : [];
     }
-    const partitioned = entry.database?.partition === "project" ? entry.database.store_name : undefined;
+    const library = entry.definition.manifest.databases?.home;
+    const partitioned = library?.partition === "project" ? library.store_name : undefined;
     return [hooks.register({
       id: owner.owner_id, label: owner.declaration.label,
       clear(projectId) {

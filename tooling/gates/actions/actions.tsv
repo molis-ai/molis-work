@@ -325,10 +325,10 @@ images.files.content	1	io.molis.work.images	io.molis.work.images	query	query	pro
 images.files.entries	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	user	images:read	generated_image	molis.files.entries.window.v1	molis.files.entries.page.v1	09d161bb4729	fef9b910b93e	23b2fbd33d62
 images.images.read	1	io.molis.work.images	io.molis.work.images	query	query	project	read	-	agent,mcp,user,workflow	images:read	image	-	-	4a55804354b2	299db85913b8	-
 images.jobs.cancel	1	io.molis.work.images	io.molis.work.images	command	operation	project	write	-	agent,mcp,user,workflow	images:generate	image	-	-	61f64d4ce922	0bc3a87b0bfa	-
-images.jobs.delete	1	io.molis.work.images	io.molis.work.images	command	operation	project	irreversible	-	agent,mcp,user,workflow	images:delete	image	-	-	61f64d4ce922	07a9ad95ba37	-
+images.jobs.delete	2	io.molis.work.images	io.molis.work.images	command	operation	project	irreversible	-	agent,mcp,user,workflow	images:delete,images:files:write	image	-	-	61f64d4ce922	07a9ad95ba37	-
 images.jobs.get	1	io.molis.work.images	io.molis.work.images	query	query	project	read	-	agent,mcp,user,workflow	images:read	image	-	-	61f64d4ce922	0bc3a87b0bfa	-
 images.jobs.list	1	io.molis.work.images	io.molis.work.images	query	query	project	read	-	agent,mcp,user,workflow	images:read	image	-	-	d746974fa9af	c0b932c0321f	-
-images.jobs.start	2	io.molis.work.images	io.molis.work.images	command	operation	project	write	concurrent	agent,mcp,user,workflow	images:generate,model:invoke	image	-	-	0a4d2fe3c139	0bc3a87b0bfa	5f322bcacafa
+images.jobs.start	3	io.molis.work.images	io.molis.work.images	command	operation	project	write	concurrent	agent,mcp,user,workflow	images:files:write,images:generate,model:invoke	image	-	-	0a4d2fe3c139	0bc3a87b0bfa	5f322bcacafa
 images.search.entries	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	images:read	image_job	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	62a8136d3028
 images.subject.read	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	images:read	image_job	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	bfc8de56588a	-
 inbox.actions.prepare	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	inbox:read	inbox_entry	molis.subject-offers.input.v1	molis.subject-offers.output.v1	03d0cfd95e8f	1f8df39bd1f3	f8ecaca1791c

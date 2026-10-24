@@ -36,7 +36,7 @@ test("every action that waits on a model runs beside the serial queue unless it 
   assert.ok(found.size >= 10, "the directory must actually contain the model actions");
   const serial = [...found].filter(([, scheduling]) => scheduling !== "concurrent").map(([id]) => id).sort();
   assert.deepEqual(serial, Object.keys(SERIAL_BY_DESIGN).sort());
-  assert.equal(found.get("images.jobs.start@2"), "concurrent", "Runtime background acceptance uses a concurrent model-authorized action");
+  assert.equal(found.get("images.jobs.start@3"), "concurrent", "Runtime background acceptance uses a concurrent model-authorized action");
   assert.ok(found.has("alchemist.reuse.assess@1"), "custom AI permissions must also enter the scheduling check");
 });
 

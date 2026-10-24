@@ -1,8 +1,5 @@
 import type { ProjectDataDeclaration } from "../modules/projects.js";
-import type { HomePluginDatabaseDeclaration, HomeStoreDeclaration } from "./plugin-database.js";
-import type { PluginFilesDeclaration } from "./plugin-files.js";
-import type { PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
-import type { PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
+import type { HomeStoreDeclaration } from "./plugin-database.js";
 import type { PluginDefinition, PluginManifest } from "./plugin.js";
 import type { UiContribution } from "./ui.js";
 
@@ -99,18 +96,12 @@ export interface PluginRegistration {
   readonly companions?: readonly string[];
   /**
    * Explicit Runtime activation in the Home; personal visibility alone never migrates an existing plugin. Trusted, as above.
-   * 2026-10-18 改: the stores and model consumers it names are declared in the Manifest and granted like any plugin's (PG-022,
-   * PG-102 in specs/repository-anti-corruption/privileges.md).
+   * Its library is the Manifest's `databases.home` (PG-022). Its files, model settings and image generation are the Manifest's `owner_files`,
+   * `model_configuration` and `image_generation` (PG-102).
    */
   readonly runtime?: {
     readonly scope: "home";
     readonly create: () => PluginDefinition;
-    readonly database?: HomePluginDatabaseDeclaration;
-    readonly files?: PluginFilesDeclaration;
-    readonly owner_files?: import("./plugin-owner-files.js").PluginOwnerFilesDeclaration;
-    readonly initialize_owner_files?: (writer: import("./plugin-owner-files.js").PluginOwnerFilesWriter) => void;
-    readonly model_configuration?: PluginModelConfigurationDeclaration;
-    readonly image_generation?: PluginImageGenerationDeclaration;
     readonly package_name: string;
     readonly factory_export: string;
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
@@ -128,7 +119,10 @@ export interface PluginRegistration {
    * nothing outside the project's own directory.
    */
   readonly project_data?: ProjectDataDeclaration;
-  /** The Home store this plugin keeps (exported by the plugin, beside the code that opens it), for the Host's one registry of Home stores. */
+  /**
+   * The Home store this plugin keeps (exported by the plugin, beside the code that opens it), for the Host's one registry of Home
+   * stores. A library is not written here: the registry reads it from the Manifest's `databases.home`.
+   */
   readonly home_store?: HomeStoreDeclaration;
   /** Owner-scoped UI words, projected into the page language by the common translator. */
   readonly messages?: Readonly<Record<string, { readonly zh: string; readonly en: string }>>;

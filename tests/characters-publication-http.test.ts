@@ -34,6 +34,11 @@ test("Character manager publishes confirmed personal drafts through real project
     });
     return { status: response.status, body: await response.json() };
   };
+  // RAC-459: the Assistant's picker in a project, as the person's page asks for it.
+  const choices = async (project: string) => {
+    const response = await fetch(`${origin}/projects/${project}/api/assistant/characters`, { headers: { origin, "x-molis-work-control-token": token } });
+    assert.equal(response.status, 200); return (await response.json()).characters as Array<{ reference: { artifact_id: string; version: number }; title: string; available: boolean; reason?: string }>;
+  };
   const a = (method: string, path: string, body?: unknown, authorized = true) => request(first.project_id, method, path, body, authorized);
   const b = (method: string, path: string, body?: unknown) => request(second.project_id, method, path, body);
   assert.equal((await a("POST", "/drafts", {}, false)).status, 403);
@@ -75,8 +80,16 @@ test("Character manager publishes confirmed personal drafts through real project
   assert.equal(next.body.publication.supersedes_version, 1);
   const state = await a("GET", "/drafts"); assert.equal(state.body.publications.length, 2);
   assert.deepEqual(state.body.publications.find((item: { version: number }) => item.version === 1), published.body.publication);
+  // The Assistant lists the same versions through Characters' public actions (PG-086, C2b): v2 runs, and each row has Characters' own answer.
+  const offered = await choices(first.project_id);
+  assert.deepEqual(offered.map(item => item.reference.version).sort(), [1, 2]);
+  assert.deepEqual(offered.find(item => item.reference.version === 2), { reference: next.body.reference, title: patch.title, available: true });
+  assert.equal((await choices(second.project_id)).length, 1, "another project lists only its own publication");
   assert.equal((await a("POST", path + "/state", { expected_revision: 3, state: "disabled" })).status, 200);
   assert.throws(() => freezeProjectCharacter(home, "web-user", first.project_id, artifacts, published.body.reference), /停用/);
+  const whileDisabled = await choices(first.project_id);
+  assert.ok(whileDisabled.length === 2 && whileDisabled.every(item => !item.available && item.reason), "a disabled Character is offered as not runnable, with Characters' reason");
+  assert.match(whileDisabled.find(item => item.reference.version === 2)?.reason ?? "", /停用/);
   assert.equal(frozen.instructions, patch.instructions, "an existing frozen Run does not re-resolve the disabled profile");
   assert.equal((await b("POST", path + "/publish", { expected_revision: 4 })).status, 400);
   assert.equal((await a("POST", path + "/state", { expected_revision: 4, state: "active" })).status, 200);
@@ -84,8 +97,10 @@ test("Character manager publishes confirmed personal drafts through real project
   server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token }); origin = await start();
   const reopened = await a("GET", "/drafts"); assert.equal(reopened.status, 200); assert.equal(reopened.body.drafts[0].revision, 5);
   assert.deepEqual(reopened.body.publications, state.body.publications);
+  assert.equal((await choices(first.project_id)).find(item => item.reference.version === 2)?.available, true, "enabled again, the newest version runs");
   assert.equal((await a("POST", path + "/state", { expected_revision: 5, state: "tombstoned" })).status, 200);
   assert.throws(() => freezeProjectCharacter(home, "web-user", first.project_id, artifacts, published.body.reference), /删除/);
+  assert.ok((await choices(first.project_id)).every(item => !item.available), "a deleted Character has no version to run");
   assert.equal((await b("POST", path + "/publish", { expected_revision: 6 })).status, 400);
   assert.equal((await b("GET", "/drafts")).body.publications.length, 1, "deletion preserves the project's historical fixed publication");
   const page = await fetch(`${origin}/projects/${first.project_id}/`); assert.equal(page.status, 200);

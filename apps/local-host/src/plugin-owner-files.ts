@@ -112,7 +112,8 @@ export function openPluginOwnerFiles(home: string, declaration: PluginOwnerFiles
       if (access !== "readonly" && access !== "readwrite") throw ownerFileErrors.owner_file_invalid("文件访问模式无效");
       const target = paths.inspect(relative), directory = target.stat?.isDirectory() === true;
       withOwnerFile(target.path, constants.O_RDONLY, directory ? "directory" : "file", fd => {
-        fchmodSync(fd, directory ? access === "readonly" ? 0o555 : 0o755 : access === "readonly" ? 0o444 : 0o644);
+        // Only the user the Host runs as: no group or other bits on a plugin's files, read-only or not (V-30).
+        fchmodSync(fd, directory ? access === "readonly" ? 0o500 : 0o700 : access === "readonly" ? 0o400 : 0o600);
       });
     },
   });

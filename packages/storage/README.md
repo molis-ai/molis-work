@@ -37,6 +37,8 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 只在部分操作需要凭据的服务使用 `createLazyFileSecretStore(homeDirectory)`：创建时固定 Home，调用时才沿用原凭据库与锁；只读取尚未保存的凭据引用时直接返回空值，不初始化后端。Functions 的 Host、HTTP、MCP 和设置装配使用此入口，因此本地列表、说明、草稿与场景查询不因服务初始化而请求钥匙串。已有凭据的读取、写入、迁移与后端诊断仍走原保护；配置了环境凭据的 Functions 也不提前打开无关的本地凭据库。这里不承诺消除所有钥匙串提示，模型健康检查和实际需要本地密钥的调用仍可能读取钥匙串。
 
+`inspectSealedSecretsSnapshot(home, ciphertext)` 只读核对所给的现行 v2 vault 与同 Home 原主密钥，逐条验证 AES-GCM，返回后端、条目数和 `{location, sha256}` 密钥身份引用；不返回 key 或正文，不创建目录、锁库或替代 key，不依赖现 Home 的 vault 是否完好。单独空 vault 没有密文依赖。`readSealedSecretSnapshotEntry` 是 owner 明确恢复时读取单条正文的端口；`readExistingSecret(home, authRef)` 对当前 vault 做同样的只读检查，并拒绝软/硬链接文件，不借用 store 缓存。它们不是普通诊断或 HTTP 返回接口；调用方仍负责自己的引用归属。已密封的 Runtime 原配置备份由其 owner 使用这些端口读取。
+
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 `createEvidenceContentStore` 为 Feed 与研究等消费者保存受限大小的加密正文，Host 显式选择目录并固定 Home。`createSearchOpaqueBlobStore`、`createSearchAead`、`createSearchSecretStore` 为 SEL 提供持久化。历史 `molis-work-feed/sha256/...` 引用、密钥引用、恢复 overlay、密文格式及 `feed_runtime_blobs` 表名保持不变；旧 Feed 名称仅导出同一实现，不保留第二份存储。来源游标、研究策略和条目处置归消费者。正文按内容寻址、整个 Home 共用，本包看不到谁在引用：`EvidenceContentStore.delete` 删一份正文，`collect({ candidates, isReferenced })` 只删调用方数过引用、确认无人持有的候选；`createSearchOpaqueBlobStore` 返回的 `collect({ namespace, discard })` 按键删 SEL 操作记录（值保持密封、不被读取）。数引用的一方（Feed 删除来源）负责数全。
@@ -68,6 +70,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 密钥与正文存储跟随创建时的 Home，不靠切换全局变量混用目录。
   - 钥匙串主密钥读取失败后，同一进程、Home 与配置停止自动重试；不改密文、不自动降级到文件存储。
   - 文件后端已有密文时必须读取原有的有效密钥；缺失或无效即拒绝读取、写入和后端诊断，不生成替代 key。恢复原 key 后可重新打开。回归见 [secret-store-missing-key.test.ts](../../tests/secret-store-missing-key.test.ts)。
+  - 密文快照预检必须只读，不创建锁/目录/key；密文中有任一条认证失败就整体拒绝，不能因活 vault 损坏而拒绝检查健康快照。明确恢复读取仍核原 key、普通单链接文件及调用 owner 的引用归属。
   - 只有部分操作需要凭据的服务用 `createLazyFileSecretStore`：读取尚未保存的引用不初始化后端。
   - 原子文件写入、日志与幂等记录由这里提供，Module 不各建一套。
   - 记忆账本只有成功开始写事务后才进入嵌套状态；连接锁导致开始失败后，同一实例的后续多步写入仍完整回滚或提交。回归见 [memory-ledger-transaction.test.ts](../../tests/memory-ledger-transaction.test.ts)。
@@ -75,7 +78,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 索引切分：中日韩每字单独、相邻两字成词，其余字母数字按小写词、查询用前缀；候选必须在原文（NFKC、小写）里真实出现才返回，两字中文与 `Q4` 这类短词可查。
   - 正文由读取器提供的条目，只对能读该种类的调用来源返回。
   - 项目被删除时清掉它在个人库里的行：`clearInExistingHomeSqlite` 对已存在的库在一个写事务里运行删除（库不存在就不创建、版本不符照常拒绝）；`deleteSecretEntriesWithPrefix` 按引用前缀删密封的密钥，不解密；记忆账本的 `forgetScopes` 一并忘掉已不存在的范围。
-- 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -74,7 +74,7 @@ test("PG-026-S1-8 a missing catalog reads as an empty shelf, and the first write
   });
 });
 
-test("PG-026-S2-1 the Home instance lays the sample down once: one the person deleted stays gone after a new grant and a restart", async () => {
+test("PG-026-S2-1 RAC-327 the Home instance lays the sample down once, in its own start: one the person deleted stays gone after a new grant and a restart", async () => {
   await withHome(async (home, root) => {
     const as = (host: MolisWorkLocalHost) => bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
     const names = async (host: MolisWorkLocalHost) => (await as(host).invoke(shelfActions.snapshot, {})).materials.map(item => item.name);

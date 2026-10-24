@@ -81,20 +81,20 @@ export function pluginAgentRuntime(home: PluginPlatformHome) {
 export function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]): HomeStoreRegistry {
   const registry = homeStores(), own = new Map<string, HomeStore>();
   for (const fixture of [...fixtures?.project ?? [], ...fixtures?.home ?? []]) {
-    if ("manifest" in fixture) continue;
-    const names = new Set([fixture.database?.store_name, fixture.files?.store_name, fixture.owner_files?.store_name]);
+    const entry = "manifest" in fixture ? { definition: fixture } : fixture, database = entry.definition.manifest.databases?.home;
+    const names = new Set([database?.store_name, entry.definition.manifest.owner_files?.store_name]);
     for (const name of names) {
       if (!name || registry.get(name) || own.has(name) || !PLUGIN_LIBRARY_NAME.test(name)) continue;
-      own.set(name, { path: name, owner: fixture.definition.manifest.plugin_id,
-        ...(fixture.database?.store_name === name ? { library: { baseline: fixture.database } } : {}) });
+      own.set(name, { path: name, owner: entry.definition.manifest.plugin_id,
+        ...(database?.store_name === name ? { library: { baseline: database, ...database.partition ? { partition: database.partition } : {} } } : {}) });
     }
   }
   return own.size ? homeStoreRegistry([...registry.stores, ...own.values()]) : registry;
 }
 
 /**
- * A plugin a Host is given for a test or a probe: a definition, or a definition with the library in the Home the Host gives it
- * (what a start-list entry does for a shipped plugin, `PluginPlatformEntry.database`; the definition itself declares none).
+ * A plugin a Host is given for a test or a probe: a definition, or a definition with the half of a dual-instance plugin it is (what a
+ * start-list entry does for a shipped plugin). Its library in the Home is the one its Manifest declares (`databases.home`).
  */
 export type PluginFixture = PluginDefinition | PluginOwnerFilesEntry;
 

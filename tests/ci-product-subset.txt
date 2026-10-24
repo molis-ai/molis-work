@@ -96,6 +96,7 @@ tests/assistant-delegation.test.ts
 tests/assistant-diagnostics.test.ts
 tests/assistant-followups.test.ts
 tests/assistant-followups-collaborator.test.ts
+tests/assistant-http-logging.test.ts
 tests/assistant-image-restart-http.test.ts
 tests/assistant-island-script.test.ts
 tests/assistant-material.test.ts

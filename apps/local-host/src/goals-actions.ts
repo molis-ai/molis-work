@@ -1,9 +1,10 @@
 import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
-import { ActionError, bindActionClient, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
+import { pluginActionProvider } from "./plugin-action-provider.js";
 import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { PlanningMethodPack, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -72,10 +73,20 @@ export function bindGoalsWebActions(client: ActionClient, reference: LocalHostPr
  * action as the person on this machine, with nothing else granted. A project whose Goals is removed or whose guidance cannot be
  * read refuses it, and the caller starts without the layer.
  */
-export function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceView> {
+export async function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceView> {
   const read = goalsActions.guidanceRead;
-  return bindActionClient(client, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions,
-    allowed_actions: [{ capability_id: read.capability_id, version: read.version, provider_id: GOALS_PLUGIN_ID }] })).invoke({ ...read, provider_id: GOALS_PLUGIN_ID }, {});
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions };
+  return await invokeOneProvider(client, caller, read, {});
+}
+
+/**
+ * Calls `definition` as `caller` on its one provider in the project's directory (BL-501): the Host names no plugin of its own; it pins the
+ * provider it found, and the call reaches that provider and no other. None, or more than one, refuses with a code and calls nothing.
+ */
+async function invokeOneProvider<Input, Output>(client: ActionClient, caller: ActionCallContext, definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> {
+  const provider_id = await pluginActionProvider(client, caller, definition);
+  return await client.invoke({ ...caller, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id }] },
+    { ...definition, provider_id }, input) as Output;
 }
 
 /** What a management entry can do: Goals' actions as the person on this machine, origin management. */
@@ -138,9 +149,9 @@ export function bindGoalsManagementActions(client: ActionClient, reference: Loca
     async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output> {
       const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
       if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
-      return await client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
-        permissions: definition.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}), allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: GOALS_PLUGIN_ID }],
-        user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, { ...definition, provider_id: GOALS_PLUGIN_ID }, input) as Output;
+      return await invokeOneProvider(client, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
+        permissions: definition.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}),
+        user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, definition, input);
     },
   };
 }

@@ -8,7 +8,7 @@ import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores 
 import { goalsRoutes, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { bindGoalsManagementActions, bindGoalsWebActions } from "../apps/local-host/dist/goals-actions.js";
+import { bindGoalsManagementActions, bindGoalsWebActions, readProjectGuidance } from "../apps/local-host/dist/goals-actions.js";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventTypeDefinitionInput, SetGoalEventAgreementInput } from "@molis-ai/molis-work-contracts/modules/goals";
 
@@ -3057,9 +3057,15 @@ test("without the project rule an acceptance of a requirement is not limited to 
   }
 });
 
-test("the management caller factory acts as the person on this machine, builds the authority of a decision itself, and pins the one Goals action", async () => {
+/** A directory in which `providers` each offer every Goals action: what the Host's own lookup of a provider reads (BL-501). */
+const goalsDirectory = (...providers: string[]) => async () => providers.flatMap(provider_id => GOALS_ACTIONS.map(definition =>
+  ({ capability_id: definition.capability_id, version: definition.version, provider: { provider_id } }))) as never;
+const REPLACEMENT = "io.molis.work.example.goals-provider";
+
+test("the management caller factory acts as the person on this machine, builds the authority of a decision itself, and pins the one provider its directory shows", async () => {
   const seen: Array<{ caller: ActionCallContext; action: ActionReference; input: unknown }> = [];
-  const client: ActionClient = { discover: async () => [], invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
+  // RAC-336: the provider is whichever plugin the directory shows for the action, not Goals by name.
+  const client: ActionClient = { discover: goalsDirectory(REPLACEMENT), invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
   const management = bindGoalsManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
   assert.equal(management.project_id, BOARD);
   const decision = { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "event-1" };
@@ -3069,8 +3075,9 @@ test("the management caller factory acts as the person on this machine, builds t
   assert.deepEqual([pointed!.caller.actor_id, pointed!.caller.actor_kind, pointed!.caller.audience, pointed!.caller.project_id], [LOCAL_PERSON_ACTOR_ID, "user", "user", BOARD]);
   assert.deepEqual(pointed!.caller.user_action, { source: "management", conversation_ref: "conversation://x", message_ref: "message://y" }, "the decision points at its conversation, and says nothing of who decides");
   assert.deepEqual(pointed!.caller.permissions, goalsActions.decide.action.permissions, "only what that action asks");
-  assert.deepEqual(pointed!.caller.allowed_actions, [{ capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: GOALS_PLUGIN_ID }]);
-  assert.equal(pointed!.action.provider_id, GOALS_PLUGIN_ID);
+  assert.deepEqual(pointed!.caller.allowed_actions, [{ capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: REPLACEMENT }],
+    "the provider found is pinned exactly: the call reaches it and no other");
+  assert.equal(pointed!.action.provider_id, REPLACEMENT);
   assert.deepEqual(pointed!.input, decision, "the input is the caller's, untouched");
   assert.equal("call_id" in pointed!.caller, false, "the call number is the operation's (the scope the entry runs in), not made here");
 
@@ -3110,6 +3117,23 @@ test("the management caller factory acts as the person on this machine, builds t
   // A read has no such rule here: its contract refuses what it does not know, so the call reaches the client.
   await management.invoke(goalsActions.treeRead, { actor_id: "x" } as never);
   assert.equal(seen.length, 1);
+});
+
+test("RAC-337: with no provider, or more than one, the Host's call to a Goals action is refused with a code and reaches no one", async () => {
+  const reference = { project_id: BOARD, storage_key: "fixture" };
+  for (const [providers, code] of [[[], "actions.dependency_missing"], [[GOALS_PLUGIN_ID, REPLACEMENT], "actions.provider_ambiguous"]] as const) {
+    const seen: unknown[] = [];
+    const client: ActionClient = { discover: goalsDirectory(...providers), invoke: async (_caller, action) => { seen.push(action); return {} as never; } };
+    await assert.rejects(bindGoalsManagementActions(client, reference).invoke(goalsActions.snapshot, {}), { code }, `management: ${code}`);
+    await assert.rejects(readProjectGuidance(client, reference), { code }, `guidance: ${code}`);
+    assert.deepEqual(seen, [], "the Host guesses no provider");
+  }
+  const seen: Array<{ caller: ActionCallContext; action: ActionReference }> = [];
+  const client: ActionClient = { discover: goalsDirectory(REPLACEMENT), invoke: async (caller, action) => { seen.push({ caller, action }); return {} as never; } };
+  await readProjectGuidance(client, reference);
+  const read = goalsActions.guidanceRead;
+  assert.deepEqual(seen.map(({ caller, action }) => [action.capability_id, action.provider_id, caller.allowed_actions]),
+    [[read.capability_id, REPLACEMENT, [{ capability_id: read.capability_id, version: read.version, provider_id: REPLACEMENT }]]], "the guidance read reaches the provider found, pinned");
 });
 
 

@@ -37,89 +37,89 @@ export function renderJellyWorkbench(model: JellyUiModel): string {
   const button = (label: string, attr: string, glyph?: Parameters<typeof icon>[0], primary = false) => `<button type="button" class="mw-btn mw-btn--${primary ? "primary" : "ghost"}" aria-label="${t(label)}" ${attr}>${glyph ? icon(glyph) : ""}<span>${t(label)}</span></button>`;
   return renderPluginStageShell({ surface: "jelly", label: "Jelly", dataset: "jelly", body: `
     <header class="jelly-header">
-      <nav class="jelly-tabs" aria-label="${t("Jelly 工作区")}">
-        ${button("日历", 'data-jelly-view="calendar" aria-current="page"', "calendar")}
-        ${button("笔记", 'data-jelly-view="notes"', "note")}
-        ${button("回顾", 'data-jelly-view="progress"', "check")}
+      <nav class="jelly-tabs" aria-label="${t("jelly.page.workspace")}">
+        ${button("jelly.view.calendar", 'data-jelly-view="calendar" aria-current="page"', "calendar")}
+        ${button("jelly.view.notes", 'data-jelly-view="notes"', "note")}
+        ${button("jelly.view.review", 'data-jelly-view="progress"', "check")}
       </nav>
       <div class="jelly-header-actions">
-        ${button("撤销", 'data-jelly-undo title="' + t("撤销最近一次修改") + '"', "undo")}
-        ${button("重做", 'data-jelly-redo', "redo")}
-        ${button("更多", 'data-jelly-more aria-expanded="false" aria-haspopup="menu"', "more")}
+        ${button("jelly.action.undo", 'data-jelly-undo title="' + t("jelly.action.undo-last") + '"', "undo")}
+        ${button("jelly.action.redo", 'data-jelly-redo', "redo")}
+        ${button("jelly.action.more", 'data-jelly-more aria-expanded="false" aria-haspopup="menu"', "more")}
         <div class="mw-menu jelly-global-menu" data-jelly-menu hidden role="menu">
-          <button type="button" class="mw-menu__item" data-jelly-categories>${icon("tag")}${t("管理分类")}</button>
-          <button type="button" class="mw-menu__item" data-jelly-model>${icon("sparkles")}${t("拆解模型")}</button>
-          <button type="button" class="mw-menu__item" data-jelly-export>${icon("download")}${t("导出工作区")}</button>
-          <button type="button" class="mw-menu__item" data-jelly-import>${icon("upload")}${t("导入工作区")}</button>
+          <button type="button" class="mw-menu__item" data-jelly-categories>${icon("tag")}${t("jelly.category.manage")}</button>
+          <button type="button" class="mw-menu__item" data-jelly-model>${icon("sparkles")}${t("jelly.model.title")}</button>
+          <button type="button" class="mw-menu__item" data-jelly-export>${icon("download")}${t("jelly.workspace.export")}</button>
+          <button type="button" class="mw-menu__item" data-jelly-import>${icon("upload")}${t("jelly.import.title")}</button>
         </div>
       </div>
     </header>
     <div class="plugin-stage-list feed-stage-list feed-stage-tree jelly-main" data-jelly="directory">
       <div class="jelly-toolbar">
         <div class="jelly-period" data-jelly-period>
-          ${button("上一段", 'data-jelly-step="-1" class="jelly-icon-button"', "back")}
+          ${button("jelly.nav.previous", 'data-jelly-step="-1" class="jelly-icon-button"', "back")}
           <h1 data-jelly-period-title></h1>
-          ${button("下一段", 'data-jelly-step="1"', "chevron-right")}
-          ${button("今天", "data-jelly-today")}
+          ${button("jelly.nav.next", 'data-jelly-step="1"', "chevron-right")}
+          ${button("jelly.nav.today", "data-jelly-today")}
         </div>
         <div class="jelly-toolbar-end">
-          <div class="mw-toggle-group jelly-calendar-modes" data-slot="toggle-group" data-jelly-calendar-modes aria-label="${t("日历视图")}">
-            ${button("月", 'data-jelly-mode="month" aria-pressed="true"')}${button("周", 'data-jelly-mode="week" aria-pressed="false"')}${button("列表", 'data-jelly-mode="list" aria-pressed="false"')}
+          <div class="mw-toggle-group jelly-calendar-modes" data-slot="toggle-group" data-jelly-calendar-modes aria-label="${t("jelly.calendar.view-label")}">
+            ${button("jelly.mode.month", 'data-jelly-mode="month" aria-pressed="true"')}${button("jelly.mode.week", 'data-jelly-mode="week" aria-pressed="false"')}${button("jelly.mode.list", 'data-jelly-mode="list" aria-pressed="false"')}
           </div>
-          ${button("新建事项", "data-jelly-new", "plus", true)}
+          ${button("jelly.item.new", "data-jelly-new", "plus", true)}
         </div>
       </div>
       <div class="jelly-filters">
-        <label class="mw-input-group jelly-search">${icon("search")}<input class="mw-input" type="search" data-jelly-search placeholder="${t("搜索标题和内容")}" aria-label="${t("搜索标题和内容")}"></label>
+        <label class="mw-input-group jelly-search">${icon("search")}<input class="mw-input" type="search" data-jelly-search placeholder="${t("jelly.search.placeholder")}" aria-label="${t("jelly.search.placeholder")}"></label>
         <div class="jelly-category-filters" data-jelly-category-filters></div>
-        <button type="button" class="mw-btn mw-btn--ghost" data-jelly-archived aria-pressed="false" hidden>${t("归档")}</button>
-        <button type="button" class="mw-btn mw-btn--ghost" data-jelly-hide-completed aria-pressed="false">${t("隐藏已完成")}</button>
+        <button type="button" class="mw-btn mw-btn--ghost" data-jelly-archived aria-pressed="false" hidden>${t("jelly.action.archive")}</button>
+        <button type="button" class="mw-btn mw-btn--ghost" data-jelly-hide-completed aria-pressed="false">${t("jelly.filter.hide-completed")}</button>
       </div>
-      <div data-jelly-content class="jelly-content" aria-live="polite"><p class="jelly-muted">${t("正在打开 Jelly…")}</p></div>
+      <div data-jelly-content class="jelly-content" aria-live="polite"><p class="jelly-muted">${t("jelly.load.opening")}</p></div>
     </div>
     <div class="plugin-stage-workspace jelly-detail" data-jelly-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
-        <button type="button" class="plugin-stage-back" data-jelly-back aria-label="${t("返回列表")}" title="${t("返回列表")}">${icon("chevron-right")}</button>
-        <h1 data-jelly-editor-heading>${t("笔记")}</h1><span class="jelly-save-status" data-jelly-save-status></span><span data-placement-slot data-placement-scope="home" data-placement-saved="off"></span>
-        ${button("拆成任务", "data-jelly-decompose", "sparkles")}
-        ${button("归档", "data-jelly-archive", "archive")}
-        ${button("更多", 'data-jelly-editor-more aria-expanded="false"', "more")}
+        <button type="button" class="plugin-stage-back" data-jelly-back aria-label="${t("jelly.detail.back")}" title="${t("jelly.detail.back")}">${icon("chevron-right")}</button>
+        <h1 data-jelly-editor-heading>${t("jelly.view.notes")}</h1><span class="jelly-save-status" data-jelly-save-status></span><span data-placement-slot data-placement-scope="home" data-placement-saved="off"></span>
+        ${button("jelly.plan.decompose", "data-jelly-decompose", "sparkles")}
+        ${button("jelly.action.archive", "data-jelly-archive", "archive")}
+        ${button("jelly.action.more", 'data-jelly-editor-more aria-expanded="false"', "more")}
         <div class="mw-menu jelly-editor-menu" data-jelly-editor-menu hidden>
-          <button type="button" class="mw-menu__item" data-jelly-pin>${t("置顶 / 取消置顶")}</button>
-          <button type="button" class="mw-menu__item" data-jelly-export-note>${t("导出 Markdown")}</button>
-          <button type="button" class="mw-menu__item" data-jelly-export-note-html>${t("导出 HTML")}</button>
-          <button type="button" class="mw-menu__item" data-jelly-import-note>${t("导入笔记内容")}</button>
-          <button type="button" class="mw-menu__item mw-menu__item--danger" data-jelly-delete-note>${t("永久删除笔记")}</button>
+          <button type="button" class="mw-menu__item" data-jelly-pin>${t("jelly.note.pin-toggle")}</button>
+          <button type="button" class="mw-menu__item" data-jelly-export-note>${t("jelly.note.export-markdown")}</button>
+          <button type="button" class="mw-menu__item" data-jelly-export-note-html>${t("jelly.note.export-html")}</button>
+          <button type="button" class="mw-menu__item" data-jelly-import-note>${t("jelly.note.import-title")}</button>
+          <button type="button" class="mw-menu__item mw-menu__item--danger" data-jelly-delete-note>${t("jelly.note.delete-title")}</button>
         </div>
       </div>
       <div class="jelly-document" data-jelly-document></div>
     </div>
     <p class="jelly-notice" role="status" data-jelly-notice hidden></p>
-    <dialog class="mw-dialog jelly-item-dialog" data-jelly-item-dialog aria-label="${t("编辑事项")}">
+    <dialog class="mw-dialog jelly-item-dialog" data-jelly-item-dialog aria-label="${t("jelly.item.edit")}">
       <form class="jelly-dialog-form" data-jelly-item-form>
-        <header><h2 data-jelly-item-heading>${t("新建事项")}</h2>${button("关闭", 'data-jelly-close-dialog="item"', "x")}</header>
-        <label class="jelly-field">${t("标题")}<input class="mw-input" data-jelly-field="title" required maxlength="500" autocomplete="off" placeholder="${t("要做什么？")}"></label>
+        <header><h2 data-jelly-item-heading>${t("jelly.item.new")}</h2>${button("jelly.action.close", 'data-jelly-close-dialog="item"', "x")}</header>
+        <label class="jelly-field">${t("jelly.field.title")}<input class="mw-input" data-jelly-field="title" required maxlength="500" autocomplete="off" placeholder="${t("jelly.field.title-placeholder")}"></label>
         <div class="jelly-choice-row" data-jelly-kind></div>
         <div class="jelly-form-grid">
-          <label class="jelly-field">${t("开始日期")}${dateField("start_date", true)}</label>
-          <label class="jelly-field">${t("结束日期")}${dateField("end_date", true)}</label>
-          <label class="jelly-field">${t("开始时间")}<input class="mw-input" type="time" data-jelly-field="start_time"></label>
-          <label class="jelly-field">${t("结束时间")}<input class="mw-input" type="time" data-jelly-field="end_time"></label>
+          <label class="jelly-field">${t("jelly.field.start-date")}${dateField("start_date", true)}</label>
+          <label class="jelly-field">${t("jelly.field.end-date")}${dateField("end_date", true)}</label>
+          <label class="jelly-field">${t("jelly.field.start-time")}<input class="mw-input" type="time" data-jelly-field="start_time"></label>
+          <label class="jelly-field">${t("jelly.field.end-time")}<input class="mw-input" type="time" data-jelly-field="end_time"></label>
         </div>
-        <p class="jelly-field-hint">${t("不填时间就是全天事项；结束日期可跨天。")}</p>
-        <fieldset class="jelly-field"><legend>${t("分类")}</legend><div class="jelly-choice-row" data-jelly-item-categories></div></fieldset>
-        <fieldset class="jelly-field"><legend>${t("优先级")}</legend><div class="jelly-choice-row" data-jelly-priority></div></fieldset>
-        <label class="jelly-check"><input type="checkbox" class="mw-check" data-jelly-field="pinned">${t("置顶")}</label>
-        <fieldset class="jelly-field" data-jelly-recurrence><legend>${t("重复")}</legend><div class="jelly-choice-row" data-jelly-weekdays></div><label class="jelly-field jelly-until">${t("重复截止日期")}${dateField("until")}</label></fieldset>
-        <fieldset class="jelly-field" data-jelly-series-scope hidden><legend>${t("修改范围")}</legend><div class="jelly-choice-row" data-jelly-scope-options></div></fieldset>
-        <label class="jelly-field">${t("备注")}<textarea class="mw-textarea" rows="3" data-jelly-field="notes"></textarea></label>
-        <label class="jelly-field">${t("完成说明")}<textarea class="mw-textarea" rows="2" data-jelly-field="completion_description" placeholder="${t("记录完成了什么，或留下结果链接。")}"></textarea></label>
+        <p class="jelly-field-hint">${t("jelly.field.time-hint")}</p>
+        <fieldset class="jelly-field"><legend>${t("jelly.field.category")}</legend><div class="jelly-choice-row" data-jelly-item-categories></div></fieldset>
+        <fieldset class="jelly-field"><legend>${t("jelly.field.priority")}</legend><div class="jelly-choice-row" data-jelly-priority></div></fieldset>
+        <label class="jelly-check"><input type="checkbox" class="mw-check" data-jelly-field="pinned">${t("jelly.field.pinned")}</label>
+        <fieldset class="jelly-field" data-jelly-recurrence><legend>${t("jelly.field.repeat")}</legend><div class="jelly-choice-row" data-jelly-weekdays></div><label class="jelly-field jelly-until">${t("jelly.field.repeat-until")}${dateField("until")}</label></fieldset>
+        <fieldset class="jelly-field" data-jelly-series-scope hidden><legend>${t("jelly.field.scope")}</legend><div class="jelly-choice-row" data-jelly-scope-options></div></fieldset>
+        <label class="jelly-field">${t("jelly.field.notes")}<textarea class="mw-textarea" rows="3" data-jelly-field="notes"></textarea></label>
+        <label class="jelly-field">${t("jelly.field.completion-note")}<textarea class="mw-textarea" rows="2" data-jelly-field="completion_description" placeholder="${t("jelly.field.completion-placeholder")}"></textarea></label>
         <div class="jelly-item-relations" data-jelly-item-relations></div>
         <p class="jelly-form-error" role="alert" data-jelly-item-error hidden></p>
-        <footer><div>${button("删除事项", "data-jelly-delete-item", "trash")}</div><div>${button("完成事项", "data-jelly-complete-item", "check")}<button type="submit" class="mw-btn mw-btn--primary">${t("保存")}</button></div></footer>
+        <footer><div>${button("jelly.item.delete", "data-jelly-delete-item", "trash")}</div><div>${button("jelly.item.complete", "data-jelly-complete-item", "check")}<button type="submit" class="mw-btn mw-btn--primary">${t("jelly.action.save")}</button></div></footer>
       </form>
     </dialog>
-    <dialog class="mw-dialog jelly-generic-dialog" data-jelly-dialog><form class="jelly-dialog-form" data-jelly-dialog-form><header><h2 data-jelly-dialog-title></h2>${button("关闭", 'data-jelly-close-dialog="generic"', "x")}</header><div data-jelly-dialog-body></div><p role="alert" class="jelly-form-error" data-jelly-dialog-error hidden></p><footer><span></span><div>${button("取消", 'data-jelly-close-dialog="generic"')}<button type="submit" class="mw-btn mw-btn--primary" data-jelly-dialog-ok>${t("确定")}</button></div></footer></form></dialog>
+    <dialog class="mw-dialog jelly-generic-dialog" data-jelly-dialog><form class="jelly-dialog-form" data-jelly-dialog-form><header><h2 data-jelly-dialog-title></h2>${button("jelly.action.close", 'data-jelly-close-dialog="generic"', "x")}</header><div data-jelly-dialog-body></div><p role="alert" class="jelly-form-error" data-jelly-dialog-error hidden></p><footer><span></span><div>${button("jelly.action.cancel", 'data-jelly-close-dialog="generic"')}<button type="submit" class="mw-btn mw-btn--primary" data-jelly-dialog-ok>${t("jelly.action.confirm")}</button></div></footer></form></dialog>
     <input type="file" data-jelly-import-file accept=".json,application/json" hidden>
     <input type="file" data-jelly-note-file accept=".md,.markdown,.txt,.html,.htm,text/*" hidden>
   ` });

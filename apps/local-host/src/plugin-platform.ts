@@ -236,13 +236,27 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       assertDatabaseEntries(entries, options.home, "project");
       assertOwnerFilesEntries(homeOwnerFilesEntries(options.home?.directory ?? null), entries, options.home);
       identity.remember(entries);
-      const report = await supervisor.start(entries);
+      const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)));
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
       await events.resume(options.project_id);
       return report;
     },
   };
+}
+
+/**
+ * A definition the supervisor restores from a kept release stands in for the listed one, so the Host's marks on the listed entry
+ * (`bundled`, `dual_instance`, its declarations) carry over to it, as the Home side does for its own (BL-394).
+ */
+function rememberingRestored(entry: PluginPlatformEntry, remember: (entries: readonly PluginPlatformEntry[]) => void): PluginPlatformEntry {
+  const release = entry.releaseArtifact;
+  if (!release) return entry;
+  return { ...entry, releaseArtifact: { capture: () => release.capture(), async restore(source) {
+    const definition = await release.restore(source);
+    remember([{ ...entry, definition }]);
+    return definition;
+  } } };
 }
 
 /**

@@ -53,7 +53,7 @@ async function withPlatform(run: (project: Platform) => Promise<void>) {
   const platform = createPluginPlatform({ actions, db: store.db, project_id: DEMO_PROJECT_ID, actor_id: ACTOR, artifacts, processItems: new ProcessItemsModule(options),
     ui: new UiHost(), home: null, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   try {
-    const report = await platform.start([{ definition: source }, { definition: createDiffPlugin(), bundled: true }, { definition: createTextStatsPlugin(), bundled: true }]);
+    const report = await platform.start([{ definition: source }, { definition: createDiffPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
     platform.wiring.selectInputGroup(DIFF_PLUGIN_ID, "snapshots");
     for (const [target, port] of [[DIFF_PLUGIN_ID, "after"], [TEXT_STATS_PLUGIN_ID, "text"]] as const) platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: ACTOR,

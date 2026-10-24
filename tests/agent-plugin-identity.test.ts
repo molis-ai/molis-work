@@ -52,8 +52,8 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
   const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), capabilities: local.client(project),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const runtime = new PluginRuntime(undefined, executor);
-  const first = runtime.install({ definition: make("io.molis.work.example.own-agent"), deployment: "local", grants: [] }).install;
-  const second = runtime.install({ definition: make("io.molis.work.example.other-agent"), deployment: "local", grants: [] }).install;
+  const first = runtime.install({ trust: { level: "unsigned" }, definition: make("io.molis.work.example.own-agent"), deployment: "local", grants: [] }).install;
+  const second = runtime.install({ trust: { level: "unsigned" }, definition: make("io.molis.work.example.other-agent"), deployment: "local", grants: [] }).install;
   try {
     await runtime.start(first.install_id); await runtime.start(second.install_id);
     const a = contexts[0]!, b = contexts[1]!, api = a.services!.capabilities!, other = b.services!.capabilities!;

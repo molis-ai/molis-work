@@ -49,7 +49,7 @@ async function rig(t: test.TestContext, options: { name?: string; granted?: stri
   probe.definition.execution = "sandbox";
   const project = await platformFor(t, home, probe, scope);
   // A sandboxed package is installed with the person's grants; it is never a start-list entry.
-  const runtime = project.runtime, install = runtime.install({ definition: probe.definition, deployment: "local", grants: options.granted ?? probe.permissions }).install;
+  const runtime = project.runtime, install = runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: options.granted ?? probe.permissions }).install;
   await runtime.start(install.install_id);
   const root = join(project.base(install.install_id), probe.owner_files.store_name);
   const tally = { reads: 0, writes: 0 }, abort = { current: new AbortController() };
@@ -267,7 +267,7 @@ test("S-64 RAC-356 each installation has its own folder, and a platform with no 
   probe.definition.execution = "sandbox";
   const project = ownerFilesProject(home, probe, { withoutHome: true });
   t.after(async () => { await project.close(); rmSync(home, { recursive: true, force: true }); });
-  const { install } = project.platform.runtime.install({ definition: probe.definition, deployment: "local", grants: probe.permissions });
+  const { install } = project.platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: probe.permissions });
   await assert.rejects(project.platform.runtime.start(install.install_id), { code: "plugin.executor_failed" });
   assert.equal(project.platform.runtime.get(install.install_id).last_error_code, pluginErrors.declaration_invalid("x").code);
   assert.equal(probe.contexts.length, 0, "its code never ran");
@@ -276,7 +276,7 @@ test("S-64 RAC-356 each installation has its own folder, and a platform with no 
 test("S-64 RAC-357 an uninstall that keeps no data removes that installation's folder and nothing else; one that keeps it leaves the folder to the same installation, which a reinstall finds", { timeout: 90_000 }, async t => {
   const r = await rig(t, { name: "sbxa" }), other = ownerFilesProbe("sbxb", "project"), runtime = r.project.runtime, command = operation("command", WRITE), query = operation("query", READ);
   other.definition.execution = "sandbox";
-  const beside = runtime.install({ definition: other.definition, deployment: "local", grants: other.permissions }).install;
+  const beside = runtime.install({ trust: { level: "unsigned" }, definition: other.definition, deployment: "local", grants: other.permissions }).install;
   await runtime.start(beside.install_id);
   const besideRoot = join(realpathSync(r.home), "projects", r.project.projectId!, "plugin-files", beside.install_id);
   writeFileSync(join(besideRoot, "marker.txt"), "another installation's");
@@ -284,7 +284,7 @@ test("S-64 RAC-357 an uninstall that keeps no data removes that installation's f
   // Keeping the data keeps the folder, and the same installation id, which a reinstall reuses, finds it.
   await runtime.uninstall(r.install.install_id, { retain_private_data: true });
   assert.equal(readFileSync(join(r.root, "catalog.json"), "utf8"), "kept");
-  const again = runtime.install({ definition: r.probe.definition, deployment: "local", grants: r.probe.permissions }).install;
+  const again = runtime.install({ trust: { level: "unsigned" }, definition: r.probe.definition, deployment: "local", grants: r.probe.permissions }).install;
   assert.equal(again.install_id, r.install.install_id);
   await runtime.start(again.install_id);
   assert.deepEqual(await r.ok(query, "ownerFiles.read", ["catalog.json"], { grants: READ }), { data_base64: b64("kept"), byte_length: 4 });
@@ -293,7 +293,7 @@ test("S-64 RAC-357 an uninstall that keeps no data removes that installation's f
   assert.equal(existsSync(join(r.root, "..")), false, "the installation's folder is gone with its files");
   assert.equal(readFileSync(join(besideRoot, "marker.txt"), "utf8"), "another installation's");
   // A reinstall starts with nothing.
-  runtime.install({ definition: r.probe.definition, deployment: "local", grants: r.probe.permissions });
+  runtime.install({ trust: { level: "unsigned" }, definition: r.probe.definition, deployment: "local", grants: r.probe.permissions });
   await runtime.start(r.install.install_id);
   assert.deepEqual(r.tree(), []);
   assert.equal(await r.ok(query, "ownerFiles.read", ["catalog.json"], { grants: READ }), null);
@@ -301,7 +301,7 @@ test("S-64 RAC-357 an uninstall that keeps no data removes that installation's f
   await r.ok(command, "ownerFiles.write", write({ op: "replace_atomic", path: "catalog.json", data_base64: b64("to drop") }));
   await runtime.uninstall(r.install.install_id, { retain_private_data: true });
   assert.equal(readFileSync(join(r.root, "catalog.json"), "utf8"), "to drop");
-  runtime.install({ definition: r.probe.definition, deployment: "local", grants: r.probe.permissions, discard_kept_data: true });
+  runtime.install({ trust: { level: "unsigned" }, definition: r.probe.definition, deployment: "local", grants: r.probe.permissions, discard_kept_data: true });
   assert.equal(existsSync(join(r.root, "..")), false, "gone as the install is confirmed, before anything starts");
   await runtime.start(r.install.install_id);
   assert.deepEqual(r.tree(), []);
@@ -342,7 +342,7 @@ test("S-64 RAC-358 on the Home Runtime a sandboxed installation has its own fold
 test("S-64 RAC-359 on the Home Runtime each installation has its own folder, an uninstall that keeps no data removes it, and a registered Home store covers the folders for a purge", { timeout: 90_000 }, async t => {
   const r = await rig(t, { scope: "home" }), runtime = r.project.runtime, kept = ownerFilesProbe("sbxhomeb", "home");
   kept.definition.execution = "sandbox";
-  const beside = runtime.install({ definition: kept.definition, deployment: "local", grants: kept.permissions }).install;
+  const beside = runtime.install({ trust: { level: "unsigned" }, definition: kept.definition, deployment: "local", grants: kept.permissions }).install;
   await runtime.start(beside.install_id);
   const besideRoot = join(realpathSync(r.home), "plugin-files", beside.install_id);
   assert.notEqual(besideRoot, join(r.root, ".."));

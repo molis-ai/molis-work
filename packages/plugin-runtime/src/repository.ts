@@ -1,3 +1,4 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginInstanceRecord, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export interface PluginRuntimeDatabase {
@@ -9,9 +10,13 @@ export interface PluginRuntimeDatabase {
   };
 }
 
-/** The installation records table, as one current schema; the host composes it into the project database baseline. */
+/**
+ * The installation records table, as one current schema; the host composes it into the project database baseline. `publisher_trust`
+ * is the record's own field kept as a column so the table refuses a row without the Host's evidence (ac-trust).
+ */
 export const PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL = `
-    CREATE TABLE IF NOT EXISTS plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL,
+      publisher_trust TEXT NOT NULL CHECK (publisher_trust IN ('host', 'pinned', 'unsigned')));
 `;
 
 /** Installation records owned by Plugin Runtime; no Goal/Artifact/Provider tables are read here. */
@@ -28,7 +33,9 @@ export class SqlitePluginRuntimeRepository implements PluginRuntimeRepository {
       .map(row => JSON.parse((row as { record_json: string }).record_json) as PluginInstanceRecord);
   }
   save(record: PluginInstanceRecord): void {
-    this.db.prepare(`INSERT INTO plugin_runtime_installs (install_id, record_json) VALUES (?, ?)
-      ON CONFLICT (install_id) DO UPDATE SET record_json = excluded.record_json`).run(record.install_id, JSON.stringify(record));
+    if (!["host", "pinned", "unsigned"].includes(record.publisher_trust)) throw pluginErrors.state_invalid("安装记录需要宿主给出的信任等级（publisher_trust）");
+    this.db.prepare(`INSERT INTO plugin_runtime_installs (install_id, record_json, publisher_trust) VALUES (?, ?, ?)
+      ON CONFLICT (install_id) DO UPDATE SET record_json = excluded.record_json, publisher_trust = excluded.publisher_trust`)
+      .run(record.install_id, JSON.stringify(record), record.publisher_trust);
   }
 }

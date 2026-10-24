@@ -40,7 +40,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
   try {
     const repository = await host.withProject(reference, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
     runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
-    installId = runtime.install({ definition: plugin, deployment: "local", grants: [] }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install.install_id;
     await runtime.start(installId);
     const imposter = { ...definition, capability_id: "ungranted.same-permission" };
     stopImposter = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "no-installation-grant", plugin_id: "io.molis.work.example.ungranted", title: "No grant", kind: "plugin" },
@@ -77,7 +77,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     await runtime.stop(installId); await runtime.uninstall(installId);
     const previousId = installId;
     const replacementPlugin = definePlugin({ ...plugin, manifest: { ...plugin.manifest, plugin_id: "io.molis.work.example.newcomer-replacement" } });
-    installId = runtime.install({ definition: replacementPlugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: replacementPlugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
     await runtime.start(installId);
     assert.notEqual(installId, previousId);
     await assert.rejects(async () => local.validate_authority!(definition), { code: "actions.forbidden" });
@@ -106,7 +106,7 @@ test("scene-only plugins obtain local-user discovery and configuration from thei
       targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   await runtime.start(installed.install_id);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -143,7 +143,7 @@ test("a Runtime plugin registered under its plugin_id gets its local-user grants
   // What the Host assembles by hand for the same plugin (Shelf has such providers), under the same id and with no installation behind it.
   const withdrawHost = host.actionRegistry(reference).registerProvider({ provider: { provider_id: pluginId, plugin_id: pluginId, title: "宿主", kind: "plugin", project_id: reference.project_id },
     definitions: [hostRead], handlers: [{ ...hostRead, handle: () => "host" }] });
-  const installId = runtime.install({ definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
   await runtime.start(installId);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -178,7 +178,7 @@ test("a scene-only plugin registered under its plugin_id obtains local-user disc
       targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   await runtime.start(installed.install_id);
   try {
     const caller = await localWebActionContext(host, reference, []);

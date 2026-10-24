@@ -8,7 +8,7 @@
 
 Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也未操作真实 Home。已有基线 1 的 Home 须先经过明确授权的维护升级，才能试用此构建。
 
-包名：`@molis-ai/molis-work-plugin-pages`。装配：每个项目一个 Plugin Runtime 实例（`src/plugin.ts` 的 `createPagesPlugin`，`apps/local-host/src/project-plugins.ts` 的 Home 库条目，`bundled: true`）；库仍是 Home 级的 `{home}/pages/pages.db`（`PAGES_DATABASE`），按 `project_id` 分区，经 Runtime 的 `services.database` 读写；成果经 `services.artifacts`、模型经 `services.model`、Goals 与其他插件经 `services.actions`。宿主里不再有 Pages 专用的动作、HTTP 或成果适配文件。
+包名：`@molis-ai/molis-work-plugin-pages`。装配：每个项目一个 Plugin Runtime 实例（`src/plugin.ts` 的 `createPagesPlugin`，`apps/local-host/src/project-plugins.ts` 的 Home 库条目，`trust: HOST_BUILD_TRUST`）；库仍是 Home 级的 `{home}/pages/pages.db`（`PAGES_DATABASE`），按 `project_id` 分区，经 Runtime 的 `services.database` 读写；成果经 `services.artifacts`、模型经 `services.model`、Goals 与其他插件经 `services.actions`。宿主里不再有 Pages 专用的动作、HTTP 或成果适配文件。
 
 导入入口在 Pages 文档列表的「导入」。支持 Notion 的 Markdown & CSV / HTML ZIP 导出包，飞书等工具导出的 DOCX、Markdown，以及通用 HTML、TXT、CSV。先预览、查看转换提示并勾选文档，再导入当前项目的指定文件夹；可继续编辑、自动保存。保留常用文字格式、列表、待办、表格和代码。导入只创建新文档；一次批量写入使用事务，同一请求重试不会覆盖手工编辑或重复创建。
 

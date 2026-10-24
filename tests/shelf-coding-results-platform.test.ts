@@ -41,7 +41,7 @@ async function consumer(t: Parameters<typeof openTestHome>[0], home: TestHome, p
     publisher: { publisher_id: "fixture", signature: declared.name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [...declared.permissions], capabilities: { provides: [], consumes: [...declared.consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
     async start(context) { client = context.services?.actions; return { kind: "app" }; } };
-  const install = runtime.install({ definition, deployment: "local", grants: [...declared.grants] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [...declared.grants] }).install;
   t.after(() => runtime.stop(install.install_id));
   await runtime.start(install.install_id);
   assert.ok(client, "the real executor bound the declared action client");

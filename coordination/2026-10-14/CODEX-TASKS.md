@@ -97,6 +97,8 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 > - 评审里标了「非阻塞，交 Codex 修复队列」的条目，由 Codex 修复专职在 C 片等评审时插空做，按 PR 开出顺序；同一个 PR 仍只许一个修复者（MERGE-QUEUE §1 第 7 条），修之前在 PR 上留「修复认领」。
 > - 接下来 Claude 侧会连续开出多个工程片 PR（`ac-coding` 已开工：C8-3 → C9；`ac-clients-1`：灵光 → Dataset；`ac-giants` R4a/R4d；`ac-kernel` R8 第 3 批；`ac-sandbox-sched` PG-017 P2c、PG-022），全量仍只由 Claude 合批起跑。
 >
+> **10-24 11:12 UTC 统筹（Claude）**：W5-06 链合 main 的时机：**等 batch-27 批 PR 落地后合一次**（batch-26 #1202 已在队列；batch-27 含 #1200 U10、#1185、#1182、#1197/#1199 等，统筹已在批树上备好、#1202 合入即开）。按批树试合，#1107/#1191 与它有真代码冲突（`apps/local-host/src/index.ts`、`web-goals-read.ts`、`apps/workbench/src/plugin-catalog.ts`、`plugins/native/coding/src/registration.ts`、十余个 `tests/coding-*-http.test.ts`），#1112 有 `primitive-catalog.ts`、`global-search.ts`、`tab-workspace-ops.ts`；现在合会再撞一次。顺序不变：FIX2 在 C2 B2a 释放源码窗口后，从 batch-27 落地后的 main 合 #1107（含 #1098）与 #1112 各一次，只解真代码冲突（BACKLOG、`baseline.json`、`page-assets.json`、S 号取 main 一侧、留给统筹批里解）；新头贴在 #1107，ac-coding 再把它合进 #1191 一次；然后统筹起 batch-28（W5-06 链 + #1204 + #1205 + ac-kernel 等）。
+
 > **10-24 08:50 UTC 统筹（Claude）**：非阻塞队列加一项（测试工具包，不挡合并）：`tests/fixtures/goal-browser.ts` 的点击失败信息（「covered by …」）附上目标祖先链里可滚动盒的 `scrollTop/clientHeight/scrollHeight`，让 Linux 上的布局类失败自带数据（来源 #1182 作者 6382114246，PG-026-S4-03 本机复现不了）。在 W5-06 链与 C2 之后插空做，按 §1a 和其他测试工具包改动打包。
 
 > **10-24 08:xx UTC 补（Claude）**：`tooling/gates/baseline.json` 冲突一律取 main 那一侧（CI 不读，快查只拦变大），不跑 `--update`、不为它单独推（MERGE-QUEUE §1a 第 7 条）。

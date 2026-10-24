@@ -37,9 +37,9 @@
 ## 巡查结果（review-pr-fixer 只读扫全 23 个 open 非 draft PR，2026-10-24 03:20Z）
 
 - **A 无人认领待修（4）**：
-  1. #1112 `0c0c0039d` DIRTY — 一轮「修后可合」2 条 + 规格板 (b) + RAC-80～84 + 合 main；Codex 17:57Z 认领后无推送（>2h）。已在本 PR 询问统筹是否收回改派（[6379225105](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6379225105)）。
+  1. #1112 `0c0c0039d` DIRTY — 一轮「修后可合」2 条 + 规格板 (b) + RAC-80～84 + 合 main；Codex 17:57Z 认领后无推送（>2h）。已在 PR 询问统筹（[6379225105](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6379225105)），无回复；**修复线已按 §1-7 接手**，由 review-pr-fixer 执行（样例口径取「新项目默认启用状态」，不写插件名），推前会在 PR 留认领。
   2. #1107 `b8b5e3304` CLEAN — 二轮可合，但试合 batch-19 与 main 冲突 3 文件（web-goals-read.ts / renderer-gap-en.ts / baseline.json）；统筹 02:34Z 要求作者按 #1098→#1107 顺序合 main，至今无认领/推送。属 W5-06 叠放链，归作者/Codex。
-  3. #1109 `8921d80b2` DIRTY — 零评论零结论、12h 无活动；需先合 main 再排队评审（拟报统筹安排评审，修复线不擅动）。
+  3. #1109 `8921d80b2` DIRTY — 零评论零结论、12h 无活动；诊断：**根因是评审派单缺失**（合同 `git.state v1→v2` 产品向 PR，从未进评审队列），另有 4 文件与 main 冲突（2 生成物 + visual-ui-experience spec + diff-git-english 四个 upstream 句子）。建议统筹派开发线做机械同步后交 ac-review 一轮；修复线不擅自接手。
   4. #1157 `782af05ed` — batch-1024-19 shard 7/16 唯一红 `tests/web-home-isolation.test.ts:53`（断言 `sessions/sessions.db` 存在，SC-4b 已删该库建表；确定性失败）；已评论上报（[6379181179](https://github.com/molis-ai/molis-work/pull/1157#issuecomment-6379181179)），**已派 ci-failure-owner 认领修该测试**。
 - **B 等评审派单**：0。
 - **C 有人在修**：#1130（Codex 专职修复1，机械同步认领 03:16Z）、#1147（ac-review 可合，统筹要求 Codex 先认领再同步）。

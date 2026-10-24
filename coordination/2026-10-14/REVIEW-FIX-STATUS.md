@@ -233,3 +233,25 @@
 - 验证：build、`pnpm health:check`、`check-health-gates --base origin/main`、secrets、page-assets 全过；`git grep 'BL-44[0-8]'` 只剩 `slices/w5-13-server-cli.md:43` 的 Codex C1 预留号段说明（非引用）。
 - 状态：#1114 非 draft、MERGEABLE/BLOCKED（CI run `40067187885` queued）；评审请求评论 `6380491268`（ac-review 最终头一轮 + +28B / `directory_preview@2→@3` 表态）。等 CI 绿 + 评审可合 → 统筹入队（`full=[]`，不进批）。
 - #1168（task-13，AC-AUDIT-06）head `cb3440a02`：审计复核 PASS + AC-AUDIT-16 文档补丁已推；CI run `40065546050` 7 success / 6 pending；`full` 命中（web-request.ts 枢纽文件）→ 转 ready 后需批。
+
+## 审计问题确认与修复组织（2026-10-24 06:3x UTC）
+
+lead 对审计结论抽查确认（读 main `8aa62a65b` 的原始文件，GitHub API）：
+- AC-AUDIT-08 成立：`scripts/gates/security-invariants.mjs:37/68` 正则 `/^tests\/security-invariants-[a-z0-9-]+\.test\.ts$/` 不匹配 `.e2e.`；`docs/system/SECURITY-INVARIANTS.md` 对 `security-invariants-plugin-drafts.e2e.test.ts` 的点名数 = 0。
+- AC-AUDIT-13 成立：`packages/contracts/package.json` exports 68 键 → 67 个 public subpath，SSOT:67 写 63 过时。
+- AC-AUDIT-03/01/02 成立：privileges.md:5 仍引 spec「第 508–517 行」（实际 1154–1168）；PG-058「每个插件配一份宿主 HTTP 文件」与 main 上 5 份插件专用 `*-native-plugin-http.ts` 不符；PG-065「26 条手写目录」过时。
+- AC-AUDIT-12：审计用门禁实跑得到 71 包/9 horizontal，与 SSOT:50 的 70/8 不一致（抽查采信门禁输出）。
+
+已派修复：
+- **task-16**（plugin-frame-fixes）：#1168 按 ac-review「修后可合」修——`native-plugin-api.ts` 别名表收窄只剩 functions、form/pages 断言改反向、正文补 affected-tests；完成写新 head。
+- **task-17**（review-fix-owner）：AC-AUDIT-08/09/10/11 纯文档/注释 PR（SECURITY-INVARIANTS.md + 测试注释），不改门禁脚本。
+
+待用户批准（门禁脚本改动，按仓库规矩先问用户）：
+- AC-AUDIT-08 门禁侧：`scripts/gates/security-invariants.mjs` 正则加 `(?:\.e2e)?`，把 `.e2e.test.ts` 也纳入「表↔测试」映射（只变严）。
+- AC-AUDIT-07：清 `scripts/gates/page-assets.mjs` 里用完/死键的一次性放行条目（判据不变、纯清理，仍属门禁脚本）。
+
+交统筹批量写（本线不碰 privileges 台账；精确 edit 见审计 §7.2/§13.4）：
+- privileges.md E1–E22（PG-058 九→4、PG-065 26→25、PG-035 30 条 typed、BL-365 已关、spec 行号 1154–1168 等）；
+- SSOT-MATRIX AC-AUDIT-12..15（70→71 包、8→9 horizontal、63→67 subpath、server 行改「已完成」、modules/goals+governance 补 2026-10-18 注）；#1130 合入后 71→70 同片再改。
+- HANDOFF-TO-CODEX：AC-AUDIT-05（`context-onboarding-service.ts` 直 import pages/artifacts/todo；PG-088 只覆盖 Pages）按审计转 ac-platform。
+- #1168 合入后 AC-AUDIT-06/16 标 done、E14 九→4 份。

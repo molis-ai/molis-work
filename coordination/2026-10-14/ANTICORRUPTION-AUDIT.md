@@ -426,3 +426,39 @@
 ### 11.5 下一轮
 
 主题 **g) SSOT-MATRIX.md 与包清单/owner 漂移**（owner 列、成熟度、事实主人 vs 代码）；之后全表复核 + task-13 复核（PR 出现后按 §6.2 v2）+ 收尾报告。task-13 分支仍未出现，不空等。
+
+## 12. 第 8 轮（主题 g：SSOT-MATRIX.md 与包清单/owner 漂移）
+
+- **基准**：origin/main `89c9a7194`。只读核对 SSOT-MATRIX.md（220 行）与 `scripts/workspace-packages.mjs`、`scripts/package-owners.mjs`/`.github/CODEOWNERS`、spec §5.1、代码现状。
+- **结论**：owner 列 **PASS**；4 条 non-blocker 文档漂移（AC-AUDIT-12..15），均不阻塞；另 1 条待 #1130 合入后同步（work/Sessions 行与计数）。
+
+### 12.1 行 → 现状 → 建议
+
+| 位置 | 现状 | 建议 | 类型 |
+| --- | --- | --- | --- |
+| SSOT:50 | 写「70 个 package（…8 horizontal…）…69 个 partial、1 个 contract-only」；实际 71 个（kinds：app 6 / foundation 10 / module 14 / **horizontal 9** / native 25 / integration 6 / tooling 1），成熟度 partial 70 + contract-only 1 | 改 70→71、8→9、69→70；核对日期 2026-10-10→2026-10-24 | 计数 |
+| SSOT:174 | 「全部 70 个 workspace 包由 pnpm workspace:build 拓扑构建」 | 70→71 | 计数 |
+| SSOT:67 | 「63 个 public subpath（…2026-10-19 核对）」；实际 exports 68 键含根入口 = **67 个 subpath**（`scripts/workspace-packages.mjs:263` 的 contractSubpaths 口径相同） | 63→67；或改为引用 `node scripts/workspace-packages.mjs --check` 的 contractSubpaths，不写死 | 计数 |
+| SSOT:103 | server 行「还没做完的只剩宿主不再直接读它的表（im-server.ts 现在读 mw_projects、mw_members，W2-06）」；实际 `apps/local-host/src/im-server.ts` 只装配 `@molis-ai/molis-work-server`（openServerDatabase/Identity/ContinuityService/createImDomain），`mw_projects`/`mw_members` SQL 只在 `server/src/continuity/service.ts:31-65`、`server/src/identity.ts:41-52`（server 包自己的 owner）；宿主其它目录 grep 为空 | 改为「已完成：宿主只装配 server 包，不直接读 mw_* 表（W2-06）」或删第三处 | 状态过时 |
+| SSOT:96,102（及 9 行） | §5 modules/goals 的「事实 owner」列仍列 Goal 等事实，governance-collaboration 同；但 spec §1 2026-10-18 X-5 行（spec.md:1161）与 spec「X-5 与『Goals 按标准迁』的读法」（spec.md:3194-3195）说「Goals 的事实只有 Goals 一个主人；modules/goals 和 governance-collaboration 只有 Goals 在用，它们的表随 Goals 插件声明、由 X-5 项目库服务按声明建」；SSOT 已有 artifacts/plugin-builder/work 的「2026-10-18 改」注（129/152/155/216），缺 goals/governance；且 9 行「Goal 是 Goals 插件拥有的一项事实（§5 modules/goals…）」与 §5 行字面冲突 | 在 96/102 行加「2026-10-18 改：Goals 事实归 plugins/native/goals（Manifest 声明、X-5 建表）；modules/goals 与 governance-collaboration 的 SQL 暂留至 S9（PG-020/PG-094）」；9 行补括号说明表暂由 module SQL 建 | 标注缺失 |
+
+### 12.2 发现
+
+**AC-AUDIT-12** | 违反需求：SSOT 是包清单唯一索引（§9 第 1 条：增删改名 package 先更新本矩阵）| 证据：SSOT:50 与 174 写 70 包/8 horizontal/69 partial；`scripts/workspace-packages.mjs` 的 WORKSPACE_PACKAGES = 71（horizontal 9、partial 70），`node scripts/package-owners.mjs` 输出「owners ok: 71 packages」；spec §5.1 `package-inventory.mjs --check` 输出「holds 71 packages」；同文 25/122 行又写「9 个 horizontal/ 包」→ 自相矛盾 | 影响：包数/分类是 SSOT 核心索引，读者与门禁口径不一致 | non-blocker | code-read+gate-script | 统筹文档（与 package-owners 维护者同改）| 验证：`node scripts/package-owners.mjs` 仍 exit 0；`pnpm boundary:check` 与 package-inventory 不受影响 | 无在途 PR 直接覆盖（#1130 会再改计数，见 §12.3）
+
+**AC-AUDIT-13** | 违反需求：文档引用的合同面计数应与 package.json 一致 | 证据：SSOT:67「63 个 public subpath」vs `packages/contracts/package.json` exports 68 键（含根入口）→ 67；`scripts/workspace-packages.mjs:263` 同口径 | 影响：误判合同改动影响面 | non-blocker | code-read | 统筹文档 | 验证：`node scripts/workspace-packages.mjs --check` 的 contractSubpaths | 无
+
+**AC-AUDIT-14** | 违反需求：SSOT 的状态描述应与代码一致 | 证据：SSOT:103 第三处「还剩宿主直接读 server 表」已过时（见 12.1；SQL 全在 server 包内，im-server.ts 只装配）| 影响：读者以为 W2-06 未完成 | non-blocker | code-read | 统筹文档 | 验证：grep `mw_projects` 在 apps/ 为空 | 无
+
+**AC-AUDIT-15** | 违反需求：文档描述旧行为处要标「2026-10-18 改」（AGENTS.md 硬约束）| 证据：见 12.1 第 5 行；spec 10-18 X-5 行与 X-5 读法已定 Goals 事实单一主人是插件，SSOT 仅 artifacts/plugin-builder/work 有标注 | 影响：事实主人表述两处不一致，迁移/评审会看到两个 owner | non-blocker | code-read | 统筹文档 + ac-platform | 验证：文档 diff 评审；无门禁可自动查 | 无
+
+### 12.3 PASS 与协同备注
+
+- **owner 列 PASS**：`node scripts/package-owners.mjs` 退出 0，输出「owners ok: 71 packages, .github/CODEOWNERS and docs/SSOT-MATRIX.md match the rules」→ 归属列与 CODEOWNERS 由规则生成且一致。
+- 分类数字除 horizontal 计数外均对：6 app / 10 foundation / 14 module（13 modules + server）/ 25 native / 6 integration / 1 tooling；4 个 absent 业务 Module（identity-team-access、sync-replication、actions、automation）与 docs/modules/README 一致。
+- SSOT:27「到 AnySearch 的出站只有 anysearch-transport.ts 一条」成立：`apps/local-host/src/search-evidence-runtime.ts:8,15,33` 是唯一装配点（注释同义）；其余文件只出现 provider id。
+- SSOT:179 CI 描述基本成立：verify 步骤含 launcher typecheck（ci.yml:202）、release assets/storage baselines/shell-page/artifact 门禁（:220）、Alchemist 插件测试（:223-224）；CI 另有 `product-subset` 作业未写入该行（可选补充，不算错）。
+- SSOT:103 前两处账目成立：HOME-DATA.md:90-95 已登记 server/server.sqlite；workspace-packages.mjs 里 server 归 module。
+- 未核（需 build/运行）：Jelly「Home Runtime 注册全部 53 动作」与 Coding「19 项 coding.* 动作」——只读 grep 不足以数动作快照，标 UNVERIFIED，不阻塞。
+- **协同备注（防重复）**：#1130（Sessions 下线 SC-4）合入会删 `plugins/native/work` 包、目录条目与冻结名单 "sessions"；届时 SSOT:50/174 计数（71→70、native 25→24）、§7 work 行（155）、§8 说明需同一片更新——建议统筹在 #1130 合入时一并写，不另派。
+- 下一轮：全表复核（§3 基线清单 + 各轮 PASS/未关闭项）+ task-13 复核（分支仍未出现）+ 收尾报告。

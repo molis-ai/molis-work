@@ -13,8 +13,8 @@
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
 | 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | 已派评审问题、CI失败及机械冲突；必要红绿自测；交精确head和日志 | 不自主领新片、不独立评审或统筹测试、不合并 |
 | 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | 与修复1串行轮换；无写入安排时做已派只读准备 | 同上；两个修复会话互不代派，不并写 |
-| 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | 从Claude的C1领取desktop/local-host后续片，保留server+CLI已合1151 | 已实际接唯一writer实施RAC113：自有c1-uninstall-inspection树，slice/4回归已写，公共build槽排队；交固定head直触审验并释放给C2 |
-| 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | 从Claude的C2领取全库/非SQLite状态快照恢复，密钥不外带 | C1源码固定释放后接槽，先唯一slice+B1完整前置再B2/快照/恢复；B1合同已由root按本轮授权裁定，离线锁前置亦由C2负责必要接线并协调在途窗口，不挡B1/B2；不碰真实Home |
+| 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | 从Claude的C1领取desktop/local-host后续片，保留server+CLI已合1151 | RAC113已交#1183/7bbb014c4并释放源码给C2，已直触REVIEW/TEST；仅本片作者工程验证完成，C1整体及后续失败收据片未完成 |
+| 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | 从Claude的C2领取全库/非SQLite状态快照恢复，密钥不外带 | 已实际接唯一writer，w5-16-im-invite-hash树/base4e17，先slice+B1完整前置再B2/A/快照/恢复；B1合同已由root按本轮授权裁定，离线锁前置亦由C2负责必要接线并协调在途窗口，不挡B1/B2；不碰真实Home |
 
 已有角色 owner 与有效技术裁定保持。用户明确授权新统筹组织四个专职会话；专职交付回新统筹，由其接续。修复与新增独立实现chat合计最多一个Codex实现writer；可同时只读准备，实施顺序听Claude；整机仍是一份build、一批浏览器，公共machine-slot排队。旧文中由root日常派单/合并之处自本次交接起均由新流水线统筹承担。
 
@@ -40,12 +40,12 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 6. 活跃期间收到交付即接续，不等待下一次定时唤醒。每10分钟heartbeat只作遗漏/停滞兜底；每轮有可行动任务就做具体动作，无变化则安静。普通完成与内部可解决失败只写共享记录，只有必须用户决定或补充权限/信息才通知。
 7. 当前完整防腐范围和C1/C2/C3、W5/W6未缩小；不限定只修bug/review。按Claude当前共享派单或明确回执领取独立任务，分给1–2个专职实现chat；原root创建并交入口，本chat不重复建。未明确更改并发上限前，全部Codex实现chat仍串行占writer。流水线建立不代表全线开发、真实Home或用户验收完成。
 
-## 当前流水线（2026-10-24 00:08 洛杉矶／10-24 07:08 UTC）
+## 当前流水线（2026-10-24 00:25 洛杉矶／10-24 07:25 UTC）
 
-- 用户最新模型分工已实测生效：本执行chat当前`01a16ca8-9fc1-7df1-927a-0cb3e7fdc74c`（2026-10-24 06:45:56.285UTC）turn_context为gpt-6.1-sol/max；root与REVIEW为Astra/xhigh，TEST/FIX/C1/C2为6.1-sol/max。root已独立核全8个chat，无需再为模型重启。当前C1唯一writer、随后C2顺序及现有CI继续。
-- 当前唯一writer已实际转C1 RAC113：#1173作者固定`f45abe4e8a46c12722f5cb3194410df56439dab4`普通push后明确释放，直接作者消息已自动启动REVIEW/TEST；REVIEW正式6381248620与TEST独立核证均通过，无mustfix；新头workflow_runs=[]、既存DIRTY待顺序sync，不称排队或已绿。C1已实际接写，自有`/Users/yijunwang/.codex/worktrees/c1-uninstall-inspection/goalboard`，四条prepare回归已取得有效红例（缺失路径过，其余三条Missing expected rejection）；两处catch收窄后整体build/Biome/新测试类型检查、新RAC113 4/4/catalog5/5/CLI5/5及原uninstall整文件合计18项、health和boundary通过。正在固定提交/推送前secrets/非Draft PR交付，尚未报告源码release，仍是唯一writer。C1固定head并释放直接触发C2 slice+B1，不等审验/CI/merge或二次许可；两方已确认。
+- 用户最新模型分工已实测生效：本执行chat当前`01a16ca8-9fc1-7df1-927a-0cb3e7fdc74c`（2026-10-24 06:45:56.285UTC）turn_context为gpt-6.1-sol/max；root与REVIEW为Astra/xhigh，TEST/FIX/C1/C2为6.1-sol/max。root已独立核全8个chat，无需再为模型重启。当前C2 B1唯一writer，C1固定源码已释放并直接触发独立审验。
+- 当前唯一writer已实际转C2 B1：C1非Draft[#1183](https://github.com/molis-ai/molis-work/pull/1183)固定`7bbb014c48974b23ead5d1d28b58466b9a33ab5c`已交并明确释放，作者直接触发REVIEW/TEST；REVIEW现已active，TEST按现有#1180槽与证据队列接续。C2收到即实际进入自有`/Users/yijunwang/.codex/worktrees/w5-16-im-invite-hash/goalboard`，branch anticorr/codex-w5-16-im-invite-hash，base新main4e17c3d1，已核39在途PR的server/im-ui/contracts/im无另一writer，正写唯一slice与B1。C2 B1固定head后给修复2#1112 nonblock短插空，再归C2 B2/A/快照/恢复；根合同与真实Home边界保持。
 - Claude是整条防腐线总统筹；本chat负责Codex侧按其范围、优先级、跨线依赖与全量排期接续。C1已实际实施、C2已获下一源码释放触发授权，完整目标未缩小；不重复建chat，全部Codex修复/实现仍单writer。DeepSeek历史贡献与review-pr-fixer在途认领分别保留。
-- 修复1已交非Draft[#1174](https://github.com/molis-ai/molis-work/pull/1174) `5bbb4318697dbef4631e5db3870691c27fff2e94`，4文件+12/-5，仅两e2e同步与两原spec；已释放writer/build/browser。统筹已读真实bundle延迟旧点击0次→ready后严格pointer1次、旧document等待精确红→navigate-before-click完整AC4绿；完整main后续5+3/8及batch23同patch8/8保留。首次main-fixed7/8的Pages后段failed/Missing frame仍未归因，TEST接现有批次观察，不能称已修。原日志 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/handoff.md`；实际affected full=[]/storage=[]。REVIEW6380942452与TEST独立核原始diff/两有效探针/完整文件/门禁及最终affected均通过，无需重复本机运行；精确头CI40070310777已Verify/Security/Product及全部适用项成功；Claude公开合并认领6380951820。07:19仍queue位置1/AWAITING_CHECKS，合并头4e17c3d1的门禁/合同等已绿，Verify120811764028排队；PR头适用Security/Product均已绿，不重复入队。队列随后1164/1165/1167/1148已有原认领接续，不抢操作，核真merge后才移已合。ac-review6380946827补充BL544侧视图加载守护（现实际实施owner修复1，ac-shell领域归属保留，按原PR顺序插空）和R44；10s期限/负载只是候选解释，缺少原始mount失败原因，未定因。
+- #1174最终`5bbb4318697dbef4631e5db3870691c27fff2e94`已于07:21:50UTC真合`4e17c3d1bef043d2565189fe5776bc515b39497b`，沿Claude6380951820原认领正常队列，已实际核GitHub；正式REVIEW/TEST及适用CI证据保留。只关闭本片VUX16/导航同步，BL544实际owner修复1、R44 TEST/修复1未归因观察继续，不称产品期限已修。原日志仍在home-side-ci-recovery/handoff.md；后续merge-only依Claude现行清单。
 - #1114最终远端`7733c554140f7d25e3aa8436ba2af4ae2c8c82e8`已交（回执6381127415），父9df80415b+d28794061；统筹读实际remerge-diff仅BACKLOG双方逐字并集/排序。REVIEW正式6381135401及TEST最终独立核验通过，9df的build/307项/27assets7792605B证据按未变部分复用，最终health对d287、affected full/storage/uncovered空与secrets178行均有效；不是最终头新build。CI40071861128已有7项成功，其余适用job运行/排队，无新失败；Claude原合并认领6381041047保持。修复2已明确释放writer不等CI，现只读待队列。
 - #1107原review-pr-fixer仅收尾[6380813962](https://github.com/molis-ai/molis-work/pull/1107#issuecomment-6380813962)机械同步，本机`064cf2c5e7`尚未交远端；禁止第二writer重做。#1098远端`91e096524`对main冲突，修复2已只读准备，按Claude顺序及新交付衔接。
 - #1112 `8d700173c`正式二轮[6380756955](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6380756955)通过；Security2/2 SYS-15-U10仍不能归已知flaky。TEST核f4df/8d700九个相关文件相同，候选装配间接影响仍未排除；下一明确owner修复2，1114后按统筹固定范围：真实回执/revision/精确行重新点击交错观测，复用SYS50/51响应屏障；不加sleep/重试或关轮询，修后Linux同文件和现有CI复验。三项non-block（技能文档构建期范围、PG060/RAC映射、Files侧栏打开后实际选中）仍由修复2接续准备；Files采用现有openAuditBrowser的A/B冷/热两态真实路径。W5统一full仍缺，不入队。
@@ -186,3 +186,5 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 - BL569门禁收紧片实际实施owner为修复1，待1173文档落位/权限依据及按PR顺序的nonblock插空排程，尚未实现；不把“本线”标签当writer。Claude06:58新增浏览器/回归待测清单已直达TEST自主按精确head接续，复用CI/full，不另起重复全量。
 
 - TEST已自主公开接#1180（测试claim6381360231，固定5e26ba1ef，base1169 d586），自有test-pr1180-lingguang树，不借已切Dataset的作者树；整体build走公共槽，按实际调用链补work-placement-plugins/content-editing，原四份browser先索取原日志不重复。其他新工程PR待测按现行授权继续接，不另起full。
+
+- #1183作者工程证据：3文件+153/-2，生产仅两catch只容ENOENT；修前1绿3红，修后4文件18/18、build/Biome/新测试tsc/health/boundary71包、fetch后secrets153行均通过。统筹已读实际生产diff和原始handoff；不替代独立审验。affected full/storage空、77 unit建议余76未跑，uncovered静态提示已如实保留；未跑browser/真实Home。CI40073797867排队，源码树干净，C1整体未关。下一C1片仍为失败收据写失败诊断，由原C1 owner接后续排槽，不混1183。

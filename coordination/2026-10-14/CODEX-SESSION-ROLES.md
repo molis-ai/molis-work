@@ -20,6 +20,8 @@
 
 ## 流水线接续合同
 
+**当前合并组织以MERGE-QUEUE§1a为准（已鲜读85fb6826）：** 逐片PR/固定head独立评审及现有角色/作者直触链路不变；full非空按同路径在Claude批分支一次解共用文件与生成物/编号，最终仅批PR入队，叠层顶端一次落地。作者不为纯BACKLOG/baseline/page-assets或批准/S号/lock冲突反复merge main，不在功能PR刷baseline；真代码冲突才原writer按具体派单合一次。full空且按队列试合无冲突的小PR可单独入队。原片须核批PR实际merge SHA和固定头包含证据后关闭，计划入批或PR仅关闭均不算落地。只由Claude组批/full，不重复起；#1114当前真Cognia代码冲突仍沿Claude6381691853指定接续。此条覆盖旧文逐片反复sync/逐层改base，不新增另一份任务真相。
+
 **现行模式：一骏正式确认（2026-10-24 07:13UTC，由root转达）**
 
 Claude继续负责整条防腐线的总体方向、优先级、跨线依赖与唯一full组批。Codex root在既定目标内主动组织独立任务、裁决技术选择和无人认领问题，不事事请示；流水线执行日常派单、源码交槽、CI/队列/正常合并与共享进度。REVIEW独立只读评审，TEST独立核验证据和必要回归，修复1/2承接全部确认有效的block与non-block（含文档、验证缺口、CI和冲突），实现1/2持续承接独立开发片。现有作者正在修的保留原owner，无人认领的由流水线落实到修复专职。
@@ -40,10 +42,10 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 6. 活跃期间收到交付即接续，不等待下一次定时唤醒。每10分钟heartbeat只作遗漏/停滞兜底；每轮有可行动任务就做具体动作，无变化则安静。普通完成与内部可解决失败只写共享记录，只有必须用户决定或补充权限/信息才通知。
 7. 当前完整防腐范围和C1/C2/C3、W5/W6未缩小；不限定只修bug/review。按Claude当前共享派单或明确回执领取独立任务，分给1–2个专职实现chat；原root创建并交入口，本chat不重复建。未明确更改并发上限前，全部Codex实现chat仍串行占writer。流水线建立不代表全线开发、真实Home或用户验收完成。
 
-## 当前流水线（2026-10-24 08:02:13 UTC）
+## 当前流水线（2026-10-24 08:30:55 UTC）
 
 - 用户最新模型分工已实测生效：本执行chat当前`01a16ca8-9fc1-7df1-927a-0cb3e7fdc74c`（2026-10-24 06:45:56.285UTC）turn_context为gpt-6.1-sol/max；root与REVIEW为Astra/xhigh，TEST/FIX/C1/C2为6.1-sol/max。root已独立核全8个chat，无需再为模型重启。当前C2 B1唯一writer，C1固定源码已释放并直接触发独立审验。
-- 当前唯一writer为C2 B1：本地checkpoint`a86dd1c2d086d5cc48a263c091b78faa4eaecf7b`曾干净冻结，未push/PR、非B1最终交付；作者服务端修前4红/修后4绿、维护4条（WAL/旧链接/失败回滚/SIGKILL恢复）及真实Chrome RAC102 1/1通过。冻结后health发现rawFetch工厂识别结构与主spec server1→2维护行两项，1169依赖未就绪期间已恢复C2必要源修，不让writer空等。公共build/browser槽照machine-slot正常交接，作者证据不冒充独立审验；1169实际合入后1114阻塞优先短交FIX2，固定交付即还C2。B1最终源码释放后才是#1112三nonblock完整短片，再归C2 B2/A/快照/恢复。C1#1183已固定并释放，不等待其审验占writer。
+- 当前唯一writer为C2，已明确返写#1190 P1：B1非Draft候选[#1190](https://github.com/molis-ai/molis-work/pull/1190)固定`58bc50cf9b86660dd27e87c4a85df4752d2bb6cb`/base4e17已交并clean释放，正式REVIEW[6381990857](https://github.com/molis-ai/molis-work/pull/1190#issuecomment-6381990857)确认唯一P1：Home内含v1明文work在marker解除后才finally删，rm失败/发布后SIGKILL会让runtime可开而原文副本仍在。C2已临时Home真实复现；流水线已公开[6381982089](https://github.com/molis-ai/molis-work/pull/1190#issuecomment-6381982089)并明确START原writer最小修维护完成协议/同slice/真实rm及SIGKILL拒绝恢复回归，确认清理前保持既有marker、发布后保留v2与外部原件/准确partial，不增锁/新状态系统。新固定head立即直发复审/TEST，源码固定再释放，不等CI。FIX1/FIX2均无写许可，不因旧“已释放”表述并写或让C2再次等普通批准；B1未通过，整体C2未完成。
 - Claude是整条防腐线总统筹；本chat负责Codex侧按其范围、优先级、跨线依赖与全量排期接续。C1已实际实施、C2已获下一源码释放触发授权，完整目标未缩小；不重复建chat，全部Codex修复/实现仍单writer。DeepSeek历史贡献与review-pr-fixer在途认领分别保留。
 - #1174最终`5bbb4318697dbef4631e5db3870691c27fff2e94`已于07:21:50UTC真合`4e17c3d1bef043d2565189fe5776bc515b39497b`，沿Claude6380951820原认领正常队列，已实际核GitHub；正式REVIEW/TEST及适用CI证据保留。只关闭本片VUX16/导航同步，BL544实际owner修复1、R44 TEST/修复1未归因观察继续，不称产品期限已修。原日志仍在home-side-ci-recovery/handoff.md；后续merge-only依Claude现行清单。
 - #1114仍远端`7733c554140f7d25e3aa8436ba2af4ae2c8c82e8`，旧正式6381135401及TEST/CI40071861128全绿证据只覆盖旧头。#1167已实际合入`21257170d178574d2964436a7d195981e1b849cd`，现1114对main真实冲突（Cognia client、page-assets预算），非仅组合预案；Claude最新[6381691853](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6381691853)改让#1169先合，再由原修复2一次merge最新main，把locator迁真实browser/submit.ts并保留正确目录授权类型、实测新基线预算。接续认领[6381709344](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6381709344)；FIX2已完成真实merge-tree准备，尚未写/构建。C2曾本地a86dd1c2冻结释放，但1169仍未合且C2发现两health必需项，已明确RESUME C2；FIX2旧条件式自启已撤，须1169真合＋C2新release＋执行START才写。同步后直发REVIEW/TEST，源码固定即还C2，不等CI/浏览器；Claude原合并认领保持，不重复队列操作。
@@ -59,6 +61,10 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 - 独立补证：#1183正式REVIEW6381427633通过；TEST最终6381742635已核原18项有效＋补32文件239/239首次绿，另24 README项逐份当前CI原始通过行齐备，主56零缺项；CI40073797867/Verify120819091266及全部适用项success，Claude6381754001已实际入队，不重复操作。#1180 TEST[6381556552](https://github.com/molis-ai/molis-work/pull/1180#issuecomment-6381556552)4文件24项首次通过，仅绑定5e26/父295，不声称整合目标d586；#1178 TEST[6381709069](https://github.com/molis-ai/molis-work/pull/1178#issuecomment-6381709069)固定203dd7679、build及14文件68项首次通过，CI原始复用4项；各自堆叠/适用full仍需满足。
 - batch24独立归因已发布1168/[6381642802](https://github.com/molis-ai/molis-work/pull/1168#issuecomment-6381642802)、1169/[6381644742](https://github.com/molis-ai/molis-work/pull/1169#issuecomment-6381644742)：固定5e781d4b实际基底61bfc2b8，16片15绿、唯一shard16的home-side VUX16首次4/5且文件retry仍红；缺1174，旧测试blob与已修故障同栈，不称flaky/全绿或唯一因果trace已证。沿Claude merge-only，不重复FIX1/full。最新Claude组批已改batch25=df5984613（1166/1178/1179/1182，run40075168266）；沙箱叠层＋改base后的1181进26，1185/1186进27，旧排期为历史。
 - 已实际核#1164/#1165/#1167均07:50:52UTC真合，SHA分别3e96b40e、531e43fb、21257170；#1148于07:57:43UTC真合38b27b06716e51f702623096c01620ed09a5bc31。只关闭各自切片，#1121资源归属余项真依赖现已满足，实施owner修复1保持，按原PR序和可用writer实际排写。
+
+- #1190集成候选：[6381951772](https://github.com/molis-ai/molis-work/pull/1190#issuecomment-6381951772)已按root裁定带固定head请求Claude当前26未冻结或下一安全批。当前main表58、真实沙箱顶1144/61a0有59/60，S61只是候选，最终随真实批顺序统一测试/文档编号；独立health只缺前序如实红，不造占位/放宽门禁/author sync刷baseline。full命中shared-core/storage/spans-packages，批次冻结前还必须修当前P1并独立复审/TEST，不能因S号或批绿覆盖实现缺陷；改合同/安全项的适用ac-review防腐复查按Claude合同接续。作者README15文件/安全4红→4绿/维护5绿/UI与跟随复制各1项为58bc作者证据，只支持对应范围，不冒充独立通过。B2/A/完整快照恢复保持。
+- batch25新失败：[TEST6381981861](https://github.com/molis-ai/molis-work/pull/1182#issuecomment-6381981861)实核df5984613/主4e17+1166/1178/1179/1182，shard2/job120816846598的project-settings-navigation PG026-S4-03 line40 reset首次4/5、retryfile仍红，目标y665/viewport780x493、中心视口外。不是旧R25/Escape或1174，不叫flaky/已知红/无产品回归。测试/fixture/test-kit/设置源码与基底相同、helper已有nearest滚动+2rAF；1182间接影响仍未排除。无人原claim，流水线[6381992597](https://github.com/molis-ai/molis-work/pull/1182#issuecomment-6381992597)实际分给修复1继续根因与实施，目前只读，不抢TEST浏览器，不改严格pointer/断言或盲扩viewport。TEST按Claude[6381702011](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6381702011)将U10真实受控观测放最前，已实际启动准备，Fix1新红与1190修后证据按资源接，不重复full/取消CI。
+- #1179 TEST最终[6381997985](https://github.com/molis-ai/molis-work/pull/1179#issuecomment-6381997985)：541cd固定build/13文件112项首次绿零skip/retry，7份CI原始实通过复用，当前CI全绿；旧spec6红不作为当前失败。单片证据与batch25新失败分开，不能据此称整批绿。
 
 ### 下一项non-block实施触发
 

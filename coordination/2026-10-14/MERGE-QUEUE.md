@@ -54,11 +54,11 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1175](https://github.com/molis-ai/molis-work/pull/1175) | `ac-giants` 代做：ac-artifacts 设计稿（PG-077～079、096、097、107） | — | 纯文档（设计稿不占 15 个名额） | 头 `b3e7443a5`（合 main，remerge-diff 只有 BACKLOG 并列）；ac-review 可合；**10-24 07:05 UTC 统筹认领、设自动合并** |
 | 新 | [#1176](https://github.com/molis-ai/molis-work/pull/1176) | 统筹：BACKLOG 加 BL-543（设置地址只转声明参数，R-42）、BL-544（侧视图加载守护） | — | 纯文档 | 头 `cb8795f57`（合 main 解 BACKLOG 冲突，两边并列）；自动合并已设 |
 | 新 | [#1178](https://github.com/molis-ai/molis-work/pull/1178) | `ac-giants` W5-10 R4a：设计系统 4 个巨大单元纯搬移 | — | 进下一批（改 `packages/design-system`，有 full） | 头 `203dd7679`；**ac-review 一轮可合**（6381232708：拼出的样式逐字相同、导出与 API 快照不变、巨大单元 113→109、`plugin-builder.js` +2540 字节一次性放行数字对）；等进下一批全量 |
-| 新 | [#1179](https://github.com/molis-ai/molis-work/pull/1179) | `ac-giants` W5-10 R4d | — | 进下一批（有 full） | 头 `bbc790f62`；ac-review 一轮**修后可合**（6381305640）：挡合并 1 条（`pages-plugin.test` 改指 `editor-view-props.ts` 后不再钉编辑器接法，补三条对 `editor-browser.ts` 的断言），07:2x UTC 交 ac-giants；巨大单元 113→111 |
+| 新 | [#1179](https://github.com/molis-ai/molis-work/pull/1179) | `ac-giants` W5-10 R4d | — | 进下一批（有 full） | 挡合并项已修，新头 `541cd900c`（只加三条 `editor-browser.ts` 接法断言），交 ac-review 复审新提交；巨大单元 113→111 |
 | 新 | [#1180](https://github.com/molis-ai/molis-work/pull/1180) | `ac-clients-1` W5-03/04 灵光页面客户端（稳定键、打包类型检查） | 叠在 #1169（base `ac-r11-intake`）；#1169 合入后改 base 为 main | 进下一批（有 full） | 头 `5e26ba1ef`；**ac-review 一轮可合**（6381327535，与 Issues/Jelly 同写法、`lingguang.js` 26118→23300、无非阻塞）；base 不是 main，#1169 合入改 base 后以 CI 与全量为准 |
 | 新 | [#1181](https://github.com/molis-ai/molis-work/pull/1181) | `ac-kernel` R8 第 3 批：agent-host typed 改动作 | 叠在 #1148（base `ac-kernel/r8-agent-typed-to-actions-2`）；#1148 合入后改 base 为 main | 进下一批（full: true） | 头 `132bc0cb6`；**ac-review 一轮可合**（6381277540，只看 #1148 之外：14 条首登动作 v1、身份只从调用者取、waitRun concurrent+beforeEffect）；非阻塞 1 条交 Codex 修复队列；base 不是 main、CI 没跑，#1148 合入改 base 后以 CI 与全量为准；第 4 批等 #1148 合入再开 |
 | 待开 | `ac-clients-dataset`（未开 PR） | `ac-clients-1` W5-03/04 Dataset 页面客户端 | — | 进批（affected-tests 建议全量，assembly） | 头 `ffaa656f0`（已合 main d28794061）；本机门禁与 6 个浏览器文件过；`ac-clients-1` 在审已满两个（#1167、#1180），其中一个合入后再开 |
-| 新 | [#1182](https://github.com/molis-ai/molis-work/pull/1182) | `ac-sc3` refactor(local-host): 项目库的身份只由根行决定，看板由 Goals 在打开项目时建（Goals S | base `main` | 待定 | 头 `70343d004`；不动存量；07:3x UTC 交 ac-review；S9-0 等 #1164 合入后再开 |
+| 新 | [#1182](https://github.com/molis-ai/molis-work/pull/1182) | `ac-sc3` refactor(local-host): 项目库的身份只由根行决定，看板由 Goals 在打开项目时建（Goals S | — | 进 batch-26（`full` = assembly，427 个） | 头 `70343d004`；**ac-review 一轮可合**（6381371024，库身份只由根行定、存量不动已核）；非阻塞 1 条（接续恢复的 board.created 行为人）交 Codex 修复队列 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 
@@ -153,3 +153,4 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 
 
 - 10-24 07:4x UTC：用户提醒有 PR 修完等统筹裁定。逐个回：#1166 进 batch-25（同批 #1178、沙箱叠层）；W5-06 链 #1098→#1107→#1112 等测试专职交 SYS-15-U10 根因后进 batch-26；#1130 备案 C2 早期持锁由 Codex 实施；#1157 的 Dock 受控溢出覆盖（6379709843）仍是唯一挡合并项，交 ac-sc3 现补。#1164、#1165、#1167、#1148 认领入队，排在 #1174 后（队列 1～5）。
+- 10-24 07:5x UTC：#1174 合入 main `4e17c3d1b`，main 已知红清空（`home-side-surfaces` 删行）。排批：**batch-25** = 沙箱叠层 #1119→#1139→#1143→#1144（同步后取顶层头）+ #1166；**batch-26** = #1178、#1179、#1182、#1181（#1148 合入改 base 后）；W5-06 链等 SYS-15-U10 根因，排 batch-27 或并入 26。S 号改成按合并顺序定：线上预留只是暂定，开 PR 或入队时取 main 与队列前面之后的下一个空号（S-59 #1119、S-60 #1139 不变；W5-17 的 S-61、PG-017 的 S-65/66、`ac-sc3` 的 S-62～64、`ac-trust` 的 S-67/68 都改成到时再取）。

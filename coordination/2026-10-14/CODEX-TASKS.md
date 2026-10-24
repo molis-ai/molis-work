@@ -39,10 +39,10 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | #1228 | 6387362602 | 提供方 id 改引登记处常量；权限从动作声明派生（助理规则多给的 `model:invoke`）；RAC-339 覆盖面写准 | Codex 已认领（6387458462） |
 | #1226 | 6387391426 | `settleReview` 解构 `readDecision` 丢 `this`，包一层箭头函数 | |
 | #1229 | 6387428971 | `translation-check:467` 的过时注释 | |
-| #1232 | 6387465387 / Codex 一轮 | `plugin-client-served` 名单补灵光，注释改准 | |
+| #1232 | ac-review6387465387 / Codex6387505760复用 | `plugin-client-served` 名单补灵光，注释改准 |专职FIX4 `01a16f15-e025-71a3-adac-2e84f0e83fdd` 已实际START |
 | #1230 | 6387490072 | S-54 行列上 RAC-463 的测试；`announceProjectOpened` 失败后重试，capabilities 不在时不广播空 `workspace_id` | |
 | #1227 | 6387370902 | 无，直接进批 | 不需要 |
-| #1234 | 6387698407 | **挡合并**：`SECURITY-INVARIANTS.md:81` S-67 正文的「操作 id + 输入」换别的引号（S-20 把「」当测试名，Security invariants 1/2 红，同 #1187）。不挡合并：①受理期间 broker 停止，那条运行逃过取消；②cancel 不查被取消运行的目标；③S-67 三条真进程用例只在 mac 跑，挪到「只在本机跑」那栏，S-66 行补缺的一栏；④S-67 第②道门（宿主客户端）在沙箱路径补测试 | |
+| #1234 | 6387698407 | **挡合并**：`SECURITY-INVARIANTS.md:81` S-67 正文的「操作 id + 输入」换别的引号（S-20 把「」当测试名，Security invariants 1/2 红，同 #1187）。不挡合并：①受理期间 broker 停止，那条运行逃过取消；②cancel 不查被取消运行的目标；③S-67 三条真进程用例只在 mac 跑，挪到「只在本机跑」那栏，S-66 行补缺的一栏；④S-67 第②道门（宿主客户端）在沙箱路径补测试 |专职FIX5 `01a16f24-7a33-76f2-80b4-f20c55006d09` 已Root实际START，原71e4d059分支一轮齐修 |
 
 | 序 | 独立片 | 状态 |
 | --- | --- | --- |
@@ -61,7 +61,7 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 >
 > **331适用审验与真实剩余**：REVIEW6387363344已关版本P2，6387547375补1109一轮源码/1112真正批增量PASS；TEST6387369093已核全根构建fingerprint MATCH与现成27唯一文件209case通过，4既有browser不冒selector。专职新独立health/assets均exit0（27资源7638717B、72API2943），raw `/tmp/molis-pr1109-1112-20261024/331-{health,assets}.log`。准确新full40117579239（push `integration/carrier-1024-33@331`）与PR CI40117632751已触发，原c0b/40112466492另一组不替代、不取消/重复。TEST已实际START本PR明确交付的/tmp-only selector真实浏览器（单隐藏→双出现/改选/重载→所选消失不回退→恢复默认），公共browser单槽。原Claude已有b33-macos.log26ts/jobs5在跑，专职先去重、补缺native-checks.mjs已22/22 exit0，再只对已退出installed-plugin-host/keychain-retry两红jobs1定向核验，不重跑26整批/未退出uninstall；原首红/未结束summary保留，不能叫flaky或全首绿。全部最终适用CI/full/Mac/selector及actual包含核齐后才由Claude入队并各owner关源。原foreman scratchpad `/private/tmp/claude-501/-Users-yijunwang-code-goalboard/a8d0c51f-3071-4520-b7e1-548f6ca97ad6/scratchpad/`，b33-tests原路径已复用，旧35与新27原件由TEST分别保存。
 >
-> **独立多writer具体接续**：C1实现1在 `c1-assistant-http-logs/goalboard@006` 实际RAC116：两真实失败缺warning红2/2→仅hostLog导入/两catch+3/-2，保174注册组合语义，不改Memory功能/共用logger，整建及相关验证接续；C2实现2在 `w5-16-cli-private-state/goalboard@006` 实际B2b原合同，未交最终头。FIX1已交#1235/52c14058 Images README +4/-2，二轮6387516202 PASS、docs/secrets0，CI40117331601在途；pipeline实际affected full/storage/uncovered均[]，P2待真实merge才闭。其source释放后Root/流水线同题单已对齐接#1230/dfa3064be本轮6387490072（失败缓存重试、缺能力不误播、S54补RAC463；不改drain契约），只一认领/树。FIX2交#1237/e425027b IM初始化类型，二轮6387623263发现生产9实参Object.assign退化any、最终结构检查未成立，原题返FIX2，旧104unit/2browser及首参窄化有效证据保留，不以旧CI关P2。
+> **独立多writer具体接续**：C1实现1在 `c1-assistant-http-logs/goalboard@006` 实际RAC116：两真实失败缺warning红2/2→仅hostLog导入/两catch+3/-2，保174注册组合语义，不改Memory功能/共用logger，整建及相关验证接续；C2实现2在 `w5-16-cli-private-state/goalboard@006` 实际B2b原合同，未交最终头。FIX1已交#1235/52c14058 Images README +4/-2，二轮6387516202 PASS、docs/secrets0，CI40117331601在途；pipeline实际affected full/storage/uncovered均[]，P2待真实merge才闭。其source释放后Root/流水线同题单已对齐接#1230/dfa3064be本轮6387490072（失败缓存重试、缺能力不误播、S54补RAC463；不改drain契约），只一认领/树。FIX2首次#1237/e425的生产Object.assign any问题已二轮6387623263返修；新固定7ebef08b252f675891ae1eca91b84d7200bed349相对3file+57/-13，实际生产类型四反例已红绿，等待独立增量/CI；邀请browser过、follow初次navigate首红尚未进入讨论，已排一次定向复跑，原因UNKNOWN不称flaky、不改断言，不能提前关P2。
 >
 > **新增确认问题与owner**：Root新建FIX3 `01a16f01-0e2c-7450-a0f8-8ad03f18b32e` 专修#1228/a89/6387362602同轮provider id/权限来源。它已用实际assistant-http174→assistant-thread-actions9–18证明线程extra确需model:invoke，原‘多给一项’仅该结论不成立；保真实权限，从规则/跟进/线程组合声明派生，其余有效意见仍修。TEST已交同头Security1原raw：91文件90pass、唯一system-search-authority2/12，10个失败均旧fixture未知provider合法正控失效；FIX3核真调用链后只迁合法fixture身份，不加生产allowlist/不改12case断言。#1232是独立Pages3525，不是旧3carrier；ac-review6387465387 PASS已复用，Product1真实204/205唯一accordion全HTML负断言失败，词典命中只是待writer核假设，尚未找到实际片段，不称flaky/不删断言；Root已实际START专职FIX4 `01a16f15-e025-71a3-adac-2e84f0e83fdd`（Sol/max），先取真实render match定位再修，保DOM负断言；同PRclientServed名单/证据数字先核，不扩BL464/全英文，不塞FIX3。C1与FIX3若需同assistant-http文件先串行（当前FIX3明确未动），S54只原1230单行，其他独立路径可并行，公build/browser单槽不变。C1/C2/W5/整Home及本人验收均未完成。
 

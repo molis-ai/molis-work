@@ -142,8 +142,9 @@ test("RAC-103: cleanup failures report an already published v2 library without r
       fs.fsyncSync=fd=>{if(removed){removed=false;throw new Error('directory flush denied');}return sync(fd);};
       maintainInvitations('apply',{home:${JSON.stringify(f.home)},backupDirectory:${JSON.stringify(backupDirectory)}});`;
     const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" });
-    assert.equal(result.status, 1); assert.match(result.stderr, /Version 2 was published, but maintenance-marker cleanup was not confirmed/);
+    assert.equal(result.status, 1); assert.match(result.stderr, /Version 2 was published, but sensitive work or marker cleanup was not confirmed/);
     assert.deepEqual(files(backupDirectory), original);
+    assert.equal(readdirSync(f.directory).some(name => name.startsWith(".invite-maintenance-work-")), false);
     const db = new DatabaseSync(f.file, { readOnly: true });
     try {
       assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 2);
@@ -154,5 +155,40 @@ test("RAC-103: cleanup failures report an already published v2 library without r
     else assert.equal(existsSync(marker), false);
     assert.equal(run("apply", f.home, backupDirectory).status, 0);
     const opened = openServer(f.directory); opened.close();
+  }
+});
+
+test("RAC-103: sensitive working copies are removed before startup is unblocked, including cleanup failure and process death", t => {
+  for (const crash of [false, true]) {
+    const f = source(t), original = files(f.directory), backupDirectory = join(f.root, "originals"), server = realpathSync(f.directory);
+    const script = `import fs from 'node:fs'; const {maintainInvitations}=await import(${JSON.stringify(pathToFileURL(tool).href)}); const remove=fs.rmSync;
+      fs.rmSync=(file,options)=>{if(String(file).startsWith(${JSON.stringify(join(server, ".invite-maintenance-work-"))})){${crash ? "process.kill(process.pid,'SIGKILL');" : "throw new Error('sensitive work removal denied');"}}return remove(file,options);};
+      maintainInvitations('apply',{home:${JSON.stringify(f.home)},backupDirectory:${JSON.stringify(backupDirectory)}});`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" });
+    if (crash) assert.equal(result.signal, "SIGKILL");
+    else assert.equal(result.status, 1);
+    assert.deepEqual(files(backupDirectory), original);
+    const marker = join(server, ".invite-maintenance.json");
+    assert.ok(existsSync(marker), "startup stays blocked while raw working copies remain");
+    assert.throws(() => openServer(f.directory), { code: "im.invite_maintenance.pending" });
+    if (!crash) assert.match(result.stderr, /Version 2 was published, but sensitive work or marker cleanup was not confirmed/);
+    const record = JSON.parse(readFileSync(marker, "utf8")) as { backup: string; work: string };
+    assert.equal(record.backup, realpathSync(backupDirectory));
+    assert.ok(readFileSync(join(record.work, "server.sqlite")).includes(Buffer.from(f.active)));
+    const db = new DatabaseSync(f.file, { readOnly: true });
+    try {
+      assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 2);
+      assert.equal(db.prepare("SELECT invite_token_hash FROM im_rooms WHERE id='room'").get()!.invite_token_hash, hash(f.active));
+      assert.equal(db.prepare("SELECT body FROM im_messages WHERE id='wal-message'").get()!.body, "Committed before crash");
+      assert.equal(db.prepare("PRAGMA integrity_check").get()!.integrity_check, "ok");
+    } finally { db.close(); }
+    // Recovery keeps the complete v2 library and external originals; raw private copies go before the marker.
+    rmSync(record.work, { recursive: true, force: true });
+    assert.equal(readdirSync(server).some(name => name.startsWith(".invite-maintenance-work-")), false);
+    for (const bytes of Object.values(files(server))) for (const token of [f.active, f.prior, f.deleted]) assert.equal(bytes.includes(Buffer.from(token)), false);
+    unlinkSync(marker);
+    const opened = openServer(f.directory); opened.close();
+    assert.equal(run("apply", f.home, backupDirectory).status, 0);
+    assert.deepEqual(files(backupDirectory), original);
   }
 });

@@ -115,6 +115,13 @@ function buildCurrent(source, file, info) {
   if ([...info.secrets].some(secret => bytes.includes(Buffer.from(secret)))) throw new Error("An original invitation remains in other content; source unchanged, a separate maintenance decision is required");
 }
 
+function finishCleanup(home, work, marker) {
+  fs.rmSync(work, { recursive: true, force: true });
+  sync(path.join(home, "server"));
+  fs.unlinkSync(marker);
+  sync(path.join(home, "server"));
+}
+
 function publish(home, file, original, backupDirectory) {
   if (!backupDirectory) throw new Error("apply requires --backup outside the Home");
   const given = path.resolve(backupDirectory), backup = path.join(fs.realpathSync(path.dirname(given)), path.basename(given));
@@ -134,13 +141,13 @@ function publish(home, file, original, backupDirectory) {
   } catch (error) {
     const failures = [error];
     for (const [name, value] of original) try { fs.writeFileSync(path.join(home, "server", name), value.bytes, { mode: value.mode }); fs.chmodSync(path.join(home, "server", name), value.mode); sync(path.join(home, "server", name)); } catch (failure) { failures.push(failure); }
-    if (failures.length === 1) { fs.unlinkSync(marker); sync(path.join(home, "server")); }
+    if (failures.length === 1) try { finishCleanup(home, path.dirname(file), marker); } catch (failure) { failures.push(failure); }
     if (failures.length > 1) throw new AggregateError(failures, "Publication rollback is incomplete; stop the Host and recover the originals from " + backup);
     throw error;
   }
-  // The complete v2 database is now published. Cleanup must not roll it back after the marker is removed.
-  try { fs.unlinkSync(marker); sync(path.join(home, "server")); }
-  catch (error) { throw new Error("Version 2 was published, but maintenance-marker cleanup was not confirmed; keep the Host stopped and inspect the library or recover the originals from " + backup, { cause: error }); }
+  // The complete v2 is published. Keep startup blocked until its raw private working copies are removed and flushed.
+  try { finishCleanup(home, path.dirname(file), marker); }
+  catch (error) { throw new Error("Version 2 was published, but sensitive work or marker cleanup was not confirmed; keep the Host stopped, inspect the library and remove sensitive work at " + path.dirname(file) + ", or recover the originals from " + backup, { cause: error }); }
   return backup;
 }
 
@@ -167,7 +174,10 @@ export function maintainInvitations(mode, options) {
     } finally { source.close(); }
     const backup = publish(home, path.join(work, "current.sqlite"), original, options.backupDirectory);
     return { ...info.report, version: 2, changed: true, needs_apply: false, backup };
-  } finally { fs.rmSync(work, { recursive: true, force: true }); }
+  } finally {
+    // A publication with a recovery marker owns its cleanup; do not retry it and hide its partial result.
+    if (!present(path.join(home, "server", ".invite-maintenance.json")) && present(work)) fs.rmSync(work, { recursive: true, force: true });
+  }
 }
 
 function main(args) {

@@ -98,7 +98,7 @@ Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当�
 
 **讨论库 v1 → v2 的维护（W5-16 B1）。** 运行时拒绝 v1，不就地转换。一次性脚本 `tests/fixtures/im-invite-maintenance.mjs` 只在已停止全部写入的副本上先 `list --home <副本> --json`；输出版本和数量，不输出凭据。`apply --home <副本> --backup <Home 外的新目录>` 将现行房间令牌改哈希、邀请回执改安全状态，用新文件重建以清掉旧页和 WAL 中的原文；保留已分享链接及其他全部事实。原件移交显式 0700 备份目录，按敏感材料保管，不能进入新快照。真实 Home 的维护尚未执行，仍与 W5-17、Goals S9 同一个获批窗口，先 list 副本；脚本及演练在维护后删除。
 
-维护发布用 `server/.invite-maintenance.json` 留下原件和私有暂存目录的位置。正常完成或完整回滚后删标记；中断或回滚不完整时，`openServerDatabase` 带 `im.invite_maintenance.pending` 拒绝，避免创建或使用半成品。完整 v2 库已发布并刷盘之后，清理标记或确认目录刷盘失败会明确报「v2 已发布、收尾未确认」，保留新库及原件备份，不在标记移除后倒回旧库。仍须保持宿主停止，核对 v2 完整性后处理残留标记，或按记录把备份中的 `server.sqlite` 及其原有侧车完整放回原位置，核对后删除标记及它指向的私有暂存目录，再重新演练/执行维护；不猜版本、不丢旧原件。这个标记和暂存不属于可备份业务数据，存在时不能把 Home 当成已完成维护。
+维护发布用 `server/.invite-maintenance.json` 留下原件和私有暂存目录的位置。完整 v2 库已发布并刷盘之后，先删除含原文的私有工作目录并确认父目录刷盘，再删阻断标记；完整回滚也按这个清理顺序。工作副本清理失败或清理前中断时，`openServerDatabase` 仍带 `im.invite_maintenance.pending` 拒绝，不能把敏感副本带入新快照。发布后的工作目录、标记或目录刷盘收尾失败，会明确报「v2 已发布、收尾未确认」并给出工作目录和 Home 外原件备份位置，保留完整新库及原件，不在标记移除后倒回旧库，也不由外层清理重试掩盖结果。保持宿主停止，核对 v2 完整性，删除敏感工作副本并确认 Home 内无原文字节后，才解除残留标记；也可按记录把备份中的 `server.sqlite` 及其原有侧车完整放回原位置，清完暂存后删标记，再重新演练/执行维护。不猜版本、不丢旧原件。这个标记和暂存不属于可备份业务数据，存在时不能把 Home 当成已完成维护。
 
 实验插件的私有库 `plugins/experiments/private.sqlite` 随插件在 2026-10-10 删除（`specs/repository-anti-corruption/spec.md` §1）；已有 Home 里的 `plugins/experiments/` 由维护六移出（`docs/releases/CHECKLIST.md` 第 4 节）。
 

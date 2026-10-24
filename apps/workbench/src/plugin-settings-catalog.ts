@@ -1,7 +1,7 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { registeredIconNames, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { PERSONAL_PLUGIN_IDS, settingsEntries } from "./plugin-catalog.js";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, settingsEntries } from "./plugin-catalog.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
 /** 能力 is four settings categories served from /capabilities/<id> (specs/artifact-positioning S6b). */
@@ -17,19 +17,24 @@ interface PluginSettingsNavItem {
   readonly order?: number;
 }
 
-const PLUGIN_SETTINGS_ICONS: Readonly<Record<string, PluginSettingsNavItem["icon"]>> = {
-  shelf: "library",
-  planning: "workflow",
-  "coding-settings": "code",
-  pages: "note",
-  form: "clipboard",
-  dataset: "database",
-  ppt: "image",
-};
+/**
+ * The icon each settings page's Manifest view names (W5-06 2b), by contribution, whether or not a project shows the plugin:
+ * a page is also found by its own URL. A name the Host does not know is left out, and the page shows `settings`. Both the
+ * catalog and the icon set are fixed when the package is built, so the map is made once, on first use.
+ */
+let settingsIcons: ReadonlyMap<string, MolisWorkIcon> | undefined;
+function declaredSettingsIcons(): ReadonlyMap<string, MolisWorkIcon> {
+  if (settingsIcons) return settingsIcons;
+  const known = new Set<string>(registeredIconNames());
+  settingsIcons = new Map(settingsEntries([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS])
+    .flatMap((view) => view.icon && known.has(view.icon) ? [[view.contribution_id, view.icon as MolisWorkIcon] as const] : []));
+  return settingsIcons;
+}
 
 export function pluginSettingsNavItemsFrom(
   contributions: readonly UiContributionDescriptor[],
 ): PluginSettingsNavItem[] {
+  const icons = declaredSettingsIcons();
   return contributions
     .filter((item) => (
       item.kind === "settings-page"
@@ -42,7 +47,7 @@ export function pluginSettingsNavItemsFrom(
         contribution_id: item.contribution_id,
         plugin_id: item.plugin_id,
         label: item.label,
-        icon: PLUGIN_SETTINGS_ICONS[section_id] ?? "settings",
+        icon: icons.get(item.contribution_id) ?? "settings",
       };
     })
     .filter((item) => !isHostGlobalSettingsSection(item.section_id));
@@ -64,8 +69,7 @@ export function listPluginSettingsNavItems(enabled?: readonly string[], hidden?:
     .sort((left, right) => (order.get(left.contribution_id) ?? Number.MAX_SAFE_INTEGER) - (order.get(right.contribution_id) ?? Number.MAX_SAFE_INTEGER))
     .map((item) => {
       const view = views.get(item.contribution_id);
-      const icon = view?.icon && (registeredIconNames() as string[]).includes(view.icon) ? view.icon as MolisWorkIcon : item.icon;
-      return { ...item, icon, ...(Number.isFinite(view?.order) ? { order: view!.order } : {}) };
+      return { ...item, ...(Number.isFinite(view?.order) ? { order: view!.order } : {}) };
     });
 }
 

@@ -1,5 +1,12 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "{plugin} 暂不可用": "{plugin} is unavailable",
+  "插件没有在运行": "The plugin is not running",
+  "插件正在运行，但未提供页面": "The plugin is running but has not provided a page",
+  "插件页面未注册": "The plugin page is not registered",
+  "插件页面读取失败": "The plugin page could not be loaded",
+  "请检查插件状态后重新打开。": "Check the plugin status, then reopen it.",
+  "查看插件状态": "View plugin status",
   "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。": "The copy was saved, but the original could not be registered. Later processing cannot check whether the original has changed.",
   "Shelf 示例未能恢复，请在 Shelf 中查看后重试。": "The Shelf sample could not be restored. Check Shelf and try again.",
   "请重新点击或拖动文件": "Click or drag the file again",
@@ -492,19 +499,10 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "能看图": "Can read images",
   "未声明": "Not declared",
   "读图能力": "Image input",
-  // The companion pages' shell around Files, Git, Diff and Text Stats (apps/local-host/src/coding-surface.ts, coding-companions.ts).
+  // What the Coding page's companions (Files, Git, Diff, Text Stats) say around their lists; their stage shells carry their own words.
   "返回改动列表": "Back to changes",
   "正在读取固定内容…": "Reading the pinned versions…",
   "。请点击刷新重试。": ". Select Refresh to try again.",
-  "工作目录设置": "Working folder settings",
-  "打开文件，开始阅读": "Open a file to start reading",
-  "查看工作区的改动": "See the workspace's changes",
-  "打开 Files": "Open Files",
-  "到插件市场添加 Files": "Add Files from the plugin market",
-  "重新打开页面": "Reopen the page",
-  "插件未能启动，请重新打开页面": "The plugin didn't start. Reopen the page.",
-  "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。": "Choose a file from the folder to read it, save a selection, or pin two snapshots to compare.",
-  "从目录选择一项改动，查看读取时的固定差异，再决定是否暂存。": "Choose a change from the folder to see its difference as read, then decide whether to stage it.",
   // Settings › Connectors: how a connector connects, what it is for, and what to do next.
   "登录账号": "Sign in to your account",
   "自定义应用授权": "Authorize with your own app",

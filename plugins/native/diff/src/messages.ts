@@ -47,6 +47,9 @@ export const DIFF_MESSAGES = {
   "Coding 固定变更当前不可读，请保留原会话后重试": { zh: "Coding 固定变更当前不可读，请保留原会话后重试", en: "The pinned Coding change can't be read right now. Keep the original session and try again." },
   "Git 固定变更当前不可读，请重新选择原变更": { zh: "Git 固定变更当前不可读，请重新选择原变更", en: "The pinned Git change can't be read right now. Choose the original change again." },
   "请选择两份文件快照进行对比": { zh: "请选择两份文件快照进行对比", en: "Choose two file snapshots to compare" },
+  "diff.stage.refresh": { zh: "刷新", en: "Refresh" },
+  "diff.stage.open-files": { zh: "打开 Files", en: "Open Files" },
+  "diff.stage.add-files": { zh: "到插件市场添加 Files", en: "Add Files from the plugin market" },
 } as const;
 
 /** The keys above that are sentences with values in them. */

@@ -448,7 +448,8 @@
       "schedule_operations",
       "schedule_tasks",
       "snapshot",
-      "trashed_goals"
+      "trashed_goals",
+      "unavailable_plugin_stages"
     ]
   },
   "GET <project>/api/search/status": {
@@ -897,7 +898,8 @@
       "schedule_operations",
       "schedule_tasks",
       "snapshot",
-      "trashed_goals"
+      "trashed_goals",
+      "unavailable_plugin_stages"
     ]
   },
   "GET <missing>/api/board": {

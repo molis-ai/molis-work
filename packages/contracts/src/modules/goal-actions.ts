@@ -1,4 +1,6 @@
-import type { ActionAudience, ActionDefinition, ActionSchema } from "../platform/actions.js";
+import type { BoundActionClient } from "../platform/actions.js";
+import { goalAction } from "./goal-action-definition.js";
+import { goalEntryActions } from "./goal-entry-actions.js";
 import { goalEventWorkStatuses, type GoalEventDirectoryQuery, type GoalEventDirectoryPage, type GoalContractView, type GoalEventStateView, type RecordGoalProgressSummaryInput, type GoalEventProgressResult } from "./goals.js";
 import { text, identifier, count, object, nullable, goalDirectoryItemSchema, artifactSource } from "./goal-event-action-schemas.js";
 import { goalContractSchema } from "./goal-snapshot-action-schemas.js";
@@ -12,21 +14,14 @@ export * from "./goal-snapshot-action-schemas.js";
 export * from "./goal-policy-action-schemas.js";
 export * from "./goal-guidance-action-schemas.js";
 export * from "./goal-progress-action-schema.js";
+export * from "./goal-entry-actions.js";
+export { goalAction } from "./goal-action-definition.js";
 
 type GoalListActionInput = Omit<GoalEventDirectoryQuery, "project_id">;
 export interface GoalReadActionInput { goal_id: string }
 type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
 const goalInput = object({ goal_id: identifier });
 const base = { goal_id: identifier, idempotency_key: identifier }, required = Object.keys(base);
-
-/** `plugins` opens one action to installed plugins too (still under the plugin's own granted permissions).
- * Every Goals write is authored by a Session when a Runtime makes it. */
-export function goalAction<Input, Output>(id: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, plugins = false): ActionDefinition<Input, Output> {
-  const audiences: ActionAudience[] = ["user", "agent", "workflow", "mcp", ...(plugins ? ["plugin" as const] : [])];
-  return { capability_id: id, version: 1, operation, action: { title, description,
-    kind: operation === "query" ? "query" : "operation", scope: "project", audiences, ...(operation === "command" ? { authorship: "session" as const } : {}),
-    permissions: [operation === "query" ? "goals:read" : "goals:write"], subject_kinds: ["goal"], input_schema: input, output_schema: output } };
-}
 
 
 /** Goals' complete shared contracts consumed by Coding and installed plugin clients. The action gateway checks who calls and what it holds; Goals keeps no list of plugins. */
@@ -47,3 +42,17 @@ export const goalPluginActions = {
   receipt: goalAction<GoalReadActionInput & { idempotency_key: string }, GoalEventProgressResult | null>("goals.progress.receipt", "读取进展保存回执", "按当前调用者和原幂等键读取此目标已保存的进展回执；未保存时返回 null，不新建记录", "query",
     object({ goal_id: identifier, idempotency_key: identifier }), nullable(goalProgressResultSchema), true),
 } as const;
+
+/** Shared recovery projection; each underlying query retains the caller's authority. */
+export async function readGoalResumeFacts(actions: Pick<BoundActionClient, "invoke">, focusGoalIds: readonly string[] = []) {
+  const directory = await actions.invoke(goalPluginActions.list, { limit: 100 });
+  const goals = [...directory.goals];
+  const seen = new Set(goals.map(item => item.goal_id));
+  const focus = [...new Set(focusGoalIds.map(id => id.trim()).filter(Boolean))].slice(0, 2);
+  for (const goalId of focus) {
+    if (seen.has(goalId)) continue;
+    const item = await actions.invoke(goalEntryActions.directoryItem, { goal_id: goalId });
+    if (item) { goals.push(item); seen.add(goalId); }
+  }
+  return { goals, observed_event_cursor: directory.observed_event_cursor };
+}

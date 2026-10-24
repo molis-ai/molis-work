@@ -1,7 +1,7 @@
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { bindActionClient, retainActionAuthority, type ActionClient, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FEED_PLUGIN_ID, feedItemActions, promoteFeedItemToGoal, type FeedApplication, type FeedGoalPromotionGoals, type FeedGoalPromotionInput } from "@molis-ai/molis-work-plugin-feed";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { hydrateFeedItemContent } from "./feed-content.js";
 
@@ -18,15 +18,15 @@ function feedGoalsThroughActions(actions: ActionClient, caller: ActionExecutionC
   const nested = bindActionClient(actions, () => retainActionAuthority(caller, { ...feedItemActions.promote, provider_id: FEED_PLUGIN_ID }, () => caller.beforeEffect()));
   return {
     active: async goalId => {
-      const item = await nested.invoke(goalsActions.directoryItem, { goal_id: goalId });
+      const item = await nested.invoke(goalEntryActions.directoryItem, { goal_id: goalId });
       return item ? { goal_id: item.goal_id } : null;
     },
     create: async input => {
-      const { goal, replayed } = await nested.invoke(goalsActions.create, { ...input, ...(caller.audience === "user" ? { source_kind: "feed" as const } : {}) });
+      const { goal, replayed } = await nested.invoke(goalEntryActions.create, { ...input, ...(caller.audience === "user" ? { source_kind: "feed" as const } : {}) });
       return { goal_id: goal.goal_id, replayed };
     },
     confirmInput: async ({ goal_id, item_id, name, snapshot_digest, reason }) => {
-      await nested.invoke(goalsActions.inputsConfirm, { goal_id, source: { kind: "feed_item", id: item_id }, name, snapshot_digest, reason });
+      await nested.invoke(goalEntryActions.inputsConfirm, { goal_id, source: { kind: "feed_item", id: item_id }, name, snapshot_digest, reason });
     },
   };
 }

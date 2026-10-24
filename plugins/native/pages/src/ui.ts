@@ -125,66 +125,70 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       </div>
       <p class="pages-note" data-pages-note hidden></p>
     </div>
-    <dialog class="mw-dialog creative-confirm" data-pages-confirm>
-      <form class="creative-confirm-form" method="dialog">
-        <p data-confirm-text></p>
-        <div class="creative-confirm-actions">
+    <dialog class="mw-dialog mw-dialog--form creative-confirm" data-pages-confirm>
+      <form class="mw-form" method="dialog">
+        <div class="mw-form__body"><p data-confirm-text></p><div class="mw-field__error" role="alert" hidden></div></div>
+        <div class="mw-form__footer">
           <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("取消")}</button>
           <button class="mw-btn mw-btn--primary" value="ok" data-confirm-ok>${p.text("删除")}</button>
         </div>
       </form>
     </dialog>
-    <dialog class="mw-dialog creative-confirm" data-pages-name aria-labelledby="pages-name-label">
-      <form class="creative-confirm-form" method="dialog">
-        <p id="pages-name-label" data-name-label></p>
-        <input class="mw-input" data-name-input autocomplete="off" aria-labelledby="pages-name-label">
-        <div class="mw-field__error" data-name-error role="alert" hidden></div>
-        <div class="creative-confirm-actions">
+    <dialog class="mw-dialog mw-dialog--form creative-confirm" data-pages-name aria-labelledby="pages-name-label">
+      <form class="mw-form" method="dialog">
+        <div class="mw-form__body">
+          <p id="pages-name-label" data-name-label></p>
+          <input class="mw-input" data-name-input autocomplete="off" aria-labelledby="pages-name-label">
+          <div class="mw-field__error" data-name-error role="alert" hidden></div>
+        </div>
+        <div class="mw-form__footer">
           <button class="mw-btn mw-btn--ghost" type="button" data-name-cancel>${p.text("取消")}</button>
           <button class="mw-btn mw-btn--primary" value="ok" data-name-ok>${p.text("确定")}</button>
         </div>
       </form>
     </dialog>
     <div class="mw-menu pages-move-menu" data-pages-move-menu hidden role="menu"></div>
-    <dialog class="mw-dialog pages-import-dialog" data-pages-import-dialog aria-labelledby="pages-import-title">
-      <div class="pages-import-content">
-        <header><h2 id="pages-import-title">${p.text("导入文档")}</h2><p>${p.text("把已有文档带进 Pages，导入后可继续编辑。")}</p></header>
-        <label class="pages-import-field">${p.text("文档来自")}
-          <select class="mw-select" data-pages-import-source>
-            <option value="notion">Notion</option>
-            <option value="feishu">${p.text("飞书 / Lark")}</option>
-            <option value="other">${p.text("Word、语雀及其他工具")}</option>
-          </select>
-        </label>
-        <p class="pages-import-help" data-pages-import-help></p>
-        <label class="pages-import-drop" data-pages-import-drop>
-          ${icon("upload")}<strong>${p.text("选择文件，或拖到这里")}</strong>
-          <span>ZIP · DOCX · Markdown · HTML · TXT · CSV</span>
-          <small>${p.text("支持多选，总计不超过 10 MB；每次最多 100 篇。")}</small>
-          <input type="file" data-pages-import-files multiple accept=".zip,.docx,.md,.markdown,.html,.htm,.txt,.csv" aria-label="${p.text("选择要导入的文件")}">
-        </label>
-        <p class="pages-import-limit">${p.text("图片和附件会转为链接或文字说明；评论、权限和历史版本不导入。")}</p>
-        <p class="pages-import-status" data-pages-import-status role="status" aria-live="polite"></p>
-        <div data-pages-import-preview hidden>
-          <div class="pages-import-options">
-            <label><input type="checkbox" data-pages-import-all checked> ${p.text("全选")}</label>
-            <label class="pages-import-field">${p.text("导入到")}<select class="mw-select" data-pages-import-folder aria-label="${p.text("导入到")}"></select></label>
+    <dialog class="mw-dialog mw-dialog--form pages-import-dialog" data-pages-import-dialog aria-labelledby="pages-import-title">
+      <div class="mw-form pages-import-content">
+        <header class="mw-form__header"><div><h2 id="pages-import-title">${p.text("导入文档")}</h2><p>${p.text("把已有文档带进 Pages，导入后可继续编辑。")}</p></div></header>
+        <div class="mw-form__body pages-import-fields">
+          <label class="pages-import-field">${p.text("文档来自")}
+            <select class="mw-select" data-pages-import-source>
+              <option value="notion">Notion</option>
+              <option value="feishu">${p.text("飞书 / Lark")}</option>
+              <option value="other">${p.text("Word、语雀及其他工具")}</option>
+            </select>
+          </label>
+          <p class="pages-import-help" data-pages-import-help></p>
+          <label class="pages-import-drop" data-pages-import-drop>
+            ${icon("upload")}<strong>${p.text("选择文件，或拖到这里")}</strong>
+            <span>ZIP · DOCX · Markdown · HTML · TXT · CSV</span>
+            <small>${p.text("支持多选，总计不超过 10 MB；每次最多 100 篇。")}</small>
+            <input type="file" data-pages-import-files multiple accept=".zip,.docx,.md,.markdown,.html,.htm,.txt,.csv" aria-label="${p.text("选择要导入的文件")}">
+          </label>
+          <p class="pages-import-limit">${p.text("图片和附件会转为链接或文字说明；评论、权限和历史版本不导入。")}</p>
+          <p class="pages-import-status" data-pages-import-status role="status" aria-live="polite"></p>
+          <div data-pages-import-preview hidden>
+            <div class="pages-import-options">
+              <label class="mw-check-row"><input type="checkbox" data-pages-import-all checked> ${p.text("全选")}</label>
+              <label class="pages-import-field">${p.text("导入到")}<select class="mw-select" data-pages-import-folder aria-label="${p.text("导入到")}"></select></label>
+            </div>
+            <ul class="pages-import-warnings" data-pages-import-warnings></ul>
+            <div class="pages-import-documents" data-pages-import-documents></div>
           </div>
-          <ul class="pages-import-warnings" data-pages-import-warnings></ul>
-          <div class="pages-import-documents" data-pages-import-documents></div>
         </div>
-        <footer class="creative-confirm-actions">
+        <footer class="mw-form__footer">
           <button class="mw-btn mw-btn--ghost" type="button" data-pages-import-close>${p.text("取消")}</button>
           <button class="mw-btn mw-btn--primary" type="button" data-pages-import-submit disabled>${p.text("导入所选文档")}</button>
           <button class="mw-btn mw-btn--primary" type="button" data-pages-import-open hidden>${p.text("打开文档")}</button>
         </footer>
       </div>
     </dialog>
-    <dialog class="mw-dialog pages-template-dialog" data-pages-template-dialog>
-      <form class="creative-confirm-form" method="dialog">
-        <p>${p.text("从模板新建")}</p>
-        <div class="pages-template-list" data-pages-template-list>${templates}</div>
-        <div class="creative-confirm-actions">
+    <dialog class="mw-dialog mw-dialog--form pages-template-dialog" data-pages-template-dialog>
+      <form class="mw-form" method="dialog">
+        <header class="mw-form__header"><h2>${p.text("从模板新建")}</h2></header>
+        <div class="mw-form__body pages-template-list" data-pages-template-list>${templates}</div>
+        <div class="mw-form__footer">
           <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("取消")}</button>
         </div>
       </form>

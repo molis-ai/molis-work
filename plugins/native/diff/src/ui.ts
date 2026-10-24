@@ -3,6 +3,7 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
+import { renderCompanionListStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
 import { renderDiff, type DiffViewLabels, type DiffViewModel, type DiffViewPrimitives } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 
 import type { DiffInputGroup } from "./comparison.js";
@@ -40,13 +41,21 @@ export const diffUiDescriptor: UiContributionDescriptor = {
   label: "Diff",
   surfaces: [
     { surface_id: "comparison", target_slot_id: "workbench.main", format: "declarative-html" },
+    { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
   slots: [],
 };
 
-export const diffUiContribution: UiContribution<DiffUiModel> = {
+export const diffUiContribution: UiContribution<DiffUiModel | CompanionStageModel> = {
   descriptor: diffUiDescriptor,
-  render(request: UiRenderRequest<DiffUiModel>): string {
-    return renderDiff({ ...request.model, labels: DIFF_LABELS });
+  render(request: UiRenderRequest<DiffUiModel | CompanionStageModel>): string {
+    return request.surface === "workbench" ? renderDiffStage(request.model as CompanionStageModel) : renderDiff({ ...(request.model as DiffUiModel), labels: DIFF_LABELS });
   },
 };
+
+/** Diff's stage in the project page: a refresh, a way to Files, and the comparison the page's client fills. */
+export function renderDiffStage(model: CompanionStageModel): string {
+  const { text } = model.primitives;
+  return renderCompanionListStage({ surface: "diff", label: "Diff", refresh: text("diff.stage.refresh"),
+    files: { enabled: model.shown_plugins?.includes("files") ?? false, open: text("diff.stage.open-files"), add: text("diff.stage.add-files") } });
+}

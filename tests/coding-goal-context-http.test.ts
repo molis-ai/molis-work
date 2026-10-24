@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 // Host and Coding surface come from the same modules, so one project platform serves both.
-import { seedDemoBoard, DEMO_PROJECT_ID, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID, filesOutputsRefresh, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, AGENT_RUNTIME_CAPABILITIES, type AgentRunView, type AgentRuntimeCapabilityMatrix, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -29,12 +29,12 @@ function codingHostFixture(root: string) {
   const composed = host.ensureAgentService(root, () => { throw new Error("a Host with a Home has composed its Agent service by now"); });
   const released = composed.dispose();
   composed.dispose = () => released;
-  host.registerCapability(agent.availableRoles,() => [{ role_id: "reader", available: true }] as any);
+  host.registerAction(agent.availableRoles, () => [{ role_id: "reader", available: true }]);
   // The runtime directory a new session is made from (PG-054): one Runtime that offers everything.
   const everything = Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(capability => [capability, "supported"])) as AgentRuntimeCapabilityMatrix;
-  host.registerCapability(agent.listRuntimes, () => [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", capabilities: everything }]);
-  host.registerCapability(agent.listActions, () => []);
-  // Sessions and rounds are actions Coding calls as itself (R8 batch 3).
+  host.registerAction(agent.listRuntimes, () => [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", capabilities: everything }]);
+  host.registerAction(agent.listActions, () => []);
+  // Sessions, rounds, runtimes, roles and actions are actions Coding calls as itself (R8 batches 3 and 4).
   host.registerAction(agent.createSession, () => ({ runtime_id: "prologue", session_id: `sdk-${++sdkSessions}` }));
   host.registerAction(agent.startRun, (_runtime, [, input]) => {
     starts.push(structuredClone(input));
@@ -116,7 +116,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     store, artifacts, processItems, projectId: DEMO_PROJECT_ID, actorId: "web-user",
     capabilities: host.client(ref), homeDirectory: root,
     escapeHtml: value => String(value), translate: value => value,
-  }, codingRouteHooks)).catch(error => { const refused = actionErrorResponse(error); response.writeHead(refused.status); response.end(JSON.stringify(refused.body)); }); });
+  }, filesOutputsRefresh)).catch(error => { const refused = actionErrorResponse(error); response.writeHead(refused.status); response.end(JSON.stringify(refused.body)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (path: string, method = "GET", body?: unknown) => {

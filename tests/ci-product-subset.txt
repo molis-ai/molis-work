@@ -470,3 +470,5 @@ tests/security-invariants-knowledge-lifecycle.test.ts
 tests/canonical-json-value.test.ts
 # W5-06 PRR-12: every shown plugin's stage page is drawn once, from the Manifest view that opens it.
 tests/declared-stages.test.ts
+# W5-06 RAC-75～78: view placement declarations are checked by the SDK and read by the rail, settings, creates and starts.
+tests/view-placement-declarations.test.ts

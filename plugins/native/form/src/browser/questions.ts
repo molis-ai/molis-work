@@ -10,7 +10,7 @@ export const questionsFromDom = (page: FormPage) => [...page.questionsEl.querySe
   const options = usesOptions(type)
     ? [...row.querySelectorAll<HTMLInputElement>("[data-option-label]")].map((input, optionIndex) => ({
       id: input.dataset.optionId || "",
-      label: input.value.trim() || page.L("选项") + " " + (optionIndex + 1),
+      label: input.value.trim() || page.L("form.option.word") + " " + (optionIndex + 1),
     }))
     : undefined;
   return {
@@ -30,11 +30,11 @@ export const addOptionRow = (page: FormPage, container: Element, option?: Partia
   input.dataset.optionLabel = "true";
   input.dataset.optionId = option?.id || crypto.randomUUID();
   input.value = option?.label || "";
-  input.placeholder = L("选项");
+  input.placeholder = L("form.option.word");
   const remove = make("button", "mw-btn mw-btn--ghost mw-btn--icon-only");
   remove.type = "button";
   remove.dataset.optionRemove = "true";
-  remove.setAttribute("aria-label", L("删选项"));
+  remove.setAttribute("aria-label", L("form.option.remove"));
   remove.innerHTML = icon("icon-x");
   row.append(input, remove);
   container.append(row);
@@ -47,7 +47,7 @@ export const fillOptions = (page: FormPage, row: Element, type: string | undefin
   const box = make("div", "form-option-list");
   const source = options && options.length ? options : [{ label: "" }, { label: "" }];
   source.forEach((option) => addOptionRow(page, box, option));
-  const add = make("button", "mw-btn mw-btn--ghost", page.L("加选项"));
+  const add = make("button", "mw-btn mw-btn--ghost", page.L("form.option.add"));
   add.type = "button";
   add.dataset.optionAdd = "true";
   optionsEl.append(box, add);
@@ -60,22 +60,22 @@ export const renderQuestion = (page: FormPage, question: FormQuestionInput) => {
   row.dataset.questionId = question.id;
   row.innerHTML = '<input class="mw-input" data-question-title autocomplete="off">'
     + '<select class="mw-select" data-question-type>'
-    + '<option value="text">' + L("填空") + '</option>'
-    + '<option value="singleChoice">' + L("单选") + '</option>'
-    + '<option value="multiChoice">' + L("多选") + '</option>'
-    + '<option value="dropdown">' + L("下拉") + '</option>'
-    + '<option value="rating">' + L("评分") + '</option>'
-    + '<option value="date">' + L("日期") + '</option>'
+    + '<option value="text">' + L("form.type.text") + '</option>'
+    + '<option value="singleChoice">' + L("form.type.single") + '</option>'
+    + '<option value="multiChoice">' + L("form.type.multi") + '</option>'
+    + '<option value="dropdown">' + L("form.type.dropdown") + '</option>'
+    + '<option value="rating">' + L("form.type.rating") + '</option>'
+    + '<option value="date">' + L("form.type.date") + '</option>'
     + '</select>'
-    + '<label class="mw-check-row"><input class="mw-check" type="checkbox" data-question-required><span>' + L("必填") + '</span></label>'
+    + '<label class="mw-check-row"><input class="mw-check" type="checkbox" data-question-required><span>' + L("form.question.required") + '</span></label>'
     + '<span class="form-question-move">'
-    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="-1" aria-label="' + L("上移") + '">' + icon("icon-chevron-up") + '</button>'
-    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="1" aria-label="' + L("下移") + '">' + icon("icon-chevron-down") + '</button>'
+    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="-1" aria-label="' + L("form.question.up") + '">' + icon("icon-chevron-up") + '</button>'
+    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="1" aria-label="' + L("form.question.down") + '">' + icon("icon-chevron-down") + '</button>'
     + '</span>'
-    + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-question-remove aria-label="' + L("删题") + '">' + icon("icon-x") + '</button>'
+    + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-question-remove aria-label="' + L("form.question.remove") + '">' + icon("icon-x") + '</button>'
     + '<div class="form-question-options" data-question-options></div>';
   const title = row.querySelector<HTMLInputElement>("[data-question-title]")!;
-  title.placeholder = L("题目");
+  title.placeholder = L("form.question.title-placeholder");
   title.value = question.title || "";
   row.querySelector<HTMLSelectElement>("[data-question-type]")!.value = question.type || "text";
   row.querySelector<HTMLInputElement>("[data-question-required]")!.checked = Boolean(question.required);

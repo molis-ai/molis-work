@@ -1,3 +1,4 @@
+import type { InteractionValues } from "@molis-ai/molis-work-design-system";
 import { errorMessage } from "../dom.js";
 import { terminal } from "./composer-state.js";
 import type { HostInteraction } from "./host.js";
@@ -88,7 +89,7 @@ function refuse(asking: Asking, client: HostInteraction, error: unknown) {
   const locked = closed || !answerable(card);
   lock(card, locked);
   if (locked && s.current === id && page.lifetime.visible && card.isConnected && (card.contains(at) || at === document.body)) toInput(page);
-  const details = error !== null && typeof error === "object" && "body" in error ? (error.body as { details?: { errors?: unknown } } | null)?.details : undefined;
+  const details = error !== null && typeof error === "object" && "body" in error ? (error.body as { details?: { errors?: Record<string, string> } } | null)?.details : undefined;
   if (details?.errors) client.showErrors(details.errors, { focus: true });
 }
 
@@ -111,7 +112,7 @@ function bind(page: Page, card: QuestionCard, key: string, run: QuestionRun, que
     onSubmit: () => submit(asking),
   });
   const saved = s.questionDrafts.get(id)?.[key];
-  if (saved && typeof saved === "object") asking.client.write(saved as Record<string, unknown>);
+  if (saved && typeof saved === "object") asking.client.write(saved as InteractionValues);
 }
 
 /** The card for a waiting question: kept while its definition is the same, drawn again when the definition changed. */

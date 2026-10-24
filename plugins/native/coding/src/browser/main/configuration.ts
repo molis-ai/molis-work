@@ -17,7 +17,7 @@ export function applyConfiguration(page: Page) {
   const config = s.configurations.get(s.current), models = q<HTMLSelectElement>("[data-coding-model]");
   models.querySelector("[data-unavailable]")?.remove();
   if (config) {
-    q<HTMLSelectElement>("[data-coding-intent]").value = config.intent;
+    q<HTMLSelectElement>("[data-coding-intent]").value = config.intent ?? "";
     const value = config.provider_id && config.model_id ? JSON.stringify([config.provider_id, config.model_id]) : "";
     if (![...models.options].some(option => option.value === value)) {
       const unavailable = el("option", L("coding.model.unavailable"));
@@ -26,7 +26,7 @@ export function applyConfiguration(page: Page) {
       models.append(unavailable);
     }
     models.value = value;
-    s.workspaceId = config.workspace_id;
+    s.workspaceId = config.workspace_id ?? "";
     composerModels.apply(config);
   }
   const workspace = s.state.workspaces?.find(item => item.workspace_id === s.workspaceId);

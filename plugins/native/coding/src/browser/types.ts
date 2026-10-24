@@ -62,5 +62,5 @@ export interface FailureExplanation { readonly title: string; readonly hint: str
 /** The page's timeline (src/timeline.ts): how it draws one run's steps, and what it says about a failure. */
 export interface TimelineApi {
   renderGroup(target: HTMLElement, activity: readonly unknown[], run: { readonly ref: { readonly run_id: string }; readonly phase: string; readonly activity: readonly unknown[] }, live: boolean): unknown;
-  explainFailure?(error: string): FailureExplanation | undefined;
+  explainFailure?(error: string): FailureExplanation | null;
 }

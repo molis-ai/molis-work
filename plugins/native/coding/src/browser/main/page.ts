@@ -49,7 +49,7 @@ export interface State {
   checkpointLoading: boolean;
   /** The composer and what sets the next round (each a button by the box opening a dialog of that name). */
   choosers: readonly string[];
-  configurations: Map<string, SessionConfiguration | undefined>;
+  configurations: Map<string, Partial<SessionConfiguration> | undefined>;
   creating: boolean;
   creatingCharacterSession: boolean;
   current: string;

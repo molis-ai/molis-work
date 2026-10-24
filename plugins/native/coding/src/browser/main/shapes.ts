@@ -32,6 +32,7 @@ export interface GoalChoice {
       readonly goal_event_cursor: number | string;
     };
   };
+  readonly reference: { readonly artifact_id: string; readonly version?: number };
   readonly material: { readonly text: string };
 }
 
@@ -324,7 +325,7 @@ export interface ProgressPreview {
   readonly title: string;
   readonly reference: { readonly artifact_id: string; readonly version: number };
   readonly report_goal: { readonly goal_id: string; readonly title: string; readonly goal_event_cursor: number | string; readonly agreement_version: number };
-  readonly current?: {
+  current?: {
     readonly goal: GoalFacts;
     readonly state: {
       readonly agreement: { readonly version: number; readonly outcome?: string };
@@ -333,7 +334,7 @@ export interface ProgressPreview {
       readonly goal_event_cursor: number | string;
     };
   } | null;
-  readonly recorded?: { readonly progress_summary: { readonly summary: string; readonly next_step?: string; readonly recorded_at: string } } | null;
+  recorded?: { readonly progress_summary: { readonly summary: string; readonly next_step?: string; readonly recorded_at: string } } | null;
 }
 
 /** The progress dialog's reading: which report it is for and what the Host said. */

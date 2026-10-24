@@ -27,7 +27,7 @@ export interface CardNode extends HTMLElement { ix?: UiPageInteraction; ixBase?:
 
 export interface ActionPorts extends PagePorts {
   /** The actions each session's next run is given. */
-  readonly selections: Map<string, ActionRef[]>;
+  readonly selections: Map<string, readonly ActionRef[]>;
   readonly save: (id: string) => Promise<unknown>;
   readonly controls: () => void;
   readonly interaction: (node: HTMLElement, options: { onAction: (action: string) => Promise<void> }) => UiPageInteraction;
@@ -56,7 +56,7 @@ export function actionsClient(ports: ActionPorts) {
       return;
     const id = current(), request = ++ticket;
     session = id;
-    chosen = structuredClone(selections.get(id) || []);
+    chosen = structuredClone(selections.get(id) || []) as ActionRef[];
     list.textContent = L('coding.actions.reading');
     error.textContent = '';
     submit.disabled = true;

@@ -23,7 +23,7 @@ export interface CharacterPorts extends PagePorts {
   /** The Character each session's next round names, and the title it was picked under. */
   readonly selections: Map<string, CharacterRef | null>;
   readonly titles: Map<string, string>;
-  readonly skillSelections: Map<string, string[]>;
+  readonly skillSelections: Map<string, readonly string[]>;
   /** Saves the session's choices for its next round. */
   readonly save: (id: string) => Promise<unknown>;
   /** Redraws the composer's controls after a choice changed. */

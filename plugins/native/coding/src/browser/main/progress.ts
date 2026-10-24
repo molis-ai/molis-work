@@ -6,7 +6,7 @@ import { api, sessionPath } from "./request.js";
 import type { ProgressPreview } from "./shapes.js";
 
 /** The words the person wrote for the progress record, kept in this browser until it is saved. */
-const progressDraftKey = (page: Page, id: string, runId: string) => draftKey(page, id) + ":report-progress:" + runId;
+export const progressDraftKey = (page: Page, id: string, runId: string) => draftKey(page, id) + ":report-progress:" + runId;
 
 export function rememberProgressDraft(page: Page) {
   const { q } = page, view = page.s.progressView;

@@ -1,3 +1,4 @@
+import type { InteractionClient, InteractionClientHost } from "@molis-ai/molis-work-design-system";
 import type { ReceiptActions } from "../input-receipts.js";
 import type { Lifetime, ReceiptLinks, ShowReviews, Translate } from "../types.js";
 
@@ -10,18 +11,7 @@ export interface HostReceipts extends ReceiptLinks {
 }
 
 /** A card made interactive by the Host (the shared question card): what it holds, and how to close it. */
-export interface HostInteraction {
-  read(): Record<string, unknown> | null;
-  write(values: Record<string, unknown>): void;
-  destroy(): void;
-  showErrors(errors: unknown, options?: { focus?: boolean }): void;
-}
-
-export interface InteractionOptions {
-  onSubmit?: () => void | Promise<void>;
-  onAction?: () => void;
-  onChange?: () => void;
-}
+export type HostInteraction = InteractionClient;
 
 /** What the workbench gives Coding's page (`host`): navigation, the shared receipts and reviews, and the page's own requests. */
 export interface CodingHost {
@@ -39,7 +29,7 @@ export interface CodingHost {
   openBeside?(kind: string, id?: string, title?: string): void;
   revealTask?(): void;
   receipts: HostReceipts;
-  interaction(card: Element, options: InteractionOptions): HostInteraction;
+  interaction(card: HTMLElement, options: InteractionClientHost): HostInteraction;
   selectWorkspace(id: string): Promise<void>;
   addWorkspace(path: string): Promise<{ readonly workspace_id: string }>;
   confirm(question: string): Promise<boolean>;

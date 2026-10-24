@@ -2,7 +2,8 @@
 
 更新：2026-10-24 03:00Z（本会话 = 评审问题巡查/修复派单会话；合并职责已交本地 Codex 统筹，见 CODEX-TASKS.md §0、MERGE-QUEUE.md 头）
 
-## 本轮变化（03:24Z 更新）
+## 本轮变化（03:40Z 更新）
+- **#1141 同步完成**（review-fix-owner）：head `034056a26`，MERGEABLE、非 draft；`git diff origin/main` 只剩本 PR 2 文件；page-assets/health/boundary/secrets 全过；CI 40056614086 pending。请评审方把 #1141 与 #1125/#1128/#1135 一起排一轮。
 - 统筹 README 02:25/03:10 已给结论：**#1126、#1127 经统筹一轮评审「可合」**（#1126 的两处隐患登记 R-39/BL-540、R-40/BL-541）；**#1127 已由 Codex 入队**（group run 40056527855 排队中）。**#1125/#1128 仍无评审结论**，请统筹补派一轮。
 - CI 分诊（ci-failure-owner 恢复）：main `585b15979` 无红；batch-24-19（head ee4418881）queued 待跑；batch-18 旧头唯一红仍是 `tests/onboarding-goals-actions.test.ts`（#1147 线，Codex 不抢）；#1159 仅非必需 Security 2/2 红（`tests/plugin-page-reviews.e2e.test.ts` SYS-15-U10，环境 flake）。
 
@@ -20,7 +21,7 @@
 | #1128 | `f26d7f8b8` | 翻译门禁盲区文档（#958） | CLEAN、非草稿 |
 | #1126 | `34fb9eb99` | #955 startedAt + #928 英文 TaskBoard；隐患已登记 R-39/BL-540、R-40/BL-541 | 统筹一轮可合；等 Codex 入队 |
 | #1127 | `d461fb954` | #1018 link 通道 + #1090 flake；plugin-frame.js +263B 放行待认可；改安全不变量（条件 4 看两片 Security） | 统筹一轮可合；已由 Codex 入队（group 40056527855） |
-| #1141 | `034056a26` | #902 Todo 批量菜单语义；机械同步 head（03:02Z 再合 main） | CI run 40056614086 pending |
+| #1141 | `034056a26` | #902 Todo 批量菜单语义；机械同步完成（三合 main，ui.ts 取 main 稳定键，语义不变；diff 只剩 2 文件 +71/−1） | ready/MERGEABLE；CI run 40056614086 pending；本机 21 files 20 过（`tests/todo-from-inbox.e2e.test.ts` 首跑 Lingguang note 20.5s 超时、重跑 11.4s 过，判 flake 与本改动无关） |
 | #1114 | `11649e983` | 复审报告汇总（合同 v2→v3、28B 放行等） | 已同步，CI run 40056381607 排队；diff 18 文件 +153/−30 |
 | #1135 | `0460783c1` | tests-only VUX 审计（#894/#900/#902/#911） | draft；是否转 ready 请裁定 |
 

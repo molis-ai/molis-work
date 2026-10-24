@@ -12,6 +12,9 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 
+> **最新实际状态（12:08UTC，覆盖下列旧快照）**：#1206于11:59:44Z真merge c6093a2e9c412181846d94ee1a5cd037680684b3，8固定源头祖先fa52与landing=受测2ca树1ff5f00已核、Claude已八条关闭，full27b全16+汇总success，merge-group40091732268/Verify成功，QUEUE移§3。#1209新远端e20e68f0af2e519c333feb50fb062958cf7f22b7普通push成功，6files+90/-5，REVIEW6384019404增量PASS，两mustfix作者真实红绿/58项+门禁0，独立TEST有限复验待齐；旧dbec红不抹。C2已明确source release，**C1已实际RESUME**原两spec/test暂存188、baseline与base645继续RAC114有界片，不为Git传输/审验空占源。之后FIX1 ACA005确认P1按本节root已批generation/v3实施，再FIX2 W5 source（1206真依赖已满足；不等ACA005审验/CI/merge才接独立片）。C2完整后续不缩小。full28两原始红分别1207取消发现期未执行诊断（原ac-kernel修）及S63正文引号被S20误收（Claude批writer纯docs最小改），不串到ACA005，不连坐已合1206。
+
+
 > **当前源排程（11:48UTC）**：#1209/dbec被独立REVIEW6383768725及TEST6383805807确认为P1空正文密文毒化vault预检+P2 BOM精确恢复失败，旧storage/full申请6383768403已6383787655公开hold等新头。C1已明确RELEASE且再确认，spec36行+newtest152行两份暂存未提交保留在原c1-uninstall-inspection/HEAD645，production未改、无运行；**原C2已经START唯一源写短修**，修后新固定head/raw DIRECT复审验并release即返C1续RAC114，不重做准备。新增ACA005已实证P1由FIX1接续，依赖本C2短修与C1有界收口；普通文档nonblock/W5长同步按优先级其后，W5仍需1206真merge，owner不变、不新chat/第二writer/重复full。此条覆盖下方11:38 C1在写的旧快照。
 
 ### ACA005 accepted WO：在途Search最终披露前核原精确授权（确认P1，实际owner FIX1）

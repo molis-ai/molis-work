@@ -2052,3 +2052,9 @@ Assistant 界面资源批准与聚合（2026-10-25）：用户明确批准本片
 结论仅为这两个夹具的导航交错已获真实Chrome受控红绿与原整文件工程验证。没有确定Memory产品回归证据，亦不将原重试通过归因环境；Linux全量和最终#1101仍由统筹重新验证。恢复/purge提案继续暂停，本刀不改SDK/vendor/锁、共享harness、产品、API/Action、CI或资源额度，不触真实Home/付费模型。
 
 最终diff检查通过，仅上述3文件；27项实际资源与准确702b构建逐项相同，新增0 B（`/private/tmp/molis-memory-settings-ci-fix-assets-20261025.json`对原`molis-assistant-archive-ui-final-assets-20261025.json`）。不重新登记原已批准的Workbench +4,064 B。机器build/browser槽均free，所有临时探针仅在/tmp、正式回归未启用。
+
+### #1101 接入已验基础 batch-33（2026-10-25，实施前）
+
+从应用整合 `21c549d3a` 合入基础 `82bb6aae8`，继续已有分类管理、生命周期和可信原件合同，不新增产品范围。三方冲突限定于公开 Action 合同、host 动作快照、资源两文件和本 spec：保留应用三个读取动作 @3、Session lifecycle @1，同时接入主干 runtimes@2 与 Runtime/Character 声明；SDK100 与应用的冻结分类策略、原决定重试、导航修复及 Assistant 归档界面保持。自动合并的装配、适配器与 Coding 入口按实际调用链复核，不以无文本冲突代替正确性。
+
+资源额度只迁移原已批准净增：相对新基础仍为 Workbench +32,890 B、Coding +570 B、settings/workbench CSS 各 +680 B；本轮不借主干变化增加额度。先解冲并核真实公开合同、类型和实际产物，再与在途的项目删除恢复及 Coding 恢复合并验证；各自独立回归按原合同保留，统一在 #1101 交付，不另开小 PR。最终 CI/全量、未解释的首败与工程/产品/用户验收边界继续保留。基础 #1064 的新 CI 与应用集成并行，合并顺序仍是基础先、应用后。

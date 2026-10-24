@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, artifactsActions as a, type ArtifactImportResult } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, artifactsActions as a, type ArtifactImportResult } from "@molis-ai/molis-work-module-artifacts";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";

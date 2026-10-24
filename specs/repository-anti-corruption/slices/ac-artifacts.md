@@ -1,6 +1,8 @@
 # ac-artifacts：成果库去插件身份，成为平台事实的主人（设计稿）
 
-状态：设计稿，等统筹审定（2026-10-24）；只写设计，不改代码。A3 之后的实现片要等 #1098（动 `manifest.ts`）合入。
+状态：设计稿已审定，A1、A2a（客户端与 owner 操作）已随 batch-27 落地；A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）2026-10-24 开发完成，等评审。A3 之后的实现片要等 ac-registry 的 PG-024 片。
+
+A2b 的取舍（受「插件不能 import 模块」限制，插件在 A6 删除前仍要自己的 Manifest 与登记）：模块持有完整的 `artifact-actions.ts`（动作清单加处理器）、`artifact-provider.ts`（`ARTIFACTS_PROVIDER`：id、名称、版本、签名）及其依赖；插件只留动作清单（`actions.ts`）、`browser-view.ts`（页面视图类型与版本路径）、Home 存储登记与项目删除清理（`original-store.ts`）和界面。两份清单与提供方字段由 `tests/plugin-artifact-schemas.test.ts` 对照（RAC-414），A6 删插件时重复随之消失。
 
 验收编号：RAC-410～429。待办号：BL-575～584。安全不变量先写 S-69、S-70（main 现最大 S-58，在途到 S-68），合入时由统筹核连续。管 `privileges.md` 的 PG-077、PG-078、PG-079、PG-096、PG-097、PG-107；与 PG-060（W5-06）、PG-085（Characters 进 `modules/characters`）、PG-090、PG-001（ac-trust 的提供方身份）的衔接写在 §3.9。本片不改 `privileges.md` 状态列。
 

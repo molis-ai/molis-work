@@ -79,6 +79,11 @@ export interface PluginHostServices {
    * any other table, a schema step or a pragma is refused (specs/plugin-project-database).
    */
   readonly project_database?: import("./plugin-database.js").PluginDatabase;
+  /**
+   * The same tables for a plugin the Host runs outside its own process (`execution: "sandbox"`): the host entry that carries the
+   * plugin's code gets this in place of `project_database`, so its statements run in a process the controller can kill.
+   */
+  readonly project_statements?: import("./plugin-database.js").PluginProjectStatements;
   /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
   readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
   /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */

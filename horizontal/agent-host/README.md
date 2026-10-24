@@ -43,6 +43,8 @@ adapter 只报告事实并执行已批准的工作。
 
 Host 可注入版本化 `memory.promotion`，Adapter 将候选、来源、正式变更与 App 历史回执转换为纯 AgentHost DTO，只有这里依赖 SDK 类型。`decide` 只读返回 promote/hold；`undo.prepare` 保存当前操作的准备，`undo.record` 以 SDK 已提交的 canonical entry 补历史及撤销身份。回调首参只能来自当前 `withCaller` 的独立调用上下文，或 SDK 请求对应的可信 Session owner；prepare/record 没有来源上下文时要求原调用绑定仍在，缺失即拒绝，不从模型参数恢复身份，不新建操作账。 App 的 prepare/record 写账也复用原调用的 `PrologueEffects`：异步身份解析和 `beforeEffect` 后紧邻写入核 `assertCurrent` 及本次 `signal`，任一等待中取消不再调用 App 写账；撤权后不能留下准备历史，正式已提交而补账被拒时沿原操作恢复。
 
+晋升 `promote` 与替换 `settleInto` 将各自本次 `input.signal` 显式传入现有 Memory effect 帧。`beforeEffect` 在纯调用授权等待前后检查取消，并只让这一段等待响应取消；监听在结束时移除，迟到授权拒绝被消费。等待解除后也不能续调 App prepare/record。此适配不竞速正式写入或整条晋升，不扩大其它 SDK authorizer 的取消承诺；提交前为安全固定的 `CANCELLED`，提交后仍由 SDK 返回原操作待补账事实。真实 Node 专项 `tests/prologue-memory-promotion.test.ts` 使用 durable reservation/commit 屏障，覆盖 create/replace、迟到 resolve/reject、原正文和版本保持及关闭重开后的原操作恢复。该专项属于工程验证，不代表真实 Home 或用户体验验收。
+
 SDK 仍拥有来源、权限、期限、取消与正式 CAS 门。App 的回执必须保持原 operation、候选原版本、policy/version 和实际 memory/version；Adapter 不伪造成功，也不证明 App 的历史事务已实际可撤销。已提交而 record 未完成时，SDK 的 `MEMORY_PROMOTION_RECORD_PENDING` 映为 `agent.memory_promotion_record_pending`（conflict），保留`operation_id` 与无正文 `committed: { memory_id, version }`，可用完整原请求重试，不能报成零写入。未装完整晋升实例仍不可用。
 
 分类限制依赖 SDK 最终授权 fence：App 在 `memory.assertCurrent` 同步核本次 target/before 的当前规则，可信 caller 使用各自调用/原 attempt 的 ALS 帧，不借另一个 Run 的最新快照。它只能收紧已完成的异步授权。Memory 专用 effect 帧将异步 `beforeEffect` 放在 authority 检查之前，最终 Host storage 包装只同步核执行令牌，避免分类检查后再等待；普通 Session/Run 写入和晋升 prepare/record 保留原完整门。真实 Node 在每次实际网络派发前执行该 fence；没有安装同步 App 检查时不承诺等待期间即时撤权。专项包含目标分类撤权后重启无候选及发送前关闭后零 HTTP；本片尚待新 SDK 包集成验证。

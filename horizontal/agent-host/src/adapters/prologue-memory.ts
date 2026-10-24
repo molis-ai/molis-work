@@ -38,11 +38,11 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
     return reference;
   };
   const facade = (caller?: AgentMemoryCaller, control?: AgentMemoryExecutionControl): AgentMemoryCapability => {
-    const call = <T>(work: (bound: Bound) => Promise<T>, formation?: AgentMemoryFormationContext, validateContext?: () => Promise<void>): Promise<T> => {
+    const call = <T>(work: (bound: Bound) => Promise<T>, formation?: AgentMemoryFormationContext, validateContext?: () => Promise<void>, signal?: AbortSignal): Promise<T> => {
       if (!caller) return Promise.reject(agentErrors.capability_unavailable("记忆调用缺少可信身份绑定"));
       return binding.run(caller, () => {
         const operation = () => work(runtime.bindMemory(binding.context(caller)));
-        return (control ? effects.memory(control, operation) : operation()).catch(error => {
+        return (control ? effects.memory(control, operation, signal) : operation()).catch(error => {
           if (isPrologueError(error) && error.code === "STORAGE_CONFLICT") throw agentErrors.memory_conflict("记忆已变化，请重新查看后再决定");
           throw memoryPromotionFailure(error);
         });
@@ -127,10 +127,10 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
           ...(input.text !== undefined ? { text: input.text } : {}), ...(input.origin !== undefined ? { origin: input.origin } : {}),
           ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}) }))),
         promote: input => call(async bound => memoryView(await bound.candidates.promote(await candidate(bound, input), { policy: input.policy, version: input.version }, mutation(input), {
-          ...(input.origin !== undefined ? { origin: input.origin } : {}), ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}) }))),
+          ...(input.origin !== undefined ? { origin: input.origin } : {}), ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}) })), undefined, undefined, input.signal),
         settleInto: input => call(async bound => memoryView(await bound.candidates.settleInto(await candidate(bound, input), {
           ref: await formal(bound, { ...input, memory_id: input.target.memory_id }), expectedVersion: input.target.expected_version, change: change(input.target.change),
-        }, input.by, mutation({ ...input, expected_version: input.candidate_expected_version })))),
+        }, input.by, mutation({ ...input, expected_version: input.candidate_expected_version }))), undefined, undefined, input.signal),
         discard: input => call(async bound => candidateView(await bound.candidates.discard(await candidate(bound, input), mutation(input)))),
         expire: input => call(async bound => candidateView(await bound.candidates.expire(await candidate(bound, input), mutation(input)))),
         purge: input => call(async bound => bound.candidates.purge(await candidate(bound, input), mutation(input))),

@@ -4,7 +4,7 @@ import { ensureSystemAgentService } from "./system-agent-service.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalsActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
+import { goalEntryActions, readGoalResumeFacts } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { createMcpRuntimeContextHandlers, createMcpContextPresenter, handleMcpMessage,
   MCP_SERVER_INFO as SERVER_INFO,
   createActionMcpPorts, isPlatformMcpTool, isRuntimeContextMcpTool, molisWorkActionToolName,
@@ -77,7 +77,7 @@ export class LocalMcpServer {
         connection: this.connectionState,
         createError: createPresentationError,
         contextSignal: () => this.transportLifetime.signal,
-        readGuidance: async () => (await this.contextActions()).invoke(goalsActions.guidanceRead, {}),
+        readGuidance: async () => (await this.contextActions()).invoke(goalEntryActions.guidanceRead, {}),
         readResumeFacts: async (_connection, focusGoalIds) => readGoalResumeFacts(await this.contextActions(), focusGoalIds),
       }),
     });

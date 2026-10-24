@@ -1986,3 +1986,17 @@ node scripts/check-secrets.mjs --base 817aa497b
 最终必要权限修复在聚合验证（2026-10-25）：按序接f204facbd为22414f4d4、40d916464为bcb5b988d，只spec交接追加冲突保留双方；231不重复，产品8文件原样。真实SDK返回后同步复核原authority.assertBeforeStart与required assertCanSchedule复用既有控制口，原enqueue/tick/remove未改；红例与owner四文件结果见上文，不以旧12文件绿色代替新交错。整体build一次exit0（19.27s），最终仅三文件assistant-work-lifecycle17、assistant-thread-reply4、assistant-followups-collaborator5，共3/3文件26/26例、jobs2/retries0通过；无新browser变化，复用刚完成的12文件113例与原owner有效证据。
 
 最终根/LocalHost包类型、准确93b health、boundary、API/Action实际生成、资源及完整分支secrets/diff均exit0；API/Action unchanged，SDK100/锁与三read@3/start@2不变，资源仍新父7,641,839→7,672,595及原四项净增长。最新索引`/private/tmp/molis-memory-p0-aggregate-20261025-build-final-authority.results.json`、`-final-authority-delta.results.json`、`-final-authority-gates.results.json`；相邻同stem日志保留实际命令与结果。源码候选仅本地提交，未push/新PR/关闭Draft，完整共享全量及PR处置由统筹负责。此前MEM-SOURCE-01未知首败、完整项目删除和上述维护/purge边界继续保留，不宣称P0全部完成或用户验收通过。
+
+### M4 后继：正常项目删除的固定计划与恢复（MEM-PROJECT-DELETE，2026-10-25，实施前短合同）
+
+准确基点为聚合 `dd97576b70700f5f8ca5dbbd10ad4b3cd5ad4180`。本片在独立工作树完成原 §8.3、M4 项目删除承诺，最终并回同一个管理大 PR；不是新增产品功能，也不据正常删除通过宣称 MEM-40 的旧 Home 采用完成。用户从现 ProjectDeletionService 确认删除后，必须能观察原收据的 complete 或明确 pending；SDK、App 或文件清理中断后只继续该收据保存的原目标、版本和决定，不重新扫描生成新删除决定。
+
+顺序与写主人：在当前项目及安装绑定仍存在时关闭该项目的新 Session/Run/Memory 形成入口，由既有业务 owner 和 AgentHost index 主人取得可信归属。Session 固定项只含 exact ref、project/plugin/install/actor、必要父 Run 关系及原 lifecycle decision/preview；Memory 固定项只含 scope/owner/ref/version、真正 session-bound 归属及必要来源事件引用，不含正文。原 Catalog `project_deletions` 收据保存这些必要恢复计划；不建第二张账本、全局 registry 或通用依赖图。Memory 主人先持久抑制原来源、删除固定 formal/candidate（包括原墓碑）、清理原 ledger 投影；全部必要 Memory 步骤确认后才由 AgentHost 按原决定 purge Session。随后业务 owner 删除副本，最后移除 Catalog 绑定及暂存目录。任一步失败保留未完成项、原绑定及所需目录，已完成原事实不补偿、不冒充零写。
+
+权限：项目删除只接受入口提供的当前本人，恢复只认持久原收据，不从请求读 owner。Catalog 已退出后，现删除专用上下文仅能管理读取及删除该计划范围；个人记忆只允许 canonical Session 绑定命中固定集合，纯 source/evidence 引用不是绑定，不级联删除。当前取消、撤权、Host 关闭及最终提交检查沿现 effect/control；未知状态、预留候选、缺 owner 或原版本改变保持 pending，不把普通 list 空解释为穷尽。来源抑制必须经过 ledger 范围收尾及重启仍存在，不能被 marker_keys 一并删除。
+
+完整性边界：业务 UI 列表排除 archived 或有条数上限，不能直接作为删除清单。AgentHost 原 index 可补内部按项目枚举可信 owner 的窄口，捕获 SDK 创建成功但业务绑定失败的 Session；不新增 SDK API、SDK 全局扫描或猜测归属。子 Session 只按 SDK 已持久的公开父 Run/Session 关系核对，项目集合清理与单 Session purge 保持不同语义，不把单 Session purge 偷改为递归。无 index 子 Session 的公开关系、重启可恢复性及授权落点先核实；无法证明的旧残留必须明确 pending 并交既有停写维护，不自动补造归属。`previewAdoptionCleanup` 不进入在线链，旧无计划孤儿及 MEM-40 继续待验。
+
+允许修改：本 spec；`apps/local-host/src/project-deletion-service.ts`、`managed-project-deletion.ts`、现 project-deleted hooks/owners/runtime、Catalog 及 Memory 装配/删除策略；`modules/projects` 的原收据存储/合同；`horizontal/memory` 的固定清理、来源抑制与必要端口及 `packages/storage` 原 ledger；`horizontal/agent-host` 现 index、lifecycle、effect admission 与必要内部端口；Coding/Assistant 业务 owner 的完整读取和删除接线；上述包 README、必要现 public Contract/生成快照及真实行为测试。AssistantService 的 UI list 区域由并行 owner 修改，本片不碰。不得改 SDK/vendor/lock、UI、CI/脚本/门禁规则/资源额度、真实 Home；无新的服务/数据表/registry/后台常驻任务。现存库形状如需变化先在对应 owner Contract 声明并按现无兼容期规则更新版本，不增加隐式迁移。
+
+验证按实际调用链：真实 SDK100、Node/SQLite 与公开 Host/HTTP 入口覆盖包含归档的多业务 Session、绑定失败原 Session、可证明的子 Session、项目/Character 及限定个人 Session 记忆和墓碑；保留其它项目/个人非绑定记忆和纯引用记忆。故障覆盖计划提交前零 purge、Memory 写后 ledger 失败、SDK Session 已 purge 而 App 保存失败、业务/目录失败，关闭重开及原收据重试保持同一目标/版本/operation。交错覆盖形成/开始与删除、撤权/取消以及候选 reserved，核持久副作用、来源重放拒绝和未完成目录/绑定。缺 owner/旧无计划或不可证明残留必须 pending，不能作为已清空或 MEM-40 通过。仅跑 README 必需影响面和这些直接故障/恢复回归，固定 Node24.14.0/pnpm11.9、jobs2/browser1/retries0，构建/浏览器遵守机器槽；原首败保留。此段仅为实施合同，尚无实现或通过证据。

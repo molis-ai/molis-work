@@ -50,6 +50,7 @@ export interface PluginAttentionClient {
   join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginAttentionWriter) => T): T;
 }
 
+/** The key of an edge starts with the plugin's id and a dot; a key outside that namespace is refused with `plugin.storage_denied`. */
 export interface PluginContextLedgerWriter {
   put(input: ContextEdgeInput): ContextEdge;
   remove(key: string, cause: string, recordedAt?: string): ContextEdge | null;

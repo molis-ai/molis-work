@@ -42,7 +42,10 @@ export interface PluginJournalEvent {
   readonly at: string;
 }
 
-/** An event to append. The project is the library's, never the plugin's to name; `actorId` must be the original caller's (see `PluginJournalWriter`). */
+/**
+ * An event to append. The project is the library's, never the plugin's to name; `actorId` must be the original caller's (see `PluginJournalWriter`);
+ * `type` and `objectType` start with the plugin's id and a dot, the namespace the event bus gives it.
+ */
 export interface PluginJournalAppend {
   readonly eventId: string;
   readonly actorId: string;
@@ -68,7 +71,10 @@ export interface PluginIdempotencyPut {
   readonly at: string;
 }
 
-/** What a read of the journal shows: this project's events, newest first, and where its log ends. */
+/**
+ * What a read of the journal shows: the plugin's own events of this project (`type` starting with its id and a dot), newest first, and
+ * where they end; `eventCursor` of an object type asks for one of its own and is refused otherwise (`plugin.storage_denied`).
+ */
 export interface PluginJournalReader {
   eventCursor(objectType?: string): number;
   readEventsDescending(): PluginJournalEvent[];
@@ -79,7 +85,8 @@ export interface PluginJournalReader {
  * the same SQLite transaction as the plugin's own rows, or not at all. Every call asks the grants (`PROJECT_JOURNAL_PERMISSION`) and
  * the original caller again, like a statement does, so a call cancelled or revoked before it writes nothing here either (S-63).
  * The actor of an event or a record is the actor of the call the plugin runs in (its `actor_id` or `audit_actor_id`); outside every
- * call, the one the Host runs the project's plugins as. Any other actor is refused.
+ * call, the one the Host runs the project's plugins as. Any other actor is refused. The names it writes are its own: an event's `type` and
+ * `objectType` and an idempotency `operation` start with the plugin's id and a dot, and any other is refused with `plugin.storage_denied`.
  */
 export interface PluginJournalWriter extends PluginJournalReader {
   appendEvent(input: PluginJournalAppend): number;

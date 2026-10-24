@@ -10,6 +10,7 @@ import { AttentionModule, type AttentionSqliteDatabase } from "@molis-ai/molis-w
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import type { ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
+import { assertOwnName, ownsName } from "./plugin-namespace.js";
 import { joinPluginTransaction } from "./plugin-transaction.js";
 
 /**
@@ -113,26 +114,29 @@ export function pluginAttentionFor(manifest: PluginManifest, context: PluginStar
 /**
  * `services.contextLedger`: this project's reference edges. Reads need `context-ledger:read`, writes `context-ledger:write` and join the
  * plugin's current project transaction with the same questions as `services.attention`. The scope is always this project and the actor
- * of an edge is the one the call runs for; a plugin names neither.
+ * of an edge is the one the call runs for; a plugin names neither. The key of an edge starts with the plugin's id (`plugin-namespace.ts`):
+ * a plugin writes, removes and reads the edges of its own namespace, a key outside it is refused (`plugin.storage_denied`), and a list
+ * shows its own edges only. What an edge refers to is any object of the project; the key is what says who the edge is the plugin's.
  */
 export function pluginContextLedgerFor(manifest: PluginManifest, context: PluginStartContext, database: PluginProjectDatabase | undefined, ports: PluginProjectServicePorts,
   assertActive: () => void, record: () => PluginInstanceRecord | null): PluginContextLedgerClient | undefined {
   const connection = ports.connection;
   if (!database || !connection || !("transaction" in connection) || typeof connection.transaction !== "function"
     || !declared(manifest, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION) && !declared(manifest, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION)) return undefined;
-  const projectId = ports.project_id, gate = gateFor(context, projectId, assertActive, record);
+  const projectId = ports.project_id, gate = gateFor(context, projectId, assertActive, record), pluginId = manifest.plugin_id;
+  const own = (key: string) => { assertOwnName(pluginId, "关联边的 key", key); return key; };
   const ledger = createContextLedger(connection as ContextLedgerDatabase, { authorize: access => access.scope.kind === "personal" && access.scope.id === projectId, initializeSchema: false });
   const access = (scope: Scope) => ({ actor_id: actorOf(scope, ports.actor_id), scope: { kind: "personal" as const, id: projectId } });
   return Object.freeze<PluginContextLedgerClient>({
-    get: key => ledger.query.get(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), key),
-    list: query => ledger.query.list(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), query),
-    history: key => ledger.query.history(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), key),
+    get: key => ledger.query.get(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), own(key)),
+    list: query => ledger.query.list(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), query).filter(edge => ownsName(pluginId, edge.key)),
+    history: key => ledger.query.history(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), own(key)),
     join: (transaction, write) => joinPluginTransaction(database, transaction, (_afterCommit, live) => {
       const permit = () => { live(); return access(gate.write(PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION)); };
       permit();
       return write(Object.freeze<PluginContextLedgerWriter>({
-        put: input => ledger.commands.put(permit(), input),
-        remove: (key, cause, recordedAt) => ledger.commands.remove(permit(), key, cause, recordedAt),
+        put: input => ledger.commands.put(permit(), { ...input, key: own(input.key) }),
+        remove: (key, cause, recordedAt) => ledger.commands.remove(permit(), own(key), cause, recordedAt),
       }));
     }),
   });

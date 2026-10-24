@@ -27,26 +27,29 @@ const FAILURES = ["revoke", "cancel", "replace"] as const;
 
 const ref = (id: string) => ({ module: "plugins" as const, id, version: null, scope: { kind: "personal" as const, id: DEMO_PROJECT_ID }, project_id: DEMO_PROJECT_ID, object_type: "probe" });
 
-/** One call of the two services as a plugin makes it, inside its transaction (writes) or beside it (reads). */
-function call(services: PluginHostServices, tx: PluginProjectDatabaseTransaction, which: Call, name: string, subject = "goal_decision"): unknown {
+/** The key of the edge a probe writes for `name`: in its own namespace, the plugin id and a dot first. */
+const keyOf = (id: string, name: string) => `${id}.edge-${name}`;
+
+/** One call of the two services as a plugin makes it, inside its transaction (writes) or beside it (reads); `key` says which edge a ledger call is about. */
+function call(id: string, services: PluginHostServices, tx: PluginProjectDatabaseTransaction, which: Call, name: string, subject = "goal_decision", key = keyOf(id, name)): unknown {
   const attention = services.attention!, ledger = services.contextLedger!;
   const type = subject as "goal_decision";
   switch (which) {
     case "create": return attention.join(tx, w => w.create({ subject_type: type, subject_id: name, reason: "goal_decision", detail: { name } }));
     case "setStatus": return attention.join(tx, w => w.setStatus("none", "in_progress"));
     case "deleteSubject": return attention.join(tx, w => w.deleteSubject(type, name));
-    case "put": return ledger.join(tx, w => w.put({ key: `edge-${name}`, type: "probe.refers", source: ref(name), target: ref(`${name}-target`), cause: "测试" }));
-    case "remove": return ledger.join(tx, w => w.remove(`edge-${name}`, "测试"));
+    case "put": return ledger.join(tx, w => w.put({ key, type: "probe.refers", source: ref(name), target: ref(`${name}-target`), cause: "测试" }));
+    case "remove": return ledger.join(tx, w => w.remove(key, "测试"));
     case "list": return attention.list();
     case "get": return attention.get("none");
     case "events": return attention.events();
     case "ledgerList": return ledger.list();
-    case "ledgerGet": return ledger.get(`edge-${name}`);
-    default: return ledger.history(`edge-${name}`);
+    case "ledgerGet": return ledger.get(key);
+    default: return ledger.history(key);
   }
 }
 
-interface ProbeInput { readonly name: string; readonly step: string; readonly which?: Call; readonly subject?: string }
+interface ProbeInput { readonly name: string; readonly step: string; readonly which?: Call; readonly subject?: string; readonly key?: string }
 
 /** A plugin that exists only for the test, with a table of its own in the project's library; `grants` are the permissions it asks for. */
 function probe(short: string, grants: readonly string[], subjects: readonly string[], peer?: () => PluginHostServices, actionPermissions?: readonly string[]) {
@@ -58,7 +61,7 @@ function probe(short: string, grants: readonly string[], subjects: readonly stri
   const act: ActionDefinition<ProbeInput, boolean> = { capability_id: `${id}.act`, version: 1, operation: "command", action: { scope: "project", audiences: ["user"],
     permissions: [write, ...(actionPermissions ?? grants)], subject_kinds: [], scheduling: "concurrent", title: "写一项并记注意力", description: "写一项并记注意力", kind: "operation",
     input_schema: { type: "object", additionalProperties: false, required: ["name", "step"], properties: { name: { type: "string" }, step: { type: "string" },
-      which: { type: "string" }, subject: { type: "string" } } }, output_schema: { type: "boolean" } } };
+      which: { type: "string" }, subject: { type: "string" }, key: { type: "string" } } }, output_schema: { type: "boolean" } } };
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", read, write, ...grants].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
@@ -71,26 +74,26 @@ function probe(short: string, grants: readonly string[], subjects: readonly stri
     return { kind: "app", views: [], actions: [{ ...act, handle: async (_caller, raw) => {
       const input = raw as ProbeInput, own = context.services!, database = own.project_database!;
       const held = () => { gate.entered.resolve(); return gate.release.promise; };
-      const both = (tx: PluginProjectDatabaseTransaction) => { insert(tx, input.name); for (const which of ["create", "put"] as const) call(own, tx, which, input.name); };
+      const both = (tx: PluginProjectDatabaseTransaction) => { insert(tx, input.name); for (const which of ["create", "put"] as const) call(id, own, tx, which, input.name); };
       if (input.step === "wait") await database.transaction(held, both);
       else if (input.step === "both") await database.transaction(async () => {}, both);
       else if (input.step === "mid") {
         // The caller changes inside the write body, between the plugin's own statement and the service call.
         await database.transaction(async () => {}, tx => {
           insert(tx, input.name); gate.hook();
-          try { call(own, tx, input.which!, input.name, input.subject); gate.inner = "allowed"; } catch (error) { gate.inner = error; throw error; }
+          try { call(id, own, tx, input.which!, input.name, input.subject, input.key); gate.inner = "allowed"; } catch (error) { gate.inner = error; throw error; }
         });
-      } else if (input.step === "plain") await database.transaction(async () => {}, tx => { insert(tx, input.name); call(own, tx, input.which!, input.name, input.subject); });
+      } else if (input.step === "plain") await database.transaction(async () => {}, tx => { insert(tx, input.name); call(id, own, tx, input.which!, input.name, input.subject, input.key); });
       else if (input.step === "retain") {
         let kept: PluginProjectDatabaseTransaction | undefined;
         await database.transaction(async () => {}, tx => { kept = tx; });
-        call(own, kept!, input.which!, input.name);
+        call(id, own, kept!, input.which!, input.name);
       } else if (input.step === "leave") {
-        gate.left = gate.release.promise.then(() => database.transaction(async () => {}, tx => { call(own, tx, "create", input.name); }));
+        gate.left = gate.release.promise.then(() => database.transaction(async () => {}, tx => { call(id, own, tx, "create", input.name); }));
       } else if (input.step === "borrow") {
-        await peer!().project_database!.transaction(async () => {}, tx => { call(peer!(), tx, "create", input.name); });
+        await peer!().project_database!.transaction(async () => {}, tx => { call(id, peer!(), tx, "create", input.name); });
       } else if (input.step === "foreign") {
-        await database.transaction(async () => {}, tx => { insert(tx, input.name); own.contextLedger!.join(tx, w => w.put({ key: `edge-${input.name}`, type: "probe.refers",
+        await database.transaction(async () => {}, tx => { insert(tx, input.name); own.contextLedger!.join(tx, w => w.put({ key: keyOf(id, input.name), type: "probe.refers",
           source: { ...ref(input.name), scope: { kind: "personal", id: "another-project" } }, target: ref(`${input.name}-target`), cause: "测试" })); });
       } else if (input.step === "twice") {
         // Two writes of one join; the caller changes between them, so the second must ask again.
@@ -98,9 +101,9 @@ function probe(short: string, grants: readonly string[], subjects: readonly stri
           insert(tx, input.name);
           const second = `${input.name}-second`;
           if (input.which === "put") own.contextLedger!.join(tx, w => {
-            w.put({ key: `edge-${input.name}`, type: "probe.refers", source: ref(input.name), target: ref(`${input.name}-target`), cause: "测试" });
+            w.put({ key: keyOf(id, input.name), type: "probe.refers", source: ref(input.name), target: ref(`${input.name}-target`), cause: "测试" });
             gate.hook();
-            try { w.put({ key: `edge-${second}`, type: "probe.refers", source: ref(second), target: ref(`${second}-target`), cause: "测试" }); gate.inner = "allowed"; } catch (error) { gate.inner = error; throw error; }
+            try { w.put({ key: keyOf(id, second), type: "probe.refers", source: ref(second), target: ref(`${second}-target`), cause: "测试" }); gate.inner = "allowed"; } catch (error) { gate.inner = error; throw error; }
           });
           else own.attention!.join(tx, w => {
             w.create({ subject_type: "goal_decision", subject_id: input.name, reason: "goal_decision" });
@@ -149,7 +152,7 @@ async function platform(t: TestContext) {
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
   const entry = (name: string) => store.db.prepare("SELECT project_id, status, reason FROM inbox_entries WHERE subject_id = ?").get(name) as
     { project_id: string; status: string; reason: string } | undefined;
-  const edge = (name: string) => store.db.prepare("SELECT actor_id FROM context_edges WHERE edge_key = ?").get(`edge-${name}`) as { actor_id: string } | undefined;
+  const edge = (name: string) => store.db.prepare("SELECT actor_id FROM context_edges WHERE edge_key LIKE ?").get(`%.edge-${name}`) as { actor_id: string } | undefined;
   const events = (name: string) => store.db.prepare("SELECT actor_id, type, project_id FROM events WHERE object_type = 'inbox_entry' AND json_extract(payload_json, '$.subject_id') = ? ORDER BY seq")
     .all(name) as Array<{ actor_id: string; type: string; project_id: string }>;
   /** Nothing of this name in the plugin's table, the entries, the edges or the events. */
@@ -301,10 +304,10 @@ test("S-64 the edge of the ledger is written for the caller in this project; a r
   assert.equal(await client.invoke(caller(permissionsOf(main), { audit_actor_id: "author" }).context, main.act, { name: "audited", step: "both" }), true);
   assert.equal(edge("audited")?.actor_id, "author", "the recorded author of the call");
   const ledger = main.services().contextLedger!;
-  assert.equal(ledger.get("edge-audited")?.state, "active");
-  assert.equal(ledger.list({ type: "probe.refers" }).some(item => item.key === "edge-audited"), true);
-  assert.equal(ledger.history("edge-audited").length, 1);
-  await assert.rejects(main.services().project_database!.transaction(async () => {}, tx => ledger.join(tx, w => w.put({ key: "edge-outside", type: "probe.refers",
+  assert.equal(ledger.get(keyOf(main.id, "audited"))?.state, "active");
+  assert.equal(ledger.list({ type: "probe.refers" }).some(item => item.key === keyOf(main.id, "audited")), true);
+  assert.equal(ledger.history(keyOf(main.id, "audited")).length, 1);
+  await assert.rejects(main.services().project_database!.transaction(async () => {}, tx => ledger.join(tx, w => w.put({ key: keyOf(main.id, "outside"), type: "probe.refers",
     source: ref("outside"), target: ref("outside-target"), cause: "测试" }))), { code: "actions.forbidden" }, "outside every action nothing is writable");
   main.reset();
   await assert.rejects(client.invoke(caller(permissionsOf(main)).context, main.act, { name: "foreign", step: "foreign" }), { code: "context_ledger.scope_mismatch" });
@@ -340,4 +343,31 @@ test("S-64 a Manifest declares attention subjects only with attention:write, onl
   assert.throws(() => parse([A_WRITE], { subjects: ["goal_decision", "goal_decision"] }), /重复/);
   assert.throws(() => parse([A_WRITE], { subjects: [] }), /至少/);
   assert.throws(() => parse([A_WRITE], { subjects: ["goal_decision"], other: 1 }), /不认/);
+});
+
+// RAC-281
+test("S-64 the key of an edge is the plugin's own: a key outside <plugin_id>. is refused to put, remove and read, a list shows the plugin's edges only, and the other plugin's edge is as it was", async t => {
+  const { client, main, peer, edge, noted } = await platform(t);
+  for (const [who, name] of [[peer, "theirs"], [main, "mine"]] as const) {
+    who.reset();
+    assert.equal(await client.invoke(caller(permissionsOf(who)).context, who.act, { name, step: "both" }), true);
+  }
+  const theirs = keyOf(peer.id, "theirs"), mine = keyOf(main.id, "mine");
+  const outsides = [theirs, "edge-bare", `${main.id}-x.edge`, main.id];
+  for (const which of ["put", "remove", "ledgerGet", "history"] as const) {
+    for (const [index, key] of outsides.entries()) {
+      main.reset();
+      const name = `outside-${which}-${index}`;
+      await assert.rejects(client.invoke(caller(permissionsOf(main)).context, main.act, { name, step: "plain", which, key }), { code: "plugin.storage_denied" }, `${which} ${key}`);
+      assert.equal(edge(name), undefined, `${which} ${key}: no edge of this name was written`);
+      assert.equal(noted(main.short, name), false, `${which} ${key}: refused with the plugin's row of the same transaction`);
+    }
+  }
+  const ledger = main.services().contextLedger!;
+  assert.deepEqual(ledger.list().map(item => item.key), [mine], "a list shows this plugin's edges only");
+  assert.deepEqual(peer.services().contextLedger!.list().map(item => item.key), [theirs]);
+  assert.throws(() => ledger.get(theirs), { code: "plugin.storage_denied" });
+  assert.throws(() => ledger.history(theirs), { code: "plugin.storage_denied" });
+  assert.equal(peer.services().contextLedger!.get(theirs)?.state, "active", "the other plugin's edge is as it was");
+  assert.equal(peer.services().contextLedger!.history(theirs).length, 1);
 });

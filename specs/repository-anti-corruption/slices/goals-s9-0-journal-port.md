@@ -33,7 +33,7 @@ Goals 搬进 Plugin Runtime 之后，它的动作仍要写项目的 `events`（�
 
 ## 4. 不做、留给 S9
 
-- 事件类型与对象类型的命名空间：现有事件类型是不带前缀的词（`board.created`），不能在不迁移数据的前提下要求插件只写自己前缀的事件。所以 `journal:project` 是一项要明示授予的高权限，授予它的插件能写项目日志里任何类型的事件（行为人仍不能伪造）。S9 把 Goals 的事件类型登记成 Manifest 声明后，再按声明收紧（需先经用户确认，因为会改合同）。
+- 事件类型与对象类型的命名空间：统筹 10-23 裁定不能留到以后，由 S9-0b 做完（`goals-s9-0b-attention-ledger-services.md` 的 RAC-280）：事件的 `type`、`objectType` 和幂等 `operation` 必须以 `<plugin_id>.` 开头。现有的事件类型（`board.created` 一类不带前缀的词）因此不能由插件写；Goals 迁入 Runtime 时，S9 要把它的事件类型改成带前缀的，已有的事件行与读它们的地方要一并迁移（先写进保留机制、经用户确认）。
 - 沙箱桥转发 `journal`：沙箱里的插件目前没有；有需要时在桥上加。
 - Governance 的事件仍由 `modules/governance` 经 `LocalSqliteJournal` 写，不经这个端口。
 - Goals 本体的迁移（S9 三个 PR）与 PG-087 的注意力、上下文账本服务（S9-0b）。

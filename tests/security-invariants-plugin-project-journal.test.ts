@@ -24,19 +24,19 @@ const METHODS: readonly Method[] = ["appendEvent", "putIdempotency", "getIdempot
 const WRITES: readonly Method[] = ["appendEvent", "putIdempotency"];
 const FAILURES = ["revoke", "cancel", "replace"] as const;
 
-/** One call of the journal as a plugin makes it, on the transaction's handle. `extra` is what a plugin might add to the event to name its own project. */
-function journalCall(tx: PluginProjectDatabaseTransaction, method: Method, actor: string, name: string, extra: Record<string, unknown> = {}): unknown {
+/** One call of the journal as a plugin makes it, on the transaction's handle, with the names of namespace `ns`. `extra` is what a plugin might add to name its own project or other names. */
+function journalCall(ns: string, tx: PluginProjectDatabaseTransaction, method: Method, actor: string, name: string, extra: Record<string, unknown> = {}): unknown {
   switch (method) {
-    case "appendEvent": return tx.journal.appendEvent({ eventId: `ev-${name}`, actorId: actor, type: "probe.noted", objectType: "probe", objectId: name,
+    case "appendEvent": return tx.journal.appendEvent({ eventId: `ev-${name}`, actorId: actor, type: `${ns}.noted`, objectType: `${ns}.probe`, objectId: name,
       reason: "测试", payload: { name }, at: AT, ...extra });
-    case "putIdempotency": return tx.journal.putIdempotency({ actorId: actor, operation: "probe.note", key: name, requestHash: "hash", outcome: { name }, at: AT });
-    case "getIdempotency": return tx.journal.getIdempotency(actor, "probe.note", name);
+    case "putIdempotency": return tx.journal.putIdempotency({ actorId: actor, operation: `${ns}.note`, key: name, requestHash: "hash", outcome: { name }, at: AT, ...extra });
+    case "getIdempotency": return tx.journal.getIdempotency(actor, typeof extra.operation === "string" ? extra.operation : `${ns}.note`, name);
     case "eventCursor": return tx.journal.eventCursor();
     default: return tx.journal.readEventsDescending();
   }
 }
 
-interface ProbeInput { readonly name: string; readonly step: string; readonly method?: Method; readonly actor?: string; readonly project?: string }
+interface ProbeInput { readonly name: string; readonly step: string; readonly method?: Method; readonly actor?: string; readonly project?: string; readonly ns?: string; readonly names?: Record<string, unknown> }
 
 /** A plugin that exists only for the test, with a table of its own in the project's library; `journal` says whether it asks for the journal permission. */
 function probe(short: string, journal: boolean, peer?: () => PluginHostServices) {
@@ -48,7 +48,7 @@ function probe(short: string, journal: boolean, peer?: () => PluginHostServices)
   const act: ActionDefinition<ProbeInput, boolean> = { capability_id: `${id}.act`, version: 1, operation: "command", action: { scope: "project", audiences: ["user"],
     permissions: [write], subject_kinds: [], scheduling: "concurrent", title: "写一项并记日志", description: "写一项并记日志", kind: "operation",
     input_schema: { type: "object", additionalProperties: false, required: ["name", "step"], properties: { name: { type: "string" }, step: { type: "string" },
-      method: { type: "string" }, actor: { type: "string" }, project: { type: "string" } } }, output_schema: { type: "boolean" } } };
+      method: { type: "string" }, actor: { type: "string" }, project: { type: "string" }, ns: { type: "string" }, names: { type: "object" } } }, output_schema: { type: "boolean" } } };
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", read, write, ...(journal ? [JOURNAL] : [])].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
@@ -59,30 +59,30 @@ function probe(short: string, journal: boolean, peer?: () => PluginHostServices)
     services = context.services;
     return { kind: "app", views: [], actions: [{ ...act, handle: async (caller, raw) => {
       const input = raw as ProbeInput, database = context.services!.project_database!, who = input.actor ?? caller.actor_id;
-      const extra = input.project ? { projectId: input.project } : {};
+      const extra = { ...(input.project ? { projectId: input.project } : {}), ...(input.names ?? {}) }, ns = input.ns ?? id;
       const held = () => { gate.entered.resolve(); return gate.release.promise; };
       if (input.step === "write") {
         // The plugin's own rows and the journal's in one transaction, after a wait that is the test's to end.
-        await database.transaction(held, tx => { insert(tx, input.name); for (const method of WRITES) journalCall(tx, method, who, input.name, extra); });
+        await database.transaction(held, tx => { insert(tx, input.name); for (const method of WRITES) journalCall(ns, tx, method, who, input.name, extra); });
       } else if (input.step === "both") {
-        await database.transaction(async () => {}, tx => { insert(tx, input.name); for (const method of WRITES) journalCall(tx, method, who, input.name, extra); });
+        await database.transaction(async () => {}, tx => { insert(tx, input.name); for (const method of WRITES) journalCall(ns, tx, method, who, input.name, extra); });
       } else if (input.step === "mid") {
         // The caller changes inside the write body, between the plugin's own statement and the journal call.
         await database.transaction(async () => {}, tx => {
           insert(tx, input.name); gate.hook();
           // What the journal call itself says, before the transaction's own check at COMMIT could refuse it for the same reason.
-          try { journalCall(tx, input.method!, who, input.name); gate.inner = "allowed"; } catch (error) { gate.inner = error; throw error; }
+          try { journalCall(ns, tx, input.method!, who, input.name); gate.inner = "allowed"; } catch (error) { gate.inner = error; throw error; }
         });
       } else if (input.step === "retain") {
         let kept: PluginProjectDatabaseTransaction | undefined;
         await database.transaction(async () => {}, tx => { kept = tx; });
-        journalCall(kept!, input.method!, who, input.name);
+        journalCall(ns, kept!, input.method!, who, input.name);
       } else if (input.step === "leave") {
-        gate.left = gate.release.promise.then(() => database.transaction(async () => {}, tx => { journalCall(tx, "appendEvent", who, input.name); }));
+        gate.left = gate.release.promise.then(() => database.transaction(async () => {}, tx => { journalCall(ns, tx, "appendEvent", who, input.name); }));
       } else if (input.step === "borrow") {
-        await peer!().project_database!.transaction(async () => {}, tx => { journalCall(tx, "appendEvent", who, input.name); });
+        await peer!().project_database!.transaction(async () => {}, tx => { journalCall(ns, tx, "appendEvent", who, input.name); });
       } else if (input.step === "plain") {
-        await database.transaction(async () => {}, tx => { insert(tx, input.name); journalCall(tx, input.method!, who, input.name); });
+        await database.transaction(async () => {}, tx => { insert(tx, input.name); journalCall(ns, tx, input.method!, who, input.name, extra); });
       }
       return true;
     } }] };
@@ -113,7 +113,7 @@ async function platform(t: TestContext) {
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
   const event = (name: string) => store.db.prepare("SELECT seq, project_id, actor_id, type, object_id FROM events WHERE event_id = ?").get(`ev-${name}`) as
     { seq: number; project_id: string; actor_id: string; type: string; object_id: string } | undefined;
-  const record = (name: string) => store.db.prepare("SELECT project_id, actor_id, request_hash FROM idempotency_records WHERE operation = 'probe.note' AND idempotency_key = ?")
+  const record = (name: string) => store.db.prepare("SELECT project_id, actor_id, request_hash FROM idempotency_records WHERE idempotency_key = ?")
     .get(name) as { project_id: string; actor_id: string; request_hash: string } | undefined;
   /** Nothing of this name in the plugin's table, the events or the idempotency records. */
   const nothing = (short: string, name: string) => !noted(short, name) && event(name) === undefined && record(name) === undefined;
@@ -197,7 +197,7 @@ test("S-63 a handle kept past its transaction, and work an action leaves running
 test("S-63 a journal reached through one installation refuses inside another installation's action", async t => {
   const { client, main, peer, nothing } = await platform(t);
   peer.reset();
-  await assert.rejects(client.invoke(caller(peer.write).context, peer.act, { name: "borrowed", step: "borrow" }), { code: "actions.forbidden" });
+  await assert.rejects(client.invoke(caller(peer.write).context, peer.act, { name: "borrowed", step: "borrow", ns: main.id }), { code: "actions.forbidden" });
   assert.equal(nothing(main.short, "borrowed"), true, "the peer's action cannot write the main plugin's journal rows");
 });
 
@@ -236,9 +236,9 @@ test("S-63 the actor of a row is the action's caller or its recorded author; out
     assert.equal(nothing(main.short, name), true, `${method}: no row in another actor's name, and none of another actor's read`);
   }
   const services = main.services().project_database!;
-  await services.transaction(async () => {}, tx => journalCall(tx, "appendEvent", HOST_ACTOR, "outside"));
+  await services.transaction(async () => {}, tx => journalCall(main.id, tx, "appendEvent", HOST_ACTOR, "outside"));
   assert.equal(event("outside")?.actor_id, HOST_ACTOR);
-  await assert.rejects(services.transaction(async () => {}, tx => journalCall(tx, "appendEvent", OWNER, "outside-forged")), { code: "actions.forbidden" });
+  await assert.rejects(services.transaction(async () => {}, tx => journalCall(main.id, tx, "appendEvent", OWNER, "outside-forged")), { code: "actions.forbidden" });
   assert.equal(event("outside-forged"), undefined, "outside every action the caller's actor is nobody's to claim");
 });
 
@@ -252,8 +252,8 @@ test("S-63 the project of a row is the library's: an event naming another projec
   assert.equal(seen[0]?.object_id, "mine", "the newest event is first");
   assert.equal(seen.every(item => typeof item.event_id === "string"), true);
   assert.equal(journal.eventCursor(), seen[0]?.seq);
-  assert.equal(journal.eventCursor("probe"), seen[0]?.seq, "the cursor of one object type");
-  assert.equal(journal.eventCursor("no-such-type"), 0);
+  assert.equal(journal.eventCursor(`${main.id}.probe`), seen[0]?.seq, "the cursor of one object type");
+  assert.equal(journal.eventCursor(`${main.id}.no-such-type`), 0);
 });
 
 // RAC-271
@@ -266,4 +266,50 @@ test("S-63 a journal write joins the plugin's transaction: an idempotency record
   await assert.rejects(client.invoke(caller(main.write).context, main.act, { name: "twice", step: "plain", method: "putIdempotency" }));
   assert.equal(noted(main.short, "twice"), true, "the first call's row stays");
   assert.equal(Number(main.services().project_database!.all("SELECT count(*) AS n FROM journalmain_notes")[0]!.n), 1, "the second call's row did not stay");
+});
+
+// RAC-280
+test("S-63 the names of a row are the plugin's own: an event type, an object type or an idempotency operation outside <plugin_id>. is refused to write, and another plugin's operation to read, and nothing stays", async t => {
+  const { client, main, peer, nothing, record } = await platform(t);
+  assert.equal(await client.invoke(caller(peer.write).context, peer.act, { name: "theirs", step: "plain", method: "putIdempotency" }), true);
+  assert.equal(record("theirs")?.request_hash, "hash", "the peer's record is in its own namespace");
+  const outsides = ["probe.noted", `${peer.id}.noted`, `${main.id}-x.noted`, main.id];
+  const cases: ReadonlyArray<readonly [Method, string]> = [["appendEvent", "type"], ["appendEvent", "objectType"], ["putIdempotency", "operation"], ["getIdempotency", "operation"]];
+  for (const [method, field] of cases) {
+    for (const [index, outside] of outsides.entries()) {
+      main.reset();
+      const name = `outside-${method}-${field}-${index}`;
+      await assert.rejects(client.invoke(caller(main.write).context, main.act, { name, step: "plain", method, names: { [field]: outside } }),
+        { code: "plugin.storage_denied" }, `${method}.${field} = ${outside}`);
+      assert.equal(nothing(main.short, name), true, `${method}.${field} = ${outside}: refused, and the plugin's row of the same transaction went with it`);
+    }
+  }
+  for (const method of ["putIdempotency", "getIdempotency"] as const) {
+    main.reset();
+    await assert.rejects(client.invoke(caller(main.write).context, main.act, { name: "theirs", step: "plain", method, names: { operation: `${peer.id}.note` } }),
+      { code: "plugin.storage_denied" }, `${method}: another plugin's operation is neither claimed nor read`);
+  }
+  assert.equal(record("theirs")?.request_hash, "hash", "the peer's record is as it was");
+});
+
+// RAC-282
+test("S-63 what a plugin reads of the log is its own namespace's: other plugins' and the platform's events are not shown, and the cursor of an object type outside it is refused", async t => {
+  const { client, main, peer, event } = await platform(t);
+  assert.equal(await client.invoke(caller(main.write).context, main.act, { name: "mine", step: "plain", method: "appendEvent" }), true);
+  peer.reset();
+  assert.equal(await client.invoke(caller(peer.write).context, peer.act, { name: "theirs", step: "plain", method: "appendEvent" }), true);
+  assert.notEqual(event("theirs"), undefined, "the peer's event is in the project's log");
+  const journal = main.services().project_database!.journal;
+  const seen = journal.readEventsDescending();
+  assert.deepEqual(seen.map(item => item.object_id), ["mine"], "only the plugin's own events, though the log holds the peer's and the platform's");
+  assert.equal(seen.every(item => item.type.startsWith(`${main.id}.`)), true);
+  assert.equal(journal.eventCursor(), seen[0]?.seq, "where the plugin's own events end, not the log's end");
+  assert.ok(peer.services().project_database!.journal.eventCursor() > journal.eventCursor(), "the peer's own cursor is later: the log's end is not the plugin's to see");
+  for (const objectType of [`${peer.id}.probe`, "probe", "goal", main.id]) {
+    assert.throws(() => journal.eventCursor(objectType), { code: "plugin.storage_denied" }, `the cursor of ${objectType}`);
+  }
+  await main.services().project_database!.transaction(async () => {}, tx => {
+    assert.deepEqual(tx.journal.readEventsDescending().map(item => item.object_id), ["mine"], "the same through the write transaction's handle");
+    assert.throws(() => tx.journal.eventCursor(`${peer.id}.probe`), { code: "plugin.storage_denied" });
+  });
 });

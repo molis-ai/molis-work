@@ -8,6 +8,8 @@ import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 // closes, nothing mocked). Before, the failure was swallowed: the drop wheel went back without a word, and an action's
 // "on the bar" toggle failed in silence.
 
+// A save whose request was dropped may or may not have been done: the page's request helper says so, as it does on every page.
+const LOST_WRITE = "不知道这次操作有没有完成，请刷新后核对";
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test("VUX-31: a Shelf setting whose save fails goes back to what was saved and says so in its block", { timeout: 120_000 }, async (t) => {
@@ -29,12 +31,12 @@ test("VUX-31: a Shelf setting whose save fails goes back to what was saved and s
   await failNextSave(`document.querySelector('${wheel}').click()`);
   assert.equal(await evaluate(`document.querySelector('${wheel}').checked`), before, "the switch goes back to what was saved");
   assert.equal(await evaluate(`document.querySelector('${wheel}').disabled`), false);
-  assert.deepEqual(await evaluate(alertIn(wheel)), { text: "无法保存 Shelf 设置", role: "alert" }, "the failure is said beside the switch");
+  assert.deepEqual(await evaluate(alertIn(wheel)), { text: LOST_WRITE, role: "alert" }, "the failure is said beside the switch");
 
   const toggle = "[data-shelf-action-visible]", pressed = await evaluate<string>(`document.querySelector('${toggle}').getAttribute('aria-pressed')`);
   await failNextSave(`document.querySelector('${toggle}').click()`);
   assert.equal(await evaluate(`document.querySelector('${toggle}').getAttribute('aria-pressed')`), pressed, "the action keeps what was saved");
-  assert.deepEqual(await evaluate(alertIn(toggle)), { text: "无法保存 Shelf 设置", role: "alert" }, "the failure is said in the actions' block");
+  assert.deepEqual(await evaluate(alertIn(toggle)), { text: LOST_WRITE, role: "alert" }, "the failure is said in the actions' block");
 
   // Trying again with the connection back saves it and the line goes.
   await evaluate(`document.querySelector('${wheel}').click()`);

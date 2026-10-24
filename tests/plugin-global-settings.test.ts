@@ -511,8 +511,8 @@ test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare 
   const parsed = parseSettingsWriteBody({ hotkeys: { toggle: { key_code: 14, carbon_modifiers: 6144 } } });
   assert.equal("ok" in parsed ? parsed.ok.hotkeys?.toggle?.key_code : null, 14);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf_apply_hotkeys/);
-  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /按下…/);
-  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /这个组合被占用。/);
+  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-recording/);
+  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-occupied/);
   assert.doesNotMatch(SHELF_SETTINGS_CLIENT_SCRIPT, /data-shelf-settings-tab/);
   const remapped = renderShelfSettings({
     settings: shelfSettings({

@@ -86,6 +86,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1146 | `fea1eb0ba` | 10-24 01:34 UTC |
 | #1132 | `1dedc1f5c` | 10-24 01:42 UTC |
 | #1158 | `8f3fa138c` | 10-24 02:44 UTC（统筹入队） |
+| #1156 | `dd7df26e4` | 10-24 02:46 UTC（统筹入队） |
 
-| 38 | [#1156](https://github.com/molis-ai/molis-work/pull/1156) | `ac-kernel` 平台片 BL-394：`releaseArtifact` 恢复出的定义在 start 时补 remember（RAC-330） | — | `full` 为空 | 头 `ed27d0413`；一轮可合；统筹 10-24 02:20 入队（唯一红的是非必需 Security 2/2 的 SYS-15-U10 flake，#1127 修） |
 | 39 | [#1157](https://github.com/molis-ai/molis-work/pull/1157) | `ac-sc3` SC-4b：清 SC-4 三项残留（BL-485 Codex 会话适配器、BL-486 `session_id`、BL-488 依赖） | **叠在 #1130 上**（第二层），#1130 合入后改投 main | `full` 非空（shared-core），进下一批 | 头 `782af05ed`；二轮可合；在 **batch-1024-19**（统筹起，10-24 03:35，run [40054696653](https://github.com/molis-ai/molis-work/actions/runs/40054696653)：main `aa4de404f` + #1157 `782af05ed`（含 #1130 `f7fb96ed6`）+ #1148 `2a8eec5d8`）；#1130 合入、改投 main 后合 |

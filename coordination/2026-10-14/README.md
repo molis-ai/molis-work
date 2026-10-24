@@ -3588,3 +3588,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24 03:40：用户停了合并 Agent，它的活由 Codex 接，统筹职责不变。接手清单写进 `CODEX-TASKS.md` §0，MERGE-QUEUE 开头同步改。
 - 10-24 03:55：`ac-sc3` 报：main 要求项目库 v9，真实 Home 是 v7，维护八整套未做（R-41）。窗口顺序定为：停 4207 → 备份 → 维护八 → W5-17 → S9 → 合两片 → 换 main → 启动；`ac-sc3` 先在拷贝上整条演练。S9 的列表裁定已落实（RAC-293）。agent-studio 的 upgrade consent 用例在 main 上也红，交 Codex 记进 known-red。
 - 10-24：#1158 合入（privileges.md 第 4 批）；PRIVILEGES-PENDING 清空已写的行；工作树 ac-priv4 与分支已删。
+- 10-24：#1156（BL-394）合入 `dd7df26e4`。

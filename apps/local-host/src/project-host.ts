@@ -5,12 +5,10 @@ import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } 
 import { homeActionProvider } from "./home-actions.js";
 import { workflowEventsFeedOptions } from "./workflow-feed-options.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
-import { SessionRuntimeService } from "./session-runtime-resources.js";
 import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
-import { workActionProvider } from "./work-actions.js";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
-import type { PtySpawnRequest, PtySpawnResult, RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 import { PersonalPlanningActions } from "./personal-planning-actions.js";
@@ -73,7 +71,6 @@ export interface MolisWorkLocalHostOptions {
   clock?: () => Date;
   instanceId?: string;
   homeDirectory?: string;
-  runtimeSessionTransport?: RuntimeSessionTransport;
   functions?: FunctionsHostOptions;
   alchemist?: AlchemistHostOptions;
   /** Shared text provider injection; null explicitly disables model completion. */
@@ -131,7 +128,6 @@ export class MolisWorkLocalHost {
   private readonly alchemist?: AlchemistHostService;
   private agents?: { home: string; service: AgentHostComposition };
   private readonly closing: { resources?: Promise<void>; attempt?: Promise<void> } = {};
-  private readonly sessions: SessionRuntimeService;
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
   /** System search over this Home's plugins; absent without a Home directory. */
@@ -147,7 +143,6 @@ export class MolisWorkLocalHost {
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
     if (options.homeDirectory) prepareMemoryHome(path.resolve(options.homeDirectory));
-    this.sessions = new SessionRuntimeService(options);
     this.personalPlanningHome = options.homeDirectory ? path.resolve(options.homeDirectory) : undefined;
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
@@ -171,13 +166,12 @@ export class MolisWorkLocalHost {
             bindPluginNotificationFeed(store.db, control => workflowEventsFeedOptions(scenes, reference.project_id, control));
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(goalsActionProvider(runtime, personalMethods, this.actionClient(reference)));
-            add(workActionProvider(reference.project_id, this.sessions, this.actionClient(reference)));
             add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
             add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read }, feed));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
-            if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.client(reference)));
+            if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
@@ -322,6 +316,14 @@ export class MolisWorkLocalHost {
       (caller, action, error) => refuseCall(this.settleAction, caller, action, error));
   }
 
+  /**
+   * The person at this computer's call context for one request, as a page makes it: what the Host registers itself by the person's
+   * own permissions, a Runtime plugin's actions by its running installation's grants. Make a new one per request.
+   */
+  localPersonContext(reference?: LocalHostProjectReference, signal?: AbortSignal): Promise<ActionCallContext> {
+    return localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS, signal);
+  }
+
   /** Local management inspects registered metadata without borrowing execution permissions. */
   /** Registered declarations only: no Runtime preparation, availability policy or execution authority. */
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectActionMetadata(caller, reference); }
@@ -381,9 +383,6 @@ export class MolisWorkLocalHost {
     return this.host.closeProject(referenceOrStorageKey);
   }
 
-  configureSessionRuntime(home: string, transport?: RuntimeSessionTransport): void { this.sessions.configure(home, transport); }
-  sessionResources() { return this.sessions.resources(); }
-
   close(): Promise<void> {
     return this.closing.attempt ??= settleHostClose(this.closing.resources ??= (async () => {
       releaseHomeSide(this);
@@ -393,7 +392,7 @@ export class MolisWorkLocalHost {
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();
-        try { await Promise.all([this.agents?.service.dispose(), this.sessions.close(), this.homePlugins?.close()]); }
+        try { await Promise.all([this.agents?.service.dispose(), this.homePlugins?.close()]); }
         finally { await this.webCatalog?.access.close(); }
       }
     })(), this.alchemist?.close()).catch(error => { this.closing.attempt = undefined; throw error; });

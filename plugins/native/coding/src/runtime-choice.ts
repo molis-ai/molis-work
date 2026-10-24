@@ -1,6 +1,7 @@
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, resolveProjectRuntime, type AgentRuntimeCapability, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { Capabilities } from "./route-activation.js";
 import { unlessMissing } from "./route-selections.js";
 
@@ -20,8 +21,8 @@ export const supports = (runtime: AgentRuntimeDescriptor, capability: AgentRunti
 /** The Runtime directory with the project's pick (null: the Home default), as every Runtime-bound step of the project reads them. */
 export interface RuntimeDirectory { readonly runtimes: readonly AgentRuntimeDescriptor[]; readonly picked: string | null }
 
-export async function runtimeDirectory(api: Capabilities): Promise<RuntimeDirectory> {
-  const runtimes = await api.invoke(agent.listRuntimes, []);
+export async function runtimeDirectory(actions: Pick<PluginActionClient, "invoke">, api: Capabilities): Promise<RuntimeDirectory> {
+  const runtimes = await actions.invoke(agent.listRuntimes, []);
   return { runtimes, picked: await unlessMissing(api.invoke(projectSettingsCapabilities.runtime, []), null) };
 }
 

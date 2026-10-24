@@ -19,7 +19,7 @@ import { diffViewText, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-v
 import { icon } from "@molis-ai/molis-work-design-system";
 import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const { L, clientI18nScript } = createWorkbenchLocale(() => "zh");
@@ -80,6 +80,51 @@ const state = (name: string) => name === "files" ? { workspace: { workspace_id: 
   : name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }
   : { html: '<p data-current>current fixed content</p>' };
 
+test("GITREF-01 GITREF-03 Git refresh keeps current row identity and focus, updates order and clears invalid scopes", { timeout: 30_000 }, async t => {
+  const view = (workspace: string, changes: string[], staged: string[] = []) => ({
+    ...state("git"), workspace: { workspace_id: workspace },
+    view: { phase: "ready", head: "current", conflicts: [], staged: staged.map(path => ({ path: [path], label: path })), changes: changes.map(path => ({ path: [path], label: path })) },
+  });
+  let revision = 1, current = view("ws", ["note.md"]);
+  const gates: Array<{ entered(): void; response: Promise<ReturnType<typeof view>> }> = [];
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+    const host={${companionHost}};window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+  `, path => {
+    if (path.endsWith("/view-revision")) return { revision: String(revision) };
+    if (path.endsWith("/summary")) return { summary: null, workspace: current.workspace };
+    if (path.endsWith("/reviews")) return { reviews: [], html: "", omitted: 0 };
+    if (path === "/git/state") { const gate = gates.shift(); gate?.entered(); return gate?.response ?? current; }
+    return state("git");
+  }); if (!f) return;
+  const { page } = f, ready = "!document.querySelector('[data-git-refresh]').disabled";
+  const refresh = () => {
+    const entered = Promise.withResolvers<void>(), response = Promise.withResolvers<ReturnType<typeof view>>();
+    gates.push({ entered: entered.resolve, response: response.promise });
+    t.after(() => response.resolve(current)); revision++;
+    return { entered: entered.promise, respond(value: ReturnType<typeof view>) { current = value; response.resolve(value); }, fail() { response.reject(new Error("controlled state read failure")); } };
+  };
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("document.querySelector('[data-git-path]') && " + ready);
+  await page.evaluate("window.savedRow=document.querySelector('[data-git-path]');savedRow.focus()");
+  const same = refresh(); await same.entered;
+  assert.equal(await page.evaluate("savedRow.isConnected"), true, "a pending state read keeps the real interaction target");
+  assert.equal(await page.evaluate("document.activeElement===savedRow"), true, "a background refresh keeps keyboard intent too");
+  same.respond(view("ws", ["note.md"], ["staged.md"])); await page.wait(ready);
+  assert.equal(await page.evaluate("savedRow.isConnected && [...document.querySelectorAll('[data-git-path]')].includes(savedRow)"), true, "the same key commits through the existing node");
+  assert.equal(await page.evaluate("document.activeElement===savedRow"), true);
+  assert.deepEqual(await page.evaluate("[...document.querySelectorAll('[data-git-path]')].map(row=>JSON.parse(row.dataset.gitPath))"), [[["staged.md"], "index"], [["note.md"], "worktree"]]);
+  const removed = refresh(); await removed.entered; removed.respond(view("ws", ["next.md"])); await page.wait(ready);
+  assert.equal(await page.evaluate("savedRow.isConnected"), false, "a genuinely removed path is not kept as an action target");
+  await page.evaluate("window.previousScopeRow=document.querySelector('[data-git-path]')");
+  const changed = refresh(); await changed.entered; changed.respond(view("ws-two", ["next.md"])); await page.wait(ready);
+  assert.equal(await page.evaluate("previousScopeRow.isConnected"), false, "an equal path in another workspace gets its own node");
+  assert.equal(await page.evaluate("document.querySelectorAll('[data-git-path]').length"), 1);
+  const failed = refresh(); await failed.entered; failed.fail(); await page.wait(ready);
+  assert.equal(await page.evaluate("document.querySelectorAll('[data-git-path]').length"), 0, "a refused state read cannot leave an old scope interactive");
+  assert.equal(await page.evaluate("document.querySelector('[data-git-history]').disabled"), true);
+  assert.deepEqual(await page.evaluate("errors"), []);
+});
+
 test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and repeated paths; refresh, reopen and late responses keep the chosen index", { timeout: 60_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "coding-fixed-diff-")), path = join(directory, "project.db");
   seedDemoBoard(path);
@@ -94,20 +139,22 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     receipt: { review_id: "review-" + index, status: "approved", effect_settled: true, effect_error: null },
   }));
   const privateValues = new Map<string, string>();
-  const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, actions: pluginActions(store, DEMO_PROJECT_ID),
+  // The fake Agent Host answers its actions (R8 batch 3) and the typed capabilities still left from one table.
+  const agentHost = withFakeAgentHost({ actions: pluginActions(store, DEMO_PROJECT_ID), capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
+    reads++; if (!readable) throw new Error("runtime unavailable after capture");
+    // Like a Host whose runtime has no task graph: Coding's wake loop ends here instead of retrying in the background
+    // (each retry would land on a later read, after the capture, when the run is slower than its 5 s back-off).
+    if (definition.capability_id === agent.awaitContinuations.capability_id) throw Object.assign(new Error("当前运行时没有等待与接续"), { code: "agent.capability_unavailable" });
+    if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
+    if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
+    if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
+    throw new Error("Unexpected capability " + definition.capability_id);
+  } } });
+  const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, actions: agentHost.actions,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }), ui: new UiHost(), home: null,
     privateStorageFor: () => ({ get: key => privateValues.get(key) ?? null, set: (key, value) => { privateValues.set(key, value); }, delete: key => privateValues.delete(key) }),
-    capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
-      reads++; if (!readable) throw new Error("runtime unavailable after capture");
-      // Like a Host whose runtime has no task graph: Coding's wake loop ends here instead of retrying in the background
-      // (each retry would land on a later read, after the capture, when the run is slower than its 5 s back-off).
-      if (definition.capability_id === agent.awaitContinuations.capability_id) throw Object.assign(new Error("当前运行时没有等待与接续"), { code: "agent.capability_unavailable" });
-      if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
-      if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
-      if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
-      throw new Error("Unexpected capability " + definition.capability_id);
-    } },
+    capabilities: agentHost.capabilities,
   });
   const started = await platform.start([{ definition: createCodingPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
   t.after(async () => { await platform.closeCoordination(); store.close(); await rm(directory, { recursive: true, force: true }); });

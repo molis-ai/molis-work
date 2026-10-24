@@ -50,7 +50,6 @@ tests/plugin-platform-composition.test.ts
 tests/project-plugins.test.ts
 tests/runtime-integration.test.ts
 tests/schedule-actions.test.ts
-tests/session-messages.test.ts
 tests/shelf-actions.test.ts
 tests/todo-plugin.test.ts
 tests/workspace-project-actions.test.ts
@@ -90,7 +89,8 @@ tests/assistant-answers.test.ts
 tests/assistant-attachments.test.ts
 tests/assistant-attention.test.ts
 tests/assistant-character.test.ts
-tests/assistant-coding-executor.test.ts
+tests/assistant-executor.test.ts
+tests/assistant-executor-product.test.ts
 tests/assistant-contributions.test.ts
 tests/assistant-delegation.test.ts
 tests/assistant-diagnostics.test.ts
@@ -328,16 +328,7 @@ tests/prologue-subagents.test.ts
 tests/prologue-taskboard.test.ts
 
 # session
-tests/session-adapters.test.ts
-tests/session-associations-atomic.test.ts
-tests/session-content-privacy.test.ts
-tests/session-content.test.ts
-tests/session-handoff-recovery.test.ts
-tests/session-project-actions.test.ts
 tests/session-project-binding-router.test.ts
-tests/session-registry.test.ts
-tests/session-resume.test.ts
-tests/session-tui-capture.test.ts
 
 # Other areas
 tests/alchemist-actions.test.ts
@@ -354,7 +345,6 @@ tests/capsule.test.ts
 tests/catalog-connectors.test.ts
 tests/chrome-inner-scroll.test.ts
 tests/cli-protocol.test.ts
-tests/codex-transport.test.ts
 tests/cognia-ai.test.ts
 tests/cognia-runtime.test.ts
 tests/cognia-workbench.test.ts
@@ -382,7 +372,6 @@ tests/git-plugin.test.ts
 tests/github-device-flow.test.ts
 tests/governance-collaboration-module.test.ts
 tests/governance-provenance.test.ts
-tests/handoff-ledger.test.ts
 tests/home-flow.test.ts
 tests/home-offer-actions.test.ts
 tests/host-inference-completion.test.ts
@@ -410,7 +399,6 @@ tests/planning-engine.test.ts
 tests/plugin-interaction-answer.test.ts
 tests/ppt-subject-kind.test.ts
 tests/primitives.test.ts
-tests/private-work-context-module.test.ts
 tests/projects-module.test.ts
 tests/question-rules-consistency.test.ts
 tests/prompt-registration.test.ts
@@ -447,13 +435,13 @@ tests/todo-organize.test.ts
 tests/typesafe-inference-port.test.ts
 tests/ui-audit-2026-09-22.test.ts
 tests/uninstall-catalog.test.ts
+tests/uninstall-receipt.test.ts
 tests/v1.test.ts
 tests/visual-foundation.test.ts
 tests/web-mutation-key-settle.test.ts
 tests/web-route-table.test.ts
 tests/web-service-settings-client.test.ts
 tests/work-placement.test.ts
-tests/work-session-ui.test.ts
 tests/work-terminal-client.test.ts
 tests/workbench-asset-cache.test.ts
 tests/served-script-text.test.ts
@@ -468,7 +456,6 @@ tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
 tests/workspace-production-events.test.ts
-tests/security-invariants-plugin-files.test.ts
 tests/security-invariants-plugin-background.test.ts
 tests/security-invariants-activation-jobs.test.ts
 
@@ -482,3 +469,8 @@ tests/security-invariants-knowledge-lifecycle.test.ts
 tests/canonical-json-value.test.ts
 # W5-06 PRR-12: every shown plugin's stage page is drawn once, from the Manifest view that opens it.
 tests/declared-stages.test.ts
+# W5-16 RAC-104: original Runtime configuration recovery and read-only credential preflight through production owners.
+tests/security-invariants-runtime-backups.test.ts
+tests/security-invariants-secret-snapshot.test.ts
+# W5-06 RAC-75～78: view placement declarations are checked by the SDK and read by the rail, settings, creates and starts.
+tests/view-placement-declarations.test.ts

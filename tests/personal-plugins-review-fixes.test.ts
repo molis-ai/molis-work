@@ -29,18 +29,17 @@ import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
 import {
-  DATASET_CLIENT_FACTORY_SCRIPT,
   datasetManifest,
 } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_CLIENT_FACTORY_SCRIPT, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
   pagesActions,
   pagesManifest,
 } from "@molis-ai/molis-work-plugin-pages";
-import { PPT_CLIENT_FACTORY_SCRIPT, pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
+import { pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { homeStores, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
@@ -95,10 +94,10 @@ async function listenDispatcher(
 
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
-  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
+  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "plugin-libraries", "assistant",
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
-    "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
+    "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
 });
 
@@ -113,6 +112,17 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
       await mkdir(dirname(file), { recursive: true });
       await writeFile(file, "personal-store\n");
     }
+    // The ledger of installed plugins' libraries is read at purge to name them (PG-022 P1b), so it is a real one, with a library in it.
+    const ledger = homeStores().get("plugin-libraries")!;
+    await rm(homeStores().libraryPath(home, ledger));
+    const ledgerDb = new DatabaseSync(homeStores().libraryPath(home, ledger));
+    ledgerDb.exec(ledger.library!.baseline.schema);
+    ledgerDb.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, ?)").run("example.installed", "signature", "installed-notes", "digest", "2026-10-24T00:00:00.000Z");
+    ledgerDb.close();
+    const installedLibrary = join(home, "installed-notes");
+    await mkdir(installedLibrary, { recursive: true });
+    await writeFile(join(installedLibrary, "installed-notes.db"), "an installed plugin's rows\n");
+    written.push(join(installedLibrary, "installed-notes.db"));
     const service = new MolisWorkUninstallService({
       homeDirectory: home,
       projects: {
@@ -138,6 +148,7 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
         `purge 计划要包含 ${store.path}`,
       );
     }
+    assert.ok(plan.changes.some((change) => change.target === installedLibrary), "purge 计划要包含装进来的插件的库");
     const result = await service.confirm({
       plan_id: plan.plan_id,
       decision: "confirmed",
@@ -196,11 +207,23 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/forms"/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\("\/forms"/);
   // W5-01-DATASET-05: the Runtime client uses the exact declared collection route.
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.dataset\/datasets/);
-  // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path.
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.ppt\/ppt/);
+  // RAC-150: Dataset's page names its routes under the plugin ("/datasets") and asks the shared host for the full path.
+  const datasetBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(datasetBrowser("page.ts"), /api: "\/datasets"/);
+  assert.match(datasetBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(datasetManifest.routes?.some(route => route.method === "GET" && route.path === "/datasets"), "and the Manifest declares that collection route");
+  // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path. RAC-150: PPT's page names its routes
+  // under the plugin ("/ppt") and asks the shared host for the full path.
+  const pptBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/ppt/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(pptBrowser("page.ts"), /api: "\/ppt"/);
+  assert.match(pptBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(pptManifest.routes?.some(route => route.method === "GET" && route.path === "/ppt"), "and the Manifest declares that collection route");
   // RAC-31: the Runtime client targets its declared route; the HTTP discovery test rejects the removed URL.
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.lingguang\/sparks/);
+  // RAC-146: 灵光's page names its routes under the plugin ("/sparks") and asks the shared host for the full path.
+  const lingguangBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(lingguangBrowser("page.ts"), /api: "\/sparks"/);
+  assert.match(lingguangBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(lingguangManifest.routes?.some(route => route.method === "GET" && route.path === "/sparks"), "and the Manifest declares that collection route");
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 
@@ -308,7 +331,7 @@ test("PPT 用色板，没有系统 color input", () => {
   });
   assert.match(html, /data-ppt-swatch/);
   assert.doesNotMatch(html, /type="color"/);
-  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /type=["']color["']/);
+  assert.doesNotMatch(readFileSync(fileURLToPath(new URL("../plugins/native/ppt/src/browser/slides.ts", import.meta.url)), "utf8"), /type=["']color["']/);
 });
 
 test("Host 文本补全口暂无模型；注入后 Pages AI 返回模型的候选文字，不带占位标记", async t => {

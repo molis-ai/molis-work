@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeAgentHostActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, filesOutputsRefresh, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, agentTextMaterialContent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -34,9 +34,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     command_outputs: [{ call_id: "check", run_id: "failed" }, { call_id: "missing", run_id: "failed" }],
     usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: "检查失败",
   };
-  const host = () => ({ store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+  const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (!runtimeAvailable) throw new Error("runtime offline");
       const values = args as unknown as Array<{ session_id?: string; run_id?: string; call_id?: string }>;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: values[0]?.session_id === "sdk" ?
@@ -50,10 +48,12 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
           stdout: "```\nnot ok cart\n```", stderr: "Expected 2, got 3", truncated: true } as Output;
       }
       throw new Error(`Unexpected capability ${definition.capability_id}`);
-    } },
+    } };
+  const host = () => ({ store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(pluginActions(store, DEMO_PROJECT_ID), (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, capabilities: agentHost,
   });
   const server = createServer((request, response) => {
-    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), filesOutputsRefresh).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });
@@ -131,7 +131,7 @@ const steerRun = (): AgentRunView => ({
     { turn_id: "s4", kind: "user", text: "顺便看日志", at: null, steer: { id: "s4", state: "unread", about: "earlier" } },
     { turn_id: "s5", kind: "user", text: "不要动数据库", at: null, steer: { id: "s5", state: "withdrawn" } },
     { turn_id: "answer", kind: "assistant", text: "改好了", at: null }],
-  activity: [], command_outputs: [], usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: null,
+  activity: [], command_outputs: [], usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [],
   // Stage 3d-2: step reports naming supplements; one quotes the smuggled words.
   step_board: { project_id: "plan", version: 3, terminal: true, nodes: [
     { id: "step-1", state: "succeeded", reports: [{ note: "建好 fixture", at_ms: 1 }] },
@@ -165,7 +165,7 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
       throw new Error(`Unexpected capability ${definition.capability_id} ${JSON.stringify(args)}`);
     } } });
   const server = createServer((request, response) => {
-    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); });
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host()), filesOutputsRefresh).catch(error => { response.writeHead(500); response.end(String(error)); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");

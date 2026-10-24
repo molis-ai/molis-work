@@ -345,19 +345,17 @@
   "GET <project>/sessions (page)": {
     "status": 302,
     "type": "",
-    "location": "/projects/<project>/#sessions"
+    "location": "/projects/<project>/?missing=%2Fsessions"
   },
   "GET <project>/workspaces (page)": {
     "status": 302,
     "type": "",
-    "location": "/projects/<project>/#sessions"
+    "location": "/projects/<project>/?missing=%2Fworkspaces"
   },
   "GET <project>/api/sessions": {
-    "status": 200,
+    "status": 404,
     "type": "application/json",
-    "keys": [
-      "sessions"
-    ]
+    "error": "页面或接口不存在"
   },
   "GET <project>/settings/general (page)": {
     "status": 200,
@@ -450,7 +448,8 @@
       "schedule_operations",
       "schedule_tasks",
       "snapshot",
-      "trashed_goals"
+      "trashed_goals",
+      "unavailable_plugin_stages"
     ]
   },
   "GET <project>/api/search/status": {
@@ -899,7 +898,8 @@
       "schedule_operations",
       "schedule_tasks",
       "snapshot",
-      "trashed_goals"
+      "trashed_goals",
+      "unavailable_plugin_stages"
     ]
   },
   "GET <missing>/api/board": {

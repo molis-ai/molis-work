@@ -4,8 +4,8 @@ import { characterTitle, savedCharacter, savedCharacterSkills } from "./characte
 import { codingContinuation } from "./continuation.js";
 import { nextHistoryMode } from "./history-digest.js";
 import { savedMaterials } from "./materials.js";
-import { type Capabilities, type CodingActivation, selected, sessionState, savedBudget, savedDigestUsage, priorityOf } from "./route-activation.js";
-import { codingActions, codingActionControl } from "./route-entry.js";
+import { type CodingActivation, selected, sessionState, savedBudget, savedDigestUsage, priorityOf } from "./route-activation.js";
+import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { bodyOf, savedActions, methodSelection, mcpSelection, mcpSources } from "./route-selections.js";
 import { nextConfiguration, text } from "./run-inputs.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint } from "./session-window.js";
@@ -67,12 +67,12 @@ export function planContinuesAfterTalk(run: Pick<AgentRunView, "step_board">, la
   return Boolean(run.step_board && !run.step_board.terminal) && later.every(view => !view.frozen.execution_plan && isTerminalAgentPhase(view.phase));
 }
 /** Children of the rounds that coordinate them, with the person's saved verdicts. */
-const subagentGroups = async (a: CodingActivation, api: Capabilities, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[], locale?: ActionLocale) => {
+const subagentGroups = async (a: CodingActivation, beforeWrite: CodingBeforeWrite, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[], locale?: ActionLocale) => {
   const { context } = a;
   const groups = [];
   for (const run of runs.filter(run => ["coordinator", "writers"].includes(run.frozen.role_id))) {
     try {
-      const children = await api.invoke(agent.listSubagents, [session, run.ref]);
+      const children = await codingActions(a.context, beforeWrite).invoke(agent.listSubagents, [session, run.ref]);
       groups.push({ run_id: run.ref.run_id, children: children.map(child => {
         const saved = context.services!.storage!.get(`subagent-verdict:${sessionId}:${run.ref.run_id}:${child.subagent_id}`);
         return { ...child, integration_available: run.frozen.role_id === "writers" && Boolean(run.frozen.subagent_workspaces?.some(workspace => workspace.directory.canonical_path === child.workspace_path)), verdict: typeof saved === "string" ? JSON.parse(saved) : null };
@@ -87,14 +87,14 @@ type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBindi
 const ROUTES: RouteMaker[] = [
   (a) => {
     const { context, route } = a;
-    return route("coding.evaluate-step", async (request, api, execution, beforeWrite) => {
+    return route("coding.evaluate-step", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-record");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
       const ref = snapshot.runs.find(run => run.run_id === request.params.runId);
       if (!ref || snapshot.recovery || snapshot.checkpoint_busy) throw codingFailure("coding.server.check-original-first");
-      const run = await api!.invoke(agent.readRun, [session, ref]);
+      const run = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]);
       if (!isTerminalAgentPhase(run.phase)) throw codingFailure("coding.server.rate-after-turn");
       const entry = codingTaskBoardPlans(context, record.session_id, [run]).find(entry => entry.board);
       const board = entry?.board, node = board?.nodes.find(node => node.id === request.params.stepId);
@@ -114,7 +114,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, projectId, summaries, route } = a;
-    return route("coding.read-session", async (request, api, execution, beforeWrite) => {
+    return route("coding.read-session", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       // The Goal's title as Goals has it now (the page shows it in the session header); read through Goals' action, kept for the directory.
       if (record.goal_id) await execution.goalTitles.read([record.goal_id], beforeWrite);
@@ -137,23 +137,23 @@ const ROUTES: RouteMaker[] = [
       if (!record.runtime_session_id) return { session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
-        const snapshot = await api!.invoke(agent.readSession, [session]);
+        const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
         // With a window, a refresh costs the same however long the session is: the latest rounds in full, the earlier
         // ones as summaries that are only resent when they changed. Without one, every round is read, as before.
         const size = request.query?.window === undefined ? undefined : Number(request.query.window);
         if (size !== undefined && (!Number.isSafeInteger(size) || size < 1 || size > 50)) throw codingFailure("coding.server.page-size");
         const offset = size === undefined ? 0 : Math.max(0, snapshot.runs.length - size);
-        const runs = await runsWithCards(context, api!, record, await Promise.all(snapshot.runs.slice(offset).map((run) => api!.invoke(agent.readRun, [session, run]))), beforeWrite);
+        const runs = await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset).map((run) => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, run]))), beforeWrite);
         // A round the page already holds unchanged travels as its fingerprint alone.
         const known = new Set(String(request.query?.known ?? "").split(",").filter(Boolean));
         const shown = size === undefined ? runs : runs.map(run => { const display = codingRunForDisplay(run); return known.has(display.fingerprint) ? { ref: display.ref, fingerprint: display.fingerprint, unchanged: true } : display; });
-        const earlier = offset ? await summaries.read(session.session_id, snapshot.runs.slice(0, offset), ref => api!.invoke(agent.readRun, [session, ref])) : [];
+        const earlier = offset ? await summaries.read(session.session_id, snapshot.runs.slice(0, offset), ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])) : [];
         const earlierFingerprint = summariesFingerprint(earlier);
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = { ...record, state };
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, api!, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(a, record.session_id)),
@@ -173,68 +173,68 @@ const ROUTES: RouteMaker[] = [
   // A live round, as it happens: answers as soon as it changes from what the page holds (or after the wait).
   (a) => {
     const { route } = a;
-    return route("coding.live", async (request, api, execution, beforeWrite) => {
+    return route("coding.live", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const since = typeof request.query?.since === "string" && request.query.since ? request.query.since : null;
-      const wait = Math.min(Math.max(Number(request.query?.timeout ?? 20_000) || 0, 0), 25_000);
-      const result = await api!.invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run", 200) }, since, wait]);
-      return { version: result.version, runs: (await runsWithCards(a.context, api!, record, [result.view], beforeWrite)).map(codingRunForDisplay) };
+      const wait = Math.min(Math.max(Math.trunc(Number(request.query?.timeout ?? 20_000)) || 0, 0), 25_000);
+      const result = await codingActions(a.context, beforeWrite).invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run", 200) }, since, wait]);
+      return { version: result.version, runs: (await runsWithCards(a.context, record, [result.view], beforeWrite)).map(codingRunForDisplay) };
     });
   },
   // Scrolling back reads earlier rounds a page at a time, with what the timeline shows beside them.
   (a) => {
     const { context, route } = a;
-    return route("coding.read-runs", async (request, api, execution, beforeWrite) => {
+    return route("coding.read-runs", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) return { runs: [], runs_offset: 0, subagents: [], taskboard_plans: [] };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
       const before = Number(request.query?.before ?? snapshot.runs.length), limit = Number(request.query?.limit ?? SESSION_PAGE);
       if (!Number.isSafeInteger(before) || before < 0 || before > snapshot.runs.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw codingFailure("coding.server.read-range");
       const offset = Math.max(0, before - limit);
-      const runs = await runsWithCards(context, api!, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => api!.invoke(agent.readRun, [session, ref]))), beforeWrite);
-      return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(a, api!, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
+      const runs = await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]))), beforeWrite);
+      return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
     });
   },
   // The whole session's TaskBoard: rounds that ran a confirmed plan or dispatched subagents are read in full, the rest
   // come as summaries, since the board shows none of their detail.
   (a) => {
     const { context, summaries, route } = a;
-    return route("coding.taskboard", async (request, api, execution) => {
+    return route("coding.taskboard", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) return { runs: [], subagents: [], taskboard_plans: [] };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api!.invoke(agent.readSession, [session]);
-      const light = await summaries.read(session.session_id, snapshot.runs, ref => api!.invoke(agent.readRun, [session, ref]));
+      const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
+      const light = await summaries.read(session.session_id, snapshot.runs, ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]));
       const prefix = `coding-plan:${record.session_id}:`;
       const tasked = snapshot.runs.filter((_, index) => light[index]!.frozen.text_materials.some(material => material.source_artifact_id.startsWith(prefix))
         || ["coordinator", "writers"].includes(light[index]!.frozen.role_id));
-      const full = await Promise.all(tasked.map(ref => api!.invoke(agent.readRun, [session, ref])));
-      return { runs: light, subagents: await subagentGroups(a, api!, record.session_id, session, full, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, full) };
+      const full = await Promise.all(tasked.map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])));
+      return { runs: light, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, full, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, full) };
     });
   },
   (a) => {
     const { route } = a;
-    return route("coding.recovery", async (request, api, execution) => {
+    return route("coding.recovery", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.no-run-record");
-      return api!.invoke(agent.inspectRecovery, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
+      return codingActions(a.context, beforeWrite).invoke(agent.inspectRecovery, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
     });
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.plan-amendments", async (request, api, execution, beforeWrite) => {
+    return route("coding.plan-amendments", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
       const ref = snapshot.runs.find(entry => entry.run_id === request.params.runId);
       if (!ref) throw codingFailure("coding.server.run-elsewhere");
       const body = bodyOf(request), amendment = stepAmendment(body.amendment), version = body.expected_version;
       if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) throw codingFailure("coding.server.plan-graph-stale");
-      const before = (await api!.invoke(agent.readRun, [session, ref])).step_board;
+      const before = (await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])).step_board;
       const { board } = await context.services!.actions!.invoke(agentCollaborationActions.revise, { ...session, run_id: ref.run_id, amendment, expected_version: version }, codingActionControl(beforeWrite));
       // The live round learns of the change through the same supplemental channel a person already uses.
       const note = amendmentNote(amendment, before ?? board);
@@ -244,37 +244,37 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.continuation", async (request, api, execution) => {
+    return route("coding.continuation", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
       if (snapshot.recovery || snapshot.checkpoint_busy) throw codingFailure("coding.server.check-before-continue");
       const index = snapshot.runs.findIndex(ref => ref.run_id === request.params.runId);
       if (index < 0) throw codingFailure("coding.server.run-elsewhere");
-      const ref = snapshot.runs[index]!, run = await api!.invoke(agent.readRun, [session, ref]);
+      const ref = snapshot.runs[index]!, run = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]);
       // Only the newest round picks up again, with one exception: the latest plan round's unfinished graph, when the
       // rounds after it were only conversation (a question, say) and have ended. Nothing else is continued out of order.
       if (index !== snapshot.runs.length - 1) {
-        const later = await Promise.all(snapshot.runs.slice(index + 1).map(entry => api!.invoke(agent.readRun, [session, entry])));
+        const later = await Promise.all(snapshot.runs.slice(index + 1).map(entry => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, entry])));
         if (!planContinuesAfterTalk(run, later)) throw codingFailure("coding.server.continue-latest");
       }
-      const reviews = await api!.invoke(agent.readRunReviews, [session, ref]);
+      const reviews = await codingActions(a.context, beforeWrite).invoke(agent.readRunReviews, [session, ref]);
       // A receipt that cannot be read is reported as such, never skipped: the continuation must not overstate what ran.
       const commands = await Promise.all((run.command_outputs ?? []).map(async command => {
-        try { return { call_id: command.call_id, output: await api!.invoke(agent.readCommandOutput, [session, { run_id: ref.run_id, call_id: command.call_id }]) }; }
+        try { return { call_id: command.call_id, output: await codingActions(context, beforeWrite).invoke(agent.readCommandOutput, [session, { run_id: ref.run_id, call_id: command.call_id }]) }; }
         catch { return { call_id: command.call_id, output: null }; }
       }));
       const plan = run.step_board && !run.step_board.terminal ? codingTaskBoardPlans(context, record.session_id, [run]).find(entry => entry.board && entry.revision) : undefined;
       // A round that dispatched subtasks hands them on as facts; unreadable is said, never read as "none". A plan's
       // subtasks count from every round of that plan, newest first: one finished two rounds ago must not be sent again.
       const planRuns = plan && run.step_board
-        ? (await Promise.all(snapshot.runs.map(each => each.run_id === ref.run_id ? run : api!.invoke(agent.readRun, [session, each]))))
+        ? (await Promise.all(snapshot.runs.map(each => each.run_id === ref.run_id ? run : codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, each]))))
           .filter(each => each.step_board?.project_id === run.step_board!.project_id).reverse()
         : [run];
       const withChildren = planRuns.filter(each => ["coordinator", "writers"].includes(each.frozen.role_id));
       const subagents = withChildren.length
-        ? await Promise.all(withChildren.map(each => api!.invoke(agent.listSubagents, [session, each.ref]))).then(lists => lists.flat(), () => null) : [];
+        ? await Promise.all(withChildren.map(each => codingActions(a.context, beforeWrite).invoke(agent.listSubagents, [session, each.ref]))).then(lists => lists.flat(), () => null) : [];
       const next = codingContinuation({ number: index + 1, run, reviews, commands, plan_unfinished: Boolean(plan), subagents });
       // A plan run in parallel goes on in parallel; any other plan continues as one execution round.
       return plan ? { ...next, intent: next.intent === "parallel" ? "parallel" : "execute", plan_revision: plan.revision, continue_step_board_of: run.ref.run_id } : next;
@@ -282,44 +282,44 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { route } = a;
-    return route("coding.recover-run", async (request, api, execution) => {
+    return route("coding.recover-run", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.no-run-record");
       const expectedVersion = bodyOf(request).expected_version;
       if (typeof expectedVersion !== "number" || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) throw codingFailure("coding.server.check-version-stale");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      return api!.invoke(agent.recoverRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run") }, expectedVersion]);
+      return codingActions(a.context, beforeWrite).invoke(agent.recoverRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run") }, expectedVersion]);
     });
   },
   (a) => {
     const { route } = a;
-    return route("coding.checkpoints", async (request, api, execution) => {
+    return route("coding.checkpoints", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) return { checkpoints: [] };
-      return { checkpoints: await api!.invoke(agent.listCheckpoints, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]) };
+      return { checkpoints: await codingActions(a.context, beforeWrite).invoke(agent.listCheckpoints, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]) };
     });
   },
   (a) => {
     const { route } = a;
-    return route("coding.prepare-rewind", async (request, api, execution) => {
+    return route("coding.prepare-rewind", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const intent = bodyOf(request).intent;
       const role = intent === "edit" ? "writer" : intent === "execute" ? "builder" : null;
       if (!role) throw codingFailure("coding.server.rollback-needs-edit");
-      return { review: await api!.invoke(agent.prepareRewind, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }, text(request.params.checkpointId, "coding.field.checkpoint"), role]) };
+      return { review: await codingActions(a.context, beforeWrite).invoke(agent.prepareRewind, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }, text(request.params.checkpointId, "coding.field.checkpoint"), role]) };
     });
   },
   (a) => {
     const { route } = a;
-    return route("coding.command-output", async (request, api, execution) => {
+    return route("coding.command-output", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
       const run = snapshot.runs.find(entry => entry.run_id === request.params.runId);
       if (!run) throw codingFailure("coding.server.run-elsewhere");
-      return api!.invoke(agent.readCommandOutput, [session, { run_id: run.run_id, call_id: text(request.params.callId, "coding.field.command") }]);
+      return codingActions(a.context, beforeWrite).invoke(agent.readCommandOutput, [session, { run_id: run.run_id, call_id: text(request.params.callId, "coding.field.command") }]);
     });
   },
   // Messages this session sent and received, and withdrawing an open one.

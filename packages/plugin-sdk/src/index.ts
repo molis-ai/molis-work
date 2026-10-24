@@ -62,6 +62,8 @@ export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices, PluginActionClient, PluginActionDirectory,
   PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
+  PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginJournalReader, PluginJournalWriter, PluginJournalEvent, PluginJournalAppend,
+  PluginIdempotencyRecord, PluginIdempotencyPut,
   PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration,
   PluginModelClient, PluginModelRequest, PluginModelResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -255,7 +257,7 @@ const manifestFailures = {
 } as const;
 
 export { decodeMaterialUpload, supportsMaterialExtension, MATERIAL_EXTENSIONS, MATERIAL_UPLOAD_MAX_BYTES } from "./material-upload.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
 
 export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "@molis-ai/molis-work-contracts/platform/plugin";

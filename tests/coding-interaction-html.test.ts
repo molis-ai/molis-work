@@ -10,7 +10,7 @@ import { actionCardView, type ActionCard } from "@molis-ai/molis-work-plugin-sdk
 import type { ActionLocale, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, type AgentRunOffer, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -63,7 +63,7 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
   // No Coding route hooks: whatever markup the page gets, Coding asked for.
   const server = createServer((request, response) => {
     const locale = request.headers["x-page-locale"] === "en" ? "en" : "zh";
-    void runWithLocale(locale, () => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host())).catch(error => {
+    void runWithLocale(locale, () => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host()))).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });
@@ -117,9 +117,10 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
 });
 
 test("PG062-13: the Host no longer decorates Coding's answers, and a project route takes no hook after the plugin answered", () => {
-  const surface = readFileSync(new URL("../apps/local-host/src/coding-surface.ts", import.meta.url), "utf8");
+  // coding-surface.ts is gone (PG-036 C9); what took over its stage and route work must not use these names either.
+  const surface = ["project-plugin-stages.ts", "project-plugin-input-refresh.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
   for (const name of ["decorateCodingResult", "codingNextSteps", "afterDispatch", "agentQuestionHtml", "assistantCardHtml", "cardView", "renderInteractionNextSteps", "codingFollowUps"]) {
-    assert.equal(surface.includes(name), false, `coding-surface.ts no longer uses ${name}`);
+    assert.equal(surface.includes(name), false, `the Host's stage and route code no longer uses ${name}`);
   }
   const entry = readFileSync(new URL("../apps/local-host/src/project-plugin-http.ts", import.meta.url), "utf8");
   assert.match(entry, /export type ProjectPluginRouteHooks = \(route: ProjectPluginRoute\) => Pick<RuntimePluginRouteHooks, "beforeDispatch">;/);

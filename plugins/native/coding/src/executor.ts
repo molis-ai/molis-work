@@ -5,7 +5,7 @@ import { agentHostCapabilities as agent, type AgentMcpToolRef, type AgentRunView
 import type { AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { codingExecutorActions } from "./executor-actions.js";
 import type { CodingActivation } from "./route-activation.js";
-import type { CodingActionCall } from "./route-entry.js";
+import { codingActions, type CodingActionCall } from "./route-entry.js";
 import { unlessMissing } from "./route-selections.js";
 import { nextConfiguration } from "./run-inputs.js";
 import { projectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
@@ -71,13 +71,14 @@ const roundOf = (a: CodingActivation, sessionId: string, { writer_assignments, .
  */
 export function codingExecutor(a: CodingActivation): void {
   const { action } = a.route;
-  action(codingExecutorActions.state, async (_input, { api }) => {
+  action(codingExecutorActions.state, async (_input, { api, beforeWrite }) => {
+    const actions = codingActions(a.context, beforeWrite);
     const workspace = await currentWorkspace(api), workspaces = await unlessMissing(api.invoke(projectSettingsCapabilities.workspaces, []), []);
-    const { runtime } = projectRuntime(await runtimeDirectory(api));
+    const { runtime } = projectRuntime(await runtimeDirectory(actions, api));
     return { modes: [...CODING_EXECUTOR_MODES], default_mode: DEFAULT_MODE, images: false, workspace_id: workspace?.workspace_id ?? null,
       workspaces: workspaces.map(row => ({ workspace_id: row.workspace_id, path: row.canonical_path,
         name: (row.display_name || row.canonical_path.split("/").filter(Boolean).at(-1) || row.canonical_path).slice(0, 200) })),
-      mcp: runtime && supports(runtime, "mcp") ? await api.invoke(agent.listMcp, [runtime.runtime_id, a.context.plugin_id]) : [] };
+      mcp: runtime && supports(runtime, "mcp") ? await actions.invoke(agent.listMcp, [runtime.runtime_id]) : [] };
   });
   action(codingExecutorActions["session.open"], async (input, call) => {
     if (input.mode !== undefined) known(input.mode);

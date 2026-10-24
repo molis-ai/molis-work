@@ -1,6 +1,6 @@
 /** The agent-host contract (`services/agent-host`): a started run's handle and controls, and what a run and a session show. */
 import type { AgentRunRef, AgentRunPhase, AgentSessionRef } from "./agent-host-runtime.js";
-import type { AgentFrozenStart, AgentCreateSessionInput } from "./agent-host-start.js";
+import type { AgentFrozenStart, AgentSessionOwner } from "./agent-host-start.js";
 import type { AgentAnswerControl, AgentPendingQuestion } from "./agent-interaction.js";
 import type { AgentStepBoard } from "./agent-host-session.js";
 import type { AgentMemoryRecallFact } from "./agent-host-memory.js";
@@ -196,7 +196,7 @@ export interface AgentSessionView {
   checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery?: { required: true; reason: string };
-  owner: Pick<AgentCreateSessionInput, "project_id" | "plugin_id" | "install_id" | "actor_id">;
+  owner: AgentSessionOwner;
   session: AgentSessionRef;
   title: string;
   runs: AgentRunRef[];

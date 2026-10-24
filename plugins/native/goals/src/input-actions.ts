@@ -1,7 +1,8 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef, parseGoalPluginObjectRef, type GoalInputBindingRecord, type GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, boolean, array, object, nullable, enumeration } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { text, identifier, boolean, array, object, nullable, enumeration, goalConfirmedInputSchema, goalEntryActions, type GoalConfirmedInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+export type { GoalConfirmedInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 /** A Plugin object bound to a Goal, as callers see it: the owner's subject, the name it was bound under, and state. */
 export interface GoalBoundObject {
@@ -15,24 +16,7 @@ export interface GoalBoundObject {
 const subject = object({ kind: identifier, id: identifier });
 const bound = object({ binding_id: text, goal_id: text, subject, title: text, state: enumeration(["proposed", "confirmed", "inactive"]), created_at: text });
 
-/** A source taken as an input of a Goal as it was then: the receipt holds the digest of what was confirmed, not a live link. Only the person's
- * call records it `confirmed`; every other caller (assistant, agent, workflow, MCP client) records it `proposed`, and it stays so until the person
- * accepts it (`goals.inputs.accept`) or removes it (`goals.inputs.release`). */
-export interface GoalConfirmedInput {
-  binding_id: string;
-  goal_id: string;
-  source: { kind: "feed_item"; id: string };
-  name: string;
-  snapshot_digest: string | null;
-  state: "proposed" | "confirmed" | "inactive";
-  created_at: string;
-}
-const confirmedSource = object({ kind: enumeration(["feed_item"]), id: { ...identifier, maxLength: 200 } });
-/** What the owner of a source computes of it: `sha256:` and 64 lower-case hex digits; the reason is one bounded sentence like a deliverable's. */
-const snapshotDigest = { type: "string", pattern: "^sha256:[0-9a-f]{64}$" };
-const confirmReason = { ...identifier, maxLength: 300 };
-const confirmed = object({ binding_id: text, goal_id: text, source: confirmedSource, name: text, snapshot_digest: { type: ["string", "null"] },
-  state: enumeration(["proposed", "confirmed", "inactive"]), created_at: text });
+const confirmed = goalConfirmedInputSchema;
 /** How a confirmed source is kept in the Goal's input receipts: the receipt type, the prefix of the locator, the prefix of the receipt id. */
 const CONFIRMED_SOURCES = { feed_item: { source_type: "feed_item", locator: "feed-item:", receipt: "binding-feed-" } } as const;
 
@@ -58,10 +42,7 @@ export const goalsInputActions = {
   bind: goalAction<{ goal_id: string; subject: { kind: string; id: string }; title: string }, { binding: GoalBoundObject; replayed: boolean }>("goals.inputs.bind",
     "把资料关联到目标", "把一份资料（文档、演示稿、问卷、数据表、Shelf 材料等）记为目标的绑定资料；不复制、不移动原对象，重复关联返回原记录", "command",
     object({ goal_id: identifier, subject, title: { ...identifier, maxLength: 200 } }), object({ binding: bound, replayed: boolean })),
-  confirm: goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm",
-    "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的输入；用户调用记为已确认，助理、Agent、工作流和外部工具调用只记为待确认，等用户在目标的输入里认可或移除；不复制、不移动原材料，重复确认返回原记录，来源已被提议、还在等用户认可时用户的确认被拒绝（先认可）", "command",
-    object({ goal_id: identifier, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: snapshotDigest, reason: confirmReason }),
-    object({ binding: confirmed, replayed: boolean })),
+  confirm: goalEntryActions.inputsConfirm,
   accept: userOnly(goalAction<{ goal_id: string; binding_id: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.accept",
     "认可待确认的输入", "用户本人认可一条由助理、Agent、工作流或外部工具提议的输入，把「待确认」记为「已确认」，摘要和理由不变；只有用户本人能调用；已确认的返回原记录，已移除的不能再认可", "command",
     object({ goal_id: identifier, binding_id: identifier }), object({ binding: confirmed, replayed: boolean }))),

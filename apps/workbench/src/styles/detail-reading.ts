@@ -27,7 +27,7 @@ export const DETAIL_READING_STYLES = `
   .inbox-compose-dialog [role=status] { color: var(--muted); font-size: 13px; }
   .inbox-compose-result { padding: 12px 0; border-top: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
   .inbox-compose-result button { flex: none; }
-  body.immersive-workbench .tab-pane-body > :is([data-inbox-workbench], .immersive-artifact-surface, .project-operation-surface) { overflow: hidden; padding: 0; }
+  body.immersive-workbench .tab-pane-body > :is([data-inbox-workbench], .immersive-artifact-surface) { overflow: hidden; padding: 0; }
   body.immersive-workbench .inbox-reference-detail { height: 100%; min-height: 0; max-width: 920px; padding: 0; display: flex; flex-direction: column; border-radius: 0; box-shadow: none; }
   body.immersive-workbench .inbox-reference-detail > .feed-detail-header { flex: none; padding: 8px 24px 8px; }
   body.immersive-workbench [data-inbox-workbench] .inbox-reference-detail > .feed-detail-header { width: 100%; max-width: none; }
@@ -51,10 +51,6 @@ export const DETAIL_READING_STYLES = `
   body.immersive-workbench .artifact-raw { margin-top: 16px; }
   body.immersive-workbench .artifact-facts { margin-block: 16px; }
 
-  body.immersive-workbench .tab-pane-body > .project-operation-surface .session-stage { display: flex; flex-direction: column; width: 100%; max-width: none; height: 100%; min-height: 0; margin: 0; overflow: hidden; }
-  body.immersive-workbench .session-stage-bar { flex: none; }
-  body.immersive-workbench .session-stage-body { flex: 1; min-height: 0; }
-  body.immersive-workbench .session-content-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   @media (max-width: 760px) {
     body.immersive-workbench .inbox-reference-detail > .feed-detail-header { padding: 8px 16px 8px; }
     body.immersive-workbench .inbox-reference-body { padding: 16px; }
@@ -68,8 +64,5 @@ export const DETAIL_READING_STYLES = `
     body.immersive-workbench .immersive-artifact-surface .artifact-actions { padding: 12px 16px; }
     body.immersive-workbench .immersive-artifact-surface .artifact-actions span { flex: 1; min-width: 120px; font-size: 11px; }
     body.immersive-workbench .artifact-export { display: inline-flex; align-items: center; min-height: 44px; }
-    body.immersive-workbench .session-stage-actions .mw-btn:not(.mw-btn--icon-only) { min-height: 44px; }
-    body.immersive-workbench .session-execution-toolbar :is(input, .mw-toggle) { min-height: 44px; }
-    body.immersive-workbench .session-content-body { padding: 12px 16px; }
   }
 `;

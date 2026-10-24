@@ -10,7 +10,7 @@ import {
   composeAgentHost,
   molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
-import { agentHostCapabilities, type AgentActionClient, type AgentStartExecution, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentActionClient, type AgentSessionOwner, type AgentStartExecution, type AgentStartInput, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -21,14 +21,10 @@ import { serveTestHost } from "./fixtures/test-home.js";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
-import { codingManifest, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { callerPlugin, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 
-/** 产品装配真的构造了 Agent Host，插件经 Capability 够得到它。 */
+/** 产品装配真的构造了 Agent Host，插件经动作够得到它。 */
 
-const CODING = "io.molis.work.coding";
 /** A test-only Runtime that, like any Runtime without a Host approval bridge, can read but not write or run commands. */
 const READ_ONLY = "fixture-read-only";
 
@@ -42,20 +38,6 @@ function readOnlyRuntime(runtimeId: string): AgentRuntimeAdapter {
   };
 }
 
-/**
- * A running plugin that carries Coding's Agent block, and its typed client: a plugin's roles come only from its running declaration
- * (PG-051 RAC-195), so a start or a role listing is the plugin's own call.
- */
-async function codingCaller(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference, directory: string) {
-  const coding = createCodingPlugin();
-  const plugin = callerPlugin("coder", "project", {}, Object.values(agentHostCapabilities).map(entry => entry.capability_id),
-    { block: codingManifest.agent!, agent_prompts: coding.agent_prompts, agent_skills: coding.agent_skills });
-  const store = new LocalProjectDatabase(join(directory, "coder.sqlite"));
-  const { install_id } = await startPlugin(localHost, reference, store, plugin, { capabilities: localHost.client(reference) });
-  const owner = { project_id: reference.project_id, plugin_id: plugin.id, install_id, actor_id: LOCAL_PERSON_ACTOR_ID };
-  return { store, owner, client: plugin.context(reference.project_id).services!.capabilities! };
-}
-
 async function fixture(workspace: ProjectWorkspaceRef | null) {
   const directory = await mkdtemp(join(tmpdir(), "agent-composition-"));
   const localHost = new MolisWorkLocalHost();
@@ -65,11 +47,40 @@ async function fixture(workspace: ProjectWorkspaceRef | null) {
   });
   const composition = composeAgentHost({ localHost, workspaceFor: () => workspace });
   composition.agentHost.register(readOnlyRuntime(READ_ONLY));
-  return { directory, localHost, reference, composition, client: localHost.client(reference) };
+  return { directory, localHost, reference, composition, client: localHost.client(reference), store: new LocalProjectDatabase(join(directory, "starters.db")) };
+}
+
+/**
+ * A plugin started in `reference` that opens sessions and starts rounds, both its own actions (R8 batch 3), with the owner the Host
+ * records its sessions under.
+ */
+async function roundStarter(localHost: MolisWorkLocalHost, reference: Parameters<typeof startPlugin>[1], store: Parameters<typeof startPlugin>[2], name: string) {
+  const plugin = withReaderRole(callerPlugin(name, "project", {}, [agentHostCapabilities.createSession.capability_id, agentHostCapabilities.startRun.capability_id]));
+  await startPlugin(localHost, reference, store, plugin);
+  const context = plugin.context(reference.project_id);
+  const owner: AgentSessionOwner = { project_id: reference.project_id, plugin_id: plugin.id, install_id: context.install_id, actor_id: context.actor_id! };
+  return { actions: plugin.actions(reference.project_id), owner };
+}
+
+/** The SDK actions of a plugin started in the fixture's project, which opens sessions there. */
+async function opener(item: Awaited<ReturnType<typeof fixture>>) {
+  return (await roundStarter(item.localHost, item.reference, item.store, "opener")).actions;
+}
+
+/**
+ * A plugin started in the fixture's project that reads the Agent Host's runtimes and roles as itself (R8 batch 4); `agent` is its
+ * own Agent declaration, none when left out.
+ */
+async function directoryReader(item: Pick<Awaited<ReturnType<typeof fixture>>, "localHost" | "reference" | "store">, name: string, agent?: NonNullable<ReturnType<typeof callerPlugin>["definition"]["manifest"]["agent"]>) {
+  const plugin = callerPlugin(name, "project", {}, [agentHostCapabilities.listRuntimes.capability_id, agentHostCapabilities.availableRoles.capability_id]);
+  if (agent) plugin.definition.manifest.agent = agent;
+  await startPlugin(item.localHost, item.reference, item.store, plugin);
+  return plugin.actions(item.reference.project_id);
 }
 
 async function close(item: Awaited<ReturnType<typeof fixture>>) {
   item.composition.dispose();
+  item.store.close();
   await item.localHost.closeProject(item.reference);
   await item.localHost.close();
   await rm(item.directory, { recursive: true, force: true });
@@ -87,8 +98,8 @@ test("Agent Host loads current guidance through actions and freezes each real re
   } });
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "board" });
   const composition = composeAgentHost({ localHost, workspaceFor: () => ({ workspace_id: "w", canonical_path: directory, realpath_verified: true, display_name: "workspace" }) });
-  const captured: AgentStartRequest[] = [];
-  const coder = await codingCaller(localHost, reference, directory);
+  const captured: AgentStartRequest[] = [], store = new LocalProjectDatabase(join(directory, "plugins.db"));
+  let owner: AgentSessionOwner | undefined;
   composition.agentHost.register({
     descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
     async health() { return { ok: true, status: "ready", message: "ready" }; },
@@ -97,7 +108,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     observe() { throw new Error("Not used by this read fixture"); },
     async control() { throw new Error("Not used by this read fixture"); },
     async readCommandOutput() { throw new Error("Not used by this read fixture"); },
-    async readSession(session) { return { session, owner: coder.owner, title: "Read", runs: [], latest_run: null }; },
+    async readSession(session) { return { session, owner: owner!, title: "Read", runs: [], latest_run: null }; },
     async start(request) {
       captured.push(request); const role = request.role!;
       return { ref: { run_id: `r${captured.length}`, session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution,
@@ -106,14 +117,13 @@ test("Agent Host loads current guidance through actions and freezes each real re
         ...(request.workspace === "none" ? { workspace: "none" as const } : { directory: request.directory }) } };
     },
   });
-  const client = coder.client;
   try {
     const management = managementGoals(localHost.actionClient(reference), "board");
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     const added = await management.invoke(goalsActions.guidanceAdd, { kind: "constraint",
       content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
-    const request: AgentStartRequest = { ...coder.owner, session: { runtime_id: "probe", session_id: "s" },
-      task: "读取项目", role_id: "reader", directory: { canonical_path: directory, realpath_verified: true } };
+    const starter = await roundStarter(localHost, reference, store, "guidance"), client = starter.actions; owner = starter.owner;
+    const request: AgentStartInput = { session: { runtime_id: "probe", session_id: "s" }, task: "读取项目", role_id: "reader", directory: { canonical_path: directory, realpath_verified: true } };
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     const first = captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;
     assert.match(first.body, /保留源文件/); assert.equal(first.version, 1);
@@ -127,7 +137,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     assert.equal(captured[2]!.role!.prompts.some(prompt => prompt.prompt_id === "project-guidance"), false);
     assert.ok(reads >= 3, "each start consults the real guidance action policy");
-  } finally { await composition.dispose(); coder.store.close(); await localHost.close(); await rm(directory, { recursive: true, force: true }); }
+  } finally { await composition.dispose(); await localHost.close(); store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test("an Agent round carries the number of the call that started it: its tool calls and the start the Runtime is given", async t => {
@@ -152,9 +162,7 @@ test("an Agent round carries the number of the call that started it: its tool ca
   const ping: ActionDefinition = { capability_id: "fixture.agent.ping", version: 1, operation: "query", action: { title: "Ping", description: "Answers", kind: "query", scope: "project",
     audiences: ["agent", "mcp"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
   const handled: Array<string | undefined> = [];
-  const coder = await codingCaller(localHost, reference, home);
-  t.after(() => coder.store.close());
-  let execution: AgentStartExecution | undefined, tools: AgentActionClient | undefined, request: AgentStartRequest | undefined;
+  let execution: AgentStartExecution | undefined, tools: AgentActionClient | undefined, request: AgentStartRequest | undefined, owner: AgentSessionOwner | undefined;
   composition.agentHost.register({
     descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", supports_action_tools: true, capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
     async health() { return { ok: true, status: "ready", message: "ready" }; },
@@ -163,7 +171,7 @@ test("an Agent round carries the number of the call that started it: its tool ca
     observe() { throw new Error("Not used by this fixture"); },
     async control() { throw new Error("Not used by this fixture"); },
     async readCommandOutput() { throw new Error("Not used by this fixture"); },
-    async readSession(session) { return { session, owner: coder.owner, title: "Read", runs: [], latest_run: null }; },
+    async readSession(session) { return { session, owner: owner!, title: "Read", runs: [], latest_run: null }; },
     async start(given, guards) {
       request = given; execution = guards; tools = given.role!.actions!.client; const role = given.role!;
       return { ref: { run_id: "r1", session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution, model_id: "probe",
@@ -171,17 +179,18 @@ test("an Agent round carries the number of the call that started it: its tool ca
         skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true as const }, action_tools: given.action_tools } };
     },
   });
-  const client = coder.client;
+  const starter = await roundStarter(localHost, reference, await localHost.withProject(reference, runtime => runtime.store), "numbers"), client = starter.actions;
+  owner = starter.owner;
   localHost.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture.agent", kind: "plugin", title: "Fixture" }, definitions: [ping],
     handlers: [{ ...ping, handle(context) { handled.push(context.call_id); return "pong"; } }] });
   await grantGoalsMcp(served, project, "agent:probe", [ping]);
   const action = { capability_id: ping.capability_id, version: 1, provider_id: "fixture.agent" };
-  const start = { ...coder.owner, session: { runtime_id: "probe", session_id: "s" },
-    task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true }, action_tools: [action] };
-  // A number in the request body is the plugin's own data: it is never the round's number.
+  const start: AgentStartInput = { session: { runtime_id: "probe", session_id: "s" }, task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true }, action_tools: [action] };
+  // A request body that names a number of its own is refused by the action's schema: the round's number is never the plugin's to give.
+  await assert.rejects(client.invoke(agentHostCapabilities.startRun, ["probe", { ...start, call_id: "forged" } as AgentStartInput]), { code: "actions.input_invalid" });
+  assert.equal(request, undefined, "the refused start reached no Runtime");
   const started = newCallId();
-  const forged = { ...start, call_id: "forged" };
-  await withCallId(started, () => client.invoke(agentHostCapabilities.startRun, ["probe", forged]));
+  await withCallId(started, () => client.invoke(agentHostCapabilities.startRun, ["probe", start]));
   assert.equal(request?.role?.actions?.tools.length, 1, "the round was offered the tool");
   // The Runtime calls its tools later, in its own loop, outside the call that started the round.
   await tools!.invoke(action, {});
@@ -195,22 +204,25 @@ test("装配不带任何默认 Runtime：命令行 Runtime 已删除，没给 Pr
   const directory = await mkdtemp(join(tmpdir(), "agent-composition-empty-"));
   const localHost = new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "project-a" });
-  const composition = composeAgentHost({ localHost, workspaceFor: () => null });
+  const composition = composeAgentHost({ localHost, workspaceFor: () => null }), store = new LocalProjectDatabase(join(directory, "starters.db"));
   try {
     assert.deepEqual(composition.agentHost.descriptors(), [], "a Host registers only what its owner supplied");
-    assert.deepEqual(await localHost.client(reference).invoke(agentHostCapabilities.listRuntimes, []), []);
+    assert.deepEqual(await (await directoryReader({ localHost, reference, store }, "empty")).invoke(agentHostCapabilities.listRuntimes, []), []);
+    // RAC-182: the runtime directory is offered to plugins only; the Host's own client is not one.
+    await assert.rejects(localHost.client(reference).invoke(agentHostCapabilities.listRuntimes, []), { code: "actions.forbidden" });
   } finally {
     await composition.dispose();
+    store.close();
     await localHost.closeProject(reference);
     await localHost.close();
     await rm(directory, { recursive: true, force: true });
   }
 });
 
-test("装配之后，运行时列表经 Capability 就能拿到", async () => {
+test("装配之后，插件经动作就能拿到运行时列表", async () => {
   const item = await fixture(null);
   try {
-    const runtimes = await item.client.invoke(agentHostCapabilities.listRuntimes, []);
+    const runtimes = await (await directoryReader(item, "runtimes")).invoke(agentHostCapabilities.listRuntimes, []);
     assert.deepEqual(runtimes.map((entry) => entry.runtime_id), [READ_ONLY]);
     // 没有接宿主审批的 Runtime 只读：写入与命令如实报不支持
     assert.equal(runtimes[0]?.capabilities["text-edit"], "unsupported");
@@ -220,20 +232,21 @@ test("装配之后，运行时列表经 Capability 就能拿到", async () => {
   }
 });
 
-test("Coding 的角色从它自己的 Manifest 解析；只读的可用，会写的不可用", async () => {
-  const item = await fixture(null), coder = await codingCaller(item.localHost, item.reference, item.directory);
+test("插件的角色从它自己的 Manifest 解析；只读的可用，会写的不可用", async () => {
+  const item = await fixture(null);
   try {
-    const roles = await coder.client.invoke(agentHostCapabilities.availableRoles,
-      [READ_ONLY, coder.owner.plugin_id]);
+    const roles = await (await directoryReader(item, "roles", { roles: [
+      { role_id: "reader", version: 1, execution: "read-only", prompts: ["reader"], host_tools: [] },
+      { role_id: "writer", version: 1, execution: "text-edit", prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }] }))
+      .invoke(agentHostCapabilities.availableRoles, [READ_ONLY]);
     const reader = roles.find((role) => role.role_id === "reader");
     const writer = roles.find((role) => role.role_id === "writer");
     assert.equal(reader?.available, true);
     assert.equal(writer?.available, false, "Runtime 没接宿主审批，会写的角色就该不可用");
     assert.match(writer?.reason ?? "", /text-edit/);
-    // RAC-195: a call no running plugin makes finds no roles in the catalog; it is answered with none, not refused.
-    assert.deepEqual(await item.client.invoke(agentHostCapabilities.availableRoles, [READ_ONLY, CODING]), []);
+    // RAC-195, RAC-182: a call no running plugin makes has no declaration to read roles from, and is refused as not a plugin's.
+    await assert.rejects(item.client.invoke(agentHostCapabilities.availableRoles, [READ_ONLY] as never), { code: "actions.forbidden" });
   } finally {
-    coder.store.close();
     await close(item);
   }
 });
@@ -241,9 +254,10 @@ test("Coding 的角色从它自己的 Manifest 解析；只读的可用，会写
 test("没有声明 Agent 的插件，一个角色都拿不到", async () => {
   const item = await fixture(null);
   try {
-    assert.deepEqual(
-      await item.client.invoke(agentHostCapabilities.availableRoles, [READ_ONLY, "io.molis.work.feed"]),
-      [], "没声明就是没有，不是给个默认角色");
+    const plain = await directoryReader(item, "no-agent");
+    assert.deepEqual(await plain.invoke(agentHostCapabilities.availableRoles, [READ_ONLY]), [], "没声明就是没有，不是给个默认角色");
+    // RAC-182: 也不能点名别的插件来读它的角色（输入里没有插件这一项）
+    await assert.rejects(plain.invoke(agentHostCapabilities.availableRoles, [READ_ONLY, "io.molis.work.coding"] as never), { code: "actions.input_invalid" });
   } finally {
     await close(item);
   }
@@ -254,9 +268,8 @@ test("项目没绑定工作区时，建会话就被目录那道闸拦住", async
   const item = await fixture(null);
   try {
     await assert.rejects(
-      () => item.client.invoke(agentHostCapabilities.createSession, [READ_ONLY, {
-        plugin_id: CODING, project_id: "project-a", install_id: "coding", actor_id: "user", title: "看看代码",
-        directory: { canonical_path: "/tmp/anywhere", realpath_verified: true },
+      async () => (await opener(item)).invoke(agentHostCapabilities.createSession, [READ_ONLY, {
+        title: "看看代码", directory: { canonical_path: "/tmp/anywhere", realpath_verified: true },
       }]),
       (error: unknown) => (error as { code?: string }).code === "agent.directory_unauthorized",
     );
@@ -272,9 +285,8 @@ test("插件不能拿一个宿主没授权的目录开会话", async () => {
   });
   try {
     await assert.rejects(
-      () => item.client.invoke(agentHostCapabilities.createSession, [READ_ONLY, {
-        plugin_id: CODING, project_id: "project-a", install_id: "coding", actor_id: "user", title: "看看代码",
-        directory: { canonical_path: "/somewhere/else", realpath_verified: true },
+      async () => (await opener(item)).invoke(agentHostCapabilities.createSession, [READ_ONLY, {
+        title: "看看代码", directory: { canonical_path: "/somewhere/else", realpath_verified: true },
       }]),
       (error: unknown) => (error as { code?: string }).code === "agent.directory_unauthorized",
       "授权的是这个项目绑定的目录，不是插件报上来的那个",

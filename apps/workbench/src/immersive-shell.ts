@@ -1,3 +1,4 @@
+import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon as glyph, renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
@@ -35,6 +36,7 @@ function directoryPlugins(enabled: readonly string[], inEnglish = false) {
     surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
     glyph: entry.glyph as MolisWorkIcon,
+    group: entry.group,
   }));
 }
 
@@ -67,6 +69,7 @@ function islandPlugins(enabled: readonly string[], inEnglish = false) {
     surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
     glyph: entry.glyph as MolisWorkIcon,
+    group: entry.group,
   }));
 }
 
@@ -81,25 +84,19 @@ function islandPlugins(enabled: readonly string[], inEnglish = false) {
  * keeps its entry; nothing moves when the list opens. Every entry stays a direct child of the
  * list so the travelling selection chip can reach it.
  *
- * Only the backbone and the two named tool groups are listed here; any other Plugin, including
- * one added later, lands in 更多, so adding a Plugin never edits the shell.
+ * Only the backbone is listed here. Every other Plugin is listed in the group its view names
+ * (`group`, W5-06 2b), and one that names none, including one added later, lands in 更多, so adding
+ * a Plugin never edits the shell.
  */
-const RAIL_CORE_ORDER = ["goals", "inbox", "feed", "sessions"];
+const RAIL_CORE_ORDER = ["goals", "inbox", "feed"];
 const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 /**
- * Groups read as what the person wants to do, not as kinds of software: 推进 (the backbone plus its helpers),
- * 写与做 (things one makes), 个人 (what belongs to the person, 灵光 first), 研究, 编码. See
+ * The names of the groups a view can name, which the Host owns (their order is `UI_VIEW_GROUPS`'): 推进 (the backbone plus
+ * its helpers), 写与做 (things one makes), 个人 (what belongs to the person), 研究, 编码. See
  * specs/archive/plugin-e2e-review/spec.md §3.1.
  */
-const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly string[]]> = [
-  ["推进", ["schedule", "workflows"]],
-  ["写与做", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
-  ["个人", ["todo", "jelly", "cognia"]],
-  ["研究", ["alchemist"]],
-  ["编码", ["coding"]],
-];
+const RAIL_GROUP_LABELS: Readonly<Record<UiViewGroup, string>> = { advance: "推进", make: "写与做", personal: "个人", research: "研究", code: "编码" };
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
-const RAIL_GROUPED_TOOL_IDS = new Set(RAIL_TOOL_GROUPS.flatMap(([, ids]) => ids));
 const RAIL_EXTEND_PLUGIN_IDS = new Set(["plugin-builder"]);
 
 /** A plugin installed into this project at run time: its stage and the name it was published under. */
@@ -182,23 +179,21 @@ export function renderPluginRail(
   const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home", hint: L(RAIL_HOME_HINT) }, "core");
   const core = entries.filter(plugin => RAIL_CORE_PLUGIN_IDS.has(plugin.id))
     .sort((a, b) => RAIL_CORE_ORDER.indexOf(a.id) - RAIL_CORE_ORDER.indexOf(b.id)).map(plugin => tile(plugin, "core")).join("");
-  // 灵光 is a plugin like any other: it leads 个人, the group of what belongs to the person.
-  const personal = islands.map(plugin => tile(plugin, "tool")).join("");
-  const grouped = RAIL_TOOL_GROUPS.map(([label, ids], index) => {
-    const links = entries.filter(plugin => ids.includes(plugin.id)).map(plugin => tile(plugin, "tool")).join("");
+  // 灵光 is a plugin like any other: an island leads the group its view names (个人).
+  const tools = [...islands, ...entries].filter(plugin => !RAIL_CORE_PLUGIN_IDS.has(plugin.id) && !RAIL_EXTEND_PLUGIN_IDS.has(plugin.id));
+  const grouped = UI_VIEW_GROUPS.map((group, index) => {
+    const links = tools.filter(plugin => plugin.group === group).map(plugin => tile(plugin, "tool")).join("");
     // The backbone already sits under the first heading; its helpers follow without a second one.
-    if (index === 0) return links;
-    return subgroup(L(label), label === "个人" ? personal + links : links);
+    return index === 0 ? links : subgroup(L(RAIL_GROUP_LABELS[group]), links);
   }).join("");
   // Plugins the project installed at run time (built in the studio) have no directory; their name is their own. They can be
   // kept in the Dock like any other; taking them out of the project is the studio's, not this list's.
   const own = installed.map(plugin => `<div class="plugin-rail-tile" data-plugin-tile="${escapeHtml(plugin.surface)}"><button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="tool" data-plugin-id="${escapeHtml(plugin.surface)}" data-work-surface-open="${escapeHtml(plugin.surface)}" aria-label="${say(L, "切换到插件：{name}", { name: escapeHtml(plugin.label) })}" title="${escapeHtml(plugin.label)}">${icon("package")}<span>${escapeHtml(plugin.label)}</span>${mark}</button><span class="plugin-rail-ops" role="group" aria-label="${escapeHtml(plugin.label)}">${pinButton({ id: plugin.surface, label: plugin.label }, true)}</span></div>`);
-  const other = [...entries.filter(plugin => !RAIL_CORE_PLUGIN_IDS.has(plugin.id) && !RAIL_GROUPED_TOOL_IDS.has(plugin.id) && !RAIL_EXTEND_PLUGIN_IDS.has(plugin.id))
-    .map(plugin => tile(plugin, "tool")), ...own].join("");
+  const other = [...tools.filter(plugin => plugin.group === null).map(plugin => tile(plugin, "tool")), ...own].join("");
   const toggle = `<button class="immersive-plugin-link plugin-rail-item plugin-rail-toggle" type="button" data-rail-tools-toggle aria-expanded="false" aria-label="${L("全部插件")}" title="${L("全部插件")}">${icon("more")}<span data-rail-toggle-label="${L("收起插件")}">${L("全部插件")}</span></button>`;
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
     ${personalIsland}
-    <div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">${home}<p class="plugin-rail-group" data-rail-zone="tools">${L(RAIL_TOOL_GROUPS[0][0])}</p>${core}${grouped}${subgroup(L("更多"), other)}${toggle}</div>
+    <div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">${home}<p class="plugin-rail-group" data-rail-zone="tools">${L(RAIL_GROUP_LABELS[UI_VIEW_GROUPS[0]])}</p>${core}${grouped}${subgroup(L("更多"), other)}${toggle}</div>
     ${accountFooter.replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, enabled))}
   </nav>`;
 }

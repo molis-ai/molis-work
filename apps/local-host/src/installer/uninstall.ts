@@ -4,6 +4,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "../product-home.js";
 import { homeStores } from "../home-stores.js";
+import { hostLog } from "../host-log.js";
+import { installedLibraryPaths } from "../installed-plugin-libraries.js";
 import { RuntimeIntegrationService } from "./runtime-integration.js";
 import { SUPPORTED_RUNTIME_IDS } from "./runtime-integration-contract.js";
 import { MolisWorkWebServiceManager } from "./web-service.js";
@@ -34,8 +36,16 @@ export class MolisWorkUninstallService {
     );
     const webPlan = await this.webService.prepare("remove");
     const assets = await inspectOwnedHomeAssets(this.homeDirectory);
+    // The libraries installed plugins made are named by a ledger; one that cannot be read leaves them unknown, and a purge that cannot
+    // say what it removes does not run.
+    let installedLibraries: string[] = [], ledgerConflict: string | null = null;
+    if (purgeUserData) {
+      try { installedLibraries = installedLibraryPaths(this.homeDirectory, homeStores()); }
+      catch (error) { ledgerConflict = `装进来的插件的库账本读不出来，不能确认要清除哪些库：${error instanceof Error ? error.message : String(error)}`; }
+    }
     const conflicts = [
       ...(catalog.conflict ? [catalog.conflict] : []),
+      ...(ledgerConflict ? [ledgerConflict] : []),
       ...assets.conflicts,
       ...runtimePlans.filter((plan) => plan.status === "conflict").map((plan) => plan.message),
       ...(webPlan.status === "conflict" ? [webPlan.message] : []),
@@ -43,8 +53,9 @@ export class MolisWorkUninstallService {
     const demos = catalog.projects.filter((project) => project.data_class === "regenerable_demo");
     const userProjects = catalog.projects.filter((project) => project.data_class !== "regenerable_demo");
     const purgeDataPaths = purgeUserData
-      // Every store the Home's registry lists (W4-11): its owners declare them, so a new store is purged without a list here.
-      ? await existingPaths(homeStores().paths(this.homeDirectory))
+      // Every store the Home's registry lists (W4-11): its owners declare them, so a new store is purged without a list here; and the
+      // libraries installed plugins made, which the ledger in `plugin-libraries` names (PG-022 P1b).
+      ? await existingPaths([...homeStores().paths(this.homeDirectory), ...installedLibraries])
       : [];
     const changes: MolisWorkUninstallChange[] = [
       ...runtimePlans.flatMap((plan) => plan.status === "ready"
@@ -202,8 +213,11 @@ export class MolisWorkUninstallService {
       receipt.state = "failed";
       receipt.error = error instanceof Error ? error.message : String(error);
       receipt.updated_at = new Date().toISOString();
-      await this.writeReceipt(receipt).catch(() => undefined);
-      throw installerErrors["installer.uninstall.step_failed"](`卸载未完成，进度收据已保留：${receipt.error}`);
+      const receiptSaved = await this.writeReceipt(receipt).then(() => true, (receiptError: unknown) => {
+        hostLog.warn("installer", "uninstall_receipt_write_failed", receiptError, { completed_steps: receipt.completed_steps.length, purge_user_data: plan.purge_user_data });
+        return false;
+      });
+      throw installerErrors["installer.uninstall.step_failed"](`卸载未完成，${receiptSaved ? "进度收据已保留" : "失败进度未能写入收据"}：${receipt.error}`);
     }
   }
 

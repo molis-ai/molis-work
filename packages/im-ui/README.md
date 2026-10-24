@@ -12,7 +12,7 @@ Workspace registration: `goal-reorg-f2`。
 - `src/views.ts`：消息、引用、来源上下文、成员与标签的安全渲染。
 - `src/message-format.ts`：先转义再处理基础 Markdown，不接受原始 HTML。
 - `src/client.ts`：组装已编译、有类型的浏览器函数；不再维护不可检查的 JavaScript 字符串。
-- `src/browser/controller.ts`：会话选择、DOM 事件和功能之间的编排。
+- `src/browser/controller.ts`：只做装配（页面状态 `ImState`、上下文 `ImCtx`、按顺序调用各层）；具体工作分在 `controller-shell.ts`（路径、状态行、输入框可用性）、`controller-composer.ts`（草稿、引用、绘制、阅读位置、已读）、`controller-sync.ts`（事件流、刷新、历史分页）、`controller-rooms.ts`（选群、选话题）、`controller-topics.ts`（话题面板与新话题）、`controller-navigate.ts`（发送、来源与搜索结果定位）、`controller-dialogs.ts`（各弹窗）、`controller-startup.ts`（连接与取名）、`controller-page.ts`（页面级监听）、`controller-clicks.ts`（`data-action` 点击分发）。每层是自包含的工厂，只经 `ImCtx` 与别的层后绑定相互调用，由 `client.ts` 序列化进页面。
 - `src/browser/history.ts`：连续历史窗口、缓存追赶与分页游标。
 - `src/browser/drafts.ts`：成员/会话草稿、稳定提交版本及条件清理。
 - `src/browser/transport.ts`：同源 HTTP、SSE 与经过来源/请求标识校验的宿主连接。
@@ -25,6 +25,8 @@ Workspace registration: `goal-reorg-f2`。
 ## 状态与交互
 
 所有服务请求同源 `/im/api`，身份由 HttpOnly cookie 解析。消息写入携带稳定 `client_id`，同一次不确定结果的重试复用原键；具名成员回执跨恢复后的设备会话识别，匿名命名仍按原会话隔离；成功发送与后续刷新失败分开处理。通过本机控制凭证与实际项目目录验证的宿主，可在匿名/失效会话时恢复该项目持久化 owner 身份，复用共享 Identity；不按名字匹配，不替换另一具名成员，不开放远端自动授权。
+
+邀请采用 v2 的安全状态合同。打开弹窗只读状态；本人明确生成/更换时，页面用至少 32 字节安全随机数和稳定 `client_id` 表达一次意图，原文只在当前页面内存，不存草稿或 localStorage。同一未知结果重试沿用原值，服务端当前哈希不匹配时不展示旧链接有效。刷新或换设备后无法取回原文；已分享链接仍有效，只有明确更换才使旧链接失效。新建群没有尚无人持有的令牌。复制走既有 `molisCopy`。真实路径与浅深色三宽度验证：`tests/im-invitations.e2e.test.ts`；服务端/维护见 [Home 数据](../../docs/system/HOME-DATA.md)。
 
 主群和 Thread 在同一区域切换，每个发送目标独立保存草稿、引用与阅读位置。新话题允许没有来源，要求标题及首条正文；服务端一次事务创建正式话题与首条消息，未发送的表单只作为本地草稿。成功回执只清除相同 client_id 的版本，不会删除期间编辑的新草稿。引用只指向同群真实消息，来源定位可回到主群并补载历史。
 

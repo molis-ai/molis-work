@@ -38,16 +38,6 @@ export async function handleHomeDockJudgmentHttp(request: IncomingMessage, respo
     }
     return true;
   }
-  if (url.pathname === "/api/home/talk/prepare" && request.method === "POST") {
-    try {
-      const body = await readBody(request);
-      sendJson(response, 200, await options.actions.invoke(homeActions.prepareTalk, body as { subject: { kind: string; id: string } }));
-    } catch (error) {
-      const failure = actionErrorResponse(error);
-      sendJson(response, failure.status, failure.body);
-    }
-    return true;
-  }
   if (url.pathname !== "/api/home/dock-judgment" || !["GET", "POST"].includes(request.method ?? "")) return false;
   try {
     if (request.method === "POST") {

@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, filesOutputsRefresh, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { fakeAgentHostActions, fakeKnowledgeReader, pluginActions } from "./fixtures/plugin-actions.js";
@@ -60,7 +60,7 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(fakeKnowledgeReader(pluginActions(store, DEMO_PROJECT_ID), subject => ({ title: `报告 ${subject.id}`, text: "三个测试已补，全部通过。", revision: "1" })), (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: agentHost });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), filesOutputsRefresh).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = async (path: string, method = "GET", body?: unknown) => {

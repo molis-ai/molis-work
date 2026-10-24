@@ -24,7 +24,7 @@ import { deferred } from "./fixtures/home-runtime.js";
 
 // Coding reads what it used to be handed by the Host through the platform instead (W5-01 C2; specs/coding-plugin §4 H): the models
 // from `services.model` (PG-047, V-13), the Goal titles from Goals' public read action (PG-091), the Characters from Characters' two
-// public actions `characters.list` and the plugin-only `characters.runnable` (PG-086), each declared in its Manifest and checked by the
+// public actions `characters.list` and the `characters.runnable` (PG-086), each declared in its Manifest and checked by the
 // platform's grant. The person's `characters.execution` (the local program and folders) stays out of a plugin's reach. There is no
 // `ready` port to wait for.
 
@@ -69,7 +69,7 @@ test("W5-01-CODING-23 PG035-07 Coding declares model:read, model:invoke only as 
     assert.ok(consumed.includes(definition.capability_id), `Coding lists ${definition.capability_id} under consumes`);
   }
   assert.equal(consumed.includes(charactersActions.execution.capability_id), false, "Coding does not ask for how a Character is launched");
-  assert.deepEqual(charactersActions.runnable.action.audiences, ["plugin"], "the runnable answer is for plugins only");
+  assert.deepEqual(charactersActions.runnable.action.audiences, ["user", "plugin"], "the runnable answer is for the person (the Assistant's picker, RAC-458) and plugins, nobody else");
   assert.deepEqual(charactersActions.execution.action.audiences, ["user"], "the local program and folders stay the person's");
 });
 
@@ -262,15 +262,9 @@ test("W5-01-CODING-30 S-15 once the person has withdrawn the grant, the listed a
 
 test("W5-01-CODING-31 SYS15-Q2 recovery retries after a failed Agent read without a page; coding.state never starts a loop", { timeout: 60_000 }, async t => {
   const waits: unknown[] = [];
-  const s = await codingSdkRuntime(t, { wrapCapabilities: client => new Proxy(client, { get(target, key) {
-    const value = Reflect.get(target, key, target);
-    if (key !== "invoke") return typeof value === "function" ? value.bind(target) : value;
-    return async (definition: { capability_id: string }, ...rest: unknown[]) => {
-      if (definition.capability_id !== agent.awaitContinuations.capability_id) return (value as (...args: unknown[]) => unknown).call(target, definition, ...rest);
-      waits.push(rest[0]);
-      throw new Error("Agent 运行时没有起来");
-    };
-  } }) });
+  const s = await codingSdkRuntime(t);
+  // The wait for a continuation (an action, R8 batch 4) reaches the task graph and fails there, as when the runtime is not up.
+  t.mock.method(s.adapter.collaboration!, "awaitReady", async (...args: unknown[]) => { waits.push(args); throw new Error("Agent 运行时没有起来"); });
   assert.equal(waits.length, 0, "a project with no session tied to an Agent run starts no loop");
   await s.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "tied", title: "重启前的会话", runtime_id: "prologue", at });
   await s.sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "tied", "sdk", at);

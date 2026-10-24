@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
+// GITREF-02: keep this real Host confirmation, refusal, index and commit flow unchanged in both controlled refresh orders.
 test("SYS-15-U10 S-47 Git reviews remain Host-owned and require a real Host confirmation", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "git");

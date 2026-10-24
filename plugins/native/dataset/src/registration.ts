@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, datasetProjectData, DATASET_HOME_STORE } from "./index.js";
+import { DATASET_MESSAGES, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, datasetProjectData } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -7,9 +7,9 @@ import { DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRI
  */
 export const registration: PluginRegistration = {
   project_plugin_id: DATASET_PROJECT_PLUGIN_ID, catalog_order: 17,
-  home_store: DATASET_HOME_STORE,
   manifest: datasetManifest,
   project_data: datasetProjectData,
+  messages: DATASET_MESSAGES,
   personal: true,
   summary: "做表格，导入 CSV，可回到旧版。",
   workbench: {

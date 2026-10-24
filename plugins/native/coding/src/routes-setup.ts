@@ -4,7 +4,7 @@ import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.j
 import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
 import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
-import { codingActionControl } from "./route-entry.js";
+import { codingActions, codingActionControl } from "./route-entry.js";
 import { text } from "./run-inputs.js";
 import { libraryRuntime, limitsCharacters, runtimeDirectory } from "./runtime-choice.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -20,10 +20,10 @@ type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBindi
 const ROUTES: RouteMaker[] = [
   (a) => {
     const { context, route } = a;
-    return route("coding.actions", async (request, api, execution, beforeWrite) => {
-      const record = selected(a, request, execution), runtimes = await api!.invoke(agent.listRuntimes, []);
+    return route("coding.actions", async (request, _api, execution, beforeWrite) => {
+      const record = selected(a, request, execution), runtimes = await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []);
       const tools = runtimes.some(runtime => runtime.runtime_id === record.runtime_id && runtime.supports_action_tools)
-        ? await api!.invoke(agent.listActions, [record.runtime_id, context.plugin_id]) : [];
+        ? await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]) : [];
       const characterRef = savedCharacter(context, record.session_id);
       // The tools the session's Character allows: none when it sets no limit; Characters' own refusal (the version is off, gone) is shown beside each action.
       let characterTools: Awaited<ReturnType<typeof execution.characters.actionTools>>;
@@ -39,10 +39,10 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.save-mcp", async (request, api) => {
+    return route("coding.save-mcp", async (request, api, _execution, beforeWrite) => {
       const body = bodyOf(request);
       // The project's Runtime holds its MCP servers; one whose matrix offers none refuses before anything is read or kept (PG-054).
-      const runtime = libraryRuntime(await runtimeDirectory(api!), "mcp");
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "mcp");
       const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
         transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
       if (input.transport === "stdio") {
@@ -51,44 +51,44 @@ const ROUTES: RouteMaker[] = [
         if (!workspace?.realpath_verified) throw codingFailure("coding.server.mcp-workspace");
         input.directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
       }
-      return { server: await api!.invoke(agent.saveMcp, [runtime.runtime_id, context.plugin_id, input]) };
+      return { server: await codingActions(context, beforeWrite).invoke(agent.saveMcp, [runtime.runtime_id, input]) };
     });
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.control-mcp", async (request, api) => {
+    return route("coding.control-mcp", async (request, api, _execution, beforeWrite) => {
       const action = bodyOf(request).action;
       if (!["connect","disconnect","cancel","remove"].includes(String(action))) throw codingFailure("coding.server.mcp-action");
-      const runtime = libraryRuntime(await runtimeDirectory(api!), "mcp");
-      await api!.invoke(agent.controlMcp, [runtime.runtime_id, context.plugin_id, text(request.params.serverId,"coding.field.mcp-server"), action as "connect" | "disconnect" | "cancel" | "remove"]);
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "mcp");
+      await codingActions(context, beforeWrite).invoke(agent.controlMcp, [runtime.runtime_id, text(request.params.serverId,"coding.field.mcp-server"), action as "connect" | "disconnect" | "cancel" | "remove"]);
       return { accepted: true };
     });
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.discover-methods", async (request, api) => {
+    return route("coding.discover-methods", async (request, api, _execution, beforeWrite) => {
       const body = bodyOf(request);
-      const runtime = libraryRuntime(await runtimeDirectory(api!), "skills");
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
       const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
       const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
       if (!workspace?.realpath_verified) throw codingFailure("coding.server.pick-workspace");
-      return { candidates: await api!.invoke(agent.discoverSkills, [runtime.runtime_id, context.plugin_id,
+      return { candidates: await codingActions(context, beforeWrite).invoke(agent.discoverSkills, [runtime.runtime_id,
         { canonical_path: workspace.canonical_path, realpath_verified: true }, text(body.path, "coding.field.method-path", 1000)]) };
     });
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.install-method", async (request, api) => {
-      const runtime = libraryRuntime(await runtimeDirectory(api!), "skills");
-      return { method: await api!.invoke(agent.installSkill, [runtime.runtime_id, context.plugin_id, text(bodyOf(request).candidate_id, "coding.field.candidate")]) };
+    return route("coding.install-method", async (request, api, _execution, beforeWrite) => {
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
+      return { method: await codingActions(context, beforeWrite).invoke(agent.installSkill, [runtime.runtime_id, text(bodyOf(request).candidate_id, "coding.field.candidate")]) };
     });
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.read-method", async (request, api) => {
-      const runtime = libraryRuntime(await runtimeDirectory(api!), "skills");
+    return route("coding.read-method", async (request, api, _execution, beforeWrite) => {
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
       const ref = methodSelection([{skill_id: request.params.skillId, version: Number(request.params.version)}])[0]!;
-      return { method: await api!.invoke(agent.readSkill, [runtime.runtime_id, context.plugin_id, ref]) };
+      return { method: await codingActions(context, beforeWrite).invoke(agent.readSkill, [runtime.runtime_id, ref]) };
     });
   },
   (a) => {
@@ -105,7 +105,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { projectId, busy, route } = a;
-    return route("coding.save-plan", async (request, api, execution, beforeWrite) => {
+    return route("coding.save-plan", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
       const notStarting = () => { if (busy.has(record.session_id)) throw codingFailure("coding.server.busy-plan-adjust"); };
       notStarting();
@@ -117,17 +117,17 @@ const ROUTES: RouteMaker[] = [
       if (body.run_id !== undefined) {
         if (!record.runtime_session_id) throw codingFailure("coding.server.no-planning-turn");
         const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-        const snapshot = await api!.invoke(agent.readSession, [session]);
+        const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
         const ref = snapshot.runs.find(run => run.run_id === body.run_id);
         if (!ref) throw codingFailure("coding.server.planning-turn-elsewhere");
         // The planning rounds just before this one, back to the round that started planning, give the plan its task.
         const earlier: AgentRunView[] = [];
         for (let at = snapshot.runs.indexOf(ref) - 1; at >= 0; at--) {
-          const view = await api!.invoke(agent.readRun, [session, snapshot.runs[at]!]);
+          const view = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, snapshot.runs[at]!]);
           if (view.frozen.role_id !== "planner") break;
           earlier.unshift(view);
         }
-        proposal = planFromRun(record.session_id, await api!.invoke(agent.readRun, [session, ref]), earlier);
+        proposal = planFromRun(record.session_id, await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]), earlier);
       } else {
         if (!current) throw codingFailure("coding.server.plan-from-turn");
         proposal = { source: current.source, content: parseCodingPlan(body.content) };
@@ -165,10 +165,10 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.characters", async (request, api, execution, beforeWrite) => {
+    return route("coding.characters", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       // Whether the session's Runtime has verified a Character's tool limits is the Runtime's own declaration; the page offers Characters only then.
-      const limited = limitsCharacters(await api!.invoke(agent.listRuntimes, []), record.runtime_id);
+      const limited = limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id);
       return { characters: await execution.characters.list(codingActionControl(beforeWrite)), selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), limits_verified: limited };
     });
   },

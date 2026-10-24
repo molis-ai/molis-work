@@ -1,10 +1,10 @@
-import { GIT_SENTENCE_TABLE, sayHostSentence } from "./sentences.js";
+import { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js";
 
 /** Reads through declared plugin routes; no Git process or approval lives in the browser. */
 export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const scope=host.root || document,L=host.translate;
   // A sentence the Host or an action wrote (a refusal, a result, a summary) in the page's language; the times the page shows are the page's too.
-  const say=${sayHostSentence.toString()},sentences=${JSON.stringify(GIT_SENTENCE_TABLE)},S=sentence=>say(L,sentences,sentence);
+  const say=${sayHostSentence.toString()},U=${sayUpstream.toString()},sentences=${JSON.stringify(GIT_SENTENCE_TABLE)},S=sentence=>say(L,sentences,sentence);
   const when=value=>new Date(value).toLocaleString(document.documentElement.lang||'zh-CN');
   const directory=scope.querySelector('[data-git-browser]'),result=scope.querySelector('[data-git-results]');
   if(!directory || !result)return null;
@@ -78,22 +78,35 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     finally{if(serial===ticket && active(epoch))result.setAttribute('aria-busy','false');}
   }
   async function refresh(){
-    if(!lifetime.visible)return;const epoch=++generation;ticket++;result.setAttribute('aria-busy','false');refreshButton.disabled=true;refreshButton.toggleAttribute('data-loading',true);refreshButton.querySelector('.mw-spinner').hidden=false;list.setAttribute('aria-busy','true');notice.textContent=L('git.list.reading');list.replaceChildren();reopen.hidden=true;history.disabled=true;
+    if(!lifetime.visible)return;const epoch=++generation;ticket++;result.setAttribute('aria-busy','false');refreshButton.disabled=true;refreshButton.toggleAttribute('data-loading',true);refreshButton.querySelector('.mw-spinner').hidden=false;list.setAttribute('aria-busy','true');notice.textContent=L('git.list.reading');reopen.hidden=true;history.disabled=true;
     try{
       const value=await request('/state');if(!active(epoch))return;
-      if(workspace!==value.workspace.workspace_id){resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();if(workspace && !result.hidden){result.hidden=true;host.closeResult();}}
+      if(workspace!==value.workspace.workspace_id){list.replaceChildren();resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();if(workspace && !result.hidden){result.hidden=true;host.closeResult();}}
       workspace=value.workspace.workspace_id;selected=value.selected;reopen.hidden=!selected;
       await showReviews();if(!active(epoch))return;
       await loadSource();if(!active(epoch))return;
-      const view=value.view;notice.textContent=view.phase==='ready'?[S(view.head),S(view.tracking),view.message&&S(view.message)].filter(Boolean).join(' · '):S(view.message);
-      for(const [label,items,side,state] of [[L('git.group.conflicts'),view.conflicts,'worktree','conflict'],[L('git.group.staged'),view.staged,'index','staged'],[L('git.group.unstaged'),view.changes,'worktree','unstaged']]){
+      const view=value.view;notice.textContent=view.phase==='ready'?[S(view.head),U(L,view.upstream),view.message&&S(view.message)].filter(Boolean).join(' · '):S(view.message);
+      const entries=[[L('git.group.conflicts'),view.conflicts,'worktree','conflict'],[L('git.group.staged'),view.staged,'index','staged'],[L('git.group.unstaged'),view.changes,'worktree','unstaged']];
+      const groups=new Map([...list.children].map(group=>[group.dataset.gitGroup,group])),rows=new Map([...list.querySelectorAll('[data-git-path]')].map(row=>[row.dataset.gitPath,row]));
+      const wanted=new Set(entries.flatMap(([,items,side])=>items.map(item=>JSON.stringify([item.path,side]))));
+      for(const [key,row] of rows)if(!wanted.has(key)){row.remove();rows.delete(key);}
+      const ordered=[];
+      for(const [label,items,side,state] of entries){
         if(!items.length)continue;
-        const group=document.createElement('section'),heading=document.createElement('h4');heading.textContent=label+' · '+items.length;heading.dataset.mwState=state;group.append(heading);
-        for(const item of items){const button=document.createElement('button');button.type='button';button.className='mw-dir-row mw-dir-row--compact';button.dataset.gitPath=JSON.stringify([item.path,side]);button.classList.toggle('is-selected',Boolean(displayed && displayed.side===side && JSON.stringify(displayed.path)===JSON.stringify(item.path)));const copy=document.createElement('span');copy.className='mw-dir-row__copy';const headline=document.createElement('span');headline.className='mw-dir-row__headline';const name=document.createElement('strong');name.textContent=item.label;headline.append(name);copy.append(headline);button.append(copy);button.title=label+' · '+item.label;button.setAttribute('aria-label',L('git.group.row-label',{group:label,name:item.label}));lifetime.listen(button,'click',()=>void open(item.path,side,button));group.append(button);}
-        list.append(group);
+        let group=groups.get(state);if(!group){group=document.createElement('section');group.dataset.gitGroup=state;group.append(document.createElement('h4'));}
+        groups.delete(state);ordered.push(group);
+        const heading=group.querySelector('h4');heading.textContent=label+' · '+items.length;heading.dataset.mwState=state;let previous=heading;
+        for(const item of items){const key=JSON.stringify([item.path,side]);let button=rows.get(key);
+          if(!button){button=document.createElement('button');button.type='button';button.className='mw-dir-row mw-dir-row--compact';button.dataset.gitPath=key;const copy=document.createElement('span');copy.className='mw-dir-row__copy';const headline=document.createElement('span');headline.className='mw-dir-row__headline';headline.append(document.createElement('strong'));copy.append(headline);button.append(copy);lifetime.listen(button,'click',()=>void open(item.path,side,button));}
+          button.querySelector('strong').textContent=item.label;button.title=label+' · '+item.label;button.setAttribute('aria-label',L('git.group.row-label',{group:label,name:item.label}));
+          button.classList.toggle('is-selected',Boolean(displayed && displayed.workspace_id===workspace && displayed.side===side && JSON.stringify(displayed.path)===JSON.stringify(item.path) || opener===button && result.getAttribute('aria-busy')==='true'));
+          if(previous.nextElementSibling!==button)group.insertBefore(button,previous.nextElementSibling);previous=button;
+        }
       }
+      for(const group of groups.values())group.remove();
+      ordered.forEach((group,index)=>{if(list.children[index]!==group)list.insertBefore(group,list.children[index] || null);});
       history.disabled=false;
-    }catch(error){if(active(epoch)){workspace='';selected=null;resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();history.disabled=true;notice.textContent=S(error.message);if(!result.hidden){q('[data-git-diff]').replaceChildren();diffNotice.textContent=S(error.message);}}}
+    }catch(error){if(active(epoch)){list.replaceChildren();workspace='';selected=null;resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();history.disabled=true;notice.textContent=S(error.message);if(!result.hidden){q('[data-git-diff]').replaceChildren();diffNotice.textContent=S(error.message);}}}
     finally{if(active(epoch)){refreshButton.disabled=false;refreshButton.removeAttribute('data-loading');refreshButton.querySelector('.mw-spinner').hidden=true;list.setAttribute('aria-busy','false');}}
   }
   async function afterDecision(outcome){

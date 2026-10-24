@@ -125,6 +125,32 @@ export const UI_VIEW_SLOTS = ["navigator", "stage", "settings", "island", "side"
 
 export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 
+/**
+ * The rail's groups, in the order the shell lists them. They read as what a person wants to do, not as kinds of software
+ * (specs/archive/plugin-e2e-review §3.1): 推进, 写与做, 个人, 研究, 编码. The Host owns their names and their order; a view
+ * that opens its plugin from the rail names the group it belongs to, and one that names none is listed under 更多.
+ */
+export const UI_VIEW_GROUPS = ["advance", "make", "personal", "research", "code"] as const;
+
+export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
+
+/** A kind of thing a person can make new from a Goal: one of the Manifest's create stations, and the kind's name. */
+export interface UiViewCreateEntry {
+  /** The `id` of a `workflow_content` station of the same Manifest whose role is `create`; `placement.create` calls it. */
+  readonly station: string;
+  /** The kind's name (文档, 问卷): the button says it, and a new one is called 未命名 followed by it. */
+  readonly title: string;
+}
+
+/** One way to start something from the project home on an empty day; choosing it opens the view's plugin. */
+export interface UiViewStartEntry {
+  readonly title: string;
+  /** One sentence, shown as the entry's hint. */
+  readonly hint: string;
+  /** Icon name from the Host's catalog, as for the view's own `icon`; omitted means the view's icon. */
+  readonly icon?: string;
+}
+
 /** Placement declaration. Rendering stays with `UiContribution.render`. */
 export interface UiViewDeclaration {
   readonly view_id: string;
@@ -149,6 +175,12 @@ export interface UiViewDeclaration {
   readonly objects?: readonly string[];
   /** Lower sorts earlier inside its slot. Ties fall back to view_id order. */
   readonly order?: number;
+  /** `navigator` and `island` views only: the rail group the plugin is listed in. Omitted means 更多. */
+  readonly group?: UiViewGroup;
+  /** `navigator` and `island` views only: what a person can make new with this plugin from a Goal. */
+  readonly creates?: UiViewCreateEntry;
+  /** `navigator` and `island` views only: the project home's way to start with this plugin. */
+  readonly start?: UiViewStartEntry;
 }
 
 /** Focused stage metadata delivered by the shell to a declared contextual side view. Never grants object access. */
@@ -224,6 +256,15 @@ export interface UiContributionDescriptor {
   readonly surfaces?: readonly UiSurfaceDescriptor[];
   /** Slots this contribution opens for nested content from other Plugins. */
   readonly slots: readonly UiSlotDescriptor[];
+}
+
+/**
+ * What the platform adds to the model of a view that opens slots (`UiContributionDescriptor.slots`): for each slot id, the markup the
+ * running plugins it embeds (`manifest.ui.embedded_plugins`) drew in it through a surface that targets that slot, in the order the
+ * Manifest lists them. A slot nothing fills is absent; an embedded plugin that is not running adds nothing.
+ */
+export interface UiNestedContentModel {
+  readonly nested?: Readonly<Record<string, string>>;
 }
 
 export interface UiRenderRequest<TModel = unknown> {
@@ -311,6 +352,11 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   route(path: string): string;
   /** A relative path under this plugin's Manifest identity and current project (or Home). */
   pluginRoute(path: string): string;
+  /**
+   * The surface that opens objects of this kind, as the plugins declare it (their search sources), or `null` when no surface
+   * does or several do. A page links an object it holds only by `kind` and `id` through it, and shows plain text when it is `null`.
+   */
+  surfaceFor(kind: string): string | null;
   readRefusal(status: number, code: unknown): string;
   confirmBox(dialog: Dialog, ok: Element, run?: () => Promise<unknown>): Promise<boolean>;
   interaction(card: Element, options: { onSubmit?: () => void }): UiPageInteraction;

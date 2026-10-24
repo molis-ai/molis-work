@@ -105,11 +105,12 @@ const versionReference: ActionSchema = { type: "object",
 const closedObject = (properties: Record<string, unknown>): ActionSchema => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
 
 /**
- * The two Characters reads that a plugin running a person's Character consumes (PG-086), defined once: Characters answers them, and
- * Coding names their `capability_id` in its Manifest `capabilities.consumes` and invokes them through `services.actions`, never
- * reaching Characters' implementation or the Host's frozen-Character helper. `list` keeps its version and shape and adds the plugin
- * audience; `runnable` is a plugin-only answer, so the launch details the person's `characters.execution` gives (the local program
- * and folders) stay the person's. A caller needs `artifact:read`.
+ * The two Characters reads that whoever runs a person's Character consumes (PG-086), defined once: Characters answers them. Coding
+ * names their `capability_id` in its Manifest `capabilities.consumes` and invokes them through `services.actions`; the Assistant, which
+ * acts as the person, reads the same two (C2b). Neither reaches Characters' implementation or the Host's frozen-Character helper.
+ * `list` keeps its version and shape and adds the plugin audience; `runnable` answers the person and plugins, and only whether a version
+ * can run: the launch details the person's `characters.execution` gives (the local program and folders) stay the person's, with no
+ * plugin audience. A caller needs `artifact:read`.
  */
 export const characterPluginActions: {
   /** The person's drafts and this project's published Character versions, as the 成果库 and the picker show them. */
@@ -129,7 +130,7 @@ export const characterPluginActions: {
   runnable: {
     capability_id: "characters.runnable", version: 1, operation: "query",
     action: { title: "角色能否运行", description: "核对这个发布版本现在能否运行：是本项目当前的发布版本，角色也没有停用或删除；不能运行时给出原因", kind: "query", scope: "project",
-      audiences: ["plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
+      audiences: ["user", "plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
       input_schema: closedObject({ reference: versionReference }),
       output_schema: { type: "object", properties: { available: { type: "boolean" }, reason: { type: "string", minLength: 1, maxLength: 500 } }, required: ["available"], additionalProperties: false } },
   },

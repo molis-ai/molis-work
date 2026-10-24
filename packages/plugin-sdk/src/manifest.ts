@@ -9,8 +9,11 @@ import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
+import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
+import { imageGenerationDeclarationProblems, modelConfigurationDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
+import { createStations, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
 
@@ -78,6 +81,9 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
   const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions);
   if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
+  const serviceProblems = [...ownerFilesDeclarationProblems(manifest.owner_files, permissions), ...modelConfigurationDeclarationProblems(manifest.model_configuration, permissions),
+    ...imageGenerationDeclarationProblems(manifest.image_generation, permissions)];
+  if (serviceProblems.length > 0) invalid(serviceProblems.join("；"));
   const capabilities = record(manifest.capabilities, "capabilities");
   strings(capabilities.provides, "capabilities.provides");
   strings(capabilities.consumes, "capabilities.consumes");
@@ -244,6 +250,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
   if (!Array.isArray(ui.views)) return ["ui.views 必须为数组"];
   const problems: string[] = [];
   const contributions = new Set(parsed.ui.contributions);
+  const stations = createStations(parsed);
   const seen = new Set<string>();
   for (const view of views) {
     if (!text(view.view_id)) {
@@ -266,6 +273,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     if (!contributions.has(contributionId)) {
       problems.push(`视图 ${view.view_id} 的 contribution ${contributionId} 未在 ui.contributions 声明`);
     }
+    problems.push(...viewPlacementProblems(view, stations));
   }
   return problems;
 }

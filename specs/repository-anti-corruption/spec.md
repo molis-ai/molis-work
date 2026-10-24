@@ -633,7 +633,7 @@ W5-01-GIT Git 离开 HYBRID 名单（G5，2026-10-23，③；分支 `migrate/git
 - 错误主人（T5）：写者工作树的五个码从 `git.*` 改成 `workspace_git.worktree.*`（`unavailable`、`not_a_repository`、`failed`、`not_owned`、`dirty`）；没有别的代码、测试或库按旧码分支，调用记录里的错误码只是诊断行。`tooling/gates/error-owners.json` 的 `git` 主人只留 SDK 的 `git-porcelain.ts`，三个改名的文件归 `workspace_git`。`workspace-git.ts` 与 `workspace-git-index.ts` 在 merge-base 是 `host` 的，主人表只许变严，所以留在 `host`；`workspace-git.ts` 的 `GitReadError` 只在本文件里抛、本文件里转成读取结果，不是线上的错误，不改。
 - 名单：`tests/builtin-plugin-assembly-gate.test.ts` 的 `HYBRID_RUNTIME_PLUGINS` 去掉 `git`，剩 `coding`、`shelf`。
 - 验收：
-  - `W5-01-GIT-01`：宿主里 import Git 包的文件正好是 `project-plugins.ts` 和 `coding-surface.ts`（后者是 Coding 的 Git 伙伴页，① 10-21 裁 T1 放行，C9 删它时收紧，见 privileges PG-091）；监督器不带参数调 `createGitPlugin()`；宿主没有 `gitPorts` 或 `observeGitOperations`。
+  - `W5-01-GIT-01`：宿主里 import Git 包的文件正好是 `project-plugins.ts`（Coding 页里的 Git 伙伴页是 Git 自己的 surface，C9 删 `coding-surface.ts` 时收紧，见 privileges PG-091）；监督器不带参数调 `createGitPlugin()`；宿主没有 `gitPorts` 或 `observeGitOperations`。
   - `W5-01-GIT-02`：`workspace-git*.ts` 不 import 任何 `@molis-ai/molis-work-plugin-*`。
   - `W5-01-GIT-03`：真实宿主里 `projects.workspace.git.*`、`projects.workspace.writers.*` 都没有 typed 条目，Git 的四项与 writer 的四项都是只给插件调的动作。
   - `W5-01-GIT-04`：没有以 Git 命名的宿主文件，Git 不在 HYBRID 名单里（同一测试文件的 hybrid 用例）。
@@ -736,6 +736,44 @@ W5-01-GIT Git 离开 HYBRID 名单（G5，2026-10-23，③；分支 `migrate/git
   - 合并 main 之前：从 `affected-tests` 列出的相关文件里选 112 个，102 个通过。失败的 10 个里，6 个由本片引起，改完重跑通过；另 4 个与本片无关：两个缺本机 Swift 产物 `native/computer/bin`，两个的失败落在本片没动的文件上。
   - 合并 origin/main `4591a1484` 之后：14 个文件全部通过，含动作快照 25/25、S-18 17/17，以及 main 新加的 `coding-work-executor`、`plugin-ui-invalidate`。
 - 门禁：动作快照、`boundary:check`、§5.1 包清单（71 个包）、页面资源与 health 门禁都对 merge-base `4591a148` 通过；`secrets:check` 扫了 1830 行，没有发现。RAC-74 的浏览器用例交给集成批次。
+
+### W5-06 第 2b 片：视图声明分组、新建、首页起点与设置图标（PG-060，2026-10-23，②；分支 `feat/w5-06-manifest-placement`）
+
+状态：已实现，待评审与集成批次（改了 contracts 与插件 SDK，算共享核心；本机只跑 dev 构建与两份快照，相关用例交给批次，见开发优先阶段的规则）。叠在第 2 片（#1087）上。
+
+- **合同**（`packages/contracts/src/platform/ui.ts`，都可选）：`UiViewDeclaration` 加三项。
+  - `group`：插件切换列表里的分组，取 `UI_VIEW_GROUPS`（`advance`、`make`、`personal`、`research`、`code`）之一。组名（推进、写与做、个人、研究、编码）和顺序归宿主；骨干（Goals、Inbox、Feed、Sessions）照旧由宿主排在第一组的标题下。
+  - `creates`：`{ station, title }`，目标材料里的新建入口。`station` 是本 Manifest 里一个能新建的工作流内容站；新建的默认标题是「未命名」加 `title`。
+  - `start`：`{ title, hint, icon? }`，项目首页当天没有事件时的一个起点，点了打开这个插件。
+  - 设置页图标用已有的 `icon`：`settings` 视图的 `icon` 就是设置目录里这一页的图标。
+- **校验**（`packages/plugin-sdk/src/view-placement-declarations.ts`，接在 `parsePluginManifest` 的视图检查之后）：`icon`、`start.icon` 不是图标名；`group`、`creates`、`start` 用在 `navigator`、`island` 以外的槽；不认识的组；`creates` 缺 `station` 或 `title`、不是对象、指向本 Manifest 没有的站或不能新建的站；`start` 缺 `title` 或 `hint`、不是对象。每一种都拒绝，提示写明视图与字段。
+- **工作台**：
+  - 外壳的分组表删掉，按视图的 `group` 分组，宿主只留 `RAIL_GROUP_LABELS`（组名）；没写分组的插件在「更多」。组内先是个人岛（灵光，`island`，`group: "personal"`，照旧排在「个人」第一个），再是目录视图，按视图的 `order`、同 `order` 按插件 id（`UiViewRegistry` 的排法）：Workflows（25）在 Schedule（35）前面，成果库与图片都是 60，成果库在前。这与 main 上画出来的一样：旧表里的 id 只决定成员，组内一直是注册表的顺序。
+  - 设置图标表删掉，按 `settings` 视图的 `icon` 取，宿主不认识的名字和没写的都用 `settings`；按地址直接打开的设置页同样取到。原来表里 Pages、Form、Dataset、PPT 四行没有对应的设置页，一起删。
+  - 新增 `creatableKinds(enabled)`、`homeStarts(enabled)`（`apps/workbench/src/plugin-catalog.ts`）：只列本项目显示的插件，先是目录视图（按 `order`），再是个人岛；与切换列表不同，切换列表里个人岛排在组首。页面还没改读它们：`goal-inputs-html.ts` 的新建表、`scripts/client/placement.ts` 的默认标题表、`scripts/client/project-home.ts` 的起点表由 ③ 接上后删（BL-387）。新建入口的顺序会从手写的 Pages、PPT、Form、Dataset 变成声明顺序 Pages、Form、Dataset、PPT。
+  - 内置插件的声明照原来的表写：Schedule、Workflows 是 `advance`；Pages、Form、Dataset、PPT、Images、成果库是 `make`；灵光、Todo、Jelly、Cognia 是 `personal`；Alchemist 是 `research`；Coding 是 `code`。Pages、Form、Dataset、PPT 声明 `creates`；Goals、Pages、灵光声明 `start`；Shelf、Coding 的设置视图声明 `icon`。
+- **顺带**（#1087 评审建议）：声明舞台里不起作用的 Text Stats 分支删掉（它的贡献没有 `workbench` surface），外壳不再传 `developerMode`；`tests/declared-stages.test.ts` 的点名清单补上 Alchemist，并钉住 Feed、Inbox 的舞台用的是页面视图的数据；`docs/system/RUNTIME-MIGRATION.md` 第 5.1 节不再点名已删的函数。第 5 条（隐藏创作台的项目里直接打开预览地址，落到不存在的舞台上）不归这一片，记 BL-369。
+- **对插件作者**：三项都可选。不写 `group` 的插件在「更多」；设置视图不写 `icon` 的用 `settings`；不写 `creates`、`start` 的插件不出现在新建入口和首页起点里。已有 Manifest 不用改；写了的照上面的规则校验。
+
+#### 验收（RAC-75～78）
+- **RAC-75**（W5-06-PLACE-01）：每一种写错的分组、新建、起点与图标声明都被 `parsePluginManifest` 拒绝，提示逐字一致；三项都写对、都不写、写在 `island` 上的都通过；全部内置 Manifest 通过。`tests/view-placement-declarations.test.ts`。
+- **RAC-76**（W5-06-PLACE-02）：插件切换列表的组标题依次是推进、写与做、个人、研究、编码、更多；每个插件都在它的视图所写分组的标题下，没写的在「更多」（如 Files）；各组成员与删掉的表一致，组内顺序钉成显式列表：推进是 Workflows、Schedule，写与做是 Pages、Form、Dataset、PPT、成果库、图片，个人是灵光、Todo、Jelly、Cognia。`tests/view-placement-declarations.test.ts`、`tests/characters-appearance.test.ts`。
+- **RAC-77**（W5-06-PLACE-03）：设置目录里 Shelf、Goals、Coding 的图标是各自设置视图的 `icon`（library、workflow、code）；按地址打开、项目没显示的插件的设置页也取到；视图没写宿主认识的图标的页用 `settings`。`tests/view-placement-declarations.test.ts`。
+- **RAC-78**（W5-06-PLACE-04）：`creatableKinds` 按目录视图的 `order` 给 Pages、Form、Dataset、PPT 的站与名称（文档、问卷、数据表、演示稿），`homeStarts` 给 Goals、Pages、灵光的起点（标题、提示、图标与 ③ 的手写表一致）；两者都只列本项目显示的插件。`tests/view-placement-declarations.test.ts`。
+
+### W5-06 第 3 片：项目级 Runtime 实例的舞台由运行中的实例画（PG-060，2026-10-23，②；分支 `feat/w5-06-project-stages`）
+
+状态：本片评审修复、真实浏览器与定向验证通过（2026-10-23，Codex 接续）；已同步第 2b 片（#1098）的最终验证提交，整批全量仍待集成，不代表 W5-06 全部完成或用户验收。
+
+- **宿主**（`apps/local-host/src/project-plugin-stages.ts`）：项目的 Runtime 跑的内置插件里声明了舞台的（Form、Dataset、PPT、Pages、灵光、Workflows、Schedule），舞台用运行中实例的视图画，并按打开舞台的贡献 id 报给外壳（`plugin_stage_ids`），工作台不再从构建目录画第二份。没在运行的（被停、启动失败、项目库被拒、整个平台没起来）在同一个舞台画不可用占位（`data-project-plugin-unavailable`，写明原因）；实例在运行却没有这个视图，或画的时候抛错，也画占位，后者另写日志。Home 级插件（含双实例插件）仍归 Home 那条路径（`renderHomePluginStages`）。
+- **占位文字**（本轮评审修复）：项目级与 Home 级舞台的固定标题、原因和操作提示走当前请求的 `L()`，英文词条纳入既有工作台词典；外部错误仍转义显示。项目实例在运行但没有贡献时明确说未提供页面，不报成未运行；Home 实例运行却没有视图也不报成停用。不新增状态页或链接，项目状态与重启入口仍属 BL-430；不调整 `stageModels` 的排版或巨大函数行数。
+- **真实占位修复**（RAC-79 浏览器发现）：原先宿主生成的占位 HTML 被外壳当成插件贡献送入 frame；停止实例没有有效 activation，`POST /api/host/plugin-pages` 正确拒绝，因此人看到通用加载失败，读不到占位。宿主现在把不可用状态作为结构化显示数据（surface、label、reason、scope）交给工作台，由工作台转义后绘制静态占位，不申请页面授权、不执行插件客户端。正常贡献仍走原 sandbox frame；不根据插件 HTML 可伪造的标记改变隔离，不增加状态存储，不放宽停止/撤权后的页面或动作拒绝。
+- **启动名单**（`apps/local-host/src/project-plugins.ts`）：内置条目移进 `projectPluginEntries`，在创建平台之前记到 `ProjectPluginState.plugins`，平台整个没起来也认得出该画占位的插件。没有 Home 目录时，除 Schedule 外这几个实例不启动，舞台照旧由工作台按目录画。
+- **模型**：渲染器给 `declaredStageModel`（Feed、Inbox、Schedule 用页面视图里的数据，其余给共用原语），外壳与宿主用同一份，外壳自己的兜底删掉；`declaredStageContributionId`（`apps/workbench/src/declared-stages.ts`）给出插件在主区的舞台贡献，两边共用。
+- **次序**：这几个舞台在舞台池里从外壳声明的那段挪到宿主那段；舞台池是隐藏的，次序不影响显示。
+
+#### 验收（RAC-79）
+- **RAC-79**（W5-06-STAGE-01）：项目页里 Form 的舞台只有一份，实例在运行时可用（有「新建问卷」）；停掉实例后，同一个舞台是不可用占位，没有 Form 的界面，不从构建目录补画；重启后恢复可用，占位消失。`tests/runtime-plugin-http-discovery.test.ts` 同时验证中英文请求中的固定占位文案、运行实例缺少贡献的准确原因，以及 Home 舞台占位的请求语言。定向验证运行该文件、`tests/i18n.test.ts` 与相关 Home 语言用例；整包构建后检查 API、边界、health 和页面资源，真实浏览器验证宿主占位可见且没有 Form 编辑控件，重启恢复 frame 并能创建持久化问卷；S-47 回归同时拒绝停止实例的页面授权和旧页面动作，并证明插件伪造占位标记仍在隔离 frame 中。 本轮 RAC-79 三项通过；page-authority、Home private-store、Workbench UI 与 deferred-clients 四文件共 34 项通过（deferred 一项首次导航超时，原样定向重跑通过）。整体构建、API、边界及 merge-base health 通过；27 项页面资源仍为 7,811,882 B，无增长。其余包级必跑清单随统筹的下一批集成 full 验证。
 
 ## 0. 现场与范围
 
@@ -1220,7 +1258,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
   - `apps/local-host/src/plugin-page-todo.ts`：只放行 `io.molis.work.todo` 的 `items` 操作，把情境页选中的来源映射成待办的 `title`、`sources`、`placement` 与幂等 `request_id`；唯一调用点在 `apps/local-host/src/home-plugin-http.ts`；
   - `scripts/gates/assembly.mjs:92`：`hostPluginFiles` 指标只按 `-actions.ts` / `-native-plugin-http.ts` 后缀认出「以插件命名的宿主文件」，`plugin-page-todo.ts` 识别不到、不进该指标记录。`scripts/check-health-gates.mjs` 的 `--base` 用同一份 `measureAll` 测量工作树和 merge-base；两边已有且同样命中新规则的文件会共同计入，不会仅因扩充扫描口径就自动成为新增违规。改门禁仍须按仓库规则取得授权，本片只登记，不改正则或指标（口径见 `tooling/gates/README.md`）。
 - **为什么本片只登记**：[context program](../context-program/spec.md) 开头的「交接（2026-10-20）」已说明 W0～W3 合入 main；W1-5 已有内核派生实现（`47c00b44`，`packages/kernel/src/contextual/destinations.ts`），不是尚待新建的平台能力。该 spec §18.7 已修正旧计划：去处走 `/draft`，落点版本冻结与执行前核对归 W3 的 `attach`。后续应按现行情境合同核对并迁移仍存的 Todo 专用入口与适配；是否还需改合同，由核对出的实际差距确定，不能预设为清理前置。本片保持复审报告 P3 的登记范围，不实施迁移。
-- **归属与跟踪**：后续清理沿用 ② 的 context program W1-5 跟踪归属，按当前交接接续；BACKLOG 的 BL-447 跟踪这一条（随 #1114 登记；该 PR 未合入前以本节为准）。完成须同时覆盖情境页的 Todo POST 白名单、`plugin-page-todo.ts` 专用适配及其调用，验证该路径已由通用合同承接后再更新本节；单独删文件不代表清理闭环，也不会消除扫描正则的通用识别盲区。`privileges.md` 的 PG 行由统筹在合入后补，本节不重复维护那份清单。
+- **归属与跟踪**：后续清理沿用 ② 的 context program W1-5 跟踪归属，按当前交接接续；BACKLOG 的 BL-568 跟踪这一条（随 #1114 登记；该 PR 未合入前以本节为准）。完成须同时覆盖情境页的 Todo POST 白名单、`plugin-page-todo.ts` 专用适配及其调用，验证该路径已由通用合同承接后再更新本节；单独删文件不代表清理闭环，也不会消除扫描正则的通用识别盲区。`privileges.md` 的 PG 行由统筹在合入后补，本节不重复维护那份清单。
 - **同报告的另一条**：#1018 的「隔离页 link 通道」（合成 click 可导航宿主设置页）已由合并 Agent 派出的 plugin-frame-fixes 认领修复，不在此登记。
 
 
@@ -1654,6 +1692,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `config/mcp-tools.json` | 2 → 3 | ACA005（`feature/aca005-search-authority`，本片 PR） | [同一片规格](slices/aca-005-search-authority.md)；逐条授权增加管理 owner 生成的 generation，原 client、scope、精确引用、权限、enabled 全部保留。临时副本已演练一次性 list/apply、外置原件、幂等、重复拒绝、真实写入失败零改和原件恢复；脚本仅在会话临时目录，不进运行时读路径。真实 Home 未操作，随 W5-17/统一发布维护窗口停全部 owner、完整备份并在副本核对后，另按真实 Home 的当次授权执行；v3 运行时严格拒绝 v2，不自动迁移、不改产品发布版本。 |
+| `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | [本片规格](slices/w5-16-home-snapshot.md) B1；真实 Home 未执行，随 W5-17、Goals S9 的既定维护窗口另行授权。停宿主并在完整副本先 `list`，显式 `apply --backup <Home外新目录>` 按原邀请 SHA-256 重建 v2 库，清除邀请回执原文，保留其余业务事实、自增序号与旧链接效力；不自动迁移。`tests/im-invite-maintenance.test.ts` 已在一次性 Home 演练：含最新 WAL 的全表比对、发布库与 backup API 副本无原文字节、重复零改、失败回滚和中断后拒绝打开及原件恢复。 |
 | `memory/memory.db` | 2 → 3 | 记忆策略 M1 第一片（`codex/memory-p0`，独立 PR 交付） | [记忆策略 spec](../prologue-memory-strategy/spec.md) §9.4 / §13；真实 Home 未执行。停止全部 owner 并备份，在隔离副本按旧代码物化个人、项目默认及已有项目的有效开关，保留消费者/插件限制，同一事务写采用记录和版本 3，不改 SDK 正文。已演练事务失败回退、重试、两次新进程重启及旧 Home/Web/MCP 入口拒绝。真实库采用与安装新构建须另获对应授权，不能由普通启动就地升级 |
 | `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 归维护八，与安装新构建同一步进行；真实 Home 未执行，仍需当次授权，不得先用新构建打开旧库或让旧构建打开维护后的库。隔离 v1 副本已演练：停宿主并完整备份，按当前 `CONNECTORS_STORE_BASELINE` 增加连接启停/移除字段、协议/授权请求与技术观察字段和表，在事务中写基线 2，核对原连接 id、凭据引用、绑定、协议及取消记录不变；失败恢复完整副本。证据见 [服务接入 spec](../assistant-service-connections/spec.md) 的连接生命周期、正式接入准备与技术观察记录 |
 | `projects/<project_id>/molis-work.db` | 6 → 7 | #369（删 Casebook 的 5 张表） | 维护六，真实 Home 的 18 个项目库 10-10 已做（上面「维护六」） |
@@ -1661,6 +1701,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | `projects/<project_id>/molis-work.db` | 7 → 8 | L1b（`feat/project-library-l1b`，叠在 #857 上；与 S8 同一批） | 维护八，未做：每个项目库一个事务跑 `tests/fixtures/project-maintenance-v8.sql`，建 `project_root` 并抄 Board 的那一行，重建 `boards`（去掉 `title`，外键指 `project_root`，行与 rowid 不变，S8）和外键指向 `boards` 的 11 张表改指 `project_root`（行、rowid 与自增序号不变），建插件库账本写 Coding、Feed、Goals、Schedule 四行（Goals 一行与 `boards` 的改建是 S8 加进同一份脚本的两步），写 `user_version = 8`；前置或后置核对任一不对整库回滚。演练 `tests/project-maintenance-v8.test.ts`（一次性 Home）；做法见检查清单第 4.3 节维护八。2026-10-20 本机没有真实 Home |
 | `projects/<project_id>/molis-work.db` | 8 → 9 | `feature/system-review-fixes`（SYS-15 公共调度安装绑定，待提交） | 未维护真实 Home：备份副本严格核对 v8，事务中新增 `schedule_action_bindings`、暂停未绑定闹钟、保留业务数据与历史，写 v9；错误版本和失败整笔回滚。SYS-15-S6 临时库演练已通过（`tests/project-maintenance-v9.test.ts`，脚本 `tests/fixtures/project-maintenance-v9.sql`），切换真实 Home 前另定维护窗口。 |
 | `characters/characters.sqlite` | 1 → 2 | Sessions 收尾 SC-2（`migrate/sessions-sc2-characters-runs`；Characters 自己记原生执行，D3） | 未维护真实 Home：停宿主、整份备份，副本上一个事务跑 `tests/fixtures/characters-maintenance-v2.sql`（只核对 `user_version` 正好是 1，不比表结构；只加 `character_runs` 表与索引，草稿不动），演练是 `tests/characters-maintenance-v2.test.ts`；以前记在会话库里的角色运行不迁，留给 SC-5 随会话库一起处理。与装新构建同一步做，动真实 Home 之前弹窗问用户 |
+| `assistant/assistant.db` | 2 → 3 | PG-036 C8-3（`claude/ac-coding-93b25f`；助理按执行方协议选执行方，工作正文的执行方改记插件标识） | 归维护八，与装下一个版本同一步做；未维护真实 Home，动之前弹窗问用户，不得先用新构建打开旧库或让旧构建打开维护后的库。停宿主并整份备份，在副本上一个事务跑 `tests/fixtures/assistant-maintenance-v3.sql`：只核对 `user_version` 正好是 2；工作正文里 `executor.kind` 为 `coding` 的改成 `plugin` 并补 `plugin_id` 为 `io.molis.work.coding`，轮次正文里 `executor` 为 `coding` 的改成 `plugin`，已发送请求的结果（`assistant_requests.result`，同一个请求标识再发会原样取回）里的 `work.executor` 同工作正文那样改，写版本 3；表、工作与会话的关联（种类仍是 `coding_session`）和其余字段不动。失败整笔回滚。临时库演练是 `tests/assistant-maintenance-v3.test.ts`（RAC-447、RAC-448） |
 
 **各库版本表（10-08 建立，项目库一行已按 10-10 维护六更新；各个后续候选的现行版本以 `docs/releases/CHECKLIST.md` 和 `node scripts/verify-release-versions.mjs` 的代码核对为准）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是对应时点的代码版本；真实 Home 目录库已在维护四升至 22，原「仍是 21」为过时状态。I6 Home Runtime 候选 v2 的要求另见 §10.2，不把本表当候选全部库的唯一清单。
 
@@ -1723,14 +1764,14 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/functions` | 模块 | 9 | 1,777 | `store.ts` 939 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/goals` | 模块 | 42 | 9,440 | `event-facts.ts` 631 | 1 | 1 | 2 | 在用 | 深 | 已审 |
 | `modules/governance-collaboration` | 模块 | 12 | 1,116 | `goal-tree-records.ts` 220 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/private-work-context` | 模块 | 21 | 3,054 | `session-records.ts` 367 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/private-work-context` | 模块 | 10 | 1,223 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 6 | 1,123 | `repository.ts` 467 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 已审 |
 | `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 已审 |
 | `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 已审 |
-| `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 已审 |
+| `packages/im-ui` | 基础 | 12 | 1,466 | `browser/controller.ts` 930 | 1 | 2 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 6 | 1,160 | `action-service.ts` 490 | 2 | 1 | 4 | 在用 | 深 | 已审 |
 | `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 已审 |
 | `packages/plugin-sandbox` | 基础 | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 | 在用 | 中 | 已审 |
@@ -1761,7 +1802,6 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
 | `plugins/native/todo` | 内置插件 | 22 | 4,276 | `client.ts` 1,240 | 1 | 4 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/workflows` | 内置插件 | 20 | 3,956 | `client.ts` 1,355 | 2 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
@@ -1769,7 +1809,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 已审 |
 | `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 已审 |
+| `server` | 模块 | 18 | 1,127 | `continuity/service.ts` 179 | 1 | 3 | 2 | 在用 | 中 | 已审 |
 | `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 已审 |
 
 ### 5.2 状态、计划深度与审查

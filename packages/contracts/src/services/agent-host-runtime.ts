@@ -1,7 +1,7 @@
 /** The agent-host contract (`services/agent-host`): a runtime's capabilities, descriptor and health, session and run references and phases, and the adapter a runtime implements. */
 import type { AgentMemoryExecutionControl, AgentMemoryCapability, AgentDocumentCapability } from "./agent-host-memory.js";
 import type { AgentRecoveryCapability, AgentScheduleCapability, AgentCheckpointsCapability, AgentSkillsCapability, AgentSkillLibrary, AgentMcpLibrary, AgentMcpCapability, AgentSubagentsCapability } from "./agent-host-ports.js";
-import type { AgentCreateSessionInput, AgentStartExecution, AgentStartRequest } from "./agent-host-start.js";
+import type { AgentCreateSessionRequest, AgentStartExecution, AgentStartRequest } from "./agent-host-start.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
 import type { AgentProjectWorkCapability, AgentSessionMessagesCapability, AgentBackgroundCapability } from "./agent-host-session.js";
 import type { AgentCollaborationPort } from "./agent-collaboration.js";
@@ -153,7 +153,7 @@ export interface AgentRuntimeAdapter {
   readonly documents?: AgentDocumentCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
-  createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
+  createSession(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<AgentSessionRef>;
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
   /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;

@@ -2,13 +2,13 @@ import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
-  DATASET_CLIENT_FACTORY_SCRIPT,
   datasetActions,
   openDatasetStore,
   renderDatasetWorkbench,
@@ -24,7 +24,6 @@ import {
   renderPagesWorkbench,
 } from "@molis-ai/molis-work-plugin-pages";
 import {
-  PPT_CLIENT_FACTORY_SCRIPT,
   openPptStore,
   pptActions,
   renderPptWorkbench,
@@ -50,11 +49,11 @@ test("四个创作插件的列表和顶栏都有存为固定版本（放进 Arti
   const dataset = renderDatasetWorkbench({ primitives });
   assert.match(dataset, /data-dataset-artifact-bar/);
   assert.match(dataset, /data-dataset-snapshot/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /data-dataset-artifact/);
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/dataset/src/browser/commands.ts", import.meta.url)), "utf8"), /data-dataset-artifact/);
 
   const ppt = renderPptWorkbench({ primitives });
   assert.match(ppt, /data-ppt-artifact-bar/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /data-ppt-artifact/);
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/ppt/src/browser/commands.ts", import.meta.url)), "utf8"), /data-ppt-artifact/);
 });
 
 test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑稿还在", async () => {

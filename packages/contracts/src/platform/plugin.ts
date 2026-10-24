@@ -9,7 +9,7 @@ import type { PluginEventRecord, PluginEventDeliveryContext, PluginEventType } f
 import type { PluginInputDeliveryContext, PluginUpstreamReadyInputs, PluginUpstreamUnavailableReason } from "./plugin-wiring.js";
 import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 import type { InstructionPrompt } from "./model-prompts.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, MaterialSourceContent } from "./plugin-materials.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "./plugin-materials.js";
 export type { PluginArtifactClient, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
 export * from "./plugin-events.js";
@@ -18,7 +18,6 @@ export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
 export type { PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration } from "./plugin-scheduler.js";
-export type { PluginFilesClient, PluginFilesDeclaration } from "./plugin-files.js";
 export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";
 export type { PluginImageTarget, PluginImageConnectionState, PluginImageGenerationRequest, PluginImageGenerationClient, PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
@@ -149,7 +148,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };
@@ -196,8 +195,10 @@ export interface PluginExecutor {
   /** Host snapshot hooks keep persisted private data intact if candidate startup fails. */
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
-  /** The installation is uninstalled and its row saved: what the Host kept for it while it was installed goes (PG-051 Q1 b). */
+  /** The installation is uninstalled and its row saved: remove what the Host kept for it (PG-051 Q1 b). Must be idempotent: uninstall retries call this again, including after a cleanup failure or a completed uninstall. */
   uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
+  /** A confirmed install dropped the private data an earlier uninstall kept (`discard_kept_data`), and its row is saved: what the Host kept beside that data goes too. `record` is the uninstalled row it replaced. */
+  keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 
 export interface PluginRuntimeRepository {

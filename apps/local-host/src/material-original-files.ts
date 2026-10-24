@@ -1,4 +1,5 @@
-import { constants, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { constants, existsSync, type Stats } from "node:fs";
 import { lstat, open, realpath, stat, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -25,9 +26,12 @@ export const ORIGINAL_FILES_HOME_STORE: HomeStoreDeclaration = { path: "plugin-o
 /** The most one read returns, the same bound the Shelf has kept for one file; a request may only lower it. */
 export const ORIGINAL_FILE_MAX_BYTES = 32 * 1024 * 1024;
 const CHUNK = 1024 * 1024;
+/** The most one part of a ranged read returns (the sandbox's broker asks for far less: its channel carries a few hundred kilobytes). */
+export const ORIGINAL_RANGE_MAX_BYTES = 1024 * 1024;
 
 const materialOriginalErrors = defineErrorCodes("material.original", {
   invalid_limit: "invalid",
+  invalid_range: "invalid",
   invalid_path: "invalid",
   missing: "not_found",
   not_file: "invalid",
@@ -80,18 +84,13 @@ async function assertRegisteredPath(registered: string): Promise<void> {
   if (current !== registered) throw materialOriginalErrors.path_changed("原始文件的位置已经变了，不再是登记时的那个文件");
 }
 
-/**
- * The bytes of the registered file, or why not. Read-only: it opens the registered path without following a link, checks that it is
- * a regular file of at most `maxBytes` (never above 32 MiB), reads it, and checks again that the path and the file are what they were.
- */
-export async function readOriginalFile(home: string, key: PluginOriginalFileKey, options: { maxBytes?: number; signal?: AbortSignal } = {}): Promise<Buffer> {
-  const maxBytes = options.maxBytes ?? ORIGINAL_FILE_MAX_BYTES;
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > ORIGINAL_FILE_MAX_BYTES) throw materialOriginalErrors.invalid_limit("读取上限必须是 1 到 32 MiB 之间的整数");
+/** The registered file opened for reading: found, still where it was registered, a regular file, and the same file once it is open. */
+async function openRegisteredOriginal(home: string, key: PluginOriginalFileKey, signal: AbortSignal | undefined): Promise<{ handle: FileHandle; registered: string; opened: Stats }> {
   const row = withStore(home, db => db.prepare("SELECT real_path FROM plugin_original_files WHERE plugin_id = ? AND install_id = ? AND project_id = ? AND record_key = ?")
     .get(...identity(key)) as { real_path: string } | undefined);
   if (!row) throw materialOriginalErrors.not_registered("没有登记过这个原始文件");
   const registered = row.real_path;
-  options.signal?.throwIfAborted();
+  signal?.throwIfAborted();
   await assertRegisteredPath(registered);
   // Not a file (a folder, a pipe, a device) is refused before it is opened: a pipe would block the open.
   const before = await lstat(registered).catch(() => undefined);
@@ -104,6 +103,19 @@ export async function readOriginalFile(home: string, key: PluginOriginalFileKey,
     const opened = await handle.stat();
     if (!opened.isFile()) throw materialOriginalErrors.not_file("原始文件必须是一个普通文件");
     if (opened.dev !== before.dev || opened.ino !== before.ino) throw materialOriginalErrors.path_changed("原始文件的位置已经变了，不再是登记时的那个文件");
+    return { handle, registered, opened };
+  } catch (error) { await handle.close(); throw error; }
+}
+
+/**
+ * The bytes of the registered file, or why not. Read-only: it opens the registered path without following a link, checks that it is
+ * a regular file of at most `maxBytes` (never above 32 MiB), reads it, and checks again that the path and the file are what they were.
+ */
+export async function readOriginalFile(home: string, key: PluginOriginalFileKey, options: { maxBytes?: number; signal?: AbortSignal } = {}): Promise<Buffer> {
+  const maxBytes = options.maxBytes ?? ORIGINAL_FILE_MAX_BYTES;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > ORIGINAL_FILE_MAX_BYTES) throw materialOriginalErrors.invalid_limit("读取上限必须是 1 到 32 MiB 之间的整数");
+  const { handle, registered, opened } = await openRegisteredOriginal(home, key, options.signal);
+  try {
     if (opened.size > maxBytes) throw materialOriginalErrors.too_large(`原始文件超过 ${Math.floor(maxBytes / 1024 / 1024) || 1} MiB，未读取`);
     const chunks: Buffer[] = [];
     let total = 0;
@@ -120,5 +132,41 @@ export async function readOriginalFile(home: string, key: PluginOriginalFileKey,
     const after = await stat(registered).catch(() => undefined);
     if (!after || after.dev !== opened.dev || after.ino !== opened.ino) throw materialOriginalErrors.path_changed("原始文件的位置已经变了，不再是登记时的那个文件");
     return Buffer.concat(chunks, total);
+  } finally { await handle.close(); }
+}
+
+/** An opaque name for what the file is and when it last changed; it carries no path and tells a later part of the same read that the file is the same one. */
+const revisionOf = (file: Stats) => createHash("sha256").update(`${file.dev}:${file.ino}:${file.size}:${file.mtimeMs}`).digest("hex").slice(0, 32);
+
+/**
+ * One part of the registered file, with every check `readOriginalFile` makes, for a caller that takes the file in parts (a sandboxed plugin,
+ * over a channel that carries a few hundred kilobytes at a time). The file is opened, read for the part and checked again each time, so
+ * a part is never read from a path that has since moved; `revision` is the one the first part answered, and a file that has changed since
+ * is refused instead of being read as a mixture of two files. A request for a part past the end answers no bytes and the size.
+ */
+export async function readOriginalRange(home: string, key: PluginOriginalFileKey,
+  options: { offset: number; length: number; revision?: string; signal?: AbortSignal }): Promise<{ bytes: Buffer; size: number; revision: string }> {
+  const { offset, length } = options;
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > ORIGINAL_FILE_MAX_BYTES) throw materialOriginalErrors.invalid_range("读取的起点必须是 0 到 32 MiB 之间的整数");
+  if (!Number.isSafeInteger(length) || length < 1 || length > ORIGINAL_RANGE_MAX_BYTES) throw materialOriginalErrors.invalid_range("一次读取的长度必须是 1 字节到 1 MiB");
+  if (options.revision !== undefined && (typeof options.revision !== "string" || !/^[0-9a-f]{32}$/u.test(options.revision))) throw materialOriginalErrors.invalid_range("版本标记无效");
+  const { handle, registered, opened } = await openRegisteredOriginal(home, key, options.signal);
+  try {
+    if (opened.size > ORIGINAL_FILE_MAX_BYTES) throw materialOriginalErrors.too_large("原始文件超过 32 MiB，未读取");
+    const revision = revisionOf(opened);
+    if (options.revision !== undefined && options.revision !== revision) throw materialOriginalErrors.path_changed("原始文件在分段读取期间变了");
+    const wanted = Math.max(0, Math.min(length, opened.size - offset)), bytes = Buffer.allocUnsafe(wanted);
+    let filled = 0;
+    while (filled < wanted) {
+      options.signal?.throwIfAborted();
+      const { bytesRead } = await handle.read(bytes, filled, wanted - filled, offset + filled);
+      if (!bytesRead) break;
+      filled += bytesRead;
+    }
+    if (filled !== wanted) throw materialOriginalErrors.path_changed("原始文件在读取时变短了");
+    await assertRegisteredPath(registered);
+    const after = await stat(registered).catch(() => undefined);
+    if (!after || after.dev !== opened.dev || after.ino !== opened.ino || revisionOf(after) !== revision) throw materialOriginalErrors.path_changed("原始文件在读取时变了");
+    return { bytes, size: opened.size, revision };
   } finally { await handle.close(); }
 }

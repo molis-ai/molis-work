@@ -1,9 +1,8 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
-import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt, AgentReviewStatus } from "./agent-host-reviews.js";
-import type { HostCapabilityDefinition } from "../platform/app-host.js";
+import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from "./agent-host-reviews.js";
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
-import type { AgentCreateSessionInput, AgentSkillRef, AgentWorkingDirectory, AgentStartRequest } from "./agent-host-start.js";
+import type { AgentCreateSessionInput, AgentSkillRef, AgentWorkingDirectory, AgentStartInput } from "./agent-host-start.js";
 import type { AgentSubagentView, AgentSkillCatalogEntry, AgentSkillCandidate, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
 import type { AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
@@ -40,6 +39,8 @@ export type {
   AgentFrozenCharacter,
   AgentFrozenStart,
   AgentCreateSessionInput,
+  AgentCreateSessionRequest,
+  AgentSessionOwner,
   AgentFrozenSubagentRole,
   AgentSubagentWorkspace,
   AgentDelegatedWork,
@@ -47,6 +48,7 @@ export type {
   AgentMemoryTools,
   AgentActionClient,
   AgentFrozenRole,
+  AgentStartInput,
   AgentStartRequest,
 } from "./agent-host-start.js";
 export type {
@@ -240,6 +242,7 @@ const messageOutput = { type: "object", additionalProperties: false,
 const backgroundOutput = { type: "object", required: ["task_id", "session_id", "summary", "state", "started_at_ms"], additionalProperties: false,
   properties: { task_id: { type: "string" }, session_id: { type: "string" }, run_id: { type: "string" }, summary: { type: "string" },
     state: { enum: ["running", "succeeded", "failed", "stopped", "interrupted"] }, exit_code: { type: "number" }, started_at_ms: { type: "number" }, ended_at_ms: { type: "number" } } } as const;
+const RUN_PHASES = ["starting", "running", "awaiting-review", "awaiting-input", "paused", "compacting", "completed", "failed", "cancelled", "stopped", "reconcile-required"] as const;
 /** A project's work item and a session's standing, as the Runtime reports them (R8 batch 2). */
 const projectWorkOutput = { type: "object", required: ["work_id", "session_id", "title", "task", "state", "directory", "paths", "updated_at_ms"], additionalProperties: false,
   properties: { work_id: { type: "string" }, session_id: { type: "string" }, run_id: { type: "string" }, title: { type: "string" }, task: { type: "string" },
@@ -248,51 +251,155 @@ const projectWorkOutput = { type: "object", required: ["work_id", "session_id", 
 const sessionStatusOutput = { oneOf: [
   { type: "object", required: ["session_id", "latest_phase", "recovery", "checkpoint_busy"], additionalProperties: false,
     properties: { session_id: { type: "string" }, recovery: { type: "boolean" }, checkpoint_busy: { type: "boolean" },
-      latest_phase: { enum: ["starting", "running", "awaiting-review", "awaiting-input", "paused", "compacting", "completed", "failed", "cancelled", "stopped", "reconcile-required", null] },
+      latest_phase: { enum: [...RUN_PHASES, null] },
       steps: { type: "object", required: ["mine", "subtasks", "unowned"], additionalProperties: false,
         properties: { mine: { type: "number" }, subtasks: { type: "number" }, unowned: { type: "number" } } } } },
   { type: "object", required: ["session_id", "error"], additionalProperties: false, properties: { session_id: { type: "string" }, error: { type: "string" } } },
 ] } as const;
 const sessionRef = { type: "object", required: ["session_id", "runtime_id"], additionalProperties: false, properties: { session_id: entryId, runtime_id: runtimeId } } as const;
+/** A round of a session, and what a session's recovery, checkpoints and command receipts read as (R8 batch 3). */
+const runRef = { type: "object", required: ["run_id", "session_id"], additionalProperties: false, properties: { run_id: entryId, session_id: entryId } } as const;
+const strings = { type: "array", items: { type: "string" } } as const;
+const recoveryOutput = { type: "object", required: ["session_id", "blockers", "runs"], additionalProperties: false, properties: {
+  session_id: { type: "string" }, blockers: strings,
+  inputs: { type: "array", items: { type: "object", required: ["input_id", "text", "source"], additionalProperties: false, properties: {
+    input_id: { type: "string" }, text: { type: "string" }, source: { enum: ["person", "host", "peer"] }, key: { type: "string" }, about: { type: "string" },
+    left_by: { type: "object", required: ["run_id", "applied"], additionalProperties: false, properties: { run_id: { type: "string" }, applied: { type: "boolean" } } } } } },
+  runs: { type: "array", items: { type: "object", required: ["run_id", "version", "live", "waiting", "can_close", "blockers", "operations"], additionalProperties: false, properties: {
+    run_id: { type: "string" }, version: { type: "number" }, live: { type: "boolean" }, waiting: { type: "number" }, can_close: { type: "boolean" }, can_answer: { const: true },
+    questions: { type: "array", items: { type: "object", required: ["pending_id", "pending_revision", "kind", "prompt"], additionalProperties: false, properties: {
+      pending_id: { type: "string" }, pending_revision: { type: "number" }, kind: { type: "string" }, prompt: { type: "string" }, answered: { const: true } } } },
+    blockers: strings,
+    operations: { type: "array", items: { type: "object", required: ["effect_id", "kind", "summary", "outcome"], additionalProperties: false, properties: {
+      effect_id: { type: "string" }, kind: { type: "string" }, summary: { type: "string" }, outcome: { enum: ["completed", "failed", "not-dispatched", "unknown"] } } } },
+    subagent: { type: "object", required: ["subagent_id"], additionalProperties: false, properties: { subagent_id: { type: "string" } } } } } } } } as const;
+/** The person's answer to a question a round stopped on (`AgentAnswerControl`). */
+const questionValue = { anyOf: [{ type: "string", maxLength: 1_000_000 }, { type: "number" }, { type: "null" }, { type: "array", maxItems: 500, items: { type: "object", required: ["kind", "id", "label"],
+  additionalProperties: false, properties: { kind: entryId, id: entryId, label: { type: "string", maxLength: 2000 } } } }] } as const;
+const runControl = { oneOf: [
+  { type: "object", required: ["kind"], additionalProperties: false, properties: { kind: { enum: ["pause", "resume", "stop", "cancel"] } } },
+  { type: "object", required: ["kind", "provider_id", "model_id"], additionalProperties: false, properties: { kind: { const: "switch-model" }, provider_id: entryId, model_id: entryId } },
+  { type: "object", required: ["kind", "pending_id"], additionalProperties: false, properties: { kind: { const: "answer" }, pending_id: entryId, pending_revision: { type: "integer", minimum: 0 },
+    text: { type: "string", maxLength: 1_000_000 }, answers: { type: "array", maxItems: 500, items: { type: "object", required: ["question"], additionalProperties: false, properties: {
+      question: { type: "integer", minimum: 0 }, indexes: { type: "array", maxItems: 500, items: { type: "integer", minimum: 0 } }, other: { type: "string", maxLength: 1_000_000 }, value: questionValue } } } } },
+] } as const;
+/**
+ * A session and its rounds as a plugin reads and starts them (R8 batch 3, §9.3): the top level of each view listed in full; a nested
+ * object is only said to be one (BL-470), since its fields are the runtime's record and the action snapshot cannot see them change.
+ */
+const object = { type: "object" } as const;
+const objects = { type: "array", items: object } as const;
+const text = (maxLength: number) => ({ type: "string", maxLength }) as const;
+const count = { type: "integer", minimum: 1 } as const;
+const sessionRefOutput = { type: "object", required: ["session_id", "runtime_id"], additionalProperties: false, properties: { session_id: { type: "string" }, runtime_id: { type: "string" } } } as const;
+const runRefOutput = { type: "object", required: ["run_id", "session_id"], additionalProperties: false, properties: { run_id: { type: "string" }, session_id: { type: "string" } } } as const;
+const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "turns", "activity", "usage", "awaiting_input", "started_at", "ended_at"], additionalProperties: false, properties: {
+  step_board: object, step_board_error: { type: "string" }, ref: runRefOutput, phase: { enum: RUN_PHASES }, frozen: object, turns: objects, activity: objects,
+  command_outputs: { type: "array", items: { type: "object", required: ["call_id", "run_id"], properties: { call_id: { type: "string" }, run_id: { type: "string" } } } },
+  usage: object, awaiting_input: objects, stop_reason: { type: "string" }, memory_recalled: object, todo: objects, turn_changes: objects, sleeping_until: { type: "string" },
+  retry_wait: object, model_switch: object, offers: objects, started_at: { type: "string" }, ended_at: { type: ["string", "null"] } } } as const;
+const sessionViewOutput = { type: "object", required: ["owner", "session", "title", "runs", "latest_run"], additionalProperties: false, properties: {
+  workspace: { enum: ["required", "none", "business"] }, checkpoint_busy: { type: "boolean" }, recovery: { type: "object", required: ["required", "reason"], properties: { required: { const: true }, reason: { type: "string" } } },
+  owner: { type: "object", required: ["project_id", "plugin_id", "install_id"], properties: { project_id: { type: "string" }, plugin_id: { type: "string" }, install_id: { type: "string" }, actor_id: { type: "string" } } },
+  session: sessionRefOutput, title: { type: "string" }, runs: { type: "array", items: runRefOutput }, latest_run: { anyOf: [runViewOutput, { type: "null" }] }, queued_inputs: objects } } as const;
+const reviewRequestOutput = { type: "object", required: ["review_id", "run", "project_id", "plugin_id", "kind", "document", "requested_at", "expires_at"], additionalProperties: false, properties: {
+  review_id: { type: "string" }, run: { anyOf: [runRefOutput, { type: "null" }] }, operation: object, project_id: { type: "string" }, plugin_id: { type: "string" }, kind: { type: "string" },
+  document: object, requested_at: { type: "string" }, expires_at: { type: ["string", "null"] } } } as const;
+const subagentOutput = { type: "object", required: ["subagent_id", "parent_run", "role_id", "task", "state", "result", "workspace_path"], additionalProperties: false, properties: {
+  child_run: runRefOutput, activity: objects, usage: object, host_tools: strings, error: { type: "string" }, subagent_id: { type: "string" }, parent_run: runRefOutput,
+  role_id: { type: "string" }, role_name: { type: "string" }, task: { type: "string" }, state: { type: "string" }, result: { type: ["string", "null"] }, workspace_path: { type: ["string", "null"] } } } as const;
+/** A directory the Host granted, a fixed Artifact version: what a start names, never a raw path or a live object. */
+const runtimeOutput = { type: "object", required: ["runtime_id", "display_name", "provider_version", "capabilities"], additionalProperties: false, properties: {
+  runtime_id: { type: "string" }, display_name: { type: "string" }, provider_version: { type: "string" }, capabilities: object,
+  supports_action_tools: { type: "boolean" }, supports_workspace_none: { type: "boolean" }, supports_workspace_business: { type: "boolean" } } } as const;
+const actionViewOutput = { type: "object", required: ["capability_id", "version", "operation", "action", "provider", "availability"], additionalProperties: false, properties: {
+  capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" }, operation: { enum: ["query", "command"] }, action: object, provider: object, availability: object } } as const;
+const skillProperties = { skill_id: { type: "string" }, version: { type: "integer" }, name: { type: "string" }, summary: { type: "string" }, tools: strings } as const;
+const skillEntryOutput = { type: "object", required: ["skill_id", "version", "name", "summary", "tools", "source", "enabled"], additionalProperties: false, properties: {
+  ...skillProperties, source: { enum: ["builtin", "installed"] }, enabled: { type: "boolean" } } } as const;
+const mcpServerOutput = { type: "object", required: ["id", "version", "label", "enabled", "transport", "timeout_ms", "credential", "health", "tools", "resources"], additionalProperties: false, properties: {
+  id: { type: "string" }, version: { type: "integer" }, label: { type: "string" }, enabled: { type: "boolean" }, transport: { enum: ["stdio", "http"] }, timeout_ms: { type: "integer" },
+  directory: object, executable: { type: "string" }, argv: strings, endpoint: { type: "string" }, credential: { enum: ["none", "present"] }, auth_connection_id: { type: "string" },
+  health: { enum: ["connected", "disconnected", "unavailable", "not-reattached"] }, busy: { type: "string" }, error: { type: "string" }, tools: objects, resources: strings } } as const;
+const directoryInput = { type: "object", required: ["canonical_path", "realpath_verified"], additionalProperties: false, properties: { canonical_path: { type: "string", minLength: 1, maxLength: 4096 }, realpath_verified: { type: "boolean" } } } as const;
+const artifactInput = { type: "object", required: ["artifact_id", "version"], additionalProperties: false, properties: { artifact_id: entryId, version: count } } as const;
+const workspaceKind = { enum: ["required", "none", "business"] } as const;
+/** What a plugin creates a session with: no owner, the Host takes it from the call (§9.3②). */
+const createSessionInput = { type: "object", required: ["title"], additionalProperties: false, properties: { title: text(2000), workspace: workspaceKind, directory: directoryInput, role_id: entryId } } as const;
+const ids = (maxItems: number) => ({ type: "array", maxItems, items: entryId }) as const;
+const mcpRef = { server: entryId, configuration_version: { type: "integer", minimum: 0 }, server_label: text(2000) } as const;
+/** What a plugin starts a round with: no owner and no role, the Host adds both (§9.3②). */
+const startInput = { type: "object", required: ["session", "task", "role_id"], additionalProperties: false, properties: {
+  action_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["capability_id", "version", "provider_id"], additionalProperties: false, properties: { capability_id: entryId, version: count, provider_id: entryId } } },
+  action_gateway: { type: "boolean" }, character_skill_ids: ids(200),
+  execution_plan: { type: "object", required: ["source", "title", "steps"], additionalProperties: false, properties: { source: artifactInput, title: text(2000),
+    steps: { type: "array", maxItems: 500, items: { type: "object", required: ["id", "title", "acceptance"], additionalProperties: false, properties: { id: entryId, title: text(2000), acceptance: text(1_000_000), depends_on: ids(500) } } } } },
+  continue_step_board_of: entryId, queued_work_id: entryId, queued: { anyOf: [{ enum: ["carry", "leave"] }, ids(500)] }, session_title: text(2000), browser: { const: false },
+  history: { enum: ["session", "digest"] },
+  subagent_workspaces: { type: "array", maxItems: 50, items: { type: "object", required: ["workspace_id", "directory"], additionalProperties: false, properties: { workspace_id: entryId, directory: directoryInput } } },
+  character: { anyOf: [artifactInput, { type: "null" }] }, session: sessionRef, task: { type: "string", minLength: 1, maxLength: 1_000_000 }, role_id: entryId,
+  model_selection: { type: "object", required: ["provider_id", "model_id"], additionalProperties: false, properties: { provider_id: entryId, model_id: entryId } },
+  reasoning_effort: { enum: ["low", "medium", "high"] },
+  text_materials: { type: "array", maxItems: 200, items: { type: "object", required: ["material_id", "title", "text", "source_artifact_id", "source_version"], additionalProperties: false,
+    properties: { material_id: { type: "string", minLength: 1, maxLength: 240 }, title: text(2000), text: text(1_000_000), source_artifact_id: { type: "string", minLength: 1, maxLength: 200 }, source_version: count } } },
+  image_materials: { type: "array", maxItems: 50, items: { type: "object", required: ["material_id", "title", "resource", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
+    resource: { type: "object", required: ["id", "revision"], additionalProperties: false, properties: { id: entryId, revision: count } }, media_type: entryId } } },
+  skills: { type: "array", maxItems: 200, items: { type: "object", required: ["skill_id", "version"], additionalProperties: false, properties: { skill_id: entryId, version: count } } },
+  mcp_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["server", "tool"], additionalProperties: false, properties: { ...mcpRef, tool: entryId, version: entryId } } },
+  mcp_sources: { type: "array", maxItems: 200, items: { type: "object", required: ["server"], additionalProperties: false, properties: mcpRef } },
+  budget: { type: "object", additionalProperties: false, properties: { max_turns: count, max_output_tokens: count, max_total_tokens: count, max_duration_ms: { type: "integer", minimum: 1, maximum: 2_147_483_647 } } },
+  workspace: workspaceKind, directory: directoryInput } } as const;
 /** Offered to plugins only, which reach them through `services.actions` once their Manifest consumes them; nothing else needed. */
+const skillRef = { type: "object", required: ["skill_id", "version"], additionalProperties: false, properties: { skill_id: entryId, version: count } } as const;
+const mcpServerInput = { type: "object", required: ["expected_version", "label", "enabled", "timeout_ms", "transport"], additionalProperties: false, properties: {
+  id: entryId, expected_version: { type: "integer", minimum: 0 }, label: text(2000), enabled: { type: "boolean" }, timeout_ms: { type: "integer", minimum: 1, maximum: 3_600_000 },
+  transport: { enum: ["stdio", "http"] }, directory: directoryInput, executable: text(4096), argv: { type: "array", maxItems: 200, items: text(32_768) }, endpoint: text(4096),
+  auth: { type: "object", required: ["kind"], additionalProperties: false, properties: { kind: { enum: ["none", "keep-existing", "replace-secret", "connection"] }, secret: text(65_536), connection_id: entryId } } } } as const;
 const pluginOnly = { scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [] } as const;
 
 export const agentHostCapabilities = {
-  listActions: { capability_id: "agent.actions.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], readonly ActionView[]>,
-  /** Which Runtimes exist and what each one really supports. */
+  /** What the calling plugin's own grants let a round on this Runtime call (R8 rule 3); empty where the Runtime has no action tools. */
+  listActions: {
+    capability_id: "agent.actions.list.v1", version: 1, operation: "query",
+    action: { title: "列出一轮能调的动作", description: "按调用插件自己的授权，列出这个运行时上一轮能调的动作；运行时不支持动作工具时为空。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: actionViewOutput } },
+  } as ActionDefinition<[runtimeId: string], readonly ActionView[]>,
+  /** Which Runtimes exist and what each one really supports: this machine's configuration, the same for every plugin. */
   listRuntimes: {
-    capability_id: "agent.runtimes.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<[], AgentRuntimeDescriptor[]>,
-  /** Roles this Runtime can carry for one Plugin, with a reason for each it cannot. */
+    capability_id: "agent.runtimes.v1", version: 1, operation: "query",
+    action: { title: "列出运行时", description: "本机有哪些 Agent 运行时，各自真正支持什么。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", maxItems: 0 }, output_schema: { type: "array", items: runtimeOutput } },
+  } as ActionDefinition<[], AgentRuntimeDescriptor[]>,
+  /** Roles this Runtime can carry for the calling plugin's own declarations, with a reason for each it cannot. */
   availableRoles: {
-    capability_id: "agent.roles.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<
-    [runtimeId: string, pluginId: string],
-    Array<{ role_id: string; available: boolean; reason?: string }>
-  >,
+    capability_id: "agent.roles.v1", version: 1, operation: "query",
+    action: { title: "列出能用的角色", description: "调用插件自己声明的角色里，这个运行时能承载哪些，不能的写明原因。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false },
+      output_schema: { type: "array", items: { type: "object", required: ["role_id", "available"], additionalProperties: false, properties: {
+        role_id: { type: "string" }, available: { type: "boolean" }, reason: { type: "string" } } } } },
+  } as ActionDefinition<[runtimeId: string], Array<{ role_id: string; available: boolean; reason?: string }>>,
+  /** A session for the calling plugin and person, both from the call (R8 rule 1). */
   createSession: {
-    capability_id: "agent.session.create.v1",
-    version: 1,
-    operation: "command",
-  } as HostCapabilityDefinition<
-    [runtimeId: string, input: AgentCreateSessionInput],
-    AgentSessionRef
-  >,
+    capability_id: "agent.session.create.v1", version: 1, operation: "command",
+    action: { title: "新建 Agent 会话", description: "为调用的插件和本人新建一条 Agent 会话。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, createSessionInput], additionalItems: false }, output_schema: sessionRefOutput },
+  } as ActionDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>,
   listSubagents: {
     capability_id: "agent.subagents.list.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>,
+    action: { title: "列出一轮的子任务", description: "自己会话里一轮派出的子任务。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: { type: "array", items: subagentOutput } },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>,
+  /** Stop a subtask of the calling plugin's own round; who stopped it is the caller (R8 rule 4). */
   cancelSubagent: {
     capability_id: "agent.subagents.cancel.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>,
+    action: { title: "停下一个子任务", description: "本人停下自己会话里一轮派出的一个子任务。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
   readSession: {
-    capability_id: "agent.session.read.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>,
+    capability_id: "agent.session.read.v1", version: 1, operation: "query",
+    action: { title: "读 Agent 会话", description: "自己的一条会话：标题、各轮的引用和最近一轮。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionViewOutput },
+  } as ActionDefinition<[session: AgentSessionRef], AgentSessionView>,
   /**
    * Many sessions' standing in one call, for a directory: one queued operation instead of one per session. A session
    * this project cannot read comes back with an error of its own rather than failing the others.
@@ -361,13 +468,19 @@ export const agentHostCapabilities = {
           title: { type: "string", maxLength: 2000 } } }] } },
   } as ActionDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }], AgentProjectWork>,
   /**
-   * Continuations of the project's sessions that are ready to go on, or held for the person, but for `exclude` (request
-   * keys); waits up to `timeoutMs` for one. A wait, so it stays a Host channel: reading and controlling are the actions
-   * in agent-collaboration.
+   * Continuations of the calling plugin's own sessions that are ready to go on, or held for the person, but for `exclude`
+   * (request keys); waits up to `timeoutMs` for one, as `waitRun` waits (concurrent, a ceiling, dropped if cancelled).
+   * Reading and controlling them are the actions in agent-collaboration.
    */
   awaitContinuations: {
-    capability_id: "agent.collaboration.await.v1", version: 1, operation: "wait",
-  } as HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>,
+    capability_id: "agent.collaboration.await.v1", version: 1, operation: "query",
+    action: { title: "等会话接续", description: "等调用插件自己的会话里有一个能接着走或等人处理的接续；到时没有就回空表。", kind: "query", ...pluginOnly,
+      scheduling: "concurrent", execution: { timeout_ms: 30_000 },
+      input_schema: { type: "array", minItems: 2, maxItems: 3, additionalItems: false,
+        items: [runtimeId, { type: "integer", minimum: 0, maximum: 25_000 }, ids(200)] },
+      output_schema: { type: "array", items: { type: "object", required: ["session_id"], additionalProperties: false, properties: {
+        session_id: { type: "string" }, wait: object, continuation: object } } } },
+  } as ActionDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>,
   /** The project's background commands; one session's when named. */
   readBackground: {
     capability_id: "agent.background.read.v1", version: 1, operation: "query",
@@ -387,41 +500,61 @@ export const agentHostCapabilities = {
     action: { title: "不再等", description: "放下一项还在等的工作，并写明为什么。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, entryId, { type: "string", maxLength: 2000 }], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, workId: string, note: string], void>,
+  /** The calling plugin's method library on this Runtime (R8 rule 1: the library's owner is the caller). */
   listSkills: {
     capability_id: "agent.skills.list.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>,
+    action: { title: "列出方法", description: "调用插件在这个运行时上的方法库：内置的与装进来的。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: skillEntryOutput } },
+  } as ActionDefinition<[runtimeId: string], AgentSkillCatalogEntry[]>,
   readSkill: {
     capability_id: "agent.skills.read.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, ref: AgentSkillRef], AgentSkillDefinition>,
+    action: { title: "读一个方法", description: "读调用插件方法库里的一个方法的正文。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, skillRef], additionalItems: false },
+      output_schema: { type: "object", required: ["skill_id", "version", "name", "summary", "tools", "body"], additionalProperties: false, properties: { ...skillProperties, body: { type: "string" } } } },
+  } as ActionDefinition<[runtimeId: string, ref: AgentSkillRef], AgentSkillDefinition>,
   discoverSkills: {
     capability_id: "agent.skills.discover.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>,
+    action: { title: "在工作区里找方法", description: "在调用插件授权的工作区里找能装的方法。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, directoryInput, text(4096)], additionalItems: false },
+      output_schema: { type: "array", items: { type: "object", required: ["candidate_id", "name", "summary", "source_label", "files", "body"], additionalProperties: false, properties: {
+        candidate_id: { type: "string" }, name: { type: "string" }, summary: { type: "string" }, source_label: { type: "string" }, files: strings, body: { type: "string" } } } } },
+  } as ActionDefinition<[runtimeId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>,
   installSkill: {
     capability_id: "agent.skills.install.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, candidateId: string], AgentSkillCatalogEntry>,
+    action: { title: "装一个方法", description: "把找到的一个方法装进调用插件自己的方法库。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, entryId], additionalItems: false }, output_schema: skillEntryOutput },
+  } as ActionDefinition<[runtimeId: string, candidateId: string], AgentSkillCatalogEntry>,
+  /**
+   * The calling plugin's MCP servers on this Runtime. Listing also brings the project's action directory up to what they offer now
+   * (the Host's own bookkeeping, not a business record), after the call's last check.
+   */
   listMcp: {
     capability_id: "agent.mcp.list.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentMcpServerView[]>,
+    action: { title: "列出 MCP 服务器", description: "调用插件在这个运行时上的 MCP 服务器与各自现在提供的工具；列的同时，宿主把这个插件自己的 MCP 工具按现在的样子在项目动作目录里重新登记（幂等，不写业务数据）。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: mcpServerOutput } },
+  } as ActionDefinition<[runtimeId: string], AgentMcpServerView[]>,
   saveMcp: {
     capability_id: "agent.mcp.save.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, input: AgentMcpServerInput], AgentMcpServerView>,
+    action: { title: "保存 MCP 服务器", description: "新建或改调用插件的一个 MCP 服务器；本机进程只能在授权工作区里。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, mcpServerInput], additionalItems: false }, output_schema: mcpServerOutput },
+  } as ActionDefinition<[runtimeId: string, input: AgentMcpServerInput], AgentMcpServerView>,
   controlMcp: {
     capability_id: "agent.mcp.control.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>,
+    action: { title: "连上、断开或删掉 MCP 服务器", description: "对调用插件自己的一个 MCP 服务器连上、断开、取消正在做的或删掉。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, entryId, { enum: ["connect", "disconnect", "cancel", "remove"] }], additionalItems: false } },
+  } as ActionDefinition<[runtimeId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>,
   /** Start a Run. The Host checks role, capability and directory before the Runtime is asked. */
   startRun: {
-    capability_id: "agent.run.start.v1",
-    version: 1,
-    operation: "command",
-  } as HostCapabilityDefinition<
-    [runtimeId: string, request: AgentStartRequest],
-    AgentRunHandle
-  >,
+    capability_id: "agent.run.start.v1", version: 1, operation: "command",
+    action: { title: "开始一轮 Agent 执行", description: "在自己的会话里按插件声明的角色开始一轮；宿主先核角色、能力与目录。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, startInput], additionalItems: false },
+      output_schema: { type: "object", required: ["ref", "frozen"], additionalProperties: false, properties: { ref: runRefOutput, frozen: object } } },
+  } as ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>,
   readRun: {
-    capability_id: "agent.run.read.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
+    capability_id: "agent.run.read.v1", version: 1, operation: "query",
+    action: { title: "读一轮执行", description: "自己会话里一轮的过程、状态和用量。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: runViewOutput },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
   /**
    * One short text from the model — a commit message, say — with no tools, no conversation and nothing recorded as a
    * round. It is a model call and costs what one costs; the usage comes back so the page can say so. An action like
@@ -442,22 +575,23 @@ export const agentHostCapabilities = {
         usage: { anyOf: [{ type: "null" }, { type: "object", required: ["input", "output"], additionalProperties: false, properties: { input: { type: "integer", minimum: 0 }, output: { type: "integer", minimum: 0 } } }] } } } },
   } as ActionDefinition<AgentDraftTextRequest, AgentDraftTextResult>,
   /**
-   * Resolves once the run's view differs from the version the caller holds, or at the timeout (at most 25 s).
-   * How a surface follows a live round as it happens instead of rereading it on a timer; nothing is replayed.
+   * Resolves once the run's view differs from the version the caller holds, or at the timeout (at most 25 s) with the latest view:
+   * a round still running is an answer, not a failure. How a surface follows a live round as it happens instead of rereading it on
+   * a timer; nothing is replayed. Concurrent, beside the project's queue; the Host stops it at 30 s whatever it does.
    */
   waitRun: {
-    capability_id: "agent.run.wait.v1",
-    version: 1,
-    operation: "wait",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], { version: string; view: AgentRunView }>,
+    capability_id: "agent.run.wait.v1", version: 1, operation: "query",
+    action: { title: "等一轮执行变化", description: "自己会话里的一轮有了变化就回答，最多等 25 秒；到时还没变就回答它现在的样子。", kind: "query", ...pluginOnly,
+      scheduling: "concurrent", execution: { timeout_ms: 30_000 },
+      input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false,
+        items: [sessionRef, runRef, { type: ["string", "null"], maxLength: 200 }, { type: "integer", minimum: 0, maximum: 25_000 }] },
+      output_schema: { type: "object", required: ["version", "view"], additionalProperties: false, properties: { version: { type: "string" }, view: runViewOutput } } },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], { version: string; view: AgentRunView }>,
   controlRun: {
-    capability_id: "agent.run.control.v1",
-    version: 1,
-    operation: "command",
-  } as HostCapabilityDefinition<
-    [session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl],
-    void
-  >,
+    capability_id: "agent.run.control.v1", version: 1, operation: "command",
+    action: { title: "控制一轮执行", description: "暂停、继续、停下或取消自己会话的一轮，换它之后用的模型，或回答它停下来问的问题。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, runControl], additionalItems: false } },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>,
   /**
    * Read what one command this Run executed produced.
    *
@@ -468,37 +602,50 @@ export const agentHostCapabilities = {
    * rather than returning an empty result.
    */
   readCommandOutput: {
-    capability_id: "agent.command-output.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<
+    capability_id: "agent.command-output.v1", version: 1, operation: "query",
+    action: { title: "读命令的输出", description: "自己会话里一轮已经跑过的一条命令的输出回执，不会再跑它。", kind: "query", ...pluginOnly,
+      output_schema: { type: "object", required: ["ref", "command", "exit_code", "stdout", "stderr", "truncated"], additionalProperties: false, properties: {
+        ref: { type: "object", required: ["call_id", "run_id"], additionalProperties: false, properties: { call_id: { type: "string" }, run_id: { type: "string" } } },
+        command: { type: "string" }, exit_code: { type: ["number", "null"] }, stdout: { type: "string" }, stderr: { type: "string" }, truncated: { type: "boolean" },
+        timed_out: { type: "boolean" }, cancelled: { type: "boolean" }, stop_reason: { enum: ["cancelled", "timed-out"] } } },
+      input_schema: { type: "array", minItems: 2, maxItems: 2, additionalItems: false, items: [sessionRef,
+        { type: "object", required: ["call_id", "run_id"], additionalProperties: false, properties: { call_id: entryId, run_id: entryId } }] } },
+  } as ActionDefinition<
     [session: AgentSessionRef, ref: AgentCommandOutputRef],
     AgentCommandOutput
   >,
   inspectRecovery: {
     capability_id: "agent.session.recovery.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[session: AgentSessionRef], AgentRecoveryReport>,
+    action: { title: "看会话中断后的情况", description: "自己会话里被中断的轮次：还在等什么、做过哪些操作、能不能收尾或回答。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: recoveryOutput },
+  } as ActionDefinition<[session: AgentSessionRef], AgentRecoveryReport>,
   recoverRun: {
     capability_id: "agent.session.recover.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>,
+    action: { title: "收尾一轮中断的执行", description: "把自己会话里一轮被中断的执行记为中断并收尾，不重做它做过的事。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, { type: "integer", minimum: 0 }], additionalItems: false }, output_schema: recoveryOutput },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>,
   listCheckpoints: {
     capability_id: "agent.checkpoints.list.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[session: AgentSessionRef], AgentCheckpoint[]>,
+    action: { title: "列出会话的检查点", description: "自己会话里各轮留下的文件检查点。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false },
+      output_schema: { type: "array", items: { type: "object", required: ["checkpoint_id", "session_id", "label", "created_at"], additionalProperties: false, properties: {
+        checkpoint_id: { type: "string" }, origin_run_id: { type: "string" }, paths: strings, session_id: { type: "string" }, label: { type: "string" }, created_at: { type: "string" }, rewound_at: { type: "string" },
+        directory: { type: "object", required: ["canonical_path", "realpath_verified"], additionalProperties: false, properties: { canonical_path: { type: "string" }, realpath_verified: { type: "boolean" } } } } } } },
+  } as ActionDefinition<[session: AgentSessionRef], AgentCheckpoint[]>,
+  /** Ask the person to approve rewinding files to a checkpoint; nothing changes until they do. */
   prepareRewind: {
     capability_id: "agent.checkpoints.prepare-rewind.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>,
+    action: { title: "请求回退到检查点", description: "为自己会话的一个检查点准备文件回退，交本人审批。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, entryId, entryId], additionalItems: false }, output_schema: reviewRequestOutput },
+  } as ActionDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>,
   /** Read the approval queue. Deciding is a user action and is not exposed to Plugins. */
   readRunReviews: {
     capability_id: "agent.run.reviews.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], Array<{ request: AgentReviewRequest; receipt: AgentReviewReceipt | null }>>,
-  listReviews: {
-    capability_id: "agent.reviews.list.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<
-    [projectId: string, status?: AgentReviewStatus],
-    AgentReviewRequest[]
-  >,
+    action: { title: "读一轮的审批", description: "自己会话里一轮提交的审批与结果。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false },
+      output_schema: { type: "array", items: { type: "object", required: ["request", "receipt"], additionalProperties: false, properties: {
+        request: { type: "object", required: ["review_id"], properties: { review_id: { type: "string" } } }, receipt: { anyOf: [object, { type: "null" }] } } } } },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], Array<{ request: AgentReviewRequest; receipt: AgentReviewReceipt | null }>>,
 } as const;
 
 export type AgentHostCapabilityId =

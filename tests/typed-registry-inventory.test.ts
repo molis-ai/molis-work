@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
   writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -16,14 +15,13 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 const runtimeEntries = [projectSettingsCapabilities.runtime, projectSettingsCapabilities.selectRuntime];
 const workspaceEntries = [projectsCapabilities.listWorkspaces, projectsCapabilities.readWorkspace,
   ...Object.values(projectSettingsCapabilities).filter(entry => !runtimeEntries.includes(entry as never))];
-const internalServices = [...Object.values(agentHostCapabilities)];
 // Git's and the parallel writers' Host side: eight plugin-only actions (PG-035), no longer typed entries.
 const gitHostActions = [prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
   ...Object.values(writerDirectoryCapabilities), ...Object.values(writerIntegrationCapabilities)];
 const keys = (entries: readonly HostCapabilityDescriptor[]) => entries.filter(entry => !entry.action)
   .map(({ capability_id, version, operation }) => `${capability_id}@${version}:${operation}`).sort();
 
-test("W3-07-9-01: the assembled Host registers only the remaining internal services and exposes Goals through actions", async () => {
+test("W3-07-9-01: the assembled Host registers no typed entry and exposes Goals through actions", async () => {
   const home = await mkdtemp(join(tmpdir(), "typed-registry-inventory-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db");
@@ -34,7 +32,7 @@ test("W3-07-9-01: the assembled Host registers only the remaining internal servi
   try {
     await host.withProject(ref, () => undefined);
     assert.deepEqual(keys(workspaceEntries), [], "all five workspace entries already carry action metadata");
-    assert.deepEqual(keys(host.status().capabilities), keys(internalServices));
+    assert.deepEqual(keys(host.status().capabilities), [], "the Agent Host's were the last typed entries (R8 batch 4)");
     for (const definition of gitHostActions) {
       assert.ok(host.status().capabilities.find(row => row.capability_id === definition.capability_id)?.action, `${definition.capability_id} is registered as an action`);
     }
@@ -63,7 +61,7 @@ test("W3-07-9-01: absent workspace wiring registers none of its five actions and
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "unopened-project.db"), projectId: DEMO_PROJECT_ID });
   try {
-    assert.deepEqual(keys(host.status().capabilities), keys(internalServices));
+    assert.deepEqual(keys(host.status().capabilities), [], "no typed entry either way");
     for (const definition of runtimeEntries) assert.ok(host.status().capabilities.find(entry => entry.capability_id === definition.capability_id)?.action, definition.capability_id);
     for (const definition of workspaceEntries) {
       assert.ok(!host.status().capabilities.some(entry => entry.capability_id === definition.capability_id), definition.capability_id);

@@ -8,6 +8,7 @@ import {
 import { PPT_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "./actions.js";
 import { pptContentActions } from "./content-actions.js";
+import { PPT_DATABASE } from "./database.js";
 
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 
@@ -23,6 +24,7 @@ export const pptManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: [...Object.values(pptActions), ...Object.values(pptContentActions)],
+  databases: { home: PPT_DATABASE },
   routes: [
     { route_id: "ppt.list", method: "GET", path: "/ppt" },
     { route_id: "ppt.outline_pages", method: "GET", path: "/ppt/outline-pages" },
@@ -53,7 +55,8 @@ export const pptManifest: PluginManifest = {
   ui: {
     contributions: [PPT_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", order: 59 },
+      { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", order: 59, group: "make",
+        creates: { station: "ppt", title: "演示稿" } },
     ],
   },
 };

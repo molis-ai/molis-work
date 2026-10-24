@@ -42,6 +42,8 @@ export { CODING_MESSAGES } from "./messages.js";
 export {
   CODING_DIRECTORY_FACES,
   CODING_SETTINGS_UI_CONTRIBUTION_ID,
+  CODING_COMPANION_DIRECTORY_SLOT,
+  CODING_COMPANION_RESULT_SLOT,
   CODING_UI_CONTRIBUTION_ID,
   codingUiContribution,
   codingUiView,
@@ -196,7 +198,7 @@ export { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
 export { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 export { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
 export { CODING_STEPS_CLIENT_FACTORY_SCRIPT } from "./steps-client.js";
-export type { CodingCharacterChoice, CodingCharacterPorts } from "./characters.js";
+export type { CodingCharacterChoice } from "./characters.js";
 
 export { codingMethods } from "./methods.js";
 

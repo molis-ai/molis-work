@@ -1,11 +1,11 @@
-import { fakeWriterActions, pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeWriterActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, filesOutputsRefresh, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -20,8 +20,8 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   for (const id of ["app", "other"]) { await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString()); }
   const content = { title: "修复运费边界", steps: [{ title: "核对 shipping.mjs", acceptance: "10000 分免运费，9999 分收 500 分" }], blockers: "", change_reason: "" };
   const makeRun = (id: string, role = "planner", text = JSON.stringify(content)): AgentRunView => ({
-    ref: { runtime_id: "prologue", session_id: "sdk-app", run_id: id }, phase: "completed", started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-    turns: [{ turn_id: "u", kind: "user", text: "检查并修复边界", sequence: 1 }, { turn_id: "a", kind: "assistant", text, sequence: 2 }], activity: [], awaiting_input: [], awaiting_review: [],
+    ref: { session_id: "sdk-app", run_id: id }, phase: "completed", started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
+    turns: [{ turn_id: "u", kind: "user", text: "检查并修复边界", sequence: 1 }, { turn_id: "a", kind: "assistant", text, sequence: 2 }], activity: [], awaiting_input: [],
     frozen: { role_id: role, role_version: 1, execution: role === "planner" ? "read-only" : "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: ["read-file"], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true } },
     usage: { tokens: { input: 0, output: 0 } },
   } as unknown as AgentRunView);
@@ -53,7 +53,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host()), filesOutputsRefresh).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (suffix = "", method = "GET", body?: unknown, id = "app") => {

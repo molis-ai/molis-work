@@ -3,6 +3,7 @@ import { lingguangContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import { LINGGUANG_UI_CONTRIBUTION_ID } from "./ui.js";
+import { LINGGUANG_DATABASE } from "./database.js";
 
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID };
 
@@ -24,6 +25,7 @@ export const lingguangManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [...LINGGUANG_ACTIONS, ...Object.values(lingguangContentActions)],
+  databases: { home: LINGGUANG_DATABASE },
   routes: [
     { route_id: "lingguang.list", method: "GET", path: "/sparks" },
     { route_id: "lingguang.create", method: "POST", path: "/sparks", max_body_bytes: BODY_BYTES },
@@ -40,8 +42,9 @@ export const lingguangManifest: PluginManifest = {
   ui: {
     contributions: [LINGGUANG_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "workbench", slot: "stage", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
-      { view_id: "island", slot: "island", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
+      { view_id: "workbench", slot: "stage", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10, accepts_objects: true },
+      { view_id: "island", slot: "island", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10, group: "personal",
+        start: { title: "记下一点灵感", hint: "还没想清楚，也可以先留下。" } },
       { view_id: "side", slot: "side", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
     ],
   },

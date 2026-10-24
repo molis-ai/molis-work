@@ -7,7 +7,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantHandover, AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { L } from "../web-locale.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
@@ -19,9 +19,11 @@ import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
 import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
-import type { PersonActions } from "./assistant-coding.js";
+import type { PersonActions } from "./assistant-executor.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
-import { codingCharacterPorts } from "../characters-host.js";
+import { freezeProjectCharacter } from "../characters-host.js";
+import { assistantCharacterChoices } from "./assistant-characters.js";
+import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { assistantContributions } from "./assistant-contributions.js";
 import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
 import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
@@ -99,7 +101,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       invoke: async (action, input) => client.invoke(await personContext(reference), action, input),
     };
   };
-  // The same client, bound the way every client that carries a control is (`bindActionClient`): what the Coding executor reads with.
+  // The same client, bound the way every client that carries a control is (`bindActionClient`): what the work's executor reads with.
   const personBound = (reference: LocalHostProjectReference): BoundActionClient => {
     const person = personClient(reference), client = ports.localHost.actionClient(reference);
     return { discover: person.discover, invoke: async (definition, input, control, transport) => {
@@ -133,9 +135,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memoryForRound(work, task),
       // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
-      ...(work.project_ref ? { resolveCharacter: await projectCharacters(ports, work.project_ref).then(characters => characters.resolve) } : {}) }),
-    characters: async project => (await projectCharacters(ports, project)).list().map(choice => ({ reference: { ...choice.reference }, title: choice.title, available: choice.available,
-      ...(choice.reason ? { reason: choice.reason } : {}) })),
+      ...(work.project_ref ? { resolveCharacter: await characterFreezer(ports, work.project_ref) } : {}) }),
+    // The Characters the person may choose, read as the person from Characters' own actions (PG-086).
+    characters: project => assistantCharacterChoices(personClient(project)),
     projectTitle: ports.projectTitle,
     // Methods Plugins offer for business work, from the Home's registry of Agent definitions.
     methods: { list: () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).methods(),
@@ -143,7 +145,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
     // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
     personActions: async (work, use) => {
-      if (!work.project_ref) throw assistantErrors.scope("Coding Agent 在项目里工作");
+      if (!work.project_ref) throw assistantErrors.scope("执行方插件在项目里工作");
       return use === "dispatch" ? bindLocalWebActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS) : personBound(work.project_ref);
     },
     // The person's Home, for the reminders they set in Plugins.
@@ -176,10 +178,10 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   return entry;
 }
 
-/** The person's published Characters in one project: listed with whether each can run, and frozen exactly for a round. */
-async function projectCharacters(ports: AssistantHttpPorts, project: LocalHostProjectReference) {
+/** One exact published Character of the work's project, frozen for a round: the Host checks the version again at dispatch. */
+async function characterFreezer(ports: AssistantHttpPorts, project: LocalHostProjectReference) {
   const { board, artifacts } = await ports.localHost.withProject(project, async runtime => ({ board: runtime.project_id, artifacts: runtime.artifacts.query }));
-  return codingCharacterPorts(ports.homeDirectory, WEB_ACTOR, board, artifacts);
+  return (reference: ArtifactReference) => freezeProjectCharacter(ports.homeDirectory, WEB_ACTOR, board, artifacts, reference);
 }
 
 /** What deserves the person's attention now, and on which surface (their rules hold some while it matches). */
@@ -216,6 +218,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 1 && parts[0] === "characters") {
         const work = url.searchParams.get("work") ?? undefined;
         return { status: 200, body: { characters: await service.characters(work, ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
+      }
+      // The plugins that can carry a work here: the person picks one for a new work, or hands an open one over.
+      if (method === "GET" && parts.length === 1 && parts[0] === "executors") {
+        return { status: 200, body: { executors: await service.executors(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       }
       // A card a page prepared from the person's selection (a contextual action they clicked); runs only when clicked.
       if (method === "POST" && parts.length === 1 && parts[0] === "cards") {
@@ -324,7 +330,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 4 && parts[2] === "undo") return { status: 200, body: await service.undo(workId, parts[3]!) };
       if (parts.length === 3 && parts[2] === "budget") return { status: 200, body: await service.saveWorkBudget(workId, body.budget_tokens) };
       if (parts.length === 3 && parts[2] === "results") return { status: 200, body: await service.receiveResult(workId, body) };
-      if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.handover(workId, { to: body.to as "coding" | "assistant", ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };
+      if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.handover(workId, { to: body.to as AssistantHandover["to"], ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };
       if (parts.length === 3 && parts[2] === "recovery") return { status: 200, body: typeof body.run_id === "string"
         ? await service.closeInterrupted(workId, { run_id: body.run_id, version: Number(body.version) }) : await service.recovery(workId) };
       if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await service.archive(workId, body.archived !== false) } };

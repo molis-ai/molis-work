@@ -92,12 +92,6 @@
       ],
       "reason": "The Characters module and the Host files that assemble, serve and run it (the plugin was removed in CHR-1); character.* becomes characters.* (spec W3-02 R4c)."
     },
-    "coding": {
-      "paths": [
-        "apps/local-host/src/coding-*"
-      ],
-      "reason": "The Coding plugin's Host side (surface, background tasks, shelf material); its codes start with coding."
-    },
     "computer": {
       "paths": [
         "apps/local-host/src/computer/"
@@ -317,6 +311,12 @@
       ],
       "reason": "The sources module (SourcesError): its source_* codes become sources.*."
     },
+    "storage": {
+      "paths": [
+        "packages/storage/src/adapters/file-secret-store.ts"
+      ],
+      "reason": "The platform SecretStore owns sealed-vault snapshot format, existing-master dependency and integrity refusals; its new typed codes start with storage."
+    },
     "ui_host": {
       "paths": [
         "packages/ui-host/"
@@ -327,10 +327,9 @@
       "paths": [
         "modules/private-work-context/",
         "packages/contracts/src/modules/private-work-context.ts",
-        "packages/contracts/src/modules/workspace-artifacts.ts",
-        "apps/local-host/src/work-*"
+        "packages/contracts/src/modules/workspace-artifacts.ts"
       ],
-      "reason": "The Work plugin owns sessions, handoffs, workspaces and their private context; the session, sessions, handoff, context and workspace prefixes become work.* (spec W3-02 R4a)."
+      "reason": "The private work context module owns the runtime-context bindings and workspace artifacts; the context and workspace prefixes become work.* (spec W3-02 R4a). The Sessions plugin that used to share this owner is retired (SC-4)."
     },
     "workflows": {
       "paths": [

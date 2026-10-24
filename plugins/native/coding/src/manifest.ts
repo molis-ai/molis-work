@@ -31,11 +31,11 @@ export const CODING_PROJECT_PLUGIN_ID = "coding";
 /**
  * Coding's declarations.
  *
- * `app`, and that is now true: the Host starts this Plugin through Plugin
- * Runtime and renders its directory from the contribution it returns
- * (`apps/local-host/src/coding-surface.ts`). It was `native` until that path
- * existed, because a Manifest claiming `app` while the shell drew the Plugin
- * itself would have been a lie.
+ * `app`, and that is true: the Host starts this Plugin through Plugin
+ * Runtime and draws its stage from the view it returns (`project-plugin-stages.ts`),
+ * with the companions it embeds filling the slots that view opens. It was
+ * `native` until that path existed, because a Manifest claiming `app` while
+ * the shell drew the Plugin itself would have been a lie.
  *
  * The other six built-ins stay `native`: they are still composed at build time.
  *
@@ -240,7 +240,7 @@ export const codingManifest: PluginManifest = {
       },
     ],
     views: [
-      { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID },
+      { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID, accepts_objects: true },
       {
         view_id: "directory",
         slot: "navigator",
@@ -248,12 +248,14 @@ export const codingManifest: PluginManifest = {
         contribution_id: CODING_UI_CONTRIBUTION_ID,
         icon: "code",
         order: 55,
+        group: "code",
       },
       {
         view_id: "settings",
         slot: "settings",
         title: "Coding",
         contribution_id: CODING_SETTINGS_UI_CONTRIBUTION_ID,
+        icon: "code",
       },
     ],
   },

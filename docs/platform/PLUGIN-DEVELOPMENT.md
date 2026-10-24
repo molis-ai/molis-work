@@ -126,7 +126,7 @@ Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/
 
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目标 `bundled` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
-Home 插件的数据按项目放时，`runtime.database` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），登记里同一个库的 `library.partition` 也写 `"project"`，并声明 `project_data`：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，`purge` 可省。见 [specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)。
+Home 插件的数据按项目放时，Manifest 的 `databases.home` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），登记里同一个库的 `library.partition` 也写 `"project"`，并声明 `project_data`：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，`purge` 可省。见 [specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)。
 
 Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
 
@@ -136,13 +136,12 @@ Home 动作/场景可以声明 Home 或项目 scope。项目作用域必须经�
 
 Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与其他项目动作仍可用；普通 ready 保持失败，不自动重试。受保护的 POST retry 才重试，并发 retry 共用一次启动；清理失败或关闭不能再开第二实例。`pluginFixtures.home` 与 `.project` 沿用 definition 或 `{ definition, database?, files? }` 夹具形状，不是 bundled、不接受沙箱或内置同名伪造，实际两份启动名单不能重复插件身份。
 
-可信原生插件需要自己的二进制文件时，在同一个宿主启动条目上声明 `files: { store_name, directory, max_file_bytes, read_permission, write_permission }`，得到 `context.services.files`。`store_name` 必须已在 Home 存储登记中属于该插件，`directory` 是它下面的一个普通目录名。Manifest 只声明 `storage:private` 和读写权限，不选磁盘路径；无 Home、沙箱、错误 owner 或缺声明会在启动任何条目前被拒，升级预检没有文件服务。Home 和项目实例使用同一份实现。
+插件需要自己的文件（二进制、目录树）时，在 Manifest 里声明 `owner_files`（见下一节「Home 主人的私有文件树」），得到 `context.services.ownerFiles`；旧的启动条目 `files` 与 `context.services.files` 已删（PG-102/104，P2b）。单文件字节上限、文件名规则由插件自己管（Images 的上限在它的 provider 里）。
 
-`files.list()` 只列可访问的普通文件名；`read(name)` 返回字节或 null，二者都不创建目录。`create(caller, name, bytes)` 排他创建 0600 文件，拒绝覆盖；`remove(caller, name)` 删除普通文件，缺失时成功。文件名必须是 ASCII 字母或数字开头、其后只含字母、数字、点、下划线或连字符，最多 200 字符，不接受路径；目录与文件符号链接都被拒，读写受条目声明的单文件上限约束。变更在等待后同步重查 signal、原调用者与安装权限，停止钩子和旧句柄不能继续写。文件的业务身份、记录提交与未引用文件的清理由插件负责；本服务不提供任意本机文件读取或后台执行能力。
 
-可信目录的 `database` 声明由 `PluginDatabaseDeclaration` 描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只用于可信 Native 插件；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
+Manifest 的 `databases.home`（`PluginDatabaseDeclaration`，PG-022；项目库见 `databases.project`）描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只给宿主启动名单上的 Native 插件（库要登记在 Home 的存储登记里；名单之外的插件还没有 Home 库，声明了就拒绝启动）；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
 
-项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 `project-plugins.ts` 启动名单的条目上写 `database`（`PluginPlatformEntry`，类型 `PluginDatabaseDeclaration`），不写进插件定义。声明记在宿主列出的那个定义对象上，所以同 `plugin_id` 的开发中或生成的插件拿不到；沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 Home 存储登记中归该插件所有，并与登记的库基线一致；Manifest 声明 `storage:private` 和库的读写权限，同一份名单不能重复占用库。名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，数据由插件自己按项目分区；库随实例启动打开、停止关闭。Form 与灵光是当前生产条目。
+项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 Manifest 写 `databases.home`，启动名单的条目上不再有 `database`。名单上的定义对象拿登记里的库；不在名单上、由宿主自己运行的插件（开发中的、装进来的）也可以在 Manifest 声明 `databases.home`，库经账本给：库首次打开时在 `plugin-libraries/` 记下插件 ID、发布者（取自安装记录）、库名、版本和表的哈希，之后换了发布者、版本、表或库名都拒绝启动；库名不能是宿主已有的存储、安装器的目录、别的插件的库或 Home 里已有的目录；按项目分开的库只有名单上的插件能有。首次的发布者是安装时 Manifest 的自报，安装时不校验签名是 PG-001 的缺口，账本只保证装上后不可换发布者。沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 Home 存储登记中归该插件所有，并与登记的库基线一致；Manifest 声明 `storage:private` 和库的读写权限，同一份名单不能重复占用库。名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，数据由插件自己按项目分区；库随实例启动打开、停止关闭。Dataset、Form、灵光、Pages、PPT、Workflows 是当前生产里的这类插件。
 
 - `database.get/all` 用 SQLite 只读连接，接受参数化查询；没有跨库、路径和连接管理入口。
 - `database.transaction(caller.beforeEffect, tx => …)` 先等待当前动作授权，再复查安装和 grant，随后执行短同步事务；异步回调拒绝并回滚。事务对象离开回调后失效。
@@ -168,8 +167,9 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Goals、Schedule；Goals 的 31 张表含 `boards` 与治理的 4 张）；经 Plugin Runtime 启动的插件（含装进项目的与沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 级插件没有项目库。
 
 - 运行时读写：`context.services.project_database`（`PluginDatabase`，与 Home 库的 `services.database` 同一个接口、同一份客户端），只给经 Plugin Runtime 启动、声明了 `databases.project` 的插件。读 `get`、`all` 只认 `SELECT`、`WITH`，走只读连接；写只在 `transaction(caller.beforeEffect, tx => …)` 里，回调同步，`tx.run` 一次一句，只认 `INSERT`、`UPDATE`、`DELETE`，走宿主自己的连接（同一个文件只用一份 SQLite 库）。
+- 项目日志：`services.project_database.journal` 是项目事件日志和幂等记录的端口（`events`、`idempotency_records` 属于 `packages/storage`，语句读写不了）。要在 Manifest 声明并获授 `journal:project`。读 `eventCursor`、`readEventsDescending` 在数据库对象上，只读到、数到本插件自己写的事件；写 `appendEvent`、`getIdempotency`、`putIdempotency` 只在 `transaction` 的 `tx.journal` 上，和 `tx.run` 同一个 SQLite 事务。每次调用再问授权、原调用者和事务是否仍在（S-63）；一行的行为人只能是调用者的 `actor_id` 或 `audit_actor_id`，动作外只能是宿主给的行为人；项目号由库给，`appendEvent` 里多带的 `projectId` 无效。事件的 `type`、`objectType` 和幂等的 `operation` 写本插件自己的裸名：平台存成「插件号、一个冒号、名字」（插件号里不会有冒号，所以一个插件号是另一个的点分段前缀时也互不相干），读回来再去掉，所以插件读不到别的主人的事件、数不到它们的游标，两个主人用同一个操作名也撞不上；要别的主人的事件，调那个主人的动作。沙箱里的插件暂时没有它。
 - 逐句检查（`pluginStatementGuard`）：关键字过后，平台用 `EXPLAIN` 带着参数读这一句的步骤。名单外的步骤（建、删、改表与索引，`PRAGMA`，`VACUUM`，事务控制）、不是本插件表与索引的根页（`project_root` 只许读）、`temp` 或附加的库、读里的写步、两个 JSON 函数之外的虚表，都以 `plugin.project_database.statement_refused` 拒绝，语句一步也不运行。步骤名单按 SQLite 3.51.3 写成，宿主的 SQLite 换了版本就全拒，直到重新核对。
-- 沙箱插件：操作的 effects 写 `projectDatabase: ["read"]` 或 `["read", "write"]`（查询不能声明写），人批准后经 `sdk.projectDatabase.get`、`all`、`transaction` 跨通道读写，宿主一侧是同一份客户端与检查。通道上参数只许 null、有限数、字符串，BLOB 与超出 2^53 的整数不传回；一个事务 1 到 64 句，在宿主一侧整个提交或整个不写；宿主的拒绝码原样交给插件。创作台生成的 Manifest 写不出 `databases.project`，创作台防腐收尾后删除（BL-377）。宿主一侧的语句在主线程上同步执行，现在没有时间与结果大小的上限（BL-395），第一个能给沙箱插件开项目库的生产路径（第三方安装、重做的创作台）要等它补上。
+- 沙箱插件：操作的 effects 写 `projectDatabase: ["read"]` 或 `["read", "write"]`（查询不能声明写），人批准后经 `sdk.projectDatabase.get`、`all`、`transaction` 跨通道读写，宿主一侧是同一份客户端与检查。通道上参数只许 null、有限数、字符串，BLOB 与超出 2^53 的整数不传回；一个事务 1 到 64 句，在宿主一侧整个提交或整个不写；宿主的拒绝码原样交给插件。创作台生成的 Manifest 写不出 `databases.project`，创作台防腐收尾后删除（BL-377）。宿主一侧的语句跑在子进程的 SQL Worker 里（S-59），子进程主线程独立处理截止时间、总 RSS 和宿主断线，即使宿主同步写在等待锁也会按时杀整个子进程：一句读超过 5 秒、一句写超过 2 秒、一个事务超过 3 秒是 `plugin.project_database.statement_timeout`，语句让进程用掉超过 256 MB 内存是 `plugin.project_database.statement_memory`，进程被杀，未提交的事务不留，下一句照常跑；若正在提交时被中断则返回结果未知；`get` 和 `all` 都至多回 512 KiB，`all` 另有 1000 行上限（再多是 `sandbox.database_result_too_large`，用 `LIMIT`/`OFFSET` 翻页），递归查询（CTE 读自己）一律被拒（`plugin.project_database.statement_refused`）。
 
 ## Runtime 流式路由
 
@@ -481,17 +481,17 @@ await caller.beforeEffect(); // 写业务记录之前
 
 ## Home 主人的私有文件树
 
-可信 Home 条目可声明 `owner_files` 与可选的 `initialize_owner_files`，根目录沿唯一 HomeStoreRegistry 验证 owner；同一根不能同时被 database、旧 files 或第二份 owner_files 占用，完整声明校验在受管开库和初始化之前完成。声明绑定实际 definition 并深复制冻结。项目、沙箱、升级预检以及 Manifest 自报字段均不能获得服务。它是平台前置，现 Shelf owner 和正式装配保持现状。
+插件在自己的 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（PG-102，和 `databases.home` 一样写在 Manifest、不写在宿主条目上；读写权限和 `storage:private` 都要在 Manifest 的 permissions 里）。根目录沿唯一 HomeStoreRegistry 验证 owner；同一根可以同时放这个插件自己 Manifest 声明的库（`databases.home`，如 Images 的 `images/images.db` 与 `images/assets/`），但条目不能叫库文件（`<库名>.db*`）或分区目录 `projects`，别的插件的库、第二份 owner_files 不行；完整声明校验在受管开库之前完成。声明绑定宿主启动名单上的实际 definition 并深复制冻结：声明了文件却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明文件被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱、升级预检不能获得服务。Shelf 用它。
 
-`services.ownerFiles.stat/read/list(relative)` 需要本安装正在执行的真实动作读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。可信 initializer 在有效 activation 与写 grant 下获得同样的短 writer，完成后才 start/register；它不进入插件 services。
+`services.ownerFiles.stat/read/list(relative)` 在本安装正在执行的真实动作里需要动作和原调用者的读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。动作之外（`start`、`start` 里设的定时器、路由）没有原调用者可问，凭这个安装当前的授权决定：`storage:private` 加文件权限都在现行授权里才读写（与其他服务在动作之外的规则一致，`assertPluginActionCurrent`）；停用、卸载、撤权、停止之后不能写（停止后的调用静默失效，BL-411），别的实例的动作里、场景里一律拒绝。初始文件（Shelf 的示例）由插件在自己的 `start` 里写，不再有宿主启动钩子。新建文件和目录只有 Host 的用户可读写（0o600/0o700），`setAccess` 的只读是 0o400/0o500、读写是 0o600/0o700，不留组和其他人的权限位（V-30）。
 
 路径是已声明顶层下的严格相对路径，可包含 Unicode；软硬链接、特殊节点和不安全子树均拒绝。create/copy 独占，replace 要已有文件；replaceFileAtomic 使用同目录独占临时文件，rename 前失败保留原字节并清本次临时文件。removeTree 先预检且不删除声明目录顶层。读写无额外32MiB限制，仍受运行环境字节上限约束。没有多文件事务、掉电持久或同 OS 用户并发替换父目录防护的承诺；同步成功后又抛错不会回滚此前合法写入。
 
 ## Home 消费者的模型配置、生图与项目清理
 
-可信 Home 启动条目可声明 `model_configuration` 与 `image_generation`，分别得到 `services.model.configuration` 与 `services.imageGeneration`；插件 Manifest/definition 自报同名字段不能授予服务，沙箱和升级预检没有这些服务。配置声明固定 preference 文件、custom provider 和 read/save 动作；selection 只读取当前消费者的精确选择，read/save 只在对应设置动作中工作。配置可在模型不可用时修复，真实调用仍要求 model:invoke、并发动作及 beforeEffect，不将显式失效选择回退到别的模型。
+插件在自己的 Manifest 里声明 `model_configuration` 与 `image_generation`（PG-102，和 `databases.home`、`owner_files` 一样写在 Manifest、不写在宿主条目上；`storage:private`、`model:invoke` 和声明里的权限都要在 Manifest 的 permissions 里），分别得到 `services.model.configuration` 与 `services.imageGeneration`。服务只给宿主启动名单上的那个 definition 对象：声明了却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明它们被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱和升级预检没有这些服务。配置声明固定 preference 文件、custom provider 和 read/save 动作；selection 只读取当前消费者的精确选择，read/save 只在对应设置动作中工作。配置可在模型不可用时修复，真实调用仍要求 model:invoke、并发动作及 beforeEffect，不将显式失效选择回退到别的模型。
 
-生图服务提供 connections/inspect/bind/unbind/generate，命名空间与权限来自可信条目；只读发现不解密或 pin 目标。连接、凭据及派出归 Host/Connector/agent-host，插件保留任务调度、业务记录与字节验证。generate 返回当次结果和不透明 revision；调用方在后续文件/任务提交前按这一 revision 再检查，不能读取新 revision 来替代旧结果的版本。模型/连接/安装授权变化后，成功与失败业务记录均不写入。
+生图服务提供 connections/inspect/bind/unbind/generate，命名空间与权限来自 Manifest 的声明；只读发现不解密或 pin 目标。连接、凭据及派出归 Host/Connector/agent-host，插件保留任务调度、业务记录与字节验证。generate 返回当次结果和不透明 revision；调用方在后续文件/任务提交前按这一 revision 再检查，不能读取新 revision 来替代旧结果的版本。模型/连接/安装授权变化后，成功与失败业务记录均不写入。
 
 删项目时插件不被通知，也不跑自己的代码：平台在同一轮里先停掉它经 `services.background` 在这个项目里受理的执行和登记的作业（control 的 signal 中止，结果与失败都不交付），再关这个项目的库、跑声明的 project_data purge，中间不 await。项目只是关闭时，项目实例随项目停；Home 实例在这个项目里的作业也停，它受理的有限执行照旧带着原调用的授权。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理或登记。停用/卸载后没有运行实例时仍走原离线 purge，结束 Home 才释放 owner 注册。
 

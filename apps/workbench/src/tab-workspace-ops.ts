@@ -7,24 +7,8 @@ export function createTabWorkspaceOps(titles) {
   const itemTab = (plugin, itemId, title) => ({ id: uid(), plugin, kind: "item", itemId, title });
   const pluginViewKey = (plugin) => "plugin:" + plugin;
   const tabKey = (tab) => tab.kind === "system" ? "system:" + tab.owner + ":" + tab.itemId : tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
-  const pluginTitle = (plugin) => (titles && titles[plugin]) || ({
-    home: "项目首页",
-    goals: "Goals",
-    sessions: "Sessions",
-    inbox: "Inbox",
-    schedule: "Schedule",
-    feed: "Feed",
-    characters: "Characters",
-    images: "图片",
-    pages: "Pages",
-    form: "Forms",
-    dataset: "Dataset",
-    ppt: "PPT",
-    lingguang: "灵光",
-    alchemist: "炼金术士",
-    workflows: "工作流程",
-    artifacts: "成果",
-  }[plugin] || plugin);
+  // Plugins name their tabs with their Manifest views' titles (the page passes `pluginTabTitles`); only the Host's own surfaces are named here.
+  const pluginTitle = (plugin) => (titles && titles[plugin]) || ({ home: "项目首页", characters: "Characters" }[plugin] || plugin);
   const pluginOfSurface = (surface) => surface === "goal" ? "goals" : surface === "sources" ? "feed" : surface;
   const countTabs = (state) => state.panes.reduce((sum, pane) => sum + pane.tabs.length, 0);
   const focused = (state) => state.panes.find((pane) => pane.id === state.focusedPaneId) || state.panes[0];

@@ -32,7 +32,6 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.event_changed": "conflict";
     readonly "actions.event_invalid": "conflict";
     readonly "actions.event_source_changed": "conflict";
-    readonly "actions.service_configured": "conflict";
     readonly "actions.mcp_name_conflict": "conflict";
     readonly "actions.scene_duplicate": "conflict";
     readonly "actions.input_invalid": "invalid";
@@ -740,7 +739,6 @@ export interface ActionSubjectContext {
     content: string;
     truncated: boolean;
     goal_ids: string[];
-    session_id: string | null;
     open?: {
         surface: string;
         id: string;
@@ -2259,7 +2257,7 @@ export interface HostReviewSettledPayload {
 
 export interface HostWorkspaceChangedPayload {
     workspace_id: string;
-    cause: "plugin-operation";
+    cause: "plugin-operation" | "agent-change";
 }
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
@@ -2462,6 +2460,8 @@ export declare const PLUGIN_MODEL_LIMITS: {
     readonly default_output_tokens: 5000;
     readonly max_output_tokens: 12000;
 };
+
+export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
 
 export interface PlacementCopyInput {
     subject: ActionSubject;
@@ -2818,25 +2818,11 @@ export interface PluginExecutor {
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
     uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
+    keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 
 export interface PluginExecutorHandle {
     contribution: PluginContribution;
-}
-
-export interface PluginFilesClient {
-    list(): readonly string[];
-    read(name: string): Uint8Array | null;
-    create(control: PluginExecutionControl, name: string, bytes: Uint8Array): Promise<void>;
-    remove(control: PluginExecutionControl, name: string): Promise<void>;
-}
-
-export interface PluginFilesDeclaration {
-    readonly store_name: string;
-    readonly directory: string;
-    readonly max_file_bytes: number;
-    readonly read_permission: string;
-    readonly write_permission: string;
 }
 
 export interface PluginHostServices {
@@ -2847,9 +2833,9 @@ export interface PluginHostServices {
     readonly actions?: PluginActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
-    readonly project_database?: import("platform/plugin-database").PluginDatabase;
+    readonly project_database?: import("platform/plugin-database").PluginProjectDatabase;
+    readonly project_statements?: import("platform/plugin-database").PluginProjectStatements;
     readonly scheduler?: import("platform/plugin-scheduler").PluginScheduleClient;
-    readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly terminal?: PluginTerminalClient;
     readonly model?: PluginModelClient;
@@ -2865,6 +2851,20 @@ export interface PluginHostServices {
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
     readonly capabilities?: PluginCapabilityClient;
+}
+
+export interface PluginIdempotencyPut {
+    readonly actorId: string;
+    readonly operation: string;
+    readonly key: string;
+    readonly requestHash: string;
+    readonly outcome: unknown;
+    readonly at: string;
+}
+
+export interface PluginIdempotencyRecord {
+    readonly request_hash: string;
+    readonly outcome: unknown;
 }
 
 export interface PluginImageConnectionState {
@@ -3067,6 +3067,40 @@ export interface PluginJobDeclaration {
     readonly permissions: readonly string[];
 }
 
+export interface PluginJournalAppend {
+    readonly eventId: string;
+    readonly actorId: string;
+    readonly type: string;
+    readonly objectType: string;
+    readonly objectId: string;
+    readonly reason: string;
+    readonly payload: unknown;
+    readonly at: string;
+}
+
+export interface PluginJournalEvent {
+    readonly seq: number;
+    readonly event_id: string;
+    readonly actor_id: string;
+    readonly type: string;
+    readonly object_type: string;
+    readonly object_id: string;
+    readonly reason: string;
+    readonly payload: unknown;
+    readonly at: string;
+}
+
+export interface PluginJournalReader {
+    eventCursor(objectType?: string): number;
+    readEventsDescending(): PluginJournalEvent[];
+}
+
+export interface PluginJournalWriter extends PluginJournalReader {
+    appendEvent(input: PluginJournalAppend): number;
+    getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
+    putIdempotency(input: PluginIdempotencyPut): void;
+}
+
 export interface PluginKeptJob {
     readonly done: Promise<void>;
     cancel(): void;
@@ -3159,6 +3193,9 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
+    owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
+    model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
+    image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
@@ -3170,6 +3207,7 @@ export interface PluginManifest {
 
 export interface PluginManifestDatabases {
     readonly project?: PluginDatabaseDeclaration;
+    readonly home?: HomePluginDatabaseDeclaration;
 }
 
 export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
@@ -3186,6 +3224,7 @@ export interface PluginMaterialsClient {
     readLocalPage?(url: string, request?: PluginLocalPageRequest): Promise<MaterialExtraction>;
     claimOriginal?(record_key: string): Promise<void>;
     readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
+    readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
 }
 
@@ -3316,6 +3355,19 @@ export interface PluginNotificationReceipt {
 
 export interface PluginOriginalContent {
     readonly bytes: Uint8Array;
+}
+
+export interface PluginOriginalRangeContent {
+    readonly bytes: Uint8Array;
+    readonly size: number;
+    readonly revision: string;
+}
+
+export interface PluginOriginalRangeRequest {
+    readonly offset: number;
+    readonly length: number;
+    readonly revision?: string;
+    readonly signal?: AbortSignal;
 }
 
 export interface PluginOriginalRequest {
@@ -3501,6 +3553,35 @@ export interface PluginProcessItemInput extends ArtifactReference {
     supersedes_version?: number | null;
 }
 
+export interface PluginProjectDatabase extends PluginDatabase {
+    readonly journal: PluginJournalReader;
+    transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T>;
+}
+
+export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransaction {
+    readonly journal: PluginJournalWriter;
+}
+
+export type PluginProjectRow = Record<string, null | number | string>;
+
+export interface PluginProjectStatement {
+    readonly sql: string;
+    readonly parameters: readonly (null | number | string)[];
+}
+
+export interface PluginProjectStatements {
+    get(sql: string, parameters: readonly (null | number | string)[], limits: {
+        readonly bytes: number;
+    }, signal: AbortSignal): Promise<PluginProjectRow | null>;
+    all(sql: string, parameters: readonly (null | number | string)[], limits: {
+        readonly rows: number;
+        readonly bytes: number;
+    }, signal: AbortSignal): Promise<PluginProjectRow[]>;
+    transaction(beforeEffect: () => Promise<void>, statements: readonly PluginProjectStatement[], signal: AbortSignal): Promise<Array<{
+        changes: number;
+    }>>;
+}
+
 export interface PluginRequirementDeclaration {
     capability_id: string;
     version: number;
@@ -3668,7 +3749,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -4021,9 +4102,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
             };
             uniqueItems: boolean;
         };
-        session_id: {
-            type: string[];
-        };
     };
     required: string[];
     additionalProperties: boolean;
@@ -4069,9 +4147,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
                 minLength: number;
             };
             uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];
@@ -4134,9 +4209,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
                 minLength: number;
             };
             uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];

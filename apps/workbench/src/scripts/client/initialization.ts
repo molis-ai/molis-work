@@ -54,8 +54,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       saveUiState, setMobileView,
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
     });
-    // "转为待办" in other plugins shows only where Todo is on this page.
-    document.body.toggleAttribute("data-todo-available", Boolean(document.querySelector('[data-work-surface="todo"]')));
     (${NAVIGATION_PRESENTATION_SCRIPT})(L);
     (${DOCK_SCRIPT})(L, state.project?.project_id, {
       membership: pluginMembership,
@@ -68,9 +66,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     (${ATTENTION_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
-    // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3).
-    // A surface that opens its items as tabs (the 成果库 opens a version) gets the item; the rest choose the record in their list.
-    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])}.includes(plugin) ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
+    // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3): an
+    // object's tab where the surface opens objects by id, else the record in the plugin's list.
+    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])}.includes(plugin)
+      ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L,
       route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
@@ -94,10 +93,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,
       api,
-      messageApi: async (pathname,method,body) => {
-        try { return await api(pathname,method,body); }
-        catch(error) { if(error.status===409 && error.body?.state==='failed')return error.body;throw error; }
-      },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
       openTarget: (target) => {

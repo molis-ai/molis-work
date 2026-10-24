@@ -1,6 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ISSUES_ACTIONS } from "./actions.js";
 import { issuesMethods } from "./methods.js";
+import { ISSUES_DATABASE } from "./database.js";
 
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
 export const ISSUES_UI_CONTRIBUTION_ID = "io.molis.work.native.issues.ui.v1";
@@ -15,6 +16,7 @@ export const issuesManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: ISSUES_ACTIONS,
   methods: issuesMethods.map(({ body: _body, ...method }) => ({ ...method, tools: [...method.tools] })),
+  databases: { home: ISSUES_DATABASE },
   routes: [
     { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write" },
     { route_id: "issues.cancel_capture", method: "POST", path: "/cancel-capture", permission: "issues:write" },

@@ -46,17 +46,13 @@ import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { awaitWebServerShutdown } from "./web-server-close.js";
 import { startWebProjectSchedulers } from "./web-project-schedulers.js";
-import { hostLog, repeatingFailure } from "./host-log.js";
+import { hostLog } from "./host-log.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
   if (address && typeof address === "object") return `http://127.0.0.1:${address.port}`;
   return "http://127.0.0.1:4173";
 }
-
-// The terminal keeps running when its record cannot be written; that is written once per process, not once per chunk.
-const recording = repeatingFailure("terminal", "recording_failed");
-const recordingFailure = (error: unknown) => recording.failed("recorder", error);
 
 /** The native terminal, attached once the server exists; a Character launch made before that is refused. */
 function nativeTerminal() {
@@ -119,9 +115,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
-    localHost.configureSessionRuntime(storageHome, serverOptions.runtimeSessionTransport);
-    const sessionResources = localHost.sessionResources();
-    void sessionResources.catch(() => undefined); // Its users (the terminal recorder, session routes) answer its failure.
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const { periodicTasks: periodic } = composition;
     const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, periodic,
@@ -212,7 +205,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             feedSchedulers,
             pty.host,
             loopbackWebOrigin(server),
-            sessionResources,
             localHost,
             composition,
             agents.agentHost,
@@ -231,18 +223,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     computer.attach(server, controlToken);
-    pty.host = attachMolisWorkPtySocket(server, controlToken, {
-      onData(panelId, sessionId, data) {
-        void sessionResources
-          .then((resources) => resources.recorder.recordOutput(panelId, sessionId, data))
-          .catch(recordingFailure);
-      },
-      onExit(panelId, sessionId, exit) {
-        void sessionResources
-          .then((resources) => resources.recorder.recordExit(panelId, sessionId, exit))
-          .catch(recordingFailure);
-      },
-    }, storageHome);
+    pty.host = attachMolisWorkPtySocket(server, controlToken, storageHome);
     server.once("close", bindPluginTerminalHost(storageHome, pty.host));
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.

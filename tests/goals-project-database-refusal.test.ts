@@ -6,13 +6,16 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, developInPrivateHost, molisWorkHostProjectReference, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalProjectDatabase, MolisWorkLocalHost, developInPrivateHost, isProjectPluginDatabaseRefusal, molisWorkHostProjectReference, openProjectPluginDatabases, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
-import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_PLUGIN_ID, goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import type { PluginProjectDatabaseRecord, PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
+import { codingView } from "./fixtures/coding-view.js";
 
 /**
  * PLIB-14 (S8; specs/plugin-project-database/spec.md §2.3 and §2.4): Goals' tables in a project's library are Goals' own, declared in
@@ -83,10 +86,10 @@ async function developerDoor(home: string, projectId: string, databasePath: stri
 async function codingPanel(databasePath: string, projectId: string): Promise<string> {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    const surface = await codingDirectoryPanel({ store, ...openProjectVersionStores(store), projectId, actions: pluginActions(store, projectId), actorId: "web-user",
-      escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), translate: value => value });
+    const panel = await codingView({ store, ...openProjectVersionStores(store), projectId, actions: pluginActions(store, projectId), actorId: "web-user",
+      escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") });
     await releaseProjectPlugins(store, projectId);
-    return surface?.panel ?? "";
+    return panel;
   } finally { store.close(); }
 }
 
@@ -138,3 +141,25 @@ for (const { change, sql, code } of cases) {
     assert.deepEqual(library(databasePath), before, "the refusal repairs nothing, recreates nothing and records nothing");
   });
 }
+
+test("PLIB-14: only the platform's own refusal stops one plugin; a temporary SQLite error surfaces instead of being recorded as a refusal", () => {
+  const db: PluginRuntimeDatabase = { exec: () => undefined, prepare: () => ({ get: () => undefined, all: () => [], run: () => undefined }) };
+  const record: PluginProjectDatabaseRecord = { plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature, store_name: "goals", version: 1, objects: [], created_at: "2026-10-23T00:00:00.000Z" };
+  const refused = openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { throw new ActionError("plugin.project_database.version_mismatch", "another version"); });
+  const refusal = refused.get(GOALS_PLUGIN_ID);
+  assert.ok(refusal && "error" in refusal, "the declaration's own refusal is recorded against that plugin only");
+  assert.throws(() => openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { throw new Error("SQLITE_BUSY: database is locked"); }), /SQLITE_BUSY/, "a temporary SQLite error that stays is thrown, not turned into a plugin refusal");
+  assert.throws(() => openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { throw new TypeError("bad open"); }), /bad open/, "so is a programming error");
+  let attempts = 0;
+  const retried = openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => {
+    attempts += 1;
+    if (attempts < 3) throw new Error("SQLITE_BUSY: database is locked");
+    return record;
+  }).get(GOALS_PLUGIN_ID);
+  assert.ok(retried && "record" in retried, "a moment of SQLite contention is retried and the plugin opens, as the library would on the next attempt");
+  assert.equal(attempts, 3, "two transient answers were tried again before the third opened it");
+  const opened = openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => record).get(GOALS_PLUGIN_ID);
+  assert.ok(opened && "record" in opened, "an open plugin keeps its record");
+  assert.equal(isProjectPluginDatabaseRefusal(new ActionError("plugin.project_database.version_mismatch", "x")), true, "the platform's refusal prefix is recognized");
+  assert.equal(isProjectPluginDatabaseRefusal(new Error("SQLITE_BUSY: database is locked")), false, "anything else is not");
+});

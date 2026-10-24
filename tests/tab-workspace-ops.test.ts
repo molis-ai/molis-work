@@ -23,12 +23,21 @@ test("opening a plugin shows its default view without adding a mother tab", () =
 });
 
 test("Feed is a named plugin view, not a later-only plugin", () => {
-  const state = ops.create();
-  const tab = ops.openPlugin(state, "feed");
+  const named = createTabWorkspaceOps({ feed: "Feed" });
+  const state = named.create();
+  const tab = named.openPlugin(state, "feed");
   assert.equal(tab.plugin, "feed");
-  assert.equal(ops.pluginTitle("feed"), "Feed");
-  assert.equal(ops.focused(state).viewPlugin, "feed");
-  assert.equal(ops.activeTab(state), null);
+  assert.equal(named.pluginTitle("feed"), "Feed");
+  assert.equal(named.focused(state).viewPlugin, "feed");
+  assert.equal(named.activeTab(state), null);
+});
+
+test("PG-060 the tab rules name no plugin: a title the page does not pass is the plugin's id, only the Host's own surfaces have one", () => {
+  assert.equal(ops.pluginTitle("feed"), "feed");
+  assert.equal(ops.pluginTitle("lingguang"), "lingguang");
+  assert.equal(ops.pluginTitle("home"), "项目首页");
+  assert.equal(ops.pluginTitle("characters"), "Characters");
+  assert.equal(createTabWorkspaceOps({ home: "Project home" }).pluginTitle("home"), "Project home");
 });
 
 test("opening the same plugin again stays on the default view", () => {
@@ -64,10 +73,10 @@ test("closing the last tab in the workspace restores home", () => {
 test("closing home while a plugin view is open leaves that work", () => {
   const state = ops.create();
   const home = ops.activeTab(state);
-  ops.openPlugin(state, "sessions");
+  ops.openPlugin(state, "inbox");
   ops.closeTab(state, state.focusedPaneId, home.id);
   assert.equal(ops.activeTab(state), null);
-  assert.equal(ops.focused(state).viewPlugin, "sessions");
+  assert.equal(ops.focused(state).viewPlugin, "inbox");
   assert.equal(ops.focused(state).tabs.some((tab) => tab.kind === "home"), false);
 });
 
@@ -207,11 +216,11 @@ test("opening another plugin or item adds a tab without replacing existing ones"
 test("opening an already open item activates it and leaves other tabs", () => {
   const state = ops.create();
   const first = ops.openItem(state, "goals", "goal-1", "发布");
-  ops.openPlugin(state, "sessions");
+  ops.openPlugin(state, "inbox");
   const again = ops.openItem(state, "goals", "goal-1", "发布");
   assert.equal(again.id, first.id);
   assert.equal(ops.focused(state).tabs.filter((tab) => tab.itemId === "goal-1").length, 1);
-  assert.equal(ops.focused(state).tabs.some((tab) => tab.plugin === "sessions" && tab.kind === "mother"), false);
+  assert.equal(ops.focused(state).tabs.some((tab) => tab.plugin === "inbox" && tab.kind === "mother"), false);
   assert.equal(ops.focused(state).viewPlugin, "goals");
 });
 
@@ -252,7 +261,7 @@ test("manual groups stay contiguous, collapse is recorded, and pinning leaves th
   const state = ops.create();
   const home = ops.activeTab(state);
   const goal = ops.openItem(state, "goals", "CORE", "Core");
-  ops.openPlugin(state, "sessions");
+  ops.openPlugin(state, "inbox");
   const pane = ops.focused(state);
   ops.addTabToNewGroup(state, pane.id, goal.id);
   assert.equal(pane.groups.length, 1);
@@ -283,7 +292,7 @@ test("dropping a tab after a group joins that group", () => {
   const state = ops.create();
   const home = ops.activeTab(state);
   const goal = ops.openItem(state, "goals", "CORE", "Core");
-  const session = ops.openItem(state, "sessions", "s1", "Session");
+  const session = ops.openItem(state, "inbox", "s1", "Entry");
   ops.addTabToNewGroup(state, state.focusedPaneId, goal.id);
   ops.moveTab(state, state.focusedPaneId, session.id, state.focusedPaneId, null);
   assert.equal(session.groupId, goal.groupId);
@@ -504,10 +513,10 @@ test("PTG-08 a saved plugin page without its plugin tab gets one, and plugin tab
   const base = createTabWorkspaceOps();
   const saved = base.create();
   base.openItem(saved, "goals", "g1", "发布");
-  base.openPlugin(saved, "sessions");
+  base.openPlugin(saved, "inbox");
   assert.equal(isCurrentTabWorkspace(saved), true);
   ops.normalizeLayout(saved);
-  assert.deepEqual(strip(ops.focused(saved)), ["home", "goals", "goals:g1", "sessions"]);
+  assert.deepEqual(strip(ops.focused(saved)), ["home", "goals", "goals:g1", "inbox"]);
   ops.togglePluginGroup(saved, saved.focusedPaneId, "goals");
   assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(saved))), true);
   const tampered = JSON.parse(JSON.stringify(saved));

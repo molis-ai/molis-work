@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { WORKFLOWS_PLUGIN_ID } from "./model.js";
 import { WORKFLOWS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { WORKFLOWS_ACTIONS } from "./actions.js";
+import { WORKFLOWS_DATABASE } from "./database.js";
 
 /** The largest body any Workflows route reads: the same 400 000 bytes the Host's own route gave them. */
 const WORKFLOWS_BODY_BYTES = 400_000;
@@ -24,6 +25,7 @@ export const workflowsManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: WORKFLOWS_ACTIONS,
+  databases: { home: WORKFLOWS_DATABASE },
   routes: [
     { route_id: "workflows.list", method: "GET", path: "/workflows" },
     { route_id: "workflows.create", method: "POST", path: "/workflows", max_body_bytes: WORKFLOWS_BODY_BYTES },
@@ -43,7 +45,7 @@ export const workflowsManifest: PluginManifest = {
   ui: {
     contributions: [WORKFLOWS_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "工作流程", contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID, icon: "workflow", order: 25 },
+      { view_id: "directory", slot: "navigator", title: "工作流程", contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID, icon: "workflow", order: 25, group: "advance", accepts_objects: true },
     ],
   },
 };

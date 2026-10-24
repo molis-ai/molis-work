@@ -220,3 +220,41 @@
 ### 7.4 下一轮
 
 主题 c（lead 队列）：**typed capability / 宿主能力注册是否仍在新增**。方法：`scripts/gates/typed-capabilities.mjs` 的 type-refs / without-action / register-calls 三项基线、`HostCapabilityDefinition` grep、`registerCapability`/`register(` 调用面，对照 privileges PG-035（剩 agent 37 条 BL-364、scheduler 4 条 BL-365）与 W5-08 typed 140 处；输出「是否还有新增入口 / 存量清单与 owner」。
+
+---
+
+## 8. 第 4 轮（主题 c：typed capability / 宿主能力注册是否仍在新增）
+
+基准：origin/main `89c9a7194`（复核时再次 fetch，仍无新提交）。只读，未改代码。
+
+### 8.1 结论：PASS（无 blocker；未发现「新增 typed 条目」）
+
+证据（code-read + gate 报告 + git 历史）：
+
+1. 决策基线：spec §5a 的「宿主能力（typed）：`HostCapabilityDefinition` 与包装它的别名的引用、无 `action` 的描述符、`registerCapability` 与对 `LocalHost` 一类注册型接收者的 `register` 的调用和引用；新能力注册成动作，不再新增 typed 条目」；口径在 `scripts/gates/typed-capabilities.mjs` 头部（decision 2026-10-07，N-12/W1-05：「typed registry 只作宿主内部通道（agent.*、schedule.*、workspace writers），不再新增条目」）。
+2. 冻结前后对比（`tooling/gates/baseline.json`，2026-10-07 `b7844527` vs `89c9a7194`）：
+   - `typedCapabilitiesTotal` 338 → **126**（−212）；
+   - `#without-action` 100 → **31**（−69）；
+   - 有记录文件 44 → **17**，且 `files added vs old: []`（没有新文件带 typed 记录）。
+3. 现存 typed 条目清点（`packages/contracts/src/services/agent-host.ts` 的 `agentHostCapabilities`，共 38 条 `capability_id`）：**typed 30 条 + 已是动作 8 条**（`agent.messages.*` 5 条、`agent.background.*` 2 条由 #1121（R8 第 1 批，2026-10-24）改成动作；`agent.draft-text.v1` 由 #999 改成 ActionDefinition）。30 条 typed 的 id 最早引入时间全部 ≤ 2026-09-26（冻结前）；唯一「冻结后出现」的 `agent.collaboration.await.v1` 是 2026-10-15 #534 把旧 `agent.waits.await.v1` 改名（同一条能力、计数未增，**不是新增**）。`agent.project-work.queue.v1` 的引入 commit `cbdfae1f6` 是 2026-09-26（冻结前）。
+4. 登记点唯一：全仓 `registerCapability(` 调用只剩 `apps/local-host/src/agent-host-composition.ts:115`（按 `definition.action` 分派：动作→`registerAction`、typed→`registerCapability`），draftText 在 `:132` 走 `registerAction`；没有第二个文件登记 typed 条目。
+5. 新能力走动作的样本：`host.review.settled@1` 是宿主事件（`packages/contracts/src/platform/plugin-events.ts:28,48`；`packages/plugin-runtime/src/host-events.ts:48`），不是 typed 条目；`draftText`（#999）已是 `ActionDefinition`；`HostCapabilityDefinition` 的引用文件只有 10 个（`agent-host.ts`、`app-host.ts`、`actions.ts`、`plugin.ts`、`kernel/src/index.ts`、`local-host.ts`、`project-host.ts`、`capability-registration.ts`、`plugin-runtime/src/services.ts`、`agent-host-composition.ts`），全部旧文件。
+6. 插件侧 typed 调用仍受 Manifest 约束：`packages/plugin-runtime/src/services.ts` 的 `createPluginCapabilityClient` 只放行 `manifest.capabilities.consumes`（否则 `plugin.capability_denied`），不是任意调用。剩余 typed 消费方：Coding 23 处 `api.invoke(agent.*)`（BL-364 迁移中）、Characters 宿主提供方 2 处（`characters-host.ts` 的 listRuntimes/listActions）、plugin-builder Manifest consumes（PG-101 不迁，随删除）。
+7. 机械口径缺口（脚本头已自述，非本轮新发现、非 blocker）：gate 按文件净计数，同一 PR 在同一文件「加一条 typed、删一条 typed」净额不变会通过；只按 id 字符串调用既存 typed 能力的消费者不计入。记录备查。
+
+### 8.2 本轮唯一 edit（E22，需统筹批量写）
+
+- `specs/repository-anti-corruption/privileges.md:194`（PG-035）状态/进度文字过时：
+  - 「agent 其余 37 条」→ 现在剩 **30 条**（#1121 R8 第 1 批已把 7 条改成动作，2026-10-24 合入；#1148 R8 第 2 批 4 条在途）；
+  - 「scheduler 的 4 条记 BL-365」→ BL-365 已关：那 4 条已随 #1018 删除、插件改经 `services.scheduler`，R8 片只清理待办行与三处文档（`specs/repository-anti-corruption/slices/r8-agent-host-actions.md:8`）；
+  - 代码位置 `agent-host-composition.ts:131,153,172,178,197,228,240,291,295` 已失效 → 改 `agent-host-composition.ts:107-120`（按 `definition.action` 分派登记）、`:132`（draftText 动作）。
+- 说明：此行属「已合未写/进度更新」，写回由统筹批量写，我不改 privileges。
+
+### 8.3 task-13 只读复核状态（§6 更新）
+
+- 2026-10-23 fetch 后 origin/main 仍 `89c9a7194`；`git ls-remote origin refs/heads/anticorr/w6-01-personal-http-removal` 为空、`gh pr list --state all` 无该分支 → **PR 尚未出现，无法复核**。
+- 验收依据仍为 §6.2 的 6 步清单：personal 文件全删、`web-request.ts` 只删 4 处 import + `:203-215` 块 + `:298` spread、`NATIVE_PLUGIN_HTTP_FILES` 5→4、测试改法、验证命令与 `--base origin/main` 数字检查。等 lead 通知或下一轮再看；合入后 PG-058 5→4（E14 已预留）。
+
+### 8.4 下一轮
+
+主题 d（lead 队列）：**表 owner 违规** —— `tooling/gates/table-owners.json`、`scripts/gates/table-owners.mjs` 的零基线；抽查 modules/plugins 写别人表、非字面量表名/拼接 SQL 的盲区、共用表登记理由与代码现状一致。

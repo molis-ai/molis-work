@@ -46,6 +46,8 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | #1239 | 6388031418 / 6388049535 | B2b用途隔离/全批限额/严格原后端恢复/S12 | FIX4一次正常push固定 `5e1d8a29156509d6fc51f75fd5bcc17316e3f225`，b9后10文件+372/-43，公开6388749288、clean/SOURCE RELEASE；Home payload仅加purpose+canonical Home+owner AAD，vault v2无AAD原读法不变。Root已批准源32MiB/10000节点/密封串128MiB全批额度，有界读/扫描、超限too_large且整次零写，不截断/跳cache；严格原backend恢复报错/文档及S12同轮齐修。作者17唯一文件112项/最终build与门禁通过是候选证据，二轮6388795634 PASS，独立TEST/新CI/full尚待，旧b9首败/干净006/Keychain范围保留、不判负载。实际改storage README、HOME-DATA、S12单行和原slice B2b段已释放；storage index/local-host index/README本轮未改，Root已直接给C2在其树保5e最终hunk并串行追加A，不等CI/merge、不覆FIX4冻结树 |
 | #1234 | 6387698407 | **挡合并**：`SECURITY-INVARIANTS.md:81` S-67 正文的「操作 id + 输入」换别的引号（S-20 把「」当测试名，Security invariants 1/2 红，同 #1187）。不挡合并：①受理期间 broker 停止，那条运行逃过取消；②cancel 不查被取消运行的目标；③S-67 三条真进程用例只在 mac 跑，挪到「只在本机跑」那栏，S-66 行补缺的一栏；④S-67 第②道门（宿主客户端）在沙箱路径补测试 |专职FIX5 `01a16f24-7a33-76f2-80b4-f20c55006d09` 已Root实际START，原71e4d059分支一轮齐修 |
 | #1240 | 6388577861 / 统筹6388582397 | 挡合并：坏launch_args不能卡整项目删除；写侧强转同PR收口 | FIX1 sole已Root START/公开6388670438，基于冻结3ce独立树；owner窄ID查询+真实删除/非法写入红绿。Root后续B细化：原坏读launch_args_invalid/internal500不变，写入新launch_args_input_invalid/invalid400，HTTP去coercion原样交owner。新head/二轮/TEST尚待，C1原作者不并写，未actual不关 |
+| #1242 | ac-review 一轮可合（849d7e2d5，ac-kernel 正在 merge main 解两个测试文件的冲突，固定头以同步后为准） | 不挡合并：`coding-plugin/implementation.md:126` 还提 `registerCapability`；r8 片状态句；统筹 PR 评论裁「HostCapabilityDefinition 删名接受」，`slices/r8-agent-host-actions.md` 的裁定措辞跟着改。三项一次推送 | 待修；进 batch-35（`full` 非空） |
+| #1243 | ac-review 一轮可合（9c4adba04） | 不挡合并：PG-056（`privileges.md:235`）、`side-shelf/spec.md:62` 还引着搬走的代码 | 待修；进 batch-35 |
 
 | 序 | 独立片 | 状态 |
 | --- | --- | --- |

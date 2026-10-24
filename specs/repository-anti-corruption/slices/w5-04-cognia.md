@@ -1,6 +1,6 @@
 # W5-03 / W5-04 Cognia 片：稳定翻译键与打包的、类型检查的客户端
 
-状态：执行中（2026-10-23）。Cognia 的页面客户端与页面文字按 Todo、Issues、Jelly 片的做法改完，只在本地分支 `ac-clients-cognia`，按统筹要求暂不开 PR。
+状态：评审中（2026-10-24）。Cognia 的页面客户端与页面文字按 Todo、Issues、Jelly 片的做法改完，分支 `ac-clients-cognia` 已开 PR；本机延后验证见 PR 正文。
 
 验收编号：RAC-144～145。
 

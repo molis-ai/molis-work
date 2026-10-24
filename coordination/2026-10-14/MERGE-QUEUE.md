@@ -73,6 +73,8 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 > - 下一批（按路径）：ac-kernel #1226/#1227/#1228 → ac-clients-1 #1229+#1232 整条 → Codex #1231 → ac-coding #1230（BL-521 第二片并进来）→ PG-017 P1+P3（一个 PR，待开）→ S-57 X1～X4（一个 PR，等前三个进批再开）。都要先「二轮：可合」（§0）。
 > - 远端分支清理（用户 10-24 晚：「已经合入的就可以删」）：96 个已合入的远端分支已删（PR 合入且 head 相同 44 个；head 被已合 PR 包含 34 个；集成分支的每个来源都已合入 18 个）。未合入的保留，含 `ac-kernel/s57-x4-binding-cleanup`（X4 的旧版，`s57-x4-bindings` 已取代，X4 合入后再删）。本地删了 batch-29 两棵、`baseline-main`、`/private/tmp/handoff/batch-1023-12` 四棵工作树。
 > - #1235（Images README 两句，Codex 二轮可合）：`full` 空，CI 绿后单个入队。
+> - S 号按合入顺序定：`scripts/gates/security-invariants.mjs` 要求 S-01 起连续、不跳号，所以分支里都是暂定号，统筹在批分支里按落地顺序定正式号。main 现到 S-65；#1234 进 batch-34 定为 S-66（P1）、S-67（P3）；S-57 扩展 X1～X3 原先暂给的 S-71～73 改成到时接着排（若紧跟 #1234 就是 S-68～70）；ac-trust、ac-artifacts 设计稿里的号同样只是暂定。
+> - batch-34 候选：#1227（一轮可合，无修复）+ 修完二轮的 #1226 #1228 #1229 #1232 #1230 + #1231（已二轮）+ #1234（待一轮）。修复单在 CODEX-TASKS §0a。
 
 
 > **当前唯一定时调度（用户最新明确、Root已官方工具读回）**：只有Root `01a12a80-ede2-7b81-93ea-521a5abcc35c` 的 `molis-work` 每10分钟周期巡检；其他定时任务维持PAUSED。本次只改变周期发现来源，原职责和交付直达接续不变：新PR交REVIEW、可合并项交流水线执行、新独立片交对应实现、有效Review问题交原作者/修复、修复新head即交REVIEW增量复查并按风险交TEST；固定头/证据直接传递并抄Root，不等heartbeat或Root二次许可。Root负责周期发现、初始派单与复杂裁决，流水线/专职不恢复自己的定时器或周期扫描全项目。Claude整线范围/优先级/唯一full排期、既有owner和单writer/公共资源槽不变。

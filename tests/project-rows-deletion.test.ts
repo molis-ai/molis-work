@@ -294,7 +294,7 @@ test("RAC-563 a deletion waits for a write another connection holds on the libra
   assert.equal(marks(home, library.store_name, ["pa"]).pages!.pa, 0);
 });
 
-test("RAC-577 S-暂B the files a project's rows name go with them, and only plain files in the declared directory of the plugin's own", async t => {
+test("RAC-577 S-86 the files a project's rows name go with them, and only plain files in the declared directory of the plugin's own", async t => {
   const home = withHome(t);
   const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
   assert.deepEqual(library.project_rows?.files, [{ table: "jobs", column: "images_json", key: "filename", directory: "assets" }], "Images declares its pictures");
@@ -323,11 +323,11 @@ test("RAC-577 S-暂B the files a project's rows name go with them, and only plai
   try { assert.deepEqual(left.prepare("SELECT project_id FROM jobs ORDER BY project_id").all().map(row => row.project_id), ["pb"]); } finally { left.close(); }
 });
 
-test("RAC-577 the SDK refuses files that do not hang on a project's own table or name a directory the Manifest does not declare", () => {
+test("RAC-577 S-86 the SDK refuses files that do not hang on a project's own table or name a directory the Manifest does not declare", () => {
   const files = (entries: unknown, ownerFiles: unknown = { store_name: "rows-probe", entries: [{ name: "assets", kind: "directory" }, { name: "index.json", kind: "file" }], read_permission: "rowsprobe:read", write_permission: "rowsprobe:write" }) =>
     () => parsePluginManifest({ ...manifest({ ...LIBRARY, project_rows: { ...ROWS, files: entries } }), owner_files: ownerFiles });
   files([{ table: "items", column: "id", directory: "assets" }])();
-  assert.throws(files([{ table: "notes", column: "id", directory: "assets" }]), /不带 parent 的表/u, "a child table's names would outlive their parent's check");
+  assert.throws(files([{ table: "notes", column: "id", directory: "assets" }]), { code: "plugin.manifest_invalid", message: /不带 parent 的表/u }, "a child table's names would outlive their parent's check");
   assert.throws(files([{ table: "items", column: "id", directory: "index.json" }]), /owner_files 里声明的目录/u);
   assert.throws(files([{ table: "items", column: "id", directory: "../elsewhere" }]), /owner_files 里声明的目录/u);
   assert.throws(() => parsePluginManifest(manifest({ ...LIBRARY, project_rows: { ...ROWS, files: [{ table: "items", column: "id", directory: "assets" }] } })),

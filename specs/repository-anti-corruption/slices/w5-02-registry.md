@@ -92,14 +92,14 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 前置都已在 batch-40 里：PG-104（`owner_files`）、PG-106（`onProjectDeleted` 删掉）、PG-038（删项目前平台停掉该项目的后台作业）。做法照 §4 a，三处改动：
 
 - **成果库的大文件原件归模块。** `artifactsProjectData` 搬进 `modules/artifacts`（`artifact-original-store.ts`），宿主在 `project-deleted-owners.ts` 点名，与 Characters、Functions 一样（模块不是插件，不算名单）；回执 id 仍是 `artifacts`。确认框文字的英文进宿主词典。A6 删成果库插件包时不再碰删项目。
-- **行点名的文件随行删。** `PluginProjectRowsDeclaration` 加 `files`：`tables` 里一张不带 `parent` 的表、存名字的列（JSON 数组；元素是对象时 `key` 指名字字段）、`owner_files` 里的一个目录。SDK 查形状和目录；平台在删行的同一个事务里先读名字，提交后经 `ownerFilePaths` 删：只删一段普通文件名、那个目录里的普通文件，链接、文件夹、特殊节点、多硬链接、带 `/`、`..` 的名字都留下（S-暂B）。Images 写 `project_rows`（`jobs` 与 `images_json` 里的 `filename`，目录 `assets`），删掉 `project-data.ts` 与 `purgeImagesProject`。
+- **行点名的文件随行删。** `PluginProjectRowsDeclaration` 加 `files`：`tables` 里一张不带 `parent` 的表、存名字的列（JSON 数组；元素是对象时 `key` 指名字字段）、`owner_files` 里的一个目录。SDK 查形状和目录；平台在删行的同一个事务里先读名字，提交后经 `ownerFilePaths` 删：只删一段普通文件名、那个目录里的普通文件，链接、文件夹、特殊节点、多硬链接、带 `/`、`..` 的名字都留下（S-86）。Images 写 `project_rows`（`jobs` 与 `images_json` 里的 `filename`，目录 `assets`），删掉 `project-data.ts` 与 `purgeImagesProject`。
 - **按项目分开的库只看 `partition`。** 平台关掉这个项目的库、删掉目录，不跑插件的 `purge`；确认框写宿主的「{name} 在这个项目里的数据」。`PluginRegistration.project_data` 删掉，`PluginProjectCleanup` 只剩宿主给的 `owner_id`；`ProjectDataDeclaration` 只给宿主的模块，`purge` 改成必填。
 
 预期变化（测试随之改，不是放宽）：分区探针的 `purge` 不再被调用（PART-03、PART-10、PART-11 的 trace 去掉 `purge:`；PART-10 第二条原来靠 `purge` 挂住删除窗口，改成在同一轮里发起的写被拒、停用时删、重启后 id 为空）；`tests/home-plugin-project-cleanup.test.ts` 由 Issues 加夹具 `purge` 改成 Todo 的声明行；`tests/project-deletion-declarations.test.ts` 的新增条目改成声明 `project_rows`。
 
 | 编号 | 内容 | 证明 |
 | --- | --- | --- |
-| RAC-577 | 删项目删掉 Images 这个项目的生成记录和它们点名的图片，别的项目的留下；`../`、绝对路径、子目录、`.`、链接、文件夹、多硬链接的名字都不碰；SDK 拒绝挂在子表上、目录不在 `owner_files`、列不是标识符的 `files` | `tests/project-rows-deletion.test.ts`（S-暂B） |
+| RAC-577 | 删项目删掉 Images 这个项目的生成记录和它们点名的图片，别的项目的留下；`../`、绝对路径、子目录、`.`、链接、文件夹、多硬链接的名字都不碰；SDK 拒绝挂在子表上、目录不在 `owner_files`、列不是标识符的 `files` | `tests/project-rows-deletion.test.ts`（S-86） |
 | PART-03 | 按项目分开的库不需要启动名单给主人；运行与离线两边的确认框都是宿主的模板加插件名 | `tests/plugin-database-partition.test.ts` |
 
 ## 3. PR-B（B1～B3，三个提交）与 PR-B4：平台读自己的登记
@@ -297,6 +297,7 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 - `tests/probe-plugin-installed.test.ts`（RAC-792，macOS）：探针的笔记按沙箱包格式签名，经 `molis-work plugin install` 交给常驻宿主：预览不写任何东西 → 确认并固定发布者 → `pinned` 信任下运行 → 发现两项动作 → 记一条、列出来 → 宿主重启后同一个安装、数据还在。
 - 走的时候查出 T2 的一个缺陷，同片修了：签名包的安装重启后起不来（恢复和启用时 `platform.start` 不带信任，按 `unsigned` 装，指纹形的发布者签名被 S-75.1 拒，`plugin.signer_mismatch`）。现在两处都带上从验过的包读回来的 `pinned` 信任，与安装时一样（`installed-plugin-host.ts`、`installed-plugin-lifecycle.ts`）。RAC-792 的重启一步在修之前是红的。
 - 两边不一样的地方：签名包的格式没有路由、搜索与文件来源、方法、撤销；装上的插件也没有人能走的升级、停用、启用、卸载入口（BL-623，交 ac-trust）。RAC-792 在内置那一半升级的位置断言新包被拒，入口补上之后改成与 `tests/probe-plugin.test.ts` 逐项对照。
+- **挂起（统筹 10-25）**：创作台产物进语料要在本机跑 Agent（隔离 Home 里用 MiniMax 走创作台，生成 2～3 个沙箱插件，源码与清单入库），先不做。等两件事：① 统筹排出本机跑 Agent 的时段（整机一次一个测试、一个构建，创作台一轮要占很久）；② 回放能起开发定义——A3 的名字归属检查（`declaration-owners.ts`）要从发布存档读每个持有安装的 Manifest，连起来的那个开发定义自己没有存档，`plugin.definition_conflict` 拒，RAC-790、RAC-791 因此红；ac-giants 在 `claude/b41-a3-dev-owners` 修，进 batch-41。两件都到了再补样本，回放的样本经 T2 安装路径进来（与 RAC-792 同一条），不经 `pluginFixtures`。
 
 ## 7. PG-095、PG-111 的评估（插件合同放在平台 contracts 里）
 
@@ -333,7 +334,7 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 
 - RAC：A 560～563；B 564～569；B4 570～571；C 572～575；576～578 原给 D，D 移交 ac-shell 后留给本线；E 579。统筹 10-25 续给 RAC-710～729：B 的目录标记两条用 710、711。577 给 §2.1。统筹 10-25 再给 RAC-790～799：E 的回放两条用 790、791（原占位 770、771 与 PG-071 撞号），装上的那一半用 792。
 - BL（随各 PR 写进 `specs/BACKLOG.md`）：BL-615 Images 的项目数据按声明删（等 PG-104、PG-106）；BL-616 Files 的监督器条目（等 PG-005、X-5）；BL-617 Images、Jelly 合同挪进插件（Codex）；BL-618 Shelf 合同挪进 `modules/shelf`、Images 按动作 id 调用；BL-619 沙箱插件的 `project_rows`（#1255 落地后把拒绝改成删除）；BL-620 启动名单之外的 Home 插件与带 Home 库的项目插件的 `project_rows`（PR-A 中发现）；BL-621～624 留给实现中发现的。
-- 安全不变量：S-暂A（删项目只按声明删、不跑插件代码，PR-A）；S-暂B（删项目时只删声明目录里行点名的普通文件，§2.1）；S-08、S-15（B1）、S-31（B3）改代码列。
+- 安全不变量：S-暂A（删项目只按声明删、不跑插件代码，PR-A）；S-86（删项目时只删声明目录里行点名的普通文件，§2.1；统筹 10-25 定号）；S-08、S-15（B1）、S-31（B3）改代码列。
 
 ## 11. privileges.md 状态（合入后由统筹改）
 

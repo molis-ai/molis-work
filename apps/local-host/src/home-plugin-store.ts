@@ -10,12 +10,27 @@ const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
   schema: PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL + PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL + PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL + PLUGIN_TRUST_SCHEMA_SQL,
 };
 
+// Only this store can identify its own refusals. A page must not mistake another database's version error or an arbitrary action failure for these.
+const homeStoreRefusal = Symbol("Home plugin store refusal");
+const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, { [homeStoreRefusal]: true });
+export const isHomePluginStoreRefusal = (error: unknown): error is ActionError | SqliteSchemaVersionError =>
+  error instanceof Error && Reflect.get(error, homeStoreRefusal) === true;
+const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源"));
+
+function openWritableHomePluginDatabase(home: string) {
+  try { return openBaselineHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE); }
+  catch (error) {
+    if (error instanceof SqliteSchemaVersionError) throw refusedHomeStore(error);
+    throw error;
+  }
+}
+
 /** Validate the complete current structure before any repository constructor can create a missing table. */
 export function openHomePluginStore(home: string) {
-  const db = openBaselineHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE);
+  const db = openWritableHomePluginDatabase(home);
   try {
     if (JSON.stringify(describeSqliteSchema(db)) !== JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE))) {
-      throw new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源");
+      throw invalidHomeStoreShape();
     }
     return { db, storage: new SqlitePluginPrivateStorage(db) };
   } catch (error) { db.close(); throw error; }
@@ -33,9 +48,9 @@ export function openReadOnlyHomePluginStore(home: string) {
   try {
     db.exec("BEGIN");
     const found = db.prepare("PRAGMA user_version").get()!.user_version as number;
-    if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw new SqliteSchemaVersionError(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version);
+    if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw refusedHomeStore(new SqliteSchemaVersionError(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version));
     if (JSON.stringify(describeSqliteSchema(db)) !== JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE))) {
-      throw new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源");
+      throw invalidHomeStoreShape();
     }
     return db;
   } catch (error) { db.close(); throw error; }

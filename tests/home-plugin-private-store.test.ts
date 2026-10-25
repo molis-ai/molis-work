@@ -10,7 +10,8 @@ import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime"
 import type { PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const runtimePath = (home: string) => join(home, "plugin-runtime", "plugin-runtime.db");
@@ -39,16 +40,17 @@ async function rejectedStore(version: 1 | 3) {
 }
 
 for (const version of [1, 3] as const) {
-  test(`W3-06-F-05 W3-06-F-08 Home ${version === 1 ? "v1" : "incomplete v3"} is refused intact while Goals remains usable`, { timeout: 60_000 }, async t => {
+  test(`W3-06-F-05 W3-06-F-08 RAC-402 Home ${version === 1 ? "v1" : "incomplete v3"} refuses Goals authority intact while its recovery page opens`, { timeout: 60_000 }, async t => {
     const home = await rejectedStore(version), before = readStore(runtimePath(home));
-    const { host, project, request } = await serveHomeRuntime(t, { homeDirectory: home });
+    const { host, project, request } = await serveHomeRuntime(t, { homeDirectory: home,
+      actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home) });
     const first = host.homePlugins!.ready();
     const refusal = version === 1 ? { code: "storage.schema_version_mismatch" } : { code: "actions.execution_failed" };
     await assert.rejects(first, refusal);
     assert.equal(host.homePlugins!.ready(), first, "ordinary preparation keeps the failure and never retries");
-    const one = await project("Goals survives a broken Home runtime");
-    const snapshot = await host.actionClient(one.reference).invoke(person(["goals:read"], one.project_id), goalsActions.snapshot, {});
-    assert.ok(snapshot && typeof snapshot === "object");
+    const one = await project("A broken Home has a recovery page");
+    // T3 now checks the Home ledger for Goals too. Use the production availability policy instead of an unconstrained fixture Host.
+    await assert.rejects(host.actionClient(one.reference, false).invoke(person(["goals:read"], one.project_id), goalsActions.snapshot, {}), refusal);
     const page = await request(`/projects/${one.project_id}`);
     assert.equal(page.status, 200, await page.clone().text());
     const html = await page.text();
@@ -56,6 +58,7 @@ for (const version of [1, 3] as const) {
     assert.doesNotMatch(html, /<form\b[^>]*\bdata-issue-composer\b/u, "Manifest fallback must not revive the unavailable plugin");
     assert.match(html, /data-home-plugin-unavailable/u);
     assert.match(html, /查看插件状态/u);
+    assert.match(html, /Home 插件运行库不可用/u);
     const own = await request(`/api/plugins/${ISSUES_PLUGIN_ID}/state`);
     assert.equal(own.status, 503, "the unavailable Home entry keeps its own failure");
     assert.deepEqual(readStore(runtimePath(home)), before, "no installs, grants, generations, releases, version or schema were changed");

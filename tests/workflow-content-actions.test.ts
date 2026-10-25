@@ -54,7 +54,7 @@ async function fixture(run: (f: {
     } });
     const existing = runtime.list().find(item => item.plugin_id === plugin.manifest.plugin_id);
     const installed = existing ? (await runtime.upgrade({ install_id: existing.install_id, definition: plugin })).install
-      : runtime.install({ definition: plugin, deployment: "local", grants: [...caller.permissions] }).install;
+      : runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...caller.permissions] }).install;
     await runtime.start(installed.install_id);
     return installed.install_id;
   };

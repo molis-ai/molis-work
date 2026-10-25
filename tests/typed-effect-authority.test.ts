@@ -62,7 +62,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
     ui: new UiHost(), capabilities: home.host.client(project.reference),
     privateStorageFor: () => { throw new Error("This consumer declares no private storage"); },
   }), { actions }));
-  const installed = runtime.install({ definition, deployment: "local", grants: ["goals:write"] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["goals:write"] }).install;
   t.after(async () => { held = false; release.resolve(); await runtime.stop(installed.install_id); });
   await runtime.start(installed.install_id);
   const clientId = "runtime:typed-authority";
@@ -138,7 +138,7 @@ for (const change of ["origin", "cancel", "provider", "closing", "async-checker"
       publisher: { publisher_id: "fixture", signature: "tail" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
       capabilities: { provides: [], consumes: [descriptor.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
       async start(context) { capturedSdk = context.services?.actions; return { kind: "app" }; } };
-    const install = runtime.install({ definition, deployment: "local", grants: [] }).install;
+    const install = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install;
     t.after(async () => { await runtime.stop(install.install_id); store.close(); });
     await runtime.start(install.install_id);
     assert.ok(capturedSdk, "the production executor bound the action client");

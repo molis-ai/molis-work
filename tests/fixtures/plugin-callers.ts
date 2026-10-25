@@ -102,7 +102,7 @@ export async function startPlugin(host: { actionRegistry(reference: LocalHostPro
     ...(options.dependencies ? { dependencyCheck: (dependency: ActionReference) => options.dependencies!.availability(dependency, { consumer: "plugin" }) } : {}) });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), executor);
   const required = plugin.definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
-  const { install } = runtime.install({ definition: plugin.definition, deployment: "local", grants: [...required, ...(options.grants ?? [])] });
+  const { install } = runtime.install({ trust: { level: "unsigned" }, definition: plugin.definition, deployment: "local", grants: [...required, ...(options.grants ?? [])] });
   await runtime.start(install.install_id);
   return { runtime, install_id: install.install_id };
 }

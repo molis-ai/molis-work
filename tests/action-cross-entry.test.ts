@@ -26,7 +26,7 @@ async function scheduleSdk(t: Parameters<typeof openTestHome>[0], home: TestHome
     permissions: [{ permission: "schedule:read", required: true, reason: "Read the original task" }, { permission: "schedule:write", required: true, reason: "Save the authorized task" }],
     capabilities: { provides: [], consumes: [subject.create.capability_id, subject.archive.capability_id, subject.list.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
     async start(context) { sdk = context.services?.actions; return { kind: "app" }; } };
-  const install = runtime.install({ definition, deployment: "local", grants: ["schedule:read", "schedule:write"] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["schedule:read", "schedule:write"] }).install;
   t.after(() => runtime.stop(install.install_id));
   await runtime.start(install.install_id); assert.ok(sdk, "the real executor bound the declared action client"); return sdk;
 }

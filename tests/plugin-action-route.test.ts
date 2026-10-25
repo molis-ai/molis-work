@@ -44,7 +44,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
     dependencyCheck: () => ({ available: true }),
     ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
   try {
-    const installed = runtime.install({ definition, deployment: "local", grants: [] }).install;
+    const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install;
     await runtime.start(installed.install_id);
     const contribution = runtime.contribution(installed.install_id)!;
     assert.equal(contribution.kind, "app");

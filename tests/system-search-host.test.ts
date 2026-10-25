@@ -127,7 +127,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
       ] }; } });
     const repository = await host.withProject(refA, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
     runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(refA), project_id: refA.project_id } });
-    const installId = runtime.install({ definition: plugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
+    const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
     await runtime.start(installId);
     const newcomer = await search(refA, "鲸鱼");
     assert.deepEqual(newcomer.hits.map(item => item.title), ["新来的笔记"]);

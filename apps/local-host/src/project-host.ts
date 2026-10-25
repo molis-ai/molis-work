@@ -78,7 +78,7 @@ export interface MolisWorkLocalHostOptions {
   completeText?: HostCompleteText | null;
   /**
    * Plugins that exist only for a test or a probe: the Host runs them in process, beside the shipped ones, in every project's
-   * platform. Never `bundled` (they register under their installation id), and never sandboxed; one may be given a library in the
+   * platform. Never `host` trust (they register under their installation id), and never sandboxed; one may be given a library in the
    * Home, as a start-list entry gives one to a shipped plugin. Production composition passes none. They are registered per
    * Home and read when a project's platform starts (`home-side.ts`).
    */

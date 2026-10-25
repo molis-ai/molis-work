@@ -62,7 +62,7 @@ test("RAC-310 Shelf's and Images' files are their Manifests' owner_files: their 
 test("RAC-308 a definition that declares owner_files and is not on the Host's start list is refused to start with its own code, and reads and writes nothing", async t => {
   const listed = ownerFilesProbe("listedowner"), beside = ownerFilesProbe("besideowner"), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [listed.entry()] } });
   const platform = await host.homePlugins!.ready();
-  const { install } = platform.runtime.install({ definition: beside.definition, deployment: "local", grants: beside.permissions });
+  const { install } = platform.runtime.install({ trust: { level: "unsigned" }, definition: beside.definition, deployment: "local", grants: beside.permissions });
   await assert.rejects(platform.runtime.start(install.install_id), /启动失败/u);
   assert.equal(beside.contexts.length, 0, "its code never ran");
   assert.equal(platform.runtime.get(install.install_id).last_error_code, "plugin.declaration_invalid", "not the Runtime's generic executor failure");
@@ -83,7 +83,7 @@ test("RAC-322 a project's platform with no Home does not refuse the shipped Shel
     assert.deepEqual(shelf.manifest.owner_files, SHELF_OWNER_FILES, "the project half carries the declaration the Home half does");
     // The bare platform here has no Host capabilities, so Shelf's actions are not redeemed and it does not run; the list check is
     // what this is about: it is not refused as a project plugin that declares files.
-    const report = await platformWithoutHome().start([{ definition: shelf, bundled: true }]);
+    const report = await platformWithoutHome().start([{ definition: shelf, trust: { level: "host" } }]);
     assert.deepEqual(report.failed.filter(entry => entry.code === "plugin.declaration_invalid"), []);
     const imposter = ownerFilesProbe("noHomeOwner");
     await assert.rejects(platformWithoutHome().start([{ definition: imposter.definition }]), /不能声明.*主人文件服务/u);

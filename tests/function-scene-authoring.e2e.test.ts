@@ -73,7 +73,7 @@ test("unknown registered scenes can be authored in the real editor, retain missi
       store.db.prepare("UPDATE fixture_review_notes SET state = ? WHERE id = 'note-1'").run((value as { state: string }).state); return note();
     } }], action_scenes: [handler(scene), handler(nextVersion), handler(other)] }; } });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
   const draft = withFunctionsService(homeDirectory, service => service.create({ primitive: "noul", name: "审核新笔记", function_key: "review_note" }), functions);
   const record = () => withFunctionsService(homeDirectory, service => service.get(draft.id), functions);

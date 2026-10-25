@@ -1,20 +1,18 @@
-import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPlatform } from "./plugin-platform.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { pluginCatalogFor } from "./home-side.js";
+import { pluginReachable, projectReachablePlugins } from "./project-action-availability.js";
 
 /** The catalog remains the only project enablement fact; standalone fixtures have no such catalog. */
 export async function projectPluginEnablement(home: string | undefined, projectId: string): Promise<ReadonlyMap<string, boolean> | undefined> {
   const catalog = home ? pluginCatalogFor(home) : undefined;
   if (!catalog) return undefined;
-  const installed = await catalog({ homeDirectory: home }, value => {
-    try { return value.listProjectPlugins(projectId); }
-    catch (error) { if ((error as { code?: string }).code === "catalog.project_not_found") return null; throw error; }
-  });
-  if (!installed) return undefined;
-  const enabled = availableProjectPluginIds(installed);
-  return new Map(BUILTIN_PLUGIN_CATALOG.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, enabled.has(entry.project_plugin_id)]));
+  // The one list actions and routes read (PG-013), so what a project runs and what it may call never disagree.
+  const reachable = await catalog({ homeDirectory: home }, value => projectReachablePlugins(value, projectId));
+  if (!reachable) return undefined;
+  return new Map(BUILTIN_PLUGIN_CATALOG.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
 }
 
 /** Serialize reads with activation changes, so an earlier enable cannot outlive a later disable. */

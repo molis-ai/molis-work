@@ -22,6 +22,7 @@ export const todoManifest: PluginManifest = {
   permissions: [
     { permission: "storage:private", required: true, reason: "本机待办库与修改记录" },
     ...TODO_ACTION_PERMISSIONS.map(permission => ({ permission, required: permission === "todo:read", reason: "按每项能力的授权读取或修改待办" })),
+    { permission: "projects:reach", required: false, reason: "在你自己的待办页里看到并整理你各个项目里的待办；不给时只处理当前项目里的待办" },
   ],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },

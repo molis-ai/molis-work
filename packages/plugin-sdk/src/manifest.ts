@@ -3,7 +3,7 @@ import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
-import { inspectActionDeclarations } from "./action-declarations.js";
+import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
@@ -227,6 +227,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
       if (!declaredPermissions.has(permission)) problems.push(`场景 ${scene.scene_id} 使用未声明权限 ${permission}`);
     }
   }
+  problems.push(...projectReachPermissionProblems(parsed.actions, declaredPermissions));
   problems.push(...inspectPortDeclarations(parsed.ports, parsed.plugin_id));
   problems.push(...inspectEventDeclarations(parsed.plugin_id, parsed.events, declaredPermissions));
   problems.push(...inspectAgentDeclaration(

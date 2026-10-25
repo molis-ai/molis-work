@@ -1,6 +1,7 @@
 import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoEditableField, type TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
 import type { TodoAccess, TodoStore } from "./store.js";
+import { withProjectReach } from "./reach.js";
 import { todoCallerProject } from "./caller.js";
 import { todoErrors } from "./error.js";
 
@@ -10,7 +11,7 @@ export const todoSearchActions = {
   // are indexed with that project, so a project search finds them and no other project or the personal index holds them.
   entries: defineSearchEntriesAction("todo.search.entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "个人待办", ["todo:read"], "home"),
   projectEntries: defineSearchEntriesAction("todo.search.project_entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "项目待办", ["todo:read"], "project"),
-  subject: defineSubjectContextAction("todo.item.subject.read", TODO_SUBJECT_KIND, "待办", ["todo:read"], "home"),
+  subject: withProjectReach(defineSubjectContextAction("todo.item.subject.read", TODO_SUBJECT_KIND, "待办", ["todo:read"], "home")),
 };
 
 const STATUS: Record<TodoItem["status"], string> = { open: "待处理", doing: "进行中", waiting: "等待他人", done: "已完成", cancelled: "已取消" };
@@ -46,7 +47,7 @@ const goals = (item: TodoItem) => item.links.filter(link => link.kind === "goal"
 
 export function createTodoSearchHandlers(read: <T>(run: (store: TodoStore) => T) => T): ActionHandlerBinding[] {
   // Search and readers see what the caller sees: personal, unplaced, and the caller's own project.
-  const access = (caller: ActionCallContext): TodoAccess => ({ projectId: todoCallerProject(caller), everything: false, actor: "other", actorId: caller.actor_id });
+  const access = (caller: ActionCallContext): TodoAccess => ({ projectId: todoCallerProject(caller), projectIds: [], actor: "other", actorId: caller.actor_id });
   return [
     bindSearchEntriesHandler(todoSearchActions.entries, caller => read(store => store.list(access(caller))
       .filter(item => item.placement !== "project").map(entry))),
@@ -56,11 +57,11 @@ export function createTodoSearchHandlers(read: <T>(run: (store: TodoStore) => T)
     }),
     { ...todoSearchActions.subject, handle: (caller, input) => read(store => {
       // The person reading from their own Home or personal space (the placement panel after a move) reaches every todo
-      // of theirs and learns its project; anyone in a project, and any agent, workflow or client outside one, keeps the
-      // usual scope, so another project's todo still reads as not there.
-      const own = caller.audience === "user" && !todoCallerProject(caller);
+      // of theirs and learns its project: the Host gave the list of projects they may reach (PG-014). Anyone in a project, and
+      // any caller the Host gave no list, keeps the usual scope, so another project's todo still reads as not there.
+      const reach = todoCallerProject(caller) ? [] : caller.readable_project_ids ?? [];
       let item: TodoItem;
-      try { item = store.get((input as { subject_id: string }).subject_id, own ? { ...access(caller), everything: true } : access(caller)); }
+      try { item = store.get((input as { subject_id: string }).subject_id, { ...access(caller), projectIds: reach }); }
       catch { throw todoErrors.not_found("这件待办已删除，或不在当前范围内"); }
       // Readers treat an archived object as gone from use (the shared convention); Todo itself still lists it under 已归档.
       if (item.archived_at) throw todoErrors.not_found("这件待办已归档");

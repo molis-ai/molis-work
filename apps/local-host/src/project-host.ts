@@ -53,6 +53,7 @@ import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
 import { installedConnectionSlots, installedPluginManifest } from "./plugin-installation-directory.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { HomePluginHost } from "./home-plugins.js";
+import { homeProjectReach } from "./project-reach.js";
 import { assertFixtureScopes } from "./plugin-scope-entries.js";
 import { homePluginActions, withPreparedActions } from "./plugin-actions-client.js";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -197,7 +198,7 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), entries: BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, manifest: entry.manifest,
         project_data: { owner_id: entry.project_plugin_id, ...(entry.project_data ? { declaration: entry.project_data } : {}) },
-      }] : []), fixtures: options.pluginFixtures?.home });
+      }] : []), fixtures: options.pluginFixtures?.home, projectReach: homeProjectReach(options.homeDirectory) });
     if (this.personalPlanningHome) this.personalPlanning = new PersonalPlanningActions(this.personalPlanningHome, this.host.actionRegistry(),
       () => readPersonalPlanningMethodPacks(this.personalPlanningHome!));
     if (options.homeDirectory) {

@@ -2603,3 +2603,17 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 最终8743聚合复验：原完整build、根类型、准确d08健康、boundary、73份API（3038声明）与Action快照（587+311动作）均通过；authority体积门在职责拆出后通过，没有改门禁。原14文件批次13文件284项首次通过，唯一recovery首败16/18如上保留；修正proof转交后，recovery18/18连同plan、authority、lifecycle及policy五文件90项全部通过，零重试/跳过。此前13文件有效结果按各自影响面复用，不改写为14文件首轮全绿。最终独审确认原P1消除，额外执行区间错operation/version/ref与未选对象探针2/2、原恢复及同步撤权3/3通过；组合diff与最后职责拆出另做只读复核，报告 /private/tmp/molis-memory-session-ca741-independent-review-20261025.md。
 
 最终27项资源逐字节数仍与008706测量一致，共7,630,892 B；正式门只剩用户待定的Coding+1,333 B，不包含新增长。首败日志 /private/tmp/molis-memory-app-4087-sdk13c-{direct,health,assets-gate}-20261025.log；最终build/types/health/boundary/api/actions/direct日志 /private/tmp/molis-memory-app-session-proof-*-20261025.log；新包安装一致报告 /private/tmp/molis-memory-sdk102-13c-installed-match-20261025.json。本轮没有跑新聚合完整浏览器旅程或全量，不把SDK已合main或这些局部工程结果称为MEM-40/产品/用户验收完成。
+
+### MEM-40 Catalog 源读取短合同（2026-10-25）
+
+本片只把操作者明确提供的 T1 完整工作副本中 Catalog 原删除事实读全；不接受目标删除、不证明停写或跨 owner 完成。复用 Projects 表主人及唯一 `decodeProjectDeletionRecovery`，无新表、schema、Runtime 或执行核。
+
+- LocalHost `openProjectDeletionRecoveryInspection({homeDirectory, assertCurrent, signal?})` 固定绝对路径，只打开既有 readonly Catalog，检查 owner/current schema，同一连接 BEGIN 快照；不调用普通 Catalog.open、mkdir、初始化、迁移或 checkpoint。缺库/未知版本明确拒绝。SQLite 可访问副本 WAL、生成副本侧车，原件/target 隔离由上层负责。
+- `next({limit?})` 顺序 keyset 分页，默认 40、最多 100，pending/complete 全部读取；Projects 同主人严格检查持久身份、状态和原顺序 owner steps，不用全量 all 后 slice。原始 JSON 只交唯一 decoder，NULL/坏计划、坏 enum、空身份、矛盾/重复步骤拒绝，失败不推进页位置。单个既有大计划的解析内存不宣称固定字节上限。
+- 输出仅原 receipt 身份/状态、owner_id/state、无正文原计划及同 ID 当前/retained 项目白名单身份。禁止错误正文、显示名、路径、raw JSON/SQL；项目时间只作观察，不授权后继删除。最终 current/取消复核通过才推进页位置；close 无条件释放快照和连接。穷尽只证明该 Catalog 来源读完。
+- 允许路径：Projects 的完整只读投影职责与显式出口，LocalHost 相邻 reader、原 decoder 必要严格校验与显式出口，两包 README、本 spec、真实 SQLite 直接测试。禁止 target 删除、Memory outer frame、Ledger、SDK/vendor/lock、UI、模型/网络/CI/门禁改动。
+- 验证：原整体 build（机器 FIFO）、Projects README 相关及 Catalog source/recovery 定向测试、两包 typecheck、精确父 a8042a0feed0b3c587d41b56e3b4fa1fe870993c health 与 boundary。覆盖非空跨页、坏请求/计划/步骤、WAL 同快照、末页撤权/取消、失败重试同页、关闭释放、敏感字段不外送；全量及完整 target 恢复由主任务负责。
+
+本片验证结果：原整体 build 最终通过；首次在新增 `data_class` 投影字面量扩宽处 TypeScript 失败，明确注解原身份类型后通过。离线安装首次因 pnpm store 索引 symlink 沙箱 EPERM 失败，在原权限申请下安装成功，无 lock 改动。首次 7 文件定向回归中 5 文件通过；`project-settings-deletion` 的 3 项和 `project-deletion-hooks` 的 2 项被沙箱禁止 127.0.0.1 listen，未据此修改产品/断言。补上 SQLite 异常安全映射后，原 build 再次通过；来源专项 32/32、上述两份文件 3/3 与 11/11 在临时 Home 的回环权限下通过。其余有效结果复用：Projects 3/3、registry 3/3、current settings 4/4、原 deletion recovery 18/18。两包 typecheck、精确父 `a8042a0feed0b3c587d41b56e3b4fa1fe870993c` health、原 boundary 均通过；无门禁/阈值/基线放宽。构建保留现有 xterm default-import 告警，不在本片修复。日志 `/private/tmp/catalog-source-{build-final,tests,tests-final,health-final,boundary,projects-types,host-types-final}.log`。
+
+上述工程证据仅证明源 Catalog 读取路径；没有执行 target 接纳/删除、完整 T0/T1/T2 恢复、真实 Home、模型/公网、浏览器、全量或用户验收。当前/retained 的 `created_at` 不证明实例先后；无步骤/坏事实保持拒绝；SQLite 单条计划 JSON 的解析不承诺固定字节内存。完整 MEM-40 与跨 owner 完成仍由主任务验收。

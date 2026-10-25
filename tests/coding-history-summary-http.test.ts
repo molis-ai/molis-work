@@ -42,7 +42,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
     } }] });
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
@@ -132,7 +132,7 @@ test("a round whose digest the model is still writing runs beside the project's 
     invoke: (caller: ActionCallContext, capability: ActionReference, input: unknown) => localHost.actionClient(reference).invoke({ ...caller, signal: cancel.signal }, capability, input) } };
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
@@ -218,7 +218,7 @@ test("PG035-07 with model:invoke switched off Coding's two drafts are refused wi
     receipt: { review_id: `review-${view.ref.run_id}`, status: "approved", decided_by: "web-user", decided_at: "2026-09-26T00:00:30.000Z", note: null, effect_settled: true, effect_error: null } }];
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;

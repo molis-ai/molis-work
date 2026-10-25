@@ -441,13 +441,23 @@ test("the report prints the numbers and the biggest conflicts; an old-shaped bas
 
 // ---- this repository ----------------------------------------------------------------------------------------------------------
 // The scan has to read the real tree, not only fixtures: these are canaries for each kind of call and for the dictionaries.
-const real = (() => { const scan = scanTree(workingTreeSnapshot(repoRoot), isProductSource); return { scan, summary: summarise(scan) }; })();
+const productSnapshot = workingTreeSnapshot(repoRoot);
+const real = (() => { const scan = scanTree(productSnapshot, isProductSource); return { scan, summary: summarise(scan) }; })();
+// Independently discover the literal dictionary declarations in the source text, including inline dictionaries and stable
+// dictionary parts. This does not use scanFile/scanTree to decide what ought to be found. A new declaration form needs its own
+// example here; this deliberately small inventory is not a second TypeScript parser.
+const dictionaryDeclaration = /^\s*(?:export\s+)?const\s+(?:EN|[A-Z][A-Z0-9_]*_(?:EN|MESSAGES))\b[^=\n]*=\s*(?:Object\.freeze\(\s*)?\{/m;
+const expectedDictionaryFiles = productSnapshot.files.filter((file) => isProductSource(file) && dictionaryDeclaration.test(productSnapshot.read(file) ?? ""));
+const assertDictionaryCoverage = (scan: typeof real.scan) => assert.deepEqual(
+  [...scan.dictionaryFiles].sort(), expectedDictionaryFiles.toSorted(), "every declared source dictionary must be scanned",
+);
 
 test("this repository: nothing is missing, and the scan covers every kind of call the product uses", () => {
   const { scan, summary } = real;
   assert.deepEqual(summary.detail.missing.map((item: { key: string; sites: Array<{ file: string; line: number }> }) => `${item.key} ${item.sites[0]!.file}:${item.sites[0]!.line}`), [], "every translator call has English");
   assert.deepEqual(scan.stableErrors, []);
-  assert.ok(summary.dictionaries >= 40 && summary.entries >= 9000, `dictionaries ${summary.dictionaries}, entries ${summary.entries}`);
+  // TSCAN-01: entries counts Chinese-key words only; moving words to stable dictionaries legitimately lowers it.
+  assert.ok(summary.dictionaries >= 40, `dictionaries ${summary.dictionaries}`);
   assert.ok(summary.calls >= 7000 && summary.callFiles >= 150, `calls ${summary.calls} in ${summary.callFiles} files`);
   // One floor per kind of call (about half of what the tree has today), so a refactor that moves a file does not break this,
   // while a rule that stops reading a whole kind of call does.
@@ -503,11 +513,43 @@ test("without the catalog root there is nothing to serve from, and the rule stay
   assert.deepEqual(unservedDictionaries(withRoot).map((item: { name: string }) => item.name), ["GAMMA_EN"]);
 });
 
-test("this repository: every dictionary file is found, wherever it lives", () => {
+test("TSCAN-02 this repository: every dictionary file is found, wherever it lives", () => {
+  assertDictionaryCoverage(real.scan);
   const listed = workingTreeSnapshot(repoRoot).files.filter((file) => isProductSource(file) && /(^|\/)(en|[a-z-]+-en)\.ts$/.test(file));
   assert.ok(listed.length >= 40);
   assert.deepEqual(listed.filter((file) => !real.scan.dictionaryFiles.has(file)), [], "a *-en.ts file the scan could not read as a dictionary");
+  // Fixed facts, read directly from these product dictionaries: plain objects, Object.assign, inline dictionaries, stable
+  // dictionaries and a stable dictionary part. Expected keys and English do not come from the scan's output.
+  for (const [file, key, english] of [
+    [SERVED_ROOT, "连接不可用", "Connection unavailable"],
+    [SERVED_ROOT, "概览", "Overview"],
+    ["packages/design-system/src/plugin-components.ts", "页框", "Page frame"],
+    ["plugins/native/schedule/src/en.ts", "确认决定", "Confirm decision"],
+  ]) {
+    const source = real.scan.files.find((item: { file: string }) => item.file === file);
+    assert.ok(source?.entries.some((entry: { key: string; value: string | null }) => entry.key === key && entry.value === english), `${file}: ${key} = ${english}`);
+  }
+  for (const [file, key, zh, en] of [
+    ["plugins/native/schedule/src/messages.ts", "schedule.action.new", "新建定时任务", "New scheduled task"],
+    ["plugins/native/shelf/src/messages.ts", "shelf.bar.manage-actions", "管理动作", "Manage actions"],
+    ["plugins/native/coding/src/timeline-messages.ts", "coding.call.read", "读取", "Read"],
+  ]) {
+    const source = real.scan.files.find((item: { file: string }) => item.file === file);
+    assert.ok(source?.stable.some((entry: { key: string; zh: string | null; en: string | null }) => entry.key === key && entry.zh === zh && entry.en === en), `${file}: ${key} = ${en}`);
+  }
 });
+
+const stableDictionaryFiles = new Set(expectedDictionaryFiles.filter((file) => /\bconst\s+[A-Z][A-Z0-9_]*_MESSAGES\b/.test(productSnapshot.read(file) ?? "")));
+for (const [kind, omitted] of [
+  ["one dictionary", new Set(["plugins/native/schedule/src/en.ts"])],
+  ["all Chinese-key dictionaries", new Set(expectedDictionaryFiles.filter((file) => !stableDictionaryFiles.has(file)))],
+  ["all stable dictionaries", stableDictionaryFiles],
+] as const) {
+  test(`TSCAN-03 the independent inventory rejects a scan that skips ${kind}`, () => {
+    const incomplete = scanTree({ ...productSnapshot, files: productSnapshot.files.filter((file) => !omitted.has(file)) }, isProductSource);
+    assert.throws(() => assertDictionaryCoverage(incomplete), /every declared source dictionary must be scanned/);
+  });
+}
 
 test("this repository: scanning a file twice gives the same facts, and the owners table names the plugins", () => {
   const text = readFileSync(path.join(repoRoot, "plugins/native/images/src/ui.ts"), "utf8");

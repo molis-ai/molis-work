@@ -1,4 +1,4 @@
-import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -21,8 +21,8 @@ test('Coding child controls bind original run, keep acceptance separate, reject 
       if(definition.capability_id===agent.cancelSubagent.capability_id){assert.equal(input[2],'child');assert.equal(input.length,3);cancels++;return undefined as O;}
       throw new Error('Unexpected capability');
     }};
-  const host=()=>({store,...openProjectVersionStores(store),homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:fakeAgentHostActions(pluginActions(store,DEMO_PROJECT_ID),(definition,input)=>agentHost.invoke(definition,input)),actorId:'web-user',escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
-    capabilities:agentHost});
+  const host=()=>withFakeAgentHost({store,...openProjectVersionStores(store),homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:pluginActions(store,DEMO_PROJECT_ID),actorId:'web-user',escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
+    agentHost});
   const server=createServer((req,res)=>{void handleProjectPluginHttp(req,res,new URL(req.url!,'http://localhost'),host()).catch(error=>{res.writeHead(500);res.end(String(error));});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address!=='string');
   const post=async(body:any,child='child',run='parent')=>{const res=await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/app/runs/${run}/subagents/${child}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});return {status:res.status,body:await res.json()};};

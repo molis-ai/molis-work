@@ -34,7 +34,7 @@ test("committed SDK receipts notify real project consumers once; history, other 
   let adapter = await makeAdapter();
   const base = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions: browsingFolder(pluginActions(store, DEMO_PROJECT_ID)), actorId: "web-user" };
   const ports = { ...base, observeReviewSettlements: (listener: (settlement: ReviewSettlement) => void) => observeReviewSettlements(queue, DEMO_PROJECT_ID, listener),
-    escapeHtml: String, translate: (value: string) => value, workspacesFor: async () => [] };
+    escapeHtml: String, translate: (value: string) => value };
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://fixture"), ports)
     .then(handled => { if (!handled) { response.writeHead(404); response.end(); } }).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

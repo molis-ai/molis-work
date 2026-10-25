@@ -125,3 +125,11 @@
 - 新父源的整体构建通过，已核对本树 contracts/placement 的 `dist` 来源和读取器版本 2。原关系用例 8/8 通过；本后继新回归在未修生产代码时 63 项中 38 通过、25 失败，完整/拆角色的真实目录关系用例全部转绿，剩余失败明确落在工具选择、回退与 payload 拒绝后的缓存。
 - 候选整体 `pnpm build` 通过（4 个包重建、66 个复用）；`pnpm boundary:check` 和 `node scripts/check-health-gates.mjs --base 43049e2abba79b6d01d108f9eba27a7a31162ff5` 通过。源码冻结后运行 README 指定的五文件，共 98 项通过；RAC-640～645 对应的新文件 63/63 通过，涵盖零调用/写入、重试恢复、原调用控制与已发生的部分效果。
 - 原始日志：`/tmp/placement-provider-ambiguity-red.log`、`/tmp/placement-provider-ambiguity-baseline-placement.log`、`/tmp/placement-provider-ambiguity-43049-before.log`、`/tmp/placement-provider-ambiguity-candidate-build-gates.log`、`/tmp/placement-provider-ambiguity-candidate-tests.log`。独立双核按同一固定来源的后继候选交接；不重复运行共享核心全量，不把服务级验证记作一骏本人验收。
+
+独立核验及交接裁定（2026-10-25）：生产与测试固定在 `8f4d018881d6b1d54074adc9313401beeb464634`，其后的尾提交只记录下列文档事实，不改源码、测试、时限或断言。
+
+- [限定 REVIEW 通过](https://github.com/molis-ai/molis-work/pull/1277#issuecomment-6396782868)：已核完整差异、真实调用链、构建来源和原件，未发现 Blocker/P1。
+- [独立 TEST 首批原件](https://github.com/molis-ai/molis-work/pull/1277#issuecomment-6397241703)：官方 runner、jobs=1、retry=0、隔离 Home/cache，三文件自然退出 1；新契约 63/63、主流程 17/17、重启文件 6 通过/1 取消，合计 86/87。原重启用例 60000ms 时限在 75607.497ms 报告超时。原因为 **UNKNOWN**，不能记为断言失败，也不归因为负载、环境或 flaky；作者此前 98/98 不覆盖此次取消。
+- TEST 的旧生产输入 `ac7e84a2` 单标题对照自然通过（20.306s），只支持当时已核实的等价生产输入，不解释候选首次取消。其工作树后来被清理；预定配对在开跑前停止，没有冒用其他 dirty 树。为取得准确输入，另建干净 `43049e2` 临时基线并完成必要构建，再在同一标准 build FIFO 槽内串行观测父/候选原失败标题：两次独立冷 cache/Home，原 60s 及全部原断言保留；父用例 11.980s、候选 8.702s，均自然退出 0。观察包装只记录 HTTP 路径、CPU/事件循环及监听/关闭事件，未改产品；两边 16 个 HTTP 调用及两次监听/关闭均完成。它只证明该受控条件下通过，**不解释或覆盖首次取消，不证明没有回归**。
+- 诊断原件在 `/tmp/placement-restart-diagnosis/`：`parent-build.log`、`pair.log`、`comparison.json`、`trace.mjs`、`run-pair.py`，以及 `parent-43049/`、`candidate-8f4/` 各自的原始结果和轨迹。准确受控基线为 `/Users/yijunwang/.codex/worktrees/placement-restart-parent-control/goalboard`；与 `8f4` 候选一同保留供核读，不再重复构建或跑单项求绿。
+- 统筹裁定保留本题放置修复范围；TEST 已独立只读核收上述配对的准确输入、原断言/时限、观察包装和原件，并在同一正式 TEST 回执补记。本题源码与必要有限验证可交 carrier。首次重启 **UNKNOWN** 作为一条集成待查，剩余 owner 为 **TEST + 唯一 Claude carrier**，随下一准确组合的既定相关回归/full 结算；若再现，再按具体栈/阶段派对应 owner。本题不扩大到 Host、SDK 或全局调度的生产修改，也不长期等待整线；**整 PR/组合 Ready 仍取决于原门禁与 full，本裁定不放行它们**。

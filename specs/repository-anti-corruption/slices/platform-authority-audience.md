@@ -54,6 +54,7 @@
 
 - 两样都要（S-15 的口径，统筹 10-24 定）：Manifest 声明一条权限 `projects:reach`，由人在安装时授予，安装确认里看得到；动作上写 `project_reach: "person"`，只许写在 `scope: "home"` 的动作上（SDK 的 Manifest 检查是同一条规则）。只有写了它、并且安装持有 `projects:reach` 的动作拿得到清单。
 - 新增调用上下文字段 `readable_project_ids?: readonly string[]`（`ActionCallContext`，Host 填、不读输入，每次调用现算、不缓存）。Host 在派发带声明的动作时，对 **受众是 `user` 且操作者是本机这个人**、**安装此刻持有 `projects:reach`** 的调用，给出清单：目录里没在关闭或删除中的项目里、该插件还在显示（与 §2.1 同一个判断）的那些。授权没有或被撤回、别的受众（agent、mcp、workflow、plugin）、本人以外的操作者，都不给这个字段。内置的 Todo 也照这条走，没有特例。
+  - 关闭状态只读同一 Host 的现有 `projects()`，由装配交给 `homeProjectReach` 内部读口，在每次目录回调里同步读取；明确为 `closing` 的项目不进入清单，即使目录行和目录文件仍在。没有打开 runtime 的目录项目仍然可读，不以 runtime 存在作为准入条件；不增加生命周期状态、缓存、轮询、表或公开 API，也不改变删除顺序。
 - 清单与「调用在哪个项目」是两件事：`caller.project_id` 仍是调用所在项目，清单只管读写别的项目的 Home 级记录。
 - Todo：`TodoAccess` 的 `everything: boolean` 换成 `projectIds: readonly string[]`（可见项目）；`todoAccess` 里不再出现 `audience`：`list` 带 `all_projects` 时可见项目 = 清单，没有清单就是 `actions.forbidden`（保持现在对 agent 的行为）；其余写动作用清单（有就用，没有就只有调用所在的项目）。`search.ts:61` 同改。
 - 自调用（PG-028 之后）继承外层的受众，也就继承外层有没有清单；插件不能给自己升。
@@ -71,6 +72,8 @@
 - **RAC-588**（同文件）：S-39 的表（agent、mcp、workflow、plugin）再加「自调用」一栏，每一栏都不下载、不落地模型。
 - **RAC-589**（`tests/plugin-manifest-v2.test.ts`）：`project_reach` 写在 `scope: "project"` 的动作上，`parsePluginManifest` 拒；写了 `project_reach` 却没声明 `projects:reach` 权限也拒；写在 `scope: "home"` 的上放行；合同快照（`pnpm actions:update`）出现这一项。
 - **RAC-590**（新 `tests/security-invariants-project-reach.test.ts`）：本人调带声明的动作，上下文里的清单 = 此刻显示该插件、没在关闭或删除中的项目；隐藏该插件的项目、已删的项目不在；agent、mcp、workflow、plugin 调同一个动作，上下文里没有这个字段；**没授 `projects:reach` 的安装（或授权被撤回之后）拿不到清单**；清单每次现算（隐藏、取消隐藏之间连续两次调用，清单跟着变）。
+- **RAC-590-CLOSE-01**（同文件）：走正式项目删除 HTTP → `ProjectDeletionService` → Host 关闭，用现有关闭通知的屏障停在资源已释放、目录删除尚未开始的窗口；确认 Host 项目状态为 `closing`、真实目录行和文件仍在、原项目 SQLite 已关闭。经正式 Home 动作读取，清单不含该项目，仍含另一个打开的项目和没有打开 runtime 的项目；同一屏障内新建项目后下一次调用立即包含它。释放屏障后删除收据完成、目录行及文件消失。
+- **RAC-590-CLOSE-02**（同文件）：同一真实删除交错内，从另一个项目的正式 Todo `all_projects` 路径读取，关闭中的项目待办不可见，其余项目保留；隐藏、取消隐藏另一个项目的 Todo 后立即反映，关闭项目不会重新进入结果。释放后删除完成。与 RAC-590 原权限、受众、逐次计算断言共同验收，不改这些合同。
 - **RAC-591**（`tests/todo-actions.test.ts`，改现有「scope」用例并加一条）：`all_projects` 对没有清单的调用（Agent，或没带 `readable_project_ids` 的）仍 `actions.forbidden`；有清单的本人调用只看到清单里的项目；`actions.ts` 里决定范围的行（带 `projectIds`、`readable_project_ids` 的）与 `search.ts` 里没有 `audience` 的比较（源码断言；`actions.ts` 的操作者标签 `actor` 只用来写历史，不决定范围，不在此列）；`store-types.ts` 的 `TodoAccess` 是 `projectIds`。
 - **RAC-592**（`tests/security-invariants-project-reach.test.ts`，走真实 Host，因为隐藏要经项目目录；`todo-actions.test.ts` 的 `ActionService` 夹具没有目录）：隐藏了 Todo 的项目 B 的待办，不出现在本人的 `all=1`，按 id 的 `get`、`update`、`status` 读为 `todo.not_found`；取消隐藏后出现，版本不变。
 - **RAC-593**（`tests/security-invariants-project-reach.test.ts`）：插件拿不到升级：处理器输入、返回里带 `readable_project_ids` 无效（只读 Host 的上下文）；agent 外层的自调用没有清单、`all_projects` 被拒；本人外层的自调用有清单。
@@ -120,5 +123,6 @@
 5. 「常开插件始终显示」：ac-trust T3（PR #1259）把常开改成从同意账本算（`ProjectPluginRegistry.alwaysOn()`，可撤回）。PG-013 的判断用 T3 的这个来源；T3 没合入之前按现状读 Manifest 的 `always_on`，这一处在 PR 里点名，后合入的改成同一个来源。
 6. `ui.embedded_plugins` 的闭包保留，但隐藏是终局：被隐藏的个人插件，嵌入那条路也不放（可用性分不出是不是经嵌入来的；统筹 2026-10-25 按代码的严口径定，RAC-580 已加断言）。
 7. `readable_project_ids` 每次调用现算；正在删除的项目不进清单；沙箱插件的执行上下文能带这个字段（数组），写一条沙箱路径的断言，或写明 PG-017 之后再补并开 BL。结果：沙箱 worker 没有调用上下文，声明了 `project_reach` 的沙箱插件默认拿不到清单（关着）；后续怎么给记在 BL-625。
+   - FIRST 第 4 项修复只补 Host 已拥有的 `closing` 状态读取及 RAC-590-CLOSE-01/02。内部装配从已有 `LocalHost.projects()` 给清单计算函数一个实时读口，不新增删除状态合同；前三项作者修订、B1/T3 组合、RAC-580 常开夹具和 S 号由原载体处理。
 8. 和 ac-registry 对齐：它的 B1 会把 `shownProjectPlugins` 这类平台事实搬进 `apps/local-host/src/plugin-registry.ts`。本片的判断函数只写一份，先放在 local-host 平台这一侧；两边谁后到谁重基，同批评审就照 `MERGE-QUEUE.md` §1a 同批落。
 8. （统筹 2026-10-25）`homeProjectReach` 与 `project-plugin-enablement` 改用 `projectReachablePlugins` / `pluginReachable` 同一个函数，不留第二份判断；Todo 动作不升版（只改了 traits，schema 没变）；S 号由统筹落地时统一改。

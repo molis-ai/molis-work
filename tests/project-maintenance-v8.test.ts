@@ -29,8 +29,8 @@ import { SqliteSchemaVersionError, applySqliteBaseline, describeSqliteSchema, li
 const MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v8.sql", import.meta.url), "utf8");
 const NEXT_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v9.sql", import.meta.url), "utf8");
 const FINAL_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8");
-/** What version 10 added to the installation records, taken off so a current library looks like the older version a rehearsal starts from. */
-const WITHOUT_TRUST = "ALTER TABLE plugin_runtime_installs DROP COLUMN publisher_trust;";
+/** The version 9 schema (where tests/project-maintenance-v10.test.ts starts): the shape the Attention tables had before version 10. */
+const VERSION_9_SCHEMA = readFileSync(new URL("./fixtures/project-database-schema-v9.sql", import.meta.url), "utf8");
 /** The version 7 schema, as that build's baseline made it (the fixture of tests/project-database-baseline.test.ts at 7ca40f1c3). */
 const VERSION_7_SCHEMA = readFileSync(new URL("./fixtures/project-database-schema-v7.sql", import.meta.url), "utf8");
 /** The tables whose foreign key version 8 points at the root instead of the board. */
@@ -83,6 +83,24 @@ function pointAtBoard(db: DatabaseSync, table: string): void {
   assert.notEqual(created, sql);
   db.exec(`${created}; INSERT INTO before_${table} (${columns}) SELECT ${columns} FROM ${table}; DROP TABLE ${table}; ALTER TABLE before_${table} RENAME TO ${table};`);
   for (const index of indexes) db.exec(index);
+}
+
+/**
+ * Take a current library back to version 9: version 10 gave the installation records their publisher's trust (ac-trust T1) and the
+ * Attention records an owner (#1245). The two Attention tables are made again as version 9 had them, every row with its row id.
+ */
+function toVersion9(db: DatabaseSync): void {
+  db.exec("ALTER TABLE plugin_runtime_installs DROP COLUMN publisher_trust");
+  const statements = VERSION_9_SCHEMA.split(/;\s*\n/).map(statement => statement.replace(/^(?:\s*--[^\n]*\n)+/, "").trim());
+  for (const table of ["inbox_entries", "attention_events"]) {
+    const own = statements.filter(statement => new RegExp(`^CREATE (?:UNIQUE )?(?:TABLE|INDEX \\w+\\s+ON) ${table}\\b`).test(statement));
+    assert.ok(own.length >= 2, `version 9 has ${table} and its indexes`);
+    const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL").all(table) as Array<{ name: string }>;
+    for (const { name } of indexes) db.exec(`DROP INDEX ${name}`);
+    db.exec(`ALTER TABLE ${table} RENAME TO current_${table}; ${own.join("; ")};`);
+    const columns = ["rowid", ...(db.prepare("SELECT name FROM pragma_table_info(?)").all(table) as Array<{ name: string }>).map(column => column.name)].join(", ");
+    db.exec(`INSERT INTO ${table} (${columns}) SELECT ${columns} FROM current_${table}; DROP TABLE current_${table};`);
+  }
 }
 
 /** The row id the version 7 board is given in the rehearsal: not the 1 a new table would start at, so a rebuild that renumbers shows. */
@@ -138,10 +156,11 @@ async function oldHome(directory: string): Promise<OldHome> {
 
     db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE");
     const sequence = db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'events'").get() as { seq: number };
+    toVersion9(db);
     for (const table of MOVED) pointAtBoard(db, table);
     nameTheBoard(db);
     db.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'events'").run(sequence.seq);
-    db.exec(`${WITHOUT_TRUST} DROP TABLE schedule_action_bindings; DROP TABLE plugin_project_databases; DROP TABLE project_root; PRAGMA user_version = 7; COMMIT; PRAGMA foreign_keys = ON`);
+    db.exec(`DROP TABLE schedule_action_bindings; DROP TABLE plugin_project_databases; DROP TABLE project_root; PRAGMA user_version = 7; COMMIT; PRAGMA foreign_keys = ON`);
     db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     return made;
   });
@@ -152,7 +171,7 @@ async function oldHome(directory: string): Promise<OldHome> {
 function freshDatabase(directory: string): string {
   const path = join(directory, "fresh.db");
   new LocalProjectDatabase(path).close();
-  withDatabase(path, db => db.exec(`${WITHOUT_TRUST} DROP TABLE schedule_action_bindings; PRAGMA user_version = 8`));
+  withDatabase(path, db => { toVersion9(db); db.exec("DROP TABLE schedule_action_bindings; PRAGMA user_version = 8"); });
   return path;
 }
 

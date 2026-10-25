@@ -2531,6 +2531,7 @@ Storage README 原指定11文件首批10/11文件、79/80项通过；唯一 `sec
 
 平台补验首次6/8文件通过：install 22/23，原因是本次资源脚本更新使原构建指纹过期，真实安装正确拒绝；另一个失败是统筹误填不存在的backup.test.ts，未运行备份用例。随后原pnpm build刷新最终指纹，install 23/23、实际home-backup-recovery 1/1及runtime-config-backup-maintenance 6/6均通过。原日志与复验日志分别为 /private/tmp/molis-memory-main3817-platform-20261025.log、/private/tmp/molis-memory-main3817-install-backup-final-20261025.log。未修改生产、断言、重试或门禁处理这两项失败。最终普通CI/Full suite仍待运行，旧Cloudflare未知及用户验收边界继续保留。
 
+
 ### 2026-10-25：App 聚合接入最终基础及搜索主人
 
 本地008706ad0已合并项目覆盖20ed、Search existing-only主人6ecf，以及准确基础#1064的430f（含main3817批次34/35）。Coding两处文本冲突保留App生命周期阻断，并改用主线PluginActionClient与services.actions；发布清单按真实代码分别记项目库10/Coding库2。spec两侧合同和结果均保留。Search独审无阻塞：另有9项真实SQLite探针覆盖换根、祖先替换、COMMIT锁冲突、撤权回滚及重试，原30项再验通过；报告 /private/tmp/molis-memory-search-owner-independent-review-20261025.md。该owner仍未接完整MEM-40上层恢复。
@@ -2540,3 +2541,9 @@ Storage README 原指定11文件首批10/11文件、79/80项通过；唯一 `sec
 只读准确基础健康实测83个巨大单元，比基础84更少；原decrease-only --update随后通过，快查baseline仅按实测降低，未放宽limits或CI。27资源共7,630,892 B，主线资源缩减保留；App相对430f的workbench.js仍+32,890 B、两份CSS各+680 B、Coding已批准+570 B，全部来自此前逐项授权，Assistant+4,064 B已计入且不重复申请。Coding实际374,756 B仍比批准上限373,423 B高1,333 B，正式资源门继续失败；不挪用节省字节或扩用批准。其余实测与账本一致。
 
 本轮日志 /private/tmp/molis-memory-app-foundation430-{install,build,types,health,health-tighten,boundary,api,actions,direct,assets-gate}-20261025.log；资源只读JSON同前缀assets-20261025.json。生产无新增测试重试或超时调整。后继基础d08b的一行trust夹具修复、Session清除P1修复、新源Index投影、最终SDK main e371包以及完整AppCI/MEM-40仍待依次集成；不以本轮局部工程结果代替它们、产品实操或用户验收。
+
+### #1064 最终 CI 的安装夹具修正（2026-10-25）
+
+最终430f已通过Verify及所有必需检查；产品子集40180408090的2/2分片与Full suite40180486942的12/16分片均在同一MEM-35用例失败。GitHub原artifact与本地准确430f复现一致：tests/assistant-executor.test.ts新插件直接调用PluginRuntime.install时遗漏主线现在必填的trust，在安装阶段收到plugin.state_invalid，未执行原身份/撤权断言。Full suite因此按既有bail/fail-fast取消9个分片，不能称完整通过；保留两次CI失败及被取消结果。
+
+只为测试样例补真实身份trust:{level:"unsigned"}，不把测试插件冒称host，不改生产安装检查、权限、任何原断言、时限、重试或CI。原整文件从14/15变为15/15，未跳过，日志 /private/tmp/molis-memory-1064-assistant-executor-{repro,trust}-20261025.log。产品子集原artifact /private/tmp/molis-memory-1064-product-subset-2-20261025.zip 保留。后继提交必须重跑最终CI及Full suite；此前旧Cloudflare失败影响和历史仅重试通过的UNKNOWN仍未由该局部修正消除。

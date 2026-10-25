@@ -343,7 +343,7 @@ test("MEM-35 executor supplements bind personal provenance to the installed gene
     async start() { return { kind: "app", actions: handlers }; } });
   const repository = await home.host.withProject(project.reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: home.host.actionRegistry(project.reference), project_id: project.project_id } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [permission] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [permission] }).install;
   try {
     await runtime.start(installed.install_id);
     const caller = { project_ref: project.reference };

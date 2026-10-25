@@ -2347,6 +2347,12 @@ interface AgentStartInputFields {
     budget?: AgentRunBudget;
 }
 
+interface AgentStepReportAuthor {
+    kind: "session" | "subtask" | "person" | "handover" | "other";
+    label: string;
+    title?: string;
+}
+
 type Change = Target & {
     decision: AgentSessionDecision;
 };
@@ -2354,9 +2360,3 @@ type Change = Target & {
 type Target = {
     session: AgentSessionRef;
 };
-
-interface AgentStepReportAuthor {
-    kind: "session" | "subtask" | "person" | "handover" | "other";
-    label: string;
-    title?: string;
-}

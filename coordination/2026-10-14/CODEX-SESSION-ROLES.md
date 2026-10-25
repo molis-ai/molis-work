@@ -13,7 +13,7 @@
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
 | 修复1（旧full35消费者已固定释放） | Root单题专职，gpt-6.1-sol/max | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | 原13消费者0c0f7a431395819749ad292cfbd7740ce9721cf7/父927，16files175/-104 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
 | 修复2（缺Chrome诚实回执） | Root单题专职，gpt-6.1-sol/max | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | #1253独立7f17a75d4508294160571b21ca748307e86e943c/父22537 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
-| 修复3（页面默认值已双核释放） | Root单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | #1261 FIRST6393589926；48a00a979425c5915cba224e39c10ed1d6ffe320/父b559 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
+| 修复3（页面默认值已双核释放） | Root单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | 旧48a双PASS已释放；新S64原9c红，实际8ac已由原Claude实现，FIX3只核现成S20 mutation/doc | 未写第二份S64；不碰S07/S11/SC4、parser/gate/编号；独立原件接续见TASKS |
 | 修复4（初始化失败清理恢复） | Root单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | #1254 FIRST6393270921 item1/6393455820；39a444f89b5adf9d585a09f1533aa2611e9c9e71直接b521 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
 | 修复5（安装/卸载数据真实修复） | Root单题专职，gpt-6.1-sol/max | 01a16f24-7a33-76f2-80b4-f20c55006d09 | #1255 d0/sole6393025853，2阻塞+4有效项 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
 | 修复6（SDK上游来源与无密文认证） | Root单题专职，gpt-6.1-sol/max | 01a16fa8-53d9-7622-8169-0c424357366c | 旧1252/15c1f36dd9df3c49633125449e5340fe0a4a37ee双PASS已入#1270；新1267 SDK来源阻塞 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
@@ -23,9 +23,9 @@
 | 修复10（翻译覆盖已采用） | Root单题专职，gpt-6.1-sol/max | 01a1714d-f6cf-7281-bc10-78e9b061d754 | 66de117876fe8ee8d8fb12303ee0069ab1cc1eb3/父927 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
 | 修复11（刷新调度已双核） | Root单题专职，gpt-6.1-sol/max | 01a17156-c6df-7652-992c-f6dc06d6a8f0 | 1651a529905ee51027141d40c5cc1d21b30406e2，链fe8→72→1651 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
 | 修复12（DOM前缀已双核） | Root单题专职，gpt-6.1-sol/max | 01a17157-8ec9-7081-9934-89e0c2741611 | #1265最终56d3b6e5cdcdb2ac9918d0b178f9ce086057f7ec，原1257基点27d | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
-| 修复13（T3只读查询已双核） | Root单题专职，gpt-6.1-sol/max | 01a17159-48df-7d02-b6f0-9e627622eed0 | #1259只读6431a0027722922359cb9a950485bf3ea078d6a4/父10791b4f7a77710d6dc240a3231ae4a16ae74154 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
+| 修复13（T3只读查询已双核） | Root单题专职，gpt-6.1-sol/max | 01a17159-48df-7d02-b6f0-9e627622eed0 | 旧6431双PASS已含36；新full36 B/ClaudeFIX21实际就是本FIX13，Root正式单，从cd400已撤fallback真实依赖接页面边界恢复与撤回坏库负例 | 非法账本授权仍拒，页面存下成员展示与Home故障恢复最小路径；原writer撤回hunk已fixed，不另开21/不复制cd提交 |
 | 修复14（项目解绑已双核） | Root单题专职，gpt-6.1-sol/max | 01a1715a-561b-7bc3-ba7d-be3d5de076d9 | #1256项目解绑c6c450f40f4187abbb9ccd73f88c9ad50b1ba3a2，scope352c64e0..c6 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
-| 修复15（SQL夹具验证边界） | Root单题专职，gpt-6.1-sol/max | 01a17189-e0e1-73a2-8a22-5723aa84cf69 | #1260 d36831f848c3ae56b60539787ff13dafac366d43/父c2c21 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
+| 修复15（SQL夹具验证边界） | Root单题专职，gpt-6.1-sol/max | 01a17189-e0e1-73a2-8a22-5723aa84cf69 | 旧d368双PASS源码释放；新full36 A/ClaudeFIX20实际就是本FIX15，Root正式单，ebf1含F4后独立树实际实现四MCP夹具/system-functions/images/desktop | 新D close/abort/transport同RAC105问题按Claude6394614068同步Root接此单；不碰B/S64/翻译/Feed，不增超时/放宽断言，不新建20 |
 | 修复16（改名/材料链验证） | Root单题专职，gpt-6.1-sol/max | 01a1718a-8840-7d31-a73b-568b29cb2178 | #1268 da50d106216322043b2a7d05c3498e16bbed5f1e/父93ba，code ba1a06bb1 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
 | 修复17（两个安装入口与标签） | Root单题专职，gpt-6.1-sol/max | 01a17190-8ef0-7472-907a-5f3b64f3ccbe | #1269最终f56e0e987e115285fc9577ee8a067cfd055eb06e/父5be32d0f03265e029b419bf6c3d0920e6a17e866 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
 | 修复18（快照错误/SC4只读证明） | Root单题专职，gpt-6.1-sol/max | 01a1719e-b78e-7182-b721-dcca8c1b83f3 | #1267 FIRST6394030660非阻塞1/SC4窄证明，基1556 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
@@ -34,7 +34,7 @@
 | 独立实现 C1 / C3 / C4 / C5 | 专职实现1（原完整owner保持）· Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | PG095 #1263/eb01 FIRST6393600544+TEST6394049620已交并核入#1270；当前C5按Claude6394070792/Root明确START，以bb713独立树从同一07a spec完整实施RAC625–629，只推分支 | 已定A常驻/唯一Home owner允许候选竞争/20s-1s-250ms/EOF cancel必做；1254所在36 actual后核base开完整PR，真实同hunk才与F4/F7串行；旧OAuth C4三WO/C1C3完整责任保持 |
 | 独立实现 C2 | 专职实现2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | S #1267/1556，FIRST来源阻塞/四nonblock与TEST6394205854 scopedPASS已核；restore独立0db+1556仅3个home-restore模块，6files47已过，当前接原Memory资格/合法空态合同 | F6唯一SDK上游与RDEC1 metadata无keyRoot，F18错误四文件→F8格式，C2 wrapper/分类扩展精确串行，禁止整树覆盖；95清单750/753/Studio基线/optin边界保留，RAC108/完整restore/真实Home/本人验收未完 |
 
-已有角色 owner 与有效技术裁定保持。独立树、独立明确问题且无真实重叠可多writer；同一实际hunk/合同/候选串行。Claude唯一组批/full/批PR队列；Root唯一定时发现/初始派单/复杂裁决；本流水线交付驱动接续与既有普通小PR合并职责保持。整机一份build、一批browser，machine-slot排队。
+已有角色 owner 与有效技术裁定保持。独立树、独立明确问题且无真实重叠可多writer；同一实际hunk/合同/候选串行。Claude唯一组批/full/批PR队列；batch35七来源close-only已由Root窄移交PIPE实际关完，其他来源职责不变。Root唯一定时发现/初始派单/复杂裁决；本流水线交付驱动接续与既有普通小PR合并职责保持。整机一份build、一批browser，machine-slot排队。
 
 ## 流水线接续合同
 

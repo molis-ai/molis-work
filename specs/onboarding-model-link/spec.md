@@ -22,3 +22,14 @@
 ## 验证
 
 `node scripts/run-tests.mjs tests/onboarding-journey.e2e.test.ts --test-name-pattern=ONB-MODEL-01`
+
+## #1306 修后小片（2026-10-25，FIX1）
+
+合同为[首评](https://github.com/molis-ai/molis-work/pull/1306#issuecomment-6401981758)的两项阻塞和同条非阻塞，以及[统筹裁定](https://github.com/molis-ai/molis-work/pull/1306#issuecomment-6401986487)。原源 `5a43be205` 不动；独立候选合入固定 main `b3bac731b`，本次窄修比较基点是机械合成 `61ea67308e0719ce5cdcbced7b3de38d1d099628`。保留两步引导和现有模型设置读写/密钥边界，不重设计 UI，不改 Host 模型服务、权限或公开合同。
+
+- `ONB-FIX-01`：已连接说明用现有 `draw.esc`。真实引导 DOM 中，含 HTML 标记、引号、& 和尖括号的供应商显示名/模型 ID 显示原文字，不执行事件、不生成意外元素。
+- `ONB-FIX-02`：深色 `.welcome::before` 用独立有效选择器恢复 opacity .5；opening-glow 深色仍 .5、浅色仍 1。专用浏览器在 1440/1024/390 与亮暗主题读实际元素/伪元素 computedStyle，保留必要截图。
+- `ONB-FIX-03`：全 tracked 文本检索后，没有该 sessionStorage 返回键的生产写入者，删除孤立脚本；保留 main 的 LOCAL_DIRECTORY_SETTINGS_CLIENT_SCRIPT import/拼接及其他设置脚本。同名 workbench 返回属性是另一条路径，保持原样。
+- `ONB-FIX-04`：以固定 main 的 arrival.css 实际冻结值 681,352 B 重新实测为 681,487 B（+135 B），按现有单资源政策更新准确快照、一次性上限及理由；workbench.js 仍为 1,127,729 B，其他已认可条目保留，不新资源、不放宽机制。旧 +95 B/694,943 基点不能充当修后数，carrier 组合再量。
+
+范围限上述三处工作台实现、必要既有测试/最小夹具、本段与该资源快照/放行行。资源预构建与测量后写入准确值，再经公共 FIFO 做一次最终整体构建，保证包含资源脚本的源码与构建指纹一致，不改写 manifest。必要非浏览器覆盖 model-settings-http、设置请求与资源门禁；浏览器串行跑 onboarding-journey、model-ready-cross-tab，覆盖转义、伪元素、亮暗三宽度。核 actual merge-base health、资源、diff 及推前 fresh-fetch secrets。所有 Home/Chrome profile 独立回收，不用个人 Chrome、真实 Home/凭据，不重复 full/真实模型。旧结果及缺口保留；窄 REVIEW/必要 TEST 后主核原件交唯一 carrier，不称整批/App/本人验收完成。

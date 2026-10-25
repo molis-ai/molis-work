@@ -246,9 +246,11 @@ const headErrors = (measured, budget, base) => {
 // tried in this batch. Not yet measured: one DOM-element helper shared by the settings scripts (each defines its own), R-55.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1125074, 1127729],
-  // The journey model step lays a short key form in the arrival sheet. The settings document stylesheet is not
-  // included. +95 B from 694943.
-  "/assets/molis-work-arrival.css": [694943, 695038],
+  // #1306 reuses arrival's choice/field/button styles instead of the settings document stylesheet. The journey
+  // changes and the valid dark welcome pseudo-element selector net +135 B: fixed main 681352 -> measured 681487.
+  // Shared glow declarations stay grouped; only dark opacity splits because :is() cannot contain a pseudo-element.
+  // No further reduction was attempted in this repair. The carrier remeasures its final combination.
+  "/assets/molis-work-arrival.css": [681352, 681487],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

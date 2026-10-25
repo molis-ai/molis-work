@@ -81,6 +81,7 @@ async function journeyAt(browser: Browser, stage: "scope" | "materials"): Promis
   return id;
 }
 
+// ONB-FIX-03: the shared settings/model-ready path remains usable without an unwritten sessionStorage return key.
 for (const [name, catalog, settingsAddress] of [
   ["a person with no project yet: the standalone model settings page in the other tab", "empty", "the standalone page"],
   ["a person with a project: the workbench with the model settings open in the other tab", "seeded", "the workbench cover"],

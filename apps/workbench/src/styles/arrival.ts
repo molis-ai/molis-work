@@ -111,7 +111,8 @@ export const ARRIVAL_STYLES = String.raw`
   .opening{isolation:isolate;overflow:hidden;display:grid;align-items:end;padding:clamp(32px,5vw,72px)}
   .opening-glow,.welcome::before{position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--ob-glow)}
   .welcome::before{content:""}
-  html[data-resolved-theme="dark"] :is(.opening-glow,.welcome::before){opacity:.5}
+  html[data-resolved-theme="dark"] .opening-glow{opacity:.5}
+  html[data-resolved-theme="dark"] .welcome::before{opacity:.5}
   .opening-copy { display: grid; gap: clamp(20px, 3vh, 36px); }
   .opening-caption .mw-caption { font-size: 30px; letter-spacing: -.03em; margin: 0; padding: 0; }
   .ob-greeting-wordmark { font-size: 0; line-height: 0; }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -11,6 +11,7 @@ import { withContextJourneys, type ContextJourney, type ContextReference } from 
 import { startContextJourney, waitContextJourney } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 // The way in for a new person and for a new project, in a real browser (specs/archive/project-arrival-flow): the opening, the
 // two Welcome questions, and the journey from existing materials to a named project. The first test follows a person
@@ -83,6 +84,14 @@ async function openJourneyBrowser(t: TestContext, mode: true | "empty") {
 const screen = (name: string) => `document.querySelector('.arrival')?.dataset.screen === ${JSON.stringify(name)}`;
 const obView = (name: string) => `!!document.querySelector('[data-ob-view=${JSON.stringify(name)}]')`;
 const resetIntro = "try { sessionStorage.clear(); localStorage.removeItem('molis-work:onboarding-intro'); } catch {}";
+
+/** Ignored review evidence from the actual page; no tracked screenshot group is added. */
+async function reviewShot(journey: NonNullable<Awaited<ReturnType<typeof openJourneyBrowser>>>, name: string) {
+  const directory = join(process.cwd(), ".impeccable", "qa", "review", "onboarding-review-fixes");
+  await mkdir(directory, { recursive: true });
+  const { data } = await journey.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, journey.sessionId);
+  await writeFile(join(directory, name + ".png"), Buffer.from(data, "base64"));
+}
 
 test("a new person's first run: the opening, two questions, materials, a name, and the project they made", { timeout: 180_000 }, async t => {
   const journey = await openJourneyBrowser(t, "empty");
@@ -290,6 +299,37 @@ test("ONB-MODEL-01 connecting a text model is its own journey step and returns t
   assert.equal(await evaluate("(document.querySelector('.ob-right')?.textContent || '').includes('笔记.md')"), false);
 });
 
+test("ONB-FIX-01 connected provider and model text stays literal in the real journey DOM", { timeout: 120_000 }, async t => {
+  const journey = await openJourneyBrowser(t, "empty");
+  if (!journey) return;
+  const provider = '<img data-ob-injected="provider" src=x onerror="globalThis.__obXss = 1"> & "供应商"';
+  const model = '<svg data-ob-injected="model" onload="globalThis.__obXss = 2"></svg> <model>&\'';
+  await seedConfiguredModels(journey.homeDirectory, [{ provider_id: "literal-provider", display_name: provider, model_id: model }]);
+  const id = journey.seed(item => {
+    item.sources = [{ kind: "files", selected: true, files: [{ path: "笔记.md", size: 120, modified_ms: 1 }], metadata: { files: [{ path: "笔记.md", size: 120, modified_ms: 1, identity: "upload" }], skipped: 0, truncated: false } }];
+    item.previewed = true;
+  });
+  await journey.go("/onboarding");
+  await journey.evaluate("localStorage.setItem('molis-work:onboarding-intro','done')");
+  for (const [width, scheme] of [[1440, "light"], [390, "dark"]] as const) {
+    await journey.view(width, width === 390 ? 844 : 900, scheme);
+    await journey.go(`/onboarding?desktop=1&journey=${id}`);
+    await journey.waitFor(`${obView("model")} && !!document.querySelector('.ob-stage-head span') && !!document.querySelector('[data-ob-template=deepseek]')`, 20_000);
+    const configuration = await journey.evaluate<{ model: string }>("(async () => (await fetch('/api/onboarding/context')).json())()");
+    assert.ok(configuration.model.includes(provider)); assert.ok(configuration.model.includes(model));
+    const state = await journey.evaluate<{ text: string; elements: number; injected: number; executed: number }>(`(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const label = document.querySelector('.ob-stage-head span');
+      return { text: label?.textContent || '', elements: label?.childElementCount ?? -1,
+        injected: document.querySelectorAll('[data-ob-injected]').length, executed: Number(globalThis.__obXss || 0) };
+    })()`);
+    t.diagnostic(JSON.stringify({ acceptance: "ONB-FIX-01", width, scheme, ...state }));
+    assert.equal(state.text, configuration.model, `${width}/${scheme}: the raw provider and model text is preserved`);
+    assert.equal(state.elements, 0); assert.equal(state.injected, 0); assert.equal(state.executed, 0);
+    await reviewShot(journey, `model-label-${width}-${scheme}`);
+  }
+});
+
 // ONB-FOLDER-01: on the desktop, Downloads, Documents, Desktop and another folder are one vertical list and any of them can be on together.
 test("ONB-FOLDER-01 folder places are a vertical list and more than one can be included", { timeout: 120_000 }, async t => {
   const journey = await openJourneyBrowser(t, "empty");
@@ -403,6 +443,7 @@ test("the opening types its name, the way on arrives a moment after it, and a fi
 });
 
 test("the opening and the two questions lay out cleanly at every width, in light and dark", { timeout: 300_000 }, async t => {
+  // ONB-FIX-02: real computed styles guard both the element and the welcome pseudo-element, not CSS text.
   const journey = await openJourneyBrowser(t, "empty");
   if (!journey) return;
   const { view, press, go, evaluate, waitFor } = journey;
@@ -415,9 +456,17 @@ test("the opening and the two questions lay out cleanly at every width, in light
       await go("/onboarding");
       await waitFor(screen("opening"));
       await waitFor("document.querySelector('.opening')?.classList.contains('is-done')");
+      await waitFor(`document.documentElement.dataset.resolvedTheme === ${JSON.stringify(scheme)}`);
+      const openingOpacity = await evaluate("getComputedStyle(document.querySelector('.opening-glow')).opacity");
+      assert.equal(openingOpacity, scheme === "dark" ? "0.5" : "1", where("opening opacity"));
+      if (width === 1440 && scheme === "dark") await reviewShot(journey, "opening-1440-dark");
       await assertLayoutClean(evaluate, where("opening"));
       await press("Enter");
       await waitFor("document.querySelector('.welcome')?.dataset.step === 'language'");
+      const welcomeOpacity = await evaluate("getComputedStyle(document.querySelector('.welcome'), '::before').opacity");
+      assert.equal(welcomeOpacity, scheme === "dark" ? "0.5" : "1", where("welcome pseudo opacity"));
+      if ([1440, 1024, 390].includes(width)) t.diagnostic(JSON.stringify({ acceptance: "ONB-FIX-02", width, scheme, openingOpacity, welcomeOpacity }));
+      if ([1440, 1024, 390].includes(width)) await reviewShot(journey, `welcome-${width}-${scheme}`);
       await assertLayoutClean(evaluate, where("language"));
       await press("Enter");
       await waitFor("document.querySelector('.welcome')?.dataset.step === 'appearance'");

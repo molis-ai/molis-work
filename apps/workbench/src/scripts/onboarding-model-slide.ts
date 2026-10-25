@@ -55,7 +55,7 @@ export const ONBOARDING_MODEL_SLIDE_CLIENT = String.raw`
     const lead = draft ? missing : connected
       ? L('已连接 · 选中的正文会发给它整理')
       : L('选一个常用供应商，替你填好地址和格式，再填上 API Key 就能用。不在列表里的，选最后两个通用格式。');
-    return draw.stageHead(L('常用供应商'), connected || '') + draw.note(lead, draft ? 'key' : connected ? 'check' : 'key')
+    return draw.stageHead(L('常用供应商'), draw.esc(connected)) + draw.note(lead, draft ? 'key' : connected ? 'check' : 'key')
       + problemLine
       + (errorText && !draft ? '<p class="ob-error" role="alert">' + draw.esc(errorText) + '</p>' : '')
       + choices + form;

@@ -9,7 +9,7 @@ import { buildTestIndex } from "../scripts/affected-tests/index.mjs";
 import { discoverPackages, listFiles, namedChanges, readChanges, resolveBase } from "../scripts/affected-tests/repository.mjs";
 import { FULL_REGRESSION, I18N_TEST, UI } from "../scripts/affected-tests/rules.mjs";
 import { busyProcesses, parseProcessList, staleBuilds } from "../scripts/affected-tests/run.mjs";
-import { exportedNames, readmeTests, routeChunks, routesIn, selectAffected } from "../scripts/affected-tests/select.mjs";
+import { exportedNames, readmeTests, routeChunks, routesIn, selectAffected, selectorTokens } from "../scripts/affected-tests/select.mjs";
 import { holdsSchema, literalsOf, schemaChanged, schemaOf } from "../scripts/affected-tests/storage.mjs";
 
 // specs/repository-anti-corruption §4.7 (roadmap W2-17): scripts/affected-tests.mjs turns the 2026-10-03 validation-frequency
@@ -288,6 +288,41 @@ test("a package imported by more tests than the limit is narrowed to the readers
   assert.equal(picked(select(["plugins/native/beta/src/main.ts"], { packageLimit: 3, wide: true })).filter((file) => file.startsWith("tests/beta-user")).length, 3);
   assert.equal(picked(select(["plugins/native/beta/src/main.ts"], { packageLimit: 4 })).filter((file) => file.startsWith("tests/beta-user")).length, 0, "5 tests import it or are named for it");
   assert.equal(picked(select(["plugins/native/beta/src/main.ts"], { packageLimit: 5 })).filter((file) => file.startsWith("tests/beta-user")).length, 3, "the limit is inclusive");
+});
+
+// ---- stylesheets and contract fields ---------------------------------------------------------------------------------------------
+test("a changed stylesheet selects the tests that assert its selectors, custom properties and attributes by writing them", () => {
+  put("plugins/native/alpha/src/styles/alpha-skin.ts", `export const ALPHA_SKIN = ${BT}.alpha-skin-card { gap: var(--alpha-skin-gap); }\n[data-alpha-skin-row] { color: var(--alpha-skin-line); }${BT};\n`);
+  put("tests/stylesheet-card.test.ts", `test("x", () => { assert.match(css, /\\.alpha-skin-card\\s*\\{/); });\n`);
+  put("tests/stylesheet-gap.test.ts", `test("x", () => { assert.match(css, /--alpha-skin-gap/); });\n`);
+  put("tests/stylesheet-row.test.ts", `test("x", () => { assert.match(css, /data-alpha-skin-row/); });\n`);
+  const result = select(["plugins/native/alpha/src/styles/alpha-skin.ts"]);
+  assert.ok(reasonsOf(result, "tests/stylesheet-card.test.ts").includes("reads-selector"), "a class the stylesheet names");
+  assert.ok(reasonsOf(result, "tests/stylesheet-gap.test.ts").includes("reads-selector"), "a custom property it names");
+  assert.ok(reasonsOf(result, "tests/stylesheet-row.test.ts").includes("reads-selector"), "an attribute it names");
+  assert.equal(picked(result).includes("tests/unrelated.test.ts"), false);
+  const tokens = selectorTokens(".alpha-skin-card, .x { --alpha-skin-gap: 1px; }");
+  assert.ok(tokens.includes(".alpha-skin-card") && tokens.includes("--alpha-skin-gap"), tokens.join(" "));
+  assert.equal(tokens.some((token) => token === ".x"), false, "a one-character name is too short");
+});
+
+test("a selector written into more tests than the symbol limit is too common to tell its readers apart, and --wide selects it", () => {
+  put("plugins/native/alpha/src/styles/alpha-skin.ts", `export const ALPHA_SKIN = ${BT}.alpha-common-chip { gap: 1px; }${BT};\n`);
+  for (const suffix of ["a", "b", "c"]) put(`tests/stylesheet-common-${suffix}.test.ts`, `test("${suffix}", () => { assert.match(css, /\\.alpha-common-chip/); });\n`);
+  const narrow = select(["plugins/native/alpha/src/styles/alpha-skin.ts"], { symbolLimit: 2 });
+  assert.equal(picked(narrow).some((file) => file.startsWith("tests/stylesheet-common-")), false);
+  assert.ok(narrow.notes.some((text) => text.includes("too common") && text.includes(".alpha-common-chip (3)")), narrow.notes.join("\n"));
+  const wide = select(["plugins/native/alpha/src/styles/alpha-skin.ts"], { symbolLimit: 2, wide: true });
+  assert.equal(picked(wide).filter((file) => file.startsWith("tests/stylesheet-common-")).length, 3);
+});
+
+test("a changed contract field selects the tests that name it, and a common word does not", () => {
+  put("packages/contracts/src/platform/plugin.ts", "export interface AlphaTurn {\n  steer?: string;\n  revision_key?: string;\n  options?: string;\n}\n");
+  put("tests/turn-reader.test.ts", `test("x", () => { const turn = { steer: "s", revision_key: "k" }; return turn; });\n`);
+  put("tests/options-reader.test.ts", `test("x", () => { const options = 1; return options; });\n`);
+  const result = select(["packages/contracts/src/platform/plugin.ts"]);
+  assert.ok(reasonsOf(result, "tests/turn-reader.test.ts").includes("uses-field"), "it names revision_key and steer");
+  assert.equal(picked(result).includes("tests/options-reader.test.ts"), false, "options is a word of many files");
 });
 
 // ---- the README --------------------------------------------------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyRunEvent,
+  closeInterruptedPrologueStream,
   emptyPrologueStreamState,
   prologuePhaseOf,
   settleProloguePending,
@@ -147,6 +148,32 @@ test("an approval arriving as awaiting-input is not double counted", () => {
   );
   assert.equal(state.awaiting_approval.length, 1);
   assert.deepEqual(state.awaiting_input, [], "审批不重复登记成普通提问");
+});
+
+test("a call still waiting for approval when the round ends reads as not executed, not as unknown (BL-100)", () => {
+  const stopped = emptyPrologueStreamState();
+  apply(stopped,
+    { type: "tool-call", call: { id: "edit-1", name: "edit", input: { path: "src/report.md" } } },
+    { type: "awaiting-approval", effectRef: { id: "effect-1" }, pendingRef: { id: "pending-1" }, why: "要改 src/report.md" },
+    { type: "cancelled" });
+  assert.equal(stopped.phase, "cancelled");
+  assert.deepEqual(stopped.activity.map((entry) => [entry.name, entry.state]), [["edit", "failed"]]);
+  assert.match(stopped.activity[0]!.summary, /等待批准时这一轮结束，没有执行/u);
+
+  // A restart replays the same events; the waiting call was never dispatched either.
+  const restored = emptyPrologueStreamState();
+  apply(restored,
+    { type: "tool-call", call: { id: "edit-1", name: "edit", input: { path: "src/report.md" } } },
+    { type: "awaiting-approval", effectRef: { id: "effect-1" }, pendingRef: { id: "pending-1" }, why: "要改 src/report.md" });
+  closeInterruptedPrologueStream(restored);
+  assert.deepEqual(restored.activity.map((entry) => [entry.name, entry.state]), [["edit", "failed"]]);
+  assert.match(restored.activity[0]!.summary, /等待批准时这一轮结束，没有执行/u);
+
+  // A call that had already been dispatched keeps the honest "unknown": it may have happened.
+  const dispatched = emptyPrologueStreamState();
+  apply(dispatched, { type: "tool-call", call: { id: "edit-2", name: "edit", input: { path: "src/a.md" } } });
+  closeInterruptedPrologueStream(dispatched);
+  assert.deepEqual(dispatched.activity.map((entry) => [entry.name, entry.state]), [["edit", "unknown"]]);
 });
 
 test("a guardrail stop is terminal but is not a failure", () => {

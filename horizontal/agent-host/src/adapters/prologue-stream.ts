@@ -219,11 +219,31 @@ function closeStreamingText(state: PrologueStreamState): void {
   if (reasoning !== undefined) state.reasoning_index = reasoning;
 }
 
+/**
+ * A Run that ends (or is restored) while an approval is still pending never dispatched that call: the engine stops
+ * before the effect runs and nobody answered. Mark the call as failed with that reason, instead of leaving a started
+ * step that the panel can only call "outcome unknown" (BL-100).
+ */
+const AWAITING_APPROVAL_ENDED = "等待批准时这一轮结束，没有执行";
+
+function closeAwaitingApproval(state: PrologueStreamState): void {
+  if (state.awaiting_approval.length === 0) return;
+  // A Run waits on one call at a time; its own call is the last step still under way.
+  for (let index = state.activity.length - 1; index >= 0; index -= 1) {
+    const activity = state.activity[index]!;
+    if (activity.state !== "started") continue;
+    activity.state = "failed";
+    activity.summary = `${activity.name} · ${AWAITING_APPROVAL_ENDED}`;
+    return;
+  }
+}
+
 /** A restored prefix is readable history, not a live stream or a tool receipt. */
 export function closeInterruptedPrologueStream(state: PrologueStreamState): void {
   closeStreaming(state);
   closeInputs(state);
   closeSleep(state);
+  closeAwaitingApproval(state);
   for (const activity of state.activity) {
     if (activity.state === "started") {
       activity.state = "unknown";
@@ -576,6 +596,7 @@ function applyCompactionEnded(state: PrologueStreamState, event: PrologueEvent, 
 function endRound(state: PrologueStreamState, phase: AgentRunPhase, stopReason?: string): boolean {
   closeStreaming(state);
   closeSleep(state);
+  closeAwaitingApproval(state);
   state.phase = phase;
   if (stopReason !== undefined) state.stop_reason = stopReason;
   return true;

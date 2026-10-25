@@ -36,4 +36,6 @@ export const agentErrors = defineErrorCodes("agent", {
   storage_root_invalid: "invalid",
   wait_limit_reached: "rate_limited",
   write_checker_invalid: "invalid",
+  /** A stored write-checker record has another shape than this build reads: a Host-side record, not the caller's input. */
+  write_checker_unreadable: "internal",
 });

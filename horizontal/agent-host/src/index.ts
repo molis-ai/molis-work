@@ -67,6 +67,7 @@ export { resolveModelHostname } from "./adapters/node-model-dns.js";
 export { PrologueApprovalBridge } from "./adapters/prologue-approvals.js";
 export {
   applyRunEvent,
+  closeInterruptedPrologueStream,
   emptyPrologueStreamState,
   prologuePhaseOf,
   settleProloguePending,

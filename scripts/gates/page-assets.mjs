@@ -237,12 +237,10 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// #1064's already approved Memory controls and original-input sender, moved onto batch37's smaller assets.
-// Same behavior and scope: workbench stays +3193 bytes; typed Coding is +612, 105 fewer than the prior +717.
-const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1124423, 1127616],
-  "/assets/molis-work-plugins/coding.js": [289788, 290400],
-};
+// 2026-10-25 BL-114 (PR #1304): the Dock switcher's chip now reads the name of a plugin that is not in the rail (the studio
+// and the market) from the switcher's own `[data-global-menu] [data-plugin-id]` button. workbench.js +263 bytes; tried
+// folding the rail/head/label lookups into two helpers (−26 B), the rest is the label path and the market's title.
+const APPROVED_CEILINGS = { "/assets/molis-work-workbench.js": [1124423, 1124686] };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

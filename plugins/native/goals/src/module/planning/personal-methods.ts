@@ -2,20 +2,6 @@ import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/moli
 import type { GoalsSqliteDatabase } from "../repository.js";
 import { normalizePlanningMethodPack } from "./method-packs.js";
 
-/** The host calls this inside its existing catalog creation/upgrade transaction. */
-export function createPersonalPlanningMethodSchema(db: { exec(sql: string): unknown }): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS personal_planning_method_packs (
-      method_id TEXT PRIMARY KEY,
-      version INTEGER NOT NULL,
-      enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
-      pack_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-}
-
 /** Personal scope shares Planning semantics, but never writes project method facts. */
 export class PersonalPlanningMethods {
   constructor(private readonly db: GoalsSqliteDatabase) {}

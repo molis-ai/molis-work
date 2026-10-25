@@ -6,9 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
@@ -16,7 +17,6 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe } from "./fixtures/plugin-callers.js";
 
@@ -25,23 +25,36 @@ const user: ActionCallContext = { actor_id: "owner", actor_kind: "user", audienc
 const { scope: _scope, created_at: _created, updated_at: _updated, ...method } = BUILTIN_PLANNING_METHOD_PACKS.find(m => m.method_id === "domain-software-development")!;
 const input = { method: { ...method, method_id: "personal-action", name: "My complete method" } };
 
-test("planning can rebind from a released Catalog runner to the same Home's replacement", async () => {
-  const home = await mkdtemp(join(tmpdir(), "planning-catalog-rebinding-"));
+/** The person's methods as the Home's Goals library holds them (PG-094 S13), read straight from the file. */
+function libraryMethods(home: string) {
+  const db = new DatabaseSync(join(home, "goals", "goals.db"), { readOnly: true });
+  try { return (db.prepare("SELECT pack_json FROM personal_planning_method_packs ORDER BY method_id").all() as Array<{ pack_json: string }>).map(row => JSON.parse(row.pack_json)); }
+  finally { db.close(); }
+}
+
+test("RAC-302 saved planning methods live in Goals' library in the Home: a second save is a new version, and a restarted Host reads them back", async () => {
+  const home = await mkdtemp(join(tmpdir(), "planning-home-library-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const firstOwner = createWebCatalogAccess(home, openMolisWorkProjectCatalog), nextOwner = createWebCatalogAccess(home, openMolisWorkProjectCatalog);
-  const actions = bindActionClient(host.homeActionClient(), () => user);
+  let actions = bindActionClient(host.homeActionClient(), () => user);
   try {
-    host.configurePersonalPlanning(home, firstOwner.withCatalog);
     const first = await actions.invoke(personalPlanningActions.save, input);
-    await firstOwner.close();
-    host.configurePersonalPlanning(home, nextOwner.withCatalog);
-    const next = await actions.invoke(personalPlanningActions.save, { method: { ...input.method, instructions: "replacement owner" } });
+    const next = await actions.invoke(personalPlanningActions.save, { method: { ...input.method, instructions: "second version" } });
     assert.equal(next.method.version, first.method.version + 1);
-    assert.equal(await nextOwner.withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.list().find(m => m.method_id === input.method.method_id)?.instructions), "replacement owner");
-  } finally { await host.close(); await firstOwner.close(); await nextOwner.close(); await rm(home, { recursive: true, force: true }); }
+    assert.deepEqual(libraryMethods(home), [next.method], "the row is in the Home's Goals library, not in a project catalog");
+    assert.equal(existsSync(join(home, "projects/catalog.db")), false, "and saving made no catalog");
+    await host.close();
+
+    const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+    actions = bindActionClient(restarted.homeActionClient(), () => user);
+    try {
+      const read = (await actions.invoke(personalPlanningActions.list, {})).methods.find(m => m.method_id === input.method.method_id);
+      assert.equal(read?.instructions, "second version");
+      assert.equal(read?.version, next.method.version);
+    } finally { await restarted.close(); }
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("an external Host keeps its Catalog through Web shutdown and replacement, releasing it only at Host close", async () => {
+test("RAC-302 the Web transport coming and going does not touch the saved methods: the Host keeps the library until it closes", async () => {
   const home = await mkdtemp(join(tmpdir(), "planning-web-host-lifetime-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const actions = bindActionClient(host.homeActionClient(), () => user);
@@ -54,22 +67,19 @@ test("an external Host keeps its Catalog through Web shutdown and replacement, r
   try {
     await start();
     const first = await actions.invoke(personalPlanningActions.save, input);
-    const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
-    const borrowed = await access.withCatalog({ homeDirectory: home }, catalog => catalog);
     await close();
     const between = await actions.invoke(personalPlanningActions.save, { method: { ...input.method, instructions: "transport closed, Host lives" } });
     assert.equal(between.method.version, first.method.version + 1);
     await start();
     const after = await actions.invoke(personalPlanningActions.save, { method: { ...input.method, instructions: "replacement transport" } });
     assert.equal(after.method.version, between.method.version + 1);
-    assert.equal(host.ensureWebCatalog(home, openMolisWorkProjectCatalog), access);
-    assert.equal(borrowed.personalPlanningMethods.list().find(m => m.method_id === input.method.method_id)?.instructions, "replacement transport");
+    assert.equal(libraryMethods(home).find(m => m.method_id === input.method.method_id)?.instructions, "replacement transport");
     await close(); await host.close();
-    assert.throws(() => borrowed.listProjects(), /not open/);
+    await assert.rejects(actions.invoke(personalPlanningActions.list, {}), { code: "host.closed" });
   } finally { await close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("Home planning actions use the original Catalog, require trusted users and keep Homes and lifecycle isolated", async t => {
+test("Home planning actions use the plugin's Home library, require trusted users and keep Homes and lifecycle isolated", async t => {
   const home = await mkdtemp(join(tmpdir(), "planning-home-actions-")), otherHome = join(home, "separate-home");
   // A Home plugin that holds the Goals permissions, started by the Host (S-15).
   const planner = callerPlugin("homeplanner", "home", { "goals:read": true, "goals:write": true });
@@ -79,11 +89,6 @@ test("Home planning actions use the original Catalog, require trusted users and 
   try {
     assert.ok((await actions.invoke(personalPlanningActions.list, {})).methods.some(m => m.scope === "built_in"));
     assert.equal(existsSync(join(home, "projects/catalog.db")), false, "a read never provisions or migrates Catalog");
-    // HOSTOWN-01/HOSTOWN-02: the original unavailable Host catalog remains a refusal before writes.
-    await assert.rejects(actions.invoke(personalPlanningActions.save, input), { code: "host.catalog_unavailable", kind: "invalid", message: "个人规划的 Catalog 写入服务尚未装配" });
-    host.configurePersonalPlanning(home, withCatalog);
-    other.configurePersonalPlanning(otherHome, withCatalog);
-    assert.throws(() => host.configurePersonalPlanning(otherHome, withCatalog), { code: "actions.scope_mismatch" });
     await assert.rejects(client.invoke({ ...user, permissions: [] }, personalPlanningActions.list, {}), { code: "actions.forbidden" });
     // The plugin's call carries the caller the Host issued its Home session, claiming the person's permissions and management entry.
     const probe = registerProbe(host.actionRegistry(), "home");
@@ -101,8 +106,7 @@ test("Home planning actions use the original Catalog, require trusted users and 
     const saved = await actions.invoke(personalPlanningActions.save, input);
     assert.equal(saved.method.scope, "personal"); assert.deepEqual(saved.method.event_types, input.method.event_types);
     assert.deepEqual(saved.method.default_requirements, input.method.default_requirements);
-    const persisted = await withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.list());
-    assert.deepEqual(persisted, [saved.method]);
+    assert.deepEqual(libraryMethods(home), [saved.method]);
     assert.deepEqual(host.status().projects, [], "saving a Home template creates no project Runtime");
     assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listProjects()), []);
     assert.equal((await bindActionClient(other.homeActionClient(), () => user).invoke(personalPlanningActions.list, {})).methods.some(m => m.method_id === input.method.method_id), false);
@@ -118,7 +122,6 @@ test("Home planning actions use the original Catalog, require trusted users and 
     assert.deepEqual((await readMcpActionAccess(served.web, { clientId: "external", projectId: null })).grants, [], "a refused grant leaves no record");
     await served.close();
     await host.close();
-    assert.throws(() => host.configurePersonalPlanning(home, withCatalog), { code: "host.closed" });
     await assert.rejects(actions.invoke(personalPlanningActions.list, {}), { code: "host.closed" });
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try { assert.deepEqual((await bindActionClient(restarted.homeActionClient(), () => user).invoke(personalPlanningActions.list, {})).methods.find(m => m.method_id === input.method.method_id), { ...second.method, overridden_scopes: [] }); }

@@ -24,7 +24,6 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { PersonalPlanningMethods } from "@molis-ai/molis-work-plugin-goals/module";
 import {
   type DesktopPanelCatalogApi,
   type DesktopPanelContextPort,
@@ -170,7 +169,6 @@ export class MolisWorkProjectCatalog {
   private readonly projects: ProjectsModule;
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   readonly desktopPanels: DesktopPanelCatalogApi;
-  readonly personalPlanningMethods: PersonalPlanningMethods;
   readonly models: ModelProviderStore;
 
   readonly commit: CatalogCommit;
@@ -183,7 +181,6 @@ export class MolisWorkProjectCatalog {
   ) {
     const db = storage.db;
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
-    this.personalPlanningMethods = new PersonalPlanningMethods(db);
     this.models = new ModelProviderStore({ db, secrets: {
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
     } });

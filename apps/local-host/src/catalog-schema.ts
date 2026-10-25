@@ -1,6 +1,5 @@
 import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createProjectsSchema } from "@molis-ai/molis-work-module-projects";
-import { createPersonalPlanningMethodSchema } from "@molis-ai/molis-work-plugin-goals/module";
 import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable } from "@molis-ai/molis-work-module-private-work-context";
 import { createModelProviderTables } from "./model-provider-store.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, catalogErrors, catalogSchemaCompatibilityError, isOwnedCatalogOwner } from "./project-catalog-contract.js";
@@ -17,7 +16,6 @@ export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPane
   createRuntimeContextSetupRequestTable(db);
   createRuntimeContextSuggestionRejectionTable(db);
   createDesktopPanelTables(db);
-  createPersonalPlanningMethodSchema(db);
   createModelProviderTables(db);
   metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION);
 }
@@ -37,4 +35,12 @@ export function assertCurrentCatalog(storage: LocalSqliteStorage, databasePath: 
     throw catalogErrors.unsupported_schema(`Molis Work 项目目录数据库的版本是 ${version}，这个版本只认 ${CATALOG_SCHEMA_VERSION}，不就地升级: ${databasePath}`,
     );
   }
+  // The version alone cannot say whether the person's planning methods were moved out (the catalog and Goals' library share a release):
+  // a catalog that still holds the table would open and quietly show none of them.
+  if (storage.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(PERSONAL_PLANNING_TABLE)) {
+    throw catalogErrors.unsupported_schema(`项目目录数据库里还有个人规划方法表 ${PERSONAL_PLANNING_TABLE}（现在放在 Goals 的 Home 库）：先退出 Molis Work，运行 node scripts/maintenance/goals-personal-planning-move.mjs move --home <Home 目录> --maintenance-window: ${databasePath}`);
+  }
 }
+
+/** The table Goals kept the person's planning methods in before they moved to its library in the Home (PG-094 S13). */
+const PERSONAL_PLANNING_TABLE = "personal_planning_method_packs";

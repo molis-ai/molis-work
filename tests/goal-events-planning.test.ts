@@ -1,5 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { savePersonalMethodInHome } from "./fixtures/personal-planning.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -62,7 +63,7 @@ test("engineering planning drives configure/report; no template is not auto-adop
     assert.ok(software.event_types.some((type) => type.type_id === "engineering-delivery"));
     assert.ok(software.default_requirements.some((item) => item.requirement_id === "engineering-ui-inspection"));
 
-    catalog.personalPlanningMethods.save(eventMethod("personal-story", "留下玩家观察", "个人版"), new Date().toISOString());
+    await savePersonalMethodInHome(homeDirectory, eventMethod("personal-story", "留下玩家观察", "个人版"));
     const project = await catalog.createProject({ display_name: "规划采用", actor_id: "user" });
     await grantGoalsMcp(homeDirectory, project);
     const runtimeHost = {

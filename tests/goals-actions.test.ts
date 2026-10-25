@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { savePersonalMethod } from "./fixtures/personal-planning.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -293,9 +294,9 @@ test("official MCP launcher: guidance, live planning and user-owned configuratio
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(goalsActions.planningApply), arguments: { method_id: method.method_id, user_confirmed: true } })).isError, true);
     assert.equal((await invokePlanning(goalsActions.planningRead, {})).methods.find(item => item.method_id === method.method_id)?.version, software.version + 1);
     const personal = { ...BUILTIN_PLANNING_METHOD_PACKS.find(m => m.method_id === "domain-software-development")!, method_id: "mcp-personal-live", name: "Current personal method" };
-    await withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.save(personal, new Date().toISOString()));
+    await savePersonalMethod(host, personal);
     assert.equal((await invokePlanning(goalsActions.planningRead, {})).methods.find(m => m.method_id === personal.method_id)?.name, personal.name);
-    const nextPersonal = await withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.save({ ...personal, name: "Updated while connected" }, new Date().toISOString()));
+    const nextPersonal = await savePersonalMethod(host, { ...personal, name: "Updated while connected" });
     const publicPersonal = (await invokePlanning(goalsActions.planningRead, {})).methods.find(m => m.method_id === personal.method_id)!;
     assert.equal(publicPersonal.version, nextPersonal.version); assert.equal(publicPersonal.name, nextPersonal.name);
     // The earlier planning test revoked this grant; the new apply is a distinct authorized operation.

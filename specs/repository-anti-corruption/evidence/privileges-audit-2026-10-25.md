@@ -13,6 +13,8 @@
 | 核查时间 | 2026-10-25 上午（美国太平洋时间），`git fetch origin --prune` 之后 |
 | 仓库 | `molis-ai/molis-work`，`main` 检出 `4f4e59a33` |
 
+- 核查收尾时（同一天晚些时候）两个批分支又前进了，本报告的「在途」列只到上表快照：batch-38 `affe0c277` → `1b756417`（2 个提交：settings 读动作跳过非对象条目、Coding 看板夹具改用当前步骤身份；另加 page-assets 与几个 e2e/测试夹具）；batch-39 `d054bfe4` → `6371db810`（并入 batch-38 head、#1298 的 PG-031/PG-049 复审与 follow-up、#1299 registry follow-up；并含 `fe64056c4 docs(privileges): PG-032, PG-098, PG-100 landed with batch-37` 与 PG-049/PG-031 的行文更新——这三行在合入的 `privileges.md` 里已按「已做」/新状态写，与本报告结论一致）。更新 `privileges.md` 时以合入前的 main 和最新批分支为准再跑一遍 diff。
+
 ## 范围与口径
 
 - `privileges.md` 在 main 上共 136 条 `PG-` 行：§3「清单」114 行（10 列，最后一列是状态），§8「T0 复核」22 行（4 列，没有状态栏）。

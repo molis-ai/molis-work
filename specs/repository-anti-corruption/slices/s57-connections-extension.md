@@ -200,7 +200,7 @@ RAC-346～349 是本线旧号段（RAC-330～349）的末尾。X 片另用统筹
 | --- | --- | --- |
 | RAC-657 | Home 与含中文、空格、斜杠、`&?"+#%` 的项目视图均成功保存新账号后，再拒绝另一选择：等待期间保留上次 `saved`，`disabled`/`aria-busy` 为 true；失败后 `value` 回最近成功账号、`saved` 不被失败覆盖、错误可见，finally 恢复可操作；第三次保存成功。真实 HTML/dataset 发出的每次请求均为预期 POST、精确 URL 与安装/插件/槽/服务/账号 body，项目仅解码一次即等于原 ID。 | `tests/connector-plugin-slots.e2e.test.ts` 的 Home、encoded Project 两个 RAC-657 R55 变体；运行 `node scripts/run-tests.mjs --jobs 1 --verbose --retries 0 tests/connector-plugin-slots.e2e.test.ts`。HTTP 受控，仅证明生产页面组件路径。 |
 
-定向验证：待新用例实际运行与独立复查，原批次、组合 full、资源结算及 main 采用仍归 PIPE/唯一 Claude carrier。
+定向验证（2026-10-25）：测试提交 `99c2851cc` 经本树构建，在明确绑定整机共享浏览器 FIFO 后 2/2 通过、自然退出 0，4.025 秒，无失败/取消/跳过；类型、单文件 Biome、源与构建导入检查、相对 `50823b548` 的健康门禁均通过。首跑虽也 2/2，但作者的 `TMPDIR` 设置同时改变槽位目录，未作共享 FIFO 证据；错误、首跑原件与更正后运行均保留在 `/tmp/molis-r55-picker-regression-20261025/`。独立增量审验按最终提交及原始记录结算；原批次、组合 full、资源结算及 main 采用仍归 PIPE/唯一 Claude carrier。
 
 ## 6. 还没核的
 

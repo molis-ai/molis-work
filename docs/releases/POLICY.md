@@ -178,6 +178,8 @@ A 已经落地（第 7.8 节），下面是落地之前的临时规则，保留�
 
 ### 7.8 A 的实现（已落地）
 
+（2026-10-25：判定条件已从手写的 `bundled` 标记改成安装的信任等级 `host`，下文的「内置插件」「`bundled` 条目」读作 `host` 等级的安装，见第 7.9 节；函数名 `followBundledBuild` 现在是 `followHostBuild`。）
+
 用户 2026-10-08 选的做法 A，在 `packages/plugin-runtime` 里做完；`apps/local-host` 不用改（`project-plugins.ts` 交给监督器的 7 个条目本来就标了 `bundled: true`）。
 
 - **做什么。** 内置插件（监督器条目标 `bundled`，Runtime 的 `install` 带 `bundled: true`）启动时，只要它的安装记录（同一 `install_id`，也就是同一 `plugin_id` 加同一发布者签名，状态不是已卸载）和当前构建的清单不同，不论版本更高、更低，还是同版本摘要不同，就把记录改成当前构建的：`version`、`publisher_id`、`manifest_digest`、`selected_entrypoint`、`grants`、`updated_at`。判断是 `recordToFollow`，改写是 `followBundledBuild`（都在 `packages/plugin-runtime/src/install-rules.ts`，`PluginRuntime.install` 调用）。记录的其余字段不动：`install_id`、`installation_generation`、`state`、`installed_at`、`retain_private_data`、`recovery_count`，所以私有数据、事件订阅、持久任务仍绑在这次安装上，不是卸载再重装。部署环境仍不能借启动改变（`plugin.state_invalid`），执行信任边界也不能变（`plugin.definition_conflict`），和以前一样。
@@ -188,3 +190,12 @@ A 已经落地（第 7.8 节），下面是落地之前的临时规则，保留�
 - **代价。** 同第 7.5 节表里 A 一行：多一条永久的向下规则，旧版本宿主打开新 Home 时会把记录改回自己带的版本。
 - **用例。** `tests/plugin-release-artifact.test.ts`：「a bundled Manifest below the installed version is followed …」「a bundled Manifest changed without a new version is followed …」换下了固定旧规则的两条；另有往返、三个方向的授权收敛（记录持有构建声明的全部时，结果是新清单声明的全部）、同版本声明对内置插件无效且新增必需权限照授予、`PluginRuntime.install` 本身、部署环境不变、内置插件不进市场更新列表；非内置插件的旧行为由原来两条的原文（去掉 `bundled`）和一条新的拒绝用例固定。`tests/bundled-plugin-grants.test.ts`：可选权限随全新安装打开；人关掉的可选权限在同一构建连续启动时保持关着、不报 `plugin.state_invalid`，重新打开的也保持打开；跟随新构建时关掉的仍关着、新声明的可选权限打开、改成必需的补上、不再声明的去掉；条目自己传较窄 `grants` 时首次安装就是全部、连续启动五次都不失败；`PluginRuntime.install` 带 `bundled` 时不看 `grants`，带 `declared_before` 时只打开记录自己那个构建没声明的，不带时不打开任何可选的。`tests/plugin-release-artifact.test.ts` 另有经真实存档的两条：关掉的可选权限跟随时仍关、存档没了时不打开任何可选的。`tests/plugin-upgrades.test.ts`：真实项目启动路径（7 个条目、真实发行物）下，安装记录高于构建、或同版本不同清单，都在启动时跟上。
 - **还剩的。** 0.3.0 的发布 PR：7 份清单的 `version` 改成产品版本；`scripts/verify-release-versions.mjs` 加「内置清单版本等于产品版本」；发布后在开发机的 Home 上照检查清单第 4.5 节核对记录已跟上。内置插件作者「改了清单要升版本」的约定（`skills/molis-plugin-dev`）在清单版本等于产品版本之后也该一并改，这一条留给那个发布 PR。
+
+### 7.9 版本跟随算安装信任（ac-trust，PG-016）
+
+跟着宿主的构建升降版本，是 `host` 等级安装的一部分，不是内置插件的特权，也不是某个条目手写的标记。
+
+- **判定。** 安装记录的信任等级是 `host`（监督器条目 `trust: HOST_BUILD_TRUST`）才跟：`recordToFollow(current, manifest, digest, host)` 与改写它的 `followHostBuild` 都在 `packages/plugin-runtime/src/install-rules.ts`，`PluginRuntime.install` 调用。第 7.8 节写的行为（版本更高、更低、同版本摘要不同都改成当前构建的；授权照 `hostBuildGrants`；不调 `validateUpgrade`）全部照旧，只是条件换了。
+- **不跟的。** `pinned`、`unsigned` 的安装一律不跟：版本更低或更高但没有声明来源，仍是 `plugin.upgrade_required`；同版本摘要不同仍是 `plugin.definition_conflict`；它们升级只走「同发布者、版本更高、授权不扩」。
+- **为什么算安装信任。** 宿主换了构建，`host` 等级的记录下次启动就跟上，是因为代码就在宿主构建里，宿主为它担保；同意账本里 `granted_by: "host_build"` 的那些行是同一份担保，两处同来源。所以改 `host` 的发放条件，就是改这份担保，要走安装信任的评审（`specs/repository-anti-corruption/slices/ac-trust-install.md` §2.1），不能在某个条目上单独打开。
+- **发版时怎么读。** 检查清单第 4.5 节核对的记录，只有 `host` 等级的会随发版被改；`pinned`、`unsigned` 的安装发版不动，也不该在核对里出现为「没跟上」。

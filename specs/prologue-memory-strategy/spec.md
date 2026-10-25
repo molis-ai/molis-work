@@ -2902,3 +2902,11 @@ Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私�
 完成证据：准确基础树的 71 处 dist 复制后，原 `computeBuildSourceDigest` 与 `.molis-work-build.json` 均为 `88168e8b7d1b9ddec5239c7904de36f787c230e22c71da03ad8d785c7fdc971a`，没有改写指纹或重建。最终测试补充 390px 恢复阅读时 Add 无矩形、真实 Back 后 Add 有矩形的断言；原 4 个 actions 用例及相邻 Prologue 6 项、Workbench 2 项共 3 文件 12 项全部首次通过，无跳过或重试（`/private/tmp/molis-cognia-final-green.log`）。修前原单例先绿、固定真实恢复交错后同形失败的证据均保留，不把偶发通过当根因修复。根类型检查和准确 `3a2dea91e` 增量健康门通过；最终窄屏截图 `.impeccable/qa/review/action-service/cognia-http-disabled-390.png` 已目视确认返回列表、添加材料可见、模型停用提示可见，且新增本地材料已保存。
 
 持久等待只读浏览器的 `molis-work-plugin-records:<projectId>` 输出；对应 `tab-workspace.ts` 中“按设备记住插件当前记录，重载重开；Back 清除”的既有导航合同，不读运行时闭包或写入存储来制造 ready。随后仍必须观察真实子页的材料标题与展开状态，返回后观察收起与可见性；存储观察不能代替 UI。未改生产源码、依赖、公共合同、资源、CI、门禁或 retry/timeout；未运行全量、远端 CI 或真实用户 Home，未声称最终 App 产品验收或用户验收通过。
+
+### 固定冷桥聚合与基础 CI 后续（2026-10-25）
+
+冷桥 `bbb21c598` 已经独立真实 SDK 公共入口复核并合入，聚合生产为 `ac82ae411`；随后 `695a35ba7` 仅合入基础 Cognia 测试/spec 修正。独立探针确认：未知 owner coverage 不交出发现的身份，外来 scope、替换 operation/selection 及仅有预览权的清除均拒绝；调用者改 tuple 不改变原固定对象；非空真实读取后撤权/关闭不交付页面。通过实际 Buffer 清零边界注入关闭失败，同一 key 对象重试成功前不发布、不归还借用，成功清零后只发布一次。日志与脚本 `/private/tmp/molis-cold-bridge-independent-20261025.{mjs,log}`。旧 `purgeCleanupTarget` 仍属原采用管理权限，冷 Memory owner 只接新增固定清除窄口，不能把旧能力交给它。
+
+统筹原整体 build 后，新桥、SDK 采用、父 owner、App 采用及冷 Ledger 五文件 92 项通过，jobs2/browser1/retries0、零跳过；根 TypeScript、准确基础 `51a0c4ff96` health、boundary errors=[] 与 72 份 API 快照通过。日志 `/private/tmp/molis-memory-cold-bridge-aggregate-{build,direct,health,boundary,api,assets}-20261025.log`。资源仍仅原 Coding +1,333 B 待定，未放行。基础合入只有测试和记录，不机械重建未变化的生产。
+
+#1064 的 `3a2dea91e` Full suite 在 Cognia 390px 失败，Web 19/19 已通过；6 分片通过、9 分片取消，整套未通过。Cognia 修正 `51a0c4ff96` 经独立真实阅读恢复红绿与截图核验后已推送；新普通 CI `40201369931` 与 Full `40201390414` 正在执行。原日志 `/private/tmp/molis-memory-foundation-3a-full11-20261025.log` 及 `/private/tmp/molis-cognia-390-independent-{red-real,green}.log` 保留。仍待最终 CI、冷 Memory/Session/外层恢复组合、原单 Session 业务副本与最终实操/模型收益/用户验收；本记录不改变原范围或门禁。

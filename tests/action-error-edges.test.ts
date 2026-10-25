@@ -18,14 +18,8 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
-import {
-  TODO_ACTION_PERMISSIONS,
-  createTodoActionHandlers,
-  openTodoStore,
-  todoActions,
-  todoManifest,
-  ownTodoStores,
-} from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { PLACEMENT_LEDGER_ACCESS, PlacementService } from "@molis-ai/molis-work-service-placement";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { serveNativeHttp } from "./fixtures/native-http.js";

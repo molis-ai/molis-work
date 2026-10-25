@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { parseArgs } from "node:util";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, CONTINUITY_ACTIONS, createImDomain, type ActionFactory } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
+import { PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
 
 const { values, positionals } = parseArgs({ options: { port: { type: "string", default: "4189" } }, allowPositionals: true });
 if (positionals.length !== 1) throw Error("Pass one explicit isolated QA directory and optionally --port 0");
@@ -41,9 +42,10 @@ try {
   app.initializeBoard({ project_id: projectId, actor_id: "desktop", idempotency_key: "init" });
   app.goalEvents.createIntent({ project_id: projectId, goal_id: goalId, title: "让工作在手机上继续", outcome: "查看桌面成果，记录下一步，再回桌面接续。", actor_id: "desktop", idempotency_key: "goal" });
   library.artifacts.commands.registerVersion({
-    project_id: projectId, artifact_id: "handoff-guide", version: 2, actor_id: "desktop", artifact_type_id: "io.test.document", schema_version: 1,
+    project_id: projectId, artifact_id: "handoff-guide", version: 2, actor_id: "desktop", artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION,
     origin: { kind: "pinned", subject: { kind: "document", id: "handoff-guide" }, revision: "2" }, title: "跨设备接续 · 操作说明", media_type: "text/markdown",
-    producer: { plugin_id: "io.test.writer", plugin_version: "1.0.0", binding_signature: "qa-writer" },
+    // A saved version needs a producer the Host knows (A3): the QA project's document is the one Pages, which ships with the Host, writes.
+    producer: { plugin_id: PAGES_PLUGIN_ID, plugin_version: "1.0.0", binding_signature: "qa-writer" },
     content: { kind: "inline", payload: "跨设备接续操作说明\n\n桌面整理固定成果 → 手机核对并留下下一步 → 桌面继续。\n\n这是隔离项目中的真实保存，不读取私人账号。" },
     metadata: { title: "跨设备接续 · 操作说明" }, scope: "team_project", team_share_authorized: true,
   });

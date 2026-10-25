@@ -10,7 +10,7 @@ import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/
 import type { PagesBody, PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { AssistantThreadContext } from "@molis-ai/molis-work-contracts/services/assistant";
 import { createPagesCommentHandlers, ownPagesStores, pagesCommentActions } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 

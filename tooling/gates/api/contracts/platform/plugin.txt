@@ -654,6 +654,17 @@ export interface ActionSceneConfigureOptions {
     readonly before_write?: () => void | Promise<void>;
 }
 
+export interface ActionSceneDefaultRule {
+    readonly function_key: string;
+    readonly name: string;
+    readonly instructions: string;
+    readonly options: readonly {
+        readonly key: string;
+        readonly description: string;
+    }[];
+    readonly subject_kinds: readonly string[];
+}
+
 export interface ActionSceneDefinition {
     readonly scene_id: string;
     readonly version: number;
@@ -671,6 +682,7 @@ export interface ActionSceneDefinition {
     readonly permissions: readonly string[];
     readonly configuration_permissions?: readonly string[];
     readonly event_schema?: ActionSchema;
+    readonly default_rule?: ActionSceneDefaultRule;
 }
 
 export interface ActionSceneExecutionContext extends ActionCallContext {
@@ -907,9 +919,20 @@ export interface ArtifactContinueResult {
     };
 }
 
+export interface ArtifactFileDeclaration {
+    extensions: string[];
+    stored_text?: boolean;
+}
+
 export interface ArtifactLineHead {
     version: number;
     source_revision: number | null;
+}
+
+export interface ArtifactLinkDeclaration {
+    kind: string;
+    role: "input" | "output";
+    proposal?: boolean;
 }
 
 export interface ArtifactPinInput {
@@ -3292,7 +3315,9 @@ export interface PluginManifest {
                 capability_id: string;
                 version: number;
             };
+            file?: ArtifactFileDeclaration;
         }>;
+        links?: ArtifactLinkDeclaration[];
     };
     process_items?: {
         produces: Array<{
@@ -5084,6 +5109,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly publisher_revoked: "invalid";
     readonly publisher_untrusted: "invalid";
     readonly quarantined: "invalid";
+    readonly rule_key_reserved: "invalid";
     readonly signature_invalid: "invalid";
     readonly signer_mismatch: "invalid";
     readonly state_invalid: "invalid";

@@ -46,7 +46,7 @@ export const workflowsManifest: PluginManifest = {
   ui: {
     contributions: [WORKFLOWS_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "工作流程", contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID, icon: "workflow", order: 25, group: "advance", accepts_objects: true },
+      { view_id: "directory", slot: "navigator", title: "工作流程", contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID, icon: "workflow", hue: "orange", order: 25, group: "advance", accepts_objects: true },
     ],
   },
 };

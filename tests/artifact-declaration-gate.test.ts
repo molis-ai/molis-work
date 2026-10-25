@@ -43,9 +43,10 @@ test("a built-in plugin writes only the types its Manifest declares, each to the
   assert.throws(() => library.processItems.commands.registerVersion(write("report-as-process", "coding.report.v1", coding, "报告")), { code: "artifacts.artifact.type_undeclared" });
   assert.equal(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).filter(item => ["pages-stray", "changeset-in-library"].includes(item.artifact_id)).length, 0);
   assert.equal(library.processItems.commands.registerVersion(write("changeset-ok", "coding.changeset.v1", coding, "变更集")).replayed, false);
-  // A plugin this host did not build in is held to its Manifest by the Plugin Runtime's own clients.
+  // A plugin this host did not build in is held to the Manifest of its installation in this project (S-81): a library no supervisor
+  // answers for refuses its write instead of passing it. The installed case itself is tests/security-invariants-artifact-declarations.test.ts.
   const installed = { plugin_id: "com.example.installed", plugin_version: "1.0.0", binding_signature: "installed-binding" };
-  assert.equal(library.artifacts.commands.registerVersion(write("installed-1", "com.example.note", installed, "安装的插件")).replayed, false);
+  assert.throws(() => library.artifacts.commands.registerVersion(write("installed-1", "com.example.note", installed, "安装的插件")), { code: "artifacts.artifact.type_undeclared" });
 });
 
 test("process items never reach the 成果库, the side panel's files or the system search", { timeout: 60_000 }, async () => {

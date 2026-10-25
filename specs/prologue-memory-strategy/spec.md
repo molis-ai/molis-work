@@ -3264,3 +3264,33 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 100与1000条的三项延迟均失败，10条通过；两臂各规模返回9/76/752条、选入8条一致，不能把“执行成功”当成性能达标。另一次只用公开消费入口及Node标准profiler/fs委托的100条诊断观察到两次list返回76条，一次召回884次文件读取、228次解密（首次额外一次文件读取）；与当前hydrate和逐条canonical重复读取链相符。诊断有额外开销，其27ms结果不替代上表冻结样本。报告 `/private/tmp/molis-memory-explicit-recall-probe-20261026-v1.json`。
 
 下一步只在现行版本、权限、删除与暂停语义内消除重复工作，不恢复跨请求陈旧cache或放宽canonical检查。真实B0/B2模型批保留既有授权和原成本上限，尚未启动，避免在已知需返工的源码上消耗正式预算。task检索时延、旧TTL非等钟、人工质量复核与用户验收仍保留原边界。资源门仍是原子拒绝后的四项红；本次Assistant +4064 B只计入该功能既有批准，不挪用为Coding恢复放行。
+
+### #1064 原 611 提交的完整 CI 结果与测试接入修正（2026-10-26）
+
+原 Full run `40230564201` 已结束：16片中12片成功、4片失败。原1506文件排除29份macOS专用文件，Linux实跑1477文件；1469文件首跑通过，4文件仅在原一次重试后通过，4文件最终失败。重试才通过的是 configured-text、assistant-typed-questions、coding-action-cards、coding-model-controls，保留首红；最终失败的是 assistant-executor、coding-queued-round、coding-question-card、interaction-no-crosstalk。不能把重试通过写成首跑全绿，也不从文件汇总推断内部跳过数。普通 run `40230567097` 的 Verify成功；非必需产品子集2仍因assistant-executor失败，Linux probe跳过。旧Cloudflare问题仍未核清，不进入合并队列。
+
+两份native文件已按现行生产合同同步：assistant-executor的无签名样例插件显式传入空hostIds，不获得内置插件身份；coding-queued-round按既有coding.waiting/409拒绝第二次发送，进一步核验机器码、没有新Run、没有第二次排队且原Session仍为queued。生产权限、状态码与执行行为没有修改。原runner jobs2/browser1/retries0定向两文件16项通过，日志 `/private/tmp/molis-foundation-611-runtime-contract-fixes-20261026.log`；这只证明本机修改后的两份用例，原611远端失败记录保留。
+
+两份浏览器失败仍待定位：原日志出现Runtime.releaseObject/Runtime.callFunctionOn超时；本机故障探针证明清理异常可以遮蔽输入异常，最小错误传播修复正在验证，不能据此宣称CI根因已解决。未增加超时、重试、隔离或跳过，未修改CI门禁。
+
+### #1064 与 batch39 主干交点整合（2026-10-26，短合同）
+
+从准确 `45c534d6b7f04fb251738a50d45f51f9ce294e48` 建立独立工作树，整合已核对远端的 main `b3bac731b9d0f933577a21f0d2aec1feb001cffd`（#1307）。目标仅为 Memory P0 现有 Foundation 与 batch39 的同主人接线可组合；旧 Foundation 树、其它代理未提交文件、冻结 B1 工作树和正式 B1/B2 规模报告保持原样。本轮不改变 SDK 或 Memory 业务范围，不将已记录的规模时延失败写成通过。
+
+复杂度审查：这是既有合同交点的常规整合，复用原 Owner、原件、删除协调与插件装配；不新增缓存、状态台账、恢复解释器或跨仓合同。必须保留 main 的 project_runtime 登记与公开测试 fixture，同时保留 Memory 的可信本人/原调用者、Coding 初始输入与 Assistant 同一原件、撤权/取消拒绝和删除后不复活。两份 Coding 等待测试统一沿已合并的 `coding.waiting` / 409 合同，继续断言拒绝不产生额外 Run、不重复排队且原 Session 状态不变。删除进程测试从当前公开 fixture 取得插件 Store，仍以非空个人/项目记忆证明删除边界。
+
+允许路径是本次真实合并交点及其必要文档/测试：原五处文本冲突、自动合并的调用链与 owner 装配、相关 README、现有健康/API/资源快照和本节。资源只迁移原同一已批功能的精确净增：Workbench +3,193 B、Coding +612 B；以准确新 main 的实际基数和原工具复测为准，不借用余量、不改门禁判断。超出上述增长或发现安全、公开合同、写主人变化时先报告 Root，不扩设计。
+
+先完成静态合并与用例清单，整体 build、browser 与 native 均由 Root 安排机器时段。验证沿原命令与公开生产链：根/Host/Agent/Coding 严格类型、API/边界、准确 main 的健康与资源门，相关 README 必跑并集，以及 Original 输入、Assistant 原件、可信调用者、删除链、project_runtime 装配和五冲突用例；runner 固定 jobs2/browser1/retries0，不放宽断言、超时、重试、CI 或阈值。仅有效验证后可本地提交，不 push、不合并 PR、不跑全量、不付费调用模型；最终聚合、远端 #1064/#1101 与真人验收仍由 Root 负责。
+
+本轮合并 checkpoint 为 `d1b7be5f92674fb85b182fe87a7a08e97ee61cd6`，两父包含准确 b3bac main；随后顺序带入已审的 CDP 清理错误保留 helper 与永久故障回归，对应本地 `1811cc1270c70afaab44fed402590b4c175cad36`、`14b0dd138636c763f340080ab470913ef10d5399`。主干已撤销的 `openLingguangStore` 插件包导出不再被两份新 plugin-frame 回归使用，统一取主干公开测试 fixture；没有修改旧工作树或重新添加存储开口。
+
+准确 b3bac 的健康、75 份 API 快照、根/Host/Agent/Coding strict、包边界及原资源门通过。原计量确认 Workbench `1127729 → 1130922`（+3193 B）、Coding `289017 → 289629`（+612 B），其余29资源与 main相同；原 `--update --base` 冻结31资源共7,513,524 B，并只同步本地快查的主干条目迁移与真实下降，不增改门禁或 giant exception。冻结离线安装、原整体 build 与最终增量整体 build 均通过，最终源码与安装构建指纹一致；现有 xterm 导出警告保留。
+
+原选择器、相关 README 必跑、前批交点和本轮冲突的必要并集在上述实际源码上一次执行：269文件全部首跑通过，其中240 native、29 browser，共2780测试、零失败、零跳过、零重试，原 runner 固定 jobs2/browser1/retries0。覆盖两处 Coding 等待拒绝、非空记忆删除进程16项、原调用者16项、project_runtime登记16项、plugin-frame输入/回执6项（含新增故障保留）与readiness2项。原始日志与明确输入集合留在仓外 `/private/tmp/foundation-batch39-*-20261026.log`、`/private/tmp/foundation-batch39-necessary-tests-20261026.txt`。这仅为本轮有界集成工程及所覆盖自动化路径证据；未跑全量、未碰真实Home、未调用付费模型、未推送或合并PR，原CI首红、Cloudflare疑点、显式召回规模时延失败与最终产品/用户验收均不因此改变。
+
+### #1101 跟随 batch39 Foundation（2026-10-26，短合同）
+
+从准确b1762b945合入已验证基础52c1a7ea3（main b3bac731b）。五处文本冲突只处理同一功能的接线与记录：项目插件继续由main的project_runtime登记装配；离线Session清理仍复用原Coding公开manifest与prepare/clear/verify，不创建或启动插件。原Artifacts现有storage依赖的登记从已撤掉的脚本名单迁到本包molis-work元数据，不增依赖。卸载默认规则的数据清理语义采用main，Memory采用/恢复说明及两支历史失败记录并存。
+
+保留SDK107、原写主人、原操作恢复、最终同步覆盖检查、真实来源及会话屏障；不改存储格式、迁移语义、权限、CI、超时、重试或验收。资源只将同一已批功能移到准确Foundation基数，原build后再按实测收紧；Coding恢复原待答不代批，不手填预算。按两边相关README和原Memory并集做定向验证，旧219/1980及Foundation269/2780均不代替本次应用交点。正式规模失败、task时延未知、旧TTL非等钟和用户验收边界保留。当前为整合中，尚未验证或推送。

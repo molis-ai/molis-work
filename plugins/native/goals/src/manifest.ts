@@ -71,13 +71,18 @@ export const goalsManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS],
-  artifacts: { produces: [], consumes: [] },
+  // The four kinds of edge Goals writes from a Goal to an exact version in the 成果库 (its inputs and deliverables, and the proposals
+  // of either that a person confirms). `deliverable-actions.ts` writes them; the 成果库 reads them from here, by kind.
+  artifacts: { produces: [], consumes: [], links: [
+    { kind: "goal.input", role: "input" }, { kind: "goal.input.proposal", role: "input", proposal: true },
+    { kind: "goal.output", role: "output" }, { kind: "goal.output.proposal", role: "output", proposal: true },
+  ] },
   databases: { project: GOALS_PROJECT_DATABASE },
   routes: GOALS_ROUTES,
   ui: {
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", order: 10, rail: "core", pinned_default: true, accepts_objects: true,
+      { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true,
         start: { title: "推进一个目标", hint: "明确要做成什么，接着往下走。" } },
       { view_id: "settings", slot: "settings", title: "Goals", contribution_id: GOALS_SETTINGS_UI_CONTRIBUTION_ID, icon: "workflow", order: 120 },
     ],

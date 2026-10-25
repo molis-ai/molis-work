@@ -1376,7 +1376,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         }
         await switchTo(notice.work_id); setPanel(true); void settleNotice({ work_id: notice.work_id }, "seen");
       });
-      if (notice.kind === "reminder" && !notice.open) go.hidden = true;
+      if ((notice.kind === "reminder" || notice.kind === "directory-read") && !notice.open) go.hidden = true;
       const done = el("button", "mw-btn mw-btn--ghost", L("知道了")); done.type = "button";
       done.dataset.noticeId = notice.notice_id; done.dataset.noticeAction = "dismiss";
       done.setAttribute("aria-label", L("知道了") + "：" + notice.text);

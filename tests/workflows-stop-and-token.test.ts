@@ -3,7 +3,8 @@ import test, { mock } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkflowsActionHandlers, openWorkflowsStore, ownWorkflowsStores, workflowsActions as w, type WorkflowsActionPorts } from "@molis-ai/molis-work-plugin-workflows";
+import { createWorkflowsActionHandlers, ownWorkflowsStores, workflowsActions as w, type WorkflowsActionPorts } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 
 const PROJECT = "project-stop-token";
 const RULE = { capability_id: "functions.published.worth-handling", version: 1, provider_id: "prov-functions", title: "要不要处理" };

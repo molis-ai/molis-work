@@ -1,6 +1,5 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   DatasetColumn,
   DatasetColumnInput,
@@ -283,22 +282,6 @@ export class DatasetStore {
   }
 }
 
-
-export function openDatasetStore(homeDirectory: string): DatasetStore {
-  const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_DATABASE);
-  const sql: DatasetSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return new DatasetStore(sql, run => immediate(db, run), () => db.close());
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
-}
 
 export function parseCsv(text: string): { columns: DatasetColumn[]; rows: DatasetRow[] } {
   // Spreadsheet exports (ours included) start with a byte-order mark; it is not part of the first column's name.

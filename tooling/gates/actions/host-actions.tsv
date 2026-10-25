@@ -127,7 +127,7 @@ home.actions.execute	1	system.home	command	operation	project	write	concurrent	ag
 home.actions.prepare	1	system.home	query	query	project	read	concurrent	agent,mcp,user,workflow	home:read	-	-	-	03d0cfd95e8f	8e296276b093	-
 home.events.open	1	system.home	query	query	project	read	concurrent	agent,mcp,user,workflow	home:read	-	-	-	e927513cdc04	031574854222	-
 home.events.read	1	system.home	query	query	project	read	concurrent	agent,mcp,user,workflow	home:read	-	-	-	88db02166b7c	5fab5fa90340	-
-home.judgment.evaluate	1	system.home	command	operation	project	write	concurrent	agent,mcp,user,workflow	home:read,model:invoke	-	-	-	14f7b8ca12fc	1849cb2ba26c	f1e701f6e4c3
+home.judgment.evaluate	1	system.home	command	operation	project	write	concurrent	agent,mcp,user,workflow	home:read,model:invoke	-	-	-	14f7b8ca12fc	1849cb2ba26c	d2ec79d66593
 home.judgment.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	ab6bc165d6d7	-
 home.judgment.write	1	system.home	command	operation	project	write	-	agent,mcp,user,workflow	home:write	-	-	-	561b3068099c	3bef9ab5352a	-
 home.recommendations.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	1849cb2ba26c	-

@@ -155,7 +155,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-entry:is(.is-selected, .is-open, [aria-expanded="true"]),
   body.immersive-workbench .feed-stage-item.is-open > .feed-stage-item-line .feed-stage-entry { background: var(--nav-active); }
   body.immersive-workbench .feed-stage-leading { display: flex; align-items: center; gap: 8px; min-width: 0; grid-column: 1; overflow: hidden; }
-  body.immersive-workbench .feed-entry-provider { display: grid; place-items: center; width: 16px; height: 16px; flex: none; color: var(--plugin-feed, var(--muted)); border: 0; border-radius: 0; background: transparent; }
+  body.immersive-workbench .feed-entry-provider { display: grid; place-items: center; width: 16px; height: 16px; flex: none; color: var(--ink-soft); border: 0; border-radius: 0; background: transparent; }
   body.immersive-workbench .feed-entry-provider svg { width: 14px; height: 14px; }
   body.immersive-workbench .feed-stage-leading strong { flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   body.immersive-workbench .feed-entry-source,

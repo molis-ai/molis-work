@@ -3,6 +3,8 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
+import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
+import { declarationOwnersFor } from "./declaration-owners.js";
 import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
@@ -18,6 +20,7 @@ import { openHomePluginStore } from "./home-plugin-store.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { bindHomeRegistration } from "./home-registration.js";
+import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -42,6 +45,7 @@ export class HomePluginHost {
   private closing?: Promise<void>;
   private retryable = false;
   private releaseProjectOwners?: () => void;
+  private unwatchArtifacts?: () => void;
   private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; projectReach?: PluginProjectReach }) {
@@ -128,6 +132,7 @@ export class HomePluginHost {
       }
     } finally {
       this.releaseProjectOwners?.(); this.releaseProjectOwners = undefined;
+      this.unwatchArtifacts?.(); this.unwatchArtifacts = undefined;
       this.db?.close();
       this.db = undefined; this.platform = undefined; this.executor = undefined;
     }
@@ -168,7 +173,7 @@ export class HomePluginHost {
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime = new PluginRuntime(repository, executor, { consents: ledger, hostIds: HOST_PLUGIN_IDS,
+    const runtime = new PluginRuntime(repository, executor, { consents: ledger, hostIds: HOST_PLUGIN_IDS, declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }), reservedRuleKeys: hostReservedRuleKeys,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });
@@ -177,6 +182,7 @@ export class HomePluginHost {
     })), executor);
     const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
     const epoch = randomUUID(), revisions = new Map<string, number>();
+    this.unwatchArtifacts = installedArtifacts.watch(supervisedArtifacts(supervisor, runtime, () => !this.closed));
     this.platform = { runtime, supervisor, upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
       invalidateView: pluginId => {
         if (!this.closed && supervisor.state(pluginId)?.status === "running") revisions.set(pluginId, (revisions.get(pluginId) ?? 0) + 1);

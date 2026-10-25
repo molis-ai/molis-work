@@ -1,6 +1,6 @@
 export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] {
-    --plugin-tint: var(--plugin-workflows);
+    --plugin-tint: var(--ink-soft);
     --wf-hover: var(--dur-hover, 130ms) var(--ease-quint);
     --wf-row: var(--dur-move, 250ms) var(--ease-quint);
     --wf-edge: var(--dur-hover, 130ms) var(--ease-quint);

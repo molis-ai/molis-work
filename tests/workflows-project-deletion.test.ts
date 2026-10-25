@@ -6,7 +6,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
-import { WORKFLOWS_PLUGIN_ID, manualLink, newStation, openWorkflowsStore, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_PLUGIN_ID, manualLink, newStation, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 

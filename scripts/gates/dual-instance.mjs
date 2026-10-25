@@ -1,17 +1,19 @@
 // Gate: dual-instance plugins (specs/dual-instance-plugins, PG-012). Only adds checks; it loosens no other rule.
 //
 // A dual-instance plugin is one `plugin_id` with a Home half (a Home catalog entry whose `runtime` says `dual_instance: true`)
-// and a project half (an entry of the project start list, apps/local-host/src/project-plugins.ts). The Host already refuses a
+// and a project half (the same registration's `project_runtime`, PG-067, or an entry of the project start list that a factory
+// with Host ports still needs, apps/local-host/src/project-plugins.ts). The Host already refuses a
 // wrong pairing when it starts (apps/local-host/src/plugin-scope-entries.ts); this gate says so in review, and adds the one rule
 // the Host does not check:
 //   1. marked ⇔ on both lists: a marked Home entry's package has a project half, and a Home entry's package that the project
 //      start list also starts is marked;
-//   2. both halves ship with the Host: every catalog entry does, so the project half says `trust: HOST_BUILD_TRUST`;
+//   2. both halves ship with the Host: every catalog entry does, so a project half on the start list says
+//      `trust: HOST_BUILD_TRUST` (the Host gives it to every `project_runtime` itself);
 //   3. no optional permission (user 2026-10-20, U1): every permission of a marked entry's Manifest is an object literal with
 //      `required: true`.
 //
-// Read as syntax, nothing is executed. A plugin is named by its package: the Home entry's `runtime.package_name`, the package
-// the project entry's `definition: create…(…)` factory is imported from. What it cannot read fails rather than passes: a marked
+// Read as syntax, nothing is executed. A plugin is named by its package: the Home entry's `runtime.package_name`, the
+// `project_runtime.package_name`, the package a start-list entry's `definition: create…(…)` factory is imported from. What it cannot read fails rather than passes: a marked
 // entry whose Manifest, permission list or a permission is not written so that the gate can follow it (a spread, a computed
 // `required`, a call it does not know), and a project entry whose `definition` is not a call of an imported factory. It follows a
 // Manifest through `import { x } from "./…js"`, `export { x } from`, `export *` and `export const x = …` (with `as`,
@@ -43,9 +45,9 @@ export function dualInstanceProblems(snapshot) {
   const problems = [...home.problems, ...project.problems];
   for (const entry of home.entries) {
     const half = project.halves.get(entry.package);
-    if (entry.marked && !half) problems.push(`${entry.file}: runtime.dual_instance marks ${entry.package} as a dual-instance plugin, but ${PROJECT_START_LIST} starts no project half of it`);
-    if (!entry.marked && half) problems.push(`${PROJECT_START_LIST}: ${entry.package} is also a Home catalog entry (${entry.file}); a plugin on both start lists says runtime.dual_instance: true on its Home entry`);
-    if (entry.marked && half && !half.hostBuilt) problems.push(`${PROJECT_START_LIST}: the project half of the dual-instance plugin ${entry.package} must say trust: HOST_BUILD_TRUST, as its Home half ships with the Host`);
+    if (entry.marked && !half) problems.push(`${entry.file}: runtime.dual_instance marks ${entry.package} as a dual-instance plugin, but its registration declares no project_runtime and ${PROJECT_START_LIST} starts no project half of it`);
+    if (!entry.marked && half) problems.push(`${half.file}: ${entry.package} is also a Home catalog entry (${entry.file}); a plugin with both halves says runtime.dual_instance: true on its Home entry`);
+    if (entry.marked && half && !half.hostBuilt) problems.push(`${half.file}: the project half of the dual-instance plugin ${entry.package} must say trust: HOST_BUILD_TRUST, as its Home half ships with the Host`);
     if (entry.marked) problems.push(...optionalPermissions(snapshot, entry));
   }
   return problems;
@@ -64,17 +66,36 @@ function homeEntries(snapshot) {
   return { entries, problems };
 }
 
-/** The project start list's entries by package: `{ hostBuilt }`, read from each `definition: create…(…)` call's import. */
+/**
+ * Project halves by package: `{ file, hostBuilt }`, from each registration's `project_runtime` (the Host starts it with its own
+ * build's trust) and each start-list entry's `definition: create…(…)` call's import.
+ */
 function projectHalves(snapshot) {
-  const halves = new Map(), problems = [], text = snapshot.read(PROJECT_START_LIST);
+  const halves = new Map(), problems = [];
+  for (const { file, object } of catalogEntries(snapshot)) {
+    const declared = unwrap(property(object, "project_runtime")?.initializer);
+    if (!declared) continue;
+    const name = ts.isObjectLiteralExpression(declared) ? literal(property(declared, "package_name")?.initializer) : null;
+    if (name) halves.set(name, { file, hostBuilt: true });
+    else problems.push(`${file}: cannot tell which plugin package project_runtime starts; write it as an object literal with a literal package_name`);
+  }
+  const text = snapshot.read(PROJECT_START_LIST);
   if (text === null) return { halves, problems };
   const tree = parse(PROJECT_START_LIST, text), imports = importedNames(tree);
   const visit = (node) => {
     if (ts.isObjectLiteralExpression(node) && property(node, "definition")) {
       const call = unwrap(property(node, "definition").initializer);
+      // The entry the start list makes of each registration's `project_runtime` (`declaration.create()`): those halves are read
+      // from the registrations above, and the trust written here is the one each of them is started with.
+      if (call && ts.isCallExpression(call) && ts.isPropertyAccessExpression(call.expression) && call.expression.name.text === "create") {
+        const hostBuilt = isHostBuildTrust(property(node, "trust")?.initializer);
+        for (const [name, half] of halves) if (half.file !== PROJECT_START_LIST) halves.set(name, { ...half, hostBuilt });
+        ts.forEachChild(node, visit);
+        return;
+      }
       const from = call && ts.isCallExpression(call) && ts.isIdentifier(call.expression) ? imports.get(call.expression.text) : undefined;
       if (!from || from.specifier.startsWith(".")) problems.push(`${PROJECT_START_LIST}: cannot tell which plugin package the entry \`${node.getText().slice(0, 60)}…\` starts; write its definition as a call of a factory imported from the plugin's package`);
-      else halves.set(from.specifier, { hostBuilt: isHostBuildTrust(property(node, "trust")?.initializer) });
+      else halves.set(from.specifier, { file: PROJECT_START_LIST, hostBuilt: isHostBuildTrust(property(node, "trust")?.initializer) });
     }
     ts.forEachChild(node, visit);
   };

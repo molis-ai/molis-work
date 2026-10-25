@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
@@ -155,3 +155,59 @@ for (const fault of ["before final guard", "immediately before press"] as const)
     assert.equal(await pointerListeners(child,true),listenersBefore,"success and rejection both remove all temporary receipt listeners");
   });
 }
+
+test("plugin frame input receipt preserves input and both cleanup failures", {timeout:60_000}, async t => {
+  let modelCalls = 0;
+  const b = await openGoalBrowser(t, true, undefined, async () => { modelCalls++; throw new Error("Unexpected model call"); }); if (!b) return;
+  const inputFailure = new Error("Input command failed"), disposeFailure = new Error("Dispose failed after completion"), releaseFailure = new Error("Release failed after completion");
+  let armed = false, inputFailed = false, receipt: {objectId: string; session?: string} | undefined, inputCommands = 0, posts = 0;
+  const cleaned: string[] = [];
+  const command: typeof b.command = async <T>(method: string, params: Record<string, unknown> = {}, session?: string, timeout?: number): Promise<T> => {
+    if (armed && method === "Input.dispatchMouseEvent") {
+      inputCommands++;
+      assert.ok(receipt, "the real child receipt exists before input");
+      assert.equal(params.type, "mouseMoved", "the first input fails before any press or release");
+      inputFailed = true;
+      throw inputFailure;
+    }
+    const result = await b.command<T>(method, params, session, timeout);
+    if (armed && !inputFailed && method === "Runtime.evaluate" && params.contextId !== undefined && params.returnByValue === false) {
+      const objectId = (result as { result?: { objectId?: string } }).result?.objectId;
+      if (objectId) receipt = {objectId, session};
+    }
+    // After the input rejects, these are the same receipt's actual disposal and release acknowledgements.
+    if (armed && inputFailed && receipt && params.objectId === receipt.objectId && session === receipt.session && method === "Runtime.callFunctionOn") {
+      assert.equal((result as { exceptionDetails?: unknown }).exceptionDetails, undefined);
+      cleaned.push(method);
+      throw disposeFailure;
+    }
+    if (armed && inputFailed && receipt && params.objectId === receipt.objectId && session === receipt.session && method === "Runtime.releaseObject") {
+      cleaned.push(method);
+      throw releaseFailure;
+    }
+    return result;
+  };
+  const child = await pluginFrameBrowser(t, {...b, command}, "lingguang");
+  b.server.on("request", request => { if (request.method === "POST" && request.url?.endsWith("/api/plugins/io.molis.work.lingguang/sparks")) posts++; });
+  await b.command("Emulation.setDeviceMetricsOverride", {width:1280,height:900,deviceScaleFactor:1,mobile:false}, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", {url:`${b.origin}/projects/${b.projectId}/`}, b.sessionId));
+  await b.waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')",20_000);
+  await b.click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
+  await child.waitFor("document.querySelector('[data-lingguang-capture]')",20_000);
+  const listenersBefore = await pointerListeners(child, true);
+  armed = true;
+  await assert.rejects(child.click(capture), (error: unknown) => {
+    assert.ok(error instanceof AggregateError);
+    assert.deepEqual(error.errors, [inputFailure, disposeFailure, releaseFailure]);
+    assert.equal(error.cause, inputFailure);
+    return true;
+  });
+  armed = false;
+  assert.equal(inputCommands, 1, "no input retry or actual click after the failure");
+  assert.deepEqual(cleaned, ["Runtime.callFunctionOn", "Runtime.releaseObject"]);
+  assert.equal(await pointerListeners(child, true), listenersBefore, "disposal removed the real receipt listeners");
+  assert.equal(await child.evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "false");
+  assert.equal(posts, 0); assert.equal(modelCalls, 0);
+  const store = openLingguangStore(b.homeDirectory);
+  try { assert.equal(store.list(b.projectId!).length, 0); } finally { store.close(); }
+});

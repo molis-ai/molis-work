@@ -1,5 +1,5 @@
 export const JELLY_STYLES = `
-  [data-jelly="workbench"] { --plugin-tint: var(--plugin-schedule, var(--accent)); position: relative; }
+  [data-jelly="workbench"] { --plugin-tint: var(--ink-soft); position: relative; }
   body.immersive-workbench .plugin-stage-shell[data-jelly="workbench"] { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   body.immersive-workbench .plugin-stage-shell[data-jelly="workbench"][data-expanded="true"] { grid-template-columns: minmax(220px, 27%) minmax(0, 1fr); }
   .jelly-header { grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between; min-height:48px; padding:8px 16px; gap:12px; border-bottom:1px solid var(--line); }

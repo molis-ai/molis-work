@@ -8,10 +8,12 @@ import { FORM_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/fo
 import { DATASET_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { pagesActions, createPagesActionHandlers, ownPagesStores, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
-import { formActions, createFormActionHandlers, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
-import { datasetActions, createDatasetActionHandlers, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
-import { pptActions, createPptActionHandlers, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
+import { formActions, createFormActionHandlers, ownFormStores } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { datasetActions, createDatasetActionHandlers, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { pptActions, createPptActionHandlers, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 
 // 「原文已改」 (specs/artifact-positioning A4b): the owner compares a pinned version with the object it came from. An object
 // moved to another place still exists; only one that is gone is "missing", and the 成果库 must not call a move a deletion.

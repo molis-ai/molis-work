@@ -9,23 +9,23 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "13c476a3a9ab3b44c811ad1e3cac7abeea9816c4",
+    "commit": "b54429dbf43e8f9f8f4b910999674c192077c247",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
-      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/102",
-      "head": "13c476a3a9ab3b44c811ad1e3cac7abeea9816c4",
+      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/106",
+      "head": "281678bc115dfa13178ab9738be4f837fa85fc05",
       "status": "merged",
-      "note": "Merged #102; merge tree equals the validated package source.",
-      "mergeCommit": "0ff107a616efd88e4e489727cf6f2b00581992a7"
+      "mergeCommit": "b54429dbf43e8f9f8f4b910999674c192077c247",
+      "note": "Merge tree equals independently reviewed and fully verified candidate."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1390372,
-    "sha256": "4ceebe6b506b4d00a7722eb378ec0bb80f62dd757fb3a05408f6dbe210fadf1c",
-    "integrity": "sha512-V8ZOgEqXZtyRp+THGRfTq8atdscQWvQK/Le+ioDQAX89jxm35fQGmOYd0mMmwf0f6ieE6heG6UqDMOuuVNYayQ=="
+    "bytes": 1391846,
+    "sha256": "58eec2e9ca12551a7c021ef228c57953154f323b4304ca06483568c87c6d5eaa",
+    "integrity": "sha512-j0+N42LsgBWHUAJ7RumpFFG0KmsRfT9lTOvD9sTq5fWC64PiNL2E6omNxag7ZmkBrk0AptiTkHgO+gIIOUW9KQ=="
   },
   "build": {
     "node": "24.14.0",
@@ -33,11 +33,11 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "固定干净SDK 13c476a3；已合#102 main 0ff107a6树完全相同；原quality与准确e371棘轮、独审通过",
-      "原归档808个dist逐字节等于最终质量构建",
-      "原pnpm pack产物，无vendor补丁；同步归档、sidecar、provenance与lock"
+      "固定已合 #106 的干净 main b54429db；树等于已验 281678bc，生产/测试最后修改 54bff7db",
+      "Node 24.14.0 / pnpm 11.9.0；原 pnpm quality、准确 0ff107a 棘轮、独审和干净包消费者通过",
+      "packages/sdk 原 pnpm pack；归档全部 810 个 dist 文件与最终质量构建逐字节相同；无 vendor 补丁"
     ],
     "packedOn": "2026-10-25",
-    "note": "已合#102；原quality70文件723项与干净消费者通过，最终增量独审7探针通过。首败保留；磁盘满环境两项未跑，inspection拒交付私有副本未主动擦除。App完整MEM-40待验收。"
+    "note": "原 quality 70文件723项；恢复直接影响面6文件139项；已安装包与独审同句柄清理故障重试通过。历史失败保留；App完整MEM-40与用户验收待完成。"
   }
 }

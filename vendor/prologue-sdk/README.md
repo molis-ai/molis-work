@@ -1,10 +1,10 @@
 # Prologue SDK 受控包
 
-当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 来自已合并 [#102](https://github.com/molis-ai/molis-prologue/pull/102) 的干净提交 `13c476a3a9ab3b44c811ad1e3cac7abeea9816c4`，合并 main `0ff107a616efd88e4e489727cf6f2b00581992a7` 与该树完全一致。包含只读 inspection、固定目标 maintenance、exact Session 清除、owner coverage、固定 App Index kind 维护口、等待前 metadata 快照及归档名称错误分类。Molis 离线采用桥不启动普通 Runtime。
+当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 来自已合并 [#106](https://github.com/molis-ai/molis-prologue/pull/106) 的干净 main `b54429dbf43e8f9f8f4b910999674c192077c247`；合并树与已独审头 `281678bc115dfa13178ab9738be4f837fa85fc05` 相同。在 #102 的冷 inspection/maintenance 基础上接入原 Memory 主人的归属覆盖与固定 canonical Session 选择；两类冷句柄清理失败后可显式重试同一资源，业务权限保持永久关闭。
 
-归档 1,390,372 字节，808 个 dist 文件，SHA-256 `4ceebe6b506b4d00a7722eb378ec0bb80f62dd757fb3a05408f6dbe210fadf1c`；sidecar/provenance 和 lock 同步。保留一份 retry-waiting 主线在途包，仍为两份；同名历史版本记在 patch-history notes，原包从 Git 历史取回。
+归档 1,391,846 字节，810 个 dist 文件，SHA-256 `58eec2e9ca12551a7c021ef228c57953154f323b4304ca06483568c87c6d5eaa`；全部 dist 与原 quality 的最终构建逐字节相同。sidecar、provenance、lock 同步，仍只保留两份现有包；上一份 #102 的归档身份记入 patch-history notes，从 Git 历史取回。
 
-重建：固定上述干净 SHA，使用 Node 24.14.0 / pnpm 11.9.0，`pnpm install --frozen-lockfile --offline --store-dir <既有缓存>`、`pnpm quality`，再在 `packages/sdk` 执行 `pnpm pack --pack-destination <独立目录>`。本仓消费原归档，未在 vendor 修改 SDK。原完整 quality 70 文件/723项、准确e371棘轮、类型/build/API、干净消费者及Cargo通过；最终增量独审和新增公开Node探针7项通过。归档全部dist与最终质量构建逐字节一致。首轮沙箱失败保留；磁盘满环境两项未执行，inspection拒交付自有副本未主动擦除。App完整MEM-40及用户验收仍待完成。
+重建：固定上述干净 SHA，使用 Node 24.14.0 / pnpm 11.9.0，`pnpm install --frozen-lockfile --offline --store-dir <既有缓存>`、`QUALITY_BASE=0ff107a616efd88e4e489727cf6f2b00581992a7 pnpm quality`，再在 `packages/sdk` 执行 `pnpm pack --pack-destination <独立目录>`。原 quality 的类型/build/API/棘轮/文档、70 文件 723 项、原干净消费者及 Cargo 通过；6 文件 139 项恢复影响面通过，新 tgz 干净消费者与独审同句柄清零失败恢复通过。Molis 消费原归档，无 vendor 补丁；App 父 owner、完整 MEM-40 和用户验收仍待完成。旧类型与回环端口权限失败的记录保留，不作为通过证据。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 

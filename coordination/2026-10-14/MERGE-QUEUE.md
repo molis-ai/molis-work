@@ -79,6 +79,7 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 - ac-kernel：R-38 代码完成（agent-host 无巨大单元），下一片 BL-356（#1246 让非沙箱插件能丢弃数据，触发条件成立）。
 - **#1255 共享 Home 库删除范围（统筹 10-25 裁，PR 评论）**：项目级安装的卸载与丢弃只清本项目数据，Home 共享库不动、回执写保留；Home 级安装（唯一实例）由 Home 执行器停实例后删、失败可重试；项目级共享库的回收没有可信的「最后一个安装」来源，不新建引用计数，记 BL 留空间不丢数据。
 - Prologue #104 事后严格评审过（ac-review，挡合并 0，[评论](https://github.com/molis-ai/molis-prologue/pull/104#issuecomment-6395355069)）；三条不挡建议（不安全 kind 目录的错误码无用例、密封记录读两遍、Windows 无 O_NOFOLLOW）交 Codex。
+- **10-25 下午派单（统筹）**：ac-kernel → PG-015、016、029、008（RAC-650～669；PG-013/028 已随 #1266 做完）；ac-giants → ac-artifacts 未被挡的余项 + PG-080、064（RAC-670～689、BL-646～655）；ac-clients-1 → W5-04 第三组开 PR → PG-055 设计稿 → PG-056/070/071 余项；ac-coding → ac-trust T6→T2→T4→T5→T8（叠 batch-36）；ac-sandbox-sched → FI-2（#1242 已合）→ FI-3 PR → P2e；#1276（BL-356）进 batch-37。
 - 号段：ac-platform 第 2 组（PG-032/098/100）另给 **RAC-630～649**（RAC-600～619 是 ac-shell 的）；D1～D5 按草稿推荐准，D5 改号段。
 
 ### 当前交付核实（PIPE，2026-10-25）

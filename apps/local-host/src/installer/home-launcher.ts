@@ -47,7 +47,7 @@ const entry = path.resolve(homeDirectory, installation.release_path, "${target}"
 const child = spawn(process.execPath, [entry, ...process.argv.slice(2)], {
   cwd: ${entry === "mcp" ? "process.cwd()" : "path.dirname(entry)"},
   env: ${childEnvironment},
-  stdio: "inherit",
+  stdio: ${entry === "web" ? 'process.env.MOLIS_WORK_MCP_WEB_STARTUP === "1" ? [0, 1, 2, 3] : "inherit"' : '"inherit"'},
 });
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {

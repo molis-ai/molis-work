@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { hostLog, reportMcpWebStartupFailure, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
+import { finishMcpWebStartup, hostLog, reportMcpWebStartupFailure, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -99,6 +99,7 @@ if (isMain) {
     // Loopback only (security invariant S-01). The line below names the address the socket really got, so a launcher that
     // ever bound wider would say so, and tests/security-invariants-local-entry.test.ts reads it.
     server.listen(port, "127.0.0.1", () => {
+      if (mcpStartup) finishMcpWebStartup();
       const bound = server.address();
       const host = bound && typeof bound === "object" ? (bound.family === "IPv6" ? `[${bound.address}]` : bound.address) : "127.0.0.1";
       console.log(`Molis Work Web: http://${host}:${bound && typeof bound === "object" ? bound.port : port}`);

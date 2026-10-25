@@ -68,14 +68,21 @@ export async function installedMcpHome(t: TestContext, install = installMolisWor
   await rename(installed.launchers.web, original);
   const quote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`;
   // The test barrier delays only the installed launch entry; the actual release and fd 3 chain remain production code.
-  await writeFile(installed.launchers.web, `#!/bin/sh\necho $$ > ${quote(attempts)}/$$\nwhile [ ! -f ${quote(barrier)} ]; do /bin/sleep 0.02; done\nexec ${quote(original)} "$@"\n`, { mode: 0o755 });
+  async function configureWeb(environment: Record<string, string> = {}) {
+    const trustedFixtureEnvironment = Object.entries(environment).map(([key, value]) => {
+      assert.match(key, /^[A-Z][A-Z0-9_]*$/);
+      return `export ${key}=${quote(value)}\n`;
+    }).join("");
+    await writeFile(installed.launchers.web, `#!/bin/sh\necho $$ > ${quote(attempts)}/$$\nwhile [ ! -f ${quote(barrier)} ]; do /bin/sleep 0.02; done\n${trustedFixtureEnvironment}exec ${quote(original)} "$@"\n`, { mode: 0o755 });
+  }
+  await configureWeb();
   cleanupCandidates = async () => {
     for (const entry of await readdir(attempts)) { try { process.kill(-Number(entry), "SIGKILL"); } catch { /* Own candidate group already exited. */ } }
   };
   const env = (session: string) => ({ ...process.env, HOME: root, MOLIS_WORK_HOME: home, MOLIS_WORK_RUNTIME_ID: "codex",
     MOLIS_WORK_WEB_URL: origin, MOLIS_WORK_WORK_CONTEXT_ID: session, MOLIS_WORK_WORK_CONTEXT_STABLE: "true", MOLIS_WORK_SESSION_ID: "",
     MOLIS_WORK_PANEL_ID: "", MOLIS_WORK_GOAL_ID: "", CODEX_THREAD_ID: "", CLAUDE_CODE_SESSION_NAME: "", PWD: root });
-  return { root, home, origin, installed, attempts, barrier, health, stopHost, env,
+  return { root, home, origin, installed, attempts, barrier, health, stopHost, env, configureWeb,
     async cleanupCase() { await closePeers(); await stopHost(); await cleanupCandidates(); },
     async connect(session: string, override?: NodeJS.ProcessEnv) {
       const peer = rawMcp(t, installed.launchers.mcp, { ...env(session), ...override }); clients.add(peer);

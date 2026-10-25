@@ -4,6 +4,34 @@
 
 统筹已在 [6394070792](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6394070792) 审定本稿：选 A 常驻；唯一 Home owner 允许短暂被拒的启动候选；20 秒总预算、1 秒探测、250 毫秒退避；EOF/cancellation 必须接通。初期按 Root 授权以 batch-36 `bb7137fc2550d8ae8fd7f8bb6caced55ee7cba9f` 为固定基底实施、只推自己的分支；#1254 的 A 实现现已随 #1270 在 11:14:03 UTC 实际进入 main `64a3ccc9c177ba6f3a2bbb44cf80dc1cce648f2a`，已鲜取并核对。整片完成后才交一个完整非 Draft PR。FIX4/FIX7/原 owner 关闭的生命周期 hunk 不在本片改写；按 [Root 6398561106](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398561106) 与 [Claude 6398583925](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398583925) 的最新裁定，本 PR 自带临时 S-72 物理行并独立核验 health；原预约 S-77 是历史，batch-38 最终合成由 Claude 统一归号。
 
+## F2 后继接受工单：启动环境与私有回执收尾
+
+状态：本地实现和定向工程验证通过，待固定后继与独立复查。负责人：Codex 专职修复 2。Root/PIPE 在原作者明确释放源码与本 spec 后，只授权 [FIRST 6398105155](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398105155) 的环境白名单、启动标记与 fd 3 三条非阻塞建议；固定来源 `702ece2d6f85a57d1bafe3f1d21471ebe38cf3bd`，独立分支 `feature/c5-startup-context`。原 702、临时 S-72/历史 S-77、已有分组证据和失败记录均保留；目标仍是隔离 Home 中功能可用，最终组合与 App/本人验收不在此单关闭。
+
+`residentEnvironment` 当前拷贝整个 MCP 环境再删身份字段，致使客户端代理、密钥、Node 启动选项和其他配置进入常驻宿主。改为只复制启动脚本和本机子进程需要的 `PATH`、`HOME`、`LANG`、`LC_*`、`TMPDIR`、`TZ`；`MOLIS_WORK_HOME`、`MOLIS_WORK_WEB_URL`、`PWD` 和启动标记由既有受信 Home/origin 参数生成。客户端 `NODE_OPTIONS`、代理、任意密钥、身份及未知 `MOLIS_WORK_*` 不复制，也不读回它们作为恢复兜底。安装固定入口、Home 中原有配置和凭据引用读取路径不变；依赖客户端注入的开发变量不再成为常驻配置。
+
+fd 3 仅是启动诊断通道，不是 owner 或健康证明。Node Web 包装器把它交给实际 Web 子进程后释放自己的副本和标记；实际 Web 仅在 MCP 启动模式于 `listen` 成功后关闭私有 fd 3、删除标记，监听前失败仍先传安全 code/kind 再收尾。普通 Web/App 不关闭调用方的任意 fd 3。20 秒首次就绪 watch 继续验证原 HMAC；MCP 取消或 EOF 只结束其等待，不终止已启动的常驻宿主。没有新锁、PID 表、registry、重启或业务重放。
+
+生产修改限 `mcp-resident-start.ts`、`mcp-web-startup.ts`、必要的 local-host 导出、Web launcher 及沿实际 fd 传递链的安装器 Web 包装器；测试使用既有真实安装夹具和最小子进程回归。原管理 MCP 的 SQLite preload 仍只观察客户端；需要观察 Web 或切断已提交响应的 preload 由测试自己持有的 Home 启动夹具显式注入，不能为了保留旧观测而放行客户端 `NODE_OPTIONS` 或测试变量。
+
+| 编号 | 行为验收 | 验证 |
+| --- | --- | --- |
+| RAC-629-E1 | 实际启动的进程保留允许的 OS 环境，受信 Home/origin/PWD/标记准确；客户端代理、密钥、Node 选项、身份及未知产品变量未进入它和正常后代，允许环境下宿主真实就绪 | 捕获实际 spawned 环境；隔离 Home 中经过当前安装入口启动并验证健康证明，不只检查字面量 |
+| RAC-628-S1 | MCP 模式真实 Node 包装器和 Web 在交接/监听成功后各自释放 fd 3 与标记，父端获得 EOF；同一 Home 的 owner 和常驻服务继续有效，后代不带启动标记 | 真实进程/安装链的描述符、环境、EOF、同实例健康与后续请求 |
+| RAC-628-S2 | 监听前失败仍只传安全 code/kind 并关闭私有回执；父 MCP 取消/EOF 后候选仍按原 20 秒首次就绪期限收束或就绪，无遗留等待/自有进程 | 实际失败、取消/EOF 和就绪/清理交错，保留原拒绝与预算，不重跑原七路径或全部 18 安全用例 |
+| RAC-628-S3 | 普通 Web/App 模式不删除无关环境或关闭其 fd 3；Home lease、健康 HMAC、固定入口、权限与业务未知结果不重放保持 | 普通模式真实 fd 对照与必要既有定向回归 |
+
+源码变化后在公共 FIFO 做一次整体 `pnpm build` 并绑定本树新产物；旧 ignored dist 未恢复，不引用旧构建当新证据。再按实际变化运行上述定向回归、必要边界/health 和 fresh-fetch secrets；真实安装的资源重活使用公共槽，浏览器仅在实际需要时用专用测试浏览器。没有全量、真实 Home 或 Memory 操作。固定提交正常推自己的后继分支，直交既有 REVIEW/TEST/PIPE；本节结果随实际验证更新，不预写通过。
+
+本后继本机结果（2026-10-25）：公共 FIFO 的整体构建自然 exit 0，新 source 与构建 manifest 实测同为 `da987b7140024385aacf118ec975d83092e5037dea7300a85a765c9d459d62a8`，创建时间 15:33:08.354 UTC。CLI/MCP 两种启动器及 bundled Web 生成文本与 702 相同；新 Node Web 文本通过 Node ESM 语法检查。定向 lint 通过；直接边界 checker（复用整体构建，不另并发构建 test-kit）70 包、零错误，health 与 27 项页面资源 7,590,829 字节对 merge-base `64a3ccc9` 均通过，无门禁放宽或资源增长。
+
+- RAC-629-E1 的实际子进程环境用例最终 1/1、自然 0。前两次失败分别来自测试把 macOS 物理 cwd 当成逻辑路径，以及系统给空环境也插入 `__CF_USER_TEXT_ENCODING`；现以 `realpath` 验物理 cwd、独立 `env: {}` 子进程验系统固有字段。受信 PWD 和全部拒带值仍严格断言，未把该系统字段加入生产白名单；原失败日志保留。
+- 新生命周期文件首跑 7 项是 5 pass、2 fail（单个监听失败子场景及其父测试），零取消/跳过；真实包装器 EOF、同宿主复用、MCP 取消/EOF、普通 fd 3 和独立 20 秒 watch 均已通过。唯一错误是测试额外要求监听失败后进程非零退出；原协议以安全 code/kind 和健康证明判断启动结果，正常关闭可以 exit 0。只把该测试改为完成关闭且健康拒绝，不改生产退出语义。
+- 补跑名称模式命中父测试，实际执行了新安装组全部五个子场景及父测试 6/6、原安装组七个子场景及父测试 8/8，均自然 0、零失败/取消/跳过；不是原计划的两个子场景。此为已告知 Root 的执行偏差，保留准确命令和全部原件，不倒改首跑，也不再重测。独立 20 秒 watch 的首轮有效结果按同源复用，不能把首份失败文件写成一轮全绿。
+- 另有七个必要既有文件共 58 项自然 0：stdio lifetime、Desktop entry failures、shell bootstrap、Desktop TUI、action MCP stdio、安全表检查及安装清理 fixture。没有运行原整组 18 项安全用例、全量或浏览器。各次真实安装使用隔离 Home 和 public 安装器，原 20/240 秒预算、固定入口与指纹检查保持，测试自身的进程/候选及 Home 清理钩子全部通过。
+
+原件位于 `/tmp/molis-verify-2026-10-25/pr1292-startup-context/`：新构建、binding、环境首败/修正与 OS 对照、新生命周期首跑、补跑两组、七文件回归和各项门禁分别保留。最终提交后的 secrets、推送和独立审验另随固定后继交接；此处不把原 702 的登记修复或最终 carrier 收验改写为本后继已经合入。
+
 ## 目标、依据与边界
 
 已安装的 stdio MCP 需要常驻服务而它尚未启动时，启动同一个 Home 的既有 Web 宿主，等它就绪再转发，使用户不必先手动打开 App。MCP 进程始终只是转发者，不取得 Home 的存储所有权、不打开业务 Catalog、数据库或模型运行时。

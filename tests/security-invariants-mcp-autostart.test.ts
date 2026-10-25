@@ -1,12 +1,69 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { randomBytes, createHmac } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { createMcpResidentStarter, runtimeContextHostFromEnvironment } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "@molis-ai/molis-work-app-desktop";
+
+test("RAC-629-E1: spawned resident receives only OS settings and trusted startup context, not client configuration", async t => {
+  const f = await fixture(t, () => { assert.fail("the reserved listener was closed"); });
+  await new Promise<void>(resolve => f.server.close(() => resolve()));
+  await mkdir(join(f.home, "bin"));
+  const snapshot = join(f.home, "spawned-environment.json");
+  const denied = ["NODE_OPTIONS", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy",
+    "OPENAI_API_KEY", "CLIENT_SECRET", "MOLIS_WORK_UNKNOWN_SETTING", "MOLIS_WORK_TEST_C5_WEB_ENV", "MOLIS_WORK_RUNTIME_ID",
+    "MOLIS_WORK_SESSION_ID", "MOLIS_WORK_WORK_CONTEXT_ID", "MOLIS_WORK_MCP_AUDIENCE", "CODEX_THREAD_ID", "CLAUDE_CODE_SESSION_ID"];
+  const allowed = { PATH: process.env.PATH!, HOME: f.home, LANG: "en_US.UTF-8", LC_ALL: "C", LC_NUMERIC: "C", TMPDIR: f.home, TZ: "UTC" };
+  const fields = [...Object.keys(allowed), ...denied, "MOLIS_WORK_HOME", "MOLIS_WORK_WEB_URL", "PWD", "MOLIS_WORK_MCP_WEB_STARTUP"];
+  await writeFile(join(f.home, "bin/molis-work-web"), `#!${process.execPath}
+const fs = require('node:fs'), http = require('node:http'), crypto = require('node:crypto');
+fs.writeFileSync(${JSON.stringify(snapshot)}, JSON.stringify({ pid: process.pid, cwd: process.cwd(), keys: Object.keys(process.env),
+  values: Object.fromEntries(${JSON.stringify(fields)}.map(key => [key, process.env[key] ?? null])) }));
+const token = fs.readFileSync(${JSON.stringify(join(f.home, "config/web-control-token"))}, 'utf8').trim();
+http.createServer((request, response) => {
+  const challenge = new URL(request.url, 'http://localhost').searchParams.get('challenge');
+  const body = JSON.stringify({ status: 'ok', desktop_tui: true });
+  const proof = crypto.createHmac('sha256', token).update(challenge + '\\n' + body).digest('base64url');
+  response.writeHead(200, { 'content-length': Buffer.byteLength(body), 'x-molis-work-proof': proof }); response.end(body);
+}).listen(Number(process.argv[process.argv.indexOf('--port') + 1]), '127.0.0.1');
+`, { mode: 0o755 });
+  const saved = new Map(fields.map(key => [key, process.env[key]]));
+  try {
+    Object.assign(process.env, allowed);
+    for (const key of denied) process.env[key] = "client-only";
+    process.env.NODE_OPTIONS = "--no-warnings";
+    process.env.MOLIS_WORK_HOME = "/client-selected-home"; process.env.MOLIS_WORK_WEB_URL = "http://127.0.0.1:9";
+    process.env.PWD = "/client-directory"; process.env.MOLIS_WORK_MCP_WEB_STARTUP = "client-only";
+    await f.starter.ensure(f.home, f.origin, t.signal);
+    const captured = JSON.parse(await readFile(snapshot, "utf8")) as { cwd: string; keys: string[]; values: Record<string, string | null> };
+    for (const [key, value] of Object.entries(allowed)) assert.equal(captured.values[key], value, key);
+    for (const key of denied) assert.equal(captured.values[key], null, key);
+    assert.equal(captured.values.MOLIS_WORK_HOME, f.home); assert.equal(captured.values.MOLIS_WORK_WEB_URL, f.origin);
+    assert.equal(captured.values.PWD, f.home); assert.equal(captured.cwd, await realpath(f.home)); assert.equal(captured.values.MOLIS_WORK_MCP_WEB_STARTUP, "1");
+    // macOS adds its own locale metadata even to an explicitly empty environment; it was not copied from the client.
+    const intrinsicKeys = JSON.parse(execFileSync(process.execPath, ["-e", "process.stdout.write(JSON.stringify(Object.keys(process.env)))"],
+      { env: {}, encoding: "utf8" })) as string[];
+    assert.deepEqual(captured.keys.filter(key => !Object.hasOwn(allowed, key) && !key.startsWith("LC_")
+      && !["MOLIS_WORK_HOME", "MOLIS_WORK_WEB_URL", "PWD", "MOLIS_WORK_MCP_WEB_STARTUP"].includes(key)).sort(), intrinsicKeys.sort());
+  } finally {
+    for (const [key, value] of saved) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    try {
+      const { pid } = JSON.parse(await readFile(snapshot, "utf8")) as { pid: number };
+      process.kill(pid, "SIGTERM");
+      const deadline = performance.now() + 5000; let exited = false;
+      while (performance.now() < deadline) {
+        try { process.kill(pid, 0); } catch { exited = true; break; }
+        await delay(20);
+      }
+      assert.ok(exited, "the owned environment probe did not exit");
+    } catch (error) { if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error; }
+  }
+});
 
 async function fixture(t: TestContext, respond: (request: IncomingMessage, response: ServerResponse, token: string) => void) {
   const home = await mkdtemp(join(tmpdir(), "mcp-health-")), token = randomBytes(32).toString("base64url");

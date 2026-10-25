@@ -37,18 +37,25 @@ exec ${serviceEnvironment}${shellQuote(nodePath)} ${shellQuote(entryPath)} "$@"
       : "process.env";
   return `${NODE_LAUNCHER_HEADER}
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { ${entry === "web" ? "closeSync, " : ""}readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const homeDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const installation = JSON.parse(readFileSync(path.join(homeDirectory, "config", "installation.json"), "utf8"));
 const entry = path.resolve(homeDirectory, installation.release_path, "${target}");
+${entry === "web" ? 'const mcpStartup = process.env.MOLIS_WORK_MCP_WEB_STARTUP === "1";\n' : ""}\
 const child = spawn(process.execPath, [entry, ...process.argv.slice(2)], {
   cwd: ${entry === "mcp" ? "process.cwd()" : "path.dirname(entry)"},
   env: ${childEnvironment},
-  stdio: ${entry === "web" ? 'process.env.MOLIS_WORK_MCP_WEB_STARTUP === "1" ? [0, 1, 2, 3] : "inherit"' : '"inherit"'},
+  stdio: ${entry === "web" ? 'mcpStartup ? [0, 1, 2, 3] : "inherit"' : '"inherit"'},
 });
+${entry === "web" ? `if (mcpStartup) child.once("spawn", () => {
+  delete process.env.MOLIS_WORK_MCP_WEB_STARTUP;
+  try { closeSync(3); }
+  catch { /* The child now owns the private diagnostic channel. */ }
+});
+` : ""}\
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     if (!child.killed) child.kill(signal);

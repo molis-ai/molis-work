@@ -1,6 +1,6 @@
 import { createRequire, syncBuiltinESMExports } from "node:module";
 
-// Both installed launchers inherit this preload. Only the resident may open SQLite; the MCP and its Node wrapper cannot.
+// The MCP and its Node wrapper load this client-only probe; the resident must not inherit the client's NODE_OPTIONS.
 if (process.env.MOLIS_WORK_MCP_WEB_STARTUP !== "1") {
   const sqlite = createRequire(import.meta.url)("node:sqlite");
   sqlite.DatabaseSync = class extends sqlite.DatabaseSync {

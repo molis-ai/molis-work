@@ -128,7 +128,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 
 RAC-427 的行为证据经现有 `extractUploadedMaterial` 入口实际进入 `extractHomeMaterial`，只替换原生可执行 helper：在任何运行平台用现有可信 Host 选项 `platform: "darwin"` 进入原生边界，新变量指向临时可执行助手，断言调用参数、收到的材料字节、返回正文、独立 marker 与临时目录清理；旧变量指向另一个助手，既验证新旧同时配置只调用新助手，也验证仅配置旧名时不调用旧助手、不回退。后一个场景以只读的空安装目录隔离默认助手发现，避免依赖本机是否构建过原生程序。环境变量与临时 Home/文件在 `finally` 恢复或清除，不下载模型、联网或访问真实 Home；这不宣称 Linux 原生提取可用。验收命令为整体构建后运行 `node scripts/run-tests.mjs --jobs 2 tests/platform-naming-pg097.test.ts tests/jelly-native-material.test.ts tests/material-extraction.test.ts tests/feed-local-history-delete.test.ts`，并核 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check`；原首评和作者五项测试保留其原证据范围，不能代替补修的独立审验。
 
-本机补修证据（macOS）：上述四文件 33 项全部通过、0 跳过；整体构建、包导入单一来源检查与 `health --base origin/main` 通过。临时把生产读取改为旧变量、以及给新变量加旧名回退，两次都使新增行为用例失败（分别抓到错误正文和未按预期拒绝），随后已原样恢复生产源码。`boundary:check` 仍在公共构建槽排队，独立 REVIEW/TEST 与 Linux 主机实跑尚待；该行为用例自身没有平台 skip，但所在文件含已有原生用例，现行 Full suite 的整文件 macOS 标记会略过它，Linux probe 或独立验证须点名运行，不能把本机通过写成 Linux 实跑。补修增量 `affected-tests` 的 `full=[]`；原 #1264 的存储改名仍命中 full，由 Claude 统一组批。
+本机补修证据（macOS）：上述四文件 33 项全部通过、0 跳过；整体构建、包导入单一来源检查与 `health --base origin/main` 通过。临时把生产读取改为旧变量、以及给新变量加旧名回退，两次都使新增行为用例失败（分别抓到错误正文和未按预期拒绝），随后已原样恢复生产源码。`pnpm boundary:check` 已经公共构建槽执行通过；独立 REVIEW/TEST 与 Linux 主机实跑尚待；该行为用例自身没有平台 skip，但所在文件含已有原生用例，现行 Full suite 的整文件 macOS 标记会略过它，Linux probe 或独立验证须点名运行，不能把本机通过写成 Linux 实跑。补修增量 `affected-tests` 的 `full=[]`；原 #1264 的存储改名仍命中 full，由 Claude 统一组批。
 
 ### 3.9 与相邻条目的衔接
 

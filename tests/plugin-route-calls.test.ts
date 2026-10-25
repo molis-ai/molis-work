@@ -38,7 +38,7 @@ async function routesPlugin(declared: readonly string[], routes: (activation: Ac
     },
     async stop(context) { ends.get(context)?.(); },
   };
-  const runtime = new PluginRuntime(), { install } = runtime.install({ definition, deployment: "local", grants: [] });
+  const runtime = new PluginRuntime(), { install } = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] });
   await runtime.start(install.install_id);
   const route = (route_id: string): PluginRouteBinding => {
     const offered = runtime.contribution(install.install_id);

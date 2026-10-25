@@ -39,7 +39,7 @@ function fixture(t: TestContext, projectId = DEMO_PROJECT_ID) {
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [command, query, serial],
       databases: { project: { store_name: name, version: 1, read_permission: "example:read", write_permission: "example:write", schema: `CREATE TABLE ${name}_notes (text TEXT NOT NULL);` } } },
       async start(context) { services = context.services!; return { kind: "app", actions: [command, query, serial].map(action => ({ ...action, handle: async caller => { await work(caller); return {}; } })) }; } };
-    const report = await platform.start([{ definition, bundled: true }]); assert.deepEqual(report.failed, []);
+    const report = await platform.start([{ definition, trust: { level: "host" } }]); assert.deepEqual(report.failed, []);
     const installation = () => platform.runtime.list().find(record => record.plugin_id === id)!;
     return { id, installation, get database() { return services.project_database!; }, get notifications() { return services.notifications; },
       invoke: (execute: typeof work, caller: Partial<ActionCallContext> = {}, mode: "command" | "query" | "serial" = "command") => {

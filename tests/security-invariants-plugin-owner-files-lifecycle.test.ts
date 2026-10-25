@@ -101,7 +101,7 @@ for (const invalidation of ["cancel", "caller-revoke", "stop", "revoke", "reinst
         if (invalidation === "revoke") platform.runtime.grant(install.install_id, ["storage:private", probe.read]);
         if (invalidation === "reinstall") {
           await platform.runtime.uninstall(install.install_id, { retain_private_data: true });
-          const installed = platform.runtime.install({ definition: probe.definition, deployment: "local", grants: probe.permissions });
+          const installed = platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: probe.permissions });
           assert.notEqual(installed.install.installation_generation, install.installation_generation);
           await platform.runtime.start(install.install_id);
         }

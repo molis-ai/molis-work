@@ -40,7 +40,7 @@ import { openProjectVersionStores, type ProjectVersionStores } from "./project-v
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
 import { releaseProjectPlugins } from "./project-plugins.js";
-import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -78,7 +78,7 @@ export interface MolisWorkLocalHostOptions {
   completeText?: HostCompleteText | null;
   /**
    * Plugins that exist only for a test or a probe: the Host runs them in process, beside the shipped ones, in every project's
-   * platform. Never `bundled` (they register under their installation id), and never sandboxed; one may be given a library in the
+   * platform. Never `host` trust (they register under their installation id), and never sandboxed; one may be given a library in the
    * Home, as a start-list entry gives one to a shipped plugin. Production composition passes none. They are registered per
    * Home and read when a project's platform starts (`home-side.ts`).
    */
@@ -286,14 +286,10 @@ export class MolisWorkLocalHost {
   }
 
   /**
-   * The two seams a composition root wires in services this package must not depend on (the Agent Host above all, which
-   * drags a vendored SDK behind it); a service nobody wired is simply not registered, which is what a Plugin then sees.
-   * A typed entry goes to `registerCapability`, an action to `registerAction`; each refuses the other kind (PG-035).
+   * The seam a composition root wires in services this package must not depend on (the Agent Host above all, which drags a
+   * vendored SDK behind it); a service nobody wired is simply not registered, which is what a Plugin then sees. A Host
+   * capability is always an action (PG-035).
    */
-  registerCapability<Input, Output>(definition: HostCapabilityDefinition<Input, Output>, handler: HostCapabilityHandler<MolisWorkProjectRuntime, Input, Output>): () => void {
-    return this.host.register(definition, handler);
-  }
-
   registerAction<Input, Output>(definition: ActionDefinition<Input, Output>, handler: HostCapabilityHandler<MolisWorkProjectRuntime, Input, Output>): () => void {
     return this.host.registerAction(definition, handler);
   }

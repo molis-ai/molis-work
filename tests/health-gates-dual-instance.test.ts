@@ -37,7 +37,7 @@ function dualTree(change: { runtime?: string; manifest?: string; project?: strin
     [PROJECT_START_LIST]: lines(
       `import { createProbePlugin } from "${PACKAGE}";`,
       `import { createOtherPlugin } from "@molis-ai/molis-work-plugin-other";`,
-      `const entries = [${change.project ?? "{ definition: createProbePlugin(ports), bundled: true }"}, { definition: createOtherPlugin(), bundled: true }];`),
+      `const entries = [${change.project ?? "{ definition: createProbePlugin(ports), trust: HOST_BUILD_TRUST }"}, { definition: createOtherPlugin(), trust: HOST_BUILD_TRUST }];`),
   };
 }
 
@@ -46,7 +46,7 @@ test("DUAL-12 a marked Home entry with its bundled project half and only require
 });
 
 test("DUAL-12 a marked Home entry needs its project half, and a plugin on both lists needs the mark on its Home entry", () => {
-  const [lonely] = dualInstanceProblems(snapshot(dualTree({ project: "{ definition: createOtherPlugin(), bundled: true }" })));
+  const [lonely] = dualInstanceProblems(snapshot(dualTree({ project: "{ definition: createOtherPlugin(), trust: HOST_BUILD_TRUST }" })));
   assert.match(lonely, /runtime\.dual_instance marks @molis-ai\/molis-work-plugin-probe as a dual-instance plugin, but .* starts no project half/u);
   const [unmarked] = dualInstanceProblems(snapshot(dualTree({ runtime: "" })));
   assert.match(unmarked, /@molis-ai\/molis-work-plugin-probe is also a Home catalog entry .*runtime\.dual_instance: true/u);
@@ -54,8 +54,8 @@ test("DUAL-12 a marked Home entry needs its project half, and a plugin on both l
 });
 
 test("DUAL-12 both halves ship with the Host: a project half that is not bundled fails", () => {
-  for (const project of ["{ definition: createProbePlugin(ports) }", "{ definition: createProbePlugin(ports), bundled: false }"]) {
-    assert.match(dualInstanceProblems(snapshot(dualTree({ project })))[0], /project half of the dual-instance plugin .* must say bundled: true/u, project);
+  for (const project of ["{ definition: createProbePlugin(ports) }", "{ definition: createProbePlugin(ports), trust: UNSIGNED_TRUST }"]) {
+    assert.match(dualInstanceProblems(snapshot(dualTree({ project })))[0], /project half of the dual-instance plugin .* must say trust: HOST_BUILD_TRUST/u, project);
   }
 });
 
@@ -74,7 +74,7 @@ test("DUAL-11 a dual-instance Manifest with an optional permission, or one the g
   }
   assert.match(dualInstanceProblems(snapshot(dualTree({ manifest: "defineManifest({})" })))[0], /cannot read the Manifest of the dual-instance plugin/u);
   // An unmarked Home plugin may keep optional permissions: the rule is only for dual-instance plugins.
-  const unmarked = dualTree({ runtime: "", permissions: `{ permission: "probe:read", required: false, reason: "读" }`, project: "{ definition: createOtherPlugin(), bundled: true }" });
+  const unmarked = dualTree({ runtime: "", permissions: `{ permission: "probe:read", required: false, reason: "读" }`, project: "{ definition: createOtherPlugin(), trust: HOST_BUILD_TRUST }" });
   assert.deepEqual(dualInstanceProblems(snapshot(unmarked)), []);
 });
 
@@ -104,7 +104,7 @@ test("DUAL-11 a dual-instance Manifest whose permissions the gate cannot follow 
 });
 
 test("DUAL-12 a project entry whose plugin package the gate cannot tell fails rather than passes", () => {
-  const [problem] = dualInstanceProblems(snapshot(dualTree({ project: "{ definition: probeDefinition, bundled: true }" })));
+  const [problem] = dualInstanceProblems(snapshot(dualTree({ project: "{ definition: probeDefinition, trust: HOST_BUILD_TRUST }" })));
   assert.match(problem, /cannot tell which plugin package the entry .* starts/u);
 });
 
@@ -146,7 +146,7 @@ test("DUAL-11 DUAL-12 health:check passes a well-formed dual-instance plugin and
   git("checkout", "-q", "-f", "main");
   const clean = gate();
   assert.equal(clean.code, 0, clean.out);
-  branch("lonely-half", dualTree({ project: "{ definition: createOtherPlugin(), bundled: true }" }));
+  branch("lonely-half", dualTree({ project: "{ definition: createOtherPlugin(), trust: HOST_BUILD_TRUST }" }));
   const lonely = gate();
   assert.equal(lonely.code, 1, lonely.out);
   assert.match(lonely.out, /starts no project half of it/u);

@@ -112,7 +112,7 @@ test("W5-01-RPC-01 project cleanup still purges when a same-id installation of a
   const f = fixture(t), { platform, record } = await f.ready();
   const previous = f.entry.create();
   previous.manifest = { ...previous.manifest, publisher: { ...previous.manifest.publisher, signature: "previous-issues-binding" } };
-  const earlier = platform.runtime.install({ definition: previous, deployment: "local", bundled: true }).install;
+  const earlier = platform.runtime.install({ definition: previous, deployment: "local", trust: { level: "host" } }).install;
   assert.notEqual(earlier.publisher_signature, record.publisher_signature);
   assert.equal(platform.runtime.list().find(item => item.plugin_id === record.plugin_id)?.install_id, earlier.install_id,
     "the fixture must put the unrelated publisher before the running trusted installation");

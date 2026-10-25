@@ -5,26 +5,18 @@ import { pluginAgentsFor } from "./plugin-agent-service.js";
 import { pluginSchedulerFor } from "./plugin-scheduler-service.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
-import {
-  ActionError, requireSynchronous, type ActionReference,
-} from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-module-artifacts";
 import {
   assertPluginActionCurrent,
-  assertCapturedPluginActionCurrent,
-  createPluginCapabilityClient,
   createPluginInputsClient,
   createPluginOutputsClient,
   currentPluginInvocation,
   inPluginInstance,
-  markPluginActionChecked,
-  pluginInvocationReadOnly,
-  type PluginCapabilityPort,
-  type PluginInstance,
   type StoppedServiceCalls,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
@@ -187,7 +179,8 @@ interface SessionParts {
 /** The context the Plugin's `start` receives: its identity plus the services below. */
 function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, parts: SessionParts): PluginStartContext {
   const { pluginCaller, providerId, artifactService, ui, assertActive } = parts;
-  const actions = pluginHostActions(context, manifest, { ...options.actions, actor_id: options.actor_id, assertActive, pluginCaller, providerId });
+  const actions = pluginHostActions(context, manifest, { ...options.actions, actor_id: options.actor_id, assertActive, pluginCaller, providerId,
+    ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
   const wiring = options.wiring;
   return Object.freeze({ ...context,
     project_id: options.project_id,
@@ -220,12 +213,11 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
 // Each coordination service appears only when the Manifest declared it, so the Manifest stays a complete account of what
 // this Plugin can reach.
 function coordinationServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, parts: SessionParts) {
-  const { pluginCaller, artifactService, isActive } = parts;
+  const { pluginCaller, artifactService } = parts;
   const wiring = options.wiring;
   const declaresInputs = (manifest.ports?.inputs ?? []).length > 0;
   const declaresOutputs = (manifest.ports?.outputs ?? []).length > 0;
   const declaresEvents = (manifest.events?.publishes ?? []).length > 0;
-  const declaresCapabilities = manifest.capabilities.consumes.length > 0;
   const wiringInput = wiring === undefined
     ? undefined
     : { manifest, install_id: context.install_id, installation_generation: context.installation_generation, graph: wiring, artifacts: artifactService.client, processItems: artifactService.process, scopeKey: options.scopeKey ?? null,
@@ -245,32 +237,5 @@ function coordinationServices(options: PluginHostExecutorOptions, manifest: Plug
     ...(declaresOutputs && wiringInput !== undefined
       ? { outputs: createPluginOutputsClient(wiringInput, pluginCaller.assertActive) }
       : {}),
-    ...(declaresCapabilities && options.capabilities !== undefined
-      ? { capabilities: createPluginCapabilityClient(manifest, withPluginCaller(pluginCaller, context, options.capabilities), isActive) }
-      : {}),
-  };
-}
-
-function withPluginCaller(caller: HostPluginCaller, instance: PluginInstance, port: PluginCapabilityPort): PluginCapabilityPort {
-  return {
-    ...(port.availability ? { availability: (capability: ActionReference, options?: Pick<HostCapabilityCallOptions, "consumer">) => port.availability!(capability, options) } : {}),
-    invoke(capability, input, options) {
-      const outer = currentPluginInvocation();
-      caller.assertActive();
-      assertCapturedPluginActionCurrent(outer, instance);
-      const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal;
-      const assertAuthorityCurrent = () => {
-        caller.assertActive(); signal?.throwIfAborted();
-        requireSynchronous(current?.(), "最终授权检查必须同步完成");
-        assertCapturedPluginActionCurrent(outer, instance);
-        signal?.throwIfAborted(); caller.assertActive();
-      };
-      const bound = { ...options, ...(pluginInvocationReadOnly(outer) ? { query_only: true as const } : {}), consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
-        caller.assertActive(); signal?.throwIfAborted(); await beforeEffect?.(); assertAuthorityCurrent();
-      }, assert_authority_current: assertAuthorityCurrent };
-      // The port knows no capability by name: a capability that depends on who is calling reads the trusted invocation itself.
-      // A command it accepted passed every check of the call it was made in: from then on that call may keep a job (PG-038).
-      return port.invoke(capability, input, bound).then(output => { if (capability.operation !== "query") markPluginActionChecked(outer); return output; });
-    },
   };
 }

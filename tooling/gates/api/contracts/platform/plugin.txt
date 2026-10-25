@@ -440,7 +440,11 @@ export interface ActionClient {
     invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
 }
 
-export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
+export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
+    readonly __types__?: {
+        input: Input;
+        output: Output;
+    };
     readonly operation: "query" | "command";
     readonly provider_id?: string;
     readonly action: ActionMetadata;
@@ -2481,6 +2485,7 @@ export interface PlacementResult {
 }
 
 export interface PluginActionClient extends BoundActionClient {
+    availability(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
     invokeQuery<Input = unknown, Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: Input): Promise<Output>;
     readonly dependencies?: PluginActionDirectory;
     readonly directory?: PluginActionDirectory;
@@ -2548,11 +2553,6 @@ export interface PluginBackgroundClient {
 export interface PluginBackgroundExecution<T> {
     readonly result: Promise<T>;
     cancel(): void;
-}
-
-export interface PluginCapabilityClient {
-    availability(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
-    invoke<Input, Output>(capability: HostCapabilityDefinition<Input, Output>, input: Input, options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions): Promise<Output>;
 }
 
 export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommandInputOf<"object", {
@@ -2850,7 +2850,6 @@ export interface PluginHostServices {
     readonly events?: PluginEventsClient;
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
-    readonly capabilities?: PluginCapabilityClient;
 }
 
 export interface PluginIdempotencyPut {
@@ -3013,6 +3012,7 @@ export interface PluginInstanceRecord {
     selected_entrypoint: string;
     grants: string[];
     execution: "host" | "sandbox";
+    publisher_trust: import("@molis-ai/molis-work-contracts/platform/plugin-trust").PluginTrustLevel;
     state: PluginLifecycleState;
     recovery_count: number;
     last_error_code: string | null;
@@ -3440,6 +3440,10 @@ export interface PluginPackageBundle {
         algorithm: "ed25519";
         value_base64: string;
     };
+    publisher_key: null | {
+        algorithm: "ed25519";
+        spki_base64: string;
+    };
 }
 
 export interface PluginPackageFile {
@@ -3455,6 +3459,7 @@ export interface PluginPackagePayload {
 
 export interface PluginPackageSigner {
     readonly publisher_identity: string;
+    readonly public_key_spki_base64: string;
     sign(payload: Uint8Array): Uint8Array;
 }
 
@@ -4904,6 +4909,8 @@ export declare const platformPluginWiringContract: {
 
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly capability_denied: "invalid";
+    readonly consent_required: "invalid";
+    readonly consent_revoked: "invalid";
     readonly contribution_kind_invalid: "invalid";
     readonly contribution_unredeemed: "invalid";
     readonly declaration_invalid: "invalid";
@@ -4914,11 +4921,14 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly event_type_undeclared: "invalid";
     readonly executor_failed: "invalid";
     readonly grant_denied: "invalid";
+    readonly id_namespace_conflict: "invalid";
     readonly install_replaced: "invalid";
     readonly kept_data_incompatible: "invalid";
     readonly manifest_invalid: "invalid";
     readonly package_invalid: "invalid";
     readonly permission_invalid: "invalid";
+    readonly publisher_revoked: "invalid";
+    readonly publisher_untrusted: "invalid";
     readonly quarantined: "invalid";
     readonly signature_invalid: "invalid";
     readonly signer_mismatch: "invalid";

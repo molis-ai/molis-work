@@ -48,7 +48,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
       store.db.prepare("UPDATE fixture_agent_notes SET state = ? WHERE id = 'note-1'").run((input as { state: string }).state); return note();
     } }] }; } });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
   const ref = (definition: ActionDefinition) => ({ capability_id: definition.capability_id, version: definition.version, provider_id: install.install_id });
   const draft = withFunctionsService(homeDirectory, service => service.create({ primitive: "noul", name: "给 Agent 推荐原笔记动作", function_key: "agent_notes" }), functions);

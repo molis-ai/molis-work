@@ -110,7 +110,7 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
       const runtime = new PluginRuntime(repository, undefined, {
         now: () => new Date("2026-09-02T08:00:00.000Z"),
       });
-      const install = runtime.install({ definition, deployment: "local" });
+      const install = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" });
       const installId = install.install.install_id;
 
       await assert.rejects(
@@ -205,8 +205,8 @@ test("Plugin identity is signature-bound while references retain plugin id and v
   const changed = { ...original, manifest: changedManifest };
   const repository = new MemoryPluginRuntimeRepository();
   const runtime = new PluginRuntime(repository);
-  const first = runtime.install({ definition: original, deployment: "local" });
-  const second = runtime.install({ definition: changed, deployment: "local" });
+  const first = runtime.install({ trust: { level: "unsigned" }, definition: original, deployment: "local" });
+  const second = runtime.install({ trust: { level: "unsigned" }, definition: changed, deployment: "local" });
 
   assert.notEqual(first.install.install_id, second.install.install_id);
   assert.equal(first.install.plugin_id, second.install.plugin_id);
@@ -218,7 +218,7 @@ test("Plugin identity is signature-bound while references retain plugin id and v
     manifest: { ...githubIntegrationManifest, name: "Changed without a version bump" },
   };
   assert.throws(
-    () => new PluginRuntime(repository).install({ definition: silentlyChanged, deployment: "local" }),
+    () => new PluginRuntime(repository).install({ trust: { level: "unsigned" }, definition: silentlyChanged, deployment: "local" }),
     (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.definition_conflict",
   );
@@ -233,7 +233,7 @@ test("installation generations survive restart but change on same-millisecond re
   let clock = new Date('2026-09-28T00:00:00.000Z');
   const runtime = new PluginRuntime(repository, undefined, { now: () => clock });
   const grants = definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
-  const input = { definition, deployment: 'local' as const, grants };
+  const input = { definition, deployment: 'local' as const, grants, trust: { level: 'unsigned' as const } };
   const first = runtime.install(input).install, originalGeneration = first.installation_generation;
   assert.ok(first.installation_generation);
   assert.equal(runtime.install(input).install.installation_generation, originalGeneration);
@@ -349,7 +349,7 @@ test("J1A-01/02: a current owner crash code persists, revokes the live instance 
   let live: PluginStartContext | undefined;
   const definition: PluginDefinition = { manifest: probeManifest(pluginId),
     async start(context) { live = context; return probeContribution(pluginId); }, async stop() {} };
-  const id = runtime.install({ definition, deployment: "local" }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" }).install.install_id;
   runtime.grant(id, [PROBE_PERMISSION]);
   await runtime.start(id);
   const previous = live!;
@@ -572,7 +572,7 @@ test("a failed reactivation revokes grants, and a cold stop does not activate or
     const dbC = new Database(join(directory, "runtime.sqlite"));
     try {
       const runtimeC = new PluginRuntime(new SqlitePluginRuntimeRepository(dbC));
-      runtimeC.install({ definition: parked, deployment: "local", grants: [PROBE_PERMISSION] });
+      runtimeC.install({ trust: { level: "unsigned" }, definition: parked, deployment: "local", grants: [PROBE_PERMISSION] });
       const stopped = await runtimeC.stop(parkedInstall);
       assert.equal(stopped.install.state, "disabled");
       assert.equal(stopped.replayed, false);
@@ -612,7 +612,7 @@ test("repeated and concurrent start register once, and a stop queued behind star
     async stop() {},
   };
   const runtime = new PluginRuntime();
-  const installed = runtime.install({
+  const installed = runtime.install({ trust: { level: "unsigned" },
     definition,
     deployment: "local",
     grants: [PROBE_PERMISSION],
@@ -974,7 +974,7 @@ test("PRERR-02: Runtime distinguishes its current refusals from foreign common e
     const repository = new MemoryPluginRuntimeRepository();
     const runtime = new PluginRuntime(repository);
     const definition: PluginDefinition = { manifest: probeManifest(pluginId), async start() { throw failure; } };
-    const { install } = runtime.install({ definition, deployment: "local", grants: ["network:probe"] });
+    const { install } = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["network:probe"] });
     await assert.rejects(runtime.start(install.install_id), (error: unknown) => index === 0 ? error === failure : error instanceof ActionError
       && error.code === "plugin.executor_failed" && error.message === "Plugin entrypoint 启动失败，已记录为 crashed" && error.kind === "invalid");
     assert.equal(runtime.get(install.install_id).state, "crashed");

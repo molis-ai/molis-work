@@ -11,6 +11,8 @@ import { buildEventContract, type PluginEventContract } from "./event-contract.j
 import { pluginManifestDigest } from "./identity.js";
 import { persistReleaseArtifact, startInstallInput } from "./supervisor-releases.js";
 import { directlyUsable } from "./install-rules.js";
+import { UNSIGNED_TRUST, isHostTrust } from "./trust-rules.js";
+import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 import {
   type PluginRuntimeReleaseArtifactRepository,
@@ -35,19 +37,20 @@ export interface PluginSupervisorEntry {
   /** Latest Host-provided definition; kept as the manual upgrade candidate. */
   definition: PluginDefinition;
   deployment?: PluginDeployment;
-  /** Defaults to every required permission the Manifest declares. A `bundled` entry does not use it: it holds what `bundledGrants` leaves (every declared permission on a fresh install, the optional ones the person left on after that). */
+  /** Defaults to every required permission the Manifest declares. An entry of `host` trust does not use it: it holds what `hostBuildGrants` leaves (every declared permission on a fresh install, the optional ones the person left on after that). */
   grants?: string[];
   /** Host-persisted initial enablement. False registers the entry without activating it. */
   enabled?: boolean;
   /**
-   * Ships with the Host: on start the install record is moved onto this build whatever it holds (a higher or a lower version,
-   * or the same version with another Manifest digest, or this build without one of its required permissions), and no stored
-   * release is restored for it. Its grants follow `bundledGrants` whatever `grants` says: every declared permission on a fresh
-   * install, then the required ones plus the optional ones the person left on, and any optional one new to the plugin.
-   * Every other entry keeps the rules that need a person's confirmation or a declared upgrade source (docs/releases/POLICY.md
-   * section 7).
+   * The evidence the Host's start list has for this entry (ac-trust), given by the Host and never read from the definition; none
+   * means `unsigned`. With `host` (a definition of the Host's own build) the install record is moved onto this build on start
+   * whatever it holds (a higher or a lower version, or the same version with another Manifest digest, or this build without one of
+   * its required permissions), and no stored release is restored for it. Its grants follow `hostBuildGrants` whatever `grants` says:
+   * every declared permission on a fresh install, then the required ones plus the optional ones the person left on, and any
+   * optional one new to the plugin; the Host agrees to the declarations of its Manifest that ask for consent. Every other entry keeps
+   * the rules that need a person's confirmation or a declared upgrade source (docs/releases/POLICY.md section 7).
    */
-  bundled?: boolean;
+  trust?: PluginTrust;
   /** Trusted Host adapter for retaining and restoring this Native factory. */
   releaseArtifact?: {
     capture(): string | Promise<string>;
@@ -341,7 +344,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     const records = this.#runtime.list();
     const candidates: PluginUpgradeCandidate[] = [];
     for (const [pluginId, entry] of this.#entries) {
-      if (entry.bundled) continue; // it follows the Host's build at start: the market has nothing to confirm for it
+      if (isHostTrust(entry.trust ?? UNSIGNED_TRUST)) continue; // it follows the Host's build at start: the market has nothing to confirm for it
       const target = entry.definition.manifest;
       const current = records.find(record => record.plugin_id === pluginId
         && record.publisher_signature === target.publisher.signature
@@ -496,7 +499,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       && record.state !== "uninstalled");
     if (!installed || !candidate.releaseArtifact) return candidate;
 
-    if (directlyUsable(manifest, candidate.bundled === true, installed)) {
+    if (directlyUsable(manifest, isHostTrust(candidate.trust ?? UNSIGNED_TRUST), installed)) {
       await persistReleaseArtifact(candidate, this.#releaseArtifacts);
       return candidate;
     }
@@ -548,7 +551,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       if (installId === null) {
         if (entry.definition.execution === "sandbox" && entry.grants === undefined) throw new Error("生成插件必须先确认安装权限，不能自动授予全部必需权限");
         await persistReleaseArtifact(entry, this.#releaseArtifacts);
-        const installed = this.#runtime.install(startInstallInput(entry, this.#runtime.list(), this.#releaseArtifacts));
+        const installed = this.#runtime.install(startInstallInput(entry, this.#runtime.list(), this.#releaseArtifacts, this.#entries));
         installId = installed.install.install_id;
         if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
           return this.#revokedState(pluginId, installId);

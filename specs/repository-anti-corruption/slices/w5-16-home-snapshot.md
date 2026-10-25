@@ -1,6 +1,6 @@
 # W5-16：Home 离线快照与恢复
 
-状态：Codex C2 实施中；B1 #1190 `bc0160f06` 经独立 REVIEW/TEST 核收，已随 #1202 实际合入 main `645853cb6`（#1190 本身关闭而非单独 merge）；B2a（Runtime 备份密封、只读 vault 预检、旧备份维护）进入交付验证，B2b（CLI 私有状态密封）待接续。早期 Home 互斥及完整快照/恢复尚未实现。负责人：Codex 实现2。目标是完整命令功能可用，工程证据、临时 Home 实操与一骏本人验收分别结算。
+状态：Codex C2 实施中；B1 #1190 `bc0160f06` 经独立 REVIEW/TEST 核收，已随 #1202 实际合入 main `645853cb6`（#1190 本身关闭而非单独 merge）；B2a（Runtime 备份密封、只读 vault 预检、旧备份维护）已随 #1222 进入 main；B2b（CLI 私有状态密封）从 main `0060920a` 实施。早期 Home 互斥及完整快照/恢复尚未实现。负责人：Codex 实现2。目标是完整命令功能可用，工程证据、临时 Home 实操与一骏本人验收分别结算。
 
 ## 目标、依据与交付顺序
 
@@ -70,7 +70,51 @@ storage 提供 SecretStore owner 的只读快照预检入口：输入明确 Home
 
 实际问题是授权结束后 `finishConnectorAuthorization` 清除最后一个 presentation，vault 的 entries 可以为空，但 v2 backend 与原 master 已建立。B2b 必须把现行持久 vault 的 backend 作为绑定依据，entries=0 也只读原 key；正常重开不能因环境偏好变化切换后端或补造 key。初次不存在 vault 的正常初始化保持。CLI payload 独立登记其 key 依赖，不能借 B2a“单独空 vault 无密文依赖”漏掉它。无需新增持久字段、dummy secret、兼容格式或第二把 key；只读 seal/open 不调用可能创建 key 的普通 resolver。公开回归走真实 prepared/start/bind/finish 路径，证明首次登录前已建立依赖，完成清空后在新进程/偏好变化下仍可读，缺/错 key 拒绝且零改写。暂不改 `connector-cli-setup` 等生产初始化接线；B2a 固定交审后按唯一 writer 排序接 B2b。
 
-验收沿 RAC-104/107/108：有内容的受管 CLI 临时安装在 snapshot 前后 Home 字节/权限不变；扫描全部 payload 无合成原文；移除整个 `.home` 后用同 Home 原 key 恢复原相对路径、二进制/文本字节和 mode；缺/错 key、篡改、越界、软/硬链接拒绝且目标零写；正常 pre-master 路径经过显式准备后可备份恢复；payload 不含 raw master、SDK key 或 Keychain 值。完整命令联验由后续 engine 完成，不能把 owner 单测算作完整命令交付。
+验收沿 RAC-104/107/108：有内容的受管 CLI 临时安装在 snapshot 前后 Home 字节/权限不变；扫描全部 payload 无合成原文；移除整个 `.home` 后用同 Home 原 key 恢复原相对路径、二进制/文本字节和 mode；缺/错 key、篡改、越界、软/硬链接拒绝且目标零写；真实 prepare/start/bind/finish 前序已建原依赖，完成后空 vault 仍可密封及预检；payload 不含 raw master、SDK key 或 Keychain 值。完整命令联验由后续 engine 完成，不能把 owner 单测算作完整命令交付。
+
+### B2b 本次实施与边界（2026-10-24）
+
+唯一源码 START 从 main `0060920a314224b2eda6b71ee21b7e29323f6962` 进入，原 B2a 的生产 SecretStore 与五个 CLI 关键文件均已逐 blob 核对；在途 #1223 只继承该实现，本片不接它的运行时版本修复。#1210/#1212 的插件 ownerFiles/materials 不管理 CLI 私有 `.home`，相关实现保持。
+
+本片首先修现行 v2 vault 的持久绑定：文件存在即沿其 backend 只读原 master，不以 entries 是否为空决定能否切换后端或初始化 key；从未有 vault 的首次初始化保持原行为。正常重开在原 key 缺失或格式损坏时拒绝；格式正确但不同的 key 由 payload 的 key 引用与 GCM 认证识别。既有单独空 vault 预检无需 key 的行为保留，不能扩成 CLI payload 没有 key 依赖。
+
+storage 公开 `sealExistingHomePayload(home, binding, contents)` 与 `openExistingHomePayload(home, binding, payload)`，共用原 AES-GCM v2 core 和既有 master 读取，外层只带格式、backend、密钥身份引用与密文；Home、owner/install 绑定和正文在认证密文内。不初始化 store/lock/cache，不 put 活 vault，不生成 key，不返回 master，不改 vault 字段或版本。seal 必须有真实现行 vault；open 按 payload 的原依赖读取，不依赖当前 vault 完好。明文仅在明确 owner 的调用内存中。
+
+connector owner 公开 `captureConnectorPrivateState(home)` 与 `preflightConnectorPrivateStateRestore(home, snapshot)`：枚举所有可核归属的安装，`.home` 的目录/普通单链接文件相对路径、原字节和 mode 密封；未知 `.cache` 不凭名字排除。安装身份与来源摘要绑定，payload 外不露敏感文件名。预检完整核当前安装集合（缺项、重项拒绝）、密钥、密文、全部路径与目录/文件关系，任何拒绝不写目标、不返回部分计划；原 `.home` 已丢时仍可返回包含空目录、空文件、二进制与 BOM 的完整内存文件计划。实际发布/回滚仍归后续唯一 restore publisher，本片不另造恢复写入器，也不以手写 fixture 发布证明命令已完成。
+
+允许生产路径：`packages/storage/src/adapters/file-secret-store.ts` 及同 owner 必要的小型 adapter 拆分、`packages/storage/src/index.ts`；新 `apps/local-host/src/connector-private-state.ts`、`apps/local-host/src/index.ts` 的显式共同导出。新正式安全回归与直接 fixture；同一 slice、storage/local-host README、HOME-DATA 与原 S-12 的精确用例引用。保留 CLI 初始化接线、P2c/SDK/contracts/homeStores；无真实 Home、Keychain、凭据、R41、版本或门禁改动。
+
+| 编号 | 本片可观察验收 | 证明与边界 |
+| --- | --- | --- |
+| RAC-104-B2b-01 | 真实公开 CLI prepare/install/login/job/finish 已建立原 key/vault；finish 空库后新进程改变偏好仍为原 backend，缺原 key 拒绝且不重建 | 临时 Home、本机包 fixture 与真实 PTY；不调用第三方账号或实际 Keychain |
+| RAC-104-B2b-02 | capture 与 open/preflight 均不改原 Home 字节、mode、mtime，不写活 vault/lock；所有 payload 中无合成凭据、master 或敏感文件名 | 比对真实文件与输出字节；健康 payload 在活 vault 损坏时仍可按原 key 预检 |
+| RAC-107-B2b-03 | 缺/错 key、篡改、错 Home/install、越界、重复路径、软/硬链接及特殊文件拒绝且目标零写，无部分计划 | 公开 owner/storage 路径与独立预期；需要隔离同步阻塞时在自有子进程中验证 |
+| RAC-108-B2b-04 | `.home` 丢失但原 key 尚在时，公开预检完整返回原相对路径、binary/BOM/empty 字节和目录/文件权限 | 仅计 owner 预检能力；统一 publisher、真实重开、完整 CLI snapshot/restore 后续联验 |
+
+在真实当前生产路径上先证明空库绑定的两条 red，再修并跑同一路径；新增 seal/open 功能缺失的 red 仅证明能力尚无，不冒业务根因复现。src 改动后公共 build 槽整体构建，跑新定向与包 README 适用必跑及门禁；full/storage 候选交 Claude 统一，不自行启动。固定非 Draft PR/head/raw 立即 DIRECT REVIEW/TEST/流水线并抄 Root，源码固定即释放，不等 CI 或前片合并。
+
+### B2b 本轮评审修正（PR #1239）
+
+本轮修复源码与工程验证已完成（2026-10-24），负责人 Codex FIX4，待固定新 head 的独立增量审验。起点 `b9af98fd430e7451ad0a267e3fc2bc9aab1d7944`；C2 已确认只有只读准备、零落码并交接本轮 writer，完整 C2 后续 owner 保留。复用一轮 6388031418、统筹 6388049535 与现行 CODEX-TASKS §0a，只修本轮有效项，不重复一轮或原 76 文件批、clean006 基线，不接 publisher、早期 lease、bookmark 或完整 CLI 命令。
+
+- RAC-104-B2b-05：复用现有 AES-GCM core，为 Home payload 加用途域、canonical Home 与 owner binding 的 AAD；vault 的现行格式及无 AAD 读写保持。payload 密文移入 vault 后不能读作凭据；合法 vault 密文即便正文恰好是合法 Home payload envelope，也不能移作 payload。两方向在原 b9 生产构建上均须失败，修后拒绝，并证明普通现行 vault 与合法 payload 的原用途正常解封。不增加历史兼容或新 master。
+- RAC-107-B2b-06：Root 已裁定当前内存 API 的全批边界为原始文件字节 32 MiB、安装/目录/文件节点 10,000、密封字符串 UTF-8 字节 128 MiB，等于上限允许、超过任一项整次以 `connector.private_state.limit_exceeded` 拒绝，零写且无部分结果。安装节点及每个存在的 `.home` 根目录均计数；不按安装重置额度，不省略未知 `.cache`。原始总量先按 stat 累计，再有界读 fd，并保留 inode/dev/size/mtime/ctime/nlink 变化拒绝；安装、私有树和恢复目标均逐条、迭代遍历，不能先无界 readdir 或递归栈溢出。预检在解密/大解析前核全批密文大小，base64 先算解码量再分配，每个逻辑源节点/文件仅记一次；恢复目标另用独立的全批 10,000 节点扫描额度，不读目标内容、也不把源计划重复记账。这些是完整 RAM 接口的资源边界，32 MiB 不是峰值内存，也不证明正常真实 Home 覆盖；超限意味着整次没有生成可用快照/计划，后续 publisher/流式归档不在本片。
+- RAC-104-B2b-07：保留现行 vault 原 backend/key 的严格绑定与 Keychain 失败缓存，既有拒绝断言不放宽。缺原 key 的固定报错解释空 vault 仍可能有外部密封依赖，给出按原 backend 找回原值及重启/文档入口。HOME-DATA 分别写 file 的原 `feed/secrets.key`、env 的原 `MOLIS_WORK_ENCRYPTION_KEY`、Keychain 的原 service/account；新 env 值不能替代原 file/Keychain。手动移开 vault 仅限本人明确放弃旧数据，保留旧密文/原钥匙与快照的依赖说明，不执行真实 Home/Keychain/凭据操作。
+
+S-12 同行补 B2b 的密钥引用、用途隔离、Home/owner/安装/来源绑定、空库原后端与链接/缺 key 拒绝，并补 connector owner 代码位置和上述真实拒绝用例。允许路径仍是原 storage owner、connector-private-state、必要直接回归与原 S-12/HOME-DATA/README/本 slice；不改门禁算法、公共 baseline/assets 或其他初始化路径。
+
+验证：新用途隔离回归先对同源 b9 构建运行；实现后公共 build 槽整体构建，运行新的 crypto/规模/恢复拒绝回归、原 B2b 安全文件及 storage README 适用必跑，核 health 的实际 merge-base、boundary、test-import graph 与提交后 secret。原首批 75/76、657/658 红，候选 Keychain 单跑 9/9、clean006 8/8 分别保留，不称基线复现或已证负载。固定源码后一次正常推原分支，直交增量 REVIEW、风险 TEST 与流水线；full 仅 Claude 统一。
+
+本轮实测与记录：
+
+- RAC-104-B2b-05：在同源 b9 构建上 1/3，两方向互换各真实红，现行 vault/合法 payload 原用途为绿；修后 3/3。独立生成的当前无 AAD vault 密文仍可读，空正文、原 Home/owner 的合法 payload 可解封，错绑定拒绝。
+- RAC-107-B2b-06：b9 为 1/4，字节、节点、多安装累计缺口各红；增长拒绝原已通过，不冒充新修。修后 4/4：未知 `.cache` 恰 32 MiB 完整原字节恢复、再加一字节在权限为 000 的内容读取之前得到限额码；源/目标各恰 10,000 节点允许、多一节点整次拒绝；两份公开 prepare/install 的真实安装共享字节/密文额度，恰超一字节拒绝，认证过的超量文件计划也无部分返回；受控真实 fd 读取中追加文件仍因变化拒绝。
+- RAC-104-B2b-07：b9 恢复指引断言 0/3，修后 3/3；原 file 缺/坏 key 拒绝断言全部保留，恢复原 key 后可读；env 只有原值能解旧 payload。Keychain 原整文件本轮 9/9 首过，原重试缓存、失败恢复、新进程与 Functions 20 秒上限均未改；新增 mock 场景明确新 env 值不能替代已记录 Keychain 绑定。该次通过不解释原 b9 首批超时的原因。
+- 原 B2b 文件本轮 9/9；storage README 所需其余用例加 Feed/model-provider 直接回归为另一个 12/12 文件批，全部通过。合计 17 个相关文件已分别验证，不称为旧 76 文件批或 full，也不重复 b9 的原浏览器 20/20。
+- 整体构建最终退出 0；首轮发现错误类别应使用现有 `too_large`，已修正分类，业务码仍为 `connector.private_state.limit_exceeded`。四个新增/修改测试文件严格 TypeScript 通过；actual merge-base `0060920a314224b2eda6b71ee21b7e29323f6962` 的 health、boundary、全部 1,425 个测试进程的 import graph 均通过，0 source/build 混用；27 项页面资源预算通过，未改公共数字。health 首轮指出新增文件需入索引及 S-12 的本机证据列误归 CI，已修正为真实执行归属，未改门禁。
+- 原件目录 `/tmp/molis-pr1239-b2b-review-fix-20261024/`：红灯 `purpose-red-b9.log`、`limits-red-b9.log`、`recovery-guidance-red-b9.log`；绿灯 `crypto-recovery-green-01.log`、`limits-green-01.log`、`b2b-existing-regression.log`、`keychain-review-fix.log`、`storage-required-regressions.log`；构建 `build-review-fix.log`、`build-review-fix-02.log`；类型/门禁 `test-types-review-fix.log`、`health-review-fix-02.log`、`boundary-review-fix.log`、`test-imports-review-fix.log`、`page-assets-review-fix.log`。提交后的 secret、精确固定 head、独立审验与共享文件释放记录交原 PR/交接原件。
+
+本轮未读写真实 Home、账号或 Keychain，只有独立临时 Home、本机包源和 PATH 隔离 mock。`packages/storage/src/index.ts` 与 `apps/local-host/README.md` 未改；共享改动仅 storage README、HOME-DATA、S-12 同行及本 slice。C2 的 A 片可在本轮固定源码释放后串行追加其自身共享内容，不在本修复中实施 A。
 
 ### 现行登记逐项凭据策略
 
@@ -97,7 +141,7 @@ storage 提供 SecretStore owner 的只读快照预检入口：输入明确 Home
 | `plugin-builder` | plugin-builder 设计/构建/发布 owner | 源码、设计、发布及 run 状态保留；每个 run 的 `storage.key` 只为原 Home 依赖；已证构建缓存可重建 |
 | `cache`、`git-operation-details.json` | local-host 缓存与 Git 审查细节 | cache 可重建；Git 细节是普通事实，与 Agent 审查回执同点备份 |
 | `config/onboarding.json`、`config/project-arrival.json`、`config/mcp-tools.json`、`config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | 各 Home 配置 owner | 普通设置、可见工具和授权引用；保留必要配置，不复制 Home 安装控制令牌 |
-| `directory-access` | desktop 的 `DirectoryRecord {path, bookmark}` | 包含目录授权能力，既有 HOME-DATA 仅推断可重建；完整命令前须核桌面 owner 的密封/本机重新授权边界，不按普通配置导出或静默排除，此项尚未完成 |
+| `directory-access` | desktop 的 `DirectoryRecord {path, bookmark}` | Root 已核为必要敏感原件：Home 内的 bookmark 须密封并按原路径/字节恢复，OS 决定是否有效，失效仍须重选；AppData 外只列外部依赖，不按普通配置导出或静默排除。该 owner 实现仍待接续 |
 
 文件依赖只留 owner、同 Home 原路径/后端和必要的身份摘要；raw master、SDK key、会话 key 与构建 run key 不进备份。浏览器是现有明确排除；目录授权仍有上表的 owner 核实项，其他独有事实不能借“派生”漏备。
 

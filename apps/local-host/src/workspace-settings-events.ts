@@ -1,8 +1,9 @@
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectSettingsCapabilities, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { HOST_WORKSPACE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { hostLog } from "./host-log.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
+import { projectCallCaller } from "./project-call-caller.js";
 import { runningProjectPlatform, type ProjectPluginPorts } from "./project-plugins.js";
 
 /**
@@ -28,19 +29,17 @@ const opened = new WeakMap<PluginPlatform, Promise<void>>();
  * `cause: "project-opened"` and the folder the project browses (empty when it has none); a plugin that holds files of an earlier
  * folder looks again, and the route waits for the deliveries to finish so a plugin that reads its outputs does not read the old
  * ones. Starting a platform headlessly (discovering actions) reads and sends nothing: only this entry does, because only it is
- * followed by a person's reads. A failed announcement is logged, not the route's failure; the next route can try again.
+ * followed by a person's reads. The folder is the one `projectSettingsCapabilities.browsingWorkspace` answers, asked through the Host's
+ * own action client as the Host itself (`local-host`, the person's audience, as `host.client` asks) for the project this entry was
+ * opened for, within this request's operation: the folders come from whatever owns them for this Host, a failed or missing read leaves
+ * its row under the request's id, and a successful one leaves none. A failed announcement is logged, not the route's failure; the next
+ * route can try again.
  */
-export function announceProjectOpened(platform: PluginPlatform, ports: Pick<ProjectPluginPorts, "projectId" | "capabilities">): Promise<void> {
+export function announceProjectOpened(platform: PluginPlatform, ports: Pick<ProjectPluginPorts, "projectId" | "actions">): Promise<void> {
   const earlier = opened.get(platform);
   if (earlier) return earlier;
   const announcing: Promise<void> = Promise.resolve().then(async () => {
-    const capabilities = ports.capabilities;
-    if (!capabilities) {
-      if (opened.get(platform) === announcing) opened.delete(platform);
-      hostLog.warn("workspace-settings", "opened_capabilities_unavailable", undefined, { project_id: ports.projectId });
-      return;
-    }
-    const selected = await capabilities.invoke(projectSettingsCapabilities.browsingWorkspace, []);
+    const selected = await ports.actions.client.invoke(projectCallCaller(ports.projectId, () => ({})), projectSettingsCapabilities.browsingWorkspace, []) as ProjectWorkspaceRef | null;
     platform.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, payload: { workspace_id: selected?.workspace_id ?? "", cause: "project-opened" } });
     await platform.hostEvents.drain();
   }).catch(error => {

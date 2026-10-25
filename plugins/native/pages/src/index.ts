@@ -165,7 +165,7 @@ export type { PagesLineHeadPort, PagesPublishArtifactPort, PagesReadArtifactPort
 
 export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";
 
-export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, createPagesActionHandlers } from "./actions.js";
+export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, createPagesActionHandlers } from "./actions.js";
 export type { PagesActionPorts } from "./actions.js";
 
 export { pagesCommentActions, createPagesCommentHandlers } from "./comment-actions.js";

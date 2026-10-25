@@ -5,8 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { logPreviewFailure } from "./host-log.js";
-import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
-import { PAGES_READABLE_FILE } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_PLUGIN_ID, PAGES_READABLE_FILE } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { BoundActionClient, HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {

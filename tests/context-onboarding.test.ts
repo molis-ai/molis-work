@@ -388,6 +388,32 @@ test('creation failure after project registration resumes exactly that project, 
   const pages=openPagesStore(dir);try{assert.equal(pages.list(second.project_id).length,2);assert.match(JSON.stringify(pages.list(second.project_id)),/Fixture preserved body/);}finally{pages.close();}
 });
 
+// RAC-661 (PG-031): the Host saves materials into the Pages that ships with it, found in the directory, never into a same-named
+// capability of another plugin; without it nothing is written and adoption says why.
+test('RAC-661 adoption writes no document when the shipped Pages is not in the directory, even if another provider has pages.create', async t => {
+  const dir = await home(t), id = randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir, store => store.create(id));
+  selectContextSources(dir, id, { sources: [{ kind: 'browser', selected: true, text: 'A body for no Pages' }] });
+  const base = pagesPorts(dir);
+  const ports = { ...base, model: async () => ({ completeText: async () => '# No Pages\nA body for no Pages [S1]' }) };
+  startContextJourney(dir, id, ports);
+  const ready = await waitContextJourney(dir, id); assert.equal(ready.phase, 'review');
+  const invoked: string[] = [];
+  const adopted = await adoptContextJourney(dir, id, { title: ready.summary!.title, body: ready.summary!.body }, { ...ports,
+    actions: async (home, projectId, original_file): Promise<BoundActionClient> => {
+      const client = await base.actions(home, projectId, original_file);
+      // The directory shows pages.create only under another provider's id.
+      return { discover: async () => (await client.discover()).map(view => view.capability_id.startsWith('pages.') ? { ...view, provider: { ...view.provider, provider_id: 'com.example.pages' } } : view),
+        invoke: async (definition, input, control) => { invoked.push(definition.capability_id); return client.invoke(definition, input, control); } };
+    },
+  });
+  assert.equal(adopted.phase, 'failed'); assert.match(adopted.error!, /pages\.create@2 未在当前项目登记或未获授权/);
+  assert.ok(!invoked.some(capability => capability.startsWith('pages.')), invoked.join(', '));
+  const store = openPagesStore(dir);
+  try { assert.equal(store.list(adopted.project_id).length, 0); } finally { store.close(); }
+});
+
 test('ordinary entry can discover unfinished work without empty or completed attempts hiding it',async t=>{
   const dir=await home(t),active=randomUUID(),empty=randomUUID(),completed=randomUUID();
   withContextJourneys(dir,s=>s.create(active));
@@ -476,6 +502,7 @@ test('ONB-LIM-03 a round of 300 files is read one by one and adopted whole: ever
   await assert.rejects(stat(join(dir,'context-onboarding','journeys',id)),{code:'ENOENT'});
 });
 
+// RAC-660 (PG-031): the parts go through Pages' own create, found in the directory; the Host builds no Pages body.
 test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole: its original in the 成果库\'s store, its whole text in Pages parts',{timeout:240_000},async t=>{
   const dir=await home(t),id=randomUUID();
   await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();

@@ -12,6 +12,9 @@ export const PAGES_PLUGIN_ID = "io.molis.work.pages";
 export const PAGES_PROJECT_PLUGIN_ID = "pages";
 export const PAGES_ARTIFACT_TYPE_ID = "io.molis.work.pages.document";
 export const PAGES_ARTIFACT_SCHEMA_VERSION = 1;
+/** What Pages can start documents from: text it reads, and the Word, CSV and ZIP (e.g. Notion export) files it parses. Public so a
+ * surface that offers “open in Pages” for a file asks the same question Pages does, without importing Pages. */
+export const PAGES_READABLE_FILE = /\.(?:md|markdown|txt|html?|csv|docx|zip)$/iu;
 
 /** ProseMirror document JSON. The plugin store does not interpret node types. */
 export interface PagesBody {

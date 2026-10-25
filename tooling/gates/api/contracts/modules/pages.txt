@@ -10,6 +10,8 @@ export declare const PAGES_PLUGIN_ID = "io.molis.work.pages";
 
 export declare const PAGES_PROJECT_PLUGIN_ID = "pages";
 
+export declare const PAGES_READABLE_FILE: RegExp;
+
 export interface PagesBody {
     readonly type: "doc";
     readonly content?: readonly unknown[];

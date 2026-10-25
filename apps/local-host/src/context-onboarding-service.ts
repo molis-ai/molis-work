@@ -1,11 +1,10 @@
-import type { BoundActionClient, HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
 import { createHash, randomUUID } from "node:crypto";
-import { pagesActions, blocksFromMarkdown } from "@molis-ai/molis-work-plugin-pages";
-import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
-import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
+import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
+import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_PLUGIN_ID, type TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 import { withContextJourneys, type CallTiming, type ContextJourney, type ContextReference, type ImportFile } from "./context-onboarding-store.js";
 import { contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
 import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, stagedFileSize, stagedJourneyIds, isStagedDigest } from "./context-onboarding-staging.js";
@@ -16,7 +15,6 @@ import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-modu
 import { completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { TODO_ORGANIZE_MATERIAL_CHARS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { L } from "./web-locale.js";
 import { hostLog } from "./host-log.js";
@@ -373,7 +371,9 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
     for await (const materials of todoBatches(home, journey.id, references)) {
       if (++index <= todo.batches.length) continue;
       // The journey id and the batch number make a retried pass return the same drafts instead of organizing twice.
-      const { batch } = await timedCall(todo.timing, () => ports.homeActions!(home, AbortSignal.timeout(20 * 60_000)).invoke(todoOrganizeActions.extract, { origin: "onboarding",
+      const todoActions = ports.homeActions!(home, AbortSignal.timeout(20 * 60_000));
+      const extract = await shipped<TodoExtract, { batch: TodoBatch }>(todoActions, "todo.organize.extract", 1, TODO_PLUGIN_ID);
+      const { batch } = await timedCall(todo.timing, () => todoActions.invoke(extract, { origin: "onboarding",
         title: total > 1 ? L("开始使用时整理的待办（第 {k} / {n} 批）", { k: index, n: total }) : L("开始使用时整理的待办"), request_id: `onboarding:${journey.id}:${key}:${index}`, materials }));
       todo.batches.push(batch); save();
     }
@@ -383,16 +383,19 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
   }
   save();
 }
-function pageBody(text: string): PagesBody {
-  const nodes = blocksFromMarkdown(text);
-  return { type: "doc", content: nodes ? nodes.map(n => n.toJSON()) : [{ type: "paragraph", content: [{ type: "text", text }] }] } as PagesBody;
-}
-/** A Pages document's body is at most 1,500,000 characters encoded; parts start at 400,000 and halve until each fits. */
-const PAGE_PART_CHARS = 400_000, PAGE_BODY_MAX = 1_400_000;
-function* pageParts(text: string): Generator<PagesBody> {
+/**
+ * A Pages document's body is at most 1,500,000 characters encoded, and Pages turns the markdown into its own structure. The Host does
+ * not build that structure (PG-031); it bounds it from above: every line or table cell adds at most PAGE_NODE_CHARS of structure,
+ * every mark character (a mark splits the text) PAGE_MARK_CHARS, and an escaped character five. Parts start at 400,000 characters
+ * and halve until the bound fits; were the bound ever short, Pages refuses the part and the save fails rather than cutting text.
+ */
+const PAGE_PART_CHARS = 400_000, PAGE_BODY_MAX = 1_400_000, PAGE_NODE_CHARS = 160, PAGE_MARK_CHARS = 80;
+const count = (text: string, pattern: RegExp) => text.match(pattern)?.length ?? 0;
+const pageBound = (text: string) => text.length + PAGE_NODE_CHARS * (1 + count(text, /[\n|]/gu)) + PAGE_MARK_CHARS * count(text, /[*`[_~]/gu)
+  + 5 * count(text, /["\\\u0000-\u0009\u000b-\u001f]/gu);
+function* pageParts(text: string): Generator<string> {
   for (const part of textParts(text, PAGE_PART_CHARS)) {
-    const body = pageBody(part);
-    if (JSON.stringify(body).length <= PAGE_BODY_MAX || part.length < 2) yield body;
+    if (pageBound(part) <= PAGE_BODY_MAX || part.length < 2) yield part;
     else {
       let half = Math.ceil(part.length / 2);
       if (/[\uD800-\uDBFF]/u.test(part[half - 1]!)) half--;
@@ -400,6 +403,19 @@ function* pageParts(text: string): Generator<PagesBody> {
     }
   }
 }
+/**
+ * One action of a plugin that ships with the Host, found in the caller's directory by its public identity (PG-031): the Host names the
+ * capability and that plugin's provider (pinned exactly, as for Goals: a same-named capability of another plugin is never picked, #1207),
+ * and never imports the plugin's package. Not registered or not granted here: refused, nothing written.
+ */
+async function shipped<I, O>(actions: BoundActionClient, capability_id: string, version: number, provider_id: string): Promise<ActionDefinition<I, O>> {
+  const view = (await actions.discover()).find(one => one.capability_id === capability_id && one.version === version && one.provider.provider_id === provider_id);
+  if (!view) throw new ActionError("actions.dependency_missing", `${capability_id}@${version} 未在当前项目登记或未获授权`);
+  return { ...view, provider_id } as ActionDefinition<I, O>;
+}
+type PagesCreated = { document: { id: string } };
+type TodoExtract = { origin: "onboarding"; title: string; request_id: string; materials: { title: string; text: string }[] };
+type TodoDecision = { candidate_id: string; action: "add" | "merge" | "update" | "complete" | "reopen" };
 export async function adoptContextJourney(home: string, id: string, input: Record<string, unknown>, ports: ContextOnboardingPorts): Promise<ContextJourney> {
   if (running.has(key(home, id))) { await running.get(key(home, id)); return readContextJourney(home, id); }
   const journey = readContextJourney(home, id);
@@ -430,6 +446,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       const client = await ports.actions(home, journey.project_id);
       const actions = Object.assign(client, { forOriginal: (path: string) => ports.actions!(home, journey.project_id, { path, install_id: ARTIFACTS_PLUGIN_ID }) });
       {
+        // Pages' own create: Pages turns the markdown into its document, and the same request id returns the same document on a retry.
+        const create = await shipped<{ request_id: string; title: string; markdown?: string }, PagesCreated>(actions, "pages.create", 2, PAGES_PLUGIN_ID);
         const refs = journey.adoption!.blank ? [] : journey.summary?.references ?? journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []);
         if (!journey.summary) refs.forEach((ref, index) => { ref.label = "S" + (index + 1); });
         journey.artifact_references = refs.flatMap(ref => ref.artifact ? [ref.artifact] : []);
@@ -448,8 +466,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
             // The whole text, in as many documents as Pages needs (“第 k / N 部分”); each part's request is its own, so a retry goes on.
             const parts = [...pageParts(`原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${await readStagedText(home, id, ref.text)}`)], documents: string[] = [];
             for (const [index, body] of parts.entries()) {
-              documents.push((await actions.invoke(pagesActions.importDocuments, { request_id: id + ":sources:" + ref.label + (parts.length > 1 ? ":" + (index + 1) : ""), request_hash: id,
-                documents: [{ title: partTitle(`[${ref.label}] ${ref.title}`, index + 1, parts.length, 80), body }] })).documents[0]!.id);
+              documents.push((await actions.invoke(create, { request_id: id + ":sources:" + ref.label + (parts.length > 1 ? ":" + (index + 1) : ""),
+                title: partTitle(`[${ref.label}] ${ref.title}`, index + 1, parts.length, 80), markdown: body })).document.id);
             }
             ref.documents = documents;
             withContextJourneys(home, store => store.save(journey));
@@ -460,7 +478,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         const text = journey.adoption!.body + (sources ? "\n\n## " + L("资料来源") + "\n\n" + sources : "");
         const summaryTitle = L("{title} · 工作摘要", { title: journey.adoption!.title });
         const summaryText = summaryTitle.length > 80 ? `${L("项目：{title}", { title: journey.adoption!.title })}\n\n${text}` : text;
-        const summary = (await actions.invoke(pagesActions.importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
+        const summary = (await actions.invoke(create, { request_id: id + ":summary", title: pageTitle(summaryTitle), ...(summaryText ? { markdown: summaryText } : {}) })).document;
         journey.document_id = summary.id;
         if (text.trim()) {
           const artifact = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "summary.md", title: summaryTitle,
@@ -489,13 +507,15 @@ async function adoptTodoDrafts(journey: ContextJourney, actions: BoundActionClie
   if (!journey.todo?.batches.length || !selected.size || journey.todo.added) return;
   const relation = { same: "merge", update: "update", conflict: "update", maybe_done: "complete", reopen: "reopen" } as const;
   const batches: TodoBatch[] = [];
+  const get = await shipped<{ id: string }, { batch: TodoBatch }>(actions, "todo.organize.get", 1, TODO_PLUGIN_ID);
+  const apply = await shipped<{ id: string; expected_revision: number; decisions: TodoDecision[] }, { batch: TodoBatch }>(actions, "todo.organize.apply", 1, TODO_PLUGIN_ID);
   for (const kept of journey.todo.batches) {
-    let { batch } = await actions.invoke(todoOrganizeActions.get, { id: kept.batch_id });
+    let { batch } = await actions.invoke(get, { id: kept.batch_id });
     const decisions = batch.candidates.filter(candidate => selected.has(candidate.candidate_id) && !candidate.decision)
       .map(candidate => ({ candidate_id: candidate.candidate_id, action: candidate.existing ? relation[candidate.existing.relation] : "add" as const }));
     // Todo takes 80 decisions a call.
     for (let start = 0; start < decisions.length; start += 80) {
-      batch = (await actions.invoke(todoOrganizeActions.apply, { id: batch.batch_id, expected_revision: batch.revision, decisions: decisions.slice(start, start + 80) })).batch;
+      batch = (await actions.invoke(apply, { id: batch.batch_id, expected_revision: batch.revision, decisions: decisions.slice(start, start + 80) })).batch;
     }
     batches.push(batch);
   }

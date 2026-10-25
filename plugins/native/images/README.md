@@ -41,7 +41,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
   - 所选账号失效时保留选择并显示原因，不自动换账号；生成期间授权或连接版本改变不保存过期结果；按当次返回的 revision 在交付与写入前复核。
   - 同一 Home 只有一个执行进程，由共同 Host 监督器管理；插件不另外建立进程锁或打开数据库。
   - `images.jobs.start` 对助理、MCP、工作流和插件随服务状态可用；用户页面仍能配置服务。发现只读取现有配置与连接状态，不 pin 地址或调用模型。
-  - 项目被删除时共同 Home 生命周期回调先同步取消等待受理和执行中的任务，再由 `imagesProjectData` 清理项目任务与已引用图片；插件停用时仍可通过同一数据主人清理。未引用的部分生成文件留到下次具备所需读写授权的启动中回收，缺少 `images:read` 时保留。
+  - 项目被删除时共同 Home 生命周期回调先同步取消等待受理和执行中的任务，再由 `imagesProjectData` 在同一 SQLite 删除事务提交前清理项目任务与已引用图片（文件删除失败或维护控制撤销时回滚任务行，保留原文件列表供授权重试；已删除文件不回滚，重试 force 处理原清单）；插件停用时仍可通过同一数据主人清理。未引用的部分生成文件留到下次具备所需读写授权的启动中回收，缺少 `images:read` 时保留。
   - HTTP 挂载在 `/api/plugins/io.molis.work.images/`，路由只调用共同动作；预览显式返回 inline，下载返回 attachment，Host 只保留 PNG/JPEG/WebP MIME；未知错误仍只回 images.internal 和原通用句，已知错误状态由 SDK 统一转换。
   - 配置、任务与文件的每次写入均等待当前授权后同步复查；并发生成维持每个 Home 最多两项，相同请求 ID 不重复调用厂商。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-images run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。

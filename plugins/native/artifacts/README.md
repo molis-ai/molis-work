@@ -105,7 +105,7 @@ node scripts/run-tests.mjs tests/artifact-document-import.test.ts tests/document
 - 负责：Artifact 浏览、嵌入、文档导入与组合。
 - 不负责：Artifact 事实与 Store、生产方与消费方的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`（项目原件维护删除复用物理路径检查，拒绝文件与祖先目录重定向）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Host 注入项目、actor 与工作区，业务参数不能覆盖身份、producer、scope 或根目录。
   - 在线文档内容变化时新增版本，旧版本与精确引用保留；空正文、超限、权限错误和截断结果不产生成功的 Artifact。
@@ -113,6 +113,7 @@ node scripts/run-tests.mjs tests/artifact-document-import.test.ts tests/document
   - 同步 publish/read 接口只给 `plugin` 受众，不能当用户或 MCP 工具冒充生产者；只有声明 sync 的处理器可以同步调用。
   - 系统搜索条目的摘要只取 `SEARCHABLE_FIELDS` 里的字段（标题、正文、文件名、说明这类，表格行 `cells` 的值，加内置生产者各自的正文键：Coding 报告的 `body_markdown`、`task`、`model_answer`，演示稿的 `bullets`，角色的 `instructions`，Feed 捕获的 `source_label`、`tags`），其余字符串（文档 id、节点类型、编码内容、引用）不进摘要；与版本标题相同的字符串不重复。新的生产者把可读正文放在别的键下，要把键加进来并在 `tests/artifact-search-summary.test.ts` 补一个载荷形状，否则这个成果搜不到正文。条目的 `revision` 把摘要算在内（版本与内容摘要之外再加摘要文字的指纹）：摘要的取法一变，已建好的索引在下一次同步时重读这些成果，不必等每个成果出新版本或手动 `search.rebuild@1`；同一版本、同一取法，修订号不变，不会每次同步都重读。
 - 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-actions.test.ts tests/artifact-browser.test.ts tests/artifact-document-import.test.ts tests/plugin-artifact-client.test.ts tests/plugin-artifact-operations.test.ts tests/artifact-links.test.ts tests/artifact-source-and-links.test.ts tests/personal-artifact-owner.test.ts tests/artifact-subject-context.test.ts tests/artifact-search-summary.test.ts`
+- 受控项目原件清理：最终路径复核与目录删除同步执行，普通入口保留异步行为；修改这条路径加跑 `tests/project-deletion-directory-interleaving.test.ts`、`tests/project-deletion-file-boundaries.test.ts` 和 `tests/project-deletion-file-control.test.ts`。
 - 相关手册：[docs/modules/artifacts.md](../../../docs/modules/artifacts.md)、[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

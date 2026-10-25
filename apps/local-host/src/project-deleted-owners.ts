@@ -2,11 +2,11 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
-import { memoryLedgerHasOnlyPreferences, MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { inspectExistingStoragePath, memoryLedgerHasOnlyPreferences, MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -111,19 +111,25 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
       clear: partitioned ? removePartition(home, data, partitioned) : purgeOf(home, id, data) }));
 }
 
-function purgeOf(home: string, id: string, data: ProjectDataDeclaration): (projectId: string) => void | Promise<void> {
+function purgeOf(home: string, id: string, data: ProjectDataDeclaration): ProjectDeletedOwner["clear"] {
   if (!data.purge) throw new Error(`${id} 的项目数据没有清理办法（purge）`);
-  return projectId => data.purge!(home, projectId);
+  return (projectId, _deletion, control) => { control?.assertCurrent(); return data.purge!(home, projectId, control); };
 }
 
 /**
  * A Home plugin whose library is partitioned by project, cleared without its instance running here: its own `purge`, if it has one,
  * then the project's library goes. The running instance's owner (`plugin-project-cleanup.ts`) replaces this one while it runs.
  */
-function removePartition(home: string, data: ProjectDataDeclaration, store: string): (projectId: string) => Promise<void> {
-  return async projectId => {
-    await data.purge?.(home, projectId);
-    await rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true });
+function removePartition(home: string, data: ProjectDataDeclaration, store: string): ProjectDeletedOwner["clear"] {
+  return async (projectId, _deletion, control) => {
+    control?.assertCurrent();
+    const directory = homeSqlitePartitionDirectory(home, store, projectId);
+    const target = control ? inspectExistingStoragePath(directory, "directory") : undefined;
+    await data.purge?.(home, projectId, control);
+    control?.assertCurrent();
+    target?.assertCurrent();
+    if (control) rmSync(directory, { recursive: true, force: true });
+    else await rm(directory, { recursive: true, force: true });
   };
 }
 
@@ -138,14 +144,16 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
   return [
     ...declaredProjectOwners(home),
     // Without a running Host there is no studio to close, only its directory to remove; the Host's own owner replaces this one.
-    { id: "alchemist", label: "炼金术士的研究空间", clear: projectId => rm(alchemistProjectDirectory(home, projectId), { recursive: true, force: true }) },
+    { id: "alchemist", label: "炼金术士的研究空间", clear: (projectId, _deletion, control) => { control?.assertCurrent(); const directory = alchemistProjectDirectory(home, projectId);
+      if (control) { inspectExistingStoragePath(directory, "directory").assertCurrent(); return rmSync(directory, { recursive: true, force: true }); }
+      return rm(directory, { recursive: true, force: true }); } },
     pluginBuilderProjectOwner(home),
     // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.
-    { id: "assistant", label: "助理在这个项目里的工作", clear: async projectId => { await purgeAssistantProject(home, projectId); } },
+    { id: "assistant", label: "助理在这个项目里的工作", clear: async (projectId, _deletion, control) => { await purgeAssistantProject(home, projectId, undefined, control); } },
     // Project knowledge's cards (what the person edited on them, and what organizing used) are a plain library any process clears.
-    { id: "knowledge", label: "项目资料的卡片与整理记录", clear: projectId => { clearKnowledgeProject(home, projectId); } },
+    { id: "knowledge", label: "项目资料的卡片与整理记录", clear: (projectId, _deletion, control) => { clearKnowledgeProject(home, projectId, control); } },
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
-    { id: "plugin-originals", label: null, clear: projectId => { forgetProjectOriginalFiles(home, projectId); } },
+    { id: "plugin-originals", label: null, clear: (projectId, _deletion, control) => { forgetProjectOriginalFiles(home, projectId, control); } },
     // Which account a plugin uses for each of its records in the project (`per_record` slots); the accounts are the person's and stay.
     { id: "plugin-connections", label: null, clear: projectId => { forgetProjectConnectionBindings(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).

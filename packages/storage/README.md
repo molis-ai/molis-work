@@ -102,7 +102,7 @@ MEM-40原项目计划的冷retention由 `createMemoryLedgerProjectRetention` 提
   - 搜索索引是可删除的派生缓存：文件缺失、损坏或 schema 版本不符时清空重建，不读回任何业务事实。
   - 索引切分：中日韩每字单独、相邻两字成词，其余字母数字按小写词、查询用前缀；候选必须在原文（NFKC、小写）里真实出现才返回，两字中文与 `Q4` 这类短词可查。
   - 正文由读取器提供的条目，只对能读该种类的调用来源返回。
-  - 项目被删除时清掉它在个人库里的行：`clearInExistingHomeSqlite` 对已存在的库在一个写事务里运行删除（库不存在就不创建、版本不符照常拒绝）；`deleteSecretEntriesWithPrefix` 按引用前缀删密封的密钥，不解密；记忆账本的 `forgetScopes` 一并忘掉已不存在的范围。
+  - 项目被删除时清掉它在个人库里的行：`clearInExistingHomeSqlite` 对已存在的库在一个写事务里运行删除（库不存在就不创建、版本不符照常拒绝）。带维护 control 时，经 `openExistingBaselineSqlite` 使用 mode=rw 严格核版本与完整 schema/对象清单，空库、未知结构不初始化或修复；开库、BEGIN、回调与 COMMIT 前检查原同步 control，回调主人还须在每次实际删除前检查。原普通 openBaseline/apply 初始化语义保持；`deleteSecretEntriesWithPrefix` 按引用前缀删密封的密钥，不解密；记忆账本的 `forgetScopes` 一并忘掉已不存在的范围。
 - 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts tests/security-invariants-connector-private-state.test.ts tests/security-invariants-home-payload-purpose.test.ts tests/security-invariants-connector-private-state-limits.test.ts tests/secret-store-missing-key.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
@@ -122,3 +122,5 @@ MEM-40原项目计划的冷retention由 `createMemoryLedgerProjectRetention` 提
 `MemoryLedgerPort.ownerRelations()` 在同一 SQLite 读取中投影全部 owner 与候选账的身份关系，不交正文、标题或历史；候选索引/JSON 身份不一致及跨源同 owner 项目冲突明确拒绝。不改变 adoption snapshot 或授予 scope 权限。
 
 `openMemoryLedgerRecoveryInspection` 仅检查完整 T1 工作副本：单 readonly SQLite BEGIN 快照，`next` 默认 40、最大 100 条 fact+issue，非法限额拒绝；计划条目跨页延续，不整库收集后切页。输出只有经过校验的身份/原决定/来源屏障，不交正文或 raw marker。失败页保留位置；`close` 即使取消/撤权也释放连接并报告检查或关闭失败。没有 Home/库/表/key 创建、迁移或 checkpoint，工作副本可出现 SQLite 必要侧车；原件 T1/T0 不打开。`exhausted` 不是恢复 complete。Schema、清理决定、owner/candidate 行级校验与现入口共用。专项回归：`tests/memory-ledger-recovery.test.ts`；相关读取影响面加跑 `tests/memory-owner-relations.test.ts`、`tests/memory-ledger-adoption.test.ts`、`tests/memory-adoption-maintenance.test.ts`、`tests/memory-ledger-transaction.test.ts`。
+
+维护文件路径共用原 Search 提取的 `inspectExistingStoragePath` / `inspectExistingSqlitePath`：逐祖先拒绝链接，文件必须普通且单链接，原目录/库 dev+ino 在等待后复核；SQLite 侧车允许自身创建/消失但不能重定向。`openExistingBaselineSqlite` 拒绝别名路径；维护调用方提供 canonical Home。实际 rm 的库外目录也须独立检查。`deleteSecretEntriesWithPrefix(prefix, control?)` 把同一控制传入原 mutex 和原子保存，拿锁后、临时密文写入前及 rename/COMMIT 前复核；维护只用既有凭据互斥库，不解密或创建密钥。普通无 control 的初始化与写入语义不变。真实链接、硬链接与双进程撤权回归见 `tests/project-deletion-file-boundaries.test.ts`。

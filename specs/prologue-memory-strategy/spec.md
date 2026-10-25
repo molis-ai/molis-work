@@ -2755,3 +2755,79 @@ product-interaction.e2e、coding-workbench.e2e、code-scale.e2e 三文件仅依�
 原两实际文件 7 项及相邻管理安全、入口身份、操作号 3 文件 27 项在 Node 24.14.0 上通过，零跳过或重试；准确 main64a 健康门与全分支 secrets 通过。第一条绿色定向命令误列不存在的 `resident-management-gateway.test.ts`，该命令整体退出 1；这里只采信两份实际运行结果，保留清单错误，不记整条命令成功。确定性红/绿及相邻日志分别为 `/private/tmp/molis-memory-foundation-resident-observer-{red,green,adjacent}-20261025.log`。此前 85 文件 765 项也已完成并全部通过，原未完成记录保留为当时状态。新最终头仍须普通 CI 和 Full suite，Cloudflare 未核失败与最终产品/用户验收边界不变。
 
 推送前远端 main 前进至 `54437998cefbff245a107d919ae01975bd4b08ec`，仅 #1289 的巨大单元门禁规则、登记与文档，没有生产行为变更；三方合并检查无冲突。本次修正不借用新规则增加例外，仍通过原 main64a 的更严格检查，最终合并结果由普通 CI 核验。
+
+### 2026-10-25：SQLite 只读技术侧车的测试观察修正（实施前短合同）
+
+准确基线 `994357e9579f8a21d5753d71daa639f2655ce16a`。真实公开 reader 证明：旧 prefs 拒绝启动只增加 `memory/memory.db` 的零字节 WAL 和 SHM；项目拒绝用例只改变 `projects/catalog.db-shm` 的读锁/索引协调字节，DB 与非空 WAL 的 bytes/mode/mtime 均保持。`immutable=1` 会忽略非空 WAL、读到旧值，不能作为修复。根证据 `/private/tmp/molis-memory-sqlite-readonly-evidence-review-20261025.md`；不改生产读取、复制库、immutable、Runtime、SDK 或业务合同。
+
+最小实现沿现 `tests/fixtures/home-storage-files.ts` 的完整快照职责，在两份失败测试明确给定原数据库路径后，比较前后快照并记录允许的技术差别：只允许已知普通单链接 DB 的 SHM 协调内容变化/创建/移除，以及零字节 WAL 创建/移除；现存侧车权限保持。DB、非空 WAL（包括变空/出现非空）、journal、未知后缀/其他文件继续严格比较 bytes/mode/mtime；软链接、硬链接或其他类型不能靠后缀获豁免。只有确证侧车创建/移除才解释所在目录的 mtime，其他目录仍严格；原文件级拒绝快照不扩大为目录豁免。保留启动拒绝码、原 Ledger bytes、无新 store、无 Runtime/模型服务、项目/历史/删除决定全部断言。
+
+允许修改上述 helper、`memory-adoption.test.ts`、`project-deletion-processes.test.ts`、helper 的真实 SQLite 正负回归及本 spec。验证包括实际 reader 的无业务变化正例、UPDATE/非空 WAL 改变负例、DB/权限/目录/未知后缀/链接拒绝；定向失败文件与 helper 影响面、strict types、准确 994 health。隔离工作树固定 Node 24.14，必要构建走机器 FIFO；不全量、不触及真实 Home、不新增门禁豁免。
+
+
+本片工程验证：新隔离树原 `pnpm build` 经机器 FIFO 通过。最终 7 文件 84 项全部通过（jobs1、无重试/skip）：两份原失败文件 31 项、helper 真实 SQLite/文件正负对照 15 项，以及共用快照的四份现役安全回归 38 项。helper 正例实读 public Ledger 与包含已提交非空 WAL 的当前 reader；负例证明真实 UPDATE 保持主 DB 不变但改变非空 WAL 时仍拒绝，checkpoint、DB mtime、已有 SHM mode、无关目录 mtime、journal/未知后缀、软硬链接与链接祖先同样拒绝。只读副作用被列为明确 technical 变更；没有换用 immutable 或复制库。
+
+首轮新 helper 13/15，两个正例暴露新增的目录 nlink 采集在 APFS 随普通文件数量变化；目录 nlink 不属原验收，已移除这项额外采集，原目录 mode/mtime 仍保留，普通文件 nlink 与软链接目标仍记录。首轮原失败文件已 31/31。strict TypeScript 首次命令使用 ES2022 lib，遇到既有 connector 测试夹具的 `toReversed` 类型要求；以匹配 Node 24 能力的 ES2023 lib 重跑通过，未改仓库 tsconfig、实现或断言。证据 `/private/tmp/molis-memory-readonly-snapshot-{build,direct,final,types,types-final,health,health-final}.log`；这是测试观察修正的工程验证，不代表 MEM-40、完整 App 或用户验收完成。
+
+最终准确 `994357e9579f8a21d5753d71daa639f2655ce16a` health 与 `git diff --check` 通过；只改 5 个测试/spec 文件，没有生产、门禁、公开 API、SDK/vendor、锁文件或发布变更。
+
+### MEM-40：项目文件主人删除控制接线（2026-10-25，实施前短合同）
+
+基线 `4f161dbe0bfc075d7aaefeda80bb4e115598c307`，采用已冻结 `ProjectDeletionControl { assertCurrent(): void }`：`ProjectDataDeclaration.purge(home, project, control?)`、`ProjectDeletedOwner.clear(project, deletion?, control?)` 与 Port 同参数透传。冷入口由其主人强制提供控制并拒绝 Promise/非 void 返回；本片消费同一同步控制，在真实副作用前重核，不新增验证框架或第二授权源。普通调用省略 control 时保持原行为。
+
+本片只修改原文件/SQLite 主人的清理链：Storage existing-library 开库、BEGIN、每条删除与 COMMIT 前检查；Characters 与 Assistant 同一规则，Assistant 等待 live.stop/dropFollowUp 后、每次写前重核；声明 purge 后的 partition rm、Plugin Builder rm 后的 secret 删除、图片每个文件删除、Artifact 原件和 Alchemist 目录删除前重核。授权撤销或关闭时停止后续副作用，SQLite 未提交事务回滚并关闭；已完成文件删除不声称回滚或自动补偿。图像文件清理必须在原 jobs 删除事务 COMMIT 前完成；删首图后撤权/IO 失败会回滚 jobs，保留原 images_json 精确文件集，授权重试可 force 重删已经消失的原文件并继续余项。已删文件本身不可回滚，未选项目/文件不进入选集。
+
+允许路径为原 project-deleted-owners、plugin-builder/project-data、assistant-project-purge、material-original-files，Storage sqlite-baseline/knowledge-cards，Characters/Functions 与 Pages/PPT/Workflows/Form/Lingguang/Dataset/Todo/Images 的 project-data（Images store），Artifacts original-store、相关 README、直接回归与本 spec。硬边界为现授权、单一写主人与按项目范围；无新配置/registry/schema，App 与冷工厂拥有 control 装配，终端用户仍用原删除入口。本片不改 Memory/SDK/Session/Catalog 主链或门禁。验收走公开包/真实文件与 SQLite，覆盖中途撤权、提交前回滚、await 后零后续写、逐图停止和正常/无 control 兼容；正式 build 走 FIFO，必要 README 影响面、类型/边界/准确父 health，不跑全量或真实 Home。
+
+冷 control 路径由统筹确认必须 existing-only：沿 Storage 新增明确 `openExistingBaselineSqlite(filename, baseline)` 窄入口，复用 schema 描述与对象清单，严格核当前 version/结构；由清理 helper、Characters、Assistant 复用。原 openBaseline/apply 初始化语义不变。SQLite 使用 `mode=rw`，不得创建丢失文件、目录、初始化 version0 空库、修复未知表/trigger/view 或改文件权限；Characters 自身 `.sqlite` 路径同样处理。无 control 的普通路径保持初始化能力。空库/未知结构拒绝须真实回归字节和文件集合不变。
+
+Images 收尾修正依据：初版真实回归确认旧顺序先 COMMIT jobs 后 rm，删首张后撤权会失去剩余原文件清单。统筹确认这是同一恢复闭环缺口；新增正确断言在原构建中撤权与 IO 两例均失败（jobs 实际 0、期望 1），首败 `/private/tmp/molis-memory-file-owner-control-images-before.log` 保留。最小修复仅把原 removeAssetFiles 移回原 clearInExistingHomeSqlite callback，提交前完成，不新增 journal/manifest。普通 live wrapper 与冷文件主人均经同一 imagesProjectData.purge→purgeImagesProject；live wrapper 的任务停止行为不另实现或改变。
+
+本片工程结果：独立树摘入类型/hooks 合同 `715b1e6ed`（本树为 `8f111a9585b6e504490fb92e6eef5a0cd977f348`），现有文件主人控制传递和 existing-only 开库已实现。原 `pnpm build`/FIFO、专项 strict TypeScript、boundary（errors=[]）通过。README 必跑并集 161 文件按 jobs2/browser1/retries0 执行，160 通过；唯一 `verify-release-versions.test.ts` 为 21/22，发布清单仍指拆分前 `text-search-index.ts#SCHEMA_VERSION`，准确父已如此且本片未修改这些文件；统筹负责同聚合修正指针，首败保留 `/private/tmp/molis-memory-file-owner-control-readme.log`。Images 修正后再次原 build 通过，6 个相关文件 36 项通过（专项 9 项），不重复 161 批。日志 `/private/tmp/molis-memory-file-owner-control-{images-build,images-targeted,test-types,boundary,final-health}.log`。准确父 health 仅 projects/Memory 两份既有公开 API 快照待统筹生成，本片不改 gates。
+
+本结果只支持已覆盖的工程路径，不代表 MEM-40、完整冷恢复、真实 Home 或用户验收完成。新 main `64a3ccc9` 新增的 plugin-connections 数据主人尚不在本片旧基底，已由统筹确认纳入同片后续精确接线；在新基底继续，不让缺席主人被视为清理成功。Artifacts 常规原件读写已迁到 Module，但项目 purge 仍由 plugin 原 project_data 函数拥有，聚合须保留新 main 的位置与语义。
+
+
+#### 文件主人独审 P1 修正短合同（2026-10-25，基于 a7df493）
+
+两个真实反例说明单核 Home 根和外层 current 不够：Pages 库链接可删 source 行，Images assets 祖先链接可删 source 图；Plugin Builder 等待原 secrets SQLite mutex 后撤权仍会改密文。修复沿原 Storage 主人：提取现 Search 的逐祖先 lstat、普通单链接文件与 dev/ino 校验，供 existing-only SQLite 打开、拿到事务后/COMMIT 前及实际 rm 的祖先检查复用。数据库与现存 WAL/SHM/journal 分别核验；缺失与链接/类型未知分开，未知拒绝而非当空。Images 的库与 assets 独立核验，失败仍回滚 jobs 保留原清单；未选数据及 source/T0 不变。
+
+密钥仍由原 file-secret-store 删除前缀；同一窄 control 进入原锁、保存和原子 rename，在锁取得后、实际写/rename/提交前复核当前权限和原路径身份。失败释放锁/连接，不依赖已撤销权限；不生成密钥、不解密、不新建凭据库或修复结构。无 control 普通入口保留原语义。复用现 Storage 纯路径检查，不新增清理服务、目录登记、恢复 journal 或第二执行链。允许扩展原 Storage 路径/atomic-write/file-secret-store 主人及其公开窄导出、原清理调用点、相关 Contract/README/真实回归；不改 connector、冷 Memory 或门禁。
+
+验收在隔离 canonical Home 经公开 file owner：数据库/侧车/祖先链接拒绝且源字节不变；Images assets 重定向时 jobs 与图片保持，换回原路径后正常重试；真实双进程 secrets mutex 中撤权时选中与未选密文均保持，重新授权仅删原前缀；保存到 rename 之间撤权也保留原 vault。原 Images 撤权与 IO 恢复正例继续通过。首个独审错误日志与新增正确期望在旧构建上的红测保留，再正式 FIFO build 和必要影响面验证。
+
+
+P1 修正验证（2026-10-25）：新增公开包回归在旧构建上 12 项中 10 项失败，覆盖库/祖先/硬链接、Images 文件祖先、目录主人、secret mutex 与 rename 撤权；首败保留 `/private/tmp/molis-memory-file-owner-boundaries-before.log`。修复后新增 13 项、原 file-control 9 项、Search 30 项通过，Storage/Images/owner 与 Artifacts 相关 32 文件 219 项通过，合计 35 文件 271 项；首次影响面命令误点了不存在的 `artifact-original-files.test.ts`，随后按 Artifacts README 的 13 份实际文件补齐，未跳过实际用例。交接后固定 Node 24.14.0 离线 frozen 安装、原整体 build 通过，三份专项 52 项再次通过（jobs1、无重试），专项 strict TypeScript 通过。
+
+准确父 `a7df493113cf2bb9e193c5a6dbdec722671ff7e0` 与原实现基线 `8f111a9585b6e504490fb92e6eef5a0cd977f348` 的 health 均只报 projects/Memory 两份既有公开 API 快照待统筹聚合，没有新增结构或复杂度失败；本片不修改门禁算法、阈值、快照或豁免。Artifacts 的 Storage 实际依赖经统筹授权同步 package.json、lock、workspace 包登记和 README，专用于复用路径检查。本结果仍仅为隔离真实 SQLite/文件/双进程锁的工程证据，不代表完整 MEM-40 恢复、真实 Home、App 产品实操或用户验收完成。后续新 main 的 plugin-connections 接线仍由统筹在新基底处理。
+
+依赖登记同步后的最终 `pnpm build` 由原机器 FIFO 完成，`pnpm boundary:check` 返回 errors=[]；`git diff --check` 通过。最终日志 `/private/tmp/molis-memory-file-owner-finish-{build-final,boundary-final,direct,types,health-parent,health-original}.log`，前两轮被权限限制或中断的命令不计为通过。
+
+#### 文件主人异步删除交错修正短合同（2026-10-25，基于 9b7335df）
+
+独审公开入口实际反例：Plugin Builder、Alchemist 与 Artifacts 在同步检查路径后发起异步 `rm`；Promise 尚未完成时，把 target 的 owner 祖先目录移开并链接到 source，三个 owner 都返回成功，source 所选文件消失而原 target 文件仍在。原反例与日志保留在 `/private/tmp/molis-file-owner-async-rm-race-20261025.{mjs,log}`；静态链接拒绝、secret mutex 撤权及原 52 项定向通过不能覆盖这个窗口。
+
+最小方案只修改现有文件主人：带 `ProjectDeletionControl` 的维护分支在最终 current/物理路径复核后同步删除，消除复核与实际删除之间已实证的 JavaScript 交错；普通无 control 分支仍用原异步删除。分区主人仍先等待自己声明的 purge，等待后按原目录身份复核，再同步删除。沿同一 owner/control，不新增锁、quarantine、registry 或恢复框架，不扩大普通删除语义，也不承诺防住同 OS 权限进程在同步系统调用期间任意替换路径。代价是维护删除占用当前线程；这是一条显式冷维护路径，不改变正常 UI 的异步删除。
+
+允许修改：上述三个目录主人、`project-deleted-owners.ts` 的同类分区主人、公开入口回归、对应 README 和本短合同。不修改 Storage/secret/SQL 的已验证实现、公开接口、门禁、其他 owner 或常规默认路径。异常继续向原删除收据报告；已删除文件不声称可回滚，未完成步骤仍可重试。没有新增用户可调阈值或插件槽。
+
+- **MEM-40-FILE-RM-01**：实际公开 owner 调用返回未完成 Promise 后替换 target 祖先，source 选中与未选文件均不变；维护只删除原 target 所选目录。
+- **MEM-40-FILE-RM-02**：分区声明 purge 仍可等待；返回后的最终检查与删除之间安排同类 JavaScript 交错，source 不变，原 target 所选分区完成清理；原等待中撤权/原路径变化仍明确拒绝。
+- **MEM-40-FILE-RM-03**：原静态 DB/侧车/祖先/asset 链接、真实 secret mutex 与 rename 撤权、Images 原清单重试及相关包 README 用例保持通过。先用新增正确期望在 9b dist 留红灯，再经现机器 FIFO 构建验证；只给局部工程结论，不代替完整 MEM-40、真实 Home、产品实操或用户验收。
+
+本片结果：新增四项公开入口真实文件交错回归在 9b dist 全红，修复后全绿；原 13 项路径/密钥边界、9 项 file-control 与 30 项 Search 同轮保持通过。原独立脚本的正确期望版也确认三个目录主人只删原 target、source 不变。两个受影响包 README 必跑并集与实际 owner 影响面共 74 文件，已通过的三份专项不机械重跑，剩余 71 文件按 jobs2/browser1/retries0 运行，70 文件通过；唯一失败仍为准确父已有的 `verify-release-versions.test.ts` 21/22（发布清单仍指旧 `text-search-index.ts#SCHEMA_VERSION`）。这些文件及版本指针相对 9b 未改，本片不越界修它。连同 Search 额外回归，共 75 个不同文件、693/694 项通过，不能写成整批通过。
+
+固定 Node 24.14.0 的原整体 `pnpm build` 经机器 FIFO 通过；现构建上的 boundary 返回 errors=[]，新增测试 strict TypeScript 和 `git diff --check` 通过。health 对准确父 9b 仅报告原有 projects/Memory 两份 API 快照缺口，本片未改合同、快照、规则或阈值，仍交统筹聚合处理。日志前缀 `/private/tmp/molis-file-owner-directory-interleaving-`：`red-20261025.log`、`build-20261025.log`、`green-20261025.log`、`final-test-20261025.log`、`readme-20261025.log`、`boundary-20261025.log`、`types-20261025.log`、`health-20261025.log`；独立正确期望脚本与日志为 `/private/tmp/molis-file-owner-async-rm-secure-20261025.{mjs,log}`。工程证据只支持关闭本片已复现的 JavaScript 交错窗口，未作真实 Home、完整恢复或用户体验验收。
+
+
+### SDK #106 与文件主人主干交集集成（2026-10-25）
+
+Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私库本地验证流程合并，正式 merge 为 `b54429dbf43e8f9f8f4b910999674c192077c247`。Molis 使用该干净树原 pack 的 1,391,846 B 归档，810 个 dist 文件逐项与已验证 SDK 构建一致；来源、SHA、lock 与历史包记录已同步，仍只有原两个 vendor 归档，没有 vendor 补丁或公开发布。冻结离线安装通过。父 Home owner 借用与 SDK/lease 关闭失败的原资源重试已接入，采用状态只在 SDK 关闭成功后、仍持原 owner 时发布。
+
+聚合 `90bf56b7c` 的原完整 build、根类型、准确 main64a health、boundary 与 72 份 API 快照通过。12 个相关文件的最终有效结果为 286 项通过：11 文件 208 项首次通过，vendor 来源检查首轮 77/78 因测试还固定旧 #102 的提交号失败，按已合并 #106 的真实身份同步四个期望后单文件 78/78，通过不依赖重试。原失败、SQLite 侧车正负对照和 Node 24.14 日志保留在 `/private/tmp/molis-memory-sdk106-parent-aggregate-*-20261025.log`。测试临时目录已改为系统 tmpdir，避免 Linux 使用 macOS 专属目录。原完整生产构建未因测试与记录修改机械重复。
+
+文件主人 `6dd0614ea` 合入后的准确生产聚合为 `030361c3620d74d77b45e9a4b7dd267caec8d7c8`。六处合并交集保持新主干的 Home 业务存在检查、Images 本地合同、Artifacts 薄删除声明和新增连接器主人；仅将原控制/物理目标保护接回对应职责，不恢复已迁出的读写实现。独立静态复核未发现交集削弱；原独立实际目录交错、静态链接和双进程密钥撤权探针已验证候选。聚合冻结离线安装、整体 build 与七文件 110 项实际回归通过，包括原目录交错 4、文件边界 13、控制 9、Search 30、Catalog 目标恢复 17、项目删除服务 15、发布版本 22。旧分支发布清单指针失败在当前聚合已有正确指针，不修改门禁或断言。日志 `/private/tmp/molis-memory-file-owner-aggregate-{install,build,direct}-20261025.log`。
+
+主干新增 `plugin-connections` 主人不在旧文件主人分支中，统筹另作真实交集诊断，确认现有 `forgetProjectConnectionBindings` 未接 maintenance control：数据库软链接可误删 source 所选绑定；已有零字节库会被普通开库初始化；真实 SQLite 等锁期间撤权仍会提交后才在外层拒绝。反例 `/private/tmp/molis-plugin-connections-maintenance-probe-20261025.{mjs,log}` 保留，必须沿原 Storage/Connector 主人修复，不能将前述七文件通过解释为所有文件主人完成。该项及完整 MEM-40 组合、单 Session 业务副本、最终产品旅程、真实质量/token 对照与用户验收仍未完成。
+
+当前 #1064 基础为 `e801b45e8a286e2b8b0a2bdcefd5625ec9f15a07`，普通 CI 已通过，Full suite 尚在运行。应用依赖基础先合，并继续集中在 #1101；Coding +1,333 B 与零模型 Knowledge 整理边界仍待原问题答复，资源门不放宽。新包与本次文件主人没有新增页面资源；原 Assistant +4,064 B 已按授权登记，不重复请求。旧 Cloudflare 首败影响与其他历史 UNKNOWN 保留。

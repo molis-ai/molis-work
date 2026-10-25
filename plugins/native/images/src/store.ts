@@ -1,4 +1,5 @@
-import { clearInExistingHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
+import { inspectExistingStoragePath, clearInExistingHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "./contract.js";
 import { DatabaseSync } from "node:sqlite";
 import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -97,9 +98,10 @@ export class ImagesStore {
 }
 
 /** Removes a project's jobs inside the caller's transaction; returns the names of the image files they held. */
-function deleteProjectJobs(db: DatabaseSync, projectId: string): string[] {
+function deleteProjectJobs(db: DatabaseSync, projectId: string, control?: ProjectDeletionControl): string[] {
   const files = (db.prepare("SELECT images_json FROM jobs WHERE project_id = ?").all(projectId) as Row[])
     .flatMap(row => (JSON.parse(String(row.images_json)) as GeneratedImage[]).map(image => image.filename));
+  control?.assertCurrent();
   db.prepare("DELETE FROM jobs WHERE project_id = ?").run(projectId);
   return files;
 }
@@ -112,13 +114,22 @@ const ASSET_FILE = /^[a-f0-9-]+\.(png|jpg|webp)$/u;
  * service. A library that does not exist yet has nothing to clear and is not created. A job still running in another
  * process loses its record; its result is dropped when it finishes.
  */
-export function purgeImagesProject(homeDirectory: string, projectId: string): void {
-  const files = clearInExistingHomeSqlite(homeDirectory, IMAGES_HOME_STORE.path, IMAGES_DATABASE, db => deleteProjectJobs(db, projectId));
-  if (files) removeAssetFiles(join(homeDirectory, IMAGES_HOME_STORE.path, "assets"), files);
+export function purgeImagesProject(homeDirectory: string, projectId: string, control?: ProjectDeletionControl): void {
+  clearInExistingHomeSqlite(homeDirectory, IMAGES_HOME_STORE.path, IMAGES_DATABASE, db => {
+    const files = deleteProjectJobs(db, projectId, control);
+    // A failed removal keeps the original jobs/file list for a retry; already removed files are harmless with force.
+    removeAssetFiles(join(homeDirectory, IMAGES_HOME_STORE.path, "assets"), files, control);
+  }, control);
 }
 
-function removeAssetFiles(directory: string, filenames: readonly string[]): void {
-  for (const name of filenames) if (ASSET_FILE.test(name)) rmSync(join(directory, name), { force: true });
+function removeAssetFiles(directory: string, filenames: readonly string[], control?: ProjectDeletionControl): void {
+  const target = control ? inspectExistingStoragePath(directory, "directory") : undefined;
+  for (const name of filenames) if (ASSET_FILE.test(name)) {
+    control?.assertCurrent();
+    target?.assertCurrent();
+    if (control) inspectExistingStoragePath(join(directory, name), "file").assertCurrent();
+    rmSync(join(directory, name), { force: true });
+  }
 }
 
 function jobFromRow(row: Row): ImageJob {

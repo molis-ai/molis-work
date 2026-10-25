@@ -287,7 +287,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
       // Refused before anyone was asked: its input did not fit the capability (a plain failure the round can correct).
       : /blocked "change-capability"|blocked "change-reversible"|blocked "read-capability"/.test(said) ? undefined
       : /EFFECT_NOT_AUTHORIZED/.test(item.summary) ? "not-authorized" as const
-      : /TOOL_INTERRUPTED/.test(`${item.summary} ${item.output ?? ""}`) ? "interrupted" as const
+      : /TOOL_INTERRUPTED|等待批准时这一轮结束/.test(`${item.summary} ${item.output ?? ""}`) ? "interrupted" as const
       // Switched off for the Assistant, uninstalled or no longer offered by the time it would run (even after approval).
       : /not offered here any more|not available here|action_revoked|已对助理关闭/.test(`${item.summary} ${item.output ?? ""}`) ? "unavailable" as const
       : /reject|declin|拒绝/i.test(item.summary) ? "declined" as const : undefined;

@@ -6,6 +6,16 @@
 
 BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）：本轮目标是补齐该服务的功能与安全拒绝证据，不代表完整 PG-017 或生成插件接线完成。修复范围限下列 Home 库合同、真实 Home Runtime 生命周期回归、严格进程断言与 storage 准确注释；不扩 BL-377/491/492/P2e，不动真实 Home。原作者 40 文件的原始清单与构建来源已定位：构建在 `e2dcc505e`，到 `d0f6cc53b` 只改 API 快照；原日志逐例统计 621/622，剩余一例未计入通过，原因不能从紧凑日志判定。恢复候选 `2b27655f` 的五项独立修复已获增量 REVIEW/TEST 核收，96 文件 / 1172 例是同源分阶段的有效并集，原 Keychain 首次超时仍保留、原因未知，不能记成一次全绿或全量。2026-10-25 统筹在评论 6395368971 明确清理范围：项目操作保留 Home 共享库；Home 级唯一实例才在停止后删库。以下按该裁定接续，保原五项证据，仅新增范围的定向验证，全量留唯一 carrier。
 
+### 1.0 BL-490 的 batch-39 语义接续（2026-10-25）
+
+本次 accepted WO 来源是统筹评论 6399324020 与 Root 的恢复授权：冻结已审 `53ca91a7e00c86c24b5c479c691f7c2f8524bed6` 及原 REVIEW 6395912201 / TEST 6396197917，在独立后继 `feature/pr1255-b39-integration` 合入准确 `46f8947629f718a3984d06a502fa0bed01a702b9`。本轮目标是该组合输入上的正确实现、相关有限验证与独立复查；不进 batch-38，不移动原作者分支、原 53ca 分支、carrier 或 main，不代表 batch-39 最终采用。旧 124 例及独立 8 项只是原 53ca 证据，不加算成新组合通过。
+
+保留 batch-37 的 `host` 信任、`followHostBuild`、现行安装签名、consents 与 projectReach；后续已落地输入的 hostIds / T4～T6 不能被旧实现覆盖。安装的合法性、权限、定义冲突和无持久效果的 schema 校验仍先于准备、定义登记和保存。数据丢弃依 FIX14 的新顺序：`saveInstalled(repository, executor, record, replaced, discard)` 先保存安装行，再通知宿主处理 retained-data discard；把清理返回的 `PluginCleanupResult` 送入同一生命周期回执。非保留卸载的重清仍在新安装准备阶段。卸载无论成功或失败均释放同安装已加载定义，保现行生命周期锁、拒绝与 finally。项目只清自己行/KV/绑定、保 Home 共享库；Home 唯一实例停下并关闭连接后才清自己的文件→ledger→KV；不新增映射、引用计数、兼容读取或清理状态。
+
+输入待核必须以 Git 内容为准：准确 46f 的 `prepareInstallationData` 尚无 `executor.prepareReinstall`，其合同也尚无该端口；已定位 F14 原提交 `33312c934a1954bf7787651685910d191688a0b8`，承接来源/时机交 Root/PIPE 明确，其他冲突照常推进。保存后清理抛错时的安装行、定义及显式重试必须有同一份明确合同，不用原 53ca 的保存前失败断言代证新顺序；必要裁定缩到该输入和状态转换，不另外实现 F14 的授权修复。
+
+允许修改范围是本片与该准确组合产生的 Runtime、Host executor/装配、数据库 owner、公开合同、必要测试/API 快照及本片说明；不改无关插件、共享 backlog、门禁规则/阈值、真实 Home 或 CI。S-68 保持本片暂定历史，最终 S 号由 carrier 统一合成。按公共 FIFO 一次必要整体 `pnpm build`；受影响非浏览器回归用 `node scripts/machine-slot.mjs run browser --label "1255 tests" -- node scripts/run-tests.mjs --jobs 1 <相关文件>`，然后在冻结输入上核 health、boundary、版本与 fresh-fetch 后 secrets；不借别的工作树 dist，不另跑 full。原失败及未覆盖边界保留；最终固定提交、原始日志与 scoped diff 直交原 REVIEW / TEST，再由 PIPE/Claude 采用。
+
 ### 1.1 沙箱插件是什么、怎样拿到服务
 
 `execution: "sandbox"` 的 `PluginDefinition` 现在只有一个来源：创作台生成的插件（`apps/local-host/src/plugin-builder/installed.ts` 的 `sandboxedPluginDefinition`；创作台随 BL-377 删除重做，沙箱这一项照旧，见 privileges.md PG-017 的状态格）。形状是两层：
@@ -175,6 +185,9 @@ BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）
 | RAC-244 | 读超时的进程被杀并带码回答，宿主照常；递归查询不会被拒、由时钟截止；下一次读在新进程里跑 |
 | RAC-245 | 写超时整个事务回滚，没有任何一句留下，下一个事务照常 |
 | RAC-246 | 真沙箱里：操作没声明、人只批准读、人什么都没批准、用项目库的效果，一律 `sandbox.not_authorized`；形状错的请求 `sandbox.invalid_request`，都没到宿主 |
+| RAC-247 | 当前组合的安装入口仍先核合法性、权限、定义冲突与 schema；拒绝不改变原安装、定义、库、账本、KV 或外部文件。保留 host 信任/跟随构建、consents/projectReach 及准确后续输入带来的 hostIds 拒绝；不由旧候选恢复 bundled 或旧签名 |
+| RAC-248 | 明确 discard 采用先保存安装状态、再通知 Host 的现行顺序；清理结果进入安装回执。真实清理失败后的记录、定义和重试按同一合同验证；项目 A 操作期间 B 的真实 WAL、共享文件/账本与保留说明继续成立，Home 唯一实例文件失败不提前清 KV |
+| RAC-249 | 保现行 prepareReinstall 授权重试及撤权/保留数据重装的拒绝：错误不能发布或激活新实现、不能为清授权丢私有 KV；卸载失败仍在 finally 释放同安装 definitions，旧操作不能解除较新操作的生命周期锁。缺失的输入来源与未验证的最终组合分别列明 |
 | RAC-238（条目一半的 Home 库） | 沙箱定义声明 `databases.home` 不再被拒；项目里运行的沙箱包声明它启动即被拒（`plugin.declaration_invalid`），代码一行不跑 |
 
 **P2c 验收**（S-64，统筹 10-24 给 RAC-350～369：本片 RAC-350～359，P2d 用 RAC-360～369）：`tests/security-invariants-sandbox-owner-files.test.ts`

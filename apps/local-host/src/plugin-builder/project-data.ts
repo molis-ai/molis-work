@@ -1,4 +1,5 @@
 import { rm } from "node:fs/promises";
+import { rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import { inspectExistingStoragePath, deleteSecretEntriesWithPrefix, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "../project-deleted-hooks.js";
@@ -20,7 +21,9 @@ export function pluginBuilderProjectOwner(home: string): ProjectDeletedOwner {
       const directory = join(home, "plugin-builder", projectId);
       const target = control ? inspectExistingStoragePath(directory, "directory") : undefined;
       target?.assertCurrent();
-      await rm(directory, { recursive: true, force: true });
+      // A maintenance guard and its deletion stay in one turn; an async rm can follow a replaced ancestor.
+      if (control) rmSync(directory, { recursive: true, force: true });
+      else await rm(directory, { recursive: true, force: true });
       control?.assertCurrent();
       runWithMolisWorkHome(home, () => deleteSecretEntriesWithPrefix(`plugin-builder-secret:${projectId}:`, control));
     },

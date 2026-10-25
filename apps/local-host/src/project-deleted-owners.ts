@@ -2,7 +2,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
@@ -127,7 +127,8 @@ function removePartition(home: string, data: ProjectDataDeclaration, store: stri
     await data.purge?.(home, projectId, control);
     control?.assertCurrent();
     target?.assertCurrent();
-    await rm(directory, { recursive: true, force: true });
+    if (control) rmSync(directory, { recursive: true, force: true });
+    else await rm(directory, { recursive: true, force: true });
   };
 }
 
@@ -143,7 +144,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     ...declaredProjectOwners(home),
     // Without a running Host there is no studio to close, only its directory to remove; the Host's own owner replaces this one.
     { id: "alchemist", label: "炼金术士的研究空间", clear: (projectId, _deletion, control) => { control?.assertCurrent(); const directory = alchemistProjectDirectory(home, projectId);
-      if (control) inspectExistingStoragePath(directory, "directory").assertCurrent();
+      if (control) { inspectExistingStoragePath(directory, "directory").assertCurrent(); return rmSync(directory, { recursive: true, force: true }); }
       return rm(directory, { recursive: true, force: true }); } },
     pluginBuilderProjectOwner(home),
     // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.

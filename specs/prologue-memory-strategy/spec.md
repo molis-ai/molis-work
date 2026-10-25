@@ -2711,3 +2711,19 @@ P1 修正验证（2026-10-25）：新增公开包回归在旧构建上 12 项中
 准确父 `a7df493113cf2bb9e193c5a6dbdec722671ff7e0` 与原实现基线 `8f111a9585b6e504490fb92e6eef5a0cd977f348` 的 health 均只报 projects/Memory 两份既有公开 API 快照待统筹聚合，没有新增结构或复杂度失败；本片不修改门禁算法、阈值、快照或豁免。Artifacts 的 Storage 实际依赖经统筹授权同步 package.json、lock、workspace 包登记和 README，专用于复用路径检查。本结果仍仅为隔离真实 SQLite/文件/双进程锁的工程证据，不代表完整 MEM-40 恢复、真实 Home、App 产品实操或用户验收完成。后续新 main 的 plugin-connections 接线仍由统筹在新基底处理。
 
 依赖登记同步后的最终 `pnpm build` 由原机器 FIFO 完成，`pnpm boundary:check` 返回 errors=[]；`git diff --check` 通过。最终日志 `/private/tmp/molis-memory-file-owner-finish-{build-final,boundary-final,direct,types,health-parent,health-original}.log`，前两轮被权限限制或中断的命令不计为通过。
+
+#### 文件主人异步删除交错修正短合同（2026-10-25，基于 9b7335df）
+
+独审公开入口实际反例：Plugin Builder、Alchemist 与 Artifacts 在同步检查路径后发起异步 `rm`；Promise 尚未完成时，把 target 的 owner 祖先目录移开并链接到 source，三个 owner 都返回成功，source 所选文件消失而原 target 文件仍在。原反例与日志保留在 `/private/tmp/molis-file-owner-async-rm-race-20261025.{mjs,log}`；静态链接拒绝、secret mutex 撤权及原 52 项定向通过不能覆盖这个窗口。
+
+最小方案只修改现有文件主人：带 `ProjectDeletionControl` 的维护分支在最终 current/物理路径复核后同步删除，消除复核与实际删除之间已实证的 JavaScript 交错；普通无 control 分支仍用原异步删除。分区主人仍先等待自己声明的 purge，等待后按原目录身份复核，再同步删除。沿同一 owner/control，不新增锁、quarantine、registry 或恢复框架，不扩大普通删除语义，也不承诺防住同 OS 权限进程在同步系统调用期间任意替换路径。代价是维护删除占用当前线程；这是一条显式冷维护路径，不改变正常 UI 的异步删除。
+
+允许修改：上述三个目录主人、`project-deleted-owners.ts` 的同类分区主人、公开入口回归、对应 README 和本短合同。不修改 Storage/secret/SQL 的已验证实现、公开接口、门禁、其他 owner 或常规默认路径。异常继续向原删除收据报告；已删除文件不声称可回滚，未完成步骤仍可重试。没有新增用户可调阈值或插件槽。
+
+- **MEM-40-FILE-RM-01**：实际公开 owner 调用返回未完成 Promise 后替换 target 祖先，source 选中与未选文件均不变；维护只删除原 target 所选目录。
+- **MEM-40-FILE-RM-02**：分区声明 purge 仍可等待；返回后的最终检查与删除之间安排同类 JavaScript 交错，source 不变，原 target 所选分区完成清理；原等待中撤权/原路径变化仍明确拒绝。
+- **MEM-40-FILE-RM-03**：原静态 DB/侧车/祖先/asset 链接、真实 secret mutex 与 rename 撤权、Images 原清单重试及相关包 README 用例保持通过。先用新增正确期望在 9b dist 留红灯，再经现机器 FIFO 构建验证；只给局部工程结论，不代替完整 MEM-40、真实 Home、产品实操或用户验收。
+
+本片结果：新增四项公开入口真实文件交错回归在 9b dist 全红，修复后全绿；原 13 项路径/密钥边界、9 项 file-control 与 30 项 Search 同轮保持通过。原独立脚本的正确期望版也确认三个目录主人只删原 target、source 不变。两个受影响包 README 必跑并集与实际 owner 影响面共 74 文件，已通过的三份专项不机械重跑，剩余 71 文件按 jobs2/browser1/retries0 运行，70 文件通过；唯一失败仍为准确父已有的 `verify-release-versions.test.ts` 21/22（发布清单仍指旧 `text-search-index.ts#SCHEMA_VERSION`）。这些文件及版本指针相对 9b 未改，本片不越界修它。连同 Search 额外回归，共 75 个不同文件、693/694 项通过，不能写成整批通过。
+
+固定 Node 24.14.0 的原整体 `pnpm build` 经机器 FIFO 通过；现构建上的 boundary 返回 errors=[]，新增测试 strict TypeScript 和 `git diff --check` 通过。health 对准确父 9b 仅报告原有 projects/Memory 两份 API 快照缺口，本片未改合同、快照、规则或阈值，仍交统筹聚合处理。日志前缀 `/private/tmp/molis-file-owner-directory-interleaving-`：`red-20261025.log`、`build-20261025.log`、`green-20261025.log`、`final-test-20261025.log`、`readme-20261025.log`、`boundary-20261025.log`、`types-20261025.log`、`health-20261025.log`；独立正确期望脚本与日志为 `/private/tmp/molis-file-owner-async-rm-secure-20261025.{mjs,log}`。工程证据只支持关闭本片已复现的 JavaScript 交错窗口，未作真实 Home、完整恢复或用户体验验收。

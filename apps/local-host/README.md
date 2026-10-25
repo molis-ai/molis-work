@@ -330,3 +330,5 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 项目文件主人清理沿 `ProjectDeletionControl` 从 Port/owner 传到声明 purge；冷维护入口负责提供已验证的同步控制。文件/SQLite 主人在实际清理、事务提交、等待后的下个副作用前检查：partition purge 后再 rm、Plugin Builder rm 后再清密钥、Assistant 停轮后再删账、Images 每次删文件前。拒绝停止后继动作，未提交 SQLite 回滚；已删文件不声称回滚。带 control 的既有库只打开并核当前结构，不初始化空库。回归：`tests/project-deletion-file-control.test.ts`，配合原 owner/declarations/Assistant/studios 用例；不代替完整冷恢复或用户验收。
 
 维护的原目标还包含物理路径：数据库/现存侧车和 rm 祖先不能被链接重定向，异步清理后按原目录身份重核。Plugin Builder 的同一 control 进入原 secret owner 的 SQLite 等锁与原子 rename，外层最终拒绝不能替代该检查。专项 `tests/project-deletion-file-boundaries.test.ts` 覆盖真实重定向和拿锁后撤权；原 Images 清单回滚重试仍由 `project-deletion-file-control` 验证。
+
+维护 control 分支的目录删除在最终复核后同步执行，避免异步 rm 尚未完成时祖先目录被 JavaScript 中的另一个操作替换；普通入口仍异步。分区主人仍先等待声明 purge，返回后复核原目标再同步删除。`tests/project-deletion-directory-interleaving.test.ts` 通过公开 owner 和真实文件覆盖这个窗口；这不是对同 OS 权限进程任意竞态替换路径的原子防护。

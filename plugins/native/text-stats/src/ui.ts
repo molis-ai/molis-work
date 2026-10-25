@@ -1,6 +1,6 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -22,9 +22,8 @@ export interface TextStatsUiModel {
   readonly primitives: TextStatsUiPrimitives;
 }
 
-export const textStatsUiDescriptor: UiContributionDescriptor = {
+export const textStatsUiDescriptor: UiContributionDeclaration = {
   contribution_id: TEXT_STATS_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.text-stats",
   kind: "embedded",
   navigation_id: "text-stats",
   label: "Text stats",

@@ -32,7 +32,7 @@ import { GoalEventAcknowledgements } from "./event-acknowledgement.js";
 import { GoalEventFacts } from "./event-facts.js";
 import { GoalEventFactsRepository } from "./event-facts-repository.js";
 import { GoalEventStateRepository } from "./event-state-repository.js";
-import { GoalsRepository, type GoalsSqliteDatabase } from "./repository.js";
+import { GoalsRepository, type GoalsJournal, type GoalsSqliteDatabase } from "./repository.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-goals",
@@ -78,10 +78,11 @@ export class GoalsModule {
 
   constructor(
     db: GoalsSqliteDatabase,
+    journal: GoalsJournal,
     hooks: GoalsModuleHooks,
     options: GoalsModuleOptions = {},
   ) {
-    const repository = new GoalsRepository(db);
+    const repository = new GoalsRepository(db, journal);
     const context = new GoalsCommandContext(repository, options);
     const query = new GoalsQueryService(repository, options);
     this.planning = new GoalsPlanningEngine(
@@ -202,16 +203,16 @@ export type {
   GoalsQueryApi,
   SaveProjectPlanningMethodInput,
 } from "@molis-ai/molis-work-contracts/modules/goals";
-export type { GoalsSqliteDatabase } from "./repository.js";
+export type { GoalsJournal, GoalsSqliteDatabase } from "./repository.js";
 export { GoalInputBindings } from "./input-bindings.js";
 export { createPersonalPlanningMethodSchema, PersonalPlanningMethods, readPersonalPlanningMethods } from "./planning/personal-methods.js";
 
 /** Read-only Module assembly; callers do not construct Goals repositories. */
-export function createGoalReadServices(db: GoalsSqliteDatabase): {
+export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJournal): {
   query: GoalsQueryApi;
   events: Pick<GoalEventFactsApi, "readConfig" | "listEvents" | "listLatestEvents" | "listLatestTimeline" | "listLatestReports" | "readEvent" | "readCurrentRequirements" | "isEventStateOwner" | "readWorkState">;
 } {
-  const repository = new GoalsRepository(db);
+  const repository = new GoalsRepository(db, journal);
   const context = new GoalsCommandContext(repository);
   return {
     query: new GoalsQueryService(repository),

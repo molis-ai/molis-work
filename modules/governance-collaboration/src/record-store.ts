@@ -3,16 +3,16 @@ import type {
   GoalTreeProposalDecisionResult,
 } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
-import type { GovernanceSqliteDatabase } from "./repository.js";
+import type { GovernanceJournal, GovernanceSqliteDatabase } from "./repository.js";
 import { GovernanceGoalTreeRecords } from "./goal-tree-records.js";
 import { GovernanceProposalOperationStore } from "./proposal-operation-store.js";
 
 export class GovernanceRecordStore implements GovernanceRecordsApi {
   private readonly proposalOperations: GovernanceProposalOperationStore;
   private readonly goalTrees: GovernanceGoalTreeRecords;
-  constructor(db: GovernanceSqliteDatabase) {
-    this.goalTrees = new GovernanceGoalTreeRecords(db);
-    this.proposalOperations = new GovernanceProposalOperationStore(db);
+  constructor(db: GovernanceSqliteDatabase, journal: GovernanceJournal) {
+    this.goalTrees = new GovernanceGoalTreeRecords(db, journal);
+    this.proposalOperations = new GovernanceProposalOperationStore(db, journal);
   }
 
   executeGoalTreeSubmission(...args: Parameters<GovernanceRecordsApi["executeGoalTreeSubmission"]>) {

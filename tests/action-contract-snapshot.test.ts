@@ -489,7 +489,7 @@ test("a provider id edited by hand in the committed file is refused, and the wri
   };
   const copy = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE, HOST_SCENES_FILE);
   assert.deepEqual(checkActionSnapshots({ root: copy, manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes }).problems, [], "the copy of the committed files passes");
-  assert.match(edit((text) => text.replace(/\t(io\.molis\.work\.todo)\t(io\.molis\.work\.todo)\t/, "\t$1\ttodo\t")), /todo\.[a-z_.]+@1: todo -> io\.molis\.work\.todo\n/);
+  assert.match(edit((text) => text.replace(/\t(io\.molis\.work\.todo)\t(io\.molis\.work\.todo)\t/, "\t$1\ttodo\t")), /todo\.[a-z_.]+@[0-9]+: todo -> io\.molis\.work\.todo\n/);
   const dir = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE, HOST_SCENES_FILE);
   const written = updateActionSnapshots({ root: dir, manifests: product.manifests, effectOf: product.effectOf });
   assert.match(written.problems.join("\n"), /written from the Host's directory/);

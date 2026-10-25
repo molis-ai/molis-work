@@ -1,6 +1,5 @@
 import { applyMemoryContext, applyMemoryRecalled } from "./prologue-memory-stream.js";
 import type { PrologueUsageReceipt } from "../inference.js";
-import type { TokenCount as PrologueTokenCount } from "@prologue/sdk";
 import { closeInputs, noteInputEvent, steerOf } from "./prologue-inputs.js";
 import type { ModelEvent } from "@prologue/sdk";
 export type { PrologueUsageReceipt } from "../inference.js";
@@ -10,13 +9,13 @@ import type {
   AgentRunPhase,
   AgentRunUsage,
   AgentRunView,
-  AgentUsageCoverage,
   AgentToolActivity,
   AgentTodoItem,
   AgentTurnChanges,
   AgentTurnView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
+import { updateUsage, USAGE_HANDLERS } from "./prologue-stream-usage.js";
 
 /**
  * Projects Prologue's model event stream into contract shapes.
@@ -184,61 +183,6 @@ function target(input: Record<string, unknown> | undefined): string {
     return value.length <= 200 ? value : `${value.slice(0, 200)}…`;
   }
   return "";
-}
-
-function updateUsage(state: PrologueStreamState): void {
-  const compaction = state.compaction_receipts.size || state.compaction_unaccounted
-    ? { recorded_calls: state.compaction_receipts.size, incomplete: state.compaction_unaccounted > 0 } : undefined;
-  const receipts = [...state.compaction_receipts.values(), ...state.usage_receipts.values(), ...(state.usage_preview ? [state.usage_preview] : [])];
-  if (!receipts.length) {
-    if (compaction) state.usage = { ...state.usage, compaction };
-    return;
-  }
-  const aggregate = (values: Array<{ source: string; value: number | undefined }>) => {
-    const known = values.filter(item => item.source !== "unknown" && item.value !== undefined && Number.isFinite(item.value) && item.value >= 0);
-    const estimated = known.some(item => item.source !== "reported");
-    const partial = known.length !== values.length;
-    const coverage: AgentUsageCoverage = !known.length ? "unknown" : partial
-      ? estimated ? "partial-estimated" : "partial" : estimated ? "estimated" : "reported";
-    return { value: known.length ? known.reduce((sum, item) => sum + item.value!, 0) : undefined, coverage };
-  };
-  const token = (field: "input" | "output" | "cacheRead" | "cacheWrite") => aggregate(receipts.map(r => ({ source: r[field].source, value: r[field].tokens })));
-  const input = token("input"), output = token("output"), read = token("cacheRead"), write = token("cacheWrite");
-  const cost = aggregate(receipts.map(r => ({ source: r.cost.currency === "USD" ? r.cost.source : "unknown", value: r.cost.amount })));
-  const unknown = [input, output].some(item => ["unknown", "partial", "partial-estimated"].includes(item.coverage));
-  const estimated = [input, output].some(item => item.coverage.includes("estimated"));
-  // The window in use is the latest main call's whole prompt; compaction calls size a different request.
-  const latest = state.usage_preview ?? [...state.usage_receipts.values()].at(-1);
-  const prompt = latest ? [latest.input, ...(state.prompt_includes_cache ? [] : [latest.cacheRead, latest.cacheWrite])] : [];
-  const context = prompt.length && prompt[0]!.source !== "unknown" && prompt[0]!.tokens !== undefined ? {
-    tokens: prompt.reduce((sum, count) => sum + (count.source === "unknown" || count.tokens === undefined ? 0 : count.tokens), 0),
-    coverage: (prompt.every(count => count.source === "reported") ? "reported" : prompt.some(count => count.source === "unknown") ? "partial" : "estimated") as AgentUsageCoverage,
-  } : undefined;
-  state.usage = {
-    ...(context ? { context } : {}),
-    ...(compaction ? { compaction } : {}),
-    tokens: {
-      input: input.value ?? 0, output: output.value ?? 0,
-      ...(read.value === undefined ? {} : { cached_input: read.value }),
-      ...(write.value === undefined ? {} : { cache_creation: write.value }),
-    },
-    ...(cost.value === undefined ? {} : { cost_usd: cost.value }),
-    coverage: { input: input.coverage, output: output.coverage, cached_input: read.coverage, cache_creation: write.coverage, cost_usd: cost.coverage },
-    ...(unknown ? { unavailable_reason: "部分调用用量未知，已知小计不代表完整用量" }
-      : estimated ? { unavailable_reason: "用量含保守估算，不全是服务方报的数" } : {}),
-  };
-}
-
-/** A provider may stream partial cumulative snapshots for a single call. */
-function mergeUsage(previous: PrologueUsageReceipt | undefined, next: PrologueUsageReceipt): PrologueUsageReceipt {
-  if (!previous) return next;
-  const known = (before: PrologueTokenCount, after: PrologueTokenCount) =>
-    after.source === "unknown" || after.tokens === undefined ? before : after;
-  return {
-    input: known(previous.input, next.input), output: known(previous.output, next.output),
-    cacheRead: known(previous.cacheRead, next.cacheRead), cacheWrite: known(previous.cacheWrite, next.cacheWrite),
-    cost: next.cost.source === "unknown" || next.cost.amount === undefined ? previous.cost : next.cost,
-  };
 }
 
 const REASONING_LIMIT = 16_384;
@@ -520,8 +464,166 @@ function applyRetryWaiting(state: PrologueStreamState, event: PrologueEvent): bo
 const ENDS_RETRY_WAIT = new Set(["text-delta", "reasoning-delta", "tool-call", "usage-recorded", "awaiting-approval", "awaiting-input",
   "compaction-started", "tripped", "completed", "failed", "cancelled"]);
 
-/** Events with a handler of their own; the switch in applyPrologueEvent dispatches the rest. */
-const HANDLERS: Readonly<Record<string, (state: PrologueStreamState, event: PrologueEvent, at: string | null) => boolean>> = {
+type Handler = (state: PrologueStreamState, event: PrologueEvent, at: string | null) => boolean;
+
+function applyPrompt(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+  const prompt = event as Extract<PrologueEvent, { type: "prompt" }>;
+  if (prompt.text === "") return false;
+  closeStreaming(state);
+  state.turns.push({
+    turn_id: `${prompt.role}-${state.turns.length + 1}`,
+    kind: prompt.role === "system" ? "system" : prompt.source === "app" ? "notice" : "user",
+    text: prompt.text,
+    at,
+    sequence: state.next_sequence++,
+    ...steerOf(prompt.role, prompt.steerId),
+  });
+  return true;
+}
+
+function applyReasoningDelta(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+  const delta = event as Extract<PrologueEvent, { type: "reasoning-delta" }>;
+  if (delta.text === "") return false;
+  if (!state.continuing) closeStreamingText(state);
+  let index = state.reasoning_index;
+  if (index === undefined) {
+    index = state.activity.push({ call_id: `reasoning-${state.next_sequence}`, name: "reasoning", target: "", state: "started",
+      summary: "推理", output: "", at, sequence: state.next_sequence++ }) - 1;
+    state.reasoning_index = index;
+  }
+  const entry = state.activity[index]!, text = (entry.output ?? "") + delta.text;
+  state.activity[index] = { ...entry, output: text.slice(0, REASONING_LIMIT), output_truncated: text.length > REASONING_LIMIT, at };
+  return true;
+}
+
+function applyTextDelta(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+  const delta = event as Extract<PrologueEvent, { type: "text-delta" }>;
+  if (delta.text === "") return false;
+  closeReasoning(state);
+  delete state.continuing;
+  if (state.streaming === "") {
+    state.streaming_at = at;
+    state.streaming_sequence = state.next_sequence++;
+  }
+  state.streaming += delta.text;
+  return true;
+}
+
+function applyCommandReceipt(state: PrologueStreamState, event: PrologueEvent): boolean {
+  const callId = (event as { callId?: unknown }).callId;
+  if (typeof callId !== "string") return false;
+  if (!state.command_calls.includes(callId)) state.command_calls.push(callId);
+  return true;
+}
+
+function applyAwaitingApproval(state: PrologueStreamState, event: PrologueEvent): boolean {
+  const waiting = event as Extract<PrologueEvent, { type: "awaiting-approval" }>;
+  closeStreaming(state);
+  state.awaiting_approval.push({
+    pending_id: waiting.pendingRef.id,
+    effect_id: waiting.effectRef.id,
+    why: waiting.why,
+    ...(waiting.character === undefined ? {} : { character: waiting.character }),
+  });
+  state.phase = "awaiting-review";
+  return true;
+}
+
+function applyAwaitingInput(state: PrologueStreamState, event: PrologueEvent): boolean {
+  const waiting = event as Extract<PrologueEvent, { type: "awaiting-input" }>;
+  if (waiting.kind === "effect-approval") return false;
+  closeStreaming(state);
+  state.awaiting_input.push({
+    pending_id: waiting.pendingRef.id,
+    pending_revision: waiting.pendingRef.revision,
+    kind: waiting.kind,
+    why: waiting.why,
+    sequence: state.next_sequence++,
+  });
+  state.phase = "awaiting-input";
+  return true;
+}
+
+function applyCompactionStarted(state: PrologueStreamState, _event: PrologueEvent, at: string | null): boolean {
+  state.compaction_unaccounted++;
+  updateUsage(state);
+  closeStreaming(state);
+  const sequence = state.next_sequence++;
+  state.activity.push({ call_id: `context-compaction-${sequence}`, name: "上下文整理", target: "保留历史原文",
+    state: "started", summary: "正在选择继续任务所需的原文片段", output: "正在整理较早上下文；原始会话与执行记录保留。", at, sequence });
+  state.phase = "compacting";
+  return true;
+}
+
+function applyCompactionEnded(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+  const activity = [...state.activity].reverse().find(item => item.name === "上下文整理" && item.state === "started");
+  const succeeded = event.type === "compacted";
+  const skipped = event.type === "compaction-skipped";
+  if (activity && (succeeded || skipped) && event.usageRecorded === true) state.compaction_unaccounted = Math.max(0, state.compaction_unaccounted - 1);
+  updateUsage(state);
+  const replaced = (event as { replaced?: number }).replaced;
+  const message = succeeded
+    ? `已整理较早上下文${Number.isSafeInteger(replaced) ? `（替换 ${replaced} 条模型可见记录）` : ""}；当前要求与保留原文继续生效，原始会话未删除。`
+    : skipped ? "整理结果未缩短上下文，原上下文继续保留。" : event.type === "compaction-cancelled" ? "上下文整理已取消，原上下文未被替换。" : "上下文整理失败，原上下文未被替换；窗口还放得下就接着用它，放不下这一轮会停下。";
+  if (activity) Object.assign(activity, { state: succeeded || skipped ? "completed" : "failed", summary: message, output: message, at });
+  state.phase = "running";
+  // A failed compaction is not the round's end: the round goes on while its history fits, and says so if it stops.
+  if (event.type === "compaction-cancelled") state.stop_reason = message;
+  return true;
+}
+
+/** The round's end: what it was streaming closes, a wait it slept in ends, and the phase says how it ended. */
+function endRound(state: PrologueStreamState, phase: AgentRunPhase, stopReason?: string): boolean {
+  closeStreaming(state);
+  closeSleep(state);
+  state.phase = phase;
+  if (stopReason !== undefined) state.stop_reason = stopReason;
+  return true;
+}
+
+function applyTripped(state: PrologueStreamState, event: PrologueEvent): boolean {
+  const tripped = event as Extract<PrologueEvent, { type: "tripped" }>;
+  // A guardrail stop is terminal but is not a failure of the work.
+  return endRound(state, "stopped", tripped.failed === true
+    ? `护栏 ${tripped.rail} 自身出错，已按绊停处理`
+    : `被护栏 ${tripped.rail} 拦下：${tripped.why}`);
+}
+
+function applyFailed(state: PrologueStreamState, event: PrologueEvent): boolean {
+  const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
+  return endRound(state, "failed", failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。"
+    : failed.error?.code?.startsWith("CONTEXT_COMPACTION") ? "上下文整理失败，原上下文未被替换，而它已放不下模型窗口，这一轮停下了；可以点继续再整理一次。"
+    : failed.error === undefined
+    ? failed.why ?? "运行时报告失败"
+    : `${failed.error.code}: ${failed.error.safeMessage}`);
+}
+
+/**
+ * Neither counted as progress nor dropped: the stream carried something this contract does not know, and that fact is
+ * worth keeping.
+ */
+function applyUnknown(state: PrologueStreamState): boolean {
+  state.unknown_frames += 1;
+  return true;
+}
+
+/** Every event the stream reads, by type; anything else is an unknown frame. */
+const HANDLERS: Readonly<Record<string, Handler>> = {
+  prompt: applyPrompt,
+  "reasoning-delta": applyReasoningDelta,
+  "text-delta": applyTextDelta,
+  "command-receipt": applyCommandReceipt,
+  "tool-call": (state, event, at) => noteToolCall(state, event as Extract<PrologueEvent, { type: "tool-call" }>, at),
+  "tool-result": (state, event, at) => noteToolResult(state, event as Extract<PrologueEvent, { type: "tool-result" }>, at),
+  "awaiting-approval": applyAwaitingApproval,
+  "awaiting-input": applyAwaitingInput,
+  ...USAGE_HANDLERS,
+  "compaction-started": applyCompactionStarted,
+  ...Object.fromEntries(["compacted", "compaction-skipped", "compaction-failed", "compaction-cancelled"].map(type => [type, applyCompactionEnded])),
+  tripped: applyTripped,
+  completed: state => endRound(state, "completed"),
+  failed: applyFailed,
+  cancelled: state => endRound(state, "cancelled", "已取消"),
   "model-response-repair": applyResponseRepair,
   "memory-recalled": applyMemoryRecalled,
   "memory-context": applyMemoryContext,
@@ -543,208 +645,8 @@ const HANDLERS: Readonly<Record<string, (state: PrologueStreamState, event: Prol
 export function applyRunEvent(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
   const waited = state.retry_wait !== undefined && ENDS_RETRY_WAIT.has(event.type);
   if (waited) delete state.retry_wait;
-  const changed = applyPrologueEvent(state, event, at) || waited;
+  const changed = (Object.hasOwn(HANDLERS, event.type) ? HANDLERS[event.type]! : applyUnknown)(state, event, at) || waited;
   return noteInputEvent(state, event) || changed;
-}
-
-/** The stream part of one event. Returns true when the projection changed. */
-function applyPrologueEvent(
-  state: PrologueStreamState,
-  event: PrologueEvent,
-  at: string | null,
-): boolean {
-  const handler = HANDLERS[event.type];
-  if (handler) return handler(state, event, at);
-  switch (event.type) {
-    case "prompt": {
-      const prompt = event as Extract<PrologueEvent, { type: "prompt" }>;
-      if (prompt.text === "") return false;
-      closeStreaming(state);
-      state.turns.push({
-        turn_id: `${prompt.role}-${state.turns.length + 1}`,
-        kind: prompt.role === "system" ? "system" : prompt.source === "app" ? "notice" : "user",
-        text: prompt.text,
-        at,
-        sequence: state.next_sequence++,
-        ...steerOf(prompt.role, prompt.steerId),
-      });
-      return true;
-    }
-
-    case "reasoning-delta": {
-      const delta = event as Extract<PrologueEvent, { type: "reasoning-delta" }>;
-      if (delta.text === "") return false;
-      if (!state.continuing) closeStreamingText(state);
-      let index = state.reasoning_index;
-      if (index === undefined) {
-        index = state.activity.push({ call_id: `reasoning-${state.next_sequence}`, name: "reasoning", target: "", state: "started",
-          summary: "推理", output: "", at, sequence: state.next_sequence++ }) - 1;
-        state.reasoning_index = index;
-      }
-      const entry = state.activity[index]!, text = (entry.output ?? "") + delta.text;
-      state.activity[index] = { ...entry, output: text.slice(0, REASONING_LIMIT), output_truncated: text.length > REASONING_LIMIT, at };
-      return true;
-    }
-
-    case "text-delta": {
-      const delta = event as Extract<PrologueEvent, { type: "text-delta" }>;
-      if (delta.text === "") return false;
-      closeReasoning(state);
-      delete state.continuing;
-      if (state.streaming === "") {
-        state.streaming_at = at;
-        state.streaming_sequence = state.next_sequence++;
-      }
-      state.streaming += delta.text;
-      return true;
-    }
-
-    case "command-receipt": {
-      if (typeof event.callId !== "string") return false;
-      if (!state.command_calls.includes(event.callId)) state.command_calls.push(event.callId);
-      return true;
-    }
-    case "tool-call":
-      return noteToolCall(state, event as Extract<PrologueEvent, { type: "tool-call" }>, at);
-    case "tool-result":
-      return noteToolResult(state, event as Extract<PrologueEvent, { type: "tool-result" }>, at);
-
-    case "awaiting-approval": {
-      const waiting = event as Extract<PrologueEvent, { type: "awaiting-approval" }>;
-      closeStreaming(state);
-      state.awaiting_approval.push({
-        pending_id: waiting.pendingRef.id,
-        effect_id: waiting.effectRef.id,
-        why: waiting.why,
-        ...(waiting.character === undefined ? {} : { character: waiting.character }),
-      });
-      state.phase = "awaiting-review";
-      return true;
-    }
-
-    case "awaiting-input": {
-      const waiting = event as Extract<PrologueEvent, { type: "awaiting-input" }>;
-      if (waiting.kind === "effect-approval") return false;
-      closeStreaming(state);
-      state.awaiting_input.push({
-        pending_id: waiting.pendingRef.id,
-        pending_revision: waiting.pendingRef.revision,
-        kind: waiting.kind,
-        why: waiting.why,
-        sequence: state.next_sequence++,
-      });
-      state.phase = "awaiting-input";
-      return true;
-    }
-
-    case "usage": {
-      const usage = event as Extract<PrologueEvent, { type: "usage" }>;
-      state.usage_preview = mergeUsage(state.usage_preview, usage.receipt);
-      updateUsage(state);
-      return true;
-    }
-    case "usage-recorded": {
-      const usage = event as Extract<PrologueEvent, { type: "usage-recorded" }>;
-      if (state.usage_receipts.has(usage.callId)) return false;
-      state.usage_receipts.set(usage.callId, usage.receipt);
-      state.usage_preview = undefined;
-      updateUsage(state);
-      return true;
-    }
-
-    case "compaction-usage-recorded": {
-      const usage = event as Extract<PrologueEvent, { type: "compaction-usage-recorded" }>;
-      if (state.compaction_receipts.has(usage.callId)) return false;
-      state.compaction_receipts.set(usage.callId, usage.receipt);
-      updateUsage(state);
-      return true;
-    }
-
-
-    case "compaction-started": {
-      state.compaction_unaccounted++;
-      updateUsage(state);
-      closeStreaming(state);
-      const sequence = state.next_sequence++;
-      state.activity.push({ call_id: `context-compaction-${sequence}`, name: "上下文整理", target: "保留历史原文",
-        state: "started", summary: "正在选择继续任务所需的原文片段", output: "正在整理较早上下文；原始会话与执行记录保留。", at, sequence });
-      state.phase = "compacting";
-      return true;
-    }
-
-    case "compacted":
-    case "compaction-skipped":
-    case "compaction-failed":
-    case "compaction-cancelled": {
-      const activity = [...state.activity].reverse().find(item => item.name === "上下文整理" && item.state === "started");
-      const succeeded = event.type === "compacted";
-      const skipped = event.type === "compaction-skipped";
-      if (activity && (succeeded || skipped) && event.usageRecorded === true) state.compaction_unaccounted = Math.max(0, state.compaction_unaccounted - 1);
-      updateUsage(state);
-      const replaced = (event as { replaced?: number }).replaced;
-      const message = succeeded
-        ? `已整理较早上下文${Number.isSafeInteger(replaced) ? `（替换 ${replaced} 条模型可见记录）` : ""}；当前要求与保留原文继续生效，原始会话未删除。`
-        : skipped ? "整理结果未缩短上下文，原上下文继续保留。" : event.type === "compaction-cancelled" ? "上下文整理已取消，原上下文未被替换。" : "上下文整理失败，原上下文未被替换；窗口还放得下就接着用它，放不下这一轮会停下。";
-      if (activity) Object.assign(activity, { state: succeeded || skipped ? "completed" : "failed", summary: message, output: message, at });
-      state.phase = "running";
-      // A failed compaction is not the round's end: the round goes on while its history fits, and says so if it stops.
-      if (event.type === "compaction-cancelled") state.stop_reason = message;
-      return true;
-    }
-
-    case "tripped": {
-      const tripped = event as Extract<PrologueEvent, { type: "tripped" }>;
-      closeStreaming(state);
-      closeSleep(state);
-      // A guardrail stop is terminal but is not a failure of the work.
-      state.phase = "stopped";
-      state.stop_reason = tripped.failed === true
-        ? `护栏 ${tripped.rail} 自身出错，已按绊停处理`
-        : `被护栏 ${tripped.rail} 拦下：${tripped.why}`;
-      return true;
-    }
-
-
-
-
-
-
-
-    case "completed": {
-      closeStreaming(state);
-      closeSleep(state);
-      state.phase = "completed";
-      return true;
-    }
-
-    case "failed": {
-      const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
-      closeStreaming(state);
-      closeSleep(state);
-      state.phase = "failed";
-      state.stop_reason = failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。"
-        : failed.error?.code?.startsWith("CONTEXT_COMPACTION") ? "上下文整理失败，原上下文未被替换，而它已放不下模型窗口，这一轮停下了；可以点继续再整理一次。"
-        : failed.error === undefined
-        ? failed.why ?? "运行时报告失败"
-        : `${failed.error.code}: ${failed.error.safeMessage}`;
-      return true;
-    }
-
-    case "cancelled": {
-      closeStreaming(state);
-      closeSleep(state);
-      state.phase = "cancelled";
-      state.stop_reason = "已取消";
-      return true;
-    }
-
-    default: {
-      // Neither counted as progress nor dropped: the stream carried something
-      // this contract does not know, and that fact is worth keeping.
-      state.unknown_frames += 1;
-      return true;
-    }
-  }
 }
 
 /**

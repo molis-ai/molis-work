@@ -52,7 +52,7 @@ test("an Assistant round on the real Host finds the capability, searches unopene
     body => {
       const text = JSON.stringify(body.messages);
       assert.ok(text.includes("供应商准入问卷"), "the search result reaches the model");
-      return reply({ name: "read-capability", input: { capability_id: "form.subject.read", version: 1, provider_id: "io.molis.work.form", input: { subject_id: form.id } } });
+      return reply({ name: "read-capability", input: { capability_id: "form.subject.read", version: 2, provider_id: "io.molis.work.form", input: { subject_id: form.id } } });
     },
     body => {
       assert.ok(JSON.stringify(body.messages).includes("银行账户"), "the owner's current text reaches the model");

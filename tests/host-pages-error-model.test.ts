@@ -204,7 +204,12 @@ for (const leavesRow of [false, true]) {
     const failure = new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details });
     // The public catalog port fails inside the real MCP message scope. A failed Home read is a real Host settlement,
     // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
-    const mcp = new hostModule.LocalMcpServer(async () => {
+    // Only the MCP's own catalog read fails. The server also gives this runner to the Home it shares, and Todo's `get` reads the catalog
+    // through it for the person's project list (PG-014): that nested read goes to the real catalog, or the failing read would call itself.
+    let entered = false;
+    const mcp = new hostModule.LocalMcpServer(async (options, operation) => {
+      if (entered) return withMolisWorkProjectCatalog(options, operation);
+      entered = true;
       if (leavesRow) await assert.rejects(host.homeActionClient().invoke({ actor_id: "web-user", actor_kind: "user", audience: "user",
         project_id: null, permissions: ["todo:read"] }, todoActions.get, { id: "no-such-todo" }), { code: "todo.not_found" });
       throw failure;

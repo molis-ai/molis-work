@@ -28,6 +28,7 @@ export const feedManifest: PluginManifest = {
   plugin_id: FEED_PLUGIN_ID,
   version: "0.3.0",
   name: "Feed",
+  summary: "订阅来源，读消息，留下值得留的。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-feed-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

@@ -1,5 +1,5 @@
 import type { BoundActionClient } from "../platform/actions.js";
-import { goalAction } from "./goal-action-definition.js";
+import { goalAction, inGoalRelation } from "./goal-action-definition.js";
 import { goalEntryActions } from "./goal-entry-actions.js";
 import { goalEventWorkStatuses, type GoalEventDirectoryQuery, type GoalEventDirectoryPage, type GoalContractView, type GoalEventStateView, type RecordGoalProgressSummaryInput, type GoalEventProgressResult } from "./goals.js";
 import { text, identifier, count, object, nullable, goalDirectoryItemSchema, artifactSource } from "./goal-event-action-schemas.js";
@@ -15,7 +15,7 @@ export * from "./goal-policy-action-schemas.js";
 export * from "./goal-guidance-action-schemas.js";
 export * from "./goal-progress-action-schema.js";
 export * from "./goal-entry-actions.js";
-export { goalAction } from "./goal-action-definition.js";
+export { goalAction, inGoalRelation } from "./goal-action-definition.js";
 
 type GoalListActionInput = Omit<GoalEventDirectoryQuery, "project_id">;
 export interface GoalReadActionInput { goal_id: string }
@@ -26,11 +26,11 @@ const base = { goal_id: identifier, idempotency_key: identifier }, required = Ob
 
 /** Goals' complete shared contracts consumed by Coding and installed plugin clients. The action gateway checks who calls and what it holds; Goals keeps no list of plugins. */
 export const goalPluginActions = {
-  list: goalAction<GoalListActionInput, GoalEventDirectoryPage>("goals.list", "目标目录", "读取当前项目未归档和未丢弃的目标；分页游标来自上次列表结果", "query",
+  list: inGoalRelation(goalAction<GoalListActionInput, GoalEventDirectoryPage>("goals.list", "目标目录", "读取当前项目未归档和未丢弃的目标；分页游标来自上次列表结果", "query",
     object({ work_status: { enum: [...goalEventWorkStatuses] }, limit: { type: "integer", minimum: 1, maximum: 100 }, after_cursor: text }, []),
     object({ goals: { type: "array", items: goalDirectoryItemSchema },
       // Installed plugins may read the directory and leave notes; nothing else in Goals is open to them.
-      next_cursor: { type: ["string", "null"] }, observed_event_cursor: count }), true),
+      next_cursor: { type: ["string", "null"] }, observed_event_cursor: count }), true), "candidates"),
   /** Version 2 (S8): the output no longer carries the board's name. */
   contract: { ...goalAction<GoalReadActionInput, GoalContractView>("goals.contract.read", "读取目标约定与历史资料",
     "读取指定目标的原始约定、上级覆盖、关系、生效规则、项目长期说明和相关结构提案；包含归档及回收站目标。当前工作状态通过 goals.state.read 读取", "query", goalInput, goalContractSchema, true), version: 2 },

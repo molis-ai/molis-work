@@ -59,6 +59,23 @@ export function isObjectCopier(action: { input_type?: string; output_type?: stri
   return action.input_type === PLACEMENT_COPY_INPUT_TYPE && action.output_type === PLACEMENT_COPY_OUTPUT_TYPE;
 }
 
+/**
+ * A relation between an object and a target its owner keeps (a document's Goal), which placement lists, binds and releases for the
+ * person (PG-032). Each action of the owner says which part it plays with `placement_relation`; placement finds them in the directory
+ * by that declaration, never by a capability id, so the relation's owner is whoever declares it. `target` is on the `list` role only:
+ * the subject kind of the other end and the noun a person reads it by.
+ */
+export const PLACEMENT_RELATION_ROLES = ["list", "bind", "release", "candidates", "create"] as const;
+export type PlacementRelationRole = (typeof PLACEMENT_RELATION_ROLES)[number];
+export interface PlacementRelationDeclaration {
+  readonly relation: string;
+  readonly role: PlacementRelationRole;
+  readonly target?: { readonly kind: string; readonly noun: string };
+}
+export function isPlacementRelation(action: { placement_relation?: PlacementRelationDeclaration }, relation: string, role: PlacementRelationRole): boolean {
+  return action.placement_relation?.relation === relation && action.placement_relation.role === role;
+}
+
 /** The source partition is the caller's project; moving to where it already is has nothing to do. */
 export function placementSourceProject(caller: ActionCallContext, to: string): string {
   if (!caller.project_id) throw new ActionError("actions.project_required", "请在对象所在的位置里移动或复制");

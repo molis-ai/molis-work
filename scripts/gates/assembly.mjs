@@ -11,6 +11,10 @@
 //                          are the workspace plugins whose Host files carry their name; the report flags them
 //   pluginOutsideMentions  per built-in plugin, the files outside its own package that name its package (imports, package.json
 //                          dependencies, the workspace map): what adding or removing that plugin touches besides itself
+//                          The two files scripts/generate-plugin-registry.mjs writes are not counted (their exact paths;
+//                          whether they are exactly its output is the absolute rule its --check is), and neither is an app's
+//                          package.json whose plugin dependencies are exactly the packages its generated file imports
+//                          (user 10-19; W5-02 PR-B pulls it forward from PR-C for the Host's new file).
 // A plugin that is new at the reference starts at NEW_PLUGIN_OUTSIDE_FILES for the last one; everything else starts at 0.
 import ts from "typescript";
 import { homeRuntimePackages } from "./home-runtime-entries.mjs";
@@ -19,6 +23,11 @@ import { hasPath, recordMetric } from "./record-metric.mjs";
 const HOST_SRC = /^apps\/local-host\/src\//;
 const PLUGIN_PACKAGE = /^plugins\/native\/([^/]+)\/package\.json$/;
 const PROJECT_PLUGINS = "apps/local-host/src/project-plugins.ts";
+/** Each generated registry file (scripts/generate-plugin-registry.mjs) and the app manifest whose plugin dependencies it needs. */
+const GENERATED_REGISTRIES = [
+  { file: "apps/workbench/src/builtin-plugins.ts", manifest: "apps/workbench/package.json" },
+  { file: "apps/local-host/src/plugin-registry.generated.ts", manifest: "apps/local-host/package.json" },
+];
 
 /**
  * Text the assembly gates read besides source files: plugin package manifests (names), the root and app manifests and the
@@ -53,6 +62,25 @@ export function describePlugins(snapshot) {
   const home = homeRuntimePackages(snapshot);
   const runtime = new Set(plugins.filter((plugin) => supervisor.includes(`"${plugin.name}"`) || home.has(plugin.name)).map((plugin) => plugin.dir));
   return { plugins: plugins.sort((a, b) => a.dir.localeCompare(b.dir)), runtime };
+}
+
+/**
+ * The files that name plugin packages only because the build lists every plugin: the generated registry files, and an app's
+ * package.json whose plugin dependencies are the very packages its generated file imports, no more and no fewer.
+ */
+export function generatedMentionFiles(snapshot, pluginNames) {
+  const files = new Set();
+  for (const { file, manifest } of GENERATED_REGISTRIES) {
+    const text = snapshot.read(file);
+    if (text === null) continue;
+    files.add(file);
+    const imported = new Set([...text.matchAll(/from "([^"]+)\/registration";/g)].map((match) => match[1]));
+    let dependencies;
+    try { dependencies = Object.keys(JSON.parse(snapshot.read(manifest) ?? "null")?.dependencies ?? {}); } catch { continue; }
+    const plugins = dependencies.filter((name) => pluginNames.has(name));
+    if (plugins.length === imported.size && plugins.every((name) => imported.has(name))) files.add(manifest);
+  }
+  return files;
 }
 
 const hostSources = (snapshot, helpers) => snapshot.files.filter((file) => HOST_SRC.test(file) && helpers.isSource(file));
@@ -150,7 +178,8 @@ export const assemblyMetrics = (helpers) => {
     newKeyAllowance: () => NEW_PLUGIN_OUTSIDE_FILES,
     measure(snapshot) {
       const { plugins } = describePlugins(snapshot);
-      const candidates = snapshot.files.filter((file) => helpers.isSource(file) || assemblyWantsText(file));
+      const generated = generatedMentionFiles(snapshot, new Set(plugins.map((plugin) => plugin.name)));
+      const candidates = snapshot.files.filter((file) => (helpers.isSource(file) || assemblyWantsText(file)) && !generated.has(file));
       const texts = new Map(candidates.map((file) => [file, snapshot.read(file)]));
       const record = {};
       for (const plugin of plugins) {

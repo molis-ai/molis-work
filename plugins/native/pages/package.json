@@ -22,6 +22,10 @@
       "types": "./dist/code-highlight.d.ts",
       "import": "./dist/code-highlight.js"
     },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    },
     "./editor": "./dist/pages-editor.js"
   },
   "files": [

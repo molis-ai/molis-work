@@ -1,4 +1,4 @@
-import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { PROJECT_SCOPED_PLUGIN_IDS } from "./plugin-registry.js";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { listProjectRoots, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { DEMO_PROJECT_ID } from "./demo-seed.js";

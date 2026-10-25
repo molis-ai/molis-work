@@ -2,15 +2,17 @@ import type { CodeColouring, CodeTokenKind } from "@molis-ai/molis-work-plugin-s
 
 /** Runs in the browser only; the plugin build has no DOM library, so nodes are typed by the fields this script touches. */
 type Piece = [CodeTokenKind | null, string];
-interface PaintNode { parentNode: unknown; remove(): void }
-interface PaintText extends PaintNode { data: string; before(...nodes: PaintNode[]): void }
-interface PaintElement extends PaintNode {
+/** The least of a DOM node this script reads, so a real node is accepted wherever one is asked for. */
+interface PaintNode { parentNode: unknown }
+interface PaintChild extends PaintNode { remove(): void }
+interface PaintText extends PaintChild { data: string; before(...nodes: (PaintNode | string)[]): void }
+interface PaintElement extends PaintChild {
   className: string;
   textContent: string | null;
   dataset: Record<string, string | undefined>;
   classList: Iterable<string>;
-  childNodes: ArrayLike<PaintNode>;
-  lastChild: (PaintNode & { data?: string; appendData?: (text: string) => void }) | null;
+  childNodes: ArrayLike<PaintChild>;
+  lastChild: (PaintChild & { data?: string; appendData?: (text: string) => void }) | null;
   attributes: Iterable<{ name: string; value: string }>;
   style: { setProperty(name: string, value: string): void };
   isConnected: boolean;
@@ -22,8 +24,8 @@ interface PaintElement extends PaintNode {
   querySelector(selector: string): PaintElement | null;
   getAttribute(name: string): string | null;
   hasAttribute(name: string): boolean;
-  append(...nodes: PaintNode[]): void;
-  replaceChildren(...nodes: PaintNode[]): void;
+  append(...nodes: (PaintNode | string)[]): void;
+  replaceChildren(...nodes: (PaintNode | string)[]): void;
 }
 interface PaintObserver { observe(node: PaintElement, options?: { childList: boolean }): void; disconnect(): void }
 declare const ResizeObserver: new (changed: () => void) => PaintObserver;
@@ -49,10 +51,10 @@ type Tokens = (text: string, language: string, from?: number) => Piece[];
  */
 export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring | null, text: string, language: string, tokens: Tokens) => CodeColouring,
   languageOf: (hint: string) => string) {
-  type Region = { start: number; end: number; node: PaintElement; content: PaintElement; pieces: Piece[]; nodes: PaintNode[] };
+  type Region = { start: number; end: number; node: PaintElement; content: PaintElement; pieces: Piece[]; nodes: PaintChild[] };
   type Job = { text: string; language: string; at: number; regions: Region[]; state: CodeColouring | null; framed?: boolean };
   const colouring = new WeakMap<PaintElement, Job>(), source = new WeakMap<PaintElement, string>();
-  const pieceNode = ([kind, value]: Piece): PaintNode => {
+  const pieceNode = ([kind, value]: Piece): PaintChild => {
     if (!kind) return document.createTextNode(value);
     const span = document.createElement("span"); span.className = "tok-" + kind; span.textContent = value; return span;
   };

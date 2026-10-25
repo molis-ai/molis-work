@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -40,7 +40,9 @@ test("Coding stops hidden polling and releases every client listener before the 
   await child.evaluate(`(() => {
     codingParent.append(codingRoot);
     const mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    window.remountCoding=()=>(${CODING_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,translate:globalThis.L,openItem:()=>{}});
+    const pluginId='io.molis.work.coding';
+    window.remountCoding=()=>(${CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT})({root:codingRoot,mountPluginClient:mount,translate:globalThis.L,pluginId,pluginRoute:path=>codingRoot.dataset.codingPrefix+'/api/plugins/'+pluginId+path,
+      confirm:async()=>true,interaction:()=>{throw new Error('no card is drawn in this test');},receipts:{},workspaces:{add:async()=>({workspace_id:'none'}),select:async()=>{}},clients:{},reviews:{show:async()=>{}},openItem:()=>{}});
     remountCoding();remountCoding();
   })()`);
   await waitFor(`codingRequests.length > ${detachedReads}`);

@@ -215,7 +215,7 @@ function renderArtifactFrameBlock({ view, routePrefix, primitives: p }: Artifact
 
 export const artifactBrowserUiContribution: UiContribution<ArtifactBrowserUiModel> = {
   descriptor: {
-    contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.artifacts",
+    contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID,
     kind: "primary-page", navigation_id: "artifacts", label: "成果", slots: [],
     surfaces: [
       { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },

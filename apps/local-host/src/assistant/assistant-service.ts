@@ -1020,7 +1020,7 @@ export class AssistantService {
       const moved = await whereNow(work, actions, object);
       return moved ? `「${moved.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」。这项工作的范围读不到它现在的正文；需要时请用户到那里打开，或把它放回这个项目。` : null;
     }
-    const goals = (await Promise.all(context.goal_ids.slice(0, 5).map(async id => (await read("goal", id))?.title ?? id)));
+    const goals = (await Promise.all((context.goal_ids ?? []).slice(0, 5).map(async id => (await read("goal", id))?.title ?? id)));
     const others = (await this.related(identity(work).project_id, { kind: object.kind, id: object.id })).filter(row => row.work_id !== work.work_id).slice(0, 5);
     const claimed = object.version === undefined ? null : String(object.version);
     return [`${context.title}（${object.kind}，标识 ${object.id}），当前版本 ${context.revision}${claimed && claimed !== context.revision ? `（页面显示的是版本 ${claimed}）` : ""}。`,

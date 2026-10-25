@@ -5,6 +5,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { builtinCatalogText, checkProposalUiOwnership, hasWorkbenchUiContribution } from "../scripts/check-package-boundaries.mjs";
 import { CATALOG, catalogText } from "../scripts/gates/catalog-entries.mjs";
+import { PLATFORM_FILE, pluginRegistryProblems } from "../scripts/generate-plugin-registry.mjs";
+import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -61,6 +63,25 @@ test("W5-02-REG-03 the registration guard reads each listed plugin's own registr
   assert.equal(hasWorkbenchUiContribution(composition, registry, "feedUiContribution", unlisted), false, "a registration the catalog does not list registers nothing");
   const emptied = catalogText(edited("plugins/native/feed/src/registration.ts", text => text.replace("contributions: [feedUiContribution]", "contributions: []")));
   assert.equal(hasWorkbenchUiContribution(composition, registry, "feedUiContribution", emptied), false, "the plugin's own entry is what counts, not its import");
-  assert.throws(() => catalogText(edited(CATALOG, text => text.replace("  feedRegistration,\n", "  feedManifest,\n"))), /neither an object literal nor a plugin's imported registration/);
+  assert.throws(() => catalogText(edited(CATALOG, text => text.replace("  feedRegistration,\n", "  feedManifest,\n"))), /is not a plugin's imported registration/);
   assert.throws(() => catalogText({ files: files.filter(file => !file.includes("/feed/")), read }), /is not a built-in plugin's src\/registration\.ts/);
+});
+
+// RAC-566: the catalog has one form, the generated list of each plugin's own registration. A catalog written by hand, an entry
+// written in place among the generated ones, or a platform list written by hand is refused by the gates' reader and by --check.
+test("RAC-566 a catalog or platform list written by hand is refused, by the gates' reader and by the generator's --check", () => {
+  const files = readdirSync(path.join(root, "plugins/native")).map(directory => `plugins/native/${directory}/package.json`);
+  const read = file => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } };
+  const edited = (target, edit) => ({ files, read: file => (file === target ? edit(read(file)) : read(file)) });
+  assert.deepEqual(pluginRegistryProblems({ files, read }, WORKSPACE_PACKAGES), [], "the tree as it is passes");
+  const feed = read("plugins/native/feed/src/registration.ts").match(/export const registration[^=]*=\s*(\{[\s\S]*\});\s*$/m)?.[1];
+  assert.ok(feed, "Feed's registration is an object literal");
+  const inPlace = edited(CATALOG, text => text.replace("  feedRegistration,\n", `  ${feed},\n`));
+  assert.throws(() => catalogText(inPlace), /a catalog entry is written by hand/);
+  assert.match(pluginRegistryProblems(inPlace, WORKSPACE_PACKAGES).join("\n"), /builtin-plugins\.ts is out of date or edited by hand/);
+  const byHand = edited(CATALOG, () => `export const BUILTIN_PLUGIN_CATALOG = [\n${feed},\n];\n`);
+  assert.throws(() => catalogText(byHand), /a catalog entry is written by hand/);
+  assert.match(pluginRegistryProblems(byHand, WORKSPACE_PACKAGES).join("\n"), /builtin-plugins\.ts is out of date or edited by hand/);
+  const platformByHand = edited(PLATFORM_FILE, () => "export const PLATFORM_PLUGIN_REGISTRATIONS = [];\n");
+  assert.match(pluginRegistryProblems(platformByHand, WORKSPACE_PACKAGES).join("\n"), /plugin-registry\.generated\.ts is out of date or edited by hand/);
 });

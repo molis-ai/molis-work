@@ -8,7 +8,6 @@ import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goa
 export const registration: PluginRegistration = {
   project_plugin_id: GOALS_PROJECT_PLUGIN_ID, catalog_order: 6,
   manifest: goalsManifest,
-  summary: "确定目标，推进工作，留下结果。",
   workbench: {
     order: 19,
     contributions: [

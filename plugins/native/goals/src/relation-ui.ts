@@ -144,7 +144,7 @@ export type GoalsRelationUiModel = { primitives: GoalsRelationUiPrimitives } & (
 /** Which surface each renderer method mounts (W5-06): the shell builds its renderer from this, and the descriptor lists these. */
 export const GOALS_RELATION_UI_SURFACES = { renderRelations: "relations", renderRelationForm: "form" } as const satisfies Record<keyof GoalsRelationRenderer, GoalsRelationUiModel["kind"]>;
 export const goalsRelationUiContribution: UiContribution<GoalsRelationUiModel> = {
-  descriptor: { contribution_id: GOALS_RELATION_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal relations",
+  descriptor: { contribution_id: GOALS_RELATION_UI_CONTRIBUTION_ID, kind: "embedded", label: "Goal relations",
     surfaces: Object.values(GOALS_RELATION_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
   render({ surface, model }) {
     if (surface !== model.kind) throw new Error("Goals relation surface does not match its model");

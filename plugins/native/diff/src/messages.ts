@@ -49,6 +49,9 @@ export const DIFF_MESSAGES = {
   "请选择两份文件快照进行对比": { zh: "请选择两份文件快照进行对比", en: "Choose two file snapshots to compare" },
   "diff.stage.refresh": { zh: "刷新", en: "Refresh" },
   "diff.stage.open-files": { zh: "打开 Files", en: "Open Files" },
+  "diff.stage.reading": { zh: "正在读取固定内容…", en: "Reading the pinned versions…" },
+  "diff.stage.retry": { zh: "。请点击刷新重试。", en: ". Select Refresh to try again." },
+  "diff.error.unreadable": { zh: "无法读取文件工作区", en: "Couldn't read the file workspace" },
   "diff.stage.add-files": { zh: "到插件市场添加 Files", en: "Add Files from the plugin market" },
 } as const;
 

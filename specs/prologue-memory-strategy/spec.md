@@ -1281,3 +1281,16 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 诊断原始文件：`/private/tmp/molis-code-scale-baseline.{log,json,png}`、`/private/tmp/molis-code-scale-profile-4x.{log,json,png}`、`/private/tmp/molis-code-scale-traced-4x-captured.log`、`/private/tmp/molis-code-scale-4x-trace.json`，汇总 `/private/tmp/molis-code-scale-diagnosis.json`。均来自临时 Home、隔离 Chrome 和复用且已核验指纹的准确构建，没有真实 Home 或付费模型调用。
 
 候选观测补丁在原条件下跑完整 `code-scale.e2e` 5/5 通过、零跳过/重试；日志 `/private/tmp/molis-code-scale-observation-validation.log` 留存原始 75 片，最长 7.0ms。此结果仅证明观测补丁在本机仍通过原合同，**不是性能问题已修复**。原同步初始、每片 <50ms、至少15片、增量着色、回改、离页停止、400,000上限及真实 Coding/Assistant 重开等断言均原样保留；总计时起点仍在 step 前、终点仍在强制布局后，中间只多一次读时钟。末尾移除了候选中仅失败时额外抓图的一行，避免截图故障盖过原性能断言；真实失败构成由既有 diagnostic 日志与 JSON 提供，前述诊断截图保留。
+
+
+### #1064 接入 batch37 主干（2026-10-26）
+
+本刀将准确 `070bdd28284d031de0602d27e1f588e315affc46` 与主干 `4f4e59a33b6830839323f9c33f87a7ad9047943f` 集成。保留既有人的原输入、续跑引用、不可重放的恢复、MemoryUsage 回执与关闭时最后事件的记账；沿主干 Prologue ports / run store / run start 的原主人接线，Coding 原输入及补充回执进入 typed browser 的真实生产 bundle。不恢复巨类、旧 inline 客户端或第二套恢复解释；Host audience、projectReach 与 registry 新边界不回退。
+
+范围为上述冲突与真实调用链、当前文档及必要回归；不混入 #1101 后续 Catalog/维护恢复，不更换 SDK、schema、模型或授权。原输入来源与权限、关闭期间最后记账是不可配置硬边界；现有端口可替换，App 配置和用户选项保持现合同，不新增旋钮。按原 FIFO build、双方 README 必跑及相关回归、strict、boundary、API、准确 4f 健康和真实 page-assets 验证；现 main 资源起点与规则保留，不套用旧 070 的一次性额度或手拼健康数字。最终 CI/全量与用户验收由统筹核验，本刀不自行声明完成。
+
+本次资源首次原门实测拒绝已保留（`/private/tmp/foundation-batch37-assets-first.log`）：相对准确 4f，Workbench `1124423 → 1127616`（+3193 字节），Coding `289788 → 290400`（+612 字节）。统筹核对原会话及本 spec 的既有授权：这是同一批已批准 Memory 控件与原输入发送行为接入新主干，Workbench 增量未变，Coding 比原净增 717 字节少 105 字节；没有新增功能或授权范围。只迁移这两个精确起点/终点 pair，不保留旧大绝对上限或差额；由原 `--update --base 4f4e59a33b6830839323f9c33f87a7ad9047943f` 重新实测冻结，不改比较算法、其他资源或重试规则。
+
+集成后的有界工程验证：原整体 build、生产严格编译、根类型、改动输入相关四文件的额外 strict、boundary（70 包、errors=[]）、72 份 API 快照、准确 4f 健康与真实资源门通过。两侧三个相关 README 必跑并集及输入/恢复/权限/声明式清理相邻共 138 文件 975 项通过，另原资源预算规则 171 项通过，原 runner jobs2/browser1/retries0；不运行全量。健康快查仅由原 `--update --base` 在合法下降后生成（giant 73→72、explicitAny 下降）。
+
+失败边界保留：首次 build 是恢复迁移后遗留的未使用类型导入；首轮 Coding 原输入 7/8，唯一失败为旧夹具把翻译函数放在全局 L，而主干真实 bundle 要求参数 translate；仅改夹具接线，原八项断言全部保留并通过。额外对六个完整测试文件执行非项目规定的独立 strict 命令没有通过：准确 070 同命令已有 14 条旧 fixture/ES2022 诊断，候选 15 条，多的一条定位到 4f 新增但沿用缺 actor_id owner 的恢复 fixture；没有降低类型规则、修无关 fixture 或把这项报告为通过。原始日志均为 `/private/tmp/foundation-batch37-*`，由统筹独审。此结果只覆盖本次主干迁移，不等于历史 54.1ms 性能失败根因修复；最终 CI/全量、真实用户 App 体验及用户验收尚未覆盖。

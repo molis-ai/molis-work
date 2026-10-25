@@ -8,10 +8,8 @@ import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { functionsConnectionStatus } from "./functions-host.js";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { handleModelSettingsHttp } from "./web-model-settings.js";
 import { capabilitiesView } from "./web-capabilities.js";
 import { callDiagnosticsView } from "./web-call-diagnostics.js";
@@ -29,6 +27,7 @@ import { L } from "./web-locale.js";
 import { handleComponentBoardHttp } from "./web-catalog-board.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, renderCharactersSettingsEntry, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
+import { shownProjectPlugins } from "./plugin-registry.js";
 import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
@@ -49,6 +48,17 @@ import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 
 /** One per Host, so the few-second answer a brief is good for is shared by every look at the chooser. */
 const projectArrivalHttps = new WeakMap<MolisWorkLocalHost, ReturnType<typeof createProjectArrivalHttp>>();
+
+/** A project's plugins as the settings show them; what they show is the Host's to say (W5-02 B1): without a project, the personal plugins. */
+async function pluginMembership(composition: LocalWebComposition, homeDirectory: string | undefined, projectId: string | null): Promise<{
+  plugins: readonly string[] | undefined; hidden: readonly string[] | undefined; shown: readonly string[];
+}> {
+  if (!projectId || !homeDirectory) return { plugins: undefined, hidden: undefined, shown: shownProjectPlugins([]) };
+  return composition.withCatalog({ homeDirectory }, (catalog) => {
+    const plugins = catalog.listProjectPlugins(projectId), hidden = catalog.listHiddenPlugins(projectId);
+    return { plugins, hidden, shown: shownProjectPlugins(plugins, hidden) };
+  });
+}
 
 export async function handleLocalCatalogWebRequest(
   request: IncomingMessage, response: ServerResponse, url: URL, serverOptions: WebServerOptions,
@@ -96,13 +106,6 @@ export async function handleLocalCatalogWebRequest(
     response.end();
     return;
   }
-  const pluginMembership = async (projectId: string | null): Promise<{ plugins: readonly string[] | undefined; hidden: readonly string[] | undefined }> => {
-    if (!projectId || !serverOptions.homeDirectory) return { plugins: undefined, hidden: undefined };
-    return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => ({
-      plugins: catalog.listProjectPlugins(projectId),
-      hidden: catalog.listHiddenPlugins(projectId),
-    }));
-  };
   if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, bindPersonalPlanningWebActions(localHost.homeActionClient()))) return;
   if (await handleModelSettingsHttp(request, response, url, composition.withCatalog, serverOptions.homeDirectory)) return;
   const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|models|runtimes|assistant|characters|prompts|memory|mcp|connectors|projects|diagnostics)$/);
@@ -137,7 +140,7 @@ export async function handleLocalCatalogWebRequest(
       selected_provider_id: url.searchParams.get("provider"),
       ...modelTemplatePageData(url.searchParams),
     })) : undefined;
-    const membership = await pluginMembership(contextProject?.project_id ?? null);
+    const membership = await pluginMembership(composition, serverOptions.homeDirectory, contextProject?.project_id ?? null);
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -156,6 +159,7 @@ export async function handleLocalCatalogWebRequest(
       context_project: contextProject,
       enabled_plugins: membership.plugins,
       hidden_plugins: membership.hidden,
+      shown_plugins: membership.shown,
       runtimes,
       mcp_access,
       ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url) : {}),
@@ -195,7 +199,7 @@ export async function handleLocalCatalogWebRequest(
       };
       plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
     }
-    const membership = await pluginMembership(contextProject?.project_id ?? null);
+    const membership = await pluginMembership(composition, serverOptions.homeDirectory, contextProject?.project_id ?? null);
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -207,6 +211,7 @@ export async function handleLocalCatalogWebRequest(
       context_project: contextProject,
       enabled_plugins: membership.plugins,
       hidden_plugins: membership.hidden,
+      shown_plugins: membership.shown,
       runtimes: [],
       projects,
       web_service: await webService.detect(),
@@ -291,7 +296,7 @@ function escapeSettingsHtml(value: unknown): string {
 async function renderCatalogPluginSettings(contributionId: string, host: MolisWorkLocalHost): Promise<string | null> {
   const primitives = { escape: escapeSettingsHtml, text: L };
   if (contributionId === SHELF_SETTINGS_UI_CONTRIBUTION_ID) {
-    const snapshot = await bindActionClient(host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })).invoke(shelfActions.snapshot, {});
+    const snapshot = await bindLocalWebActions(host, undefined, SHELF_ACTION_PERMISSIONS).invoke(shelfActions.snapshot, {});
     return renderPluginSettingsContribution(contributionId, {
       settings: snapshot.settings,
       runtime: snapshot.runtime,

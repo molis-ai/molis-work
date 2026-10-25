@@ -49,7 +49,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
   const openInSide = (${openPluginInSide}).bind(null, ${sideOpenedTabs()});
-  const PLUGIN_TAB_TITLES = { home: "项目首页", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
+  const PLUGIN_TAB_TITLES = { home: "项目首页", market: L("插件市场"), ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   // Plugins installed at run time (built in the studio) name their own stage.
   document.querySelectorAll("[data-work-surface][data-installed-plugin]").forEach((surface) => { PLUGIN_TAB_TITLES[surface.dataset.workSurface] = surface.dataset.workSurfaceLabel; PLUGIN_TAB_ICON[surface.dataset.workSurface] = "package"; });
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };

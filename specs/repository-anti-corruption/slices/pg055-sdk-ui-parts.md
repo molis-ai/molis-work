@@ -1,6 +1,6 @@
 # PG-055：SDK 提供公开的界面部件，插件包不再依赖私有的 design-system
 
-状态：已实现（2026-10-25，一个 PR，分支 `ac-clients-pg055`，叠在 W5-04 第三组 #1278 之上）。统筹裁定 D1～D6（10-24）与 E1～E4（10-25）都按下面做；10-25 复查查出的四处与草案不符记在文末。部件由 SDK 的 `/ui`、`/browser`、`/page-globals` 公开，design-system 删掉本地实现并依赖 SDK，宿主一侧的 156 个文件直接从 SDK 取（不留转出），边界规则 `plugin-private-ui-dependency` 拦住插件再 import 私有界面包。
+状态：已实现（2026-10-25，#1284，分支 `ac-clients-pg055`，叠在 W5-04 第三组 #1278 之上）。统筹裁定 D1～D6（10-24）与 E1～E4（10-25）都按下面做；10-25 复查查出的四处与草案不符记在文末。部件由 SDK 的 `/ui`、`/browser`、`/page-globals` 公开，design-system 删掉本地实现并依赖 SDK，宿主一侧的 156 个文件直接从 SDK 取（不留转出），边界规则 `plugin-private-ui-dependency` 拦住插件再 import 私有界面包。
 
 ## 问题
 

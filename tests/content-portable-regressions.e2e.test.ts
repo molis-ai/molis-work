@@ -2,7 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 

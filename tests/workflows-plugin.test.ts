@@ -7,7 +7,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
 import {

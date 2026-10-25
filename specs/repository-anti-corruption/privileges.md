@@ -376,7 +376,7 @@
 | V-15 | Diff 把同样三种类型在 `artifacts.consumes` 和 `process_items.consumes` 各列一遍 | `tests/plugin-manifest-v2.test.ts`、`tests/diff-plugin.test.ts` | Manifest 检查要么拒绝重复，要么写明两边都要 | 悄悄放过 | ② | PG-091 | CF 待核 3 |
 | V-16 | 拆掉宿主补的 html 之后，Diff 和 Text Stats 的 `/state` 返回和 output_schema 是否一致（**已关，2026-10-23，PG-062 第 1 片**：两个动作的 output_schema 声明可选的 `html`，只有页面调用时返回；版本仍是 1，只加可选字段不算破坏性） | `tests/action-contract-snapshot.test.ts`、`tests/companion-state-html.test.ts`（PG062-03） | 一致 | `/state` 只返回 `{ view }`，和 schema 对不上 | ③ | PG-062 | CF-11、CF 待核 4 |
 | V-17 | `plugins/native/pages/src/comment-side-client.ts:23-26` 的 raw fetch 为什么不在基线里 | `node scripts/check-health-gates.mjs --report` | 门禁数到了它 | 门禁有盲区 | ② | PG-056 | DT 待核 1 |
-| V-18 | Pages 在模块级用 `attemptsByDatabase` Map，键是 Home 库的 realpath | 读 `plugins/native/pages/src/store.ts:50,472-477`，并写明迁到 Runtime 后的做法 | 迁移后按实例持有 | 进程级状态跨实例共用 | ③ | PG-088 | DT 待核 5 |
+| V-18 | Pages 在模块级用 `attemptsByDatabase` Map，键是 Home 库的 realpath（**已关，2026-10-25，W5-06 第 4 片**：生产里 Pages 按实例持有 attempts（`plugin.ts`）；这个 Map 只属测试开库入口 `openPagesStore`，二者一起搬到包的 `./testing` 出口，主出口不再导出，生产代码 import 它被 `plugin-testing-entry-import` 拦下） | 读 `plugins/native/pages/src/store.ts:50,472-477`，并写明迁到 Runtime 后的做法 | 迁移后按实例持有 | 进程级状态跨实例共用 | ③ | PG-088 | DT 待核 5 |
 | V-19 | 个人空间的语义不一致：Todo 把 `"personal"` 当成 null，项目级插件不这样 | `tests/todo-actions.test.ts` | 统一成一种说法 | 两种语义并存 | ③ | PG-014 | DT 待核 6 |
 | V-20 | 沙箱或第三方插件的 PluginDefinition 能不能自带 instructions（10-24 已定，随批 PR batch-34 合入（PR #1234）：沙箱定义登记本插件自己的指令可以，登记别的主人的指令启动即被拒，RAC-233） | `tests/plugin-sandbox.test.ts` | 按 PG-017 的结论 | 目录里的优先，沙箱里的直接丢掉 | ② | PG-017、PG-051 | DT 待核 7 |
 | V-21 | 第三方类型预览的权限：`web-request.ts:291` 把人的权限当成类型主人的权限 | 成果库预览路由的用例 | 按预览动作 owner 的授权 | 手写权限，越过 owner | ② | PG-008 | AB 待核 3 |

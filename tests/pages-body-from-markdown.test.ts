@@ -7,7 +7,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pagesActions, PAGES_ACTION_PERMISSIONS, blocksFromMarkdown, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions, PAGES_ACTION_PERMISSIONS, blocksFromMarkdown } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 async function fixture(run: (f: { as(audience: ActionAudience): ReturnType<typeof bindActionClient>; home: string }) => Promise<void>) {

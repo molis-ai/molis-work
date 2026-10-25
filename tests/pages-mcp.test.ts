@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
 // W5-01-PAGES-02 / -04: Pages' actions over the official MCP client on the project Runtime, including a promote that fails at the association and is recovered.

@@ -10,7 +10,8 @@ import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/wor
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOST_WORKSPACE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
-import { openPagesStore, pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { PluginHostEvents } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";

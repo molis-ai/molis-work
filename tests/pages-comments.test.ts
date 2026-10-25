@@ -9,7 +9,8 @@ import { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { AssistantThreadContext } from "@molis-ai/molis-work-contracts/services/assistant";
-import { createPagesCommentHandlers, openPagesStore, ownPagesStores, pagesCommentActions, purgePagesProject } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesCommentHandlers, ownPagesStores, pagesCommentActions, purgePagesProject } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 const body = (marked: boolean): PagesBody => ({ type: "doc", content: [{ type: "paragraph", attrs: { note: "保留块备注" }, content: [{ type: "text", text: "可定位的原文", ...(marked ? { marks: [{ type: "comment", attrs: { id: "mark-1", text: "保留原批注" } }] } : {}) }] }] });

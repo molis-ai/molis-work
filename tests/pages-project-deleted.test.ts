@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import { openPagesStore, pagesProjectData } from "@molis-ai/molis-work-plugin-pages";
+import { pagesProjectData } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { pagesIn } from "./fixtures/pages-runtime.js";
 

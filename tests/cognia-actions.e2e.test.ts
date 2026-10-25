@@ -141,12 +141,22 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   await writeFile(new URL(`cognia-http-review-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   await click('[data-cognia-submit]'); await waitFor("!document.querySelector('[data-cognia-dialog]').open && document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果'");
   assert.equal(read().materials.length, 2); assert.equal(read().materials.find(m => m.title === "本机模型整理结果")!.body, "已核对本机资料 [S1]");
+  // The shell persists this device's open record before a reload can restore it. Observe that output, never seed it.
+  await browser.waitFor(`JSON.parse(localStorage.getItem('molis-work-plugin-records:' + ${JSON.stringify(projectId)}) || '{}').cognia === ${JSON.stringify(read().materials.find(m => m.title === "本机模型整理结果")!.id)}`);
   await reloadPage(); await open(); assert.equal(read().materials.length, 2); assert.equal(requests.length, 1);
+  await waitFor("document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果' && document.querySelector('[data-cognia=workbench]').dataset.expanded === 'true'");
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.models.upsert({ ...catalog.models.get("local-only")!, enabled: false })));
   await browser.evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))");
   await waitFor("document.querySelector('[data-cognia-model]').textContent === '请先在「模型设置」里连接文字模型'");
   await reloadPage(); await open();
   await waitFor("document.querySelector('[data-cognia-model]').textContent === '请先在「模型设置」里连接文字模型'");
+  await waitFor("document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果' && document.querySelector('[data-cognia=workbench]').dataset.expanded === 'true'");
+  // Reload restores the saved reader asynchronously; at 390px its list (and Add) is hidden.
+  if (width === 390) assert.equal(await evaluate("document.querySelector('[data-cognia-action=add]').getClientRects().length"), 0, "the restored narrow reader hides list actions");
+  await click('[data-cognia-action=back]');
+  await waitFor("document.querySelector('[data-cognia=workbench]').dataset.expanded === 'false' && document.querySelector('[data-cognia-workspace]').hidden");
+  await browser.waitFor(`!JSON.parse(localStorage.getItem('molis-work-plugin-records:' + ${JSON.stringify(projectId)}) || '{}').cognia`);
+  assert.equal(await evaluate("document.querySelector('[data-cognia-action=add]').getClientRects().length > 0"), true, "Back makes Add visible before input is dispatched");
   assert.equal(await evaluate("document.querySelector('[data-cognia-action=synthesize]').disabled"), true);
   assert.equal(await evaluate<string>("document.querySelector('[data-cognia-action=synthesize]').title"), "请先在「模型设置」里连接文字模型");
   await click('[data-cognia-action=add]'); await waitFor("document.querySelector('[data-cognia-dialog]').open");

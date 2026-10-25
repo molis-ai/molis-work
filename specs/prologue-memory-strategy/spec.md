@@ -1257,3 +1257,15 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 验证：复用准确基线的完整构建产物，保留确定性旧断言失败，再跑原 Web 文件及必要启动/安全相邻文件、类型与准确 e801 健康门。仅工程验证；不代表最终 App 产品实操、真实用户 Home 或用户验收，不启动全量、推送或 CI。
 
 实证：已复制基础树的 71 处 dist；原完整构建以来只有测试/spec 改动，使用原 `computeBuildSourceDigest` 核对复制后的 `.molis-work-build.json` 完全一致，没有重建或改指纹。Node 24.14.0 下公开开库口固定等待后，旧 `ok` 断言确定性失败为 `starting !== ok`（`/private/tmp/molis-memory-web-health-readiness-red-20261025.log`）。修后原 Web 19 项、Catalog 恢复 4 项、Home 存储宿主安全 23 项及本机入口安全 15 项，共 4 文件 61 项全部通过，jobs1/browser1/retries0，无跳过；日志 `-green-20261025.log`。根类型检查及准确 e801 健康门通过，生产、依赖、资源、门禁与 retry/timeout 均未改。额外严格编译整个旧 Web 测试文件时，候选与准确 e801 同样有 4 条旧诊断（ScheduleJobPort 缺 register、旧 contract/update 字面量及 GoalsCoverageItem 导出），仅行号偏移；保留 `-test-types-20261025.log` 与 `-base-test-types-20261025.log`，没有将这项额外检查报告为通过，也没有扩大本刀修复。最终提交的 CI/Full 与产品/用户验收仍未验证。
+
+### #1064 Cognia 窄屏恢复后的列表操作（2026-10-25）
+
+本刀基于准确 `3a2dea91e704ad0f5d19cd44de6012fe3feed327`。Full suite `40197949022` shard 11 / job `121182777203` 在 Cognia 390px HTTP 模型用例停用模型后的新增按钮点击失败，原一次重试仍失败。实际调用链是 Cognia 保存后报告当前材料 → shell 的 `openedPluginRecord` 与 `saveRecords` 记住材料 → 重载后的 `reopenRecord` 异步恢复阅读。窄屏阅读时 `.cognia-list` 按现有合同隐藏；旧用例只等列表数据和模型提示文字，未等阅读恢复，也未返回列表，就尝试点击隐藏的新增按钮。
+
+范围仅 `tests/cognia-actions.e2e.test.ts` 与本节。`MEM-COGNIA-LIST-01`：保存后观察 shell 已持久化的真实材料 id，重载后等待同一材料实际打开；模型停用及再次重载仍保留既有观察。`MEM-COGNIA-LIST-02`：通过真实 Back 点击回列表，确认子页收起、工作区隐藏及 shell 不再保存该材料，然后操作可见的新增按钮。保留原 1440/390px 两宽度、HTTP 请求与凭据、草稿与正式保存、停用后仍可保存及不再请求模型等所有断言。不改生产恢复/导航/存储、公共合同、通用点击夹具、CI、重试或超时；不触真实 Home、付费模型或发布。
+
+诊断使用临时 Home、真实浏览器和回环 HTTP 模型。单个原用例本机首轮通过，只等待真实持久化与恢复后，旧点击路径重现同形 `Input was not delivered ... within 10000ms`：实际 `expanded=true`、新增按钮 `getClientRects().length=0`、列表 `display=none`；截图确认为阅读页。红日志 `/private/tmp/molis-cognia-390-restore-red.log`，截图 `/private/tmp/molis-cognia-before-add.png`。先保留此红证据，再按原 runner/jobs1/browser1/retries0 跑完整 Cognia actions 文件及必要相邻用例；只报告所覆盖工程与隔离实操路径，最终 CI/Full 与用户验收由统筹核验。
+
+完成证据：准确基础树的 71 处 dist 复制后，原 `computeBuildSourceDigest` 与 `.molis-work-build.json` 均为 `88168e8b7d1b9ddec5239c7904de36f787c230e22c71da03ad8d785c7fdc971a`，没有改写指纹或重建。最终测试补充 390px 恢复阅读时 Add 无矩形、真实 Back 后 Add 有矩形的断言；原 4 个 actions 用例及相邻 Prologue 6 项、Workbench 2 项共 3 文件 12 项全部首次通过，无跳过或重试（`/private/tmp/molis-cognia-final-green.log`）。修前原单例先绿、固定真实恢复交错后同形失败的证据均保留，不把偶发通过当根因修复。根类型检查和准确 `3a2dea91e` 增量健康门通过；最终窄屏截图 `.impeccable/qa/review/action-service/cognia-http-disabled-390.png` 已目视确认返回列表、添加材料可见、模型停用提示可见，且新增本地材料已保存。
+
+持久等待只读浏览器的 `molis-work-plugin-records:<projectId>` 输出；对应 `tab-workspace.ts` 中“按设备记住插件当前记录，重载重开；Back 清除”的既有导航合同，不读运行时闭包或写入存储来制造 ready。随后仍必须观察真实子页的材料标题与展开状态，返回后观察收起与可见性；存储观察不能代替 UI。未改生产源码、依赖、公共合同、资源、CI、门禁或 retry/timeout；未运行全量、远端 CI 或真实用户 Home，未声称最终 App 产品验收或用户验收通过。

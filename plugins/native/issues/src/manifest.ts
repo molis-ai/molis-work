@@ -6,7 +6,7 @@ import { ISSUES_DATABASE } from "./database.js";
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
 export const ISSUES_UI_CONTRIBUTION_ID = "io.molis.work.native.issues.ui.v1";
 export const issuesManifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: ISSUES_PLUGIN_ID, version: "0.3.0", name: "Issue", kind: "app",
+  schema_version: 2, host_api_version: 2, plugin_id: ISSUES_PLUGIN_ID, version: "0.3.0", name: "Issue", summary: "记录、查看和整理自己的问题。", kind: "app",
   publisher: { publisher_id: "molis", signature: "official-issues-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "issues:read", required: true, reason: "查看个人问题记录" },

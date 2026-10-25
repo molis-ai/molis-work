@@ -32,7 +32,7 @@ import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
-import { homePluginDirectory } from "./plugin-directory.js";
+import { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories } from "./plugin-directory.js";
 import { dispatchWebRoutes, type WebRequestContext, type WebRoute } from "./web-route-table.js";
 import { assistantPortsFor, CATALOG_INDEX_ROUTES } from "./web-catalog-index-routes.js";
 import { homeRouteProjectPlugins, projectPluginServices, projectRequestContext, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
@@ -154,7 +154,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions }: Omit<ProjectRuntimeContext, "readWebView">,
   { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
   const optional = (error: unknown) => {
     if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
@@ -176,7 +176,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
           return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
     } catch (error) { optional(error); }
     const homeStages = await renderHomePluginStages(localHost.homePlugins);
-    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, plugin_directory: await homePluginDirectory(localHost.homePlugins),
+    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
       ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
   };
 }

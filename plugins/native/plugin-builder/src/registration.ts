@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   project_plugin_id: "plugin-builder", catalog_order: 3,
   manifest: builderManifest,
   personal: true,
-  summary: "用自然语言设计、构建并使用自己的插件。",
   workbench: {
     pageRequests: [
       { method: "GET", path: "/api/plugin-builder/studio/state" },

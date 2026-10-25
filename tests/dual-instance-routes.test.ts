@@ -76,6 +76,7 @@ test("DUAL-09 S-31 a plugin the Host does not mark as dual-instance keeps the Ho
     const response = await request(path), body = await response.json() as { code?: string };
     assert.ok([403, 404].includes(response.status), `${path}: ${response.status} ${JSON.stringify(body)}`);
   }
-  const hidden = await request(`/projects/${current.project_id}/api/plugins/${probe.id}/state`);
-  assert.equal((await hidden.json() as { code?: string }).code, "actions.plugin_disabled", "an unmarked fixture is still shown in no project");
+  // Shown in the project (a personal Home plugin outside the build, RAC-569), it is the Home's own grants that refuse it, not a project half.
+  const answered = await request(`/projects/${current.project_id}/api/plugins/${probe.id}/state`);
+  assert.equal((await answered.json() as { code?: string }).code, "actions.forbidden", "an unmarked fixture is answered by the Home itself");
 });

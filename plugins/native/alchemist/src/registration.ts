@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   project_plugin_id: ALCHEMIST_PROJECT_PLUGIN_ID, catalog_order: 19,
   manifest: alchemistManifest,
   personal: true,
-  summary: "写下方向，炼成可比较的卡再决定。",
   workbench: {
     pageRequests: createApp(undefined, { invoke: () => Promise.reject(new Error("Route catalog only")) }).routes
       .filter(route => route.method !== "ALL" && !route.path.includes("*"))

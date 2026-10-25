@@ -16,6 +16,7 @@ export const todoManifest: PluginManifest = {
   plugin_id: TODO_PLUGIN_ID,
   version: "0.3.0",
   name: "待办",
+  summary: "记下要做的事，分清今天、在等谁。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-todo-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

@@ -73,13 +73,6 @@ export interface PluginRegistration {
   /** Position in the catalog, unique across the build; the derived lists keep this order. */
   readonly catalog_order: number;
   readonly manifest: PluginManifest;
-  /** One sentence for the plugin market and the page heading. 2026-10-18 改: declared in the Manifest (W5-02). */
-  readonly summary: string;
-  /**
-   * Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable and enabled where
-   * already added. 2026-10-18 改: declared in the Manifest (W5-02).
-   */
-  readonly developer?: true;
   /**
    * On in every project unless the person hid it there; not offered for enabling. Trusted: the Host reads it from this
    * registration only, never from a Manifest or an installed package.

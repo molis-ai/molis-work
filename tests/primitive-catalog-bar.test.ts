@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { pluginMarketCards, renderMolisWorkBarSpecimen, shownProjectPlugins } from "@molis-ai/molis-work-app-workbench";
+import { pluginMarketCards, renderMolisWorkBarSpecimen } from "@molis-ai/molis-work-app-workbench";
+import { shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 
 // W5-06 余项第一片（PG-060，RAC-80～84）：/__ui/catalog 的底栏样张（/__ui/catalog/bar）用同一个构建期插件目录画插件格，
 // 并像新项目那样分亮格与灰格。亮格是样例项目默认启用的插件（现行 Dock 默认插件加个人插件），灰格是目录里其余插件；

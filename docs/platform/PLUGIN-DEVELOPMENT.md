@@ -6,7 +6,7 @@
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
-内置插件的共同目录是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`，由 `node scripts/generate-plugin-registry.mjs` 从各包的 `src/registration.ts` 生成，不手改；目录加载时自检（`plugin-catalog.ts` 的 `catalogProblems`）：重复的 id 与位置、悬空的 `companions` / `clientUses` 都让它起不来。每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；Runtime 装配的插件在同一目录里也有条目，目录会随之增长。目录、Workbench UI 注册/样式/客户端从同一份 `registration` 派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
+内置插件的共同目录是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`，由 `node scripts/generate-plugin-registry.mjs` 从各包的 `src/registration.ts` 生成，不手改；同一批登记另生成宿主那份 `apps/local-host/src/plugin-registry.generated.ts`，平台事实（启动名单、个人插件、连带、项目显示哪些插件）只在 `apps/local-host/src/plugin-registry.ts` 由它派生，工作台读宿主写在页面上的 `shown_plugins` 与目录标记，不另算（W5-02 B1）。宿主加载时自检（`plugin-registry.ts` 的 `catalogProblems`）：重复的 id 与位置、悬空的 `companions` / `clientUses` 都让它起不来。每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；Runtime 装配的插件在同一目录里也有条目，目录会随之增长。目录、Workbench UI 注册/样式/客户端从同一份 `registration` 派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
 
 ## 安装 Skill
 

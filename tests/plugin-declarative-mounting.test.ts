@@ -296,8 +296,8 @@ test("route parameters reach the handler as declared", async () => {
 });
 
 test("the bundled catalog reproduces the shell's navigation exactly", async () => {
-  const { railEntries, islandEntries, settingsEntries, PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } =
-    await import("@molis-ai/molis-work-app-workbench");
+  const { railEntries, islandEntries, settingsEntries } = await import("@molis-ai/molis-work-app-workbench");
+  const { PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-local-host");
 
   // "functions" may still be saved on older projects; rule authoring moved to Capabilities, so it has no rail entry.
   const everything = ["jelly", "goals", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
@@ -364,7 +364,8 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 });
 
 test("a 常开插件 is shown in every project, even one that once hid it, and is neither offered nor removable", async () => {
-  const { shownProjectPlugins, pluginMarketCards } = await import("@molis-ai/molis-work-app-workbench");
+  const { pluginMarketCards } = await import("@molis-ai/molis-work-app-workbench");
+  const { shownProjectPlugins } = await import("@molis-ai/molis-work-app-local-host");
   // A project's list of hidden plugins leaves out a 常开 one (tests/security-invariants-always-on-records.test.ts), so a mark made before Shelf became
   // always on never reaches here; a hidden ordinary personal plugin stays hidden.
   const shown = shownProjectPlugins(["goals"], ["lingguang"]);

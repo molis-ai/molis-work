@@ -9,10 +9,10 @@ import test from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_VIEW_GROUPS } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, createPluginPlatform, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, releaseProjectPlugins, runningPluginDirectory, seedDemoBoard,
+  DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, createPluginPlatform, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, releaseProjectPlugins, runningPluginDirectory, seedDemoBoard, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS,
 } from "@molis-ai/molis-work-app-local-host";
 import {
-  BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinPluginDirectory, clientPluginDirectory, creatableKinds, homeStarts,
+  BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, builtinPluginDirectory, clientPluginDirectory, creatableKinds, homeStarts,
   islandEntries, pluginDirectoryFor, railEntries, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, settingsEntries, type PluginDirectoryEntry,
 } from "@molis-ai/molis-work-app-workbench";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";

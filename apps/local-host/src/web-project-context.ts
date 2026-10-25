@@ -1,7 +1,8 @@
 import { requireSynchronous, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -14,6 +15,8 @@ import type { ResolvedWebBoardOptions } from "./web-types.js";
 import type { WebRequestContext } from "./web-route-table.js";
 import type { HomeRouteProjectPlugins } from "./home-plugin-http.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
+import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
+import { homePluginsOutsideBuild } from "./home-registration.js";
 
 /** A request for one project that exists and has a database, before the project's runtime is opened. */
 export interface ProjectRequestContext extends WebRequestContext {
@@ -52,12 +55,20 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   return { ...context, options, hostReference, userActions, shownPlugins };
 }
 
-/** What a Home plugin's route under `/projects/<id>/…` checks: the plugins that project shows, or null when there is no such project. */
+/**
+ * What a Home plugin's route under `/projects/<id>/…` checks: whether that project reaches the plugin, by the one judgement actions and
+ * routes share (PG-013; a personal Home plugin outside the build by its plugin id, #679), or null when there is no such project.
+ */
 export function homeRouteProjectPlugins({ composition, serverOptions }: WebRequestContext): HomeRouteProjectPlugins {
-  return projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
+  const home = serverOptions.homeDirectory;
+  return projectId => composition.withCatalog({ homeDirectory: home }, catalog => {
     let databasePath: string, displayName: string;
     try { const project = catalog.getProject(projectId); databasePath = project.database_path; displayName = project.display_name; } catch { return null; /* No such project: the route refuses, saying so. */ }
-    return { database_path: databasePath, display_name: displayName, plugins: shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)) };
+    const reachable = projectReachablePlugins(catalog, projectId, homePluginsOutsideBuild(home));
+    return { database_path: databasePath, display_name: displayName, reaches: (pluginId: string) => {
+      const entry = reachEntry(home, pluginId);
+      return entry !== undefined && pluginReachable(entry, reachable);
+    } };
   });
 }
 

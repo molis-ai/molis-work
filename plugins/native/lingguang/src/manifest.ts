@@ -16,6 +16,7 @@ export const lingguangManifest: PluginManifest = {
   plugin_id: LINGGUANG_PLUGIN_ID,
   version: "0.3.0",
   name: "灵光",
+  summary: "先记下想法，再决定留下或丢掉。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-lingguang-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

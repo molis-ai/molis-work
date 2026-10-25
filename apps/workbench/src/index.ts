@@ -120,7 +120,7 @@ export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFr
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";
-export { availableProjectPluginIds, catalogProblems, shownProjectPlugins, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor } from "./plugin-catalog.js";
+export { BUILTIN_PLUGIN_CATALOG, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor } from "./plugin-catalog.js";
 export { clientPluginDirectory, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export type { PluginCreatableKind, PluginHomeStart, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
 export { declaredStageContributionId, stageContributionId } from "./declared-stages.js";

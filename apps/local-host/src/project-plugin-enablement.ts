@@ -1,18 +1,19 @@
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPlatform } from "./plugin-platform.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { pluginCatalogFor } from "./home-side.js";
 import { pluginReachable, projectReachablePlugins } from "./project-action-availability.js";
+import { homePluginsOutsideBuild } from "./home-registration.js";
 
 /** The catalog remains the only project enablement fact; standalone fixtures have no such catalog. */
 export async function projectPluginEnablement(home: string | undefined, projectId: string): Promise<ReadonlyMap<string, boolean> | undefined> {
   const catalog = home ? pluginCatalogFor(home) : undefined;
   if (!catalog) return undefined;
   // The one list actions and routes read (PG-013), so what a project runs and what it may call never disagree.
-  const reachable = await catalog({ homeDirectory: home }, value => projectReachablePlugins(value, projectId));
+  const reachable = await catalog({ homeDirectory: home }, value => projectReachablePlugins(value, projectId, homePluginsOutsideBuild(home)));
   if (!reachable) return undefined;
-  return new Map(BUILTIN_PLUGIN_CATALOG.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
+  return new Map(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
 }
 
 /** Serialize reads with activation changes, so an earlier enable cannot outlive a later disable. */

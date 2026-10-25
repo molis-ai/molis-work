@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   manifest: pptManifest,
   messages: PPT_MESSAGES,
   personal: true,
-  summary: "写大纲，放映或导出 PowerPoint。",
   workbench: {
     order: 12,
     contributions: [pptUiContribution],

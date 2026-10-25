@@ -11,5 +11,4 @@ export const registration: PluginRegistration = {
   messages: FILES_MESSAGES,
   manifest: filesManifest,
   workbench: { order: 21, contributions: [filesUiContribution], clientFactory: FILES_CLIENT_FACTORY_SCRIPT, stylesheet: FILES_STYLES },
-  summary: "查看工作区文件与保留的内容。",
 };

@@ -25,7 +25,7 @@ function projectSideTabs(enabled: readonly string[], routePrefix: string) {
     .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, ...(side.context_binding ? { contextOwner: side.plugin_id, contextSurface: side.project_plugin_id } : {}), icon: (side.icon ?? "package") as PageIcon, order: side.order,
       src: `${routePrefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` }))];
 }
-function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], hiddenPlugins: readonly string[] | undefined, panePlugin: string | undefined) {
+function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], panePlugin: string | undefined) {
   const deferredIds = new Set(deferredSurfaceClients().map(client => client.id));
   const isolatedIds = new Set(pluginSurfaceClients().map(client => client.id));
   return (html: string): string => {
@@ -33,7 +33,7 @@ function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], hidde
     if (!match || !deferredIds.has(match[3]!)) return html;
     if (panePlugin && panePlugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];
     if (!isolatedIds.has(match[3]!)) return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
-    return renderPluginFrameSurface(html, match[3]!, L(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === match[3])?.manifest.name ?? match[3]!), true, listPluginSettingsNavItems(enabledPlugins, hiddenPlugins).some(item => item.section_id === match[3]));
+    return renderPluginFrameSurface(html, match[3]!, L(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === match[3])?.manifest.name ?? match[3]!), true, listPluginSettingsNavItems(enabledPlugins).some(item => item.section_id === match[3]));
   };
 }
 
@@ -185,9 +185,9 @@ function renderMolisWorkWeb(
   const enabledPlugins = shownPagePlugins(view);
   // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
   const directory = pluginDirectoryFor(view.plugin_directory);
-  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
+  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
-  const defer = deferredSurfaces(L, enabledPlugins, view.hidden_plugins, view.pane_plugin);
+  const defer = deferredSurfaces(L, enabledPlugins, view.pane_plugin);
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
@@ -283,7 +283,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${frameStage}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
-            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode })}</section>
+            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode }, directory)}</section>
             ${settingsSurfaces}
             ${(view.unavailable_plugin_stages ?? []).map(stage => renderUnavailablePluginStage(stage, L)).join("")}${(view.plugin_stages ?? []).map(defer).join("")}
             ${renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_ids ?? [],

@@ -11,5 +11,4 @@ export const registration: PluginRegistration = {
   messages: GIT_MESSAGES,
   manifest: gitManifest,
   workbench: { order: 22, contributions: [gitUiContribution], clientFactory: GIT_CLIENT_FACTORY_SCRIPT, stylesheet: GIT_STYLES },
-  summary: "查看工作区的版本与变更。",
 };

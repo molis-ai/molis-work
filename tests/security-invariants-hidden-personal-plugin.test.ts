@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
-import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, shownProjectPlugins } from "@molis-ai/molis-work-app-workbench";
+import { LocalMcpServer, projectActionAvailability, availableProjectPluginIds, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
+import { grantHomeProbe, homeProbe } from "./fixtures/home-runtime.js";
 
 /**
  * S-72 (PG-013): a personal plugin the person hid from a project is out of reach there, for the action directory, MCP, the Agent and the
@@ -141,4 +142,22 @@ test("RAC-582 S-72 a project-level personal plugin's routes (Form) are refused i
   await home.web.get(formList(showing));
   await unhide(home, hiding, "form");
   await home.web.get(formList(hiding));
+});
+
+test("RAC-569 RAC-582 S-72 a personal Home plugin outside the build (named only by the Host's Home registration) is refused in the project that hid it, by its routes and its actions alike, and works in one that did not", { timeout: 60_000 }, async t => {
+  const probe = homeProbe("outsidebuild");
+  const home = await openTestHome(t, { host: { pluginFixtures: { home: [probe.definition] } } });
+  await grantHomeProbe(home.host, probe);
+  const hiding = await home.createProject("Hides the probe"), showing = await home.createProject("Shows the probe");
+  const state = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/${probe.id}/state`;
+  const probeView: Pick<ActionView, "provider"> = { provider: { provider_id: probe.id, plugin_id: probe.id, title: "probe", kind: "plugin" } };
+  const availability = projectActionAvailability(withMolisWorkProjectCatalog, home.home);
+  assert.equal((await home.web.get<{ project_id: string | null }>(state(hiding))).project_id, hiding.project_id, "shown until the project hides it");
+  await hide(home, hiding, probe.id);
+  await assert.rejects(home.web.get(state(hiding)), { status: 403, code: "actions.plugin_disabled" });
+  assert.deepEqual(await availability(callerIn(hiding.project_id), probeView), { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" });
+  assert.equal((await home.web.get<{ project_id: string | null }>(state(showing))).project_id, showing.project_id);
+  assert.deepEqual(await availability(callerIn(showing.project_id), probeView), { available: true });
+  await unhide(home, hiding, probe.id);
+  assert.equal((await home.web.get<{ project_id: string | null }>(state(hiding))).project_id, hiding.project_id, "shown again, the very next call works");
 });

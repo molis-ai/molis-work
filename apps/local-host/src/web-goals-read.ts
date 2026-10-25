@@ -2,7 +2,8 @@ import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { declaredArtifactTypes, renderCharacters, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { declaredArtifactTypes, renderCharacters, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { shownProjectPlugins } from "./plugin-registry.js";
 import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
@@ -17,7 +18,7 @@ import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { L } from "./web-locale.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
-import { mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
+import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
@@ -39,7 +40,7 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
     drawn: view.plugin_stage_ids ?? [], model: projectPluginId => model(projectPluginId, view) });
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
   return { html: [characters, ...runtime.html], ids: runtime.ids, unavailable: runtime.unavailable,
-    directory: record.platform ? runningPluginDirectory(record.platform.supervisor) : [] };
+    directory: record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [] };
 }
 /**
  * The project page with what its plugins draw and declare: the stages of the plugins its Runtime runs, the unavailable shell for one
@@ -63,7 +64,7 @@ async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
     models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
     ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }).catch(noInstalledStages);
   return { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)],
-    plugin_directory: mergePluginDirectories(builtin.directory, view.plugin_directory ?? [], installed.map(item => item.directory)) };
+    plugin_directory: mergePluginDirectories(builtin.directory, view.plugin_directory ?? [], installed.map(item => item.directory), builtinMarketDirectory(homeDirectory)) };
 }
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
@@ -154,7 +155,8 @@ export function createLocalGoalsReadHttp(ports: {
           hidden: catalog.listHiddenPlugins(options.project!.project_id),
           workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
         })) : null;
-        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden };
+        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden,
+          shown_plugins: shownProjectPlugins(projectConfiguration.plugins, projectConfiguration.hidden) };
         // The project's Runtime draws its plugins' panels and stages; one that is not running gets the unavailable shell (W5-06).
         // Only the fixture server (one database, no project catalog: `fixtureWebBoardOptions`) has no project here; no Runtime
         // runs there, so the shell draws the declared stages from the catalog.

@@ -42,6 +42,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
     throw pluginErrors.manifest_invalid("app Plugin 必须使用 schema_version 2");
   }
   inspectUpgradeCompatibility(manifest);
+  inspectPresentation(manifest);
   if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");
   if (!Array.isArray(manifest.entrypoints) || manifest.entrypoints.length === 0) {
     throw pluginErrors.entrypoint_missing("Plugin 至少需要一个 entrypoint");
@@ -122,6 +123,15 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
 
   return parsed;
+}
+
+const SUMMARY_LIMIT = 120;
+
+/** What the market and the page heading show (W5-02 B2): `summary` is non-empty and at most 120 characters once trimmed, `developer` only `true`. */
+function inspectPresentation(manifest: Record<string, unknown>): void {
+  const summary = typeof manifest.summary === "string" ? manifest.summary.trim() : null;
+  if (manifest.summary !== undefined && (!summary || [...summary].length > SUMMARY_LIMIT)) invalid(`summary 必须是不超过 ${SUMMARY_LIMIT} 字的非空文字`);
+  if (manifest.developer !== undefined && manifest.developer !== true) invalid("developer 只能写 true，不是开发者插件就不写");
 }
 
 function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {

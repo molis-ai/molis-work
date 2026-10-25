@@ -10,7 +10,5 @@ export const registration: PluginRegistration = {
   project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, catalog_order: 26,
   messages: TEXT_STATS_MESSAGES,
   manifest: textStatsManifest,
-  developer: true,
   workbench: { order: 24, contributions: [textStatsUiContribution], clientFactory: TEXT_STATS_CLIENT_FACTORY_SCRIPT, stylesheet: TEXT_STATS_STYLES },
-  summary: "统计文件快照的字数、字节与行数。",
 };

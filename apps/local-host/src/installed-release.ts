@@ -2,7 +2,7 @@
  * What the Host runs an installed sandbox plugin from. The studio's release is one kind of it; a signed package read by `readSandboxPackage`
  * is the other (`packaged`). Nothing here names how either was made.
  */
-import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentRelease } from './installed-plugin-host.js';
 import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginTrust } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 

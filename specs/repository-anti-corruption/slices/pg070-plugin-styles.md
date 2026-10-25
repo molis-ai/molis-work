@@ -49,7 +49,7 @@
 - **Diff**：27 条规则只画 SDK `diff-view` 的类，Diff 插件自己没有独有标记，所以不新建 `diff.css`，而是把类名收到 SDK 组件的名字空间（`diff-*` → `mw-diff-*`，只改类名、不改逻辑），规则搬进 design-system 的 `DIFF_VIEW_STYLES`，由工作台样式表下发（`page-assets.ts` 里仍排在原共用样式的位置）。Diff 的登记删掉 `stylesheet`/`stylesheetShared`，Coding 的 `stylesheetUses: ["diff"]` 随之删掉，`plugins/native/diff/src/styles.ts` 删除。`data-*`、`--diff-*` 变量和动作 id 不变。
 - **插件创作台**：`PluginWorkbenchRegistration` 新增 `stylesheetPrefixes`（额外类/属性前缀，`as-`、`pb-` 这种类名早于 id 的插件用），拆分按「id 名字空间 + 声明的前缀」判定；宿主在 `catalogProblems` 里拒绝不是小写前缀、占用平台前缀（`mw-`、`pc-`）、重复插件 id、同一条目录里重复或两个插件争用的前缀。创作台声明 `["as-", "pb-"]`，`stylesheetShared` 列 `as-preview-page`、`pb-surface`（宿主的预览页/舞台画它们）；`pc-` 组件词汇整张留在共用样式表（预览页与已装插件页只链工作台样式表）。逻辑与类名一个没改。
 - **级联**：shelf.css/plugin-builder.css 仍排在工作台样式表之后。离线核对移出规则与排在旧位置之后的共用规则：Shelf 的 `[data-shelf] .shelf-stage-chrome`(0,2,0)、`.shelf-search` 与 design-system `craft-finish` 的同元素规则（0,5,1）等没有同优先级平局，`stylesheetShared` 因此留空；创作台的规则点名自己的前缀，与共用规则没有同优先级平局。PR 评论里「Shelf 的 stage chrome 规则留共用」是核对前的保守说法，交付时已更正。
-- **门禁（RAC-769）**：共用样式表里属于具体插件的规则按插件计数、只许减少，新文件/新插件从 0 开始；Feed 与 Goals（外壳直接 import 样式）按用户决定留数字。写门禁代码前先在 PR #1302 评论说明「一条规则属于哪个插件」的口径并等统筹回复（2026-10-25 已发，等回复后落）。
+- **门禁（RAC-769）**：共用样式表里属于具体插件的规则按插件计数、只许减少，新文件/新插件从 0 开始；Feed 与 Goals（外壳直接 import 样式）按用户决定留数字。口径先在 PR #1302 评论说明、统筹 2026-10-25 回复批准后实现：`scripts/gates/plugin-styles.mjs` 从构建产物按第 1 片 splitter 逐插件数「本该搬进按需表却还在共用表」的规则块，记录在 `tooling/gates/plugin-styles.json`（首冻结 **feed 234、goals 321，共 555 块**），只许下降；`--update` 拒绝任何增长与新插件，CI 在 `architecture-boundaries` 里 page-assets 之后对 merge-base 比对。测试 `tests/plugin-styles-gate.test.ts`（增长、就地抬预算、`--update` 不掩盖、新插件、首冻结、缺构建退出 2、真实仓库只有 feed/goals），口径与看不到的写在 `tooling/gates/README.md`。
 
 ### 验收（第 2 片）
 
@@ -61,4 +61,4 @@
 | RAC-766 | SDK diff 视图写的每个类都在宿主样式表里有规则（与 /ui 同一份合同） | `tests/sdk-ui-markup.test.ts` |
 | RAC-767 | 宿主拒绝不是小写类前缀、占用平台前缀、重复插件 id、同目录重复或两个插件争用的额外前缀 | `tests/plugin-registry-generation.test.ts` |
 | RAC-768 | 工作台设置面板在插入抓来的插件设置页之前，先加载它链接的插件样式表 | `tests/plugin-styles.test.ts` |
-| RAC-769 | 共用样式表里属于具体插件的规则按插件计数、只许减少；新文件/新插件从 0 开始 | 门禁（统筹回复口径后写） |
+| RAC-769 | 共用样式表里属于具体插件的规则按插件计数、只许减少；新文件/新插件从 0 开始 | `tests/plugin-styles-gate.test.ts`、`scripts/gates/plugin-styles.mjs`（`tooling/gates/plugin-styles.json`） |

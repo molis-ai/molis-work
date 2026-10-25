@@ -152,9 +152,7 @@ test("RAC-769 the first freeze writes the file when the merge-base has none", ()
   assert.equal(frozen.code, 0, frozen.out);
   assert.match(frozen.out, /the merge-base has no tooling\/gates\/plugin-styles\.json/);
   assert.deepEqual(budgetOf(), { feed: 200, goals: 321 }, "the first freeze is what the build measures");
-  git("checkout", "-q", "-f", "main");
-  git("clean", "-fdq");
-  git("checkout", "-q", "base");
+  // This file is the last one to touch the scratch repository: it commits the first freeze on main.
 });
 
 test("RAC-769 a missing build is exit 2, never a pass", () => {

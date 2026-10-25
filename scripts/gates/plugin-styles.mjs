@@ -263,7 +263,7 @@ if (update) {
   const plugins = Object.fromEntries(Object.keys(measured).sort().map((id) => [id, measured[id]]));
   mkdirSync(path.dirname(budgetPath), { recursive: true });
   writeFileSync(budgetPath, `${JSON.stringify({ note: NOTE, plugins }, null, 2)}\n`);
-  console.log(`plugin style budget written: ${Object.keys(plugins).length} plugin${Object.keys(plugins).length === 1 ? "" : "s"}, ${total} rule blocks`);
+  console.log(`plugin style budget written: ${Object.keys(plugins).length} plugin${Object.keys(plugins).length === 1 ? "" : "s"}, ${total} rule blocks${notes.length ? `. Note: ${notes.join("; ")}.` : ""}`);
   process.exit(0);
 }
 

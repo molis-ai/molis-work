@@ -116,6 +116,10 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
    工作台的 `plugin-catalog.ts` 删掉这些导出。27 个文件在**同一个提交**里改读它（S-08、S-15 的启动名单只有一份）。
 3. **工作台要的平台事实由宿主传下来，不再另算一份：**
    - `MolisWorkWebView.shown_plugins` 由宿主算。`renderer.ts`、`shell-page-renderer.ts` 读这个字段；字段在舞台模型里已经有了。
+     - 有项目时，宿主每次请求都从 Catalog 读真实的启用与隐藏（`projectWebView`）。整页、refresh、文档片段读的是同一份视图，不跟着 Goals 游标缓存。
+     - 没有项目时（fixture 服务器）：外壳的页面默认，加上宿主登记里的个人插件。
+     - 这份默认只在工作台的 `page-plugin-visibility.ts` 定义一次（`PAGE_PLUGINS_WITHOUT_SELECTION`），宿主不另写名单（batch-37 修复，#1287 评审）。
+     - RAC-712：项目隐藏 Pages 之后，整页、refresh、文档片段里都没有 Pages 的新建按钮；取消隐藏后三处都回来（`tests/project-page-shown-plugins.test.ts`）。
    - `plugin_directory` 的每一项（#1261）由宿主从可信登记标上 `personal`、`always_on`、`companions`（宿主按依赖算好的完整集合）。Manifest 里没有这些，所以也不经 Manifest。`immersive-shell.ts`、设置目录、市场卡片都读这里；客户端改成读页面里的目录 JSON，不再在构建时写死。
    - 组件板样例用固定的样例名单（开发工具）。
 4. **哪些算外壳渲染：** `sideOpenedPlugins`、`objectTabPlugins`、`pluginTabTitles` 留在工作台。宿主里用到它们的地方（`home-plugin-http.ts`、`assistant-pages.ts`）是渲染或路由，把宿主自己的登记作参数传进去（`sideOpenedPlugins(entries)` 已经收参数），不读工作台的目录。RAC-564 的 import 图只许宿主从工作台 import 渲染函数和成果类型五项。

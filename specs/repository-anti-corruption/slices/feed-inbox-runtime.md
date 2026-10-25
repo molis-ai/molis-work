@@ -94,6 +94,9 @@
 - **选项目标**：`declaredRuleTargets` 不再认 `HOME_DOCK_SCENE_ID`，改按场景的 `recommendation_source === "subject-offers"`，仍只看内置插件目录；两处声明同一个 offer id 仍不猜（RAC-176）。装上的插件的事项动作参与目标映射转 BL-531。
 - **行为变化**：规则以前在 Functions 库第一次打开就全有；现在在对应场景登记时才写（Home 级的首页场景随宿主启动，Feed 与 Inbox 的随项目准备）。没有任何提供方登记过的场景，它的规则也就不在列表里。
 - **验收**：RAC-484（规则只来自声明，模块里没有规则；Feed、Inbox 声明各自的规则，宿主启动后首页规则被种）、RAC-485（装上的插件的场景声明的规则同样被种，文字与选项原样）、RAC-486（先声明的赢，用户改过的与后声明同名键的都不被覆盖）、RAC-487（畸形的 `default_rule` 在登记时被拒、什么都不写）；`tests/scene-default-rules.test.ts`；RAC-171/172/173/176 改走声明后仍成立（`tests/functions-feed-module-exits.test.ts`）。
+- **RAC-487-A**（#1283 一轮非阻塞第 2 项）：场景的 `subject_kinds` 非空时，默认规则必须声明非空子集；空集合、全部越界和混入一个越界值都由 SDK 公共检查及 Manifest 解析拒绝，沿用原声明错误模型。
+- **RAC-487-B**：非空合法子集和完整集合继续通过；场景的 `subject_kinds: []` 保留由规则或选项决定对象的现行含义，规则可声明空或非空对象集合。场景省略该字段仍按原合同拒绝，不新增默认值。
+- **RAC-487-C**：经 Host 的真实 Kernel 登记路径拒绝坏声明，同行的合法动作、场景和默认规则也不得部分登记或写库；修正后的合法声明可发现、可执行，默认规则按声明写入。仅改 SDK 的 `defaultRuleProblems`，不改规则 owner、库或 Runtime 生命周期。独立回归为 `node scripts/run-tests.mjs tests/scene-default-rule-subject-kinds.test.ts tests/scene-default-rules.test.ts tests/functions-feed-module-exits.test.ts`，整体构建后再跑相关 SDK 回归、类型、边界、health 与 API 快照检查；全量由集成线负责。
 - **API 与动作合同快照**：contracts `platform/actions`、`platform/plugin` 各多一个导出类型和一个可选字段（`pnpm api:update`），插件 SDK 的场景声明检查多一类问题。动作合同快照里 `feed.capture@1`、`inbox.next@1`、`home.dock@1` 和引用首页场景的 `home.judgment.evaluate@1` 的 `traits` 哈希变了（`default_rule` 与 `required_scene` 都算进 traits），输入、输出、事件 schema 的哈希没变；没有升版本：已存的绑定固定的是场景 id、版本与提供方，不读 `default_rule`，升版本反而让现有绑定全部失效。快照用 `pnpm actions:update` 刷新。
 
 ### FI-1 一轮修复：绑定只取已发布规则的稳定引用（Codex FIX6，2026-10-24）

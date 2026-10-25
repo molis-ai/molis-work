@@ -297,6 +297,9 @@ function defaultRuleProblems(s: Record<string, unknown>, ruleKeys: Set<string>):
   if (!isObject(rule) || typeof rule.function_key !== "string" || !DEFAULT_RULE_KEY.test(rule.function_key) || !isText(rule.name) || rule.name.length > 80
     || !isText(rule.instructions) || rule.instructions.length > 4000 || !isStrings(rule.subject_kinds) || !Array.isArray(rule.options)
     || rule.options.length < 2 || rule.options.length > 20) return [invalid];
+  const subjectKinds = s.subject_kinds;
+  if (isStrings(subjectKinds) && subjectKinds.length > 0
+    && (!rule.subject_kinds.length || rule.subject_kinds.some(kind => !subjectKinds.includes(kind)))) return [invalid];
   const keys = rule.options.map(option => isObject(option) && typeof option.key === "string" && DEFAULT_RULE_OPTION_KEY.test(option.key) && isText(option.description) && option.description.length <= 200 ? option.key : null);
   if (keys.includes(null) || new Set(keys).size !== keys.length) return [invalid];
   const problems: string[] = [];

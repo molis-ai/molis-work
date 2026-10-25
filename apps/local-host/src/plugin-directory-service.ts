@@ -103,7 +103,7 @@ export function directoryForHome(homeDirectory: string): DirectoryGrantService {
         // One notice for each call that read; a kept job, one for each window it reads in.
         const shown = told.get(invocation) ?? new Set<string>(), notice = "job" in invocation ? `${grant.grant_id}:${Math.floor(now / JOB_NOTICE_WINDOW_MS)}` : grant.grant_id;
         if (!shown.has(notice)) {
-          tellDirectoryRead(key, grant.actor_id, { plugin_name: grant.plugin_name, folder: basename(grant.root) || grant.root, origin });
+          tellDirectoryRead(key, grant.actor_id, { plugin_name: grant.plugin_name, folder: basename(grant.root) || grant.root, origin, outcome: result.outcome });
           shown.add(notice); told.set(invocation, shown);
         }
         check(); return result;

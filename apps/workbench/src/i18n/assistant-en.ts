@@ -2,6 +2,15 @@ import { INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
 
 /** The resident Assistant in the bottom bar, with the supplement receipt it shares with every plugin. */
 export const ASSISTANT_EN: Record<string, string> = {
+  "「{plugin}」读取了你授权的本机目录「{folder}」（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" read your authorized local folder "{folder}" ({origin}). View the record or revoke access in Settings > Local folders.',
+  "「{plugin}」尝试读取你授权的本机目录「{folder}」，但被拒绝（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" tried to read your authorized local folder "{folder}", but access was denied ({origin}). View the record or revoke access in Settings > Local folders.',
+  "「{plugin}」尝试读取你授权的本机目录「{folder}」，但未完成（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" tried to read your authorized local folder "{folder}", but the read did not complete ({origin}). View the record or revoke access in Settings > Local folders.',
+  "你在页面上发起": "started by you on the page",
+  "由 Agent 发起": "started by an Agent",
+  "由工作流发起": "started by a workflow",
+  "由外部客户端（MCP）发起": "started by an external client (MCP)",
+  "由后台任务或定时发起": "started by a background task or schedule",
+  "目录读取通知的数据不完整。": "The directory-read notice has incomplete data.",
   "周日": "Sun",
   "周一": "Mon",
   "周二": "Tue",

@@ -31,10 +31,14 @@ export const platformDomEventsContract = {
  */
 
 /**
- * The name prefixes in use. Four styles grew side by side; the rename to one is a separate change that edits this list
- * and every name below. A name must start with one of these, so a fifth style cannot appear unnoticed.
+ * The platform's own name prefixes: three styles grew side by side; the rename to one is a separate change that edits this
+ * list and every name below. A plugin's events need no entry here: a name that starts with `molis-<owner>-` is valid when the
+ * event's registered `owner` is exactly `<owner>` and all of that owner's files belong to one `plugins/<group>/<package>/`
+ * directory (`molis-shelf-notice` is owned by `shelf`). An owner mixing plugin and platform files, or different plugin
+ * packages, must be split. The longest complete owner prefix wins. Every plugin gets the same treatment and this table
+ * names none of them (ac-artifacts A4, PG-096). Platform owners use only the three prefixes below.
  */
-export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:", "molis-shelf-", "workbench-"] as const;
+export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:", "workbench-"] as const;
 
 /**
  * The module that holds a piece of page state. The rule: it is the only place that changes it, and the one other modules
@@ -116,11 +120,11 @@ export const PAGE_STATE_OWNERS = {
     state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).",
   },
   shelf: {
-    files: ["plugins/native/shelf/src/client.ts", "plugins/native/shelf/src/terminal-client.ts", "plugins/native/shelf/src/settings-client.ts"],
+    files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/terminal-client.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
     state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.",
   },
   coding: {
-    files: ["plugins/native/coding/src/client.ts"],
+    files: ["plugins/native/coding/src/browser/main/page.ts", "plugins/native/coding/src/browser/main/mount-events.ts"],
     state: "The Coding surface: its sessions, the open session and its composer.",
   },
   "character-terminal": {

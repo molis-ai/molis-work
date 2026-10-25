@@ -7,7 +7,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, EN, L, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
@@ -57,8 +57,8 @@ function seed(home: string, projectId: string): { image: string } {
   const workflows = openWorkflowsStore(home); workflows.create({ project_id: projectId, title: "流程", chain: { stations: [], links: [] } }); workflows.close();
 
   const todo = openTodoStore(home);
-  todo.create({ title: `项目待办 ${projectId}`, placement: "project", remind_at: new Date(Date.now() - 60_000).toISOString() }, { projectId, everything: false, actor: "user", actorId: "local-person" });
-  todo.create({ title: "个人待办", placement: "personal" }, { projectId: null, everything: true, actor: "user", actorId: "local-person" });
+  todo.create({ title: `项目待办 ${projectId}`, placement: "project", remind_at: new Date(Date.now() - 60_000).toISOString() }, { projectId, projectIds: [], actor: "user", actorId: "local-person" });
+  todo.create({ title: "个人待办", placement: "personal" }, { projectId: null, projectIds: [], actor: "user", actorId: "local-person" });
   todo.close();
 
   const lingguang = openLingguangStore(home);
@@ -133,7 +133,7 @@ test("deleting a project clears what every Home library keeps for it and leaves 
     assert.deepEqual(orphaned(home), nothing(orphaned(home)), "no row is left hanging off a deleted document, form, todo or talk");
     assert.deepEqual(held(home, kept, keptSeed.image), before, "another project's data is untouched");
     const todo = openTodoStore(home);
-    try { assert.deepEqual(todo.list({ projectId: null, everything: true, actor: "user", actorId: "local-person" }).map(item => item.title).sort(), ["个人待办", "个人待办", `项目待办 ${kept}`].sort(), "the personal todos name no project and stay"); }
+    try { assert.deepEqual(todo.list({ projectId: null, projectIds: [kept], actor: "user", actorId: "local-person" }).map(item => item.title).sort(), ["个人待办", "个人待办", `项目待办 ${kept}`].sort(), "the personal todos name no project and stay"); }
     finally { todo.close(); }
     for (const owner of ["pages", "form", "dataset", "ppt", "workflows", "todo", "functions", "lingguang", "images"]) {
       assert.ok(result.deletion.owner_steps.some(step => step.owner_id === owner && step.state === "complete"), `${owner} is recorded in the receipt as done`);

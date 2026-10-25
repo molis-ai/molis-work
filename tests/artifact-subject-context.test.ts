@@ -7,9 +7,9 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
 import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
-import { requireArtifactAnalysisRecord } from "@molis-ai/molis-work-plugin-artifacts";
+import { requireArtifactAnalysisRecord } from "@molis-ai/molis-work-module-artifacts";
 
 const projectId = "canonical-project";
 const reference = { artifact_id: 'report/季度@2:["draft"]', version: 1 };
@@ -66,7 +66,7 @@ test("resolveActionSubject discovers the original provider and reads an exact in
   assert.ok(directory.some(view => view.capability_id === "artifacts.subject.read"));
   assert.equal(f.reads(), 0, "discovery must not load private content");
   const { context, reader } = await resolveActionSubject(f.actions, caller, subject());
-  assert.deepEqual(reader, { capability_id: "artifacts.subject.read", version: 1, provider_id: artifactsManifest.plugin_id });
+  assert.deepEqual(reader, { capability_id: "artifacts.subject.read", version: 2, provider_id: artifactsManifest.plugin_id });
   assert.deepEqual(context.subject, subject());
   assert.equal(context.title, "第一版原文");
   assert.equal(context.truncated, false);

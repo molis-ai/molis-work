@@ -14,7 +14,7 @@ export interface ChangeRow {
 }
 
 export function visible(item: TodoItem, access: TodoAccess): boolean {
-  return access.everything || item.project_id === null || item.project_id === access.projectId;
+  return item.project_id === null || item.project_id === access.projectId || access.projectIds.includes(item.project_id);
 }
 
 /** Put back the fields a change touched, as they were before it. */

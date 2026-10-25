@@ -1,8 +1,8 @@
-import type { UiContribution, UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiContribution, UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
 export const COGNIA_UI_CONTRIBUTION_ID = "io.molis.work.cognia.ui.v1";
 export interface CogniaUiModel { primitives: { escape(value: unknown): string; text(value: string): string } }
-export const cogniaUiDescriptor: UiContributionDescriptor = { contribution_id: COGNIA_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.cognia", kind: "primary-page", navigation_id: "cognia", label: "Cognia", surfaces: [{ surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" }, { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] };
+export const cogniaUiDescriptor: UiContributionDeclaration = { contribution_id: COGNIA_UI_CONTRIBUTION_ID, kind: "primary-page", navigation_id: "cognia", label: "Cognia", surfaces: [{ surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" }, { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] };
 export const cogniaUiContribution: UiContribution<CogniaUiModel> = { descriptor: cogniaUiDescriptor, render(request) { return request.surface === "directory" ? "" : renderCogniaWorkbench(request.model); } };
 export function renderCogniaWorkbench({ primitives: p }: CogniaUiModel): string {
   const t = (value: string) => p.escape(p.text(value));

@@ -24,7 +24,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 - Runtime 检查目标 Manifest 保留全部旧 grant 和必需权限，不会自动授予新权限。相同身份的普通安装仍要求指纹一致；同版本不同 Manifest 只有明确兼容声明才可用于继续运行，存储的版本与指纹保持不变。
 - `validateUpgrade` 收到旧安装记录和受限上下文；只有目标 Manifest 声明且旧安装已授予的 `storage:private.get` 可用，不暴露其他服务。校验失败时旧安装记录、grant 和存储仍留在原位。
 
-内置插件（监督器条目 `bundled: true`）不用这些声明：它随宿主版本升级，安装记录跟着提升。授权和其他插件同一规则：必需的总有，可选的按人留下的给，人关掉的可选权限升级后仍关着（设置里的开关是下一片，现在只有 Runtime 的授权接口能关）；新 Manifest 不再声明的去掉，新声明的可选权限像新装一样默认打开（全新安装时可选的都默认打开）。所以给内置插件加一项可选权限，已装的人升级后就有；关了它，只是用到它的动作不可用。
+内置插件（监督器条目 `trust: HOST_BUILD_TRUST`）不用这些声明：它随宿主版本升级，安装记录跟着提升。授权和其他插件同一规则：必需的总有，可选的按人留下的给，人关掉的可选权限升级后仍关着（设置里的开关是下一片，现在只有 Runtime 的授权接口能关）；新 Manifest 不再声明的去掉，新声明的可选权限像新装一样默认打开（全新安装时可选的都默认打开）。所以给内置插件加一项可选权限，已装的人升级后就有；关了它，只是用到它的动作不可用。
 
 完整流程和 Manifest 片段见[本地 Plugin 开发·版本升级](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)。
 
@@ -57,7 +57,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 ## UI
 
 - `ui.contributions`：contribution id 列表。
-- `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（Host 图标名）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象（搜索命中、放置卡、侧栏文件都开对象标签，插件收 `molis-work:select-item`）；不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
+- `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（Host 图标名）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象，插件收 `molis-work:select-item`。当前搜索、放置卡和侧栏文件的对象标签名单由构建期插件目录派生；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），声明字段本身仍适用。不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
 - **槽（合同五选一）**：`navigator` 一级入口（底栏插件切换与 Dock）、`stage` 工作区工具面、`settings` 全局设置目录、`island` 底栏右侧的个人常驻入口（项目圆钮旁）、`side` 侧栏里的一个标签（见 [ui.md](ui.md#侧栏标签side)）。不要发明第六个。
 - `ui.commands`：命令菜单。`input_kinds`：`current` / `object` / `artifacts` / `agent-session`。必须写清作用对象。
 - 贡献 descriptor 的 HTML Slot：`workbench.directory` / `workbench.main` / `workbench.overlay` / `workbench.settings` / `workbench.side`。`settings-page` 只能挂 settings。

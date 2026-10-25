@@ -4,7 +4,7 @@ import {mkdir, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   HOTKEY_MODIFIER_REQUIRED,
   chordFromKeyboardEvent,
@@ -13,7 +13,7 @@ import {
   defaultShelfHotKeys,
   parseSettingsWriteBody,
 } from "@molis-ai/molis-work-module-shelf";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import {
   SHELF_SETTINGS_CLIENT_SCRIPT,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
@@ -91,10 +91,9 @@ const diagnostics = {
   launchers: [],
 };
 
-function settingsPage(overrides: Partial<UiContributionDescriptor> = {}): UiContributionDescriptor {
+function settingsPage(overrides: Partial<UiContributionDeclaration> = {}): UiContributionDeclaration {
   return {
     contribution_id: "io.molis.work.native.example.settings.v1",
-    plugin_id: "io.molis.work.native.example",
     kind: "settings-page",
     navigation_id: "example",
     label: "Example",
@@ -176,7 +175,8 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
     settingsPage(),
   ]);
   assert.deepEqual(listed.map((item) => item.section_id), ["shelf", "example"]);
-  const live = listPluginSettingsNavItems();
+  // The plugins a page shows are the Host's to work out (W5-02 B1); a new project shows its personal plugins.
+  const live = listPluginSettingsNavItems(shownProjectPlugins([]));
   assert.equal(findPluginSettingsNavItem("coding-settings")?.plugin_id, "io.molis.work.coding");
   assert.equal(findPluginSettingsNavItem("unregistered-settings"), null);
   assert.ok(listPluginSettingsNavItems(["coding"]).some(item => item.section_id === "coding-settings"));
@@ -188,8 +188,8 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.equal(shelf?.plugin_id, "io.molis.work.shelf");
   assert.equal(shelf?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(shelf?.label, "Shelf");
-  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["shelf", "planning"]);
-  assert.equal(listPluginSettingsNavItems(["goals"]).find((item) => item.section_id === "planning")?.label, "Goals");
+  assert.deepEqual(listPluginSettingsNavItems(shownProjectPlugins(["goals"])).map((item) => item.section_id), ["shelf", "planning"]);
+  assert.equal(listPluginSettingsNavItems(shownProjectPlugins(["goals"])).find((item) => item.section_id === "planning")?.label, "Goals");
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
   assert.equal(live.some((item) => item.section_id === "functions"), false);
 });
@@ -283,7 +283,7 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
 });
 
 test("workbench settings directory and standalone settings list the same grouped categories", () => {
-  const directory = renderSettingsDirectorySection(directoryPrimitives);
+  const directory = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins([]));
   assert.match(directory, /data-settings-section="appearance"/);
   assert.match(directory, /data-settings-section="runtimes"/);
   assert.doesNotMatch(directory, /data-settings-section="mcp"/);
@@ -292,7 +292,7 @@ test("workbench settings directory and standalone settings list the same grouped
   assert.match(directory, /data-settings-section="diagnostics"/);
   assert.match(directory, /data-settings-section="shelf"/);
   assert.doesNotMatch(directory, /data-settings-section="functions"/);
-  const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
+  const withGoals = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins(["goals"]));
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
   // One list for the cover and the independent page (specs/archive/page-interaction-flow): host pages by group, 角色 (a Host page since CHR-1) after 助理,
   // other plugin pages last; 能力 is four of the categories (specs/artifact-positioning S6b). 记忆 is the
@@ -312,6 +312,7 @@ test("workbench settings directory and standalone settings list the same grouped
     projects: [],
     web_service: webService,
     diagnostics,
+    shown_plugins: shownProjectPlugins([]),
   });
   assert.match(html, /data-settings-section="shelf"/);
   assert.match(html, /href="\/settings\/shelf"/);
@@ -324,6 +325,7 @@ test("workbench settings directory and standalone settings list the same grouped
     projects: [],
     web_service: webService,
     diagnostics,
+    shown_plugins: shownProjectPlugins([]),
   });
   assert.match(appearance, /href="\/settings\/shelf"/);
   assert.match(appearance, /href="\/capabilities\/library"/);
@@ -511,8 +513,8 @@ test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare 
   const parsed = parseSettingsWriteBody({ hotkeys: { toggle: { key_code: 14, carbon_modifiers: 6144 } } });
   assert.equal("ok" in parsed ? parsed.ok.hotkeys?.toggle?.key_code : null, 14);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf_apply_hotkeys/);
-  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /按下…/);
-  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /这个组合被占用。/);
+  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-recording/);
+  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-occupied/);
   assert.doesNotMatch(SHELF_SETTINGS_CLIENT_SCRIPT, /data-shelf-settings-tab/);
   const remapped = renderShelfSettings({
     settings: shelfSettings({

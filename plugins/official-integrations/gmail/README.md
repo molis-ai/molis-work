@@ -15,9 +15,14 @@ createGmailIntegrationPlugin 注册 Provider/Adapter；OAuth 处理配置、pend
 | 文件 | 用途 |
 | --- | --- |
 | [src/index.ts](src/index.ts) | Integration 公共入口 |
-| [src/oauth.ts](src/oauth.ts) | 授权流程 |
+| [src/oauth.ts](src/oauth.ts) | 授权流程装配与模块级 start/complete 操作 |
+| [src/oauth-pending.ts](src/oauth-pending.ts) | 每个实例的 pending 会话存取、清理与校验 |
+| [src/oauth-token-lifecycle.ts](src/oauth-token-lifecycle.ts) | 每个连接的 token 读取、刷新与同步提交 |
 | [src/oauth-types.ts](src/oauth-types.ts) | scope/回调与端口 |
-| [src/provider.ts](src/provider.ts) | 邮件更新读取 |
+| [src/provider.ts](src/provider.ts) | Provider 装配、health 与 sync 入口 |
+| [src/provider-sync.ts](src/provider-sync.ts) | 有界完整/增量同步与请求顺序（包内私有） |
+| [src/provider-message.ts](src/provider-message.ts) | 邮件详情映射、标签、地址与时间（包内私有） |
+| [src/provider-fixture.ts](src/provider-fixture.ts) | 显式测试模式的夹具（包内私有） |
 | [src/history-cursor.ts](src/history-cursor.ts) | 历史游标 |
 
 可对照现有调用方 [apps/local-host/src/builtin-integrations.ts](../../../apps/local-host/src/builtin-integrations.ts) 阅读装配方式。
@@ -39,10 +44,10 @@ pnpm --filter @molis-ai/molis-work-integration-gmail typecheck
 pnpm --filter @molis-ai/molis-work-integration-gmail build
 ```
 
-已有行为示例与回归：[gmail-oauth.test.ts](../../../tests/gmail-oauth.test.ts)、[feed-connectors.test.ts](../../../tests/feed-connectors.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[gmail-oauth.test.ts](../../../tests/gmail-oauth.test.ts)、[gmail-factory-boundaries.test.ts](../../../tests/gmail-factory-boundaries.test.ts)、[feed-connectors.test.ts](../../../tests/feed-connectors.test.ts)、[integration-pagination.test.ts](../../../tests/integration-pagination.test.ts)。完成上述构建后运行：
 
 ```bash
-node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/feed-connectors.test.ts
+node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/gmail-factory-boundaries.test.ts tests/feed-connectors.test.ts tests/integration-pagination.test.ts
 ```
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。
@@ -58,7 +63,7 @@ node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/feed-connectors.test.
   - 凭据不写进 Source 或 Signal 正文。
   - 刷新令牌写入前同步调用宿主提供的 `beforePersist`；宿主复查连接修订，停用、删除或重授权后的旧请求不得写入。
   - 测试用隔离数据或注入端口，通过不代表真实账号已连通。
-- 改动后必跑：`node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/feed-connectors.test.ts tests/integration-pagination.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/gmail-factory-boundaries.test.ts tests/feed-connectors.test.ts tests/integration-pagination.test.ts`
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

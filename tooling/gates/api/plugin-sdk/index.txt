@@ -314,6 +314,7 @@ export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform
 export type { UiClientScope } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageActions } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageDialogs } from "@molis-ai/molis-work-contracts/platform/ui";

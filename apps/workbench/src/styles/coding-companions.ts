@@ -27,10 +27,6 @@ export const CODING_COMPANION_STYLES = `
 .workspace-manager p[data-workspace-picked] { margin:0; }
 .workspace-manager p[data-workspace-picked].is-picked { color:var(--ink); }
 .workspace-manager form > button { justify-self:start; }
-[data-companion-content] .stats-counts { display:grid; grid-template-columns:minmax(0,1fr) auto; max-width:480px; gap:24px; margin:24px 0; padding:24px 0; font-size:13px; }
-[data-companion-content] .stats-counts dt { color:var(--muted); }
-[data-companion-content] .stats-counts dd { margin:0; font-size:20px; font-variant-numeric:tabular-nums; }
-[data-companion-content] .stats-origin { display:block; margin-top:4px; color:var(--muted); font-size:12px; }
 @container coding-companion (max-width:600px) {
   .companion-surface { height:100%; min-height:0; }
 .companion-layout { grid-template-columns:minmax(0,1fr); }

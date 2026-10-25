@@ -5,6 +5,7 @@ export { computeBuildSourceDigest, writeMolisWorkBuildManifest, digestPaths } fr
 export type { MolisWorkBuildManifest } from "./installer/fingerprint.js";
 export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 export { readRuntimeConfigBackup, sealRuntimeConfigBackup, RUNTIME_CONFIG_BACKUP_OWNER, type RuntimeConfigBackupReference } from "./installer/runtime-config-backups.js";
+export { captureConnectorPrivateState, preflightConnectorPrivateStateRestore, CONNECTOR_PRIVATE_STATE_OWNER, type ConnectorPrivateStateSnapshot, type ConnectorPrivateStateRestorePlan } from "./connector-private-state.js";
 export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
 export { RuntimeProjectConnection } from "./runtime-project-connection.js";
@@ -13,6 +14,7 @@ export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnviron
 export type { MolisWorkRuntimeContextHost } from "./runtime-context.js";
 export { prepareLocalProjectStorage } from "./project-storage.js";
 export { PluginHostExecutor } from "./plugin-executor.js";
+export { hostDependencyCheck, type PluginDependencyCheck } from "./plugin-actions-client.js";
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
 export { handleCharactersHttp, type CharactersInvoke } from "./characters-http.js";
 export { charactersProvider, type CharactersProject } from "./characters-host.js";
@@ -45,6 +47,7 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./local-host.js";
+export type { HomeInitializationFailure } from "./home-storage-lifetime.js";
 export { MolisWorkWebServiceManager } from "./installer/web-service.js";
 export { type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceManagerOptions } from "./installer/web-service-contract.js";
 export { MolisWorkUninstallService } from "./installer/uninstall.js";
@@ -73,6 +76,10 @@ export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";
 export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
+export {
+  BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS,
+  availableProjectPluginIds, catalogProblems, shownProjectPlugins,
+} from "./plugin-registry.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
@@ -94,7 +101,7 @@ export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-conte
 
 export { createLocalFeedApplication } from "./feed-application.js";
 export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
-export { withFunctionsService } from "./functions-host.js";
+export { seedSceneRules, withFunctionsService } from "./functions-host.js";
 
 export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
@@ -110,12 +117,15 @@ export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGE
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";
 export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
 export { connectorSetupIntentAction } from "./connector-setup-intent.js";
 export { holdConnectorAuthorizationsForSession } from "./connector-authorization-status.js";
 export { alchemistPulseGithub } from "./alchemist-pulse-github.js";
+export { startApiOAuth, completeApiOAuth } from "./connector-api-oauth.js";
+export { listConnectorConnectionViews } from "./connector-connection-views.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export * from "./github-oauth.js";
 
@@ -204,10 +214,10 @@ export {
 export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
 export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
-export { filesOutputsRefresh } from "./project-plugin-input-refresh.js";
 export { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
-export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";
+export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
 export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins } from "./project-plugins.js";
+export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
 export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";

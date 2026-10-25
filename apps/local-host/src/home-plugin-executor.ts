@@ -11,6 +11,7 @@ import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
+import { discardInstallationOwnerData, forgetInstallationRecords } from "./plugin-installation-cleanup.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
@@ -184,9 +185,10 @@ export class HomePluginExecutor implements PluginExecutor {
   uninstalled(record: PluginInstanceRecord): void {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
+    if (!record.retain_private_data) forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }
   keptDataDiscarded(record: PluginInstanceRecord): void {
-    if (record.execution === "sandbox") removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
+    discardInstallationOwnerData({ home: { directory: this.options.home }, project_id: null }, record, id => this.options.storage.deleteInstallationData(id));
   }
   restorePrivateData(installId: string, snapshot: unknown): void {
     this.options.storage.restoreInstallationData(installId, snapshot as ReturnType<SqlitePluginPrivateStorage["snapshotInstallationData"]>);

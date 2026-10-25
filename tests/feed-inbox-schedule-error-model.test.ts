@@ -264,8 +264,9 @@ const OLD_CODES = ["feed_item_not_found", "inbox_entry_not_found", "feed_source_
   "feed_source_invalid_schedule", "feed_source_configuration_changed", "feed_source_changed", "feed_source_wrong_sync_kind", "connector_wrong_sync_kind", "connector_needs_auth",
   "invalid_custom_rss_url", "invalid_youtube_channel", "inbox_source_use_youtube_channel", "inbox_source_use_official_reddit",
   "schedule_task_invalid", "schedule_task_not_found"];
-// A plugin client file is the page's own script, a template string that runs in the browser; it never raises an action's failure.
+// A plugin client file is the page's own script (a template string, or the reader of the bundle built from the typed code under `src/browser/`) and runs in the browser; it never raises an action's failure.
 const BROWSER_SCRIPT = /[\\/]client\.ts$/u;
+const BROWSER_CODE = /^(.*[\\/])src[\\/]browser[\\/]/u;
 // What may stay a bare Error, each anchored on its own sentence so a caller's mistake with another sentence is still found:
 //   - a wiring mistake in the code (a route without its Host binding, a UI surface the plugin does not render): nobody can cause it by a request;
 //   - the failures of a run that already started (a due task, reminder or timed operation that cannot be carried out, a pull of the research library or a
@@ -291,8 +292,13 @@ test("no owner keeps an error class, a route-error mapper, a body reader of its 
       assert.doesNotMatch(source, new RegExp(String.raw`new\s+\w*Error\(\s*"(?:feed|inbox|schedule)\.[a-z_]+"`, "u"), `${where}: an owner code raised without its declaration (it would answer 400 whatever its kind)`);
       assert.doesNotMatch(source, /new ScheduleError\(/u, `${where}: the scheduler's class raised for a Schedule failure; raise scheduleErrors.<reason>(...)`);
       assert.doesNotMatch(source, /Object\.assign\(new Error\(/u, `${where}: an Error given a code afterwards`);
+      const browserCode = BROWSER_CODE.exec(file);
+      if (browserCode) {
+        assert.match(readFileSync(join(browserCode[1]!, "tsconfig.browser.json"), "utf8"), /src\/browser\/\*\*/u, `${where}: exempt from the bare-Error rule only as browser code the build type-checks and bundles for the page`);
+        continue;
+      }
       if (BROWSER_SCRIPT.test(file)) {
-        assert.match(source, /^export const \w+_CLIENT(?:_FACTORY)?_SCRIPT = (?:String\.raw)?`/mu, `${where}: exempt from the bare-Error rule only as a browser script`);
+        assert.match(source, /^export const \w+_CLIENT(?:_FACTORY)?_SCRIPT = (?:String\.raw`|readFileSync\()/mu, `${where}: exempt from the bare-Error rule only as a browser script`);
         continue;
       }
       for (const code of OLD_CODES) assert.ok(!source.includes(`"${code}"`) && !source.includes(`'${code}'`), `${where}: the old name ${code} is read or raised`);

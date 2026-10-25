@@ -4,14 +4,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { LOCAL_OWNER_PERMISSIONS } from "@molis-ai/molis-work-app-local-host";
 import {
   LocalProjectDatabase, MolisWorkLocalHost, createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference, resolveWebControlToken, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/todo";
+import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
@@ -40,7 +42,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
   try {
     const repository = await host.withProject(reference, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
     runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
-    installId = runtime.install({ definition: plugin, deployment: "local", grants: [] }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install.install_id;
     await runtime.start(installId);
     const imposter = { ...definition, capability_id: "ungranted.same-permission" };
     stopImposter = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "no-installation-grant", plugin_id: "io.molis.work.example.ungranted", title: "No grant", kind: "plugin" },
@@ -61,7 +63,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     const directory = await (await fetch(`${origin}/capabilities/library?project=${project.project_id}&action=${definition.capability_id}&version=1`)).text();
     assert.ok(directory.includes("原始插件标题") === false, "capability metadata does not execute the object reader");
     assert.ok(directory.includes("新插件事项")); assert.ok(directory.includes(definition.capability_id)); assert.ok(!directory.includes(imposter.capability_id));
-    const local = await localWebActionContext(host, reference, HOME_ACTION_PERMISSIONS);
+    const local = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
     assert.equal(local.locale, undefined, "a context no page asked for names no language: the handler keeps its own default (VUX-40)");
     await assert.rejects(host.actionClient(reference).invoke(local, imposter, { subject_id: "note" }), { code: "actions.forbidden" });
     await assert.rejects(host.actionClient(reference).invoke({ actor_id: "external-client", project_id: project.project_id, audience: "mcp", permissions: [] }, definition, { subject_id: "note" }), { code: "actions.forbidden" });
@@ -77,7 +79,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     await runtime.stop(installId); await runtime.uninstall(installId);
     const previousId = installId;
     const replacementPlugin = definePlugin({ ...plugin, manifest: { ...plugin.manifest, plugin_id: "io.molis.work.example.newcomer-replacement" } });
-    installId = runtime.install({ definition: replacementPlugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: replacementPlugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
     await runtime.start(installId);
     assert.notEqual(installId, previousId);
     await assert.rejects(async () => local.validate_authority!(definition), { code: "actions.forbidden" });
@@ -106,7 +108,7 @@ test("scene-only plugins obtain local-user discovery and configuration from thei
       targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   await runtime.start(installed.install_id);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -143,7 +145,7 @@ test("a Runtime plugin registered under its plugin_id gets its local-user grants
   // What the Host assembles by hand for the same plugin (Shelf has such providers), under the same id and with no installation behind it.
   const withdrawHost = host.actionRegistry(reference).registerProvider({ provider: { provider_id: pluginId, plugin_id: pluginId, title: "宿主", kind: "plugin", project_id: reference.project_id },
     definitions: [hostRead], handlers: [{ ...hostRead, handle: () => "host" }] });
-  const installId = runtime.install({ definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
   await runtime.start(installId);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -178,7 +180,7 @@ test("a scene-only plugin registered under its plugin_id obtains local-user disc
       targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   await runtime.start(installed.install_id);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -256,18 +258,96 @@ test("S-15 with todo:write revoked from its installation, Todo's web route refus
   await assert.rejects(host.homeActionClient().invoke(revoked, create, { title: "经动作网关也记不下" }), { code: "actions.forbidden" });
   assert.equal(await listed(), before);
 
-  // A provider the Host registers itself, with no installation behind it, is still reached with the person's own permissions.
+  // PG-007 stage 4 (RAC-338): over a provider the Host registers itself, the person holds only what is declared for that provider. The
+  // person holds artifact:write over Characters; a Host provider that is not Characters and asks for it is neither offered nor reached.
   const { reference } = await project("宿主自己的提供方");
-  const hostRead: ActionDefinition<Record<string, never>, string> = { capability_id: "hostowned.read", version: 1, operation: "query", action: { title: "宿主读取",
-    description: "宿主自己登记的动作", kind: "query", scope: "project", audiences: ["user"], permissions: ["hostowned:read"], subject_kinds: [],
+  let handled = 0;
+  const hostWrite: ActionDefinition<Record<string, never>, string> = { capability_id: "hostowned.write", version: 1, operation: "query", action: { title: "宿主写入",
+    description: "宿主自己登记、要成果写入权限的动作", kind: "query", scope: "project", audiences: ["user"], permissions: ["artifact:write"], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };
   const withdraw = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "host-owned", plugin_id: "io.molis.work.example.host-owned", title: "宿主", kind: "plugin", project_id: reference.project_id },
-    definitions: [hostRead], handlers: [{ ...hostRead, handle: () => "host" }] });
+    definitions: [hostWrite], handlers: [{ ...hostWrite, handle: () => { handled += 1; return "host"; } }] });
   try {
-    const person = await localWebActionContext(host, reference, ["hostowned:read"]);
-    await person.validate_authority!({ ...hostRead, provider_id: "host-owned" });
-    assert.equal(await host.actionClient(reference).invoke(person, hostRead, {}), "host");
+    assert.ok(LOCAL_OWNER_PERMISSIONS.includes("artifact:write"), "the permission is one the person may carry");
+    const person = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+    const views = await host.actionClient(reference).discover(person);
+    assert.ok(views.some(view => view.provider.provider_id === CHARACTER_PLUGIN_ID && view.action.permissions.includes("artifact:write")), "it is held over Characters");
+    assert.ok(!(person.allowed_actions ?? []).some(entry => entry.provider_id === "host-owned"), "the other Host provider is not offered");
+    await assert.rejects(person.validate_authority!({ ...hostWrite, provider_id: "host-owned" }), { code: "actions.forbidden" });
+    await assert.rejects(host.actionClient(reference).invoke(person, hostWrite, {}), { code: "actions.forbidden" });
+    assert.equal(handled, 0, "the handler never ran");
   } finally { withdraw(); }
+});
+
+// PG-007 stage 4 (RAC-339): moving the person's permissions onto each Host provider takes nothing away from a provider the Host
+// registers today. Every Host-registered action whose permissions the person may carry is still offered, in a project and at Home.
+test("RAC-339 every action a Host provider registers today is still the person's after the owner permissions move onto providers", { timeout: 90_000 }, async t => {
+  const { host, project, request } = await serveHomeRuntime(t);
+  const { reference } = await project("宿主提供方的全部动作");
+  // RAC-339-REVIEW-01: the Assistant's HTTP composition conditionally folds thread actions into its rules provider.
+  const prepared = await request("/api/assistant/works");
+  assert.equal(prepared.status, 200, await prepared.clone().text());
+  for (const scope of [reference, undefined]) {
+    const base = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: scope?.project_id ?? null, audience: "user" as const, permissions: LOCAL_OWNER_PERMISSIONS };
+    const hostOwned = (await host.inspectActions(base, scope)).filter(view => view.provider.plugin_install_id === undefined
+      && (!view.provider.project_id || view.provider.project_id === scope?.project_id) && (view.action.scope === "home" || scope)
+      && view.action.permissions.every(permission => LOCAL_OWNER_PERMISSIONS.includes(permission)));
+    assert.ok(hostOwned.length > 10, "the Host's own providers are there to check");
+    const offered = new Set(((await localWebActionContext(host, scope, LOCAL_OWNER_PERMISSIONS)).allowed_actions ?? []).map(entry => `${entry.provider_id} ${entry.capability_id}@${entry.version}`));
+    const missing = hostOwned.map(view => `${view.provider.provider_id} ${view.capability_id}@${view.version}`).filter(key => !offered.has(key));
+    assert.deepEqual(missing, [], scope ? "in a project" : "at Home");
+  }
+  const full = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+  const withoutModel = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS.filter(permission => permission !== "model:invoke"));
+  const rule = full.allowed_actions!.find(entry => entry.capability_id === "assistant.rules.list");
+  assert.ok(rule, "the conditionally registered rules are offered");
+  assert.ok(withoutModel.allowed_actions!.some(entry => entry.capability_id === rule.capability_id));
+  const listed = await host.actionClient(reference).invoke(withoutModel, rule, {}) as { rules: unknown[] };
+  assert.ok(Array.isArray(listed.rules), "rules can still be read without a model permission");
+  for (const [capability, input] of [
+    ["assistant.threads.start", { target: { provider_id: "absent", subject_kind: "note", subject_id: "one", thread_id: "one" }, message_id: "one" }],
+    ["assistant.threads.retry", { work_id: "absent", revision: 1 }],
+  ] as const) {
+    const action = full.allowed_actions!.find(entry => entry.capability_id === capability);
+    assert.ok(action, `${capability} retains the model permission its definition requires`);
+    assert.equal(action.provider_id, rule.provider_id, "threads and rules share their actual provider");
+    await full.validate_authority!(action);
+    assert.ok(!withoutModel.allowed_actions!.some(entry => entry.capability_id === capability));
+    await assert.rejects(withoutModel.validate_authority!(action), { code: "actions.forbidden" });
+    await assert.rejects(host.actionClient(reference).invoke(withoutModel, action, input), { code: "actions.forbidden" });
+  }
+});
+
+test("RAC-339-REVIEW-02 external MCP providers hold only mcp:external and remain bounded by the route", { timeout: 90_000 }, async t => {
+  const { host, project } = await serveHomeRuntime(t);
+  const { reference } = await project("外部 MCP 提供方权限");
+  for (const [providerId, scope] of [["system.connectors#mcp:review-connection", "home"], ["io.molis.work.example#mcp:review-server", "project"]] as const) {
+    let handled = 0;
+    const tool: ActionDefinition = { capability_id: `review.${scope}.mcp`, version: 1, operation: "query", action: {
+      title: "外部工具", description: "提供方权限验证", kind: "query", scope, audiences: ["user"], permissions: ["mcp:external"], subject_kinds: [],
+      input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "boolean" },
+    } };
+    const extra = { ...tool, capability_id: `${tool.capability_id}.extra`, action: { ...tool.action, permissions: ["mcp:external", "artifact:write"] } };
+    const registry = scope === "home" ? host.actionRegistry() : host.actionRegistry(reference);
+    const withdraw = registry.registerProvider({ provider: { provider_id: providerId, title: "MCP", kind: scope === "home" ? "system" : "mcp",
+      ...(scope === "project" ? { project_id: reference.project_id } : {}) }, definitions: [tool, extra],
+      handlers: [tool, extra].map(definition => ({ ...definition, handle: () => { handled++; return true; } })) });
+    try {
+      const caller = await localWebActionContext(host, reference, ["mcp:external", "artifact:write"]);
+      const ref = { ...tool, provider_id: providerId }, extraRef = { ...extra, provider_id: providerId };
+      assert.ok(caller.allowed_actions!.some(entry => entry.capability_id === tool.capability_id && entry.provider_id === providerId));
+      await caller.validate_authority!(ref);
+      assert.equal(await host.actionClient(reference).invoke(caller, ref, {}), true);
+      assert.ok(!caller.allowed_actions!.some(entry => entry.capability_id === extra.capability_id));
+      await assert.rejects(caller.validate_authority!(extraRef), { code: "actions.forbidden" });
+      await assert.rejects(host.actionClient(reference).invoke(caller, extraRef, {}), { code: "actions.forbidden" });
+      const capped = await localWebActionContext(host, reference, ["artifact:write"]);
+      assert.ok(!capped.allowed_actions!.some(entry => entry.capability_id === tool.capability_id));
+      await assert.rejects(capped.validate_authority!(ref), { code: "actions.forbidden" });
+      await assert.rejects(host.actionClient(reference).invoke(capped, ref, {}), { code: "actions.forbidden" });
+      assert.equal(handled, 1, "only the authorized MCP tool invocation reached a handler");
+    } finally { withdraw(); }
+  }
 });
 
 // VUX-35: a bound client shares one authority snapshot across its calls. It is meant for one request: a grant revoked meanwhile is still
@@ -338,4 +418,33 @@ test("S-15 with images:read revoked from its installation, the Images jobs route
   const refused = await request(jobs);
   assert.deepEqual([refused.status, (await refused.json() as { code: string }).code], [403, "actions.forbidden"]);
   assert.equal((await request(`/api/plugins/${plugin}/connections`)).status, 200, "the connections read it still holds keeps working");
+});
+
+// PG-008 (RAC-651): the routes that bound a hand-written client (the 成果库's owner previews, project references, the Shelf settings,
+// project onboarding) now bind the person's client. The permissions a route names bound what it reaches of the Host's own providers;
+// they add nothing to a Runtime plugin's installation, which the hand-written client let through to the provider on the person's word.
+test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action only through its installation's grants", { timeout: 90_000 }, async t => {
+  const { host, project } = await serveHomeRuntime(t);
+  const { reference } = await project("路由写下的权限");
+  const definition = defineSubjectContextAction("capped.notes.context", "capped-note", "路由上限", ["capped:read"]);
+  let reads = 0;
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.capped", version: "1.0.0", name: "路由上限",
+    kind: "app", publisher: { publisher_id: "example", signature: "example-capped" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission: "capped:read", required: false, reason: "读取" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
+    async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => {
+      reads++; return subjectContext({ subject: { kind: "capped-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "t", content: "正文", goal_ids: [] });
+    } }] }; } });
+  const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(installId);
+  try {
+    await assert.rejects(bindLocalWebActions(host, reference, ["capped:read"]).invoke(definition, { subject_id: "n" }), { code: "actions.forbidden" });
+    assert.equal(reads, 0, "the route's own gate refused it; the provider never ran");
+    await runtime.stop(installId);
+    runtime.grant(installId, ["capped:read"]);
+    await runtime.start(installId);
+    assert.equal((await bindLocalWebActions(host, reference, ["capped:read"]).invoke(definition, { subject_id: "n" }) as { content: string }).content, "正文");
+    assert.equal(reads, 1);
+  } finally { if (runtime.get(installId).state === "running") await runtime.stop(installId); }
 });

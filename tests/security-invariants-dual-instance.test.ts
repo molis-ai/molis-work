@@ -37,7 +37,7 @@ async function openDual(t: TestContext) {
   // The project instance, installed into the project's own database the way a project's Plugin Runtime does.
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
-  const installId = runtime.install({ definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] }).install.install_id;
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] }).install.install_id;
   t.after(async () => { await runtime.stop(installId).catch(() => undefined); await host.close(); await rm(home, { recursive: true, force: true }); });
   const setHomeGrants = async (grants: string[]) => {
     await platform.runtime.stop(homeInstall().install_id); platform.runtime.grant(homeInstall().install_id, grants);
@@ -115,7 +115,7 @@ test("DUAL-06 a nested call is checked against its own database's generation: re
   const before = await s.context();
   const generation = s.projectInstall().installation_generation;
   await s.runtime.stop(s.installId); await s.runtime.uninstall(s.installId);
-  s.runtime.install({ definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] });
+  s.runtime.install({ trust: { level: "unsigned" }, definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] });
   await s.runtime.start(s.installId);
   assert.equal(s.projectInstall().install_id, s.homeInstall().install_id);
   assert.notEqual(s.projectInstall().installation_generation, generation, "the reinstalled project instance is a new installation");

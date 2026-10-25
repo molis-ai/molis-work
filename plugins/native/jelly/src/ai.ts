@@ -1,7 +1,7 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { JELLY_DECOMPOSE } from "./prompts.js";
 import { createHash, randomUUID } from "node:crypto";
-import type { JellyPlan, JellyPlanAction, JellySchedule, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyPlan, JellyPlanAction, JellySchedule, JellyWorkspace } from "./contract.js";
 import { jellySourceHash } from "./content.js";
 import { jellyOccurrences } from "./calendar.js";
 import { jellyErrors } from "./error.js";

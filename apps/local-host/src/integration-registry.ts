@@ -1,7 +1,7 @@
 import type { PluginDefinition, PluginIntegrationContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding, IntegrationKind, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { IntegrationDeclarations, type RegisteredConnectionService, type RegisteredIntegration } from "./integration-declarations.js";
 
@@ -86,7 +86,8 @@ export class IntegrationRegistry {
     const manifest = parsePluginManifest(definition.manifest);
     if (this.declarations.has(manifest.plugin_id)) return;
     this.declarations.assertFree(manifest);
-    const installed = this.runtime.install({ definition, deployment: "local" });
+    // Only the Host's own build is enabled here today; an installed plugin's integrations will arrive with the trust it was installed with.
+    const installed = this.runtime.install({ definition, deployment: "local", trust: HOST_BUILD_TRUST });
     const installId = installed.install.install_id;
     try {
       this.runtime.grant(installId, manifest.permissions.filter(permission => permission.required).map(permission => permission.permission));

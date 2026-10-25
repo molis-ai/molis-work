@@ -23,7 +23,6 @@ function view(pluginId: string, viewId: string): UiContribution {
   return {
     descriptor: {
       contribution_id: `${pluginId}.${viewId}`,
-      plugin_id: pluginId,
       kind: "primary-page",
       label: viewId,
       slots: [],
@@ -296,8 +295,8 @@ test("route parameters reach the handler as declared", async () => {
 });
 
 test("the bundled catalog reproduces the shell's navigation exactly", async () => {
-  const { railEntries, islandEntries, settingsEntries, PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } =
-    await import("@molis-ai/molis-work-app-workbench");
+  const { railEntries, islandEntries, settingsEntries } = await import("@molis-ai/molis-work-app-workbench");
+  const { PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-local-host");
 
   // "functions" may still be saved on older projects; rule authoring moved to Capabilities, so it has no rail entry.
   const everything = ["jelly", "goals", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
@@ -364,11 +363,11 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 });
 
 test("a 常开插件 is shown in every project, even one that once hid it, and is neither offered nor removable", async () => {
-  const { shownProjectPlugins, pluginMarketCards, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-workbench");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.isAlwaysOn?.("shelf"), true);
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.isAlwaysOn?.("lingguang"), false);
-  // A project that hid Shelf before it became always on still shows it; a hidden ordinary personal plugin stays hidden.
-  const shown = shownProjectPlugins(["goals"], ["shelf", "lingguang"]);
+  const { pluginMarketCards } = await import("@molis-ai/molis-work-app-workbench");
+  const { shownProjectPlugins } = await import("@molis-ai/molis-work-app-local-host");
+  // A project's list of hidden plugins leaves out a 常开 one (tests/security-invariants-always-on-records.test.ts), so a mark made before Shelf became
+  // always on never reaches here; a hidden ordinary personal plugin stays hidden.
+  const shown = shownProjectPlugins(["goals"], ["lingguang"]);
   assert.ok(shown.includes("shelf"));
   assert.equal(shown.includes("lingguang"), false);
   assert.equal(pluginMarketCards().some((card) => card.id === "shelf"), false, "nobody adds what is always on");
@@ -392,31 +391,37 @@ test("OPEN-PLACE-01 a plugin opens where its declarations put it: the work area 
   assert.deepEqual(sideOpenedPlugins(), { shelf: "plugin:shelf/side" });
 });
 
-test("PG-060 a plugin's tab opens one object when a Manifest view of it accepts objects, and is named by its views", async () => {
-  const { objectTabPlugins, pluginTabTitles } = await import("@molis-ai/molis-work-app-workbench");
-  const entry = (id: string, views: Array<{ accepts_objects?: boolean }>) => ({ project_plugin_id: id, manifest: { ui: { views } } });
-  assert.deepEqual(objectTabPlugins([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["notes"]);
+test("RAC-84 PG-060 a plugin's tab opens one object when a Manifest view of it accepts objects, and is named by its views", async () => {
+  const { builtinPluginDirectory, clientPluginDirectory, pluginTabTitles } = await import("@molis-ai/molis-work-app-workbench");
+  // What the page's scripts read is the directory's `accepts_objects` per plugin; the same projection serves a plugin installed at run time.
+  const objectTabs = (directory: Parameters<typeof clientPluginDirectory>[0]) => clientPluginDirectory(directory).filter(entry => entry.accepts_objects).map(entry => entry.id);
+  const entry = (id: string, views: Array<{ accepts_objects?: boolean }>) => ({ id, plugin_id: id, name: id, chosen: true,
+    ui: { views: views.map((view, at) => ({ view_id: `v${at}`, slot: "stage" as const, title: id, ...view })) } });
+  assert.deepEqual(objectTabs([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["notes"]);
   // The shipped plugins: search, placement and side files open these as an object's tab (Artifacts is the platform's own).
   // Git and Diff take no object by id (no `molis-work:select-item`, no row to click), so they declare none.
-  assert.deepEqual(new Set(objectTabPlugins()), new Set(["goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "coding"]));
+  assert.deepEqual(new Set(objectTabs(builtinPluginDirectory())), new Set(["goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "coding"]));
   // The workbench writes no plugin's tab title: each is its navigator or island view's, in the page's language.
   const zh = pluginTabTitles(), en = pluginTabTitles(true);
   assert.deepEqual([zh.feed, zh.lingguang, zh.ppt, zh.workflows], ["Feed", "灵光", "PPT", "工作流程"]);
   assert.deepEqual([en.lingguang, en.workflows], ["Lingguang", "Workflows"]);
 });
 
-test("PG-060 the side panel's 打开 opens a Files file as the file's own tab, a plugin without object tabs at its record", async () => {
-  const { CLIENT_SCRIPT, objectTabPlugins } = await import("@molis-ai/molis-work-app-workbench");
-  // The side panel's file tab decides exactly as search does (specs/archive/side-panel P3): the initialization program
-  // embeds the object-tab list, so both look at one list: Artifacts and every plugin declaring accepts_objects.
-  const surfaces = JSON.stringify(["artifacts", ...objectTabPlugins()]);
-  assert.equal(objectTabPlugins().includes("sessions"), false, "SC-4's retired Sessions surface does not return through the catalog");
-  assert.ok(CLIENT_SCRIPT.includes(`openRecord: (plugin, id, title) => ${surfaces}.includes(plugin)`),
+test("PG-060 RAC-606 the side panel's 打开 opens a Files file as the file's own tab, a plugin without object tabs at its record", async () => {
+  const { CLIENT_SCRIPT, builtinPluginDirectory, clientPluginDirectory } = await import("@molis-ai/molis-work-app-workbench");
+  // The side panel's file tab decides exactly as search does (specs/archive/side-panel P3): the initialization program reads the
+  // object-tab list once from the page's plugin directory, so all three look at one list: Artifacts and every plugin declaring
+  // accepts_objects. The script keeps no list by plugin.
+  const objectTabs = clientPluginDirectory(builtinPluginDirectory()).filter(entry => entry.accepts_objects).map(entry => entry.id);
+  assert.ok(CLIENT_SCRIPT.includes('document.querySelector("script[data-plugin-directory]")'), "the page's directory is read once, from the page");
+  assert.ok(CLIENT_SCRIPT.includes("openRecord: (plugin, id, title) => itemTabs.includes(plugin)"),
     "the side panel's openRecord routes by the same object-tab list search uses");
+  assert.doesNotMatch(CLIENT_SCRIPT, /\["artifacts",\s*"(?:goals|inbox|feed|pages|files)"/u, "no plugin's tab is written into the script as a list");
+  assert.equal(objectTabs.includes("sessions"), false, "SC-4's retired Sessions surface does not return through the catalog");
   // Files declares `accepts_objects`: the file opens as its own tab (before W5-06's remainder the Files page opened with nothing chosen).
   // Todo opens its records by clicking its row: the record in its list, as search does.
-  assert.ok(objectTabPlugins().includes("files"));
-  assert.ok(!objectTabPlugins().includes("todo"));
+  assert.ok(objectTabs.includes("files"));
+  assert.ok(!objectTabs.includes("todo"));
   // `openItem` for the object's tab, `openPluginRecord` for a record-only plugin; no tab workspace yet: optional chaining
   // keeps it a no-op instead of throwing.
   assert.ok(CLIENT_SCRIPT.includes("? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id)"));

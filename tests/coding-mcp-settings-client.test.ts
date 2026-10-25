@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
+import { createUiRequest } from "@molis-ai/molis-work-ui-host";
 import { CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { pageText } from "./fixtures/page-text.js";
 
@@ -33,6 +34,18 @@ class FakeElement {
 interface Answer { readonly ok: boolean; readonly status: number; readonly body: unknown }
 const answer = (status: number, body: unknown): Answer => ({ ok: status < 400, status, body });
 
+/** The page's `molisWorkRequest`, built from the package's public factory over the fixture's fake network (as the page program builds it). */
+function pageRequest(answers: (url: string, method: string) => Answer, requests: { url: string; method: string }[] = []) {
+  return createUiRequest({
+    fetch: async (input, init) => {
+      const url = new URL(input, "http://127.0.0.1:1").pathname, found = answers(url, init.method);
+      requests.push({ url, method: init.method });
+      return new Response(JSON.stringify(found.body), { status: found.status });
+    },
+    origin: "http://127.0.0.1:1", token: () => "token", newKey: () => "key", translate: text => text,
+  });
+}
+
 function fixture(answers: (url: string, method: string) => Answer, locale: "zh" | "en" = "zh") {
   const root = new FakeElement(); root.dataset.prefix = "/projects/project-1/";
   const document = Object.assign(new FakeElement(), { createElement: () => new FakeElement() });
@@ -41,14 +54,9 @@ function fixture(answers: (url: string, method: string) => Answer, locale: "zh" 
   const timers = { started: [] as number[], cleared: [] as number[] };
   const location = { origin: "http://127.0.0.1:1", reloads: 0, reload() { this.reloads++; } };
   vm.runInNewContext(CODING_SETTINGS_CLIENT_SCRIPT, {
-    document, location, URL, molisWorkControlHeaders: () => ({}), L: pageText(locale), // the page's translator, as the Host's pages define it
+    document, location, URL, molisWorkRequest: pageRequest(answers, requests), L: pageText(locale), // the page's translator, as the Host's pages define it
     setInterval: () => { timers.started.push(timers.started.length + 1); return timers.started.length; },
     clearInterval: (id: number) => { timers.cleared.push(id); },
-    fetch: async (url: string, init?: { method?: string }) => {
-      const method = init?.method ?? "GET"; requests.push({ url, method });
-      const found = answers(url, method);
-      return { ok: found.ok, status: found.status, json: async () => found.body };
-    },
   });
   const status = root.part("[data-mcp-status]");
   const settled = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -103,9 +111,8 @@ for (const [locale, loaded] of [["zh", "项目方法已读取。"], ["en", "Proj
   const document = Object.assign(new FakeElement(), { createElement: () => new FakeElement() });
   document.querySelector = (selector: string) => selector === "[data-coding-method-library]" ? library : null;
   vm.runInNewContext(CODING_SETTINGS_CLIENT_SCRIPT, {
-    document, location: { origin: "http://127.0.0.1:1" }, URL, molisWorkControlHeaders: () => ({}), setInterval: () => 0, clearInterval: () => {}, L: pageText(locale),
-    fetch: async (url: string) => ({ ok: url.endsWith(STATE), status: url.endsWith(STATE) ? 200 : 500,
-      json: async () => url.endsWith(STATE) ? { workspaces: [{ workspace_id: "w", canonical_path: "/repo" }], methods: [] } : {} }),
+    document, location: { origin: "http://127.0.0.1:1" }, URL, setInterval: () => 0, clearInterval: () => {}, L: pageText(locale),
+    molisWorkRequest: pageRequest(url => url.endsWith(STATE) ? answer(200, { workspaces: [{ workspace_id: "w", canonical_path: "/repo" }], methods: [] }) : answer(500, {})),
   });
   await new Promise<void>(resolve => setImmediate(resolve));
   assert.equal(line.textContent, loaded);

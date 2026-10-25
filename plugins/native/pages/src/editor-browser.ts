@@ -31,7 +31,6 @@ import { handlePagesClick, handlePagesTextInput, handlePagesTripleClick, pagesDo
 
 export { mountComments } from "./comment-side-client.js";
 export { bindComments } from "./comment-editor-client.js";
-export { listFailed } from "./list-client.js";
 export { emptyDoc, pagesSchema };
 export { applyToPagesFrozen, freezePagesFocus, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus, type FrozenPagesFocus } from "./focus.js";
 export { mountPagesLanding } from "./landing-editor.js";

@@ -12,18 +12,18 @@ export { PAGES_UI_CONTRIBUTION_ID, pagesUiContribution, pagesUiDescriptor, rende
 export type { PagesUiModel, PagesUiPrimitives, PagesUiSurface } from "./ui.js";
 import { PAGES_STYLES as PAGES_BASE_STYLES } from "./styles.js";
 import { PAGES_COMMENT_STYLES } from "./comment-side-view.js";
-import { PAGES_IMPORT_STYLES } from "./import-client.js";
+import { PAGES_IMPORT_STYLES } from "./import-styles.js";
 /** Pages' stylesheet: the workbench, and its own import dialog (restored 2026-10-03 at the user's request). */
 export const PAGES_STYLES = PAGES_BASE_STYLES + PAGES_IMPORT_STYLES + PAGES_COMMENT_STYLES;
 export { PAGES_EN } from "./en.js";
+export { PAGES_MESSAGES } from "./messages.js";
 export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
 export { pagesMethods } from "./methods.js";
-export { openPagesStore, ownPagesStores, PagesStore, PAGES_DATABASE, PAGES_HOME_STORE } from "./store.js";
+export { ownPagesStores, PagesStore, PAGES_DATABASE, PAGES_HOME_STORE } from "./store.js";
 export { createPagesPlugin } from "./plugin.js";
 export type { PagesSql, PagesSqlValue, PagesStores } from "./store.js";
-export { purgePagesProject, pagesProjectData } from "./project-data.js";
 export type { PagesImportDocumentsInput } from "./store.js";
 export { generatePagesFromMaterials } from "./generate.js";
 export { preparePagesImport } from "./import-files.js";

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { bindActionClient, ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { bindActionClient, ActionError, requireSynchronous, type ActionAudience, type ActionAvailability, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller, LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { pluginErrors, type PluginActionClient, type PluginExecutionControl, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTIONS_DELEGATE_PERMISSION, declaresActionDelegation, pluginActionDirectory } from "./plugin-action-delegation.js";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, markPluginActionChecked, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, insideOpenPluginCall, markPluginActionChecked, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
@@ -71,9 +71,21 @@ function callScope(instanceProject: string | undefined, instanceClient: ActionCl
   return { project_id: control?.project_id ?? null, client: routed.client, caller: routed.caller, original_file: routed.original_file };
 }
 
+/**
+ * The Host's synchronous check whether an action is registered and ready in the activation's project, asked for a plugin
+ * (`LocalHostProjectClient.availability` with `consumer: "plugin"`). A Home activation has none.
+ */
+export type PluginDependencyCheck = (reference: ActionReference) => ActionAvailability;
+
+/** The project client's check, asked for a plugin. */
+export function hostDependencyCheck(client: Pick<LocalHostProjectClient, "availability">): PluginDependencyCheck {
+  return reference => client.availability(reference, { consumer: "plugin" });
+}
+
 /** One action binding for project and Home activations; identity and authority come from the Host. */
 export function pluginHostActions(context: PluginStartContext, manifest: PluginManifest, options: {
   client: ActionClient; actor_id: string; project_id?: string; providerId?: string; assertActive(): void; pluginCaller: HostPluginCaller;
+  dependencyCheck?: PluginDependencyCheck;
 }): PluginActionClient | undefined {
   const consumed = new Set(manifest.capabilities.consumes);
   const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
@@ -82,6 +94,9 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   // The Plugin's call to an action of its own. Its final check also asks the original caller of the action the Plugin made this
   // call in (`outer`): the action it calls writes in its own handler, under its own scope, so without this a cancelled or revoked
   // outer call would still write (S-18). Outside every action (discovery, `start`, a route) there is no outer caller to ask.
+  // Its audience is the outer call's (PG-028): a plugin's call to its own action gains no audience the call it is part of lacks, so an
+  // Agent's or a plugin's call cannot become the person's by passing through the plugin's own code. Without an outer call it is the
+  // person's only inside a route (the page the person is on, `ownAudience`); `discover` lists and runs nothing.
   const actionCaller = (projectId: string | null, outer?: ReturnType<typeof currentPluginInvocation>): ActionCallContext => {
     options.assertActive();
     const assertAuthority = (reference?: ActionReference, requiredPermissions?: readonly string[]) => {
@@ -96,7 +111,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: outer?.caller.actor_id ?? options.actor_id, project_id: projectId,
-      audience: "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
+      audience: outer?.caller.audience ?? "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
       allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: ownProvider })), ...required],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
@@ -133,6 +148,12 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     if (definition.operation === "command") markPluginActionChecked(outer);
     return output;
   };
+  /**
+   * Whose call the plugin's call to its own action is (PG-028): the route's, when the Host routed it; the outer action's, inside one;
+   * the person's page request inside a route; the installation's own (`plugin`) anywhere else, `start` and a timer a call left behind.
+   */
+  const ownAudience = (outer: ReturnType<typeof currentPluginInvocation>): ActionAudience =>
+    outer ? outer.caller.audience : insideOpenPluginCall() ? "user" : "plugin";
   const ownActions = (scope: { project_id: string | null; client: ActionClient; original_file?: HostOfferedOriginalFile }, outer?: ReturnType<typeof currentPluginInvocation>) =>
     bindActionClient(scope.client, () => ({ ...actionCaller(scope.project_id, outer), ...offered(scope) }));
   const routedActions = (scope: { project_id: string | null; client: ActionClient; caller?: ActionCallContext; original_file?: HostOfferedOriginalFile }, definition: ActionDefinition,
@@ -158,6 +179,17 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     }));
   };
   return !manifest.actions?.length && consumed.size === 0 ? undefined : {
+    // Only what the Manifest consumes is asked of the Host, so the Manifest stays a complete account of what this plugin can reach.
+    availability: reference => {
+      const check = options.dependencyCheck;
+      if (!check) return { available: false, code: "actions.dependency_unknown", reason: "宿主未提供依赖状态检查" };
+      try { options.assertActive(); } catch { return { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" }; }
+      if (!consumed.has(reference.capability_id)) {
+        const denied = pluginErrors.capability_denied("插件未声明消费此动作");
+        return { available: false, code: denied.code, reason: denied.message, kind: denied.kind };
+      }
+      return check(reference);
+    },
     discover: async () => (await ownActions({ project_id: options.project_id ?? null, client: options.client }).discover())
       .filter(view => view.provider.plugin_install_id === context.install_id),
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
@@ -172,7 +204,10 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
         ? { project_id: outer.caller.project_id, client: options.client }
         : callScope(options.project_id, options.client, control), projectId = scope.project_id;
       const own = manifest.actions?.find(action => sameAction(action, definition));
-      if (own && !job) return passed(outer, own, await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output);
+      // A call whose audience is `plugin` (the outer call is a plugin's, or there is none) goes the way a job's does, below: with the Host's
+      // issued caller, as the installation itself, never as a caller shaped here to look like the person.
+      const ownCaller = scope.caller !== undefined || ownAudience(outer) !== "plugin";
+      if (own && !job && ownCaller) return passed(outer, own, await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output);
       if (!own && !consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
       // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would
       // otherwise answer that the action is not there.

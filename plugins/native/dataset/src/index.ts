@@ -23,7 +23,6 @@ export { datasetActions, datasetContentActions, DATASET_ACTION_PERMISSIONS, crea
 export type { DatasetActionPorts } from "./actions.js";
 export { openDatasetStore, ownDatasetStores, DatasetStore, DATASET_DATABASE, DATASET_HOME_STORE, parseCsv, toCsv } from "./store.js";
 export type { DatasetSql, DatasetSqlValue, DatasetStores } from "./store.js";
-export { purgeDatasetProject, datasetProjectData } from "./project-data.js";
 export { mergeDatasetDraftRows } from "./row-merge.js";
 export type { DatasetDraftColumn, DatasetDraftRow } from "./row-merge.js";
 export { datasetErrors } from "./error.js";

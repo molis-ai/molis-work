@@ -1,11 +1,7 @@
-import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchRevisionOf, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ARTIFACT_FILE_IMPORT_ACTION, ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./browser.js";
-import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
-import type { ExternalDocumentSource, ModelRequired } from "./document-import.js";
-import { DOCUMENT_ARTIFACT_TYPE } from "./document-type.js";
+import { defineWorkflowContentActions, defineArtifactPreviewAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, type ActionDefinition, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ArtifactConsumerType, ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ARTIFACT_FILE_IMPORT_ACTION, ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactBrowserView, GoalArtifactEmbed } from "./browser-view.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 import { text, id, version, object, array, nullable, reference, consumerTypes, record } from "./action-schemas.js";
@@ -25,6 +21,10 @@ const subject: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = 
  * `data_base64` (at most 6 MB), or, left out, from the file the Host was given for this import (`ActionCallContext.original_file`,
  * any size; onboarding limits 2026-10-22).
  */
+/** The document sources the import reads; the module's `EXTERNAL_DOCUMENT_SOURCES` is the same list (tests/plugin-artifact-schemas.test.ts). */
+type ExternalDocumentSource = "notion" | "feishu" | "lark" | "google-docs";
+/** The transcription needs the local speech model first (PMAT-48). */
+interface ModelRequired { approximate_bytes: number | null }
 export interface ArtifactFileImport { source: "file"; filename: string; content?: string; title?: string;
   source_id?: string; original_file?: { filename: string; mime: string; data_base64?: string };
   /** The person agreed to download the local speech model for this transcription; the Host honours it only from a person (S-39, PMAT-48). */
@@ -49,26 +49,6 @@ const pluginInputsOutput = object({ inputs: array(object({ plugin_id: text, plug
 const searchEntries = defineSearchEntriesAction("artifacts.search.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
 /** The side panel's file tab (specs/archive/side-panel): the newest available version of each Artifact; previews read `subject`. */
 const fileEntries = defineFileEntriesAction("artifacts.files.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
-/**
- * The text of a payload that a person can read under a search hit. Producers keep ids, node types, encodings and
- * references in the same payload, so only these fields count, wherever they sit in it. A `cells` object is a table row
- * whose keys are column ids: its values are the text. `title` repeated by the payload is the hit's own title line.
- */
-const SEARCHABLE_FIELDS = new Set(["title", "name", "text", "content", "body", "filename", "description", "summary", "caption", "label", "heading", "notes", "markdown", "cells",
-  // The reading text the built-in producers keep under their own keys: a Coding report (task, answer, markdown body), a deck's
-  // bullets, a character's instructions, a captured Feed message's source name and tags.
-  "body_markdown", "task", "model_answer", "bullets", "instructions", "source_label", "tags"]);
-function payloadText(value: unknown, title: string, field = "", out: string[] = [], budget = { left: 4000 }): string[] {
-  if (budget.left <= 0 || value == null) return out;
-  if (typeof value === "string") {
-    if (!SEARCHABLE_FIELDS.has(field)) return out;
-    const text = searchText(value, budget.left);
-    if (text && text !== title) { out.push(text); budget.left -= text.length; }
-  }
-  else if (Array.isArray(value)) for (const item of value) payloadText(item, title, field, out, budget);
-  else if (typeof value === "object") for (const [key, item] of Object.entries(value)) payloadText(item, title, field === "cells" ? field : key, out, budget);
-  return out;
-}
 export const artifactsActions = {
   /** An imported file as the 成果库 and side panel show it (artifact-positioning A4): its text, or its original bytes. */
   preview: defineArtifactPreviewAction("artifacts.documents.preview", "导入的文件", read),
@@ -110,126 +90,8 @@ const artifactsContentActions = defineWorkflowContentActions({ id: "artifacts", 
   subject_kind: ARTIFACT_SUBJECT_KIND, read_permissions: read, write_permissions: read });
 export const ARTIFACT_ACTIONS: readonly ActionDefinition[] = [...Object.values(artifactsActions), ...Object.values(artifactsContentActions)];
 export const ARTIFACT_ACTION_PERMISSIONS = [...new Set(ARTIFACT_ACTIONS.flatMap(value => value.action.permissions))];
-export interface ArtifactActionPorts {
-  projectId: string;
-  artifacts: ArtifactsApplicationApi;
-  ledger: ContextLedgerApi["query"];
-  importDocument(input: ArtifactFileImport | ArtifactExternalImport, caller: ActionExecutionContext): Promise<ArtifactImportResult>;
-  importSources(): Record<string, boolean>;
-  importConnections?(): ConnectorConnectionView[];
-  openProjectReference(input: { reference: string }): Promise<{ filename: string; content_base64: string }>;
-  /** A Goal's title for 「被谁引用」, read by the host; null when the Goal is gone. */
-  goalTitle?(goalId: string): string | null;
-  /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */
-  typeTitle?(artifactTypeId: string): string | null;
-  /** A version's text as its type's owner previews it, for a workflow run that starts from it; null when there is none. */
-  previewText?(artifact: ArtifactVersionRecord, caller: ActionExecutionContext): Promise<string | null>;
-  /** Plugin input ports that take the version's type, read from the host's plugin wiring; absent where no plugins run. */
-  pluginInputs?(artifact: ArtifactVersionRecord): Promise<ArtifactPluginInput[]>;
-  /** Give the port this version, or with `restore` its former source; returns the ports as they are afterwards. */
-  bindPluginInput?(artifact: ArtifactVersionRecord, input: { plugin_id: string; port: string; restore: boolean }, caller: ActionExecutionContext): Promise<ArtifactPluginInput[]>;
-}
 /** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed as either; other links counted. */
 interface ArtifactReferences {
   goals: Array<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>;
   other: number;
-}
-const GOAL_ROLES: Record<string, ArtifactReferences["goals"][number]["role"]> = { "goal.input": "input", "goal.input.proposal": "proposed_input", "goal.output": "deliverable", "goal.output.proposal": "proposed" };
-/** A version people can still hand on: in the 成果库, readable and not archived. */
-function requireUsable(ports: ArtifactActionPorts, reference: ArtifactReference): ArtifactVersionRecord {
-  const artifact = ports.artifacts.query.getArtifactVersion(ports.projectId, reference);
-  if (!artifact || artifact.availability !== "available" || artifact.lifecycle_state === "archived") throw new ActionError("actions.subject_unavailable", "这一版不存在或不可用");
-  return artifact;
-}
-
-export function createArtifactActionHandlers(ports: ArtifactActionPorts): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => run(input as I, caller),
-  });
-  return [
-    bindArtifactPreview(artifactsActions.preview, DOCUMENT_ARTIFACT_TYPE, artifact => {
-      const file = importedFileOf(artifact);
-      if (!file) throw new ActionError("artifacts.unavailable", "这一版的内容不可用");
-      // An original in the store (over 6 MB) previews by the text read out of it; its bytes are its file route's.
-      if (file.stored) return { title: file.filename, media_type: "text/plain", text: file.text };
-      const text = /^text\//u.test(file.mime);
-      return { title: file.filename, media_type: file.mime.split(";")[0]!.trim(), ...(text ? { text: file.bytes.toString("utf8") } : { bytes: new Uint8Array(file.bytes) }) };
-    }),
-    bind(artifactsActions.subject, (input, caller) => {
-      const reference = parseArtifactSubjectId(input.subject_id);
-      if (!reference) throw new ActionError("actions.input_invalid", "成果事项必须包含准确的成果 ID 和版本");
-      const artifact = requireArtifactAnalysisRecord(ports.artifacts.query.getArtifactVersion(ports.projectId, reference),
-        { project_id: ports.projectId, reference });
-      const scope = { kind: "personal" as const, id: ports.projectId };
-      // Edges in this project's ledger name this project or no project (Goals' input bindings name none).
-      const currentProject = (project: string | null | undefined) => project == null || project === ports.projectId;
-      const edges = ports.ledger.list({ actor_id: caller.actor_id, scope });
-      const goalIds = edges.filter(edge => (edge.type === "goal.input" || edge.type === "goal.output")
-        && edge.target.module === "artifacts" && edge.target.id === reference.artifact_id && edge.target.version === reference.version
-        && currentProject(edge.target.project_id) && edge.source.module === "goals" && currentProject(edge.source.project_id))
-        .map(edge => edge.source.id);
-      return artifactAnalysisContext(artifact, goalIds, input as { offset?: number });
-    }),
-    bindSearchEntriesHandler(artifactsActions.searchEntries, () => {
-      const latest = new Map<string, ArtifactVersionRecord>();
-      for (const record of ports.artifacts.query.listArtifacts(ports.projectId)) {
-        if (record.lifecycle_state !== "active" || record.availability !== "available") continue;
-        const current = latest.get(record.artifact_id);
-        if (!current || record.version > current.version) latest.set(record.artifact_id, record);
-      }
-      return [...latest.values()].map((record): SearchEntry => {
-        const summary = payloadText(record.payload, searchText(record.title)).join("\n").slice(0, 4000);
-        // The summary is searched text read out of the payload by rules this build owns, so the revision covers it: an index made by an
-        // earlier build, with other rules, reads the entry again instead of keeping its old summary until the next version.
-        return { subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) }, revision: searchRevisionOf([`${record.version}:${record.content_digest}`, summary]),
-          // An imported document is read as its text, so its text is indexed and organized (specs/project-knowledge PMAT-14); other types keep their summary.
-          title: record.title, summary, updated_at: record.created_at, content: record.artifact_type_id === DOCUMENT_ARTIFACT_TYPE ? "context" : "summary",
-          open: { surface: "artifacts", id: artifactVersionPath(record) } };
-      });
-    }),
-    bindFileEntriesHandler(artifactsActions.fileEntries, () => {
-      const latest = new Map<string, ArtifactVersionRecord>();
-      for (const record of ports.artifacts.query.listArtifacts(ports.projectId)) {
-        if (record.lifecycle_state !== "active" || record.availability !== "available") continue;
-        const current = latest.get(record.artifact_id);
-        if (!current || record.version > current.version) latest.set(record.artifact_id, record);
-      }
-      return [...latest.values()].map(record => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-        revision: `${record.version}:${record.content_digest}`, title: record.title, folder: [ports.typeTitle?.(record.artifact_type_id) ?? record.artifact_type_id],
-        media_type: record.media_type, size: record.size_bytes ?? null, updated_at: record.created_at, open: { surface: "artifacts", id: artifactVersionPath(record) } }));
-    }),
-    bind(artifactsActions.browser, input => readArtifactBrowser(ports.artifacts.query, ports.projectId, input.reference ?? null, input.supported_types)),
-    bind(artifactsActions.read, input => readArtifactSelection(ports.artifacts.query, ports.projectId, input.reference, input.supported_types)),
-    bind(artifactsActions.export, input => ({ filename: `artifact-v${input.reference.version}.json`, mime: "application/json", content: exportArtifactVersion(ports.artifacts.query, ports.projectId, input.reference) })),
-    bind(artifactsActions.importFile, (input, caller) => ports.importDocument(input, caller)),
-    bind(artifactsActions.importExternal, (input, caller) => ports.importDocument(input, caller)),
-    bind(artifactsActions.importSources, () => ({ sources: ports.importSources(), connections: ports.importConnections?.() ?? [] })),
-    bind(artifactsActions.goalEmbeds, input => ({ embeds: readGoalArtifactEmbeds({ projectId: ports.projectId, goalId: input.goal_id, artifacts: ports.artifacts.query, ledger: ports.ledger, supportedTypes: input.supported_types }) })),
-    bind(artifactsActions.projectReference, input => ports.openProjectReference(input)),
-    bind(artifactsActions.pluginInputs, async input => ({ inputs: await ports.pluginInputs?.(requireUsable(ports, input.reference)) ?? [] })),
-    bind(artifactsActions.bindPluginInput, async (input, caller) => {
-      const artifact = requireUsable(ports, input.reference);
-      if (!ports.bindPluginInput) throw new ActionError("artifacts.unavailable", "这里没有运行中的插件，不能改插件的输入");
-      return { inputs: await ports.bindPluginInput(artifact, { plugin_id: input.plugin_id, port: input.port, restore: input.restore === true }, caller) };
-    }),
-    bind(artifactsActions.links, (input, caller) => {
-      const edges = ports.ledger.list({ actor_id: caller.actor_id, scope: { kind: "personal", id: ports.projectId } }).filter(edge => edge.state === "active"
-        && edge.target.module === "artifacts" && edge.target.id === input.reference.artifact_id && edge.target.version === input.reference.version);
-      const goals = edges.filter(edge => edge.source.module === "goals" && GOAL_ROLES[edge.type])
-        .map(edge => ({ goal_id: edge.source.id, title: ports.goalTitle?.(edge.source.id) ?? edge.source.id, role: GOAL_ROLES[edge.type]! }));
-      return { goals, other: edges.length - goals.length } satisfies ArtifactReferences;
-    }),
-    ...bindWorkflowContentHandlers(artifactsContentActions, {
-      list: () => ports.artifacts.query.listArtifacts(ports.projectId).filter(record => record.availability === "available" && record.lifecycle_state !== "archived")
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        .map(record => ({ item_id: artifactSubjectId(record), title: `${record.title} · v${record.version}`, caption: ports.typeTitle?.(record.artifact_type_id) ?? record.artifact_type_id, at: record.created_at })),
-      read: async ({ item_id }, caller) => {
-        const reference = parseArtifactSubjectId(item_id);
-        const record = reference ? ports.artifacts.query.getArtifactVersion(ports.projectId, reference) : null;
-        if (!record || record.availability !== "available") throw new ActionError("actions.subject_unavailable", "这一版不存在或不可用");
-        const text = await ports.previewText?.(record, caller as ActionExecutionContext) ?? importedDocumentFile(record)?.text ?? null;
-        return { title: record.title, body: text ?? record.title, url: artifactVersionPath(record), source: "成果库" };
-      },
-    }),
-  ];
 }

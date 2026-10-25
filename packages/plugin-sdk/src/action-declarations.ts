@@ -8,7 +8,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { contextDeclarationProblems } from "./context-declarations.js";
 import {
-  fileSourceDeclarationProblems, fragmentOfferDeclarationProblems, placementDeclarationProblems, searchSourceDeclarationProblems,
+  fileSourceDeclarationProblems, fragmentOfferDeclarationProblems, placementDeclarationProblems, placementRelationListProblems, placementRelationProblems, searchSourceDeclarationProblems,
 } from "./source-declarations.js";
 import { workExecutorDeclarationProblems } from "./work-executor-declarations.js";
 
@@ -26,7 +26,7 @@ function definitionListProblems(definitions: unknown): string[] {
   if (definitions === undefined) return [];
   if (!Array.isArray(definitions)) return ["actions 必须是数组"];
   const seen = new Set<string>();
-  return definitions.flatMap(raw => definitionProblems(raw, seen));
+  return [...definitions.flatMap(raw => definitionProblems(raw, seen)), ...placementRelationListProblems(definitions)];
 }
 
 function definitionProblems(raw: unknown, seen: Set<string>): string[] {
@@ -44,12 +44,14 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...offerChoiceProblems(key, action),
     ...homeProtocolProblems(key, raw.operation, action),
     ...homeAggregateProblems(key, raw.operation, action),
+    ...projectReachProblems(key, action),
     ...backgroundJobProblems(key, raw.operation, action),
     ...undoProblems(key, raw.operation, action),
     ...searchSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...fragmentOfferDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...fileSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...placementDeclarationProblems(key, action, raw.operation, canonicalSchema),
+    ...placementRelationProblems(key, action, raw.operation),
     ...workExecutorDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...workflowContentProblems(key, raw.version, raw.operation, action),
     ...operationKindProblems(key, raw.operation, action),
@@ -182,6 +184,24 @@ function homeAggregateProblems(key: string, operation: unknown, a: ActionBody): 
   return [];
 }
 
+// ---- the person's projects, given by the Host --------------------------------------------------------------------------------
+
+function projectReachProblems(key: string, a: ActionBody): string[] {
+  if (a.project_reach === undefined) return [];
+  if (a.project_reach !== "person" || a.scope !== "home") return [`能力 ${key} 的 project_reach 只能是 "person"，并且只能写在 Home 范围的动作上`];
+  return [];
+}
+
+/**
+ * Whether the Manifest holds up its end of `project_reach` (PG-014): every action that declares it needs the `projects:reach` permission
+ * declared too, so the installation's confirmation can show it and the person can decline it. Declaring is half; the grant is the other.
+ */
+export function projectReachPermissionProblems(actions: unknown, permissions: ReadonlySet<string>): string[] {
+  if (!Array.isArray(actions) || permissions.has("projects:reach")) return [];
+  return actions.flatMap(definition => isObject(definition) && isObject(definition.action) && definition.action.project_reach !== undefined
+    ? [`能力 ${String(definition.capability_id)} 声明了 project_reach，Manifest 必须声明 projects:reach 权限`] : []);
+}
+
 /**
  * Whether the Home may gather this action across projects (PG-043): it declares `home_aggregate` and passes the rule its Manifest is
  * checked with. The Host asks again before each call, so a registration that skipped the check is still not called.
@@ -254,12 +274,13 @@ function sceneListProblems(scenes: unknown): string[] {
   if (scenes === undefined) return [];
   if (!Array.isArray(scenes)) return ["action_scenes 必须是数组"];
   const seen = new Set<string>();
-  return scenes.flatMap(scene => sceneProblems(scene, seen));
+  const ruleKeys = new Set<string>();
+  return scenes.flatMap(scene => sceneProblems(scene, seen, ruleKeys));
 }
 
-function sceneProblems(s: unknown, seen: Set<string>): string[] {
+function sceneProblems(s: unknown, seen: Set<string>, ruleKeys: Set<string>): string[] {
   if (!isObject(s) || !isId(s.scene_id) || !isVersion(s.version)) return ["消费场景需要有效身份和版本"];
-  const problems = sceneContractProblems(s);
+  const problems = [...sceneContractProblems(s), ...defaultRuleProblems(s, ruleKeys)];
   const key = `${s.scene_id}@${s.version}`;
   if (seen.has(key)) problems.push(`消费场景重复：${key}`);
   seen.add(key);
@@ -282,6 +303,27 @@ function sceneContractProblems(s: Record<string, unknown>): string[] {
       problems.push(`消费场景 ${s.scene_id} 的推荐名称必须对应结果合同中的选项`);
     }
   }
+  return problems;
+}
+
+const DEFAULT_RULE_KEY = /^[a-z][a-z0-9_]{1,63}$/;
+const DEFAULT_RULE_OPTION_KEY = /^[a-z][a-z0-9_.]{0,63}$/;
+
+/** The rule a scene ships for itself: a finite choice with its own words, whose options are recommendations the scene can name. */
+function defaultRuleProblems(s: Record<string, unknown>, ruleKeys: Set<string>): string[] {
+  const rule = s.default_rule;
+  if (rule === undefined) return [];
+  const invalid = `消费场景 ${s.scene_id} 的默认规则无效`;
+  if (!isObject(rule) || typeof rule.function_key !== "string" || !DEFAULT_RULE_KEY.test(rule.function_key) || !isText(rule.name) || rule.name.length > 80
+    || !isText(rule.instructions) || rule.instructions.length > 4000 || !isStrings(rule.subject_kinds) || !Array.isArray(rule.options)
+    || rule.options.length < 2 || rule.options.length > 20) return [invalid];
+  const keys = rule.options.map(option => isObject(option) && typeof option.key === "string" && DEFAULT_RULE_OPTION_KEY.test(option.key) && isText(option.description) && option.description.length <= 200 ? option.key : null);
+  if (keys.includes(null) || new Set(keys).size !== keys.length) return [invalid];
+  const problems: string[] = [];
+  const labels = s.recommendation_labels;
+  if (isObject(labels) && keys.some(key => !(key as string in labels))) problems.push(`消费场景 ${s.scene_id} 的默认规则选项必须是它的推荐名称`);
+  if (ruleKeys.has(rule.function_key)) problems.push(`默认规则重复：${rule.function_key}`);
+  ruleKeys.add(rule.function_key);
   return problems;
 }
 

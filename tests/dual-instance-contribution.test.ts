@@ -57,7 +57,7 @@ function runtime(service: ActionService, redemption?: (definition: PluginDefinit
 }
 async function start(target: PluginRuntime, definition: PluginDefinition) {
   const grants = definition.manifest.permissions.map(declared => declared.permission);
-  const installed = target.install({ definition, deployment: "local", grants }).install;
+  const installed = target.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants }).install;
   await target.start(installed.install_id);
   return target.get(installed.install_id);
 }

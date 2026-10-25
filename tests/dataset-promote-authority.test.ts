@@ -43,7 +43,7 @@ async function promotion(stage: Stage | "none", failure: Failure) {
   const seed = openDatasetStore(home), table = seed.create({ project_id: DEMO_PROJECT_ID, title: "Authority" });
   seed.close();
   try {
-    assert.deepEqual((await platform.start([{ definition: createDatasetPlugin(), bundled: true }])).running, [DATASET_PLUGIN_ID]);
+    assert.deepEqual((await platform.start([{ definition: createDatasetPlugin(), trust: { level: "host" } }])).running, [DATASET_PLUGIN_ID]);
     const controller = new AbortController(), trigger = stage === "none" ? undefined : STAGES[stage];
     let revoked = false, replaced = false, waits = 0, armed = false, fired = false;
     const fail = () => { fired = true; if (failure === "cancel") controller.abort(); else if (failure === "replace") replaced = true; else revoked = true; };

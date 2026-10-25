@@ -87,8 +87,20 @@ const gamma = (entries: string) => 'export const GAMMA_EN: Record<string, string
 const addToRoot = (import_: string, use: string) => put("apps/workbench/src/i18n/en.ts", read("apps/workbench/src/i18n/en.ts").replace('import { ALPHA_EN } from "@scratch/alpha";', `import { ALPHA_EN } from "@scratch/alpha";\n${import_}`).replace("  ...ALPHA_EN,", `  ...ALPHA_EN,\n${use}`));
 const addGamma = (entries: string) => { put("plugins/native/gamma/src/en.ts", gamma(entries)); addToRoot('import { GAMMA_EN } from "@scratch/gamma";', "  ...GAMMA_EN,"); };
 const messages = (owner: string, entries: string) => `export const ${owner.toUpperCase()}_MESSAGES = {\n${entries}\n};\n`;
-const registerMessages = (owner: string, alias = `${owner.toUpperCase()}_MESSAGES`) => put(MESSAGES_ROOT,
-  `import { ${owner.toUpperCase()}_MESSAGES as ${alias} } from "@scratch/${owner}";\nexport const BUILTIN_PLUGIN_CATALOG = [{ messages: ${alias} }];\n`);
+/**
+ * An owner's dictionary registered the way a built-in does it (W5-02): its package's own src/registration.ts names it, and the
+ * generated catalog lists that registration (a catalog written by hand is refused, RAC-566). `field` is the registration's field.
+ */
+const registration = (owner: string, field = "messages") => {
+  put(`plugins/native/${owner}/package.json`, JSON.stringify({ name: `@scratch/${owner}` }));
+  put(`plugins/native/${owner}/src/registration.ts`, `import { ${owner.toUpperCase()}_MESSAGES } from "./messages.js";\nexport const registration = { ${field}: ${owner.toUpperCase()}_MESSAGES };\n`);
+};
+const catalog = (owner: string, alias: string, list: string) =>
+  put(MESSAGES_ROOT, `import { registration as ${alias} } from "@scratch/${owner}/registration";\n${list}\n`);
+const registerMessages = (owner: string, alias = `${owner}Registration`) => {
+  registration(owner);
+  catalog(owner, alias, `export const BUILTIN_PLUGIN_CATALOG = [${alias}];`);
+};
 
 
 // A browser program in three files of the beta plugin: program.ts defines tx and button, and joins the scripts of the files it
@@ -441,13 +453,23 @@ test("the report prints the numbers and the biggest conflicts; an old-shaped bas
 
 // ---- this repository ----------------------------------------------------------------------------------------------------------
 // The scan has to read the real tree, not only fixtures: these are canaries for each kind of call and for the dictionaries.
-const real = (() => { const scan = scanTree(workingTreeSnapshot(repoRoot), isProductSource); return { scan, summary: summarise(scan) }; })();
+const productSnapshot = workingTreeSnapshot(repoRoot);
+const real = (() => { const scan = scanTree(productSnapshot, isProductSource); return { scan, summary: summarise(scan) }; })();
+// Independently discover the literal dictionary declarations in the source text, including inline dictionaries and stable
+// dictionary parts. This does not use scanFile/scanTree to decide what ought to be found. A new declaration form needs its own
+// example here; this deliberately small inventory is not a second TypeScript parser.
+const dictionaryDeclaration = /^\s*(?:export\s+)?const\s+(?:EN|[A-Z][A-Z0-9_]*_(?:EN|MESSAGES))\b[^=\n]*=\s*(?:Object\.freeze\(\s*)?\{/m;
+const expectedDictionaryFiles = productSnapshot.files.filter((file) => isProductSource(file) && dictionaryDeclaration.test(productSnapshot.read(file) ?? ""));
+const assertDictionaryCoverage = (scan: typeof real.scan) => assert.deepEqual(
+  [...scan.dictionaryFiles].sort(), expectedDictionaryFiles.toSorted(), "every declared source dictionary must be scanned",
+);
 
 test("this repository: nothing is missing, and the scan covers every kind of call the product uses", () => {
   const { scan, summary } = real;
   assert.deepEqual(summary.detail.missing.map((item: { key: string; sites: Array<{ file: string; line: number }> }) => `${item.key} ${item.sites[0]!.file}:${item.sites[0]!.line}`), [], "every translator call has English");
   assert.deepEqual(scan.stableErrors, []);
-  assert.ok(summary.dictionaries >= 40 && summary.entries >= 9000, `dictionaries ${summary.dictionaries}, entries ${summary.entries}`);
+  // TSCAN-01: entries counts Chinese-key words only; moving words to stable dictionaries legitimately lowers it.
+  assert.ok(summary.dictionaries >= 40, `dictionaries ${summary.dictionaries}`);
   assert.ok(summary.calls >= 7000 && summary.callFiles >= 150, `calls ${summary.calls} in ${summary.callFiles} files`);
   // One floor per kind of call (about half of what the tree has today), so a refactor that moves a file does not break this,
   // while a rule that stops reading a whole kind of call does.
@@ -458,16 +480,22 @@ test("this repository: nothing is missing, and the scan covers every kind of cal
   assert.ok(count((call) => call.embedded) > 1500, "calls inside the browser scripts that live in template literals");
   assert.ok(count((call) => call.callee === "globalThis.L" && call.embedded) >= 1, "globalThis.L(…) inside a browser script");
   assert.ok(count((call) => !roots.has(call.callee)) > 250, "calls of wrappers and of translators injected as typed parameters");
-  assert.ok(count((call) => call.callee === "this.t") > 20 && count((call) => call.callee === "p.L") > 20, "this.t(…) and p.L(…)");
+  assert.ok(count((call) => call.callee === "p.L") > 20, "p.L(…)");
+  // No product file calls `this.t(…)` since the horizontal services were split (R-38): Placement's `placementText(ports, …)` hands its
+  // key to the port's `text(…)`, a translator its interface declares, and is read as a wrapper. The `this.t` rule stays, shown here on a
+  // file of its own, and the wrapper is shown on the real tree.
+  assert.deepEqual(scanFile("horizontal/sample/src/index.ts", 'class Sample { private t(zh: string): string { return zh; } title() { return this.t("未命名"); } }\n').calls
+    .filter((call: { callee: string }) => call.callee === "this.t").map((call: { key: string }) => call.key), ["未命名"], "this.t(…)");
+  assert.ok(count((call) => call.callee === "placementText" && call.file.startsWith("horizontal/placement/")) > 20, "a wrapper of a port's declared translator");
   assert.ok(count((call) => call.callee === "text") > 10, "an injected translator typed as a parameter (text: (value: string, values?: Record<string, string | number>) => string)");
 });
 
 test("this repository: wrappers are followed through every forwarded parameter and into the other files of a browser program", () => {
   const keys = (file: string, callee: string) => real.scan.calls.filter((call: { file: string; callee: string }) => call.file === file && call.callee === callee).map((call: { key: string }) => call.key);
-  // two labels, one call: the title and the hint (relationGroup, renderPolicyToggle), and a placeholder after a label (field)
+  // relationGroup forwards its title and hint; renderPolicyToggle forwards the confirmation label.
+  // The field-wrapper placeholder is covered by the dedicated mutation case above.
   assert.ok(keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("上游") && keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("这个 Goal 的归属与完成依赖"));
   assert.ok(keys("plugins/native/goals/src/policy-ui.ts", "renderPolicyToggle").includes("完成前必须由用户确认工作结果"));
-  assert.ok(keys("plugins/native/workflows/src/client.ts", "field").includes("标题规则") && keys("plugins/native/workflows/src/client.ts", "field").includes("{标题}"));
   // Alchemist: tx and button are defined in client.ts, section in client-views.ts, and the three other script files call them
   assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "button").includes("归档方向"));
   assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "tx").includes("实际使用次数"));
@@ -503,11 +531,43 @@ test("without the catalog root there is nothing to serve from, and the rule stay
   assert.deepEqual(unservedDictionaries(withRoot).map((item: { name: string }) => item.name), ["GAMMA_EN"]);
 });
 
-test("this repository: every dictionary file is found, wherever it lives", () => {
+test("TSCAN-02 this repository: every dictionary file is found, wherever it lives", () => {
+  assertDictionaryCoverage(real.scan);
   const listed = workingTreeSnapshot(repoRoot).files.filter((file) => isProductSource(file) && /(^|\/)(en|[a-z-]+-en)\.ts$/.test(file));
   assert.ok(listed.length >= 40);
   assert.deepEqual(listed.filter((file) => !real.scan.dictionaryFiles.has(file)), [], "a *-en.ts file the scan could not read as a dictionary");
+  // Fixed facts, read directly from these product dictionaries: plain objects, Object.assign, inline dictionaries, stable
+  // dictionaries and a stable dictionary part. Expected keys and English do not come from the scan's output.
+  for (const [file, key, english] of [
+    [SERVED_ROOT, "连接不可用", "Connection unavailable"],
+    [SERVED_ROOT, "概览", "Overview"],
+    ["packages/design-system/src/plugin-components.ts", "页框", "Page frame"],
+    ["plugins/native/schedule/src/en.ts", "确认决定", "Confirm decision"],
+  ]) {
+    const source = real.scan.files.find((item: { file: string }) => item.file === file);
+    assert.ok(source?.entries.some((entry: { key: string; value: string | null }) => entry.key === key && entry.value === english), `${file}: ${key} = ${english}`);
+  }
+  for (const [file, key, zh, en] of [
+    ["plugins/native/schedule/src/messages.ts", "schedule.action.new", "新建定时任务", "New scheduled task"],
+    ["plugins/native/shelf/src/messages.ts", "shelf.bar.manage-actions", "管理动作", "Manage actions"],
+    ["plugins/native/coding/src/timeline-messages.ts", "coding.call.read", "读取", "Read"],
+  ]) {
+    const source = real.scan.files.find((item: { file: string }) => item.file === file);
+    assert.ok(source?.stable.some((entry: { key: string; zh: string | null; en: string | null }) => entry.key === key && entry.zh === zh && entry.en === en), `${file}: ${key} = ${en}`);
+  }
 });
+
+const stableDictionaryFiles = new Set(expectedDictionaryFiles.filter((file) => /\bconst\s+[A-Z][A-Z0-9_]*_MESSAGES\b/.test(productSnapshot.read(file) ?? "")));
+for (const [kind, omitted] of [
+  ["one dictionary", new Set(["plugins/native/schedule/src/en.ts"])],
+  ["all Chinese-key dictionaries", new Set(expectedDictionaryFiles.filter((file) => !stableDictionaryFiles.has(file)))],
+  ["all stable dictionaries", stableDictionaryFiles],
+] as const) {
+  test(`TSCAN-03 the independent inventory rejects a scan that skips ${kind}`, () => {
+    const incomplete = scanTree({ ...productSnapshot, files: productSnapshot.files.filter((file) => !omitted.has(file)) }, isProductSource);
+    assert.throws(() => assertDictionaryCoverage(incomplete), /every declared source dictionary must be scanned/);
+  });
+}
 
 test("this repository: scanning a file twice gives the same facts, and the owners table names the plugins", () => {
   const text = readFileSync(path.join(repoRoot, "plugins/native/images/src/ui.ts"), "utf8");
@@ -547,10 +607,11 @@ for (const mode of ["missing catalog", "import only", "unrelated object", "wrong
   test(`RAC-59: a stable dictionary with ${mode} fails, and updating the baseline cannot hide it`, () => {
     branch("unserved-stable", () => {
       put("plugins/native/alpha/src/messages.ts", stableAlpha);
-      if (mode !== "missing catalog") put(MESSAGES_ROOT, 'import { ALPHA_MESSAGES } from "@scratch/alpha";\n' +
-        (mode === "import only" ? 'export const BUILTIN_PLUGIN_CATALOG = [];\n' :
-          mode === "unrelated object" ? 'const unused = { messages: ALPHA_MESSAGES }; export const BUILTIN_PLUGIN_CATALOG = [];\n' :
-          'export const BUILTIN_PLUGIN_CATALOG = [{ unused: ALPHA_MESSAGES }];\n'));
+      if (mode === "missing catalog") return;
+      registration("alpha", mode === "wrong field" ? "unused" : "messages");
+      catalog("alpha", "alphaRegistration", mode === "import only" ? "export const BUILTIN_PLUGIN_CATALOG = [];" :
+        mode === "unrelated object" ? "const unused = [alphaRegistration]; export const BUILTIN_PLUGIN_CATALOG = [];" :
+          "export const BUILTIN_PLUGIN_CATALOG = [alphaRegistration];");
     });
     for (const flags of [[], ["--base", "main"]]) {
       const run = gate(...flags);
@@ -570,7 +631,7 @@ for (const mode of ["missing catalog", "import only", "unrelated object", "wrong
   });
 }
 
-test("RAC-59: the catalog may use an import alias for the owner's stable dictionary", () => {
+test("RAC-59: the catalog may import the owner's registration under any name", () => {
   branch("stable-alias", () => {
     put("plugins/native/alpha/src/messages.ts", stableAlpha);
     registerMessages("alpha", "WORDS");

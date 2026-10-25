@@ -25,9 +25,9 @@ test("RCPT-352/353 the AI's new task waits on the plan card for the person; the 
       const board=document.querySelector('[data-coding-board]'),lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(document.body),posted=[],opened=[];
       // The shared receipt's link as Coding hands it on: a button only for a step pointing at a supplement.
       const from=(node,first)=>{const one=node?.origins?.[0];if(!one)return null;const button=document.createElement('button');button.className='mw-btn--link';button.textContent='来自补充「'+one.input_id+'」';button.onclick=()=>{first?.();opened.push(one.input_id);};return button;};
-      const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id,navigate:async()=>{},amend:async()=>{},
+      const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id,navigate:async()=>{},amend:async()=>{},
         from:node=>from(node,()=>opened.push('board closed'))});
-      const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api:async(path,method,body)=>{posted.push({path,method,body});return {board:{terminal:false},steered:true};},current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
+      const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,roleLabel:()=>undefined,api:async(path,method,body)=>{posted.push({path,method,body});return {board:{terminal:false},steered:true};},current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
         from:node=>from(node),stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(text=>text).step});
       const claim=(id,treatment,text)=>({turn_id:id,kind:'user',text,steer:{id,state:'read',model_claim:{treatment,targets:[],impacts:['scope'],revisions:1}}});
       const turns=[claim('in-1','new-task','顺便把注册接口也覆盖一下'),claim('in-2','apply-now','日志改成中文'),claim('in-3','new-task','再加一个导出')];
@@ -74,8 +74,8 @@ test("VUX-40: the plan card and the TaskBoard speak English in English", { timeo
       ${STATE_RING_CLIENT_SCRIPT}
       const sheet=document.createElement('style');sheet.textContent=${JSON.stringify(CODING_STYLES)};document.head.append(sheet);
       const board=document.querySelector('[data-coding-board]'),outline=document.querySelector('[data-coding-board-outline]'),lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(document.body);
-      const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board,outline,onShow:()=>true,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id==='coding-builder'?'Builder':id,navigate:async()=>{},amend:async()=>{},from:()=>null});
-      const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api:async()=>({board:{terminal:false},steered:true}),current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
+      const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,board,outline,onShow:()=>true,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id==='coding-builder'?'Builder':id,navigate:async()=>{},amend:async()=>{},from:()=>null});
+      const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,roleLabel:()=>undefined,api:async()=>({board:{terminal:false},steered:true}),current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
         from:()=>null,stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L).step});
       const turns=[{turn_id:'u',kind:'user',text:'Fix login'},{turn_id:'in-1',kind:'user',text:'Also cover sign-up',steer:{id:'in-1',state:'read',model_claim:{treatment:'new-task',targets:[],impacts:['scope'],revisions:1}}}];
       const plan={revision:2,confirmed:{artifact_id:'x',version:1},content:{title:'Fix login',steps:[{title:'Change the login route',acceptance:'Tests pass'},{title:'Update docs',acceptance:'Docs read well'},

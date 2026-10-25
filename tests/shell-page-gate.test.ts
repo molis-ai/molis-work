@@ -7,8 +7,8 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoBoard, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // Every plugin is content in the one workbench (specs/shell-page-exceptions, S7). Following every local link a seeded
@@ -159,7 +159,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",
   "plugins/native/jelly/src/markdown.ts": "导出：Jelly 的 HTML 文件",
-  "plugins/native/pages/src/client-document.ts": "导出：Pages 的 HTML 文件",
+  "plugins/native/pages/src/browser/document.ts": "导出：Pages 的 HTML 文件",
   "plugins/native/ppt/src/browser/present.ts": "打印：PPT 打印框",
 };
 

@@ -9,7 +9,7 @@ import {
   LocalProjectDatabase,
   openProjectVersionStores,
 } from "@molis-ai/molis-work-app-local-host";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "pages-project-binding-token-0123456789";

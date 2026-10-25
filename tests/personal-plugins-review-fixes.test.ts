@@ -202,7 +202,10 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.equal(rewriteNativePluginApiPath("/api/pages/abc"), "/api/pages/abc");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/unknown/x"), "/api/plugins/unknown/x");
   // W5-01-PAGES-02: the Runtime client uses its Manifest route, including the resource path.
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.pages\/pages/);
+  // RAC-158: Pages' page names its routes under the plugin ("/pages") and asks the shared host for the full path.
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/pages/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/pages" \+ tail\)/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\("\/pages"/);
+  assert.ok(pagesManifest.routes?.some(route => route.method === "GET" && route.path === "/pages"), "and the Manifest declares that collection route");
   // RAC-132: Forms uses the Manifest route supplied by the shared client host (W4-04): its page calls the routes its Manifest declares, under the project, with no short path to rewrite to.
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/forms"/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\("\/forms"/);

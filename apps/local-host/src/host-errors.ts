@@ -6,6 +6,8 @@ import { defineErrorCodes } from "@molis-ai/molis-work-plugin-sdk";
  */
 export const hostErrors = defineErrorCodes("host", {
   closed: "invalid",
+  /** The caller's close deadline elapsed; the underlying resource cleanup and Home ownership continue. */
+  close_timeout: "timeout",
   project_invalid: "invalid",
   project_identity_conflict: "invalid",
   project_closing: "invalid",
@@ -27,8 +29,6 @@ export const hostErrors = defineErrorCodes("host", {
   plugin_caller_invalid: "forbidden",
   /** The caller the Host issued belongs to another person, project or installation than the call. */
   plugin_caller_mismatch: "forbidden",
-  /** A capability handed to the wrong seam: an action to the typed `register`. Each kind has one seam (PG-035). */
-  registration_seam: "invalid",
   catalog_unavailable: "invalid",
   workspace_unavailable: "invalid",
   /** The project has no linked folder with this id: unlinked already, or never this project's. */

@@ -1,4 +1,5 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { declaresOwner } from "@molis-ai/molis-work-contracts/platform/ui";
 import type {
   PluginAppContribution,
   PluginContribution,
@@ -53,8 +54,8 @@ function assertViews(manifest: PluginManifest, contribution: PluginAppContributi
   const delivered = new Map<string, true>();
   for (const view of contribution.views ?? []) {
     const contributionId = view.descriptor.contribution_id;
-    if (view.descriptor.plugin_id !== manifest.plugin_id) {
-      problems.push(`视图 ${contributionId} 声明了别的插件身份`);
+    if (declaresOwner(view.descriptor)) {
+      problems.push(`视图 ${contributionId} 自己写了插件身份，插件身份由平台按 Manifest 填写`);
       continue;
     }
     if (!expected.has(contributionId)) {

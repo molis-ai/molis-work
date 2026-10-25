@@ -237,18 +237,21 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-const APPROVED_CEILINGS = {
-  // BL-372 (#1223, batch-33): the Runtime row on the project's general settings page, shown with more than one Runtime or when
-  // the picked one is gone. The row binder is already written compact; reviewed by the coordinator on 2026-10-24, +852 B.
-  "/assets/molis-work-workbench.js": [1130064, 1130916],
-};
+const APPROVED_CEILINGS = {};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
 // User approved 2026-10-21 (specs/archive/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
 // shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
+// User approved 2026-10-24 (pop-up decision, W5-04 third group): Files, Git, Diff and Text Stats each ship their own bundle now that
+// Coding lends them to its panels through `clientUses` instead of copying their code into coding.js; coding.js falls by 82 KB.
+// Each is frozen once at the measured bytes.
 const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugin-frame.js": 187120,
+  "/assets/molis-work-plugins/diff.js": 1483,
+  "/assets/molis-work-plugins/files.js": 11227,
+  "/assets/molis-work-plugins/git.js": 29496,
+  "/assets/molis-work-plugins/text-stats.js": 1281,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

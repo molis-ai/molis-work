@@ -1,7 +1,7 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { registeredIconNames, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, settingsEntries } from "./plugin-catalog.js";
+import { builtinPluginDirectory, settingsEntries } from "./plugin-catalog.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
 /** 能力 is four settings categories served from /capabilities/<id> (specs/artifact-positioning S6b). */
@@ -26,7 +26,7 @@ let settingsIcons: ReadonlyMap<string, MolisWorkIcon> | undefined;
 function declaredSettingsIcons(): ReadonlyMap<string, MolisWorkIcon> {
   if (settingsIcons) return settingsIcons;
   const known = new Set<string>(registeredIconNames());
-  settingsIcons = new Map(settingsEntries([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS])
+  settingsIcons = new Map(settingsEntries(builtinPluginDirectory().map((entry) => entry.id))
     .flatMap((view) => view.icon && known.has(view.icon) ? [[view.contribution_id, view.icon as MolisWorkIcon] as const] : []));
   return settingsIcons;
 }
@@ -53,13 +53,9 @@ export function pluginSettingsNavItemsFrom(
     .filter((item) => !isHostGlobalSettingsSection(item.section_id));
 }
 
-/** Personal plugins are installed until this project hides them. Project plugins appear only when `enabled` includes them. */
-export function listPluginSettingsNavItems(enabled?: readonly string[], hidden?: readonly string[]): PluginSettingsNavItem[] {
-  const excluded = new Set(hidden ?? []);
-  const scope = [...new Set([
-    ...PERSONAL_PLUGIN_IDS.filter((id) => !excluded.has(id)),
-    ...(enabled ?? []),
-  ])] as ProjectPluginId[];
+/** The settings pages of the plugins the context shows (`shown`, as the Host works it out: personal ones unless hidden, and the enabled ones). */
+export function listPluginSettingsNavItems(shown: readonly string[] = []): PluginSettingsNavItem[] {
+  const scope = [...new Set(shown)] as ProjectPluginId[];
   const placed = settingsEntries(scope);
   const allowed = new Set(placed.map((entry) => entry.contribution_id));
   const order = new Map(placed.map((entry, index) => [entry.contribution_id, index]));

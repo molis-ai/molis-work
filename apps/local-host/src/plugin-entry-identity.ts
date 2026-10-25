@@ -1,11 +1,13 @@
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { isHostTrust } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
 import type { PluginOwnerFilesEntry, PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 
-/** Only the Host's actual definition objects may inherit a bundled provider or a declared library. */
+/** Only the Host's actual definition objects may inherit the provider of its own build (`host` trust) or a declared library. */
 export function pluginEntryIdentity() {
-  const bundled = new WeakSet<PluginDefinition>();
-  const bundledManifests = new WeakSet<PluginManifest>();
+  const hostBuilt = new WeakSet<PluginDefinition>();
+  const hostBuiltManifests = new WeakSet<PluginManifest>();
   const listed = new WeakSet<PluginDefinition>();
   const ownerFiles = new WeakMap<PluginDefinition, PluginOwnerFilesBinding>();
   const configurations = new WeakMap<PluginDefinition, PluginModelConfigurationDeclaration>();
@@ -13,7 +15,7 @@ export function pluginEntryIdentity() {
   const projectData = new WeakMap<PluginDefinition, PluginProjectCleanup>();
   const dual = new WeakSet<PluginDefinition>();
   return {
-    providerFor: (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId,
+    providerFor: (definition: PluginDefinition, installId: string) => hostBuilt.has(definition) ? definition.manifest.plugin_id : installId,
     /** The library its Manifest declares, for a definition object the Host's start list holds; none for any other. */
     databaseFor: (definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined => listed.has(definition) ? definition.manifest.databases?.home : undefined,
     ownerFilesFor: (definition: PluginDefinition) => ownerFiles.get(definition),
@@ -22,13 +24,13 @@ export function pluginEntryIdentity() {
     projectDataFor: (definition: PluginDefinition) => projectData.get(definition),
     /** Whether the Host's start list said this definition is one half of a dual-instance plugin; nothing the plugin declares does. */
     dualInstance: (definition: PluginDefinition) => dual.has(definition),
-    /** Whether this Manifest object is the one a bundled definition on the Host's start list carries. */
-    shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && bundledManifests.has(manifest),
+    /** Whether this Manifest object is the one a definition of `host` trust on the Host's start list carries. */
+    shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && hostBuiltManifests.has(manifest),
     /** The files its Manifest declares, for a definition object the Host's start list holds. */
-    remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean;
+    remember(entries: readonly (PluginOwnerFilesEntry & { trust?: PluginTrust;
       project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
-        if (entry.bundled) { bundled.add(entry.definition); bundledManifests.add(entry.definition.manifest); }
+        if (entry.trust && isHostTrust(entry.trust)) { hostBuilt.add(entry.definition); hostBuiltManifests.add(entry.definition.manifest); }
         if (entry.dual_instance) dual.add(entry.definition);
         listed.add(entry.definition);
         const owned = entry.definition.manifest.owner_files;
@@ -41,8 +43,9 @@ export function pluginEntryIdentity() {
           actions: Object.freeze({ read: Object.freeze({ ...config.actions.read }), save: Object.freeze({ ...config.actions.save }) }),
         }));
         if (entry.definition.manifest.image_generation) images.set(entry.definition, Object.freeze({ ...entry.definition.manifest.image_generation }));
-        if (entry.project_data) projectData.set(entry.definition, Object.freeze({ owner_id: entry.project_data.owner_id,
-          declaration: Object.freeze({ ...entry.project_data.declaration }) }));
+        const owner = entry.project_data;
+        if (owner) projectData.set(entry.definition, Object.freeze({ owner_id: owner.owner_id,
+          ...owner.declaration ? { declaration: Object.freeze({ ...owner.declaration }) } : {} }));
       }
     },
   };

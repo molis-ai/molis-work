@@ -98,13 +98,32 @@ test("S-31 a project that does not exist, or that hides the plugin, refuses the 
   assert.equal((await disabled.json()).code, "actions.plugin_disabled");
   assert.deepEqual(createRows(home), [], "neither refusal reached the action");
 
-  // A Home plugin that no project shows (a fixture has no place in the project list) runs only as the person's own.
-  const probeInProject = await request(`/projects/${shown.project_id}/api/plugins/${probe.id}/state`);
-  assert.equal(probeInProject.status, 403);
-  assert.equal((await probeInProject.json()).code, "actions.plugin_disabled");
+  // RAC-569 (#679, ①): a Home plugin the build does not ship is personal, shown in every project until that project hides it, by its plugin id.
+  const probeIn = (projectId: string) => request(`/projects/${encodeURIComponent(projectId)}/api/plugins/${probe.id}/state`);
+  const probeShown = await probeIn(hidden.project_id);
+  assert.equal(probeShown.status, 200, await probeShown.clone().text());
+  assert.equal((await probeShown.json()).project_id, hidden.project_id);
+  const hideProbe = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id } });
+  assert.equal(hideProbe.status, 200, await hideProbe.clone().text());
+  assert.ok((await hideProbe.json()).hidden.includes(probe.id));
+  const probeHidden = await probeIn(hidden.project_id);
+  assert.equal(probeHidden.status, 403);
+  assert.equal((await probeHidden.json()).code, "actions.plugin_disabled");
+  const probeElsewhere = await probeIn(shown.project_id);
+  assert.equal(probeElsewhere.status, 200, "another project hiding it changes nothing here");
+  assert.equal((await probeElsewhere.json()).project_id, shown.project_id);
+  // Only the Host's Home registration says which ids are such plugins: an id it does not register cannot be hidden, whatever the request says.
+  const hideUnknown = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "io.molis.work.example.unregistered" } });
+  assert.equal(hideUnknown.status, 400, await hideUnknown.clone().text());
+  assert.equal((await hideUnknown.json()).code, "catalog.plugin_not_found");
   const probeAlone = await request(`/api/plugins/${probe.id}/state?project_id=${encodeURIComponent(shown.project_id)}`);
   assert.equal(probeAlone.status, 200, await probeAlone.clone().text());
-  assert.equal((await probeAlone.json()).project_id, null);
+  assert.equal((await probeAlone.json()).project_id, null, "without the prefix it runs as the person's own");
+  // RAC-569 (#679): its page is found through the Home's registration, by its plugin id, though the build's catalog has no entry for it.
+  const probePage = await request(`/plugins/${probe.id}`);
+  assert.equal(probePage.status, 200, await probePage.clone().text());
+  assert.match(await probePage.text(), new RegExp(`data-home-lifecycle=[\\s\\S]*${probe.id.replaceAll(".", "\\.")}`, "u"));
+  assert.equal((await request(`/plugins/io.molis.work.example.unregistered`)).status, 404, "a key the Home does not register opens no page");
 
   // The Host's lifecycle operations are the Home's: under a project's path they are not there, and the plugin keeps running.
   for (const operation of ["disable", "enable", "retry", "restart", "upgrade", "release-quarantine"]) {

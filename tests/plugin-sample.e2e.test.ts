@@ -130,7 +130,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     };
     const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "developer",
       artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { actions });
-    const installed = runtime.install({ definition, deployment: "local" });
+    const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" });
     const installId = installed.install.install_id;
     await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied");
     assert.equal(artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 0);

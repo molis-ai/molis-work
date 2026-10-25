@@ -14,12 +14,35 @@ import { validateManifest } from "./runtime-rules.js";
  * A migration needs an async check an install cannot run. Otherwise the person has to say the kept data is dropped
  * (`discard`); without that the install is refused with both ways forward.
  */
-export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest: PluginManifest, bundled: boolean, discard: boolean): string | undefined {
+export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest: PluginManifest, host: boolean, discard: boolean): string | undefined {
   if (!previous || previous.state !== "uninstalled" || previous.version === manifest.version || !previous.retain_private_data || discard) return undefined;
-  if (bundled && comparePluginVersions(manifest.version, previous.version) > 0) return undefined;
+  if (host && comparePluginVersions(manifest.version, previous.version) > 0) return undefined;
   if ((manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(previous.version)) return undefined;
   if (previous.execution === "sandbox" && comparePluginVersions(manifest.version, previous.version) < 0) return undefined;
   return `卸载时保留了 ${previous.version} 的数据，${manifest.version} 没有声明能读取它：可以放弃这些数据后全新安装，或者先重新安装 ${previous.version}，再升级到 ${manifest.version}`;
+}
+
+/** Validate grants before a reinstall can remove data; existing compatible-version calls keep their original grants default. */
+export function installationGrants(current: PluginInstanceRecord | null, manifest: PluginManifest, host: boolean, requested?: string[]): string[] {
+  if (host) return hostBuildGrants(manifest, current?.state === "uninstalled" ? undefined : current?.grants);
+  const held = current && current.state !== "uninstalled" && current.version !== manifest.version ? current.grants : undefined;
+  return normalizeGrants(manifest, requested ?? held ?? []);
+}
+
+/** A non-retaining uninstall must finish its Host cleanup before another installation can see that installation id's data. */
+export function prepareInstallationData(executor: PluginExecutor, previous: PluginInstanceRecord | null, manifest: PluginManifest, host: boolean, discard: boolean): void {
+  const refusal = keptDataRefusal(previous, manifest, host, discard);
+  if (refusal) throw pluginErrors.kept_data_incompatible(refusal);
+  if (previous?.state !== "uninstalled" || previous.retain_private_data) return;
+  if (!executor.keptDataDiscarded) {
+    if (executor.uninstalled) throw pluginErrors.state_invalid("Plugin 的宿主没有同步数据清理能力，暂不能重装这个不保留数据的安装");
+    return;
+  }
+  try { executor.keptDataDiscarded(previous); }
+  catch (error) {
+    if (error instanceof ActionError) throw error;
+    throw pluginErrors.executor_failed("Plugin 已卸载数据清理失败，暂不能重装，请重试清理");
+  }
 }
 
 /**
@@ -32,10 +55,10 @@ export function saveInstalled(repository: PluginRuntimeRepository, executor: Plu
 }
 
 /**
- * What a plugin that ships with the Host (`bundled`) holds, by the rule every plugin follows (user decision 2026-10-18,
+ * What a plugin of the Host's own build (`host` trust) holds, by the rule every plugin follows (user decision 2026-10-18,
  * docs/releases/POLICY.md section 7.8): every required permission its Manifest declares, and its optional ones as the person
  * leaves them; any optional one can be switched off (`PluginRuntime.grant`, from Settings), and then only the actions that need
- * it are unavailable. A bundled plugin differs only in how it starts out: a fresh install (`held` undefined) has every optional
+ * it are unavailable. A plugin of the Host's build differs only in how it starts out: a fresh install (`held` undefined) has every optional
  * permission switched on, so a built-in plugin works as it did before anyone touches its permissions.
  *
  * An installation already there (`held`, its grants), of this build or of another one being followed, keeps what it holds that
@@ -45,10 +68,10 @@ export function saveInstalled(repository: PluginRuntimeRepository, executor: Plu
  * the person may have switched off is switched back on.
  *
  * The grants a caller names are not looked at: switching a permission off is the person's, not the Host's start list. Only for
- * code the Host runs itself: `PluginRuntime.install` refuses `bundled` for a sandboxed definition, whose permissions are what the
+ * code the Host runs itself: `PluginRuntime.install` refuses `host` trust for a sandboxed definition, whose permissions are what the
  * person confirmed and never what its Manifest declares.
  */
-export function bundledGrants(manifest: PluginManifest, held?: readonly string[], declaredBefore?: readonly string[]): string[] {
+export function hostBuildGrants(manifest: PluginManifest, held?: readonly string[], declaredBefore?: readonly string[]): string[] {
   const declared = manifest.permissions.map(permission => permission.permission);
   if (!held) return normalizeGrants(manifest, declared);
   const required = manifest.permissions.filter(permission => permission.required).map(permission => permission.permission);
@@ -57,8 +80,8 @@ export function bundledGrants(manifest: PluginManifest, held?: readonly string[]
 }
 
 /**
- * What a start asks for when its entry names no grants, for a plugin that does not ship with the Host (one that does holds
- * `bundledGrants`, which no entry changes): every required permission, or what the existing installation already holds when
+ * What a start asks for when its entry names no grants, for a plugin that is not of the Host's build (one that is holds
+ * `hostBuildGrants`, which no entry changes): every required permission, or what the existing installation already holds when
  * that still covers them. A permission that became optional in an upgrade stays granted, an optional one the person switched
  * on or off stays as they left it, and the next start of the same build replays it instead of looking like a silent grant change.
  */
@@ -91,16 +114,12 @@ export function abandonRefusal(current: PluginInstanceRecord, installed: PluginI
 }
 
 /**
- * The Manifest an install or a version change puts on a record. Besides the shape every definition is checked for: a
- * 常开插件 (`always_on`) cannot be removed, so only a plugin that ships with the Host may be one. An install from anywhere
- * else (a package, a development directory, the plugin studio's output) and every confirmed upgrade or rollback, which only
- * such plugins go through, are refused rather than installed with the mark ignored.
+ * The Manifest an install or a version change puts on a record: the shape every definition is checked for. What a Manifest declares
+ * that changes its effect elsewhere (`always_on`, a default wiring, a default input group) is not refused here for where the
+ * plugin came from: it takes effect only with a consent on the ledger (`trust-rules.ts`), whatever the plugin's trust level.
  */
-export function validateInstalledManifest(manifest: PluginManifest, bundled: boolean): void {
+export function validateInstalledManifest(manifest: PluginManifest): void {
   validateManifest(manifest);
-  if (manifest.always_on === true && !bundled) {
-    throw pluginErrors.declaration_invalid("只有随宿主发布的内置插件能声明 always_on（常开插件）");
-  }
 }
 
 export function assertMutable(record: PluginInstanceRecord): void {
@@ -119,39 +138,39 @@ export function normalizeGrants(manifest: PluginManifest, requested: string[]): 
 }
 
 /**
- * The record a bundled plugin's build is to be moved onto, or null. A plugin that ships with the Host runs the Host's build
+ * The record a plugin of the Host's build is to be moved onto, or null. A plugin of the Host's build runs the Host's build
  * whatever its install record holds (2026-10-04 for a higher version, 2026-10-08 for a lower one and for the same version with
  * another Manifest digest; docs/releases/POLICY.md section 7), and always holds that build's required permissions, so a record of
  * this very build that lacks one is moved too. A missing optional permission is not a reason: the person switched it off.
- * Null when the plugin is not bundled, has no installation (an uninstalled row is installed afresh, under the kept-data rule),
+ * Null when the plugin is not of the Host's build, has no installation (an uninstalled row is installed afresh, under the kept-data rule),
  * or its record already is the build with its required permissions.
  */
-export function recordToFollow(current: PluginInstanceRecord | null, manifest: PluginManifest, digest: string, bundled: boolean): PluginInstanceRecord | null {
-  return bundled && current && current.state !== "uninstalled" && (current.version !== manifest.version || current.manifest_digest !== digest
+export function recordToFollow(current: PluginInstanceRecord | null, manifest: PluginManifest, digest: string, host: boolean): PluginInstanceRecord | null {
+  return host && current && current.state !== "uninstalled" && (current.version !== manifest.version || current.manifest_digest !== digest
     || manifest.permissions.some(permission => permission.required && !current.grants.includes(permission.permission))) ? current : null;
 }
 
 /**
  * The record moved onto the build's Manifest. It stays the same installation: install_id, installation generation, state,
  * install time and the retained-data choice are untouched, so private data stays attached; the deployment cannot change.
- * The grants follow `bundledGrants` for an installation already there: what the new Manifest no longer declares goes, its
+ * The grants follow `hostBuildGrants` for an installation already there: what the new Manifest no longer declares goes, its
  * required permissions are added, an optional one the person switched off stays off, and one the record's own build did not
  * declare (`declaredBefore`) starts switched on. This is the same whether the build is newer, older or the same version.
  */
-export function followBundledBuild(current: PluginInstanceRecord, deployment: PluginDeployment, manifest: PluginManifest, digest: string, entrypoint: string, at: string,
+export function followHostBuild(current: PluginInstanceRecord, deployment: PluginDeployment, manifest: PluginManifest, digest: string, entrypoint: string, at: string,
   declaredBefore?: readonly string[]): PluginInstanceRecord {
   if (current.deployment !== deployment) throw pluginErrors.state_invalid("已有安装不能通过启动改变部署环境");
   return { ...current, version: manifest.version, publisher_id: manifest.publisher.publisher_id, manifest_digest: digest, selected_entrypoint: entrypoint,
-    grants: bundledGrants(manifest, current.grants, declaredBefore), updated_at: at };
+    grants: hostBuildGrants(manifest, current.grants, declaredBefore), updated_at: at };
 }
 
 /**
- * Whether the Host's own definition can run over an install record without restoring a stored release. A bundled plugin always
- * can: its record is moved onto the build (`followBundledBuild`). Any other plugin only at the recorded digest, or when its
+ * Whether the Host's own definition can run over an install record without restoring a stored release. A plugin of the Host's build always
+ * can: its record is moved onto the build (`followHostBuild`). Any other plugin only at the recorded digest, or when its
  * Manifest names the recorded version as an upgrade source and is the same version or higher.
  */
-export function directlyUsable(manifest: PluginManifest, bundled: boolean, installed: PluginInstanceRecord): boolean {
-  if (bundled) return true;
+export function directlyUsable(manifest: PluginManifest, host: boolean, installed: PluginInstanceRecord): boolean {
+  if (host) return true;
   const named = (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version);
   return installed.version === manifest.version
     ? installed.manifest_digest === pluginManifestDigest(manifest) || named

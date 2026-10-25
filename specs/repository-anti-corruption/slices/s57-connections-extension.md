@@ -81,12 +81,15 @@ binding: "installation" | "per_record"
 - 插件 A 用插件 B 绑过的记录键，用不上：绑定的键里有安装和插件。
 - `describe` 的返回里没有 `connection_id` 和凭据引用。
 - `release` 之后的请求是匿名的；插件没有办法重新绑上。
+- RAC-347：按安装的槽不能由插件 `release`，有无记录键都以 `plugin.connections_release_unsupported` 拒绝；`per_record` 槽仍按原规则校验记录键，以 `connections_record_key_invalid` 拒绝无效值。调用在解除前、或等待 `beforeEffect` 期间取消、撤权、停用，或原调用复查不通过时，拒绝解除，持久化绑定保持原样。沙箱查询操作不能解除；`describe` 和 `release` 都须声明并获准该槽的 `effects.connections`，拒绝不得到达宿主连接端口。
 
 ### 2.3 刷新：只给引用，只在宿主里刷新
 
 - 刷新用的东西（`refresh_ref`、`expires_ref` 和刷新后的新令牌）只存在宿主的连接库和密钥库里。插件的库里不再抄任何引用，见第 3 节。
 - 发请求前，宿主发现令牌已过期，就先刷新再发。Gmail 今天的 `resolveUsableGmailAccessToken` 就是这样做的。
 - 宿主带着凭据发出、固定来源答 401 时：登记了 `refresh: "host"`、连接也有刷新材料的，宿主强制刷新一次，再用同一个请求重发一次（BL-350）。
+  - 没有可用刷新材料时，首次 401 的状态、可见响应头与正文原样交回，不问令牌端点、不重发、不标成要重连（RAC-349）。包括 GitHub 设备登录保存的普通密钥、API OAuth 未返回 refresh token，以及刷新引用仍在但对应材料已不存在的连接。
+  - 插件请求用宿主内部的「有材料才强制刷新」模式；结果明确区分没有材料与已刷新。原有 API 读取者的普通读取、布尔强制刷新语义保持。材料存在时的令牌端点拒绝、网络错误、超时和 5xx 继续按 §4.1 处理，不当成没有材料。
   - 重发前再核一次原调用（`beforeEffect`），已取消、撤权、停用的就不重发。
   - 第二次还是 401，就把这个答复原样交回插件，不再重试，也不换账号。
   - 刷新本身失败时：把连接标成 `reauth_required`，拒绝这次请求，报 `connector.plugin_requests.connection_unavailable`，不改成匿名发出。
@@ -99,6 +102,8 @@ binding: "installation" | "per_record"
 - 重发前调用被取消，就不重发；服务端收到的请求数不增加。
 - `refresh: "none"` 的服务遇到 401，原样交回，不刷新。
 - 刷新失败不匿名重发。
+
+本段修复的定向验证：`node scripts/run-tests.mjs tests/security-invariants-connection-refresh.test.ts tests/connector-api-oauth.test.ts`。RAC-349 的无材料用例断言真实 HTTPS 服务只收到一次带凭据请求、令牌端点零请求、连接仍可读；`refresh: "none"` 用例只在隔离测试进程内替换单个服务的刷新声明，保留真实 OAuth 材料与生产请求链，不修改服务登记表。
 
 ## 3. 存量 Feed 来源的账号怎样改成现行形状
 
@@ -130,10 +135,10 @@ binding: "installation" | "per_record"
 
 | 片 | 内容 | 前置 |
 | --- | --- | --- |
-| X1 | 登记表扩展：多来源、租户来源、`refresh` 字段；第一批服务（Gmail 加目录里 `bearer` 类的那些） | 本稿已定（用户 2026-10-24） |
-| X2 | `per_record` 槽：SDK 声明检查、Runtime 客户端（`request` 带记录键、`describe`、`release`）、宿主的绑定键加项目和记录键、`connectors.plugin_slot.bind@2`（只认声明过的槽，即 BL-350 的绑定核对一半） | X1 |
-| X3 | 401 后刷新一次再重发一次（BL-350 的刷新一半），过期前预先刷新，刷新失败标 `reauth_required` | X1；可以和 X2 并行 |
-| X4 | 卸载、丢弃数据时删绑定（BL-356 的连接那一半，两种槽都删） | X2 |
+| X1 | 登记表扩展：多来源、`refresh` 字段；第一批服务（GitHub、Gmail 加目录里以 `Bearer` 发到固定来源的 24 个）。租户来源拆成 BL-595（见 §4.1） | 本稿已定（用户 2026-10-24） |
+| X2 | `per_record` 槽：SDK 声明检查、Runtime 客户端（`request` 带记录键、`describe`、`release`）、宿主的绑定键加项目和记录键（存法见 §4.1）、`connectors.plugin_slot.bind@2`（只认声明过的槽，即 BL-350 的绑定核对一半） | X1；叠在 X3 上，免得同改宿主端口时冲突 |
+| X3 | 401 后刷新一次再重发一次（BL-350 的刷新一半），过期前预先刷新沿用各服务已有的做法；令牌端点明确拒绝时在宿主进程里标 `reauth_required`（见 §4.1） | X1 |
+| X4 | 项目里卸载时删这个安装在本项目的 `per_record` 绑定，删项目时删该项目的 `per_record` 绑定（项目删除钩子，`ProjectDeletionService` 的删除跑）；按安装的绑定卸载时不删，见 §4.1 与 BL-596 | X2 |
 | X5 | Feed 迁 Runtime 时改走 `services.connections`，删宿主的 `resolveConnection`、`defaultProviderFor` 里取钥匙的分支和 `catalog-connector.ts`；`sources` 建库基线改为第 3 节的形状 | X2、X3；随 PG-093 |
 | — | 人选账号的界面（S0b-2b） | X2；归界面线 |
 
@@ -143,17 +148,30 @@ binding: "installation" | "per_record"
 - **Alchemist**：不迁（BL-376），不在本片。
 - **OAuth 附加信息与 CLI 型连接**：归 W5-11，不在本片。
 
+### 4.1 实现中统筹 2026-10-24 的裁定（与上文稿子不同之处）
+
+- **S 号**：X1 是 S-69，X2 是 S-71，X3 是 S-70（batch-36 合入时的实际号，统筹 2026-10-25 改）；合入那批由统筹按当时的末号再核。SI 表门禁要求号连续，分支上暂用本基线的下一号（X1 写 S-64，X2、X3 各写 S-65），合入时改，测试名同步改。
+- **租户来源（X1）**：目录连接器的连接今天不在宿主里钉来源（`assertTarget` 只给模型、生图、MCP），租户型的服务登记不了，拆成 BL-595，排在 X4 之后：先在连接时把来源钉进连接记录，再登记 Jira、Confluence、Salesforce。凭据不是 `Bearer` 写法的几家（Discord、GitLab、Figma、Linear、ClickUp、Monday）另开「凭据加法」一片；飞书、Lark、企业微信与飞书 CLI 归 W5-11。
+- **GitHub 的刷新（X1）**：GitHub App 的用户令牌 8 小时过期，API OAuth 本来就能刷新，登记成 `refresh: "host"`。
+- **`per_record` 绑定的存法（X2，统筹定 ①）**：沿用 Home connectors 库的 `connector_bindings`，不改结构、不升版本。`scope_id` 本来就是不透明的作用域键，扩成「安装 / 项目 / 记录」仍在这一列的本义里，真实 Home 不受影响。四条防隐患的要求：
+  1. 只有 connector-host 里一个函数拼、一个函数解 `scope_id`，别处不写这个字符串。插件只给记录键：限长，不含 `/`、`:` 和控制字符，不合的以错误码拒（有拒绝测试）。项目只从调用上下文来。
+  2. 查找只做精确匹配。卸载时按安装删：`scope_id = 'plugin-installation:<安装>'`，或带分隔符的前缀 `'plugin-installation:<安装>/'`（`substr` 比较，不用 `LIKE`），安装 `abc` 不会删到 `abcd`；测试里放一对互为前缀的安装 id。
+  3. 删项目时删该项目的 `per_record` 绑定：connector-host 导出按项目删的函数，同样带分隔符锚定（`/project:<项目>/record:`），由 `ProjectDeletionService` 调；测试里放一对互为前缀的项目 id。放在 X4，和卸载一起做。
+  4. 编码写在这里和 `connection-store.ts` 的注释里；表的主人不变。以后真要拆成列，再走维护时段，这轮不做。
+- **卸载时删哪些绑定（X4，统筹 2026-10-24 裁 ①）**：安装编号在每个项目和 Home 里都一样，按安装的绑定由各处的同一安装共用。所以项目里卸载只删这个安装在本项目的 `per_record` 绑定（前缀锚定到 `plugin-installation:<安装>/project:<项目>/record:`），删项目删该项目所有插件的 `per_record` 绑定（项目删除钩子 `plugin-connections`）。按安装的那条本应在「最后一处也卸载」时删，但 Home 目录库的 `project_plugins` 只收内置插件，第三方与创作台生成的插件只记在各项目库，宿主问不到；不开全部项目库去扫，这条留到人解除，记 BL-596。
+- **刷新被拒的标记（X3，统筹裁）**：不改库、不删密钥，在宿主进程里标。只在令牌端点明确拒绝时标（OAuth `invalid_grant`、`invalid_client`，或 HTTP 400、401）；网络错误、超时、5xx 不标，只拒这一次。标了之后连接列表、插件连接槽的读取（X2 起还有 `describe`）显示 `reauth_required`，带它的请求在发出之前就以 `connection_unavailable` 拒，不再每次打令牌端点。标记跟着连接的版本（`updated_at`）走：人重连或强制刷新成功就清，宿主重启后没有，下次请求再试一次刷新、被拒再标。它是从令牌端点的回答推出来的状态，不是存下来的事实；以后要持久化再走维护时段。
+
 ## 5. 安全不变量与验收编号（暂定）
 
 S 号按合入顺序取，下面写的都是暂定。合入时以 SECURITY-INVARIANTS 当时的末号为准，改掉文里和测试名里的号。
 
 | 暂定号 | 管什么 | 拒绝测试（每条至少一个） | 验收编号 |
 | --- | --- | --- | --- |
-| S-71（暂定） | 请求服务只能由平台登记；来源精确，租户型服务取连接记录上的来源；只有 `bearer` | 未登记的服务被 SDK 拒；登记来源之外的地址被拒（匿名也拒）；租户型服务请求别的租户来源被拒 | RAC-346 |
-| S-72（暂定） | `per_record` 槽的绑定只由人建，键是安装、项目、槽、记录键；插件只能解除，只能看到不含凭据的视图；卸载时删干净 | 非 `user` 调绑定被拒；绑没声明的槽被拒；跨项目、跨插件用不上；`describe` 里没有凭据引用；`release` 后匿名；卸载后重装不沿用账号 | RAC-347、RAC-348 |
-| S-73（暂定） | 刷新只在宿主做，401 后刷新一次、重发一次；重发前复核调用；刷新材料和新令牌不进插件能看到的任何地方 | 第二次 401 原样交回；重发前取消就不发，服务端请求数不增加；`refresh: "none"` 不刷新；刷新失败不匿名重发；答复、错误、日志里都没有令牌 | RAC-349 |
+| S-69 | 请求服务只能由平台登记；来源精确，租户型服务取连接记录上的来源；只有 `bearer` | 未登记的服务被 SDK 拒；登记来源之外的地址被拒（匿名也拒）；租户型服务请求别的租户来源被拒 | RAC-346 |
+| S-71 | `per_record` 槽的绑定只由人建，键是安装、项目、槽、记录键；插件只能解除，只能看到不含凭据的视图；卸载时删干净 | 非 `user` 调绑定被拒；绑没声明的槽被拒；跨项目、跨插件用不上；`describe` 里没有凭据引用；`release` 后匿名；卸载后重装不沿用账号 | RAC-347、RAC-348 |
+| S-70 | 刷新只在宿主做，401 后刷新一次、重发一次；重发前复核调用；刷新材料和新令牌不进插件能看到的任何地方 | 第二次 401 原样交回；重发前取消就不发，服务端请求数不增加；`refresh: "none"` 不刷新；刷新失败不匿名重发；答复、错误、日志里都没有令牌 | RAC-349 |
 
-RAC-346～349 是本线旧号段（RAC-330～349）的末尾。X 片另用统筹 2026-10-24 给的号段：RAC-470～489、BL-595～604。
+RAC-346～349 是本线旧号段（RAC-330～349）的末尾。X 片另用统筹 2026-10-24 给的号段：RAC-470～489、BL-595～604。表里的 S 号以 §4.1 为准（S-69、S-71、S-70）。
 
 ## 6. 还没核的
 

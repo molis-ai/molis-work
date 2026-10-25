@@ -66,7 +66,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
   };
   try {
     const start = async (name: string, consumes: string[], grants: string[], ownAction = true) => {
-      const installed = runtime.install({ definition: pluginFor(name, consumes, ownAction), deployment: "local", grants }).install;
+      const installed = runtime.install({ trust: { level: "unsigned" }, definition: pluginFor(name, consumes, ownAction), deployment: "local", grants }).install;
       await runtime.start(installed.install_id);
       return installed;
     };
@@ -301,9 +301,9 @@ test("a Home that installed Files, Git and Coding before the read permission exi
       capabilities: { ...manifest.capabilities, consumes: manifest.capabilities.consumes.filter(id => id !== readFile.capability_id && id !== readGit.capability_id) } };
     // The Home outlives the process: the same records, read by the next start of the Host.
     const records = new MemoryPluginRuntimeRepository();
-    const installed = new PluginRuntime(records).install({ definition: { manifest: before, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local" }).install;
+    const installed = new PluginRuntime(records).install({ trust: { level: "host" }, definition: { manifest: before, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local" }).install;
     assert.ok(!installed.grants.includes("workspace:read"), manifest.plugin_id);
-    const followed = new PluginRuntime(records).install({ definition: { manifest, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local", bundled: true }).install;
+    const followed = new PluginRuntime(records).install({ definition: { manifest, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local", trust: { level: "host" } }).install;
     assert.equal(followed.install_id, installed.install_id, "the same installation, so its private data stays attached");
     assert.ok(followed.grants.includes("workspace:read"), manifest.plugin_id);
     for (const permission of installed.grants) assert.ok(followed.grants.includes(permission), `${manifest.plugin_id} keeps ${permission}`);

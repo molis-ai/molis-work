@@ -1,14 +1,14 @@
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorResponse, fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { ShelfStore } from "../modules/shelf/dist/store.js";
-import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_CLIENT_FACTORY_SCRIPT, SHELF_MESSAGES } from "@molis-ai/molis-work-plugin-shelf";
 import { createShelfRouteHandlers } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_STYLES } from "@molis-ai/molis-work-plugin-shelf";
 import { renderShelfWorkbench } from "@molis-ai/molis-work-plugin-shelf";
@@ -44,18 +44,23 @@ async function openShelfBrowser(t: TestContext) {
     delayNextFile = () => { entered.resolve(); return release.promise; };
     return { started: entered.promise, release: () => release.resolve() };
   };
+  // The workbench's translator, in Chinese: a stable key's `zh` with its values filled in.
+  const zh = (key: string, values?: Record<string, string | number>) => fillMessage(SHELF_MESSAGES[key as keyof typeof SHELF_MESSAGES]?.zh ?? key, values);
+  const zhTable = JSON.stringify(Object.fromEntries(Object.entries(SHELF_MESSAGES).map(([key, text]) => [key, text.zh])));
   const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const html = `<!doctype html><html data-resolved-theme="light"><head><meta charset="utf-8"><style>
     [hidden]{display:none!important}body{margin:0;font-family:system-ui}*{box-sizing:border-box}
     :root{--content-side:#f5f5f4;--content-paper:#fff;--content-ink:#242424;--content-muted:#777;--content-line:#ddd}
     [data-shelf=workbench]{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:900px}
     ${SHELF_STYLES}</style></head><body data-desktop-surface="shelf">
-    ${renderShelfWorkbench({ ...(await shelf.snapshot()), selected_id: null, primitives: { escape, text: value => value } })}
+    ${renderShelfWorkbench({ ...(await shelf.snapshot()), selected_id: null, primitives: { escape, text: zh } })}
     <script src="/fixture.js"></script></body></html>`;
   const script = `document.querySelector('[data-shelf=workbench]').hidden=false;
-    window.molisWorkControlHeaders=()=>({'content-type':'application/json'});
+    const zhTable=${zhTable};
+    window.L=(key,values)=>(${fillMessage.toString()})(zhTable[key]??key,values);
+    ${UI_REQUEST_CLIENT_SCRIPT}
     window.mountShelf=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    window.bootShelf=()=>(${SHELF_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mountShelf,copyText:text=>navigator.clipboard.writeText(text),translate:(value,values)=>String(value).replace(/\\{([^}]+)\\}/g,(_,key)=>values?.[key]??key)});bootShelf();`;
+    window.bootShelf=()=>(${SHELF_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mountShelf,pluginId:'io.molis.work.shelf',pluginRoute:path=>'/api/plugins/io.molis.work.shelf'+path,loadMedia:async()=>null,copyText:text=>navigator.clipboard.writeText(text),translate:window.L});bootShelf();`;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     requests.push(`${request.method} ${url.pathname}`);

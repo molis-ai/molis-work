@@ -1,6 +1,6 @@
 # Feed 与 Inbox 迁到 Plugin Runtime（PG-093、PG-089 余半、PG-040 余半、PG-034、PG-046、PG-057、PG-080、PG-010 余项）
 
-状态：拆片稿（2026-10-24），统筹已裁 D1～D4（§3，统筹 10-24 定）；FI-1 开工，FI-2 等 #1242 合入，FI-3、FI-4 先写设计稿。事实都是在 `origin/main` `584112c65` 上读代码核的，没跑过。
+状态：拆片稿（2026-10-24），统筹已裁 D1～D4（§3，统筹 10-24 定）；FI-1 已实现（#1247，已进 batch-35），FI-2 已实现（#1283，见 §4 的 FI-2 一节），FI-3 已实现（见设计稿 §7），FI-4 的设计稿统筹已审，实现随 FI-6；整组叠在分支 `claude/ac-feed-inbox-designs`，做完再开一个 PR。事实都是在 `origin/main` `584112c65` 上读代码核的，没跑过。
 
 派单：防腐线统筹，`ac-sandbox-sched` 线。号段：RAC-300～329 已用完（PG-022 等占了）；**RAC-480～499 归本稿，另加 RAC-500～519**（统筹 10-24 定；ac-kernel 的 X 片收到 RAC-470～479 和 RAC-520～539，之前 480～489 与它撞了），BL-525～534 放后续待办（统筹 10-24 定）。
 
@@ -38,7 +38,7 @@
 | PG-087 注意力与情境账做成平台服务 | **没做**。`PluginHostServices` 里没有 attention、context ledger。归 `ac-sc3`（S9-0b，排在 S9-0 之后） | Feed 和 Inbox 进 Runtime 之前必须有。这是 FI-6 的硬前置 |
 | PG-043 Home 聚合 | 平台半**已做**（S-49 `home_aggregate`：只在**已打开**的项目里逐个调，各项目答案分开）；Coding 半已做；`ac-kernel` 还在做其余 | Feed 的两处跨项目读不一定能用它，见 §3 D4 |
 | PG-046 集成登记 | **没做**。`official-integrations.ts` 写死 GitHub、Gmail、Catalog 三个；`plugins/official-integrations/` 下六个包（catalog、github、gmail、rss、web-query、youtube）没有登记入口 | FI-3 |
-| PG-010 余项（BL-465） | **没做**。三条默认规则仍在 `modules/functions/src/builtin.ts`；`functions-host.ts` 只做到不钉 Inbox 的 id。Inbox 迁移要等它（PG-089 原文） | FI-2 |
+| PG-010 余项（BL-465） | **FI-2 已做**：三条默认规则随声明它们的场景（Feed、Inbox 的 Manifest 与宿主自己的首页场景）提供，`modules/functions` 没有规则文件；剩「装上的插件的事项动作还不参与首页规则的目标映射」转 BL-531 | FI-2 |
 | PG-045 连接 | `services.connections` 已有（S-57）；`feed-connector-auth.ts` 只剩 11 行 | 在 FI-6 里收 |
 | PG-080 成果由插件自写 | **没做**。`services.artifacts` 已有，Feed 还是宿主 `projectVersionStores` 写；`feed-application.ts` 里有 `as unknown as ArtifactsSqliteDatabase` | 在 FI-6 里收（Feed 的 `produces` 已在 Manifest 声明 `feed.capture`） |
 
@@ -77,13 +77,36 @@
 
 | 片 | 内容 | 前置 | 验收（暂定号） | 碰的枢纽文件 | 可开工 |
 | --- | --- | --- | --- | --- | --- |
-| **FI-1** 场景判断随插件（PG-034） | `feed-scene.ts`、`inbox-scene.ts` 的判断逻辑搬进两个插件包，导出 `createFeedSceneHandler(ports)`、`createInboxSceneHandler(ports)`；宿主只给端口（选项存取、判断触发），不写判断。此时 provider 仍由宿主拼，Runtime 化后同一个处理器经定义贡献 | 无 | RAC-480～483：宿主里没有场景判断逻辑（门禁：这两个宿主文件只剩接线）；处理器对未声明的场景、别的项目、撤权的调用逐个拒绝；行为与搬前一致（现有场景测试原样过） | `content-action-providers.ts`、`inbox-actions.ts`、两个插件的 `scenes.ts` | **现在** |
-| **FI-2** 三条默认规则随 Manifest（PG-010 余项，BL-465） | 场景声明加字段，规则的文字、选项、用途写进声明它的插件（Feed 的采集判断、Inbox 的「是否进 Inbox」「挑下一步」），平台照声明种，`builtin.ts` 不再有这三条；装上的插件同样参与。**改合同**，`pnpm api:update` | 无（避开 FI-1 改的 `scenes.ts` 的同一行，两片先后合） | RAC-484～487：规则只来自声明；装上的插件声明的规则同样被种；声明冲突（同一个 offer id 两处）不猜；`builtin.ts` 无这三条 | contracts `plugin.ts`/`actions.ts`、`modules/functions`、两个 `manifest.ts`、`tooling/gates/api` | **现在** |
+| **FI-1** 场景判断随插件（PG-034） | `feed-scene.ts`、`inbox-scene.ts` 的判断逻辑搬进两个插件包，导出 `createFeedSceneHandler(ports)`、`createInboxSceneHandler(ports)`；宿主只给端口（选项存取、判断触发），不写判断。此时 provider 仍由宿主拼，Runtime 化后同一个处理器经定义贡献 | 无 | RAC-480～483：宿主里没有场景判断逻辑（门禁：这两个宿主文件只剩接线）；处理器对未声明的场景、别的项目、撤权的调用逐个拒绝；行为与搬前一致（现有场景测试原样过） | `content-action-providers.ts`、`inbox-actions.ts`、两个插件的 `scenes.ts` | 已实现 |
+| **FI-2** 三条默认规则随 Manifest（PG-010 余项，BL-465；已实现，见下一节） | 场景声明加字段，规则的文字、选项、用途写进声明它的插件（Feed 的采集判断、Inbox 的「是否进 Inbox」「挑下一步」），平台照声明种，`builtin.ts` 不再有这三条；装上的插件同样参与。**改合同**，`pnpm api:update` | 无（避开 FI-1 改的 `scenes.ts` 的同一行，两片先后合） | RAC-484～487：规则只来自声明；装上的插件声明的规则同样被种；声明冲突（同一个 offer id 两处）不猜；`builtin.ts` 无这三条 | contracts `plugin.ts`/`actions.ts`、`modules/functions`、两个 `manifest.ts`、`tooling/gates/api` | **现在** |
 | **FI-3** 集成登记（PG-046） | `official-integrations.ts` 的三个写死项换成登记：集成由插件在 Manifest 里声明，平台按已装插件的声明生成登记（一个 Home 一份）；每个来源一个内存 Runtime 改成共用一个；外部文档来源并进同一张登记（`kind` 区分来源与文档导入）；OAuth 的位置写进设计，实现归 Codex C4 | 设计稿 [feed-inbox-integration-registry.md](feed-inbox-integration-registry.md) 已写并审过（2026-10-24，`336fbb6de`），实现已在分支 `claude/ac-feed-inbox-designs` 写好，PR 排在 BL-490 与 FI-2 之后 | RAC-488～491、RAC-519，见设计稿 §4 | contracts、`official-integrations.ts`、`artifact-document-import.ts`、`feed-connector-sync.ts` | 实现写好、PR 待开 |
 | **FI-4** Feed 的跨项目读写（PG-043 的 Feed 半） | `connector-source-state.ts` 改成各项目的 Feed 订阅连接变化事件自己刷新；`feed-history-release.ts` 改成 Feed 的 Home 一半记引用账（先加后减），释放只查 Home 账；存量账由维护补齐（归用户，同 W5-17 时段） | 设计稿 [feed-inbox-home-reference-ledger.md](feed-inbox-home-reference-ledger.md) 已写（2026-10-24），统筹审过再实现；Home 一半要 PG-012 的平台一半（已有）；**前置：FI-6 的 Feed 装配骨架**（双实例的两半要一起装） | RAC-492～495、RAC-518，见设计稿 §4、§6 | `feed-history-release.ts`、`connector-source-state.ts` | 设计审过后随 FI-6 |
 | **FI-5** Feed 的表和 Module 代码归 Feed（PG-087 的 Feed 半、X-5 余半） | D1 走路 1：四个包并进 Feed；Feed 的 `databases.project` 声明 `feed_*`、`sources`、`signals`、listener-host 的表（表名与数据不动，照 Goals S8 的做法，基线不再建，被拒只停 Feed）；Attention、ContextLedger 仍在基线，等 FI-6 的平台服务 | D1 已定（路 1） | RAC-496～498：声明与旧基线逐表同形；基线不再建这些表；被拒只停 Feed；Module 包不再被 `apps/local-host` 以外的东西 import | `project-database-schema.ts`、`project-plugins.ts`（若同批）、`scripts/workspace-packages.mjs`、`specs/…/spec.md` §5.1 包清单 | FI-6 的其余前置排好后（D1 已定）；并包同一 PR 重生 §5.1 |
 | **FI-6** Feed、Inbox 进 Runtime（PG-093、PG-089 余半，并关 PG-040、PG-080、PG-045 的余项） | 两个 `PluginDefinition` 与监督器条目；`createLocalFeedApplication` 的 9 处构造点改成调公开动作；`/api/feed*`、`/api/inbox*` 边删（客户端见 FI-7）；来源 tick 用自己的唤醒；互斥用 `services.background` 的锁；成果走 `services.artifacts`；`information.plan` 并进插件；`inbox-actions.ts` 用 `services.attention` 取代 Feed 应用的拼 | FI-1、FI-2、FI-5、PG-087（D2）、FI-3（来源要走登记） | RAC-499 起，顺延进 RAC-500～519（500 段末尾留给 FI-3、FI-4 的补充条；一批较大，进工作时再细拆）；验收含：Feed、Inbox 改用 `services.attention` 后，#1245 让 Attention `owner_plugin_id` 可空、宿主直接调用写 `null` 的那条路径一起删 | `project-plugins.ts`、`web-request.ts`、`index.ts`（`export *`）、`builtin-plugin-assembly-gate.test.ts`（只减） | 等前置 |
 | **FI-7** 客户端改走公开动作（PG-057 的 `/api/feed`、`/api/inbox`） | 29 行引用逐个换成经动作网关调公开动作；Feed、Inbox 的客户端脚本进插件客户端包；`/assets/` 字节数按 `page-assets` 规则处理（预算会涨，要写明） | FI-6 的动作都已公开 | 待拆 | `apps/workbench/src/scripts/client/*`、`tooling/gates/page-assets.json` | 与 FI-6 同批或之后 |
+
+### FI-2 实现：默认规则随场景声明（2026-10-25）
+
+- **合同**：`ActionSceneDefinition` 加可选 `default_rule`（`ActionSceneDefaultRule`：`function_key`、`name`、`instructions`、`options`（`{key, description}`，2 至 20 个）、`subject_kinds`）。SDK 的场景声明检查（`inspectActionDeclarations`，Manifest 解析与 Kernel 登记共用）拒绝：键格式不符、说明为空或过长、选项少于 2 个或重复、场景有 `recommendation_labels` 而选项不在其中、同一份声明里两个场景用同一个 `function_key`。
+- **谁声明**：Feed 的 `feed.capture`（`system_admit_inbox`）、Inbox 的 `inbox.next`（`system_pick_inbox_next`）、宿主自己的 `home.dock`（`system_pick_home_dock`，宿主是首页场景的主人，同在 `home-actions.ts`）。规则的文字、选项、对象类型与原来逐字相同。
+- **谁来种**：`modules/functions/src/builtin.ts` 删除，换成 `declared-rules.ts` 的 `seedDeclaredRules`，库打开时不再播种。`LocalHost.actionRegistry()` 登记任何提供方（内置、装上的、沙箱的）带场景时，经已有的观察口 `actionProvidersChanged` 把场景交出；`project-host.ts` 接到 `seedSceneRules`（`functions-host.ts`），只有场景带 `default_rule` 才打开 Functions 库。播种失败只记 `hostLog.warn("functions", "scene_rule_seed_failed")`，不挡登记。
+- **规矩（一轮评审后，统筹 10-25 裁定）**：一个 `function_key` 属于最先声明它的插件。规则行记声明者：新写的规则 id 是 `declared:<声明者>:<function_key>`（声明者是提供方的 `plugin_id`，宿主自己的场景是宿主提供方的 id），不加列、不动基线、真实 Home 不需要维护。别的插件声明已被占的键，登记被拒（`functions.rule_key_taken`），拒在 `LocalHost` 登记提供方之前（新选项 `admitActionProvider`），什么都不登记、不写（RAC-486）。同一个插件再次登记（重启、重装）不算冲突。没有声明者的行（用户自己建的规则、以前的 `builtin-…` 和第一版的 `declared-…`）不是别的插件的，原样保留、不覆盖。
+- **宿主自己的键保留（防抢占，RAC-501）**：宿主自带场景声明的三个键（读自 Manifest 与首页场景，不另列名单）归声明它们的插件：别的提供方声明这些键，登记被拒（`scene-rule-admission.ts` 的 `admitProviderRules`，以键的主人对声明者）；Plugin Runtime 新增构造选项 `reservedRuleKeys`，非 `host` 信任等级的安装若在 Manifest 里声明了保留键，安装被拒（`plugin.rule_key_reserved`，`trust-rules.ts` 的 `assertInstallAllowed`），拒在写任何记录之前。三个已发布的键名不改。
+- **卸载与丢弃（RAC-502～RAC-505）**：不留数据的卸载、重装时选择丢弃已留数据，经两个 executor 钩子共用的 `forgetInstallationRecords`（`plugin-installation-cleanup.ts`）调 Functions 的 `forgetDeclaredRulesIn`。只删本项目自己的：指向该插件所声明规则的场景绑定（绑定按项目存，项目里的卸载删该项目的；Home 级插件的卸载删全部）。**规则本身只由最后一个相关安装收走**：删之前宿主先问 `pluginHeldElsewhere`（`plugin-holders.ts`），读 Home 里各个项目库与 Home 插件库的安装记录——别处还有该插件的安装（状态不是已卸载，或已卸载但留着数据等重装）就算还在持有，规则一条不删（连同它的声明者、内容与用户加的示例）；读不了的记录也算持有（留着无害，删了别的项目的规则不可逆）。另有别的项目的绑定仍指着的规则同样留着。因此别的项目装着、但没有绑定的情形，规则也在，别的插件仍不能抢这个键。最后一个安装走时（它自己的记录已无人持有）才删规则。用户自己的规则、别的插件的规则、已有的判断记录（历史）不动。留数据的卸载什么都不删：规则与绑定留在库里，提供方不在，没有场景在跑它；重装按声明重新对上。被删的规则、留下的规则与删掉的绑定数，写进宿主日志（`functions` 区 `declared_rules_forgotten`，只记键与个数，调试时开）。用户在卸载结果里看见这一条（BL-532）等 #1255 的 `PluginCleanupResult { notes }` 进批后接，见 BL-532。
+- **选项目标**：`declaredRuleTargets` 不再认 `HOME_DOCK_SCENE_ID`，改按场景的 `recommendation_source === "subject-offers"`，仍只看内置插件目录；两处声明同一个 offer id 仍不猜（RAC-176）。装上的插件的事项动作参与目标映射转 BL-531。
+- **行为变化**：规则以前在 Functions 库第一次打开就全有；现在在对应场景登记时才写（Home 级的首页场景随宿主启动，Feed 与 Inbox 的随项目准备）。没有任何提供方登记过的场景，它的规则也就不在列表里。
+- **验收**：RAC-484（规则只来自声明，模块里没有规则；Feed、Inbox 声明各自的规则，宿主启动后首页规则被种）、RAC-485（装上的插件的场景声明的规则同样被种，文字与选项原样）、RAC-486（键属于最先声明的插件，别的插件声明同名键登记被拒、什么都不写）、RAC-487（畸形的 `default_rule` 在登记时被拒、什么都不写）、RAC-501（宿主自己的键保留：别的提供方声明被拒，非 host 信任的安装声明被拒、不留记录，host 信任的照常装）；`tests/scene-default-rules.test.ts`；RAC-502（不留数据的卸载删该插件的规则与本项目的绑定，别的项目仍在用的规则留着，别人的与用户自己的规则不动）、RAC-503（留数据的卸载什么都不删，重装丢弃时删）、RAC-504（同一插件装在 A、B 两个项目，B 没有绑定、有规则和示例：A 不留数据的卸载后 B 的规则、声明者与内容原样，第三个插件仍抢不到这个键；B 留数据的卸载仍算持有，B 重装丢弃时它是最后一个，规则才删、键才放开）、RAC-505（A 留数据的卸载再重装丢弃，B 的规则同样原样、第三个插件仍抢不到）；`tests/scene-default-rule-lifecycle.test.ts`；RAC-171/172/173/176 改走声明后仍成立（`tests/functions-feed-module-exits.test.ts`）。
+- **API 与动作合同快照**：contracts `platform/actions`、`platform/plugin` 各多一个导出类型和一个可选字段（`pnpm api:update`），插件 SDK 的场景声明检查多一类问题。动作合同快照里 `feed.capture@1`、`inbox.next@1`、`home.dock@1` 和引用首页场景的 `home.judgment.evaluate@1` 的 `traits` 哈希变了（`default_rule` 与 `required_scene` 都算进 traits），输入、输出、事件 schema 的哈希没变；没有升版本：已存的绑定固定的是场景 id、版本与提供方，不读 `default_rule`，升版本反而让现有绑定全部失效。快照用 `pnpm actions:update` 刷新。
+
+### FI-1 一轮修复：绑定只取已发布规则的稳定引用（Codex FIX6，2026-10-24）
+
+PR #1247 的一轮评审（`6389207529`、统筹 `6389275346`）指出，迁移后 `writeJudgment` 经宿主的 `publishedRules()` 为所有已发布规则构建完整动作，扩大了绑定一条规则的读取范围。目标仍是 FI-1 的行为不变：只消费已发布规则的 key、version、provider 身份，实际权限与场景相容性继续由原场景客户端校验。
+
+Functions 目前没有生成纯引用的公开入口，只有完整的 `publishedFunctionAction` 与反向的 `publishedFunctionKey`。在 Functions 既有 `actions.ts` 增加最小 `publishedFunctionReference`，由包入口导出，完整动作构造器复用它；宿主用同一入口提供 `InboxSceneRule.reference`。这比在 Host 恢复旧的字符串拼法多一个 owner helper，但引用与完整动作始终由同一个主人定义，不复制 Functions 身份规则，也不改变发布合同。允许改动仅限这两处 Functions 文件、`inbox-scene.ts`、对应回归测试和本稿；不改 Feed、事项修订、持久化、Manifest、权限、场景合同或 PG-034 的整线状态。
+
+- **RAC-482（补充）**：正常创建并发布的目标规则与无关规则共存时，绑定保持准确的 key、version、provider；宿主的 `publishedRules` 端口只读取稳定身份，不为绑定构建完整动作定义。Functions 动作目录原有的完整定义注册保持。字段访问监测只证明本端口的读取边界，不把人为损坏的记录声称成正常产品入口能产生的数据。
+- **RAC-482（拒绝保持）**：草稿和不存在的规则不能绑定；无权或与 Inbox 场景不相容的规则仍由真实场景客户端拒绝，原绑定不变。
+- **验证**：先在 `3cd354a5` 的生产路径上运行针对性回归记录失败，再改实现并整体 `pnpm build`，跑新增回归、原 FI-1 场景用例及被改包 README 的相关必跑用例。构建走机器公共槽；本片不另起全量或浏览器批次。原 PR 跨三个包触发的全量要求继续交统筹组批，独立复查仅收本题增量。
 
 顺序（统筹 10-24 定）：**FI-1 现在做**；FI-2 等 #1242 合入后基于 main 做，等的时候写 FI-3、FI-4 的设计稿（统筹审过再实现，设计稿各一份文件：`feed-inbox-integration-registry.md`、`feed-inbox-home-reference-ledger.md`）；FI-5 在 FI-6 的其余前置排好后做；FI-6 最后，因为它依赖前面全部，且是体量最大的一片，进工作时再细拆。
 

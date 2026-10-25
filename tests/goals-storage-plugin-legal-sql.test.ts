@@ -85,6 +85,7 @@ test("RAC-284 the statement check the modules run under refuses a statement on t
   } finally { dispose(); }
 });
 
+// RAC-298 (goals-s10-s11-runtime-switch.md §7): the same pin, answered by the platform's savepoint.
 test("RAC-285 neither module runs a free-form exec, and the Goal Tree preview undoes its writes through a savepoint, not through SQL it passes", () => {
   const withExec = MODULES.flatMap(directory => sources(directory))
     .filter(path => !path.endsWith("planning/personal-methods.ts") && !path.endsWith("governance-collaboration/src/repository.ts"))

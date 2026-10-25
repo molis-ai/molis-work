@@ -3,6 +3,9 @@ import { governanceSqlite, type GovernanceSqliteDatabase } from "@molis-ai/molis
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { pluginStatementGuard } from "@molis-ai/molis-work-plugin-runtime";
 
+/** The platform handle Goals and Governance run over once they are a plugin; tests reach it here so no test file names the package for it. */
+export { PluginSqlite } from "@molis-ai/molis-work-plugin-goals";
+
 /**
  * The project library as Goals' and Governance's SQL will meet it once it runs as a plugin (PG-094 S9-1): every statement the two
  * modules prepare is run through the statement check a plugin's `services.project_database` calls go through

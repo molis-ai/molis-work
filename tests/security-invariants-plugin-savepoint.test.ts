@@ -12,7 +12,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// S-67 (PG-094 S10/S11): a plugin undoes part of its own write transaction through `transaction.savepoint`, a primitive every plugin
+// S-67 and RAC-297 (PG-094 S10/S11): a plugin undoes part of its own write transaction through `transaction.savepoint`, a primitive every plugin
 // has alike. The platform makes and names the point, so nothing the plugin passes reaches SQL; the body is synchronous; a nested
 // point undoes only its own writes; the handle is dead once the transaction is over; and every step asks the grants and the original
 // caller again, as a statement does, so a call that was cancelled or revoked writes nothing, the rows and the journal included.

@@ -118,9 +118,9 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 
 ## 7. 验收（编号 RAC-294～309，从 294 起；远端各分支都没用过）
 
-- **RAC-294**：适配器的语句映射：`get` 无行为 `undefined`、`all`、`run` 的 `changes`；参数只收字符串、数字、`null`，布尔与 `undefined` 在入口抛。（`tests/goals-plugin-sqlite-adapter.test.ts`）
-- **RAC-295**：窗口纪律：窗口外访问、**异步续体里访问（处理器 `await` 之后的回调、`setTimeout`、被留住的句柄）**、只读窗口里写、换模式重入、窗口句柄被留住后再用，都抛，且什么都没写。
-- **RAC-296**：嵌套事务语义等同 `better-sqlite3`：内层抛错只回滚内层，外层继续并提交；`immediate()` 在无写窗口时抛。
+- **RAC-294**：窗口纪律：窗口外访问、**异步续体里访问（处理器 `await` 之后的回调、被留住的语句句柄）**、窗口里再开窗口、`body` 异步，都抛（`goals.storage.no_window`、`window_conflict`、`async_body`），窗口随后关闭，异步的写事务整体回滚。（`tests/goals-plugin-sqlite.test.ts`）
+- **RAC-295**：语句映射与写窗口：`get` 无行为 `undefined`、`all`、`run` 的 `changes`；参数只收字符串、数字、`bigint`、字节、`null`，布尔、`undefined`、对象在入口抛（`parameter_invalid`）；写窗口里内层事务是保存点（`keep: true`），内层抛错只回滚内层、外层继续并提交，整次调用抛错则整体回滚；只读窗口里写、保存点、事务里写都抛 `read_only`，窗口里的只读事务照常读。（同上）
+- **RAC-296**：同一个适配器同时满足 Goals 与 Governance 两个仓库的接口形状（类型层面检查），Governance 的 `savepoint` 在写窗口里 `keep`、撤销、抛错各自只动自己的写，嵌套只撤内层；只读窗口里的预览被拒。（同上）
 - **RAC-297**：平台保存点原语（通用，任何插件都可用）：插件传不进 SQL（名字、语句都由平台生成）、名字由平台生成、`body` 异步被拒、事务结束后句柄失效、撤权或取消在每一步被检查；`keep:false` 与抛错都回滚到保存点并释放。（安全不变量一行 + `tests/security-invariants-plugin-savepoint.test.ts`）
 - **RAC-298**：两条预检（整份、逐条）经保存点跑，结果与原先逐条相同；Governance 的 `exec`/`pragma` 从接口里删除，静态扫描两模块源码没有 `exec(`。
 - **RAC-299**：既有模块测试（`goal-events`、`goals-command-module`、`goals-query-*`、`governance-collaboration-module`、`planning-engine` 等）改建在「插件客户端 + 适配器」上仍通过，语句数与 S9-1 相同。

@@ -5,7 +5,8 @@ import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 export type CatalogCommit = <T>(operation: () => T, beforeAcquire?: () => Promise<void>) => Promise<T>;
 
 /** Wait only for an unstarted transaction. The synchronous commit body is called exactly once. */
-export function createCatalogCommit(db: SqliteDatabase, validate: () => void): CatalogCommit {
+export function createCatalogCommit<Snapshot = never>(db: SqliteDatabase, validate: () => void,
+  observation?: { read(): Snapshot; committed(change: { before: Snapshot; after: Snapshot }): void }): CatalogCommit {
   let tail = Promise.resolve();
   return (operation, beforeAcquire) => {
     const task = tail.then(async () => {
@@ -24,13 +25,19 @@ export function createCatalogCommit(db: SqliteDatabase, validate: () => void): C
         } finally { db.pragma(`busy_timeout = ${timeout}`); }
         await delay(Math.min(10, Math.max(1, deadline - performance.now())));
       }
+      let committed = false;
       try {
         validate();
+        const before = observation?.read();
         const result = operation();
         if (result instanceof Promise) throw new TypeError("Catalog commit requires a synchronous owner operation");
+        const after = observation?.read();
+        validate();
         db.exec("COMMIT");
+        committed = true;
+        if (observation) observation.committed({ before: before!, after: after! });
         return result;
-      } catch (error) { db.exec("ROLLBACK"); throw error; }
+      } catch (error) { if (!committed) db.exec("ROLLBACK"); throw error; }
     });
     tail = task.then(() => undefined, () => undefined);
     return task;

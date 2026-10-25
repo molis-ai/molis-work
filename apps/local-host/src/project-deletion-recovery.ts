@@ -14,9 +14,12 @@ export type ProjectDeletionRecovery = { version: 1; project_id: string; operatio
   { kind: "absent" } | { kind: "runtime"; sessions: ProjectSessionDeletionPlan; memory: ProjectMemoryPurgePlan });
 export interface ProjectDeletionPreparation {
   project_id: string; operation_id: string; original?: ProjectDeletionRecovery;
+  /** A completed receipt proves only its original selected objects, never a later project with the same id. */
+  verification?: "original";
 }
 export interface ProjectDeletionMemoryProof {
   verifyMemory(): Promise<void>;
+  verifyOriginal?(): Promise<void>;
   assertCurrent(): void;
 }
 export type WithProjectDeletionRecovery = <T>(input: ProjectDeletionPreparation,

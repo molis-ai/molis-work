@@ -142,6 +142,9 @@ export interface CreateProjectInput {
  * already collects, so it never names a plugin or lists its tables. The owner's id in the deletion receipt is the
  * plugin's `project_plugin_id`.
  */
+/** Live authority for a maintenance deletion; checked by the actual owner before each write, including after awaits. */
+export interface ProjectDeletionControl { assertCurrent(): void }
+
 export interface ProjectDataDeclaration {
   /** What the confirmation dialog tells the person goes with the project (Chinese source text, translated when shown). */
   readonly label: string;
@@ -153,7 +156,7 @@ export interface ProjectDataDeclaration {
    * does not exist yet is not created). Throws when something is left, and the step then stays pending in the receipt.
    * Only a plugin whose Home library is partitioned by project may leave it out: the Host removes that project's library.
    */
-  purge?(homeDirectory: string, projectId: string): void | Promise<void>;
+  purge?(homeDirectory: string, projectId: string, control?: ProjectDeletionControl): void | Promise<void>;
 }
 
 /** One owner's part of a deletion: it clears the data it keeps in the Home for the deleted project. */

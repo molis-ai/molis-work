@@ -2611,7 +2611,7 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 - **MEM-40-CAT-01，全量源事实。** Catalog 只读入口使用同一 BEGIN 快照与有界 keyset 页，包含 pending 和 complete，复用唯一原计划 decoder。只投影原请求、计划、步骤及同 ID 当前/保留项目的身份字段；不交正文、显示名、错误文本或 staged_directory。未知结构、坏计划/步骤、缺失关联不能转成空页；exhausted 仅证明该来源读完。Projects 主人拥有 SQL 和持久行校验，LocalHost 只组合主人。
 - **MEM-40-CAT-02，首次目标决定与原决定续跑。** target 从未接受源请求时，按 target 当前身份/版本/preview 固定一次新 deletion_id、原计划和待办步骤；保留源 actor/idempotency/request_fingerprint 供幂等定位，历史 actor 不提供当前维护权限。恢复父 operation 的现 marker 只关联 source 决定与 target receipt，不复制 Catalog 计划或完成账。target 已有同请求收据时，无论由本轮恢复接受还是 T0 已保留，都沿其原计划、操作号与步骤对账；不得覆盖、重新预览扩选或另造竞争收据。不同 source/项目/请求身份碰撞必须拒绝。源 complete 不免除 target 的实际清理与证明。
 - **MEM-40-CAT-03，后继项目保护。** 固定项目 ID 可以在删除后重建。旧 complete 收据不授权清当前同 ID 项目、分区或目录；只有原请求/收据、原固定计划及 SDK/Index/目标主人事实能够证明的旧对象进入恢复选集。时间和 ID 本身都不能证明同一实例。不能证明归属的分支明确 incomplete，保留后继完整对象，不把拒绝当验收通过。必须分别验证“备份在删除前，目标真实执行全部步骤”与“备份已含旧 complete 及重建实例，后继全文/版本/目录保持”。
-- **MEM-40-CAT-04，同一删除主人与当前权限。** 冷维护仅装配既有 Catalog、Projects、binding/panel 主人、原 commit 与 ManagedProjectDeletion。步骤为源原要求与 target 当前声明的稳定并集，Memory 优先，缺席主人保持 pending。目录只能由 target 原决定构造，不能使用源绝对路径。维护 checker 必须进入 owner 的真实副作用和异步后边界，包含 pending/error 记账、目录 rename/rm、步骤及最终提交；不能仅在最后 complete 检查或传 noop。未决原件/coverage 阻断后续业务清除，关闭失败不发布。
+- **MEM-40-CAT-04，同一删除主人与当前权限。** 冷维护仅装配既有 Catalog、Projects、binding/panel 主人、原 commit 与 ManagedProjectDeletion。首次目标决定的步骤为源原要求与 target 当前声明的稳定并集，Memory 优先，缺席主人保持 pending；已有决定按 CAT-02 保留原步骤，并完整覆盖该 source 原要求。目录只能由 target 原决定构造，不能使用源绝对路径。维护 checker 必须进入 owner 的真实副作用和异步后边界，包含 pending/error 记账、目录 rename/rm、步骤及最终提交；不能仅在最后 complete 检查或传 noop。未决原件/coverage 阻断后续业务清除，关闭失败不发布。
 - **MEM-40-FRAME-01，自有删除不使维护失效。** 完整恢复的范围由可信 source 与 target 原固定计划确定；普通采用的活动项目重算规则保留。新的恢复 frame 同时核当前维护权限/取消、原 owner、adopting 与预期 Ledger/Catalog 身份快照。合法 forgetScopes/removeFacts 只能由实际主人事务返回其提交后的最新快照，再推进该 frame 的预期值；不得用任意重新读取覆盖预期、忽略差异或从清空后的关系猜完整性。失败或结果未知保持 adopting，重开沿持久原决定对账。SDK 的固定授权范围不因自身删掉关系而丢失，也不能因此增加选项或让普通 Runtime 获维护许可。
 
 依赖顺序：源 Ledger/Memory 解释、Catalog 读取和冷 Session 清除并行；统筹集成唯一恢复父 operation/frame 与 target Catalog 接纳，再完成全主人 T0/T1/T2、原请求重开、逐 owner 故障、WAL/缺钥/撤权、关闭与第二 owner 交错验证。当前来源读取和冷 Session 仅提供各自局部能力；完整 MEM-40、最终用户旅程与收益对照仍未通过。所有变更继续集中既有 #1101，先由 #1064 依原 CI/评审要求进入 main，不再为上述内部职责新开小 PR。
@@ -2637,6 +2637,26 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 首败保留：首次 build 的 preparation revision 字面量类型不匹配已修正；第一次冷测试9例故障钩子使用 `/var` 路径，未命中 SDK canonical `/private/var`，改为 realpath 后实际命中，原拒绝/持久断言未删；未选 wait fixture 先只有 dispatching 而非 running，现用独立 running node 装真实 wait；影响面命令曾误写不存在的 authority 文件，正确现役文件已补跑，其他20文件未机械重跑。对应 `build`、`direct`、`direct-fixed`、`impact` 首败日志保留，不称所有尝试一次全绿。
 
 本片只完成已具可信 Index/owner 的目标 Session 前置；缺 Index 的跨主人联结与明确拒绝仍是完整 MEM-40 验收的一部分。source 全覆盖、Memory/Ledger/Catalog 完整恢复、最终集成全量/干净包/API 快照、真实 Home、付费模型、产品实操和用户验收均未由此片完成。只本地提交交统筹合回 #1101，不推送、不另建 PR。
+
+### MEM-40 Catalog target 冷接纳冻结接口（2026-10-25）
+
+本刀基线 acca61f7a4cc6e36944aa884304256fb2f86e805，落实 MEM-40-CAT-02..04/FRAME-01；source reader 与 Ledger/Memory/Session 算法由各主人交付，本刀不复制。目标仍用同一 ManagedProjectDeletion、Catalog receipt/recovery_plan/owner steps；无新表/schema、身份别名链、hash 机制、普通启动 bypass、Runtime/Models/Search 服务。
+
+**实例依据。** 现 user onboarding 与 Demo 都可在原 complete 后同 ID 重建，created_at/项目ID不独立证明代际。生产 receipt 没有删除或原请求/原计划改写接口，但只有UUID和时间、没有单调序号。沿原“同一Home同一历史的完整T0备份、较晚停写T1工作副本”操作者前提，穷尽源与目标全部 receipt，以(actor,idempotency,fingerprint/project)联结：原target请求必须是source的兼容子集，原决定相同、step身份不删改，target complete不得在source退回pending；本轮或先前恢复重号只能由已持久source→target关联解释。多出的target请求、同键不同身份/计划、缺失/坏计划或未知状态拒绝整个接纳。这个可观察集合检查不自称证明停writer/跨库快照，也不靠sourceDTO的T1当前行猜删除时对象。
+
+**最小接口。** LocalHost提供 `openProjectDeletionRecoveryTarget`，只显式打开既有target Catalog。输入为可穷尽且成功关闭的现source inspection句柄、已有父marker的source→target引用、必填活维护`assertCurrent`、冷Memory owner、现平台panel清理Port、`recordTargets`和`catalogCommitted`回调。返回仅按原source deletion定位的恢复方法与close，不交一般Catalog/SQL/命令。source reader必须使用原唯一decoder；穷尽source、成功close且全部前提核对后，预先生成整组target deletion ID；任一Catalog写入前，recordTargets一次持久整组source身份、target引用与共同T0处置依赖（primary target与dependent targets），不得边执行边补组。Catalog同事务接受原计划与steps后才允许清理；该回调失败零Catalog写入及owner clear。marker已存而receipt不存在可继续首次接受，receipt已存在只取原plan，不重预览。
+
+**碰撞与重试。** 首次无target请求且source-only已由完整兼容子集证明时，可选择T0当前该项目，按target当前Memory/Session身份和版本准备新计划；source complete/absent不替代target观察。同请求已有pending只续原target计划/子操作/步骤。已有complete只让冷Memory/Session owner执行原选集的精确只读证明，核target原steps全部完成，不调用业务owner.clear、目录rename/rm或范围重列；该精确证明窄口缺失/未知则incomplete，后继保持。未映射的同键不同deletion_id不是新别名，须与source原receipt一致或拒绝。多个source-only同项目先在首轮冻结同一组事实；不得把执行后才变空的结果改称初始absent。后续请求仅在primary已接受target决定完成后，由原主人验证该固定选集确已清除，才接受自己的明确空计划；该依赖和全部关联必须在首次实际写入前持久到既有父marker。不按时间猜顺序或重试重新判空。
+
+**冷Memory与提交接缝。** 原withRecovery注入同一个Memory owner。冷完成核验增加明确的原选集verify能力，不能用当前整个project scope空态覆盖后继，也不能传noop；其实现由Memory负责人提供。本刀提供原事务实际成功后的Catalog变化回调，内容是目标receipt/steps与retained-project的无正文before/after事实。变化在同一事务内由Projects读取，COMMIT成功后同步交catalogCommitted推进预期；回滚不回调，回调失败按已提交待对账处理，不能伪称ROLLBACK或重新读库覆盖旧预期。所有pending/error记账同样过维护checker。
+
+**副作用边界。** ProjectDeletedPort向现file-owner传同一个可失效的当前control；各实际写owner在BEGIN/写入/COMMIT前及await后下一副作用前检查。沿现ProjectDataDeclaration.purge与Storage已有清理函数加窄可选control，普通现调用不改清理语义，冷入口必须提供真实checker；不另建registry。partition purge后rm、plugin-builder rm后secret清理、Assistant事务、图片文件与Catalog目录操作不能只在外层最后检查。首次目标决定取源要求与target当前声明稳定并集，Memory第一，缺owner pending；已有target原步骤不静默重写。绑定和panel走原公开主人，不跨表SQL。
+
+**原决定优先关系（统筹明确，2026-10-25）。** CAT-04 的当前声明并集仅在首次接受新 target 决定时计算。已有 pending/complete 遵守 CAT-02 固定原 plan/steps，只检查这些原步骤完整覆盖同一 source 的原要求；软件后来新增的 owner 不追加入原决定，也不使原 complete 降回 pending。旧 complete 仍须原 steps 全部完成并由原主人 verifyOriginal，业务 owner（包括新增 owner）零调用、后继不动；原 source 要求缺失仍拒绝，不补 steps，不以当前未装配为完成。这明确原决定与新决定的适用范围，不降低缺 owner、Memory 原选集证明或后继保护验收。
+
+允许路径为同ManagedProjectDeletion及必要冷装配、原ProjectDeletedPort/hooks/file-owner接线、CatalogCommit、现binding/panel公开装配、ProjectDataDeclaration与相关原owner/store的实际权限接缝、必要公开出口/README/原spec/测试和生成API快照。source reader及其decoder文件由原负责人持有，不改；Ledger父marker/frame、Memory冷算法、Session/SDK由统筹/原负责人接。无普通初始化绕过、UI/vendor/lock/CI/资源/门禁变化。
+
+验收用公开构建的真实SQLite/文件：完整两端兼容子集、新请求/原pending/回应丢失重开、同键身份/计划冲突、sourcecomplete与sourceabsent不跳target、旧complete后继保持、多个source-only同项目、缺owner、SDK/业务/目录部分失败、每个异步副作用后撤权和COMMIT拒绝、snapshot推进与回调失败。保留原README定向回归、整体build FIFO、严格类型、精确acca健康/boundary；不全量/浏览器/真实Home/模型/发布。本段已由统筹冻结，授权本刀实施；合同冻结不代表首次source-only已实现或完整MEM-40通过。
 
 统筹集成与独审补记：540549fa 已合入聚合 acca61f7a，生产无冲突，spec 两侧追加完整保留。独立公共构建入口八组真实 Node/SQLite 探针通过，覆盖伪完成、SDK 已完成后撤权/关闭、原决定重开、同 Session 并发、固定集合及在线 archive/unarchive/prepare/purge；模型/网络均零，报告 `/private/tmp/molis-memory-cold-session-purge-independent-review-20261025.md`。作者 impact 命令因误填一个不存在文件整体失败，20 个实际文件145项有效；随后补真实 authority13项等结果，不能把原 impact 命令写成整体成功。
 

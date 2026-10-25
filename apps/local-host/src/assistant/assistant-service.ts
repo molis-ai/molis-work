@@ -216,7 +216,7 @@ function roundDiagnostics(workId: string, work: StoredWork | null, round: Stored
       ...(material.method ? { method: { method_id: material.method.method_id, ...(material.method.version !== undefined ? { version: material.method.version } : {}) } } : {}) })),
     usage: tokens ? { input: tokens.input, output: tokens.output, cached_input: tokens.cached_input ?? 0 } : null,
     failures: (view?.activity ?? []).filter(item => item.state === "failed" || item.state === "unknown")
-      .map(item => ({ tool: item.name, target: item.target.slice(0, 200), state: item.state as "failed" | "unknown", summary: item.summary.slice(0, 400) })),
+      .map(item => ({ tool: item.name, target: item.target.slice(0, 200), state: item.state as "failed" | "unknown", summary: item.summary.slice(0, 400), ...(item.output ? { detail: item.output.slice(0, 600) } : {}) })),
   };
 }
 
@@ -293,7 +293,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
       // Refused before anyone was asked: its input did not fit the capability (a plain failure the round can correct).
       : /blocked "change-capability"|blocked "change-reversible"|blocked "read-capability"/.test(said) ? undefined
       : /EFFECT_NOT_AUTHORIZED/.test(item.summary) ? "not-authorized" as const
-      : /TOOL_INTERRUPTED/.test(`${item.summary} ${item.output ?? ""}`) ? "interrupted" as const
+      : /TOOL_INTERRUPTED|等待批准时这一轮结束/.test(`${item.summary} ${item.output ?? ""}`) ? "interrupted" as const
       // Switched off for the Assistant, uninstalled or no longer offered by the time it would run (even after approval).
       : /not offered here any more|not available here|action_revoked|已对助理关闭/.test(`${item.summary} ${item.output ?? ""}`) ? "unavailable" as const
       : /reject|declin|拒绝/i.test(item.summary) ? "declined" as const : undefined;

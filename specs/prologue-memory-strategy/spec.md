@@ -3200,8 +3200,20 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 
 #### MEM-40 停写恢复的 CLI 消费合同（2026-10-26）
 
+合成主干 #1304 时，Coding 更新保留本片的原归档决定和写前/事务内可编辑检查；归档和正在执行的拒绝使用主干原 `coding.archived_edit` / `coding.session_busy` 及 conflict 分类，不恢复旧通用错误判断或旧归档写入路径。原归档/恢复与设置并发回归继续执行。
+
 真实入口为 `molis-work memory recover-home --source-home <T1工作副本> --target-home <T0工作副本> --operation-id <原操作号> --confirm [--json]`。两个副本必须来自同一 Home 的同一历史，均已停止写入且另有完整备份；命令不停止服务、不复制备份、不选择默认 Home、不更换现役写入方。必须显式给出绝对路径与稳定原操作号，缺参数、重复或未知参数及缺确认在开库前失败。`--confirm` 是操作者确认这些前提并执行已定恢复；不是另一份批准账或迁移计划。帮助和未装配能力无存储副作用。
 
 调用链：CLI 只解析并输出 → LocalHost 的 CLI 窄口处理取消与真实失败资源的关闭 → Desktop 供应实际 panels → 原 recoverMemoryHome 组合及其 SDK、Ledger、Catalog、业务主人。只共享纯数据 request/result 合同，不从 CLI 访问 Store 或 SDK，不启动普通 Host，不新增恢复核或锁。只有父决定实际提交且所有资源关闭成功才输出 completed；同操作显式重试由原主人核对并给 replayed。取消/失败退出非零，沿原失败的 close 能力等待资源释放，不能把关闭重试当恢复重放，关闭失败保留两项错误及原操作号。
 
 允许改动：既有 CLI 包、LocalHost CLI 接线、Desktop CLI launcher、共享 request/result 类型、对应 README/CLI 手册和本节、直接 CLI 与恢复组合测试及公开快照。验证先覆盖参数/确认/未装配零调用、同操作传递、失败/取消/关闭；再经实际 Desktop launcher 的独立进程和隔离非空 T0/T1 副本走原恢复与重启读取。只解析或替身端口通过不能代表该实际链通过。保留 CLI README 必跑与直接影响检查，不改 CI、资源门或验收，工程、实际维护路径和用户验收分别记录。
+
+### #1064 与 #1304 主干整合（2026-10-26，短合同）
+
+在基础 21db23f0 与准确主干 4db89e26 的原主人上整合：保留原输入回执的机器码、恢复与 Session 生命周期隔离、MemoryUsage 及关闭末尾记账；同时保留新主干中断批准的真实展示、子角色工具同一边界、Coding 错误归属与诊断详情、Dock 名称和新的受影响用例选择。不得回退任一方生产入口、修改门禁算法/阈值/CI 或放宽业务断言；下述已合并 coding.waiting 合同仅同步精确状态码并加强副作用检查。仅两个资源文件文本冲突；以新主干实测基数核同一已批准基础功能的准确净增，不能借旧绝对上限或其它功能余量。若超过原批准范围先报告，不登记增额。原 FIFO 构建、相关调用链及 README 必跑并集、准确 4db health/boundary/API/assets；不全量、不 push，不将旧 Full 或 busy-feedback 的定向结果当新整合通过证据。应用 721 和冷 Home/CLI 工作树不变。
+
+整合后原构建实测：新主干已含 Dock +263 B；同一已批准基础补丁 Workbench 从 1124686 到 1127879，净 +3193，与21db基础原净增相同；Coding 从 289788 到 290388，净 +600（比此前 +612 少12）。只登记这两个精确pair，去掉旧上限与余量；原 --update --base 4db89e26 生成31资源预算，保留首次未登记时的红日志。新的原 affected 选择器建议共享核心/跨包Full；本地依授权仅跑相关和README并集，Full/远端CI仍由统筹处理。
+
+#1304 已把 Coding 会话等待拒绝定义为 `coding.waiting`（`conflict`），由共享错误种类映射成 HTTP 409。整合回归发现原 `coding-message-wait` 仍期待 400；公开 HTTP 反例返回精确 409/code，启动次数保持 1→1、会话仍 queued。仅同步该旧断言为 409 并补机器码与零额外启动/原等待状态检查；保留原继续、重启和放弃链路断言，不修改生产分类或接受任意 4xx。
+
+本次工程边界：准确 `4db89e26d6d5740e3002dfcfa868b40876385ded` 的健康、API、包边界、根/Host/Agent 严格类型与正常资源门通过；原 `--update --base` 只将已消失的 Coding 路由状态码分支登记从 51 收紧到 46。原 FIFO 构建产物与 `computeBuildSourceDigest` 一致（`5a891fed7b8954effedd3af8ad51a68d8afaf98a22cd4d05e2e38c6c1f844900`）。原选择器及 README 必要并集最终 386 文件无失败：3908 个测试通过，5 个跳过（4 个 MiniMax 外部等待、1 个真实 npm HTTPS）。原 native 批的旧 400 断言首红和公开反例保留；仅该文件按已合并合同同步后重验，均为 `jobs 2 / browser-jobs 1 / retries 0`，没有自动重试。55 个浏览器文件全部通过，包括原输入回执、placement 与 busy-feedback；不据此推断旧 CI 性能首红根因。未跑本地全量、未调用付费模型、未推送。旧 `21db` 的远端 Full 属于不同提交，已有首红后重试通过且仍由 Root 审计，不能替代本次合成头的全量证据。

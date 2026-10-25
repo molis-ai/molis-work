@@ -1143,7 +1143,7 @@
   },
   "errorCodeShapeTotal": 0,
   "errorCodeShape": {},
-  "errorStatusDecisionTotal": 51,
+  "errorStatusDecisionTotal": 46,
   "errorStatusDecisions": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/alchemist-native-plugin-http.ts": 3,
@@ -1157,7 +1157,6 @@
     "apps/local-host/src/web-project-deletion.ts": 2,
     "plugins/native/alchemist/src/studio/server/api/action-routes.ts": 4,
     "plugins/native/alchemist/src/studio/server/services/action-operations.ts": 14,
-    "plugins/native/coding/src/routes.ts": 5,
     "server/src/continuity/service.ts": 1,
     "server/src/http.ts": 2,
     "server/src/identity.ts": 3

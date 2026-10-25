@@ -1,6 +1,7 @@
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
+import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
@@ -154,7 +155,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     } }, input, { signal: invocation.signal, beforeDispatch: () => invocation.beforeEffect(), pluginId: invocation.plugin?.plugin_id });
   });
   const inference = inferenceClient(initialize, () => prologue);
-  const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
+  const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw hostErrors.builder_unavailable("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
   const restoreExternalMcp = (reference: LocalHostProjectReference) => disposed ? Promise.resolve()
     : externalMcp.restore(reference, async runtimeId => { await initialize(); return agentHost.adapter(runtimeId).mcpLibrary; });
   const decideSurfaceSite = (decision: { scope: string; decision: "allow" | "block" | "forget" }) => {
@@ -162,7 +163,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     prologue?.surfaces?.decide(decision.decision === "block" ? { scope: decision.scope, decision: "forget" } : decision);
   };
   const refreshExternalMcp = async (owner: AgentSkillOwner) => {
-    if (!options.projectReference) throw new Error("项目连接目录尚未装配");
+    if (!options.projectReference) throw hostErrors.project_connection_unavailable("项目连接目录尚未装配");
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
@@ -195,7 +196,7 @@ function charactersCatalog(options: AgentHostCompositionOptions, agentHost: Agen
 
 /** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */
 function keptWriteCheckers(prologue: { writeCheckers: AgentWriteCheckerStore } | undefined): AgentWriteCheckerStore {
-  if (!prologue) throw new Error("Agent 运行时没有启动，读不到写后检查器");
+  if (!prologue) throw hostErrors.agent_runtime_unavailable("Agent 运行时没有启动，读不到写后检查器");
   return prologue.writeCheckers;
 }
 
@@ -353,7 +354,7 @@ export function workspaceRefFor(
 }
 
 function inferenceClient(initialize: () => Promise<void>, current: () => Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined): PrologueInferenceClient {
-  const get = async () => { await initialize(); const adapter = current(); if (!adapter) throw new Error("Prologue 推理服务未装配"); return adapter.inference; };
+  const get = async () => { await initialize(); const adapter = current(); if (!adapter) throw hostErrors.inference_unavailable("Prologue 推理服务未装配"); return adapter.inference; };
   return {
     completeText: async input => (await get()).completeText(input),
     completeTextResult: async input => (await get()).completeTextResult(input),

@@ -8,6 +8,7 @@ import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plu
 import { requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
+import { assertChildRoleTools } from "../child-role-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
@@ -176,10 +177,7 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
   }
   const childRoles = new Map<string, ChildRole>();
   for (const role of input.subagents ?? []) {
-    const allowed = ["read-file", "list", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(role.execution === "workspace-write" ? ["run-command"] : []),
-      // A child may read and wait on its parent's background commands when the parent waits on them itself.
-      ...(input.character.tools.includes("await-commands") ? ["command-output", "await-commands"] : [])];
-    if (!childRoots.length && role.execution === "text-edit" || role.host_tools.some(tool => !allowed.includes(tool) || !childRoots.length && !input.character.tools.includes(tool))) throw new Error("子角色超出本轮允许的工具与目录");
+    assertChildRoleTools(role.execution, role.host_tools, childRoots.length > 0, input.character.tools);
     const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
     const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
       ...(ref ? { instructionsRef: ref } : {}), tools: role.host_tools.map(prologueToolName) });

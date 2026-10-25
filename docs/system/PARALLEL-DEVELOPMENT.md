@@ -139,6 +139,9 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 | 读它、调它的用例 | 静态读 `tests/*.test.*` 和它们 import 的 `tests/` 下的 fixture（与探针读标记是同一个闭包），不运行。依次：① 用例自己 import 这个文件，或在字符串里写出它的路径（认 `.js` 与 `.ts`、`dist` 与 `src`、包的子路径 import、`join(root, "plugins", "x")` 这种拼法，也认写到上层目录）；② 用例触及这个包（import 包名，或路径进了包目录）并提到这个文件导出的名字，已删除的导出也算（用例会因此加载失败）；③ 用例文件名对得上：`tests/<文件名>` 开头，`actions`、`store` 这类通用名改用 `<包目录名>-<文件名>`；④ 包整体：import 该包或以包目录名开头的用例 |
 | 带 `L()` 文案加 `tests/i18n.test.ts` | 产品源码里改动的行（注释不算）调用翻译函数（`L`、`x.L`、`p.text`、`primitives.text`、`translate`、`this.t`），或含中文字符串，或改的是词典文件 |
 | 改路由加读这条路由的用例 | 改动行里的 `/api/…`、`/__…`；路由文件（`*-http.ts`、`routes.ts`、`web-*.ts` 等）里任何 `"/x/y"` 字面量。路由文件里，改动落在哪段处理函数里就算改了哪条路由：从每处改动往上找，第一行缩进比改动浅、又写着路由字面量的，就是包着它的那条路由（注释和同缩进的兄弟行不算，最多往上找 120 行），所以只改了处理函数的函数体、没碰路由那一行，也会选到读这条路由的用例。在参数处（`${}`、`:id`）拆开，读这条路由的用例要含全部固定片段（`/api/projects/` 和 `/brief`），查询串不算 |
+| 改合同字段加提这个字段的用例 | `packages/contracts/src/` 的源码改动，从新增行里取字段名（`name?: type`、`readonly name: type`），在用例文本里找提到这个名字的用例（`AgentTurnSteer` 加 `key` 一案里 `tests/prologue-recovery.test.ts` 能选到）。接口常常经过 barrel 或内联 `import(...)` 类型才到用例，所以按字段名找、不按接口名找；字段名太短（不足四个字符）或是 `options`、`state` 这类到处都有的词时不选，超过 25 个用例提它的字段不选并在 Notes 写出 |
+| 改样式表加按选择器断言整份样式表的用例 | 改动或删除的文件是 css、scss，或路径在 `styles/` 下：取类选择器（`.name`）、自定义属性（`--name`）、`data-`/`aria-` 属性，逐个在用例文本里找写过它的用例（`tests/web.test.ts` 这类读拼好的整份样式表、用正则断言某个选择器的用例既不 import 也不点名样式文件；W5-05 第 4 片删 `personal-workbench-v3` 时漏了三个）。一个选择器被超过 25 个用例写到时不选，Notes 写出；`--wide` 选全部 |
+
 | 界面加浏览器用例 | 改动在界面包（workbench、design-system、ui-host、im-ui），或文件名像客户端、样式、视图、渲染器，或是 css、html、svg，或改动行是页面脚本与样式模板。加 README「界面改动加跑」一行里 `再加跑` 之前的用例，并加该包同名的浏览器用例。输出提示页面资源门禁和三宽度、明暗截图（PR 模板） |
 | 全量 | 见下 |
 
@@ -147,6 +150,7 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 - 一个包被超过 40 个用例 import 或同名时不整包选，只选读到改动文件与名字的用例，Notes 里写明；`--wide` 选全部。
 - 一个文件只被借 fixture 间接读到（用例自己没写它），共用这个 fixture 的用例超过 25 个时不选：那些用例是起整个宿主，不是读这个文件；Notes 写出 fixture 名。`--wide` 选全部。
 - 一个名字被超过 25 个用例直接提到，说明不了谁读它，不用。
+- 一个选择器被超过 25 个用例写到（样式表里的 `.card` 这类通用类名会这样），或一个合同字段被超过 25 个用例直接提到：说明不了谁读它，不选，Notes 写出；选择器 `--wide` 选全部，合同字段仍不选（contracts 本来就建议全量）。
 - 一条路由被超过 25 个用例提到（`/projects/` 在 199 个用例里，`/health` 在 143 个），说明它只是路径的一个常见片段，不当作“读这条路由”：不选，Notes 写出路由和个数，`--wide` 选全部。点名一个路由文件（当作整个文件都改了）时也一样：`web-request.ts` 原来选出 265 个用例，现在 70 个。这个上限比 10-03 原话“所有读这条路由的用例”窄，代价不止这两个片段：在全部产品源码里量（`76ba1545`），被它挡掉的真路由还有 `/settings`（77 个用例）、`/api/plugins`（62）、`/archive`（58）、`/sessions`（38）、`/api/plugins/io.molis.work.coding`（28），片段还有 `/desktop/`（236）、`/settings/`（66）。它们的读者不选，只在 Notes 里写出路由和个数。`web-catalog.ts` 在装配名单上，改它本来就建议全量；`web-goals-read.ts`、`web-routing.ts`、`document-routes.ts` 这类不在名单上的文件改到这些路由时，读者只在 Notes 里，不在用例列表里，`--wide` 才选。放不放宽等用户拍板（第 12 节第 3 点）。
 - README 里除「改动后必跑」「界面改动加跑」之外带测试路径的分项（「助理逻辑验证」等）和 `再加跑` 之后的条件部分，只列在 Notes，`--readme-extras` 才选。
 - 没有任何用例直接读到的改动文件单独列出（`No test reads these directly`），别当成已覆盖。
@@ -171,7 +175,8 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 局限，知道它会漏、会多的地方：
 
 - 它读文本，不读运行。字符串拼出来的路径、动态 import、环境变量传的路径看不到；用例对包名的 import 只看到包名，看不到包里哪个文件被用到，大包只能靠上面的收窄规则。
-- 按选择器断言样式表的用例看不到：`web.test.ts`、`chrome-inner-scroll.test.ts`、`visual-foundation.test.ts` 这类用例读拼好的整份样式表（`renderMolisWorkWorkbenchStylesheet()`、`WORKBENCH_STYLES`），用正则断言某个选择器的规则，既不 import 也不点名那份样式文件或它的导出名，所以删改一层样式时选不到它们（W5-05 第 4 片删 `personal-workbench-v3` 时漏了前两个，全量才抓到）。删改样式时另按删改的选择器 `git grep` 一遍 `tests/`；脚本的补法见 `specs/BACKLOG.md` BL-153。
+- 按选择器断言样式表的用例：`web.test.ts`、`chrome-inner-scroll.test.ts`、`visual-foundation.test.ts` 这类用例读拼好的整份样式表（`renderMolisWorkWorkbenchStylesheet()`、`WORKBENCH_STYLES`），用正则断言某个选择器的规则，既不 import 也不点名样式文件。现在会从改动/删除的样式文件（css、scss，或 `styles/` 目录下的文件）里取类选择器、自定义属性、`data-`/`aria-` 属性，在用例文本里逐个找写过它的用例，所以删 `personal-workbench-v3` 时漏掉的三个用例能选到。仍看不到：把类名写成不带点的字符串、运行时拼选择器、样式在 TS 模板里跨行拆开，以及一个选择器从别的文件 `var(--x)` 继承来的链；这些情况按删改的选择器 `git grep` 一遍 `tests/`。
+- 合同字段深比较：会从 `packages/contracts/src/` 新增行里取字段名并找提到它的用例，但用例把整个对象深比较、一个字段名都不写时仍看不到；contracts 是共享核心，改了它本来就建议全量。
 - 不追反向依赖：改了 A 包，只依赖 A 的 B 包的用例不会被选。波及面大的改动走全量条件，不靠它挑。
 - 阈值（40、25、3 个包、3 个文件、300 行、往上找 120 行）是首批取值，不是量出来的最优。用一两周后按漏选、多选的实例调；调的地方只有 `rules.mjs` 的 `LIMITS` 和 `FULL_REGRESSION`。
 - 路由按缩进认包着改动的那一层：路由条件拆成几行、路由字面量那行和函数体缩进一样时认不到（只剩改动行里直接写着的路由）；顶层的辅助函数不算在任何路由里；删除整段处理函数时，只有被删的行里写着路由才认得到。

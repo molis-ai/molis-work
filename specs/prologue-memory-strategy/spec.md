@@ -1324,3 +1324,11 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 首轮资源门明确拒绝已保留：准确 fc1 上 Workbench `1125074 → 1128267`（+3193 B），Coding `289017 → 289629`（+612 B，保留 main 的对象/稳定码 guard，比旧 compact 写法多12 B，仍低于原已批 +717 B）。只登记上述实际起点/终点，删除已消费的 main pair；其余29资源与 main 相同。原 `--update --base fc1e03c3cf029a7c54ffd25a5274e1cab4ad6a6d` 冻结31资源共7,552,240 B，随后原整体 build 刷新门禁脚本对应的构建指纹，最后资源门通过。
 
 本轮有界工程验证：两次原整体 build、根与 AgentHost/Coding 生产严格类型、七冲突中的三份 TypeScript lint、包边界、75份 API 快照及准确 fc1 健康通过。快查 baseline 仅由原 `--update --base` 同步主干已有下降与条目迁移，未手拼数字或增改 giant exception。AgentHost/Coding README 必跑并集和原输入/恢复/权限/MemoryUsage 交点共87文件491项通过（84 native文件488项、3 browser文件3项），均为原 runner 的 jobs2/browser1/retries0，无失败或跳过。没有为通过修改生产分类、用例断言、超时、重试、CI 或阈值。原始构建、资源首红/最终、类型、健康与测试日志为 `/private/tmp/foundation-batch38-*-20261026.log`，明确用例集合为同前缀的 `necessary-tests-20261026.txt`。本轮没有跑全量、操作远端CI、触真实 Home 或付费模型；旧Full、Home恢复旅程和最终用户验收不能由这87文件代替。
+
+### #1064 原 611 提交的完整 CI 结果与测试接入修正（2026-10-26）
+
+原 Full run `40230564201` 已结束：16片中12片成功、4片失败。原1506文件排除29份macOS专用文件，Linux实跑1477文件；1469文件首跑通过，4文件仅在原一次重试后通过，4文件最终失败。重试才通过的是 configured-text、assistant-typed-questions、coding-action-cards、coding-model-controls，保留首红；最终失败的是 assistant-executor、coding-queued-round、coding-question-card、interaction-no-crosstalk。不能把重试通过写成首跑全绿，也不从文件汇总推断内部跳过数。普通 run `40230567097` 的 Verify成功；非必需产品子集2仍因assistant-executor失败，Linux probe跳过。旧Cloudflare问题仍未核清，不进入合并队列。
+
+两份native文件已按现行生产合同同步：assistant-executor的无签名样例插件显式传入空hostIds，不获得内置插件身份；coding-queued-round按既有coding.waiting/409拒绝第二次发送，进一步核验机器码、没有新Run、没有第二次排队且原Session仍为queued。生产权限、状态码与执行行为没有修改。原runner jobs2/browser1/retries0定向两文件16项通过，日志 `/private/tmp/molis-foundation-611-runtime-contract-fixes-20261026.log`；这只证明本机修改后的两份用例，原611远端失败记录保留。
+
+两份浏览器失败仍待定位：原日志出现Runtime.releaseObject/Runtime.callFunctionOn超时；本机故障探针证明清理异常可以遮蔽输入异常，最小错误传播修复正在验证，不能据此宣称CI根因已解决。未增加超时、重试、隔离或跳过，未修改CI门禁。

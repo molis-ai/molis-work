@@ -3643,3 +3643,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - ac-sandbox-sched：FI-5，`claude/ac-feed-inbox-designs` `35449e675`，Feed 的 12 张表声明、基线 v11 暂定、维护夹具；26 个文件过。接着做 FI-6。
     - Codex：F2 `4ea83ee3d`（#1307 的两项不挡合并）、R-55 回归测试 `f502e480c`、Goals 集合英文回归测试 `74191f112`、PACKAGE-BOUNDARIES 接缝说明 `0598e26b2`。各等它们自己的 REVIEW/TEST 收据，再进 batch-41。
   - ac-giants 停着，等 PG-024 或维护时段。ac-coding 接着做 PG-054，然后 T5b。
+- 10-25 23:55 UTC：组批进展：
+  - batch-40 PR 头本地 `853d8ea5a`（未推）：并进 Codex 两份只加测试的回归，Goals 集合英文 `74191f112`（RAC-773，REVIEW 6403923043）和 R-55 插件槽 `f502e480c`（RAC-657，REVIEW/TEST 6403949647）。ac-clients-1 在 `claude/b40-pg071-fixes` 推了 `2b2ba5798`（board 行用插件自己的词，另修 hover-actions、project-deletion-hooks、entry-exports）；shelf-plugin、shelf-plugin.e2e、RCPT-382 还在做，齐了再推 PR 头跑 Verify。
+  - batch-41（本地 `5ac396d12`）：并了 batch-40 `853d8ea5a`、ac-platform 第 6 组 `334656fd0`（ac-review 6403966832 可合，挡合并 0 项）、Codex PACKAGE-BOUNDARIES `0598e26b2`（PIPE Ready 6403534423）、ac-giants 文档 `d4bccb21e`。还等 ac-shell `c603be282`、T7+T3b `25d998b32` 的评审，以及 Codex F2 `4ea83ee3d` 的收据。
+  - 第 6 组评审交叉项：Inbox 实际调 Pages 仍经宿主 `inbox-actions.ts` 拿 Pages 包的 `ActionDefinition`（原有，不是这组加的），Inbox 上 Runtime 时（FI 线）去掉，届时靠动作网关的 schema 校验兜底；batch-41 的 PR 说明要写六个合同子路径删除对外部插件作者的影响。

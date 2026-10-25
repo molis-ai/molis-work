@@ -113,7 +113,8 @@ test("MCP grants are exact for client, project, Home, provider, version and acce
 test("Host inspection exposes metadata without execution rights; exact scope and queued calls respect revocation", async t => {
   const home = await mkdtemp(join(tmpdir(), "mcp-grant-queue-"));
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  t.after(async () => { release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); });
   const action = view(), newer = view("project", 2), reference = { project_id: "a", storage_key: "memory:a" };
   let writes = 0;
   const dispose = host.actionRegistry(reference).registerProvider({ provider: action.provider, definitions: [action, newer],
@@ -127,11 +128,15 @@ test("Host inspection exposes metadata without execution rights; exact scope and
   await writeMcpActionGrant(home, grant);
   const authorized = resolveMcpActionContext(caller, [action, newer], await readMcpToolPreference(home));
   await assert.rejects(client.invoke({ ...authorized, allowed_capability_ids: [action.capability_id] }, newer, {}), { code: "actions.forbidden" });
-  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-  t.after(() => release.resolve());
+
   const blocking = { capability_id: "fixture.block", version: 1, operation: "command" as const };
-  host.register(blocking, async () => { entered.resolve(); await release.promise; });
-  const first = host.client(reference).invoke(blocking, undefined); await entered.promise;
+  // FULL35-FIXTURE-02: the blocker occupies the real project queue through a registered serial action.
+  const stopBlocker = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "queue-fixture", title: "Queue", kind: "system", project_id: "a" },
+    definitions: [{ ...blocking, action: { title: "Block", description: "Hold the project queue", kind: "operation", scope: "project", audiences: ["user"], permissions: [],
+      subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "null" } } }],
+    handlers: [{ ...blocking, handle: async () => { entered.resolve(); await release.promise; return null; } }] });
+  t.after(stopBlocker);
+  const first = host.client(reference).invoke(blocking, {}); await entered.promise;
   const mutable = { ...authorized, allowed_actions: [...authorized.allowed_actions!] };
   const queued = client.invoke({ ...mutable, validate_authority: async ref => assertMcpActionAuthority(caller, [action], await readMcpToolPreference(home), ref) }, action, {});
   const rejected = assert.rejects(queued, { code: "mcp.action_revoked" });
@@ -140,7 +145,7 @@ test("Host inspection exposes metadata without execution rights; exact scope and
   release.resolve(); await first; await rejected; assert.equal(writes, 0);
   await writeMcpActionGrant(home, grant);
   assert.equal(await client.invoke(authorized, action, {}), 1);
-  dispose();
+  dispose(); stopBlocker();
   assert.deepEqual(await host.inspectActions(caller, reference), []);
 });
 

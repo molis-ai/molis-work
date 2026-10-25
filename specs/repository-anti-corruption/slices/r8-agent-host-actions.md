@@ -355,3 +355,15 @@ BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
 - 拒绝路径：`tests/plugin-capability-availability.test.ts`（声明、缺失、版本、换提供方、停用钩子、无检查、项目与提供方范围，页面目录与路由同码）、`tests/plugin-host-services.test.ts`（没声明的动作在问宿主之前拒绝）、`tests/current-project-settings.test.ts`（逐项按 Manifest 放行）、`tests/goal-management-identity.test.ts` 与 `tests/management-door-identity.test.ts`（退役的旧 id 经宿主客户端与插件客户端都拒）、`tests/host-action-registration.test.ts`（PG035-02 插件拿不到 `services.capabilities`，PG035-06 宿主上没有 `register` / `registerCapability`）。
 - 门禁：`tests/health-gates-structure.test.ts` 在本仓库上找不到别名、注册口与任何计数；`node scripts/check-health-gates.mjs --base origin/main` 的 `typedCapabilities` 为 0。
 - 创作台与 Alchemist：`skills/molis-plugin-dev`、`apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`、`examples/`、`tests/plugin-sample*` 里没有 `services.capabilities`；改的只是 `skills/molis-plugin-dev/host.md` 里不在章节里的两段说明，创作台章节与提示词没动，不需要 `pnpm studio:replay`。
+
+### 12.4 full35 消费夹具补线（FIX1，2026-10-24）
+
+状态：实现与本地定向验证完成，待独立 REVIEW、TEST 和 PIPE/Root 核收。冻结基线 `927897a11`，full35 `40159810466` attempt 1 的 13 个失败文件由 FIX1 独占；翻译失败由 FIX10 处理。目标是恢复这些夹具对现行动作、授权与首开诊断的验证，不改变生产行为或恢复 typed 通道。批次的 [FIRST 接受记录](https://github.com/molis-ai/molis-work/pull/1258#issuecomment-6393271026) 是此次组合合同。
+
+- **FULL35-FIXTURE-01**：`coding-characters-http`、`coding-materials-http`、`coding-writer-assignments-http`、`coding-message-wait`、`coding-queued-round`、`coding-cooperation-http`、`coding-plans-http`、`coding-state-coalesce`、`coding-runtime-declarations`、`coding-history-summary-http` 的项目目录、浏览目录和 Runtime 设置显式注册到调用它们的同一动作服务。目录返回现行 `ProjectWorkspaceRef`；读取回调保留授权撤销与 Runtime 选择的动态变化，不把缺失动作一律答成可用。保留原成功、拒绝、恢复、并发与持久化断言。
+- **FULL35-FIXTURE-02**：`workspace-plugin-graph` 的 Files 依赖与调用都经过实际登记的浏览设置动作；`mcp-action-grants` 的排队阻塞器使用 `registerProvider`，仍证明排队期间撤权后零写入、授权恢复后可调用，不再调用已删除的 `LocalHost.register`。
+- **RAC-463-FIXTURE-03**：`project-opened-home-fixtures` 在真实 Web Catalog 的目录读取处注入故障，验证 Host warning、失败后重试和恢复后的成功去重。内部首开读取不伪造动作行；同请求有真实业务动作落行才返回可查编号，严格解析拒绝及下一独立请求遵守 R-47。具体断言见 BL-521 切片 §6.4。
+
+实现只动上述 13 个测试、新的显式选择使用的 `tests/fixtures/project-workspace-actions.ts` 与这两处既有切片。共享 `plugin-actions.ts`、生产源码、API 快照、翻译和批次分支均不改。独立树已离线安装并整体构建通过；测试与文档改动后用 `node scripts/run-tests.mjs` 对上述文件定向运行（`--jobs 2`），补跑相关首开与原 HTTP 拒绝回归，再做包边界、健康门禁和推送前凭据检查。原 full35 首败及 runner 重试均保留作红证据；不重跑 900 秒挂起，不调用真实模型，不另起 full。固定候选交独立 REVIEW、TEST 和 PIPE/Root 吸收；工程通过不代表浏览器、安装或用户验收完成。
+
+本地验证（FIX1 独立树，生产源码保持 `927897a11`）：整体构建及对照 `origin/main` merge-base `df5527f2` 的健康门禁通过。目标 13 文件首轮 11 文件、41 用例通过；`coding-plans-http` 首轮连接重置，保留原件后以相同测试及临时请求追踪独立复跑 1/1；`coding-state-coalesce` 首轮混入后台观察计数并有 6 条超时，业务断言未改，独立复跑 7/7。不将这些失败自动归因环境，不写成全首跑通过。13 文件的 49 用例均取得通过记录；另跑原 `pages-import` 10/10、`document-plugins-error-model` 21/21、`security-invariants-workspace-settings-events` 9/9、`workspace-read-actions` 1/1，共 17 个唯一文件、90 用例。原始记录在 `/tmp/molis-full35-six-fixtures-20261024/`，没有另跑 full、浏览器、安装或用户验收；包边界尚在公共构建槽队列。历史摘要的等待屏障在 HTTP 先失败时直接报告，避免依赖永不进入的 draft 动作挂到文件超时。

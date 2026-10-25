@@ -4,6 +4,7 @@ import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { projectSettingsCapabilities, projectsCapabilities, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -139,41 +140,72 @@ for (const fixture of ["serveHomeRuntime", "openTestHome"] as const) {
     assert.deepEqual([response.status, await response.json()], [400, { error: "请求不是有效 JSON", code: "actions.input_invalid" }]);
   });
 
-  for (const fault of ["missing", "failing"] as const) {
-    test(`RAC-463-FIXTURE-03 ${fixture}: an intentionally ${fault} opening dependency remains traceable in the actual request log`, async t => {
-      const { opened } = observe(t);
-      const f = await open(t, fixture, { workspacesFor: fault === "missing" ? undefined : () => { throw new ActionError("actions.connection_required", "directory unavailable"); } });
+  for (const fault of ["unavailable", "failing"] as const) {
+    test(`RAC-463-FIXTURE-03 ${fixture}: ${fault} Catalog opening logs the request, retries and never invents an action receipt`, async t => {
+      const { opened, logs } = observe(t), f = await open(t, fixture);
       const project = await f.project("opening diagnostic"), base = pagesPath(project.project_id);
-      const code = fault === "missing" ? "actions.dependency_missing" : "actions.connection_required";
-      const response = await post(f, base, " ".repeat(1_000_001));
-      const id = response.headers.get("x-molis-work-call-id");
-      assert.ok(id, "an opening failure actually wrote a diagnostic in this request");
-      assert.deepEqual([response.status, await response.json()], [413, { error: "请求内容过大", code: "actions.input_too_large", call_id: id }]);
-      assert.equal(pagesCount(f, project.project_id), 0);
-      const rows = f.host.callLog.find(id);
-      assert.equal(rows.length, 1);
-      assert.deepEqual([rows[0]!.project_id, rows[0]!.capability_id, rows[0]!.code, rows[0]!.ok],
-        [project.project_id, projectSettingsCapabilities.browsingWorkspace.capability_id, code, false]);
-      assert.equal(rows[0]!.call_id, id);
-      if (fault === "missing") assert.equal(rows[0]!.refused, true);
-      assert.deepEqual(opened, [], "a dependency failure cannot become an empty-directory announcement");
+      const code = fault === "unavailable" ? "actions.dependency_missing" : "actions.connection_required";
+      let blocked = true, attempts = 0;
+      // The Web composition reads this cached Catalog directly. Host option overrides no longer intercept that read.
+      await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog => {
+        const original = catalog.listWorkspaceDirectory;
+        t.mock.method(catalog, "listWorkspaceDirectory", function (...args: Parameters<typeof original>) {
+          if (args[0] === project.project_id) {
+            attempts++;
+            if (blocked) throw new ActionError(code, "directory unavailable");
+          }
+          return original.apply(catalog, args);
+        });
+      });
+      const warnings = () => logs.filter(row => row.area === "workspace-settings" && row.event === "opened_announce_failed" && row.fields?.project_id === project.project_id);
+      const warningId = (index: number) => {
+        const warning = warnings()[index]; assert.ok(warning);
+        assert.equal(warning.level, "warn"); assert.equal(warning.error?.code, code);
+        assert.deepEqual(warning.fields, { project_id: project.project_id });
+        assert.ok(warning.call_id, "the Host warning keeps the existing request scope without creating an action row");
+        return warning.call_id;
+      };
+      for (const [raw, status, error, refusal] of [
+        [" ".repeat(1_000_001), 413, "请求内容过大", "actions.input_too_large"],
+        ["{not json", 400, "请求不是有效 JSON", "actions.input_invalid"],
+      ] as const) {
+        const index = warnings().length, response = await post(f, base, raw);
+        assert.deepEqual([response.status, await response.json()], [status, { error, code: refusal }]);
+        assert.equal(response.headers.get("x-molis-work-call-id"), null, "R-47 exposes an id only after an actual action record");
+        assert.equal(warnings().length, index + 1, "the next route retries the failed opening");
+        const id = warningId(index);
+        assert.deepEqual(f.host.callLog.find(id), [], "the internal Catalog failure is a Host diagnostic, not a synthetic action");
+        assert.equal(pagesCount(f, project.project_id), 0);
+      }
+      const firstId = warningId(0), secondId = warningId(1); assert.notEqual(firstId, secondId);
+      assert.deepEqual(opened, [], "a failed directory read cannot announce an empty directory");
 
       const created = await post(f, base, JSON.stringify({ title: "real command" }));
       assert.equal(created.status, 200, await created.clone().text());
       const commandId = created.headers.get("x-molis-work-call-id");
-      assert.ok(commandId); assert.notEqual(commandId, id);
+      assert.ok(commandId); assert.notEqual(commandId, firstId); assert.notEqual(commandId, secondId);
+      assert.equal(warningId(2), commandId, "the real Pages action and Host warning share this request's existing id");
+      assert.equal((await created.json()).call_id, undefined, "a successful body keeps its business shape");
       const operation = f.host.callLog.find(commandId);
-      assert.ok(operation.some(row => row.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id && row.code === code));
-      assert.ok(operation.some(row => row.capability_id === pagesActions.create.capability_id && row.ok && row.call_id === commandId),
-        "the actual Pages command and its preparation are traceable under this request's one id");
+      assert.ok(operation.some(row => row.capability_id === pagesActions.create.capability_id && row.ok && row.call_id === commandId));
+      assert.ok(operation.every(row => row.capability_id !== projectSettingsCapabilities.browsingWorkspace.capability_id));
       assert.equal(pagesCount(f, project.project_id), 1);
 
       const next = await post(f, base, JSON.stringify({ title: "next request" }));
       assert.equal(next.status, 200, await next.clone().text());
       const nextId = next.headers.get("x-molis-work-call-id");
-      assert.ok(nextId); assert.notEqual(nextId, commandId); assert.notEqual(nextId, id);
+      assert.ok(nextId); assert.notEqual(nextId, commandId); assert.notEqual(nextId, firstId); assert.notEqual(nextId, secondId);
+      assert.equal(warningId(3), nextId);
       assert.ok(f.host.callLog.find(nextId).some(row => row.capability_id === pagesActions.create.capability_id && row.ok && row.call_id === nextId));
       assert.equal(pagesCount(f, project.project_id), 2);
+      assert.equal(attempts, 4); assert.deepEqual(opened, []);
+
+      blocked = false;
+      assert.equal((await get(f, base)).status, 200);
+      assert.deepEqual(opened, [""], "recovery reads the actual empty Catalog and announces it exactly once");
+      assert.equal(attempts, 5); assert.equal(warnings().length, 4);
+      assert.equal((await get(f, base)).status, 200);
+      assert.deepEqual(opened, [""]); assert.equal(attempts, 5, "a successful opening is retained");
     });
   }
 }

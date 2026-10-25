@@ -1,3 +1,4 @@
+import { withProjectWorkspaceActions } from "./fixtures/project-workspace-actions.js";
 import { fakeWriterActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -7,7 +8,6 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -16,7 +16,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
   const root = mkdtempSync(join(tmpdir(), "coding-assignment-http-")), dbPath = join(root, "board.db");
   await seedConfiguredModels(root); seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "并行分工", runtime_id: "prologue", at: new Date().toISOString() });
-  const roots = ["main", "writer-a", "writer-b", "foreign"].map(id => ({ workspace_id: id, canonical_path: join(root, id), realpath_verified: true }));
+  const roots = ["main", "writer-a", "writer-b", "foreign"].map(id => ({ workspace_id: id, display_name: id, canonical_path: join(root, id), realpath_verified: true }));
   let grants = roots.slice(), owned = roots.slice(1, 3).map((grant, i) => ({ ...grant, branch: `writer/${i}`, base_commit: "abc123" }));
   const starts: AgentStartRequest[] = []; let created = 0;
   // The writer directories the Host lists under the main workspace; the other writer actions are not asked here.
@@ -25,10 +25,9 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
     assert.equal((input as { workspace_id: string }).workspace_id, "main");
     return owned.map(({ workspace_id, canonical_path, branch, base_commit }) => ({ worktree_id: workspace_id, workspace_id, canonical_path, branch, base_commit }));
   });
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: writerActions, actorId: "web-user",
+  const host = () => withProjectWorkspaceActions({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: writerActions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return grants as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { created++; return { runtime_id: "prologue", session_id: "sdk" } as Output; }
@@ -36,7 +35,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
-  });
+  }, { workspaces: () => grants, browsingWorkspace: () => null, runtime: () => null });
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host())).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");

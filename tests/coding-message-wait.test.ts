@@ -1,3 +1,4 @@
+import { withProjectWorkspaceActions } from "./fixtures/project-workspace-actions.js";
 import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -8,7 +9,7 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, handleProjectPluginHttp, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration, type AgentCollaborationCondition, type AgentCollaborationWait, type AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
-import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 // The surface and its release from the same module: a second copy would not know the plugin this one started.
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -55,7 +56,6 @@ test("a round that ends waiting on an answer or a background command waits as th
   ] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
     const id = definition.capability_id, input = args as unknown as any[];
-    if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
     if (id === agent.readProjectWork.capability_id) return { items: [], overlaps: [] } as Output;
     if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (id === agent.listActions.capability_id) return [] as Output;
@@ -81,17 +81,15 @@ test("a round that ends waiting on an answer or a background command waits as th
     }
     if (id === agent.waitRun.capability_id) return { version: "v1", view: { ref: input[1], phase: "completed", frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] } } as Output;
     if (id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue", capabilities: { mcp: "unsupported" } }] as Output;
-    if (id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
     if (id === agent.readSessionStatuses.capability_id) return input[1].map((session_id: string) => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
     if (id === agent.listSkills.capability_id) return [] as Output;
-    if (id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
     if (id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
     throw new Error(`Unexpected capability ${id}`);
   } };
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(actions, (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
+  const host = () => withProjectWorkspaceActions({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(actions, (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: agentHost,
-  });
+  }, { workspaces: () => [{ workspace_id: "work", display_name: "Work", canonical_path: root, realpath_verified: true }], browsingWorkspace: () => null, runtime: () => null });
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");

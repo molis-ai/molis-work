@@ -1,3 +1,4 @@
+import { withProjectWorkspaceActions } from "./fixtures/project-workspace-actions.js";
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -9,7 +10,6 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -50,10 +50,9 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
     return actions;
   };
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: knowledge(), actorId: "web-user",
+  const host = () => withProjectWorkspaceActions({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: knowledge(), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "reader", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { created++; return { runtime_id: "prologue", session_id: "sdk" } as Output; }
@@ -61,7 +60,7 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
-  });
+  }, { workspaces: () => [{ workspace_id: "work", display_name: "Work", canonical_path: root, realpath_verified: true }], browsingWorkspace: () => null, runtime: () => null });
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host())).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");

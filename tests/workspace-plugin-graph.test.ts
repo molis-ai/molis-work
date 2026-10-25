@@ -1,3 +1,4 @@
+import { withProjectWorkspaceActions } from "./fixtures/project-workspace-actions.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -21,7 +22,7 @@ import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PLUGIN_ID, createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 /** Artifact companions run independently of the retired Workspace plugin. */
@@ -40,19 +41,23 @@ function capturing(
   };
 }
 
-function project(directory: string, capabilities?: Parameters<typeof createPluginPlatform>[0]["capabilities"]) {
+function project(directory: string, browsingWorkspace?: () => ProjectWorkspaceRef) {
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  const settings = browsingWorkspace ? withProjectWorkspaceActions({ actions, projectId: DEMO_PROJECT_ID }, {
+    workspaces: () => [], browsingWorkspace, runtime: () => null,
+  }) : {};
+  const platform = createPluginPlatform({ actions,
     project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
     db: store.db,
     artifacts, processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(),
     home: null,
-    ...(capabilities ? { capabilities } : {}),
+    ...("dependencyCheck" in settings ? { dependencyCheck: settings.dependencyCheck } : {}),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   return { store, platform, artifacts };
@@ -90,13 +95,8 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
 test("Files reads browsing settings without a Workspace binding and rejects the retired input", async () => {
   const directory = mkdtempSync(join(tmpdir(), "workspace-settings-graph-"));
   let selected = { workspace_id: "one", display_name: "One", canonical_path: "/one", realpath_verified: true };
-  const { store, platform } = project(directory, {
-    availability: definition => definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id && definition.version === 1
-      ? { available: true } : { available: false, code: "fixture.missing", reason: "Fixture has only browsing settings" },
-    async invoke<Input, Output>(definition: { capability_id: string }, _input: Input): Promise<Output> {
-    assert.equal(definition.capability_id, projectSettingsCapabilities.browsingWorkspace.capability_id);
-    return selected as Output;
-  } });
+  // FULL35-FIXTURE-02: dependency checks and reads use the same registered action, with a live selection.
+  const { store, platform } = project(directory, () => selected);
   try {
     const report = await platform.start([{ definition: createFilesPlugin() }]);
     assert.deepEqual(report.failed, []);

@@ -1,3 +1,4 @@
+import { withProjectWorkspaceActions, registerProjectWorkspaceActions } from "./fixtures/project-workspace-actions.js";
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -5,10 +6,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { hostDependencyCheck, LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { HISTORY_DIGEST_MARKER, digestTask } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentDraftTextRequest, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -40,10 +40,9 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
       if (draftFails) throw new ActionError("actions.timeout", "模型两分钟内没有写完，已停止");
       return { text: "```\n1. 目标与要求：给习惯加归档并让周报跳过已归档的习惯。\n```", usage: { input: 5000, output: 400 } };
     } }] });
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const host = () => withProjectWorkspaceActions({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
@@ -54,7 +53,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
       }
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
-  });
+  }, { workspaces: () => [{ workspace_id: "work", display_name: "Work", canonical_path: root, realpath_verified: true }], browsingWorkspace: () => null, runtime: () => null });
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host(), [agent.draftText])).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
@@ -130,10 +129,9 @@ test("a round whose digest the model is still writing runs beside the project's 
   let cancel = new AbortController();
   const actions = { registry: localHost.actionRegistry(reference), project_id: DEMO_PROJECT_ID, client: { ...localHost.actionClient(reference),
     invoke: (caller: ActionCallContext, capability: ActionReference, input: unknown) => localHost.actionClient(reference).invoke({ ...caller, signal: cancel.signal }, capability, input) } };
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, ...registerProjectWorkspaceActions(actions, { workspaces: () => [{ workspace_id: "work", display_name: "Work", canonical_path: root, realpath_verified: true }], browsingWorkspace: () => null, runtime: () => null }), dependencyCheck: hostDependencyCheck(localHost.client(reference)), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
@@ -158,7 +156,7 @@ test("a round whose digest the model is still writing runs beside the project's 
   try {
     // The latest round ended with 70% of its window used, so this round first has the model write the digest.
     const sending = send("把 unarchiveHabit 也补上");
-    await asked.promise;
+    await Promise.race([asked.promise, sending.then(reply => assert.fail(`draft action was not entered: ${JSON.stringify(reply)}`))]);
     assert.equal(await pinged(), "answered", "another command of the project is not kept waiting for the model");
     gate.resolve();
     const done = await sending;
@@ -169,7 +167,7 @@ test("a round whose digest the model is still writing runs beside the project's 
     gate = Promise.withResolvers<void>(); asked = Promise.withResolvers<void>(); cancel = new AbortController();
     const usageBefore = JSON.stringify((await (await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/long?window=20`)).json()).usage_total.digests);
     const withdrawn = send("再跑一遍测试");
-    await asked.promise;
+    await Promise.race([asked.promise, withdrawn.then(reply => assert.fail(`draft action was not entered: ${JSON.stringify(reply)}`))]);
     cancel.abort();
     gate.resolve();
     const refused = await withdrawn;
@@ -183,7 +181,7 @@ test("a round whose digest the model is still writing runs beside the project's 
     // round for a call that no longer stands. Without the recheck the failed model call fell straight through to starting it.
     gate = Promise.withResolvers<void>(); asked = Promise.withResolvers<void>(); cancel = new AbortController(); modelFails = true;
     const failing = send("收尾");
-    await asked.promise;
+    await Promise.race([asked.promise, failing.then(reply => assert.fail(`draft action was not entered: ${JSON.stringify(reply)}`))]);
     cancel.abort();
     gate.resolve();
     const refusedAfterFailure = await failing;
@@ -193,7 +191,7 @@ test("a round whose digest the model is still writing runs beside the project's 
     // The same failure for a call that still stands is not an error: the record-based digest carries the round.
     gate = Promise.withResolvers<void>(); asked = Promise.withResolvers<void>(); cancel = new AbortController();
     const standing = send("收尾");
-    await asked.promise;
+    await Promise.race([asked.promise, standing.then(reply => assert.fail(`draft action was not entered: ${JSON.stringify(reply)}`))]);
     gate.resolve();
     const carried = await standing;
     assert.equal(carried.status, 200, JSON.stringify(carried.body));
@@ -216,10 +214,9 @@ test("PG035-07 with model:invoke switched off Coding's two drafts are refused wi
   const applied = (view: AgentRunView) => [{ request: { review_id: `review-${view.ref.run_id}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: view.ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: `src/f-${view.ref.run_id}.ts`, exists: true, before_text: "a\n", after_text: "b\n" }, requested_at: "2026-09-26T00:00:00.000Z", expires_at: null },
     receipt: { review_id: `review-${view.ref.run_id}`, status: "approved", decided_by: "web-user", decided_at: "2026-09-26T00:00:30.000Z", note: null, effect_settled: true, effect_error: null } }];
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const host = () => withProjectWorkspaceActions({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
@@ -231,7 +228,7 @@ test("PG035-07 with model:invoke switched off Coding's two drafts are refused wi
       }
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
-  });
+  }, { workspaces: () => [{ workspace_id: "work", display_name: "Work", canonical_path: root, realpath_verified: true }], browsingWorkspace: () => null, runtime: () => null });
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host(), [agent.draftText])).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");

@@ -1,3 +1,4 @@
+import { withProjectWorkspaceActions } from "./fixtures/project-workspace-actions.js";
 import { fakeWriterActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -8,7 +9,6 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -33,11 +33,10 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ worktree_id: "writer-a", workspace_id: "foreign", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }];
     throw new Error(`Unexpected action ${definition.capability_id}`);
   });
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: writerActions, actorId: "web-user",
+  const host = () => withProjectWorkspaceActions({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: writerActions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", canonical_path: home + "-other", realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["planner", "builder", "reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: input[0].session_id === "sdk-app" ? runs.map(run => run.ref) : [] } as Output;
@@ -52,7 +51,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       }
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
-  });
+  }, { workspaces: () => [{ workspace_id: "work", display_name: "Work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", display_name: "Foreign", canonical_path: home + "-other", realpath_verified: true }], browsingWorkspace: () => null, runtime: () => null });
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host())).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");

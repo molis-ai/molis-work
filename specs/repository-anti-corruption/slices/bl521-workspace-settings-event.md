@@ -77,10 +77,12 @@ full-34 的 `pages-import` 与 `document-plugins-error-model` 持续失败：首
 
 - **RAC-463-FIXTURE-01**：两个公共夹具的冷启动分别遇到超限体和坏 JSON，仍准确返回原 413/400 的严格错误正文；准备读取成功且没有其它落行时，正文与响应头均不造编号，日志不多出失败记录。真实空目录及通过设置页路径关联、选定的目录各被正确读取和补发，后续路由成功去重。
 - **RAC-463-FIXTURE-02**：两个夹具保留显式多目录、单目录、单目录空值与失败的原意；真实文件读取仍受所给目录授权约束，不被默认 Catalog 的列表替换。
-- **RAC-463-FIXTURE-03**：刻意缺目录依赖或读取失败时，真实 HTTP 仍返回原拒绝状态与错误码、不写 Pages 内容；正文编号与响应头一致，公开 `host.callLog.find` 能查到当前项目、能力与失败码对应的实际行。同请求后续真正业务调用落行仍用同号，下一独立请求使用新号；准备故障不可因最后的解析拒绝而被抹去。
+- **RAC-463-FIXTURE-03**（2026-10-24 按 full35 FIRST 更新）：首开目录已由 Host 内部从 Web Catalog 读取，故障注入也落在这个实际 owner。失败写 `workspace-settings/opened_announce_failed` 的 Host warning，保留项目与内部请求编号；不广播错误的空目录事件、不造浏览设置动作行。随后超限体或坏 JSON 仍严格返回 413/400、无 Pages 内容；没有实际动作落行时正文和响应头都不返回编号。后续有效 Pages 动作落行时，响应头与公开 `host.callLog.find` 可查行同号，同请求的首开 warning 也用此号；成功正文不新增编号。下一独立请求用新号，目录读取失败继续重试，恢复后准确补发一次并去重。这是 R-47 在当前 Host 内部读取合同下的断言，取代 full34 当时「首开失败本身落动作行」的历史断言。
 
 以上在 `tests/project-opened-home-fixtures.test.ts` 验证，并保留原 RAC-463 的失败重试、并发等待、投递顺序与平台隔离回归。冷树先整体构建；定向命令：`node scripts/run-tests.mjs tests/pages-import.test.ts tests/document-plugins-error-model.test.ts tests/security-invariants-workspace-settings-events.test.ts tests/project-opened-home-fixtures.test.ts tests/workspace-read-actions.test.ts --jobs 2 --verbose`。本轮不另起 full，固定增量交独立复审、测试和唯一批次 owner 吸收；旧完整动线、大目录与 6.3 的边界不冒称补齐。
 
-本轮验证（固定 `838dd20c` 独立树）：离线安装与整体构建通过。旧夹具下新增回归 6/12 失败，实际检出冷请求多出的可查故障号、目录选择与单目录列表缺能力；显式覆盖和真实故障可查的 6 条正例通过。补装配后，原两持续红文件未经修改首跑分别 10/10、21/21，原 RAC-463 文件 8/8、显式目录与授权用例 1/1 通过。新增回归首跑 11/12；剩下一条误把同项目后台 Feed 的独立成功调用算进了 HTTP 请求。测试改为只读取补发现场已有的 `currentCallId`，经公开 `callLog.find` 核验该请求（不创建编号或作用域、不屏蔽后台记录），随后 12/12 通过。全部初败与复跑原件保留；生产与原两 HTTP 文件未改，不机械重跑其已通过证据。未另跑 full、浏览器、安装或用户验收。
+本轮验证（固定 `838dd20c` 独立树，以下为 full34 历史记录）：离线安装与整体构建通过。旧夹具下新增回归 6/12 失败，实际检出冷请求多出的可查故障号、目录选择与单目录列表缺能力；显式覆盖和真实故障可查的 6 条正例通过。补装配后，原两持续红文件未经修改首跑分别 10/10、21/21，原 RAC-463 文件 8/8、显式目录与授权用例 1/1 通过。新增回归首跑 11/12；剩下一条误把同项目后台 Feed 的独立成功调用算进了 HTTP 请求。测试改为只读取补发现场已有的 `currentCallId`，经公开 `callLog.find` 核验该请求（不创建编号或作用域、不屏蔽后台记录），随后 12/12 通过。全部初败与复跑原件保留；生产与原两 HTTP 文件未改，不机械重跑其已通过证据。未另跑 full、浏览器、安装或用户验收。
 
 Lint、基于本树新构建的包边界检查、对照 `origin/main` 的健康门禁均通过；共享 baseline、公开 API、动作快照和页面预算未改。
+
+full35 后续验证（FIX1，`927897a11` 生产构建）：按 §6.4 现行合同重做真实 Catalog 故障注入后，`project-opened-home-fixtures` 首跑 12/12；原 `pages-import` 10/10、`document-plugins-error-model` 21/21、RAC-463 所在安全回归 9/9、`workspace-read-actions` 1/1 通过。严格拒绝、显式目录授权与原业务断言均保留。对应修复与其余动作消费者一起记录在 R8 切片 §12.4，不增加生产能力或诊断行。

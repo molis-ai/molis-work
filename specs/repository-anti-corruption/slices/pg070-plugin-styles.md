@@ -62,3 +62,21 @@
 | RAC-767 | 宿主拒绝不是小写类前缀、占用平台前缀、重复插件 id、同目录重复或两个插件争用的额外前缀 | `tests/plugin-registry-generation.test.ts` |
 | RAC-768 | 工作台设置面板在插入抓来的插件设置页之前，先加载它链接的插件样式表 | `tests/plugin-styles.test.ts` |
 | RAC-769 | 共用样式表里属于具体插件的规则按插件计数、只许减少；新文件/新插件从 0 开始 | `tests/plugin-styles-gate.test.ts`、`scripts/gates/plugin-styles.mjs`（`tooling/gates/plugin-styles.json`） |
+
+### 第 2 片非阻塞收尾工单（F2，2026-10-25）
+
+状态：已接受，作者实现与定向验证通过，候选待双核及采用。固定父 `d8e4b8b19c4af8de67e22fce760db560d73dd744`；仅承接 FIRST `6401423505` 的三项 nonblock，Claude `6401430781` 及作者 `6401554290` 已明确交修复队列。目标是堵住已知命名空间漏拒绝、消除测试顺序依赖，并准确声明量测盲区；不重新评审或实现原片四项 blocker，不扩成 PG-071、产品发布或组合验收。
+
+| 编号 | 行为与验收 |
+| --- | --- |
+| PG070-NB-01 | 前缀对应拆分器按完整名字或连字符边界识别的名字空间。除原有完全相等拒绝，`catalogProblems` 也拒绝插件 id 以完整前缀（含尾部 `-`）开头的情形：`text-` 不得覆盖 `text-stats`。用生产目录校验与实际 splitter 验证反例；`tex-`、`stats-`、`textstats-` 等不相交正控通过，现有 `as-`/`pb-` 保持合法。保留格式、平台前缀、重复声明等拒绝，不增加注册字段或产品合同。 |
+| PG070-NB-02 | first-freeze 使用既有 `run(dir)` 支持，在自己独立的临时 Git 仓库与计数输入上执行真实门禁，不再删除共享夹具 `main` 的预算。将该场景排到共享夹具的基线用例前，并在其他场景后重复执行；每次验证共享夹具的 refs、预算、计数保持原值，原门禁断言保持。 |
+| PG070-NB-03 | 脚本头的已知限制和本 slice 明确：Goals 只量硬编码的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES`；page-assets 新引入第四个常量不会自动计入。新增常量时必须同步 `measureFromBuild` 的枚举并补充/更新真实量测验证，再跑 `plugin-styles-gate.test.ts` 及 `plugin-styles --base`；当前不新增常量、解析器、量测规则或预算。 |
+
+允许修改仅限宿主 `plugin-registry.ts` 的前缀拒绝、两份现有 registry/styles-gate 测试、`plugin-styles.mjs` 的已知限制注释与本 slice。写前核原 DeepSeek `/private/tmp/pg070-slice2` 为 clean；新分支独立实现，保留所有现有树，不写正在 PG-071 返修的 ac-clients 树。必要整体构建走公共 FIFO，一次攒齐改动后构建；定向运行 registry、styles-gate、styles，另核真实 plugin-styles、boundary、health 与推送前 secrets；不重 full 或浏览器批。
+
+父 d8e 的 page-assets 增长及真实仓库用例红保留为未通过，原作者「171/171 通过」与真实用例失败的计数矛盾由原 owner 校正。本单如实核对资源门禁，不增加 ceiling，不改预算、baseline、CI、translations、Memory；原片的源审、组合 CI/full 和采用仍归原链。
+
+作者验证：一次公共 FIFO 整体构建通过，公开重算与 `18:53:13.201Z` 构建的 `1e66c855d75d9c2e87301c079754da6b68222f02fb2a48cfd18050a0099eb341` 一致。registry 13/13、styles-gate 15/15、styles 11/11，自然退出 0；补强 id 中间子串的正控后，仅重跑 registry 13/13。有效覆盖并集 39，first-freeze 排前一次、其他场景后连续两次，均核共享 refs/预算/计数未变。真实 plugin-styles（5 插件、575 块）、boundary、最终 health（merge-base `54437998`）通过；本增量不改 API。
+
+资源门禁自然退出 1：coding.js 289351→289396（+45），workbench.js 1124811→1125453（+642），保留原片红灯，不写成全绿。原父树当前 clean，但尝试复用其现存构建时，清单 `57063e0c…39dbd0` 与现场公开重算 `c2371482…a51258` 不一致，探针在进入业务断言前停止；该准备失败原件保留，不作为有效父源码产品反例，不改或重建原树。二轮复审 `6401640865` 新增的两项 nonblock 由 Root 另定范围，本单不并入。

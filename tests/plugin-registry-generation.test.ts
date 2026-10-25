@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, splitPluginStylesheet } from "@molis-ai/molis-work-app-workbench";
 import { catalogProblems } from "@molis-ai/molis-work-app-local-host";
 import { CATALOG_FILE, PLATFORM_FILE, pluginRegistry, pluginRegistryProblems } from "../scripts/generate-plugin-registry.mjs";
 import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
@@ -163,6 +163,27 @@ test("W5-02-REG-02: the built catalog has no repeated key, Manifest id or positi
     ["two plugins claim one prefix", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", workbench: { ...feedEntry.workbench, stylesheetPrefixes: ["shared-"] } }, { ...feedEntry, project_plugin_id: "copy2", catalog_order: 9999, manifest: { ...feedEntry.manifest, plugin_id: "io.molis.copy2" }, workbench: { ...feedEntry.workbench, stylesheetPrefixes: ["shared-"] } }], /copy and copy2 both claim stylesheet prefix shared-/],
   ];
   for (const [label, catalog, expected] of cases) assert.match(catalogProblems(catalog).join("\n"), expected, label);
+});
+
+test("PG070-NB-01 RAC-767 a prefix cannot cover another plugin's hyphenated namespace", () => {
+  const withPrefix = (prefix: string) => BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id === "feed"
+    ? { ...entry, workbench: { ...entry.workbench, stylesheetPrefixes: [prefix] } } : entry);
+  assert.ok(BUILTIN_PLUGIN_CATALOG.some(entry => entry.project_plugin_id === "text-stats"), "the conflicting namespace exists");
+  const owned = ".text-stats{color:red}.text-stats-card{color:blue}";
+  const unrelated = ".stats-card{display:grid}.textual-card{display:flex}";
+  assert.deepEqual(splitPluginStylesheet(owned + unrelated, "feed", [], ["text-"]), { scoped: owned, shared: unrelated },
+    "the production splitter claims text-stats at the complete hyphen boundary");
+  assert.deepEqual(catalogProblems(withPrefix("text-")), ["feed: stylesheet prefix text- repeats a plugin's id"]);
+  for (const prefix of ["tex-", "stats-", "textstats-"]) assert.deepEqual(catalogProblems(withPrefix(prefix)), [], prefix);
+  const feedEntry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "feed")!;
+  const middleOnly = { ...feedEntry, project_plugin_id: "text-stats-extra", catalog_order: NEXT_POSITION,
+    manifest: { ...feedEntry.manifest, plugin_id: "io.molis.work.prefix-control" } };
+  const otherNamespace = ".text-stats-extra-card{color:green}";
+  assert.deepEqual(splitPluginStylesheet(otherNamespace, "feed", [], ["stats-"]), { scoped: "", shared: otherNamespace });
+  assert.deepEqual(catalogProblems([...withPrefix("stats-"), middleOnly]), [], "a prefix in the middle of another id is unrelated");
+  const studio = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "plugin-builder")!;
+  for (const prefix of ["as-", "pb-"]) assert.ok(studio.workbench.stylesheetPrefixes?.includes(prefix));
+  assert.deepEqual(catalogProblems(BUILTIN_PLUGIN_CATALOG), [], "the existing studio prefixes stay valid");
 });
 
 test("W5-02-REG-02: loading the Host rejects an invalid catalog before the module becomes available", () => {

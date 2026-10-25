@@ -35,6 +35,11 @@ const entry = (
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const NATIVE_PLUGINS = "plugins/native";
+// The layer and maturity of a package under plugins/native come from its path, not from what its package.json says: the boundary
+// rules (packages/test-kit/src/boundaries.ts) and the CODEOWNERS role are decided by `kind`, so a plugin that wrote another kind
+// in its own package would step outside them. checkWorkspacePackages compares the package's block with these and fails on any other.
+const NATIVE_PLUGIN_KIND = "native-plugin";
+const NATIVE_PLUGIN_MATURITY = "partial";
 
 /**
  * The built-in plugins, each read from its own package.json "molis-work" block (W5-02 PR-C, PG-069): a new plugin writes its entry
@@ -49,9 +54,9 @@ function nativePluginEntries(root) {
     const manifest = readJson(file), block = manifest["molis-work"] ?? {};
     const packagePath = `${NATIVE_PLUGINS}/${name}`;
     return [{
-      path: packagePath, name: manifest.name, kind: block.kind, contract: block.contract, migrationGoals: block.migrationGoals ?? [],
+      path: packagePath, name: manifest.name, kind: NATIVE_PLUGIN_KIND, contract: block.contract, migrationGoals: block.migrationGoals ?? [],
       summary: block.summary, notResponsibleFor: block.notResponsibleFor, legacySources: block.legacySources ?? [],
-      owner: packageOwner(packagePath, block.kind), maturity: block.maturity ?? "contract-only", capabilities: block.capabilities ?? [],
+      owner: packageOwner(packagePath, NATIVE_PLUGIN_KIND), maturity: NATIVE_PLUGIN_MATURITY, capabilities: block.capabilities ?? [],
       extraWorkspaceDependencies: block.extraWorkspaceDependencies ?? [], extraDependencies: block.extraDependencies ?? {},
       registration: block.registration,
     }];

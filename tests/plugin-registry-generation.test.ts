@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -307,4 +308,34 @@ test("RAC-574 RAC-575 a new plugin with a project runtime changes only its own p
   delete extra.dependencies["@molis-ai/molis-work-plugin-text-stats"];
   assert.equal(count({ ...changed, "apps/workbench/package.json": `${JSON.stringify(extra, null, 2)}\n` }), 1,
     "RAC-575 a manifest that is no longer exactly the generated imports is counted");
+});
+
+// The review of #1299: a plugin's package.json carries its "molis-work" block, but not its layer. The boundary rules and the
+// CODEOWNERS role follow `kind`, so the path decides it (and the maturity); a package that writes another value fails the real check.
+test("RAC-576 a plugin that writes another kind or maturity in its own package.json fails pnpm boundary:check", { timeout: 120_000 }, () => {
+  const scratch = mkdtempSync(path.join(tmpdir(), "plugin-kind-")), repository = path.join(scratch, "repo");
+  try {
+    // A copy of the checkout without Git data; the installed dependencies are linked, not copied (each package's own node_modules
+    // holds relative links into them).
+    mkdirSync(repository);
+    for (const entry of readdirSync(root).filter(name => name !== ".git" && name !== "node_modules")) {
+      if (process.platform === "darwin") execFileSync("cp", ["-cR", path.join(root, entry), path.join(repository, entry)]);
+      else execFileSync("cp", ["-a", "--reflink=auto", path.join(root, entry), path.join(repository, entry)]);
+    }
+    symlinkSync(path.join(root, "node_modules"), path.join(repository, "node_modules"));
+    const sample = "plugins/native/text-stats/package.json", original = readReal(sample)!;
+    const check = (block: Record<string, unknown>) => {
+      const json = JSON.parse(original) as { "molis-work": Record<string, unknown> };
+      writeFileSync(path.join(repository, sample), `${JSON.stringify({ ...json, "molis-work": { ...json["molis-work"], ...block } }, null, 2)}\n`);
+      return spawnSync(process.execPath, ["scripts/check-package-boundaries.mjs"], { cwd: repository, encoding: "utf8" });
+    };
+    const foundation = check({ kind: "foundation" });
+    assert.notEqual(foundation.status, 0, "a plugin that calls itself foundation is refused");
+    assert.match(foundation.stdout + foundation.stderr, /plugins\/native\/text-stats: molis-work\.kind mismatch/);
+    const contractOnly = check({ maturity: "contract-only" });
+    assert.notEqual(contractOnly.status, 0, "a plugin that writes another maturity is refused");
+    assert.match(contractOnly.stdout + contractOnly.stderr, /plugins\/native\/text-stats: package maturity must be partial/);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 });

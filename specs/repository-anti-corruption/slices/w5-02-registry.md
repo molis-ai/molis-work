@@ -200,7 +200,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 ## 4. PR-C：PR-2，依赖改成生成，门禁 7→0（PG-069）
 
 - **应用依赖**：生成器把两个应用 `package.json` 的插件依赖写成生成文件 import 的那一组（workbench 读外壳那份，local-host 读平台那份），`--check` 核对：多一个、少一个各失败（用户 10-19 批的豁免条件，每种不符一条门禁测试）。`pnpm install --frozen-lockfile --offline` 照常过（锁文件同 PR 更新）。
-- **登记表不点名插件**：`scripts/workspace-packages.mjs` 里 24 条插件的 `entry(...)` 改成从 `plugins/native/*/package.json` 的 `molis-work` 块读（`path`、`kind`、`maturity`、`contract`、`migrationGoals` 已经在里面；把说明、不负责、`capabilities`、`extraWorkspaceDependencies`、`extraDependencies` 也搬进去）。两个应用条目的插件依赖由生成器给，不再手写。这接上 X-1 的插件依赖声明：插件自己的依赖写在自己的 `package.json`。
+- **登记表不点名插件**：`scripts/workspace-packages.mjs` 里 24 条插件的 `entry(...)` 改成从 `plugins/native/*/package.json` 的 `molis-work` 块读（`path`、`kind`、`maturity`、`contract`、`migrationGoals` 已经在里面；把说明、不负责、`capabilities`、`extraWorkspaceDependencies`、`extraDependencies` 也搬进去）。两个应用条目的插件依赖由生成器给，不再手写。这接上 X-1 的插件依赖声明：插件自己的依赖写在自己的 `package.json`。`kind` 与 `maturity` 不随包自报：`plugins/native/*` 由路径定为 `native-plugin`、`partial`，包里写别的就报错（#1299 一轮评审，RAC-576）；层规则与 CODEOWNERS 角色都按 `kind` 判断，自报就能绕开它们。
 - **根 `package.json`**：今天列了全部插件包，测试按包名取它们。用户 10-25 定（统筹弹窗）：根的插件依赖也由生成器写，和两个应用用同样的豁免：只在 `--check` 通过、且依赖清单正好等于生成文件 import 的那一组时生效。根对应的那一组是两份生成文件（外壳那份与平台那份）import 的并集；`--check` 对根同样「多一个、少一个各失败」。
 - **门禁 7→0**：`NEW_PLUGIN_OUTSIDE_FILES` 改成 0（统筹 10-23 定，§5 第 7 条）。改门禁脚本本身，PR 正文写理由。
 - PG-070 的客户端打包那一半归 `ac-clients-1`，C 不碰 `page-assets.ts`、`initialization.ts`。
@@ -211,6 +211,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 | RAC-573 | `workspace-packages.mjs` 不含任何插件包名；登记表从各插件 `package.json` 读出的条目与改之前逐字段相等（一次性比对贴进 PR） |
 | RAC-574 | 新插件只改自己的包（`registration.ts`、`package.json`、源码）再跑生成器与 `pnpm install`，就进目录、进监督器、进依赖，外壳与宿主一个文件不改（W5-02-REG-03 的完整版：在临时仓库副本里加一个最小包，跑 `--check` 与 `pluginOutsideMentions`，点名数为 0） |
 | RAC-575 | 门禁对新插件的额度是 0：临时副本里新插件被包外任一个手写文件点名，门禁失败 |
+| RAC-576 | `plugins/native/*` 的 `kind`、`maturity` 由路径定：仓库副本里把一个插件 `package.json` 的 `kind` 改成 `foundation`、或 `maturity` 改成别的，`scripts/check-package-boundaries.mjs`（`pnpm boundary:check`）失败并点名该插件 |
 
 **碰的枢纽文件**：`scripts/workspace-packages.mjs`（大改；冻结）、两个应用与根的 `package.json`、`pnpm-lock.yaml`、24 个插件的 `package.json`、`scripts/gates/assembly.mjs`、`scripts/generate-plugin-registry.mjs`、`scripts/package-owners.mjs`（若它读登记表的字段）。
 

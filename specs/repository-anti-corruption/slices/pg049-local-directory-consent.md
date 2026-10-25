@@ -118,3 +118,20 @@ PRR-03 的授权只有 30 分钟、只在内存里，换一次激活就没了；
 验证命令以 `node scripts/run-tests.mjs` 点名现有目录安全用例、设置请求/helper、客户端拼接与 i18n；浏览器仅点名新增 PG049-STATUS 用例，串行走现有机器 browser 槽与独立 Chrome profile。原失败和未验证边界保留，不以工程定向通过宣称快照全链、跨设备实机或本人验收完成。
 
 作者定向执行：必要一次 FIFO 整体构建自然退出 0，官方源码指纹与现行构建匹配；目录安全/HTTP 18 项及设置 helper、请求客户端、i18n、served-script 的 6 个文件通过。客户端拼接检查仅有固定 508 已存在的 LF=3/LFor=9 失败，本机最小对照与[原 CI](https://github.com/molis-ai/molis-work/actions/runs/40232850905/job/121288074433) 同形，原件保留，不在本单改其全局名单或吸收其它分支。health 对固定 508 与当前 main b3、boundary 均通过。实际 served workbench.js 为 1,129,694 B，较 508 的 1,129,466 B 增 228 B；同资源删行首缩进的试验经生产压缩后仍为同一字节数，已复用现有构造/helper/样式，不加资源，真实预算红留评审与唯一 carrier 按现行政策结算。本单浏览器和独立收据按同一候选源码交接，最终运行与未验边界以其原始结果为准。
+
+
+## 9. 目录窄屏完整路径换行（I1，2026-10-25）
+
+状态：Root 唯一初派的独立窄工单，负责人 I1；准确基点 `99c6561a9e945a098ee367e6646f0ae2b142872e`，原候选和分支保持冻结。本单接续 §8 评审中窄屏长连续路径被父容器裁切的 P2，只修可读与可选取，不追溯升级原单的阻塞等级。
+
+现有 `code.local-directory-root` 仍按通用 code 排版；document 没有横向滚动不能证明文字没有被上层 overflow 裁切。本单仅给 `.local-directory-settings .local-directory-root` 加局部自然换行与空白保留（`overflow-wrap: anywhere; white-space: break-spaces`）。小样式由现有本页模块持有，通过 `page-assets.ts` 接入既有 workbench/settings 两份 CSS；不扩大通用 SETTINGS_STYLES 巨大串，不改其它 code 或设置布局，不新建资源。
+
+| 编号 | 验收与证据 |
+| --- | --- |
+| PG049-WRAP-01 | 原目录浏览器单例使用真实长连续段、空格/中文目录与普通路径，在 390 和桌面宽度、亮暗主题下测实际 Text Range 行框，确保文字在路径行、viewport 和有裁切能力的祖先边界内，原文完整且可选取；保留状态、历史和真实撤回。临时移除本单两个样式声明后，同一布局断言须抓住 99 原样式的真实裁切，恢复后通过，保留度量及截图。 |
+
+允许改本页微型样式及其现有 CSS 装配、原 `tests/ui-request-client.e2e.test.ts` 目录单例和本节；无需改授权服务/合同、恢复政策、store/schema、全局 code/settings 规则、样式巨大单元、门禁/预算机制或共享 BACKLOG。只运行原单例的增量浏览器验证与必要静态检查，不重跑原 18 项、五文件或全量。源码变化仅做必要一次公共 FIFO 整体构建，浏览器用同一 canonical FIFO、专用 wrapper 和临时 Home，收尾清理；本单不更改 TMPDIR。
+
+按现行政策实测受影响 served CSS 和相对准确 99 的叶差，继承 workbench.js +228 B / 相对 main 总 +1965 B、原 client LF/LFor 继承红单列；资源增长留 REVIEW 认可及唯一 carrier 最终组合结算，不自行改机制或掩红。普通 feature push 前 fresh-fetch/secrets；固定 head 后交既有 REVIEW/TEST 只做增量，I1 亲读正式回执/raw 后交 PIPE/Root，不等 carrier 合入占位。Memory/#734 保持暂停。
+
+作者定向证据：唯一必要公共 FIFO 整体构建自然 0，样式作用域检查 3/3、fixed99/current main health 与 boundary 通过。首轮专用 Chrome 单例 1/1 自然 0；原样式反例实测水平越界 782.609375px 且空格选取不等于原文，恢复规则后六档长路径 3/8 行、横纵越界均 0，226 字符原文选取完全相同，26 字符短路径均单行；真实撤回仍通过，度量/原样式与新样式截图保留。最终测试继续保留原 document/status 断言，由固定 head 的独立单例收验。两份既有 CSS 各叶增 105 B，生产缩进压缩试验省 0，无新资源/JS 叶增；预算真实红与继承项交 REVIEW/唯一 carrier 按现行政策处理，不写机制。

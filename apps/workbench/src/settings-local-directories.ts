@@ -13,6 +13,11 @@ export function renderLocalDirectorySettings({ L }: { L(text: string): string })
   </section>`;
 }
 
+/** Keep the original path, including repeated spaces, readable within this page's available line width. */
+export const LOCAL_DIRECTORY_SETTINGS_STYLES = `
+  .local-directory-settings .local-directory-root { overflow-wrap: anywhere; white-space: break-spaces; }
+`;
+
 export const LOCAL_DIRECTORY_SETTINGS_CLIENT_SCRIPT = String.raw`
 globalThis.molisWorkBindLocalDirectorySettings = (container = document, context = null) => {
   const root = container.matches?.("[data-local-directory-settings]") ? container : container.querySelector?.("[data-local-directory-settings]");

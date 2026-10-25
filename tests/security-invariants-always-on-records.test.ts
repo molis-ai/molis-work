@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import Database from "better-sqlite3";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { MemoryPluginRuntimeRepository, PLUGIN_TRUST_SCHEMA_SQL, PluginRuntime, SqlitePluginConsentLedger, UNSIGNED_TRUST, consentSubject } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PLUGIN_TRUST_SCHEMA_SQL, PluginRuntime, SqlitePluginConsentLedger, SqlitePluginRuntimeRepository, UNSIGNED_TRUST, alwaysOnAgreed, consentSubject, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // ac-trust T3 (specs/repository-anti-corruption/slices/ac-trust-install.md §3.4): the 常开 list is worked out from the consent ledger and the
@@ -27,7 +29,7 @@ function exampleManifest(): PluginManifest {
   };
 }
 
-test("RAC-386 S-X1 the Runtime refuses to uninstall a plugin while its 常开 agreement stands, and allows it once the agreement is revoked", async () => {
+test("RAC-386 S-34 the Runtime refuses to uninstall a plugin while its 常开 agreement stands, and allows it once the agreement is revoked", async () => {
   const db = new DatabaseSync(":memory:");
   db.exec(PLUGIN_TRUST_SCHEMA_SQL);
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { consents: new SqlitePluginConsentLedger(db) });
@@ -72,8 +74,11 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
   assert.deepEqual(catalog.listHiddenPlugins(first.project_id), []);
 
   // The person takes the agreement back: at once Goals is an ordinary plugin, in no project's list, and a project can be made without it.
-  const store = new DatabaseSync(join(homeDirectory, "plugin-runtime", "plugin-runtime.db"));
+  const store = seedStore(homeDirectory);
   try {
+    const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
+    new SqlitePluginConsentLedger(store).record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature,
+      manifest_digest: pluginManifestDigest(goals), granted_by: "host_build", grants: [ALWAYS_ON], at: "2026-10-24T00:00:00.000Z" });
     store.prepare("UPDATE plugin_consents SET revoked_at = ? WHERE plugin_id = ? AND kind = 'always_on'").run("2026-10-25T00:00:00.000Z", manifestId("goals"));
     assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["schedule"]);
     const without = await catalog.createProject({ display_name: "没有 Goals", actor_id: "test" });
@@ -99,7 +104,7 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
   } finally { store.close(); }
 });
 
-test("RAC-386 S-X1 the Home route refuses to switch off a 常开 plugin, however often it is asked, and enabling it stays allowed", async t => {
+test("RAC-386 S-34 the Home route refuses to switch off a 常开 plugin, however often it is asked, and enabling it stays allowed", async t => {
   const f = await serveHomeRuntime(t);
   const route = (operation: string) => f.request(`/api/plugins/${manifestId("shelf")}/${operation}`, { method: "POST", body: {} });
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -109,3 +114,139 @@ test("RAC-386 S-X1 the Home route refuses to switch off a 常开 plugin, however
   }
   assert.equal((await route("enable")).status, 200, "it was never switched off");
 });
+
+
+const storePath = (home: string) => join(home, "plugin-runtime", "plugin-runtime.db");
+function seedStore(home: string): DatabaseSync {
+  mkdirSync(join(home, "plugin-runtime"), { recursive: true });
+  const db = new DatabaseSync(storePath(home));
+  db.exec(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime-v3.sql", import.meta.url), "utf8"));
+  return db;
+}
+
+/** Compare actual files and bytes, including new directories, sidecars, timestamps and permission changes. */
+function filesAt(root: string, parent = ""): unknown[] {
+  return readdirSync(root, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).map(entry => {
+    const file = join(root, entry.name), stat = statSync(file), relative = parent ? `${parent}/${entry.name}` : entry.name;
+    // The existing catalog connection updates WAL reader marks in shared memory even for SELECTs. Its database and WAL,
+    // and every Runtime file, still compare byte for byte; the catalog's coordination file must keep its size and metadata.
+    const content = entry.isDirectory() ? filesAt(file, relative) : relative === "projects/catalog.db-shm" ? stat.size : readFileSync(file);
+    return [entry.name, stat.mode, stat.mtimeMs, content];
+  });
+}
+
+async function catalogFixture(t: import("node:test").TestContext) {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-always-on-readonly-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  t.after(async () => { catalog.close(); await rm(home, { recursive: true, force: true }); });
+  const project = await catalog.createProject({ display_name: "只读常开", actor_id: "test" });
+  return { home, catalog, project };
+}
+
+function readMembership(f: Awaited<ReturnType<typeof catalogFixture>>) {
+  assert.deepEqual(f.catalog.listProjectPlugins(f.project.project_id), ["goals", "schedule"]);
+  assert.deepEqual(f.catalog.listHiddenPlugins(f.project.project_id), []);
+  for (const plugin_id of ["goals", "shelf"]) {
+    assert.throws(() => f.catalog.removeProjectPlugin({ project_id: f.project.project_id, plugin_id, actor_id: "test" }), refused("catalog.plugin_always_on"));
+  }
+}
+
+test("RAC-401 S-34 catalog queries and refused removals give the Host-build answer without creating a missing Runtime store", async t => {
+  const f = await catalogFixture(t);
+  assert.equal(readdirSync(f.home).includes("plugin-runtime"), false, "even project creation does not create the Runtime store");
+  const before = filesAt(f.home);
+  readMembership(f); readMembership(f);
+  assert.deepEqual(filesAt(f.home), before, "queries and refusals created no files, tables, consents or catalog events");
+
+  // An existing empty store directory is also left empty, rather than creating a database there.
+  mkdirSync(join(f.home, "plugin-runtime"));
+  const withDirectory = filesAt(f.home);
+  readMembership(f);
+  assert.deepEqual(filesAt(f.home), withDirectory);
+});
+
+test("RAC-401 S-34 an existing current store stays byte-for-byte unchanged; missing agreements are not written or granted to third parties", async t => {
+  const f = await catalogFixture(t), db = seedStore(f.home);
+  t.after(() => db.close());
+  const ledger = new SqlitePluginConsentLedger(db);
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { consents: ledger });
+  const definition = { manifest: exampleManifest(), async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition;
+  const { install } = runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
+  const before = filesAt(f.home);
+  readMembership(f); readMembership(f);
+  assert.deepEqual(filesAt(f.home), before);
+  assert.deepEqual(db.prepare("SELECT * FROM plugin_consents").all(), [], "build-backed catalog queries never record consent for anyone");
+  assert.equal(alwaysOnAgreed(ledger, install.plugin_id, install.publisher_signature), false);
+  await runtime.uninstall(install.install_id);
+  assert.equal(runtime.list().find(row => row.install_id === install.install_id)!.state, "uninstalled", "an unsigned always_on declaration without consent is freely removable");
+});
+
+test("RAC-401 S-34 each query sees persisted revocation, new consent and installation state without writing or reviving an agreement", async t => {
+  const f = await catalogFixture(t), db = seedStore(f.home);
+  t.after(() => db.close());
+  const ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
+  const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
+  const runtime = new PluginRuntime(repository, undefined, { consents: ledger });
+  const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
+    definition: { manifest: shelf, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
+  const writable = new Database(join(f.home, "projects/catalog.db"));
+  try { writable.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'shelf', '2026-10-01T00:00:00.000Z')").run(f.project.project_id); }
+  finally { writable.close(); }
+  const hidden = (expected: string[]) => {
+    const before = filesAt(f.home);
+    assert.deepEqual(f.catalog.listHiddenPlugins(f.project.project_id), expected);
+    assert.deepEqual(filesAt(f.home), before);
+  };
+  hidden([]);
+  const consent = ledger.consents(shelf.plugin_id)[0]!;
+  assert.ok(consent, "the installation fixture explicitly recorded the agreement, as the Host supervisor does");
+  db.prepare("UPDATE plugin_consents SET revoked_at = ? WHERE consent_id = ?").run("2026-10-24T00:00:00.000Z", consent.consent_id);
+  hidden(["shelf"]); hidden(["shelf"]);
+  assert.deepEqual(ledger.consents(shelf.plugin_id), [{ ...consent, revoked_at: "2026-10-24T00:00:00.000Z" }], "repeated reads retain the original revoked row");
+  ledger.record({ plugin_id: shelf.plugin_id, publisher_signature: shelf.publisher.signature, manifest_digest: pluginManifestDigest(shelf),
+    granted_by: "user", grants: [ALWAYS_ON], at: "2026-10-24T01:00:00.000Z" });
+  hidden([]);
+  assert.equal(ledger.consents(shelf.plugin_id).length, 2, "the person's new agreement is a distinct row");
+  for (const state of ["disabled", "quarantined", "uninstalled", "installed", "crashed"] as const) {
+    repository.save({ ...install, state });
+    hidden(["installed", "crashed"].includes(state) ? [] : ["shelf"]);
+  }
+});
+
+test("RAC-401 S-34 a query before Host startup records nothing and the real supervisor still records consent at startup", async t => {
+  const f = await catalogFixture(t);
+  readMembership(f);
+  const host = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  try {
+    await host.homePlugins!.ready();
+    const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
+    const db = new DatabaseSync(storePath(f.home), { readOnly: true });
+    try {
+      const rows = new SqlitePluginConsentLedger(db).consents(shelf.plugin_id).filter(row => row.kind === "always_on");
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0]!.granted_by, "host_build");
+      assert.equal(rows[0]!.publisher_signature, shelf.publisher.signature);
+      assert.equal(rows[0]!.manifest_digest, pluginManifestDigest(shelf));
+    } finally { db.close(); }
+    const before = filesAt(f.home);
+    readMembership(f);
+    assert.deepEqual(filesAt(f.home), before, "queries after startup do not change the supervisor's ledger or files");
+  } finally { await host.homePlugins!.close(); await host.close(); }
+});
+
+for (const [name, corrupt, expected] of [
+  ["non-SQLite bytes", (file: string) => writeFileSync(file, "not a SQLite database"), /not a database/u],
+  ["empty existing file", (file: string) => writeFileSync(file, ""), { code: "storage.schema_version_mismatch" }],
+  ["old baseline", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 2"); } finally { db.close(); } }, { code: "storage.schema_version_mismatch" }],
+  ["current version with missing tables", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 3"); } finally { db.close(); } }, { code: "actions.execution_failed" }],
+] as const) {
+  test(`RAC-401 S-34 an existing Runtime store with ${name} is refused, never treated as missing or repaired by a query`, async t => {
+    const f = await catalogFixture(t);
+    mkdirSync(join(f.home, "plugin-runtime")); corrupt(storePath(f.home));
+    const before = filesAt(f.home);
+    assert.throws(() => f.catalog.listProjectPlugins(f.project.project_id), expected);
+    assert.throws(() => f.catalog.listHiddenPlugins(f.project.project_id), expected);
+    assert.throws(() => f.catalog.removeProjectPlugin({ project_id: f.project.project_id, plugin_id: "goals", actor_id: "test" }), expected);
+    assert.deepEqual(filesAt(f.home), before);
+  });
+}

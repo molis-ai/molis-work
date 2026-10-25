@@ -19,18 +19,7 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
     return date.toDateString() === new Date().toDateString() ? '今天' : new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' }).format(date);
   };
   // Skip unchanged chrome so SSE does not destroy the current keyboard target.
-  const markup = (node: HTMLElement, html: string) => {
-    if (htmlCache.get(node) === html && node.childNodes.length)
-      return;
-    const active = document.activeElement instanceof HTMLElement && node.contains(document.activeElement) ? document.activeElement : null;
-    const action = active?.dataset.action, id = active?.dataset.id;
-    node.innerHTML = html;
-    htmlCache.set(node, html);
-    if (action) {
-      const replacement = [...node.querySelectorAll<HTMLElement>('[data-action]')].find(item => item.dataset.action === action && item.dataset.id === id);
-      replacement?.focus({ preventScroll: true });
-    }
-  };
+  const markup = updateViewMarkup.bind(undefined, htmlCache);
   const roomList = (rooms: ImRoom[], selected: string | null) => {
     markup(q('[data-room-list]'), rooms.length ? rooms.map(room => '<button class="im-room-item' + (room.id === selected ? ' is-active' : '') + '" type="button" data-action="select-room" data-id="' + escape(room.id) + '" aria-current="' + (room.id === selected ? 'true' : 'false') + '">' + icon('review') + '<span><strong>' + escape(room.title) + '</strong><small>' + escape(room.latest_message || room.member_count + ' 位成员 · 还没有消息') + '</small></span></button>').join('') : '<p class="im-muted im-sidebar-empty">创建群聊，或通过邀请加入。</p>');
   };
@@ -52,8 +41,7 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
     const message = [...node.querySelectorAll<HTMLElement>('[data-message]')].find(item => item.getBoundingClientRect().bottom > top);
     return { id: message?.dataset.message, offset: message ? message.getBoundingClientRect().top - top : 0, bottom: window.molisFollow?.(node).state === 'following' };
   };
-  // At the end means following (molisFollow, VUX-26). A saved place (`judge`) also tells the follower where it is; a redraw's
-  // compensation does not. This compensation is the one owner of the shift: these scrollers turn the browser's anchoring off.
+  // Tail means following; judge restores molisFollow's saved place, redraws only compensate. restoreScroll owns shifts; native anchoring is off.
   const restoreScroll = (kind: StreamKind, anchor: ScrollAnchor | null, judge = true) => {
     const node = scroller(kind), follow = window.molisFollow?.(node), message = anchor?.id && !anchor.bottom && node.querySelector('[data-message="' + CSS.escape(anchor.id) + '"]');
     if (anchor?.bottom) { if (follow) { follow.resume(); follow.pin(); } else node.scrollTop = node.scrollHeight; return; }
@@ -163,4 +151,17 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
     contextNode.dataset.thread = state.thread.id;
   };
   return { q, escape, icon, avatar, time, roomList, groupHeader, stream, context, captureScroll, restoreScroll, scroller };
+}
+
+export function updateViewMarkup(htmlCache: WeakMap<Element, string>, node: HTMLElement, html: string): void {
+  if (htmlCache.get(node) === html && node.childNodes.length)
+    return;
+  const active = document.activeElement instanceof HTMLElement && node.contains(document.activeElement) ? document.activeElement : null;
+  const action = active?.dataset.action, id = active?.dataset.id;
+  node.innerHTML = html;
+  htmlCache.set(node, html);
+  if (action) {
+    const replacement = [...node.querySelectorAll<HTMLElement>('[data-action]')].find(item => item.dataset.action === action && item.dataset.id === id);
+    replacement?.focus({ preventScroll: true });
+  }
 }

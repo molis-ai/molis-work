@@ -13,6 +13,7 @@ import {
 import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
 import { normalizeGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import {
+  HOST_BUILD_TRUST,
   MemoryPluginRuntimeRepository,
   PluginRuntime,
 } from "@molis-ai/molis-work-plugin-runtime";
@@ -60,7 +61,7 @@ export class OfficialIntegrationRegistry {
         undefined,
         { now: this.now },
       );
-      const installed = runtime.install({ definition, deployment: "local" });
+      const installed = runtime.install({ definition, deployment: "local", trust: HOST_BUILD_TRUST });
       const requiredGrants = definition.manifest.permissions
         .filter((permission) => permission.required)
         .map((permission) => permission.permission);

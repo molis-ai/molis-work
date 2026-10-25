@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PERSONAL_SPACE_PROJECT_ID, actionEffect, actionFieldOptions, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -20,6 +20,7 @@ import {
 } from "@molis-ai/molis-work-plugin-todo";
 
 const TODAY = "2026-09-28";
+const REACHABLE_PROJECTS = ["project-a", "project-b"];
 
 function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-09-28T10:30:00+08:00")) {
   const home = mkdtempSync(join(tmpdir(), "todo-actions-"));
@@ -28,8 +29,11 @@ function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
     definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => TODAY, now }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
+  // The Host gives the person's own calls the list of projects they may reach (PG-014, S-70); an Agent's calls never have one. The plugin
+  // reads that list and nothing else, so what an audience may reach is the Host's to say (tests/security-invariants-project-reach.test.ts).
   const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
-    bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: TODO_ACTION_PERMISSIONS }));
+    bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: TODO_ACTION_PERMISSIONS,
+      ...(audience === "user" ? { readable_project_ids: REACHABLE_PROJECTS } : {}) }));
   return { service, home, store, me: as(null), inA: as("project-a"), inB: as("project-b"), agentA: as("project-a", "agent"), agentHome: as(null, "agent") };
 }
 
@@ -68,6 +72,27 @@ test("scope: personal and unplaced todos everywhere, a project's todos only in t
   // The person's own page may edit another project's todo from "所有项目" without moving it.
   const edited = await f.inA.invoke(actions.update, { id: bTodo.id, title: "B 项目的事（改）", placement: "project" });
   assert.equal(edited.item.project_id, "project-b");
+});
+
+test("RAC-591 S-70 what a caller may reach is the Host's list alone: the same call is refused without one and the plugin compares no audience to decide it", async t => {
+  const f = fixture(t);
+  const inB = (await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project" })).item;
+  // The person's call, with the list the Host gives it, reaches another project's todo; the same call without a list does not, whoever makes it.
+  const withoutList = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: "project-a", audience: "user" as const, permissions: TODO_ACTION_PERMISSIONS }));
+  assert.equal((await f.inA.invoke(actions.get, { id: inB.id })).item.id, inB.id);
+  await assert.rejects(withoutList.invoke(actions.get, { id: inB.id }), { code: "todo.not_found" });
+  await assert.rejects(withoutList.invoke(actions.list, { all_projects: true }), { code: "actions.forbidden" });
+  // A list that names a project does not name the others: a todo of a project the Host did not list is not found.
+  const onlyA = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: "project-a", audience: "user" as const, permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: ["project-a"] }));
+  await assert.rejects(onlyA.invoke(actions.get, { id: inB.id }), { code: "todo.not_found" });
+  assert.deepEqual(titles(await onlyA.invoke(actions.list, { all_projects: true, view: "all" })), []);
+  assert.deepEqual(titles(await f.inA.invoke(actions.list, { all_projects: true, view: "all" })), ["B 项目的事"]);
+  const source = (name: string) => readFileSync(new URL(`../plugins/native/todo/src/${name}`, import.meta.url), "utf8");
+  // The plugin's own code has no audience comparison in what decides scope: not in the access it builds, nor in the search source.
+  for (const line of source("actions.ts").split("\n").filter(text => /projectIds|readable_project_ids/u.test(text))) assert.doesNotMatch(line, /audience/u, line);
+  assert.doesNotMatch(source("search.ts"), /audience\s*(===|!==|==)/u);
+  assert.match(source("store-types.ts"), /projectIds: readonly string\[\]/u);
+  assert.doesNotMatch(source("store-types.ts"), /everything: boolean/u);
 });
 
 test("revisions refuse stale writes; the person's edits are recorded and the Assistant cannot set importance", async t => {
@@ -257,7 +282,7 @@ test("search entries and the object reader follow the caller's scope", async t =
   // The person at Home (the placement panel after a move) reads a project's todo and learns where it is; an agent at Home does not.
   assert.equal((await f.me.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");
   await assert.rejects(f.agentHome.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
-  const personalSpace = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
+  const personalSpace = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: REACHABLE_PROJECTS }));
   assert.equal((await personalSpace.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");
   assert.deepEqual(titles(await personalSpace.invoke(actions.list, { view: "all" })), ["个人的事"], "列表仍只列个人空间的");
   // What the person changed is said in the page's words, not as stored field names (search shows this text).

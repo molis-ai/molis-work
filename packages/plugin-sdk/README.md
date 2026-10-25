@@ -20,9 +20,9 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 存量处理器仍依赖固定用户的私人存储/成果 SDK 时，可用 `bindOwnerPluginAction` 明确限制真实调用者与 owner 一致。它返回可解释的不可用原因，不把 MCP/Agent 身份改为启动用户。处理器拿到 `beforeWrite()`，必须在外部等待后、保存之前调用；它重查原授权、项目启停、Runtime grant 和取消，并复用原 invocation 的 `beforeEffect` 与同步尾检，目录中的新登记不能替旧调用授权。此适配用于渐进迁移，不能据此宣称跨调用者接线完成；新业务处理器应直接以可信 `ActionCallContext` 处理归属。
 
-调用旧 Host Capability 后仍要创建审阅等副作用时，将 `before_effect` 放在 `capabilities.invoke(definition, input, { before_effect })` 的第三个参数中。Host 为服务处理器提供 `invocation.beforeEffect()`，服务在实际副作用前调用；它检查原授权、注册实例和调用是否仍有效。回调不是业务 input，不能接收自 HTTP/MCP JSON、序列化或保存在审阅记录中。审批后的实际执行继续由 Review owner 自己校验，不能复用已经结束的调用上下文。
+调用宿主动作后仍要创建审阅等副作用时，把原调用的控制（含 `beforeEffect`）放在 `services.actions.invoke(definition, input, control)` 的第三个参数中。动作服务为处理器提供 `beforeEffect()`，服务在实际副作用前调用；它检查原授权、注册实例和调用是否仍有效。回调不是业务 input，不能接收自 HTTP/MCP JSON、序列化或保存在审阅记录中。审批后的实际执行继续由 Review owner 自己校验，不能复用已经结束的调用上下文。
 
-`context.services.capabilities.availability(reference)` 只读检查 Manifest 已声明消费的宿主能力及版本。它查询同一个 Host 注册表，不执行 handler，也不打开项目实例；未声明、缺失或无法检查均有明确原因。它不代表给定参数必能执行，不替代实际调用的权限、目录及异步策略检查。`bindOwnerPluginAction` 的第四个参数可填写该动作必需的宿主能力引用，目录、调用和 `beforeWrite` 会共用检查。不要将所有可选消费能力一律当成每个动作的依赖，也不要将此旧 SDK 检查替代公共动作的 `required_actions` 权限依赖。
+`context.services.actions.availability(reference)` 只读检查 Manifest 已声明消费的宿主动作及版本（R8 删掉了 typed 的 `services.capabilities`，宿主动作与别的动作一样经 `services.actions.invoke` 调）。它查询同一个 Host 注册表，不执行 handler，也不打开项目实例；未声明、缺失或无法检查均有明确原因。它不代表给定参数必能执行，不替代实际调用的权限、目录及异步策略检查。`bindOwnerPluginAction` 的第四个参数可填写该动作必需的宿主能力引用，目录、调用和 `beforeWrite` 会共用检查。不要将所有可选消费能力一律当成每个动作的依赖，也不要将此旧 SDK 检查替代公共动作的 `required_actions` 权限依赖。
 
 嵌入其他插件的界面时，在 `ui.embedded_plugins` 声明其完整 Plugin ID。已启用父插件和其传递嵌入关系共用目录可用性规则，移除最后一个父入口后子能力也变为不可用；单独启用子插件仍有效。声明只表明使用关系，不安装新导航项、不授予调用权限，也不猜缺失插件。不要在 Host 再维护嵌入白名单。当前内置项目组合已使用该声明；第三方加载、通用场景和全部旧路由迁移仍以总迁移清单为准。
 
@@ -71,7 +71,7 @@ Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导�
 
 `defineAction` 让同一份定义用于 manifest 的 `actions` 和运行实例的 `actions` 处理器。`action_scenes` 描述消费场景，运行实例的 `action_scenes` 提供 `bindings`、`bind`、`consume`；Runtime 激活时检查声明是否全部兑现。身份、输入输出、权限和作用域来自 contracts/platform/actions，声明本身不授予权限。
 
-`bind`、`consume`、`failed` 接收真实 `ActionSceneExecutionContext`。异步等待后、写入前调用 `await caller.beforeEffect()`，再原子核对 owner 的对象版本；它重新检查原调用者、取消、场景与判断注册及权限，回调返回或抛错后不能继续写入。`bindings`、`targets`、`prepare`、`availability`、`configuration_availability` 是只读回调，允许普通查询及查看原授权目录里的判断/写动作元数据，拒绝直接写入、嵌套写动作和付费查询；宿主从已注册目标读取操作与费用，不接受插件自报的替代值。场景经 `services.actions` 或 `services.capabilities` 发起嵌套调用时仍保留原场景控制。场景不是动作，不取得模型、后台执行或动作专属查询委托的资格。
+`bind`、`consume`、`failed` 接收真实 `ActionSceneExecutionContext`。异步等待后、写入前调用 `await caller.beforeEffect()`，再原子核对 owner 的对象版本；它重新检查原调用者、取消、场景与判断注册及权限，回调返回或抛错后不能继续写入。`bindings`、`targets`、`prepare`、`availability`、`configuration_availability` 是只读回调，允许普通查询及查看原授权目录里的判断/写动作元数据，拒绝直接写入、嵌套写动作和付费查询；宿主从已注册目标读取操作与费用，不接受插件自报的替代值。场景经 `services.actions` 发起嵌套调用时仍保留原场景控制。场景不是动作，不取得模型、后台执行或动作专属查询委托的资格。
 
 场景兼容性同时检查输入、输出语义及对象类型。判断能力的 `subject_kinds` 必须覆盖场景声明的全部对象；例如只能判断 `inbox_entry` 的能力不能绑定同时接收 `feed_item` 和 `inbox_entry` 的场景。不能用相同 JSON 形状代替对象适用性。发现、保存绑定及实际执行使用相同检查。
 

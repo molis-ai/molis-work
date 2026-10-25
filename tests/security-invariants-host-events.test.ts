@@ -101,7 +101,7 @@ async function platform(t: TestContext, extra: ReturnType<typeof probe>[] = [], 
     } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
   const asker = probe(A, [SETTLED]), bystander = probe(B, [SETTLED]), deaf = probe(C, []), all = [asker, bystander, deaf, ...extra];
-  const report = await running.start(all.map(item => ({ definition: item.definition, bundled: true })));
+  const report = await running.start(all.map(item => ({ definition: item.definition, trust: { level: "host" } })));
   assert.deepEqual(report.running.toSorted(), all.map(item => item.definition.manifest.plugin_id).toSorted(), JSON.stringify(report));
   const installOf = (pluginId: string) => running.runtime.list().find(install => install.plugin_id === pluginId)!;
   let counter = 0;
@@ -202,7 +202,7 @@ test("X6-05 S-54 a reinstalled, disabled, stopped or restarted installation gets
   const beforeReinstall = ask(asker);
   await running.runtime.stop(install());
   await running.runtime.uninstall(install());
-  running.runtime.install({ definition: asker.definition, deployment: "local", grants: [], bundled: true });
+  running.runtime.install({ definition: asker.definition, deployment: "local", grants: [], trust: { level: "host" } });
   await running.runtime.start(install());
   queue.settle(beforeReinstall, { ok: true });
   await settled();
@@ -420,7 +420,7 @@ test("X6-05 S-54 a workspace change is not kept for a stopped, disabled or reins
   watching.state.handle = undefined;
   await running.runtime.stop(install());
   await running.runtime.uninstall(install());
-  running.runtime.install({ definition: watching.definition, deployment: "local", grants: [], bundled: true });
+  running.runtime.install({ definition: watching.definition, deployment: "local", grants: [], trust: { level: "host" } });
   await running.runtime.start(install());
   release.resolve();
   await settled();

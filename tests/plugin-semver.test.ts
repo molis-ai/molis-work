@@ -37,7 +37,7 @@ test("W1-18-SEMVER-01 Runtime upgrades a hyphenated prerelease and refuses an un
   });
   const runtime = new PluginRuntime();
   const original = definition("1.0.0-alpha-a"), newer = definition("1.0.0-alpha-b", "1.0.0-alpha-a");
-  const installId = runtime.install({ definition: original, deployment: "local", grants: [] }).install.install_id;
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition: original, deployment: "local", grants: [] }).install.install_id;
   try {
     await runtime.start(installId);
     const upgraded = await runtime.upgrade({ install_id: installId, definition: newer });

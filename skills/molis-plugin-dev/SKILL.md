@@ -94,7 +94,7 @@ description: The single standard for building Molis Work plugins, hand-written o
     持久任务不能只记可复用的 `install_id`：同时绑定 Runtime 的安装世代，由 Host 读取并在执行前复查。重装更新世代，升级和重启不更新；旧记录归属不明时保留并暂停，不能用新安装的授权补跑。
     定时运行自己插件的 operation 使用 `schedules.add/cancel`，生产实现归 Schedule，Host 提供当前安装执行器。启动或注册执行器不能自行清空队列补跑；只能由新的 Scheduler lease 唤醒持久 pending。已派出但结果未知时停止后续排期，先核对外部结果，不能假定失败而自动重试。daily/weekly 仍是固定 24 小时/7 天间隔。
     旧定时 operation 与未知结果在 Schedule 查看原输入和历史，用 `schedule.operations.recover` 明确 resume/retry/skip；所见 revision 与安装 ID/世代/版本须与当前一致。管理动作禁止 plugin 自行调用，普通启用不能绕过核对；重试可能重复副作用，跳过一次性任务则结束。所有决定只调整持久计划，实际执行仍等待新的 lease。
-17. 发布新版本时递增 `version`，再按数据格式声明精确的 `upgrade_compatibility` 来源版本（内置插件在监督器条目里标 `bundled: true`，随宿主版本升级，不写这条）。直接兼容与可迁移来源不同；不要为未验证的旧版本声明兼容。细则见 [elements.md · 版本升级](elements.md#版本升级)。
+17. 发布新版本时递增 `version`，再按数据格式声明精确的 `upgrade_compatibility` 来源版本（内置插件在监督器条目里给 `trust: HOST_BUILD_TRUST`，随宿主版本升级，不写这条）。直接兼容与可迁移来源不同；不要为未验证的旧版本声明兼容。细则见 [elements.md · 版本升级](elements.md#版本升级)。
 
 ## 要素怎么选（别全要）
 
@@ -117,7 +117,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 ## 接到哪里（写完声明立刻看）
 
-- **内置插件**：workspace 包，包里 `src/registration.ts` 写目录条目（manifest、personal、summary、workbench pack；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`），再 `node scripts/generate-plugin-registry.mjs` 生成 `builtin-plugins.ts`（不手改）+ `apps/local-host/src/project-plugins.ts` 的监督器条目（`bundled: true` + `nativePluginReleaseArtifact`），并把 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（+ i18n），在 `specs/repository-anti-corruption/spec.md` §5.1 的包清单表里补一行（`node scripts/gates/package-inventory.mjs --table` 生成；缺行或状态与监督器不符，`pnpm health:check` 变红）。构建期 Native 的 Host HTTP 与动作装配已冻结，只许减少。清单：[host.md](host.md)。
+- **内置插件**：workspace 包，包里 `src/registration.ts` 写目录条目（manifest、personal、summary、workbench pack；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`），再 `node scripts/generate-plugin-registry.mjs` 生成 `builtin-plugins.ts`（不手改）+ `apps/local-host/src/project-plugins.ts` 的监督器条目（`trust: HOST_BUILD_TRUST` + `nativePluginReleaseArtifact`），并把 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（+ i18n），在 `specs/repository-anti-corruption/spec.md` §5.1 的包清单表里补一行（`node scripts/gates/package-inventory.mjs --table` 生成；缺行或状态与监督器不符，`pnpm health:check` 变红）。构建期 Native 的 Host HTTP 与动作装配已冻结，只许减少。清单：[host.md](host.md)。
 - **Runtime 插件**（Coding 族、Shelf）：`createXPlugin` 加监督器 `start()`。`start()` 必须兑现 Manifest 每一条 view、route、action、action_scene，以及 commands、events.subscribes、ports.inputs 对应的处理器。
 - **integration**：`definePollingIntegrationPlugin` + Connector Host；OAuth/secret 见 [integrations.md](integrations.md)。
 - **第三方 / 本地样例**：`molis-work plugin create` → `validate` → `dev` → `pack`。今天脚手架是 integration 样例，不是产品一级入口插件。

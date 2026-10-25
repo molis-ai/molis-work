@@ -1,6 +1,6 @@
 import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { logPreviewFailure } from "./host-log.js";
-import { ARTIFACTS_PLUGIN_ID, artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import { readProjectReference } from "./project-file-reference.js";
@@ -12,10 +12,10 @@ import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./proje
 
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
-  const provider: ActionProviderRegistration["provider"] = { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: runtime.project_id };
+  const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER.plugin_id, plugin_id: ARTIFACTS_PROVIDER.plugin_id, title: ARTIFACTS_PROVIDER.name, kind: "plugin", project_id: runtime.project_id };
   return {
     provider,
-    definitions: artifactsManifest.actions!,
+    definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({
       projectId: runtime.project_id, artifacts: runtime.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,

@@ -49,6 +49,7 @@ export async function developInPrivateHost(host: MolisWorkLocalHost, reference: 
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: runtime.project_id },
       artifacts: runtime.artifacts, processItems: runtime.processItems, ui: new UiHost(),
       repository: new SqlitePluginRuntimeRepository(runtime.store.db),
-      privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
+      privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
+      deleteInstallationData: id => privateStorage.deleteInstallationData(id) });
   });
 }

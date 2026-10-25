@@ -72,6 +72,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 - 公开入口：`@molis-ai/molis-work-plugin-feed`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 捕捉场景的判断（规则可用哪些判断、哪些建议仍成立、怎样记录）在本包的 `createFeedSceneRuntime`；Host 的 `feed-scene.ts` 只接判断账本与可读的消息，不写判断（`tests/feed-inbox-scene-runtime.test.ts`）。
   - 不拥有 Source、Signal、Feed 的表，不直接实现 GitHub 或 Gmail 协议。
   - 失败都是 `ActionError`：码是 `feed.<原因>`（`feedErrors`，声明在合同 `modules/feed`，因为 RSS、YouTube 集成和 Host 的同步文件也要用），Inbox 事项找不到是 `inbox.entry_not_found`（`inboxErrors`，合同 `modules/attention-resumption`）；状态只由 kind 推出，本插件没有错误类和状态表。提供方报告的失败是 `feed.connector_failed`，提供方自己的码（`connector.rate_limited` 等，运行与来源故障里存的就是它）放在 `details.error_code`。模块自己的 `FeedError`、`AttentionError` 在 `callFeed`、`callAttention` 处换成上面的码。
   - Provider 失败、部分接收与重试不能混成同一个成功状态；指定来源必须属于当前项目。
@@ -79,7 +80,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
   - 已忽略（归档）的 Item 只能先恢复：不能被加入 Inbox、不能重开它已关闭的条目，捕捉失败也不为它记条目。
   - 连同本地历史删除来源时，只删没有任何项目的 Material 或拉取收据引用的加密正文；数不清引用（有项目库读不出来）就一律保留。
   - 停用、改绑、内容变化或撤权后撤下建议，历史保留；外部内容是不可信输入。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-promote-mcp.test.ts tests/feed-promote-reader.test.ts tests/feed-native-plugin.test.ts tests/mcp-action-settings.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts tests/local-web-actions.test.ts tests/feed-source-actions.test.ts tests/feed-inbox-schedule-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-promote-mcp.test.ts tests/feed-promote-reader.test.ts tests/feed-native-plugin.test.ts tests/mcp-action-settings.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts tests/local-web-actions.test.ts tests/feed-source-actions.test.ts tests/feed-inbox-scene-runtime.test.ts tests/feed-inbox-schedule-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/feed-capture.e2e.test.ts`
 - 相关手册：[docs/modules/feed.md](../../../docs/modules/feed.md)、[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

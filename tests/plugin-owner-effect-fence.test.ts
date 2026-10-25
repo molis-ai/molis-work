@@ -54,7 +54,7 @@ test("W3-09-AUTH-03 the SDK owner binder retains the real old invocation instead
   } };
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
     ui: new UiHost(), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest) }), { actions });
-  const installed = runtime.install({ definition, deployment: "local", grants: ["storage:private"] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["storage:private"] }).install;
   stop = () => runtime.stop(installed.install_id);
   await runtime.start(installed.install_id);
   const context = contexts[0];

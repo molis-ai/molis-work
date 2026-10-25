@@ -228,11 +228,11 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
-| `listener-host` | `src/index.ts` | `ListenerHost` 类 373 行 / 18 方法 | 拆 · W5-10 | `ListenerHost` 的 18 个方法分三组：运行（`run` 144 行、`saveRun`、`recoverInterruptedRuns`）、投递（`acceptDelivery` 61、`persistDeliveries` 35、`pendingDeliveries`）、检查点与租约（`ensureCheckpoint`、`acquireLease`、`advanceCursor`、`updateCheckpointFailure`）。投递与检查点各成协作者，`run` 本身按步骤拆。 | 5 |
+| `listener-host` | `src/index.ts` | `ListenerHost` 类 289 行 / 18 方法 | 已拆 · W5-10 | `584112c6` 实测 361→289 行（原表 373 为旧值）；投递转换/Signal 回执提交和批量持久化提为同文件函数，显式传原 db/signals/options 与晚取的时钟/cursor 操作。运行、租约与 checkpoint 留在原实例，最大函数 `run` 135 行，文件 760 行。 | 5 |
 | `memory` | `src/service.ts` | 文件 1,338 行<br>`MemoryService` 类 1,101 行 / 56 方法 | 拆 · W5-10 | 决定 N-03：代码不搬，只在包内拆。`MemoryService` 56 个方法分组：偏好、召回与使用（`recall` 57）、写入与候选（`commit` 107、`change` 71、`propose`、`accept`）、从工作中学习（`learnFromWork`）、维护（`upkeep` 91、`pairs`）、范围操作（`previewScope`、`clearScope`、`exportScope`、`importScope`）。每组一个协作者；声明与类型另放，文件回到 800 行以下。路线 W4-08 末尾写“再拆 MemoryService”，但 N-03 决定把 W4-08 改成文档与边界规则，所以拆分改归这一片。 | 3 |
-| `placement` | `src/index.ts` | `PlacementService` 类 419 行 / 28 方法 | 拆 · W5-10 | 决定 N-03：代码不搬。`PlacementService` 28 个方法分四组：位置读取（`locate`、`describe` 69、`readIn` 27、`location`）、关系（`link`、`unlink`、`related`）、目标绑定（`goals`、`bindGoal`、`goalBindings`）、移动复制转换（`move`、`moveHome`、`copy`、`convert` 40）。 | 3 |
+| `placement` | `src/index.ts` | `PlacementService` 类 286 行 / 20 方法 | 已拆 · W5-10 | `584112c6` 实测 399/28→286/20（原表 419 为旧值）；同包同文件拆出 Goal 查询、复制/转换及位置/可用操作投影函数。读取、定位、记账与打开按原实例晚绑定；移动及 S-35 恢复原实现保留，不增加提交间隙或共享 caller。最大函数 `describe` 69 行，文件 540 行。 | 3 |
 | `scheduler` | `src/index.ts` | `createScheduleService` 函数 282 行 | 拆 · W5-10 | `createScheduleService` 里 `fire` 86 行、`register` 38、`claim` 23、`setEnabled` 20、`toRecord` 20、`tick` 19、`renewExecutions` 16：触发（`fire`、`claim`、`tick`、`renewExecutions`）与登记管理（`register`、`setEnabled`、`toRecord`）分成两个文件。 | 2 |
-| `search` | `src/index.ts` | `SearchService` 类 407 行 / 26 方法 | 拆 · W5-10 | `SearchService` 26 个方法分三组：查询（`query`、`open` 44、`entrySources`、`scoped`、`matchesFilter`）、同步（`runSync` 67、`reconcile`、`needsSync`、`catchUp`、`scheduleRefresh`、`refreshKnown`）、登记与状态（`markRegistration`、`markChanged`、`announce`、`status`、`statuses`、`purgeDisabled`）。决定 #19 的按需搜索来源已删（W2-03），`onDemand` 与 `querySources` 已去掉，所以上面的行数和方法数是删后的；可以直接拆。 | 4 |
+| `search` | `src/index.ts` | `SearchService` 类 283 行 / 21 方法 | 已拆 · W5-10 | `584112c6` 实测 392/25→283/21（原表 407/26 为旧值）；同步索引、正文读取、来源/状态投影与范围判断提为同文件函数，最大 67 行，文件 597 行。map/timer/inflight/close 留在实例，changeSeq/closed 在原位置晚取，时钟保原接收者；query 的 ACA005 授权复核和同步尾检保留。 | 4 |
 
 ### 业务事实 Module `modules/*`
 
@@ -267,7 +267,7 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 | `design-system` | `src/styles/personal-workbench-v3.ts` | 文件 1,422 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 4 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/repository-anti-corruption/spec.md` §W4-12。 | 1 |
 | `design-system` | `src/styles/primitives.ts` | 文件 1,276 行 | 例外 · 样式表 | `PRIMITIVE_STYLES` 一个模板字符串，纯 CSS，开头只有几个共用的 CSS 片段常量。 | 1 |
 | `im-ui` | `src/browser/controller.ts` | 文件 966 行<br>`startIm` 函数 957 行 | 已拆（W5-10） | `startIm` 剩约 35 行装配：页面状态收进一个 `ImState`（原来 29 个闭包变量），元素与服务放进 `ImCtx`，十层各一个自包含工厂 `controller-{shell,composer,sync,rooms,topics,navigate,dialogs,startup,page,clicks}.ts`（最大 126 行），层与层经 `c.<名字>` 后绑定调用，仍由 `client.ts` 用 `toString` 序列化进页面。函数体逐字搬动，只把变量引用改成 `s.<名字>`/`c.<名字>`；一处原有的空 `catch` 补了说明。浏览器用例交集成批。 | 1 |
-| `im-ui` | `src/views.ts` | `createViews` 函数 164 行 | 拆 · W5-10 | `createViews` 里 `stream` 84 行、`context` 16、`markup` 12、`restoreScroll` 12：流、上下文、滚动保持各成视图函数。 | 0 |
+| `im-ui` | `src/views.ts` | `createViews` 函数 149 行 | 已拆 · W5-10 | `584112c6` 实测 162→149 行（原表 164 为旧值）；chrome 的 markup/cache/focus 操作提为同文件私有装配函数，由 client 显式捕获进序列化闭包。根节点与两 WeakMap 仍按实例持有，controller/交互规则不变；相关说明移到函数外仍保留，实际下发脚本 81,646→81,448 字节。 | 0 |
 | `kernel` | `src/action-service.ts` | `ActionService` 类 413 行 / 15 方法 | 拆 · W5-10 | `registerProvider` 的 `try` 块有两个循环：动作登记（每个动作的 `execute` 闭包里是限速、生命周期、`beforeEffect` 检查、输出校验）和场景登记（逐项校验、登记）。W3-01 把结算搬出 `execute`（到 `action-settlement.ts`，由 `invoke` 与 `invokeSync` 做），`registerProvider` 因此降到阈值下、不再是巨大单元；两个循环各成函数、`execute` 的各步再各成助手仍是 W5-10 的做法。类里场景相关的 `discoverScenes`、`bind`、`runScene`、`requireScene` 为一组，动作相关的 `discover`、`inspect`、`directory`、`invoke` 为另一组。W3-05 的交叉校验已做：校验代码在 SDK 的 `action-cross-references.ts`，`registerProvider` 只在原有的一行里多调一个函数，没有加行（它离阈值不远，以后也这样加）。 | 3 |
 | `plugin-runtime` | `src/events.ts` | `PluginEventBus` 类 420 行 / 23 方法 | 拆 · W5-10 | `PluginEventBus` 的 23 个方法分三组：发布与匹配（`publish` 72、`#match`、`#enqueue`）、投递（`#deliver` 99、`#fail`、`#resume`、`drain`）、游标与恢复（`#saveCursor`、`recover`、`recoveryHistory`、`cursors`）。 | 4 |
 | `plugin-runtime` | `src/index.ts` | `PluginRuntime` 类 660 行 / 30 方法（文件 886 行，W3-06 A 把 `MemoryPluginRuntimeRepository`、`NativePluginExecutor` 和 `validateManifest` 等模块级函数移到 `memory-repository.ts`、`native-executor.ts`、`runtime-rules.ts`，文件 760 行，已不是巨大单元） | 拆 · W5-10 | `PluginRuntime` 660 行/30 方法分三组：安装与卸载（`install` 115、`uninstall*`）、版本切换（`upgrade`、`rollback`、`changeVersion` 117）、生命周期（`start*`、`stop*`、`recover*`、`reportCrash*`，各有 `…Once` 版本）。W3-06 要加 Home 级实例，类已冻结，它的新增部分先写在新文件里。 | 4 |
@@ -323,10 +323,10 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
 | `catalog` | `src/catalog.ts` | 文件 1,015 行 | 例外 · 静态数据 | 39 个连接器的声明表，条目互相独立（`CATALOG` 834 行），所以不为拆而拆。但文件冻结在现有行数，不能直接往里加：新增连接器要先把已有条目挪进各自的文件、腾出行数，再加新的。 | 1 |
-| `gmail` | `src/oauth-pending.ts` | `createGmailPendingSessions` 函数 178 行 | 拆 · W5-10 | `createGmailPendingSessions` 把 `validatePendingGmailOAuthSession`（72）、`prunePendingIndex`（35）、`parsePending`（17）等做成内嵌函数；提到模块级，依赖显式传入。 | 1 |
-| `gmail` | `src/oauth-token-lifecycle.ts` | `createGmailTokenLifecycle` 函数 170 行 | 拆 · W5-10 | 只超 20 行。`resolveUsableGmailAccessToken` 98 行等内嵌函数提到模块级。 | 1 |
-| `gmail` | `src/oauth.ts` | `createGmailOAuth` 函数 177 行 | 拆 · W5-10 | 只超 27 行。`completeGmailOAuthFlow`（92）、`startGmailOAuthFlow`（65）两个内嵌函数提到模块级。 | 1 |
-| `gmail` | `src/provider.ts` | 文件 957 行<br>`createGmailProvider` 函数 198 行 | 拆 · W5-10 | 文件 957 行：同步（`runFullSync` 61、`runIncremental` 120、`fetchBoundedDetails` 65、`fetchMessagesList`）、消息映射（`mapMessageDetailToItem` 53、`classifyGmailPath`）、夹具数据 `FIXTURE_MAIL` 分三个文件；`createGmailProvider` 198 行返回的 141 行对象里各操作抽成函数。 | 2 |
+| `gmail` | `src/oauth-pending.ts` | `createGmailPendingSessions` 函数 8 行 | 已拆 · W5-10 | 基线实测 178 → 8 行；存取、清理与校验提到同文件模块级，显式传入实例 Ports 与捕获的配置函数。最大函数 72 行，保留 state/时间/身份校验、Secret 方法接收者与每次实例的独立会话。 | 1 |
+| `gmail` | `src/oauth-token-lifecycle.ts` | `createGmailTokenLifecycle` 函数 8 行 | 已拆 · W5-10 | 基线实测 168 → 8 行（原表 170 为旧值）；同文件模块级函数处理凭据读取、刷新与写入，最大 101 行。保留 refresh-token 复查、原 opts 的同步 `beforePersist` 与连续凭据写入。 | 1 |
+| `gmail` | `src/oauth.ts` | `createGmailOAuth` 函数 14 行 | 已拆 · W5-10 | 基线实测 177 → 14 行；start/complete 操作提到模块级，按实例绑定原 Ports 与函数引用，最大 93 行。先消耗 state 再交换，先核邮箱、解析 refs 再同步提交；公开参数与返回保持。 | 1 |
+| `gmail` | `src/provider.ts` | 文件 263 行<br>`createGmailProvider` 函数 63 行 | 已拆 · W5-10 | 基线实测文件 910 → 263、factory 177 → 63 行（原表 957/198 为旧值）；health/sync 操作留在本文件模块级，实例 resolver 保留原 opts 接收者。私有 `provider-sync.ts` 446 行（最大函数 93）、`provider-message.ts` 176 行（最大函数 53）、`provider-fixture.ts` 38 行。分页、详情界限、映射与游标进度不变，无新增公开出口或例外。 | 2 |
 
 ## 4. 维护
 

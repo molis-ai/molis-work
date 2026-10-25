@@ -46,7 +46,9 @@ function todoHost(t: { after(fn: () => void): void }) {
     definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)) }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const caller = (audience: ActionCallContext["audience"], project_id: string | null = null): ActionCallContext =>
-    ({ actor_id: audience === "user" ? "web-user" : "mcp-client", project_id, audience, permissions: TODO_ACTION_PERMISSIONS });
+    ({ actor_id: audience === "user" ? "web-user" : "mcp-client", project_id, audience, permissions: TODO_ACTION_PERMISSIONS,
+      // The Host gives the person's own calls the list of projects they may reach (S-70); an Agent's or MCP client's never have one.
+      ...(audience === "user" ? { readable_project_ids: ["q4"] } : {}) });
   return { service, store, caller, person: bindActionClient(service, () => caller("user")) };
 }
 
@@ -134,7 +136,7 @@ function placementOver(t: { after(fn: () => void): void }, client: ActionClient)
   return new PlacementService({
     ledger: createContextLedger(ledgerDatabase(db), { authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id }),
     spaces: async () => [{ project_id: "personal", title: "个人空间", kind: "personal" }, { project_id: "q4", title: "Q4 新版发布", kind: "project" }],
-    scope: async projectId => ({ client, caller: { actor_id: "web-user", project_id: projectId, audience: "user", permissions: TODO_ACTION_PERMISSIONS } }),
+    scope: async projectId => ({ client, caller: { actor_id: "web-user", project_id: projectId, audience: "user", permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: ["q4"] } }),
     titles: { get: (kind, id) => titles.get(`${kind}:${id}`) ?? null, set: (kind, id, title) => { titles.set(`${kind}:${id}`, title); } },
   });
 }

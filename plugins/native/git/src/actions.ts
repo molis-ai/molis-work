@@ -42,7 +42,7 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
   const reviewResults = [...browsing, readGitResultsCapability];
   let selectionSequence = 0;
   const workspace = async () => {
-    const selected = await services?.capabilities?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
+    const selected = await services?.actions?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
     if (!selected) throw gitErrors.invalid("请在项目设置的工作目录中选择可用浏览目录");
     return { workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id };
   };

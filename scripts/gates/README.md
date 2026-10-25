@@ -84,10 +84,10 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 | --- | --- |
 | 怎么判 | 用 TypeScript 语法树读，不执行。插件按包名认：Home 条目取 `runtime.package_name`，项目条目看 `definition: create…(…)` 的工厂从哪个包导入。目录条目由 `catalog-entries.mjs` 给出，和别的看目录的门禁（`home-runtime-entries.mjs`、包边界检查）同一份读法 |
 | D1 标记与两份名单 | 带 `dual_instance` 的 Home 条目，项目启动名单里要有同一个包的条目；同一个包两份名单都在，Home 条目就要带标记。`dual_instance` 只写字面量 `true`（或不写） |
-| D2 两半都随宿主发 | 目录条目都随宿主发，所以项目那一半写 `bundled: true` |
+| D2 两半都随宿主发 | 目录条目都随宿主发，所以项目那一半写 `trust: HOST_BUILD_TRUST` |
 | D3 没有可选权限 | 用户 2026-10-20 定（U1）：带标记的插件，Manifest 的每条权限都是对象字面量，写字面量 `required: true`。宿主不查这一条，只有门禁查；不带标记的插件不受影响 |
-| 失败时说什么 | `<目录条目文件>: runtime.dual_instance marks <包> as a dual-instance plugin, but … starts no project half of it`、`…project-plugins.ts: <包> is also a Home catalog entry (…); a plugin on both start lists says runtime.dual_instance: true on its Home entry`、`…: the project half of the dual-instance plugin <包> must say bundled: true…`、`…: the dual-instance plugin <包> has a permission that is not \`required: true\` as a literal (…)`，以及下面「读不到的」几种 |
-| 怎么办 | D1：要么给 Home 条目加标记、在启动名单里加项目那一半，要么两边都不放；D2：项目条目写 `bundled: true`；D3：把可选权限改成必需（双实例插件的两份授权记录不能分叉），或者不做双实例 |
+| 失败时说什么 | `<目录条目文件>: runtime.dual_instance marks <包> as a dual-instance plugin, but … starts no project half of it`、`…project-plugins.ts: <包> is also a Home catalog entry (…); a plugin on both start lists says runtime.dual_instance: true on its Home entry`、`…: the project half of the dual-instance plugin <包> must say trust: HOST_BUILD_TRUST…`、`…: the dual-instance plugin <包> has a permission that is not \`required: true\` as a literal (…)`，以及下面「读不到的」几种 |
+| 怎么办 | D1：要么给 Home 条目加标记、在启动名单里加项目那一半，要么两边都不放；D2：项目条目写 `trust: HOST_BUILD_TRUST`；D3：把可选权限改成必需（双实例插件的两份授权记录不能分叉），或者不做双实例 |
 | 读不到的（已知限制） | 读不懂的写法报错，不放过：带标记条目的 Manifest、权限列表或某一条权限不是门禁能跟到的写法（展开、算出来的 `required`、函数调用），以及项目条目的 `definition` 不是导入工厂的调用（`cannot read the Manifest…`、`cannot read the permissions…`、`cannot tell which plugin package the entry … starts`）。跟名字只跟插件自己的相对文件（`import`、`export { … } from`、`export *`、顶层 `const`，去掉 `as`、`satisfies` 和括号）；用函数造的 Manifest 不跟。项目启动名单里写在别的文件、再拼进来的条目读不到 |
 
 验证：`node scripts/run-tests.mjs tests/health-gates-dual-instance.test.ts`。每条规则在内存里的小树上违反一次，必须报出对应的话；仓库自己的树没有问题；入口里的接线在临时仓库里验证，`--base main` 要失败。文件名落在 CI「Health gates reject what they claim to」那一步的 `tests/health-gates-*.test.ts` 里，不用改 `ci.yml`。

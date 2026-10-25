@@ -7,7 +7,7 @@ import { readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import {
   DOCUMENT_IMPORT_MAX_BYTES, documentErrors, importArtifactDocument, storeArtifactOriginal,
   type ArtifactDocumentImportPorts, type OfferedOriginal, type ExternalDocumentSource,
-} from "@molis-ai/molis-work-plugin-artifacts";
+} from "@molis-ai/molis-work-module-artifacts";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { resolveApiConnection } from "./connector-access.js";

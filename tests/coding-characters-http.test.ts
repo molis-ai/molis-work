@@ -49,7 +49,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
   };
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: actions(), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       // The Runtime directory says the session's Runtime has verified a Character's tool limits (PG-054): the Runtime's declaration, not its id.
       if (definition.capability_id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", supports_character_limits: true,
         capabilities: Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(name => [name, "supported"])) }] as Output;

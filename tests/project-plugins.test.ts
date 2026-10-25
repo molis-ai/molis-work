@@ -119,11 +119,14 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   assert.equal((await change("DELETE", project.project_id, "inbox", false)).status, 403);
   assert.equal((await change("DELETE", project.project_id, "unknown")).status, 400);
   assert.equal((await change("DELETE", "missing", "inbox")).status, 404);
-  // Shelf is a 常开插件: no project removes or hides it, and the refusal records nothing.
-  const alwaysOn = await change("DELETE", project.project_id, "shelf");
-  assert.equal(alwaysOn.status, 400);
-  assert.equal((await alwaysOn.json()).code, "catalog.plugin_always_on");
+  // Goals and Shelf are 常开插件: no project removes or hides them, and the refusal records nothing (RAC-386, privileges.md V-01).
+  for (const plugin of ["shelf", "goals"]) {
+    const alwaysOn = await change("DELETE", project.project_id, plugin);
+    assert.equal(alwaysOn.status, 400, plugin);
+    assert.equal((await alwaysOn.json()).code, "catalog.plugin_always_on", plugin);
+  }
   assert.deepEqual(catalog.listHiddenPlugins(project.project_id), []);
+  assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), true);
   assert.equal((await change("POST", project.project_id, "feed")).status, 200);
   const removedFeed = await change("DELETE", project.project_id, "feed");
   assert.equal(removedFeed.status, 200);

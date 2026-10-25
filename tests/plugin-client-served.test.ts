@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { transformSync } from "esbuild";
-import { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-schedule";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { pluginWorkbenchClientAsset } from "@molis-ai/molis-work-app-workbench";
 
 // RAC-159-SERVED: cover the plugins registered with clientServed: true.
-// Schedule keeps explanations and indentation in its source; clientServed removes whole-line comments and indentation.
+// A source that keeps explanations and indentation is sent without whole-line comments and indentation (none registered now:
+// Pages, Schedule and the other page clients are esbuild bundles that do not set clientServed).
 // Lingguang already reads an esbuild bundle, so serving it must preserve its bytes as well as its program.
 
 const sources = [
-  { id: "schedule", source: SCHEDULE_CLIENT_FACTORY_SCRIPT, bundled: false },
   { id: "lingguang", source: LINGGUANG_CLIENT_FACTORY_SCRIPT, bundled: true },
 ];
 // Identifier minification chooses names using character frequencies, which can change after a trivia-only pass.

@@ -1,5 +1,5 @@
 import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
-import { JELLY_PROJECT_PLUGIN_ID, type JellyItem, type JellyNote, type JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import { JELLY_PROJECT_PLUGIN_ID, type JellyItem, type JellyNote, type JellyWorkspace } from "./contract.js";
 import type { JellyStore } from "./store.js";
 import { jellyErrors } from "./error.js";
 

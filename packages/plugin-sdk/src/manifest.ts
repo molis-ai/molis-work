@@ -3,10 +3,11 @@ import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
-import { inspectActionDeclarations } from "./action-declarations.js";
+import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
+import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
@@ -190,6 +191,7 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["action_scenes", manifest.action_scenes],
     ["background", manifest.background],
     ["connections", manifest.connections],
+    ["attention", manifest.attention],
     ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
     ["ui.commands", ui.commands],
@@ -225,6 +227,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
       if (!declaredPermissions.has(permission)) problems.push(`场景 ${scene.scene_id} 使用未声明权限 ${permission}`);
     }
   }
+  problems.push(...projectReachPermissionProblems(parsed.actions, declaredPermissions));
   problems.push(...inspectPortDeclarations(parsed.ports, parsed.plugin_id));
   problems.push(...inspectEventDeclarations(parsed.plugin_id, parsed.events, declaredPermissions));
   problems.push(...inspectAgentDeclaration(
@@ -241,6 +244,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...inspectContextDeclarations(parsed));
   problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions, parsed.actions));
   problems.push(...connectionDeclarationProblems(parsed.connections, declaredPermissions));
+  problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
   assertNoDeclarationProblems(problems);
 }
 

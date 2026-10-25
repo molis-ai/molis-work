@@ -20,7 +20,6 @@ import {
   SqlitePluginEventsRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
-  type PluginCapabilityPort,
   type PluginEventsDatabase,
   type PluginSupervisorEntry,
   type PluginUpgradeCandidate,
@@ -36,6 +35,7 @@ import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
+import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -71,10 +71,12 @@ export interface PluginPlatformOptions {
   processItems: ProcessItemsApplicationApi;
   ui: UiHostApi;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  /** The owner of private KV supplies whole-installation cleanup for synchronous non-retaining reinstalls. */
+  deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
-  /** Capabilities the Host exposes to Plugins that declared consuming them. */
-  capabilities?: PluginCapabilityPort;
+  /** Whether an action a plugin consumes is registered and ready in this project (`services.actions.availability`). */
+  dependencyCheck?: PluginDependencyCheck;
   scheduler?: PluginHostExecutorOptions["scheduler"];
   /** Shared system registry plus the trusted project identity for this activation. */
   actions: PluginHostExecutorOptions["actions"];
@@ -105,7 +107,7 @@ export interface PluginPlatform {
   closeCoordination(): Promise<void>;
   /**
    * Whether the plugin running under this id ships with the Host: its active definition is one the Host's own start list
-   * marked `bundled` (the same test that gives it its plugin_id as action provider), not anything a plugin declares.
+   * given `host` trust (the same test that gives it its plugin_id as action provider), not anything a plugin declares.
    */
   shipsWithHost(pluginId: string): boolean;
   /** Built after `start`, from the Manifests that actually activated. */
@@ -121,7 +123,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // Tests and scripts are not type-checked, so the type alone would not make a caller say which.
   if (options.home === undefined) throw new Error("插件平台要说明它的 Home：给出进程内的 Home，或明确给 null");
   // A plugin that ships with the Host registers its actions under its plugin_id; every other plugin under its installation id
-  // (user decision 2026-10-10, W3-06 Q1). "Ships with the Host" is the Host's own start list saying `bundled` about a definition
+  // (user decision 2026-10-10, W3-06 Q1). "Ships with the Host" is the Host's own start list giving a definition `host` trust
   // object, not anything a plugin declares or its record holds, so a developed or generated plugin that names a built-in
   // plugin_id gets no more than an installation id.
   const identity = pluginEntryIdentity();
@@ -152,12 +154,13 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     home: options.home,
     ui: options.ui,
     privateStorageFor: options.privateStorageFor,
+    deleteInstallationData: options.deleteInstallationData,
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { redemption: definition => ({ partial: identity.dualInstance(definition) }),
+    { redemption: definition => ({ partial: identity.dualInstance(definition) }), ...options.home ? { consents: options.home.consents } : {},
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
@@ -186,7 +189,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     events,
     hostEvents,
     wiring,
-    ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
+    ...(options.dependencyCheck === undefined ? {} : { dependencyCheck: options.dependencyCheck }),
     scopeKey: options.scopeKey ?? options.project_id,
   });
 
@@ -247,7 +250,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
 
 /**
  * A definition the supervisor restores from a kept release stands in for the listed one, so the Host's marks on the listed entry
- * (`bundled`, `dual_instance`, its declarations) carry over to it, as the Home side does for its own (BL-394).
+ * (its `trust`, `dual_instance`, its declarations) carry over to it, as the Home side does for its own (BL-394).
  */
 function rememberingRestored(entry: PluginPlatformEntry, remember: (entries: readonly PluginPlatformEntry[]) => void): PluginPlatformEntry {
   const release = entry.releaseArtifact;

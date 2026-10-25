@@ -2,6 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 test("scene result labels belong to a finite recommendation contract", () => {
@@ -272,4 +273,22 @@ test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or s
     ui.embedded_plugins = invalid;
     assert.throws(() => parsePluginManifest(input), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid"));
   }
+});
+
+test("RAC-589 S-70 project_reach is declared on Home-scoped actions only, and only together with the projects:reach permission", () => {
+  const fresh = (): Record<string, unknown> => JSON.parse(JSON.stringify(todoManifest));
+  const actionsOf = (manifest: Record<string, unknown>) => manifest.actions as Array<{ capability_id: string; action: Record<string, unknown> }>;
+  const refused = (mutate: (manifest: Record<string, unknown>) => void, needle: string) => assert.throws(() => { const manifest = fresh(); mutate(manifest); parsePluginManifest(manifest); },
+    (error: unknown) => error instanceof ActionError && error.message.includes(needle), needle);
+  const parsed = parsePluginManifest(fresh());
+  const reaching = parsed.actions!.filter(definition => definition.action.project_reach === "person");
+  assert.ok(reaching.length > 0, "Todo's own page declares it");
+  assert.ok(reaching.every(definition => definition.action.scope === "home"));
+  // Declared without the permission: the installation's confirmation could not show it, so the Manifest is refused.
+  refused(manifest => { manifest.permissions = (manifest.permissions as Array<{ permission: string }>).filter(item => item.permission !== "projects:reach"); }, "projects:reach");
+  // A project-scoped action already runs in one project; the declaration only has a meaning for a Home-scoped one.
+  refused(manifest => { actionsOf(manifest).find(definition => definition.action.scope === "project")!.action.project_reach = "person"; }, "project_reach");
+  // Nothing but the person's own reach exists.
+  refused(manifest => { actionsOf(manifest).find(definition => definition.action.scope === "home")!.action.project_reach = "everyone"; }, "project_reach");
+  refused(manifest => { actionsOf(manifest).find(definition => definition.action.scope === "home")!.action.project_reach = true; }, "project_reach");
 });

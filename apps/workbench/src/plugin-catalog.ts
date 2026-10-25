@@ -21,13 +21,14 @@ export interface PluginMarketCard {
 
 /**
  * The plugins a project shows: those enabled there, and the personal ones unless the person hid them from it. The page,
- * its side panel tabs and the side panel's file sources all use this one list.
+ * its side panel tabs and the side panel's file sources all use this one list. A hidden mark on a 常开 plugin changes nothing: the
+ * project's list of hidden plugins (`listHiddenPlugins`) leaves it out.
  */
 export function shownProjectPlugins(enabled: readonly string[], hidden: readonly string[] = []): string[] {
   const excluded = new Set(hidden);
   const next = [...enabled];
   for (const personal of PERSONAL_PLUGIN_IDS) {
-    if ((excluded.has(personal) && !ALWAYS_ON_PLUGIN_IDS.includes(personal)) || next.includes(personal)) continue;
+    if (excluded.has(personal) || next.includes(personal)) continue;
     const artifactsAt = next.indexOf("artifacts");
     if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
     else next.push(personal);
@@ -35,14 +36,19 @@ export function shownProjectPlugins(enabled: readonly string[], hidden: readonly
   return next;
 }
 
-/** Enabled surfaces and their declared embedded dependencies; no installation or grant mutation. */
+/**
+ * The plugins whose actions and routes a project may reach: what it shows (`shownProjectPlugins`: enabled ones, and personal ones
+ * the person did not hide there) and the plugins those declare embedded. No installation or grant mutation. A personal plugin the
+ * project hides is not reached even when a shown plugin embeds it: hiding is final for actions (PG-013), embedding only brings in
+ * plugins the project has not hidden.
+ */
 export function availableProjectPluginIds(
-  enabled: readonly string[], catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG,
+  shown: readonly string[], catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG,
 ): ReadonlySet<string> {
   const byProjectId = new Map(catalog.map(entry => [entry.project_plugin_id, entry]));
   const byManifestId = new Map(catalog.map(entry => [entry.manifest.plugin_id, entry]));
   const available = new Set<string>();
-  const pending = [...enabled, ...catalog.filter(entry => entry.personal).map(entry => entry.project_plugin_id)];
+  const pending = [...shown];
   while (pending.length) {
     const id = pending.pop()!;
     const entry = byProjectId.get(id);
@@ -53,6 +59,8 @@ export function availableProjectPluginIds(
       if (embedded) pending.push(embedded.project_plugin_id);
     }
   }
+  const listed = new Set(shown);
+  for (const entry of catalog) if (entry.personal && !listed.has(entry.project_plugin_id)) available.delete(entry.project_plugin_id);
   return available;
 }
 
@@ -64,14 +72,6 @@ export const PROJECT_SCOPED_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLU
 /** Personal Plugins are enabled for every project without being stored per project. */
 export const PERSONAL_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLUGIN_CATALOG
   .filter((entry) => entry.personal === true)
-  .map((entry) => entry.project_plugin_id);
-
-/**
- * 常开插件 (the Manifest's `always_on`, specs/side-shelf §3.2): personal, shown in every project whatever it hid, and never
- * offered where plugins are chosen, added or removed. Only the built-in catalog has them (the Runtime refuses the mark elsewhere).
- */
-export const ALWAYS_ON_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLUGIN_CATALOG
-  .filter((entry) => entry.personal === true && entry.manifest.always_on === true)
   .map((entry) => entry.project_plugin_id);
 
 /** The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer). */
@@ -134,7 +134,6 @@ export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
     ...requiredCompanions(pluginId),
   ],
   isPersonal: (pluginId) => PERSONAL_PLUGIN_IDS.includes(pluginId),
-  isAlwaysOn: (pluginId) => ALWAYS_ON_PLUGIN_IDS.includes(pluginId),
 };
 
 export interface RailEntry {
@@ -277,6 +276,12 @@ export function sideEntries(enabled: readonly ProjectPluginId[]): Array<UiPlaced
 export function settingsEntries(enabled: readonly ProjectPluginId[]): UiPlacedView[] {
   return registryFor(enabled).slot("settings");
 }
+
+/**
+ * Whether the plugin's Manifest declares it 常开. A declaration is not the agreement: the Home's consent ledger decides which are on
+ * (`ProjectPluginRegistry.alwaysOn`), and the shell reads this for what it draws before it has asked.
+ */
+export const declaresAlwaysOn = (projectPluginId: ProjectPluginId): boolean => manifestFor(projectPluginId)?.always_on === true;
 
 export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | undefined {
   return entryFor(projectPluginId)?.manifest;

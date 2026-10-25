@@ -1,6 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionEntryRecord, AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
 
@@ -35,7 +36,7 @@ export class FeedApplication {
   snapshot(projectId: string): FeedSnapshot {
     const sources = this.ports.sources.query.list(projectId).map((source) => this.sourceRecord(source));
     const feedItems = this.ports.feed.query.list(projectId).map(feedItemRecord);
-    const inboxEntries = this.ports.attention.query.list(projectId);
+    const inboxEntries = this.listInboxEntries(projectId);
     const runs = this.ports.listener.listRuns(projectId).map(sourceRunRecord);
     return {
       sources,
@@ -60,13 +61,13 @@ export class FeedApplication {
   }
 
   listInboxEntries(projectId: string): InboxEntryRecord[] {
-    return this.ports.attention.query.list(projectId);
+    return this.ports.attention.query.list(projectId).filter(entry => entry.owner_plugin_id === null);
   }
 
   getInboxEntry(projectId: string, entryId: string): InboxEntryRecord {
-    return callAttention(
+    return requireUnassignedEntry(callAttention(
       () => this.ports.attention.query.get(projectId, entryId),
-    );
+    ));
   }
 
   getSource(projectId: string, sourceId: string): FeedSourceRecord {
@@ -191,9 +192,9 @@ export class FeedApplication {
     status: InboxEntryStatus,
     expectedRevision?: number,
   ): InboxEntryRecord {
+    const entry = this.getInboxEntry(projectId, entryId);
     if (status === "open" || status === "in_progress") {
       // Reopening is admission too: an ignored item's entries stay closed until the person restores the item.
-      const entry = this.getInboxEntry(projectId, entryId);
       if (entry.subject_type === "feed_item") this.assertNotIgnored(projectId, entry.subject_id);
     }
     return callAttention(
@@ -512,6 +513,12 @@ export class FeedApplication {
     };
   }
 
+}
+
+/** Until Feed/Inbox resolve subjects by owner, their shared entry reader only resolves unassigned facts. */
+function requireUnassignedEntry(entry: AttentionEntryRecord): AttentionEntryRecord {
+  if (entry.owner_plugin_id !== null) throw inboxErrors.entry_not_found("找不到这个 Inbox Entry");
+  return entry;
 }
 
 function errorCode(error: unknown): string {

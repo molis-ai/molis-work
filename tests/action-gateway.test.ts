@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -271,7 +271,7 @@ test("gateway rejects non-loopback destinations before reading a credential or m
 });
 
 
-test("production stdio keeps context tools usable without a running system service", { timeout: 20_000 }, async () => {
+test("RAC-105-A-09: production stdio lists context tools offline and refuses them without a local business fallback", { timeout: 20_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "action-gateway-offline-"));
   const sdk = new Client({ name: "offline-fixture", version: "1" });
   const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
@@ -285,10 +285,17 @@ test("production stdio keeps context tools usable without a running system servi
     assert.ok(tools.some(tool => tool.name === "molis_work_v1_context_resolve"));
     assert.ok(tools.every(tool => isRuntimeContextMcpTool(tool.name)));
     const result = await sdk.callTool({ name: "molis_work_v1_context_resolve", arguments: {} });
-    assert.notEqual(result.isError, true, JSON.stringify(result));
+    assert.equal(result.isError, true, JSON.stringify(result));
+    assert.match(JSON.stringify(result), /actions.service_unavailable/);
+    const create = await sdk.callTool({ name: "molis_work_v1_context_create_and_bind", arguments: {
+      display_name: "Must not be created offline", user_confirmed: true, idempotency_key: "offline-create",
+    } });
+    assert.equal(create.isError, true);
+    assert.match(JSON.stringify(create), /actions.service_unavailable/);
     const unavailable = await sdk.callTool({ name: molisWorkActionToolName(save), arguments: { text: "offline" } });
     assert.equal(unavailable.isError, true);
     assert.match(JSON.stringify(unavailable), /actions.service_unavailable/);
+    assert.deepEqual(await readdir(home), [], "listing and refused calls create no Catalog, SDK, owner or business files");
   } finally { await sdk.close(); await rm(home, { recursive: true, force: true }); }
 });
 

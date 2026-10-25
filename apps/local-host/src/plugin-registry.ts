@@ -52,22 +52,15 @@ export const PERSONAL_PLUGIN_IDS: readonly ProjectPluginId[] = PLATFORM_PLUGIN_R
   .map(entry => entry.project_plugin_id);
 
 /**
- * 常开插件 (the Manifest's `always_on`, specs/side-shelf §3.2): personal, shown in every project whatever it hid, and never
- * offered where plugins are chosen, added or removed. Only the built-in catalog has them (the Runtime refuses the mark elsewhere).
- */
-export const ALWAYS_ON_PLUGIN_IDS: readonly ProjectPluginId[] = PLATFORM_PLUGIN_REGISTRATIONS
-  .filter(entry => entry.personal === true && entry.manifest.always_on === true)
-  .map(entry => entry.project_plugin_id);
-
-/**
  * The plugins a project shows: those enabled there, and the personal ones unless the person hid them from it. The page,
- * its side panel tabs and the side panel's file sources all use this one list.
+ * its side panel tabs and the side panel's file sources all use this one list. A hidden mark on a 常开 plugin changes nothing: the
+ * project's list of hidden plugins (`listHiddenPlugins`) leaves it out.
  */
 export function shownProjectPlugins(enabled: readonly string[], hidden: readonly string[] = []): string[] {
   const excluded = new Set(hidden);
   const next = [...enabled];
   for (const personal of PERSONAL_PLUGIN_IDS) {
-    if ((excluded.has(personal) && !ALWAYS_ON_PLUGIN_IDS.includes(personal)) || next.includes(personal)) continue;
+    if (excluded.has(personal) || next.includes(personal)) continue;
     const artifactsAt = next.indexOf("artifacts");
     if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
     else next.push(personal);
@@ -75,14 +68,19 @@ export function shownProjectPlugins(enabled: readonly string[], hidden: readonly
   return next;
 }
 
-/** Enabled surfaces and their declared embedded dependencies; no installation or grant mutation. */
+/**
+ * The plugins whose actions and routes a project may reach: what it shows (`shownProjectPlugins`: enabled ones, and personal ones
+ * the person did not hide there) and the plugins those declare embedded. No installation or grant mutation. A personal plugin the
+ * project hides is not reached even when a shown plugin embeds it: hiding is final for actions (PG-013), embedding only brings in
+ * plugins the project has not hidden.
+ */
 export function availableProjectPluginIds(
-  enabled: readonly string[], catalog: readonly PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS,
+  shown: readonly string[], catalog: readonly PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS,
 ): ReadonlySet<string> {
   const byProjectId = new Map(catalog.map(entry => [entry.project_plugin_id, entry]));
   const byManifestId = new Map(catalog.map(entry => [entry.manifest.plugin_id, entry]));
   const available = new Set<string>();
-  const pending = [...enabled, ...catalog.filter(entry => entry.personal).map(entry => entry.project_plugin_id)];
+  const pending = [...shown];
   while (pending.length) {
     const id = pending.pop()!;
     const entry = byProjectId.get(id);
@@ -93,6 +91,8 @@ export function availableProjectPluginIds(
       if (embedded) pending.push(embedded.project_plugin_id);
     }
   }
+  const listed = new Set(shown);
+  for (const entry of catalog) if (entry.personal && !listed.has(entry.project_plugin_id)) available.delete(entry.project_plugin_id);
   return available;
 }
 
@@ -138,5 +138,4 @@ export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
   initial: () => PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.default_enabled).map(entry => entry.project_plugin_id),
   companions: pluginId => [...(entryFor(pluginId)?.companions ?? []), ...requiredCompanions(pluginId)],
   isPersonal: pluginId => PERSONAL_PLUGIN_IDS.includes(pluginId),
-  isAlwaysOn: pluginId => ALWAYS_ON_PLUGIN_IDS.includes(pluginId),
 };

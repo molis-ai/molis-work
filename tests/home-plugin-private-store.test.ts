@@ -22,8 +22,8 @@ function readStore(path: string) {
   finally { db.close(); }
 }
 
-// W3-06-F-05: independent nonempty v1 facts, also used to label a damaged v2 that lacks KV. No production baseline constructs the fixture.
-async function rejectedStore(version: 1 | 2) {
+// W3-06-F-05: independent nonempty v1 facts, also used to label a damaged v3 that lacks KV. No production baseline constructs the fixture.
+async function rejectedStore(version: 1 | 3) {
   const home = await mkdtemp(join(tmpdir(), "home-runtime-version-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   await mkdir(join(home, "plugin-runtime"));
@@ -33,13 +33,13 @@ async function rejectedStore(version: 1 | 2) {
     db.prepare("INSERT INTO plugin_runtime_installs VALUES (?,?)").run("original-install", JSON.stringify({ plugin_id: "example.old", install_id: "original-install",
       installation_generation: "original-generation", grants: ["storage:private", "old:read"], state: "installed", version: "1.0.0" }));
     db.prepare("INSERT INTO plugin_runtime_release_artifacts VALUES (?,?,?,?,?)").run("example.old", "original-publisher", "1.0.0", "original-digest", "{\"module_source\":\"original release\"}");
-    if (version === 2) db.exec("PRAGMA user_version = 2");
+    if (version === 3) db.exec("PRAGMA user_version = 3");
   } finally { db.close(); }
   return home;
 }
 
-for (const version of [1, 2] as const) {
-  test(`W3-06-F-05 W3-06-F-08 Home ${version === 1 ? "v1" : "incomplete v2"} is refused intact while Goals remains usable`, { timeout: 60_000 }, async t => {
+for (const version of [1, 3] as const) {
+  test(`W3-06-F-05 W3-06-F-08 Home ${version === 1 ? "v1" : "incomplete v3"} is refused intact while Goals remains usable`, { timeout: 60_000 }, async t => {
     const home = await rejectedStore(version), before = readStore(runtimePath(home));
     const { host, project, request } = await serveHomeRuntime(t, { homeDirectory: home });
     const first = host.homePlugins!.ready();

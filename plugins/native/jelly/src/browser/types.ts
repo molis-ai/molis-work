@@ -1,6 +1,6 @@
 import type {
   JellyBlock, JellyBlockKind, JellyCommand, JellyItem, JellyNote, JellyOccurrence, JellyPlan, JellyPlanAction, JellyPriority, JellyRelation, JellyWorkspace,
-} from "@molis-ai/molis-work-contracts/modules/jelly";
+} from "../contract.js";
 import type { Request, Stream } from "./request.js";
 
 export type { JellyBlock, JellyBlockKind, JellyCommand, JellyItem, JellyNote, JellyOccurrence, JellyPlan, JellyPlanAction, JellyPriority, JellyRelation, JellyWorkspace };

@@ -71,7 +71,7 @@ test("RAC-313 a definition that declares model settings or image connections and
     const extra = what === "model_configuration" ? { model_configuration: own }
       : { image_generation: { store_name: name, read_permission: beside.read, write_permission: beside.write, generate_permission: beside.write } };
     const definition = declaring(beside.withoutFiles(), extra);
-    const { install } = platform.runtime.install({ definition, deployment: "local", grants: [...beside.permissions, "model:invoke"] });
+    const { install } = platform.runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [...beside.permissions, "model:invoke"] });
     await assert.rejects(platform.runtime.start(install.install_id), /启动失败/u, name);
     assert.equal(beside.contexts.length, 0, `${name}: its code never ran`);
     assert.equal(platform.runtime.get(install.install_id).last_error_code, "plugin.declaration_invalid", name);

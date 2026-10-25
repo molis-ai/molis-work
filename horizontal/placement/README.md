@@ -14,7 +14,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | `PlacementService`：描述、关联、移动、复制、转成、关联资料、位置索引 |
+| [src/index.ts](src/index.ts) | `PlacementService` 保留描述、关联、移动恢复与位置索引；同文件函数处理 Goal 查询、复制/转成与位置显示，操作仍绑定原实例的读取与提交 |
 
 合同在 `@molis-ai/molis-work-contracts/services/placement`（系统动作）和 `@molis-ai/molis-work-contracts/platform/actions`（插件实现的放置协议 `molis.placement.move/copy.v1`）。Host 装配在 [apps/local-host/src/placement-actions.ts](../../apps/local-host/src/placement-actions.ts)。
 

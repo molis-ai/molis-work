@@ -565,34 +565,22 @@ test("the change that introduces the layer lists passes against a merge-base tha
   git("clean", "-fdq");
 });
 
-// The fixture proves the rules; this proves they read this repository: the alias and the registrars are found by scanning, so
-// they have to be found where they are today (a rename of LocalHost or HostMethodCapability is then a visible change to the gate).
-test("on this repository the typed capability rule finds the alias and the registrars it is meant to follow", async () => {
+// The fixture proves the rules; this proves they read this repository. R8 deleted the typed channel: the definition type, its
+// alias and every Host registrar are gone, so the scan finds no alias, no registrar and nothing to count, and none may come back.
+test("on this repository the typed capability rule finds no alias, no registrar and nothing to count", async () => {
   const { createTypedCapabilityIndex } = await import("../scripts/gates/typed-capabilities.mjs");
   const root = fileURLToPath(new URL("..", import.meta.url));
   const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0")
     .filter((file) => /^(apps|horizontal|modules|packages|plugins|server|tooling)\//.test(file) && /\.(ts|mts)$/.test(file) && !file.endsWith(".d.ts") && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file));
   const index = createTypedCapabilityIndex({ files, read: (file: string) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } }, files);
-  assert.ok(index.typeNames.has("HostCapabilityDefinition"));
-  if (/export type HostMethodCapability\b/.test(readFileSync(path.join(root, "packages/contracts/src/platform/app-host.ts"), "utf8"))) {
-    assert.ok(index.typeNames.has("HostMethodCapability"), "the alias that wraps the definition is followed");
+  assert.deepEqual([...index.typeNames], ["HostCapabilityDefinition"], "only the rule's own name: no alias wraps a definition that no longer exists");
+  assert.ok(!index.typeNames.has("ActionDefinition"), "the action definition is the path that stays, not an alias");
+  for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry", "ScheduleCapabilityRegistrar", "AgentCapabilityRegistrar"]) {
+    assert.equal(index.registrarTypes.has(registrar), false, `${registrar} registers actions only; a typed registrar must not come back`);
   }
-  assert.ok(!index.typeNames.has("HostCapabilityInput"), "a type that only reads a definition is not an alias");
-  assert.ok(!index.typeNames.has("ActionDefinition"), "an interface that extends the definition is the action path, not an alias");
-  for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
-  assert.equal(index.registrarTypes.has("ScheduleCapabilityRegistrar"), false, "Schedule now registers Runtime actions; its removed typed registrar must not remain");
-  // R8 batch 4 moved the Agent Host's last typed entries to actions: its registrar now takes action bindings only, so it is not
-  // a typed registrar any more and must not become one again (the fixture above still proves a registrar is followed two hops).
-  assert.equal(index.registrarTypes.has("AgentCapabilityRegistrar"), false, "the Agent Host registers actions; a typed registrar there must not come back");
-  assert.ok(index.registrarFunctions.has("createMolisWorkLocalHost"), "an exported function that returns the Host is followed (`createMolisWorkLocalHost().register(…)`)");
-  // The composition root's Git and writer entries went to actions with R8 batch 4, as the Host's own workspace reads went to
-  // `registerAction` before them: nothing there is a typed registration, and it stays at zero.
-  assert.equal(index.countsOf("apps/local-host/src/agent-host-composition.ts")["register-calls"] ?? 0, 0, "the composition root registers no typed capability");
-  assert.equal(index.countsOf("apps/local-host/src/project-capabilities.ts")["register-calls"] ?? 0, 0, "`registerAction` is not counted as a typed registration");
-  // The Agent Host's former local `register` helper took a typed definition; every entry is an action now, so it counts nothing.
-  const agent = index.countsOf("horizontal/agent-host/src/capability-registration.ts");
-  assert.deepEqual({ calls: agent["register-calls"] ?? 0, refs: agent["type-refs"] ?? 0, bare: agent["without-action"] ?? 0 }, { calls: 0, refs: 0, bare: 0 },
-    "the Agent Host's capabilities are all actions: no typed registration, reference or descriptor without an action remains");
+  assert.equal(index.registrarFunctions.size, 0, "no function returns a typed registrar");
+  const counted = files.flatMap(file => Object.entries(index.countsOf(file)).filter(([, count]) => (count as number) > 0).map(([kind]) => `${file}#${kind}`));
+  assert.deepEqual(counted, [], "no typed reference, descriptor without an action, or typed registration remains");
 });
 
 test("the report flags hybrid plugins and prints the new numbers", () => {

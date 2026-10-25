@@ -3,7 +3,8 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { PLATFORM_PLUGIN_REGISTRATIONS, availableProjectPluginIds } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { pluginReachable, projectReachablePlugins } from "./project-action-availability.js";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -151,7 +152,7 @@ export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-
       if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID })));
     } } : {}),
-    ...(pluginServices.capabilities ? { capabilities: pluginServices.capabilities } : {}) }, controlToken) };
+    ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }, controlToken) };
 
 /**
  * Runtime plugins' HTTP and the plugin update stream. Bundled installations retain project policy; other plugins are
@@ -164,10 +165,12 @@ export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runti
   const runtimeEntry = runtimePluginRoute
     ? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === runtimePluginRoute[1]) : undefined;
   if (!runtimeUpdatesRoute && !(runtimePluginRoute && (!runtimeEntry || runtimeEntry.manifest.kind === "app" || runtimeEntry.manifest.routes?.length))) return false;
+  // The same list the action layer reads (PG-013): a personal plugin the project hides is as unreachable here as one it never enabled.
+  const reachable = !runtimeUpdatesRoute && runtimeEntry && options.project
+    ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => projectReachablePlugins(catalog, options.project!.project_id)) : null;
   const enabled = runtimeUpdatesRoute
     ? Boolean(options.project)
-    : runtimeEntry?.personal || (options.project && (!runtimeEntry || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-        catalog => availableProjectPluginIds(catalog.listProjectPlugins(options.project!.project_id)).has(runtimeEntry.project_plugin_id))));
+    : runtimeEntry ? pluginReachable(runtimeEntry, reachable) : Boolean(options.project);
   if (!enabled) { const refusal = actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件")); sendJson(response, refusal.status, refusal.body); return true; }
   return handleProjectPluginHttp(request, response, url, pluginPorts);
 } };

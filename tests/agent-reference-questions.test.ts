@@ -112,6 +112,30 @@ test("BL-152: without the Host's port, or with nothing from it, the round keeps 
   }
 });
 
+test("PG015-DUP-05 an all-ambiguous project list never restores goal from the Runtime fallback, and the SDK refuses asking for it", { timeout: 30_000 }, async t => {
+  const { adapter, bodies, handles } = await rounds(t, async () => [external("goal", "外部目标", "io.a.goals"), external("goal", "目标", "io.molis.work.goals")],
+    (_body, index) => index === 0 ? cogniaScriptedResponse({ name: "ask-user", input: { why: "关联目标", questions: [{ id: "goal", type: "reference", prompt: "目标", refKinds: ["goal"] }] } }) : cogniaModelResponse("没有可选的目标。"));
+  assert.deepEqual(enumOf(bodies[0]), hostReferenceKinds().filter(entry => entry.kind !== "goal").map(entry => entry.kind));
+  for (const deadline = Date.now() + 20_000; !["completed", "failed", "cancelled"].includes((await adapter.read(handles[0]!.ref)).phase);) {
+    assert.ok(Date.now() < deadline, "the refused question did not finish"); await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.deepEqual((await adapter.read(handles[0]!.ref)).awaiting_input, [], "the real SDK opens no question for an ambiguous kind");
+  assert.ok(bodies.length >= 2, "the SDK returned the refusal to the model");
+});
+
+test("PG015-DUP-05 without any safe fallback kind the round explicitly refuses ambiguity before a model call", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "reference-no-safe-fallback-"));
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.no-safe-reference-kind", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    questionTypes: hostQuestionTypes(), referenceKinds: [{ kind: "goal", title: "目标" }], reviewQueue: new AgentReviewQueue(),
+    referenceKindsFor: async () => [external("goal", "外部目标", "io.a.goals"), external("goal", "目标", "io.molis.work.goals")],
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  t.after(async () => { try { await adapter.close(); } finally { await rm(home, { recursive: true, force: true }); } });
+  const fetch = t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("不应调用"));
+  const session = await adapter.createSession({ ...owner, workspace: "business", title: "歧义" });
+  await assert.rejects(adapter.start({ ...owner, session, workspace: "business", role_id: helper.role_id, role: helper, task: "关联目标" }), { code: "actions.subject_ambiguous" });
+  assert.equal(fetch.mock.callCount(), 0);
+});
+
 // The SDK hands a round's own kinds to the subagents it dispatches (Prologue's surfaces.js, "子任务…同一份"). A Molis child role
 // cannot hold ask-user at all (childSetup in prologue-run.ts allows reads, writes and commands only), so no question in the
 // round can name a kind outside the round's list; this pins both halves.

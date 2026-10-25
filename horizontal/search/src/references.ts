@@ -1,4 +1,4 @@
-import { retainActionAuthority, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, isSubjectReader, retainActionAuthority, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   SEARCH_PROVIDER_ID,
   searchActions,
@@ -26,7 +26,8 @@ async function ownerRead(access: ReferenceAccess, subject: ActionSubject): Promi
   try {
     const { context } = await resolveActionSubject(access.client, nested, subject);
     return { label: context.title || subject.id, revision: context.revision };
-  } catch {
+  } catch (error) {
+    if (error instanceof ActionError && error.code === "actions.subject_ambiguous") throw error;
     return null;
   }
 }
@@ -39,6 +40,10 @@ async function ownerRead(access: ReferenceAccess, subject: ActionSubject): Promi
 export async function findReferenceCandidates(search: { query(access: ReferenceAccess, input: SearchQueryRequest): Promise<SearchQueryResponse> },
   access: ReferenceAccess, input: SearchReferencesRequest): Promise<SearchReferencesResponse> {
   const kinds = [...new Set(input.kinds)];
+  // Refuse before indexing can call either source. Readback uses the same available-reader rule in resolveActionSubject.
+  const views = await access.client.discover(access.caller);
+  if (kinds.some(kind => views.filter(view => view.availability.available && isSubjectReader(view.action) && view.action.subject_kinds.includes(kind)).length > 1))
+    throw new ActionError("actions.subject_ambiguous", "有多个能力提供此对象上下文，不能任意选择提供方");
   const limit = Math.min(20, Math.max(1, input.limit ?? DEFAULT_LIMIT));
   const found = await search.query(access, { query: input.query, kinds, scope: "project", limit });
   const seen = new Set<string>();

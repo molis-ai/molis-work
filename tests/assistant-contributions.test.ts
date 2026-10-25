@@ -87,7 +87,10 @@ test("PG015-DUP-01 PG015-DUP-02 reference diagnostics belong to each installatio
   const reports = assistantContributions([...a, ...a, ...b, ...builtin, ...malformed]);
   const gaps = (provider: string) => reports.find(row => row.provider_id === provider)!.gaps.filter(gap => /对象引用题/.test(gap.text));
   for (const provider of ["install-a", "io.molis.work.goals"]) {
-    assert.equal(gaps(provider).filter(gap => /goal.*与其他安装重名/.test(gap.text)).length, 1);
+    const duplicate = gaps(provider).filter(gap => /goal.*与其他可用安装重名/.test(gap.text));
+    assert.equal(duplicate.length, 1);
+    assert.match(duplicate[0]!.text, /builtin:io.molis.work.goals、installed:install-a/);
+    assert.match(duplicate[0]!.text, /两边都不进入对象引用题的清单/);
   }
   assert.equal(gaps("install-a").filter(gap => /bad_title.*显示名/.test(gap.text)).length, 1);
   assert.deepEqual(gaps("install-b"), [], "the other installation of the same plugin inherits neither collision nor invalid-title diagnostics");

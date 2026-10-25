@@ -15,7 +15,7 @@ const REFERENCE_GAPS: Record<ReferenceKindProblem["reason"], (problem: Reference
   kind: problem => `对象种类 ${problem.kinds.join("、")} 的写法不是标识（小写字母开头，只用小写字母、数字和 _ . -，最长 ${problem.limit} 个字符）：助理的对象引用题问不到它。`,
   title: problem => `对象种类 ${problem.kinds.join("、")} 的显示名是空的、不止一行或超过 ${problem.limit} 个字：助理的对象引用题问不到它。`,
   limit: problem => `对象种类 ${problem.kinds.join("、")} 超出了一个项目最多 ${problem.limit} 种的上限（按插件标识排，每个插件分同样的份额，列得多的用别人剩下的）：助理的对象引用题问不到它。`,
-  duplicate: problem => `对象种类 ${problem.kinds.join("、")} 与其他安装重名：当前对象引用题的协议不能区分提供方，需要补齐提供方选择和回读。`,
+  duplicate: problem => `对象种类 ${problem.kinds.join("、")} 与其他可用安装重名（冲突安装：${problem.conflicting_installations!.join("、")}）：两边都不进入对象引用题的清单，解析和回读拒绝歧义，不选择提供方。`,
 };
 
 export function assistantContributions(views: readonly ActionView[]): AssistantContribution[] {

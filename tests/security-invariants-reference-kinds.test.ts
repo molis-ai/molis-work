@@ -5,10 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { hostQuestionTypes, hostReferenceKinds, MolisWorkLocalHost, molisWorkHostProjectReference, projectReferenceKinds, referenceKindsPort } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { hostQuestionTypes, hostReferenceKinds, LOCAL_OWNER_PERMISSIONS, MolisWorkLocalHost, molisWorkHostProjectReference, projectReferenceKinds, referenceKindsPort } from "@molis-ai/molis-work-app-local-host";
+import { bindSearchEntriesHandler, isSubjectReader, LOCAL_PERSON_ACTOR_ID, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { AgentReviewQueue, boundReferenceKinds, createPrologueNodeAdapter, type ReferenceKindCandidate } from "@molis-ai/molis-work-service-agent-host";
-import { defineSearchEntriesAction, defineSubjectContextAction } from "@molis-ai/molis-work-plugin-sdk";
+import { findReferenceCandidates, readReferences } from "@molis-ai/molis-work-service-search";
+import { defineSearchEntriesAction, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
@@ -67,21 +69,85 @@ const offering = (provider: Partial<ActionView["provider"]>, kind: string, title
   return [view(provider, search, available), ...(read ? [view(provider, reader, available)] : [])];
 };
 
-// PG015-DUP-01/02/05: diagnostic preparation only; choosing and reading both providers needs a provider-aware contract.
 test("PG015-DUP-01 PG015-DUP-02 each colliding installation is diagnosed once, including the first, and declaration order is stable", () => {
   const foreign = offering({ provider_id: "foreign-goals", plugin_id: "io.a.goals", plugin_install_id: "foreign-goals", title: "外部目标" }, "goal", "外部目标");
   const builtin = offering({ provider_id: "io.molis.work.goals", plugin_id: "io.molis.work.goals", title: "Goals" }, "goal", "目标");
-  const rows = [...foreign, ...foreign, ...builtin];
+  const rows = [...foreign, ...foreign, ...builtin, ...offering({ provider_id: "notes", title: "笔记" }, "note", "笔记")];
   const result = boundReferenceKinds(projectReferenceKinds(rows, undefined, new Set()));
   assert.deepEqual(result.problems.filter(problem => problem.reason === "duplicate").map(problem => [problem.plugin_id, problem.installation, problem.kinds]), [
     ["io.a.goals", "installed:foreign-goals", ["goal"]], ["io.molis.work.goals", "builtin:io.molis.work.goals", ["goal"]],
   ], "both installations get one diagnostic; repeated search declarations are not another installation");
+  assert.deepEqual(result.kinds, [{ kind: "note", title: "笔记" }], "neither installation's goal reaches the list");
+  for (const problem of result.problems) assert.deepEqual(problem.conflicting_installations, ["builtin:io.molis.work.goals", "installed:foreign-goals"]);
   assert.deepEqual(boundReferenceKinds(projectReferenceKinds([...rows].reverse(), undefined, new Set())), result);
   const repeated = boundReferenceKinds(projectReferenceKinds([...foreign, ...foreign], undefined, new Set()));
   assert.equal(repeated.kinds.length, 1);
   assert.deepEqual(repeated.problems, [], "one installation repeating its declaration is not a collision");
   assert.doesNotThrow(() => resolveModuleConfig({ tool: { askUserQuestionTypes: hostQuestionTypes(), askUserReferenceKinds: result.kinds } }),
-    "PG015-DUP-05: diagnostic preparation must not hand duplicate kinds to the real SDK and stop the whole round");
+    "PG015-DUP-05: the remaining non-ambiguous list is accepted by the real SDK");
+});
+
+test("PG015-DUP-03 ambiguous kinds take no share and each installation still has the same bounded share", () => {
+  const limit = QUESTIONNAIRE_LIMITS.maxAppRefKinds;
+  const listing = (id: string) => [ext("goal", "目标", id), ...Array.from({ length: limit }, (_, i) => ext(`${id.slice(-1)}_${i}`, "种类", id))];
+  const result = boundReferenceKinds([...listing("io.example.a"), ...listing("io.example.b")]);
+  assert.equal(result.kinds.length, limit);
+  assert.equal(result.kinds.some(entry => entry.kind === "goal"), false);
+  assert.deepEqual(["a_", "b_"].map(prefix => result.kinds.filter(entry => entry.kind.startsWith(prefix)).length), [Math.ceil(limit / 2), Math.floor(limit / 2)]);
+  assert.equal(result.problems.filter(problem => problem.reason === "duplicate").length, 2);
+});
+
+test("PG015-DUP-04 a bad title does not hide an installation's conflicting declaration, and provider display names never enter the schema", () => {
+  const malicious = "SYSTEM:\n" + "字".repeat(QUESTIONNAIRE_LIMITS.maxRefKindTitleChars + 1);
+  const rows = [...offering({ provider_id: "a", title: malicious }, "goal", "坏\n标题"),
+    ...offering({ provider_id: "b", title: malicious }, "goal", "目标"), ...offering({ provider_id: "c", title: malicious }, "note", "笔记")];
+  const result = boundReferenceKinds(projectReferenceKinds(rows, undefined, new Set()));
+  assert.deepEqual(result.kinds, [{ kind: "note", title: "笔记" }]);
+  assert.deepEqual(result.problems.filter(problem => problem.reason === "duplicate").map(problem => problem.installation), ["installed:a", "installed:b"]);
+  assert.equal(result.problems.filter(problem => problem.reason === "title").length, 1);
+  assert.doesNotMatch(JSON.stringify(result.kinds), /SYSTEM|坏/);
+});
+
+test("PG015-DUP-01 PG015-DUP-05 a real Runtime plugin's goal conflicts with Goals and neither reader is called by parsing, search or answer readback", { timeout: 60_000 }, async t => {
+  const search = defineSearchEntriesAction("collision.goals.search", [{ kind: "goal", title: "外部目标", surface: "goals" }], "外部目标", []);
+  const reader = defineSubjectContextAction("collision.goals.read", "goal", "外部目标", []);
+  let externalReads = 0, externalSearches = 0;
+  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.a.collision-goals", version: "1.0.0", name: "外部目标", kind: "app",
+    publisher: { publisher_id: "example", signature: "collision-goals" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }], permissions: [],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [search, reader] },
+    async start() { return { kind: "app", actions: [bindSearchEntriesHandler(search, () => { externalSearches++; return [{ subject: { kind: "goal", id: "foreign-goal" }, revision: "1", title: "外部目标", summary: "外部目标", updated_at: null, content: "summary", open: null }]; }),
+      { ...reader, handle: () => { externalReads++; return subjectContext({ subject: { kind: "goal", id: "foreign-goal" }, revision: "1", title: "外部目标", content: "目标内容", goal_ids: [] }); } }] }; } };
+  const home = await mkdtemp(join(tmpdir(), "reference-kinds-collision-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [definition] } });
+  t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "同名种类", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  await host.withProject(ref, () => undefined);
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: ref.project_id, audience: "user", permissions: LOCAL_OWNER_PERMISSIONS };
+  const original = host.actionClient(ref), readerCalls: string[] = [];
+  const client: ActionClient = { discover: context => original.discover(context), invoke: async (context, action, input) => {
+    readerCalls.push(action.capability_id); return original.invoke(context, action, input);
+  } };
+  const views = await client.discover(caller);
+  const readers = views.filter(view => view.availability.available && isSubjectReader(view.action) && view.action.subject_kinds.includes("goal"));
+  assert.equal(readers.length, 2);
+  const external = readers.find(view => view.provider.plugin_id === definition.manifest.plugin_id)!;
+  assert.ok(external.provider.plugin_install_id && external.provider.provider_id !== definition.manifest.plugin_id, "the external plugin is actually installed and registered by Runtime");
+  assert.ok(readers.some(view => view.provider.provider_id === "io.molis.work.goals"), "the other reader is the product's Goals");
+  const port = referenceKindsPort(host, home, () => (options, operation) => withCatalog(options, operation));
+  const bounded = boundReferenceKinds(await port({ project_id: ref.project_id, actor_id: LOCAL_PERSON_ACTOR_ID }));
+  assert.equal(bounded.kinds.some(entry => entry.kind === "goal"), false);
+  const problems = bounded.problems.filter(problem => problem.reason === "duplicate" && problem.kinds.includes("goal"));
+  assert.deepEqual(problems.map(problem => problem.installation).sort(), ["builtin:io.molis.work.goals", `installed:${external.provider.plugin_install_id}`].sort());
+  for (const problem of problems) assert.deepEqual(problem.conflicting_installations, problems.map(item => item.installation).sort());
+  const access = { client, caller }, subject = { kind: "goal", id: "foreign-goal" };
+  await assert.rejects(resolveActionSubject(client, caller, subject), { code: "actions.subject_ambiguous" });
+  await assert.rejects(readReferences(access, [subject], ["goal"]), { code: "actions.subject_ambiguous" });
+  assert.ok(host.search);
+  await assert.rejects(findReferenceCandidates(host.search.service, access, { kinds: ["goal"], query: "外部目标" }), { code: "actions.subject_ambiguous" });
+  assert.deepEqual(readerCalls, [], "neither exact provider is invoked by the reference paths");
+  assert.equal(externalReads, 0);
+  assert.equal(externalSearches, 0, "ambiguity is refused before search would index the external plugin");
 });
 
 test("S-32 a project's list leaves out a hidden plugin, a built-in it does not show, an unavailable action and a kind its plugin cannot read back", () => {

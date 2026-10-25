@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applyProjectMemoryPurge, previewProjectMemoryPurge, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
-import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryServiceHome, observeMemoryBackend, originalMemorySources, scriptedMemoryExtraction } from "./fixtures/memory-service-home.js";
 
 const caller = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui",
@@ -177,28 +183,51 @@ test("project cleanup and restart retain suppression of the original source", { 
 });
 
 test("online purge preview retains originals hidden from public listing after Session purge", async t => {
-  const f = await memoryServiceHome(t, { projects: ["project-a"] }); await f.open();
-  const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", plugin_id: "io.molis.work.coding", install_id: "coding" };
-  const session = await f.adapter().createSession({ ...owner, workspace: "none", role_id: "coding", title: "Original scope binding" });
-  const who = { ...caller("session-original"), session_id: session.session_id, current_scene: "coding" as const };
-  const formal = await f.raw(who).write({ scope: "project", owner: "project-a", text: "Private Session original", origin: "Session", operation_id: "raw-original",
+  const home = await mkdtemp(join(tmpdir(), "molis-memory-plan-retained-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }), ledger = openMemoryLedger({ homeDirectory: home });
+  const project = await catalog.createProject({ actor_id: LOCAL_PERSON_ACTOR_ID, display_name: "Original scope" });
+  let host!: MolisWorkLocalHost;
+  const open = async () => {
+    host = new MolisWorkLocalHost({ homeDirectory: home });
+    const service = ensureSystemAgentService(host, home, withMolisWorkProjectCatalog); await service.ready;
+    return service.agentHost.adapter("prologue");
+  };
+  let adapter = await open();
+  t.after(async () => { await host.close(); ledger.close(); catalog.close(); await rm(home, { recursive: true, force: true }); });
+  const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, plugin_id: "io.molis.work.coding", install_id: "coding" };
+  const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "coding", title: "Original scope binding" });
+  const who = { ...caller("session-original"), project_id: project.project_id, session_id: session.session_id, current_scene: "coding" as const };
+  const raw = () => adapter.memory!.withCaller(who), target = { scope: "project" as const, owner: project.project_id };
+  const formal = await raw().write({ ...target, text: "Private Session original", origin: "Session", operation_id: "raw-original",
     meta: { kind: "convention", source: "manual", classification: { scenes: ["coding"], lifecycle: "session" },
       session_ref: { kind: "session", id: session.session_id, revision: 1 } } });
-  assert.deepEqual(f.ledger().revisions(formal.memory_id), []);
-  const life = f.adapter().sessionLifecycle!;
+  assert.deepEqual(ledger.revisions(formal.memory_id), []);
+  const life = adapter.sessionLifecycle!;
   const preview = await life.previewPurge(session, owner);
   await life.purge(session, { operation_id: "session-first", expected_version: preview.version, expected_state: preview.state }, preview, owner);
-  await f.close(); await f.open();
+  await host.close(); adapter = await open();
   for (const tombstone of [false, true]) {
-    const page = await f.raw(who).page({ scope: "project", owner: "project-a", filter: { tombstone } });
+    const page = await raw().page({ ...target, filter: { tombstone } });
     assert.equal(page.exhausted, true); assert.deepEqual(page.items, []);
   }
-  const plan = await previewProjectMemoryPurge({ backend: prologueMemoryBackend(async () => f.adapter().memory!), ledger: f.ledger(), caller: caller("new-project-plan") }, "project-a", { sessions: [] });
-  assert.deepEqual(plan.scopes.flatMap(scope => scope.memories), [{ memory_id: formal.memory_id, version: formal.version }]);
-  // A fresh wrong-version delete conflicts: this is a retained canonical original, not an already-absent receipt.
-  await assert.rejects(f.raw(who).remove({ scope: "project", owner: "project-a", memory_id: formal.memory_id,
-    expected_version: formal.version + 1, operation_id: "prove-original-retained" }), error => (error as { code?: string }).code === "agent.memory_conflict");
-  await applyProjectMemoryPurge({ backend: prologueMemoryBackend(async () => f.adapter().memory!), ledger: f.ledger(), caller: caller("new-project-plan"), control }, plan);
-  await f.raw(who).remove({ scope: "project", owner: "project-a", memory_id: formal.memory_id,
+  await assert.rejects(previewProjectMemoryPurge({ backend: prologueMemoryBackend(async () => adapter.memory!), ledger,
+    caller: { ...caller("new-project-plan"), project_id: project.project_id } }, project.project_id, { sessions: [] }), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(raw().remove({ ...target, memory_id: formal.memory_id,
+    expected_version: formal.version + 1, operation_id: "prove-original-retained" }), { code: "MEMORY_SCOPE_DENIED" });
+  const deleted = await catalog.deleteProject({ project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
+    delete_confirmed: true, idempotency_key: "new-project-plan" });
+  assert.equal(deleted.deletion.cleanup_state, "complete", deleted.deletion.cleanup_error ?? "");
+  const db = new DatabaseSync(join(home, "projects", "catalog.db"), { readOnly: true });
+  let persisted: string;
+  try { persisted = (db.prepare("SELECT recovery_plan FROM project_deletions WHERE deletion_id=?").get(deleted.deletion.deletion_id) as { recovery_plan: string }).recovery_plan; }
+  finally { db.close(); }
+  assert.equal(typeof persisted, "string");
+  const plan = JSON.parse(persisted) as { kind: string; memory: Awaited<ReturnType<typeof previewProjectMemoryPurge>> };
+  assert.equal(plan.kind, "runtime");
+  if (plan.kind !== "runtime") throw new Error("Original runtime plan required");
+  assert.deepEqual(plan.memory.scopes.flatMap(scope => scope.memories), [{ memory_id: formal.memory_id, version: formal.version }]);
+  assert.equal(JSON.stringify(plan).includes("Private Session original"), false);
+  // The same retained original is physically absent after its real Catalog owner's fixed purge.
+  await raw().remove({ ...target, memory_id: formal.memory_id,
     expected_version: formal.version + 1, operation_id: "prove-original-absent" });
 });

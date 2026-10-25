@@ -9,7 +9,7 @@ import { prologueMemoryPromotion } from "./prologue-memory-promotion.js";
 import { prologueMemoryExtractor } from "./prologue-memory-formation.js";
 import { sourceIdentityToSdk, sourceIdentityView } from "./prologue-memory-values.js";
 import { agentErrors } from "../errors.js";
-import type { PrologueMemoryBinding } from "./prologue-memory.js";
+import type { PrologueMemoryBinding, PrologueMemoryPurgeCall } from "./prologue-memory.js";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
 import type { PrologueEffects } from "./prologue-effects.js";
 
@@ -25,6 +25,8 @@ export interface PrologueMemoryOptions {
   authorize(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0], operation?: "disable"): Promise<boolean>;
   /** Tighten this exact authorized request from live synchronous facts immediately before commit or dispatch. */
   assertCurrent?(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0], operation?: "disable"): boolean;
+  /** Original owner recovery only; never replaces ordinary scope authority. Repeated synchronously at final use. */
+  allowsSessionPurge?(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0], sessionId: string, call: PrologueMemoryPurgeCall): boolean;
   authorizeRecall(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeRecall"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeRecall"]>>;
   authorizeManagement(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeManagement"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeManagement"]>>;
   /** Resolve a current trusted caller from the persistent owner, never from Agent query fields. */
@@ -35,7 +37,7 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
   forAttempt<T>(sessionId: string, attemptIndex: number, work: () => Promise<T>): Promise<T>;
   authority: MemoryAuthority; binding: PrologueMemoryBinding; sources?: MemorySourcePort; promotion?: MemoryPromotionLatch; extractor?: MemoryExtractor;
 } {
-  const calls = new AsyncLocalStorage<{ caller: AgentMemoryCaller; formation?: AgentMemoryFormationContext; validateContext?: () => Promise<void>; operation?: "disable" }>();
+  const calls = new AsyncLocalStorage<{ caller: AgentMemoryCaller; formation?: AgentMemoryFormationContext; validateContext?: () => Promise<void>; operation?: "disable"; purge?: PrologueMemoryPurgeCall }>();
   // The SDK context names only a Session. Its actual start/drive async chain owns this fixed attempt;
   // a later attempt or another Session can never supply the policy for an earlier request.
   type RunFrame = Pick<SessionIndex, "ref" | "owner"> & { attempt: SessionIndex["attempts"][number]; caller?: AgentMemoryCaller };
@@ -85,16 +87,24 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
   });
   const sessionIds = (requests: Parameters<MemoryAuthority["authorize"]>[0]) => [...new Set(requests.flatMap(request =>
     [request.context.sessionRef?.id, request.target.sessionRef?.id, request.before?.sessionRef?.id].filter((id): id is string => id !== undefined)))];
+  const assertSessions = (requests: Parameters<MemoryAuthority["authorize"]>[0]) => {
+    for (const id of sessionIds(requests)) {
+      try { index.capture(id)(); }
+      catch {
+        const call = calls.getStore(), caller = boundCaller(requests[0]!.context);
+        const allowed = caller && !requests.some(request => request.context.sessionRef) && call?.purge
+          ? options?.allowsSessionPurge?.(caller, requests, id, call.purge) : false;
+        requireSynchronous(allowed, "原会话清除许可必须同步完成");
+        if (allowed !== true) throw createPrologueError("MEMORY_SCOPE_DENIED", "原会话清除尚未完成，不能读取或修改记忆");
+      }
+    }
+  };
   const inspectSessions = async (requests: Parameters<MemoryAuthority["authorize"]>[0]) => {
-    const ids = sessionIds(requests), checks = ids.map(id => index.capture(id));
-    const current = () => { for (const check of checks) check(); };
-    // Inspect the persisted original even on the first request after reopening. This read does not re-enter an Index write lane.
+    const ids = sessionIds(requests), checks = ids.map(id => index.capture(id, true));
+    const current = () => { for (const check of checks) check(); assertSessions(requests); };
+    // Read persisted lifecycle before applying the original owner's narrow purge permission, including after reopening.
     for (const id of ids) { await index.inspect(id); current(); }
     return current;
-  };
-  const assertSessions = (requests: Parameters<MemoryAuthority["authorize"]>[0]) => {
-    try { for (const id of sessionIds(requests)) index.capture(id)(); }
-    catch { throw createPrologueError("MEMORY_SCOPE_DENIED", "原会话清除尚未完成，不能读取或修改记忆"); }
   };
   return {
     async forAttempt(sessionId, attemptIndex, work) {
@@ -112,7 +122,7 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
     }, effects) } : {}),
     binding: { context, run: (caller, work, call) => calls.run({ caller: Object.freeze(structuredClone(caller)),
       ...(call?.formation ? { formation: structuredClone(call.formation) } : {}), ...(call?.validateContext ? { validateContext: call.validateContext } : {}),
-      ...(call?.operation ? { operation: call.operation } : {}) }, work) },
+      ...(call?.operation ? { operation: call.operation } : {}), ...(call?.purge ? { purge: structuredClone(call.purge) } : {}) }, work) },
     ...(sourcePort ? { sources: {
       async resolve(request: Parameters<MemorySourcePort["resolve"]>[0]) {
         const caller = await callerFor(request.context);

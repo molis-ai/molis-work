@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -19,13 +19,23 @@ const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json"
 const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
 const meta: AgentMemoryMeta = { kind: "fact", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } };
+function runtimeRecords(root: string): Record<string, string> {
+  return Object.fromEntries(readdirSync(root, { withFileTypes: true }).flatMap(entry => entry.isDirectory()
+    ? Object.entries(runtimeRecords(join(root, entry.name))).map(([name, bytes]) => [`${entry.name}/${name}`, bytes])
+    : [[entry.name, readFileSync(join(root, entry.name)).toString("base64")]]));
+}
 /** Public SDK setup represents originals predating App ownership records; the tested operation uses the resident owner. */
-function openOriginalRuntime(home: string) {
+function openOriginalRuntime(home: string, source?: { eventId: string; version: string; text: string }) {
   const declared = memoryRuntimePolicy(() => undefined).policy;
   const policy = { ...declared, matrix: { ...declared.matrix, rows: declared.matrix?.rows?.map(row => ({ ...row,
     actions: row.actions?.filter(action => action !== "promote"), write: { ...row.write, approval: "person" } })) } };
   return createRuntime({ app: { appId: "io.molis.work", appVersion: "0.0.0" },
     host: createNodeHost({ storageRoot: join(home, "agent-runtime"), exclusiveOwner: true }), config: { memory: policy },
+    ...(source ? { memorySources: {
+      resolve: async (request: { refs: readonly { eventId: string; version: string }[] }) => request.refs.every(ref => ref.eventId === source.eventId && ref.version === source.version)
+        ? [{ ...source, speaker: { kind: "person" as const, id: actor }, derivation: "original" as const, occurredAtMs: 1 }] : [],
+      check: async (request: { identities: readonly { eventId: string; version: string }[] }) => request.identities.every(ref => ref.eventId === source.eventId && ref.version === source.version),
+    } } : {}),
     memoryAuthority: { authorize: async () => true, authorizeManagement: async () => ({ allowed: true, storageCost: "visible" }),
       defaultContext: { consumer: "ui", currentScene: "common", purpose: "management" } } });
 }
@@ -46,6 +56,19 @@ async function fixture(t: TestContext, project_id?: string) {
   return { home, gone, kept, caller, request, storage, retained, get catalog() { return catalog; }, get host() { return host; },
     get agents() { return agents; }, adapter: () => agents.agentHost.adapter("prologue"),
     memory: (project?: string | null, session_id?: string) => agents.agentHost.adapter("prologue").memory!.withCaller({ ...caller(project), ...(session_id ? { session_id } : {}) }),
+    async originalCandidate(sessionId: string) {
+      await host.close();
+      const source = { eventId: "original-person-statement", version: "1", text: "Keep the original candidate for deletion recovery" };
+      const runtime = await openOriginalRuntime(home, source);
+      try {
+        const sessionRef = { kind: "session" as const, id: sessionId, revision: 1 }, bound = runtime.bindMemory({ consumer: "ui", currentScene: "common", purpose: "management", sessionRef });
+        const entry = await bound.candidates.propose({ scope: "project", owner: gone.project_id, text: "Retained original candidate", origin: "person",
+          sources: [{ eventId: source.eventId, version: source.version }],
+          meta: { kind: "fact", source: "manual", approvedBy: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" }, sessionRef } },
+        { operationId: "orphan-candidate", expectedVersion: 0 });
+        return { candidate_id: entry.ref.id, version: entry.version };
+      } finally { await runtime.shutdown(); agents = await open(); }
+    },
     reopen: async () => { await close(); catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); agents = await open(); } };
 }
 
@@ -98,18 +121,97 @@ test("the accepted project plan clears real Sessions and bound personal tombston
   assert.ok(project && typeof project === "object" && "memory" in project && project.memory);
 });
 
-test("a new deletion recovers retained originals from an independently purged indexed Session", { timeout: 60_000 }, async t => {
+for (const phase of ["purged", "prepared"] as const) test(`a new deletion recovers retained originals from an independently ${phase} indexed Session`, { timeout: 60_000 }, async t => {
   const f = await fixture(t), owner = { project_id: f.gone.project_id, plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: actor };
   const session = await f.adapter().createSession({ ...owner, workspace: "none", role_id: "coding", title: "Prior purged Session" });
+  const peer = await f.adapter().createSession({ ...owner, workspace: "none", role_id: "coding", title: "Another selected Session" });
   const entry = await f.memory(f.gone.project_id, session.session_id).write({ scope: "project", owner: f.gone.project_id, text: "Retained orphan", origin: "person", operation_id: "orphan",
     meta: { ...meta, session_ref: { kind: "session", id: session.session_id, revision: 1 } } });
+  const candidate = await f.originalCandidate(session.session_id);
+  const peerEntry = await f.memory(f.gone.project_id, peer.session_id).write({ scope: "project", owner: f.gone.project_id, text: "Second retained original", origin: "person", operation_id: "peer",
+    meta: { ...meta, session_ref: { kind: "session", id: peer.session_id, revision: 1 } } });
+  const kept = await f.memory(null).write({ scope: "user", owner: actor, text: "Unselected source reference", origin: "person", operation_id: "pure-source",
+    meta: { ...meta, evidence: [{ kind: "session", ref: session.session_id }] } });
+  const other = await f.memory(f.kept.project_id).write({ scope: "project", owner: f.kept.project_id, text: "Other project original", origin: "person", operation_id: "other", meta });
   const preview = await f.adapter().sessionLifecycle!.previewPurge(session, owner);
-  await f.adapter().sessionLifecycle!.purge(session, { operation_id: "prior-session-purge", expected_version: preview.version, expected_state: preview.state }, preview, owner);
-  assert.equal((await f.catalog.deleteProject(f.request)).deletion.cleanup_state, "complete");
+  const decision = { operation_id: "prior-session-purge", expected_version: preview.version, expected_state: preview.state };
+  await f.adapter().sessionLifecycle![phase === "purged" ? "purge" : "preparePurge"](session, decision, preview, owner);
+  const peerPreview = await f.adapter().sessionLifecycle!.previewPurge(peer, owner);
+  await f.adapter().sessionLifecycle![phase === "purged" ? "purge" : "preparePurge"](peer,
+    { operation_id: "prior-peer-purge", expected_version: peerPreview.version, expected_state: peerPreview.state }, peerPreview, owner);
+  await f.reopen();
+  const records = () => runtimeRecords(join(f.home, "agent-runtime", "records")), before = records();
+  const target = { scope: "project" as const, owner: f.gone.project_id, memory_id: entry.memory_id, expected_version: entry.version, operation_id: "ordinary" };
+  const refused = () => Promise.all([
+    assert.rejects(f.memory().remove(target), { code: "MEMORY_SCOPE_DENIED" }),
+    assert.rejects(f.memory().setMeta({ ...target, meta }), { code: "MEMORY_SCOPE_DENIED" }),
+    assert.rejects(f.memory(f.gone.project_id, session.session_id).write({ scope: "project", owner: f.gone.project_id, text: "Caller only late save", origin: "person", operation_id: "late", meta }), { code: "MEMORY_SCOPE_DENIED" }),
+  ]);
+  await refused(); assert.deepEqual(records(), before);
+  const hooks = projectDeletedHooksFor(f.home), original = hooks.owners().find(item => item.id === "memory")!;
+  let entered!: () => void, release!: () => void, releaseEscaped!: () => void, escaped!: Promise<void>;
+  const waiting = new Promise<void>(resolve => { entered = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+  const escapeGate = new Promise<void>(resolve => { releaseEscaped = resolve; });
+  const capability = f.adapter().memory!, bind = capability.withCaller.bind(capability);
+  let failAfterCandidate = true;
+  const interrupted = (bound: AgentMemoryCapability): AgentMemoryCapability => ({ ...bound,
+    withExecution: control => interrupted(bound.withExecution!(control)),
+    candidates: { ...bound.candidates, purge: async input => {
+      const result = await bound.candidates.purge(input);
+      if (input.candidate_id === candidate.candidate_id && failAfterCandidate) {
+        failAfterCandidate = false; throw new Error("Interrupt after the original candidate was physically removed");
+      }
+      return result;
+    } } });
+  const failure = t.mock.method(capability, "withCaller", (who: Parameters<AgentMemoryCapability["withCaller"]>[0]) => interrupted(bind(who)));
+  const dispose = hooks.register({ ...original, withRecovery: (input, work) => original.withRecovery!(input, async plan => {
+    assert.equal(plan.kind, "runtime"); if (plan.kind !== "runtime") throw new Error("runtime plan required");
+    assert.equal(plan.sessions.sessions.find(item => item.session.session_id === session.session_id)?.decision.operation_id, decision.operation_id);
+    assert.ok(plan.memory.scopes.some(scope => scope.memories.some(row => row.memory_id === entry.memory_id && row.version === entry.version)));
+    const child = `${plan.operation_id}:memory:${entry.memory_id}`;
+    // Even inside the trusted deletion frame, ordinary reads and modified effects have no retained-Session permission.
+    assert.deepEqual((await f.memory().page({ scope: "project", owner: f.gone.project_id })).items, [], "ordinary pages omit denied entries and disclose no retained body");
+    await assert.rejects(f.memory().remove({ ...target, operation_id: child }), { code: "MEMORY_SCOPE_DENIED" }, "a prepared plan cannot delete before the Catalog calls its original clear owner");
+    await assert.rejects(f.memory().remove({ ...target, operation_id: `${child}-replacement` }), { code: "MEMORY_SCOPE_DENIED" });
+    await assert.rejects(f.memory().remove({ ...target, operation_id: child, expected_version: entry.version + 1 }));
+    await assert.rejects(f.memory().remove({ ...target, owner: f.kept.project_id, memory_id: other.memory_id, operation_id: `${plan.operation_id}:memory:${other.memory_id}` }));
+    assert.deepEqual(records(), before, "discovery and rejected replacement effects do not write the originals");
+    escaped = assert.rejects(escapeGate.then(() => f.memory().remove({ ...target, operation_id: child })), { code: "MEMORY_SCOPE_DENIED" });
+    entered(); await gate; return work(plan);
+  }) }); t.after(dispose);
+  const deleting = f.catalog.deleteProject(f.request);
+  await Promise.race([waiting, deleting.then(() => { throw new Error("deletion did not reach the held original plan"); })]);
+  try { await refused(); assert.deepEqual(records(), before, "concurrent ordinary calls cannot borrow the held deletion frame"); }
+  finally { release(); }
+  const partial = await deleting;
+  assert.equal(partial.deletion.cleanup_state, "pending");
+  assert.match(partial.deletion.cleanup_error!, /Interrupt after the original candidate/);
+  assert.equal(partial.deletion.owner_steps.find(step => step.owner_id === "memory")?.state, "pending");
+  assert.equal(f.retained(), 1); assert.equal(existsSync(f.gone.database_path), true);
+  const interruptedBytes = records(); releaseEscaped(); await escaped; await refused();
+  assert.deepEqual(records(), interruptedBytes, "an escaped original ALS and ordinary callers cannot continue after its active interval");
+  const persistedPlan = () => {
+    const db = f.storage();
+    try { return (db.prepare("SELECT recovery_plan FROM project_deletions WHERE deletion_id=?").get(partial.deletion.deletion_id) as { recovery_plan: string }).recovery_plan; }
+    finally { db.close(); }
+  };
+  const recovery = persistedPlan(); assert.equal(typeof recovery, "string");
+  dispose(); failure.mock.restore(); await f.reopen();
+  const deleted = await f.catalog.deleteProject(f.request);
+  assert.equal(deleted.replayed, true); assert.equal(deleted.deletion.deletion_id, partial.deletion.deletion_id);
+  assert.equal(persistedPlan(), recovery, "restart reuses the persisted fixed original plan after a real partial purge");
+  assert.equal(deleted.deletion.cleanup_state, "complete", deleted.deletion.cleanup_error ?? "");
   assert.equal(f.retained(), 0); assert.equal(existsSync(f.gone.database_path), false);
+  assert.equal((await f.adapter().sessionLifecycle!.read(session, owner)).operation?.decision.operation_id, decision.operation_id);
+  assert.deepEqual((await f.memory(null).list("user", actor)).map(row => row.memory_id), [kept.memory_id]);
+  assert.deepEqual((await f.memory(f.kept.project_id).list("project", f.kept.project_id)).map(row => row.memory_id), [other.memory_id]);
   // A stale CAS could not delete a retained original; absence makes this a no-op.
   await f.memory().remove({ scope: "project", owner: f.gone.project_id, memory_id: entry.memory_id,
     expected_version: entry.version + 1, operation_id: "prove-absent" });
+  await f.memory().candidates.purge({ scope: "project", owner: f.gone.project_id, candidate_id: candidate.candidate_id,
+    expected_version: candidate.version + 1, operation_id: "prove-candidate-absent" });
+  await f.memory().remove({ scope: "project", owner: f.gone.project_id, memory_id: peerEntry.memory_id,
+    expected_version: peerEntry.version + 1, operation_id: "prove-peer-absent" });
 });
 
 test("an incomplete online preview accepts no receipt and leaves Catalog, directory and originals unchanged", { timeout: 60_000 }, async t => {

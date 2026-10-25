@@ -47,12 +47,16 @@ function records(directory: string): Record<string, string> {
   }));
 }
 
-async function fixture(t: TestContext, options: { configured?: boolean; beforeAuthorize?: NonNullable<PrologueNodeAdapterOptions["memory"]>["authorize"] } = {}) {
+async function fixture(t: TestContext, options: { configured?: boolean; beforeAuthorize?: NonNullable<PrologueNodeAdapterOptions["memory"]>["authorize"];
+  allowsSessionPurge?: NonNullable<PrologueNodeAdapterOptions["memory"]>["allowsSessionPurge"]; afterCurrent?: () => void } = {}) {
   const root = mkdtempSync(join(tmpdir(), "molis-memory-current-authority-")), storageRoot = join(root, "sdk");
   const revoked = new Set<string>();
   const memory = currentMemoryOptions({ appId: APP.appId,
     scopesFor: caller => [{ scope: "user", owner: caller.actor_id }, ...(caller.project_id ? [{ scope: "project" as const, owner: caller.project_id }] : [])],
     allowed: caller => !revoked.has(caller.actor_id), beforeAuthorize: options.beforeAuthorize });
+  if (options.allowsSessionPurge) memory.allowsSessionPurge = options.allowsSessionPurge;
+  const assertCurrent = memory.assertCurrent;
+  memory.assertCurrent = (...args) => { const allowed = assertCurrent?.(...args); options.afterCurrent?.(); return allowed !== false; };
   let networkCalls = 0;
   t.mock.method(globalThis, "fetch", async () => { networkCalls++; throw new Error("Memory persistence must not call a model"); });
   const open = (configured = options.configured !== false) => createPrologueNodeAdapter({ app: APP, storageRoot,
@@ -206,6 +210,22 @@ test("Memory authorization waiting across Session preparation cannot commit a la
     const prepared = f.bytes(); release.resolve(); await rejected;
     assert.deepEqual(f.bytes(), prepared, "the late grant cannot append after the persisted fence");
   } finally { release.resolve(); }
+});
+
+test("a retained-Session purge permission is checked again after the original final scope authority", async t => {
+  let allowed = true, closing = false, calls = 0;
+  const f = await fixture(t, { allowsSessionPurge: (_caller, requests, sessionId, call) => {
+    calls++; return allowed && call.kind === "delete" && requests.every(request => request.action === "delete" && request.target.sessionRef?.id === sessionId);
+  }, afterCurrent: () => { if (closing) allowed = false; } });
+  const owner = { project_id: "project-a", plugin_id: "test.plugin", install_id: "test-install", actor_id: "alice" };
+  const session = await f.adapter.createSession({ ...owner, workspace: "none", title: "Final permission" });
+  const entry = await f.bound({ ...alice, session_id: session.session_id }).write({ ...save,
+    meta: { classification: { lifecycle: "long-term" }, session_ref: { kind: "session", id: session.session_id, revision: 1 } } });
+  const preview = await f.adapter.sessionLifecycle!.previewPurge(session, owner);
+  await f.adapter.sessionLifecycle!.preparePurge(session, { operation_id: "original-prepare", expected_version: preview.version, expected_state: preview.state }, preview, owner);
+  const before = f.bytes(); closing = true;
+  await assert.rejects(f.bound().remove({ ...where, memory_id: entry.memory_id, expected_version: entry.version, operation_id: "original-child" }), { code: "MEMORY_SCOPE_DENIED" });
+  assert.ok(calls >= 2); assert.deepEqual(f.bytes(), before, "a final permission loss cannot delete the original");
 });
 
 test("settling a versioned candidate changes formal text and metadata with one CAS and replays only the same decision", async t => {

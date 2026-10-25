@@ -5,7 +5,11 @@ import { randomUUID } from "node:crypto";
 import type { PrologueEffects } from "./prologue-effects.js";
 import { agentErrors } from "../errors.js";
 import { isPrologueError, redactText, screenInbound, type ExactRef, type Runtime, type MemoryCallerContext } from "@prologue/sdk";
-import type { AgentMemoryCaller, AgentMemoryFormationContext, AgentMemoryMutation, AgentMemoryChange, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCaller, AgentMemoryFormationContext, AgentMemoryMutation, AgentMemoryChange, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryPurgeQuery } from "@molis-ai/molis-work-contracts/services/agent-host";
+
+/** Actual adapter entry, not a caller-supplied permission. Lives only in this bound async invocation. */
+export type PrologueMemoryPurgeCall = { kind: "preview"; query: Omit<AgentMemoryPurgeQuery, "signal"> }
+  | { kind: "delete"; scope: AgentMemoryEntry["scope"]; owner: string; ref: ExactRef<"memory"> | ExactRef<"memory-candidate">; version: number; operation_id: string };
 
 /**
  * The platform memory port over the runtime's memory and candidate stores, and the exact references of the memories the
@@ -14,7 +18,7 @@ import type { AgentMemoryCaller, AgentMemoryFormationContext, AgentMemoryMutatio
 export interface PrologueMemoryBinding {
   context(caller: AgentMemoryCaller): MemoryCallerContext;
   run<T>(caller: AgentMemoryCaller, work: () => Promise<T>, options?: {
-    formation?: AgentMemoryFormationContext; validateContext?: () => Promise<void>; operation?: "disable";
+    formation?: AgentMemoryFormationContext; validateContext?: () => Promise<void>; operation?: "disable"; purge?: PrologueMemoryPurgeCall;
   }): Promise<T>;
 }
 export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEffects, "memory">, binding: PrologueMemoryBinding): {
@@ -50,6 +54,12 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
         });
       }, options);
     };
+    const purge = (kind: "memory" | "memory-candidate", id: string, input: AgentMemoryMutation & { scope: Entry["scope"]; owner: string }) => {
+      const identity = { scope: input.scope, owner: input.owner }, options = mutation(input);
+      return call(bound => kind === "memory" ? bound.memory.purge(ref(kind, id), { ...options, identity })
+        : bound.candidates.purge(ref(kind, id), { ...options, identity }),
+      { purge: { kind: "delete", ...identity, ref: ref(kind, id), version: options.expectedVersion, operation_id: options.operationId } });
+    };
     return {
       withCaller: next => facade(Object.freeze(structuredClone(next)), control),
       withExecution: next => facade(caller, next),
@@ -62,7 +72,11 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
           directory_traversal: page.cost.directoryTraversal, metadata_reads: page.cost.metadataReads, body_reads: page.cost.bodyReads,
         } };
       }),
-      previewPurge: input => call(async bound => purgePageView(await bound.previewPurge(purgeQuery(input))), undefined, input.signal),
+      previewPurge: input => {
+        const { signal, ...query } = input, fixed = structuredClone(query);
+        return call(async bound => purgePageView(await bound.previewPurge(purgeQuery({ ...fixed, ...(signal ? { signal } : {}) }))),
+          { purge: { kind: "preview", query: fixed } }, signal);
+      },
       write: input => call(async bound => memoryView(await bound.memory.write({ scope: input.scope, owner: input.owner, text: input.text,
         origin: input.origin, idempotencyKey: input.operation_id, ...(input.signal ? { signal: input.signal } : {}),
         ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}) }))),
@@ -79,9 +93,7 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
             mutation: proposed.kind === "update" ? { kind: "update", change: change(proposed.change) } : proposed }] });
       }),
       tombstone: input => call(async bound => memoryView(await bound.memory.remove(await formal(bound, input), mutation(input)))),
-      remove: input => call(async bound => bound.memory.purge(ref("memory", input.memory_id), {
-        ...mutation(input), identity: { scope: input.scope, owner: input.owner },
-      })),
+      remove: input => purge("memory", input.memory_id, input),
       recall: input => call(async bound => {
         const result = await bound.memory.recall({ receiptId: randomUUID(), scopes: [{ scope: input.scope, owner: input.owner }],
           readMode: "task", ...(input.keywords ? { keywords: input.keywords } : {}), ...(input.text !== undefined ? { text: input.text } : {}),
@@ -138,9 +150,7 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
         }, input.by, mutation({ ...input, expected_version: input.candidate_expected_version }))), undefined, input.signal),
         discard: input => call(async bound => candidateView(await bound.candidates.discard(await candidate(bound, input), mutation(input)))),
         expire: input => call(async bound => candidateView(await bound.candidates.expire(await candidate(bound, input), mutation(input)))),
-        purge: input => call(async bound => bound.candidates.purge(ref("memory-candidate", input.candidate_id), {
-          ...mutation(input), identity: { scope: input.scope, owner: input.owner },
-        })),
+        purge: input => purge("memory-candidate", input.candidate_id, input),
         reconcileDecision: input => call(async bound => {
           const receipt = await bound.candidates.reconcileDecision(await candidate(bound, input), mutation(input));
           return { outcome: receipt.outcome, future_commit: receipt.futureCommit, past_commit: receipt.pastCommit,

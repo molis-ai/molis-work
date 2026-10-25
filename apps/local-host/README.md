@@ -315,3 +315,5 @@ MEM-40 采用现在通过同步 onOwned 在 SDK maintenance 打开前提交 adop
 Character 的一般Memory mutation对目标及before原件均要求当前ledger中的准确项目/subject关系，并核`characterOwner(project,subject)`；本人采用不需要伪报caller.character。新写/提案沿Memory原准备口先登记关系，authority回调只读、不猜历史归属。空角色范围可读取为空且不登记关系；明确项目删除仍只沿原固定计划许可。专项回归见 `tests/memory-runtime-policy.test.ts`、`tests/memory-character-proposal-owner.test.ts` 与 `tests/memory-owner-relations.test.ts`。
 
 `readMemoryOwnerCoverage` 仅供 Host 内部清除覆盖使用：同份关系派生 SDK knownScopes 与目标项目 scopes，合并当前 Catalog、全部保留删除原计划、ledger 身份及同一持久 Work 的项目/角色配对。旧 Round 没有原项目，不能与当前 Work 拼接猜归属。读取不补写映射、不授予 mutation，也不代表 SDK 或 Catalog 已确认 complete。
+
+原项目删除恢复独立 prepared/purged Session 的残留记忆时，仅承认 AgentHost 实际无正文 preview/逐项 purge 的调用证明。原删除 ALS 必须仍有效，Session 在可信集合；preview 限当前 scope，delete 仅在原 clear 执行区间逐项匹配持久计划的 ref/原 version 和精确 child operation，保留 SDK 同操作墓碑再物理移除的语义。普通读取、写入、清 meta、person/ui 或项目 hold 无此许可；scope/owner 和最终 current 继续走原 Memory policy。无新持久状态、schema 或通用 bypass。直接工程回归在 `tests/project-deletion-recovery.test.ts`，覆盖两种旧 Session 状态、并发拒绝、旧 ALS 失效和实际部分清除后重启同原计划续跑。

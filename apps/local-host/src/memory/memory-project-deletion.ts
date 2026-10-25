@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors, purgeProjectMemories, previewProjectMemoryPurge, applyProjectMemoryPurge, type MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
@@ -12,6 +13,7 @@ import { assistantProjectSessions } from "../assistant/assistant-project-purge.j
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 import { ProjectDeletedDeferred, projectDeletedHooksFor } from "../project-deleted-hooks.js";
 import { MEMORY_OWNER, memoryOwnerWithoutService } from "../project-deleted-owners.js";
+import type { MemoryRuntimePolicyOwner } from "./memory-runtime-policy.js";
 
 interface MemoryProjectDeletionPorts {
   homeDirectory: string; backend: MemoryBackendPort; ledger: MemoryLedgerPort;
@@ -21,11 +23,12 @@ interface MemoryProjectDeletionPorts {
   alive(): boolean; executes(): boolean; ready(): Promise<void>; started?(): Promise<void>;
   projectExists?(projectId: string): Promise<boolean | null>;
 }
-type Frame = { project: string; active: boolean; sessions: Set<string>; plan?: ProjectDeletionRecovery; purge?: () => Promise<void>;
-  scopes?: Array<{ scope: "project" | "character"; owner: string }>; empty?: () => void };
+type Frame = { project: string; active: boolean; sessions: Set<string>; operation_id?: string; plan?: ProjectDeletionRecovery; purge?: () => Promise<void>;
+  scopes?: Array<{ scope: "project" | "character"; owner: string }>; empty?: () => void; purging?: boolean };
 
 /** The existing project-deletion receipt owns this exception to a project's normal live-owner check. */
-export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts) {
+export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts): Required<Pick<MemoryRuntimePolicyOwner,
+  "deletingProject" | "deletingScope" | "deletingPersonal" | "deletingSessionPurge" | "deletionPending">> {
   const deleting = new AsyncLocalStorage<Frame>();
   const held = new Map<string, Set<string>>();
   let runtimeHere = false;
@@ -61,7 +64,7 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
         return await projectDeletion.withHold({ project_id: input.project_id, associated_sessions: associated }, async active => {
           const sessions = input.original?.kind === "runtime" ? input.original.sessions : await active.preview(input.operation_id);
           for (const item of sessions.sessions) sessionIds.add(item.session.session_id);
-          const frame: Frame = { project: input.project_id, active: true, sessions: sessionIds };
+          const frame: Frame = { project: input.project_id, active: true, sessions: sessionIds, operation_id: input.operation_id };
           const current = () => { if (!frame.active || !ports.alive()) throw memoryErrors.unavailable("原项目删除主人已关闭"); };
           const control: AgentMemoryExecutionControl = { beforeEffect: async () => { current(); }, assert_current: current };
           const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: input.project_id, consumer: "ui" as const, person: true,
@@ -76,9 +79,12 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
               frame.plan = plan;
               frame.purge = async () => {
                 if (plan.kind !== "runtime") throw memoryErrors.conflict("缺少原运行时清理计划");
-                await applyProjectMemoryPurge({ backend: controlledBackend(control), ledger: ports.ledger, caller, control }, plan.memory);
-                current();
-                await withEffect(control, () => active.purge(plan.sessions));
+                frame.purging = true;
+                try {
+                  await applyProjectMemoryPurge({ backend: controlledBackend(control), ledger: ports.ledger, caller, control }, plan.memory);
+                  current();
+                  await withEffect(control, () => active.purge(plan.sessions));
+                } finally { frame.purging = false; }
               };
               current(); return await work(structuredClone(plan));
             });
@@ -128,9 +134,40 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
       return !!(frame.plan?.kind === "runtime" && frame.plan.memory.scopes.some(item => item.scope === "personal"
         && (target.ref.kind === "memory" ? item.memories.some(entry => entry.memory_id === target.ref.id) : item.candidates.some(entry => entry.candidate_id === target.ref.id))));
     },
+    deletingSessionPurge: (...args: Parameters<NonNullable<MemoryRuntimePolicyOwner["deletingSessionPurge"]>>) =>
+      ports.alive() && retainedSessionPurge(deleting.getStore(), ...args),
     deletionPending: (projectId: string | null, sessionId?: string) => [...held].some(([project, sessions]) => project === projectId || !!sessionId && sessions.has(sessionId))
       || projectDeletionPending(ports.homeDirectory, projectId ?? "", sessionId),
   };
+}
+
+/** Only the actual metadata preview or an original fixed item may pass a retained Session's normal Memory fence. */
+function retainedSessionPurge(frame: Frame | undefined, ...[sessionId, requests, call]: Parameters<NonNullable<MemoryRuntimePolicyOwner["deletingSessionPurge"]>>): boolean {
+  if (!frame?.active || !frame.operation_id || !frame.sessions.has(sessionId) || !requests.length) return false;
+  const related = requests.filter(request => request.target.sessionRef?.id === sessionId);
+  return related.length > 0 && related.every(request => {
+    const target = request.target;
+    if (target.sessionRef?.id !== sessionId || target.sessionRef.revision !== 1 || request.context.sessionRef) return false;
+    // SDK previews use delete eligibility too; only the adapter's actual metadata-only entry distinguishes this read.
+    if (call.kind === "preview") return !request.before && request.action === "delete" && call.query.scope === target.scope
+      && call.query.owner === target.owner && call.query.kind === target.ref.kind
+      && (!call.query.session_ref || call.query.session_ref.id === sessionId && call.query.session_ref.revision === 1);
+    const plan = frame.plan;
+    if (!frame.purging || request.action !== "delete" || plan?.kind !== "runtime" || plan.operation_id !== frame.operation_id
+      || plan.project_id !== frame.project || call.scope !== target.scope || call.owner !== target.owner
+      || call.ref.kind !== target.ref.kind || call.ref.id !== target.ref.id || call.ref.revision !== target.ref.revision
+      || call.operation_id !== `${plan.operation_id}:${target.ref.kind === "memory" ? "memory" : "candidate"}:${target.ref.id}`) return false;
+    // Formal purge's existing SDK mutation first writes N+1's tombstone; its original input remains N even on replay.
+    if (target.ref.kind === "memory") {
+      if (target.version !== call.version && !(target.tombstoned && target.version === call.version + 1)) return false;
+      const before = request.before;
+      if (before && (before.version !== call.version || before.scope !== target.scope || before.owner !== target.owner
+        || !isDeepStrictEqual(before.ref, target.ref) || !isDeepStrictEqual(before.sessionRef, target.sessionRef))) return false;
+    } else if (target.version !== call.version || request.before && !isDeepStrictEqual(request.before, target)) return false;
+    const selected = plan.memory.scopes.find(item => item.scope === (target.scope === "user" ? "personal" : target.scope) && item.owner === target.owner);
+    return target.ref.kind === "memory" ? selected?.memories.some(item => item.memory_id === target.ref.id && item.version === call.version) === true
+      : selected?.candidates.some(item => item.candidate_id === target.ref.id && item.version === call.version) === true;
+  });
 }
 
 /** A completed deletion supplies identity, while the online Runtime supplies today's empty proof. Never purges. */
@@ -146,7 +183,7 @@ async function recreateWithEmptyMemory<T>(ports: MemoryProjectDeletionPorts, del
   const sessionIds = new Set(sessions.map(item => item.session.session_id));
   const scopes = plans.flatMap(plan => plan.memory.scopes.filter(item => item.scope !== "personal")
     .map(item => ({ scope: item.scope as "project" | "character", owner: item.owner })));
-  const frame: Frame = { project: input.project_id, active: true, sessions: sessionIds, scopes };
+  const frame: Frame = { project: input.project_id, active: true, sessions: sessionIds, scopes, operation_id: input.deletions[0]!.deletion_id };
   const current = () => { if (!frame.active || !ports.alive()) throw memoryErrors.unavailable("示例记忆空态证明已结束，请重试"); };
   const control: AgentMemoryExecutionControl = { beforeEffect: current, assert_current: current };
   held.set(input.project_id, sessionIds);

@@ -20,6 +20,7 @@ export interface MemoryRuntimePolicyOwner {
   deletingProject(): string | undefined;
   deletingScope?(scope: string, owner: string): boolean;
   deletingPersonal?(target: Request["target"]): boolean;
+  deletingSessionPurge?(sessionId: string, requests: readonly Request[], call: Parameters<NonNullable<Options["allowsSessionPurge"]>>[3]): boolean;
   deletionPending?(projectId: string | null, sessionId?: string): boolean;
 }
 
@@ -155,6 +156,11 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
       return requestsAllowed(caller, requests, await current(caller), operation);
     },
     assertCurrent: (caller, requests, operation) => requestsAllowed(caller, requests, currentFacts(caller), operation),
+    allowsSessionPurge(caller, requests, sessionId, call) {
+      const state = currentFacts(caller);
+      return !!state?.deletion && requestsAllowed(caller, requests, state)
+        && state.owner.deletingSessionPurge?.(sessionId, requests, call) === true;
+    },
     async authorizeRecall(caller, request) {
       const state = await current(caller);
       // No readable scope means no storage scan; mixed off/on still admits its readable part and rechecks every entry.

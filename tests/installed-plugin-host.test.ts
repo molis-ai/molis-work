@@ -2,17 +2,18 @@ import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFile, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import type { ActionDefinition, ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import { PluginRuntime, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
+import type { PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
+import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
@@ -23,6 +24,7 @@ import { pluginBindingScope } from '@molis-ai/molis-work-service-connector-host'
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from './fixtures/plugin-callers.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandbox-package.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
@@ -721,4 +723,74 @@ test('S-71 RAC-471 uninstalling in one project takes the per_record bindings of 
     // Whether another project still installs it is only in each project's library, so the shared one stays for the person (BL-596).
     assert.deepEqual(left(), [scopes[2]]);
   } finally { for (const [index, store] of stores.entries()) { await releaseInstalledPlugins(store, projects[index]!); store.close(); } await rm(home, { recursive: true, force: true }); }
+});
+
+async function signedInstallFixture() {
+  const home = await mkdtemp(join(tmpdir(), 't2-first-install-'));
+  let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const ledger = new HomeConsentLedger(home), packages = new SandboxPackageStore(home);
+  const person = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: 'user' as const, project_id: DEMO_PROJECT_ID, permissions: PLUGIN_INSTALL_PERMISSIONS,
+    user_action: { source: 'management' as const, conversation_ref: 't2-first:install', message_ref: 't2-first:confirm' } };
+  const confirm = async (bundle: PluginPackageBundle) => {
+    const client = host.actionClient(reference);
+    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 1 }, { bundle }) as { preview_id: string };
+    return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: 'Test publisher' });
+  };
+  const control = () => host.withProject(reference, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: DEMO_PROJECT_ID } }));
+  await control();
+  return { home, reference, ledger, packages, confirm, control,
+    get host() { return host; }, async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); return control(); },
+    async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
+}
+
+test('T2-FIX-02 a failed signed-package install keeps its pin and immutable package, but no installation can run, also after restart', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher();
+  const bundle = signedPackage(publisher, files => { files['plugin.mjs'] = "throw new Error('T2 package startup failed');"; });
+  const confirm = () => h.confirm(bundle);
+  try {
+    await assert.rejects(confirm(), /安装没有完成/);
+    const pins = h.ledger.publishers();
+    assert.equal(pins.length, 1); assert.equal(pins[0]!.key_id, publisher.identity);
+    const directories = await readdir(join(h.home, 'plugin-packages'));
+    assert.equal(directories.length, 1);
+    const saved = join(h.home, 'plugin-packages', directories[0]!, 'bundle.json'), bytes = await readFile(saved);
+    const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    const absent = async () => {
+      const installed = await h.control();
+      assert.deepEqual(installed.records().filter(row => row.plugin_id === PACKAGE_PLUGIN_ID), []);
+      assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID), undefined, 'a kept package alone is not an installed release');
+      await assert.rejects(installed.lifecycle('enable', release), /还没有安装/);
+      const actions = await h.host.actionClient(h.reference).discover(caller);
+      assert.ok(!actions.some(view => view.capability_id === exposedActionId(release, 'notes.list')), 'no action from the failed package is executable');
+    };
+    await absent();
+    await h.reopen(); await absent();
+    await assert.rejects(confirm(), /安装没有完成/);
+    assert.deepEqual(h.ledger.publishers(), pins, 'retry does not replace the person\'s pin');
+    assert.deepEqual(await readdir(join(h.home, 'plugin-packages')), directories, 'retry reuses the immutable package directory');
+    assert.deepEqual(await readFile(saved), bytes); await absent();
+  } finally { await h.close(); }
+});
+
+test('T2-FIX-05 pinned upgrade and rollback return plugin.state_invalid without changing the installation, approval, pin or package', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
+  try {
+    await h.confirm(bundle);
+    const installed = await h.control(), release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    const records = () => installed.platform.runtime.list().filter(row => row.plugin_id === PACKAGE_PLUGIN_ID);
+    const before = records(), approvalKey = 'plugin-builder:agent-studio:approved:' + PACKAGE_PLUGIN_ID;
+    assert.equal(before[0]!.state, 'running', 'the package is genuinely installed and started before the refusals');
+    const approval = installed.storage.get(approvalKey), pins = h.ledger.publishers(), bytes = await readFile(release.bundlePath);
+    for (const action of ['upgrade', 'rollback'] as const) {
+      const verb = action === 'upgrade' ? '升级' : '回滚';
+      await assert.rejects(installed.lifecycle(action, release, { consent: true }), error => error instanceof ActionError
+        && error.code === 'plugin.state_invalid' && error.message === '从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
+      assert.deepEqual(records(), before); assert.equal(installed.storage.get(approvalKey), approval);
+      assert.deepEqual(h.ledger.publishers(), pins); assert.deepEqual(await readFile(release.bundlePath), bytes);
+      assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID)?.packaged?.manifest.version, '1.0.0');
+    }
+  } finally { await h.close(); }
 });

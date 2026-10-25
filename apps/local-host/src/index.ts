@@ -126,6 +126,13 @@ export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGE
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
+export { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions } from "./plugin-install-actions.js";
+export { PluginInstallService } from "./plugin-install-service.js";
+export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
+export { pluginInstallProvider } from "./plugin-trust-actions.js";
+export { readSandboxPackage } from "./sandbox-package.js";
+export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
+export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { activateConnectorConnection } from "./connector-activation.js";

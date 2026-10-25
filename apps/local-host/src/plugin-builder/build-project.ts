@@ -1,17 +1,12 @@
 import { constants } from 'node:fs';
 import { mkdir, readdir, realpath, writeFile, open, lstat } from 'node:fs/promises';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
-import { assertContract, assertEffects, assertJson } from '@molis-ai/molis-work-plugin-sandbox';
-import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { assertContract, assertEffects, assertJson, effectsFromContract } from '@molis-ai/molis-work-plugin-sandbox';
+import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildManifest, BuildProject, DeveloperCapabilities } from './build-types.js';
 import { sdkDeclarations } from './build-sdk-declarations.js';
 
 export const SDK_MODULE = '@molis/plugin-sdk';
-export function effectsFromContract(contract: SandboxPluginContract): SandboxEffects {
-  const result: Record<string, string[]> = {};
-  for (const operation of contract.operations) for (const [key, values] of Object.entries(operation.effects)) result[key] = [...new Set([...(result[key] ?? []), ...(values ?? [])])].sort();
-  return result as SandboxEffects;
-}
 export function buildManifest(contract: SandboxPluginContract): BuildManifest {
   return { version: 1, pluginId: contract.pluginId, revision: contract.revision, effects: effectsFromContract(contract) };
 }

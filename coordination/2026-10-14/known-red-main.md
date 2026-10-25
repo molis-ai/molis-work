@@ -8,7 +8,14 @@
 
 2026-10-23 20:40 UTC：batch-1023-13（run40013259093，6cff3977e）16片1341/1341文件最终通过；3份重试通过记入偶发。Linux跳过的macOS C0仍未验证，保留当前已知红。
 
-## 当前已知红（0 个文件）
+## 当前已知红（2 个文件，batch-39 落地后清零）
+
+2026-10-25 21:10 UTC：batch-39 全量 40227692337（carrier `8cf538f28`，含 main `fc1e03c3c`）16 片 14 绿；两个红文件都是 main 自己的红，由 #1304 的 BL-305（`f59f0e4fa`）带进来、#1304 没跑全量（R-57）。修复在 batch-39 `9652a4dcc`、`9b47fadc5`，随 #1307 落地后删行。`code-scale.e2e` 首轮红重跑过，记偶发（计时）；batch-38 首轮红的 `cognia-actions.e2e`、`interaction-no-crosstalk.e2e` 这次首轮过。Linux probe 的覆盖缺口见 RISKS R-58。
+
+| 文件 | 带进来的 PR | 原因类别 | 谁修 | 依据 |
+| --- | --- | --- | --- | --- |
+| `tests/coding-queued-round.test.ts` | #1304（BL-305） | 断言过期 | 统筹，batch-39 `9652a4dcc` | 等待中的发送按 kind 回 409 `coding.waiting`，测试仍期望 400 |
+| `tests/coding-message-wait.test.ts` | #1304（BL-305） | 断言过期 | 统筹，batch-39 `9b47fadc5` | 同上 |
 
 10-24 07:5x UTC：`tests/home-side-surfaces.e2e.test.ts` 由 #1174（main `4e17c3d1b`）修好，删行；以后的批里再红就按新失败查。
 
@@ -94,6 +101,8 @@
 ## 机读清单（当前已知红 + 间歇红）
 
 ```
+tests/coding-queued-round.test.ts
+tests/coding-message-wait.test.ts
 tests/workbench-deferred-clients.e2e.test.ts
 ```
 

@@ -237,7 +237,11 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-const APPROVED_CEILINGS = {};
+const APPROVED_CEILINGS = {
+  // The journey model step lays a short key form in the arrival sheet. The settings document stylesheet is not
+  // included. +95 B from 694943.
+  "/assets/molis-work-arrival.css": [694943, 695038],
+};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

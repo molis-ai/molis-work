@@ -111,7 +111,24 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
 `;
 
 export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
-` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT;
+` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT + `
+(() => {
+  const key = 'molis-work:settings-return';
+  let back = '';
+  try { back = sessionStorage.getItem(key) || ''; } catch { return; }
+  const close = document.querySelector('.project-preferences-chrome > a[href]');
+  const home = close ? (close.getAttribute('href') || '') : '';
+  const journey = /(?:^|[?&])journey=[0-9a-fA-F-]{36}(?:&|$)/.test(back);
+  const safe = back.startsWith('/onboarding?') && journey && back.length < 2000 && !back.includes('#') && !back.includes('\\\\') && !back.slice(1).includes('//');
+  const firstRunHome = home === '/' || home === '/?desktop=1';
+  if (!safe || !close || !firstRunHome) {
+    if (back && close && !firstRunHome) { try { sessionStorage.removeItem(key); } catch { /* sessionStorage may be blocked */ } }
+    return;
+  }
+  close.setAttribute('href', back);
+  close.addEventListener('click', () => { try { sessionStorage.removeItem(key); } catch { /* sessionStorage may be blocked */ } });
+})();
+`;
 
 
 export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `

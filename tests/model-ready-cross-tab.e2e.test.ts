@@ -5,10 +5,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
 
 /**
- * The onboarding page sends the person to the model settings in a NEW tab ("连接文字模型" opens `/settings/models` with
- * target=_blank). The first model is saved in that other tab, so the page that waits for it is a different document:
- * it learns of the model through a same-origin cross-tab channel and redraws without a reload. Two real tabs of one
- * browser: the waiting onboarding page stays in the background while the other tab saves, and is never reloaded.
+ * A model saved in another tab reaches the onboarding page through a same-origin cross-tab channel. The waiting page
+ * stays in the background, is never reloaded, and redraws the model step it is already on.
  */
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
@@ -79,7 +77,7 @@ async function journeyAt(browser: Browser, stage: "scope" | "materials"): Promis
   // A new person meets the opening and two questions first; this test is about the screens after them.
   await evaluate("try { localStorage.setItem('molis-work:onboarding-intro', 'done'); } catch (error) { throw error; }");
   await navigate(() => command("Page.navigate", { url: `${origin}/onboarding?mode=new-project&journey=${id}` }, sessionId));
-  await waitFor(`!!document.querySelector('[data-ob-view=${stage === "scope" ? "preview" : "materials"}]')`, 15_000);
+  await waitFor(`!!document.querySelector('[data-ob-view=${stage === "scope" ? "model" : "materials"}]')`, 15_000);
   return id;
 }
 
@@ -95,8 +93,9 @@ for (const [name, catalog, settingsAddress] of [
     const { command, sessionId, evaluate, waitFor, origin } = browser;
     await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
     await journeyAt(browser, "scope");
-    assert.match(await evaluate<string>("document.querySelector('.ob-model')?.textContent || ''"), /尚未连接文字模型/);
-    assert.equal(await evaluate("document.querySelector('.ob-model').classList.contains('is-off')"), true);
+    assert.equal(await evaluate("document.querySelector('#ob-title')?.textContent"), "连接文字模型");
+    assert.match(await evaluate<string>("document.querySelector('.ob-right')?.textContent || ''"), /常用供应商/);
+    assert.equal(await evaluate("!!document.querySelector('a[href*=\"/settings/models\"]')"), false);
     await evaluate("window.__sameDocument = 'never reloaded'");
 
     // The link the page offers is a plain new-tab address; the second tab is exactly what it opens.
@@ -107,15 +106,12 @@ for (const [name, catalog, settingsAddress] of [
     await connectModel(tab, standIn.baseUrl);
 
     // The onboarding tab sat in the background the whole time and was not touched.
-    await waitFor("document.querySelector('.ob-model') && !document.querySelector('.ob-model').classList.contains('is-off')", 15_000);
-    const line = await evaluate<{ text: string; same: string; link: boolean }>(`({ text: document.querySelector('.ob-model').textContent,
-      same: window.__sameDocument, link: Boolean(document.querySelector('.ob-model a[href*="/settings/models"]')) })`);
-    assert.match(line.text, /文字模型 · \S+/);
+    await waitFor("/已连接/.test(document.querySelector('[data-ob-view=model]')?.textContent || '')", 15_000);
+    const line = await evaluate<{ text: string; same: string; left: boolean }>(`({ text: document.querySelector('[data-ob-view=model]').textContent,
+      same: window.__sameDocument, left: location.pathname === '/onboarding' })`);
     assert.match(line.text, /已连接/);
-    assert.doesNotMatch(line.text, /尚未连接/);
     assert.equal(line.same, "never reloaded", "the page was redrawn in place");
-    assert.equal(line.link, true, "the line now offers 更换, still a link to the settings");
-    assert.match(await evaluate<string>("document.querySelector('[data-ob-view=preview]')?.textContent || ''"), /发给所选模型；原文件保持原样/, "the rest of the screen agrees: the start is the model's");
+    assert.equal(line.left, true, "connecting in the other tab stays on this journey");
   });
 }
 
@@ -128,7 +124,7 @@ test("the materials screen that waits for a model offers the way on once the oth
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await journeyAt(browser, "materials");
   const before = await evaluate<{ text: string; connect: boolean; button: string }>(`({ text: document.querySelector('[data-ob-view=materials]').textContent,
-    connect: Boolean(document.querySelector('[data-ob-view=materials] a[href*="/settings/models"]')), button: document.querySelector('[data-action=retry]')?.textContent || '' })`);
+    connect: Boolean(document.querySelector('[data-ob-view=materials] [data-action=model]')), button: document.querySelector('[data-action=retry]')?.textContent || '' })`);
   assert.match(before.text, /连接文字模型后，可以回来继续整理/);
   assert.equal(before.connect, true);
   assert.match(before.button, /已连接，继续整理/);
@@ -139,7 +135,7 @@ test("the materials screen that waits for a model offers the way on once the oth
 
   await waitFor("/文字模型已连接/.test(document.querySelector('[data-ob-view=materials]')?.textContent || '')", 15_000);
   const after = await evaluate<{ connect: boolean; button: string; same: string; busy: string | null }>(`({
-    connect: Boolean(document.querySelector('[data-ob-view=materials] a[href*="/settings/models"]')),
+    connect: Boolean(document.querySelector('[data-ob-view=materials] [data-action=model]')),
     button: document.querySelector('[data-action=retry]')?.textContent.trim() || '', same: window.__sameDocument, busy: document.getElementById('cx-app').getAttribute('aria-busy') })`);
   assert.equal(after.connect, false, "the link to connect a model is gone with the problem");
   assert.equal(after.button, "继续整理", "what is left is the way on");

@@ -107,9 +107,11 @@ export const ARRIVAL_STYLES = String.raw`
   .mw-brief--error .mw-empty { margin: 36px 0 0; justify-items: start; text-align: left; }
 
   /* ───────── Opening: the first screen a new person sees ───────── */
-  .opening { --ob-warm: color-mix(in srgb, var(--accent) 26%, transparent); --ob-cool: color-mix(in srgb, var(--ink) 9%, transparent); isolation: isolate; overflow: hidden; display: grid; align-items: end; padding: clamp(32px, 5vw, 72px); }
-  .opening-glow { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse 65% 74% at 0% 4%, var(--ob-warm), transparent 100%), radial-gradient(ellipse 65% 78% at 100% 100%, var(--ob-cool), transparent 100%); }
-  html[data-resolved-theme="dark"] .opening-glow { opacity: .5; }
+  .opening,.welcome{--ob-warm:color-mix(in srgb,var(--accent) 26%,transparent);--ob-cool:color-mix(in srgb,var(--ink) 9%,transparent);--ob-glow:radial-gradient(ellipse 65% 74% at 0% 4%,var(--ob-warm),transparent 100%),radial-gradient(ellipse 65% 78% at 100% 100%,var(--ob-cool),transparent 100%)}
+  .opening{isolation:isolate;overflow:hidden;display:grid;align-items:end;padding:clamp(32px,5vw,72px)}
+  .opening-glow,.welcome::before{position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--ob-glow)}
+  .welcome::before{content:""}
+  html[data-resolved-theme="dark"] :is(.opening-glow,.welcome::before){opacity:.5}
   .opening-copy { display: grid; gap: clamp(20px, 3vh, 36px); }
   .opening-caption .mw-caption { font-size: 30px; letter-spacing: -.03em; margin: 0; padding: 0; }
   .ob-greeting-wordmark { font-size: 0; line-height: 0; }
@@ -124,9 +126,7 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-greeting-wordmark .mw-wordmark__caret { height: .035em; width: .2em; bottom: .06em; left: calc(100% + .04em); background: currentColor; }
 
   /* ───────── Welcome: one question at a time ───────── */
-  .welcome { --ob-warm: color-mix(in srgb, var(--accent) 26%, transparent); --ob-cool: color-mix(in srgb, var(--ink) 9%, transparent); isolation: isolate; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
-  .welcome::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse 65% 74% at 0% 4%, var(--ob-warm), transparent 100%), radial-gradient(ellipse 65% 78% at 100% 100%, var(--ob-cool), transparent 100%); }
-  html[data-resolved-theme="dark"] .welcome::before { opacity: .5; }
+  .welcome{isolation:isolate;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
   .welcome-q { align-self: center; padding: 0 clamp(32px, 7vw, 120px); }
   .welcome-q h1 { font-size: 30px; font-weight: var(--weight-title, 600); letter-spacing: -.035em; line-height: 1.25; outline: none; }
   .welcome-q > p, .ob-q > p { margin-top: 12px; max-width: 40ch; color: var(--muted); font-size: 13px; line-height: 1.8; }
@@ -195,7 +195,12 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-cfg-block { display: grid; gap: 8px; }
   .ob-cfg-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .ob-cfg-actions .ob-note { flex-basis: 100%; }
-  .ob-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .ob-picks{display:grid;grid-template-columns:1fr;gap:8px}
+  .ob-place{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+  .ob-place__actions{display:flex;gap:4px}
+  .ob-place .mw-choice__label{display:grid;min-width:0;white-space:normal}
+  .ob-place .mw-choice__label small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12px;font-weight:400}
+  .ob-place .mw-choice[aria-pressed="true"] small{color:inherit}
   .ob-source__cfg .mw-choice { width: 100%; justify-content: space-between; }
   .ob-model { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
   .ob-model__text { min-width: 0; display: grid; }
@@ -314,6 +319,8 @@ export const ARRIVAL_STYLES = String.raw`
   @media (prefers-reduced-motion: reduce) {
     .arrival *, .arrival *::before, .arrival *::after { animation-duration: .01ms; animation-iteration-count: 1; transition-duration: .01ms; }
   }
+  .ob-model-form { display: grid; gap: 14px; margin-top: 16px; }
+  .ob-model-form .mw-input { width: 100%; }
   @media(max-width:360px){.arrival-brand .mw-wordmark{display:none}}
   ${BACKGROUND_TASKS_MENU_STYLES}
 `;

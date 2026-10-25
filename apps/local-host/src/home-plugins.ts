@@ -4,7 +4,7 @@ import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@mo
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
-import { declarationOwnersFor, runningManifests } from "./declaration-owners.js";
+import { declarationOwnersFor } from "./declaration-owners.js";
 import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
@@ -173,7 +173,7 @@ export class HomePluginHost {
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime = new PluginRuntime(repository, executor, { consents: ledger, hostIds: HOST_PLUGIN_IDS, declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (): PluginManifest[] => runningManifests(supervisor)), reservedRuleKeys: hostReservedRuleKeys,
+    const runtime = new PluginRuntime(repository, executor, { consents: ledger, hostIds: HOST_PLUGIN_IDS, declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), reservedRuleKeys: hostReservedRuleKeys,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });

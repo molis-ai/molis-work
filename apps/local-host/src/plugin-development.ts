@@ -2,6 +2,7 @@ import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/
 import type { PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { loadDevelopmentPlugin, PluginRuntime, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
+import { developmentDeclarationOwners } from "./declaration-owners.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import type { InstalledArtifactView } from "./artifact-type-registry.js";
@@ -20,7 +21,7 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
 }): Promise<PluginDevelopmentResult> {
   if (input.allow_unsigned_development !== true) throw new Error("需要明确授权运行未签名本地开发代码");
   const definition = await loadDevelopmentPlugin(input.directory);
-  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id) }), { actions: options.actions, hostIds: HOST_PLUGIN_IDS, reservedRuleKeys: hostReservedRuleKeys });
+  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id) }), { declarationOwners: developmentDeclarationOwners(), actions: options.actions, hostIds: HOST_PLUGIN_IDS, reservedRuleKeys: hostReservedRuleKeys });
   const installed = runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: input.grants, retain_private_data: true });
   const id = installed.install.install_id;
   const inEffect = () => { const state = runtime.get(id)?.state; return state === "installed" || state === "running"; };

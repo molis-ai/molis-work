@@ -14,7 +14,7 @@ import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { readRestoredAssets, restoreWorkAssets } from "@molis-ai/molis-work-app-server";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, artifactLinkKinds, artifactTypeDeclarations, bindProjectArtifacts, createPluginPlatform, declaredArtifactTypes,
+import { DEMO_PROJECT_ID, LocalProjectDatabase, declarationOwnersFor, artifactLinkKinds, artifactTypeDeclarations, bindProjectArtifacts, createPluginPlatform, declaredArtifactTypes,
   heldInstalls, pluginHeldElsewhere, homeStores, installedArtifacts, openProjectVersionStores, restoreArtifactVersions, seedDemoBoard, seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { DECLARED_RULE_OPTIONS, declaredRule, declaredScene } from "./fixtures/declared-rules.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -48,7 +48,7 @@ function project(t: TestContext, home: string, existing?: { file: string; projec
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, projectId), versions = openProjectVersionStores(store);
   const platform = createPluginPlatform({ actions, project_id: projectId, actor_id: "tester", db: store.db, journal: store, ...versions, ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), home: { directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) } });
-  const rig = { platform, store, versions, projectId, runtime: platform.runtime, supervisor: platform.supervisor,
+  const rig = { platform, store, versions, projectId, file, runtime: platform.runtime, supervisor: platform.supervisor,
     write: (producerId: string, type: string, artifactId: string) => write(versions, projectId, producerId, type, artifactId),
     install: (definition: PluginDefinition) => platform.runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: [] }),
     async close() {
@@ -390,6 +390,24 @@ test("RAC-417 S-82 two development installations start together, whichever the s
   assert.deepEqual([PRODUCER, OTHER].map(id => p.supervisor.state(id)?.status), ["running", "running"], "both start");
   await p.supervisor.start([bare(plugin(PRODUCER, "1.0.0", ["example.note"])), bare(plugin(OTHER, "1.0.0", ["example.other"]))]);
   assert.deepEqual([PRODUCER, OTHER].map(id => p.supervisor.state(id)?.status), ["running", "running"], "and start again over their records");
+});
+
+test("RAC-417 S-82 development installations start again after a restart over the same library, whichever the supervisor reaches first", { timeout: 180_000 }, async t => {
+  const home = bareHome(t), first = project(t, home);
+  const both = () => [bare(plugin(PRODUCER, "1.0.0", ["example.note"])), bare(plugin(OTHER, "1.0.0", ["example.other"]))];
+  await first.supervisor.start(both());
+  const again = project(t, home, { file: first.file, projectId: first.projectId });
+  await again.supervisor.start(both());
+  assert.deepEqual([PRODUCER, OTHER].map(id => again.supervisor.state(id)?.status), ["running", "running"], "a new supervisor over the same records starts both");
+});
+
+test("RAC-417 S-82 a development installation stands in only by the version its record is at", { timeout: 180_000 }, async t => {
+  const home = bareHome(t), p = project(t, home);
+  await p.supervisor.start([bare(plugin(PRODUCER, "1.0.0", ["example.note"]))]);
+  const owners = (version: string) => declarationOwnersFor(home, { db: p.store.db, scope: { kind: "project", project_id: p.projectId } },
+    id => id === PRODUCER ? plugin(PRODUCER, version, ["example.note"]).manifest : undefined)(plugin(OTHER, "1.0.0", ["example.other"]).manifest);
+  assert.deepEqual(owners("1.0.0").filter(owner => owner.plugin_id === PRODUCER).map(owner => owner.plugin_id), [PRODUCER], "the running Manifest at the record's version holds its names");
+  assert.throws(() => owners("2.0.0"), { ...refusal, message: /读不到已装插件 io\.molis\.work\.example\.notes 的 Manifest/ }, "a Manifest of another version is not the record's");
 });
 
 test("RAC-417 S-82 a development installation in another project that cannot be read still refuses, never passes", { timeout: 180_000 }, async t => {

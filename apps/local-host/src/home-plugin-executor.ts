@@ -3,7 +3,7 @@ import { pluginPagesFor } from "./plugin-page-authority.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { pluginPageFiles } from "./plugin-page-files.js";
 import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginExecutor, type PluginInstanceRecord, type PluginStartContext, type PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient, StoppedServiceCalls, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
@@ -63,7 +63,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const manifest = definition.manifest;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
     if (!this.options.dualInstance(definition) && declaresProjectCoordination(manifest)) {
-      throw new Error("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/dual-instance-plugins）");
+      throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/dual-instance-plugins）");
     }
     let active = true, stopped = false;
     const generation = this.options.record(context.install_id)?.installation_generation;

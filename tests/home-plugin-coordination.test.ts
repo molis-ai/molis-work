@@ -5,7 +5,7 @@ import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-cont
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -40,21 +40,40 @@ test("RAC-744 the catalog refuses a Home plugin that declares 成果, ports or e
 test("RAC-745 a Home instance that is not dual-instance and declares an event is not started: the plugin's own start is never reached", async t => {
   const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
   const declared = publishing(todo.manifest), type = declared.events!.publishes[0]!;
-  const run = async (dual: boolean) => {
+  const library = todo.manifest.databases?.home;
+  assert.ok(library);
+  const run = async (dual: boolean, coordinates = true) => {
     const home = mkdtempSync(join(tmpdir(), "home-coordination-")), actions = new ActionService();
+    const manifest = coordinates ? declared : todo.manifest;
     let started = 0;
-    const create = (): PluginDefinition => { const own = todo.runtime!.create(); return { ...own, manifest: declared, event_types: [{ ...type, validate: payload => payload }],
+    const create = (): PluginDefinition => { const own = todo.runtime!.create(); return { ...own, manifest, ...coordinates ? { event_types: [{ ...type, validate: (payload: unknown) => payload }] } : {},
       async start(context) { started += 1; return own.start(context); } }; };
     const host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions,
-      entries: [{ ...todo.runtime!, create, scope: "home", manifest: declared, ...dual ? { dual_instance: true as const } : {} }] });
+      entries: [{ ...todo.runtime!, create, scope: "home", manifest, ...dual ? { dual_instance: true as const } : {} }] });
     t.after(async () => { try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
     const platform = await host.ready();
-    return { started, status: platform.supervisor.state(todo.manifest.plugin_id)?.status };
+    const state = platform.supervisor.state(todo.manifest.plugin_id);
+    assert.ok(state?.install_id);
+    return { started, state, installation: platform.runtime.get(state.install_id), databaseCreated: existsSync(join(home, library.store_name)) };
   };
   const refused = await run(false);
   assert.equal(refused.started, 0, "the Home executor refuses before the plugin's code is given any service");
-  assert.notEqual(refused.status, "running");
+  assert.equal(refused.state.status, "failed");
+  assert.equal(refused.state.code, "plugin.state_invalid");
+  assert.equal(refused.state.message, "Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/dual-instance-plugins）");
+  assert.equal(refused.installation.state, "crashed");
+  assert.equal(refused.installation.last_error_code, "plugin.state_invalid");
+  assert.equal(refused.databaseCreated, false, "the refusal precedes even the Home database service's construction");
   const allowed = await run(true);
   assert.equal(allowed.started, 1, "the same declaration on a dual-instance Home half starts");
-  assert.equal(allowed.status, "running");
+  assert.equal(allowed.state.status, "running");
+  assert.equal(allowed.installation.state, "running");
+  assert.equal(allowed.installation.last_error_code, null);
+  assert.equal(allowed.databaseCreated, true);
+  const plain = await run(false, false);
+  assert.equal(plain.started, 1, "a non-dual Home plugin without project coordination still starts");
+  assert.equal(plain.state.status, "running");
+  assert.equal(plain.installation.state, "running");
+  assert.equal(plain.installation.last_error_code, null);
+  assert.equal(plain.databaseCreated, true);
 });

@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog, openDesktopProjectDeletionRecoveryTarget } from "@molis-ai/molis-work-app-desktop";
-import { openProjectDeletionRecoveryInspection, projectDeletedHooksFor, type ProjectDeletedOwner,
+import { openProjectDeletionRecoveryInspection, openProjectDeletionCatalogObservation, projectDeletedHooksFor, type ProjectDeletedOwner,
   type ProjectDeletionRecoveryGroup, type ProjectDeletionCatalogSnapshot } from "@molis-ai/molis-work-app-local-host";
 import { ProjectsModule, type StoredProjectDeletion } from "@molis-ai/molis-work-module-projects";
 
@@ -274,4 +274,70 @@ test("MEM-40: failed Catalog close retries the original connection and never reo
     hook.mock.restore();
     if (connection?.open) connection.close();
   }
+});
+
+test("MEM-40: current Catalog reads see committed WAL and share the target's actual projection", async t => {
+  const f = await fixture(t), source = f.sourceReceipt();
+  const observe = openProjectDeletionCatalogObservation({ homeDirectory: f.home, assertCurrent() {} });
+  t.after(() => observe.close());
+  const before = observe.read();
+  assert.equal(before.projects.length, 2);
+  assert.equal(before.receipts.length, 0);
+  const db = new Database(join(f.home, "projects", "catalog.db"));
+  try {
+    db.exec("BEGIN IMMEDIATE");
+    db.prepare("UPDATE projects SET data_class='regenerable_demo' WHERE project_id=?").run(f.kept.project_id);
+    assert.deepEqual(observe.read(), before, "an independent read must not absorb an uncommitted writer");
+    db.exec("COMMIT");
+    const changed = observe.read();
+    assert.equal(changed.projects.find(row => row.project_id === f.kept.project_id)?.data_class, "regenerable_demo");
+    assert.notDeepEqual(changed, before, "a later read must open a new SQLite snapshot");
+    const target = await f.open({ catalogCommitted(change) {
+      assert.deepEqual(observe.read(), change.after, "COMMIT precedes the exact observed handoff");
+      f.changes.push(change);
+    } });
+    assert.equal((await target.restore(source.deletion_id)).cleanup_state, "complete");
+    assert.deepEqual(observe.read(), f.changes.at(-1)!.after);
+    assert.deepEqual(observe.read().projects.map(row => row.project_id), [f.kept.project_id]);
+    assert.equal(observe.read().receipts.length, 1);
+  } finally { db.close(); }
+});
+
+test("MEM-40: Catalog observation rejects revoked control and linked storage", async t => {
+  const f = await fixture(t), controller = new AbortController();
+  const observe = openProjectDeletionCatalogObservation({ homeDirectory: f.home, signal: controller.signal, assertCurrent() {} });
+  t.after(() => observe.close());
+  const alias = join(f.home, "linked-catalog.db");
+  await fs.link(join(f.home, "projects", "catalog.db"), alias);
+  assert.throws(() => observe.read());
+  await fs.unlink(alias);
+  assert.equal(observe.read().projects.length, 2);
+  controller.abort(new Error("maintenance revoked"));
+  assert.throws(() => observe.read(), /maintenance revoked/);
+  observe.close();
+  assert.throws(() => observe.read(), invalid);
+});
+
+test("MEM-40: failed observation close retains its original read-only connection", async t => {
+  const f = await fixture(t);
+  const observe = openProjectDeletionCatalogObservation({ homeDirectory: f.home, assertCurrent() {} });
+  observe.read();
+  const original = LocalSqliteStorage.prototype.close;
+  let connection: Database.Database | undefined, attempts = 0;
+  const hook = t.mock.method(LocalSqliteStorage.prototype, "close", function (this: LocalSqliteStorage) {
+    if (this.path === join(f.home, "projects", "catalog.db") && this.db.readonly) {
+      connection ??= this.db;
+      assert.equal(this.db, connection);
+      if (++attempts === 1) throw new Error("actual observation close interrupted");
+    }
+    original.call(this);
+  });
+  try {
+    assert.throws(() => observe.close(), /actual observation close interrupted/);
+    assert.equal(connection?.open, true);
+    assert.throws(() => observe.read(), invalid);
+    observe.close(); observe.close();
+    assert.equal(attempts, 2);
+    assert.equal(connection?.open, false);
+  } finally { hook.mock.restore(); observe.close(); }
 });

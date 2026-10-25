@@ -1,17 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
+import type { ProjectDeletionRecoveryGroup, ProjectDeletionSourceRequest } from "@molis-ai/molis-work-contracts/modules/projects";
 import { catalogErrors } from "./project-catalog-contract.js";
 import type { ProjectDeletionRecoverySource } from "./project-deletion-recovery-inspection.js";
 
-export type ProjectDeletionSourceRequest = Pick<ProjectDeletionRecoverySource,
-  "deletion_id" | "project_id" | "actor_id" | "idempotency_key" | "request_fingerprint">;
-/** Stored together in the existing restoration parent marker, before any target receipt is accepted. */
-export interface ProjectDeletionRecoveryGroup {
-  project_id: string;
-  sources: readonly ProjectDeletionSourceRequest[];
-  targets: readonly { source_deletion_id: string; target_deletion_id: string }[];
-  disposal: { primary_target: string | null; dependent_targets: readonly string[] };
-}
+export type { ProjectDeletionRecoveryGroup, ProjectDeletionSourceRequest } from "@molis-ai/molis-work-contracts/modules/projects";
 const invalid = () => catalogErrors.project_storage_invalid("完整项目删除历史或原恢复关联不相容");
 const key = (row: ProjectDeletionSourceRequest) => JSON.stringify([row.actor_id, row.idempotency_key]);
 const identity = (row: ProjectDeletionSourceRequest): ProjectDeletionSourceRequest => ({ deletion_id: row.deletion_id,

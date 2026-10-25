@@ -2918,3 +2918,9 @@ Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私�
 允许原 `project-deletion-recovery-target.ts`、既有真实 target 回归、LocalHost README 与本 spec。先对准确 25c 聚合的真实 SQLite 连接 close 注入一次失败，验证旧第二次 close 假成功仍留连接；修后原连接确已关闭、两次尝试间与之后 restore 拒绝、无新增 Catalog 收据和目录写。无新框架、表、公开命令、门禁或时限；沿现 Home 资源生命周期装配，完整发布及 T0/T1/T2 后续验证不由本反例替代。
 
 实施结果：以准确 25c 原 build 复现第二次 close 未再触碰原连接（实际仅一次尝试），其余 17 项通过。修正后并发重试只关闭同一原连接一次，已关闭后的重复 close 不产生副作用，恢复入口继续拒绝。原整体 build、目标与源检查两文件回归、根 TypeScript、准确 25c health、boundary 和 72 份 API 快照通过；零自动重试或跳过。日志 `/private/tmp/molis-catalog-close-{red,green,build-final,health,boundary,api}-20261025.log`。构建前先纠正 pnpm 11 的缓存变量为 `pnpm_config_store_dir`，仍冻结离线依赖；初次缓存配置/沙箱错误保留在原日志，未改仓库配置或门禁。此结果只证明本资源关闭路径，父发布事务与完整恢复仍待组合。
+
+### MEM-40 外层恢复的当前 Catalog 事实与父引用（2026-10-25，实施前）
+
+外层 frame 必须每次核对实际已提交的 Catalog，不能用最近一次 committed 回调的 after 冒充磁盘当前状态。沿原 Catalog owner 增加固定 Home 的同步只读 observation：每次 read 独立短 BEGIN/ROLLBACK，复用原行读取和唯一 recovery decoder；保留同一实际连接供 close 重试，当前控制、DB/侧车/祖先路径变化或未知结构均拒绝。外层传入的 control 只检查原权限/取消/所有权，不能回调该 observation 自己；frame 在其外比较 expected，避免递归。Catalog 的事务内 before/after 与 observation 共用同一投影：全删除收据，以及普通列表和 pending 收据覆盖的全部现存项目稳定身份，按 project_id 排序；不含名称、正文或路径，不声称覆盖所有 Catalog 列。
+
+原 `ProjectDeletionRecoveryGroup` / `SourceRequest` 纯 DTO 移入 contracts/modules/projects 并保留 LocalHost 原公开类型出口，供本次恢复父决定的 Storage 主人接线；不移动或复制项目计划 decoder、reconcile 算法及 Catalog completion。允许原 Catalog target/history/index、contracts/projects、既有真实 Catalog 回归、必要 API 快照和 README/spec。验收包含真实 WAL 提交后的新读、未提交写仍见 before、取消与原连接关闭失败、物理路径变更拒绝和原目标恢复；无表、额外锁、hash、任意 SQL Port 或新状态台账。父 marker 与全链恢复仍单独按原 MEM-40 验收。

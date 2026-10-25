@@ -335,6 +335,8 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 
 目标 Catalog 开始关闭即拒新恢复；同时 close 共用在途工作，等待原恢复 tail 后关闭原 SQLite 连接。实际 close 失败保持拒绝业务，后续明确 close 重试同一连接，成功才记关闭；不重新执行删除。外层仍须在实际关闭成功后发布恢复完成和释放 Home owner，关闭失败不能算作清理成功。
 
+`openProjectDeletionCatalogObservation` 给外层维护固定 Home 的同步只读观察。每次 read 用短 SQLite 快照读取已提交事实，输出与 target 原 committed 回调相同；包括全删除收据及所有现存项目的稳定身份，覆盖 pending 项目，按 ID 排序。control 只检查权限、取消与所有权，不能递归调用同一 read。沿原 Storage 路径校验拒绝 DB、侧车或祖先替换；未知结构拒绝，不创建库。close 失败保留同一连接重试并永久停止新 read。这个投影不代表全 Catalog 数据版本，source 长期 BEGIN 也不能替代它；父决定与完成发布仍由外层接线。
+
 项目文件主人清理沿 `ProjectDeletionControl` 从 Port/owner 传到声明 purge；冷维护入口负责提供已验证的同步控制。文件/SQLite 主人在实际清理、事务提交、等待后的下个副作用前检查：partition purge 后再 rm、Plugin Builder rm 后再清密钥、Assistant 停轮后再删账、Images 每次删文件前。拒绝停止后继动作，未提交 SQLite 回滚；已删文件不声称回滚。带 control 的既有库只打开并核当前结构，不初始化空库。回归：`tests/project-deletion-file-control.test.ts`，配合原 owner/declarations/Assistant/studios 用例；不代替完整冷恢复或用户验收。
 
 维护的原目标还包含物理路径：数据库/现存侧车和 rm 祖先不能被链接重定向，异步清理后按原目录身份重核。Plugin Builder 的同一 control 进入原 secret owner 的 SQLite 等锁与原子 rename，外层最终拒绝不能替代该检查。专项 `tests/project-deletion-file-boundaries.test.ts` 覆盖真实重定向和拿锁后撤权；原 Images 清单回滚重试仍由 `project-deletion-file-control` 验证。

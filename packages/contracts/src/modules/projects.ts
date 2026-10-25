@@ -43,6 +43,23 @@ export interface ProjectSelection {
   display_name: string;
 }
 
+/** Body-free source request identity; the Catalog owns the original deletion plan and completion. */
+export interface ProjectDeletionSourceRequest {
+  deletion_id: string;
+  project_id: string;
+  actor_id: string;
+  idempotency_key: string;
+  request_fingerprint: string;
+}
+
+/** One durable mapping in the Memory recovery parent; never a copy of Catalog plans or steps. */
+export interface ProjectDeletionRecoveryGroup {
+  project_id: string;
+  sources: readonly ProjectDeletionSourceRequest[];
+  targets: readonly { source_deletion_id: string; target_deletion_id: string }[];
+  disposal: { primary_target: string | null; dependent_targets: readonly string[] };
+}
+
 /**
  * A project plugin id is an open string validated at runtime against the
  * installed registry, not a closed literal set. Adding a Plugin is an install,

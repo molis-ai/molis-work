@@ -1,7 +1,7 @@
 import path from "node:path";
 import { lstatSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
-import { LocalSqliteStorage, clearProjectInExistingTextSearchIndex } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, clearProjectInExistingTextSearchIndex, inspectExistingSqlitePath } from "@molis-ai/molis-work-storage";
 import { ProjectsModule, normalizeProjectWorkspace, readProjectDeletionRecoveryPage,
   type ProjectDeletionSourceIdentity } from "@molis-ai/molis-work-module-projects";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
@@ -66,7 +66,7 @@ function catalogFile(home: string): string {
   return filename;
 }
 
-function snapshot(storage: LocalSqliteStorage, projects: ProjectsModule, projectIds: readonly string[]): ProjectDeletionCatalogSnapshot {
+function snapshot(storage: LocalSqliteStorage, projects: ProjectsModule): ProjectDeletionCatalogSnapshot {
   const receipts: ProjectDeletionRecoverySource[] = [];
   let after: string | undefined;
   for (;;) {
@@ -76,10 +76,40 @@ function snapshot(storage: LocalSqliteStorage, projects: ProjectsModule, project
     if (page.exhausted) break;
     after = page.items[page.items.length - 1]!.deletion_id;
   }
-  return { receipts, projects: projectIds.flatMap(id => {
+  const projectIds = new Set([...projects.query.listProjects().map(row => row.project_id), ...receipts.map(row => row.project_id)]);
+  return { receipts, projects: [...projectIds].sort().flatMap(id => {
     const row = projects.lifecycle.retainedProject(id);
     return row ? [{ project_id: row.project_id, data_class: row.data_class, created_at: row.created_at }] : [];
   }) };
+}
+
+/** The outer frame compares this fresh committed projection with its expected facts. Control must not recurse into read. */
+export function openProjectDeletionCatalogObservation(input: {
+  homeDirectory: string; assertCurrent(): void; signal?: AbortSignal;
+}): { read(): ProjectDeletionCatalogSnapshot; close(): void } {
+  const filename = catalogFile(input.homeDirectory), files = inspectExistingSqlitePath(filename);
+  const { assertCurrent, signal } = input;
+  let closed = false, disposed = false;
+  const current = () => {
+    if (closed) throw invalid("Catalog 观察已关闭");
+    signal?.throwIfAborted(); files.assertCurrent(); synchronous(assertCurrent);
+    signal?.throwIfAborted(); files.assertCurrent();
+  };
+  current();
+  const storage = new LocalSqliteStorage(filename, { readonly: true, fileMustExist: true });
+  return {
+    read() {
+      current();
+      storage.db.exec("BEGIN");
+      try {
+        assertOwnedCatalog(storage, "目标 Catalog"); assertCurrentCatalog(storage, "目标 Catalog");
+        const value = snapshot(storage, new ProjectsModule({ db: storage.db, plugins: BUILTIN_PLUGIN_REGISTRY }));
+        current();
+        return value;
+      } finally { storage.db.exec("ROLLBACK"); }
+    },
+    close() { closed = true; if (!disposed) { storage.close(); disposed = true; } },
+  };
 }
 
 async function readSource(source: ProjectDeletionRecoveryInspection, current: () => void): Promise<ProjectDeletionRecoverySource[]> {
@@ -116,13 +146,13 @@ export async function openProjectDeletionRecoveryTarget(input: ProjectDeletionRe
   if (sources.some(row => path.basename(row.project_id) !== row.project_id || row.project_id === "." || row.project_id === ".."
     || row.request_fingerprint !== JSON.stringify({ project_id: row.project_id, delete_confirmed: true })))
     throw invalid("来源项目身份不能指向管理目录之外");
-  const filename = catalogFile(home), projectIds = [...new Set(sources.map(row => row.project_id))].sort();
+  const filename = catalogFile(home);
   const reader = new LocalSqliteStorage(filename, { readonly: true, fileMustExist: true });
   let before: ProjectDeletionCatalogSnapshot;
   try {
     reader.db.exec("BEGIN");
     assertOwnedCatalog(reader, "目标 Catalog"); assertCurrentCatalog(reader, "目标 Catalog");
-    before = snapshot(reader, new ProjectsModule({ db: reader.db, plugins: BUILTIN_PLUGIN_REGISTRY }), projectIds);
+    before = snapshot(reader, new ProjectsModule({ db: reader.db, plugins: BUILTIN_PLUGIN_REGISTRY }));
     reader.db.exec("ROLLBACK");
   } finally { reader.close(); }
   current();
@@ -133,13 +163,13 @@ export async function openProjectDeletionRecoveryTarget(input: ProjectDeletionRe
   try {
     check();
     const projects = new ProjectsModule({ db: storage.db, plugins: BUILTIN_PLUGIN_REGISTRY });
-    if (!isDeepStrictEqual(before, snapshot(storage, projects, projectIds))) throw invalid("接纳前目标 Catalog 已变化");
+    if (!isDeepStrictEqual(before, snapshot(storage, projects))) throw invalid("接纳前目标 Catalog 已变化");
     const options = { ...input, homeDirectory: home, memory, projectRuntime, signal,
       catalogCommitted(change: { before: ProjectDeletionCatalogSnapshot; after: ProjectDeletionCatalogSnapshot }) {
         try { synchronous(() => catalogCommitted(change)); }
         catch (error) { failed = true; throw error; }
       } };
-    const managed = assembleTarget(storage, projects, platform, options, check, projectIds);
+    const managed = assembleTarget(storage, projects, platform, options, check);
     let tail: Promise<unknown> = Promise.resolve();
     let storageClosed = false, closing: Promise<void> | undefined;
     return {
@@ -159,7 +189,7 @@ export async function openProjectDeletionRecoveryTarget(input: ProjectDeletionRe
 }
 
 function assembleTarget(storage: LocalSqliteStorage, projects: ProjectsModule, platform: Pick<LocalCatalogPlatform, "createPanels">,
-  input: ProjectDeletionRecoveryTargetInput, current: () => void, projectIds: readonly string[]): ManagedProjectDeletion {
+  input: ProjectDeletionRecoveryTargetInput, current: () => void): ManagedProjectDeletion {
   const hooks = new ProjectDeletedHooks();
   for (const owner of homeProjectOwners(input.homeDirectory)) hooks.register(owner);
   hooks.register(input.memory);
@@ -176,7 +206,7 @@ function assembleTarget(storage: LocalSqliteStorage, projects: ProjectsModule, p
     appendProjectEvent(projectId, type, actorId, payload) { current(); projects.lifecycle.appendEvent(projectId, type, actorId, payload); },
   } });
   const commit = createCatalogCommit(storage.db, current, {
-    read: () => snapshot(storage, projects, projectIds),
+    read: () => snapshot(storage, projects),
     committed: change => synchronous(() => input.catalogCommitted(change)),
   });
   return new ManagedProjectDeletion(projects, path.join(input.homeDirectory, "projects"), {

@@ -262,7 +262,7 @@ export class PlacementService {
     if (object.project_id === null) return this.moveHome(object, to, spaces);
     if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "找不到要移到的位置"));
     if (object.project_id === to) throw new ActionError("placement.same_location", placementText(this.ports, "它已经在这个位置"));
-    const { mover } = await placementTools(this.ports, object);
+    const { mover } = await placementTools(this.ports, object, "move");
     if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "这个插件的内容还不能移动；可以复制或用于项目"));
     const scope = await this.ports.scope(object.project_id);
     const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
@@ -281,7 +281,7 @@ export class PlacementService {
    */
   private async moveHome(object: PlacedObject, to: string, spaces: readonly PlacementSpaceView[]): Promise<PlacementMoveResponse> {
     if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "找不到要移到的位置"));
-    const { mover } = await placementTools(this.ports, object);
+    const { mover } = await placementTools(this.ports, object, "move");
     if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "这类内容只放在个人空间；可以用于项目，但不能移动"));
     const read = await this.read(object);
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "暂时读不到这个对象"));
@@ -400,9 +400,9 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
   // A Home-kept object (a todo) is moved by a Home action, which a project catalog does not list. A project object is moved
   // from the partition it just arrived in, so the caller's project is the place the plugin already wrote.
   const scope = await (ports.revert ?? ports.scope)(object.project_id === null ? null : at);
-  const view = (await scope.client.discover(scope.caller)).find(entry => isObjectMover(entry.action) && entry.action.subject_kinds.includes(object.kind) && entry.availability.available);
-  if (!view) throw new ActionError("placement.not_movable", t("移回原处时找不到移动动作"));
-  const result = await scope.client.invoke(scope.caller, ref(view), { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
+  const mover = placementToolOf(ports, await scope.client.discover(scope.caller), object.kind, "move");
+  if (!mover) throw new ActionError("placement.not_movable", t("移回原处时找不到移动动作"));
+  const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
   if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("移回原处的结果与请求不一致"));
 }
 
@@ -441,16 +441,26 @@ function placementLocation(ports: PlacementPorts, projectId: string | null, spac
   return { kind: "project", project_id: projectId, title: placementText(ports, "项目「{name}」", { name: space?.title ?? placementText(ports, "已删除的项目") }), access: "project", access_label: placementText(ports, "项目内可见") };
 }
 
-async function placementTools(ports: PlacementPorts, object: PlacedObject): Promise<{ mover: ActionReference | null; copier: ActionReference | null }> {
+function placementToolOf(ports: PlacementPorts, views: readonly ActionView[], kind: string, operation: "move" | "copy"): ActionReference | null {
+  const protocol = operation === "move" ? isObjectMover : isObjectCopier;
+  const matches = views.filter(view => protocol(view.action) && view.action.subject_kinds.includes(kind) && view.availability.available);
+  if (matches.length > 1) {
+    throw new ActionError("placement.target_unavailable", placementText(ports, operation === "move"
+      ? "这个插件的内容还不能移动；可以复制或用于项目" : "这个插件的内容还不能复制到别处"),
+    { kind: "conflict", details: { operation, subject_kind: kind, actions: matches.map(ref) } });
+  }
+  return matches[0] ? ref(matches[0]) : null;
+}
+
+async function placementTools(ports: PlacementPorts, object: PlacedObject, operation?: "move" | "copy"): Promise<{ mover: ActionReference | null; copier: ActionReference | null }> {
+  let views: readonly ActionView[];
   try {
     const scope = await ports.scope(object.project_id);
-    const views = await scope.client.discover(scope.caller);
-    const find = (test: (action: ActionView["action"]) => boolean) => {
-      const view = views.find(view => test(view.action) && view.action.subject_kinds.includes(object.kind) && view.availability.available);
-      return view ? ref(view) : null;
-    };
-    return { mover: find(isObjectMover), copier: find(isObjectCopier) };
+    views = await scope.client.discover(scope.caller);
   } catch { return { mover: null, copier: null }; }
+  // Discovery can be unavailable; a discovered conflict must reach the caller rather than look like an absent tool.
+  return { mover: operation === "copy" ? null : placementToolOf(ports, views, object.kind, "move"),
+    copier: operation === "move" ? null : placementToolOf(ports, views, object.kind, "copy") };
 }
 
 /** The wire vocabulary's name for the relation (association type `goal`), and what a person reads it as when its owner is not there to say. */
@@ -541,7 +551,7 @@ async function copyPlacement(ports: PlacementPorts, access: PlacementInstanceAcc
   const object = access.locate(input).object;
   if (object.project_id === null) throw new ActionError("placement.not_copyable", placementText(ports, "这类内容只放在个人空间，请在插件里另存"));
   if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(ports, "找不到要复制到的位置"));
-  const { copier } = await placementTools(ports, object);
+  const { copier } = await placementTools(ports, object, "copy");
   if (!copier) throw new ActionError("placement.not_copyable", placementText(ports, "这个插件的内容还不能复制到别处"));
   const scope = await ports.scope(object.project_id);
   const result = await scope.client.invoke(scope.caller, copier, { subject: { kind: object.kind, id: object.id }, to_project_id: to, request_id: requestId }) as PlacementResult;
@@ -566,7 +576,7 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
   const title = (request.payload?.title ?? read.context!.title).trim() || placementText(ports, "未命名");
   const body = request.payload?.body ?? read.context!.content;
   const sourceTitle = read.context?.title ?? request.payload!.title;
-  if (!read.context) { await ports.beforeEffect?.(); ports.titles.set(source.kind, source.id, sourceTitle); }
+  if (!read.context) await ports.beforeEffect?.();
   const from = read.plugin ? `${read.plugin.title} · ${sourceTitle}` : sourceTitle;
   const scope = await ports.scope(request.to_project_id);
   const views = await scope.client.discover(scope.caller);
@@ -589,6 +599,7 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
     created = { kind, id: item.item_id, project_id: request.to_project_id };
   }
   await ports.beforeEffect?.();
+  if (!read.context) ports.titles.set(source.kind, source.id, sourceTitle);
   access.remember(source);
   access.remember(created);
   ports.ledger.commands.put(ACCESS, { key: key("derived_from", created.kind, created.id), type: TYPES.derived,

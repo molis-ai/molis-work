@@ -5,14 +5,15 @@ import { MolisWorkLocalHost, homeAgentDefinitions, molisWorkHostProjectReference
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, symlink, rm, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, symlink, rm, stat } from "node:fs/promises";
+import { runInNewContext } from "node:vm";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore, pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
@@ -500,6 +501,43 @@ test('ONB-LIM-03 a round of 300 files is read one by one and adopted whole: ever
   const pages=openPagesStore(dir);try{assert.equal(pages.list(adopted.project_id).length,301);}finally{pages.close();}
   assert.equal(adopted.artifact_references!.length,301);
   await assert.rejects(stat(join(dir,'context-onboarding','journeys',id)),{code:'ENOENT'});
+});
+
+// PG031-F02 compares finite samples with the actual create conversion; it makes no claim about arbitrary text.
+test('PG031-F02 the production pageBound covers representative pathological text encoded by pages.create@2', async t => {
+  // Execute the built production declarations, without copying the estimator or exposing a private product API for the test.
+  const service = await readFile(new URL('../apps/local-host/dist/context-onboarding-service.js', import.meta.url), 'utf8');
+  const declarations = service.slice(service.indexOf('const PAGE_PART_CHARS'), service.indexOf('function* pageParts'));
+  assert.ok(declarations.startsWith('const PAGE_PART_CHARS'), 'the production estimator must be present');
+  const pageBound = runInNewContext(`${declarations}; pageBound;`) as (text: string) => number;
+  const dir = await home(t), id = randomUUID(), ports = pagesPorts(dir);
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir, store => store.create(id));
+  const adopted = await adoptContextJourney(dir, id, { title: 'Encoding comparison', blank: true }, ports);
+  assert.equal(adopted.phase, 'complete', adopted.error ?? '');
+  const actions = await ports.actions(dir, adopted.project_id);
+  const samples: Array<[string, string]> = [
+    ['pipes', '|'.repeat(4096)],
+    ['stars', '*'.repeat(4096)],
+    ['quotes', '"'.repeat(4096)],
+    ['newlines around text', '\n'.repeat(2048) + 'kept' + '\n'.repeat(2048)],
+    ['short lines', 'line\n'.repeat(512)],
+    ['table cells', '| "a" | **b** |\n| --- | --- |\n' + '| "c" | *d* |\n'.repeat(128)],
+    ['marks', '**bold** _italic_ ~~strike~~ `code` [link](https://example.test)\n'.repeat(128)],
+    ['JSON escapes', ('"\\\t\u0001').repeat(512)],
+  ];
+  for (const [name, markdown] of samples) {
+    const { document } = await actions.invoke(pagesActions.create, { title: name, markdown });
+    const encoded = JSON.stringify(document.body).length, bound = pageBound(markdown);
+    t.diagnostic(`${name}: encoded=${encoded}, pageBound=${bound}`);
+    assert.ok(encoded <= bound, `${name}: actual ${encoded} exceeds estimate ${bound}`);
+  }
+  const store = openPagesStore(dir);
+  try {
+    const before = store.list(adopted.project_id).length;
+    await assert.rejects(actions.invoke(pagesActions.create, { title: 'Only newlines', markdown: '\n'.repeat(4096) }), /正文为空/u);
+    assert.equal(store.list(adopted.project_id).length, before, 'Pages refuses empty content without saving a document');
+  } finally { store.close(); }
 });
 
 // RAC-660 (PG-031): the parts go through Pages' own create, found in the directory; the Host builds no Pages body.

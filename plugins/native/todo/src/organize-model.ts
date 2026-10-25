@@ -26,8 +26,6 @@ export interface TodoOrganizeParse {
 
 /** One model call reads at most this much material; longer sets are read in parts. */
 const TODO_ORGANIZE_PART_CHARS = 40_000;
-/** A single material is cut here; the batch says so. */
-export { TODO_ORGANIZE_MATERIAL_CHARS };
 
 const KINDS: readonly TodoCandidateKind[] = ["request", "commitment", "waiting", "suggestion"];
 const PLACEMENTS: readonly TodoPlacement[] = ["project", "personal", "unassigned"];

@@ -121,3 +121,14 @@ export const FEED_PROJECT_DATABASE: PluginDatabaseDeclaration = {
 - 号段：RAC-496～498（RAC-480～519 本线号段内，统筹 10-24 定）。BL 不新增。
 - 必跑（非浏览器，测试槽、`--jobs 1`）：上面 9 个原 import 文件、`tests/feed-store-declaration.test.ts`、`tests/project-maintenance-v11.test.ts`、`tests/project-database-baseline.test.ts`、`tests/project-plugin-database-refusal.test.ts`、`tests/plugin-project-database.test.ts`、`tests/plugin-project-database-ledger.test.ts`、Goals S8 的先例用例 `tests/goals-project-database*.test.ts`、动作合同快照 `tests/action-contract-snapshot.test.ts`、内置装配门禁 `tests/builtin-plugin-assembly-gate.test.ts`；门禁 `boundary:check`、`check-health-gates --base origin/main`、`secrets:check`、`package-inventory --table`、`package-owners --write`。
 - 开工前核对：`git log origin/main -- modules/feed modules/sources modules/signals horizontal/listener-host apps/local-host/src/project-database-schema.ts` 有没有在途 PR 碰；基线版本号现在是不是还是 10（别的分支可能已改）；§1.2 的 grep 再跑一次。
+
+## 7. 实现记录（与上文的差别，FI-5 实现时补）
+
+- **语句逐个核对（§3.2 欠的那一项）**：四个包里 `prepare(` 的真实调用共 63 处（Feed 条目 21、Sources 9、Signals 10、Listener Host 23，另有 4 处是接口声明、1 处是 `sqlite_master` 检查），全部改成 `db.get/all/run(sql, …params)`；没有任何一个语句或对象在构造器里建好并缓存（原来唯一的游离语句是 `persistListenerDeliveries` 里的 `insert`，现在是常量 `INSERT_LISTENER_DELIVERY_SQL` 加 `db.run`）。构造器不再 `db.exec` 建表（4 处）。
+- **`fromBetterSqlite` 有两个签名**：带 `transaction` 的句柄得到完整的 `FeedSql`；只能 `prepare` 的句柄（`feed-history-release.ts` 的 `Pick<Database, "prepare">`）得到去掉 `transaction` 的读写接口。`transaction` 用 `.immediate()`，与原来的 `db.transaction(op).immediate()` 同。
+- **`sqlite_master` 的检查搬到宿主**：`refreshSourceConnectionState` 不再自己问「`feed_sources` 在不在」（它按声明表一定在）；`apps/local-host/src/connector-source-state.ts` 遍历目录库里所有项目库，其中还没被 Feed 声明建出表的库（没打开过的新项目）在宿主那一侧跳过。这是宿主自己的连接，不经受检客户端。该文件随 FI-6、FI-4 删除。
+- **被拒只停 Feed（RAC-497）靠 `feedSql(db)`**：`feed-application.ts` 导出的包装在每次读写前 `assertProjectPluginDatabase(db, FEED_PLUGIN_ID)`，库拒绝了 Feed 的声明就抛那个拒绝，而不是「no such table」。以前「出规则的表被拒、其余 Feed 照常」的写法（`projectPluginDatabaseRefusal(...) ? {} : { outRules }`）仍在：被拒时出规则列表是空，快照/来源/条目的路径抛拒绝。
+- **常量改名**：`FEED_SCHEMA_SQL` → `FEED_ITEMS_SCHEMA_SQL`（与 `FEED_OUT_RULES_SCHEMA_SQL` 并排）、`LISTENER_HOST_SCHEMA_SQL` → `LISTENER_SCHEMA_SQL`，只在包内与声明里用。
+- **原 import 这些包的 9 个测试**只改了 import 路径和 `fromBetterSqlite(…)` 的包装；`context-ledger.test.ts` 的测试台自己造库，所以多一行 `db.exec(FEED_ITEMS_SCHEMA_SQL)`（表是声明建的，存储层不再建）。断言一条没改。
+- **随基线 v11 改的既有测试**：`project-database-baseline.test.ts`（版本 11、Feed 账本版本取声明的版本、PLIB-02 里 `boards → project_root` 改名后外键按表和列重排，否则 Feed 的两个外键顺序对不上）、`project-maintenance-v8/v9/v10.test.ts`（链子末端多一步 v11；v10 的结果拿 v10 夹具比，而不是现行基线）。
+- **号**：RAC-496～498 用于 `tests/feed-store-declaration.test.ts`；维护演练的用例号是 RAC-497、RAC-514（FI-6 稿里的维护演练号）。

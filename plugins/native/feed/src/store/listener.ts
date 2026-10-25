@@ -27,7 +27,7 @@ const listenerFailures = {
 };
 
 /** The listener tables, as one current schema; the host composes them into the project database baseline. */
-export const LISTENER_HOST_SCHEMA_SQL = `
+export const LISTENER_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS listener_instances (
       project_id TEXT NOT NULL,
       source_id TEXT NOT NULL,

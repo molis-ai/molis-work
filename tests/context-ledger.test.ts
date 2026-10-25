@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { fromBetterSqlite, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
+import { FEED_ITEMS_SCHEMA_SQL, fromBetterSqlite, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 
 const access: ContextAccess = { actor_id: "alice", scope: { kind: "personal", id: "project-a" } };
@@ -73,6 +73,8 @@ function feedHarness() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
   db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('project-a'); INSERT INTO project_root VALUES ('project-b');");
+  // Feed's tables are its declaration's (FI-5): the platform makes them when it opens a library, and Feed's store does not.
+  db.exec(FEED_ITEMS_SCHEMA_SQL);
   const ledger = createContextLedger(db, { authorize: (request) => request.scope.kind === "personal" });
   let feed: FeedModule;
   let fail = false;

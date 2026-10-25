@@ -1,5 +1,7 @@
 # Sources
 
+> 物理位置（FI-5）：这一部分的存取代码在 `plugins/native/feed/src/store/`（原来是独立的 `modules/…`、`horizontal/…` 包），表由 Feed 的 `databases.project` 声明；这里描述的合同与行为不变。
+
 **白话：** “我在听哪里”。
 
 **拥有：** Source 身份、owner、Project context、provider Plugin reference、显示信息、enabled/paused/disconnected、监听范围、schedule intent、history policy 和 connection reference。

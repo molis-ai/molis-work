@@ -1,5 +1,5 @@
 /** The Feed tables, as one current schema; the host composes them into the project database baseline. */
-export const FEED_SCHEMA_SQL = `
+export const FEED_ITEMS_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_items (
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,

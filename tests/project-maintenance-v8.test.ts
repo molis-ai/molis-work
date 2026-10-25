@@ -29,6 +29,8 @@ import { SqliteSchemaVersionError, applySqliteBaseline, describeSqliteSchema, li
 const MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v8.sql", import.meta.url), "utf8");
 const NEXT_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v9.sql", import.meta.url), "utf8");
 const FINAL_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8");
+/** Version 11 (FI-5): Feed's declaration makes the Feed, Sources, Signals and Listener Host tables, so two records change. */
+const LAST_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v11.sql", import.meta.url), "utf8");
 /** The version 9 schema (where tests/project-maintenance-v10.test.ts starts): the shape the Attention tables had before version 10. */
 const VERSION_9_SCHEMA = readFileSync(new URL("./fixtures/project-database-schema-v9.sql", import.meta.url), "utf8");
 /** The version 7 schema, as that build's baseline made it (the fixture of tests/project-database-baseline.test.ts at 7ca40f1c3). */
@@ -88,8 +90,10 @@ function pointAtBoard(db: DatabaseSync, table: string): void {
 /**
  * Take a current library back to version 9: version 10 gave the installation records their publisher's trust (ac-trust T1) and the
  * Attention records an owner (#1245). The two Attention tables are made again as version 9 had them, every row with its row id.
+ * Version 11 (FI-5) made Feed's ledger row name its twelve tables; back at version 10 it named the out rules alone (version 1).
  */
 function toVersion9(db: DatabaseSync): void {
+  db.exec(`UPDATE plugin_project_databases SET version = 1, tables_json = '["feed_out_rules","feed_out_rules_project_enabled_idx"]' WHERE plugin_id = '${FEED_PLUGIN_ID}'`);
   db.exec("ALTER TABLE plugin_runtime_installs DROP COLUMN publisher_trust");
   const statements = VERSION_9_SCHEMA.split(/;\s*\n/).map(statement => statement.replace(/^(?:\s*--[^\n]*\n)+/, "").trim());
   for (const table of ["inbox_entries", "attention_events"]) {
@@ -177,15 +181,15 @@ function freshDatabase(directory: string): string {
 
 const runMaintenance = (path: string) => withDatabase(path, db => { db.exec(MAINTENANCE); });
 
-test("PLIB-05: this build's project library is version 10, and a version 7 one, exactly that build's schema, is refused without being touched", async t => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 10, "the offline maintenance chain reaches the current version");
+test("PLIB-05: this build's project library is version 11, and a version 7 one, exactly that build's schema, is refused without being touched", async t => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 11, "the offline maintenance chain reaches the current version");
   const { databasePath } = await oldHome(await scratch(t));
   const before = snapshot(databasePath);
   assert.equal(before.version, 7);
   assert.deepEqual(before.shape, shapeOfSql(VERSION_7_SCHEMA), "the rehearsal library is what the version 7 build made, table for table");
   for (const table of ["coding_sessions", "events", "feed_out_rules", "feed_sources", "inbox_entries", "process_items"]) assert.ok((before.rows[table]?.length ?? 0) > 0, `${table} holds a row`);
 
-  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === databasePath && error.found === 7 && error.expected === 10);
+  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === databasePath && error.found === 7 && error.expected === 11);
   assert.throws(() => new LocalProjectDatabase(databasePath, { existingOnly: true }), { code: "catalog.project_recovery_unsupported_schema" });
   assert.deepEqual(snapshot(databasePath), before, "a refused library keeps its version, its tables and its rows: opening never upgrades in place");
 });
@@ -252,10 +256,10 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   const directory = await scratch(t);
   const { home, projectId, databasePath } = await oldHome(directory);
   const freshPath = freshDatabase(directory);
-  withDatabase(freshPath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); });
+  withDatabase(freshPath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); db.exec(LAST_MAINTENANCE); });
   const fresh = snapshot(freshPath);
   runMaintenance(databasePath);
-  withDatabase(databasePath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); });
+  withDatabase(databasePath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); db.exec(LAST_MAINTENANCE); });
   const after = snapshot(databasePath);
 
   withDatabase(databasePath, db => {
@@ -279,7 +283,7 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   assert.deepEqual(opened.shape, fresh.shape, "opening it as the Host does adds nothing");
   assert.deepEqual(opened.rows.plugin_project_databases, after.rows.plugin_project_databases, "and records nothing new: the four rows the maintenance wrote, Goals' among them, are all there is");
   assert.equal(opened.rows.plugin_project_databases!.length, 4);
-  assert.equal(opened.version, 10);
+  assert.equal(opened.version, 11);
 });
 
 test("PLIB-05: the maintenance stops and changes nothing unless the library is exactly a version 7 one with one board", async t => {

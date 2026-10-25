@@ -14,7 +14,7 @@ import type { FeedSql } from "../sql.js";
 import type { FeedModuleOptions } from "./types.js";
 
 export type { FeedJournalEvent, FeedModuleOptions } from "./types.js";
-export { FEED_SCHEMA_SQL } from "./schema.js";
+export { FEED_ITEMS_SCHEMA_SQL } from "./schema.js";
 
 /** The evidence bodies the Feed materials in this database point at (`content_ref`), each once. */
 export function listFeedMaterialContentRefs(db: Pick<FeedSql, "all">): string[] {

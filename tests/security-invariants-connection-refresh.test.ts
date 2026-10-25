@@ -100,8 +100,8 @@ test("S-69 RAC-349 a call that ends before the resend sends nothing more, though
   tokenEndpoint(t, () => json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 3600 }));
   const { seen, options } = await asana(t, ["stale-access"]);
   let checks = 0;
-  // The first request is checked once after its DNS; the call is cancelled before the second one's check.
-  const ended = dispatch({ beforeEffect: async () => { checks += 1; if (checks > 1) throw new ActionError("actions.cancelled", "调用已取消"); } });
+  // The first DNS and pre-refresh checks pass; authority is lost before the resend's DNS check.
+  const ended = dispatch({ beforeEffect: async () => { checks += 1; if (checks > 2) throw new ActionError("actions.cancelled", "调用已取消"); } });
   // The transport refuses it after the second request's DNS, as for any call that lost its authority (S-57); no token is in the refusal.
   await assert.rejects(createPluginConnectionsPort(home, options).request(target, ended),
     (error: unknown) => error instanceof Error && /原调用已取消/u.test(error.message) && !/stale-access|fresh-access/u.test(error.message));
@@ -200,12 +200,14 @@ test("S-69 RAC-349 a refresh the token endpoint refuses marks the account for re
   assert.deepEqual(seen.at(-1), "Bearer renewed-access");
 });
 
-test("S-69 RAC-349 a network failure while refreshing refuses only this request: nothing is marked and the next request tries again", { timeout: 30_000 }, async t => {
+test("S-69 RAC-349 a network failure while refreshing refuses only this request: nothing is marked and the next request tries again after cooldown", { timeout: 30_000 }, async t => {
   const home = await connected(t);
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   const refreshes = tokenEndpoint(t, () => { throw new TypeError("fetch failed"); });
   const { seen, options } = await asana(t, ["stale-access"]);
   const port = createPluginConnectionsPort(home, options);
   for (const attempt of [1, 2]) {
+    if (attempt > 1) t.mock.timers.tick(60_000);
     await assert.rejects(port.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
     assert.deepEqual([seen.length, refreshes.length], [attempt, attempt], "each request asks the token endpoint once more");
     assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");

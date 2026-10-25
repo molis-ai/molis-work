@@ -31,6 +31,7 @@ PG-045 要求插件改用平台的 `services.connections`（S-57）。这件事�
   - 收哪些认证方式：沿用 `auth_methods`。
   - 能不能刷新：`refresh: "host" | "none"`，见 2.3。
 - 按租户分地址的服务（Salesforce、Atlassian 等），来源取连接记录上连接时核过的那一个（`store.targetOrigin`，S-57 的 `boundConnection` 已经在用）。插件改不了。
+- 共用来源的服务（`google-calendar`、`google-drive` 的 `https://www.googleapis.com`，以及 Outlook、OneDrive、SharePoint、Teams 的 `https://graph.microsoft.com`），实际能访问哪些 API 还取决于该连接 OAuth 授予的范围。来源白名单不按服务路径隔离，也不额外缩小 OAuth 授权范围（首评 6393224393 第 5 条；只补事实说明，不改策略）。
 - **第一批只登记 Feed 今天用到、能用 `bearer` 加到固定来源的服务**：
   - `gmail`：`https://gmail.googleapis.com`，可以刷新。
   - 目录连接器里属于这一类的那些。完整名单在实现片按 `plugins/official-integrations/catalog` 的定义逐项列，每项附来源和认证方式，统筹审。
@@ -89,20 +90,30 @@ binding: "installation" | "per_record"
 - 宿主带着凭据发出、固定来源答 401 时：登记了 `refresh: "host"`、连接也有刷新材料的，宿主强制刷新一次，再用同一个请求重发一次（BL-350）。
   - 没有可用刷新材料时，首次 401 的状态、可见响应头与正文原样交回，不问令牌端点、不重发、不标成要重连（RAC-349）。包括 GitHub 设备登录保存的普通密钥、API OAuth 未返回 refresh token，以及刷新引用仍在但对应材料已不存在的连接。
   - 插件请求用宿主内部的「有材料才强制刷新」模式；结果明确区分没有材料与已刷新。原有 API 读取者的普通读取、布尔强制刷新语义保持。材料存在时的令牌端点拒绝、网络错误、超时和 5xx 继续按 §4.1 处理，不当成没有材料。
-  - 重发前再核一次原调用（`beforeEffect`），已取消、撤权、停用的就不重发。
+  - 发起或加入这次刷新之前先核原调用（`beforeEffect` 与合并的取消信号）；调用已经取消、撤权、停用就既不新刷新也不重发。已经在途的刷新不借用某一个消费者的取消信号，允许完成并保存轮换凭据；这是连接维护，取消的消费者仍不重发（统筹 6393460077 第 2 条）。重发保留 DNS 之后的原调用复核。
+  - 同一宿主进程内，按规范化 Home 路径与连接 id 共用一份 401 触发的刷新，不跨 Home、不跨连接，也不依赖某个端口实例。并发消费者共用在途结果，各自仍做重发前授权检查；其中一个取消不能破坏其他消费者的维护（统筹 6393460077 第 3 条）。
+  - 冷却固定 60 秒，从有材料的强制刷新尝试结算（成功或失败）时开始，而不是开始请求时。成功、网络错误、超时、5xx 等失败均进入冷却；冷却内后续 401 保留首次状态、可见响应头、正文和 authenticated，不再刷新或重发。无材料的 `null` 不算刷新尝试、不产生冷却。明确拒绝仍由已有 `reauth_required` 拒绝优先处理。
+  - 冷却只记进程内的连接修订与完成时间，不保存完成后的令牌或新业务记录。人重连使 `updated_at` 变化后旧冷却失效；旧修订若仍在刷新，先等其结算、再复核新调用并用新修订开始，不能共用旧结果或重叠刷新。重启自然清掉此进程状态。普通 API 读取者、布尔强制刷新和各供应商已有的过期预刷新语义不变。
   - 第二次还是 401，就把这个答复原样交回插件，不再重试，也不换账号。
-  - 刷新本身失败时：把连接标成 `reauth_required`，拒绝这次请求，报 `connector.plugin_requests.connection_unavailable`，不改成匿名发出。
+  - 刷新本身失败时拒绝发起这次刷新的请求，报 `connector.plugin_requests.connection_unavailable`，不改成匿名发出。只有令牌端点明确拒绝才标成 `reauth_required`；网络错误、超时、5xx 不标，后续 401 受上述冷却限制（具体拒绝分类沿用 §4.1）。
 - 刷新得到的令牌不进答复，不进日志和调用记录（S-12）。
 
 拒绝：
 
 - 插件能看到的任何东西里都没有刷新材料或新令牌：答复、错误、`describe`、调用记录、日志。
 - 第二次 401 原样交回，不重试第三次。
+- RAC-349：首次 401 后调用已结束，令牌端点零请求、资源端点仍只收到一次；刷新已在途后取消，轮换的 access/refresh 均保存，取消者不重发。
+- RAC-349：两个并发 401 跨端口实例只调用一次令牌端点，其中一个取消，另一个仍使用刷新结果成功；完成后 59,999ms 不刷新、60,000ms 可以刷新，漫长在途阶段不抵扣冷却。
+- RAC-349：网络错误和 5xx 只拒发起者，冷却内后续首次 401 原样返回且不要求重连；明确拒绝保持重连标记，人重连后同 id 可立即重新刷新。不同 Home（即使连接 id 相同）、同 Home 不同连接不共享状态。
 - 重发前调用被取消，就不重发；服务端收到的请求数不增加。
 - `refresh: "none"` 的服务遇到 401，原样交回，不刷新。
 - 刷新失败不匿名重发。
 
 本段修复的定向验证：`node scripts/run-tests.mjs tests/security-invariants-connection-refresh.test.ts tests/connector-api-oauth.test.ts`。RAC-349 的无材料用例断言真实 HTTPS 服务只收到一次带凭据请求、令牌端点零请求、连接仍可读；`refresh: "none"` 用例只在隔离测试进程内替换单个服务的刷新声明，保留真实 OAuth 材料与生产请求链，不修改服务登记表。
+
+FIX11 的父候选是 FIX9 `fe8e593c293e18cdb4641578379cac4cda450ac8`（`db8ce0b2c` 上的无材料修复）；本增量只加 401 刷新调度与上述共用来源事实说明。生产范围为 `connector-plugin-requests.ts` 和独立的 `connector-refresh-scheduling.ts`；新回归 `tests/security-invariants-connection-refresh-scheduling.test.ts` 只经公开 Host 端口、隔离 Home 和真实 HTTPS 服务，令牌端点为替身，Date 单独受控，不新增公开测试端口。沿用现有 RAC-349 与同一 spec，不改 release、错误码或卸载绑定。batch36 的现行编号是 X1=S-69、X3=S-70、X2=S-71，载体吸收本增量时保留该编号；父候选上的旧暂定编号不作为改回依据。
+
+目标为工程与隔离真实请求路径通过，不替代真实供应商账号或一骏本人验收。验证命令：`pnpm build`（机器槽位）；`node scripts/run-tests.mjs tests/security-invariants-connection-refresh-scheduling.test.ts tests/security-invariants-connection-refresh.test.ts tests/connector-api-oauth.test.ts tests/security-invariants-plugin-connections.test.ts tests/connector-reconnect-regressions.test.ts`；`pnpm boundary:check`；`node scripts/check-health-gates.mjs --base origin/main`；fresh fetch 后 `pnpm secrets:check`。全量只交 Claude 排批。本段验证结果在固定候选交付时记录，不把方案完成记为验证通过。
 
 ## 3. 存量 Feed 来源的账号怎样改成现行形状
 

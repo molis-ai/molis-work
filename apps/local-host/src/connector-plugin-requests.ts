@@ -9,6 +9,7 @@ import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { shownState } from "./connector-refresh-refusals.js";
+import { refreshConnectionAfter401 } from "./connector-refresh-scheduling.js";
 import { sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from "./public-https.js";
 
 // The Host's side of a plugin's `services.connections` (S0b-2, security invariants S-57 and S-68): which account a slot is bound to, the
@@ -88,7 +89,9 @@ export function createPluginConnectionsPort(home: string, options: PluginConnect
         const initial = await access(resolveApiConnection(home, connection_id, target.service_id));
         const first = await send(sent, `Bearer ${initial.token}`, options);
         if (first.status !== 401 || service.refresh !== "host" || connection.auth_method !== "oauth") return first;
-        const refreshed = await access(resolveApiConnection(home, connection_id, target.service_id, "if_available"));
+        const refreshed = await refreshConnectionAfter401(home, initial.connection, async () => {
+          signal.throwIfAborted(); await sent.beforeEffect(); signal.throwIfAborted();
+        }, () => access(resolveApiConnection(home, connection_id, target.service_id, "if_available")));
         if (refreshed === null) return first;
         // Once: the resend asks the call again after its own DNS (`beforeEffect`), so a call that ended meanwhile sends nothing more.
         return send(sent, `Bearer ${refreshed.token}`, options);

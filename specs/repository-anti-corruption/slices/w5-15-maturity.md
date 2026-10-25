@@ -330,7 +330,7 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
   - 包名唯一；`kind` 与路径规则一致（loader 推出，无需对拍）；
   - 每个包有 `package.json/tsconfig.json/README.md/src/index.ts`；
   - 多余 `package.json` 扫描、`CONTRACT_SUBPATHS`、`pnpm-workspace.yaml` globs。
-- `scripts/gates/module-repository-exports.mjs` 的文本解析跟着改：从 `entry("<path>", "<contract>"` 中取路径，kind 由路径规则推（不再解析第三个参数）。
+- `scripts/gates/module-repository-exports.mjs` 的文本解析跟着改：从 `entry("<path>", "<contract>"` 中取路径，kind 由路径规则推（不再解析第三个参数）。已核：该门禁用 `snapshot.read()` 读 registry 文本（merge-base 侧也从同一份文本量），不能改成动态 import registry；在门禁里就地写一条与 loader 相同的路径→kind 规则即可。
 
 ### 4.10 capabilities 单一来源与漂移收口
 
@@ -386,13 +386,13 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
 
 - 删除导出：`PackageDescriptor`、`PackageKind`、`PackageMaturity`；新增 `ContractMaturity`；`ContractDescriptor.maturity` 的类型别名换名（取值不变）。
 - `packages/plugin-sdk` 根导出删除 `packageDescriptor` 常量与 `MolisWorkPackageDescriptor` 类型；`packages/contracts` 的根导出去掉上述类型。
-- 快照：`tooling/gates/api/contracts/index.txt`、`tooling/gates/api/contracts/platform/package.txt`、`tooling/gates/api/plugin-sdk/index.txt`，用 `pnpm api:update` 刷新。
+- 快照：`tooling/gates/api/contracts/index.txt`、`tooling/gates/api/contracts/platform/package.txt`、`tooling/gates/api/plugin-sdk/index.txt`，用 `pnpm api:update` 刷新。已核：`scripts/gates/api-snapshot.mjs` 用源码的声明 emit 生成快照（`paths` 指向 `src/`），**不需要先 `pnpm build`**；`--update` 与 `--check` 同一入口。
 - 影响说明（写进阶段2 PR 说明）：这些导出在全仓零 importer、不在任何插件文档里作为公开 API 出现；删除不影响插件作者已文档化的入口（`definePlugin`/Manifest/ActionCard 等不动）。contracts 子路径没有版本号（`docs/system/CONTRACT-CHANGES.md`），按现行规则不留兼容期，快照与形状由本 PR 一起改。
 
 ### 5.2 `pnpm health:check` 数字
 
 - API 快照：会变，先 `api:update`，不是「只许减少的数字」。
-- `compat`（兼容标记，`[Ll]egacy` 等按文件计数）：`scripts/workspace-packages.mjs` 的 `legacySources` 会命中 `[Ll]egacy`；若 `scripts` 在扫描范围，删除后计数减 1，只会减少。实际以 `node scripts/check-health-gates.mjs --base origin/main --report` 为准。
+- `compat`（兼容标记，`[Ll]egacy` 等按文件计数）：已核 `scripts/check-health-gates.mjs:149` 的 `AREAS = /^(apps|horizontal|modules|packages|plugins|server|tooling)\//`，`scripts/` 不在扫描范围，源码里也没有 `legacy` 词，删除 `legacySources` 后 compat 计数不变（不会增）。
 - 巨大单元：`scripts/workspace-packages.mjs` 只会变短（删字段/改签名）；新增 loader 逻辑拆成小函数，按 `tooling/gates/limits.json` 的 `functionLines` 自检；`tests/...` 新文件从 0 开始。
 - `module-repository-exports` 的计数（8 个入口）：行集合不变，预期数字不变；解析方式变化要在 `--report` 里确认。
 - `package-inventory`：行集合、层、状态不变；`spec.md` §5.1 表不重生。

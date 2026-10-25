@@ -2,6 +2,7 @@ import { pluginPagesFor } from "./plugin-page-authority.js";
 import { projectOrNull } from "./catalog-lookup.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleManagementActionHttp } from "./management-action-gateway.js";
+import { handlePluginInstallHttp } from "./plugin-install-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { webProjectDeletionPorts } from "./project-deletion-service.js";
 import { handleMcpContextHttp } from "./mcp-context-gateway.js";
@@ -162,7 +163,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleMcpContextHttp(request, response, url, { home: storageHome, host: localHost, withCatalog,
             deletion: webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }) })) return;
-          if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
+          if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handlePluginInstallHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(

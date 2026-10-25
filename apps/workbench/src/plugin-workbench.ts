@@ -74,14 +74,14 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = p
 const splits = new WeakMap<BuiltinPluginWorkbenchPack, SplitStylesheet | null>();
 
 /**
- * A plugin whose page runs in a frame (it has a client) sends the rules of its own namespace as a sheet of its own, which the
- * frames that need it link (PG-070). One whose surface the shell draws itself (no client) or that a settings page draws keeps its
- * whole sheet in the shared one, where those pages find it.
+ * A plugin whose page runs in a frame (it has a client) sends the rules of its own namespaces as a sheet of its own, which the
+ * frames that need it link (PG-070) — a settings page the shell draws links it too (`pluginSettingsStyleLinks`). One whose
+ * surface the shell draws itself (no client) keeps its whole sheet in the shared one, where that surface finds it.
  */
 function splitOf(pack: BuiltinPluginWorkbenchPack): SplitStylesheet | null {
-  if (!pack.stylesheet || !pack.clientFactory || pack.settingsClient) return null;
+  if (!pack.stylesheet || !pack.clientFactory) return null;
   let split = splits.get(pack);
-  if (split === undefined) splits.set(pack, split = splitPluginStylesheet(pack.stylesheet, pack.project_plugin_id, pack.stylesheetShared));
+  if (split === undefined) splits.set(pack, split = splitPluginStylesheet(pack.stylesheet, pack.project_plugin_id, pack.stylesheetShared, pack.stylesheetPrefixes));
   return split;
 }
 
@@ -101,11 +101,11 @@ function framedStyles(pack: BuiltinPluginWorkbenchPack, packs: readonly BuiltinP
   return [...new Set([pack.project_plugin_id, ...(pack.stylesheetUses ?? [])])].filter(id => pluginOnDemandStylesheet(id, packs) !== null);
 }
 
-export function pluginWorkbenchSettingsStyles(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
-  return packs
-    .filter((pack) => pack.settingsClient)
-    .map((pack) => pack.stylesheet ?? "")
-    .join("");
+/** The links a plugin's settings page needs beside the host's own settings sheet: the sheets its frame would link (PG-070). */
+export function pluginSettingsStyleLinks(contributionId: string, packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
+  const pack = packs.find(candidate => candidate.contributions.some(contribution => contribution.descriptor.contribution_id === contributionId));
+  if (!pack) return "";
+  return framedStyles(pack, packs).map(id => `<link rel="stylesheet" href="/assets/molis-work-plugins/${encodeURIComponent(id)}.css">`).join("");
 }
 
 export function pluginSearchRows(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): Array<[string, string, string]> {

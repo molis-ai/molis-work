@@ -42,6 +42,14 @@ export interface PluginWorkbenchRegistration {
    */
   readonly stylesheetShared?: readonly string[];
   /**
+   * Further class/attribute prefixes this plugin's rules may be written under, beside `.<project_plugin_id>`. A plugin whose
+   * classes were named before the platform had its id (the plugin builder's `as-` and `pb-`) names them here, so its own rules
+   * can leave the shared sheet (PG-070). Each entry is a prefix ending in `-`; the Host refuses one that is another plugin's
+   * id or prefix, or one of the platform's own (`mw-`, `pc-`). The rules must still be ones the plugin alone can draw;
+   * `stylesheetShared` lists whatever something outside its frame also draws.
+   */
+  readonly stylesheetPrefixes?: readonly string[];
+  /**
    * The plugins whose own sheet this plugin's frame links beside its own because it draws their classes (the plugins in
    * `clientUses` are linked already). Their short ids.
    */

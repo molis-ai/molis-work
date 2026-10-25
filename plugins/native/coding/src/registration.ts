@@ -17,8 +17,6 @@ export const registration: PluginRegistration = {
     stylesheet: CODING_STYLES,
     // The attributes the Characters import page and the shared diff view read or set.
     stylesheetShared: ["data-coding-workbench", "data-coding-line"],
-    // Its change set draws the diff view's rows and split columns.
-    stylesheetUses: ["diff"],
     clientUses: ["git", "files"],
     specimens: codingBoardSpecimens,
   },

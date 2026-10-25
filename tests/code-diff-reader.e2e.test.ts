@@ -38,14 +38,14 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
     saved_at: "2026-10-20T00:00:00.000Z", view_mode: "write", net_groups: [], output: null, patch });
   // The reader asks for its layout by name; a request that names neither is answered with nothing, so the test sees it fail.
   await evaluate(`fakes.push({method:'GET',path:'layout=split',body:${JSON.stringify(body("split"))}},{method:'GET',path:'layout=unified',body:${JSON.stringify(body("unified"))}})`);
-  const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, list = `${reader}.querySelector('.diff-rows')`;
+  const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, list = `${reader}.querySelector('.mw-diff-rows')`;
   await evaluate("localStorage.removeItem('molis-coding-diff-layout')");
   await openItem(`coding-changeset:${encodeURIComponent(session)}:run-big`);
-  await waitFor(`!${reader}.hidden && !!${list} && !${list}.classList.contains('diff-split')`, 30_000);
+  await waitFor(`!${reader}.hidden && !!${list} && !${list}.classList.contains('mw-diff-split')`, 30_000);
   assert.equal(await evaluate(`${reader}.querySelector('[data-coding-change-layout=unified]').getAttribute('aria-pressed')`), "true");
 
   // Unified: every visible row puts its numbers and code in the same columns, wide enough for five digits.
-  const columns = await evaluate<Array<{ before: number; after: number; code: number; overflow: boolean }>>(`[...${list}.querySelectorAll(':scope > li:not([hidden]):not(.diff-fold)')].map(li => {
+  const columns = await evaluate<Array<{ before: number; after: number; code: number; overflow: boolean }>>(`[...${list}.querySelectorAll(':scope > li:not([hidden]):not(.mw-diff-fold)')].map(li => {
     const [before, after, code] = li.children; const box = (node) => node.getBoundingClientRect();
     return { before: Math.round(box(before).left), after: Math.round(box(after).left), code: Math.round(box(code).left),
       overflow: [before, after].some(cell => cell.scrollWidth > cell.clientWidth + 1) };
@@ -56,7 +56,7 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
 
   // The wide line scrolls; its row tint reaches the end, the numbers stay where they were, opaque, and out of a copy.
   const scrolled = await evaluate<{ wider: boolean; reach: boolean; numberStays: boolean; opaque: boolean; copy: string }>(`(() => {
-    const ol = ${list}, rows = [...ol.querySelectorAll(':scope > li:not([hidden]):not(.diff-fold)')], first = rows[0].children[0], at = first.getBoundingClientRect().left;
+    const ol = ${list}, rows = [...ol.querySelectorAll(':scope > li:not([hidden]):not(.mw-diff-fold)')], first = rows[0].children[0], at = first.getBoundingClientRect().left;
     ol.scrollLeft = 400;
     const range = document.createRange(); range.setStartBefore(rows[1]); range.setEndAfter(rows[2]);
     getSelection().removeAllRanges(); getSelection().addRange(range); const copy = getSelection().toString(); getSelection().removeAllRanges();
@@ -73,7 +73,7 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
   // On a shorter window, a reader opens the folds after the first and puts line 10,012 near the top of the pane, 40 px down.
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 560, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(`${list}.querySelectorAll('[data-diff-unfold]:not([data-diff-unfold="0"])').forEach(button => button.click())`);
-  const place = (side: string, number: number) => `(() => { const tools = document.querySelector('${coding} [data-coding-tools]'), row = [...${list}.children].find(li => li.querySelector(':scope > .diff-${side}')?.textContent.trim() === '${number}');
+  const place = (side: string, number: number) => `(() => { const tools = document.querySelector('${coding} [data-coding-tools]'), row = [...${list}.children].find(li => li.querySelector(':scope > .mw-diff-${side}')?.textContent.trim() === '${number}');
     return row ? Math.round(row.getBoundingClientRect().top - tools.getBoundingClientRect().top) : null; })()`;
   await evaluate(`(() => { const tools = document.querySelector('${coding} [data-coding-tools]'); tools.scrollTop += ${place("after", 10_012)} - 40; })()`);
   const hidden = await evaluate<number>(`${list}.querySelectorAll(':scope > li[hidden]').length`);
@@ -81,7 +81,7 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
   await shot("unified.png");
 
   await evaluate(`${reader}.querySelector('[data-coding-change-layout=split]').click()`);
-  await waitFor(`${list}?.classList.contains('diff-split')`, 15_000);
+  await waitFor(`${list}?.classList.contains('mw-diff-split')`, 15_000);
   assert.equal(await evaluate(`${reader}.querySelector('[data-coding-change-layout=split]').getAttribute('aria-pressed')`), "true");
   assert.equal(await evaluate("localStorage.getItem('molis-coding-diff-layout')"), "split", "the choice is kept for this reader");
   assert.ok(Math.abs((await evaluate<number>(place("after", 10_012)))! - 40) <= 2, "the line being read stays where it was");
@@ -89,10 +89,10 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
 
   // Side by side: each row's two halves are level and as tall as each other; the wide line wraps instead of scrolling.
   const split = await evaluate<{ level: boolean; wraps: boolean; noScroll: boolean; blank: boolean }>(`(() => {
-    const ol = ${list}, rows = [...ol.querySelectorAll(':scope > li:not([hidden]):not(.diff-fold)')], line = parseFloat(getComputedStyle(ol).lineHeight);
+    const ol = ${list}, rows = [...ol.querySelectorAll(':scope > li:not([hidden]):not(.mw-diff-fold)')], line = parseFloat(getComputedStyle(ol).lineHeight);
     const level = rows.every(li => { const [, left, , right] = [...li.children].map(node => node.getBoundingClientRect()); return Math.abs(left.top - right.top) <= 0.5 && Math.abs(left.height - right.height) <= 0.5; });
-    const wide = [...ol.querySelectorAll('code.diff-right')].find(code => code.textContent.includes('wide wide'));
-    const blank = ol.querySelector('code.diff-left[data-kind=blank]');
+    const wide = [...ol.querySelectorAll('code.mw-diff-right')].find(code => code.textContent.includes('wide wide'));
+    const blank = ol.querySelector('code.mw-diff-left[data-kind=blank]');
     return { level, wraps: wide.getBoundingClientRect().height > line * 2, noScroll: ol.scrollWidth <= ol.clientWidth + 1,
       blank: Boolean(blank) && Math.abs(blank.getBoundingClientRect().height - blank.parentElement.getBoundingClientRect().height) <= 0.5 };
   })()`);
@@ -101,7 +101,7 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
 
   // And back: unified puts the same line at the same place.
   await evaluate(`${reader}.querySelector('[data-coding-change-layout=unified]').click()`);
-  await waitFor(`${list} && !${list}.classList.contains('diff-split')`, 15_000);
+  await waitFor(`${list} && !${list}.classList.contains('mw-diff-split')`, 15_000);
   assert.ok(Math.abs((await evaluate<number>(place("after", 10_012)))! - 40) <= 2, "switching back keeps the place too");
   assert.equal(await evaluate("localStorage.getItem('molis-coding-diff-layout')"), "unified");
 

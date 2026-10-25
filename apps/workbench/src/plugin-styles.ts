@@ -1,10 +1,11 @@
 /**
  * A plugin whose page runs in a frame brings the rules of its own namespace as a sheet of its own (PG-070). The frame links
  * that sheet beside the shared workbench sheet; every other page never downloads it. The split is by name, not by hand: a rule
- * moves out only when each of its selectors names a class or `data-` attribute of the plugin (`.<id>`, `.<id>-…`, `[data-<id>…]`)
- * outside any `:not()`, `:is()` or `:where()`, so it can match nothing but the plugin's own elements; a class the plugin lists
- * as shared keeps its rules in the shared sheet. Nothing else moves, so a rule never changes what it applies to, and the
- * shared sheet loads first, so the plugin's rules follow the host's.
+ * moves out only when each of its selectors names a class or `data-` attribute of the plugin (`.<id>`, `.<id>-…`, `[data-<id>…]`,
+ * or one of the extra prefixes the plugin declares — a plugin whose classes predate its id names them there) outside any
+ * `:not()`, `:is()` or `:where()`, so it can match nothing but the plugin's own elements; a class the plugin lists as shared
+ * keeps its rules in the shared sheet. Nothing else moves, so a rule never changes what it applies to, and the shared sheet
+ * loads first, so the plugin's rules follow the host's.
  */
 
 export interface SplitStylesheet {
@@ -117,28 +118,34 @@ export function selectorNames(selector: string): string[] {
 const inNamespace = (name: string, namespace: string): boolean => name === namespace || name.startsWith(`${namespace}-`)
   || name === `data-${namespace}` || name.startsWith(`data-${namespace}-`);
 
-function splitRules(css: string, namespace: string, shared: ReadonlySet<string>): SplitStylesheet {
+/** `as-` names the class prefix `as`; a prefix may be written with or without its dash. */
+const prefixNamespace = (prefix: string): string => prefix.endsWith("-") ? prefix.slice(0, -1) : prefix;
+
+function splitRules(css: string, namespaces: readonly string[], shared: ReadonlySet<string>): SplitStylesheet {
   let scoped = "", rest = "";
   for (const piece of pieces(css)) {
     if (piece.body === null) { rest += piece.text; continue; }
     if (piece.head.startsWith("@")) {
       const name = /^@([\w-]+)/.exec(piece.head)?.[1]?.toLowerCase() ?? "";
       if (!GROUPS.has(name)) { rest += piece.text; continue; }
-      const inner = splitRules(piece.body, namespace, shared);
+      const inner = splitRules(piece.body, namespaces, shared);
       if (inner.scoped.trim()) scoped += `${piece.head}{${inner.scoped}}`;
       if (inner.shared.trim()) rest += `${piece.head}{${inner.shared}}`;
       continue;
     }
     const owned = selectorsOf(piece.head).every(selector => {
       const names = selectorNames(selector);
-      return names.some(name => inNamespace(name, namespace)) && !names.some(name => shared.has(name));
+      return names.some(name => namespaces.some(namespace => inNamespace(name, namespace))) && !names.some(name => shared.has(name));
     });
     if (owned) scoped += piece.text; else rest += piece.text;
   }
   return { scoped, shared: rest };
 }
 
-/** Splits a plugin's sheet into the rules of its own namespace and the rest. */
-export function splitPluginStylesheet(css: string, namespace: string, sharedClasses: readonly string[] = []): SplitStylesheet {
-  return splitRules(css, namespace, new Set(sharedClasses));
+/**
+ * Splits a plugin's sheet into the rules of its own namespaces and the rest. `namespace` is the plugin's id; `prefixes` are
+ * further namespaces its registration declares, so a plugin whose class names predate its id still gets its sheet of its own.
+ */
+export function splitPluginStylesheet(css: string, namespace: string, sharedClasses: readonly string[] = [], prefixes: readonly string[] = []): SplitStylesheet {
+  return splitRules(css, [namespace, ...prefixes.map(prefixNamespace)], new Set(sharedClasses));
 }

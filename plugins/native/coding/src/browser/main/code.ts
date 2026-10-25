@@ -26,7 +26,7 @@ export function linkedText(node: HTMLElement, text: string) {
 /** The rows of one side of a diff list, with the text each holds. */
 function diffRows(codes: readonly HTMLElement[]) {
   return codes.map(code => {
-    const sign = code.querySelector(".diff-sign");
+    const sign = code.querySelector(".mw-diff-sign");
     return { code, sign, kind: code.dataset.kind || code.parentElement?.dataset.kind || "", text: [...code.childNodes].filter(node => node !== sign).map(node => node.textContent).join("") };
   });
 }
@@ -34,7 +34,7 @@ function diffRows(codes: readonly HTMLElement[]) {
 /** Colours the diffs of a container, a slice a frame; a row is painted once. */
 export function paintDiffs(page: Page, scope: ParentNode) {
   const { host, lifetime } = page, { paintRows } = page.refs;
-  scope.querySelectorAll<HTMLElement>("[data-code-path] .diff-rows").forEach(list => (list.classList.contains("diff-split") ? [".diff-left", ".diff-right"] : [""]).forEach(side => {
+  scope.querySelectorAll<HTMLElement>("[data-code-path] .mw-diff-rows").forEach(list => (list.classList.contains("mw-diff-split") ? [".mw-diff-left", ".mw-diff-right"] : [""]).forEach(side => {
     const codes = [...list.querySelectorAll<HTMLElement>(":scope > li > code" + side)].filter(code => code.dataset.kind !== "blank");
     if (!codes.some(code => !code.dataset.painted)) return;
     const language = codeLanguage(list.closest<HTMLElement>("[data-code-path]")?.dataset.codePath || ""), rows = diffRows(codes);

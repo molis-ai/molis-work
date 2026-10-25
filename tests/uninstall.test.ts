@@ -3,7 +3,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -130,7 +130,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     for (const file of [discussionDatabase, `${discussionDatabase}-wal`, `${discussionDatabase}-shm`]) await writeFile(file, "discussion-store\n");
     // C-05 (anti-corruption code audit 2026-10-15): everything else docs/system/HOME-DATA.md registers in the Home goes too —
     // the Host's own libraries, Agent run records and their key, encrypted credentials, the side browser, Plugin Studio work,
-    // caches, folder bookmarks, Git review details and the person's settings in config/. The Home is gone afterwards only if none stays.
+    // caches, folder bookmarks, Git review details and the person's settings in config/. Only the original lock skeleton remains.
     const registered = ["assistant/assistant.db", "placement/placement.db", "agent-definitions/agent-definitions.db", "characters/characters.sqlite",
       "agent-runtime/storage.key", "agent-runtime/records/run/one.json", "feed/secrets.json", "feed/evidence/blobs/one", "browser/sites.json",
       "browser/profile/Cookies", "plugin-builder/project/design/one.json", "cache/research-library/one/HEAD", "directory-access/bookmarks.json",
@@ -176,7 +176,10 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     });
     assert.equal(result.status, "purged");
     await assert.rejects(stat(discussionDatabase));
-    await assert.rejects(stat(item.home));
+    // RAC-105-S-11: the approved purge contract keeps this exact empty owner skeleton, never SDK data or keys.
+    assert.deepEqual(await readdir(item.home), ["agent-runtime"]);
+    assert.deepEqual(await readdir(join(item.home, "agent-runtime")), [".molis-runtime-owner.db"]);
+    for (const file of registered) await assert.rejects(stat(join(item.home, file)));
     assert.equal(result.receipt_path, null);
   } finally {
     await rm(item.directory, { recursive: true, force: true });

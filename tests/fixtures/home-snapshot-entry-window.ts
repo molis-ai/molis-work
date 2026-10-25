@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { createHomeSnapshot, createMolisWorkLocalHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
+import { acquireStorageOwner, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** The parent releases this exact production boundary by writing one byte, never by a timer. */
 function barrier(phase: string, gate: string): void {
@@ -31,5 +34,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       await runV1Cli(["init", "--db", target, "--json", JSON.stringify({ project_id: "entry-window", idempotency_key: "entry-window" })],
         { homeDirectory: home, localHost: host });
     } finally { await host.close(); process.disconnect(); }
+  } else if (mode === "ledger") {
+    const owner = acquireStorageOwner(join(home, "agent-runtime")), ledger = openMemoryLedger({ homeDirectory: home });
+    try {
+      ledger.transaction(() => ledger.setMarker(LOCAL_PERSON_ACTOR_ID, "purge-preview-business-change", { value: "committed after preview" }, new Date().toISOString()));
+      barrier("ledger-commit", gate);
+    } finally { ledger.close(); owner.release(); process.disconnect(); }
   } else throw new Error("unknown entry window");
 }

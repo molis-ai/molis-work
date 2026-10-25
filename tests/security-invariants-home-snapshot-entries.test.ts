@@ -6,16 +6,18 @@ import { promises as fs } from "node:fs";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
+import { DatabaseSync } from "node:sqlite";
 import { createHomeSnapshot, createMolisWorkLocalHost, MolisWorkUninstallService, MolisWorkWebServiceManager, RuntimeIntegrationService,
   type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopUninstallService, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 
 const fixture = fileURLToPath(new URL("./fixtures/home-snapshot-entry-window.ts", import.meta.url));
 const cli = fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url));
 
-function pausedEntry(t: TestContext, mode: "snapshot" | "cli", home: string, target: string) {
+function pausedEntry(t: TestContext, mode: "snapshot" | "cli" | "ledger", home: string, target: string) {
   const gate = join(dirname(home), ".entry-gate-" + randomUUID());
   execFileSync("mkfifo", [gate]);
   const child = spawn(process.execPath, ["--import", "tsx", fixture, mode, home, target, gate],
@@ -29,11 +31,14 @@ function pausedEntry(t: TestContext, mode: "snapshot" | "cli", home: string, tar
   t.signal.addEventListener("abort", kill, { once: true });
   const ready = new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => { kill(); reject(new Error("entry did not reach its barrier: " + stderr)); }, 15_000);
-    child.once("message", value => { clearTimeout(timer); assert.deepEqual(value, { phase: mode === "snapshot" ? "snapshot-payload" : "cli-runtime" }); resolve(); });
+    child.once("message", value => { clearTimeout(timer); assert.deepEqual(value, { phase: { snapshot: "snapshot-payload", cli: "cli-runtime", ledger: "ledger-commit" }[mode] }); resolve(); });
     child.once("error", reject);
     void closed.then(value => { clearTimeout(timer); reject(new Error("entry closed before its barrier: " + JSON.stringify(value) + stderr)); });
   });
-  return { ready, async release() { await fs.writeFile(gate, "x"); assert.deepEqual(await closed, { code: 0, signal: null }, stderr); } };
+  return { ready,
+    async release() { await fs.writeFile(gate, "x"); assert.deepEqual(await closed, { code: 0, signal: null }, stderr); },
+    async terminate() { kill(); assert.deepEqual(await closed, { code: null, signal: "SIGKILL" }, stderr); },
+  };
 }
 
 function uninstallOptions(home: string, area: string, localHost?: MolisWorkLocalHost) {
@@ -275,4 +280,106 @@ test("RAC-105-S-09: a borrowed Host refuses to stop its own managed service befo
     await assert.rejects(service.confirm({ plan_id: plan.plan_id, decision: "confirmed" }), { code: "installer.uninstall.conflict" });
     assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
   } finally { await host.close(); }
+});
+
+test("RAC-105-S-10 S-07: a committed business WAL invalidates the preview before any purge effect", { timeout: 30_000 }, async t => {
+  const f = await smallSnapshotHome(t), catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home }); catalog.close();
+  await f.file("bin/molis-work", "#!/usr/bin/env node\n// molis-work-home-launcher-v1\n");
+  const service = uninstaller(f.home, f.area), plan = await service.prepare({ purge_user_data: true });
+  const writer = pausedEntry(t, "ledger", f.home, f.snapshot); await writer.ready;
+  assert.ok((await fs.stat(join(f.home, "memory", "memory.db-wal"))).size > 32);
+  assert.throws(() => acquireStorageOwner(join(f.home, "agent-runtime")), { code: "storage.owner.busy" });
+  await writer.terminate();
+  const before = await snapshotBusinessFingerprint(f.home);
+  await assert.rejects(service.confirm({ plan_id: plan.plan_id, decision: "confirmed",
+    purge_confirmation: { home_directory: f.home, user_project_count: 0 } }), { code: "installer.uninstall.plan_stale" });
+  assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
+  assert.equal(existsSync(service.receiptPath), false);
+  const ledger = openMemoryLedger({ homeDirectory: f.home });
+  try { assert.deepEqual(ledger.marker(LOCAL_PERSON_ACTOR_ID, "purge-preview-business-change")?.body, { value: "committed after preview" }); }
+  finally { ledger.close(); }
+});
+
+test("RAC-105-S-11 S-07: purge with a live Host stays busy without consuming its plan or touching data", async t => {
+  const f = await smallSnapshotHome(t), host = createMolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  try {
+    await f.file("images/assets/kept.bin");
+    const service = uninstaller(f.home, f.area, host), plan = await service.prepare({ purge_user_data: true });
+    const before = await snapshotBusinessFingerprint(f.home);
+    const input = { plan_id: plan.plan_id, decision: "confirmed" as const,
+      purge_confirmation: { home_directory: f.home, user_project_count: plan.user_project_count } };
+    for (let attempt = 0; attempt < 2; attempt++) await assert.rejects(service.confirm(input), error => {
+      assert.ok(error instanceof Error && "code" in error);
+      assert.equal(error.code, "storage.owner.busy"); assert.match(error.message, /先关闭 App/u); return true;
+    });
+    assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
+    assert.equal(existsSync(service.receiptPath), false);
+  } finally { await host.close(); }
+});
+
+test("RAC-105-S-10 S-07: changing a nested business file invalidates the old purge plan while keeping the changed data", async t => {
+  const f = await smallSnapshotHome(t), file = await f.file("images/assets/kept.bin", "before preview");
+  const service = uninstaller(f.home, f.area), plan = await service.prepare({ purge_user_data: true });
+  await fs.writeFile(file, "updated business content after preview");
+  const before = await snapshotBusinessFingerprint(f.home);
+  await assert.rejects(service.confirm({ plan_id: plan.plan_id, decision: "confirmed",
+    purge_confirmation: { home_directory: f.home, user_project_count: 0 } }), { code: "installer.uninstall.plan_stale" });
+  assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
+  assert.equal(await fs.readFile(file, "utf8"), "updated business content after preview");
+  assert.equal(existsSync(service.receiptPath), false);
+});
+
+test("RAC-105-S-11 S-07: successful purge leaves exactly the original empty lock skeleton and starts as a new Home", { timeout: 30_000 }, async t => {
+  const f = await smallSnapshotHome(t), catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
+  await catalog.createProject({ display_name: "Deleted project", actor_id: "fixture" }); catalog.close();
+  const runtime = join(f.home, "agent-runtime"), lock = join(runtime, ".molis-runtime-owner.db");
+  const owner = acquireStorageOwner(runtime); owner.release();
+  const identity = await fs.lstat(lock), directory = await fs.lstat(runtime);
+  await f.file("agent-runtime/storage.key", Buffer.alloc(32, 0x51));
+  await f.file("agent-runtime/records/run/item.json", "retained SDK data must be deleted");
+  await f.file("agent-runtime/cache/unknown.json", "cache is not in the retained lock list");
+  const service = uninstaller(f.home, f.area), plan = await service.prepare({ purge_user_data: true });
+  assert.equal(plan.status, "ready");
+  const result = await service.confirm({ plan_id: plan.plan_id, decision: "confirmed",
+    purge_confirmation: { home_directory: f.home, user_project_count: plan.user_project_count } });
+  assert.equal(result.status, "purged"); assert.match(result.message, /锁骨架.*未删除/u);
+  assert.deepEqual(await fs.readdir(f.home), ["agent-runtime"]);
+  assert.deepEqual(await fs.readdir(runtime), [".molis-runtime-owner.db"]);
+  assert.equal((await fs.lstat(lock)).ino, identity.ino); assert.equal((await fs.lstat(runtime)).ino, directory.ino);
+  // Only after release: reading/closing a second raw descriptor must never weaken a live POSIX owner lock.
+  const technical = new DatabaseSync(lock, { readOnly: true });
+  try { assert.deepEqual(technical.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'").all(), []); }
+  finally { technical.close(); }
+  const host = createMolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  try {
+    const fresh = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
+    try {
+      assert.deepEqual(fresh.listProjects(), []);
+      const project = await fresh.createProject({ display_name: "Fresh after purge", actor_id: "fixture" });
+      assert.equal((await fs.stat(project.database_path)).isFile(), true);
+    } finally { fresh.close(); }
+    const ledger = openMemoryLedger({ homeDirectory: f.home });
+    try { assert.deepEqual(ledger.marker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption")?.body, { origin: "new-home" }); }
+    finally { ledger.close(); }
+  } finally { await host.close(); }
+  assert.equal((await fs.lstat(lock)).ino, identity.ino);
+});
+
+test("RAC-105-S-11 S-07: unknown Home, config and bin content refuses purge before deleting any owned data", async t => {
+  for (const file of ["personal-note.txt", "config/personal-note.txt", "bin/personal-note.txt"]) await t.test(file, async t => {
+    const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+    await f.file("bin/molis-work", "#!/usr/bin/env node\n// molis-work-home-launcher-v1\n");
+    const service = uninstaller(f.home, f.area), plan = await service.prepare({ purge_user_data: true });
+    assert.equal(plan.status, "ready");
+    await f.file(file, "belongs to the person, not the installer");
+    const before = await snapshotBusinessFingerprint(f.home);
+    await assert.rejects(service.confirm({ plan_id: plan.plan_id, decision: "confirmed",
+      purge_confirmation: { home_directory: f.home, user_project_count: 0 } }), { code: "installer.uninstall.plan_stale" });
+    assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
+    assert.equal(existsSync(service.receiptPath), false);
+    const next = await service.prepare({ purge_user_data: true }); assert.equal(next.status, "conflict");
+    await assert.rejects(service.confirm({ plan_id: next.plan_id, decision: "confirmed",
+      purge_confirmation: { home_directory: f.home, user_project_count: 0 } }), { code: "installer.uninstall.conflict" });
+    assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
+  });
 });

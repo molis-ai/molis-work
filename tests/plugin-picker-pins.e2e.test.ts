@@ -434,6 +434,20 @@ test("DOCK-01 DOCK-13 the market and the studio are two buttons at the head of t
   if (phone.studio) assert.ok(Math.abs(phone.studio.w - phone.market.w) < 2, "sharing the line in equal halves");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await frames(); await frames();
+  // BL-114: a place the rail does not list is named by its button at the head of the switcher, not by its id; BL-099:
+  // the same name reaches the window title, so `?openPlugin=market` no longer reads "market".
+  await evaluate("window.molisWorkOpenPlugin?.('market')");
+  await waitFor("document.querySelector('[data-plugin-picker-current]')?.textContent?.trim() === '插件市场'");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-picker-current]')?.textContent?.trim()"), "插件市场", "the market's chip reads its name, not its id");
+  assert.equal(await evaluate("document.title"), "插件市场 · Molis Work", "and the window title does too");
+  const studioLabel = await evaluate<string | null>("document.querySelector('.plugin-picker-extend [data-plugin-id=\"plugin-builder\"] span')?.textContent?.trim() ?? null");
+  if (studioLabel) {
+    await evaluate("window.molisWorkOpenPlugin?.('plugin-builder')");
+    await waitFor(`document.querySelector('[data-plugin-picker-current]')?.textContent?.trim() === ${JSON.stringify(studioLabel)}`);
+    assert.equal(await evaluate("document.title"), studioLabel + " · Molis Work", "the studio reads its name too, not its id");
+  }
+  await evaluate("window.molisWorkOpenPlugin?.('home')");
+  await frames(); await frames();
   await click('.plugin-picker-extend [data-plugin-id="market"]');
   await waitFor("document.body.dataset.desktopSurface === 'market' || !document.querySelector('[data-work-surface=\"market\"]').hidden");
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");

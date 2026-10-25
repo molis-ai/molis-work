@@ -13,8 +13,8 @@
 // "Reads or calls it" is read from the tests, tier by tier, narrowest first; each selected test carries the reasons.
 import { devRequirementsSection } from "../package-dev-requirements.mjs";
 import {
-  CHINESE_LITERAL, COMMON_SYMBOLS, DICTIONARY_FILE, FULL_REGRESSION, GENERIC_STEMS, I18N_TEST, LIMITS, PRODUCT_SOURCE,
-  ROUTE_FILE, TRANSLATOR_CALL, UI,
+  CHINESE_LITERAL, COMMON_SYMBOLS, CONTRACT_SOURCE, DICTIONARY_FILE, FULL_REGRESSION, GENERIC_STEMS, I18N_TEST, LIMITS,
+  PRODUCT_SOURCE, ROUTE_FILE, STYLE_FILE, TRANSLATOR_CALL, UI,
 } from "./rules.mjs";
 import { packageOf, readText } from "./repository.mjs";
 import { TEST_FILE } from "./index.mjs";
@@ -52,6 +52,25 @@ export function routeChunks(route) {
   const chunks = route.split(/[?#]/)[0].split(/\$\{[^}]*\}|:[A-Za-z_]\w*|\([^)]*\)|\[[^\]]*\]|\\.|[*+?|^$]/).map((chunk) => chunk.trim()).filter((chunk) => chunk.replace(/\//g, "").length >= 2);
   return chunks.some((chunk) => chunk.length >= 6) ? chunks : [];
 }
+
+/**
+ * The selectors, custom properties and attributes a stylesheet names: `.alpha-skin-card`, `--alpha-skin-gap`,
+ * `data-alpha-skin-row`. A test that asserts the built stylesheet writes them as text, not as identifiers, so the name index
+ * cannot find it; the tokens are searched for directly (BL-153; deleting a skin, W5-05 #630, missed three such tests).
+ */
+export function selectorTokens(text) {
+  const tokens = new Set();
+  for (const match of text.matchAll(/--[A-Za-z][\w-]+/g)) tokens.add(match[0]);
+  for (const match of text.matchAll(/\.([A-Za-z][\w-]+)/g)) tokens.add(`.${match[1]}`);
+  for (const match of text.matchAll(/(?:data|aria)-[a-z][\w-]*/g)) tokens.add(match[0]);
+  return [...tokens].filter((token) => {
+    const name = token.replace(/^\.|^--/, "");
+    return name.length >= LIMITS.symbolLength && !COMMON_SYMBOLS.has(name.toLowerCase());
+  });
+}
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** A stylesheet token as a pattern: `.card` does not match `.cards`, `--line` does not match `--line-height`. */
+const tokenPattern = (token) => new RegExp(`${escapeRegex(token)}(?![\\w-])`);
 
 /** The routes one line names: any "/api/…" or "/__…", and in files that serve routes any literal "/x/y". */
 function routesOfLine(line, routeFile) {
@@ -251,6 +270,44 @@ export function selectAffected({ root, changes, packages, index, options = {} })
       if (own > symbolLimit) { tooCommon.set(change.path, [...(tooCommon.get(change.path) ?? []), `${name} (${own})`]); continue; }
       for (const [test, via] of found) if (!via || options.wide || shared <= symbolLimit) add(test, "uses-name", name, change.path);
     }
+  }
+
+  // ---- tier 3: a stylesheet's selectors, and the tests that assert the built stylesheet by writing them -------------------------
+  // A test that reads the whole stylesheet names a selector as text, not as an identifier (`tests/web.test.ts` regexes the built
+  // stylesheet), so the index cannot find it; the tokens are taken from the changed stylesheet and searched for directly.
+  const styleTokens = new Map();   // token -> the changed stylesheet that names it
+  for (const change of codeChanges) {
+    if (!STYLE_FILE.test(change.path)) continue;
+    const text = `${change.status === "D" ? "" : readText(root, change.path)}\n${change.removed.join("\n")}`;
+    for (const token of selectorTokens(text)) if (!styleTokens.has(token)) styleTokens.set(token, change.path);
+  }
+  if (styleTokens.size > 0) {
+    const matches = index.matchingAny(new Map([...styleTokens.keys()].map((token) => [token, tokenPattern(token)])));
+    const crowded = [];
+    for (const [token, readers] of matches) {
+      if (!options.wide && readers.size > symbolLimit) { crowded.push(`${token} (${readers.size})`); continue; }
+      for (const test of readers.keys()) add(test, "reads-selector", token, styleTokens.get(token));
+    }
+    if (crowded.length > 0) note(`stylesheets: selectors written into more than ${symbolLimit} tests are too common to tell their readers apart, not selected (${sample(crowded, 3)}); --wide selects them`);
+  }
+
+  // ---- tier 4: a changed contract field, and the tests that name it ------------------------------------------------------------
+  // A contract field is a promise to callers: a test that deep-compares what it receives names the field without naming the
+  // interface that declares it (`tests/prologue-recovery.test.ts` read `steer.key`, W3-02 #628). The field name is matched in the
+  // tests, not the interface: the interface is often reached through a barrel or an inline `import(...)` type.
+  const FIELD_DECLARATION = /^\s*(?:readonly\s+)?([A-Za-z_$][\w$]*)\??\s*:/;
+  for (const change of codeChanges) {
+    if (!CONTRACT_SOURCE.test(change.path) || !SOURCE_FILE.test(change.path) || change.status === "D") continue;
+    const fields = new Set(change.added.map((line) => FIELD_DECLARATION.exec(line)?.[1]).filter((name) => name !== undefined));
+    const crowded = [];
+    for (const name of fields) {
+      if (name.length < LIMITS.symbolLength || COMMON_SYMBOLS.has(name.toLowerCase())) continue;
+      const found = [...index.mentioning(name)];
+      const own = found.filter(([, via]) => !via).length, shared = found.length - own;
+      if (own > symbolLimit) { crowded.push(`${name} (${own})`); continue; }
+      for (const [test, via] of found) if (!via || options.wide || shared <= symbolLimit) add(test, "uses-field", name, change.path);
+    }
+    if (crowded.length > 0) note(`${change.path}: the field names it adds are named by more than ${symbolLimit} tests (${sample(crowded, 3)}); a field compared deeply without being named is still missed, see section 6.1`);
   }
 
   // ---- rules about what the change does ---------------------------------------------------------------------------------------

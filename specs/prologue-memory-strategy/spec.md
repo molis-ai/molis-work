@@ -3197,3 +3197,11 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 随后为原 Catalog 最终完成尾窗接入同步证明校验：`ProjectDeletionMemoryProof.verifyMemory()` 返回该次已完成读取的同步 `assertCovered`；原 Managed 最终 Catalog complete 事务内调用。冷 owner 在 cleanup/original 两分支返回同一恢复 frame 的 current，继续严格核整个 Catalog；不扩大已冻结 SDK knownScopes 或原计划。该共享 Port 适配与 selected-source 文本字段的显式类型拒绝已通过源码类型检查，**尚待同批 App+Home+CLI 的最终构建和运行回归**，不得计入 build5 的运行通过范围。最新准确父基 health、包边界、新增测试 strict 通过；直接 lint 的唯一错误是基线 vendor-provenance 测试 helper 原有的 any，未新增或放宽。现有项目恢复测试另有原 invoke 返回 unknown 的 strict 诊断，仍如实保留，不改其断言绕过。
 
 上述均为隔离完整工作副本的工程证据；没有操作真实用户 Home、没有调用外部/付费模型、没有发布或替代 MEM-40 完整维护 CLI/最终产品与用户验收。个人 Assistant fixture 的真实 Service/AgentHost/SDK 只连接本地有界 HTTP 响应，冷恢复本身要求网络/模型调用为零。
+
+#### MEM-40 停写恢复的 CLI 消费合同（2026-10-26）
+
+真实入口为 `molis-work memory recover-home --source-home <T1工作副本> --target-home <T0工作副本> --operation-id <原操作号> --confirm [--json]`。两个副本必须来自同一 Home 的同一历史，均已停止写入且另有完整备份；命令不停止服务、不复制备份、不选择默认 Home、不更换现役写入方。必须显式给出绝对路径与稳定原操作号，缺参数、重复或未知参数及缺确认在开库前失败。`--confirm` 是操作者确认这些前提并执行已定恢复；不是另一份批准账或迁移计划。帮助和未装配能力无存储副作用。
+
+调用链：CLI 只解析并输出 → LocalHost 的 CLI 窄口处理取消与真实失败资源的关闭 → Desktop 供应实际 panels → 原 recoverMemoryHome 组合及其 SDK、Ledger、Catalog、业务主人。只共享纯数据 request/result 合同，不从 CLI 访问 Store 或 SDK，不启动普通 Host，不新增恢复核或锁。只有父决定实际提交且所有资源关闭成功才输出 completed；同操作显式重试由原主人核对并给 replayed。取消/失败退出非零，沿原失败的 close 能力等待资源释放，不能把关闭重试当恢复重放，关闭失败保留两项错误及原操作号。
+
+允许改动：既有 CLI 包、LocalHost CLI 接线、Desktop CLI launcher、共享 request/result 类型、对应 README/CLI 手册和本节、直接 CLI 与恢复组合测试及公开快照。验证先覆盖参数/确认/未装配零调用、同操作传递、失败/取消/关闭；再经实际 Desktop launcher 的独立进程和隔离非空 T0/T1 副本走原恢复与重启读取。只解析或替身端口通过不能代表该实际链通过。保留 CLI README 必跑与直接影响检查，不改 CI、资源门或验收，工程、实际维护路径和用户验收分别记录。

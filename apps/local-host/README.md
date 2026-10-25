@@ -15,6 +15,8 @@
 
 把数据库、业务 Modules、横向服务和 Plugins 接成同一个本地产品。CLI、MCP、Web 要执行真实项目操作时，经这里取得已装配的能力。
 
+停写 Memory 恢复的 CLI 只经 `runLocalCli` 注入的恢复窄口进入 Desktop/LocalHost 原组合，不调用普通 `withCatalog`。终端取消撤销本次维护能力；原恢复失败携带实际 close 能力时，CLI 等待关闭后仍返回失败，关闭失败也不变成 completed。原操作号不由命令重建。参数与生命周期回归为 `tests/memory-recovery-cli.test.ts`；真实恢复组合及独立 launcher 另验。
+
 包名：`@molis-ai/molis-work-app-local-host`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
 import { hostLog, runLocalCli, runLocalPluginDevelopment } from "@molis-ai/molis-work-app-local-host";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { recoverDesktopMemoryHome, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { runPluginCli } from "@molis-ai/molis-work-plugin-cli";
 
 export function main(args = process.argv.slice(2)): Promise<number> {
   return runLocalCli(args, {
     defaultSourceDirectory: () => fileURLToPath(new URL(import.meta.url.endsWith(".ts") ? "../../../../" : "../../", import.meta.url)),
     withCatalog: withMolisWorkProjectCatalog,
+    recoverMemoryHome: recoverDesktopMemoryHome,
     runPlugin: (args) => runPluginCli(args, {
       stdout: value => process.stdout.write(value), stderr: value => process.stderr.write(value),
     }, { runDevelopment: runLocalPluginDevelopment }),

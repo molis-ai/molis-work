@@ -117,3 +117,24 @@ Root 将 FIRST 6400577240 的非阻塞第 1、3 项（增量 6400884033 确认�
 实现后必要 FIFO 整体 `pnpm build`，刷新精确 services/assistant API 快照，运行上述有限用例、相对基点/主线适用健康检查与推送前 fresh-fetch+secrets；浏览器使用专用 molis-test-browser、临时 Home/profile 和公共 FIFO，finally 清理。资源只报告真实增量交 carrier，不在本叶改共享预算或新建 CI。普通 feature push 后交同头 REVIEW、TEST、PIPE/Root；不开新 PR、不改原 PR、不合 main。
 
 Root 最终裁定：通知的纯文本格式化放入现有 `assistant-text-html.ts` 助理文本投影模块，沿已有函数序列化方式供客户端调用；island 只装配格式化投影，不扩通知框架。不登记巨大单元例外，不改迁移表、门禁、limits 或 baseline；只合并本次新增的冗余合同说明，保留 directory-read 必带 text_params 的清楚合同。新生产输入须整体构建并以该最终指纹验证受影响浏览器；不因步骤切换重跑已证的未变 Runtime/i18n 范围。
+
+## 9. #1308 FIRST §7.1：设置页提前显示失效（I1，2026-10-25）
+
+状态：Root 已接受的局部修复工单；负责人 I1。固定候选基点 `50823b548c47c3f64766e3b23d02ef68238a3fa3`（main 基线 `b3bac731b`），只承接 [原评第 7 节第 1 项](https://github.com/molis-ai/molis-work/pull/1308#issuecomment-6403273796)。目标是设置页在首次插件读取之前如实显示目录当前状态；授权持续到撤回、普通快照保留授权和读取历史、实际 read 的 changed 拒绝及撤销继续采用现有规则。
+
+当前 GET 直接列出持久授权，直到插件 read 才调用同一 owner 的 `sameDirectory`。本单让 `DirectoryGrantService.list` 异步复用这一判断，按真实 path/dev/ino/symlink 派生 `directory_status: current | changed`；HTTP 等待列表并保留现有 Home/插件页面隔离与敏感字段剥离。状态只属于本次读取结果，不入库、不自动撤回/授权/重绑定、不新增设备登记、后台监听或恢复策略。设置页明确显示目录有效或已失效；后者提示回到插件重新选择，原撤回入口照用。读取历史注明含恢复前的记录，查看不冒充插件读取，也不增次数或通知。状态是查看时的观察，实际读取仍执行自己的即时检查。
+
+允许修改 service、HTTP、settings-local-directories（含现有词典）、本节与必要既有测试及类型消费。service 的现有 list 消费跟随 Promise；不改 store schema、contracts/SDK、home-stores/快照政策、R55/F1/F2、共享 BACKLOG 或门禁/预算机制。取舍：目录检查只在设置列表读取时发生，准确性采用现有身份规则；无需第二份安全判断或持久状态。
+
+| 局部编号 | 验收与验证 |
+| --- | --- |
+| PG049-STATUS-01 | 真实 Host/HTTP + 临时目录：同一真实目录为 current；反复查看不修改授权行、读取历史/次数/最近一次或通知，敏感身份字段仍不下发。 |
+| PG049-STATUS-02 | 目录不存在、真实替换、设备/inode 差异及符号链接时，在首次插件 read 前 GET 已显示 changed；原授权和旧历史保留，不自动绑定新目录。身份差异通过实际持久记录故障与真实文件系统比对验证。 |
+| PG049-STATUS-03 | 实际 read 继续返回 changed 并撤销原授权；设置撤回失效项立即生效；明确重新选择目录后，新授权可读，同目录重选仍沿用原有效授权。 |
+| PG049-STATUS-04 | 专用 Chrome 在真实设置页显示有效/失效及重新选择提示、恢复前历史说明；真实点击撤回后该项消失，服务确认已撤回。页面没有替代授权按钮或伪造读取。 |
+
+工程交付：必要一次 FIFO 整体构建后，相关目录 security/HTTP、UI helper、客户端拼接和 i18n 回归通过；固定 base 与当前 origin 的 health、实际 served 资源按现行政策报告，fresh-fetch + secrets 后普通 feature push。准确 head 交既有 REVIEW/TEST 收窄核验，I1 核原件后交 PIPE/Root；不另起 full 或写原 PR/carrier。
+
+验证命令以 `node scripts/run-tests.mjs` 点名现有目录安全用例、设置请求/helper、客户端拼接与 i18n；浏览器仅点名新增 PG049-STATUS 用例，串行走现有机器 browser 槽与独立 Chrome profile。原失败和未验证边界保留，不以工程定向通过宣称快照全链、跨设备实机或本人验收完成。
+
+作者定向执行：必要一次 FIFO 整体构建自然退出 0，官方源码指纹与现行构建匹配；目录安全/HTTP 18 项及设置 helper、请求客户端、i18n、served-script 的 6 个文件通过。客户端拼接检查仅有固定 508 已存在的 LF=3/LFor=9 失败，本机最小对照与[原 CI](https://github.com/molis-ai/molis-work/actions/runs/40232850905/job/121288074433) 同形，原件保留，不在本单改其全局名单或吸收其它分支。health 对固定 508 与当前 main b3、boundary 均通过。实际 served workbench.js 为 1,129,694 B，较 508 的 1,129,466 B 增 228 B；同资源删行首缩进的试验经生产压缩后仍为同一字节数，已复用现有构造/helper/样式，不加资源，真实预算红留评审与唯一 carrier 按现行政策结算。本单浏览器和独立收据按同一候选源码交接，最终运行与未验边界以其原始结果为准。

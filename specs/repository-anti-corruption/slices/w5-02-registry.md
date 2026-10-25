@@ -174,7 +174,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
 | 编号 | 内容 | 提交 |
 | --- | --- | --- |
-| RAC-564 | 平台层（`apps/local-host/src`）没有文件从工作台取目录或它派生的平台事实，按 import 图判断；只许剩成果类型五项（A3 删） | B1 |
+| RAC-564 | 平台层（`apps/local-host/src`）没有文件从工作台取目录或它派生的平台事实，按 AST 读 import/export（含 named alias、type import 与 namespace 成员）；继续允许外壳渲染两项与成果类型五项（A3 删），拒绝字面量路径的运行时动态导入、相对路径伸入工作台、无法确定成员的 namespace 转交。`tests/registry-host-imports.test.ts` 用真实源码及同一扫描入口的定向变体证明允许项通过、目录与平台事实的别名读取失败。#1279 的 `host-plugin-ids.ts` 改读平台登记仍归身份线与 Claude carrier 组合，不在此项测试修复中改生产源 | B1 |
 | RAC-565 | 装进 Home 的包带着 `molis-work.registration` 和 `registration` 导出，不进启动名单、不拿 `bundled`、不能用内置 plugin id 作提供方（S-08、S-15，进 `pnpm test:security`）。「提供方身份」与 ac-trust T6（S-68、BL-506）重叠：实现前看 T6 的状态，只留一处检查，这里只断言结果 | B1 |
 | RAC-566 | 门禁的旧读法被拒：手写数组形式的目录、手写的平台名单，`catalog-entries.mjs` 与 `--check` 都失败 | B1 |
 | RAC-567 | `--check` 对两份生成文件都核：任一份过期、手改、缺一份都失败 | B1 |

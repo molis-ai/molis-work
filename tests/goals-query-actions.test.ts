@@ -10,6 +10,7 @@ import { goalPluginActions, readGoalResumeFacts } from "@molis-ai/molis-work-con
 import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materializeGoalEventHistory, goalEventHistoryKinds } from "./goal-event-history-fixture.js";
 import { readTestGoalCollection } from "./fixtures/web-view.js";
+import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Goals query actions preserve full bodies, cursor order, scope and live policy for action consumers", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-query-actions-"));
@@ -33,10 +34,10 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.equal(state.agreement.outcome, "分页能读到全部原文");
     assert.equal(state.work_status, "open");
     const snapshot = await actions.invoke(goalsActions.snapshot, {});
-    assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(project_id)));
+    assert.deepEqual(snapshot, await host.withProject(ref, r => boardSnapshot(r.store, project_id)));
     assert.deepEqual(await host.actionClient(ref).invoke({ actor_id: "second-reader", audience: "user", project_id, permissions: ["goals:read"] }, goalsActions.snapshot, {}), snapshot);
     const contract = await actions.invoke(goalsActions.contract, { goal_id });
-    assert.deepEqual(contract, await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(project_id, goal_id)));
+    assert.deepEqual(contract, await host.withProject(ref, r => goalApplicationOf(r).goalQueries.readGoalContract(project_id, goal_id)));
     const checkReadBoundary = async <Input, Output>(action: ActionDefinition<Input, Output>, input: Input) => {
       await assert.rejects(actions.invoke(action, { ...input, actor_id: "forged" } as never), { code: "actions.input_invalid" });
       await assert.rejects(host.actionClient(ref).invoke({ actor_id: "reader", audience: "mcp", project_id: ref.project_id, permissions: [] }, action, input), { code: "actions.forbidden" });
@@ -44,7 +45,7 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     await checkReadBoundary(goalsActions.snapshot, {});
     await checkReadBoundary(goalsActions.contract, { goal_id });
     const collection = await actions.invoke(goalsActions.collection, {});
-    assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, project_id)));
+    assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, goalApplicationOf(r), project_id)));
     assert.equal(collection.goals[0]?.goal.goal_id, goal_id);
     await checkReadBoundary(goalsActions.collection, {});
     await assert.rejects(host.actionClient(ref).invoke({ actor_id: "query-reader", audience: "user", project_id: "foreign", permissions: ["goals:read"] }, goalsActions.snapshot, {}), { code: "actions.scope_mismatch" });
@@ -134,13 +135,13 @@ test("query contracts read the completion, human requirements and event payloads
       project_id: ref.project_id, permissions: ["goals:read"] }));
     try {
       const snapshot = await actions.invoke(goalsActions.snapshot, {});
-      assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(ref.project_id)));
+      assert.deepEqual(snapshot, await host.withProject(ref, r => boardSnapshot(r.store, ref.project_id)));
       const collection = await actions.invoke(goalsActions.collection, {});
-      assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, ref.project_id)));
+      assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, goalApplicationOf(r), ref.project_id)));
       assert.deepEqual(await actions.invoke(goalsActions.snapshot, {}), snapshot, "collection reads must not write history or attention");
       for (const goal of snapshot.goals) {
         assert.deepEqual(await actions.invoke(goalsActions.contract, { goal_id: goal.goal_id }),
-          await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(ref.project_id, goal.goal_id)));
+          await host.withProject(ref, r => goalApplicationOf(r).goalQueries.readGoalContract(ref.project_id, goal.goal_id)));
       }
       const core = await actions.invoke(goalsActions.state, { goal_id: "CORE" });
       assert.equal(core.work_status, "completed");
@@ -177,10 +178,10 @@ test("Goal definitions take only the four decision methods and the two review st
   const project_id = project.project_id;
   try {
     // New criteria are held to the known methods.
-    await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
+    await assert.rejects(host.withProject(ref, r => goalApplicationOf(r).goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
       acceptance_criteria: [{ statement: "试玩", decision_method: "playtest" as never, pass_condition: "能进球" }] },
       { actor_id: "user", idempotency_key: "new-goal" })), { code: "goals.goal.acceptance_invalid", message: /automated_check、measurement、inspection、human_decision/ });
-    await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
+    await assert.rejects(host.withProject(ref, r => goalApplicationOf(r).goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
       acceptance_criteria: [], decomposition_review: { status: "closed_leaf" as never, coverage: [], open_goal_ids: [], next_step: "" } },
       { actor_id: "user", idempotency_key: "new-review" })), { code: "goals.goal.decomposition_review_invalid", message: /complete、paused/ });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }

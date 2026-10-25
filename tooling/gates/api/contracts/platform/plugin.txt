@@ -2557,6 +2557,7 @@ export interface PluginAttentionClient {
 
 export interface PluginAttentionDeclaration {
     readonly subjects: readonly AttentionSubjectType[];
+    readonly inbox?: readonly AttentionSubjectType[];
 }
 
 export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
@@ -3162,11 +3163,11 @@ export interface PluginJournalEvent {
 export interface PluginJournalReader {
     eventCursor(objectType?: string): number;
     readEventsDescending(): PluginJournalEvent[];
+    getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
 }
 
 export interface PluginJournalWriter extends PluginJournalReader {
     appendEvent(input: PluginJournalAppend): number;
-    getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
     putIdempotency(input: PluginIdempotencyPut): void;
 }
 

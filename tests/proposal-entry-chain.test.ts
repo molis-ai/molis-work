@@ -21,7 +21,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "Proposal chain", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
-  const host = createMolisWorkLocalHost();
+  const host = createMolisWorkLocalHost({ homeDirectory: directory });
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = managementGoals(host.actionClient(reference), projectId);
   const runtimeHost = {
@@ -145,7 +145,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     const beforeReplay = await snapshot();
     await runtime.close();
     await host.close();
-    const restarted = createMolisWorkLocalHost();
+    const restarted = createMolisWorkLocalHost({ homeDirectory: directory });
     try { assert.deepEqual(await managementGoals(restarted.actionClient(reference), projectId).invoke(goalsActions.snapshot, {}), beforeReplay); }
     finally { await restarted.close(); }
   } finally {

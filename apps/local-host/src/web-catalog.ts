@@ -103,7 +103,7 @@ export async function handleLocalCatalogWebRequest(
       hidden: catalog.listHiddenPlugins(projectId),
     }));
   };
-  if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, bindPersonalPlanningWebActions(localHost.homeActionClient()))) return;
+  if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, bindPersonalPlanningWebActions(localHost, request))) return;
   if (await handleModelSettingsHttp(request, response, url, composition.withCatalog, serverOptions.homeDirectory)) return;
   const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|models|runtimes|assistant|characters|prompts|memory|mcp|connectors|projects|diagnostics)$/);
   const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);

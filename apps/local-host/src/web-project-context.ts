@@ -5,7 +5,7 @@ import { shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { localWebActionContext, type bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import type { bindGoalsWebActions } from "./goals-actions.js";
+import type { bindGoalsWebActions } from "./goal-callers.js";
 import { molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "./project-host.js";
 import type { projectFeedOptions } from "./workflow-feed-options.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";

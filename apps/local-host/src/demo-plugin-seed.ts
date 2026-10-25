@@ -1,26 +1,22 @@
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { listProjectRoots, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
-import { DEMO_PROJECT_ID } from "./demo-seed.js";
+import { DEMO_PROJECT_ID } from "./demo-project-id.js";
+import { DEMO_CORE_ARTIFACT_ID, registerDemoDeliverableVersions } from "./demo-deliverable.js";
 import { LocalProjectDatabase } from "./project-database.js";
-import { openProjectVersionStores } from "./project-version-stores.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
-import { artifactsManifest, DOCUMENT_ARTIFACT_TYPE } from "@molis-ai/molis-work-plugin-artifacts";
-import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
 export const DEMO_GITHUB_SOURCE_ID = "demo-github";
 export const DEMO_GMAIL_SOURCE_ID = "demo-gmail";
-export const DEMO_CORE_ARTIFACT_ID = "demo/core-lifecycle-record";
+export { DEMO_CORE_ARTIFACT_ID };
 const DEMO_OUT_RULE_NAME = "捕捉首次协作文章";
 const DEMO_YOUTUBE_CHANNEL_ID = "UCmwDemoPublicChannel001";
 const DEMO_WEB_QUERY = "AI 工作台如何保存共同进度";
 
-const DEMO_ACTOR = "demo-user";
 const AT = {
   github: "2026-09-16T06:18:00.000Z",
   gmail: "2026-09-16T05:42:00.000Z",
@@ -298,21 +294,9 @@ function ingestOnce(
 }
 
 /**
- * CORE's deliverable (specs/artifact-positioning A5): a real 成果 — an imported record, two versions — that the Goal
- * hands in through a `goal.output` link to the second version, not a type of its own.
+ * CORE's deliverable (specs/artifact-positioning A5): a real 成果, an imported record of two versions. The Goal hands the second version
+ * in through its own action when its sample is written (`seedDemoGoals`), so the link is Goals' and not written around it here.
  */
 function seedDemoDeliverable(store: LocalProjectDatabase, projectId: string): void {
-  const { artifacts } = openProjectVersionStores(store);
-  const producer = { plugin_id: artifactsManifest.plugin_id, plugin_version: artifactsManifest.version, binding_signature: artifactsManifest.publisher.signature };
-  for (const [version, title, content] of [[1, "生命周期记录已接通", "从约定、报告到收尾形成完整记录"], [2, "可用的生命周期记录", "约定要求已有支持事实，演示收尾"]] as const) {
-    artifacts.commands.registerVersion({ project_id: projectId, actor_id: DEMO_ACTOR, artifact_id: DEMO_CORE_ARTIFACT_ID, version,
-      artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1, producer, metadata: { origin: "demo-seed", goal_id: "CORE" },
-      content: { kind: "inline", payload: { source: "file", source_id: `生命周期记录.md:v${version}`, source_url: null, title, content: `# ${title}\n\n${content}\n`, format: "markdown", warnings: [] } },
-      origin: { kind: "imported", file_name: "生命周期记录.md" }, title, media_type: "text/markdown", ...(version > 1 ? { supersedes_version: version - 1 } : {}) });
-  }
-  const scope = { kind: "personal" as const, id: projectId };
-  const delivered = { artifact_id: DEMO_CORE_ARTIFACT_ID, version: 2 };
-  createContextLedger(store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === projectId }).commands.put({ actor_id: DEMO_ACTOR, scope }, {
-    key: `goal.output:CORE:${artifactSubjectId(delivered)}`, type: "goal.output", cause: "goals.deliverable",
-    source: { module: "goals", id: "CORE", version: null, scope }, target: { module: "artifacts", id: delivered.artifact_id, version: delivered.version, scope } });
+  registerDemoDeliverableVersions(store, projectId);
 }

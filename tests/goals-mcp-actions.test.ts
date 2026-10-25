@@ -13,6 +13,7 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -103,7 +104,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     assert.notEqual(refusedCallId, noteCallId, "every tool call is an operation of its own");
     const refusedRow = host.callLog!.find(refusedCallId!)[0];
     assert.deepEqual([refusedRow?.refused, refusedRow?.ok, refusedRow?.actor_id, refusedRow?.code], [true, false, clientId, "actions.input_invalid"]);
-    const stored = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, note.event_id));
+    const stored = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readEvent(project.project_id, input.goal_id, note.event_id));
     assert.equal(stored.actor_id, auditActor); assert.equal(stored.actor_kind, "runtime");
     assert.equal((stored.payload as { body: string }).body, newInput.body);
     assert.ok(policies.includes(clientId), "policy receives the grant principal, never the historical author");
@@ -137,7 +138,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     release!(); assert.equal((await pending).isError, true); pending = undefined; gate = undefined;
     const afterRevoke = await names();
     assert.equal(afterRevoke.includes(aliases.note), false); assert.equal(afterRevoke.includes(molisWorkActionToolName(goalsActions.note)), false);
-    const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
+    const events = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 2);
     const stateView = (await host.inspectActions(caller, ref)).find(view => view.capability_id === goalsActions.state.capability_id)!;
     await served.revoke(clientId, project.project_id, [stateView]);

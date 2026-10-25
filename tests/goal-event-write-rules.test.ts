@@ -1,10 +1,11 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { GoalProjectApplication, goalsQueryOf } from "./fixtures/goal-application.js";
 
 // The rules a Goal event-state write goes through, in the order they are checked: replay by idempotency key, then the goal is
 // writable (goal-writable.ts: not in the trash, not archived) and owned by the event state, then a cancelled goal takes only an
@@ -158,7 +159,7 @@ test("an archived goal takes no event-state write: every kind is refused with go
     const note = data.app.goalEvents.recordNote({ project_id: BOARD, goal_id: goalId, ...runtime, idempotency_key: "note-before-archive", body: "归档前的补充" });
     const agreementVersions = versions(data.app, goalId);
     archiveGoal(data, goalId, "archive-1");
-    assert.ok(data.store.goalsQuery.getGoal(BOARD, goalId)?.archived_at, "the goal is archived");
+    assert.ok(goalsQueryOf(data.store).getGoal(BOARD, goalId)?.archived_at, "the goal is archived");
     const eventsBefore = data.store.readEventsDescending(BOARD);
 
     assert.throws(

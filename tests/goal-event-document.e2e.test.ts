@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_PROJECT_ID, GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef } from "@molis-ai/molis-work-contracts/modules/goals";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("event document writes planning, report, concern, decision and closure through the production UI", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -417,7 +418,7 @@ test("a Goal without event work stays readable without writing an owner or offer
     promised_outputs: ["原输出：可读的最终说明文档"],
     acceptance_criteria: [],
   }, { actor_id: "history-fixture", idempotency_key: "legacy-readonly-create", reason: "隔离验收无 owner 历史阅读" });
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   const beforeGoal = before.goals.find((item) => item.goal_id === goalId)!;
   assert.equal(app.goalEvents.isEventStateOwner(DEMO_PROJECT_ID, goalId), false);
   assert.equal(beforeGoal.outcome, originalOutcome);
@@ -447,7 +448,7 @@ test("a Goal without event work stays readable without writing an owner or offer
   assert.match(body, /隔离验收无 owner 历史阅读/);
   await reloadPage();
   await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   const afterGoal = after.goals.find((item) => item.goal_id === goalId)!;
   assert.equal(app.goalEvents.isEventStateOwner(DEMO_PROJECT_ID, goalId), false);
   assert.equal(afterGoal.title, beforeGoal.title);
@@ -467,7 +468,7 @@ test("timeline pagination retries in place and preserves dates, type markers and
   }
   store.appendEvent({ eventId: "paged-historical-result", projectId: DEMO_PROJECT_ID, actorId: "web-user", type: "goal.updated", objectType: "goal",
     objectId: goal.goal_id, reason: "更早的说明修订", payload: {}, at: "2026-09-01T16:40:00.000Z" });
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setTimezoneOverride", { timezoneId: "Asia/Shanghai" }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goal.goal_id) }, sessionId));
@@ -491,5 +492,5 @@ test("timeline pagination retries in place and preserves dates, type markers and
   assert.equal(await evaluate("document.querySelector('[data-event-sheet]').previousElementSibling.dataset.originalId"), "paged-historical-result");
   const ids = await evaluate<string[]>("[...document.querySelectorAll('[data-timeline-item]')].map(node=>node.dataset.timelineItem)");
   assert.equal(ids.length, new Set(ids).size);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), before, "reading and retrying history must not write facts");
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), before, "reading and retrying history must not write facts");
 });

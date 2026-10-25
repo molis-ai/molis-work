@@ -16,6 +16,8 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { artifactActionProvider } from "../apps/local-host/dist/artifact-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 test("Artifacts share real records through Host and production MCP, preserving fixed versions, authority and restart", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "artifacts-actions-"));
@@ -110,7 +112,7 @@ test("external Artifact import checks live authority and plugin state after fetc
   const caller: ActionCallContext = { actor_id: "owner", project_id: "project", audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), originalFetch = globalThis.fetch;
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: "project", actor_id: "owner", idempotency_key: "init" }));
+    await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
     for (const mode of ["revoked", "disabled", "cancelled", "success"] as const) {
       let enter!: () => void, release!: () => void, allowed = true;
       const entered = new Promise<void>(resolve => { enter = resolve; });
@@ -150,7 +152,7 @@ for (const stop of ["withdraw", "cancel"] as const) test(`Artifact imports stay 
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
   try {
     await host.withProject(ref, async runtime => {
-      runtime.coordinator.initializeBoard({ project_id: "project", actor_id: "owner", idempotency_key: "init" });
+      goalApplicationOf(runtime).initializeBoard({ project_id: "project", actor_id: "owner", idempotency_key: "init" });
       const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
       const service = new ActionService(undefined, { beforeEffect: async caller => {
         if (caller.actor_id === "slow") { entered.resolve(); await release.promise; }

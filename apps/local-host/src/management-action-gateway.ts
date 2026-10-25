@@ -4,7 +4,7 @@ import { withCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId, isGatewayCallId } from "./action-gateway.js";
 import { MANAGEMENT_ACTION_PATH, catalogManagementProject } from "./management-action-client.js";
-import { bindGoalsManagementActions, managementActionDefinition } from "./goals-actions.js";
+import { bindGoalsManagementActions, managementActionDefinition } from "./goal-callers.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { recordedCallIdField } from "./call-id-response.js";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";

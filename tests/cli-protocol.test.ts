@@ -73,7 +73,8 @@ test("CLI help and failed input retain storage side effects, error order and inj
   const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-storage-"));
   const databasePath = join(directory, "nested", "project.db");
   let opens = 0;
-  const host = createMolisWorkLocalHost({ onRuntimeOpen: () => { opens += 1; } });
+  // Goals runs in the Host as a plugin of the project, which needs the Home the Host belongs to.
+  const host = createMolisWorkLocalHost({ homeDirectory: join(directory, "home"), completeText: null, onRuntimeOpen: () => { opens += 1; } });
   try {
     const help = await captureCli(() => runV1Cli(["--help", "--db", databasePath, "--json", "{"], { localHost: host }));
     assert.match(help.join("\n"), /--db PATH is required[^\n]*There is no default path/);
@@ -142,7 +143,7 @@ class NumberedHost extends MolisWorkLocalHost {
 test("one CLI command is one operation: everything it calls shares a call number, and the next command has its own", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-call-id-"));
   const databasePath = join(directory, "project.db");
-  const host = new NumberedHost();
+  const host = new NumberedHost({ homeDirectory: join(directory, "home"), completeText: null });
   try {
     const input = { project_id: "cli-call-id", actor_id: "user", idempotency_key: "init" };
     await captureCli(() => runV1Cli(["init", "--db", databasePath, "--json", JSON.stringify(input)], { localHost: host }));

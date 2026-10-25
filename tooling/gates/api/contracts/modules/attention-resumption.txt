@@ -53,9 +53,13 @@ export interface AttentionEvents {
     list(projectId: string, entryId?: string): AttentionEvent[];
 }
 
+export type AttentionInboxDeclarations = ReadonlyMap<string, ReadonlySet<AttentionSubjectType>>;
+
 export interface AttentionQuery {
     list(projectId: string): AttentionEntryRecord[];
     get(projectId: string, entryId: string): AttentionEntryRecord;
+    listInbox(projectId: string, declared: AttentionInboxDeclarations): AttentionEntryRecord[];
+    getInbox(projectId: string, entryId: string, declared: AttentionInboxDeclarations): AttentionEntryRecord;
     findActiveForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId?: string | null): AttentionEntryRecord | null;
     findForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId?: string | null): AttentionEntryRecord[];
 }

@@ -16,7 +16,7 @@ import {
   seedDemoPluginSurfaces,
 } from "./demo-plugin-seed.js";
 /** The demo project has a fixed id; its seed writes under whichever project id it is given (an older demo keeps its own). */
-export interface DemoProjectSeedPort { projectId: string; seed(databasePath: string, projectId: string): void }
+export interface DemoProjectSeedPort { projectId: string; seed(databasePath: string, projectId: string): Promise<void> }
 /** Rebuild only explicitly classified demonstration data through the supplied production seed. */
 export class DemoProjectLifecycle {
   constructor(
@@ -57,7 +57,7 @@ export class DemoProjectLifecycle {
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
-      this.demo.seed(stagedDatabasePath, record.project_id);
+      await this.demo.seed(stagedDatabasePath, record.project_id);
       seedDemoPluginSurfaces(stagedDatabasePath, record.project_id);
       validateManagedProject(stagedDatabasePath, record.project_id);
       await fs.rename(stagingDirectory, projectDirectory);
@@ -91,7 +91,7 @@ export class DemoProjectLifecycle {
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
-      this.demo.seed(stagedDatabasePath, project.project_id);
+      await this.demo.seed(stagedDatabasePath, project.project_id);
       seedDemoPluginSurfaces(stagedDatabasePath, project.project_id);
       validateManagedProject(stagedDatabasePath, project.project_id);
       await fs.rename(projectDirectory, backupDirectory);

@@ -23,7 +23,7 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 | [src/document-collection.ts](src/document-collection.ts) | 文档列表投影 |
 | [src/http/index.ts](src/http/index.ts) | 页面操作的路由处理 `goalsRoutes`：[src/manifest.ts](src/manifest.ts) 的 `routes` 每声明一条，这里一个处理（PG094-09）；PG-094 S9 之前宿主在旧地址 `/api/<路径>` 上经通用分发器调它们 |
 
-可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
+可对照现有调用方 [src/plugin.ts](src/plugin.ts) 阅读装配方式。
 
 完成卡的「去 Goals 确认」定位到本次提案；列表中的待确认区也包含未关联现存 Goal 的提案。采用或退回仍由原受保护决定入口处理，刷新后已决定提案离开待确认区，原 Goal 详情入口继续可用（context-program W4-2-13）。
 
@@ -78,7 +78,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 目标树的动作、CLI、Web 审批与管理 `goal_tree_decide` 共用四个动作，原 Submission/Query/Check/Decision owner 保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate；part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。schema 位于插件，不另维护 MCP 业务 schema。
 
-`goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 经同一私有工厂调该动作：Host 用 `managementTreeAuthority` 固定本人和 management 来源，输入的证据只能指向对话及整组确认（`conversation_ref`、`message_ref`、`whole_confirmation_prompted`、`prompted_proposal_id`），身份或来源声明返回 `goals.goal_tree_proposal.authority_source_invalid`。管理 `event_decide` 的出处由 `managementEventDecisionAuthority` 给出，默认为 `management:<项目>` 与 `management-event-decision:<键>`；共用 owner 仍以 `goals.event_decision_authority_invalid` 拒证据身份。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
+`goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 经同一私有工厂调该动作：Host 的 `bindGoalsManagementActions` 固定本人和 management 来源（出处由入口给，`entryUserAction("management", …)`；证据检查是本包导出的 `managementEvidence`），输入的证据只能指向对话及整组确认（`conversation_ref`、`message_ref`、`whole_confirmation_prompted`、`prompted_proposal_id`），身份或来源声明返回 `goals.goal_tree_proposal.authority_source_invalid`。管理 `event_decide` 的出处同样由入口给出（`entryUserAction`），默认为 `management:<项目>` 与 `management:<键>`（原 `management-event-decision:<键>`、`management-tree-decision:<键>`、`web-decision:<键>` 一并改成这一种写法，见 CONTRACT-CHANGES §8）；共用 owner 仍以 `goals.event_decision_authority_invalid` 拒证据身份。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
 
 动作提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经常驻网关保持，插件 Agent 的一轮取宿主在启动时核过归属的那条会话（审计作者 `agent:<runtime_id>:<会话>`，幂等按会话分开）；管理入口背后没有 Runtime 会话，提案记 `submitted_session_id: null`。业务输入不能覆盖它。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。
 

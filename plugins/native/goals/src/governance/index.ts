@@ -50,7 +50,6 @@ export {
 } from "./mappers.js";
 export { GovernanceEventDecisions } from "./event-decisions.js";
 export {
-  governanceSqlite,
   type GovernanceJournal,
   type GovernanceSqliteDatabase,
   type GovernanceSqliteStatement,

@@ -12,7 +12,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// S-67 and RAC-297 (PG-094 S10/S11): a plugin undoes part of its own write transaction through `transaction.savepoint`, a primitive every plugin
+// S-67 and RAC-703 (PG-094 S10/S11): a plugin undoes part of its own write transaction through `transaction.savepoint`, a primitive every plugin
 // has alike. The platform makes and names the point, so nothing the plugin passes reaches SQL; the body is synchronous; a nested
 // point undoes only its own writes; the handle is dead once the transaction is over; and every step asks the grants and the original
 // caller again, as a statement does, so a call that was cancelled or revoked writes nothing, the rows and the journal included.
@@ -124,7 +124,7 @@ function caller(permission: string) {
 }
 const codeOf = (failure: (typeof FAILURES)[number]) => failure === "revoke" ? "actions.forbidden" : "actions.provider_changed";
 
-// RAC-297
+// RAC-703
 test("S-67 a savepoint keeps or undoes only its own writes: the rest of the transaction commits, a throw undoes the body and leaves the error to the plugin, a nested point undoes only itself", async t => {
   const { client, main, notes } = await platform(t);
   const run = (name: string, step: Step) => client.invoke(caller(main.write).context, main.act, { name, step });
@@ -143,7 +143,7 @@ test("S-67 a savepoint keeps or undoes only its own writes: the rest of the tran
   assert.deepEqual(main.gate.value, { answer: 42 }, "the body's value comes back whether or not it was kept");
 });
 
-// RAC-297
+// RAC-703
 test("S-67 the point is the platform's: the plugin sends no SQL for it, an async body is refused with its writes undone, and a handle kept past the transaction is dead", async t => {
   const { client, main, notes } = await platform(t);
   const run = (name: string, step: Step) => client.invoke(caller(main.write).context, main.act, { name, step });
@@ -180,13 +180,13 @@ async function authorityMoves(t: TestContext, stage: "entry" | "body") {
   assert.deepEqual(notes(`${stage}-current`), stage === "entry" ? ["outer"] : ["outer", "inner"]);
 }
 
-// RAC-297
+// RAC-703
 test("S-67 entry: a caller that is revoked, cancelled or moved to another provider before the point is made writes nothing, the transaction's own rows included", t => authorityMoves(t, "entry"));
 
-// RAC-297
+// RAC-703
 test("S-67 body: a caller that is revoked, cancelled or moved to another provider inside the body writes nothing, the transaction's own rows included", t => authorityMoves(t, "body"));
 
-// RAC-297
+// RAC-703
 test("S-67 the project's journal follows the point: an event appended inside an undone savepoint is gone with it, one before it stays", async t => {
   const { client, main, notes, event } = await platform(t);
   assert.equal(await client.invoke(caller(main.write).context, main.act, { name: "journal", step: "journal" }), true);

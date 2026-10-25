@@ -19,7 +19,7 @@ ArtifactsModule（成果库）与 ProcessItemsModule（过程项）通过 query/
 | [src/content.ts](src/content.ts) | opaque 内容处理 |
 | [src/repository.ts](src/repository.ts) | 记录与查询 |
 
-可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
+可对照现有调用方 [plugins/native/goals/src/plugin.ts](../../plugins/native/goals/src/plugin.ts) 阅读装配方式。
 
 ## 接入与边界
 

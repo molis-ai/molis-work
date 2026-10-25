@@ -7,6 +7,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 /**
  * `goals.inputs.confirm` is how a plugin that owns a source (today Feed, when a person promotes an item) has Goals record that the
@@ -21,7 +22,7 @@ test("a confirmed source becomes the Goal's input receipt, once, under the calle
     denied && view.capability_id === goalsActions.inputsConfirm.capability_id ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已停用" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["goals:read", "goals:write", "context-ledger:write"] };
   const actions = host.actionClient(ref), bound = bindActionClient(actions, () => caller);
-  const receipts = (goal_id: string) => host.withProject(ref, runtime => runtime.coordinator.goalInputs.list(project.project_id).filter(receipt => receipt.goal_id === goal_id));
+  const receipts = (goal_id: string) => host.withProject(ref, runtime => goalApplicationOf(runtime).goalInputs.list(project.project_id).filter(receipt => receipt.goal_id === goal_id));
   const digest = `sha256:${"a".repeat(64)}`;
   const input = { goal_id: "INPUT-GOAL", source: { kind: "feed_item" as const, id: "item-1" }, name: "Feed Item 输入", snapshot_digest: digest, reason: "用户确认该输入" };
   try {
@@ -101,7 +102,7 @@ test("an input an Agent proposed waits for the person, who alone accepts it, and
   const agent: ActionCallContext = { actor_id: "runtime:proposer", audit_actor_id: "runtime:proposer:session", runtime_session_id: "session", actor_kind: "runtime",
     audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write", "context-ledger:write"] };
   const actions = host.actionClient(ref), asPerson = bindActionClient(actions, () => person);
-  const receipts = (goal_id: string) => host.withProject(ref, runtime => runtime.coordinator.goalInputs.list(project.project_id).filter(receipt => receipt.goal_id === goal_id));
+  const receipts = (goal_id: string) => host.withProject(ref, runtime => goalApplicationOf(runtime).goalInputs.list(project.project_id).filter(receipt => receipt.goal_id === goal_id));
   const digest = `sha256:${"b".repeat(64)}`;
   const input = (id: string) => ({ goal_id: "ACCEPT-GOAL", source: { kind: "feed_item" as const, id }, name: "Feed Item 输入", snapshot_digest: digest, reason: "从 Feed Item 提议该输入" });
   const propose = async (id: string, by: ActionCallContext = agent) =>

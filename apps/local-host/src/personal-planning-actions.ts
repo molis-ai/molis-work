@@ -1,8 +1,15 @@
-import { randomUUID } from "node:crypto";
-import { bindActionClient, type ActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { IncomingMessage } from "node:http";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { entryUserAction, webEntryMessage } from "./entry-user-action.js";
+import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import { bindLocalWebActions } from "./local-web-actions.js";
+import type { MolisWorkLocalHost } from "./project-host.js";
 
-/** Only bound after the local HTTP channel has passed origin/control-token checks. */
-export function bindPersonalPlanningWebActions(client: ActionClient) {
-  return bindActionClient(client, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: null, audience: "user",
-    permissions: ["goals:read", "goals:write"], user_action: { source: "web", conversation_ref: "web:personal-planning", message_ref: `web:${randomUUID()}` } }));
+/**
+ * Only bound after the local HTTP channel has passed origin/control-token checks. The person's Home-level calls: what they may do is
+ * solved per request from the Manifests and installation grants, and where the act came from is this entry's to say (`entryUserAction`).
+ */
+export function bindPersonalPlanningWebActions(host: MolisWorkLocalHost, request: IncomingMessage): BoundActionClient {
+  const message = webEntryMessage(request);
+  return bindLocalWebActions(host, undefined, LOCAL_OWNER_PERMISSIONS, () => entryUserAction("web", "personal-planning", message));
 }

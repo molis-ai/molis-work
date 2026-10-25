@@ -4,7 +4,7 @@ import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/pl
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readProjectGuidance } from "../goals-actions.js";
+import { readProjectGuidance } from "../goal-callers.js";
 import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";

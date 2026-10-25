@@ -5,7 +5,8 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
-import { bindGoalsManagementActions } from "./goals-actions.js";
+import { bindGoalsManagementActions } from "./goal-callers.js";
+import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
 
 export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new ActionError(code, message, { details });
 
@@ -50,6 +51,7 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
   const owned = audience === "management" && caller.resident ? catalogManagementProject(caller.resident.home, databasePath) : undefined;
   if (owned && owned.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
   if (owned) reference = molisWorkHostProjectReference({ databasePath: owned.database_path, projectId: owned.project_id });
+  if (!owned && name === "molis_work_v1_initialize" && audience === "management") await ensureStandaloneProjectRoot(caller.localHost, reference);
   if (!owned) await caller.localHost.client(reference).withScope(() => undefined);
   const actions = audience !== "management" ? null : owned && caller.resident ? residentManagementActions({
     home: caller.resident.home, origin: caller.resident.origin, signal: caller.resident.signal,

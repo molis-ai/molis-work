@@ -9,6 +9,7 @@ import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_P
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller: ActionCallContext;
@@ -20,7 +21,7 @@ async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+    await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
     await run({ home, host, caller, client, ref, bound: bindActionClient(client, () => caller) });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }

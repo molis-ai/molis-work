@@ -8,6 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
+import { goalsQueryOf } from "./fixtures/goal-application.js";
 
 /** One streamed Anthropic-format model turn: text, or one tool call. */
 function turn(text: string, tool?: { name: string; input: object }): string {
@@ -123,6 +124,6 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
   assert.equal(await evaluate<string>(`window.__runs[0].values.title`), "写 1.4 发布说明", "the card ran with the person's change");
   assert.equal(await evaluate<boolean>(`Boolean(document.querySelector(${JSON.stringify(card)}).querySelector('[data-ix-action="run"]'))`), false, "a card that ran offers no second run");
   await waitFor(`![...document.querySelectorAll('${coding} [data-coding-steps] [data-ix-step-label]')].some(step => step.textContent.includes('写发布说明'))`, 15_000);
-  const goals = b.store.goalsQuery.listGoals(projectId).map(goal => goal.title);
+  const goals = goalsQueryOf(b.store).listGoals(projectId).map(goal => goal.title);
   assert.deepEqual(goals.filter(title => title.includes("发布说明")), ["写 1.4 发布说明"], "the Goal was created once, as the person changed it");
 });

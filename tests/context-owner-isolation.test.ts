@@ -6,9 +6,10 @@ import { join } from "node:path";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { FeedModule } from "@molis-ai/molis-work-module-feed";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("losing the Ledger does not delete Goal, Artifact or Feed content or recreate links from old columns", async () => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-owner-isolation-"));

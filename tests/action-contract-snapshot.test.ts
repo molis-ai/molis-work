@@ -321,10 +321,16 @@ test("the Host must register what each Manifest declares, and the plugin's regis
 });
 
 test("a capability a Manifest declares and a Home-level provider also registers is one Host row of its own", () => {
-  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
-  const both = built.host.filter((row: Row) => built.actions.some((declared: Row) => declared.key === `${row.cells.capability_id}@${row.cells.version}`));
-  assert.ok(both.length >= 1, "the Goals personal planning actions are registered under io.molis.work.goals.home as well as declared by the Goals Manifest");
-  for (const row of both) assert.notEqual(row.cells.provider, built.actions.find((declared: Row) => declared.key === `${row.cells.capability_id}@${row.cells.version}`)!.cells.provider);
+  // No built-in plugin has a Home half registered by the Host any more (Goals' is a Runtime plugin), so the Home-level registration is made here.
+  const views = copyOfViews();
+  const declared = new Set(product.manifests.flatMap((manifest) => (manifest.actions ?? []).map((definition) => `${definition.capability_id}@${definition.version} ${manifest.plugin_id}`)));
+  const own = find(views, (view) => declared.has(`${view.capability_id}@${view.version} ${view.provider.plugin_id}`), "a Manifest action registered by its plugin");
+  const home = { ...own, provider: { provider_id: `${own.provider.plugin_id}.home`, plugin_id: `${own.provider.plugin_id}.home` } };
+  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: [...views, home], hostScenes: product.hostScenes });
+  const key = `${own.capability_id}@${own.version}`;
+  const row = built.host.find((candidate: Row) => `${candidate.cells.capability_id}@${candidate.cells.version}` === key && candidate.cells.provider === home.provider.provider_id);
+  assert.ok(row, "the Home-level registration is a Host row of its own, beside the Manifest's row");
+  assert.notEqual(row.cells.provider, built.actions.find((candidate: Row) => candidate.key === key)!.cells.provider);
 });
 
 // ---- the consumer scenes the Host registers without a Manifest --------------------------------------------------------

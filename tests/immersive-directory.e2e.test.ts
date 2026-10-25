@@ -4,8 +4,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Immersive directories resize and retain compact, operable Goal and Feed lists", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
@@ -17,7 +18,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   const other = await catalog.createProject({ display_name: "另一项目", actor_id: "directory-test" });
   catalog.close();
   new GoalProjectApplication(store).goalEvents.createIntent({ project_id: projectId!, goal_id: "long-child", parent_goal_id: "CORE", actor_id: "directory-test", actor_kind: "user", title: "迁移 Execution Claim / Run 生命周期并保留现有 Runtime 与 Goal 的完整关联", outcome: "验证多层目录中的长标题不会挤压状态标记。", idempotency_key: "long-child" });
-  const before = store.snapshot(projectId!);
+  const before = boardSnapshot(store, projectId!);
   const page = origin + "/projects/" + projectId + "/?desktop=1";
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__uiErrors=[];addEventListener('error',e=>window.__uiErrors.push(e.message));" }, sessionId);
   const viewport = (width: number, height = 1000) => command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
@@ -252,7 +253,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-collapsed')"), false);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "todo");
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=todo]')"), null);
-  const coreTitle = store.snapshot(projectId!).goals.find((goal) => goal.goal_id === "CORE")!.title;
+  const coreTitle = boardSnapshot(store, projectId!).goals.find((goal) => goal.goal_id === "CORE")!.title;
   await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
   await evaluate("(()=>{const input=document.querySelector('[data-global-search]');input.focus();input.value=" + JSON.stringify(coreTitle) + ";input.dispatchEvent(new Event('input',{bubbles:true}));})()");
@@ -282,8 +283,8 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && document.querySelector('[data-goal-stage-list] .tree-node[data-select-goal=\"long-child\"]')?.getClientRects().length > 0");
   await click('[data-select-goal="long-child"]');
   await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
-  assert.deepEqual(store.snapshot(projectId!).goals, before.goals);
-  assert.deepEqual(store.snapshot(projectId!).runs, before.runs);
+  assert.deepEqual(boardSnapshot(store, projectId!).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, projectId!).runs, before.runs);
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
 });
 

@@ -1,38 +1,22 @@
-import { goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
+import type { IncomingMessage } from "node:http";
+import { evidenceText, goalsActions, GOALS_PLUGIN_ID, managementEvidence } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
+import { entryUserAction, webEntryMessage } from "./entry-user-action.js";
+import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import { bindLocalWebActions } from "./local-web-actions.js";
+import type { MolisWorkLocalHost } from "./project-host.js";
 
-/** Permissions of the owners' pin actions: the local person handing in a deliverable pins with each owner's own permissions (A5). */
-const pinPermissions = () => [...new Set([...artifactTypeDeclarations().values()].flatMap(declaration => declaration.pin?.action.permissions ?? []))];
-
-/** Called only after the local Web request's origin/control-token checks. */
-export function bindGoalsWebActions(client: ActionClient, reference: LocalHostProjectReference): BoundActionClient {
-  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user",
-    project_id: reference.project_id, permissions: GOALS_ACTION_PERMISSIONS };
-  return {
-    discover: async () => client.discover(caller),
-    async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> {
-      if ([goalsActions.relationAdd.capability_id, goalsActions.relationDeactivate.capability_id, goalsActions.policySave.capability_id].includes(definition.capability_id)) {
-        const key = String((input as { idempotency_key?: string }).idempotency_key ?? "");
-        return await client.invoke({ ...caller, user_action: { source: "web", conversation_ref: `web:${reference.project_id}`,
-          message_ref: `web:${definition.capability_id}:${key}` } }, definition, input) as Output;
-      }
-      if (definition.capability_id === goalsActions.treeDecide.capability_id) {
-        const payload = input as { idempotency_key?: string; confirm_all_pending?: boolean };
-        return await client.invoke({ ...caller, user_action: { source: "web", conversation_ref: `web:${reference.project_id}`,
-          message_ref: `web-decision:${payload.idempotency_key ?? ""}`, whole_confirmation_prompted: payload.confirm_all_pending === true } }, definition, input) as Output;
-      }
-      if ([goalsActions.deliverablesPin.capability_id, goalsActions.deliverablesCandidates.capability_id, goalsActions.artifactInputsPin.capability_id].includes(definition.capability_id)) {
-        return await client.invoke({ ...caller, permissions: [...new Set([...caller.permissions, ...pinPermissions()])] }, definition, input) as Output;
-      }
-      if (definition.capability_id !== goalsActions.decide.capability_id) return await client.invoke(caller, definition, input) as Output;
-      const authority = hostEventDecisionAuthority("web", reference.project_id, caller.actor_id, String((input as { idempotency_key?: unknown }).idempotency_key ?? ""));
-      return await client.invoke({ ...caller, user_action: { source: authority.authority_source,
-        conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } }, definition, input) as Output;
-    },
-  };
+/**
+ * The person at this machine's page, for one request, after the request's origin and control-token checks. Who may do what is the
+ * request's authority snapshot (`localWebActionContext`: each action's declared permissions against the running installations' grants,
+ * the owners' pin actions included), and where the act came from is the page entry's to say (`entryUserAction`): the request's key and
+ * the whole-confirmation header, never the action's input.
+ */
+export function bindGoalsWebActions(host: MolisWorkLocalHost, reference: LocalHostProjectReference, request: IncomingMessage): BoundActionClient {
+  const message = webEntryMessage(request);
+  return bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS, () => entryUserAction("web", reference.project_id, message));
 }
 
 /**
@@ -86,22 +70,29 @@ const MANAGEMENT_REFUSED_IDENTITY: Readonly<Record<string, readonly string[]>> =
   [goalsActions.decide.capability_id]: [],
 };
 
-/** The provenance a management call stores, in the format those entries have always recorded; the Host fixes the source and who acts. */
+/** What a management entry's evidence may not carry, and the refusal code of the door it came through (the command line's wire keeps them). */
+const EVIDENCE_REFUSAL: Readonly<Record<string, string>> = {
+  [goalsActions.treeDecide.capability_id]: "goals.goal_tree_proposal.authority_source_invalid",
+  [goalsActions.decide.capability_id]: "goals.event_decision_authority_invalid",
+};
+
+/**
+ * The provenance a management call stores: the entry names itself, the project and the command's key, and passes on the evidence the
+ * command was given (the conversation and message a decision came from, whether the person was asked to confirm the whole proposal).
+ * Only the two decisions take evidence; the Host fixes the source and who acts, so evidence that names either is refused first.
+ */
 function managementUserAction(projectId: string, capabilityId: string, input: unknown, evidence: unknown): NonNullable<ActionCallContext["user_action"]> {
   const named = (input as { idempotency_key?: unknown } | null | undefined)?.idempotency_key;
-  const key = typeof named === "string" && named ? named : capabilityId;
-  if (capabilityId === goalsActions.treeDecide.capability_id) {
-    const authority = managementTreeAuthority(projectId, key, evidence);
-    return { source: "management", conversation_ref: authority.conversation_ref, message_ref: authority.message_ref,
-      ...(authority.whole_confirmation_prompted ? { whole_confirmation_prompted: true } : {}),
-      ...(authority.prompted_proposal_id ? { prompted_subject_id: authority.prompted_proposal_id } : {}) };
+  const id = typeof named === "string" && named ? named : capabilityId;
+  const code = EVIDENCE_REFUSAL[capabilityId];
+  if (!code) {
+    if (evidence !== undefined) throw new ActionError("actions.input_invalid", "只有结构提案和事件决定带出处");
+    return entryUserAction("management", projectId, { id });
   }
-  if (capabilityId === goalsActions.decide.capability_id) {
-    const authority = managementEventDecisionAuthority(projectId, key, evidence);
-    return { source: "management", conversation_ref: authority.conversation_ref, message_ref: authority.message_ref };
-  }
-  if (evidence !== undefined) throw new ActionError("actions.input_invalid", "只有结构提案和事件决定带出处");
-  return { source: "management", conversation_ref: `management:${projectId}`, message_ref: `management:${key}` };
+  const given = managementEvidence(evidence, code);
+  const conversation_ref = evidenceText(given.conversation_ref), message_ref = evidenceText(given.message_ref);
+  const confirmation = capabilityId === goalsActions.treeDecide.capability_id ? { whole_confirmation_prompted: given.whole_confirmation_prompted === true, prompted_subject_id: evidenceText(given.prompted_proposal_id) } : {};
+  return entryUserAction("management", projectId, { id, ...(conversation_ref ? { conversation_ref } : {}), ...(message_ref ? { message_ref } : {}), ...confirmation });
 }
 
 /**
@@ -119,8 +110,11 @@ export function bindGoalsManagementActions(client: ActionClient, reference: Loca
     async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output> {
       const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
       if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
+      // The permissions are the registered action's own: the entry names the contract's definition, and an action that writes through a
+      // platform service (Attention, the Context Ledger) also declares that service's permission, which only the registered one carries.
+      const registered = managementActionDefinition(definition) ?? definition;
       return await invokeGoals(client, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
-        permissions: definition.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}),
+        permissions: registered.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}),
         user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, definition, input);
     },
   };

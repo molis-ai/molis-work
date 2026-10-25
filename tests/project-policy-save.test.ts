@@ -7,6 +7,7 @@ import { GoalsModule, DEFAULT_GOAL_POLICY } from "./fixtures/goals-modules.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test("project policy saves atomically replace history, replay lost responses, and reject invalid or unconfirmed changes", t => {
   const directory = mkdtempSync(join(tmpdir(), "project-policy-"));
@@ -30,7 +31,7 @@ test("project policy saves atomically replace history, replay lost responses, an
   assert.equal(active.state, "active");
   assert.equal(active.policy.human_approval, true);
   assert.equal(active.reason, "");
-  const beforeEvents = store.snapshot("project").cursor;
+  const beforeEvents = boardSnapshot(store, "project").cursor;
   for (const invalid of [
     { ...input, user_confirmed: false },
     { ...input, policy: { ...input.policy, cross_reviewers: 2 } as typeof input.policy },
@@ -40,5 +41,5 @@ test("project policy saves atomically replace history, replay lost responses, an
   }
   assert.throws(() => goals.commands.saveProjectPolicy({ ...input, policy: { human_approval: true } }), /幂等键/);
   assert.deepEqual(goals.query.listPolicyHistory("project"), history);
-  assert.equal(store.snapshot("project").cursor, beforeEvents);
+  assert.equal(boardSnapshot(store, "project").cursor, beforeEvents);
 });

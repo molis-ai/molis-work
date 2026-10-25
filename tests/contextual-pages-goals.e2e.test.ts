@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { GoalProjectApplication, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 const SOURCE = "发布笔记";
 const HEADING = "发布计划";
@@ -218,7 +219,7 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
   const other = coordinator.goalTreeSubmission.submitGoalTreeProposal({ project_id: projectId!, actor_id: "browser-planner", summary: "另一份尚未决定的计划",
     idempotency_key: "other-proposal", items: [{ item_id: "other-step", kind: "goal", operation: "create", payload: { goal_id: "other-step", title: "另一个目标步骤" },
       source_refs: ["conversation://other-plan"], reason: "必须由人单独决定", confidence: 1 }] }).proposal;
-  const before = store.snapshot(projectId!);
+  const before = boardSnapshot(store, projectId!);
   const goalItems = proposal.items.filter(item => item.kind === "goal");
   assert.equal(goalItems.length, 2);
   assert.ok(goalItems.every(item => !before.goals.some(goal => goal.goal_id === item.payload.goal_id)), "submitting a proposal materializes no Goals");
@@ -256,13 +257,13 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
   await click(form + ' button[value="confirm"]');
   await waitFor(`!document.querySelector(${JSON.stringify(form + " [data-decision-error]")}).hidden && !document.querySelector(${JSON.stringify(form + ' button[value="confirm"]')}).disabled`);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(form + ' textarea[name="reason"]')}).value`), "确认这两步，按选中的发布计划推进。");
-  assert.deepEqual(store.snapshot(projectId!).goals, before.goals, "a refused approval writes no Goals");
+  assert.deepEqual(boardSnapshot(store, projectId!).goals, before.goals, "a refused approval writes no Goals");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click(form + ' button[value="confirm"]');
   await waitFor(`!document.querySelector(${JSON.stringify(entry)})`, 15_000);
   assert.equal(await evaluate(`document.querySelector('#${other.proposal_id}').open`), true, "another proposal stays expanded through the forced refresh");
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(otherForm + ' textarea[name="reason"]')}).value`), "另一份计划先保留这段未提交的意见。", "approving this proposal preserves another proposal's unsubmitted reason");
-  const after = store.snapshot(projectId!);
+  const after = boardSnapshot(store, projectId!);
   assert.equal(after.goal_tree_proposals.find(item => item.proposal_id === proposal.proposal_id)?.state, "approved");
   assert.equal(after.goal_tree_proposals.find(item => item.proposal_id === other.proposal_id)?.state, "pending");
   for (const item of goalItems) {
@@ -270,12 +271,12 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
     assert.equal(after.relations.filter(relation => relation.from_goal_id === item.payload.goal_id && relation.to_goal_id === goalId && relation.type === "part_of" && relation.state === "active").length, goalId ? 1 : 0);
   }
   await reloadPage();
-  assert.deepEqual(store.snapshot(projectId!).goals, after.goals, "approved Goals survive reload without repetition");
-  assert.deepEqual(store.snapshot(projectId!).relations, after.relations);
+  assert.deepEqual(boardSnapshot(store, projectId!).goals, after.goals, "approved Goals survive reload without repetition");
+  assert.deepEqual(boardSnapshot(store, projectId!).relations, after.relations);
   const openBeforeMissing = await evaluate(`document.querySelector('#${other.proposal_id}').open`);
   await navigate(() => command("Page.navigate", { url: origin + `/projects/${projectId}/?openPlugin=goals#missing-proposal` }, sessionId));
   await waitFor(`document.readyState === "complete" && Boolean(document.querySelector('#${other.proposal_id}'))`);
   assert.equal(await evaluate(`document.querySelector('#${other.proposal_id}').open`), openBeforeMissing, "a missing target preserves the existing disclosure state");
-  assert.deepEqual(store.snapshot(projectId!).goal_tree_proposals, after.goal_tree_proposals);
+  assert.deepEqual(boardSnapshot(store, projectId!).goal_tree_proposals, after.goal_tree_proposals);
 
 });

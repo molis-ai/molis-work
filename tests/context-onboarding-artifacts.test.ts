@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { importArtifactDocument } from "@molis-ai/molis-work-plugin-artifacts";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("original file snapshots retain bytes in exact project versions, retry is idempotent, invalid originals never persist", async () => {
   const storage = new LocalProjectDatabase(":memory:"), project = new GoalProjectApplication(storage);

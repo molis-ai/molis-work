@@ -15,7 +15,8 @@ test("deliverables from anyone but the person are proposals the person confirms 
   const actions = new ActionService();
   actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: "project" },
     definitions: [...Object.values(goalsDeliverableActions), ...Object.values(goalsArtifactInputActions)], handlers: createGoalsDeliverableActionHandlers({ projectId: "board", goalExists: id => id === "G1", ledger,
-      readArtifact: ref => versions.has(`${ref.artifact_id}@${ref.version}`) ? { title: versions.get(`${ref.artifact_id}@${ref.version}`)!, artifact_type_id: "doc", availability: "available", lifecycle_state: "active" } : null,
+      read: body => body(), write: async (caller, body) => { await caller.beforeEffect(); return body(); },
+      readArtifact: async (_caller, ref) => versions.has(`${ref.artifact_id}@${ref.version}`) ? { title: versions.get(`${ref.artifact_id}@${ref.version}`)!, artifact_type_id: "doc", availability: "available", lifecycle_state: "active" } : null,
       pin: async (_caller, subject) => { pinned.push(subject.id); return { artifact_id: "plan", version: 2 }; },
       pinnableKinds: async () => ["pages_document"], boundObjects: () => [] }) });
   const caller = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: audience === "user" ? "web-user" : "assistant", audience, project_id: "project", permissions: ["goals:read", "goals:write", "context-ledger:write", "artifacts:read"] });

@@ -15,7 +15,7 @@ export { createGoalsPlugin } from "./plugin.js";
 export { createHomeGoalsPlugin } from "./home-plugin.js";
 export { GOALS_HOME_DATABASE } from "./home-database.js";
 export { createGoalsApplication, type GoalsApplication, type GoalsApplicationPorts } from "./goals-application.js";
-export { managementTreeAuthority, managementEventDecisionAuthority } from "./management-evidence.js";
+export { managementEvidence, evidenceText } from "./management-evidence.js";
 export * from "./goal-entry-contract.js";
 export * from "./proposal-normalizer.js";
 export * from "./goal-tree-materialization-order.js";

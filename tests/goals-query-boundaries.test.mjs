@@ -4,7 +4,7 @@ import test from "node:test";
 import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
 
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
-  for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/local-host/src/goal-project-application.ts", "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts", "apps/local-host/src/feed-application.ts"]) {
+  for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts", "apps/local-host/src/feed-application.ts"]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.deepEqual(checkGoalReadOwnerSql(source), [], file);
     for (const sql of ["SELECT 1 FROM goals WHERE project_id = ? AND goal_id = ?", "SELECT * FROM policy_bindings",
@@ -123,7 +123,7 @@ test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open an
   for (const actual of [bind, preopen, dispatch]) assert.ok(source.includes(actual), "mutation reaches the production call");
   for (const [mutation, edit] of [
     ["wrong factory", text => text.replace("bindGoalsManagementActions(", "anotherFactory(")],
-    ["factory from elsewhere", text => text.replace('from "./goals-actions.js"', 'from "./elsewhere.js"')],
+    ["factory from elsewhere", text => text.replace('from "./goal-callers.js"', 'from "./elsewhere.js"')],
     ["type-only factory", text => text.replace("import { bindGoalsManagementActions }", "import type { bindGoalsManagementActions }")],
     ["explicit preparation", text => text.replace("actionClient(reference)", "actionClient(reference, true)")],
     ["unprepared client", text => text.replace("actionClient(reference)", "actionClient(reference, false)")],
@@ -214,7 +214,7 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
     ["another client reference", source => source.replace("actionClient(reference)", "actionClient(otherReference)")],
     ["explicit preparation", source => source.replace("actionClient(reference)", "actionClient(reference, true)")],
     ["unprepared client", source => source.replace("actionClient(reference)", "actionClient(reference, false)")],
-    ["wrong factory import", source => source.replace('from "./goals-actions.js"', 'from "./elsewhere.js"')],
+    ["wrong factory import", source => source.replace('from "./goal-callers.js"', 'from "./elsewhere.js"')],
     ["type-only factory import", source => source.replace('import { bindGoalsManagementActions }', 'import type { bindGoalsManagementActions }')],
     ["unused selected port", source => source.replace("dispatchCliProjectCommand(actions, args, input)", "dispatchCliProjectCommand(makeActions(), args, input)")],
     ["second typed route", source => source.replace("const actions =", "const extra = localHost.client(reference);\n  const actions =")],

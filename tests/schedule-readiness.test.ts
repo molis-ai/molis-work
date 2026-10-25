@@ -17,6 +17,7 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { directScheduleActions } from "./schedule-direct-actions.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 // W2-18 decision 3: creating a scheduled task without a model or a bound workspace shows a hint in the dialog and still
 // allows creation. The workspace is what the runner checks when it wakes up; the model is read from the model catalog as a
@@ -55,7 +56,7 @@ test("the readiness action is a project query that reports what the Host reports
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS };
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+    await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
     const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
     const row = (await client.discover(caller)).find(item => item.capability_id === s.readiness.capability_id);
     assert.ok(row, "listed in the one directory");

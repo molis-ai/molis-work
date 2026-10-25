@@ -18,6 +18,7 @@ import { DEFAULT_GOAL_POLICY, BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/g
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Goals actions keep the runtime author; the management caller and the first-run door record the local person and refuse a supplied actor", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-actions-"));
@@ -51,12 +52,12 @@ test("Goals actions keep the runtime author; the management caller and the first
     await assert.rejects(actions.invoke(caller, goalsActions.note, { ...note, project_id: "other-board" } as never), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke(managementCaller("other-board", note.idempotency_key), goalsActions.note, note), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "other-project" }, goalsActions.note, note), { code: "actions.scope_mismatch" });
-    const event = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, recorded.event_id));
+    const event = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readEvent(project.project_id, input.goal_id, recorded.event_id));
     assert.equal(event.actor_id, caller.actor_id);
     assert.equal(event.actor_kind, "runtime");
     assert.equal((event.payload as { body: string }).body, note.body);
     const legacy = await actions.invoke({ actor_id: "legacy-owner", actor_kind: null, audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write"] }, goalsActions.note, { ...note, body: "旧内部身份", idempotency_key: "legacy-note" });
-    const oldEvent = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, legacy.event_id));
+    const oldEvent = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readEvent(project.project_id, input.goal_id, legacy.event_id));
     assert.equal(oldEvent.actor_kind, null, "unclassified legacy identity must not be rewritten as a user decision");
     assert.equal(oldEvent.actor_id, "legacy-owner");
     await bound.invoke(goalsActions.create, { title: "第二个目标", goal_id: "SECOND-ACTION-GOAL", idempotency_key: "create-second" });
@@ -73,14 +74,14 @@ test("Goals actions keep the runtime author; the management caller and the first
     assert.equal(managementCreated.replayed, false);
     assert.equal((await management.invoke(goalsActions.create, managementInput)).replayed, true);
     const typedNote = await management.invoke(goalsActions.note, { goal_id: "TYPED-GOAL", body: "管理入口便笺", idempotency_key: "typed-note" });
-    const typedEvent = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, "TYPED-GOAL", typedNote.event_id));
+    const typedEvent = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readEvent(project.project_id, "TYPED-GOAL", typedNote.event_id));
     assert.equal(typedEvent.actor_id, LOCAL_PERSON_ACTOR_ID);
     assert.equal(typedEvent.actor_kind, "user");
     blocked = true;
     const before = creates;
     await assert.rejects(management.invoke(goalsActions.create, { ...input, goal_id: "DENIED", idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
     assert.ok(creates > before, "the management action must reach the shared action policy");
-    await assert.rejects(host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project.project_id, "DENIED")), { code: "goals.not_found" });
+    await assert.rejects(host.withProject(ref, runtime => goalApplicationOf(runtime).goalQueries.getGoal(project.project_id, "DENIED")), { code: "goals.not_found" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -146,14 +147,14 @@ async function openGoalsMcp(t: TestContext) {
     const created = await sdk.callTool({ name, arguments: input });
     assert.equal(created.isError, false, JSON.stringify(created));
     assert.equal((created.structuredContent as { goal: { goal_id: string } }).goal.goal_id, input.goal_id);
-    const state = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readState(project.project_id, input.goal_id));
+    const state = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readState(project.project_id, input.goal_id));
     assert.equal(state.intent.source_kind, "runtime", "a model-created goal must not default to Web provenance");
     const noteInput = { goal_id: input.goal_id, body: "来自标准 MCP 的原文", idempotency_key: "mcp-note" };
     const noteName = molisWorkActionToolName(goalsActions.note);
     const note = await sdk.callTool({ name: noteName, arguments: noteInput });
     assert.equal(note.isError, false, JSON.stringify(note));
     const eventId = (note.structuredContent as { event_id: string }).event_id;
-    const event = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, eventId));
+    const event = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readEvent(project.project_id, input.goal_id, eventId));
     assert.equal(event.actor_id, sessionActor); assert.equal(event.actor_kind, "runtime");
     assert.equal((event.payload as { body: string }).body, noteInput.body);
     const replay = await sdk.callTool({ name: noteName, arguments: noteInput });
@@ -215,7 +216,7 @@ test("official MCP launcher: granted reads and the trash lifecycle use the share
     const trashList = await sdk.callTool({ name: molisWorkActionToolName(goalsActions.trashed), arguments: {} });
     assert.equal(trashList.isError, false, JSON.stringify(trashList));
     const snapshotName = molisWorkActionToolName(goalsActions.snapshot);
-    const expectedSnapshot = await host.withProject(ref, r => r.store.snapshot(project.project_id));
+    const expectedSnapshot = await host.withProject(ref, r => boardSnapshot(r.store, project.project_id));
     const fullSnapshot = await sdk.callTool({ name: snapshotName, arguments: {} });
     assert.equal(fullSnapshot.isError, false, JSON.stringify(fullSnapshot));
     assert.deepEqual(fullSnapshot.structuredContent, expectedSnapshot);
@@ -223,7 +224,7 @@ test("official MCP launcher: granted reads and the trash lifecycle use the share
     const fullContract = await sdk.callTool({ name: molisWorkActionToolName(goalsActions.contract), arguments: { goal_id: input.goal_id } });
     assert.equal(fullContract.isError, false, JSON.stringify(fullContract));
     assert.deepEqual(fullContract.structuredContent,
-      await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(project.project_id, input.goal_id)));
+      await host.withProject(ref, r => goalApplicationOf(r).goalQueries.readGoalContract(project.project_id, input.goal_id)));
     const collectionName = molisWorkActionToolName(goalsActions.collection);
     const collection = await sdk.callTool({ name: collectionName, arguments: {} });
     assert.equal(collection.isError, false, JSON.stringify(collection));
@@ -314,14 +315,14 @@ test("official MCP launcher: guidance, live planning and user-owned configuratio
     assert.equal((await invokePlanning(goalsActions.relations, { goal_id: input.goal_id })).relations.find(r => r.relation_id === relation.relation_id)?.to_goal_id, "RELATION-TARGET");
     assert.equal((await invokePlanning(goalsActions.policyHistory, {})).bindings.find(b => b.policy_binding_id === policy.policy_binding_id)?.created_by, user.actor_id);
     assert.equal((await invokePlanning(goalsActions.policyResolve, { goal_id: input.goal_id })).policy.human_approval, true);
-    const beforeForged = await host.withProject(ref, r => r.store.snapshot(project.project_id));
+    const beforeForged = await host.withProject(ref, r => boardSnapshot(r.store, project.project_id));
     const tools = (await sdk.listTools()).tools;
     for (const [definition, payload] of [[goalsActions.relationAdd, relationInput], [goalsActions.relationDeactivate, { relation_id: relation.relation_id, reason: "Forge", idempotency_key: "forge" }], [goalsActions.policySave, policyInput]] as const) {
       const protectedName = molisWorkActionToolName(definition);
       assert.equal(tools.some(tool => tool.name === protectedName), false);
       assert.equal((await sdk.callTool({ name: protectedName, arguments: { ...payload, user_action: user.user_action, actor_kind: "user", user_confirmed: true } })).isError, true);
     }
-    assert.deepEqual(await host.withProject(ref, r => r.store.snapshot(project.project_id)), beforeForged);
+    assert.deepEqual(await host.withProject(ref, r => boardSnapshot(r.store, project.project_id)), beforeForged);
     for (const [definition, payload] of [[goalsActions.relations, { goal_id: input.goal_id }], [goalsActions.policyHistory, {}], [goalsActions.policyResolve, { goal_id: input.goal_id }]] as const) {
       await served.revoke(caller.actor_id, project.project_id, [views.find(view => view.capability_id === definition.capability_id)!]);
       const name = molisWorkActionToolName(definition);
@@ -356,7 +357,7 @@ test("official MCP launcher: work records and tree proposals retain provenance a
     assert.equal(concern.concern.status, "open");
     const requested = await invokeWork(goalsActions.requestDecision, { idempotency_key: "public-request", question: "是否允许发布？", purpose: "action",
       options: [{ option_id: "yes", label: "允许", impact: "可发布" }, { option_id: "no", label: "拒绝", impact: "继续核对" }], scope: { action: "publish" } });
-    const approved = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.recordTrustedDecision({
+    const approved = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
       project_id: project.project_id, goal_id: input.goal_id, idempotency_key: "real-user", authority: hostEventDecisionAuthority("web", project.project_id, "real-user", "real-user"),
       request_id: requested.decision_request.request_id, selected_option_id: "yes", conclusion: "允许发布", effects: [{ kind: "authorize_action", action: "publish" }], scope: { action: "publish" },
     }));
@@ -411,13 +412,13 @@ test("official MCP launcher: work records and tree proposals retain provenance a
     await served.revoke(caller.actor_id, project.project_id, [reportView]);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(goalsActions.report), arguments: { goal_id: input.goal_id,
       idempotency_key: "denied-report", events: [{ type_id: "work", type_version: 1, title: "不能写入", fields: { body: "拒绝后不能保存" } }] } })).isError, true);
-    const afterWrites = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id, { limit: 100 }));
+    const afterWrites = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.listEvents(project.project_id, input.goal_id, { limit: 100 }));
     assert.equal(afterWrites.events.filter(event => event.kind === "report").length, 1);
     const noteView = views.find(view => view.capability_id === goalsActions.note.capability_id)!;
     await served.revoke(caller.actor_id, project.project_id, [noteView]);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === noteName), false);
     assert.equal((await sdk.callTool({ name: noteName, arguments: { ...noteInput, idempotency_key: "denied-note" } })).isError, true);
-    const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
+    const events = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1);
   } finally { await context.close(); }
 });

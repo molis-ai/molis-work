@@ -6,6 +6,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
+import { goalsQueryOf } from "./fixtures/goal-application.js";
 
 test("actual Artifact import, fixed version, Goal embed and disabled reader survive the shared action path", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
@@ -48,7 +49,7 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(`${REVIEW_EVIDENCE}/action-service/artifacts/read-${width}.png`, Buffer.from(screenshot.data, "base64"));
   }
-  const board = store.goalsQuery.listProjectIds()[0]!, scope = { kind: "personal" as const, id: board };
+  const board = goalsQueryOf(store).listProjectIds()[0]!, scope = { kind: "personal" as const, id: board };
   const ledger = createContextLedger(store.db, { authorize: () => true });
   ledger.commands.put({ actor_id: "browser-owner", scope }, { key: "artifact-action-input", type: "goal.input", cause: "Explicit browser fixture",
     source: { module: "goals", id: "V1", version: null, scope }, target: { module: "artifacts", id: exact!.artifact_id, version: exact!.version, scope } });

@@ -13,6 +13,7 @@ import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-ht
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
+import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 
 async function fixture(plugin?: CallerPlugin) {
   const home = await mkdtemp(join(tmpdir(), "goals-configuration-"));
@@ -28,7 +29,7 @@ async function fixture(plugin?: CallerPlugin) {
     user_action: { source: "management", conversation_ref: "conversation://configuration", message_ref: "message://change" } };
   const client = host.actionClient(ref), actions = bindActionClient(client, () => caller);
   for (const id of ["parent", "child", "other"]) await actions.invoke(goalsActions.create, { goal_id: id, title: id, idempotency_key: `create-${id}` });
-  const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.project_id));
+  const snapshot = () => host.withProject(ref, r => boardSnapshot(r.store, project.project_id));
   return { home, project, ref, host, caller, client, actions, denied, snapshot, fixtures,
     async close() { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
@@ -39,7 +40,7 @@ test("relation actions preserve original receipts, direction, history, graph rul
   const relation = { from_goal_id: "child", to_goal_id: "parent", type: "part_of" as const, reason: "  Own this result  " };
   const input = { ...relation, idempotency_key: "existing-add" };
   try {
-    const old = await host.withProject(ref, r => r.coordinator.goals.commands.addRelation(project.project_id, relation,
+    const old = await host.withProject(ref, r => goalApplicationOf(r).goals.commands.addRelation(project.project_id, relation,
       { actor_id: caller.actor_id, idempotency_key: input.idempotency_key }));
     assert.deepEqual(await actions.invoke(goalsActions.relationAdd, input), { ...old, replayed: true });
     const record = (await actions.invoke(goalsActions.relations, { goal_id: "parent" })).relations.find(r => r.relation_id === old.relation_id)!;
@@ -62,7 +63,7 @@ test("relation actions preserve original receipts, direction, history, graph rul
     const pending = (await actions.invoke(goalsActions.relations, {})).relations.find(r => r.relation_id === proposed.relation_id)!;
     assert.equal(pending.state, "proposed");
     const remove = { relation_id: old.relation_id, reason: "  No longer belongs here  ", idempotency_key: "existing-remove" };
-    const oldRemove = await host.withProject(ref, r => r.coordinator.goals.commands.deactivateRelation(project.project_id,
+    const oldRemove = await host.withProject(ref, r => goalApplicationOf(r).goals.commands.deactivateRelation(project.project_id,
       { relation_id: remove.relation_id, reason: remove.reason }, { actor_id: caller.actor_id, idempotency_key: remove.idempotency_key }));
     assert.deepEqual(await actions.invoke(goalsActions.relationDeactivate, remove), { ...oldRemove, replayed: true });
     assert.equal(oldRemove.relation.reason, record.reason, "deactivation preserves the original creation reason");
@@ -71,8 +72,8 @@ test("relation actions preserve original receipts, direction, history, graph rul
       const fixedInput = { ...input, type: event === "relation.added" ? "extends" as const : "corrects" as const, idempotency_key: `atomic-${event}` };
       const created = event === "relation.deactivated" ? await actions.invoke(goalsActions.relationAdd, { ...fixedInput, idempotency_key: "for-remove" }) : null;
       const stable = await snapshot();
-      await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_configuration BEFORE INSERT ON events
-        WHEN NEW.type = '${event}' BEGIN SELECT RAISE(ABORT, 'injected configuration failure'); END`));
+      await host.withProject(ref, r => r.store.db.exec(`CREATE TRIGGER reject_configuration BEFORE INSERT ON events
+        WHEN NEW.type = 'io.molis.work.goals:${event}' BEGIN SELECT RAISE(ABORT, 'injected configuration failure'); END`));
       const execute = () => created
         ? actions.invoke(goalsActions.relationDeactivate, { relation_id: created.relation_id, reason: "Remove", idempotency_key: fixedInput.idempotency_key })
         : actions.invoke(goalsActions.relationAdd, fixedInput);
@@ -93,7 +94,7 @@ test("relation actions preserve original receipts, direction, history, graph rul
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.relations, {}), all);
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.relationAdd, input), { ...old, replayed: true });
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.relationDeactivate, remove), { ...oldRemove, replayed: true });
-      assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.project_id)), stable);
+      assert.deepEqual(await restarted.withProject(ref, r => boardSnapshot(r.store, project.project_id)), stable);
     } finally { await restarted.close(); }
   } finally { await f.close(); }
 });
@@ -104,7 +105,7 @@ test("project policy actions preserve normalized receipts, original binding hist
   const f = await fixture(configurer); const { host, ref, project, caller, client, actions, snapshot, denied } = f;
   const input = { policy: { ...DEFAULT_GOAL_POLICY }, user_confirmed: true, idempotency_key: "existing-policy" };
   try {
-    const old = await host.withProject(ref, r => r.coordinator.goals.commands.saveProjectPolicy({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
+    const old = await host.withProject(ref, r => goalApplicationOf(r).goals.commands.saveProjectPolicy({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
     assert.deepEqual(await actions.invoke(goalsActions.policySave, input), { ...old, replayed: true });
     // A Goal's own binding stays with its author and stays stricter than the project default.
     await host.withProject(ref, r => r.store.db.prepare(`INSERT INTO policy_bindings
@@ -145,8 +146,8 @@ test("project policy actions preserve normalized receipts, original binding hist
     assert.deepEqual((await readMcpActionAccess(served.web, { clientId: "external-client", projectId: project.project_id })).grants, [], "refused grants leave no record");
     await served.close();
     assert.deepEqual(await snapshot(), stable);
-    await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_policy BEFORE INSERT ON events
-      WHEN NEW.type = 'policy.project_defaults_saved' BEGIN SELECT RAISE(ABORT, 'injected policy failure'); END`));
+    await host.withProject(ref, r => r.store.db.exec(`CREATE TRIGGER reject_policy BEFORE INSERT ON events
+      WHEN NEW.type = 'io.molis.work.goals:policy.project_defaults_saved' BEGIN SELECT RAISE(ABORT, 'injected policy failure'); END`));
     await assert.rejects(actions.invoke(goalsActions.policySave, next), /injected policy failure/);
     assert.deepEqual(await actions.invoke(goalsActions.policyHistory, {}), history, "failed replacement retains old active defaults and all history");
     assert.deepEqual(await snapshot(), stable);

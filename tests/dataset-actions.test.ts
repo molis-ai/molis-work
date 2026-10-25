@@ -8,12 +8,13 @@ import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, openDatasetStore
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "dataset-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: DATASET_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };

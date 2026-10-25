@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
-import { DEMO_PROJECT_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
+import { GoalProjectApplication } from './fixtures/goal-application.js';
 
 test('Reduced motion updates Goal detail geometry together with its expanded state', async t => {
   const b = await openGoalBrowser(t); if (!b) return;

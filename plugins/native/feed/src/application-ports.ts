@@ -1,5 +1,5 @@
 import type { SourcesApi } from "@molis-ai/molis-work-contracts/modules/sources";
-import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionApi, AttentionInboxDeclarations } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { FeedApi } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ListenerCheckpoint, ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
@@ -9,6 +9,8 @@ import type { FeedSourceHistory } from "./source-history.js";
 export interface FeedApplicationPorts {
   readonly sources: SourcesApi;
   readonly attention: AttentionApi;
+  /** What each owner's trusted Manifest declared the Inbox shows (`attention.inbox`); without it the Inbox is the unassigned entries alone. */
+  readonly inboxDeclarations?: () => AttentionInboxDeclarations;
   readonly feed: FeedApi;
   readonly outRules?: FeedOutRuleStore;
   readonly artifacts?: FeedArtifactProducer;

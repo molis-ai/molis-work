@@ -21,10 +21,10 @@ import {
 } from "./fixtures/goals-modules.js";
 
 import { savePersonalMethodInHome } from "./fixtures/personal-planning.js";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 function customMethod(methodId: string): PlanningMethodPackInput {
   return {
@@ -349,11 +349,11 @@ test("project methods persist without a second Goal truth model", async () => {
     user_confirmed: true,
   });
   assert.equal(saved.method.scope, "project");
-  assert.equal(store.snapshot("board-1").planning_method_packs.length, 1);
+  assert.equal(boardSnapshot(store, "board-1").planning_method_packs.length, 1);
   store.close();
 });
 
-test("RAC-302 personal method versions and timestamps survive reopening Goals' library, and an invalid method is refused", async () => {
+test("RAC-708 personal method versions and timestamps survive reopening Goals' library, and an invalid method is refused", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-personal-methods-"));
   try {
     const method = { ...customMethod("domain-personal-test"), version: 7 };

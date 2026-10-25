@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("event document pointer path covers requirement form, concern body, note, selection and resume", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t);

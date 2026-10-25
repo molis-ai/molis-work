@@ -159,7 +159,7 @@
     "goals": {
       "paths": [
         "apps/local-host/src/goal-*",
-        "apps/local-host/src/goals-actions.ts",
+        "apps/local-host/src/goal-callers.ts",
         "apps/local-host/src/web-goals-read.ts"
       ],
       "reason": "Goals is the plugin, whose package also holds its Goal module and the governance module that records tree proposals and event decisions (S9-3), plus the Host files that serve them; every Goals code is goals.<family>.<reason>."

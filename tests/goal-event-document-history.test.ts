@@ -5,9 +5,10 @@ import { join } from "node:path";
 import test from "node:test";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { MolisWorkLocalHost, GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 // The immutable v35 dump predates the current demo project ID.
 const DEMO_PROJECT_ID = "goalboard-v1-demo";
@@ -41,7 +42,7 @@ test("public document timeline is bounded and keeps the journal", async () => {
     const coreBefore = await page("CORE", { limit: "1" });
     assert.ok(coreBefore.items.length <= 1, "limit must bound mixed history");
 
-    const snapshot = store.snapshot(DEMO_PROJECT_ID);
+    const snapshot = boardSnapshot(store, DEMO_PROJECT_ID);
     const coreHistory = await page("CORE", { limit: "100" });
     assert.ok(coreHistory.items.every((item) => item.source === "event_work" || item.source === "journal"));
 

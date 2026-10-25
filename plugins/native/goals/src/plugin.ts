@@ -10,6 +10,7 @@ import { personalPlanningActions } from "./personal-planning-actions.js";
 import { goalsTreeUiContribution } from "./tree-ui.js";
 import { goalsSettingsUiContribution } from "./settings-ui.js";
 import { GoalsModule, GoalInputBindings, resolvePlanningMethodPacks } from "./module/index.js";
+import { requestHash } from "./module/command-support.js";
 import { GovernanceCollaborationModule } from "./governance/index.js";
 import { createGoalsApplication } from "./goals-application.js";
 import { PluginSqlite } from "./plugin-sqlite.js";
@@ -56,6 +57,21 @@ export function createGoalsPlugin(): PluginDefinition {
       { now: clock, personalPlanningMethodPacks: () => personal.read() });
     const application = createGoalsApplication({ goals: { commands: goals.commands, lifecycle: goals.lifecycle, planning: goals.planning, query: goals.query, events: goals.events },
       governance, attention: attentionPort, clock });
+    // The board of a project is made when Goals first starts over its root row (the catch-up below), before anyone has asked for it, so a
+    // person's first explicit initialization (`molis-work v1 init` over a database no catalog made) finds it there. It is the board that
+    // call asked for: it is answered with that board and recorded as the call's own receipt (a retry replays), not refused as existing.
+    // Only the board this very start made is adopted, and once; a board made in an earlier run or by an earlier call is still refused.
+    let madeByCatchUp: { project_id: string; observed_event_cursor: number } | null = null;
+    const catchUpActor = context.actor_id ?? "", catchUpKey = `project-catalog-create-${projectId}`;
+    const initializeBoard = (input: { project_id: string; actor_id: string; idempotency_key: string }) => {
+      try { return goals.commands.initializeBoard(input); } catch (error) {
+        if (!(error instanceof ActionError) || error.code !== "goals.board.exists" || !madeByCatchUp) throw error;
+        const outcome = madeByCatchUp;
+        madeByCatchUp = null;
+        journal.putIdempotency({ projectId, actorId: input.actor_id, operation: "initialize_board", key: input.idempotency_key, requestHash: requestHash({}), outcome, at: clock().toISOString() });
+        return { ...outcome, replayed: false };
+      }
+    };
     const snapshot = () => readMolisWorkSnapshot({ goals: goals.query, governance: governanceModule.query }, projectId);
     const events = () => sqlite.journalReader().readEventsDescending();
 
@@ -65,7 +81,7 @@ export function createGoalsPlugin(): PluginDefinition {
       write: <T>(caller: ActionExecutionContext, body: () => T): Promise<T> => database.transaction(() => caller.beforeEffect(), transaction => sqlite.write(transaction, body)),
     };
     const handlers = createGoalsActionHandlers({ events: application.goalEvents, acknowledgements: goals.acknowledgements, projectId,
-      board: { initializeBoard: input => goals.commands.initializeBoard(input) },
+      board: { initializeBoard },
       collection: { snapshot, events, goals: application.goalQueries, inputs, eventWork: application.goalEvents },
       readGoal: goalId => application.goalQueries.getGoal(projectId, goalId),
       readContract: goalId => application.goalQueries.readGoalContract(projectId, goalId),
@@ -107,10 +123,15 @@ export function createGoalsPlugin(): PluginDefinition {
       // Nothing is written inside activation: the Runtime registers the contribution and marks the installation running first.
       await setTimeout(0, undefined, { signal: control.signal });
       try {
+        let made: { project_id: string; observed_event_cursor: number } | null = null;
         await database.transaction(() => control.beforeEffect(), transaction => sqlite.write(transaction, () => {
-          if (!goals.query.getBoard(projectId)) goals.commands.initializeBoard({ project_id: projectId, actor_id: context.actor_id ?? "", idempotency_key: `project-catalog-create-${projectId}` });
+          if (!goals.query.getBoard(projectId)) {
+            const { project_id, observed_event_cursor } = goals.commands.initializeBoard({ project_id: projectId, actor_id: catchUpActor, idempotency_key: catchUpKey });
+            made = { project_id, observed_event_cursor };
+          }
           application.projectOpened(projectId);
         }));
+        madeByCatchUp = made;
         problem = null;
       } catch (error) {
         control.assert_authority_current();

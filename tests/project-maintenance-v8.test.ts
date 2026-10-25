@@ -15,6 +15,7 @@ import { FEED_PLUGIN_ID, FEED_PROJECT_DATABASE } from "@molis-ai/molis-work-plug
 import { SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-schedule";
 import { inspectPluginProjectSchema, openPluginProjectDatabase, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { SqliteSchemaVersionError, applySqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 /**
  * Maintenance eight, the project library part (PLIB-05; specs/plugin-project-database/spec.md §3 L1b; the maintenance list of
@@ -248,9 +249,9 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
     const reference = molisWorkHostProjectReference({ projectId, databasePath });
-    const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(projectId, "KEPT-GOAL"));
+    const events = await host.withProject(reference, runtime => goalApplicationOf(runtime).goalEvents.listEvents(projectId, "KEPT-GOAL"));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1, "the note written before the maintenance");
-    const retried = await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: projectId, ...making }));
+    const retried = await host.withProject(reference, runtime => goalApplicationOf(runtime).initializeBoard({ project_id: projectId, ...making }));
     assert.equal(retried.replayed, true, "a retry of the board's making with the key used before the maintenance replays it, not refused as a reused key");
   } finally { await host.close(); }
   const opened = snapshot(databasePath);

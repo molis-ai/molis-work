@@ -13,6 +13,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
@@ -48,7 +49,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
   try {
     await client.invoke(goalsActions.create, makeIntent("working"));
     await client.invoke(goalsActions.create, makeIntent("trashed-goal"));
-    await host.withProject(reference, ({ coordinator }) => coordinator.goals.lifecycle.setTrashed(projectId, {
+    await host.withProject(reference, runtime => goalApplicationOf(runtime).goals.lifecycle.setTrashed(projectId, {
       goal_id: "trashed-goal", trashed: true, reason: "回收站 Goal 不能成为当前目标",
     }, { actor_id: "user", idempotency_key: "trash-working" }));
     const before = await snapshot();

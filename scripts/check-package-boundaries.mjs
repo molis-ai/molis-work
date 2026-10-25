@@ -350,51 +350,18 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   return { errors };
 }
 
+/** The Host's Goals coordinator (`GoalProjectApplication`) was deleted in PG-094 S12: Goals is a plugin of the project and its actions are the only way in. */
+const RETIRED_COORDINATOR_PATH = "apps/local-host/src/goal-project-application.ts";
+function checkCoordinatorStaysDeleted(repositoryRoot) {
+  return fs.existsSync(path.join(repositoryRoot, RETIRED_COORDINATOR_PATH))
+    ? [`${RETIRED_COORDINATOR_PATH}: the Host's Goals coordinator was deleted (PG-094 S12) and must stay deleted; Goals' application is composed by its plugin`]
+    : [];
+}
+
 function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
-  const coordinatorPath = "apps/local-host/src/goal-project-application.ts";
-  const coordinator = read(coordinatorPath);
-  if (!coordinator.includes('from "@molis-ai/molis-work-plugin-goals/module"')) {
-    errors.push(`${coordinatorPath}: Goal application composition must use the Goals Module public entrypoint`);
-  }
-
-  if (
-    !coordinator.includes("readonly goals: GoalsApplicationApi")
-    || coordinator.includes("GoalsApplicationApi<ActionTransitionReceipt>")
-    || !coordinator.includes("commands: goalsModule.commands")
-    || !coordinator.includes("lifecycle: goalsModule.lifecycle")
-    || !coordinator.includes("planning: goalsModule.planning")
-  ) {
-    errors.push(`${coordinatorPath}: Apps require one Contract-typed Goals application port`);
-  }
-  const removedGoalFacadeMethods = [
-    "addProjectGuidance",
-    "updateProjectGuidance",
-    "createGoal",
-    "updateDraftGoal",
-    "addRelation",
-    "deactivateRelation",
-    "setPolicy",
-    "addRisk",
-    "updateRisk",
-    "setRiskState",
-    "setGoalArchived",
-    "setGoalTrashed",
-    "revalidateGoal",
-    "evaluateLeafCompletion",
-    "effectivePlanningMethods",
-    "projectPlanningComposition",
-    "saveProjectPlanningMethod",
-    "analyzePlanningChange",
-    "validatePlanningGraph",
-  ];
-  for (const method of removedGoalFacadeMethods) {
-    if (coordinator.includes(`  ${method}(`)) {
-      errors.push(`${coordinatorPath}: GW4 requires the ${method} compatibility facade to stay deleted`);
-    }
-  }
-
+  errors.push(...checkCoordinatorStaysDeleted(repositoryRoot));
   const requiredOwnerFiles = [
     "plugins/native/goals/src/module/goal-commands.ts",
     "plugins/native/goals/src/module/guidance-commands.ts",
@@ -468,9 +435,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
 
   const factMaterializerPath = "plugins/native/goals/src/goal-tree-fact-materializer.ts";
   const factMaterializer = read(factMaterializerPath);
-  if (coordinator.includes("private materializeAcceptedGoalContractRevision(")
-      || coordinator.includes("private materializeGoalTreeGoal(")
-      || !factMaterializer.includes("this.createIntent(")
+  if (!factMaterializer.includes("this.createIntent(")
       || factMaterializer.includes("applyAcceptedContractRevision(")
       || /\bthis\.store\b|\b(?:INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b/iu.test(factMaterializer)) {
     errors.push(`${factMaterializerPath}: confirmed Goal materialization must create event-owned Goal intent, not legacy lifecycle or SQL`);
@@ -479,32 +444,18 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   if (fs.existsSync(path.join(repositoryRoot, decideContractPath))) {
     errors.push(`${decideContractPath}: retired contract decision owner must stay deleted`);
   }
-  if (coordinator.includes("  decideContractProposal(")) {
-    errors.push(`${coordinatorPath}: retired decideContractProposal facade must stay deleted`);
-  }
-  for (const match of coordinator.matchAll(/UPDATE goals SET[\s\S]{0,500}?(?:archived_at|trashed_at|validity_state|fulfillment_state)/giu)) {
-    errors.push(`${coordinatorPath}: Goal lifecycle state writes must use GoalsModule.lifecycle (${match[0].split(/\r?\n/u)[0]})`);
-  }
   const reconciliationPath = "plugins/native/goals/src/lifecycle-application.ts";
   if (fs.existsSync(path.join(repositoryRoot, reconciliationPath))) {
     errors.push(`${reconciliationPath}: retired lifecycle reconciliation owner must stay deleted`);
   }
-  if (
-    coordinator.includes("private reconcileLifecycle(")
-    || coordinator.includes("this.reconcileLifecycle(")
-    || coordinator.includes("new LifecycleReconciliationApplication(")
-  ) {
-    errors.push(`${coordinatorPath}: retired lifecycle reconciliation construction must stay deleted`);
-  }
-
   // S8 (PG-020): Goals' tables are Goals' own. The baseline no longer composes them; the platform makes them from the Manifest.
   const baselineSchema = read("apps/local-host/src/project-database-schema.ts");
   if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")
       || /GOALS_PROJECT_DATABASE|GOAL_BOARDS_SCHEMA_SQL|GOALS_SCHEMA_SQL|GOAL_INPUT_BINDINGS_SCHEMA_SQL|GOAL_EVENT_FACTS_SCHEMA_SQL|GOAL_EVENT_STATE_SCHEMA_SQL|GOVERNANCE_SCHEMA_SQL|molis-work-module-goals|molis-work-plugin-goals|molis-work-module-governance-collaboration/u.test(baselineSchema)) {
     errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must not compose Goals' or Governance's schema; Goals declares its tables in its Manifest (databases.project)");
   }
-  if (!/databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*\}/u.test(read("plugins/native/goals/src/manifest.ts"))) {
-    errors.push("plugins/native/goals/src/manifest.ts: Goals' Manifest must declare its project library tables (databases.project: GOALS_PROJECT_DATABASE)");
+  if (!/databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*(?:,\s*home:\s*GOALS_HOME_DATABASE\s*)?\}/u.test(read("plugins/native/goals/src/manifest.ts"))) {
+    errors.push("plugins/native/goals/src/manifest.ts: Goals' Manifest must declare its project library tables (databases.project: GOALS_PROJECT_DATABASE, and its Home library as databases.home)");
   }
 
   for (const relativePath of [
@@ -521,27 +472,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   const planningTest = read("tests/planning-engine.test.ts");
   if (!planningTest.includes('from "./fixtures/goals-modules.js"')) {
     errors.push("tests/planning-engine.test.ts: Planning behavior must be tested through the Goals public API");
-  }
-
-  const queryDelegates = [
-    ["readProjectGuidance", "this.goalQueries.readProjectGuidance"],
-    ["listTrashedGoals", "this.goalQueries.listTrashedGoals"],
-    ["getResolvedGoalPolicy", "this.goalQueries.getResolvedGoalPolicy"],
-    ["readGoalContract", "this.goalQueries.readGoalContract"],
-  ];
-  for (const [method, expectedCall] of queryDelegates) {
-    const start = coordinator.indexOf(`  ${method}(`);
-    if (start < 0) {
-      errors.push(`${coordinatorPath}: cannot locate migrated ${method} Query method`);
-      continue;
-    }
-    const body = coordinator.slice(start, start + 400);
-    if (!body.includes(expectedCall)) {
-      errors.push(`${coordinatorPath}: ${method} must read Goal-owned facts through ${expectedCall}`);
-    }
-  }
-  if (coordinator.includes("this.availability.") || coordinator.includes("queryReady(") || coordinator.includes("queryAvailable(")) {
-    errors.push(`${coordinatorPath}: retired availability query path must stay deleted`);
   }
 
   const queryTest = read("tests/goals-query-module.test.ts");
@@ -584,7 +514,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     // reads titles through Goals' public read action (C2, PG-091), so no entry or dispatcher reads a Goal through goalQueries any more.
     if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
   }
-  errors.push(...checkGoalReadOwnerSql(coordinator).map(error => `${coordinatorPath}: ${error}`));
 
   // Transport entrypoints consume Host clients / actions. The old pass-through
   // GoalsApplicationApi factories had no callers and exposed bypass commands.
@@ -713,31 +642,11 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     }
   }
 
-  const coordinatorPath = "apps/local-host/src/goal-project-application.ts";
-  const coordinator = read(coordinatorPath);
-  if (
-    !coordinator.includes('from "@molis-ai/molis-work-plugin-goals/governance"')
-    || !coordinator.includes("readonly governance: GovernanceApplicationApi")
-    || !coordinator.includes("records: governanceModule.records")
-  ) {
-    errors.push(`${coordinatorPath}: Governance callers must use the Contract-typed public application port`);
-  }
-  if (coordinator.includes("this.governanceModule")) {
-    errors.push(`${coordinatorPath}: concrete Governance implementation must not escape composition`);
-  }
-
   const governanceTables = "review_obligations|reviews|candidates|contract_proposals|rewires|goal_tree_proposals|goal_tree_proposal_items|goal_tree_proposal_decisions";
   const directGovernanceSql = new RegExp(
     `\\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\\s+(?:${governanceTables})\\b`,
     "giu",
   );
-  for (const relativePath of [coordinatorPath]) {
-    const source = read(relativePath);
-    for (const match of source.matchAll(directGovernanceSql)) {
-      errors.push(`${relativePath}: direct Governance SQL must use the owning Module public entrypoint (${match[0]})`);
-    }
-  }
-
   for (const filePath of filesUnder(
     path.join(repositoryRoot, "plugins/native/goals/src/governance"),
     (candidate) => SOURCE_EXTENSIONS.has(path.extname(candidate)),
@@ -784,39 +693,6 @@ function checkExecutionValidationOwnership(repositoryRoot) {
   for (const relativePath of requiredFiles) {
     if (fs.existsSync(path.join(repositoryRoot, relativePath))) {
       errors.push(`${relativePath}: retired execution-validation/draft owner must stay deleted`);
-    }
-  }
-
-  const coordinatorPath = "apps/local-host/src/goal-project-application.ts";
-  const coordinator = read(coordinatorPath);
-  if (
-    coordinator.includes("readonly executionValidation:")
-    || coordinator.includes("new ExecutionValidationApplication(")
-    || coordinator.includes("ExecutionValidationApplicationApi")
-  ) {
-    errors.push(`${coordinatorPath}: retired execution-validation application port must stay deleted`);
-  }
-  const removedCoordinatorMethods = [
-    "claimGoal",
-    "renewClaim",
-    "selectGoalAndStart",
-    "releaseClaim",
-    "revokeClaim",
-    "startRun",
-    "requestGoalRework",
-    "reportRun",
-    "submitEvidence",
-    "correctEvidence",
-    "submitReview",
-    "submitHumanReviewFromDialogue",
-    "getGoalWorkState",
-    "getGoalWorkStates",
-    "getGoalActionProjection",
-    "getGoalActionProjections",
-  ];
-  for (const method of removedCoordinatorMethods) {
-    if (new RegExp(`^  ${method}\\(`, "mu").test(coordinator)) {
-      errors.push(`${coordinatorPath}: EX4 requires the ${method} Coordinator facade to stay deleted`);
     }
   }
 
@@ -992,21 +868,17 @@ function checkArtifactsOwnership(repositoryRoot) {
     errors.push(`${pluginPath}: Native Plugin entrypoint must not own Artifact facts or construct its Repository`);
   }
 
-  const coordinator = read("apps/local-host/src/goal-project-application.ts");
   const projectSchema = read("apps/local-host/src/project-database-schema.ts");
   if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE") || !projectSchema.includes("ARTIFACTS_SCHEMA_SQL") || !projectSchema.includes("PROCESS_ITEMS_SCHEMA_SQL")) {
     errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the Artifact owner schema");
   }
-  // D3: the project's runtime opens the one pair of version stores (the Artifacts module's `projectVersionStores`, RAC-410), and Goals' composition does not open a second.
+  // D3: the project's runtime opens the one pair of version stores (the Artifacts module's `projectVersionStores`, RAC-410), and no other host file opens a second.
   const versionStores = read("apps/local-host/src/project-version-stores.ts");
   if (!versionStores.includes("projectVersionStores") || !versionStores.includes("readonly artifacts: ArtifactsApplicationApi")) {
     errors.push("apps/local-host/src/project-version-stores.ts: the project's version stores must expose the public Artifacts API");
   }
-  if (/\b(?:ArtifactsModule|ProcessItemsModule)\b/u.test(coordinator)) {
-    errors.push("apps/local-host/src/goal-project-application.ts: Goals' composition must not open its own version stores");
-  }
   const directArtifactSql = /\b(?:CREATE TABLE(?: IF NOT EXISTS)?|FROM|INTO|UPDATE|DELETE FROM)\s+(artifacts|artifact_versions)\b/giu;
-  for (const relativePath of ["apps/local-host/src/goal-project-application.ts", "apps/local-host/src/project-version-stores.ts"]) {
+  for (const relativePath of ["apps/local-host/src/project-version-stores.ts"]) {
     const source = read(relativePath);
     for (const match of source.matchAll(directArtifactSql)) {
       errors.push(`${relativePath}: direct ${match[1]} SQL must stay inside modules/artifacts`);
@@ -1356,12 +1228,9 @@ export function checkGoalStorageOwnership(source) {
     ? ["Goal schema and migration SQL must remain in the Goals owner; Host only composes public migrations"] : [])];
 }
 
-export function checkDraftDialogueOwnership(coordinator, host) {
+export function checkDraftDialogueOwnership(host) {
   const errors = [];
   for (const method of ["startDraftDialogue", "recordDraftDialogueTurn", "resumeDraftDialogue"]) {
-    if (new RegExp(`^  ${method}\\(`, "m").test(coordinator)) {
-      errors.push(`apps/local-host/src/goal-project-application.ts: DD1 forbids legacy ${method} implementation or facade`);
-    }
     if (host.includes(`coordinator.${method}(`) || host.includes("coordinator.draftDialogue.")) {
       errors.push(`apps/local-host/src/project-capabilities.ts: retired ${method} Host registration must stay removed`);
     }
@@ -1369,15 +1238,9 @@ export function checkDraftDialogueOwnership(coordinator, host) {
   return errors;
 }
 
-export function checkGoalTreeApplicationOwnership(coordinator, host, application, method = "submitGoalTreeProposal", port = "goalTreeSubmission") {
+/** DD2: a tree proposal step is composed by Goals from its Module owners (the Host holds no application of it since PG-094 S12). */
+export function checkGoalTreeApplicationOwnership(application, method = "submitGoalTreeProposal") {
   const errors = [];
-  if (new RegExp(`^  ${method}\\(`, "mu").test(coordinator)) {
-    errors.push(`apps/local-host/src/goal-project-application.ts: DD2 forbids legacy ${method} implementation or facade`);
-  }
-  if (host.includes(`coordinator.${method}(`)
-      || !host.includes(`coordinator.${port}.${method}(`)) {
-    errors.push(`apps/local-host/src/goals-actions.ts: ${method} must use the public ${port} application`);
-  }
   if (/\b(?:store|repository|coordinator)\s*[.:]|\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/u.test(application)) {
     errors.push(`plugins/native/goals: ${method} must compose Module owners without SQL or legacy callbacks`);
   }
@@ -1447,15 +1310,10 @@ export function checkPackageBoundaries(repositoryRoot) {
   const privateWorkContextOwnership = checkPrivateWorkContextOwnership(repositoryRoot);
   const runtimeHostOwnership = checkRuntimeHostOwnership(repositoryRoot);
   const dialogueOwnership = checkDraftDialogueOwnership(...[
-    "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/project-capabilities.ts",
+    "apps/local-host/src/project-capabilities.ts",
   ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")));
-  const submissionOwnership = checkGoalTreeApplicationOwnership(...[
-    "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/goals-actions.ts", "plugins/native/goals/src/goal-tree-submission.ts",
-  ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")));
-  const proposalCheckOwnership = checkGoalTreeApplicationOwnership(...[
-    "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/goals-actions.ts", "plugins/native/goals/src/goal-tree-check.ts",
-  ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")), "checkGoalTreeProposal", "goalTreeCheck");
   const errors = [
+    ...checkCoordinatorStaysDeleted(repositoryRoot),
     ...((() => {
       const [renderer, workbench, proposalMount, clientDispatch] = [
         "apps/workbench/src/renderer.ts",
@@ -1468,11 +1326,12 @@ export function checkPackageBoundaries(repositoryRoot) {
         fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/plugin-workbench.ts"), "utf8"),
         builtinCatalogText(repositoryRoot));
     })()).map(message => `[proposal-ui-owner] ${message}`),
-    ...proposalCheckOwnership.map(message => `[proposal-check-owner] ${message}`),
-    ...checkGoalTreeApplicationOwnership(...[
-      "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/goals-actions.ts", "plugins/native/goals/src/goal-tree-decision.ts",
-    ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")), "decideGoalTreeProposal", "goalTreeDecision")
-      .map(message => `[proposal-decision-owner] ${message}`),
+    ...[
+      ["submitGoalTreeProposal", "goal-tree-submission", "proposal-submission-owner"],
+      ["checkGoalTreeProposal", "goal-tree-check", "proposal-check-owner"],
+      ["decideGoalTreeProposal", "goal-tree-decision", "proposal-decision-owner"],
+    ].flatMap(([method, file, label]) => checkGoalTreeApplicationOwnership(fs.readFileSync(path.join(repositoryRoot, `plugins/native/goals/src/${file}.ts`), "utf8"), method)
+      .map(message => `[${label}] ${message}`)),
     ...[
       ["decideContractProposal", "legacyContractDecision"],
       ["decideCandidate", "legacyCandidateDecision"],
@@ -1488,7 +1347,6 @@ export function checkPackageBoundaries(repositoryRoot) {
       }
       return errors.map(message => `[proposal-decision-owner] ${message}`);
     }),
-    ...submissionOwnership.map(message => `[proposal-submission-owner] ${message}`),
     ...inventory.errors.map((message) => `[workspace-inventory] ${message}`),
     ...sourceImports.errors,
     ...dependencyGraph.errors,

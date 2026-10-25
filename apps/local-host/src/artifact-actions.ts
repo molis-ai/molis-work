@@ -10,6 +10,9 @@ import { artifactPluginInputs, bindArtifactPluginInput } from "./artifact-plugin
 import { runningProjectPlatform } from "./project-plugins.js";
 import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./project-host.js";
 
+/** Goals' read of one Goal's headline, asked as the caller: a Goal the caller cannot read, or a project without Goals, has no title here. */
+const GOAL_DIRECTORY_READ = { capability_id: "goals.directory.read", version: 1 } as const;
+
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
   const provider: ActionProviderRegistration["provider"] = { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: runtime.project_id };
@@ -19,7 +22,13 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
     handlers: createArtifactActionHandlers({
       projectId: runtime.project_id, artifacts: runtime.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
-      goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.project_id, goalId)?.title ?? null,
+      goalTitle: async (goalId, caller) => {
+        if (!client) return null;
+        try {
+          const item = await client.invoke(caller, GOAL_DIRECTORY_READ, { goal_id: goalId }) as { title?: unknown };
+          return typeof item.title === "string" ? item.title : null;
+        } catch { return null; }
+      },
       typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
       // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.
       previewText: async (artifact, caller) => {

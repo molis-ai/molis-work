@@ -1,3 +1,5 @@
+import { startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { ensureProjectRoot } from "./fixtures/goals-board.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -1313,7 +1315,7 @@ test("a review names common fields in words even when the plugin gave them no ti
   assert.deepEqual(fields.map(field => field.label), ["正文", "文件夹"]);
 });
 
-test("the project layer of a project work is the project's guidance, read through the Goals action without starting the project's plugins", async () => {
+test("the project layer of a project work is the project's guidance, read through the Goals action", async () => {
   const home = await mkdtemp(join(tmpdir(), "assistant-guidance-"));
   let removed = false;
   const host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
@@ -1321,6 +1323,8 @@ test("the project layer of a project work is the project's guidance, read throug
   const project_ref = molisWorkHostProjectReference({ databasePath: join(home, "project.db"), projectId: "assistant-guided" });
   const work = { work_id: "work", project_ref } as StoredWork;
   try {
+    await ensureProjectRoot(host, project_ref);
+    await startProjectPlugins(host, project_ref);
     const management = managementGoals(host.actionClient(project_ref, false), "assistant-guided");
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     await management.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
@@ -1329,8 +1333,6 @@ test("the project layer of a project work is the project's guidance, read throug
     const [layer] = await assistantProjectPrompts(host, work);
     assert.equal(layer?.prompt_id, "project-guidance"); assert.match(layer!.body, /保留源文件/);
     assert.deepEqual(settled.map(row => [row.capability_id, row.path, row.actor_id, row.ok]), [["goals.guidance.read", undefined, "web-user", true]], "one Goals action, no typed capability");
-    const providers = new Set((await host.actionClient(project_ref, false).discover({ actor_id: "web-user", actor_kind: "user", audience: "user", project_id: "assistant-guided", permissions: ["goals:read"] })).map(view => view.provider.provider_id));
-    assert.deepEqual(["io.molis.work.coding", "io.molis.work.shelf"].filter(plugin => providers.has(plugin)), [], "reading the guidance started no Runtime plugin");
 
     settled.length = 0; removed = true;
     assert.deepEqual(await assistantProjectPrompts(host, work), [], "without Goals the work has no project layer");

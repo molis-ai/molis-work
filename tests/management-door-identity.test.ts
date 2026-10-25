@@ -9,15 +9,17 @@ import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@mo
 import { MolisWorkLocalHost, molisWorkHostProjectReference, developInPrivateHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
-import { goalsActions, managementEventDecisionAuthority, type GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, GOALS_PLUGIN_ID, type GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 const retiredDevelopment: HostCapabilityDefinition<unknown, unknown> = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" };
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
+import { bindGoalsManagementActions } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
 import { callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 /**
  * The management door (the CLI and the management MCP) has no caller identity of its own: the Host records
@@ -86,7 +88,7 @@ test("the management structure decision takes only the conversation it came from
     assert.deepEqual(decided.applied_item_ids, ["child"]);
     const [record] = await decisions();
     assert.deepEqual([record!.actor_id, record!.authority_source, record!.runtime_actor_id, record!.conversation_ref, record!.message_ref],
-      [LOCAL_PERSON_ACTOR_ID, "management", null, `management:${project_id}`, "management-tree-decision:defaults"], "a decision without evidence points at the management door itself");
+      [LOCAL_PERSON_ACTOR_ID, "management", null, `management:${project_id}`, "management:defaults"], "a decision without evidence points at the management door itself");
     assert.equal(proposal.project_id, project_id);
   } finally { await done(); }
 });
@@ -114,6 +116,9 @@ test("the CLI's goal-tree-decide and the management MCP's goal_tree_decide refus
   } finally { await management.close(); await done(); }
 });
 
+/** The action takes the project from its caller, so its input does not name one. */
+const withoutProject = <T extends { project_id: string }>({ project_id: _project, ...input }: T): Omit<T, "project_id"> => input;
+
 /**
  * The event decision is the other decision door of the management entry. It works like the structure decision above: its
  * `authority` points at the conversation, the Host builds who decides (the person on this machine, origin management), and an
@@ -130,10 +135,10 @@ async function eventDecisionProject(name: string) {
     { database_path: project.database_path, ...input })) as GoalEventDecisionResult;
   try {
     await managementGoals(host.actionClient(ref), project_id).invoke(goalsActions.create, { goal_id, title: "事件决定", idempotency_key: "create" });
-    const cursor = () => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readState(project_id, goal_id).goal_event_cursor);
+    const cursor = () => host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readState(project_id, goal_id).goal_event_cursor);
     const decide = (key: string) => ({ project_id, goal_id, idempotency_key: key, conclusion: "允许发布当前结果",
       effects: [{ kind: "authorize_action" as const, action: "publish" }], scope: { action: "publish" } });
-    const stored = (governanceId: string) => host.withProject(ref, runtime => runtime.coordinator.governance.eventDecisions.read(project_id, governanceId));
+    const stored = (governanceId: string) => host.withProject(ref, runtime => goalApplicationOf(runtime).governance.eventDecisions.read(project_id, governanceId));
     return { home, ref, host, decideEntry, project_id, goal_id, cursor, decide, stored, databasePath: project.database_path,
       done: async () => { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); } };
   } catch (error) {
@@ -144,7 +149,7 @@ async function eventDecisionProject(name: string) {
 }
 
 test("an event decision through the management MCP is recorded as the person on this machine, and refuses an identity in its arguments or its authority", async () => {
-  const { decideEntry, project_id, cursor, decide, stored, done } = await eventDecisionProject("event-mcp-identity");
+  const { decideEntry, host, ref, project_id, cursor, decide, stored, done } = await eventDecisionProject("event-mcp-identity");
   try {
     const before = await cursor();
     for (const identity of IDENTITY_FIELDS) {
@@ -154,7 +159,8 @@ test("an event decision through the management MCP is recorded as the person on 
     const evidence = { conversation_ref: "conversation://identity", message_ref: "message://confirm" };
     for (const authority of [{ actor_id: "someone-else" }, { actor_id: LOCAL_PERSON_ACTOR_ID }, { actor_kind: "runtime" }, { authority_source: "web" },
       { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", authority_source: "management" }]) {
-      assert.throws(() => managementEventDecisionAuthority(project_id, "forged-authority", { ...evidence, ...authority }), { code: "goals.event_decision_authority_invalid" });
+      await assert.rejects(bindGoalsManagementActions(host.actionClient(ref), ref).invoke(goalsActions.decide, withoutProject(decide("forged-authority")), { ...evidence, ...authority }),
+        { code: "goals.event_decision_authority_invalid" });
       await assert.rejects(decideEntry({ ...decide("forged-authority"), authority: { ...evidence, ...authority } }),
         { code: "mcp.unexpected_field" }, `refuses ${Object.keys(authority).join(" and ")} in the authority`);
     }
@@ -166,21 +172,22 @@ test("an event decision through the management MCP is recorded as the person on 
       "the person on this machine decided through the management door");
     const record = await stored(decided.decision.governance_decision_id);
     assert.deepEqual([record?.actor_id, record?.actor_kind, record?.authority_source, record?.conversation_ref, record?.message_ref],
-      [LOCAL_PERSON_ACTOR_ID, "user", "management", `management:${project_id}`, "management-event-decision:decide"], "the MCP fixes the management provenance");
+      [LOCAL_PERSON_ACTOR_ID, "user", "management", `management:${project_id}`, "management:decide"], "the MCP fixes the management provenance");
     assert.equal((await decideEntry(decide("decide"))).replayed, true, "the same key replays");
   } finally { await done(); }
 });
 
 test("the management event decision takes only the conversation it came from: the Host builds the authority, with defaults when none is given", async () => {
-  const { decideEntry, project_id, decide, stored, done } = await eventDecisionProject("event-evidence");
+  const { decideEntry, host, ref, project_id, decide, stored, done } = await eventDecisionProject("event-evidence");
   try {
     const plain = await decideEntry(decide("defaults"));
     const record = await stored(plain.decision.governance_decision_id);
     assert.deepEqual([record?.actor_id, record?.authority_source, record?.conversation_ref, record?.message_ref],
-      [LOCAL_PERSON_ACTOR_ID, "management", `management:${project_id}`, "management-event-decision:defaults"], "a decision without evidence points at the management door itself");
+      [LOCAL_PERSON_ACTOR_ID, "management", `management:${project_id}`, "management:defaults"], "a decision without evidence points at the management door itself");
     // A reference that is not a usable string falls back to the default, so the stored authority always has both.
-    const half = managementEventDecisionAuthority(project_id, "blank", { conversation_ref: "conversation://half", message_ref: "  " });
-    assert.deepEqual([half.conversation_ref, half.message_ref], ["conversation://half", "management-event-decision:blank"]);
+    const half = await bindGoalsManagementActions(host.actionClient(ref), ref).invoke(goalsActions.decide, withoutProject(decide("blank")), { conversation_ref: "conversation://half", message_ref: "  " });
+    const halfRecord = await stored(half.decision.governance_decision_id);
+    assert.deepEqual([halfRecord?.conversation_ref, halfRecord?.message_ref], ["conversation://half", "management:blank"]);
     await assert.rejects(decideEntry({ ...decide("blank"), authority: { conversation_ref: "conversation://half", message_ref: "  " } }), { code: "mcp.unexpected_field" });
   } finally { await done(); }
 });
@@ -200,7 +207,7 @@ test("the management MCP's event_decide records the person on this machine and h
     const decided = JSON.parse(await call({})) as { decision: { actor_id: string; authority_source: string; governance_decision_id: string } };
     assert.deepEqual([decided.decision.actor_id, decided.decision.authority_source], [LOCAL_PERSON_ACTOR_ID, "management"]);
     const record = await stored(decided.decision.governance_decision_id);
-    assert.deepEqual([record?.conversation_ref, record?.message_ref], [`management:${project_id}`, "management-event-decision:mcp-decide"]);
+    assert.deepEqual([record?.conversation_ref, record?.message_ref], [`management:${project_id}`, "management:mcp-decide"]);
     // A second actual management invocation replays the same decision.
     assert.equal((await decideEntry(decide("mcp-decide"))).replayed, true);
   } finally { await management.close(); await done(); }
@@ -219,7 +226,7 @@ test("the management MCP's initialize reads only project_id and idempotency_key:
     // The same operation of the same person replays whatever identity fields ride along: had one been read, it would be someone else's request.
     for (const identity of IDENTITY_FIELDS) assert.equal((await call(identity)).replayed, true, `ignores ${Object.keys(identity).join(" and ")}`);
     const actors = await host.withProject(molisWorkHostProjectReference({ projectId: project_id, databasePath }),
-      runtime => runtime.store.db.prepare("SELECT actor_id FROM events WHERE project_id = ? AND type = 'board.created'").all(project_id) as Array<{ actor_id: string }>);
+      runtime => runtime.store.db.prepare("SELECT actor_id FROM events WHERE project_id = ? AND type = ?").all(project_id, `${GOALS_PLUGIN_ID}:board.created`) as Array<{ actor_id: string }>);
     assert.deepEqual(actors.map(row => row.actor_id), [LOCAL_PERSON_ACTOR_ID], "the board was created by the person on this machine");
   } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

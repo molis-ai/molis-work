@@ -8,15 +8,24 @@ import type {
   PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest, PluginProjectDatabaseTransaction, PluginAttentionWriter,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { createPluginPlatform, createFeedSourceRuntime, createLocalFeedApplication, createLocalFeedSourceService, listFeedSourceCatalog,
-  DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import {
+  createPluginPlatform,
+  createFeedSourceRuntime,
+  createLocalFeedApplication,
+  createLocalFeedSourceService,
+  listFeedSourceCatalog,
+  DEMO_PROJECT_ID,
+  LocalProjectDatabase,
+} from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createInboxContentHandlers, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { createEvidenceContentStore, type SecretStore } from "@molis-ai/molis-work-storage";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { GoalProjectApplication, seedBoard } from "./fixtures/goal-application.js";
 
 // S-66 (PG-087, PG-094 S9-0b): a plugin reaches the project's Attention entries and Context Ledger edges only through
 // `services.attention` and `services.contextLedger`. Each call asks the grants, the installation and the original caller of the action
@@ -151,7 +160,7 @@ function probe(short: string, grants: readonly string[], subjects: readonly stri
 /** The project platform the Host builds, with the plugins the cases need. */
 async function platform(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "plugin-project-services-")), file = join(home, "project.db");
-  seedDemoBoard(file);
+  seedBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
   const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event),
     eventCursor: (projectId: string) => store.eventCursor(projectId) };
@@ -288,6 +297,13 @@ test("S-66 ATTN-OWNER-04 another writer can read and close an entry by global id
   assert.deepEqual(attentionState(store), before);
 });
 
+
+/** An unassigned Goal-decision entry as an earlier build wrote it: Feed no longer opens one (it knows its own subjects only), so the entry is made over the table directly. */
+function legacyDecisionEntry(store: LocalProjectDatabase, input: { subjectId: string; entryId?: string }) {
+  return new AttentionModule(store.db, { exists: () => true }, { eventSink: () => undefined }).commands.create({ project_id: DEMO_PROJECT_ID, subject_type: "goal_decision",
+    subject_id: input.subjectId, reason: "goal_decision", ...(input.entryId ? { entry_id: input.entryId } : {}) }).entry;
+}
+
 // ATTN-OWNER-06
 test("S-66 ATTN-OWNER-06 a custom global entry id cannot name an unassigned, foreign or different same-owner object; every refusal rolls back", async t => {
   const { store, client, main, peer, noted } = await platform(t);
@@ -295,8 +311,7 @@ test("S-66 ATTN-OWNER-06 a custom global entry id cannot name an unassigned, for
   const oldId = `${peer.id}:decision-1`, oldEntryId = `${peer.id}:entry-1`;
   goals.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, goal_id: oldId, title: "自定义旧 Goal", actor_id: OWNER,
     actor_kind: "user", idempotency_key: "old-custom-goal", source_kind: "web" });
-  const old = feed.createInboxEntry({ projectId: DEMO_PROJECT_ID, subjectType: "goal_decision", subjectId: oldId,
-    reason: "goal_decision", entryId: oldEntryId }).entry;
+  const old = legacyDecisionEntry(store, { subjectId: oldId, entryId: oldEntryId });
   assert.equal(old.owner_plugin_id, null);
   assert.equal(feed.getInboxEntry(DEMO_PROJECT_ID, oldEntryId).subject_id, oldId);
   await ownedWrite(client, main, { name: "custom-owner", entry_id: "global-custom-entry" });
@@ -322,7 +337,7 @@ test("S-66 ATTN-OWNER-08 the real Feed/Inbox read chain and Goals reconcile stay
   const goals = new GoalProjectApplication(store), feed = createLocalFeedApplication(store.db), id = `${peer.id}:old-goal`;
   const goal = goals.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, goal_id: id, title: "旧 Goal 的真实材料", outcome: "只属于原对象的内容",
     actor_id: OWNER, actor_kind: "user", idempotency_key: "consumer-goal", source_kind: "web" }).goal;
-  const old = feed.createInboxEntry({ projectId: DEMO_PROJECT_ID, subjectType: "goal_decision", subjectId: id, reason: "goal_decision" }).entry;
+  const old = legacyDecisionEntry(store, { subjectId: id });
   await ownedWrite(client, peer, { name: "consumer-alias", target_id: id });
   const owned = createdOf(peer).entry;
   assert.equal(owned.subject_id, old.subject_id);
@@ -356,8 +371,12 @@ test("S-66 ATTN-OWNER-08 the real Feed/Inbox read chain and Goals reconcile stay
   assert.equal(context.content, goal.outcome);
   assert.equal(relatedReads, 1);
   goals.projectOpened(DEMO_PROJECT_ID);
-  assert.equal(feed.getInboxEntry(DEMO_PROJECT_ID, old.entry_id).status, "done", "old unassigned decision reconciliation still runs");
+  // Goals reads and closes the reminders it owns (its plugin id); an entry made before owners existed is not its to settle until the owner
+  // maintenance (S9-2) assigns it, so the reconcile leaves it as it was, and leaves another owner's entry for the same bare Goal id alone.
+  assert.equal(feed.getInboxEntry(DEMO_PROJECT_ID, old.entry_id).status, "open", "an unassigned decision entry is not reconciled by Goals");
   assert.equal(peer.services().attention!.get(owned.entry_id).status, "open", "it does not reconcile another owner's same bare Goal id");
+  await ownedWrite(client, main, { name: "close-unassigned", which: "setStatus", entry_id: old.entry_id, status: "done", revision: 1 });
+  assert.equal(feed.getInboxEntry(DEMO_PROJECT_ID, old.entry_id).status, "done");
   await ownedWrite(client, main, { name: "reopen-unassigned", which: "setStatus", entry_id: old.entry_id, status: "open", revision: 2 });
   assert.equal((main.gate.value as { owner_plugin_id: string | null }).owner_plugin_id, null);
   assert.equal(feed.getInboxEntry(DEMO_PROJECT_ID, old.entry_id).status, "open");

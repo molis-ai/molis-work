@@ -11,6 +11,7 @@ import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/conte
 import { fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { planSteps, prepareGoalsFragmentOffers } from "../plugins/native/goals/dist/fragment-offers.js";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 /**
  * specs/archive/contextual-interaction §10 P2: the platform-wide fragment offers of Goals, through the real directory
@@ -48,7 +49,7 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", project_id: project.project_id, audience: "user",
-    permissions: ["goals:read", "goals:write"] };
+    permissions: ["goals:read", "goals:write", "attention:write"] };
   const client = host.actionClient(ref);
   const bound = bindActionClient(client, () => caller);
   const invoke = <O>(reference: { capability_id: string; version: number; provider_id?: string }, input: unknown) => client.invoke(caller, reference, input) as Promise<O>;
@@ -70,7 +71,7 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     const offered = await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown"));
     const plan = offered.offers.find(offer => offer.offer_id === "breakdown")!;
     assert.match(plan.summary!, /新建 2 个步骤，放在「提升新用户留存」下/);
-    const before = await host.withProject(ref, runtime => runtime.store.snapshot(project.project_id));
+    const before = await host.withProject(ref, runtime => boardSnapshot(runtime.store, project.project_id));
     const submitted = await invoke<{ proposal: { proposal_id: string; items: unknown[]; root_goal_id: string | null }; replayed: boolean }>(plan.action, plan.input);
     assert.equal(submitted.proposal.root_goal_id, parent);
     assert.equal(submitted.proposal.items.length, 4, "two steps and their part_of relations");
@@ -80,7 +81,7 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     const other = (await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown-2"))).offers.find(offer => offer.offer_id === "breakdown")!;
     const second = await invoke<{ proposal: { proposal_id: string }; replayed: boolean }>(other.action, other.input);
     assert.notEqual(second.proposal.proposal_id, submitted.proposal.proposal_id);
-    const after = await host.withProject(ref, runtime => runtime.store.snapshot(project.project_id));
+    const after = await host.withProject(ref, runtime => boardSnapshot(runtime.store, project.project_id));
     assert.equal(after.goals.length, before.goals.length, "proposals create no Goal before approval");
 
     // 记录进展: only for a ticked task in something that belongs to a Goal; it lands on that Goal at its current cursor.

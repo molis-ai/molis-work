@@ -51,7 +51,7 @@ import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/dist/plugin-workbenc
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
-import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -96,7 +96,7 @@ async function listenDispatcher(
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "plugin-libraries", "assistant",
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
-    "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
+    "issues", "goals", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
 });
@@ -357,7 +357,6 @@ test("Host 不再进口 Functions 的库（FunctionsStore）；错误类型来�
     "apps/local-host/src/mcp-server.ts",
     "apps/local-host/src/mcp-authority.ts",
     "apps/local-host/src/mcp-event-identity.ts",
-    "apps/local-host/src/goal-project-application.ts",
   ];
   for (const relative of files) {
     const source = await readFile(join(ROOT, "..", relative), "utf8");
@@ -403,7 +402,7 @@ test("HTTP 带着过期 updated_at 保存草稿会 409", async () => {
 test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", async () => {
   await withHome(async home => {
     const databasePath = join(home, "board.db");
-    seedDemoBoard(databasePath);
+    await seedDemoGoals(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
       const { platform } = await ensureProjectPlugins({ store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID,

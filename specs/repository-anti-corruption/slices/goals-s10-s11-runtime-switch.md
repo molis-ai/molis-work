@@ -114,31 +114,54 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 | 防漏跑（必须写清） | 两次维护落在同一个版本号上，版本号本身分不出「搬过没有」，所以 `assertCurrentCatalog` 加一条：目录库里还有 `personal_planning_method_packs` 就拒绝（`catalog.unsupported_schema`，提示先跑维护），避免版本号相同却没搬数据、个人方法静默消失 |
 | 建表 | `initializeCatalog` 不再调 `createPersonalPlanningMethodSchema`；`project-catalog.ts` 去掉 `personalPlanningMethods`；`HOME-DATA.md` 4.1 目录库表删一行，4.x 加 Goals Home 库；`table-owners.json` 随之 |
 
-## 6. S12（只列，不在本片）：宿主私路删除
+## 6. S12：宿主私路删除
 
-`goals-actions.ts` 的 `goalsActionProvider`（`bindGoalsWebActions`、`bindGoalsManagementActions` 等调用方绑定留在宿主，它们是动作的调用者）、`goal-project-application.ts`、`project-database.ts` 里的 `createGoalReadServices`/`createGovernanceReadServices`（`LocalProjectDatabase.snapshot`/`goalsQuery`）、`demo-seed.ts`（走插件动作，Shelf S4 的做法）、`web-request.ts` 的 Goals 改写（BL-386）、`workbench-renderer.ts` 的 `DEFAULT_GOAL_POLICY`/`composePlanningMethodPacks`（改从插件包取）、`installer/home-release.ts` 的包名清单、`feed-application.ts:55` 对 `getGoal` 的读（Feed 判断 Goal 是否存在，要改成经 Goals 公开动作问，S12 里查清）。
+**已删（同一批）**：`goals-actions.ts` 的 `goalsActionProvider`（调用方绑定 `bindGoalsWebActions`、`bindGoalsManagementActions` 留在宿主，改名 `goal-callers.ts`，它们是动作的调用者）、`goal-project-application.ts`、`project-database.ts` 里的 `createGoalReadServices`/`createGovernanceReadServices`（`LocalProjectDatabase.snapshot`/`goalsQuery`）、`demo-seed.ts`（走插件动作，Shelf S4 的做法：一次性 Host 在临时 Home 里跑 Goals 自己的插件）、`feed-application.ts` 对 `getGoal` 的读（Feed 只认自己的对象，Goal 决定的提醒归 Goals 经平台提醒服务写）、`workbench` 从插件包取 `DEFAULT_GOAL_POLICY`/`composePlanningMethodPacks`。测试里直接用 Goals 的两个模块和应用的地方，一律经 `tests/fixtures/goal-application.ts`（plugin 同样的名字空间写日志、幂等记录和引用账本，所以同一个库上的 Host 读得到）。
 
-## 7. 验收（编号 RAC-294～309，从 294 起；远端各分支都没用过）
+**S12 实测发现（改测试时撞到的，行为变化都在这里记一笔）**：
 
-- **RAC-294**：窗口纪律：窗口外访问、**异步续体里访问（处理器 `await` 之后的回调、被留住的语句句柄）**、窗口里再开窗口、`body` 异步，都抛（`goals.storage.no_window`、`window_conflict`、`async_body`），窗口随后关闭，异步的写事务整体回滚。（`tests/goals-plugin-sqlite.test.ts`）
-- **RAC-295**：语句映射与写窗口：`get` 无行为 `undefined`、`all`、`run` 的 `changes`；参数只收字符串、数字、`bigint`、字节、`null`，布尔、`undefined`、对象在入口抛（`parameter_invalid`）；写窗口里内层事务是保存点（`keep: true`），内层抛错只回滚内层、外层继续并提交，整次调用抛错则整体回滚；只读窗口里写、保存点、事务里写都抛 `read_only`，窗口里的只读事务照常读。（同上）
-- **RAC-296**：同一个适配器同时满足 Goals 与 Governance 两个仓库的接口形状（类型层面检查），Governance 的 `savepoint` 在写窗口里 `keep`、撤销、抛错各自只动自己的写，嵌套只撤内层；只读窗口里的预览被拒。（同上）
-- **RAC-297**：平台保存点原语（通用，任何插件都可用）：插件传不进 SQL（名字、语句都由平台生成）、名字由平台生成、`body` 异步被拒、事务结束后句柄失效、撤权或取消在每一步被检查；`keep:false` 与抛错都回滚到保存点并释放。（安全不变量一行 + `tests/security-invariants-plugin-savepoint.test.ts`）
-- **RAC-298**：两条预检（整份、逐条）经保存点跑，结果与原先逐条相同；Governance 的 `exec`/`pragma` 从接口里删除，静态扫描两模块源码没有 `exec(`。
-- **RAC-299**：既有模块测试（`goal-events`、`goals-command-module`、`goals-query-*`、`governance-collaboration-module`、`planning-engine` 等）改建在「插件客户端 + 适配器」上仍通过，语句数与 S9-1 相同。
-- **RAC-300**：Goals 以 `createGoalsPlugin` 在项目监督器里启动；`LOCAL_OWNER_PERMISSIONS` 不再含 `goals:*`，本机所有者与助手、MCP、页面经安装授权到达同一批动作；动作合同快照里 Goals 的提供方由宿主改为安装，其余逐行不变。
-- **RAC-301**：双实例：Home 半与项目半共用 `install_id`，两半的服务调用互相区分（U3）；Manifest 全部权限 `required`。
-- **RAC-302**：个人规划保存经 Home 半写进 Goals Home 库；项目半五个入口读到新版本（保存后立即生效），既有项目副本不变；Home 半不可用时以 `goals.planning.personal_unavailable` 拒绝；快照在窗口外读抛错。
-- **RAC-303**：维护脚本在一次性 Home 上：`list` 不写；`move` 全读、写、读回、删表；中途失败原样；幂等；真实 Home 不带窗口参数被拒；不是本产品的目录库不动。（`tests/goals-personal-planning-move.test.ts`）
-- **RAC-304**：目录库里还有个人规划表时拒绝打开；新建的目录库没有这张表；`personal-planning-actions` 等既有测试改走 Home 半后保持原有断言。
-- **RAC-305**：Goals 的 Attention 与账本写入在同一个事务里：事务失败时 `goal_decision` 条目与 Goal 记录一起回滚。
-- **RAC-306**：三个异步成果处理器：`pin` 在窗口外等，写在窗口内；取消在 `await` 之后、写之前生效，什么都没写。
-- **RAC-307～309**：预留给 S12/S9-3（宿主私路删除的静态扫描、`pluginOutsideMentions` 实测、`table-owners` 登记）。
+- **Inbox 读取入口**：Goals 以插件运行后，待决定提醒的 `owner_plugin_id` 是 Goals 的插件号，而 S9-0b 起 Feed 的 Inbox 读取入口只接未归属条目，提醒会从 Inbox 里消失。统筹 2026-10-25 定的做法是按声明经平台，Feed 与宿主里不点名任何插件：Manifest 的 `attention` 加可选的 `inbox`（`subjects` 的子集），Goals 声明 `inbox: ["goal_decision"]`；`AttentionModule.query` 加 `listInbox`/`getInbox`（未归属条目，加主人声明了该种类的有主条目）；宿主 `plugin-inbox-declarations.ts` 从项目库里运行中的安装、按发行物归档里的 Manifest 读声明，Feed 经 `FeedApplicationPorts.inboxDeclarations` 调这两个查询（RAC-716～719）。其它种类、其它主人照旧隔离，声明只对声明者自己的条目生效。Feed 自己不再能开 `goal_decision` 条目（它不读 Goals 的表）：`createInboxEntry` 对任何 Goal 都以 `feed.invalid_transition` 拒绝，条目由 Goals 开。（此前一版是 Feed 里一张点名 Goals 插件号的表；统筹否决了它，也否决了「先隐藏提醒」的备选。）
+- **没有 Home 的 Host**：项目插件名单里声明了 Home 库的插件（Goals）不再进名单，其余插件照常启动（`project-plugins.ts` 的 `startPlatform`）。原先整张名单因 `assertDatabaseEntries` 拒绝而全部起不来。产品里的 Host 都有 Home，只影响测试和单独起的 Host；这样的 Host 不提供 Goals 动作。
+- **第一次调用才启动项目插件**：入门、CLI、管理入口对项目的第一次调用现在会启动项目的 Runtime 插件（Goals 在其中），Feed 的来源定时任务随之留下一行 `feed.sources.tick` 调用记录；测试里只看 Goals 的行。
+- **演示项目的种入**：走 Goals 的动作，在临时 Home 的一次性 Host 里跑，比原来的直写慢几秒（机器负载高时到十几秒）；重置演示项目的锁超时用例的时限相应放宽。
+- **测试迁移的机械规则**：Goals 的事件、幂等记录在日志里的类型带插件号前缀（`io.molis.work.goals:<类型>`）；孤立的项目库要先有根行（`ensureProjectRoot`）插件才能写；共用一个 Home 的两个 Host 不行，测试里让自己的 Host 带 `homeDirectory` 并用 `serveTestHost(null, { home, host })` 当授权端；Feed 提升调用者要 `context-ledger:write`，结构提案的提交与决定要 `attention:write`，`artifacts.links` 要 `goals:read`。
+
+**余项（S12 里还要做）**：
+
+1. `web-request.ts` 的 Goals 改写（BL-386）：按旧地址 `/api/<路径>` 经 `dispatchDeclaredPluginRoutes` 调 Goals 声明的路由，页面客户端改打插件前缀 `/api/plugins/io.molis.work.goals/…`，删改写，通用分发函数没有别的使用者时一起删；`scripts/check-package-boundaries.mjs` 的 goals-command-owner 规则对着新的挂载处。客户端有十来个文件、不能在没有浏览器批的环境里验证，所以单独一片，不跟这一批的代码混在一起。
+2. **PG-029 剩下的一半（2026-10-25 统筹加，ac-kernel 不碰这几个文件）**：`goal-callers.ts` 的 `bindGoalsWebActions`、`bindGoalsManagementActions` 手写的 web 与管理出处，以及 `personal-planning-actions.ts` 那条，改成出处由宿主入口给（平台可信来源，#1117 已做内核一半：内核拒绝处理器里自写的 `user_action`，页面路由入口给 `web` 出处），删掉按动作手写的分支。做法：
+   - 宿主一个通用函数 `entryUserAction(source, scope, message)`（`apps/local-host/src/entry-user-action.ts`，不含 Goals 的名字）：来源（`web` 或 `management`）、会话（`<来源>:<项目>`，管理入口带证据时用证据里的）、消息（Web 入口取这次请求头里的幂等键——传输层已要求所有改动请求带它，重试同一个键；管理入口取证据里的消息或幂等键）、整份确认依据（Web 入口取请求头 `x-molis-work-whole-confirmation`，只有页面里「整份确认」的控件会发；管理入口取证据）。重试保留的消息身份和整份确认依据都来自入口，不读动作的普通输入（#1117 的 S9 后续要求）。
+   - 删：`bindGoalsWebActions` 里关系、策略、结构决定、事件决定四处按动作的分支，宿主对 `hostEventDecisionAuthority`/`managementEventDecisionAuthority`/`managementTreeAuthority` 的使用（后两个从包的导出里删）；Goals 一侧本来只读 `caller.user_action`，不改。管理入口对证据里带身份的拒绝仍在，错误码不变。
+   - 对调用方的影响：存下来的决定记录里的 `message_ref` 文字从 `web-decision:<键>`、`web-event-decision:<键>`、`management-tree-decision:<键>`、`management-event-decision:<键>` 变成 `web:<键>`、`management:<键>`（只是审计文字，读它的代码没有）；页面客户端「整份确认」多发一个请求头。
+3. **PG-008 的 Goals 部分（同上）**：`goal-callers.ts` 的 `pinPermissions`、`GOALS_ACTION_PERMISSIONS`，以及 `web-request.ts` 的 `goalActions`，改成按 Manifest 与安装授权求解，不再手写权限交给网关：人的调用者就是 `homeActions` 已经在用的、每次请求一份的 `localWebActionContext`（按各动作的声明和正在运行的安装的授权求出权限，成果所有者的固定动作也在其中），`goalActions` 是它加上入口给的出处。`GOALS_ACTION_PERMISSIONS` 保留给测试里造调用者用，宿主不再用它。
+
+## 7. 验收（编号 RAC-700～716，从 700 起；原先写的 294～309 与 S9-0 已合入的 294～296、PG-022 的 300～329 撞号，10-25 改；700 以上远端各分支都没用过）
+
+- **RAC-700**：窗口纪律：窗口外访问、**异步续体里访问（处理器 `await` 之后的回调、被留住的语句句柄）**、窗口里再开窗口、`body` 异步，都抛（`goals.storage.no_window`、`window_conflict`、`async_body`），窗口随后关闭，异步的写事务整体回滚。（`tests/goals-plugin-sqlite.test.ts`）
+- **RAC-701**：语句映射与写窗口：`get` 无行为 `undefined`、`all`、`run` 的 `changes`；参数只收字符串、数字、`bigint`、字节、`null`，布尔、`undefined`、对象在入口抛（`parameter_invalid`）；写窗口里内层事务是保存点（`keep: true`），内层抛错只回滚内层、外层继续并提交，整次调用抛错则整体回滚；只读窗口里写、保存点、事务里写都抛 `read_only`，窗口里的只读事务照常读。（同上）
+- **RAC-702**：同一个适配器同时满足 Goals 与 Governance 两个仓库的接口形状（类型层面检查），Governance 的 `savepoint` 在写窗口里 `keep`、撤销、抛错各自只动自己的写，嵌套只撤内层；只读窗口里的预览被拒。（同上）
+- **RAC-703**：平台保存点原语（通用，任何插件都可用）：插件传不进 SQL（名字、语句都由平台生成）、名字由平台生成、`body` 异步被拒、事务结束后句柄失效、撤权或取消在每一步被检查；`keep:false` 与抛错都回滚到保存点并释放。（安全不变量一行 + `tests/security-invariants-plugin-savepoint.test.ts`）
+- **RAC-704**：两条预检（整份、逐条）经保存点跑，结果与原先逐条相同；Governance 的 `exec`/`pragma` 从接口里删除，静态扫描两模块源码没有 `exec(`。
+- **RAC-705**：既有模块测试（`goal-events`、`goals-command-module`、`goals-query-*`、`governance-collaboration-module`、`planning-engine` 等）改建在「插件客户端 + 适配器」上仍通过，语句数与 S9-1 相同。
+- **RAC-706**：Goals 以 `createGoalsPlugin` 在项目监督器里启动；`LOCAL_OWNER_PERMISSIONS` 不再含 `goals:*`，本机所有者与助手、MCP、页面经安装授权到达同一批动作；动作合同快照里 Goals 的提供方由宿主改为安装，其余逐行不变。
+- **RAC-707**：双实例：Home 半与项目半共用 `install_id`，两半的服务调用互相区分（U3）；Manifest 全部权限 `required`。
+- **RAC-708**：个人规划保存经 Home 半写进 Goals Home 库；项目半五个入口读到新版本（保存后立即生效），既有项目副本不变；Home 半不可用时以 `goals.planning.personal_unavailable` 拒绝；快照在窗口外读抛错。
+- **RAC-709**：维护脚本在一次性 Home 上：`list` 不写；`move` 全读、写、读回、删表；中途失败原样；幂等；真实 Home 不带窗口参数被拒；不是本产品的目录库不动。（`tests/goals-personal-planning-move.test.ts`）
+- **RAC-710**：目录库里还有个人规划表时拒绝打开；新建的目录库没有这张表；`personal-planning-actions` 等既有测试改走 Home 半后保持原有断言。
+- **RAC-711**：Goals 的 Attention 与账本写入在同一个事务里：事务失败时 `goal_decision` 条目与 Goal 记录一起回滚。
+- **RAC-712**：三个异步成果处理器：`pin` 在窗口外等，写在窗口内；取消在 `await` 之后、写之前生效，什么都没写。
+- **RAC-713**：宿主私路保持删除（静态扫描）：`goal-project-application.ts` 不存在，宿主源码里没有 `GoalProjectApplication`、`governanceSqlite`、`openGoalsStorage`；没有 `pinPermissions`、`managementTreeAuthority`、`managementEventDecisionAuthority`、`hostEventDecisionAuthority`；`goal-callers.ts` 与 `personal-planning-actions.ts` 不手写 `user_action`，`bindGoalsWebActions` 不按动作分支；`LOCAL_OWNER_PERMISSIONS` 不含 `goals:*`，宿主不再列 `GOALS_ACTION_PERMISSIONS`。（`tests/goals-host-private-paths.test.ts`）
+- **RAC-714**：`pluginOutsideMentions`（健康门禁，对照 merge-base）实测：main 为 33，本批终态见 §9 的「收尾实测」；其余门禁都不大于 main。
+- **RAC-715**：Goals 的表只有一个主人：`tooling/gates/table-owners.json` 里没有与 Goals 共用的表，`scripts/gates/table-owners.mjs` 通过。（同 RAC-713 的测试文件）
+- **RAC-716**：Inbox 照常列出 Goals 的待决定提醒：Goals 以自己的插件号记的 `goal_decision` 条目，因 Goals 的 Manifest 声明了 `attention.inbox`，Feed 的 Inbox 读取入口（`listInboxEntries`、`getInboxEntry`、`setInboxEntryStatus`）认得；别的插件号记的同种类同裸 ID 条目仍不解析（S9-0b 的隔离不动），按原不存在码拒绝。（`tests/goal-decision-attention.test.ts`）
+- **RAC-717**：Inbox 查询只给未归属条目和「主人声明了该种类」的有主条目：主人没声明的种类不出现（列表与直接读取一样）；A 声明的种类不让 B 的同种类条目出现，反之亦然；谁也没声明时只有未归属条目，完整列表不变。（`tests/attention-inbox-declarations.test.ts`）
+- **RAC-718**：声明来自项目里运行中的安装：停用的安装、没有发行物归档的安装、声明了种类却没写 `inbox` 的安装都不贡献；Feed 的 Inbox 不点名任何插件。（同上）
+- **RAC-719**：SDK 解析 Manifest 时，`attention.inbox` 必须是 `attention.subjects` 的非空、不重复的子集；多余字段拒绝。（同上）
 
 ## 8. 风险与要先核对的
 
 1. **只读场景里的写**：`assertPluginActionCurrent` 对 `query_only`/`read_only_effects`/只读场景拒绝写。助手、场景以只读方式调用 Goals 命令的现行行为，在切换前先列成断言（逐个命令：被拒的错误码与消息、有无半写入），切换前后必须一致；不一致就停下来问统筹（统筹条件 6）。
-2. **每条语句的守卫开销**：客户端每句问授权、调用者、表名。RAC-299 里记下语句数最多的几个动作（快照、`history`、`tree.decide`）；测出来真慢就开一行性能 BL，不在本片优化（统筹条件 7）。
+2. **每条语句的守卫开销**：客户端每句问授权、调用者、表名。RAC-705 里记下语句数最多的几个动作（快照、`history`、`tree.decide`）；测出来真慢就开一行性能 BL，不在本片优化（统筹条件 7）。
 3. **成果库依赖**：`readArtifact`、`pinActionSubject` 现在是宿主进程内的对象；切 Runtime 后只经成果库的公开动作。形状不够就先在成果库的主人那里补动作（合同改动，按 CONTRACT-CHANGES），作为本链最前面的小片，不留私路。
 4. **Goals 停用或卸载**：Goals 是每个项目都带的内置插件；Home 半停用对个人规划的影响见 §5.2。项目半被停用后的页面、助手行为沿用其它内置 Runtime 插件的既有规则，不为 Goals 单独开路。
 5. **体量**：约 30 个文件的实质改动（适配层 + 保存点 + 两个插件定义 + 删宿主装配 + 脚本 + 测试 5 个改写）。内部提交顺序：①平台保存点原语 ②适配器与两模块接口收窄（宿主仍装配，测试在适配器上跑）③`createGoalsPlugin` 与 Manifest/注册/监督器条目，删宿主装配 ④个人规划 Home 半与读取快照 ⑤数据搬迁脚本与目录库检查 ⑥文档、门禁、快照。
@@ -154,3 +177,11 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 | D | `createGoalsPlugin`、Manifest 权限与库声明、项目监督器条目，删宿主装配；动作合同快照 |
 | E | 个人规划 Home 半、调用快照、错误码、Home 库声明 |
 | F | 搬迁脚本、目录库防漏跑检查、HOME-DATA 与 `table-owners`、文档 |
+
+## 10. 收尾实测（S12 收尾时量的数，2026-10-25）
+
+- **门禁（对照 merge-base 584112c65）**：`node scripts/check-health-gates.mjs --base origin/main` 全过。`pluginOutsideMentions` 的 goals 一项 32（main 33），其余各项都不大于 main；`pnpm api:update` 刷出 3 个快照（`attention-resumption`、`plugin-attention`、`plugin`，只加 `inbox` 与 `AttentionInboxDeclarations`、`listInbox`/`getInbox`），`pnpm actions:update` 刷出 Goals 的权限与调度形状（树决定与提交要 `attention:write`，意见确认、交付物与输入要 `context-ledger:write`、`artifacts:read`，`artifacts.links` 要 `goals:read`）和两条个人规划动作改归 Goals 的 Manifest（不再是宿主登记的行）。
+- **测试**：改动涉及的 227 个单元用例文件（`affected-tests` 里按文件改动、共用夹具、包与命名点到的）加早先逐片跑的 81 个；浏览器用例（约 51 个文件用到被改的夹具）和全量不在这里跑，交批里的全量。清扫发现并改了的都是测试侧或文档计数：`project-database-baseline`（双实例的 Goals 项目半也声明项目库表）、`action-contract-snapshot`（没有宿主登记的 Home 层提供方了，改用合成的一条）、`affected-tests`（装配名单 26 → 25、local-host 半 13 → 12）、`artifact-links`（调用者要 `goals:read`）、`assistant-business-gateway`（Goals 要先启动，项目要有根行）、`desktop-tui`（夹具事件要写成 Goals 自己的名字才算进它的游标）、`artifact-browser`（演示样例的 CORE 交付物进了成果库，要看空库的用例改用只有板的夹具）、`personal-plugins-review-fixes`（Home 登记多一个 `goals`）、`goal-deliverable-proposals`（端口多了 `read`/`write`）。`npm-package` 与 `resident-management-actions`、`knowledge-*` 三个是构建过期或机器负载下超时，重建后单独重跑通过。
+- **Inbox 声明（统筹 2026-10-25 的决定）**：见 §6 的「Inbox 读取入口」与 RAC-716～719；Feed/Inbox 迁 Runtime 线（FI-2 #1283、FI-3）不碰这几处，FI-4/FI-6 之后改 `createLocalFeedApplication` 的构造点时基于本栈合入后的样子。
+- **S 号**：本栈的 S-66（Attention 与关联边服务的安全不变量）与保存点原语的 S-67 是暂定号，main 已有 S-67（后台服务）和 S-68（Attention 服务，#1245 落地时改的）；SI 文档门禁只认数字号，落地时由统筹改号，不要在本栈里抢。
+- **没做的**：S9-2（名字、游标、Attention 主人的维护）等用户的维护时段，同 W5-17；真实 Home 一直没碰；目录库版本没升（分支留在 22，落地时取 main 上的下一个号）。

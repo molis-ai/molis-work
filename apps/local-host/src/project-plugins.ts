@@ -126,7 +126,8 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
   const record: ProjectPluginState = { platform: null };
   try {
-    const entries = projectPluginEntries(ports);
+    // A Host with no Home has nowhere to keep a Home library, so a plugin that declares one (Goals) is not on its list; the rest start as they would.
+    const entries = projectPluginEntries(ports).filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home);
     record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db),

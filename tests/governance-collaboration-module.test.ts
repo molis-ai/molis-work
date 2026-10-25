@@ -11,18 +11,18 @@ import {
   deriveGoalTreeProposalState,
 } from "./fixtures/goals-modules.js";
 
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
-function fixture(name: string): {
+async function fixture(name: string): Promise<{
   store: LocalProjectDatabase;
   governance: GovernanceCollaborationModule;
   dispose(): void;
-} {
+}> {
   const directory = mkdtempSync(join(tmpdir(), `molis-work-governance-${name}-`));
   const databasePath = join(directory, "molis-work.sqlite");
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   let sequence = 0;
   const governance = new GovernanceCollaborationModule({
@@ -41,8 +41,8 @@ function fixture(name: string): {
   };
 }
 
-test("Governance decision provenance and target-owner materialization share one rollback boundary", () => {
-  const { store, governance, dispose } = fixture("decisions");
+test("Governance decision provenance and target-owner materialization share one rollback boundary", async () => {
+  const { store, governance, dispose } = await fixture("decisions");
   try {
     // W5-08-MOD-01/02: only business services are public; their transaction still owns both effects below.
     assert.equal("GovernanceRepository" in governanceExports, false);

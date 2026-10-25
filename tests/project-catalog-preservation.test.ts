@@ -6,9 +6,10 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CatalogCommit } from "../apps/local-host/dist/catalog-commit.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 async function withHome(run: (home: string) => Promise<void>) {
   const home = await fs.mkdtemp(join(tmpdir(), "molis-catalog-preservation-"));
@@ -16,7 +17,7 @@ async function withHome(run: (home: string) => Promise<void>) {
 }
 function snapshot(project: ProjectRecord) {
   const store = new LocalProjectDatabase(project.database_path);
-  try { new GoalProjectApplication(store).projectOpened(project.project_id); return store.snapshot(project.project_id); } finally { store.close(); } // S8b: Goals makes the board when the project is first opened
+  try { new GoalProjectApplication(store).projectOpened(project.project_id); return boardSnapshot(store, project.project_id); } finally { store.close(); } // S8b: Goals makes the board when the project is first opened
 }
 function mark(project: ProjectRecord) {
   const store = new LocalProjectDatabase(project.database_path);
@@ -27,7 +28,7 @@ function mark(project: ProjectRecord) {
       goal_id: "retained-content", title: "已保存的正文", outcome: "故障恢复后仍可读", why: "验证数据保留",
       business_logic: "使用真实项目写入", definition_state: "draft", decomposition_state: "abstract", acceptance_criteria: [],
     }, { actor_id: "user", idempotency_key: "retained-content" });
-    return store.snapshot(project.project_id);
+    return boardSnapshot(store, project.project_id);
   } finally { store.close(); }
 }
 function createdEvents(database: string, id: string) {
@@ -97,7 +98,8 @@ test("a stable project commit timeout retains the promoted database and a retry 
   });
 });
 
-test("demo reset lock timeout restores the original body and catalog record, and a later reset still works", { timeout: 15_000 }, async () => {
+// The demo is seeded through Goals' actions in an ephemeral Host (PG-094 S12), so a reset takes seconds, twice over here.
+test("demo reset lock timeout restores the original body and catalog record, and a later reset still works", { timeout: 60_000 }, async () => {
   await withHome(async home => {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     let writer: Database.Database | undefined;

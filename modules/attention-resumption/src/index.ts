@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import type {
   AttentionApi,
+  AttentionInboxDeclarations,
   AttentionEntryRecord,
   AttentionEvent,
   AttentionReason,
@@ -106,6 +107,12 @@ export class AttentionModule implements AttentionApi {
   readonly query = {
     list: (projectId: string) => this.list(projectId),
     get: (projectId: string, entryId: string) => this.get(projectId, entryId),
+    listInbox: (projectId: string, declared: AttentionInboxDeclarations) => this.list(projectId).filter(entry => inInbox(entry, declared)),
+    getInbox: (projectId: string, entryId: string, declared: AttentionInboxDeclarations) => {
+      const entry = this.get(projectId, entryId);
+      if (!inInbox(entry, declared)) throw attentionErrors.entry_not_found("找不到这个 Inbox Entry");
+      return entry;
+    },
     findActiveForSubject: (
       projectId: string,
       subjectType: AttentionSubjectType,
@@ -421,6 +428,11 @@ function mapAttentionEvent(row: Row): AttentionEvent {
     subject_id: text(row.subject_id),
     at: text(row.at),
   };
+}
+
+/** Unassigned entries are the person's Inbox; an owned one is, only when its own owner declared its kind (`attention.inbox`). */
+function inInbox(entry: AttentionEntryRecord, declared: AttentionInboxDeclarations): boolean {
+  return entry.owner_plugin_id === null || declared.get(entry.owner_plugin_id)?.has(entry.subject_type) === true;
 }
 
 function ownerOf(value: unknown): string | null {

@@ -6,6 +6,7 @@ import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { KnowledgeService } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
+import { initializeBoard } from "./goals-board.js";
 
 /**
  * A project with one linked folder on disk, read through the real Host's workspace read action (specs/project-knowledge K0b):
@@ -27,10 +28,10 @@ export async function knowledgeWorkspace(t: import("node:test").TestContext) {
   await writeFile(join(outside, "secret.txt"), "内测通行证 secret outside the folder\n");
   await symlink(outside, join(folder, "linked"));
   const workspace = { workspace_id: "ws1", canonical_path: await realpath(folder), display_name: "repo", realpath_verified: true };
-  const host = new MolisWorkLocalHost({ completeText: null, workspacesFor: async projectId => projectId === "a" ? [workspace] : [] });
+  const host = new MolisWorkLocalHost({ homeDirectory: join(root, "home"), completeText: null, workspacesFor: async projectId => projectId === "a" ? [workspace] : [] });
   const reference = (projectId: string) => molisWorkHostProjectReference({ databasePath: join(root, `${projectId}.sqlite`), projectId });
   for (const projectId of ["a", "b"]) {
-    await host.withProject(reference(projectId), runtime => runtime.coordinator.initializeBoard({ project_id: projectId, actor_id: "web-user", idempotency_key: "init" }));
+    await initializeBoard(host, reference(projectId), { actor_id: "web-user", idempotency_key: "init" });
   }
   const cards = openKnowledgeCards({ homeDirectory: root });
   t.after(async () => { cards.close(); await host.close(); await rm(root, { recursive: true, force: true }); });

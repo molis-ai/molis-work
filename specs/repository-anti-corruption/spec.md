@@ -1788,7 +1788,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/form` | 内置插件 | 33 | 3,163 | `store.ts` 522 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
+| `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | Runtime | 深 | 已审 |
 | `plugins/native/images` | 内置插件 | 16 | 1,531 | `client.ts` 458 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/inbox` | 内置插件 | 13 | 1,016 | `ui.ts` 189 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/jelly` | 内置插件 | 28 | 2,485 | `content.ts` 202 | 1 | 4 | 2 | Runtime | 中 | 待审 |

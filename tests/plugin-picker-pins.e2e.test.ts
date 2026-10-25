@@ -4,6 +4,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean, layoutFindings } from "./fixtures/layout-audit.js";
+import { goalsQueryOf } from "./fixtures/goal-application.js";
 
 // The switcher's grid in a real browser (specs/archive/plugin-picker-dock): buttons that appear when an entry is looked at, a pin
 // that keeps a plugin in the Dock, a plus (a red trash can once the plugin is in) that adds or removes it without bringing the
@@ -254,7 +255,7 @@ test("DOCK-08 Feed comes in place: its pages fill, its source directory joins th
   const b = await openPicker(t);
   if (!b) return;
   // A project's Feed has no sources until some are added; two public ones for its directory to list, page and filter away.
-  const sources = createLocalFeedSourceService(b.store.db, b.store.goalsQuery.listProjectIds()[0]!);
+  const sources = createLocalFeedSourceService(b.store.db, goalsQueryOf(b.store).listProjectIds()[0]!);
   sources.register({ kind: "web_query", query: "进场" });
   sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "plugin-picker" });
   const { evaluate, press, settled, stayed, waitFor, click } = b;

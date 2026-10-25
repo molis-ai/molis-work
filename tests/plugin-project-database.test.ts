@@ -303,7 +303,7 @@ test("RAC-302 every shipped plugin's Home library is registered to that plugin, 
       ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: undefined }] : [],
       ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, baseline: library }] : []];
   });
-  assert.deepEqual(shipped.map(store => store.path).sort(), ["artifacts", "cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
+  assert.deepEqual(shipped.map(store => store.path).sort(), ["artifacts", "cognia", "dataset", "form", "goals", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);
     assert.equal(store?.owner, owner, path);

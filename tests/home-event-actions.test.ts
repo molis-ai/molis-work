@@ -7,6 +7,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type HomeEv
 import { createHomeEventHandlers, homeEventActions, type HomeEventsResult } from "../apps/local-host/dist/home-event-actions.js";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 const caller: ActionCallContext = { actor_id: "owner", project_id: "event-project", audience: "user", permissions: ["home:read", "notes:read"] };
 const window = { from: "2026-09-16T00:00:00Z", to: "2026-09-23T00:00:00Z", now: "2026-09-19T12:00:00Z" };
 const original: HomeEvent = { event_id: "feed:collision", subject: { kind: "unknown-note", id: "n1" }, occurred_at: window.now, placement: "occurred", category: "personal",
@@ -67,11 +68,11 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
 
 test("native event providers project original Feed, Inbox and source state", async () => {
   const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
-  const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
+  const { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoGoals } = await import("@molis-ai/molis-work-app-local-host");
   const { createEvidenceContentStore, runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
   const home = await mkdtemp(join(tmpdir(), "native-home-events-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
-  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath, caller.project_id!);
+  const databasePath = join(home, "project.db"); await seedDemoGoals(databasePath, caller.project_id!);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: caller.project_id! });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const owner = { ...caller, permissions: ["home:read", "feed:read", "inbox:read", "goals:read"] };
@@ -87,7 +88,7 @@ test("native event providers project original Feed, Inbox and source state", asy
       material: { material_id: "retained-material", canonical_url: null, title: "材料附件", source_name: source.name, published_at: null,
         preview: "附件预览", content_hash: null, content_ref: retained.contentRef, content_available: true, content_type: "text/markdown",
         character_count: retainedText.length, captured_at: now.toISOString(), provenance: {}, selected_for_context: true } }).item;
-    const goal = runtime.store.snapshot(reference.project_id).goals[0]!;
+    const goal = boardSnapshot(runtime.store, reference.project_id).goals[0]!;
     feed.linkGoal(reference.project_id, ordinary.item_id, goal.goal_id, "processing");
     const activeEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, active.item_id, "manual").entry;
     const doneEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, done.item_id, "manual").entry;

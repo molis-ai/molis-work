@@ -30,29 +30,6 @@ export interface GovernanceSqliteDatabase {
   savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T;
 }
 
-/** The connection `better-sqlite3` gives (the project library's own, in tests and in the Host while it assembles Goals), as Governance meets it. */
-export function governanceSqlite(db: Pick<GovernanceSqliteDatabase, "prepare" | "transaction"> & { exec(sql: string): unknown }): GovernanceSqliteDatabase {
-  let points = 0;
-  return {
-    prepare: sql => db.prepare(sql),
-    transaction: operation => db.transaction(operation),
-    savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T {
-      const name = `governance_savepoint_${++points}`;
-      db.exec(`SAVEPOINT ${name}`);
-      try {
-        const result = body();
-        if (!result.keep) db.exec(`ROLLBACK TO ${name}`);
-        db.exec(`RELEASE ${name}`);
-        return result.value;
-      } catch (error) {
-        db.exec(`ROLLBACK TO ${name}`);
-        db.exec(`RELEASE ${name}`);
-        throw error;
-      }
-    },
-  };
-}
-
 /**
  * The project's journal as Governance reaches it (PG-094 S9-1): the storage package's methods over `events` and
  * `idempotency_records`, which are not Goals' tables, so no statement here names either one (a plugin's SQL is refused when it does).

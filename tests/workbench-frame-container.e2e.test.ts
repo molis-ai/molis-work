@@ -4,6 +4,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedApplication, DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Goal Frames use outer tabs, preserve references, and isolate project state", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
@@ -33,7 +34,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },
     content: { kind: "inline", payload: { text: "Frame artifact" } }, metadata: {},
   });
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
@@ -130,6 +131,6 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')");
   await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').click()");
   await waitFor("document.querySelectorAll('[data-frame-block]').length === 3");
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).runs, before.runs);
 });

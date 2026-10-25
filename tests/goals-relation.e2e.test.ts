@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Goals relation UI preserves incoming direction, historical reading and reload", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -27,7 +28,7 @@ test("Goals relation UI preserves incoming direction, historical reading and rel
     JSON.stringify({ from_goal_id: "PLATFORM", to_goal_id: "V1", type: "extends" }),
     "2026-09-01T02:00:00.000Z",
   );
-  const seeded = store.snapshot(DEMO_PROJECT_ID);
+  const seeded = boardSnapshot(store, DEMO_PROJECT_ID);
   const seededRelation = seeded.relations.find((relation) => relation.relation_id === relationId)!;
   assert.equal(seededRelation.from_goal_id, "PLATFORM");
   assert.equal(seededRelation.to_goal_id, "V1");
@@ -88,7 +89,7 @@ test("Goals relation UI preserves incoming direction, historical reading and rel
   await waitFor("document.querySelector(" + JSON.stringify(record) + ")");
   assert.match(await evaluate<string>("document.querySelector(" + JSON.stringify(record) + ")?.textContent || ''"), /Result no longer needs this relation/);
   assert.equal(await evaluate<string>("document.querySelector(" + JSON.stringify(record + " .relation-kind") + ")?.textContent || ''"), "由此扩展");
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.relations.map((relation) => ({
     relation_id: relation.relation_id,
     from_goal_id: relation.from_goal_id,

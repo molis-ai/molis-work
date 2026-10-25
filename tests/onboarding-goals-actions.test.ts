@@ -13,6 +13,7 @@ import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-ag
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { managementGoals } from "./goal-management-caller.js";
+import { ensureProjectRoot } from "./fixtures/goals-board.js";
 import { watchSettlements, type Settlement } from "./fixtures/settlements.js";
 import { callerPlugin, issuedCaller, registerProbe, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 
@@ -30,7 +31,9 @@ test("Goals is a Runtime plugin of the project: the default client starts it bef
   const host = createMolisWorkLocalHost({ homeDirectory: directory, completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "unprepared" });
   const caller = personCaller("unprepared");
-  const providers = async (client: ReturnType<typeof host.actionClient>) => new Set((await client.discover(caller)).map(view => view.provider.provider_id));
+  await ensureProjectRoot(host, reference);
+  // The project's plugins: Goals' Home half (the person's methods) is the Home's and is there from the Host's start.
+  const providers = async (client: ReturnType<typeof host.actionClient>) => new Set((await client.discover(caller)).filter(view => view.action.scope === "project").map(view => view.provider.provider_id));
   try {
     const bare = host.actionClient(reference, false);
     const listed = await providers(bare);
@@ -62,7 +65,8 @@ test("the first-run Goal is made by the Goals action, as the person, and leaves 
     const created = await response.json() as { project: { project_id: string }; goal_id: string };
     const projectId = created.project.project_id;
 
-    assert.deepEqual(host.callLog!.list(projectId).map(row => [row.capability_id, row.provider_id, row.actor_id, row.audience, row.ok]),
+    // The project's plugins start with the first call (Feed's source tick is one of theirs); the Goal itself leaves the one row below.
+    assert.deepEqual(host.callLog!.list(projectId).filter(row => row.capability_id.startsWith("goals.")).map(row => [row.capability_id, row.provider_id, row.actor_id, row.audience, row.ok]),
       [[goalsActions.create.capability_id, GOALS_PLUGIN_ID, LOCAL_PERSON_ACTOR_ID, "user", true]],
       "one row: the Goals action, not a typed capability beside it");
     assert.deepEqual(settled.filter(row => row.path === "typed"), [], "no typed capability was called for the Goal");
@@ -83,6 +87,7 @@ test("a Run reads the project guidance through the Goals action, once, whether o
     actionAvailability: (_caller, action) =>
       removed && action.capability_id.startsWith("goals.") ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已从这个项目移除" } : { available: true } });
   const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.db"), projectId: "guided" });
+  await ensureProjectRoot(host, reference);
   const composition = ensureSystemAgentService(host, home);
   const captured: AgentStartRequest[] = [];
   // A round is started by a plugin the Host started (R8 batch 3), in that plugin's own session.

@@ -7,13 +7,21 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 // RAC-343, RAC-344: the platform's entries take Goals' descriptors from contracts, and Goals declares those very objects, not a copy of them.
 test("RAC-344 Goals declares the descriptors contracts publish for the platform's entries", () => {
-  const declared: Record<string, unknown> = goalsActions;
-  for (const [key, definition] of Object.entries(goalEntryActions)) assert.equal(declared[key], definition, key);
+  const declared: Record<string, ActionDefinition> = goalsActions;
+  // An action that writes through a platform service (the reminder it opens) adds the permission that service asks of its caller and
+  // runs concurrent (`usingServices`); everything else of it is the contract's descriptor.
+  const withoutServices = (definition: ActionDefinition) => { const { permissions: _permissions, scheduling: _scheduling, ...action } = definition.action; return { ...definition, action }; };
+  for (const [key, definition] of Object.entries(goalEntryActions) as Array<[string, ActionDefinition]>) {
+    if (declared[key] === definition) continue;
+    assert.deepEqual(withoutServices(declared[key]!), withoutServices(definition), key);
+    assert.ok(definition.action.permissions.every(permission => declared[key]!.action.permissions.includes(permission)), `${key} keeps the contract's permissions`);
+  }
   const shared = { list: "list", state: "state", contract: "contract", progress: "progress", receipt: "progressReceipt" } as const;
   for (const [key, name] of Object.entries(shared)) assert.equal(declared[name], goalPluginActions[key as keyof typeof shared], key);
 });
@@ -36,7 +44,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     const configure = { goal_id, expected_version: 0, idempotency_key: "config", types: [{ type_id: "work", version: 1, name: "交付",
       purpose: "保留事实", fields: [{ field_id: "body", name: "正文", purpose: "原文", format: "longtext" as const, required: true }] }],
       requirement_bindings: [{ type_id: "work", requirement_id: "human" }] };
-    const oldConfig = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.configure({ ...configure, project_id, actor_id, actor_kind }));
+    const oldConfig = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.configure({ ...configure, project_id, actor_id, actor_kind }));
     assert.deepEqual(await actions.invoke(goalsActions.configure, configure), { ...JSON.parse(JSON.stringify(oldConfig)), replayed: true });
     await assert.rejects(actions.invoke(goalsActions.configure, { ...configure, idempotency_key: "stale-config" }), /版本/);
     const report = { goal_id, idempotency_key: "report", events: [{ type_id: "work", type_version: 1, title: "实际正文",
@@ -87,7 +95,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     await assert.rejects(actions.invoke(goalsActions.citeDecision, { goal_id, decision_id: "fabricated", idempotency_key: "fake" }));
     const incomplete = await actions.invoke(goalsActions.close, { goal_id, kind: "complete", reason: "申请收尾", idempotency_key: "blocked", ...versions });
     assert.equal(incomplete.completion_applied, false); assert.ok(incomplete.unmet_reasons.length > 0);
-    const decision = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.recordTrustedDecision({ project_id, goal_id,
+    const decision = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({ project_id, goal_id,
       authority: hostEventDecisionAuthority("web", project_id, "real-user", "accept"), idempotency_key: "accept", request_id: asked.decision_request.request_id,
       selected_option_id: "yes", conclusion: "接受交付", effects: [{ kind: "accept_requirements" }], scope: { requirement_ids: ["human"] } }));
     const cited = await actions.invoke(goalsActions.citeDecision, { goal_id, idempotency_key: "cite", decision_id: decision.decision.decision_id, scope: { requirement_ids: ["human"] } });

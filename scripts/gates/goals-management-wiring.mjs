@@ -25,7 +25,7 @@ export function checkGoalsManagementWiring(source, mode) {
   const factory = namedCalls("bindGoalsManagementActions"), call = factory.length === 1 ? factory[0] : undefined;
   const opened = call?.arguments[0], fallback = declarations.get("fallback");
   const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost()).actionClient";
-  if (!imports.has("./goals-actions.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
+  if (!imports.has("./goal-callers.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
     || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 1
     || text(opened.arguments[0]) !== "reference"
     || text(call.arguments[1]) !== "reference" || text(call.arguments[2]) !== (mcp ? "{signal:caller.resident?.signal}" : "{signal:options.signal}")

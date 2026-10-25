@@ -18,7 +18,8 @@ const shapeOf = (path: string) => { const db = new DatabaseSync(path, { readOnly
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 const ledgerOf = (path: string) => { const db = new DatabaseSync(path, { readOnly: true }); try { return db.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json FROM plugin_project_databases ORDER BY plugin_id").all().map(row => ({ ...row })); } finally { db.close(); } };
 /** The built-in project plugins that declare tables in the library, as the Host reads them from the one catalog. */
-const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope !== "home" && entry.manifest.databases?.project).map(entry => entry.manifest);
+// A dual-instance plugin (Goals) keeps its project half in the project library, so it declares tables there beside the project plugins.
+const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => (entry.runtime?.scope !== "home" || entry.runtime.dual_instance === true) && entry.manifest.databases?.project).map(entry => entry.manifest);
 /** What a library is once the Host has opened it: the baseline, then each declaring plugin's own statements. */
 const opened = shape([PROJECT_DATABASE_BASELINE.schema, ...declaring.map(manifest => manifest.databases!.project!.schema)].join("\n"));
 /** The eleven tables of the baseline and the plugins (other than Goals' board) whose rows belong to the project (PLIB-09). */

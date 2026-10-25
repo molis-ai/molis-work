@@ -7,3 +7,5 @@ export * from "@molis-ai/molis-work-plugin-goals/module";
 export * from "@molis-ai/molis-work-plugin-goals/governance";
 export * as goalsModuleExports from "@molis-ai/molis-work-plugin-goals/module";
 export * as governanceModuleExports from "@molis-ai/molis-work-plugin-goals/governance";
+export { createGoalsApplication, readMolisWorkSnapshot, GOALS_PLUGIN_ID, type GoalsApplication, type GoalTreeProposalListQuery, type GoalTreeProposalListResult, type GoalTreeProposalCheckResult,
+  type GoalTreeProposalDecisionResult, type GoalTreeSemanticReview } from "@molis-ai/molis-work-plugin-goals";

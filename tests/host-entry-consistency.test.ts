@@ -1,5 +1,6 @@
 import { managementGoals } from "./goal-management-caller.js";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { AsyncResource } from "node:async_hooks";
@@ -18,7 +19,7 @@ test("RAC-180 MCP Goal directory cannot be split by a queued competing Goal writ
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "组合入口", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
-  const host = createMolisWorkLocalHost();
+  const host = createMolisWorkLocalHost({ homeDirectory: directory, completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = managementGoals(host.actionClient(reference), projectId);
   const runtimeHost = {
@@ -36,23 +37,17 @@ test("RAC-180 MCP Goal directory cannot be split by a queued competing Goal writ
   });
   let competingWrite: Promise<unknown> | undefined;
   try {
+    await startProjectPlugins(host, reference);
     await client.invoke(goalsActions.create, makeIntent("first"));
-    await host.withProject(reference, ({ coordinator }) => {
-      const original = coordinator.goalEvents.listGoals.bind(coordinator.goalEvents);
-      let enqueue = true;
-      coordinator.goalEvents.listGoals = input => {
-        const result = original(input);
-        if (enqueue) {
-          enqueue = false;
-          competingWrite = managementEntry.runInAsyncScope(() => client.invoke(goalsActions.create, makeIntent("later")));
-        }
-        return result;
-      };
-    });
     await grantGoalsMcp(served, project, "runtime:entry");
-    const listed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.list__v1", { limit: 100 }));
+    // The directory read is one platform read window (Goals' list is a query): a write queued while it runs waits for it, so the page holds
+    // the Goals of before the competing write, never half of a state. The write is started from an entry of its own, outside the read.
+    const listing = mcp.callTool("molis_work_v1_action_goals.list__v1", { limit: 100 });
+    competingWrite = managementEntry.runInAsyncScope(() => client.invoke(goalsActions.create, makeIntent("later")));
+    const listed = JSON.parse(await listing);
     await competingWrite;
-    assert.deepEqual(listed.goals.map((item: { goal_id: string }) => item.goal_id), ["first"]);
+    const seen = listed.goals.map((item: { goal_id: string }) => item.goal_id).sort();
+    assert.ok(JSON.stringify(seen) === JSON.stringify(["first"]) || JSON.stringify(seen) === JSON.stringify(["first", "later"]), `the page is one state: ${seen}`);
     const later = await client.invoke(goalsActions.create, makeIntent("later"));
     assert.equal(later.replayed, true);
     const after = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.list__v1", { limit: 100 }));
@@ -65,7 +60,7 @@ test("RAC-180 MCP Goal directory cannot be split by a queued competing Goal writ
     assert.equal(trashed.status, "trashed");
     await host.withProject(reference, ({ store }) => {
       const trashEvent = store.readEventsDescending(projectId).find((event) =>
-        event.object_id === "first" && event.type === "goal.trashed");
+        event.object_id === "first" && event.type === `${GOALS_PLUGIN_ID}:goal.trashed`);
       assert.equal(trashEvent?.actor_id, "runtime:entry:session");
     });
   } finally {

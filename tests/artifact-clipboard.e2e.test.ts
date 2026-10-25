@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
-import { MolisWorkLocalHost, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 // This checks the real browser clipboard, not the automation tool's virtual clipboard.
 test("migrated result reference copies exact text and handles denied clipboard permission without changing facts", { timeout: 60_000 }, async (t) => {
@@ -16,7 +16,7 @@ test("migrated result reference copies exact text and handles denied clipboard p
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-clipboard-"));
   const databasePath = join(directory, "fixture.db");
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   let harness: ChromeHarness | undefined;
   let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
@@ -42,7 +42,7 @@ test("migrated result reference copies exact text and handles denied clipboard p
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   await (await fetch(origin + "/health")).text();
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   async function evaluate<T = unknown>(expression: string): Promise<T> {
@@ -88,6 +88,6 @@ test("migrated result reference copies exact text and handles denied clipboard p
   await waitFor(`document.querySelector(${JSON.stringify(copySelector)}).dataset.copy === 'failed' && document.querySelector('[data-toast]')?.textContent.includes('无法访问剪贴板')`);
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
   assert.equal(await evaluate("navigator.clipboard.readText()"), reference);
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals, "copying a reference changes no Goal");
 });

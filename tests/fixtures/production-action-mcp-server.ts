@@ -2,11 +2,12 @@ import { join } from "node:path";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
+import { initializeBoard } from "./goals-board.js";
 const [home, project, client, databasePath] = process.argv.slice(2);
 if (!home || !project || !client) throw new Error("Missing fixture identity");
 const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home) });
 const reference = molisWorkHostProjectReference({ databasePath: databasePath ?? join(home, `${project}.sqlite`), projectId: project });
-if (!databasePath) await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: project, actor_id: "setup", idempotency_key: "initialize" }));
+if (!databasePath) await initializeBoard(host, reference, { actor_id: "setup", idempotency_key: "initialize" });
 const server = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project,
   databasePath: reference.storage_key, webBaseUrl: "http://127.0.0.1:4173" },
   { homeDirectory: home, runtimeContext: { runtime_id: client, stable_work_context_id: null, host_declares_stable: false } }, host);

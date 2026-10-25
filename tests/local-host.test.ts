@@ -223,7 +223,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
   const { database_path: databasePath, project_id: projectId } = project;
   let openCount = 0;
   const host = createMolisWorkLocalHost({
-    instanceId: "shared-entry-host",
+    instanceId: "shared-entry-host", homeDirectory: directory,
     onRuntimeOpen: () => { openCount += 1; },
   });
   const intent = {
@@ -271,7 +271,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     assert.deepEqual((snapshot.goals as { goal_id: string }[]).map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
 
     await host.close();
-    const restarted = createMolisWorkLocalHost({ instanceId: "restarted-entry-host" });
+    const restarted = createMolisWorkLocalHost({ instanceId: "restarted-entry-host", homeDirectory: directory });
     try {
       const restored = await managementGoals(restarted.actionClient(reference), projectId).invoke(goalsActions.snapshot, {});
       assert.deepEqual(restored.goals.map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
@@ -300,7 +300,7 @@ test("legacy entrypoints no longer construct independent business stores", async
   assert.match(mcpEntrypoint, /MolisWorkServer.*from "@molis-ai\/molis-work-app-desktop"/u);
   const composition = await readFile(new URL("../apps/local-host/src/project-host.ts", import.meta.url), "utf8");
   assert.match(composition, /new LocalProjectDatabase\(/u);
-  assert.match(composition, /new GoalProjectApplication\(/u);
+  assert.doesNotMatch(composition, /GoalProjectApplication/u, "Goals is a plugin of the project: the Host holds no Goals application");
 });
 
 test("a page asked of a database that does not exist names the database the CLI must be given to create it", async t => {

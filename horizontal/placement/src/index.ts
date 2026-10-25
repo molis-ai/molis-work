@@ -392,13 +392,12 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */
 export const PLACEMENT_LEDGER_ACCESS = ACCESS;
 
-interface DerivedPlacementAccess {
+interface PlacementInstanceAccess {
   locate(object: PlacedObject): { object: PlacedObject; moved: boolean };
   read(object: PlacedObject): Promise<Read>;
   remember(object: PlacedObject): void;
   openOf(object: PlacedObject): Promise<PlacementOpen | null>;
 }
-
 
 function placementText(ports: PlacementPorts, zh: string, vars: Record<string, string | number> = {}): string {
   if (ports.text) return ports.text(zh, vars);
@@ -417,7 +416,6 @@ function homePlacementLocation(ports: PlacementPorts, belongs: string | null, sp
   return { ...placementLocation(ports, belongs, spaces), access: "home", access_label: placementText(ports, "只有你和获授权的助理") };
 }
 
-
 function placementLocation(ports: PlacementPorts, projectId: string | null, spaces: readonly PlacementSpaceView[]): PlacementLocation {
   // Home-level plugins answer any project that was granted them, so their content is not “only you”.
   if (projectId === null) return { kind: "personal", project_id: null, title: placementText(ports, "个人空间"), access: "home", access_label: placementText(ports, "只有你和获授权的助理") };
@@ -425,7 +423,6 @@ function placementLocation(ports: PlacementPorts, projectId: string | null, spac
   const space = spaces.find(entry => entry.project_id === projectId);
   return { kind: "project", project_id: projectId, title: placementText(ports, "项目「{name}」", { name: space?.title ?? placementText(ports, "已删除的项目") }), access: "project", access_label: placementText(ports, "项目内可见") };
 }
-
 
 async function placementTools(ports: PlacementPorts, object: PlacedObject): Promise<{ mover: ActionReference | null; copier: ActionReference | null }> {
   try {
@@ -439,12 +436,10 @@ async function placementTools(ports: PlacementPorts, object: PlacedObject): Prom
   } catch { return { mover: null, copier: null }; }
 }
 
-
 async function placementAction(scope: PlacementScope, capabilityId: string): Promise<ActionReference | null> {
   const view = (await scope.client.discover(scope.caller)).find(entry => entry.capability_id === capabilityId && entry.availability.available);
   return view ? ref(view) : null;
 }
-
 
 async function placementGoalBindings(ports: PlacementPorts, projectId: string, subject: { kind: string; id: string }): Promise<{ binding_id: string; goal_id: string; created_at: string }[]> {
   try {
@@ -476,8 +471,7 @@ async function placementGoals(ports: PlacementPorts, projectId: string): Promise
   return goals;
 }
 
-
-async function copyPlacement(ports: PlacementPorts, access: DerivedPlacementAccess, input: PlacedObject, to: string, requestId: string): Promise<PlacementMoveResponse> {
+async function copyPlacement(ports: PlacementPorts, access: PlacementInstanceAccess, input: PlacedObject, to: string, requestId: string): Promise<PlacementMoveResponse> {
   const spaces = await ports.spaces();
   const object = access.locate(input).object;
   if (object.project_id === null) throw new ActionError("placement.not_copyable", placementText(ports, "这类内容只放在个人空间，请在插件里另存"));
@@ -497,7 +491,7 @@ async function copyPlacement(ports: PlacementPorts, access: DerivedPlacementAcce
 }
 
 /** The source hands its content (or what it chooses to hand over) to another plugin; the new object records where it came from. */
-async function convertPlacement(ports: PlacementPorts, access: DerivedPlacementAccess, request: PlacementConvertRequest): Promise<PlacementConvertResponse> {
+async function convertPlacement(ports: PlacementPorts, access: PlacementInstanceAccess, request: PlacementConvertRequest): Promise<PlacementConvertResponse> {
   const spaces = await ports.spaces();
   if (!spaces.some(space => space.project_id === request.to_project_id)) throw new ActionError("placement.project_missing", placementText(ports, "找不到要存到的位置"));
   const source = access.locate(request.source).object;

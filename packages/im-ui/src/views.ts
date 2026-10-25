@@ -1,8 +1,6 @@
 import type { ImMember, ImMessage, ImMessagePage, ImRoom, ImRoomState, ImThread } from "@molis-ai/molis-work-contracts/services/im";
 import type { createMessageFormat } from "./message-format.js";
 import type { StreamKind, ScrollAnchor } from "./browser/types.js";
-// At the end means following (molisFollow, VUX-26). A saved place (`judge`) also tells the follower where it is; a redraw's
-// compensation does not. This compensation is the one owner of the shift: these scrollers turn the browser's anchoring off.
 /** Typed browser view helpers; user/server strings are escaped before markup. */
 export function createViews(root: HTMLElement, createFormat: typeof createMessageFormat) {
   const q = <T extends HTMLElement = HTMLElement>(selector: string): T => root.querySelector<T>(selector)!;
@@ -43,6 +41,7 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
     const message = [...node.querySelectorAll<HTMLElement>('[data-message]')].find(item => item.getBoundingClientRect().bottom > top);
     return { id: message?.dataset.message, offset: message ? message.getBoundingClientRect().top - top : 0, bottom: window.molisFollow?.(node).state === 'following' };
   };
+  // Tail means following; judge restores molisFollow's saved place, redraws only compensate. restoreScroll owns shifts; native anchoring is off.
   const restoreScroll = (kind: StreamKind, anchor: ScrollAnchor | null, judge = true) => {
     const node = scroller(kind), follow = window.molisFollow?.(node), message = anchor?.id && !anchor.bottom && node.querySelector('[data-message="' + CSS.escape(anchor.id) + '"]');
     if (anchor?.bottom) { if (follow) { follow.resume(); follow.pin(); } else node.scrollTop = node.scrollHeight; return; }

@@ -242,20 +242,22 @@ export function recoverInterruptedListenerRuns(
   return Number(result.changes);
 }
 
+interface ListenerHostOptions {
+  now?: () => Date;
+  leaseMs?: number;
+  maxDeliveryAttempts?: number;
+  afterSignalAccepted?: (
+    event: ConnectorRawEvent,
+    receipt: SignalReceipt,
+  ) => void | Promise<void>;
+}
+
 export class ListenerHost implements ListenerHostApi {
   constructor(
     private readonly db: ListenerSqliteDatabase,
     readonly connector: ConnectorHostApi,
     private readonly signals: SignalCommands,
-    private readonly options: {
-      now?: () => Date;
-      leaseMs?: number;
-      maxDeliveryAttempts?: number;
-      afterSignalAccepted?: (
-        event: ConnectorRawEvent,
-        receipt: SignalReceipt,
-      ) => void | Promise<void>;
-    } = {},
+    private readonly options: ListenerHostOptions = {},
   ) {
     db.exec(LISTENER_HOST_SCHEMA_SQL);
   }
@@ -421,10 +423,13 @@ export class ListenerHost implements ListenerHostApi {
     adapter: RawEventAdapter,
     beforeEffect: () => Promise<void>,
   ): Promise<{ event: ConnectorRawEvent; receipt: SignalReceipt }> {
-    return acceptListenerDelivery(
-      this.db, this.signals, this.options, () => this.now(),
-      (projectId, sourceId, cursor) => this.advanceCursor(projectId, sourceId, cursor), delivery, adapter, beforeEffect,
-    );
+    return acceptListenerDelivery({
+      db: this.db,
+      signals: this.signals,
+      options: this.options,
+      now: () => this.now(),
+      advanceCursor: (projectId, sourceId, cursor) => this.advanceCursor(projectId, sourceId, cursor),
+    }, delivery, adapter, beforeEffect);
   }
 
   private persistDeliveries(
@@ -669,7 +674,19 @@ function json<T>(value: unknown, fallback: T): T {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-async function acceptListenerDelivery(db: ListenerSqliteDatabase, signals: SignalCommands, options: NonNullable<ConstructorParameters<typeof ListenerHost>[3]>, now: () => Date, advanceCursor: (projectId: string, sourceId: string, cursor: unknown) => void, delivery: Delivery, adapter: RawEventAdapter, beforeEffect: () => Promise<void>): Promise<{ event: ConnectorRawEvent; receipt: SignalReceipt }> {
+async function acceptListenerDelivery(
+  dependencies: {
+    db: ListenerSqliteDatabase;
+    signals: SignalCommands;
+    options: ListenerHostOptions;
+    now: () => Date;
+    advanceCursor: (projectId: string, sourceId: string, cursor: unknown) => void;
+  },
+  delivery: Delivery,
+  adapter: RawEventAdapter,
+  beforeEffect: () => Promise<void>,
+): Promise<{ event: ConnectorRawEvent; receipt: SignalReceipt }> {
+  const { db, signals, options, now, advanceCursor } = dependencies;
   try {
     await beforeEffect();
     const partial = adapter.toSignalDraft(delivery.event, {
@@ -724,13 +741,17 @@ async function acceptListenerDelivery(db: ListenerSqliteDatabase, signals: Signa
   }
 }
 
-
-function persistListenerDeliveries(db: ListenerSqliteDatabase, now: () => Date, input: {
-      project_id: string;
-      source_id: string;
-      operation_id: string;
-      adapter: RawEventAdapter;
-    }, events: ConnectorRawEvent[]): void {
+function persistListenerDeliveries(
+  db: ListenerSqliteDatabase,
+  now: () => Date,
+  input: {
+    project_id: string;
+    source_id: string;
+    operation_id: string;
+    adapter: RawEventAdapter;
+  },
+  events: ConnectorRawEvent[],
+): void {
   const insert = db.prepare(`
     INSERT OR IGNORE INTO listener_deliveries (
       project_id, source_id, operation_id, raw_event_id, provider_dedupe_id,

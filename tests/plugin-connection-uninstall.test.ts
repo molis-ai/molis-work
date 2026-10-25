@@ -6,13 +6,13 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { MemoryPluginConsentLedger, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { pluginActions } from "./fixtures/plugin-actions.js";
 
 function probe(name = "uninstallconnections") {
   let failStop = false;
@@ -27,9 +27,9 @@ function probe(name = "uninstallconnections") {
 
 /** The real project platform, its persistent Runtime repository and the actual private KV owner. */
 function project(home: string, file: string, projectId: string) {
-  const store = new LocalProjectDatabase(file), privateStorage = new SqlitePluginPrivateStorage(store.db);
+  const store = new LocalProjectDatabase(file), privateStorage = new SqlitePluginPrivateStorage(store.db), actions = new ActionService();
   const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
-  const platform = createPluginPlatform({ project_id: projectId, actor_id: "tester", db: store.db, journal: store, actions: pluginActions(store, projectId),
+  const platform = createPluginPlatform({ project_id: projectId, actor_id: "tester", db: store.db, journal: store, actions: { registry: actions, client: actions, project_id: projectId },
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     home: { directory: home, completeText: () => null, stores: homeStores(), consents: new MemoryPluginConsentLedger() },
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest), deleteInstallationData: id => privateStorage.deleteInstallationData(id) });
@@ -75,7 +75,7 @@ for (const retain_private_data of [true, false]) test(`RAC-471-RT common Runtime
   assert.equal(runtime.get(r.record.install_id).state, "uninstalled");
   assert.equal(runtime.get(r.record.install_id).retain_private_data, retain_private_data);
   assert.deepEqual(r.remaining(), r.outside); r.accountUnchanged();
-  const again = runtime.install({ definition: r.first.definition, deployment: "local" }).install;
+  const again = runtime.install({ definition: r.first.definition, deployment: "local", trust: { level: "unsigned" } }).install;
   assert.equal(again.install_id, r.record.install_id);
   await runtime.start(again.install_id);
   assert.deepEqual(r.remaining(), r.outside, "a fresh activation does not inherit the old record's account");

@@ -104,8 +104,9 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 ### 3.7 事件前缀按事件主人走（PG-096）
 
 - 平台表 `DOM_EVENT_PREFIXES` 只留平台的前缀（`molis-work:`、`molis:`、`workbench-`）。`molis-shelf-` 从表里删除。
-- 插件拥有的事件用一条通用规则：名字以 `molis-<owner>-` 开头，且该事件登记的 `owner` 等于 `<owner>`；Shelf 的现有名字（`molis-shelf-notice`、`molis-shelf-refresh`、`molis-shelf-send-tui`…）已经满足，**不改名**，桌面壳 Rust 侧发的名字也不用动。
+- 插件拥有的事件用一条通用规则：名字以 `molis-<owner>-` 开头，且该事件登记的 `owner` 等于 `<owner>`；插件主人由同一张 `PAGE_STATE_OWNERS` 表判定：其 `files` 全部属于同一个 `plugins/<组>/<目录>/` 包。平台主人只用三个平台前缀；主人文件跨插件与平台、或跨两个插件包，门禁拒绝并要求拆开登记，不另写插件名单。Shelf 的现有名字（`molis-shelf-notice`、`molis-shelf-refresh`、`molis-shelf-send-tui`…）已经满足，**不改名**，桌面壳 Rust 侧发的名字也不用动。
 - 门禁（`scripts/gates/dom-events.mjs`）改成：未登记前缀、或前缀的 `<owner>` 与登记的 `owner` 不一致，直接失败。任何别的插件按同一规则拿到同样待遇。
+- A4 首评修复（#1257，基于 `27d3ef4c0`；[统筹范围裁定](https://github.com/molis-ai/molis-work/pull/1257#issuecomment-6393559237)）：多个已登记主人互为前缀时，按完整 `molis-<owner>-` 的最长匹配确定主人，不依赖登记顺序；合法的长、短插件主人事件都通过，错登到另一个主人、平台主人使用插件前缀、混合归属及未登记的监听、`CustomEvent` 仍拒绝。监听扫描仍识别所有已登记主人的前缀，避免漏掉未登记的平台主人监听。只改合同注释、门禁、直接测试、本节与 UI-PLATFORM 的对应规则；不改事件名、载荷或三个平台前缀，不扩大平台命名政策。
 - 这是 `dom-events.ts` 的合同改动，跑 `pnpm api:update`。
 
 ### 3.8 存储路径与环境变量去插件名（PG-097）
@@ -222,7 +223,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | RAC-423 | 插件 Manifest 声明 `artifacts.*` 或 `system.*` 的能力 id 被拒 | 安全不变量测试 |
 | RAC-424 | 「成果」入口是平台面，不是插件：不进插件市场与插件常开同意模型，一直在；Dock 上能不能收起跟 Dock 现行规则走，不另开特例。A6 同一片内完成换面与删目录条目，**每一片合入后入口都能用**；经 W5-06 挂载器挂上 | 浏览器冒烟一个 |
 | RAC-425 | 客户端模板随平台面发，`plugin-workbench.ts` 里没有成果库内联模板；`pnpm page-assets:check` 不变大 | 页面资源门禁 |
-| RAC-426 | `DOM_EVENT_PREFIXES` 不含任何插件专用前缀；`molis-<owner>-` 规则：前缀与登记的 `owner` 不一致被门禁拦；Shelf 现有事件名不变 | `scripts/gates/dom-events.mjs` 与测试 |
+| RAC-426 | `DOM_EVENT_PREFIXES` 不含任何插件专用前缀；`molis-<owner>-` 只给文件全属于同一插件包的主人，按完整前缀的最长匹配确定主人；平台使用该前缀、混合归属及主人不一致均拒绝；长、短主人合法事件及现有拒绝规则均回归，Shelf 现有事件名不变 | `scripts/gates/dom-events.mjs` 与 `tests/dom-events-contract.test.ts` |
 | RAC-427 | 代码里读不到 `MOLIS_JELLY_*`；新名生效；平台存储函数名不带 Feed、灵光 | 单元测试加 grep 门禁 |
 | RAC-428 | 目录改名（按维护时段计划的结论执行）：隔离 Home 演练旧路径→新路径；旧路径在时启动显式报错，不回退；备份可还原 | 隔离 Home 演练记录 |
 | RAC-429 | 公开 API 与动作合同快照只有 §4 列出的变化，PR 里逐项写对调用方的影响；SSOT-MATRIX、`privileges.md`、`SECURITY-INVARIANTS.md` 同步 | `pnpm api:update`、`pnpm actions:update` 的 diff；`pnpm health:check` 的文档引用检查 |

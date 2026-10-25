@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { DOM_EVENT_PREFIXES, DOM_EVENTS, PAGE_STATE_OWNERS } from "@molis-ai/molis-work-contracts/platform/dom-events";
 import { ASSISTANT_EFFECT_EVENT, ASSISTANT_MESSAGE_EVENT, ASSISTANT_SURFACE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/services/assistant";
 import { CONTEXT_ACTION_CHOSEN_EVENT, PLACE_CHANGED_EVENT, SURFACE_FOCUS_EVENT } from "@molis-ai/molis-work-contracts/services/contextual";
-import { DOM_EVENTS_CONTRACT, domEventProblems, domEventReport, formatDomEventReport, readRegistry } from "../scripts/gates/dom-events.mjs";
+import { DOM_EVENTS_CONTRACT, domEventProblems, domEventReport, formatDomEventReport, ownerPrefixOf, readRegistry } from "../scripts/gates/dom-events.mjs";
 
 // specs/repository-anti-corruption §4.8 (W2-13): every page event is registered in
 // packages/contracts/src/platform/dom-events.ts, and scripts/gates/dom-events.mjs (in `pnpm health:check`) reads the
@@ -515,4 +515,78 @@ test("RAC-426: the platform's prefix table names no plugin; a plugin's events fo
   assert.ok(wrongOwner.some(problem => /"molis-shelf-notice" starts with molis-shelf-, which is shelf's prefix, but it is owned by "assistant"/.test(problem)), wrongOwner.join("\n"));
   const typo = problemsWith({ [NEW_FILE]: script("host.listen(window, 'molis-shelf-nocice', () => {});") });
   assert.ok(typo.some(problem => /listens to "molis-shelf-nocice", which has a page event prefix but is not registered/.test(problem)), typo.join("\n"));
+});
+
+test("RAC-426: overlapping owner prefixes match the longest complete owner in either registry order", () => {
+  for (const ids of [["plugin", "plugin-notifications"], ["plugin-notifications", "plugin"]]) {
+    const owners = Object.fromEntries(ids.map(id => [id, { files: [NEW_FILE], state: "The plugin surface." }]));
+    assert.equal(ownerPrefixOf("molis-plugin-notifications-opened", owners), "plugin-notifications");
+    assert.equal(ownerPrefixOf("molis-plugin-opened", owners), "plugin");
+    assert.equal(ownerPrefixOf("molis-pluginx-opened", owners), null);
+    assert.equal(ownerPrefixOf("molis-plugin", owners), null);
+  }
+});
+
+test("RAC-426: overlapping plugin owners accept their own events and reject mismatches and unregistered sites", () => {
+  const shortFile = "plugins/native/alpha/src/client.ts", longFile = "plugins/native/beta/src/client.ts";
+  const registry = `
+export const DOM_EVENT_PREFIXES = ["molis:"];
+export const PAGE_STATE_OWNERS = {
+  plugin: { files: ["${shortFile}"], state: "The first plugin surface." },
+  "plugin-notifications": { files: ["${longFile}"], state: "The second plugin surface." },
+};
+export const DOM_EVENTS = [
+  { name: "molis-plugin-notifications-opened", kind: "announcement", owner: "plugin-notifications", on: "window", detail: "none", summary: "The second surface opened." },
+  { name: "molis-plugin-opened", kind: "announcement", owner: "plugin", on: "window", detail: "none", summary: "The first surface opened." },
+  { name: "molis:base", kind: "request", owner: "plugin", on: "window", detail: "none", summary: "Open the first surface." },
+];`;
+  const sources = {
+    [DOM_EVENTS_CONTRACT]: registry,
+    [shortFile]: script('window.dispatchEvent(new CustomEvent("molis-plugin-opened")); window.addEventListener("molis:base", () => {});'),
+    [longFile]: script('window.dispatchEvent(new CustomEvent("molis-plugin-notifications-opened"));'),
+  };
+  const check = (changes: Record<string, string> = {}) => {
+    const files = { ...sources, ...changes };
+    return domEventProblems({ files: Object.keys(files), read: (file: string) => files[file] ?? null });
+  };
+  assert.deepEqual(check(), []);
+  for (const [name, actual, wrong] of [["molis-plugin-notifications-opened", "plugin-notifications", "plugin"], ["molis-plugin-opened", "plugin", "plugin-notifications"]]) {
+    const problems = check({ [DOM_EVENTS_CONTRACT]: registry.replace(`name: "${name}", kind: "announcement", owner: "${actual}"`, `name: "${name}", kind: "announcement", owner: "${wrong}"`) });
+    assert.ok(problems.some(problem => problem.includes(`"${name}" starts with molis-${actual}-, which is ${actual}'s prefix, but it is owned by "${wrong}"`)), problems.join("\n"));
+  }
+  for (const name of ["molis-plugin-typo", "molis-plugin-notifications-typo"]) {
+    for (const site of [`window.addEventListener("${name}", () => {});`, `window.removeEventListener("${name}", () => {});`, `host.listen(window, "${name}", () => {});`, `window.dispatchEvent(new CustomEvent("${name}"));`]) {
+      const problems = check({ [longFile]: sources[longFile] + site });
+      assert.ok(problems.some(problem => problem.includes(`"${name}"`) && problem.includes("not registered")), `${site}: ${problems.join("\n")}`);
+    }
+  }
+});
+
+test("RAC-426: platform owners use platform prefixes and their unregistered owner-prefixed listeners still fail", () => {
+  const file = "apps/workbench/src/assistant.ts";
+  const check = (name: string) => {
+    const events = [name, "molis:base"].sort().map(eventName => ({ name: eventName, kind: "request", owner: "assistant", on: "window", detail: "none", summary: "Open the Assistant." }));
+    const files = {
+      [DOM_EVENTS_CONTRACT]: `export const DOM_EVENT_PREFIXES = ["molis:"];
+export const PAGE_STATE_OWNERS = { assistant: { files: ["${file}"], state: "The Assistant." } };
+export const DOM_EVENTS = ${JSON.stringify(events)};`,
+      [file]: script(`window.addEventListener("${name}", () => {}); window.addEventListener("molis:base", () => {});`),
+    };
+    return domEventProblems({ files: Object.keys(files), read: (entry: string) => files[entry] ?? null });
+  };
+  assert.deepEqual(check("molis:assistant-x"), []);
+  const problems = check("molis-assistant-x");
+  assert.equal(problems.length, 1, problems.join("\n"));
+  assert.match(problems[0], /"molis-assistant-x" uses molis-assistant-, but "assistant" is not a plugin owner.*platform owners must use DOM_EVENT_PREFIXES/);
+  const typo = problemsWith({ [NEW_FILE]: script('window.addEventListener("molis-assistant-typo", () => {});') });
+  assert.ok(typo.some(problem => /listens to "molis-assistant-typo", which has a page event prefix but is not registered/.test(problem)), typo.join("\n"));
+});
+
+test("RAC-426: a page-state owner cannot mix plugin and platform files or two plugin packages", () => {
+  const shelfFiles = 'files: ["plugins/native/shelf/src/client.ts", "plugins/native/shelf/src/terminal-client.ts", "plugins/native/shelf/src/settings-client.ts"],';
+  assert.deepEqual(domEventProblems(tree), []);
+  for (const mixed of [["plugins/native/shelf/src/client.ts", SIDE], ["plugins/native/shelf/src/client.ts", "plugins/native/coding/src/client.ts"]]) {
+    const problems = domEventProblems(withRegistry(shelfFiles, `files: ${JSON.stringify(mixed)},`));
+    assert.ok(problems.some(problem => /owner "shelf" mixes plugin and platform files or different plugin packages; split it into separate owners/.test(problem)), problems.join("\n"));
+  }
 });

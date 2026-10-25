@@ -55,10 +55,13 @@ const KINDS = ["announcement", "request"];
 const TARGETS = ["window", "document", "element"];
 const EVENT_FIELDS = new Set(["name", "kind", "owner", "on", "bubbles", "cancelable", "detail", "summary"]);
 const OWNER_FIELDS = new Set(["files", "state"]);
-/** The owner a `molis-<owner>-` name belongs to by its prefix, when that owner is registered; null for any other name. */
+/** The longest registered owner matching the complete `molis-<owner>-` prefix; null for any other name. */
 export function ownerPrefixOf(name, owners) {
-  for (const id of Object.keys(owners ?? {})) if (name.startsWith(`molis-${id}-`)) return id;
-  return null;
+  let longest = null;
+  for (const id of Object.keys(owners ?? {})) {
+    if (name.startsWith(`molis-${id}-`) && (longest === null || id.length > longest.length)) longest = id;
+  }
+  return longest;
 }
 
 const NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)?$/;
@@ -214,10 +217,16 @@ function registryProblems(registry, snapshot) {
   const at = `${DOM_EVENTS_CONTRACT}:`;
   if (!prefixes.length || prefixes.some((prefix) => typeof prefix !== "string" || !prefix)) problems.push(`${at} DOM_EVENT_PREFIXES has to list the name prefixes as non-empty strings`);
   const files = new Set(snapshot.files);
+  const pluginOwners = new Set();
   for (const [id, owner] of Object.entries(owners)) {
     for (const field of Object.keys(owner ?? {})) if (!OWNER_FIELDS.has(field)) problems.push(`${at} owner "${id}" has the unknown field "${field}"`);
     if (!owner || !Array.isArray(owner.files) || !owner.files.length) problems.push(`${at} owner "${id}" needs files: the client modules that hold the state`);
     else for (const file of owner.files) if (!files.has(file)) problems.push(`${at} owner "${id}" names ${file}, which is not a tracked file; it moved or was deleted, so point the owner at where the state lives now`);
+    if (Array.isArray(owner?.files) && owner.files.length) {
+      const packages = new Set(owner.files.map((file) => /^(plugins\/[^/]+\/[^/]+)\//.exec(file)?.[1] ?? null));
+      if (packages.size === 1 && !packages.has(null)) pluginOwners.add(id);
+      else if ([...packages].some((item) => item !== null)) problems.push(`${at} owner "${id}" mixes plugin and platform files or different plugin packages; split it into separate owners`);
+    }
     if (!sentence(owner?.state)) problems.push(`${at} owner "${id}" needs a sentence saying what state it owns`);
   }
   const seen = new Set();
@@ -232,6 +241,7 @@ function registryProblems(registry, snapshot) {
     previous = name;
     const byPrefix = ownerPrefixOf(name, owners);
     if (byPrefix !== null && byPrefix !== event.owner) problems.push(`${at} "${name}" starts with molis-${byPrefix}-, which is ${byPrefix}'s prefix, but it is owned by ${JSON.stringify(event.owner)}; name it molis-${event.owner}-… or register it under ${byPrefix}`);
+    else if (byPrefix !== null && !pluginOwners.has(byPrefix)) problems.push(`${at} "${name}" uses molis-${byPrefix}-, but "${byPrefix}" is not a plugin owner whose files all belong to one plugin package; platform owners must use DOM_EVENT_PREFIXES (${prefixes.join(" ")})`);
     else if (byPrefix === null && !prefixes.some((prefix) => name.startsWith(prefix))) problems.push(`${at} "${name}" starts with none of DOM_EVENT_PREFIXES (${prefixes.join(" ")}) or molis-<owner>- for its owner`);
     if (!KINDS.includes(event.kind)) problems.push(`${at} "${name}" has kind ${JSON.stringify(event.kind)}; it is one of ${KINDS.join(", ")}`);
     if (!TARGETS.includes(event.on)) problems.push(`${at} "${name}" has on ${JSON.stringify(event.on)}; it is one of ${TARGETS.join(", ")}`);

@@ -33,8 +33,10 @@ export const platformDomEventsContract = {
 /**
  * The platform's own name prefixes: three styles grew side by side; the rename to one is a separate change that edits this
  * list and every name below. A plugin's events need no entry here: a name that starts with `molis-<owner>-` is valid when the
- * event's registered `owner` is exactly `<owner>` (`molis-shelf-notice` is owned by `shelf`), so every plugin gets the same
- * treatment and the platform's table names none of them (ac-artifacts A4, PG-096). Any other name must start with one of these.
+ * event's registered `owner` is exactly `<owner>` and all of that owner's files belong to one `plugins/<group>/<package>/`
+ * directory (`molis-shelf-notice` is owned by `shelf`). An owner mixing plugin and platform files, or different plugin
+ * packages, must be split. The longest complete owner prefix wins. Every plugin gets the same treatment and this table
+ * names none of them (ac-artifacts A4, PG-096). Platform owners use only the three prefixes below.
  */
 export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:", "workbench-"] as const;
 

@@ -442,3 +442,16 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
     - 第 3 片的重启只给失败或被隔离的实例，停用的插件发 restart 要被拒。
   - 两条线的端口对齐：ac-shell 的 `plugin_directory` 就是 B1 的渲染端口，B1 不另开一条。`web-goals-read.ts`、`plugin-catalog.ts`、`immersive-shell.ts` 同时在评审时照 §1a 同批落。
 
+- 10-25 04:20 UTC：
+  - ac-platform `slices/platform-authority-audience.md`（`ac-platform/authority-audience` `bc626a13c`）审过，可以写代码。
+    - PPT 依赖 Pages：隐藏了 Pages 就拒。
+    - 没有外层的自调用：受众是 `plugin`。
+    - `project_reach` 要两样都有：Manifest 声明权限 `projects:reach` 并经安装授予，动作上再写 `project_reach: "person"`（只许 Home 级动作）。Todo 照这条走，没有特例。
+    - 另加必改：常开的判断用 T3 的账本来源；嵌入闭包只放行嵌入那一条路；清单每次调用现算，沙箱路径也要带上；判断函数只写一份，与 ac-registry B1 对齐。
+  - 评审排队：
+    - ac-review：#1256 → #1254（b5211d8a5，另带消费者夹具候选 e2d2ea19d）→ #1257 → #1259（T3，base 是 T1 的分支）。
+    - 新开的 ac-review-2（Sonnet）：#1252 → #1253 → #1258 的组合增量（ac-kernel 三个提交与批里解的冲突）。
+  - batch-36 在建：`batch/1024-36`，叠在 batch-35 上，源 PR 是 #1251、#1246、#1245。
+    - #1246 × T1：`installationGrants`、`prepareInstallationData` 改用 `host` 信任与 `hostBuildGrants`/`followHostBuild`；#1246 新加的安装调用补 `trust`。
+    - #1245 × T1：项目库 v10 合成一版，`project-maintenance-v10.sql` 加上 Attention 两表的重建（owner 为 null，rowid 不变，多一列整笔拒绝），`project-maintenance-v10.test.ts` 加 ATTN-OWNER-07 的断言。
+    - #1245 的不变量编为 S-68，所以 #1255（BL-490）、X1～X4 往后顺延。

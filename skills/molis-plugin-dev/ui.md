@@ -106,7 +106,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 要做：打开列表、点一行、主按钮、返回、空态、错误、搜索。只服务端渲 HTML、不写客户端，主路径点不动。
 
-搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件在打开舞台的视图上声明 `accepts_objects: true`，工作台的搜索、放置与侧栏文件都按它开对象标签。
+搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件在打开舞台的视图上声明 `accepts_objects: true`。当前工作台的搜索、放置与侧栏文件共用构建期插件目录派生的对象标签名单；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），不能仅凭声明假定这些入口已支持动态安装后的对象标签。
 
 确认用 `dialog.mw-dialog`，不要 `window.confirm` / `alert` / `prompt`。异步失败 `showNote`。
 

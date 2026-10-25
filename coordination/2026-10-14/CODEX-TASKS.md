@@ -131,6 +131,7 @@ Hub实核：本轮27OPEN与7个>100files固定头全页均核。snapshot-sqlite/
 | C2 | W5-16：Home 快照与恢复（§2） | A/b521修后与e2d消费者各窄双PASS，待原Claude A载体/完整首评-full-actual；snapshot4f保SDK已知红，d8预案后Root已START同owner独立SDK外restore，指定hubs无须全体停工。SDK双root认证和独立Molis Memory合法空恢复能力各待原owner实际claim/固定交付，C2合法ledger组合继续；合法空态当前安全拒但RAC108仍未完，不缩完整C2/真实Home验收 |
 | C3 | W5-10 的一部分：官方集成与横向服务巨大单元（§2） | Gmail516已Claude6389882200吸收35；横向完整区#1252固定8abab965c1f75bfb1ae1f695530a5d1a1312309f，15files533/-412/4→0，source释放、TEST6390184579定向PASS，FIRST6390137797实际请求尚待。28unique205/真实IM与原/变SQL类型修证据保范围，2非直接browser/selector及full仅Claude；实现1 C4准备完成只余三项WO，不开未授第三C3域，C1/C3整体未完成 |
 | C4 | PG-095：Images、Jelly 的插件合同从平台 contracts 挪进各自插件（§2） | RAC-620～624，BL-617 | 10-25 统筹新派，未开工 |
+| C5 | W5-16 后续：MCP 需要时按需启动常驻宿主（用户 10-25 定，§2） | RAC-625～629，BL-645 | 10-25 统筹新派，等 #1254 随 batch-36 落地 |
 | C4 | W5-11 OAuth/连接器声明搬迁 | 原已授权下一独立片，实现1准备已完；仅3项可开工WO由Claude6390280424给号段/base/FI3叠层、OAuth与MCP/CLI范围、callback/X3签名。已有安全规则直接沿用，不等1252 CI/full；T1等级与R48分开，不自定政策 |
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
@@ -461,6 +462,16 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 - 不碰 `modules/shelf.ts`（主人定为 `modules/shelf`，归 BL-618，另排）和 `modules/alchemist.ts`（不迁）。
 - 开工前 `gh pr list --state open` 加 `gh pr diff <n> --name-only`，查有没有在途 PR 碰 Images、Jelly 的 Manifest 和 contracts 的这两份。
 - 一个 PR。本机只跑 build、health（--base）、boundary、secrets 和直接改到的非浏览器用例；`full` 交统筹组批。
+
+### C5 W5-16 后续：MCP 按需启动常驻宿主
+
+用户 10-25 弹窗选定：#1254 先落拒绝（常驻 Molis Work 不在时，MCP 的上下文工具返回 `actions.service_unavailable`，提示先打开 App），再做这一片，让人不用手动开 App。
+
+- MCP（stdio）发现常驻宿主不在时，在后台启动同一个 Home 的常驻宿主，等它就绪再转发。不在 MCP 进程里开 Home（一个 Home 只有一个执行进程）。
+- 启动走现有的常驻宿主入口与 Home 所有权（W5-16 A 的 storage owner）；两个 MCP 同时启动时只起一个，另一个等它就绪；启动失败、超时、Home 被别的进程持有时，照旧以错误交回，不退回本地写。
+- 起来的宿主怎样退出（无人使用多久后退出，或留着由 App 接管）写进设计稿，先交统筹审。
+- 安全：不新开监听口、不放宽回环绑定与令牌（`docs/system/SECURITY-INVARIANTS.md` S-01～S-07）；要改边界就先问统筹。
+- 先写 `specs/repository-anti-corruption/slices/w5-16-mcp-autostart.md`（设计与验收 RAC-625～629），审过再实现；一个 PR。BL-645 随 #1254 写进 BACKLOG（batch-36）。
 
 ## 3. 交回
 

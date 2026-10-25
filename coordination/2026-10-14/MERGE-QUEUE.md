@@ -455,3 +455,15 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
     - #1246 × T1：`installationGrants`、`prepareInstallationData` 改用 `host` 信任与 `hostBuildGrants`/`followHostBuild`；#1246 新加的安装调用补 `trust`。
     - #1245 × T1：项目库 v10 合成一版，`project-maintenance-v10.sql` 加上 Attention 两表的重建（owner 为 null，rowid 不变，多一列整笔拒绝），`project-maintenance-v10.test.ts` 加 ATTN-OWNER-07 的断言。
     - #1245 的不变量编为 S-68，所以 #1255（BL-490）、X1～X4 往后顺延。
+- 10-25 04:45 UTC：用户弹窗定了两项。
+  - #1254：MCP 上下文工具在 App 不在时先拒绝，自动启动另做（Codex C5，BL-645）。
+  - W5-02 PR C：根 `package.json` 也由生成器写，同样的豁免。
+  - 一轮可合、无挡合并的又并进 batch-36：#1252、#1253、#1254（另 cherry-pick 夹具修复 `e2d2ea19d`）、#1256。
+  - #1256 的 S 号顺延成 S-69～71（#1245 占 S-68）；Gmail 的 `refused` 改动落在 #1249 拆出的文件上。
+  - #1256 的裁定：
+    - Home 安装卸载不清 per_record 绑定，并进 BL-596（ac-kernel，W6 前做完）；
+    - 调用结束后不再新起刷新、也不重发，在途的刷新可以保存；
+    - 强制刷新只跑一份、冷却 60 秒；
+    - 没刷新就把原 401 交回。
+  - #1254 的裁定：search、placement 关不掉时照旧不释放所有权，交 Codex 补有界超时与 S-07 的说明。
+

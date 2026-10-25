@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, createLocalFeedApplication, inboxBindingsOf } from "@molis-ai/molis-work-app-local-host";
 import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
 import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
@@ -29,7 +29,7 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
     provider_id: target.provider_id, binding_id: target.binding_id, expected_revision: target.revision, enabled });
   try {
     const runtime = await host.withProject(reference, runtime => runtime);
-    const feed = createLocalFeedApplication(runtime.store.db);
+    const feed = createLocalFeedApplication(runtime.store.db), inboxBindings = inboxBindingsOf(runtime.store.db);
     const feedRule = rule("system_admit_inbox");
     assert.equal((await actions.invoke(functionContextActions.targets, { id: feedRule.id })).targets.filter(row => row.scene_id === "feed.capture").length, 0,
       "querying a capture destination cannot invent a new Feed rule");
@@ -59,7 +59,7 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
       await assert.rejects(actions.invoke(functionContextActions.configure, request), { code: "actions.binding_changed" });
       const originalBinding = target.binding!;
       if (sceneId === "feed.capture") assert.equal(feed.listOutRules(reference.project_id).find(row => row.rule_id === original.rule_id)!.judgment?.provider_id, "system.functions");
-      else assert.equal(withFunctionsService(home, service => service.actionSceneBinding(sceneId!, reference.project_id), functions)?.function.provider_id, "system.functions");
+      else assert.equal((sceneId === "inbox.next" ? inboxBindings.get(reference.project_id, sceneId) : withFunctionsService(home, service => service.actionSceneBinding(sceneId!, reference.project_id), functions))?.function.provider_id, "system.functions");
       unavailable = true;
       target = await readTarget();
       assert.equal(target.availability.available, false); assert.equal(target.configuration_availability.available, true);
@@ -78,9 +78,11 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
       // Race after target reads: the owner writes another revision before the shared service attempts its save.
       if (sceneId !== "feed.capture") {
         await assert.rejects(host.actionClient(reference).invoke({ ...caller, validate_authority: action => {
-          if (action.capability_id === publishedFunctionAction(record).capability_id) withFunctionsService(home,
-            service => service.saveActionSceneBinding(reference.project_id, { ...originalBinding, enabled: false }), functions);
-        } }, functionContextActions.configure, configure(record.id, target, true)), { code: "functions.conflict" });
+          if (action.capability_id === publishedFunctionAction(record).capability_id) {
+            if (sceneId === "inbox.next") inboxBindings.save(reference.project_id, { ...originalBinding, enabled: false });
+            else withFunctionsService(home, service => service.saveActionSceneBinding(reference.project_id, { ...originalBinding, enabled: false }), functions);
+          }
+        } }, functionContextActions.configure, configure(record.id, target, true)), { code: sceneId === "inbox.next" ? "inbox.revision_conflict" : "functions.conflict" });
         assert.equal((await readTarget()).binding?.enabled, false);
       } else {
         await assert.rejects(host.actionClient(reference).invoke({ ...caller, validate_permissions: permissions => {

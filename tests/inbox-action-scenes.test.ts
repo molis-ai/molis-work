@@ -10,7 +10,7 @@ import { feedContentActions, feedItemActions } from "@molis-ai/molis-work-plugin
 import { createFunctionsService, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { createLocalInboxScene, type InboxSceneServices } from "../apps/local-host/dist/inbox-scene.js";
+import { createLocalInboxScene, inboxBindingsOf, type InboxSceneServices } from "../apps/local-host/dist/inbox-scene.js";
 
 type FunctionsHostOptions = NonNullable<InboxSceneServices["functions"]>;
 
@@ -35,7 +35,7 @@ test("FI-1 RAC-482 binding a published rule reads stable identities without buil
     const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
     const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
     const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
-    const feed = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db));
+    const { feed, bindings } = await host.withProject(reference, runtime => ({ feed: createLocalFeedApplication(runtime.store.db), bindings: inboxBindingsOf(runtime.store.db) }));
     const scenes = host.sceneClient(reference);
     // These are normally published records. Observe the adapter's reads without changing any stored data or field value.
     const definitionReads: string[] = [];
@@ -45,21 +45,21 @@ test("FI-1 RAC-482 binding a published rule reads stable identities without buil
       if (typeof property === "string" && !identityFields.has(property)) definitionReads.push(`${record.function_key}.${property}`);
       return Reflect.get(value, property, receiver);
     } })));
-    const scene = createLocalInboxScene(home, reference.project_id, feed, { actions: host.actionClient(reference), scenes, readFunctions: operation => operation(service) });
+    const scene = createLocalInboxScene(home, reference.project_id, feed, bindings, { actions: host.actionClient(reference), scenes, readFunctions: operation => operation(service) });
     assert.equal(service.getByKey(unrelated.function_key)?.status, "published");
     assert.deepEqual(await scene.ports.writeJudgment!(target.function_key, caller), { function_key: "fi1_target" });
-    const binding = service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id);
+    const binding = bindings.get(reference.project_id, inboxNextScene.scene_id);
     assert.deepEqual(binding?.function, { capability_id: "functions.published.fi1_target", version: target.version, provider_id: "system.functions" });
     assert.deepEqual(definitionReads, [], "binding only needs published identities, including when other valid rules are present");
     for (const key of [draft.function_key, "fi1_missing"]) {
       await assert.rejects(scene.ports.writeJudgment!(key, caller), { code: "actions.binding_invalid" });
-      assert.deepEqual(service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id), binding);
+      assert.deepEqual(bindings.get(reference.project_id, inboxNextScene.scene_id), binding);
     }
     const readOnlyCaller = { ...caller, permissions: caller.permissions.filter(permission => permission !== "inbox:write") };
     await assert.rejects(scene.ports.writeJudgment!(target.function_key, readOnlyCaller), { code: "actions.forbidden" });
-    assert.deepEqual(service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id), binding);
+    assert.deepEqual(bindings.get(reference.project_id, inboxNextScene.scene_id), binding);
     await assert.rejects(scene.ports.writeJudgment!("system_admit_inbox", caller), { code: "actions.scene_incompatible" });
-    assert.deepEqual(service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id), binding);
+    assert.deepEqual(bindings.get(reference.project_id, inboxNextScene.scene_id), binding);
     const state = await scene.ports.readJudgment!(caller) as InboxJudgmentState;
     assert.deepEqual(state.functions.filter(rule => rule.function_key.startsWith("fi1_")).map(rule => rule.function_key).sort(), ["fi1_target", "fi1_unrelated"]);
     assert.deepEqual(definitionReads, [], "catalog reads and refused bindings also consume only identities from this port");
@@ -96,6 +96,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
       const item = feed.ingestItem({ source, externalId: "article-1", title: "核对发布说明", summary: "尚未确认的数据", body: "原文内容", occurredAt: new Date().toISOString(), attention: false }).item;
       return feed.ensureInboxEntryForFeedItem(runtime.project_id, item.item_id, "manual").entry;
     });
+    const bindings = await host.withProject(reference, runtime => inboxBindingsOf(runtime.store.db));
     await host.actionClient(reference).discover(caller); // the project's plugins register their scenes, and a scene's rule is written when it does
     const rule = withFunctionsService(home, service => service.list().find(rule => rule.function_key === "system_pick_inbox_next")!, options);
     const fn = publishedFunctionAction(rule);
@@ -124,7 +125,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
       assert.equal(events.length, 1, "Feed receives the actual judgment event");
     });
     // Rebinding to the same function is still a changed configuration revision.
-    duringJudgment = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.project_id, { ...before[0]!, title: "changed while waiting" }), options);
+    duringJudgment = () => { bindings.save(reference.project_id, { ...before[0]!, title: "changed while waiting" }); };
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.binding_changed" });
     assert.equal(history().length, 1);
     duringJudgment = () => { disabled = true; };

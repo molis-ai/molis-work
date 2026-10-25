@@ -168,6 +168,7 @@ export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 
 export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
+export { inboxBindingsOf } from "./inbox-scene.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 

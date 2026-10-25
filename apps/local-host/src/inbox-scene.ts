@@ -1,9 +1,9 @@
 import type { ActionClient, ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { publishedFunctionReference, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-functions";
-import { createInboxSceneRuntime } from "@molis-ai/molis-work-plugin-inbox";
+import { createInboxSceneRuntime, InboxSceneBindings } from "@molis-ai/molis-work-plugin-inbox";
 import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
-import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { runWithMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { hydrateFeedItemContent } from "./feed-content.js";
 import { withFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
 
@@ -13,15 +13,22 @@ export interface InboxSceneServices {
   readFunctions?: FunctionsActionPorts["read"];
 }
 
+/** Inbox's binding of its next-step scene, in this project's library. */
+export const inboxBindingsOf = (db: SqliteDatabase): InboxSceneBindings => new InboxSceneBindings({
+  get: (statement, ...parameters) => db.prepare(statement).get(...parameters),
+  run: (statement, ...parameters) => db.prepare(statement).run(...parameters),
+});
+
 /**
- * Inbox's next-step scene over this Host's owners: the binding row and the judgment history are the Functions owner's (no second
- * configuration store), the entry and its item are Feed's application. The judgments themselves are the plugin's (`createInboxSceneRuntime`).
+ * Inbox's next-step scene over this Host's owners: the binding row is Inbox's own (`bindings`, in the project's library), the judgment
+ * history is the Functions owner's (no second ledger), the entry and its item are Feed's application. The judgments themselves are the
+ * plugin's (`createInboxSceneRuntime`).
  */
-export function createLocalInboxScene(home: string, projectId: string, feed: FeedApplication, services: InboxSceneServices) {
+export function createLocalInboxScene(home: string, projectId: string, feed: FeedApplication, bindings: InboxSceneBindings, services: InboxSceneServices) {
   const read = services.readFunctions ?? (<T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions));
   return createInboxSceneRuntime({ projectId, actions: services.actions, scenes: services.scenes, host: {
-    binding: () => read(service => service.actionSceneBinding(INBOX_NEXT_SCENE_ID, projectId)),
-    saveBinding: (value, options) => { read(service => service.saveActionSceneBinding(projectId, value, options?.expected_revision)); },
+    binding: () => bindings.get(projectId, INBOX_NEXT_SCENE_ID),
+    saveBinding: (value, options) => { bindings.save(projectId, value, options?.expected_revision); },
     publishedRules: () => read(service => service.list().filter(rule => rule.status === "published" && rule.version))
       .map(rule => ({ function_key: rule.function_key, name: rule.name,
         reference: publishedFunctionReference(rule) })),

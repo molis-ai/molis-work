@@ -22,6 +22,8 @@ export { INBOX_PLUGIN_ID, INBOX_PROJECT_PLUGIN_ID, inboxManifest } from "./manif
 
 export { inboxNextScene, inboxSceneBindingId, createInboxSceneHandler, createInboxJudgmentTrigger } from "./scenes.js";
 export type { InboxScenePorts, InboxJudgmentSubject } from "./scenes.js";
+export { INBOX_PROJECT_DATABASE, INBOX_SCENE_BINDINGS_SCHEMA_SQL } from "./database.js";
+export { InboxSceneBindings, type InboxSql } from "./scene-bindings.js";
 export { createInboxSceneRuntime, type InboxSceneHost, type InboxSceneJudgmentInput, type InboxSceneRule, type InboxSceneRuntimeOptions, type InboxSceneSubject } from "./scene-runtime.js";
 
 export { inboxContentActions, createInboxContentHandlers } from "./content-actions.js";

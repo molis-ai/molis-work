@@ -4,6 +4,7 @@ import { inboxNextScene } from "./scenes.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { INBOX_UI_CONTRIBUTION_ID } from "./ui.js";
 import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS } from "./actions.js";
+import { INBOX_PROJECT_DATABASE } from "./database.js";
 
 import { INBOX_PLUGIN_ID } from "./identity.js";
 export { INBOX_PLUGIN_ID } from "./identity.js";
@@ -27,9 +28,11 @@ export const inboxManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-inbox-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [...new Set([...INBOX_ACTION_PERMISSIONS, ...Object.values(inboxContentActions).flatMap(d => d.action.permissions)])].map(permission => ({ permission, required: false, reason: "使用对应的 Inbox 能力" })),
+  permissions: [...[...new Set([...INBOX_ACTION_PERMISSIONS, ...Object.values(inboxContentActions).flatMap(d => d.action.permissions)])].map(permission => ({ permission, required: false, reason: "使用对应的 Inbox 能力" })),
+    { permission: "storage:private", required: true, reason: "项目里 Inbox 下一步的绑定" }],
   actions: [...INBOX_ACTIONS, ...Object.values(inboxContentActions), inboxSubjectAction, inboxSearchEntriesAction, inboxHomeEventsAction],
   action_scenes: [inboxNextScene],
+  databases: { project: INBOX_PROJECT_DATABASE },
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   ui: {

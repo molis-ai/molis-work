@@ -91,6 +91,7 @@ export declare const attentionErrors: import("platform/action-errors").ErrorCode
 export declare const inboxErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly entry_not_found: "not_found";
     readonly invalid: "invalid";
+    readonly revision_conflict: "conflict";
 }>;
 
 export declare const modulesAttentionResumptionContract: {

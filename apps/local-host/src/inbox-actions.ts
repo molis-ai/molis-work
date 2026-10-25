@@ -4,7 +4,7 @@ import { createInboxActionHandlers, createInboxContentHandlers, createInboxPages
 import type { ActionProviderRegistration, WorkflowPayload, WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { feedContentActions, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
-import { createLocalInboxScene, type InboxSceneServices } from "./inbox-scene.js";
+import { createLocalInboxScene, inboxBindingsOf, type InboxSceneServices } from "./inbox-scene.js";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { resolveActionSubject, bindActionClient, ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hydrateFeedItemContent } from "./feed-content.js";
@@ -12,7 +12,7 @@ import { inspectSourceAuthorization } from "./connector-access.js";
 
 /** Composition supplies data owners, never copies Inbox's action definitions or business dispatch. */
 export function inboxActionProvider(runtime: MolisWorkProjectRuntime, home: string | undefined, services: InboxSceneServices, feed: FeedApplication): ActionProviderRegistration {
-  const scene = home ? createLocalInboxScene(home, runtime.project_id, feed, services) : undefined;
+  const scene = home ? createLocalInboxScene(home, runtime.project_id, feed, inboxBindingsOf(runtime.store.db), services) : undefined;
   const scoped = <T extends { project_id: string }>(entry: T) => ({ ...entry, project_id: runtime.project_id });
   return { provider: { provider_id: inboxManifest.plugin_id, plugin_id: inboxManifest.plugin_id,
     title: inboxManifest.name, kind: "plugin", project_id: runtime.project_id },

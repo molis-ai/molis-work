@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Host 在项目运行时注册本插件声明的动作和 `inbox.next` 消费场景。HTTP 路由将已认证调用转给同一动作客户端，列表、状态修改、文稿生成和显式判断共用注册处理器。对象上下文和首页可用动作也由插件查询提供；首页的完成/忽略调用原状态动作，附带当前修订，不单独写 Attention。UI 继续接收 Attention 条目与关联对象的展示投影；插件不直接读取 Feed 或 Goals 表，也不依赖 Functions 插件实现。
+Host 在项目运行时注册本插件声明的动作和 `inbox.next` 消费场景。HTTP 路由将已认证调用转给同一动作客户端，列表、状态修改、文稿生成和显式判断共用注册处理器。`inbox.next` 场景的绑定存在 Inbox 自己声明的项目库表 `inbox_scene_bindings`（带修订号，冲突是 `inbox.revision_conflict`），不在 Functions 的库里；对象上下文和首页可用动作也由插件查询提供；首页的完成/忽略调用原状态动作，附带当前修订，不单独写 Attention。UI 继续接收 Attention 条目与关联对象的展示投影；插件不直接读取 Feed 或 Goals 表，也不依赖 Functions 插件实现。
 
 ## 从哪里读代码
 

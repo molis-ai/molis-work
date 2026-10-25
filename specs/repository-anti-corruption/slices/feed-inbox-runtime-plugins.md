@@ -192,7 +192,7 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 6. D6-1、D6-2 裁定的件（RAC-513）。
 7. 维护夹具、演练与 CHECKLIST 行（RAC-514），连同 FI-5 的 v11 一起；FI-4 的 Feed 一侧随第 4 个提交之后加（它的验收是 RAC-492～495、518）。
 
-## 6. 验收（暂定号：RAC-499、500、506～517）
+## 6. 验收（暂定号：RAC-499、500、506～518）
 
 | 编号 | 内容 |
 | --- | --- |
@@ -210,6 +210,7 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 | RAC-515 | Inbox 对 Feed 的依赖只经公开动作：重开被忽略事项的条目被 Feed 的动作拒；Feed 没装时条目仍列出、重开被拒并说明 |
 | RAC-516 | `createLocalFeedApplication` 与 8 个宿主构造点已没有（门禁：宿主无此符号）；演示数据、工作流选项、Goal 提升都经公开动作 |
 | RAC-517 | 同等待遇：Feed、Inbox 的定义没有宿主私有 import；`registerProvider(` 里没有这两个提供方；外部插件用同一批 SDK 件能写出同样结构 |
+| RAC-518 | `inbox.next` 的绑定是 Inbox 自己的行（`inbox_scene_bindings`，Manifest 声明 `databases.project` 与 `storage:private`）：读回带修订号；按读到的修订号才能替换，旧修订与「已有绑定时再新建」都是 `inbox.revision_conflict` 且什么都不改；只存绑定的字段；别的项目的行不是本项目的。存量维护（`tests/fixtures/inbox-binding-maintenance.mjs`）把项目的绑定连修订号一起从 Functions 库搬到项目库，Home 的 dock 与别的项目的行不动，重跑无变化，新表不在或项目库已有另一份绑定时整笔不写；场景客户端的端到端见 `inbox-action-scenes`、`functions-scene-configuration` |
 
 ## 7. 不在本稿，以及未验证项
 
@@ -229,3 +230,5 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 - **来源互斥的 Feed 一半已做。** `createFeedSourceSyncLease()`（`source-sync-lease.ts`）：实例内的 `Map<(项目,来源), 令牌>`，第二次同步被拒（`feed.source_sync_interrupted`），重复的释放不会放掉后来那次拉取的占用；宿主的 `feed-source-sync-lease.ts` 已删，`feed-source-service.ts` 里只剩「哪个库文件用哪一份」的登记，不再自己记占用。「新旧实例并存的窗口里互斥是否靠 `feed_source_runs` 兜得住」仍未验证，留到提交 4（Feed 进 Runtime）。tick 的唤醒动作 `feed.sources.tick` 早已存在，改成由平台定时钟以 Feed 安装身份唤醒（Manifest `background.wakeups`）要等 Feed 进 Runtime，在提交 4。验收：`tests/feed-source-sync-lease.test.ts`（RAC-512 的实例一半）。
 - **维护夹具已做（RAC-514 的库一半）。** `tests/fixtures/project-maintenance-v11.sql` 在 FI-5 的那一次里多做两件：`inbox_entries` 与 `attention_events` 里没有 owner 的行按主体类型写上 owner，`context_edges` 里 `feed.goal:` 开头的键加上 `io.molis.work.feed:`；多两条核对（没有任何条目已有 owner、账本里没有已加前缀的键，否则整笔回滚）。日志历史不改写。`tests/project-maintenance-v11.test.ts` 新增两个用例，第一个用例的断言按实际改动收窄到「除这三张表外每行不变」，v8、v9、v10 的维护链用例照旧通过。CHECKLIST 两行已同步。**还没做、要随提交 3 一起做**：Goals 的 `GoalDecisionAttentionSync`（`plugins/native/goals/src/goal-decision-attention.ts`）今天创建和结算的都是 owner 为 null 的条目，维护把 Goal 决定指给 Goals 之后它必须带 `owner_plugin_id: Goals` 创建、按 Goals 查找与结算，否则会在旧条目之外又建一份无主的；而宿主里的 Inbox 在提交 3 之前只列 owner 为 null 或 Feed 的条目，所以这处 Goals 改动要和 Inbox 改成列全部 owner 的条目同在提交 3，不单独先做。这是和 Goals S9-2（它的维护也要给条目归属）的重叠，PR 说明里单独写。
 - **维护范围里「不认识的主体类型」不会出现。** Attention 的 `inbox_entries.subject_type` 有 CHECK 约束，只有 `feed_item`、`goal_decision`、`source_fault` 三种（`modules/attention-resumption`），所以 §3.5 第 1 项的归属表是完整的：`feed_item`、`source_fault` → Feed，`goal_decision` → Goals，没有留作无主的。
+- **统筹 2026-10-25 夜对 §1.2.6 的裁定。** ①P1（场景客户端）、P2（判断账）交 ac-platform，从 §1.2.6 起手。②P3 按本稿推荐的备选：`inbox.next` 的绑定搬进 Inbox 自己的表，Inbox 一侧做，排在 Feed 公开动作之后；因此平台不做 Functions 绑定服务。③P4（场景可写作用域里放开 Attention 与情境账写入）是放宽安全边界，统筹弹窗问用户，答复前提交 3、4 里依赖它的部分不动（场景 `consume/failed` 里的入箱与情境账写）。④我的顺序：Feed 公开动作 → tick/互斥 → 维护夹具 → P3；前三项已完成（提交 02b06f430、c78e437c7），tick 的唤醒部分随 Feed 进 Runtime（提交 4）。
+- **P3 已做（RAC-518）。** `inbox.next` 的绑定不再在 Functions 库的 `function_scene_bindings` 里，而是 Inbox 声明的项目库表 `inbox_scene_bindings`（`plugins/native/inbox/src/database.ts`、`scene-bindings.ts`；`InboxSceneBindings.get/save`，`save` 的第三个参数：不给就替换，`null` 只在没有时新建，字符串要等于当前修订号）。宿主里的场景（`inbox-scene.ts`）的 `binding`、`saveBinding` 读写这张表，不再调 Functions 的 `actionSceneBinding`；乐观并发的冲突码是新增的 `inboxErrors.revision_conflict`（`inbox.revision_conflict`，类别 conflict；contracts 快照已刷新）。三处后果：①Functions 对这个场景的绑定记录没有了，卸载 Inbox 不留数据时清理改由项目库里 Inbox 自己的表随插件库一起走（`forgetDeclaredRules` 不再碰 Inbox 的行）；②删除项目时这行随项目库一起没有（`ON DELETE CASCADE` 于 `project_root`）；③存量项目库里的绑定要在维护窗口搬一次（`tests/fixtures/inbox-binding-maintenance.mjs`，CHECKLIST 里有一行，与 v11 同一个窗口，先停宿主、先备份）。测试：`inbox-scene-bindings.test.ts`、`inbox-binding-maintenance.test.ts`，既有的 `inbox-action-scenes`、`functions-scene-configuration` 改为经 Inbox 的绑定读写。

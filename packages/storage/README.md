@@ -81,6 +81,8 @@ MEM-40 的 Ledger 临时连接关闭失败由 Storage 留住实际原连接：`M
 
 直接回归 `tests/memory-ledger-close.test.ts` 使用真实连接和物理 close 故障；连同 adoption、selected/project retention、recovery 和事务共6文件56项通过。父 owner 保留及最终恢复发布仍须外层接线，不由资源关闭成功代替。
 
+MEM-40-SELECTED-07：SDK canonical inspection 的 cleared 结果没有版本；selected 正式/候选项因此另允许 `{memory_id|candidate_id,state:"cleared"}`，与原带真实 version 的条目互斥，cleared 分支不得出现 version。该分支仅承接已由上层确认的 Ledger 原件清理/证明，不是 SDK 删除许可；Storage 不调用 SDK、不替缺版本 present 项填值。ProjectRetention 的原项目条目仍必须有真实 version，并在运行时拒绝 cleared。未选 ID、同项目后继、owner/偏好/signals 保持；上层仍须把原选择和当前权限绑定，不把 state 字符串当作跨主人证明。真实公开 SDK 与 SQLite 回归见 `tests/memory-ledger-selected-cleared.test.ts`。
+
 ## 离线搜索目标清理
 
 `clearProjectInExistingTextSearchIndex` 供 MEM-40 原项目删除步骤维护停写 target：调用者固定目标 Home、项目及原操作决定，持有原维护 owner；必填同步 `assertCurrent` 检查同一 frame 的当前 owner/权限，`signal` 检查取消。入口、事务删除前与提交前均复核，拒绝回滚。它复用搜索当前 DDL、结构描述器和 `removeProject` 的删除事务，只清该项目文档、来源与对应 FTS，不启动 SearchService 或 Runtime。

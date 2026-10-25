@@ -24,6 +24,8 @@ export interface MemoryLedgerProjectRetention extends Omit<MemoryLedgerSelectedR
 }
 const conflict = (): never => { throw Object.assign(new Error("原项目记忆清理计划、快照或后置条件不符"), { code: "memory.adoption_conflict" }); };
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+const versioned = (items: readonly { readonly version: number }[]) => Array.isArray(items) && items.every(item => item && typeof item === "object"
+  && !("state" in item) && Number.isSafeInteger(item.version) && item.version > 0);
 const body = (value: unknown): Record<string, unknown> => {
   try { const record: unknown = JSON.parse(String(value)); if (record && typeof record === "object" && !Array.isArray(record)) return record as Record<string, unknown>; }
   catch { return conflict(); }
@@ -59,6 +61,7 @@ export function createMemoryLedgerProjectRetention(input: {
   const plan = structuredClone(input.plan);
   if (!plan || !text(plan.project_id) || !Array.isArray(plan.scopes)
     || plan.scopes.some((target: MemoryLedgerProjectRetentionPlan["scopes"][number]) => !target || target.scope === "project" && target.owner !== plan.project_id
+      || !versioned(target.memories) || !versioned(target.candidates)
       || !Array.isArray(target.sources) || target.sources.some(source => !source || !text(source.version)))) return conflict();
   const { change, commands } = createMemoryLedgerRetentionCommands({ ...input,
     plan: { actor_id: plan.actor_id, operation_id: plan.operation_id, scopes: plan.scopes } });

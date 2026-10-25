@@ -7,14 +7,13 @@ import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai
 import { handleMcpMessage,
   MCP_SERVER_INFO as SERVER_INFO,
   createActionMcpPorts, isPlatformMcpTool, isRuntimeContextMcpTool, molisWorkActionToolName,
-  type McpToolResult, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
+  type McpToolResult, type McpToolCallContext, type McpRuntimeContextPorts } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
 import { runtimeConnectionIdentity, runtimeSessionActor } from "./mcp-event-identity.js";
-import type { ProjectDeletionGatewayRequest } from "./project-deletion-gateway.js";
 import { ProjectDeletionService } from "./project-deletion-service.js";
 import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
@@ -105,7 +104,7 @@ export class LocalMcpServer {
    * Embedded MCP uses the same deletion service over its own resources. Forwarding MCP invokes the resident context
    * handlers instead; it never enters this local path or opens a catalog to prepare a request.
    */
-  private async deleteProject(request: ProjectDeletionGatewayRequest, host: MolisWorkRuntimeContextHost, callContext: McpToolCallContext) {
+  private async deleteProject(request: Parameters<McpRuntimeContextPorts["deleteProject"]>[0], host: MolisWorkRuntimeContextHost, callContext: McpToolCallContext) {
     const identity = runtimeConnectionIdentity(host, callContext);
     const home = host.homeDirectory;
     return new ProjectDeletionService(this.withCatalog, { isPanelAlive: () => false, releaseProject: async databasePath => { await this.localHost.closeProject(databasePath); } })

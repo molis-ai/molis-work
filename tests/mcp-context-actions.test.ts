@@ -99,6 +99,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     await served.close();
     const offline = await sdk.callTool({ name: "molis_work_v1_context_resolve", arguments: {} });
     assert.equal(offline.isError, true, JSON.stringify(offline));
+    // RAC-105-A-GW-03: production context stays on the resident-only path when that Host is unavailable.
     assert.match(JSON.stringify(offline), /actions.service_unavailable/);
     assert.doesNotMatch(JSON.stringify(offline), /Authorized goal content|Authorized project instruction/);
     assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), offlineBindings,

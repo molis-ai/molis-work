@@ -86,6 +86,7 @@ test("headless runtime companions are discovered and called by the official MCP 
     assert.equal((await reader.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
     assert.equal((await client.discover(caller)).some(row => row.capability_id === textStatsActions.count.capability_id), false,
       "the resident Host withdraws the disabled Runtime's actions");
+    // RAC-105-A-GW-03: the resident has withdrawn this disabled provider; the MCP caller sees missing, not plugin_unavailable.
     await assert.rejects(client.invoke(caller, textStatsActions.count, { text: "no" }), { code: "actions.missing" });
     assert.equal((await readMcpToolPreference(home)).action_grants?.length, 5, "disabling retains exact references");
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });

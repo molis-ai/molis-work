@@ -13,7 +13,7 @@ import { pluginActionDependencies } from "./plugin-action-dependencies.js";
  * The controls this Host made for a route it dispatched inside a project, each with that project's action client and whether its request
  * has ended; a plugin cannot make one, so it cannot name a project.
  */
-const routedControls = new WeakMap<PluginExecutionControl, { readonly client: ActionClient; readonly caller?: ActionCallContext; ended: boolean; original_file?: HostOfferedOriginalFile }>();
+const routedControls = new WeakMap<PluginExecutionControl, { readonly client: ActionClient; readonly caller?: ActionCallContext; readonly by_person: boolean; ended: boolean; original_file?: HostOfferedOriginalFile }>();
 const ended = () => new ActionError("actions.cancelled", "这次请求已经结束，不能再在这个项目里调用");
 
 /**
@@ -33,11 +33,13 @@ export function offerRoutedOriginalFile(control: PluginExecutionControl, file: H
  * a call with this control is refused, never run as the person's own.
  * With the person's `caller`, this is the page's entry (PG-029): the plugin's own actions it calls carry `user_action` with source `web`,
  * one message per request, given here and nowhere else; what the caller or the route's body says about it is not read.
+ * `byPerson`: the request is the person's own page asking for one of the plugin's actions (the page's action entry), which the plugin's own
+ * client takes for the person's call (PG-028) although it is made outside every route and action.
  */
 export function projectRouteControl(control: Omit<PluginExecutionControl, "project_id">, projectId: string | null, client: ActionClient,
-  current: () => Promise<void>, caller?: ActionCallContext): { control: PluginExecutionControl; end(): void } {
+  current: () => Promise<void>, caller?: ActionCallContext, byPerson = false): { control: PluginExecutionControl; end(): void } {
   const state = { client, caller: caller && { ...caller, user_action: { source: "web", conversation_ref: `web:${projectId ?? "home"}`, message_ref: `web:request:${randomUUID()}` } },
-    ended: false };
+    by_person: byPerson, ended: false };
   const routed: PluginExecutionControl = Object.freeze({ ...control, ...(projectId ? { project_id: projectId } : {}),
     beforeEffect: async () => {
       if (state.ended) throw ended();
@@ -63,12 +65,12 @@ export function projectRouteControl(control: Omit<PluginExecutionControl, "proje
  * any other control is not the Host's word and is not read: plugins pass their caller on as the control, and it names a project too.
  */
 function callScope(instanceProject: string | undefined, instanceClient: ActionClient, control: PluginExecutionControl | undefined)
-  : { project_id: string | null; client: ActionClient; caller?: ActionCallContext; original_file?: HostOfferedOriginalFile } {
+  : { project_id: string | null; client: ActionClient; caller?: ActionCallContext; by_person?: boolean; original_file?: HostOfferedOriginalFile } {
   const routed = control ? routedControls.get(control) : undefined;
   if (!routed) return { project_id: instanceProject ?? null, client: instanceClient };
   if (routed.ended) throw ended();
   if (instanceProject !== undefined && instanceProject !== control?.project_id) throw new ActionError("actions.forbidden", "调用所在的项目与插件实例不一致");
-  return { project_id: control?.project_id ?? null, client: routed.client, caller: routed.caller, original_file: routed.original_file };
+  return { project_id: control?.project_id ?? null, client: routed.client, caller: routed.caller, by_person: routed.by_person, original_file: routed.original_file };
 }
 
 /**
@@ -206,7 +208,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       const own = manifest.actions?.find(action => sameAction(action, definition));
       // A call whose audience is `plugin` (the outer call is a plugin's, or there is none) goes the way a job's does, below: with the Host's
       // issued caller, as the installation itself, never as a caller shaped here to look like the person.
-      const ownCaller = scope.caller !== undefined || ownAudience(outer) !== "plugin";
+      const ownCaller = scope.caller !== undefined || ("by_person" in scope && scope.by_person === true) || ownAudience(outer) !== "plugin";
       if (own && !job && ownCaller) return passed(outer, own, await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output);
       if (!own && !consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
       // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would

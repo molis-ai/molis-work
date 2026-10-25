@@ -21,7 +21,8 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const action: ActionDefinition<{ value: number }, { doubled: number }> = {
     capability_id: "unknown.double", version: 1, operation: "query", action: {
-      title: "Double", description: "Pure arithmetic", kind: "query", scope: "project", audiences: ["user", "mcp", "workflow"], permissions: [], subject_kinds: [],
+      // `plugin`: the test calls the action from outside every call, as the installation itself (PG-028: a self-call with no outer call has that audience).
+      title: "Double", description: "Pure arithmetic", kind: "query", scope: "project", audiences: ["user", "mcp", "workflow", "plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", properties: { value: { type: "number" } }, required: ["value"], additionalProperties: false },
       output_schema: { type: "object", properties: { doubled: { type: "number" } }, required: ["doubled"], additionalProperties: false },
     },

@@ -48,7 +48,8 @@
   - 外层是动作或场景（有 `outer`）：受众取 `outer.caller.audience`。外层是 `plugin` 的，走现成的 `dependencyCaller`（带 Host 签发的 `host_plugin` 与 `plugin_install_id`，`allowed_actions` 只含这个动作），不手造 `plugin` 受众的调用者。外层是别的受众，仍由 `actionCaller` 造，其余字段（`actor_id`、`permissions: context.grants`、`allowed_actions`、`signal`、`query_only`、`validate_authority`）不动，只把写死的 `"user"` 换成外层受众。
   - 没有外层、也没有 Host 签发的路由 control（`start`、`start` 里的定时器）：**受众是 `plugin`**（同后台作业，S-52），走 `dependencyCaller`。动作的 `audiences` 到不了 `plugin` 的（`actionReachesAudience`），自调用被拒。
 - `allowModelDownload` 的判断不用改：`materials-service.ts:77` 本来就读执行上下文里的受众，受众对了它就对了。S-39 的字句改成「本人的直接调用，或自调用且最外层是本人」。
-- 不改：路由里的自调用、`plugin-page-actions.ts`、`discover()`、依赖调用、`services.actions.directory`。
+- 不改：路由里的自调用、`discover()`、依赖调用、`services.actions.directory`。
+- 页面动作入口（`plugin-page-actions.ts`）是人自己的页面调插件自己的动作，不在路由里、也不在动作里：它给 `projectRouteControl` 一个 `byPerson`，插件自己的客户端据此按人的调用处理（受众 `user`），其余检查不变（2026-10-25，batch-37 的 SYS-15 用例暴露：只靠「路由里」判断会把页面的调用当成安装自己的而拒掉）。
 
 ### 2.3 PG-014：读取范围由平台给，插件只用清单
 

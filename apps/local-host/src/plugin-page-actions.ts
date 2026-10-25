@@ -39,8 +39,9 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
       validate_authority: async () => { await request.beforeEffect(); check(); }, assert_authority_current: check };
     await request.beforeEffect();
     const view = await pluginActionView(options.client, caller, { ...reference, ...(own ? { provider_id: options.provider } : {}) });
+    // The person's page asking for one of the plugin's own actions is the person's call (PG-028).
     const route = projectRouteControl(pluginRouteControl(request.signal, options.caller.assertActive, request.assertCurrent),
-      request.project_id, options.client, request.beforeBackgroundEffect);
+      request.project_id, options.client, request.beforeBackgroundEffect, undefined, own !== undefined);
     try {
       const result = await options.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
         operation: view.operation, action: view.action }, request.input, route.control);

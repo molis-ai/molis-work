@@ -32,9 +32,10 @@ test("W3-09-AUTH-03 the SDK owner binder retains the real old invocation instead
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
   const storage = new SqlitePluginPrivateStorage(store.db);
+  // `plugin`: the test calls the action from outside every call, as the installation itself (PG-028: a self-call with no outer call has that audience).
   const action: ActionDefinition<Record<string, never>, boolean> = { capability_id: "fixture.owner.save", version: 1, operation: "command", action: {
     title: "Save own fact", description: "One installation's real SQLite fact", kind: "operation", scope: "project", scheduling: "concurrent",
-    audiences: ["user"], permissions: ["storage:private"], subject_kinds: [],
+    audiences: ["user", "plugin"], permissions: ["storage:private"], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "boolean" },
   } };
   const definition: PluginDefinition = { manifest: {

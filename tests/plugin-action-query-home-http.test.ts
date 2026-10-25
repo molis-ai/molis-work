@@ -29,13 +29,14 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   const path = `/projects/${project.project_id}/api/plugins/${entry.manifest.plugin_id}/read`;
   if (mode === "allowed" || mode === "source-missing" || mode === "pages-hidden" || mode === "controlled owner unavailable") {
     const response = await request(path, { item_id: page.document.id });
-    if (mode === "allowed" || mode === "pages-hidden") {
+    if (mode === "allowed") {
       assert.equal(response.status, 200, await response.clone().text()); assert.match(await response.text(), /Native Pages through Home/);
       assert.equal(probe.seen.at(-1)!.project_id, project.project_id); assert.equal(probe.seen.at(-1)!.actor_id, LOCAL_PERSON_ACTOR_ID);
     } else {
       if (mode === "source-missing") assert.equal(probe.contexts.at(-1)!.grants.includes("pages:read"), false);
       assert.notEqual(response.status, 200);
-      if (mode === "controlled owner unavailable") assert.equal((await response.json()).code, "actions.plugin_disabled");
+      // A project that hid Pages has switched its actions off for everything in that project, a Home plugin's call included (PG-013: hidden is final).
+      if (mode === "controlled owner unavailable" || mode === "pages-hidden") assert.equal((await response.json()).code, "actions.plugin_disabled");
       assert.equal(probe.contexts.at(-1)!.services!.storage!.get("delivered"), null);
     }
     if (mode !== "allowed") {

@@ -11,7 +11,7 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { AgentReviewQueue, boundReferenceKinds, createPrologueNodeAdapter, type ReferenceKindCandidate } from "@molis-ai/molis-work-service-agent-host";
 import { findReferenceCandidates, readReferences } from "@molis-ai/molis-work-service-search";
 import { defineSearchEntriesAction, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
-import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { QUESTIONNAIRE_LIMITS, resolveModuleConfig } = await import(requireSdk.resolve("@prologue/sdk")) as {
@@ -111,18 +111,38 @@ test("PG015-DUP-04 a bad title does not hide an installation's conflicting decla
 test("PG015-DUP-01 PG015-DUP-05 a real Runtime plugin's goal conflicts with Goals and neither reader is called by parsing, search or answer readback", { timeout: 60_000 }, async t => {
   const search = defineSearchEntriesAction("collision.goals.search", [{ kind: "goal", title: "外部目标", surface: "goals" }], "外部目标", []);
   const reader = defineSubjectContextAction("collision.goals.read", "goal", "外部目标", []);
-  let externalReads = 0, externalSearches = 0;
+  let externalReads = 0, externalSearches = 0, externalEnabled = false;
+  const availability = (): ActionView["availability"] => externalEnabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "测试中尚未启用" };
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.a.collision-goals", version: "1.0.0", name: "外部目标", kind: "app",
     publisher: { publisher_id: "example", signature: "collision-goals" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [search, reader] },
-    async start() { return { kind: "app", actions: [bindSearchEntriesHandler(search, () => { externalSearches++; return [{ subject: { kind: "goal", id: "foreign-goal" }, revision: "1", title: "外部目标", summary: "外部目标", updated_at: null, content: "summary", open: null }]; }),
-      { ...reader, handle: () => { externalReads++; return subjectContext({ subject: { kind: "goal", id: "foreign-goal" }, revision: "1", title: "外部目标", content: "目标内容", goal_ids: [] }); } }] }; } };
+    async start() { return { kind: "app", actions: [bindSearchEntriesHandler(search, () => { externalSearches++; return [{ subject: { kind: "goal", id: "foreign-goal" }, revision: "1", title: "外部目标", summary: "外部目标", updated_at: null, content: "summary", open: null }]; }, availability),
+      { ...reader, availability, handle: () => { externalReads++; return subjectContext({ subject: { kind: "goal", id: "foreign-goal" }, revision: "1", title: "外部目标", content: "目标内容", goal_ids: [] }); } }] }; } };
   const home = await mkdtemp(join(tmpdir(), "reference-kinds-collision-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [definition] } });
-  t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
+  let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  t.after(async () => { try { await adapter?.close(); } finally { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } });
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "同名种类", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   await host.withProject(ref, () => undefined);
+  assert.ok(host.search);
+  const port = referenceKindsPort(host, home, () => (options, operation) => withCatalog(options, operation));
+  assert.ok(boundReferenceKinds(await port({ project_id: ref.project_id, actor_id: LOCAL_PERSON_ACTOR_ID })).kinds.some(entry => entry.kind === "goal"), "the currently unique goal is offered before the second installation becomes available");
+  const fetch = t.mock.method(globalThis, "fetch", async () => cogniaScriptedResponse({ name: "ask-user", input: { why: "关联目标", questions: [{ id: "goal", type: "reference", prompt: "目标", refKinds: ["goal"] }] } }));
+  adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.real-reference-collision", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: new AgentReviewQueue(),
+    questionTypes: hostQuestionTypes(), referenceKinds: hostReferenceKinds(), referenceKindsFor: port,
+    readReferences: (owner, picked, kinds) => host.search!.readReferences(owner.project_id, picked, kinds),
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  const owner = { project_id: ref.project_id, plugin_id: "io.molis.work.test", install_id: "test", actor_id: LOCAL_PERSON_ACTOR_ID };
+  const session = await adapter.createSession({ ...owner, workspace: "business", title: "稍后出现歧义" });
+  const role = { role_id: "helper", version: 1, workspace: "business" as const, execution: "operate" as const, prompts: [], host_tools: ["ask-user"] };
+  const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: role.role_id, role, task: "关联目标" });
+  let pending = (await adapter.read(handle.ref)).awaiting_input.find(item => item.answerable);
+  for (const deadline = Date.now() + 20_000; !pending;) {
+    assert.ok(Date.now() < deadline, "the SDK did not open the initially valid question"); await new Promise(resolve => setTimeout(resolve, 10));
+    pending = (await adapter.read(handle.ref)).awaiting_input.find(item => item.answerable);
+  }
+  externalEnabled = true;
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: ref.project_id, audience: "user", permissions: LOCAL_OWNER_PERMISSIONS };
   const original = host.actionClient(ref), readerCalls: string[] = [];
   const client: ActionClient = { discover: context => original.discover(context), invoke: async (context, action, input) => {
@@ -134,7 +154,6 @@ test("PG015-DUP-01 PG015-DUP-05 a real Runtime plugin's goal conflicts with Goal
   const external = readers.find(view => view.provider.plugin_id === definition.manifest.plugin_id)!;
   assert.ok(external.provider.plugin_install_id && external.provider.provider_id !== definition.manifest.plugin_id, "the external plugin is actually installed and registered by Runtime");
   assert.ok(readers.some(view => view.provider.provider_id === "io.molis.work.goals"), "the other reader is the product's Goals");
-  const port = referenceKindsPort(host, home, () => (options, operation) => withCatalog(options, operation));
   const bounded = boundReferenceKinds(await port({ project_id: ref.project_id, actor_id: LOCAL_PERSON_ACTOR_ID }));
   assert.equal(bounded.kinds.some(entry => entry.kind === "goal"), false);
   const problems = bounded.problems.filter(problem => problem.reason === "duplicate" && problem.kinds.includes("goal"));
@@ -143,8 +162,11 @@ test("PG015-DUP-01 PG015-DUP-05 a real Runtime plugin's goal conflicts with Goal
   const access = { client, caller }, subject = { kind: "goal", id: "foreign-goal" };
   await assert.rejects(resolveActionSubject(client, caller, subject), { code: "actions.subject_ambiguous" });
   await assert.rejects(readReferences(access, [subject], ["goal"]), { code: "actions.subject_ambiguous" });
-  assert.ok(host.search);
   await assert.rejects(findReferenceCandidates(host.search.service, access, { kinds: ["goal"], query: "外部目标" }), { code: "actions.subject_ambiguous" });
+  await assert.rejects(adapter.control(handle.ref, { kind: "answer", pending_id: pending.pending_id, ...(pending.pending_revision === undefined ? {} : { pending_revision: pending.pending_revision }),
+    answers: [{ question: 0, value: [{ ...subject, label: "页面给的标题" }] }] }), { code: "actions.subject_ambiguous" });
+  assert.equal(fetch.mock.callCount(), 1, "the ambiguous answer never resumes the model");
+  assert.ok((await adapter.read(handle.ref)).awaiting_input.some(item => item.pending_id === pending.pending_id), "the refused answer keeps the original question open");
   assert.deepEqual(readerCalls, [], "neither exact provider is invoked by the reference paths");
   assert.equal(externalReads, 0);
   assert.equal(externalSearches, 0, "ambiguity is refused before search would index the external plugin");

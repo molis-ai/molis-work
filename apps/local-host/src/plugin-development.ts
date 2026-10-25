@@ -24,9 +24,10 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
   const installed = runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: input.grants, retain_private_data: true });
   const id = installed.install.install_id;
   const inEffect = () => { const state = runtime.get(id)?.state; return state === "installed" || state === "running"; };
-  const release = options.bindInstallation?.({ alive: () => true, effectiveManifests: () => inEffect() ? [definition.manifest] : [], knownPluginIds: () => [definition.manifest.plugin_id] });
+  let release: (() => void) | undefined;
   let result: Omit<PluginDevelopmentResult, "installation">;
   try {
+    release = options.bindInstallation?.({ alive: () => true, effectiveManifests: () => inEffect() ? [definition.manifest] : [], knownPluginIds: () => [definition.manifest.plugin_id] });
     await runtime.start(id);
     const contribution = runtime.contribution(id);
     if (!contribution) throw new Error("Plugin 启动后没有返回 contribution");

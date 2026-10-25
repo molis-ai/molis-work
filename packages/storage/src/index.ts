@@ -60,6 +60,7 @@ export * from "./adapters/search-storage.js";
 export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
 export { openMemoryLedger, readMemoryLedgerProfiles, memoryLedgerHasOnlyPreferences, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
 export { inspectMemoryLedgerAdoption, beginMemoryLedgerAdoption, completeMemoryLedgerAdoption, type MemoryLedgerAdoptionSnapshot, type MemoryLedgerAdoptionProfile } from "./adapters/memory-ledger-adoption.js";
+export { createMemoryLedgerProjectRetention, type MemoryLedgerProjectRetention, type MemoryLedgerProjectRetentionPlan } from "./adapters/memory-ledger-project-retention.js";
 export { openKnowledgeCards, clearKnowledgeProject, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, KNOWLEDGE_CARDS_HOME_STORE } from "./adapters/knowledge-cards.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, TEXT_SEARCH_HOME_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";
 

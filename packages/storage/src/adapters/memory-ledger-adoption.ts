@@ -26,7 +26,8 @@ export function assertMemoryLedgerAdoptionSchema(db: DatabaseSync, path: string)
   return found;
 }
 
-function snapshot(db: DatabaseSync, path: string): MemoryLedgerAdoptionSnapshot {
+/** Storage-internal snapshot, taken within the caller's existing transaction. */
+export function memoryLedgerAdoptionSnapshot(db: DatabaseSync, path: string): MemoryLedgerAdoptionSnapshot {
   const version = assertMemoryLedgerAdoptionSchema(db, path);
   return {
     version,
@@ -44,7 +45,7 @@ export function inspectMemoryLedgerAdoption(input: { homeDirectory: string }): M
   const db = openReadOnlyHomeSqlite(input.homeDirectory, MEMORY_LEDGER_STORE);
   try {
     db.exec("BEGIN");
-    return snapshot(db, homeSqlitePath(input.homeDirectory, MEMORY_LEDGER_STORE));
+    return memoryLedgerAdoptionSnapshot(db, homeSqlitePath(input.homeDirectory, MEMORY_LEDGER_STORE));
   } finally { db.close(); }
 }
 
@@ -57,7 +58,7 @@ export function changeMemoryLedgerAdoption<T>(input: { homeDirectory: string; sn
   try {
     db.exec("PRAGMA busy_timeout=5000; BEGIN IMMEDIATE");
     try {
-      if (!isDeepStrictEqual(snapshot(db, path), input.snapshot)) conflict("记忆设置或采用记录已改变，请重新检查副本");
+      if (!isDeepStrictEqual(memoryLedgerAdoptionSnapshot(db, path), input.snapshot)) conflict("记忆设置或采用记录已改变，请重新检查副本");
       const check = () => {
         const checked: unknown = assertCurrent?.();
         if (checked !== undefined) {
@@ -71,7 +72,11 @@ export function changeMemoryLedgerAdoption<T>(input: { homeDirectory: string; sn
       check();
       db.exec("COMMIT");
       return result;
-    } catch (error) { db.exec("ROLLBACK"); throw error; }
+    } catch (error) {
+      try { db.exec("ROLLBACK"); }
+      catch (rollbackError) { throw new AggregateError([error, rollbackError], "记忆维护事务失败且不能确认回滚", { cause: error }); }
+      throw error;
+    }
   } finally { db.close(); }
 }
 
@@ -95,7 +100,7 @@ export function beginMemoryLedgerAdoption(input: { homeDirectory: string; snapsh
       db.prepare("UPDATE memory_markers SET body=? WHERE actor_id=? AND key='strategy-adoption'")
         .run(JSON.stringify({ ...body, origin: "adopting", original_origin: originalOrigin(body) }), marker.actor_id);
     }
-    return snapshot(db, homeSqlitePath(input.homeDirectory, MEMORY_LEDGER_STORE));
+    return memoryLedgerAdoptionSnapshot(db, homeSqlitePath(input.homeDirectory, MEMORY_LEDGER_STORE));
   }, input.assertCurrent);
 }
 

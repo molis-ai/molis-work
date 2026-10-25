@@ -1,5 +1,70 @@
-import type { MemoryCandidateRecord, MemoryChangeRecord, MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryCandidateRecord, MemoryChangeRecord, MemoryLedgerPort, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import type { DatabaseSync } from "node:sqlite";
 import type { openHomeSqliteDatabase } from "../home-sqlite.js";
+
+const retentionConflict = (): never => { throw Object.assign(new Error("原记忆的账本清理尚未完整证明"), { code: "memory.adoption_conflict" }); };
+const record = (body: unknown): Record<string, unknown> => {
+  let value: unknown;
+  try { value = JSON.parse(String(body)); } catch { return retentionConflict(); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return retentionConflict();
+  return value as Record<string, unknown>;
+};
+const sourceKey = (scope: MemoryScope, owner: string, event: string) => `memory-source-forgotten:${JSON.stringify([scope, owner, event])}`;
+
+/** Shared by the existing cleanup owner and fixed-project maintenance, inside their transaction. */
+export function suppressMemoryLedgerSources(db: DatabaseSync, actor: string, scope: MemoryScope, owner: string, sources: readonly { event_id: string }[]): void {
+  for (const source of sources) db.prepare("INSERT OR IGNORE INTO memory_markers(actor_id,key,at,body) VALUES (?,?,?,?)")
+    .run(actor, sourceKey(scope, owner, source.event_id), new Date().toISOString(), JSON.stringify({ event_id: source.event_id }));
+}
+
+export function dropMemoryLedgerCandidate(db: DatabaseSync, candidateId: string, identity: { scope: MemoryScope; owner: string }, actor?: string): void {
+  const row = db.prepare("SELECT actor_id,body FROM memory_candidates WHERE candidate_id=?").get(candidateId);
+  if (!row) return;
+  const note = record(row.body);
+  if (note.scope !== identity.scope || note.owner !== identity.owner || actor !== undefined && (row.actor_id !== actor || note.actor_id !== actor || note.candidate_id !== candidateId)) retentionConflict();
+  db.prepare("DELETE FROM memory_candidates WHERE candidate_id=?").run(candidateId);
+}
+
+/** An exact old selection proof; never a scope-empty or current-project proof. */
+export function assertMemoryLedgerRetainedObjectsCleared(db: DatabaseSync, input: {
+  actor_id: string; scopes: readonly { scope: MemoryScope; owner: string; memories: readonly { memory_id: string }[];
+    candidates: readonly { candidate_id: string }[]; sources: readonly { event_id: string }[] }[];
+}): void {
+  const memories = new Set(input.scopes.flatMap(scope => scope.memories.map(item => item.memory_id)));
+  for (const target of input.scopes) {
+    for (const item of target.candidates) if (db.prepare("SELECT 1 FROM memory_candidates WHERE candidate_id=?").get(item.candidate_id)) retentionConflict();
+    for (const source of target.sources) {
+      const row = db.prepare("SELECT body FROM memory_markers WHERE actor_id=? AND key=?").get(input.actor_id, sourceKey(target.scope, target.owner, source.event_id));
+      if (!row || record(row.body).event_id !== source.event_id) retentionConflict();
+    }
+  }
+  for (const id of memories) {
+    const marker = db.prepare("SELECT body FROM memory_markers WHERE actor_id='' AND key=?").get(`memory-forgotten:${id}`);
+    if (!marker) return retentionConflict();
+    const forgotten = record(marker.body);
+    if (forgotten.memory_id !== id || forgotten.state !== "forgotten") retentionConflict();
+    if (db.prepare("SELECT 1 FROM memory_revisions WHERE memory_id=? LIMIT 1").get(id)
+      || db.prepare("SELECT 1 FROM memory_uses WHERE memory_id=? LIMIT 1").get(id)) retentionConflict();
+    for (const row of db.prepare("SELECT body FROM memory_changes WHERE memory_id=?").all(id)) {
+      const change = record(row.body);
+      if (change.text !== "" || change.reason !== null || change.undoable !== false || change.undo !== null) retentionConflict();
+    }
+  }
+  if (!memories.size) return;
+  for (const row of db.prepare("SELECT body FROM memory_pairs").all()) {
+    const pair = record(row.body);
+    for (const name of ["a", "b"]) {
+      const item = pair[name];
+      if (!item || typeof item !== "object" || !("memory_id" in item) || typeof item.memory_id !== "string") return retentionConflict();
+      if (memories.has(item.memory_id)) retentionConflict();
+    }
+  }
+  for (const row of db.prepare("SELECT body FROM memory_candidates").all()) {
+    const candidate = record(row.body);
+    if (candidate.memory_id !== null && typeof candidate.memory_id !== "string") retentionConflict();
+    if (typeof candidate.memory_id === "string" && memories.has(candidate.memory_id)) retentionConflict();
+  }
+}
 
 /** Purge ledger copies and fence late receipts in the ledger's existing transaction. */
 export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqliteDatabase>, transaction: MemoryLedgerPort["transaction"]):

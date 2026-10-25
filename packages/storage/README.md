@@ -73,7 +73,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 `memory-ledger-adoption-cleanup` 是原离线采用的窄维护主人：直接复用 `BEGIN IMMEDIATE`，不经普通 `openMemoryLedger` 打开 ledger3。既有 memory-operation marker 固定无正文确认与每项子操作号；source-links、候选 source_refs 和原 promotion journal 提供已知来源，首次 SDK 删除前幂等保留 memory-source-forgotten。正式项沿 retention.forget 清历史、使用、成对记录与正文/undo，候选项只删准确投影；不按同源扩删 SDK 对象。每次事务核采用快照、原决定、当前权限和取消，未完成决定始终阻止 ledger4。相关回归 `tests/memory-ledger-adoption.test.ts`；新用例待正式 SDK 包集成后实跑。
 
-MEM-40原项目计划的冷retention由 `createMemoryLedgerProjectRetention` 提供（实施前合同，见Memory spec的同名段）。它固定Home及原项目/actor/operation/ID/scope/source，以四种语义方法抑制来源、移除原候选账注、遗忘原正式ID和最后清非个人scope；沿原retention与adoption事务执行，不暴露SQL/DB/万能mutation。每步接expected adoption snapshot，COMMIT成功后才返回同事务post，父frame据此接受自己的变更；异常不猜提交状态。original模式拒绝写，只读验证原对象全部retention后置条件与来源屏障，不能凭marker或当前scope空态清同ID后继。参数/当前授权不可扩大固定集合；个人scope只逐ID处理，scope收尾前SDK覆盖证明归上层。直接回归 `tests/memory-ledger-project-retention.test.ts`；不新增schema、registry或第二删除核。
+MEM-40原项目计划的冷retention由 `createMemoryLedgerProjectRetention` 提供（合同见Memory spec的同名段）。它固定Home及原项目/actor/operation/ID/scope/source，以四种语义方法抑制来源、移除原候选账注、遗忘原正式ID和最后清非个人scope；沿原retention与adoption事务执行，不暴露SQL/DB/万能mutation。每步接expected adoption snapshot，COMMIT成功后才返回同事务post，父frame据此接受自己的变更；异常不猜提交状态。original模式拒绝写，只读验证原对象全部retention后置条件与来源屏障，不能凭marker或当前scope空态清同ID后继。参数/当前授权不可扩大固定集合；个人scope只逐ID处理，scope收尾前SDK覆盖证明归上层。直接回归 `tests/memory-ledger-project-retention.test.ts`；不新增schema、registry或第二删除核。局部真实SQLite验证已覆盖提交前回滚、提交后未知结果不返回post、撤权/取消、计划外拒绝与同ID后继保持；完整冷Memory父frame接线与全主人恢复仍由上层集成。
 
 ## 离线搜索目标清理
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { createUiRequest } from "@molis-ai/molis-work-ui-host";
 import { pageText } from "./fixtures/page-text.js";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, §7 (stage 1d): what the Coding page shows for a supplement it sends to a round
@@ -38,6 +39,27 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
 const nothing = { turns: [] };
 const taken = (delivered: "run" | "queued" = "run", replayed = false): Promise<Reply> => Promise.resolve({ receipt: { input_id: "steer-1", replayed, delivered } });
 
+test("the shared request helper keeps a failed supplement's original identity until the person retries it", async () => {
+  for (const failure of ["network", "malformed"] as const) {
+    let attempts = 0;
+    const request = createUiRequest({ origin: "http://127.0.0.1", token: () => "fixture", newKey: () => "request-key", translate: pageText("zh"),
+      fetch: async () => {
+        if (++attempts === 1) {
+          if (failure === "network") throw new TypeError("Failed to fetch");
+          return new Response("not JSON", { status: 200 });
+        }
+        return Response.json(await taken("run", true));
+      } });
+    const { ui, sent } = receipts(body => request<Reply>("/sessions/s/control", { method: "POST", body }));
+    await assert.rejects(ui.steer("s", "r", "保留原输入", "interrupt"), /没确认送到/u);
+    assert.equal(ui.bubble("s", nothing)!.dataset.lost, "1");
+    assert.equal(attempts, 1, "an unknown write is not replayed automatically");
+    assert.equal(await ui.steer("s", "r", "保留原输入", "interrupt"), "之前已送到，没有重复发送。");
+    assert.deepEqual(sent[1], sent[0], "the explicit retry keeps the entire original request");
+    assert.equal(ui.bubble("s", nothing), null);
+  }
+});
+
 test("RC-10: a supplement goes with its send mode and a key, and the page says what each mode does, in the runtime's words", async () => {
   const { ui, sent } = receipts(() => taken());
   assert.equal(await ui.steer("s", "r", "别改 fixture", "next-boundary"), "已送达，当前回复或这批工具结束后交给 AI。");
@@ -56,7 +78,7 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   let attempt = 0, release!: () => void;
   const { ui, sent } = receipts(() => {
     attempt++;
-    if (attempt === 1) return Promise.reject(new TypeError("Failed to fetch"));
+    if (attempt === 1) return Promise.reject(Object.assign(new Error("Failed to fetch"), { code: "ui_host.outcome_unknown" }));
     return new Promise<Reply>(resolve => { release = () => resolve({ receipt: { input_id: "steer-1", replayed: true, delivered: "run" } }); });
   });
   await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"), /没确认送到：连接断了，或回复读不出。/u);
@@ -76,7 +98,7 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   assert.equal(ui.bubble("s", nothing), null, "once the Host has it, the round's own record shows it");
   // Changed words, or another mode, are a new supplement; so is anything sent after a refusal.
   let calls = 0;
-  const changed = receipts(() => ++calls === 1 ? Promise.reject(new TypeError("offline")) : taken());
+  const changed = receipts(() => ++calls === 1 ? Promise.reject(Object.assign(new Error("offline"), { code: "ui_host.outcome_unknown" })) : taken());
   await assert.rejects(changed.ui.steer("s", "r", "看日志", "next-boundary"));
   await changed.ui.steer("s", "r", "看日志", "interrupt");
   assert.notEqual(changed.sent[1]!.key, changed.sent[0]!.key);
@@ -89,7 +111,7 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
 
 test("RC-17: after a lost answer, once the run's record shows that key, the bubble goes and the page says once that it arrived", async () => {
   const landed: string[] = [];
-  const { ui, sent } = receipts(() => Promise.reject(new TypeError("Failed to fetch")), { landed: (one, said) => landed.push(one.text + "｜" + said) });
+  const { ui, sent } = receipts(() => Promise.reject(Object.assign(new Error("Failed to fetch"), { code: "ui_host.outcome_unknown" })), { landed: (one, said) => landed.push(one.text + "｜" + said) });
   await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"));
   const key = sent[0]!.key;
   assert.ok(ui.bubble("s", { turns: [{ kind: "user", steer: { id: "steer-2", state: "received", key: "send.other" } }] }), "another supplement is not this one");
@@ -131,7 +153,7 @@ test("RCPT-326: from a receipt, the page takes a supplement back and sends a cor
     async () => ({ accepted: true, withdrawn: { input_id: "steer-1", from: "queued" } }),
     async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: false, delivered: "run" } }),
     async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: false, delivered: "queued" } }),
-    async () => { throw new TypeError("Failed to fetch"); },
+    async () => { throw Object.assign(new Error("Failed to fetch"), { code: "ui_host.outcome_unknown" }); },
     async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: true, delivered: "run" } }),
   ];
   const { ui, sent, paths, refreshed } = receipts(() => replies.shift()!() as Promise<Reply>);

@@ -1763,8 +1763,6 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/context-ledger` | 模块 | 4 | 292 | `service.ts` 102 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `modules/feed` | 模块 | 2 | 776 | `index.ts` 733 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/functions` | 模块 | 9 | 1,777 | `store.ts` 939 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `modules/goals` | 模块 | 42 | 9,440 | `event-facts.ts` 631 | 1 | 1 | 2 | 在用 | 深 | 已审 |
-| `modules/governance-collaboration` | 模块 | 12 | 1,116 | `goal-tree-records.ts` 220 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/private-work-context` | 模块 | 10 | 1,223 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 6 | 1,123 | `repository.ts` 467 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 已审 |

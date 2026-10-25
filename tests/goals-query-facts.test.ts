@@ -2,7 +2,7 @@ import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoalsModule } from "@molis-ai/molis-work-module-goals";
+import { GoalsModule } from "./fixtures/goals-modules.js";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";

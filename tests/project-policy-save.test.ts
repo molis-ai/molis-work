@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GoalsModule, DEFAULT_GOAL_POLICY } from "@molis-ai/molis-work-module-goals";
+import { GoalsModule, DEFAULT_GOAL_POLICY } from "./fixtures/goals-modules.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";

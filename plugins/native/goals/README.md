@@ -1,11 +1,11 @@
 # 目标用例与原生界面
 
-Goals 是每个项目都带的内置插件，是 Goal 的产品 owner；Goal 事实本身由 `modules/goals` 保存（见 [SSOT-MATRIX](../../../docs/SSOT-MATRIX.md)），本插件在它之上组合。它把 Goal 的当前约定、要求、工作记录和可信决定组合成可操作的工作流，提供目标目录、时间线、树结构和历史正文界面；其他插件经它公开的动作读取，不碰它的存储。
+Goals 是每个项目都带的内置插件，是 Goal 的产品 owner；Goal 事实本身由本包的 `src/module/` 保存（见 [SSOT-MATRIX](../../../docs/SSOT-MATRIX.md)），本插件在它之上组合。它把 Goal 的当前约定、要求、工作记录和可信决定组合成可操作的工作流，提供目标目录、时间线、树结构和历史正文界面；其他插件经它公开的动作读取，不碰它的存储。
 
 包名：`@molis-ai/molis-work-plugin-goals`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 Status: `partial`。插件合同：`@molis-ai/molis-work-contracts/platform/plugin`。
-历史迁移目标：`goal-reorg-f2`、`goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8`、`goal-reorg-gw4`、`goal-reorg-gw5`、`goal-reorg-ex4`。当前完整迁移范围以 `specs/action-architecture/spec.md` 为准。
+历史迁移目标：`goal-reorg-f2`、`goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8`、`goal-reorg-gw1`、`goal-reorg-gw2`、`goal-reorg-gw3`、`goal-reorg-gw4`、`goal-reorg-gw5`、`goal-reorg-ex3`、`goal-reorg-ex4`（gw1–gw3、ex3 随 Goal 与 Governance 两个模块并入本包，S9-3）。当前完整迁移范围以 `specs/action-architecture/spec.md` 为准。
 
 ## 一次典型调用
 
@@ -94,19 +94,34 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 问题的解决/推翻提交后续事件 `supporting_event_ids` 或已有可信用户决定，拒绝时保留输入。Goal 规则只展示现行项目默认和事件记录中的完成要求；要求修改沿事件表单，项目默认沿项目设置。规划详情按请求和当前选择回写，关闭或页面拆除后忽略迟到成功与失败。
 
-- 负责：Goals 的导航、界面、命令与组合（每个项目都带的内置插件）；Goals 与 Governance 在项目库里的表声明（Manifest 的 `databases.project`，即 `GOALS_PROJECT_DATABASE`，`src/project-database.ts`，建表语句在 `src/project-database-*.ts`；S8，PG-020）。
-- 不负责：Goal 事实与 Store 的读写（归 `modules/goals` 和 `modules/governance-collaboration`，由宿主组合；本插件不导入它们，它们暂用自己的 SQL 读写这些表，登记在 `tooling/gates/table-owners.json`，S9 搬进插件后删）、其他插件的实现。
-- 公开入口：`@molis-ai/molis-work-plugin-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-design-system`（共享状态呈现）。方向：只依赖合同、SDK 与声明过的 Service/UI 包；不导入 Module 实现包，也不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
+- 负责：Goals 的导航、界面、命令与组合（每个项目都带的内置插件）；Goals 与 Governance 在项目库里的表声明（Manifest 的 `databases.project`，即 `GOALS_PROJECT_DATABASE`，`src/project-database.ts`，建表语句在 `src/project-database-*.ts`；S8，PG-020）；Goal 约定与要求、工作事件与关注项、关系图、项目规则、生命周期、项目指导与规划事实（`src/module/`，原 `modules/goals`，S9-3 搬入）；Goal Tree 结构提案、可信用户决定与确认来源（`src/governance/`，原 `modules/governance-collaboration`，S9-3 搬入）。规划方法的内置资产在 `methods/`（37 个 Markdown，随包发）。
+- 不负责：用户决定之外的 Session 与终端（归 Work 与 Runtime Host）、跨模块来源、直接修改 Artifact 或 Project 的事实、其他插件的实现。`src/module/` 与 `src/governance/` 读写这些表的 SQL 登记在 `tooling/gates/table-owners.json`。
+- 公开入口：`@molis-ai/molis-work-plugin-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；子路径 `@molis-ai/molis-work-plugin-goals/module`（`src/module/index.ts`，`GoalsModule` 与读取服务）和 `@molis-ai/molis-work-plugin-goals/governance`（`src/governance/index.ts`，`GovernanceCollaborationModule`）；合同 `@molis-ai/molis-work-contracts/platform/plugin`、`@molis-ai/molis-work-contracts/modules/goals`、`@molis-ai/molis-work-contracts/modules/governance-collaboration`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-design-system`（共享状态呈现）。方向：只依赖合同、SDK 与声明过的 Service/UI 包；不导入另一个 Module 的实现，也不导入另一个插件的实现；两个随包模块不碰数据库实现，只经注入的 `prepare/transaction/savepoint` 端口读写（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：
-  - 状态变化只经 `modules/goals` 的公开入口，页面不另算完成。
+  - 状态变化只经 `src/module/` 的公开入口，页面不另算完成。
   - CLI 与管理 MCP 使用同一 owner 动作；有幂等合同的写入沿用原事务与幂等键。
   - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
   - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
   - Goals 管理业务只走注册动作，没有 typed 管理写入桥；输入类型不含 `actor_id`、`actor_kind` 或决定 authority，结构提交不含 `submitted_session_id`，结构决定不含 `runtime_actor_id`。真实 CLI/MCP 由 Host 私有管理工厂固定本人和出处；两个管理 authority 的证据规则仍归 `src/management-evidence.ts`。`tests/management-door-identity.test.ts` 核公开入口和动作输入类型，`tests/goal-management-identity.test.ts` 核十四个旧 v1 引用即使伪造描述符也拒绝，AST 门禁不许恢复 typed 定义/注册/导出/消费者。Coding 使用共享 `goalPluginActions`；四项受限读写核当前内置实例资格，身份仍取原调用上下文，其余测试用现行动作验证业务。
   - Feed 升格为 Goal 经 `goals.directory.read`、`goals.create`、`goals.inputs.confirm` 写 Goals（升格动作用 `required_actions` 声明了这三项，授权设置要一起授权），Feed 不写 Goals 的表；Goals 不在项目里时升格不可用，Feed 的入口也不再出现。
-- 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-board-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts tests/goals-guidance-actions.test.ts tests/goals-planning-actions.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts tests/goals-query-boundaries.test.mjs tests/goals-input-confirm.test.ts tests/goal-artifact-inputs.test.ts tests/feed-goal-promotion.test.ts`
-- 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+  - `src/module/`（原 `modules/goals`）的不变量：
+    - Repository 只由包内装配；公开 Module、查询服务和只读装配不提供 `repository` 成员，调用方通过命令、查询、事件及生命周期服务工作。
+    - `events` 是当前工作状态与完成效果的唯一写入者。
+    - 从回收站恢复沿同一关系图校验，在原事务内逐边恢复；冲突或事件写入失败整体回滚。另一端仍在回收站的关系保持 pending，改正图后原请求可重试。定向回归：`tests/goals-lifecycle-actions.test.ts`。
+    - 实质承诺变化须引用对具体变化的有效授权，不能靠改类型绑定或自填操作者绕过；版本缺失或过期在副作用前拒绝。
+    - 完成只经显式收尾：普通支持不自动完成，无关笔记不重开已完成的 Goal。
+    - 项目规则「完成前必须你点头」进入完成检查：打开时，完成前要有这一轮、这份约定的可信用户结论（点头）；点「完成」的人是用户，本身不算，管理入口把收尾记成本机这个人也不算。点头有两种：某条要求上已接受且仍然成立的结论，和针对 `complete` 的最近一条决定（要是授权）。两种按同一个办法判断，看写下结论的那份决定：它是在这一轮工作里做出的（Goal 被继续或重新打开之后，更早的授权和接受都不再放行），并且它记下的整份约定的承诺（授权 `complete` 和接受要求的决定都记整份：结果说明、每条要求的原文、是否需要用户验收、绑定的事件类型）和现在的约定逐字相同（有一处变了就不放行，不论谁改；改了又改回，逐字相同就又放行）。要求上的结论是否还在，仍是要求自己的规则：要求被改写、退休、结果说明被改写（每条要求的结论都过期）、结论之后被拒绝，结论就没了，改回原文也不恢复。授权按决定的效果判断，不按范围里写的动作：范围里写了 `complete`、效果只有接受要求的决定是接受，不是授权。被别的原因挡住的收尾和成立的收尾都不会用掉点头，同一轮同一份约定里可以再收尾。带「需要用户验收」的要求本身不受影响（结论还成立就算已验收），项目规则另外要点头，授权不能代替那条要求自己的验收。`tests/goal-events-state.test.ts` 守着这条，管理入口那一面在 `tests/goal-management-identity.test.ts`（`specs/archive/goal-closure-identity`）。
+    - 关系图合法性、授权与事务在正式入口检查，页面和 MCP 只呈现结果。
+    - 结果合同只认现行取值；存量数据由维护改成现行形状，读取不兜底历史取值。
+  - `src/governance/`（原 `modules/governance-collaboration`）的不变量：
+    - 本包直接声明并抛出共同 `ActionError`；装配不注入错误工厂，现行用户来源拒绝与聚合输入详情由本包保留。
+    - 记录谁在什么来源下批准了哪一项变化，不替 Goals 计算完成。
+    - Runtime 不能用自填的 `actor_kind=user`、`user_confirmed` 或对话摘要作为授权；不同范围的授权不能互相复用。
+    - 跨 owner 写入走实际的决定事务，UI 与 MCP 不另写批准或完成规则。
+    - 历史 self-verifier 不能展示为用户验收，旧决定不能变成当前任意变更的授权。
+- 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-board-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts tests/goals-guidance-actions.test.ts tests/goals-planning-actions.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts tests/goals-query-boundaries.test.mjs tests/goals-input-confirm.test.ts tests/goal-artifact-inputs.test.ts tests/feed-goal-promotion.test.ts tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts tests/goals-query-facts.test.ts tests/goals-storage-boundaries.test.mjs tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts`
+- 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[docs/modules/governance-collaboration.md](../../../docs/modules/governance-collaboration.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 共享的五个 Goals 插件动作合同与schema在 `packages/contracts/src/modules/goal-actions.ts`，插件和Coding读取同一份。contract/state/progress/receipt的plugin受众要求Host实际登记且仍有效的内置caller，项目、操作者与安装都须一致；输入不提供资格。list与note保留原plugin边界。四个Goals context/progress typed协议已移除，Host与SDK均答不可用，不通过伪造描述符恢复。
 

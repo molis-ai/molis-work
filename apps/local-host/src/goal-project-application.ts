@@ -3,14 +3,14 @@ import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { listProjectRoots, writeProjectRoot } from "@molis-ai/molis-work-module-projects";
-import { GovernanceCollaborationModule, governanceSqlite } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule, governanceSqlite } from "@molis-ai/molis-work-plugin-goals/governance";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import {
   GoalsModule,
   GoalInputBindings,
   type GoalsSqliteDatabase,
   type PlanningMethodPack,
-} from "@molis-ai/molis-work-module-goals";
+} from "@molis-ai/molis-work-plugin-goals/module";
 import type { GoalEventAcknowledgementsApi, GoalsApplicationApi, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { createGoalsApplication, GOALS_PLUGIN_ID, type GoalsApplication } from "@molis-ai/molis-work-plugin-goals";
 import { LocalProjectDatabase } from "./project-database.js";

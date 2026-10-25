@@ -93,7 +93,7 @@ Web 中没有左侧栏：项目入口在统一底栏，Goals 插件里是目标�
 - Runtime 发现新需求时只提交结构提案（新建 Goal 及其关系），由用户确认后才写入 Goal 树；接受新 Goal 不等于同意它阻塞当前 Goal。
 - 用户创建 Goal 时亲自指定的 `parent / depends_on` 可以直接成为 active。用户明确选择进行 Goal Tree 拆分或关系提案时，Runtime 发现的拆分、依赖或关系变化仍只能先成为 Proposal；这不是 Goal 开始记录的强制前置。
 - 依赖 Proposal 不由 Molis Work 扫描代码自动产生。Runtime 先选择当前任务的工作类型、专业领域、行业与场景叠加层方法，再结合 Contract、代码、文档、测试、数据结构、业务顺序、影响冲突和风险策略，说明哪项产出被哪项工作消费；依赖方向由这条产出—消费关系推导，不能只凭时间先后或主观直觉连接。
-- 规划方法按 `项目 > 个人 > 内置冷启包` 生效。内置方法分为元方法、工作类型、专业领域、行业和跨行业场景叠加层；它们是共同检查同一 Goal Tree 的正交视角，不是机械串行的阶段模板。每个内置方法只在 `modules/goals/methods/`（按 meta、work-types、domains、industries、overlays 分目录） 中占一个 canonical Markdown 文件，尤其每个行业一个文件；新增行业不应要求修改 Runtime 注册代码或复制通用方法正文。遇到未知领域时，Runtime 先用元方法补齐领域边界、专业阶段、关键产物、质量门和失败模式，再提出可复用的新方法。项目与个人方法都由用户显式保存，不会自动改写 Goal Tree。
+- 规划方法按 `项目 > 个人 > 内置冷启包` 生效。内置方法分为元方法、工作类型、专业领域、行业和跨行业场景叠加层；它们是共同检查同一 Goal Tree 的正交视角，不是机械串行的阶段模板。每个内置方法只在 `plugins/native/goals/methods/`（按 meta、work-types、domains、industries、overlays 分目录） 中占一个 canonical Markdown 文件，尤其每个行业一个文件；新增行业不应要求修改 Runtime 注册代码或复制通用方法正文。遇到未知领域时，Runtime 先用元方法补齐领域边界、专业阶段、关键产物、质量门和失败模式，再提出可复用的新方法。项目与个人方法都由用户显式保存，不会自动改写 Goal Tree。
 - 每轮拆分和关系变更都必须通过同一套整图检查：不存在缺失端点、自依赖、重复关系、父子循环、依赖循环或父子与依赖组合形成的执行循环。通过后，Goals 的规划层按拓扑层级、可解锁下游数量和最长后续链给出执行顺序与理由，不再由各 Runtime 各排一套顺序。
 - 用户提出新要求时，Runtime 先分析直接受影响的 Goal、依赖它的下游和仍可复用的工作，只对受影响子图提交 Proposal；确认后再重新计算整图顺序。历史有效且不受影响的 Goal 不重拆、不重做。
 - 正式 Dependency Proposal 必须说明 `from_goal_id`、`to_goal_id`、类型、原因、`basis`、`evidence_refs`、`impact_if_rejected`、`confidence`，以及为什么方向是 A → B 而不是 B → A。

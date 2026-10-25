@@ -8,7 +8,7 @@ import test from "node:test";
 import {
   GoalsModule,
   createGoalReadServices,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";

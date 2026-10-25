@@ -1,6 +1,7 @@
+import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { readPersonalPlanningMethods } from "@molis-ai/molis-work-module-goals";
+import { PersonalPlanningMethods } from "@molis-ai/molis-work-plugin-goals/module";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import { resolveConfiguredHome } from "./product-home.js";
 
@@ -10,5 +11,7 @@ export function readPersonalPlanningMethodPacks(homeDirectory?: string): Plannin
   // No catalog yet means no personal library yet; this read never creates one.
   try { realpathSync(databasePath); }
   catch { return []; }
-  return readPersonalPlanningMethods(databasePath);
+  const storage = new LocalSqliteStorage(databasePath, { readonly: true });
+  try { return new PersonalPlanningMethods(storage.db).list(); }
+  finally { storage.close(); }
 }

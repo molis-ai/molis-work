@@ -5,14 +5,14 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { GoalsModule } from "@molis-ai/molis-work-module-goals";
-import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GoalsModule } from "./fixtures/goals-modules.js";
+import { GovernanceCollaborationModule } from "./fixtures/goals-modules.js";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 // PG-094 S9-1 (specs/repository-anti-corruption/slices/goals-s9-1-journal-seam.md): what of Goals' and Governance's SQL a plugin's
 // statement check would refuse today, and (S11) that it is nothing: the preview's undo is the platform's savepoint, not an `exec`.
 
-const MODULES = ["modules/goals/src", "modules/governance-collaboration/src"];
+const MODULES = ["plugins/native/goals/src/module", "plugins/native/goals/src/governance"];
 
 function sources(directory: string): string[] {
   return readdirSync(directory).flatMap(name => {
@@ -88,7 +88,8 @@ test("RAC-284 the statement check the modules run under refuses a statement on t
 // RAC-298 (goals-s10-s11-runtime-switch.md §7): the same pin, answered by the platform's savepoint.
 test("RAC-285 neither module runs a free-form exec, and the Goal Tree preview undoes its writes through a savepoint, not through SQL it passes", () => {
   const withExec = MODULES.flatMap(directory => sources(directory))
-    .filter(path => !path.endsWith("planning/personal-methods.ts") && !path.endsWith("governance-collaboration/src/repository.ts"))
+    // `governanceSqlite` (governance/repository.ts) is the Host's adapter over the old connection; the plugin's own window (S11) replaces it.
+    .filter(path => !path.endsWith("planning/personal-methods.ts") && !path.endsWith("governance/repository.ts"))
     .filter(path => /\.(?:exec|pragma)\(/u.test(readFileSync(path, "utf8")));
   assert.deepEqual(withExec, [], "a plugin has no exec; its undo is the transaction handle's savepoint");
 

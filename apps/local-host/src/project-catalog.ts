@@ -24,7 +24,7 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { PersonalPlanningMethods } from "@molis-ai/molis-work-module-goals";
+import { PersonalPlanningMethods } from "@molis-ai/molis-work-plugin-goals/module";
 import {
   type DesktopPanelCatalogApi,
   type DesktopPanelContextPort,

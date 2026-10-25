@@ -118,7 +118,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `packages/storage` | `catalog_meta`（`src/catalog-metadata.ts`） |
 | `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`） |
 | `modules/private-work-context` | `runtime_context_bindings`、`runtime_context_binding_events`、`runtime_context_setup_requests`、`runtime_context_suggestion_rejections` |
-| `modules/goals` | `personal_planning_method_packs`（`src/planning/personal-methods.ts`） |
+| `plugins/native/goals` | `personal_planning_method_packs`（`src/module/planning/personal-methods.ts`） |
 | `modules/context-ledger` | `context_edges` |
 | `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`） |
 | `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref` |
@@ -162,7 +162,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | Goals（`plugins/native/goals/src/project-database.ts`；语句分在同目录的 `project-database-{goals,event-facts,event-state,governance}.ts`） | `goals` | `boards`、`goals`、`acceptance_criteria`、`goal_relations`、`goal_trash_records`、`goal_trash_relation_records`、`policy_bindings`、`project_guidance_entries`、`project_guidance_revisions`、`planning_method_packs`、`input_bindings`、`goal_event_configs`、`goal_event_config_versions`、`goal_event_types`、`goal_event_requirements`、`goal_event_requirement_bindings`、`goal_work_events`、`goal_work_event_judgments`、`goal_event_state_owners`、`goal_event_agreements`、`goal_event_progress_summaries`、`goal_event_concerns`、`goal_event_decision_requests`、`goal_event_applied_decisions`、`goal_event_requirement_conclusions`、`goal_event_closures`、`goal_event_work_status`、`goal_tree_proposals`、`goal_tree_proposal_items`、`goal_tree_proposal_decisions`、`goal_event_trusted_decisions`（31 张，含 governance 的 4 张） |
 | Schedule（`plugins/native/schedule/src/database.ts`） | `schedule` | `schedule_conversation_tasks`、`schedule_conversation_turns`、`schedule_plugin_reminders`、`schedule_operations`、`schedule_operation_occurrences` |
 
-各插件的库版本记在账本行里，发版时按 `docs/releases/CHECKLIST.md` §3 各一行核对。`boards` 的 `project_id` 指向 `project_root`，不再存项目名（名字的主人是目录库）。`modules/goals` 与 `modules/governance-collaboration` 仍用自己的 SQL 读写 Goals 的这些表，登记在 `tooling/gates/table-owners.json` 的 `shared`，S9 把存储搬进插件时删除。
+各插件的库版本记在账本行里，发版时按 `docs/releases/CHECKLIST.md` §3 各一行核对。`boards` 的 `project_id` 指向 `project_root`，不再存项目名（名字的主人是目录库）。Goal 与 Governance 两个存储模块已并入插件包（`src/module/`、`src/governance/`，S9-3），读写这些表的 SQL 与建表的包是同一个包，`tooling/gates/table-owners.json` 的 `shared` 里这批登记已删。
 
 ### 4.3 `sessions/sessions.db`（v7，已下线）
 
@@ -178,7 +178,7 @@ Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions
 
 规则：一张表只由建它的包读写，别的包要读写就走那个包导出的函数。门禁是 `scripts/gates/table-owners.mjs`（`pnpm health:check` 里跑，没有基线，出现一处就失败）；它从各包 TypeScript 源码的 SQL 字符串里找 `CREATE TABLE` 定出每张表的 owner 包，再找别的包里对这张表的 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE`。读不到的写在门禁文件开头：表名不是字面量的（`FROM ${table}`，Artifacts 的 Repository 从选项取表名、助理清理项目时遍历一个表名数组）、拼接出来的 SQL、非 TypeScript 文件里的 SQL。
 
-- `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），不属于任何模块或插件自己的声明。storage 自己的 `LocalSqliteJournal` 有完整的日志函数：`eventCursor`、`appendEvent`、`getIdempotency`、`putIdempotency`，都在项目库的同一条连接上，所以模块自己的事务里调用它，事件和它记的事实照样同事务提交。`modules/goals` 与 `modules/governance-collaboration` 只依赖 `packages/contracts`、没法 import storage，现在由宿主在装配时注入一个日志端口（`GoalsJournal`、`GovernanceJournal`，结构上就是 storage 的那四个函数；Artifacts 用函数注入，做法同类），两个模块里不再有指向这两张表的语句（PG-094 S9-1，`tests/goals-storage-plugin-legal-sql.test.ts`），`tooling/gates/table-owners.json` 里这两条 `shared` 登记已删。
+- `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），不属于任何模块或插件自己的声明。storage 自己的 `LocalSqliteJournal` 有完整的日志函数：`eventCursor`、`appendEvent`、`getIdempotency`、`putIdempotency`，都在项目库的同一条连接上，所以模块自己的事务里调用它，事件和它记的事实照样同事务提交。Goals 插件包里的 Goal 与 Governance 存储模块（原 `modules/goals`、`modules/governance-collaboration`）只依赖 `packages/contracts`、没法 import storage，现在由宿主在装配时注入一个日志端口（`GoalsJournal`、`GovernanceJournal`，结构上就是 storage 的那四个函数；Artifacts 用函数注入，做法同类），两个模块里不再有指向这两张表的语句（PG-094 S9-1，`tests/goals-storage-plugin-legal-sql.test.ts`），`tooling/gates/table-owners.json` 里这两条 `shared` 登记已删。
 - 一个包新加一句 `CREATE TABLE <别的包已建的表>` 不会让它成为这张表的 owner：同一张表被不止一个包建，必须登记在 `same_name`（表名、建它的包、理由），门禁两头核对。现有两项：`workspaces`（`modules/projects` 的目录库、炼金术士每项目一个的 `studio.sqlite`）和 `jobs`（炼金术士的 `studio.sqlite`、Images 的 `images.db`），都是不同库里互不相干的表（`specs/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改名）。
 - 原先 4 处跨 owner 直接 SQL 已去掉，门禁另量到 2 处，一并改了。都改成 owner 导出的函数：
   - `apps/local-host/src/coding-background-tasks.ts` 读 Coding 的 `coding_sessions`：当时改成 Coding 导出 `listCodingBackgroundSessions`，宿主的路由把它传给跨项目列表。2026-10-21（C4，PG-043）再改：这个文件和导出都删了，Coding 把列表声明成自己的查询 `coding.home.background-tasks@1`（`home_aggregate`，`plugins/native/coding/src/home-background.ts`），宿主的 `apps/local-host/src/home-background-tasks.ts` 对每个已打开的项目问这类查询（`apps/local-host/src/home-aggregate.ts`，S-49），不再打开任何项目库、也不认识 Coding。

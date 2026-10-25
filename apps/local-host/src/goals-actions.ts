@@ -4,7 +4,7 @@ import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
-import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
+import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-plugin-goals/module";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { PlanningMethodPack, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 

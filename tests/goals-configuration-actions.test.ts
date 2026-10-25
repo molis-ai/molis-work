@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { DEFAULT_GOAL_POLICY } from "@molis-ai/molis-work-module-goals";
+import { DEFAULT_GOAL_POLICY } from "./fixtures/goals-modules.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";

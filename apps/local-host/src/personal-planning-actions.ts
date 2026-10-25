@@ -1,6 +1,6 @@
 import { hostErrors } from "./host-errors.js";
 import { randomUUID } from "node:crypto";
-import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
+import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-plugin-goals/module";
 import { createPersonalPlanningActionHandlers, PERSONAL_PLANNING_ACTIONS } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionRegistryPort, type ActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";

@@ -84,9 +84,9 @@ export const packageDescriptor = {
   kind: "native-plugin",
   maturity: "partial",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2","goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8","goal-reorg-gw4","goal-reorg-gw5","goal-reorg-ex4"],
+  migrationGoals: ["goal-reorg-f2","goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8","goal-reorg-gw1","goal-reorg-gw2","goal-reorg-gw3","goal-reorg-gw4","goal-reorg-gw5","goal-reorg-ex3","goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["goals.event-application.v1", "goals.policy-ui.v1", "goals.relation-ui.v1", "goals.tree-ui.v1", "goals.momentum-ui.v1", "goals.document-ui.v1", "goals.context-ui.v1", "goals.planning-ui.v1", "goals.status-ui.v1", "goals.factors-ui.v1", "goals.dialogs-ui.v1", "goals.document-routes.v1"],
+  capabilities: ["goals.event-application.v1", "goals.policy-ui.v1", "goals.relation-ui.v1", "goals.tree-ui.v1", "goals.momentum-ui.v1", "goals.document-ui.v1", "goals.context-ui.v1", "goals.planning-ui.v1", "goals.status-ui.v1", "goals.factors-ui.v1", "goals.dialogs-ui.v1", "goals.document-routes.v1", "goals.command.v1", "goals.repository.v1", "goals.lifecycle.v1", "goals.planning.v1", "goals.query.v1", "governance.proposals.v1", "governance.decisions.v1", "governance.event-decisions.v1"],
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;

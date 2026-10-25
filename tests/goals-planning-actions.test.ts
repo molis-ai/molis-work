@@ -10,7 +10,7 @@ import { goalsActions, personalPlanningActions } from "@molis-ai/molis-work-plug
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
+import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
 import { readPersonalPlanningMethodPacks } from "@molis-ai/molis-work-app-local-host";
 
 test("planning actions preserve complete methods, project versions, live policy and restart state", async () => {

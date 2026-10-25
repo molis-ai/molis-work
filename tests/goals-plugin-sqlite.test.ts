@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { GoalsSqliteDatabase } from "@molis-ai/molis-work-module-goals";
-import type { GovernanceSqliteDatabase } from "@molis-ai/molis-work-module-governance-collaboration";
+import type { GoalsSqliteDatabase } from "./fixtures/goals-modules.js";
+import type { GovernanceSqliteDatabase } from "./fixtures/goals-modules.js";
 import { memoryPluginDatabase } from "./fixtures/plugin-database.js";
 import { PluginSqlite } from "./fixtures/plugin-legal-sql.js";
 

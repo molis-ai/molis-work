@@ -11,7 +11,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
-import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
+import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";

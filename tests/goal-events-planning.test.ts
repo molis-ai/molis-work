@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
+import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import type { GoalEventConfigView, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
 

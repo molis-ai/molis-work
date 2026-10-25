@@ -52,8 +52,6 @@ apps/mcp/                    Platform MCP schemas, protocol and project tool dis
 packages/ui-host/            UI Contribution registry, surface rendering, and Slot mount validation
 packages/design-system/      AP3 theme preferences, browser visual foundation, and layered styles
 plugins/native/feed/         FD4 Feed/Attention/Source UI and HTTP route table
-modules/goals/               Current events, agreements/requirements, completion, graphs/planning, guidance, and history
-modules/governance-collaboration/
                              Current user decisions, finite structure proposals, provenance, and history
 tooling/plugin-cli/          Plugin CLI boundary; DV3 implements the real developer tool
 scripts/workspace-packages.mjs
@@ -137,8 +135,8 @@ pnpm package:npm
 Use the published-style package name to verify one package independently, for example:
 
 ```bash
-pnpm --filter @molis-ai/molis-work-module-goals typecheck
-pnpm --filter @molis-ai/molis-work-module-goals build
+pnpm --filter @molis-ai/molis-work-plugin-goals typecheck
+pnpm --filter @molis-ai/molis-work-plugin-goals build
 pnpm --filter @molis-ai/molis-work-plugin-runtime typecheck
 pnpm --filter @molis-ai/molis-work-integration-github typecheck
 ```

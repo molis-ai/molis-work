@@ -6,10 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import * as goalsPackage from "@molis-ai/molis-work-module-goals";
+import { goalsModuleExports as goalsPackage } from "./fixtures/goals-modules.js";
 import {
   GoalsModule,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";

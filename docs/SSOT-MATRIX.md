@@ -6,7 +6,7 @@
 
 Molis Work 是本地优先的插件基座加多插件。平台是一个 Home 的常驻宿主、统一动作目录与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归 Module 或插件，每项事实只有一个 owner，下列各表逐包写明。Goals 是每个项目都带的内置插件，拥有 Goal 的事实。
 
-Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/native/goals`），按[事件工作流需求书](../specs/archive/goal-event-workflow-cleanup/spec.md)收敛：事件是唯一工作协议；事件之前的 Claim/Run/Evidence/Review 历史连同表与展示已于 2026-10-05 删除（#268）。真实 Session／终端归 Work 与 Runtime Host。本索引的相关 owner 行已同步；早期迁移报告保留当时的实现和验收记录。
+Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `modules/goals`、`modules/governance-collaboration` 的代码已并入该包，S9-3），按[事件工作流需求书](../specs/archive/goal-event-workflow-cleanup/spec.md)收敛：事件是唯一工作协议；事件之前的 Claim/Run/Evidence/Review 历史连同表与展示已于 2026-10-05 删除（#268）。真实 Session／终端归 Work 与 Runtime Host。本索引的相关 owner 行已同步；早期迁移报告保留当时的实现和验收记录。
 
 ## 1. 文档各管什么
 
@@ -93,13 +93,11 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `modules/feed` | Feed Item、Signal reference、material、read/archive/disposition 与 promotion provenance | Feed Item/Material/Disposition 与保留正文；旧 FeedStore 已删除 | `partial` | FD2/FD4/Cutover；Sources/Inbox/Feed 真实用户链路 | Module：@yijunw0212 |
 | `modules/actions` | 个人/外部 Action 请求、状态和结果引用 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/attention-resumption` | Attention reference、reason 与最小处置状态 | Attention reference/reason 与最小处置；旧 Inbox 转发已退出 | `partial` | FD2/Cutover；完整 snooze/resume 仍是未来能力 | Module：@yijunw0212 |
-| `modules/goals` | Goal、当前约定与要求、Graph、事件事实与工作状态、Planning、指导及历史 | `events` 唯一决定完成效果；当前意图／树使用同一事件归属；图分析读当前状态；项目规则（`policy_bindings`）及其历史可读；风险、Contract 修订与已退役的提案项已从存储删除（#272）；V3 一次性导入已删除（BL-083） | `partial` | GW1–GW6/DD1/DD2/Cutover；事件工作流收敛 | Module：@yijunw0212 |
 | `modules/private-work-context` | Runtime context binding（Runtime 工作入口与 Project 的绑定、事件、setup 幂等、拒绝建议） | Runtime 当前 Project 关联经 Ledger API 保存；控制历史留在本模块。Session、内容引用与 Handoff 随 Sessions 插件下线（SC-4）删除，重做见 BL-177 | `partial` | WK1–WK3 已迁移；SC-4 删除 Session 部分 | Module：@yijunw0212 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用与 provenance | AR1 已建立唯一正式事实；旧代码仅有各 owner 的字符串引用，没有第二套 Artifact Store | `partial` | AR1 已迁 Core；AR3 切换现有结果入口 | Module：@yijunw0212 |
 | `modules/shelf` | 个人置物架材料、副本任务、Hash 与本机抽字结果 | Home 下 `shelf/` 副本与 Jobs 沙箱；不写项目 Goal / Artifact | `partial` | Shelf 工作台切片；轮盘/热键仍待 Desktop | Module：@yijunw0212、@jingxusandra-gif |
 | `modules/characters` | 个人 Character 草稿、修订与启用状态，角色动作的声明、处理器与本人绑定，本机导入逻辑（CHR-0、CHR-1：角色不再是插件，Host 用它登记动作提供方，「设置 › 角色」是 Host 的设置节，界面在 `apps/workbench/src/characters/`） | 按本人隔离编辑，确认修订后交给 Artifact 发布；不拥有执行、权限和界面 | `partial` | `specs/coding-plugin/spec.md` §0 C12（产品接入中） | Module：@yijunw0212 |
 | `modules/functions` | 已发布判断函数与一次判断记录 | 函数库、来源/去向/映射、场景绑定、判断落库；TypeSafe 由 Host 注入 | `partial` | `specs/archive/functions-system-capability/spec.md`；`specs/archive/functions-product-authoring/spec.md`；`specs/archive/functions-independent-authoring/spec.md`；事件去向动作范围 `specs/archive/function-scene-action-scope/spec.md` | Module：@yijunw0212 |
-| `modules/governance-collaboration` | 当前用户决定、有限树提案／决定、provenance 与协作历史 | 当前可信用户来源、具体变更授权和决定事务；结构提案只含新建 Goal 与关系项；退役提案已删除（#263） | `partial` | EX3/EX4/AR2/DD1/DD2/Cutover；事件工作流收敛 | Module：@yijunw0212 |
 | `server` | 共享身份、设备、项目访问、HTTP、SSE 与接续回执；聊天领域在 `src/im` | 右栏「讨论」页签的后端：本地宿主在 `/im` 挂载它的群聊（`apps/local-host/src/im-server.ts`），库是 Home 里的 `server/server.sqlite`；这是在用、还会迭代的功能（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」）。`apps/server` 是同一份实现的本地可部署启动器；所有业务读写调用现有 Action Host，不启动模型运行时。该决定要修的三处账目：库 `server/server.sqlite` 已登记进 Home 数据表（`docs/system/HOME-DATA.md` 3.4：必备份，`uninstall --purge-user-data` 清除 `server/`，普通卸载保留）；包的归类已改成业务包（`scripts/workspace-packages.mjs` 里记作 `module`，按 Module 规则检查，包括 `moduleRepositoryExports` 不许它的入口导出 Repository 或 Store）；还没做完的只剩宿主不再直接读它的表（`im-server.ts` 现在读 `mw_projects`、`mw_members`，W2-06） | `partial` | `specs/archive/molis-work-im/spec.md` | Module：@yijunw0212 |
 | `modules/automation` | Trigger、Rule、Automation Run 与产生的 Action Request | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 
@@ -125,7 +123,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 
 | 目标 package | 产品能力 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
-| `plugins/native/goals` | Goals 内置插件的产品 UI：每个项目都带，拥有 Goal 的事实 | 当前事件意图、约定、报告、树决定，以及事件与 Journal 组成的历史；目录直接读当前状态；Workbench 注册并组合 UI，不另算完成 | `partial` | GW/DD/EX/Cutover；事件工作流收敛 | 内置插件：@yijunw0212 |
+| `plugins/native/goals` | Goals 内置插件的产品 UI：每个项目都带，拥有 Goal 的事实；Goal 与 Governance 两个存储模块的代码在本包的 `src/module/`、`src/governance/`（原 `modules/goals`、`modules/governance-collaboration`，S9-3） | 当前事件意图、约定、报告、树决定，以及事件与 Journal 组成的历史；目录直接读当前状态；Workbench 注册并组合 UI，不另算完成 | `partial` | GW/DD/EX/Cutover；事件工作流收敛 | 内置插件：@yijunw0212 |
 | `plugins/native/artifacts` | Artifacts 一级入口、浏览、嵌入和文档导入（2026-10-18 改：成果库是平台事实，不是插件；代码迁走前仍按插件装配，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行） | 正式版本列表、正文快照、详情与本地导出；Notion、飞书/Lark、Google Docs 和 Markdown/TXT/HTML 显式导入；Goal 上下文嵌入精确版本 | `partial` | AR3 已完成迁移验收；文档导入不含全空间迁移、自动同步或附件复制；真实账号联调待验 | 内置插件：@yijunw0212 |
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料 | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md`；`specs/archive/feed-inbox-pages-loop/validation.md` | 内置插件：@yijunw0212 |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停 | `partial` | `specs/archive/schedule-conversation-tasks/spec.md` | 内置插件：@yijunw0212 |

@@ -24,7 +24,8 @@ export class ImagesService {
 
   constructor(private readonly options: ImagesServiceOptions) {
     this.store = new ImagesStore({ get: (sql, values) => options.database.get(sql, values), all: (sql, values) => options.database.all(sql, values),
-      run: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); } });
+      run: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); },
+      savepoint: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); } });
   }
 
   /** Jobs a stopped process left running are interrupted; this is the plugin's own database and needs no file grant. */

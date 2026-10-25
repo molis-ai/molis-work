@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule } from "./fixtures/goals-modules.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ import Database from "better-sqlite3";
 
 import {
   GoalsModule,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 import { createGoalsApplication } from "@molis-ai/molis-work-plugin-goals";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";

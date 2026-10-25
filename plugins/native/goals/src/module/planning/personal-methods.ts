@@ -1,14 +1,6 @@
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsSqliteDatabase } from "../repository.js";
-import Database from "better-sqlite3";
 import { normalizePlanningMethodPack } from "./method-packs.js";
-
-/** The App supplies a location; only the owner opens and reads its stored facts. */
-export function readPersonalPlanningMethods(databasePath: string): PlanningMethodPack[] {
-  const db = new Database(databasePath, { readonly: true, fileMustExist: true });
-  try { return new PersonalPlanningMethods(db).list(); }
-  finally { db.close(); }
-}
 
 /** The host calls this inside its existing catalog creation/upgrade transaction. */
 export function createPersonalPlanningMethodSchema(db: { exec(sql: string): unknown }): void {

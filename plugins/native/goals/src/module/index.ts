@@ -34,32 +34,6 @@ import { GoalEventFactsRepository } from "./event-facts-repository.js";
 import { GoalEventStateRepository } from "./event-state-repository.js";
 import { GoalsRepository, type GoalsJournal, type GoalsSqliteDatabase } from "./repository.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-goals",
-  packagePath: "modules/goals",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/goals",
-  migrationGoals: [
-    "goal-reorg-f2",
-    "goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8",
-    "goal-reorg-gw1",
-    "goal-reorg-gw2",
-    "goal-reorg-gw3",
-    "goal-reorg-gw4",
-  ],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "goals.command.v1",
-    "goals.repository.v1",
-    "goals.lifecycle.v1",
-    "goals.planning.v1",
-    "goals.query.v1",
-  ],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export interface GoalsModuleHooks {
   validateRelationGraph?(projectId: string, input: AddGoalRelationInput): GoalRelationGraphIssue | null;
 }
@@ -205,7 +179,7 @@ export type {
 } from "@molis-ai/molis-work-contracts/modules/goals";
 export type { GoalsJournal, GoalsSqliteDatabase } from "./repository.js";
 export { GoalInputBindings } from "./input-bindings.js";
-export { createPersonalPlanningMethodSchema, PersonalPlanningMethods, readPersonalPlanningMethods } from "./planning/personal-methods.js";
+export { createPersonalPlanningMethodSchema, PersonalPlanningMethods } from "./planning/personal-methods.js";
 
 /** Read-only Module assembly; callers do not construct Goals repositories. */
 export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJournal): {

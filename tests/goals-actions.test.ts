@@ -13,7 +13,7 @@ import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { DEFAULT_GOAL_POLICY, BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
+import { DEFAULT_GOAL_POLICY, BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";

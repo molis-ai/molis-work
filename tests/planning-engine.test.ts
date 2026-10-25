@@ -1,5 +1,5 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule } from "./fixtures/goals-modules.js";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import Database from "better-sqlite3";
@@ -14,13 +14,13 @@ import {
   normalizePlanningMethodPack,
   resolvePlanningMethodPacks,
   type PlanningMethodPackInput,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 import {
   analyzeGoalChangeImpact,
   planningMetrics,
   projectPlanningRelations,
   validatePlanningGraph,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 
 import { readPersonalPlanningMethodPacks } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";

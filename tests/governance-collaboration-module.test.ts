@@ -4,12 +4,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import * as governanceExports from "@molis-ai/molis-work-module-governance-collaboration";
+import { governanceModuleExports as governanceExports } from "./fixtures/goals-modules.js";
 
 import {
   GovernanceCollaborationModule,
   deriveGoalTreeProposalState,
-} from "@molis-ai/molis-work-module-governance-collaboration";
+} from "./fixtures/goals-modules.js";
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";

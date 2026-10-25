@@ -1,5 +1,5 @@
 import type { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { governanceSqlite, type GovernanceSqliteDatabase } from "@molis-ai/molis-work-module-governance-collaboration";
+import { governanceSqlite, type GovernanceSqliteDatabase } from "@molis-ai/molis-work-plugin-goals/governance";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { pluginStatementGuard } from "@molis-ai/molis-work-plugin-runtime";
 

@@ -11,7 +11,7 @@ import {
 } from "@molis-ai/molis-work-module-context-ledger";
 import {
   createGoalReadServices,
-} from "@molis-ai/molis-work-module-goals";
+} from "@molis-ai/molis-work-plugin-goals/module";
 
 import {
   AttentionModule,

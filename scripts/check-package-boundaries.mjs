@@ -355,7 +355,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const coordinatorPath = "apps/local-host/src/goal-project-application.ts";
   const coordinator = read(coordinatorPath);
-  if (!coordinator.includes('from "@molis-ai/molis-work-module-goals"')) {
+  if (!coordinator.includes('from "@molis-ai/molis-work-plugin-goals/module"')) {
     errors.push(`${coordinatorPath}: Goal application composition must use the Goals Module public entrypoint`);
   }
 
@@ -396,27 +396,27 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
 
   const requiredOwnerFiles = [
-    "modules/goals/src/goal-commands.ts",
-    "modules/goals/src/guidance-commands.ts",
-    "modules/goals/src/lifecycle-archive.ts",
-    "modules/goals/src/lifecycle-commands.ts",
-    "modules/goals/src/planning/engine.ts",
-    "modules/goals/src/planning/goal-graph.ts",
-    "modules/goals/src/planning/method-catalog.ts",
-    "modules/goals/src/planning/method-packs.ts",
-    "modules/goals/src/query.ts",
-    "modules/goals/src/repository.ts",
+    "plugins/native/goals/src/module/goal-commands.ts",
+    "plugins/native/goals/src/module/guidance-commands.ts",
+    "plugins/native/goals/src/module/lifecycle-archive.ts",
+    "plugins/native/goals/src/module/lifecycle-commands.ts",
+    "plugins/native/goals/src/module/planning/engine.ts",
+    "plugins/native/goals/src/module/planning/goal-graph.ts",
+    "plugins/native/goals/src/module/planning/method-catalog.ts",
+    "plugins/native/goals/src/module/planning/method-packs.ts",
+    "plugins/native/goals/src/module/query.ts",
+    "plugins/native/goals/src/module/repository.ts",
     "packages/contracts/src/modules/goals.ts",
     "plugins/native/goals/src/goal-query-application.ts",
   ];
   for (const relativePath of [
-    "modules/goals/src/risk-commands.ts",
-    "modules/goals/src/lifecycle-completion.ts",
-    "modules/goals/src/lifecycle-reasons.ts",
-    "modules/goals/src/lifecycle-revalidation.ts",
-    "modules/goals/src/lifecycle-revisions.ts",
-    "modules/goals/src/planning/decomposition-coverage.ts",
-    "modules/goals/src/planning/decomposition-validation.ts",
+    "plugins/native/goals/src/module/risk-commands.ts",
+    "plugins/native/goals/src/module/lifecycle-completion.ts",
+    "plugins/native/goals/src/module/lifecycle-reasons.ts",
+    "plugins/native/goals/src/module/lifecycle-revalidation.ts",
+    "plugins/native/goals/src/module/lifecycle-revisions.ts",
+    "plugins/native/goals/src/module/planning/decomposition-coverage.ts",
+    "plugins/native/goals/src/module/planning/decomposition-validation.ts",
   ]) {
     if (fs.existsSync(path.join(repositoryRoot, relativePath))) {
       errors.push(`${relativePath}: retired Goals write owner must stay deleted`);
@@ -427,28 +427,28 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${relativePath}: missing Goals command owner boundary`);
     }
   }
-  const moduleManifest = readJson(path.join(repositoryRoot, "modules/goals/package.json"));
+  const moduleManifest = readJson(path.join(repositoryRoot, "plugins/native/goals/package.json"));
   if (moduleManifest["molis-work"]?.maturity !== "partial") {
-    errors.push("modules/goals/package.json: migrated Goal commands require partial maturity");
+    errors.push("plugins/native/goals/package.json: migrated Goal commands require partial maturity");
   }
   if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.lifecycle.v1")) {
-    errors.push("modules/goals/package.json: GW2 requires goals.lifecycle.v1 capability");
+    errors.push("plugins/native/goals/package.json: GW2 requires goals.lifecycle.v1 capability");
   }
   if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.planning.v1")) {
-    errors.push("modules/goals/package.json: GW3 requires goals.planning.v1 capability");
+    errors.push("plugins/native/goals/package.json: GW3 requires goals.planning.v1 capability");
   }
   if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.query.v1")) {
-    errors.push("modules/goals/package.json: Goals Query requires goals.query.v1 capability");
+    errors.push("plugins/native/goals/package.json: Goals Query requires goals.query.v1 capability");
   }
   if (!moduleManifest.files?.includes("methods")) {
-    errors.push("modules/goals/package.json: Planning method assets must ship with the Goals package");
+    errors.push("plugins/native/goals/package.json: Planning method assets must ship with the Goals package");
   }
   const planningMethodAssets = filesUnder(
-    path.join(repositoryRoot, "modules/goals/methods"),
+    path.join(repositoryRoot, "plugins/native/goals/methods"),
     (filePath) => path.extname(filePath) === ".md",
   );
   if (planningMethodAssets.length !== 37) {
-    errors.push(`modules/goals/methods: expected 37 owned Planning method assets, found ${planningMethodAssets.length}`);
+    errors.push(`plugins/native/goals/methods: expected 37 owned Planning method assets, found ${planningMethodAssets.length}`);
   }
   const legacyPlanningMethodAssets = filesUnder(
     path.join(repositoryRoot, "skills/goal-advance/methods"),
@@ -459,7 +459,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
   const homeInstaller = read("apps/local-host/src/installer/home-release.ts");
   if (
-    !homeInstaller.includes('"molis-work-module-goals"')
+    !homeInstaller.includes('"molis-work-plugin-goals"')
     || !homeInstaller.includes("skillMethodsDirectory")
     || !homeInstaller.includes("fs.symlink(")
   ) {
@@ -519,7 +519,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
 
   const planningTest = read("tests/planning-engine.test.ts");
-  if (!planningTest.includes('from "@molis-ai/molis-work-module-goals"')) {
+  if (!planningTest.includes('from "./fixtures/goals-modules.js"')) {
     errors.push("tests/planning-engine.test.ts: Planning behavior must be tested through the Goals public API");
   }
 
@@ -546,7 +546,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
 
   const queryTest = read("tests/goals-query-module.test.ts");
   if (
-    !queryTest.includes('from "@molis-ai/molis-work-module-goals"')
+    !queryTest.includes('from "./fixtures/goals-modules.js"')
     || !queryTest.includes("goals.query.readGoal")
     || !queryTest.includes("goals.query.snapshot")
   ) {
@@ -593,7 +593,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     if (/GoalsApplicationApi|create(?:Workbench|Mcp|Cli)GoalsAdapter/u.test(app)) {
       errors.push(`${relativePath}: retired direct Goals application adapters must stay removed`);
     }
-    if (/molis-work-module-goals|\b(?:SqliteMolisWorkStore|GoalsRepository|MolisWorkCoordinator)\b/u.test(app)) {
+    if (/molis-work-module-goals|molis-work-plugin-goals\/(?:module|governance)|\b(?:SqliteMolisWorkStore|GoalsRepository|MolisWorkCoordinator)\b/u.test(app)) {
       errors.push(`${relativePath}: App composition must not own Goal business implementations`);
     }
   }
@@ -647,7 +647,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     }
   }
 
-  for (const relativePath of filesUnder(path.join(repositoryRoot, "modules/goals/src"), (filePath) =>
+  for (const relativePath of filesUnder(path.join(repositoryRoot, "plugins/native/goals/src/module"), (filePath) =>
     SOURCE_EXTENSIONS.has(path.extname(filePath)))) {
     const source = fs.readFileSync(relativePath, "utf8");
     const lineCount = source.split(/\r?\n/u).length;
@@ -668,11 +668,11 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const requiredOwnerFiles = [
     "packages/contracts/src/modules/governance-collaboration.ts",
-    "modules/governance-collaboration/src/index.ts",
-    "modules/governance-collaboration/src/repository.ts",
-    "modules/governance-collaboration/src/record-store.ts",
-    "modules/governance-collaboration/src/goal-tree-records.ts",
-    "modules/governance-collaboration/src/state-machine.ts",
+    "plugins/native/goals/src/governance/index.ts",
+    "plugins/native/goals/src/governance/repository.ts",
+    "plugins/native/goals/src/governance/record-store.ts",
+    "plugins/native/goals/src/governance/goal-tree-records.ts",
+    "plugins/native/goals/src/governance/state-machine.ts",
     "tests/governance-collaboration-module.test.ts",
   ];
   for (const relativePath of requiredOwnerFiles) {
@@ -680,22 +680,22 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
       errors.push(`${relativePath}: missing Governance owner boundary`);
     }
   }
-  if (fs.existsSync(path.join(repositoryRoot, "modules/governance-collaboration/src/review-lifecycle.ts"))) {
-    errors.push("modules/governance-collaboration/src/review-lifecycle.ts: retired review write owner must stay deleted");
+  if (fs.existsSync(path.join(repositoryRoot, "plugins/native/goals/src/governance/review-lifecycle.ts"))) {
+    errors.push("plugins/native/goals/src/governance/review-lifecycle.ts: retired review write owner must stay deleted");
   }
 
-  const manifest = readJson(path.join(repositoryRoot, "modules/governance-collaboration/package.json"));
+  const manifest = readJson(path.join(repositoryRoot, "plugins/native/goals/package.json"));
   const requiredCapabilities = [
     "governance.proposals.v1",
     "governance.decisions.v1",
     "governance.event-decisions.v1",
   ];
   if (manifest["molis-work"]?.maturity !== "partial") {
-    errors.push("modules/governance-collaboration/package.json: EX3 requires partial maturity");
+    errors.push("plugins/native/goals/package.json: EX3 requires partial maturity");
   }
   for (const capability of requiredCapabilities) {
     if (!manifest["molis-work"]?.capabilities?.includes(capability)) {
-      errors.push(`modules/governance-collaboration/package.json: missing ${capability}`);
+      errors.push(`plugins/native/goals/package.json: missing ${capability}`);
     }
   }
 
@@ -716,7 +716,7 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
   const coordinatorPath = "apps/local-host/src/goal-project-application.ts";
   const coordinator = read(coordinatorPath);
   if (
-    !coordinator.includes('from "@molis-ai/molis-work-module-governance-collaboration"')
+    !coordinator.includes('from "@molis-ai/molis-work-plugin-goals/governance"')
     || !coordinator.includes("readonly governance: GovernanceApplicationApi")
     || !coordinator.includes("records: governanceModule.records")
   ) {
@@ -739,7 +739,7 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
   }
 
   for (const filePath of filesUnder(
-    path.join(repositoryRoot, "modules/governance-collaboration/src"),
+    path.join(repositoryRoot, "plugins/native/goals/src/governance"),
     (candidate) => SOURCE_EXTENSIONS.has(path.extname(candidate)),
   )) {
     const lineCount = fs.readFileSync(filePath, "utf8").split(/\r?\n/u).length;
@@ -862,7 +862,7 @@ function checkExecutionValidationOwnership(repositoryRoot) {
       errors.push(`${appPath}: retired ${factory} public adapter must stay deleted`);
     }
     if (
-      app.includes("@molis-ai/molis-work-module-governance-collaboration")
+      app.includes("@molis-ai/molis-work-plugin-goals/governance")
       || /\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/iu.test(app)
       || /\b(?:SqliteMolisWorkStore|MolisWorkCoordinator)\b/u.test(app)
     ) {

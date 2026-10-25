@@ -52,8 +52,6 @@ apps/mcp/                    平台 MCP schema、协议、项目工具分发；�
 packages/ui-host/            UI Contribution registry、surface render 与 Slot mount 校验
 packages/design-system/      AP3 主题偏好、浏览器视觉基础与分层样式
 plugins/native/feed/         FD4 Feed/Attention/Source UI 和 HTTP route table
-modules/goals/               当前事件、约定/要求、完成状态、图/规划、指导与历史读取
-modules/governance-collaboration/
                              当前用户决定、有限结构提案、来源与历史事实
 tooling/plugin-cli/          Plugin CLI 边界；真实开发工具由 DV3 实现
 scripts/workspace-packages.mjs
@@ -179,8 +177,8 @@ pnpm package:npm
 单独检查某个 package 时使用其正式名称，例如：
 
 ```bash
-pnpm --filter @molis-ai/molis-work-module-goals typecheck
-pnpm --filter @molis-ai/molis-work-module-goals build
+pnpm --filter @molis-ai/molis-work-plugin-goals typecheck
+pnpm --filter @molis-ai/molis-work-plugin-goals build
 pnpm --filter @molis-ai/molis-work-plugin-runtime typecheck
 pnpm --filter @molis-ai/molis-work-integration-github typecheck
 ```

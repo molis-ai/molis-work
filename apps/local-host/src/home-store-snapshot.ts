@@ -1,6 +1,7 @@
 import { join, relative } from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { listPluginProjectDatabases } from "@molis-ai/molis-work-plugin-runtime";
+import { verifyPrologueNodeStorageContents } from "@molis-ai/molis-work-service-agent-host";
 import { inspectSealedSecretsSnapshot, LocalCatalogMetadata, readSnapshotFile, type HomeStore, type HomeStoreRegistry, type SqliteSnapshotMetadata, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
 import { ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE } from "./alchemist-search.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "./project-catalog-contract.js";
@@ -31,7 +32,8 @@ export interface HomeStoreSnapshotPolicy {
   readonly emptyOnly?: boolean;
   readonly entry?: (home: string, relativePath: string) => SnapshotDisposition;
   readonly database?: (relativePath: string) => SqliteSnapshotOptions | undefined;
-  readonly requiredKeys?: (files: readonly string[]) => readonly string[];
+  /** Inspect final private payloads using only their original Home dependencies and the same offline owner. */
+  readonly inspect?: (dataRoot: string, keyRoot: string, paths: readonly string[], control: { readonly signal?: AbortSignal; assertCurrent(): void }) => Promise<void>;
   readonly validateFile?: (home: string, relativePath: string) => Promise<SnapshotKeyDependency | undefined>;
   readonly capture?: (home: string) => ConnectorPrivateStateSnapshot;
 }
@@ -78,7 +80,7 @@ function sdkEntry(file: string): SnapshotDisposition {
 
 export const agentSnapshot: HomeStoreSnapshotPolicy = {
   entry: (_home, file) => sdkEntry(file),
-  requiredKeys: files => files.some(file => /^(?:records|checkpoints)\//u.test(file)) ? ["storage.key"] : [],
+  inspect: (storageRoot, keyRoot, _paths, control) => verifyPrologueNodeStorageContents({ storageRoot, keyRoot, ...control }),
 };
 
 export const builderSnapshot: HomeStoreSnapshotPolicy = {
@@ -87,10 +89,13 @@ export const builderSnapshot: HomeStoreSnapshotPolicy = {
     if (run) return sdkEntry(run[1]!);
     return /(?:^|\/)(?:node_modules|\.cache)(?:\/|$)/u.test(file) ? excluded("Rebuildable build dependencies/cache") : { kind: "keep" };
   },
-  requiredKeys: files => [...new Set(files.flatMap(file => {
-    const found = /^([^/]+\/runs\/[^/]+)\/(?:records|checkpoints)\//u.exec(file);
-    return found ? [found[1] + "/storage.key"] : [];
-  }))],
+  inspect: async (dataRoot, keyRoot, paths, control) => {
+    const runs = new Set(paths.flatMap(path => {
+      const found = /^([^/]+\/runs\/[^/]+)(?:\/|$)/u.exec(path);
+      return found ? [found[1]!] : [];
+    }));
+    for (const run of runs) await verifyPrologueNodeStorageContents({ storageRoot: join(dataRoot, run), keyRoot: join(keyRoot, run), ...control });
+  },
 };
 
 export const feedSnapshot: HomeStoreSnapshotPolicy = {

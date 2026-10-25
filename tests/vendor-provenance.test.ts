@@ -204,21 +204,24 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-retry-waiting.tgz";
+  const current = "prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the one agent-host depends on, packed from a named commit of upstream main without a patch", () => {
+  test("the current Prologue package is the accepted fixed local verification candidate on the consumed upstream base without a patch", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // vendor/prologue-sdk/README.md: upstream main's merge of PR #60 (a model call that waits to retry says so: retry-waiting, with the retry time and why), on top of #59 (internal exports narrowed), #58 (runtime admission and shutdown boundaries hardened), #53 (an answered ask-user result names its question under answered; BL-176), #57, #56, #55, #54, #52, #51, #50, #49, #48, #47, #46, #45, #44, #43 and #42. PA-MCP-02.
-    assert.equal(provenance.source.commit, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");
-    assert.equal(provenance.source.mergedUpstream.pullRequest, 60);
+    // C2-SDK-INSPECT is the one accepted local commit on the actual retry-waiting base; do not invent an upstream merge.
+    assert.equal(provenance.source.commit, "42ccc75ae85b138f73e65f81b789ffecdbb05ce3");
+    assert.equal(provenance.source.base, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");
+    assert.equal(provenance.source.localOnly, true);
+    assert.equal(provenance.source.mergedUpstream, undefined);
     assert.equal(provenance.source.inFlight, undefined);
-    assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, provenance.source.commit);
+    assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, provenance.source.base);
+    assert.equal(provenance.artifact.sha256, "349ad8987683472d219ef6dffd49d3e98f77dfaf8b95cc5b5b5b42eaeaf77a1c");
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
   });
@@ -229,12 +232,12 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 26 deleted patches and the 31 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 32 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 31);
-    // The 31st is the attachment-order package this one replaced.
-    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-attachment-order.tgz");
+    assert.equal(record.packagesWithoutPatch.length, 32);
+    // The 32nd is the exact retry-waiting archive this controlled candidate replaced.
+    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-retry-waiting.tgz");
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
     assert.deepEqual(kinds, { "upstream-commit": 8, "uncommitted-worktree": 17, "molis-repo": 1 });

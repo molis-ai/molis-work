@@ -68,7 +68,7 @@ test("S-12 RAC-104-S-04: actual SDK cipher authentication covers every page, kin
       try { await assertSnapshotRefused(f); } finally { await writeFile(file, bytes); await rm(f.snapshot, { recursive: true, force: true }); }
     });
     const before = await snapshotBusinessFingerprint(f.home), records = await lstat(join(f.root, "records"));
-    const originalWrite = fs.writeSync; let probed = false;
+    const originalWrite = fs.writeSync, originalRename = fs.renameSync; let probed = false, probedAfterInspection = false;
     const peer = `import{acquireStorageOwner}from'@molis-ai/molis-work-storage';try{const owner=acquireStorageOwner(process.argv[1]);owner.release();process.stdout.write(JSON.stringify({acquired:true}));}catch(error){process.stdout.write(JSON.stringify({code:error.code}));}`;
     const mocked = t.mock.method(fs, "writeSync", (...args: unknown[]): number => {
       if (!probed) {
@@ -78,10 +78,19 @@ test("S-12 RAC-104-S-04: actual SDK cipher authentication covers every page, kin
       }
       return Reflect.apply(originalWrite, fs, args);
     });
+    const publication = t.mock.method(fs, "renameSync", (...args: unknown[]): void => {
+      if (args[1] === f.snapshot) {
+        probedAfterInspection = true;
+        const held = spawnSync(process.execPath, ["--input-type=module", "--eval", peer, join(f.home, "agent-runtime")], { env: process.env, encoding: "utf8", timeout: 15_000 });
+        assert.equal(held.status, 0, held.stderr); assert.deepEqual(JSON.parse(held.stdout), { code: "storage.owner.busy" });
+      }
+      return Reflect.apply(originalRename, fs, args);
+    });
     syncBuiltinESMExports();
     try { assert.equal((await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot })).status, "created"); }
-    finally { mocked.mock.restore(); syncBuiltinESMExports(); }
-    assert.equal(probed, true, "the original Home lease remains exclusive after SDK inspection and into the actual payload write");
+    finally { mocked.mock.restore(); publication.mock.restore(); syncBuiltinESMExports(); }
+    assert.equal(probed, true, "the original Home lease remains exclusive during actual payload writes");
+    assert.equal(probedAfterInspection, true, "the same Home lease remains exclusive after SDK inspection and into actual publication");
     assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
     assert.equal((await lstat(join(f.root, "records"))).ino, records.ino);
     assert.equal(existsSync(join(f.root, "leases")), false, "inspection never recreates a missing disposable leases directory");
@@ -117,5 +126,32 @@ test("S-12 RAC-104-S-04: metadata-only SDK data has no key dependency and does n
     assert.equal(dependencies.some((dependency: { location: string }) => dependency.location === "home:" + f.relative + "/storage.key"), false);
     assert.deepEqual((await readdir(join(f.snapshot, "data", f.relative, "records", "io.molis.snapshot~records"))).sort(),
       Array.from({ length: 1002 }, (_, index) => String(index).padStart(5, "0") + ".json"));
+  });
+});
+
+test("S-12 RAC-104-S-04: authentication inspects the actual private payload even while the original SDK ciphertext remains valid", { timeout: 60_000 }, async t => {
+  for (const partition of ["agent", "builder"] as const) await t.test(partition, async t => {
+    const f = await sdkHome(t, partition, true), originalOpen = fs.openSync, originalWrite = fs.writeSync;
+    let target: number | undefined, tampered = false;
+    const suffix = "/data/" + f.relative + "/records/io.molis.snapshot~records/00000.json";
+    const opening = t.mock.method(fs, "openSync", (...args: unknown[]): number => {
+      const descriptor = Reflect.apply(originalOpen, fs, args), path = String(args[0]);
+      if (path.includes("/.molis-home-snapshot-") && path.endsWith(suffix)) target = descriptor;
+      return descriptor;
+    });
+    const writing = t.mock.method(fs, "writeSync", (...args: unknown[]): number => {
+      if (!tampered && args[0] === target && Buffer.isBuffer(args[1]) && typeof args[2] === "number" && typeof args[3] === "number") {
+        const bytes = Buffer.from(args[1]), start = args[2], length = args[3];
+        const record = JSON.parse(bytes.subarray(start, start + length).toString("utf8")) as { secure: { tag: string } };
+        const tag = Buffer.from(record.secure.tag, "base64"); tag[0] = tag[0]! ^ 1; record.secure.tag = tag.toString("base64");
+        const altered = Buffer.from(JSON.stringify(record)); assert.equal(altered.length, length);
+        altered.copy(bytes, start); args[1] = bytes; tampered = true;
+      }
+      return Reflect.apply(originalWrite, fs, args);
+    });
+    syncBuiltinESMExports();
+    try { await assertSnapshotRefused(f); }
+    finally { opening.mock.restore(); writing.mock.restore(); syncBuiltinESMExports(); }
+    assert.equal(tampered, true, "only the staged ciphertext was changed, before the real owner inspection");
   });
 });

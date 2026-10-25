@@ -10,7 +10,9 @@
 
 输出使用 0700 私有 sibling 暂存和 0600 文件，manifest 保存原 mode、版本、完整性、摘要和依赖。全部校验并刷盘后才发布到新目录，既有目标不覆盖。普通失败或 SIGINT/SIGTERM 清理本次未发布暂存；强制杀进程可能留下 `.molis-home-snapshot-*`。确认对应进程已退出、位置确为本次目标父目录且未发布后，才可删除该残留并重试。报告“已发布，持久化未确认”时保留报告中的目标，核验 manifest 和 payload，不要当作零产物覆盖。
 
-W5-16 仍在实施：当前 SDK 缺零源写的公开密文认证端口，尚不能交付为可恢复快照；完整 `home restore`、统一发布/回滚和重启续写也未完成。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。现行范围和证据见 [W5-16 slice](../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+SDK 密文由原 SDK reader 使用原 Home 的 key 验证全部记录种类和分页，合法空正文与保留密文的墓碑也验证；纯元数据或普通检查点不会要求或生成 key。受管 CLI 恢复仍要求原安装身份及原路径上的实际程序，命令不联网重装或创建替代安装。
+
+完整 `home restore`、统一发布/回滚与重启续写仍在 W5-16 后续，尚缺 Memory owner 的归档重开资格与合法空态受控恢复契约；本快照片不把它们标完成。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。现行范围和证据见 [W5-16 slice](../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
 
 ## 安装代码的开发边界
 

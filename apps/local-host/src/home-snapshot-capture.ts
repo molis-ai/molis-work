@@ -19,10 +19,9 @@ function dependencies() {
   }, all: () => [...items.values()].sort((a, b) => a.location.localeCompare(b.location)) };
 }
 
-function assertRequiredKeys(inventory: SnapshotStoreInventory): void {
+function assertRetainedKey(inventory: SnapshotStoreInventory): void {
   const paths = inventory.files.map(file => file.relative), retained = inventory.store.snapshot.retained;
-  const required = [...inventory.store.snapshot.requiredKeys?.(paths) ?? [],
-    ...retained && paths.some(file => file.startsWith(retained.content.directory + "/")) ? [retained.content.dependency] : []];
+  const required = retained && paths.some(file => file.startsWith(retained.content.directory + "/")) ? [retained.content.dependency] : [];
   for (const path of required) if (!inventory.files.some(file => file.relative === path && file.disposition.kind === "key")) {
     throw homeSnapshotErrors.key_unavailable(`缺少同 Home 原密钥，不会生成替代值: ${inventory.store.path}/${path}`);
   }
@@ -31,7 +30,7 @@ function assertRequiredKeys(inventory: SnapshotStoreInventory): void {
 export async function captureSnapshotStore(home: string, stage: string, inventory: SnapshotStoreInventory, control: CaptureControl): Promise<HomeSnapshotStoreManifest> {
   const base = { path: inventory.store.path, owner: inventory.store.owner, state: inventory.state, exclusions: inventory.exclusions };
   if (inventory.state !== "captured") return { ...base, entries: [], dependencies: [] };
-  assertRequiredKeys(inventory);
+  assertRetainedKey(inventory);
   const keys = dependencies(), entries: HomeSnapshotStoreManifest["entries"][number][] = [];
   for (const directory of inventory.directories) {
     const path = sourcePath(inventory, directory);
@@ -73,5 +72,8 @@ export async function captureSnapshotStore(home: string, stage: string, inventor
     control.assertCurrent(); control.signal?.throwIfAborted();
     entries.push({ kind: entry.disposition.kind === "sealed" ? "sealed" : "file", path, payload_path: payloadPath, ...captured, ...(binding ? { binding } : {}) });
   }
+  await inventory.store.snapshot.inspect?.(join(stage, "data", inventory.store.path), join(home, inventory.store.path),
+    [...inventory.directories, ...inventory.files].map(entry => entry.relative), control);
+  control.assertCurrent(); control.signal?.throwIfAborted();
   return { ...base, entries, dependencies: keys.all(), ...(ownerPayload ? { owner_payload: ownerPayload } : {}) };
 }

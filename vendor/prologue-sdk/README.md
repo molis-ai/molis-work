@@ -4,16 +4,26 @@
 
 目录里现在有这些东西：
 
-- 当前包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
+- 当前包 `prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 31 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
+- `patch-history.json`：已删除的 26 份历史补丁和 32 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
 另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
 
-## 当前依赖：retry-waiting（2026-10-23）
+## 当前依赖：node-storage-verification（2026-10-24）
 
-当前包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz`（1,249,614 字节），SHA-256 `ac44cf9fd079f3444523285798ac0d6d2dc1ed1e5b07f05870887db66b4df419`。来源为上游 main `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`，即 [Prologue #60](https://github.com/molis-ai/molis-prologue/pull/60) 的合并（head `84a6884f`），当时的 main 头；无补丁、dirty 为 false。上游仓库此后改名为 `molis-ai/molis-prologue`（原 `molis-ai/prologue`，旧地址会跳转；下面较早的小节里的旧链接保留原样）。上游按这个提交给的源码归档（GitHub tarball）解到两个各自独立的空目录，各自装依赖、构建、打包，两份逐字节相同。版本号仍是 `0.0.0-rc.1`，只换上游提交，不算发版。
+当前包 `prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz`（1,252,963 字节），SHA-256 `349ad8987683472d219ef6dffd49d3e98f77dfaf8b95cc5b5b5b42eaeaf77a1c`。来源为本地上游仓库固定代码提交 `42ccc75ae85b138f73e65f81b789ffecdbb05ce3`，唯一 parent 是上一份实际消费的 `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`；源树干净、无补丁，不声称该本地提交已推送或合入上游 main。最终文档头 `a0e8a76e70bfc49103b3a0abdb1400181f504725` 只补 slice 文字，`packages/sdk` 全部字节相同。Root/流水线接受固定候选后由原 C2 writer 串行消费，没有采用整个 SDK #102 或 Molis Memory #1101。
+
+公开 Node 门面增加 `verifyNodeStorageContents({storageRoot,keyRoot,assertCurrent,signal?}): Promise<void>`。它仅认证已有 SDK 数据的全部 kind/分页、合法空正文与保留密文墓碑；原 AES-GCM reader 共用，不启动 Runtime/模型、不写 key/leases/claims、不输出正文或 key。数据根与原 key 根可以不同；无 sealed 数据不读 key，也不声称 key 已认证。所有错误均拒绝，含非法记录 id 的 `STORAGE_KEY_INVALID`。普通 NodeStorage 复用抽出的同一 reader，原读写合同保持。
+
+C2 对准确包再核 708→712 文件：五项改变（README、Node 门面与 NodeStorage 的 JS/d.ts）、四项新增（reader 与 verification 的 JS/d.ts），其余 703 项与 package.json 逐字节相同。SDK 固定源与空目录安装消费者经独立 REVIEW/TEST 通过，覆盖 1002 条跨页、多 kind、双 root、错误/缺 key/坏 tag、纯元数据/检查点、取消/同步当前性及两根字节/mode/inode/mtime/ctime 不变，无 Runtime/模型。C2 没有再次构建 SDK；应用自身的快照原红例与回归另在 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md) 结算，上游通过不能代替本应用通过。
+
+源码交付是准确 commit 的 git archive（16,106,940 字节，SHA-256 `2044a91e265f0f81c5a84f970e3d36b6a3493de5325e381275a0951d0f388adc`），归档和工具要求/重建命令记在 `.provenance.json`。按固定 source 在空目录离线安装，再构建 `@prologue/sdk` 并 `pnpm pack`；候选只改归档文件名，采用时字节不变。旧 retry-waiting 包及来源记录已移除，按 `patch-history.json` 的 git blob 取回。
+
+## 上一份：retry-waiting（2026-10-23）
+
+上一份包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz`（1,249,614 字节），SHA-256 `ac44cf9fd079f3444523285798ac0d6d2dc1ed1e5b07f05870887db66b4df419`。来源为上游 main `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`，即 [Prologue #60](https://github.com/molis-ai/molis-prologue/pull/60) 的合并（head `84a6884f`），当时的 main 头；无补丁、dirty 为 false。上游仓库此后改名为 `molis-ai/molis-prologue`（原 `molis-ai/prologue`，旧地址会跳转；下面较早的小节里的旧链接保留原样）。上游按这个提交给的源码归档（GitHub tarball）解到两个各自独立的空目录，各自装依赖、构建、打包，两份逐字节相同。版本号仍是 `0.0.0-rc.1`，只换上游提交，不算发版。
 
 比上一份（attachment-order，`753dbae8`）多四项，前一份里被点名“不在里面”的 #53 这次带进来了：
 
@@ -391,7 +401,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：31 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `packagesWithoutPatch`：32 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
 - `upstream`：41 个 Prologue 提交于 2026-10-23 对 main `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`（上游仓库已改名 `molis-ai/molis-prologue`）逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
 
 怎么取回并核对：

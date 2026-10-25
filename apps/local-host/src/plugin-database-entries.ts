@@ -1,7 +1,7 @@
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { InstalledLibraryOwner } from "./installed-plugin-libraries.js";
 import type { PluginPlatformHome } from "./home-side.js";
-import { assertProjectRowsEntries, projectRowsStatements, sandboxRefusal } from "./plugin-project-rows.js";
+import { assertProjectRowsEntries, sandboxRefusal } from "./plugin-project-rows.js";
 
 /** A plugin on the Host's start list; the library in the Home it is given, if any, is the one its Manifest declares (`databases.home`). */
 interface PluginDatabaseEntry {
@@ -26,7 +26,7 @@ export const PLUGIN_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
  * remove are the ones the plugin writes.
  */
 export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], home: PluginPlatformHome | null, scope: "home" | "project"): void {
-  assertProjectRowsEntries(entries);
+  assertProjectRowsEntries(entries, scope);
   const taken = new Set<string>();
   for (const { definition } of entries) {
     const database = definition.manifest.databases?.home;
@@ -75,12 +75,14 @@ export function homeLibraryFor(definition: PluginDefinition, given: HomePluginDa
   if (declared === undefined) return undefined;
   if (given !== undefined) return { declaration: given };
   if (declared.project_rows && definition.execution === "sandbox") throw sandboxRefusal(definition);
+  if (declared.project_rows) {
+    throw pluginErrors.declaration_invalid(`插件 ${id} 声明了 project_rows：启动名单之外的 Home 库还不能由平台按项目删（BL-620）`);
+  }
   if (definition.execution === "sandbox") {
     throw pluginErrors.declaration_invalid(`沙箱插件 ${id} 声明了 Home 库 ${declared.store_name}，沙箱里的代码拿不到宿主进程里的库`);
   }
   if (record === null || record.plugin_id !== id) {
     throw pluginErrors.declaration_invalid(`插件 ${id} 声明了 Home 库 ${declared.store_name}，但没有它的安装记录：库的发布者取自安装记录`);
   }
-  projectRowsStatements(declared, id);
   return { declaration: declared, installed: { plugin_id: record.plugin_id, publisher_signature: record.publisher_signature } };
 }

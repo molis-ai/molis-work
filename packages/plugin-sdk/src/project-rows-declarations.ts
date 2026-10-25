@@ -17,8 +17,8 @@ export function projectRowsProblems(path: string, value: unknown, schema: unknow
   const problems: string[] = [];
   const unknown = Object.keys(value).filter(field => !FIELDS.has(field));
   if (unknown.length > 0) problems.push(`${path} 不认这些字段：${unknown.join("、")}`);
-  if (typeof value.label !== "string" || value.label.trim().length === 0 || value.label.length > LABEL_LIMIT) {
-    problems.push(`${path}.label 必须是不超过 ${LABEL_LIMIT} 字的非空文字`);
+  if (typeof value.label !== "string" || value.label.trim().length === 0 || value.label.length > LABEL_LIMIT || /[\p{Cc}\u2028\u2029]/u.test(value.label)) {
+    problems.push(`${path}.label 必须是不超过 ${LABEL_LIMIT} 字的非空单行文字（不含控制字符或 Unicode 换行）`);
   }
   if (value.order !== undefined && (typeof value.order !== "number" || !Number.isSafeInteger(value.order))) problems.push(`${path}.order 必须是整数`);
   if (!Array.isArray(value.tables) || value.tables.length === 0) return [...problems, `${path}.tables 至少要写一张表`];

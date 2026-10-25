@@ -48,7 +48,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
   ```ts
   project_rows?: {
-    readonly label: string;   // 确认框里说什么跟着项目走（中文原文，显示时翻译）
+    readonly label: string;   // 确认框里的单行说明；随宿主发布的词条显示时翻译
     readonly order?: number;  // 在各主人里的先后，照旧
     readonly tables: readonly (
       | { readonly table: string; readonly column: string }                                   // WHERE <column> = 项目
@@ -61,8 +61,9 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 - SDK 的数据库声明检查（`packages/plugin-sdk/src/database-declarations.ts`）认它：标识符是 `^[a-z_][a-z0-9_]*$`；`tables` 非空；表名都在 `schema` 基线里建过；`parent` 指向排在它后面的一行；与 `partition: "project"` 互斥。平台启动时用同一个检查。
 - 平台的删除（`project-deleted-owners.ts`）对每个声明了 `project_rows` 的库，用平台自己的连接在一个事务里按顺序跑 `DELETE`；库还没建就什么也不做（今天 `clearInExistingHomeSqlite` 的语义）。SQL 由平台按声明拼，标识符只来自通过检查的声明，值只经参数。
 - **只删声明它的插件自己那份库**（统筹 10-24 必改 a）：连接由平台按这个插件的库路径打开（与 `services.database` 给它的是同一个文件），不 `ATTACH` 别的库；表名不许带库限定（`main.`、`temp.` 或任何 `<库>.`），SDK 检查与平台启动都拒绝；声明里的表必须在这个插件自己的 `schema` 基线里，别的插件的表名即便同名也不认。
-- **沙箱插件的 Home 库**（BL-490，#1255 在修；必改 b）：#1255 落地前，沙箱插件的 Manifest 声明 `project_rows` 在安装时被拒（明确的错误码，带测试），不静默跳过；#1255 落地后照同样的声明删，拒绝那一条随之改成删除用例（谁后合谁改）。
-- **`label` 是不可信文本**（必改 c）：对装上的插件，确认框里一律转义显示；只有翻译表里已有的词条才翻译，别的原样显示。随宿主发布的插件的词条照旧进翻译表。
+- **沙箱插件的 Home 库**（BL-619，依赖 #1255 / BL-490；必改 b）：今天声明 `project_rows` 在启动前以 `plugin.declaration_invalid` 明确拒绝，不静默跳过；#1255 合入不自动解除这条拒绝。未来 BL-619 改成照声明删之前，必须复用 #1255 的 PLIB-03 schema 预检（`inspectPluginProjectSchema`），逐句拒绝非建表/索引语句，早于 `projectRowsStatements` / `describeSqliteBaseline` 在宿主内存 SQLite 中 `exec` schema；不能先执行再检查，也不另写 checker。完成预检和按声明删除后，才把拒绝用例改成删除用例。
+- **启动名单以外的两个未支持入口**（修复17）：项目平台启动名单中带 Home 库的插件、经安装账本启动的 Home 插件，声明 `project_rows` 均在任何 schema 执行、插件库或账本准备及插件代码执行前以 `plugin.declaration_invalid` 拒绝。Home 启动名单内已有支持路径保留；本片不实现 BL-620 的账本项目清除。沙箱仍按 BL-619 拒绝。
+- **`label` 是不可信文本**（必改 c）：SDK 要求非空、至多 200 字的一行，沿用 S-32 的拒绝集合：控制字符（Unicode `Cc`）和 U+2028、U+2029；保留其他合法 Unicode 与原有长度口径，不另加字符白名单。装上的插件的 detail 不查翻译，放进「{name} 的项目数据：{detail}」模板后由确认框以 `textContent` 显示；随宿主发布的插件的词条照旧翻译。
 - **实例运行中持有写连接时**（必改 c）：先经运行中实例的主人替换那一段（`plugin-project-cleanup.ts`：运行中的 Home 实例替换声明主人，先停这个项目的作业再删），删除仍由平台按声明在平台自己的连接上跑，连接设 `busy_timeout`，与实例的写事务排队而不是报错；超时就让这一步在回执里留作待重试（与今天 `purge` 抛错时的回执语义相同）。开工时核实现状再定落在哪一段，写进 PR。
 - 删之前取消这个项目在后台作业服务里受理的执行（§4 m）。今天只有 Images 有作业，它的取消是 Runtime 回调（`onProjectDeleted`，PG-106）。本片**不动** Images 的作业：Images 的项目数据还有文件（`owner_files`），文件按声明删要等 PG-104 的文件服务合成一份。所以 Images 留在今天的路上，开 BL-615 跟 PG-104、PG-106。
 - 7 个插件（dataset、form、lingguang、pages、ppt、todo、workflows）的 `project-data.ts` 删掉，改成 Manifest 里的声明；登记上的 `project_data` 字段只剩 Images 用。
@@ -75,8 +76,10 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 | --- | --- | --- |
 | RAC-560 | 7 个插件声明 `project_rows` 后，删项目删掉的行与改之前 `purge` 删的完全相同：每个库造两个项目的数据，删一个，另一个原样（逐表逐行比） | 新测试，非浏览器 |
 | RAC-561 | SDK 检查拒绝：不合法的标识符、空 `tables`、`schema` 里没有的表、带库限定的表名、声明的表属于别的插件的库、悬空或顺序错的 `parent`、与 `partition: "project"` 同写；平台启动对同样的声明拒绝；删除只打开声明者自己的库文件 | SDK 单测、平台单测 |
-| RAC-562 | 删项目时不执行任何插件代码：一个声明了 `project_rows`、包里另带 `purge` 函数的夹具插件，`purge` 一次也没被调；装上的（非随宿主发布）插件声明同样被平台删；沙箱插件声明 `project_rows` 在 #1255 前被明确拒绝 | 新测试（S-暂A） |
-| RAC-563 | 确认框列出的主人与顺序与改之前相同（label、order）；装上的插件的 `label` 带 HTML 时转义显示、不是已知词条时不翻译；实例运行中持有写事务时，删除排队后完成（或超时留作待重试），不丢、不报坏库 | 现有删除确认用例的断言不变，加两条新测试 |
+| RAC-562 | 删项目时不执行任何插件代码；Home 启动名单内非随宿主发布的夹具照声明删。沙箱声明 `project_rows` 明确拒绝（BL-619）；项目平台的 Home 库声明与 Home Runtime 中不在启动名单、经安装账本启动的声明，也明确拒绝。后两项分别调用真实 `platform.start`、Home `runtime.install/start`，断言错误码、未运行、schema 未执行、未建插件库/账本及无插件业务副作用，不只调共同 helper | `tests/project-rows-deletion.test.ts`（S-暂A；正式 SI 行与编号由 Claude batch-37 载体统一入库） |
+| RAC-563 | 确认框主人、顺序、翻译与 HTML 文字显示不变；经真实外部插件安装声明路径拒绝空白、CR/LF、控制字符、U+2028/U+2029 与超过 200 字的标签，合法 Unicode（含组合字符与 emoji）及 200 字边界仍接受；实例写事务排队后删除，超时仍留待重试 | `tests/project-rows-deletion.test.ts`，保留现有确认与写锁断言 |
+
+修复17验证：固定父 `5be32d0f03265e029b419bf6c3d0920e6a17e866` 上保留新增拒绝测试的修前红原件，修后整体 `pnpm build`，运行上述直接回归及 SDK / Host README 的必跑文件；`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check`。公共机器槽位、隔离 Home 与专用测试浏览器；不跑全量，最终组成树由 Claude 统一验证。只改声明校验与两处启动边界，不改清除 SQL、数据形状、权限、动作、版本门禁、BL-620 或沙箱支持；不增加公共 API。
 
 **碰的文件**：`packages/contracts/src/platform/plugin-database.ts`、`plugin-registration.ts`（`project_data` 的说明）、`modules/projects.ts`（`ProjectDataDeclaration` 只剩 Images 与模块用）、SDK `database-declarations.ts`、7 个插件的 `manifest.ts`、`database.ts`、删 `project-data.ts`、`registration.ts` 去 `project_data`；`apps/local-host/src/project-deleted-owners.ts`、`plugin-project-cleanup.ts`；`tooling/gates/api/`。`builtin-plugins.ts` 生成结果不变。
 

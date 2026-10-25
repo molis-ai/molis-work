@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -12,7 +12,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { describeSqliteSchema, homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, homeSqlitePath, homeStoreRegistry, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
@@ -133,9 +133,9 @@ test("RAC-561 the platform deletes only from the declaring plugin's own library,
   assert.ok(marks(home, datasetLibrary.store_name, ["pa"]).datasets!.pa! > 0, "the other plugin's library is untouched");
 });
 
-function rowsProbe(label = ROWS.label) {
+function rowsProbe(label = ROWS.label, id = "io.molis.work.example.rowsprobe") {
   const calls: string[] = [];
-  const definition: PluginDefinition = { manifest: manifest({ ...LIBRARY, project_rows: { ...ROWS, label } }),
+  const definition: PluginDefinition = { manifest: manifest({ ...LIBRARY, project_rows: { ...ROWS, label } }, id),
     async start() { calls.push("start"); return { kind: "app", views: [], actions: [] }; },
     async stop() { calls.push("stop"); } };
   return { definition, calls, id: definition.manifest.plugin_id };
@@ -161,24 +161,86 @@ test("RAC-562 S-暂A a plugin the Host did not ship has its declared rows go wit
   assert.deepEqual(marks(f.home, LIBRARY.store_name, ["pa", "pb"]), { items: { pa: 0, pb: 1 }, notes: { pa: 0, pb: 1 } });
 });
 
-test("RAC-562 BL-619 a sandboxed plugin that declares project_rows is refused when it starts, not skipped", async t => {
-  const home = withHome(t), sandboxed: PluginDefinition = { ...rowsProbe().definition, execution: "sandbox" };
-  const file = join(mkdtempSync(join(tmpdir(), "project-rows-board-")), "board.db");
-  t.after(() => rmSync(join(file, ".."), { recursive: true, force: true }));
+function projectPlatform(t: TestContext, home: string, stores = homeStores()) {
+  const directory = mkdtempSync(join(tmpdir(), "project-rows-board-")), file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  t.after(() => store.close());
   const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
-    home: { directory: home, completeText: () => undefined, stores: homeStores() } });
+    home: { directory: home, completeText: () => undefined, stores } });
+  t.after(async () => {
+    try {
+      for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);
+      await platform.closeCoordination();
+    } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+  });
+  return platform;
+}
+
+test("RAC-562 BL-620 the project platform refuses project_rows in a Home library before schema, installs or plugin effects", async t => {
+  const home = withHome(t), probe = rowsProbe(), other = rowsProbe(ROWS.label, "io.molis.work.example.otherrows");
+  const stores = homeStoreRegistry([...homeStores().stores, { path: LIBRARY.store_name, owner: probe.id, library: { baseline: LIBRARY } }]);
+  const platform = projectPlatform(t, home, stores), schema = t.mock.method(DatabaseSync.prototype, "exec");
+  const withoutLibrary: PluginDefinition = { ...other.definition, manifest: { ...other.definition.manifest, databases: undefined } };
+  await assert.rejects(platform.start([{ definition: withoutLibrary }, { definition: probe.definition }]), { code: "plugin.declaration_invalid" });
+  assert.deepEqual(platform.runtime.list(), [], "the whole start list is refused before installing any entry");
+  assert.deepEqual([...probe.calls, ...other.calls], [], "no plugin started or performed business effects");
+  assert.equal(schema.mock.calls.filter(call => call.arguments[0] === LIBRARY.schema).length, 0, "not even the scratch SQLite executes the schema");
+  assert.equal(existsSync(join(home, LIBRARY.store_name)), false, "no plugin library was made");
+  assert.equal(existsSync(join(home, "plugin-libraries")), false, "no library ledger was made");
+});
+
+test("RAC-562 BL-620 an installed Home plugin outside the start list is refused before schema, library ledger or plugin effects", async t => {
+  const f = await serveHomeRuntime(t), platform = await f.host.homePlugins!.ready(), probe = rowsProbe();
+  assert.equal(f.host.homePlugins!.installation(probe.id), null, "this definition is absent from the Home start list");
+  assert.equal(existsSync(join(f.home, "plugin-libraries")), false);
+  const schema = t.mock.method(DatabaseSync.prototype, "exec");
+  const installId = platform.runtime.install({ definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.install_id;
+  await assert.rejects(platform.runtime.start(installId), /启动失败/u);
+  assert.equal(platform.runtime.get(installId).last_error_code, "plugin.declaration_invalid");
+  assert.notEqual(platform.runtime.get(installId).state, "running");
+  assert.deepEqual(probe.calls, [], "the installed plugin's start and business effects never ran");
+  assert.equal(schema.mock.calls.filter(call => call.arguments[0] === LIBRARY.schema).length, 0, "the installed declaration never reaches schema exec");
+  assert.equal(existsSync(join(f.home, LIBRARY.store_name)), false);
+  assert.equal(existsSync(join(f.home, "plugin-libraries")), false);
+});
+
+test("RAC-562 BL-619 a sandboxed plugin that declares project_rows is refused when it starts, not skipped", async t => {
+  const home = withHome(t), sandboxed: PluginDefinition = { ...rowsProbe().definition, execution: "sandbox" };
+  const platform = projectPlatform(t, home), schema = t.mock.method(DatabaseSync.prototype, "exec");
   const installId = platform.runtime.install({ definition: sandboxed, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.install_id;
-  // Until #1255 a sandboxed plugin is given no library of the Home at all, so this pins only that declaring project_rows never lets it
-  // start; when sandboxed libraries land, BL-619 turns the refusal into a deletion and this test into one that deletes.
+  // #1255 alone does not lift this refusal. BL-619 must reuse its PLIB-03 preflight before even a scratch SQLite executes the schema.
   await assert.rejects(platform.runtime.start(installId));
   assert.equal(platform.runtime.get(installId).last_error_code, "plugin.declaration_invalid");
   assert.notEqual(platform.runtime.get(installId).state, "running");
+  assert.equal(schema.mock.calls.filter(call => call.arguments[0] === LIBRARY.schema).length, 0);
+});
+
+test("RAC-563 external Runtime installation refuses project_rows labels with whitespace, controls or Unicode line breaks", async t => {
+  const f = await serveHomeRuntime(t), platform = await f.host.homePlugins!.ready();
+  const before = platform.runtime.list();
+  const labels = ["", " \u3000 ", "first\nsecond", "first\rsecond", "tab\tlabel", "nul\u0000label", "escape\u001blabel", "del\u007flabel",
+    "next\u0085line", "control\u009flabel", "line\u2028break", "paragraph\u2029break", "中".repeat(201)];
+  for (const label of labels) {
+    const probe = rowsProbe(label);
+    assert.throws(() => platform.runtime.install({ definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }),
+      { code: "plugin.manifest_invalid", message: /project_rows.label/u }, JSON.stringify(label));
+    assert.deepEqual(probe.calls, []);
+  }
+  assert.deepEqual(platform.runtime.list(), before, "refused declarations create no installation record");
+  assert.equal(existsSync(join(f.home, LIBRARY.store_name)), false);
+  assert.equal(existsSync(join(f.home, "plugin-libraries")), false);
+});
+
+test("RAC-563 external Runtime installation keeps legal Unicode labels and the existing 200-character boundary", async t => {
+  const f = await serveHomeRuntime(t), platform = await f.host.homePlugins!.ready();
+  for (const [index, label] of ["清单 café e\u0301 👨‍👩‍👧‍👦 العربية", "中".repeat(200)].entries()) {
+    const probe = rowsProbe(label, `io.molis.work.example.rowslabel${index}`);
+    assert.equal(parsePluginManifest(probe.definition.manifest).databases!.home!.project_rows!.label, label);
+    assert.equal(platform.runtime.install({ definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.state, "installed");
+  }
 });
 
 test("RAC-563 the label of a plugin the Host did not ship is shown as written beside its name, in either language, never translated", async t => {

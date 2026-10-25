@@ -12,7 +12,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。
 - `entrypoints[]`：`deployment: "local" | "server"` + `entrypoint` 路径。一等插件常用 `./index.js`。
 - `kind`：`native` | `app` | `integration`。选贡献形态，不是信任等级。
-- `always_on`（schema 2）：常开插件，每个项目都开着、不进插件列表与市场、不能移除。只有随宿主发布的内置插件能声明；插件包、开发目录和创作台的产物带 `always_on: true` 会在安装时被拒（`plugin.declaration_invalid`），升级到带它的版本也被拒。外部插件不写它。（2026-10-18 改：「只许内置声明」是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；代码改完之前仍按上文，外部插件仍不要写。）
+- `always_on`（schema 2）：常开插件，每个项目都开着、不进插件列表与市场，服务端拒绝把它从项目移除、停用、卸载。它生不生效看同意账本里有没有一行有效同意（见下文「装的时候用户会被问哪些声明」），不看插件从哪来：随宿主发布的插件由宿主代为同意，其他插件要本人同意，本人撤回后它就是普通插件。声明本身不会被安装拒绝，写了没人同意就不生效，所以别让插件的基本功能依赖「一定常开」。外部装的常开插件现在只有卸载拒绝，进项目成员列表随安装服务（ac-trust T2）。
 
 ## 版本升级
 
@@ -45,6 +45,24 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 `capabilities.provides` 是契约 id，不是别的插件包名。不带 `@` 时版本按 1：`functions.evaluate` 对得上 requires 里的 version 1；`functions.evaluate.v1` 是另一个 id。`consumes` 写不带版本的 id。Kernel 里任意满足者都可以。必需项没有提供者、依赖成环、或依赖的插件被挡住，才不激活。
 
 经 `context.services.actions.invoke` 调的动作，必须列在 `capabilities.consumes` 里；它可以是宿主的，也可以是别的插件的（用户 2026-10-14 定）。宿主以插件受众、本插件自己的授权去调，提供方固定为项目目录里唯一的那一个；没列出的是 `actions.forbidden`，缺授权的是 `plugin.grant_denied`，目录里没有或不止一个提供方的是 `actions.dependency_missing` / `actions.provider_ambiguous`。只对 `user` 开放、声明了 `plugin: false` 或不可撤销的动作，插件受众够不到。要像工作流那样替原调用者调目录里的动作、不事先列出，声明权限 `actions:delegate` 用 `services.actions.directory`（写法与限制见 `host.md` 的「动作目录委托」，S-43）。
+
+## 装的时候用户会被问哪些声明
+
+Manifest 里有三类声明会改变插件在别处的效果，安装预览把它们单列，用户逐项同意或拒绝：
+
+| 声明 | 用户同意的是 | 拒绝后 |
+| --- | --- | --- |
+| `always_on: true` | 每个项目都开、删不掉 | 它是普通插件 |
+| `ports.inputs[].default_source` | 「端口 X 默认读取某插件的某输出口」，每条一项，带来源插件当时的发布者签名 | 不绑，输入口等人自己连 |
+| `ports.input_groups[].default` | 默认用这一组输入 | 不默认 |
+
+写的时候记住：
+
+- 随宿主发布的插件（监督器条目 `trust: HOST_BUILD_TRUST`）由宿主代为同意，不弹窗；其他等级（发布者已固定的包、没有发布者的创作台产物）必须显式同意，没有「全部允许」。
+- 拒绝一项不阻止安装，所以被拒时插件仍要能用：别把核心流程建立在默认连线或常开上，输入口要能手动连。
+- 同意是账本里的一行，带同意时的 Manifest 摘要和发布者签名。新版本多一条默认连线就是新的一项，要新的同意；`publisher.signature` 变了是新身份，旧同意不继承；来源插件换了发布者，默认连线的同意对不上，不绑。
+- 本人随时可以撤回，各等级一样（包括 `host` 等级的），撤回立即生效，之后宿主也不再为随它发布的插件代为同意。同意与撤回只有本人能做：agent、MCP、工作流、别的插件都调不到。
+- 预览显示的是声明本身（端口名、来源插件名），不是你另写的说明，所以端口名和插件 `name` 要让人看得懂。
 
 ## 个人 vs 项目
 

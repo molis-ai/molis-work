@@ -9,7 +9,7 @@ import type { StoredProjectDeletion } from "@molis-ai/molis-work-module-projects
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult, ProjectDeletionRecord as MolisWorkProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import { managedProjectDirectory } from "./project-file-paths.js";
 import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
-import { decodeProjectDeletionRecovery, type ProjectDeletionRecovery } from "./project-deletion-recovery.js";
+import { decodeProjectDeletionRecovery, type ProjectDeletionRecovery, type ProjectDeletionMemoryProof } from "./project-deletion-recovery.js";
 export interface ProjectDeletionCleanupPorts {
   removeBindings(projectId: string, actorId: string, at: string): number;
   removePanels(projectId: string): void;
@@ -46,8 +46,9 @@ export class ManagedProjectDeletion {
     if (!(await fs.stat(directory)).isDirectory()) throw catalogErrors.project_storage_invalid("项目目录不完整，不能接受删除计划");
     const deletionId = `project-deletion-${randomUUID()}`;
     // Nothing has been accepted or removed if the trusted owners cannot freeze a complete plan.
-    return this.owners.withRecovery({ project_id: projectId, operation_id: deletionId }, async plan => {
+    return this.owners.withRecovery({ project_id: projectId, operation_id: deletionId }, async (plan, proof) => {
       const deletion = await this.commit(() => this.projects.lifecycle.transaction(() => {
+        proof.assertCurrent();
         if (this.projects.lifecycle.findDeletion(actorId, idempotencyKey) || this.projects.lifecycle.pendingDeletions(projectId).length)
           throw catalogErrors.deletion_idempotency_conflict("项目删除请求已经接受，请继续原收据");
         const now = new Date().toISOString();
@@ -63,7 +64,7 @@ export class ManagedProjectDeletion {
         return record;
       }));
       // Share this initial cleanup with sweep/retry callers too; the hold already covers the committed plan.
-      const run = this.runHeldCleanup(deletion, plan).finally(() => { this.finishing.delete(deletion.deletion_id); });
+      const run = this.runHeldCleanup(deletion, plan, proof).finally(() => { this.finishing.delete(deletion.deletion_id); });
       this.finishing.set(deletion.deletion_id, run);
       return { deletion: await run, replayed: false };
     });
@@ -82,12 +83,17 @@ export class ManagedProjectDeletion {
   }
 
   private async runCleanup(record: StoredProjectDeletion): Promise<MolisWorkProjectDeletionRecord> {
-    if (record.cleanup_state === "complete") return this.projects.lifecycle.deletionRecord(record);
+    if (record.cleanup_state === "complete") {
+      const plan = decodeProjectDeletionRecovery(record.recovery_plan, record.project_id, record.deletion_id);
+      return this.owners.withRecovery({ project_id: record.project_id, operation_id: record.deletion_id, original: plan }, async (_saved, proof) => {
+        await proof.verifyMemory(); proof.assertCurrent();
+        return this.projects.lifecycle.deletionRecord(record);
+      });
+    }
     try {
       const plan = decodeProjectDeletionRecovery(record.recovery_plan, record.project_id, record.deletion_id);
-      const memory_complete = this.projects.lifecycle.deletionSteps(record.deletion_id).some(step => step.owner_id === "memory" && step.state === "complete");
-      return await this.owners.withRecovery({ project_id: record.project_id, operation_id: record.deletion_id, original: plan, memory_complete },
-        saved => this.runHeldCleanup(record, saved));
+      return await this.owners.withRecovery({ project_id: record.project_id, operation_id: record.deletion_id, original: plan },
+        (saved, proof) => this.runHeldCleanup(record, saved, proof));
     } catch (error) { return this.pending(record, error instanceof Error ? error.message : String(error)); }
   }
 
@@ -96,19 +102,27 @@ export class ManagedProjectDeletion {
       { state: "pending", error, cleaned_at: null })));
   }
 
-  private async runHeldCleanup(record: StoredProjectDeletion, plan: ProjectDeletionRecovery): Promise<MolisWorkProjectDeletionRecord> {
+  private async runHeldCleanup(record: StoredProjectDeletion, plan: ProjectDeletionRecovery, proof: ProjectDeletionMemoryProof): Promise<MolisWorkProjectDeletionRecord> {
     const steps = this.projects.lifecycle.deletionSteps(record.deletion_id);
     if (!steps.some(step => step.owner_id === "memory")) return this.pending(record, "原收据没有 Memory 清理主人，保留待核对");
     const problems: string[] = [];
     // One concrete prerequisite, not a dependency graph: every Memory and Session must be cleared before business copies.
     const ordered = [...steps.filter(step => step.owner_id === "memory"), ...steps.filter(step => step.owner_id !== "memory")];
     for (const step of ordered) {
+      if (step.owner_id === "memory" && step.state === "complete") {
+        try { await proof.verifyMemory(); proof.assertCurrent(); }
+        catch (error) { return this.pending(record, error instanceof Error ? error.message : String(error)); }
+        continue;
+      }
       if (step.state !== "pending") continue;
       try {
         if (!await this.owners.clear(step.owner_id, record.project_id,
           { deletion_id: record.deletion_id, project_id: record.project_id, recovery: plan })) {
           problems.push(`${step.owner_id}：${step.error ?? "这一步要由有这项数据的 Molis Work 入口完成"}`);
-        } else await this.commit(() => this.projects.lifecycle.updateDeletionStep(record.deletion_id, step.owner_id, { state: "complete", error: null }));
+        } else {
+          if (step.owner_id === "memory") await proof.verifyMemory();
+          await this.commit(() => { proof.assertCurrent(); return this.projects.lifecycle.updateDeletionStep(record.deletion_id, step.owner_id, { state: "complete", error: null }); });
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         problems.push(`${step.owner_id}：${message}`);
@@ -118,6 +132,7 @@ export class ManagedProjectDeletion {
     }
     if (problems.length) return this.pending(record, problems.join("；"));
     try {
+      await proof.verifyMemory(); proof.assertCurrent();
       const source = path.join(this.projectsDirectory, record.project_id);
       try { await fs.rename(source, record.staged_directory); }
       catch (error) {
@@ -127,6 +142,7 @@ export class ManagedProjectDeletion {
       }
       // The original row and installation bindings stay available until all owners above have succeeded.
       await this.commit(() => this.projects.lifecycle.transaction(() => {
+        proof.assertCurrent();
         const now = new Date().toISOString();
         const removed = this.cleanup.removeBindings(record.project_id, record.actor_id, now)
           + this.projects.lifecycle.removeWorkspaceMembershipsForProject(record.project_id);
@@ -136,8 +152,10 @@ export class ManagedProjectDeletion {
           { state: "pending", error: null, cleaned_at: null, add_binding_count: removed });
       }));
       await fs.rm(record.staged_directory, { recursive: true, force: true });
-      record = await this.commit(() => this.projects.lifecycle.updateDeletionCleanup(record.deletion_id,
-        { state: "complete", error: null, cleaned_at: new Date().toISOString() }));
+      record = await this.commit(() => {
+        proof.assertCurrent();
+        return this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, { state: "complete", error: null, cleaned_at: new Date().toISOString() });
+      }, proof.verifyMemory);
       return this.projects.lifecycle.deletionRecord(record);
     } catch (error) { return this.pending(record, error instanceof Error ? error.message : String(error)); }
   }

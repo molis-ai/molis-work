@@ -114,6 +114,8 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 `AgentMemoryCapability.previewPurge` 是当前管理 caller 的在线无正文删除预览，平台只转换字段，不开放插件 Action。返回 canonical 身份、所见版本、状态、Session 绑定与候选已记录来源；`sources: null` 不表示无来源。调用方累计每页 completed、无 issues 且最终 exhausted，并在跨页及执行期间持有原写屏障；partial、cancelled、错误或游标不前进都不能证明为空。单 `session_ref` 为 canonical 精确筛选，不以 evidence 引用代替。此接口不接离线维护权限，也不改变现 Memory Action schema/version。
 
+`AgentMemoryCapability.verifyPurgeCoverage` 仅为内部 App owner coverage 桥：输入原 operation 与可信关系的 known_scopes，输出 covered/needs-reconcile、有限 issues、cursor/exhausted，不返回全 Home owner 清单或正文，不授予删除权限。必须装配独立 inspection 授权和同步最终检查，不能以普通本人管理或空请求代替；项目清除的同份目标 scopes、固定计划和 Catalog 完成证明归 LocalHost。无新增插件 Action、HTTP 或 Memory Action schema/version。
+
 `ActionCallContext.runtime_memory` 只由 Host 绑定原 Run 的插件、场景与分类限制，和 `runtime_session_id` 一起传递；不接受业务输入，不授予 Action 权限，不持久化第二份策略。
 
 

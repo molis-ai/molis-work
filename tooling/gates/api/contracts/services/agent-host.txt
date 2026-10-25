@@ -536,6 +536,7 @@ export interface AgentMemoryCapability {
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
     page(input: AgentMemoryPageQuery): Promise<AgentMemoryPage>;
     previewPurge(input: AgentMemoryPurgeQuery): Promise<AgentMemoryPurgePage>;
+    verifyPurgeCoverage(input: AgentMemoryPurgeCoverageQuery): Promise<AgentMemoryPurgeCoveragePage>;
     write(input: {
         scope: AgentMemoryEntry["scope"];
         owner: string;
@@ -925,6 +926,26 @@ export interface AgentMemoryPromotionRequest extends AgentMemoryPromotionIdentit
             expected_version: number;
         };
     };
+    signal?: AbortSignal;
+}
+
+export interface AgentMemoryPurgeCoveragePage {
+    status: "covered" | "needs-reconcile";
+    issues: readonly {
+        code: string;
+    }[];
+    exhausted: boolean;
+    cursor?: string;
+}
+
+export interface AgentMemoryPurgeCoverageQuery {
+    operation_id: string;
+    known_scopes: readonly {
+        scope: AgentMemoryEntry["scope"];
+        owner: string;
+    }[];
+    limit?: number;
+    cursor?: string;
     signal?: AbortSignal;
 }
 

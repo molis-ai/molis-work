@@ -8,7 +8,9 @@ import type { AgentMemoryCaller, AgentMemoryMeta } from "@molis-ai/molis-work-co
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MemoryService, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, characterOwner, defaultPrefs } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { LocalSqliteStorage, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
@@ -380,6 +382,12 @@ test("only the real deletion hook clears a missing project, keeping unrelated sc
   const { projectDeletedHooksFor } = await import("@molis-ai/molis-work-app-local-host");
   const f = await fixture(t), original = await f.save("clear-original");
   const other = await f.bound({ ...person, project_id: "b" }).write({ scope: "project", owner: "b", text: "Other project", origin: "person", meta, operation_id: "other-project" });
+  // This hook now consumes persisted owner facts, just as Catalog's production path does.
+  f.ledger.setMarker(person.actor_id, "strategy-adoption", { origin: "new-home" }, new Date().toISOString());
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home }); t.after(() => catalog.close());
+  for (const project_id of ["a", "b"]) f.ledger.noteOwner({ scope: "project", owner: project_id, project_id, title: project_id });
+  const storage = new LocalSqliteStorage(join(f.home, "projects", "catalog.db")); t.after(() => storage.close());
+  const projects = new ProjectsModule({ db: storage.db, plugins: { has: () => false, companions: () => [] } });
   const hooks = projectDeletedHooksFor(f.home);
   let release!: () => void, entered!: () => void, first = true, armed = false;
   const gate = new Promise<void>(done => { release = done; }), pending = new Promise<void>(done => { entered = done; });
@@ -394,6 +402,10 @@ test("only the real deletion hook clears a missing project, keeping unrelated sc
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", "off");
   const clearing = hooks.withRecovery({ project_id: "a", operation_id: "confirmed-deletion" }, async recovery => {
     receipt = { deletion_id: "confirmed-deletion", project_id: "a", recovery };
+    projects.lifecycle.insertDeletion({ deletion_id: receipt.deletion_id, actor_id: person.actor_id, idempotency_key: receipt.deletion_id,
+      request_fingerprint: receipt.deletion_id, project_id: "a", display_name: "a", staged_directory: join(f.home, "staged-a"),
+      deleted_binding_count: 0, cleanup_state: "pending", cleanup_error: null, deleted_at: new Date().toISOString(), cleaned_at: null,
+      recovery_plan: JSON.stringify(recovery) });
     f.projects.delete("a"); armed = true;
     return hooks.clear("memory", "a", receipt);
   }); await pending;
@@ -402,12 +414,13 @@ test("only the real deletion hook clears a missing project, keeping unrelated sc
   assert.equal(deletion.deletingProject(), undefined, "the in-flight clear does not grant its scope to another invocation");
   await assert.rejects(f.bound(task).remove({ scope: "project", owner: "a", memory_id: original.memory_id, expected_version: original.version, operation_id: "task-delete" }));
   release(); assert.equal(await clearing, true);
+  projects.lifecycle.updateDeletionCleanup(receipt.deletion_id, { state: "complete", error: null, cleaned_at: new Date().toISOString() });
   assert.equal(deletion.deletingProject(), undefined);
   f.projects.add("a"); f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed");
   assert.deepEqual(await f.bound().list("project", "a"), []);
   const later = await f.save("after-original-preview");
   f.projects.delete("a");
-  await hooks.withRecovery({ project_id: "a", operation_id: receipt.deletion_id, original: receipt.recovery }, () => hooks.clear("memory", "a", receipt));
+  await assert.rejects(hooks.withRecovery({ project_id: "a", operation_id: receipt.deletion_id, original: receipt.recovery }, () => hooks.clear("memory", "a", receipt)), { code: "memory.conflict" });
   f.projects.add("a");
   assert.deepEqual((await f.bound().list("project", "a")).map(item => item.memory_id), [later.memory_id]);
   assert.deepEqual((await f.bound({ ...person, project_id: "b" }).list("project", "b")).map(item => item.memory_id), [other.memory_id]);
@@ -506,4 +519,19 @@ test("learning candidate management stays independent of task recall without gra
   assert.deepEqual((await f.bound().candidates.list("project", "a")).map(row => [row.candidate_id, row.version]).sort(),
     [[candidate.candidate_id, candidate.version], [privateCandidate.candidate_id, privateCandidate.version]].sort());
   assert.equal((await f.bound().list("project", "a")).length, 1, "permission probes never modify persistent values");
+});
+
+
+test("coverage inspection refuses a forged ordinary caller and rechecks after its final async authority", async t => {
+  const f = await fixture(t), input = { operation_id: "original-delete", known_scopes: [{ scope: "project" as const, owner: "a" }] };
+  await assert.rejects(f.bound().verifyPurgeCoverage(input));
+  f.owner.deletingProject = () => "a";
+  f.owner.deletingCoverage = (operation: string, scopes: readonly { scope: string; owner: string }[]) => operation === input.operation_id && scopes.length === 1 && scopes[0]?.scope === "project" && scopes[0].owner === "a";
+  const original = f.options.authorizePurgeInspection!; let calls = 0;
+  f.options.authorizePurgeInspection = async (caller: AgentMemoryCaller, request: Parameters<NonNullable<NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>["authorizePurgeInspection"]>>[1]) => {
+    const allowed = await original(caller, request);
+    if (++calls === 2) f.closeOwner();
+    return allowed;
+  };
+  await assert.rejects(f.bound().verifyPurgeCoverage(input)); assert.equal(calls, 2);
 });

@@ -315,3 +315,6 @@ MEM-40 采用现在通过同步 onOwned 在 SDK maintenance 打开前提交 adop
 Character 的一般Memory mutation对目标及before原件均要求当前ledger中的准确项目/subject关系，并核`characterOwner(project,subject)`；本人采用不需要伪报caller.character。新写/提案沿Memory原准备口先登记关系，authority回调只读、不猜历史归属。空角色范围可读取为空且不登记关系；明确项目删除仍只沿原固定计划许可。专项回归见 `tests/memory-runtime-policy.test.ts`、`tests/memory-character-proposal-owner.test.ts` 与 `tests/memory-owner-relations.test.ts`。
 
 `readMemoryOwnerCoverage` 仅供 Host 内部清除覆盖使用：同份关系派生 SDK knownScopes 与目标项目 scopes，合并当前 Catalog、全部保留删除原计划、ledger 身份及同一持久 Work 的项目/角色配对。旧 Round 没有原项目，不能与当前 Work 拼接猜归属。读取不补写映射、不授予 mutation，也不代表 SDK 或 Catalog 已确认 complete。
+
+
+项目删除的当前 Memory 证明沿原 hold/固定 recovery plan 传 verifyMemory 与 assertCurrent；业务清理前及最终 Catalog commit 前核验覆盖穷尽和目标空态。旧 complete 只读核验、不重写历史；旧 memory complete/absent 不免检，当前无 Runtime 且 ledger 仅 prefs 的同步空态每次提交重验。

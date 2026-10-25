@@ -276,3 +276,8 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 本片定向回归（构建后，单 worker）：node scripts/run-tests.mjs --jobs 1 tests/memory-selected-batch.test.ts tests/memory-service-cas.test.ts tests/memory-management-pages.test.ts tests/memory-management-page-http.test.ts tests/memory-actions.test.ts。浏览器独立槽运行 tests/memory-settings-pages.e2e.test.ts，覆盖分类筛选后的明确选择、预览确认、后来新增不入集、部分失败及完整关闭重开 Host 后沿原预览恢复。最终真实 Home、质量/token 对照与用户验收仍按原 P0 合同执行。
 
 项目删除的 Host 入口先经 AgentHost 固定可信 Session 集合，再以当前删除 authority 冻结 formal/candidate 的原 ref/version（包括墓碑）及无正文来源引用。SDK #101 的在线预览覆盖已结束 Session 隐藏的原件；已有 purge 状态不再被当作空，也不单凭该状态拒绝，必须取得当前 canonical 预览。`applyProjectMemoryPurge` 按 Catalog 原计划依次持久来源抑制、清原件及 ledger，成功后才允许 Session purge；每次 ledger 真写前同步检查当前 control，来源抑制不随范围 marker 收尾消失。Demo 重建只核当前原范围为空，不利用历史 complete 收据删除后写原件，空态证明由现 Memory owner 持有到 Catalog 同步提交。旧无计划与 MEM-40 停写采用仍分别验收。
+
+
+项目删除显式 scopes 来自 LocalHost 同份可信关系，与 coverage knownScopes 同源。持久计划保持原 ID/版本/operation；重试不重列或扩大。目标空态复核是只读证明，不生成新删除决定。
+
+原固定目标逐项完成后，applyProjectMemoryPurge 必须先调用 verifyScopeCleanup，证明当前目标无残留且归属 coverage 完整，再同步复核 control 并执行 forgetScopes。未知或遗漏原件会保留未选候选、历史与归属依据，也阻止后继 Session purge；已选目标不跨存储回滚。最终 Catalog 提交仍另验当前证明。

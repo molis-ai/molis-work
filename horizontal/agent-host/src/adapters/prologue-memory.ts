@@ -62,6 +62,10 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
           directory_traversal: page.cost.directoryTraversal, metadata_reads: page.cost.metadataReads, body_reads: page.cost.bodyReads,
         } };
       }),
+      verifyPurgeCoverage: input => call(bound => {
+        const { operation_id, known_scopes, ...page } = input;
+        return bound.verifyPurgeCoverage({ ...page, operationId: operation_id, knownScopes: known_scopes });
+      }, undefined, input.signal),
       previewPurge: input => call(async bound => purgePageView(await bound.previewPurge(purgeQuery(input))), undefined, input.signal),
       write: input => call(async bound => memoryView(await bound.memory.write({ scope: input.scope, owner: input.owner, text: input.text,
         origin: input.origin, idempotencyKey: input.operation_id, ...(input.signal ? { signal: input.signal } : {}),

@@ -14,11 +14,13 @@ export type ProjectDeletionRecovery = { version: 1; project_id: string; operatio
   { kind: "absent" } | { kind: "runtime"; sessions: ProjectSessionDeletionPlan; memory: ProjectMemoryPurgePlan });
 export interface ProjectDeletionPreparation {
   project_id: string; operation_id: string; original?: ProjectDeletionRecovery;
-  /** Catalog's persisted Memory owner step, never supplied by a request. */
-  memory_complete?: boolean;
+}
+export interface ProjectDeletionMemoryProof {
+  verifyMemory(): Promise<void>;
+  assertCurrent(): void;
 }
 export type WithProjectDeletionRecovery = <T>(input: ProjectDeletionPreparation,
-  work: (plan: ProjectDeletionRecovery) => Promise<T>) => Promise<T>;
+  work: (plan: ProjectDeletionRecovery, proof: ProjectDeletionMemoryProof) => Promise<T>) => Promise<T>;
 /** Catalog-decoded original facts, never a request flag or a reusable permission token. */
 export interface ProjectRecreation {
   project_id: string;

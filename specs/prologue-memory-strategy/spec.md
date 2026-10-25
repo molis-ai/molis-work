@@ -2910,3 +2910,11 @@ Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私�
 统筹原整体 build 后，新桥、SDK 采用、父 owner、App 采用及冷 Ledger 五文件 92 项通过，jobs2/browser1/retries0、零跳过；根 TypeScript、准确基础 `51a0c4ff96` health、boundary errors=[] 与 72 份 API 快照通过。日志 `/private/tmp/molis-memory-cold-bridge-aggregate-{build,direct,health,boundary,api,assets}-20261025.log`。资源仍仅原 Coding +1,333 B 待定，未放行。基础合入只有测试和记录，不机械重建未变化的生产。
 
 #1064 的 `3a2dea91e` Full suite 在 Cognia 390px 失败，Web 19/19 已通过；6 分片通过、9 分片取消，整套未通过。Cognia 修正 `51a0c4ff96` 经独立真实阅读恢复红绿与截图核验后已推送；新普通 CI `40201369931` 与 Full `40201390414` 正在执行。原日志 `/private/tmp/molis-memory-foundation-3a-full11-20261025.log` 及 `/private/tmp/molis-cognia-390-independent-{red-real,green}.log` 保留。仍待最终 CI、冷 Memory/Session/外层恢复组合、原单 Session 业务副本与最终实操/模型收益/用户验收；本记录不改变原范围或门禁。
+
+### MEM-40 Catalog 原资源关闭重试（2026-10-25，实施前）
+
+外层恢复装配复核发现：现 target.close 在实际 SQLite close 前就将 closed 置真；实际关闭失败后，下一次 close 会直接成功返回，仍未关闭的原连接无法重试。这违反既定“实际资源关闭成功后才能发布恢复完成、释放父 owner”。本刀只修原 Catalog target 的关闭控制：开始关闭即拒新恢复；同次关闭共享在途 Promise；等原 tail 后关闭同一连接，只有成功才记资源关闭，失败清除本次尝试，下一次明确 close 重试原连接。已完成的删除不重放，关闭不重新授权业务。
+
+允许原 `project-deletion-recovery-target.ts`、既有真实 target 回归、LocalHost README 与本 spec。先对准确 25c 聚合的真实 SQLite 连接 close 注入一次失败，验证旧第二次 close 假成功仍留连接；修后原连接确已关闭、两次尝试间与之后 restore 拒绝、无新增 Catalog 收据和目录写。无新框架、表、公开命令、门禁或时限；沿现 Home 资源生命周期装配，完整发布及 T0/T1/T2 后续验证不由本反例替代。
+
+实施结果：以准确 25c 原 build 复现第二次 close 未再触碰原连接（实际仅一次尝试），其余 17 项通过。修正后并发重试只关闭同一原连接一次，已关闭后的重复 close 不产生副作用，恢复入口继续拒绝。原整体 build、目标与源检查两文件回归、根 TypeScript、准确 25c health、boundary 和 72 份 API 快照通过；零自动重试或跳过。日志 `/private/tmp/molis-catalog-close-{red,green,build-final,health,boundary,api}-20261025.log`。构建前先纠正 pnpm 11 的缓存变量为 `pnpm_config_store_dir`，仍冻结离线依赖；初次缓存配置/沙箱错误保留在原日志，未改仓库配置或门禁。此结果只证明本资源关闭路径，父发布事务与完整恢复仍待组合。

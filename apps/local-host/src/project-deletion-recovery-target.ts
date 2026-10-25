@@ -141,13 +141,19 @@ export async function openProjectDeletionRecoveryTarget(input: ProjectDeletionRe
       } };
     const managed = assembleTarget(storage, projects, platform, options, check, projectIds);
     let tail: Promise<unknown> = Promise.resolve();
+    let storageClosed = false, closing: Promise<void> | undefined;
     return {
       restore(sourceDeletionId) {
         const task = tail.then(() => restoreSource(sourceDeletionId, sources, groups, projects, managed, check));
         tail = task.catch(() => undefined);
         return task;
       },
-      async close() { if (closed) return; closed = true; await tail; storage.close(); },
+      close() {
+        closed = true;
+        if (storageClosed) return Promise.resolve();
+        return closing ??= tail.then(() => { storage.close(); storageClosed = true; })
+          .finally(() => { closing = undefined; });
+      },
     };
   } catch (error) { storage.close(); throw error; }
 }

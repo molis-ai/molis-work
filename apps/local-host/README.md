@@ -333,6 +333,8 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 
 `openProjectDeletionRecoveryTarget` 是既有 `ManagedProjectDeletion` 的显式冷装配，不调用普通 Catalog.open 或启动 Runtime/Models/Search。完整同历史 T0/T1 与停写由外层维护持有；source 穷尽并成功 close 后，先核 target 收据是兼容子集，再把同项目全部 source→target 引用和共同处置依赖交 `recordTargets` 一次保存。首次才准备新 target 计划；已有 pending 续原计划与步骤，complete 仅由冷 Memory 的 `verification: "original"` / `verifyOriginal` 证明原选集，不清后继目录或分区。新决定的所需 owner 是来源与当前声明稳定并集，缺 owner 保持 pending。旧决定只核原 steps 完整覆盖同一 source 要求并沿原步骤恢复；后来新增的 owner 不追加入旧决定，旧 complete 仍须原步骤全完成和精确原选集证明。真实 owner 接收同一 `ProjectDeletionControl`，维护撤权后连失败记账也不开始；Catalog 的无正文 before/after 在原事务内读取，成功 COMMIT 才交同步 `catalogCommitted`，回调失败使本维护实例待对账。目录 hold 只绑定本次已选 inode，外层停写前提不能被这个检查替代。专项回归 `tests/project-deletion-recovery-target.test.ts`；Memory/Session 冷 owner 的完整原件验证由各主人及组合测试负责。
 
+目标 Catalog 开始关闭即拒新恢复；同时 close 共用在途工作，等待原恢复 tail 后关闭原 SQLite 连接。实际 close 失败保持拒绝业务，后续明确 close 重试同一连接，成功才记关闭；不重新执行删除。外层仍须在实际关闭成功后发布恢复完成和释放 Home owner，关闭失败不能算作清理成功。
+
 项目文件主人清理沿 `ProjectDeletionControl` 从 Port/owner 传到声明 purge；冷维护入口负责提供已验证的同步控制。文件/SQLite 主人在实际清理、事务提交、等待后的下个副作用前检查：partition purge 后再 rm、Plugin Builder rm 后再清密钥、Assistant 停轮后再删账、Images 每次删文件前。拒绝停止后继动作，未提交 SQLite 回滚；已删文件不声称回滚。带 control 的既有库只打开并核当前结构，不初始化空库。回归：`tests/project-deletion-file-control.test.ts`，配合原 owner/declarations/Assistant/studios 用例；不代替完整冷恢复或用户验收。
 
 维护的原目标还包含物理路径：数据库/现存侧车和 rm 祖先不能被链接重定向，异步清理后按原目录身份重核。Plugin Builder 的同一 control 进入原 secret owner 的 SQLite 等锁与原子 rename，外层最终拒绝不能替代该检查。专项 `tests/project-deletion-file-boundaries.test.ts` 覆盖真实重定向和拿锁后撤权；原 Images 清单回滚重试仍由 `project-deletion-file-control` 验证。

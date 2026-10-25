@@ -5,6 +5,7 @@ import { existsSync, promises as fs } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
+import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog, openDesktopProjectDeletionRecoveryTarget } from "@molis-ai/molis-work-app-desktop";
 import { openProjectDeletionRecoveryInspection, projectDeletedHooksFor, type ProjectDeletedOwner,
   type ProjectDeletionRecoveryGroup, type ProjectDeletionCatalogSnapshot } from "@molis-ai/molis-work-app-local-host";
@@ -242,4 +243,35 @@ test("a missing original verification capability cannot certify an old complete 
   const target = await f.open({ memory: actual });
   await assert.rejects(target.restore(source.deletion_id), invalid);
   assert.equal(f.changes.length, 0);
+});
+
+test("MEM-40: failed Catalog close retries the original connection and never reopens recovery", async t => {
+  const f = await fixture(t), source = f.sourceReceipt(), target = await f.open();
+  const original = LocalSqliteStorage.prototype.close;
+  let connection: Database.Database | undefined, attempts = 0;
+  const hook = t.mock.method(LocalSqliteStorage.prototype, "close", function (this: LocalSqliteStorage) {
+    if (this.path === join(f.home, "projects", "catalog.db") && !this.db.readonly) {
+      connection ??= this.db;
+      assert.equal(this.db, connection, "cleanup must retain the same actual connection");
+      if (++attempts === 1) throw new Error("actual Catalog close interrupted");
+    }
+    original.call(this);
+  });
+  try {
+    await assert.rejects(target.close(), /actual Catalog close interrupted/);
+    assert.equal(connection?.open, true);
+    await assert.rejects(target.restore(source.deletion_id), invalid);
+    await Promise.all([target.close(), target.close()]);
+    assert.equal(attempts, 2);
+    assert.equal(connection?.open, false);
+    await target.close();
+    assert.equal(attempts, 2, "successful cleanup is not repeated");
+    await assert.rejects(target.restore(source.deletion_id), invalid);
+    assert.equal(f.projects.query.listProjectDeletions().length, 0);
+    assert.equal(f.clearCount, 0);
+    assert.ok(existsSync(join(f.home, "projects", f.gone.project_id, "original.txt")));
+  } finally {
+    hook.mock.restore();
+    if (connection?.open) connection.close();
+  }
 });

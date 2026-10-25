@@ -256,6 +256,7 @@ export const codingManifest: PluginManifest = {
         slot: "settings",
         title: "Coding",
         contribution_id: CODING_SETTINGS_UI_CONTRIBUTION_ID,
+        settings_runtimes: true,
         icon: "code",
       },
     ],

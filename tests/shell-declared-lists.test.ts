@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
-import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, dockDefaultPins, extendPluginIds, pluginSettingsDataAction, pluginWorkbenchPacks, renderPluginSettingsContribution, sanitizePluginDirectory } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, dockDefaultPins, extendPluginIds, findPluginSettingsNavItem, pluginSettingsDataAction, pluginWorkbenchPacks, renderPluginSettingsContribution, sanitizePluginDirectory } from "@molis-ai/molis-work-app-workbench";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, renderCodingSettings } from "@molis-ai/molis-work-plugin-coding";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID, renderShelfSettings } from "@molis-ai/molis-work-plugin-shelf";
 import { defaultShelfDeviceSettings } from "@molis-ai/molis-work-module-shelf";
@@ -72,6 +72,10 @@ test("RAC-697 the Host has one route for a plugin's settings page: no plugin is 
   assert.equal(view("coding")?.settings_data, undefined, "Coding's page needs only the platform's context");
   assert.equal(pluginSettingsDataAction(SHELF_SETTINGS_UI_CONTRIBUTION_ID)?.capability_id, "shelf.snapshot");
   assert.equal(pluginSettingsDataAction(CODING_SETTINGS_UI_CONTRIBUTION_ID), undefined);
+  assert.equal(view("coding")?.settings_runtimes, true);
+  assert.equal(findPluginSettingsNavItem("coding-settings")?.settings_runtimes, true);
+  assert.equal(view("shelf")?.settings_runtimes, undefined);
+  assert.equal(findPluginSettingsNavItem("shelf")?.settings_runtimes, false);
 });
 
 test("RAC-698 the Shelf and Coding settings pages come out as before when drawn from the platform's context and the declared data", () => {

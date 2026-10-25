@@ -3,6 +3,8 @@ import { refreshOpenProjectPlugins } from "./project-plugin-enablement.js";
 import { connectorSettingsView } from "./web-connector-settings.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
+// settings_data queries intentionally use the person's LOCAL_OWNER_PERMISSIONS in the Home.
+// The SDK requires a user-facing read query; the action gateway still caps access at the registered provider's permissions.
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
@@ -179,7 +181,7 @@ export async function handleLocalCatalogWebRequest(
     const context: SettingsPageContext = {
       projects: projects.map((project) => ({ project_id: project.project_id, name: project.display_name })),
       project: contextProject ? { project_id: contextProject.project_id, name: contextProject.display_name, href: `/projects/${encodeURIComponent(contextProject.project_id)}/` } : null,
-      runtimes: await agentRuntimes(),
+      runtimes: pluginSettings.settings_runtimes ? await agentRuntimes() : [],
     };
     const dataAction = pluginSettingsDataAction(pluginSettings.contribution_id);
     const data = dataAction ? await bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS).invoke(dataAction, {}) : undefined;

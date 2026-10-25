@@ -2,6 +2,7 @@ import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/pro
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { registeredIconNames, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { viewContributionId } from "./declared-stages.js";
 import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, settingsEntries } from "./plugin-catalog.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
@@ -14,6 +15,8 @@ interface PluginSettingsNavItem {
   readonly plugin_id: string;
   readonly label: string;
   readonly icon: MolisWorkIcon;
+  /** Whether this settings view requests the Host's Agent Runtime list. */
+  readonly settings_runtimes: boolean;
   /** Where the Manifest places the view among settings pages; host pages hold 10–90 (settings-sections.ts). */
   readonly order?: number;
 }
@@ -33,18 +36,23 @@ function declaredSettingsIcons(): ReadonlyMap<string, MolisWorkIcon> {
 }
 
 /**
- * The read action a settings page gets its data with, as its Manifest view declares it (`settings_data`, W5-02 PR-D, PG-072), by the
- * page's contribution: the Manifest's own definition of it, which the SDK has checked is a query for the person that only reads.
- * The Host calls it and hands the answer to the page; it knows no plugin by name.
+ * A settings page's declared inputs, keyed by its view's contribution: its own read action and whether it needs the runtime list.
+ * The SDK checks both declarations. The Host does not infer either dependency from the plugin's name or from the other input.
  */
-let settingsDataActions: ReadonlyMap<string, ActionDefinition> | undefined;
-export function pluginSettingsDataAction(contributionId: string): ActionDefinition | undefined {
-  settingsDataActions ??= new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.ui?.views ?? []).flatMap(view => {
-    const declared = view.slot === "settings" ? view.settings_data?.action : undefined;
+let settingsInputs: ReadonlyMap<string, { action?: ActionDefinition; runtimes: boolean }> | undefined;
+function declaredSettingsInputs(): NonNullable<typeof settingsInputs> {
+  settingsInputs ??= new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.ui?.views ?? []).flatMap(view => {
+    if (view.slot !== "settings") return [];
+    const declared = view.settings_data?.action;
     const action = declared ? entry.manifest.actions?.find(item => item.capability_id === declared) : undefined;
-    return action ? [[view.contribution_id ?? `${entry.manifest.plugin_id}.${view.view_id}`, action] as const] : [];
+    return [[viewContributionId(entry.manifest, view), { action, runtimes: view.settings_runtimes === true }] as const];
   })));
-  return settingsDataActions.get(contributionId);
+  return settingsInputs;
+}
+
+/** The Manifest's own user-facing read query; its result becomes `SettingsPageModel.data`. */
+export function pluginSettingsDataAction(contributionId: string): ActionDefinition | undefined {
+  return declaredSettingsInputs().get(contributionId)?.action;
 }
 
 export function pluginSettingsNavItemsFrom(
@@ -64,6 +72,7 @@ export function pluginSettingsNavItemsFrom(
         plugin_id: item.plugin_id,
         label: item.label,
         icon: icons.get(item.contribution_id) ?? "settings",
+        settings_runtimes: declaredSettingsInputs().get(item.contribution_id)?.runtimes ?? false,
       };
     })
     .filter((item) => !isHostGlobalSettingsSection(item.section_id));

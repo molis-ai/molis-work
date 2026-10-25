@@ -222,6 +222,12 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 完整字段、迁移、示例与设置归属：[当前项目设置](PROJECT-SETTINGS.md)。`settings` 槽只负责呈现，`storage:private` 仍是插件私有状态；Goals 项目说明保持独立协议。
 
+### 全局插件设置的数据
+
+`settings` view 可用 `settings_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询；宿主在个人 Home 按原本地所有者权限调用，结果交给同步 `SettingsPageModel.data`。项目与打开设置的项目仍在固定 `context` 中。需要 Agent 运行时列表的页另声明 `settings_runtimes: true`，结果在 `context.runtimes`；不声明就不查询并给未请求的空集合，查询失败沿原 ActionError/HTTP 错误链呈现，不伪装空列表。这个可选字段只许 `settings` 槽使用且只能为 `true`，不依赖有无 `settings_data`，不增加动作、权限、超时或重试政策。当前只有 Coding 消费列表并显式声明；Shelf 不依赖列表。
+
+当前全局设置的贡献发现与这两项声明只对内置目录兑现；已安装 Runtime 插件仍会经过 SDK 声明校验，但尚未接上动态设置贡献与数据准备。细则见 [插件界面 Skill](../../skills/molis-plugin-dev/ui.md)。
+
 ## 插件版本升级
 
 插件发布新版本时，递增 Manifest `version`。`upgrade_compatibility` 只接受精确的 SemVer 来源版本；较高目标版本的来源必须早于目标版本，每个来源版本只能列在以下一项：

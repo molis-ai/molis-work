@@ -48,6 +48,10 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   }
   if (view.rail !== undefined && !RAILS.has(String(view.rail))) problems.push(`视图 ${id} 的 rail ${String(view.rail)} 不是 ${UI_VIEW_RAILS.join(" 或 ")}`);
   if (view.pinned_default !== undefined && view.pinned_default !== true) problems.push(`视图 ${id} 的 pinned_default 只能是 true`);
+  if (view.settings_runtimes !== undefined) {
+    if (view.slot !== "settings") problems.push(`视图 ${id} 的 settings_runtimes 只用于 settings 视图`);
+    if (view.settings_runtimes !== true) problems.push(`视图 ${id} 的 settings_runtimes 只能是 true`);
+  }
   const data: unknown = view.settings_data;
   if (data !== undefined) {
     if (view.slot !== "settings") problems.push(`视图 ${id} 的 settings_data 只用于 settings 视图`);

@@ -1,5 +1,15 @@
 import type { ActionDefinition, ActionSchema } from "../platform/actions.js";
 import type { ArtifactReference } from "./artifacts.js";
+import type { AgentSessionOwner, AgentSessionRef } from "../services/agent-host.js";
+
+/** Original body-free selection, saved by the Home recovery owner before SDK Session destruction. */
+export interface CodingSessionPurgeSelection {
+  readonly session: AgentSessionRef;
+  readonly owner: AgentSessionOwner;
+  readonly installation_generation: string;
+  readonly sessions: readonly { readonly session_id: string; readonly created_at: string; readonly keys: readonly string[] }[];
+  readonly waits: readonly { readonly wait_id: string; readonly keys: readonly string[] }[];
+}
 
 /** The input of `coding.results.document`: which fixed Coding report or change set to turn into text. */
 export interface CodingResultDocumentInput { reference: ArtifactReference }

@@ -748,3 +748,4 @@ export interface AssistantReplyDelivery {
   run_id: string;
   body: string;
 }
+export type { AssistantSessionPurgeSelection } from "./assistant-session-purge.js";

@@ -60,6 +60,9 @@ export interface ContextEdgeInput {
   recorded_at?: string;
 }
 
+/** An immutable edge revision's identity, without its explanatory text. */
+export type ContextEdgePurgeIdentity = Pick<ContextEdge, "key" | "revision" | "type" | "source" | "target">;
+
 export interface ContextEdgeQuery {
   include_removed?: boolean;
   type?: string;

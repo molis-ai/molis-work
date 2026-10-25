@@ -2,7 +2,7 @@
 
 状态：统筹 2026-10-25 已裁 Q1～Q4（见 §4），PR-D1 已实现（四个提交：PG-076 余项与 PG-073 ①②；PG-074；PG-072；本稿与门禁收尾），在 `claude/ac-shell-lists`，基线 batch-37（`batch/1025-37`）。PG-075 留给 PR-D2，等 PG-055 合入。PR-D（PG-072～076）从 ac-registry 移来，加 PG-063；设计依据是 ac-registry 分支 `w5-02-registry.md` §5，事实按本分支头重核。
 
-验收编号：RAC-690～709。BL：BL-656～665（暂未取用）。
+验收编号：RAC-690～709（RAC-700 为 PG-060 余项）。BL：BL-656～665（暂未取用）；余项核对发现的记 BL-636。
 
 ## 0. 结论
 
@@ -36,7 +36,8 @@
 | RAC-697 | `web-catalog.ts` 的插件设置页只有一条通用路（`SettingsPageContext` + `settings_data` 的结果），没有 Shelf、Coding 两个分支，宿主不再 import `plugin-coding`、`plugin-shelf` 做设置页；Shelf 声明 `shelf.snapshot`，Coding 只用平台上下文 | `tests/shell-declared-lists.test.ts`（RAC-697）+ `pnpm boundary:check` |
 | RAC-698 | Shelf、Coding 的设置页内容与改之前相同（同样的输入画出逐字相同的页面） | `tests/shell-declared-lists.test.ts`（RAC-698，对拍旧模型直接渲染）；整条路由由 `tests/coding-product-http.test.ts` 与 `tests/plugin-global-settings.test.ts` 过 |
 | RAC-699 | 外壳与设置的源码里，按插件名列的表只剩登记的例外（Goals S11、FI 线、A6 各一行，带理由），门禁数字对 merge-base 只许减少 | `node scripts/check-health-gates.mjs --base origin/main`（宿主文件里点名内置插件包的文件数少一份：`web-catalog.ts` 不再 import `plugin-shelf`、`plugin-coding`） |
-| RAC-700～709 | 留给 PR-D2（PG-075）和实现里发现的 | |
+| RAC-700 | 舞台的「类型」标签（`.plugin-stage-kind`）没有按插件写的行：表单、数据集、PPT、页面、灵光五行都解析成 `--ink-soft`，与中性的那一条重复，删掉；样式表里只剩 `.plugin-stage-kind[data-kind]` 一条 | `tests/visual-foundation.test.ts`（RAC-700） |
+| RAC-701～709 | 留给 PR-D2（PG-075）和实现里发现的 | |
 
 ## 3. 开工前核对
 
@@ -57,3 +58,23 @@
 - **`SettingsPageContext` 的 `project` 带宿主算好的工作台地址**（`/projects/<id>/`），页面不拼地址。运行时列表对每个插件设置页都取一次（以前只在 Coding 页取）；该函数读的是宿主已有的运行时目录。
 - **`rail` / `pinned_default` 只采信 `chosen` 的内置条目**：`sanitizePluginDirectory` 对 `chosen: false`（运行时装的插件）把两个字段去掉，`dockDefaultPins()` 与 `extendPluginIds()` 也只看 `chosen`。
 - 顺手删掉 `ui-composition.ts` 里没人调用的 `renderShelfSettingsContribution`（它的参数类型是旧的 Shelf 模型）。
+
+## 6. 余项核对（PG-060 余项、PG-088，2026-10-25，叠在 PR-D1 上）
+
+统筹要求在 PG-074 之后再核一遍 BL-387 与 PG-060 还剩什么，以及 PG-088 的引导与 Pages 宿主装配。逐项事实：
+
+| 项 | 结论 | 依据 |
+| --- | --- | --- |
+| BL-387（`goal-inputs-html.ts` 的 `CREATE`、`placement.ts` 的 `names`、`project-home.ts` 的 `starts`） | 已做，行早已不在 | W5-06 余项第 1 片 #1261（RAC-600～604），本分支的 `specs/BACKLOG.md` 没有 BL-387；`origin/main` 还有那一行是因为 batch-37 尚未落 |
+| BL-388（对象标签名单）、BL-542（运行时安装的插件的 `group` / `creates` / `start`） | 已做 | 第 2 片 #1272（RAC-605～611），`plugin-directory.ts` |
+| BL-430 | main 上没有这一行，无事可做 | `git grep BL-430 specs/BACKLOG.md` |
+| PG-060 的「标签标题兜底表」「规格板」 | 已做 | #1112（batch-33） |
+| PG-060 的 `global-search.ts`、`goal-inputs-html.ts` 里剩下的 `goals` / `artifacts` 字面量 | 不在本线 | Goals S11、成果库 A6，privileges PG-073 ④ / PG-074 已写明归属 |
+| `.plugin-stage-kind[data-kind=…]` 五行（form、dataset、ppt、page、lingguang） | **本片删**（RAC-700）。五行都是 `--status-tone: var(--plugin-<id>)`，而 `--plugin-*` 全部定义为 `var(--ink-soft)`（`palette.ts` 的 `pluginCustomProperties`），与紧邻的中性规则重复；没有任何代码再发出这五个 `data-kind` | `tests/visual-foundation.test.ts`；`workbench.css` 变小 |
+| `PLUGIN_ENGLISH_NAMES`（`plugin-catalog.ts`，七个内置插件的英文名） | **发现，不在本片做**：这是第三个按插件 id 手写的表，第三方插件没有同样待遇；但要改成 Manifest 声明需要一个合同新字段（字段名要定），也不能并进界面翻译词典（「成果」「图片」在词典里已有别的英文，会新增翻译冲突）。记 BL-636，可与 PG-075 的显示声明同一次改合同 | `specs/BACKLOG.md` BL-636 |
+| `SAMPLE_PROJECT_PLUGINS`（`primitive-catalog.ts`，规格板的样例项目） | 留：是规格板自己的固定样例（开发工具，文件头写明），不是外壳行为；外壳画的目录读 `builtinPluginDirectory()` | 注释 |
+| `page-plugin-visibility.ts` 的缺省 `["goals","inbox","feed","artifacts"]` | 留：只在没有宿主给 `shown_plugins`、`enabled_plugins` 的页面（规格板、夹具）生效，文件头写明；宿主页面一律给 `shown_plugins` | 注释 |
+| PG-088 引导流程 | 已做，不再改 | W5-06 余项第 4 片 #1275（RAC-615～618）：`context-onboarding-service.ts` 不再 import `blocksFromMarkdown` 与 ProseMirror，Markdown→正文走 `pages.documents.body_from_markdown` |
+| PG-088 的 Pages 宿主提供方、根路由、构建期装配 | 已删，不需要再做 | #847 删宿主四个 Pages 文件与根路由；本分支 `apps/local-host/src` 里没有 `/api/pages`、没有 Pages 的提供方、没有 `resolveModelPrompt` 的 Pages 调用；宿主对 Pages 包的其余点名都在别的行（监督器条目与生成登记表是正路，`content-action-providers.ts` 的权限点名单是 PG-007，`inbox-actions.ts` 是 Inbox 线，`artifact-native-plugin-http.ts` 是 A6） |
+
+privileges.md 的 PG-088 状态格已按上面写清依据（统筹 10-25 要求）；PG-060 的状态格由统筹在合入后改（本片之后外壳里按插件手写的行只剩上表中归别线的几项和 BL-636）。

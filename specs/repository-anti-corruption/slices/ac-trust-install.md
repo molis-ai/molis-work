@@ -107,7 +107,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - **保存与重新验证**：`SandboxPackageStore` 按（插件、发布者指纹、版本）寻址，写 `bundle.json` 和只读的 `plugin.mjs`；每次启动从包重建发布，重新验证签名、格式，并核对 `plugin.mjs` 字节等于签名的入口，不对就不运行（错误进该安装的恢复说明）。
 - **命令行**：`molis-work plugin install <包> <项目> [--pin-as 名称] [--confirm]` 经常驻 Host 的 `/api/internal/plugin-install` 做同样两个动作，来源 `management`；没有常驻 Host 就停下。
 - **FIRST-3 做完**：生成插件的停用、卸载在撤授权和删密钥之前先过 `leaveRefusal`；生成插件的平台现在接了 Home 账本（`PluginPlatformOptions.consents`）。
-- **没做**：C1 的另一个方向（BL-588）、沙箱包的作者工具与创作台出签名包（BL-589）、升级与换发布者密钥（BL-586，沙箱包就地升级现在是先卸载再装）、发布者撤销（BL-559，T5 的另一半）、界面（T7）。动作的登记（`registerPluginTrustActions`）今天在 `plugin-trust-actions.ts` 里用一个循环登记两个提供方，是否过 `registerProvider` 站点门禁等统筹裁定。
+- **没做**：C1 的另一个方向（BL-588）、沙箱包的作者工具与创作台出签名包（BL-589）、升级与换发布者密钥（BL-586，沙箱包就地升级现在是先卸载再装）、发布者撤销（BL-559，T5 的另一半）、界面（T7）。动作的登记按统筹 10-25 裁定走 `project-host.ts` 里平台提供方的一个列表（只收 `system`、不属于任何插件的提供方），`plugins.install.*`、`plugins.publishers.list` 与同意动作都在里面。
 
 ### 3.4 常开从安装记录生成（PG-004）
 

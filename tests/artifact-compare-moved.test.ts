@@ -8,9 +8,8 @@ import { FORM_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/fo
 import { DATASET_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { pagesActions, createPagesActionHandlers, ownPagesStores, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { formActions, createFormActionHandlers, ownFormStores } from "@molis-ai/molis-work-plugin-form";
-import { openFormStore } from "./fixtures/plugin-home-stores.js";
+import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { datasetActions, createDatasetActionHandlers, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { pptActions, createPptActionHandlers, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";

@@ -1,10 +1,12 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { realpathSync } from "node:fs";
 import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { COGNIA_DATABASE, CogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 import { DATASET_DATABASE, DatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_DATABASE, FormStore } from "@molis-ai/molis-work-plugin-form";
 import { JELLY_DATABASE, JellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { LINGGUANG_DATABASE, LingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { PAGES_DATABASE, PAGES_HOME_STORE, PagesStore, type PagesSql } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_DATABASE, PptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { TODO_DATABASE, TodoStore } from "@molis-ai/molis-work-plugin-todo";
 import { WORKFLOWS_DATABASE, WorkflowsStore } from "@molis-ai/molis-work-plugin-workflows";
@@ -75,4 +77,23 @@ export function openCogniaStore(home: string): CogniaStore {
 export function openWorkflowsStore(home: string): WorkflowsStore {
   const db = openWithBaseline(home, WORKFLOWS_DATABASE, "PRAGMA journal_mode = WAL;");
   return new WorkflowsStore(sqlOf(db), () => db.close());
+}
+
+/**
+ * Generation attempts a test process started, per library file: true while in progress, false once the call ended without being allowed
+ * to write. In a running plugin that memory is one per instance (plugin.ts); the stores a test opens on one file share this one.
+ */
+const pagesAttempts = new Map<string, Map<string, boolean>>();
+export function openPagesStore(home: string): PagesStore {
+  const db = open(home, PAGES_DATABASE);
+  const file = realpathSync(homeSqlitePath(home, PAGES_HOME_STORE.path));
+  let attempts = pagesAttempts.get(file);
+  if (!attempts) pagesAttempts.set(file, attempts = new Map());
+  const sql: PagesSql = {
+    get: (text, parameters = []) => db.prepare(text).get(...parameters),
+    all: (text, parameters = []) => db.prepare(text).all(...parameters),
+    run: (text, parameters = []) => db.prepare(text).run(...parameters),
+  };
+  const immediate = <T>(run: () => T): T => { db.exec("BEGIN IMMEDIATE"); try { const result = run(); db.exec("COMMIT"); return result; } catch (error) { db.exec("ROLLBACK"); throw error; } };
+  return new PagesStore(sql, attempts, immediate, () => db.close());
 }

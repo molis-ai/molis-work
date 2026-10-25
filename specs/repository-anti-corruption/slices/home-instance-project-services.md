@@ -1,6 +1,6 @@
 # Home 实例的项目级服务：成果、端口、事件（PG-025）
 
-状态：草稿（2026-10-25，防腐线 ac-platform，分支 `ac-platform/group3-runtime`，叠在 PG-011 之后）。做的是 `privileges.md` 的 PG-025 一行：不给 Home 实例成果、端口、事件服务，把「启动时抛一句话」换成目录检查加测试，并记下为什么现在不建这三样（§3、D5）。验收号 RAC-690、RAC-691。
+状态：草稿（2026-10-25，防腐线 ac-platform，分支 `ac-platform/group3-runtime`，叠在 PG-011 之后）。做的是 `privileges.md` 的 PG-025 一行：不给 Home 实例成果、端口、事件服务，把「启动时抛一句话」换成目录检查加测试，并记下为什么现在不建这三样（§3、D5）。验收号 RAC-744、RAC-745。
 
 ## 1. 重核结果
 
@@ -29,8 +29,8 @@
 
 | 号 | 内容 | 证明 |
 | --- | --- | --- |
-| RAC-690 | 登记有 `runtime`、没有 `dual_instance`，Manifest 声明端口（入、出）、事件（发布、订阅）、成果（产出、消费）或过程项，`catalogProblems` 各报一条；同样的声明配 `dual_instance` 不报；出厂的目录没有问题 | `tests/home-plugin-coordination.test.ts` |
-| RAC-691 | 同样的 Home 插件交给 Home 监督器：不是双实例就不启动、插件自己的 `start` 一次也没被调；是双实例就正常启动 | 同上 |
+| RAC-744 | 登记有 `runtime`、没有 `dual_instance`，Manifest 声明端口（入、出）、事件（发布、订阅）、成果（产出、消费）或过程项，`catalogProblems` 各报一条；同样的声明配 `dual_instance` 不报；出厂的目录没有问题 | `tests/home-plugin-coordination.test.ts` |
+| RAC-745 | 同样的 Home 插件交给 Home 监督器：不是双实例就不启动、插件自己的 `start` 一次也没被调；是双实例就正常启动 | 同上 |
 
 ## 5. 待统筹裁定
 

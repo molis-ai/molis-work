@@ -1202,9 +1202,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
       highlight.js:
         specifier: ^11.11.2
         version: 11.11.2

@@ -14,13 +14,12 @@ import { actionMcpToolName, createActionMcpPorts, handleMcpMessage } from "@moli
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { datasetActions } from "@molis-ai/molis-work-plugin-dataset";
-import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { openDatasetStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, ownPagesStores, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { PPT_ACTION_PERMISSIONS, pptActions } from "@molis-ai/molis-work-plugin-ppt";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";

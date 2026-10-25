@@ -9,11 +9,10 @@ import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
-import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { openDatasetStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, ownPagesStores, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { createCogniaActionHandlers, ownCogniaStores, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";

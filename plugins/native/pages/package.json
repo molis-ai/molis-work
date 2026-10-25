@@ -22,10 +22,6 @@
       "types": "./dist/code-highlight.d.ts",
       "import": "./dist/code-highlight.js"
     },
-    "./testing": {
-      "types": "./dist/testing.d.ts",
-      "import": "./dist/testing.js"
-    },
     "./editor": "./dist/pages-editor.js"
   },
   "files": [
@@ -41,7 +37,6 @@
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*",
     "highlight.js": "^11.11.2",
     "htmlparser2": "12.0.0",
     "lowlight": "^3.3.0",

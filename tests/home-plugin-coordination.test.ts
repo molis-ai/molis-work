@@ -15,7 +15,7 @@ import { join } from "node:path";
 const publishing = (manifest: PluginManifest): PluginManifest => ({ ...manifest,
   events: { publishes: [{ event_type_id: `${manifest.plugin_id}.changed`, type_version: 1 }], subscribes: [] } } as PluginManifest);
 
-test("RAC-690 the catalog refuses a Home plugin that declares 成果, ports or events unless its registration marks it dual-instance", () => {
+test("RAC-744 the catalog refuses a Home plugin that declares 成果, ports or events unless its registration marks it dual-instance", () => {
   const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
   assert.deepEqual(catalogProblems(PLATFORM_PLUGIN_REGISTRATIONS), [], "the shipped list is clean");
   const others = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry !== todo);
@@ -37,7 +37,7 @@ test("RAC-690 the catalog refuses a Home plugin that declares 成果, ports or e
   }
 });
 
-test("RAC-691 a Home instance that is not dual-instance and declares an event is not started: the plugin's own start is never reached", async t => {
+test("RAC-745 a Home instance that is not dual-instance and declares an event is not started: the plugin's own start is never reached", async t => {
   const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
   const declared = publishing(todo.manifest), type = declared.events!.publishes[0]!;
   const run = async (dual: boolean) => {

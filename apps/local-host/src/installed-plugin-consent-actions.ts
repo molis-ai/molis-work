@@ -1,14 +1,15 @@
-import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import { type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { consentsChanged } from "./consent-revision.js";
+import { assertPluginConsentSettingsEntry } from "./plugin-consent-settings-entry.js";
 
-// Taking an agreement back (ac-trust T5, specs/repository-anti-corruption/slices/ac-trust-install.md §3.3, S-X4). The Home's consent ledger
+// Taking an agreement back (ac-trust T5, specs/repository-anti-corruption/slices/ac-trust-install.md §3.3, S-79). The Home's consent ledger
 // holds one row for each declaration of a plugin that changes what it does elsewhere (常开, a default wiring, a default input group). Only
-// the person lists and takes them back: the audience is `user` and the handler wants the protected entry's `user_action`, so neither an
+// the person lists and takes them back: the audience is `user` and the handler requires the Host's settings entry credential, so neither an
 // Agent, MCP, a workflow nor a plugin can withdraw (or by withdrawing, keep) an agreement. Revoking writes `revoked_at` on the row and
-// nothing else is rewritten; the standing agreement is what the always-on list and the default wirings read, so they stop at once.
+// nothing else is rewritten. The always-on list reads it on its next query; default wirings reconcile on the project's next request.
 
 export const PLUGIN_CONSENT_PROVIDER_ID = "plugin-consents";
 export const PLUGIN_CONSENT_READ = "plugin-consents:read";
@@ -41,9 +42,12 @@ export const pluginConsentActions = {
 
 export function pluginConsentHandlers(ledger: PluginConsentLedger, now: () => string = () => new Date().toISOString()): ActionHandlerBinding[] {
   return [
-    { capability_id: pluginConsentActions.list.capability_id, version: 1, handle: (_caller, input) => ({ consents: ledger.consents((input as { plugin_id: string }).plugin_id) }) },
+    { capability_id: pluginConsentActions.list.capability_id, version: 1, handle: (caller, input) => {
+      assertPluginConsentSettingsEntry(caller);
+      return { consents: ledger.consents((input as { plugin_id: string }).plugin_id) };
+    } },
     { capability_id: pluginConsentActions.revoke.capability_id, version: 1, handle: async (caller, input) => {
-      if (!caller.user_action) throw new ActionError("actions.forbidden", "撤回同意只接受本人在界面里的操作");
+      assertPluginConsentSettingsEntry(caller);
       await caller.beforeEffect();
       const consent = ledger.revoke((input as { consent_id: string }).consent_id, now());
       if (!consent) throw pluginErrors.consent_unknown("没有这条同意记录");
@@ -51,6 +55,13 @@ export function pluginConsentHandlers(ledger: PluginConsentLedger, now: () => st
       return { consent };
     } },
   ];
+}
+
+/** Refuse plugin resolution before directory filtering can turn this entry restriction into a missing-dependency error. */
+export function assertPluginConsentActionEntry(caller: ActionCallContext, reference: ActionReference): void {
+  if (Object.values(pluginConsentActions).some(action => action.capability_id === reference.capability_id && action.version === reference.version)) {
+    assertPluginConsentSettingsEntry(caller);
+  }
 }
 
 /** The Host's own provider of the person's agreements; it grants nothing to a plugin. */

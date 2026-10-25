@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsentLedger, alwaysOnAgreed, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "@molis-ai/molis-work-app-local-host";
 
-// S-X4 (ac-trust T5): an agreement is taken back by the person and only the person. Revoking writes `revoked_at` once and nothing else
+// S-79 (ac-trust T5): an agreement is taken back by the person and only the person. Revoking writes `revoked_at` once and nothing else
 // is rewritten; the host's own build does not agree again afterwards; what stood on the agreement (the 常开 list) stops at once.
 
 const GOALS = "io.molis.work.goals";
@@ -43,47 +43,50 @@ function hostDoesNotAgreeAgain(ledger: PluginConsentLedger): void {
   assert.equal(alwaysOnAgreed(ledger, GOALS, SIGNATURE), true, "agreeing again is the person's own act");
 }
 
-test("RAC-385 S-X4 the memory ledger: revoking writes revoked_at once, answers the row, and an unknown id answers nothing", () => revokesOnce(memory()));
-test("RAC-385 S-X4 the sqlite ledger: revoking writes revoked_at once, answers the row, and an unknown id answers nothing", () => revokesOnce(sqlite()));
-test("RAC-385 S-X4 the memory ledger: the host's build does not agree again once a person took the agreement back", () => hostDoesNotAgreeAgain(memory()));
-test("RAC-385 S-X4 the sqlite ledger: the host's build does not agree again once a person took the agreement back", () => hostDoesNotAgreeAgain(sqlite()));
+test("RAC-385 S-79 the memory ledger: revoking writes revoked_at once, answers the row, and an unknown id answers nothing", () => revokesOnce(memory()));
+test("RAC-385 S-79 the sqlite ledger: revoking writes revoked_at once, answers the row, and an unknown id answers nothing", () => revokesOnce(sqlite()));
+test("RAC-385 S-79 the memory ledger: the host's build does not agree again once a person took the agreement back", () => hostDoesNotAgreeAgain(memory()));
+test("RAC-385 S-79 the sqlite ledger: the host's build does not agree again once a person took the agreement back", () => hostDoesNotAgreeAgain(sqlite()));
 
 function service(ledger: PluginConsentLedger) {
   const actions = new ActionService();
   actions.registerProvider(pluginConsentProvider(ledger));
-  const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: "local-person", audience: "user", permissions: PLUGIN_CONSENT_PERMISSIONS, ...extra });
+  const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: PLUGIN_CONSENT_PERMISSIONS, ...extra });
   const revoke = (consent_id: string, context: ActionCallContext) =>
     actions.invoke(context, { capability_id: pluginConsentActions.revoke.capability_id, version: 1 }, { consent_id });
   return { actions, caller, revoke };
 }
 
-test("RAC-393 S-X4 only the person's own action revokes: no other audience sees the action, and a user call without the protected entry's user_action is refused", async () => {
-  const ledger = new MemoryPluginConsentLedger();
+class ObservedLedger extends MemoryPluginConsentLedger {
+  reads = 0;
+  writes = 0;
+  override consents(pluginId: string) { this.reads += 1; return super.consents(pluginId); }
+  override revoke(id: string, at: string) { this.writes += 1; return super.revoke(id, at); }
+}
+
+test("RAC-393-ENTRY RAC-393-LIST S-79 both actions refuse non-user audiences and fabricated settings provenance before touching the ledger", async () => {
+  const ledger = new ObservedLedger();
   const row = record(ledger);
   const { actions, caller, revoke } = service(ledger);
+  const list = (context: ActionCallContext) => actions.invoke(context, pluginConsentActions.list, { plugin_id: GOALS });
+  ledger.reads = 0; ledger.writes = 0;
   for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
-    assert.deepEqual((await actions.discover(caller({ audience }))).filter(view => view.capability_id.startsWith("plugins.consents.")), [], `${audience} does not see them`);
-    await assert.rejects(revoke(row.consent_id, caller({ audience })), error => error instanceof ActionError, `${audience} cannot call them`);
+    const context = caller({ audience });
+    assert.deepEqual((await actions.discover(context)).filter(view => view.capability_id.startsWith("plugins.consents.")), [], `${audience} does not see them`);
+    await assert.rejects(list(context), code("actions.forbidden"), `${audience} cannot list`);
+    await assert.rejects(revoke(row.consent_id, context), code("actions.forbidden"), `${audience} cannot revoke`);
+    assert.deepEqual([ledger.reads, ledger.writes], [0, 0], `${audience} never touched the ledger`);
   }
-  await assert.rejects(revoke(row.consent_id, caller()), code("actions.forbidden"), "the entry gave no user action");
-  assert.equal(alwaysOnAgreed(ledger, GOALS, SIGNATURE), true, "nothing was revoked");
+  for (const user_action of [undefined, { source: "web", conversation_ref: "web:settings:plugin-consents", message_ref: "web:request:forged" }]) {
+    const context = caller({ user_action });
+    await assert.rejects(list(context), code("actions.forbidden"));
+    await assert.rejects(revoke(row.consent_id, context), code("actions.forbidden"));
+  }
+  assert.deepEqual([ledger.reads, ledger.writes], [0, 0], "even a user with matching audit text has no Host settings credential");
+  assert.deepEqual(ledger.consents(GOALS), [row], "every rejection preserves the original ledger");
 });
 
-test("RAC-385 S-X4 the person lists a plugin's agreements and takes one back; an unknown id is refused", async () => {
-  const ledger = new MemoryPluginConsentLedger();
-  const row = record(ledger);
-  const { actions, caller, revoke } = service(ledger);
-  const person = caller({ user_action: { source: "web", conversation_ref: "web:settings", message_ref: "web:click" } });
-  const list = () => actions.invoke(person, { capability_id: pluginConsentActions.list.capability_id, version: 1 }, { plugin_id: GOALS });
-  assert.deepEqual(((await list()) as { consents: unknown[] }).consents, [row]);
-  const revoked = (await revoke(row.consent_id, person)) as { consent: { revoked_at: string | null } };
-  assert.notEqual(revoked.consent.revoked_at, null);
-  assert.equal(((await list()) as { consents: Array<{ revoked_at: string | null }> }).consents[0]!.revoked_at, revoked.consent.revoked_at);
-  await assert.rejects(revoke("no-such-row", person), code("plugin.consent_unknown"));
-  assert.equal(alwaysOnAgreed(ledger, GOALS, SIGNATURE), false);
-});
-
-test("RAC-385 S-X4 the Host agrees to Goals' 常开 once at startup, and a person's revocation stands across the next start", async () => {
+test("RAC-385 S-79 the Host agrees to Goals' 常开 once at startup, and a person's revocation stands across the next start", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-consent-startup-"));
   const start = async () => { const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); await host.homePlugins!.ready(); await host.homePlugins!.close(); await host.close(); };
   const goalsAgreements = () => new HomeConsentLedger(home).consents(GOALS).filter(row => row.kind === "always_on");

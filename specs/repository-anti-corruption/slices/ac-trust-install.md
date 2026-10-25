@@ -92,12 +92,21 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 **T5 落地（2026-10-25）：**只做「同意撤回」一半，发布者撤销随 T2（没有固定过的发布者就没有可撤的）。
 
-- 账本多一个 `revoke(consent_id, at)`（只写第一次的 `revoked_at`，行不删）；`plugins.consents.list@1`（按插件列，含已撤回的）与 `plugins.consents.revoke@1` 两个只给本人的动作，在宿主的 `plugin-consents` 提供方下，处理器要受保护入口的 `user_action`（`apps/local-host/src/installed-plugin-consent-actions.ts`）。
-- **效果**：`always_on` 撤回后，下一次被问就不在名单里（T3 本来就每次现算），服务端不再拒绝移除、停用、卸载；默认连线与默认组撤回后，项目下一次碰到插件时对账解开（T4 的 `bindDeclaredDefaults`，由 `consent-revision.ts` 的计数让已开的项目知道要再看一次账本；一个 Home 一个执行进程，进程内计数就够）。
+- 账本多一个 `revoke(consent_id, at)`（只写第一次的 `revoked_at`，行不删）；`plugins.consents.list@1`（按插件列，含已撤回的）与 `plugins.consents.revoke@1` 两个只给本人的动作，在宿主的 `plugin-consents` 提供方下，处理器须核宿主设置入口凭据（下文首评修复合同；`apps/local-host/src/installed-plugin-consent-actions.ts`）。
+- **效果**：`always_on` 撤回后，下一次被问就不在名单里（T3 本来就每次现算），服务端不再拒绝移除、停用、卸载；默认连线撤回后，项目下一次碰到插件时对账解开（T4 的 `bindDeclaredDefaults`，由 `consent-revision.ts` 的计数让已开的项目知道要再看一次账本；一个 Home 一个执行进程，进程内计数就够）。默认组当前选择记录没有来源，撤回后不解开，归 T4 的 BL-587，本题不扩大它的行为。
 - **在途调用**：三类同意（常开、默认连线、默认组）都不是某一次调用的授权，没有「在途调用」要在 `beforeEffect()` 前收回；RAC-391 与 RAC-392 讲的是发布者撤销（停用，走既有的撤权路径），随 T2 的发布者固定一起做，BL-559 改记这一半。
 - 设计稿说的「授权世代」：安装记录的 `installation_generation` 只在新装时变，权限撤回走的是记录里的授权列表（`beforeEffect()` 每次重读），所以同意撤回不需要新的世代；发布者撤销停用安装用现成的 `stop`。
 - **宿主启动时为没有监督器安装的常开插件（Goals）代为同意**（`always-on-plugins.ts` 的 `recordHostAlwaysOnAgreements`，由 Home 插件宿主启动时调用）：Goals 不在任何监督器里，没有人替它写账本行，本人就没有可撤的东西；写入同样遵守「已有一行（含已撤回的）就不再写」，查询不写。
 - 恢复了 `tests/feed-promote-reader.test.ts` 里「项目没有 Goals 时不显示升格」的一半：撤回 Goals 的常开同意、移除、阅读页没有升格入口（BL-585 里 Feed 那一行的一部分）。
+
+**T5 #1285 首评修复合同（2026-10-25，Codex 负责，目标为功能可用；修复进行中）：**依据 [FIRST](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396776261) 与 [统筹裁定](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396785921)，`list@1` 与 `revoke@1` 都只认宿主自己设置入口签发的本人操作。宿主新增两个薄 HTTP 接缝 `POST /api/settings/plugin-consents/list`、`POST /api/settings/plugin-consents/revoke`，从既有本地用户适配器取得身份和权限后调用原动作；页面 UI 留给 T7。入口在宿主私有弱集合里登记冻结的 `ActionUserAction` 对象，排队快照保留已签发对象的身份，请求结束即撤下。处理器先核对这份进程内凭据及本人受众，再读账本或调用写入 fence；单有 `user_action` 字段、相同字符串、提供方 id 或业务输入都不能取得入口身份。插件动作解析也在发现目标前做相同的窄检查，使插件页面与 `actions:delegate` 两条路径都明确返回 `actions.forbidden`。不新增公共合同、通用权限或代理能力。
+
+- **RAC-393-ENTRY / RAC-393-LIST：**四种非 user 受众均不能发现或调用这两个动作，拒绝码精确为 `actions.forbidden`；user 无入口凭据、仿造入口文字也拒绝。拒绝发生在 ledger 读取、写入之前，账本零变更。
+- **RAC-393-PAGE / RAC-393-DELEGATE：**经真实运行中插件页面路由（已有 `user_action`）及持有 `actions:delegate` 的插件自己的动作调用，两动作均拒绝；各路径的合法插件动作正控证明插件确实已运行、已授权，账本零变更。
+- **RAC-385-SETTINGS：**真实 Host 设置入口能列出并撤回本人同意；重复撤回保留最初时间戳与其余列，未知 id 仍为 `plugin.consent_unknown`。不把所有调用关闭当作修复。
+- **RAC-390-LIVE：**消费固定 T4 `80b309b5f36d5b1cac55ace47d05d8e4c02235ab`；真实 Host 的项目已运行并存在 `origin: "default"` 绑定，经可信设置入口撤回 `default_wiring` 后，在下一次该项目请求时对账解开，再请求不重绑。保留这个时间语义，不建同步广播；撤回到下一次项目请求之间仍可能投递来源的新输出。故障对照须证明移除 `reconciledAt` / `consentRevision()` 接线会使本条失败。
+
+允许改动只含同意动作、宿主设置入口及可信上下文快照接缝、必要的项目对账注释、本题测试和本段；T4 的实现/来源变化测试由另一个 writer 负责，不在本题改写。未签名发布者身份政策交 T6/统筹，公共 S-79 行由 carrier 接收窄 patch，README 总体整理归 T8。验证走机器 FIFO 整体构建一次，再跑本题、局部入口/插件委托/项目回归与适用门禁、密钥扫描；不另开全量。工程结果、独立复查、独立有限验证及入批状态分别记录。
 
 ### 3.4 常开从安装记录生成（PG-004）
 
@@ -313,7 +322,7 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-390 | 撤回一项默认连线只解开对应的 `origin: "default"` 绑定，人手选的不动，且不再自动绑 | 同上 |
 | RAC-391 | 撤回按撤权处理：一个 `concurrent` 动作在 `beforeEffect()` 前被撤回，不写任何业务记录；处理器开始前被撤回，只留「未执行」诊断行（S-67.4） | 并入 S-18 的测试文件 |
 | RAC-392 | 撤销发布者：其所有安装停用、不能升级、数据保留 | Runtime 集成测试 |
-| RAC-393 | 安装、同意、撤回、固定的动作只接受带 `caller.user_action` 的人；模型、MCP、工作流、插件调用被拒（S-67.1） | `tests/security-invariants-*.test.ts` 新增一份 |
+| RAC-393 | 安装、同意、撤回、固定的动作只接受带 `caller.user_action` 的人；T5 的同意清单与撤回另须 §3.3 的宿主设置入口凭据；模型、MCP、工作流、插件调用被拒（S-67.1） | T5：`tests/security-invariants-consent-revoke.test.ts`、`tests/security-invariants-consent-settings.test.ts`；细项见 §3.3 |
 | RAC-394 | 非 `pinned` 的 `publisher.signature` 不许是 `ed25519:sha256:` 形状（S-68.1） | 同上 |
 | RAC-395 | 两个不同发布者的 `plugin_id` 互为前缀被拒，同发布者允许（S-68.2，BL-506） | 同上 |
 | RAC-396 | 提供方 id：`host` 用 `plugin_id`，其余用 `plugin-install-…`；动作合同快照里内置插件的 `registered_provider` 不变（S-68.3） | `tests/action-contract-snapshot.test.ts` |

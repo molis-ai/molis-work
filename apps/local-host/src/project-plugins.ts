@@ -118,7 +118,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     const state = await existing.ready;
     await state.refreshEnablement?.();
     state.updateObservers?.();
-    // A person has taken an agreement back since: the defaults that stood on it come off now, not when the project opens again.
+    // Reconcile a changed consent ledger on this next project request; revoking itself does not broadcast to open projects.
     if (state.platform && state.reconciledAt !== consentRevision()) { state.reconciledAt = consentRevision(); bindDeclaredDefaults(state.platform, ports.projectId, ports.actorId); }
     return state;
   }

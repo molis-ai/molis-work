@@ -646,8 +646,7 @@ export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "r
 export interface AssistantNotice {
   notice_id: string;
   kind: AssistantNoticeKind;
-  /** The work it is about; empty for a reminder. */
-  work_id: string;
+  /** The work it is about; empty for a reminder. */ work_id: string;
   /** The work's title, or for a reminder the Plugin that holds it. */
   work_title: string;
   text: string;

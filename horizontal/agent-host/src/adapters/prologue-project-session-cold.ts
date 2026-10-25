@@ -62,14 +62,21 @@ async function verifyIndex(reader: Reader, kind: string, id: string, version: nu
   if (version === undefined ? after !== undefined : !after || after.tombstoned || after.version !== version) throw sessionConflict();
 }
 
+/** Retain the same Index observation across later group reads and target effects. */
+export async function verifyColdSessionIndexes(reader: Reader, appId: string, versions: ReadonlyMap<string, number | undefined>, current: () => void): Promise<void> {
+  current();
+  for (const [id, version] of versions) await verifyIndex(reader, sessionIndexKind(appId), id, version, current);
+  current();
+}
+
 /** The entire original group is checked before its first target effect, just as in the online project owner. */
-export async function inspectColdSessionTarget(reader: Reader, appId: string, target: ColdSessionPurgeTarget, current: () => void): Promise<Observed> {
+export async function inspectColdSessionTarget(reader: Reader, appId: string, target: ColdSessionPurgeTarget, current: () => void): Promise<number | undefined> {
   const kind = sessionIndexKind(appId), saved = await readIndex(reader, kind, target, current);
   const held = saved && originalSessionPurge(saved.value, target);
   const observed = await reader.inspectSession({ ref: sessionPurgePreview(target).sessionRef });
   current(); assertColdSessionObservation(target, observed, held);
   await verifyIndex(reader, kind, target.session.session_id, saved?.version, current);
-  return observed;
+  return saved?.version;
 }
 
 /** First target plan only. Existing target originals go directly to execution/proof unchanged. */

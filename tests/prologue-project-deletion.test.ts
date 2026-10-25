@@ -204,6 +204,59 @@ for (const cause of ["raw-index", "raw-index-tombstone", "parent-owner", "parent
     assert.deepEqual(persistentRecords(f.home), before);
   });
 
+for (const stage of ["group", "later-observation"] as const) test(`cold raw rejects a parent Index change during ${stage} SDK metadata read`, async t => {
+  const f = await coldProjectFixture(t), parent = await f.index(f.parent.session_id), writer = await f.open();
+  type Get = { kind: string; id: string };
+  const prototype: { get(request: Get): Promise<unknown> } = Object.getPrototypeOf(Object.getPrototypeOf(f.inspector.storage)), get = prototype.get;
+  const readers = new Set<object>(); let changed = false, afterForeignWrite: ReturnType<typeof persistentRecords> | undefined;
+  const boundary = t.mock.method(prototype, "get", async function(this: typeof prototype, request: Get) {
+    const result = await get.call(this, request);
+    if (request.kind === `${f.app.appId}~sessions` && request.id === f.raw.session.session_id) {
+      readers.add(this);
+      if (!changed && (stage === "group" || readers.size === 2)) {
+        changed = true;
+        await f.writeIndex(f.parent.session_id, { ...parent, owner: { ...parent.owner, actor_id: "foreign-current-owner" } });
+        afterForeignWrite = persistentRecords(f.home);
+      }
+    }
+    return result;
+  });
+  try {
+    await assert.rejects(writer.purgeSessionTarget({ session: f.raw.session }), { code: "agent.session_busy" });
+    assert.equal(changed, true); if (stage === "later-observation") assert.equal(readers.size, 2);
+    assert.equal((await f.sdk(f.raw.session.session_id)).metadata.state, "active");
+    assert.deepEqual(persistentRecords(f.home), afterForeignWrite, "no deletion after the unrelated durable Index mutation");
+    boundary.mock.restore(); await f.writeIndex(f.parent.session_id, parent);
+    assert.equal((await writer.purgeSessionTarget({ session: f.raw.session })).operation_id, f.raw.decision.operation_id);
+  } finally { boundary.mock.restore(); await writer.close(); }
+});
+
+test("cold original project hold blocks a related purge and another online writer during raw inspection", async t => {
+  const f = await coldProjectFixture(t), writer = await f.open(), entered = deferred(), release = deferred();
+  const parentBefore = await f.index(f.parent.session_id), parentSdk = await f.sdk(f.parent.session_id);
+  type Get = { kind: string; id: string };
+  const prototype: { get(request: Get): Promise<unknown> } = Object.getPrototypeOf(Object.getPrototypeOf(f.inspector.storage)), get = prototype.get;
+  let paused = false;
+  const boundary = t.mock.method(prototype, "get", async function(this: typeof prototype, request: Get) {
+    const result = await get.call(this, request);
+    if (!paused && request.kind === `${f.app.appId}~sessions` && request.id === f.raw.session.session_id) {
+      paused = true; entered.resolve(); await release.promise;
+    }
+    return result;
+  });
+  const pending = writer.purgeSessionTarget({ session: f.raw.session });
+  try {
+    await entered.promise;
+    await assert.rejects(writer.purgeSessionTarget({ session: f.parent }), { code: "agent.session_busy" });
+    const online = createPrologueNodeAdapter({ app: f.app, storageRoot: f.home, reviewQueue: f.queue,
+      modelConfiguration: async () => { throw new Error("the Home owner must reject before online configuration"); } });
+    try { await assert.rejects(online, { code: "agent.storage_busy" }); } finally { await online.close(); }
+    assert.deepEqual(await f.index(f.parent.session_id), parentBefore); assert.deepEqual(await f.sdk(f.parent.session_id), parentSdk);
+    release.resolve(); assert.equal((await pending).state, "purged");
+    await writer.purgeSessionTarget({ session: f.parent }); await writer.verifyProjectSessionPurge({ plan: f.plan });
+  } finally { release.resolve(); await pending.catch(() => undefined); boundary.mock.restore(); await writer.close(); }
+});
+
 for (const cause of ["revoke", "cancel"] as const) test(`cold raw ${cause} after a real SDK read preserves the original decision`, async t => {
   const f = await coldProjectFixture(t), before = persistentRecords(f.home);
   let revoked = false, observed = false; const stop = new AbortController();

@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { DEMO_PROJECT_ID, HomePluginHost, readOriginalFile, registerOriginalFile, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 
 // BL-356, RAC-472/473: registrations and record bindings are authorization. Every uninstall drops the current installation's
@@ -31,6 +33,18 @@ function rows(t: test.TestContext) {
     assert.deepEqual(withConnectorConnections(home, store => store.get(connection.connection_id)), connection, "the account and its credential remain");
   };
   return { home, original, readable, bind, bound, contentsUnchanged };
+}
+
+/** Fail the real owner's DELETE without changing its data or mocking a lifecycle hook. */
+function failAuthorizationDelete(t: test.TestContext, home: string, point: "original" | "binding") {
+  const file = homeSqlitePath(home, point === "original" ? "plugin-originals" : "connectors");
+  const table = point === "original" ? "plugin_original_files" : "connector_bindings";
+  const execute = (sql: string) => { const db = new DatabaseSync(file); try { db.exec(sql); } finally { db.close(); } };
+  execute(`CREATE TRIGGER refuse_authorization_delete BEFORE DELETE ON ${table} BEGIN SELECT RAISE(ABORT, 'injected authorization deletion failure'); END`);
+  let active = true;
+  const release = () => { if (active && existsSync(file)) execute("DROP TRIGGER refuse_authorization_delete"); active = false; };
+  t.after(release);
+  return release;
 }
 
 for (const execution of ["native", "sandbox"] as const) {
@@ -150,5 +164,64 @@ for (const execution of ["native", "sandbox"] as const) {
     await revoked("after non-retaining Home uninstall");
     await install();
     await revoked("after non-retaining Home reinstall");
+  });
+}
+
+for (const scope of ["project", "home"] as const) for (const execution of ["native", "sandbox"] as const) {
+  const points: Array<"original" | "binding"> = scope === "project" ? ["original", "binding"] : ["original"];
+  for (const point of points) test(`S-45 ${scope === "project" ? "S-71 RAC-472" : "RAC-473"} retaining reinstall refuses failed authorization deletion in the same and a new Runtime (${scope}, ${execution}, ${point})`, { timeout: 60_000 }, async t => {
+    const r = rows(t), probe = ownerFilesProbe(`fault${scope}${execution}${point}`, scope);
+    if (execution === "sandbox") probe.definition.execution = "sandbox";
+    const valuesOnStart: unknown[] = [], marker = "private data survives authorization cleanup failures";
+    probe.behavior.start = context => {
+      const storage = context.services!.storage!, previous = storage.get("private-marker");
+      valuesOnStart.push(previous);
+      if (previous === null || previous === undefined) storage.set("private-marker", marker);
+    };
+    let project: ReturnType<typeof ownerFilesProject> | undefined, projectFile: string | undefined, host: HomePluginHost | undefined;
+    const open = async () => {
+      if (scope === "project") { project = ownerFilesProject(r.home, probe, projectFile ? { file: projectFile } : {}); projectFile = project.file; return project.platform.runtime; }
+      const actions = new ActionService();
+      host = new HomePluginHost({ home: r.home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
+      return (await host.ready()).runtime;
+    };
+    const close = async () => { if (project) { await project.close(); project = undefined; } if (host) { await host.close(); host = undefined; } };
+    t.after(close);
+    let runtime = await open();
+    const definition = probe.withoutFiles(), install = () => runtime.install({ trust: { level: "unsigned" }, definition: { ...definition }, deployment: "local", grants: probe.permissions }).install;
+    const first = install(), install_id = first.install_id;
+    await runtime.start(install_id);
+    const mine = { plugin_id: probe.id, install_id, project_id: scope === "project" ? DEMO_PROJECT_ID : null, record_key: "doc" };
+    const kept = { ...mine, project_id: DEMO_PROJECT_ID + "0" };
+    await r.original(mine); await r.original(kept);
+    const ownRecord = pluginBindingScope({ install_id, project_id: DEMO_PROJECT_ID, record_key: "doc" });
+    if (scope === "project") r.bind(probe.id, ownRecord, "feed");
+    const keptBindings = [pluginBindingScope({ install_id }), pluginBindingScope({ install_id, project_id: scope === "home" ? DEMO_PROJECT_ID : DEMO_PROJECT_ID + "0", record_key: "doc" })];
+    for (const binding of keptBindings) r.bind(probe.id, binding, "account");
+    const release = failAuthorizationDelete(t, r.home, point);
+    await assert.rejects(() => runtime.uninstall(install_id, { retain_private_data: true }), /injected authorization deletion failure/);
+    const removed = runtime.get(install_id);
+    assert.equal(removed.state, "uninstalled"); assert.equal(removed.retain_private_data, true);
+    assert.equal(await r.readable(mine), point === "original", "a binding failure follows a committed original-file revocation");
+    if (scope === "project") assert.equal(r.bound(probe.id, ownRecord, "feed"), true, "the failed binding deletion leaves a real residual authorization");
+    const refuses = () => {
+      assert.throws(install, { code: "plugin.executor_failed" }, "cleanup must fail before publishing a new installation");
+      assert.deepEqual(runtime.get(install_id), removed, "failure preserves the uninstalled row and its generation");
+      assert.equal(runtime.contribution(install_id), null, "the failed reinstall exposes no contribution");
+    };
+    refuses();
+    await close(); runtime = await open();
+    assert.deepEqual(runtime.get(install_id), removed, "a new Runtime reads the same failed-uninstall state");
+    refuses();
+    release();
+    const again = install();
+    assert.equal(again.install_id, install_id); assert.notEqual(again.installation_generation, first.installation_generation);
+    await runtime.start(install_id);
+    assert.equal(valuesOnStart.at(-1), marker, "authorization cleanup and its retries never discard the private KV");
+    assert.equal(await r.readable(mine), false, "the running reinstall cannot reuse the old file selection");
+    if (scope === "project") assert.equal(r.bound(probe.id, ownRecord, "feed"), false, "the running reinstall has no old record binding");
+    assert.equal(await r.readable(kept), true);
+    for (const binding of keptBindings) assert.equal(r.bound(probe.id, binding, "account"), true, "shared slots and Home project bindings survive recovery");
+    r.contentsUnchanged();
   });
 }

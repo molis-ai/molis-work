@@ -176,6 +176,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 - 起停顺序按 `catalog_order`；与今天的顺序不同的地方实现前先核是否有依赖（今天的注释说伴随插件「一起启动」，不靠顺序）。
 - `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 改读生成物；`home-runtime-entries.mjs`、`assembly.mjs`、`package-inventory.mjs` 认 `project_runtime`，同样要求字面量的包名与工厂名。`node scripts/gates/package-inventory.mjs --table` 重生成 §5.1 的行。
 - 文档：`AGENTS.md` 硬约束里「项目级的是 `project-plugins.ts` 的监督器条目」改成写在包的登记上；`skills/molis-plugin-dev/host.md`。
+- 实现时核过（10-25）：项目监督器的激活顺序由 `resolvePluginActivation` 按依赖排，名单顺序只决定没有依赖关系的几个谁先；`ProjectPluginState.plugins` 只当集合用（`project-plugin-stages.ts`）。所以名单改成「登记按 `catalog_order`，再接手写的 Files」，与之前的差别（Home 库六个之间、Diff 与 Git 互换、Files 挪到最后）不影响谁能启动。双实例门禁（`scripts/gates/dual-instance.mjs`）同样认 `project_runtime` 为项目一半；Files 一条记 BL-616，`tests/builtin-plugin-assembly-gate.test.ts` 的 `HAND_STARTED` 冻结、只许减少。
 
 ### B 的验收
 
@@ -185,8 +186,8 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 | RAC-565 | 装进 Home 的包带着 `molis-work.registration` 和 `registration` 导出，不进启动名单、不拿 `bundled`、不能用内置 plugin id 作提供方（S-08、S-15，进 `pnpm test:security`）。「提供方身份」与 ac-trust T6（S-68、BL-506）重叠：实现前看 T6 的状态，只留一处检查，这里只断言结果 | B1 |
 | RAC-566 | 门禁的旧读法被拒：手写数组形式的目录、手写的平台名单，`catalog-entries.mjs` 与 `--check` 都失败 | B1 |
 | RAC-567 | `--check` 对两份生成文件都核：任一份过期、手改、缺一份都失败 | B1 |
-| RAC-576 | Q3 的拒绝用例：页面把 `personal`、`companions`、`always_on` 改了再提交（加、移除），宿主照自己的登记办：加 Text Stats 仍带上 Files，移除 Pages 仍是在这个项目隐藏，Goals 仍不能移除（`catalog.plugin_always_on`） | B1 |
-| RAC-577 | 目录上的标记只由宿主按自己的登记写：内置插件的 `personal` 与 `companions` 与登记相同；`always_on` 只认这个 Home 同意过的；跑着的插件只有 plugin id 与发布者都与内置相同时才带标记 | B1 |
+| RAC-710 | Q3 的拒绝用例：页面把 `personal`、`companions`、`always_on` 改了再提交（加、移除），宿主照自己的登记办：加 Text Stats 仍带上 Files，移除 Pages 仍是在这个项目隐藏，Goals 仍不能移除（`catalog.plugin_always_on`） | B1 |
+| RAC-711 | 目录上的标记只由宿主按自己的登记写：内置插件的 `personal` 与 `companions` 与登记相同；`always_on` 只认这个 Home 同意过的；跑着的插件只有 plugin id 与发布者都与内置相同时才带标记 | B1 |
 | RAC-568 | `summary`、`developer` 从 Manifest 读；SDK 检查拒绝空 `summary`、超长、`developer: false` 与非布尔；登记里再写这两项，`--check` 报不认识的键 | B2 |
 | RAC-569 | #679：夹具登记一个目录里没有的 Home 级插件，项目路径下能路由且调用记录增加；项目隐藏它后是 403、`actions.plugin_disabled`，路由入口与动作处理器的调用记录均不变；另一项目仍可调用，取消隐藏后恢复且记录继续增加；`/plugins/<键>` 能打开（S-31，进 `pnpm test:security`） | B3 |
 | RAC-570 | 生成的项目级条目与改之前手写的逐条相等（包名、工厂名、`bundled`、有无 Home 目录时的取舍），一次性比对贴进 PR | PR-B4 |
@@ -199,7 +200,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 ## 4. PR-C：PR-2，依赖改成生成，门禁 7→0（PG-069）
 
 - **应用依赖**：生成器把两个应用 `package.json` 的插件依赖写成生成文件 import 的那一组（workbench 读外壳那份，local-host 读平台那份），`--check` 核对：多一个、少一个各失败（用户 10-19 批的豁免条件，每种不符一条门禁测试）。`pnpm install --frozen-lockfile --offline` 照常过（锁文件同 PR 更新）。
-- **登记表不点名插件**：`scripts/workspace-packages.mjs` 里 24 条插件的 `entry(...)` 改成从 `plugins/native/*/package.json` 的 `molis-work` 块读（`path`、`kind`、`maturity`、`contract`、`migrationGoals` 已经在里面；把说明、不负责、`capabilities`、`extraWorkspaceDependencies`、`extraDependencies` 也搬进去）。两个应用条目的插件依赖由生成器给，不再手写。这接上 X-1 的插件依赖声明：插件自己的依赖写在自己的 `package.json`。
+- **登记表不点名插件**：`scripts/workspace-packages.mjs` 里 24 条插件的 `entry(...)` 改成从 `plugins/native/*/package.json` 的 `molis-work` 块读（`path`、`kind`、`maturity`、`contract`、`migrationGoals` 已经在里面；把说明、不负责、`capabilities`、`extraWorkspaceDependencies`、`extraDependencies` 也搬进去）。两个应用条目的插件依赖由生成器给，不再手写。这接上 X-1 的插件依赖声明：插件自己的依赖写在自己的 `package.json`。`kind` 与 `maturity` 不随包自报：`plugins/native/*` 由路径定为 `native-plugin`、`partial`，包里写别的就报错（#1299 一轮评审，RAC-576）；层规则与 CODEOWNERS 角色都按 `kind` 判断，自报就能绕开它们。
 - **根 `package.json`**：今天列了全部插件包，测试按包名取它们。用户 10-25 定（统筹弹窗）：根的插件依赖也由生成器写，和两个应用用同样的豁免：只在 `--check` 通过、且依赖清单正好等于生成文件 import 的那一组时生效。根对应的那一组是两份生成文件（外壳那份与平台那份）import 的并集；`--check` 对根同样「多一个、少一个各失败」。
 - **门禁 7→0**：`NEW_PLUGIN_OUTSIDE_FILES` 改成 0（统筹 10-23 定，§5 第 7 条）。改门禁脚本本身，PR 正文写理由。
 - PG-070 的客户端打包那一半归 `ac-clients-1`，C 不碰 `page-assets.ts`、`initialization.ts`。
@@ -210,10 +211,18 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 | RAC-573 | `workspace-packages.mjs` 不含任何插件包名；登记表从各插件 `package.json` 读出的条目与改之前逐字段相等（一次性比对贴进 PR） |
 | RAC-574 | 新插件只改自己的包（`registration.ts`、`package.json`、源码）再跑生成器与 `pnpm install`，就进目录、进监督器、进依赖，外壳与宿主一个文件不改（W5-02-REG-03 的完整版：在临时仓库副本里加一个最小包，跑 `--check` 与 `pluginOutsideMentions`，点名数为 0） |
 | RAC-575 | 门禁对新插件的额度是 0：临时副本里新插件被包外任一个手写文件点名，门禁失败 |
+| RAC-576 | `plugins/native/*` 的 `kind`、`maturity` 由路径定：仓库副本里把一个插件 `package.json` 的 `kind` 改成 `foundation`、或 `maturity` 改成别的，`scripts/check-package-boundaries.mjs`（`pnpm boundary:check`）失败并点名该插件 |
 
 **碰的枢纽文件**：`scripts/workspace-packages.mjs`（大改；冻结）、两个应用与根的 `package.json`、`pnpm-lock.yaml`、24 个插件的 `package.json`、`scripts/gates/assembly.mjs`、`scripts/generate-plugin-registry.mjs`、`scripts/package-owners.mjs`（若它读登记表的字段）。
 
 **开工前核对**：谁读 `WORKSPACE_PACKAGES` 的插件字段（`package-owners.mjs`、`check-package-boundaries.mjs`、`package-inventory.mjs`、`module-repository-exports.mjs`）；README「开发要求」检查是否依赖条目上的说明文字。
+
+**实现（2026-10-25，叠在 B4 上）**：
+
+- 24 个插件的 `molis-work` 块补进说明、不负责、`legacySources`、`capabilities`、`extraWorkspaceDependencies`、`extraDependencies`（`owner` 仍按目录由 `package-owners.mjs` 的规则得出）；`workspace-packages.mjs` 读 `plugins/native/*/package.json` 得出这 24 条，导出 `REGISTERED_PLUGINS`，两个应用条目用 `registeredPluginDependencies: true` 由它推出插件依赖。RAC-573：改前改后逐字段比对，24 条无一字段不同。`capabilities` 以登记表那份为准（插件 `package.json` 里原有的旧单子没人读，一并换掉）。
+- 生成器的 `PLUGIN_DEPENDENCY_MANIFESTS`（workbench → 外壳那份、local-host → 平台那份、根 → 两份的并集）：`--check` 报多一个、少一个、不是 `workspace:*`；写模式只在插件依赖不对时改写，依赖按码点排序（三份 `package.json` 这次按它重排了一遍，内容不变）。门禁的豁免读同一张表，不另写名单。
+- 门禁：`NEW_PLUGIN_OUTSIDE_FILES = 0`，超额的提示写「a new plugin may be named in none」。`tests/health-gates-structure.test.ts` 里原来「8 个超额、7 个通过」两条是预期变化，改成新语义：包外 1 个文件（宿主源码、脚本各一条）就失败，0 个通过。
+- RAC-574 写在 `tests/plugin-registry-generation.test.ts`：以 text-stats 为样本在仓库树上加一个带 `project_runtime` 的新包，只跑生成器，包外变的只有两份生成文件和三份 `package.json`，项目监督器读得到它，门禁的量法（放宽到全部受跟踪的文本文件）点名数为 0；再加一个手写文件或让一份 `package.json` 偏离生成结果，点名数变 1（RAC-575）。没有拷整个仓库：生成器与门禁都是读快照的纯函数，在快照上改与在副本上改等价，又快得多。
 
 ## 5. PR-D：PR-3，外壳与设置的手写名单（PG-072～076）
 
@@ -241,6 +250,8 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 - 声明新合同：搜索与文件来源、撤销、到期提醒、`background` 作业、方法、放置。
 - `scripts/replay-plugins.mjs` 的语料（plugin-sample、2～3 个创作台产物、一个打包的 Runtime 内置插件）：创作台产物从哪来，spec 10-15 第二行已定（隔离 Home 里用 MiniMax 真跑）。
 - 验收 RAC-579；号不够时向统筹要。E 的细节在 C 合入后补进本稿，再请统筹审。
+
+**统筹 10-25 定（方案 1）**：查实「装上的插件」今天没有安装入口（没有 `plugin install`，安装服务是 ac-trust T2，未合入），所以 E 分两步、叠在本地分支 `claude/ac-registry-w401` 上，整组补齐才推送、开 PR：先按内置在一次性 Home 里跑完整生命周期并加 `replay-plugins.mjs`；装上的那一半等 T2 合入再补。B4 + C 先开一个 PR。装上的插件声明不了的两项先不进探针，各记一行后续：到期提醒（只能是 Home 范围的动作，装上的插件没有 Home 一半，BL-621）、放置（要带 `project_rows` 的 Home 库，BL-620，BL-622）。
 
 ## 7. PG-095、PG-111 的评估（插件合同放在平台 contracts 里）
 
@@ -275,7 +286,7 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 
 ## 10. 号段
 
-- RAC：A 560～563；B 564～569；B4 570～571；C 572～575；576～578 原给 D，D 移交 ac-shell 后留给本线（B 用 576、577）；E 579。
+- RAC：A 560～563；B 564～569；B4 570～571；C 572～575；576～578 原给 D，D 移交 ac-shell 后留给本线；E 579。统筹 10-25 续给 RAC-710～729：B 的目录标记两条用 710、711。
 - BL（随各 PR 写进 `specs/BACKLOG.md`）：BL-615 Images 的项目数据按声明删（等 PG-104、PG-106）；BL-616 Files 的监督器条目（等 PG-005、X-5）；BL-617 Images、Jelly 合同挪进插件（Codex）；BL-618 Shelf 合同挪进 `modules/shelf`、Images 按动作 id 调用；BL-619 沙箱插件的 `project_rows`（#1255 落地后把拒绝改成删除）；BL-620 启动名单之外的 Home 插件与带 Home 库的项目插件的 `project_rows`（PR-A 中发现）；BL-621～624 留给实现中发现的。
 - 安全不变量：S-暂A（删项目只按声明删、不跑插件代码，PR-A）；S-08、S-15（B1）、S-31（B3）改代码列。
 

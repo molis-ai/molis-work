@@ -119,6 +119,22 @@ export function homePluginEntries(): HomePluginEntry[] {
     project_data: { owner_id: entry.project_plugin_id, ...(entry.project_data ? { declaration: entry.project_data } : {}) } }] : []);
 }
 
+/** A project instance a registration declares (PG-067): the factory the project supervisor starts, and where its library is. */
+export interface ProjectRuntimeDeclaration {
+  readonly key: ProjectPluginId;
+  readonly create: () => PluginDefinition;
+  readonly package_name: string;
+  readonly factory_export: string;
+  /** Its library is the Manifest's `databases.home`, so it runs only where the project has a Home. */
+  readonly home_library: boolean;
+}
+
+/** Each project's built-in start list, in catalog order: every registration that declares a project instance. */
+export function projectRuntimeDeclarations(): ProjectRuntimeDeclaration[] {
+  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.project_runtime ? [{ ...entry.project_runtime, key: entry.project_plugin_id,
+    home_library: entry.manifest.databases?.home !== undefined }] : []);
+}
+
 function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefined {
   return PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === projectPluginId);
 }

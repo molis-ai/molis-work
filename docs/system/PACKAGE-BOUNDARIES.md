@@ -152,7 +152,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 | `layerExceptions` | `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST` 里的条目，一条边一条记录 | 名单和钉死它的测试可以在同一个 PR 里一起改；这里对照 merge-base，新增条目放不过，只能删。名单读不出来时也失败（合入前的 merge-base 还没有这两个名单，那一次不比）：读得出来指两个名单各是一个同名变量，初值是只含字符串字面量的数组；改名、挪走，或往里放展开（`...EXTRA_EDGES`）、标识符、函数调用、带替换的模板，都算读不出来 |
 | `hostPluginFiles`、`registerProviderSites` | 宿主里以内置插件命名的 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts`；`apps/local-host/src` 里每个文件的 `registerProvider(` 调用 | 构建期装配路径冻结（AGENTS.md）；名单测试 `tests/builtin-plugin-assembly-gate.test.ts` 之外，这里对照 merge-base，改名单放不过 |
 | `hybridPlugins` | 已由 Plugin Runtime 启动、宿主却还有同名文件或手工 `registerProvider(<插件>…Provider(…))` 的插件（现在：shelf、coding、git），报告里标出 | 混合装配既不是 Runtime 形状也不是冻结的构建期形状，名单看不出来。Characters 按 2026-10-08 决定第 26 项并进了宿主和 `modules/characters`，不再是 Runtime 插件（CHR-1，2026-10-22），名单里没有它了 |
-| `pluginOutsideMentions` | 每个内置插件的包名在它自己的包之外出现在多少个源码或配置文件里（import、`package.json` 依赖、工作区清单） | 加一个插件除了它自己的包还要改几处；目标是 0（W4-01）。新插件最多可以被 7 个文件点名，等于现有最小的完整插件（text-stats） |
+| `pluginOutsideMentions` | 每个内置插件的包名在它自己的包之外出现在多少个源码或配置文件里（import、`package.json` 依赖、工作区清单） | 加一个插件除了它自己的包还要改几处。新插件的额度是 0（W5-02 PR-C，统筹 10-23 定）：生成器写的两份文件不算，两个应用与根的 `package.json` 只在插件依赖正好等于生成文件 import 的那一组（根是两份的并集）时不算 |
 
 这些数字**看不到**的（没有类型检查器和跨文件数据流，靠评审；每个模块的文件头写得更细）：
 

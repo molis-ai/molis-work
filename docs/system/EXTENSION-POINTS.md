@@ -60,8 +60,8 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 | 栏 | 文件 | 要做什么 |
 | --- | --- | --- |
-| 登记 | `scripts/workspace-packages.mjs` | 一条 `entry(...)`；`apps/workbench`、`apps/local-host` 两处 `extraWorkspaceDependencies`（`pnpm workspace:check` 逐项比对） |
-| 登记 | `package.json`、`apps/local-host/package.json`、`apps/workbench/package.json` | 依赖行（根下的测试按包名 import 工作区包，靠根包的依赖解析） |
+| 登记 | `scripts/workspace-packages.mjs` | W5-02 PR-C（PG-069）后不改：登记表读各插件 `package.json` 的 `molis-work` 块，两个应用的插件依赖由登记推导（`registeredPluginDependencies`） |
+| 登记 | `package.json`、`apps/local-host/package.json`、`apps/workbench/package.json` | 依赖行（根下的测试按包名 import 工作区包，靠根包的依赖解析）。PR-C 后由 `node scripts/generate-plugin-registry.mjs` 写，`--check` 核对，与生成文件 import 的包一致时门禁不计 |
 | 登记 | `apps/local-host/src/project-plugins.ts` | import 和 `PluginSupervisorEntry`（`trust: HOST_BUILD_TRUST` 加 `nativePluginReleaseArtifact`）；要宿主端口时在同一文件构造 |
 | 登记 | `plugins/native/<目录>/src/registration.ts`、该包的 `package.json` | 在包里：导出 `registration`（manifest、`summary`、`personal`，以及 `workbench` 包：`order`、`contributions`、`stylesheet`、`clientFactory`、`searchRow`，可选 `instructions`、`agent`、`methods`）；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`。再运行 `node scripts/generate-plugin-registry.mjs`，它写出 `apps/workbench/src/builtin-plugins.ts`（生成的，不手改，不计一处） |
 | 登记 | `apps/local-host/src/web-goals-read.ts` + 一个宿主渲染文件 | 舞台页：`plugin_stages` 由几个具名函数（`codingCompanionStages`、`codingWorkbenchPanel` 等）拼出，新插件要加一个函数和一处调用；Shelf 走另一条路（`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts` 三处），两条路没有统一规则。W5-06 第 2 片（2026-10-23）后：贡献带 `workbench` surface 的插件，舞台由 Manifest 视图画（`apps/workbench/src/declared-stages.ts`），不用再加函数；宿主自己画的（Coding 一族、Text Stats、Characters）仍走 `plugin_stages` |

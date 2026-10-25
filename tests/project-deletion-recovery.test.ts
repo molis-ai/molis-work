@@ -165,7 +165,7 @@ for (const phase of ["purged", "prepared"] as const) test(`a new deletion recove
       return result;
     } } });
   const failure = t.mock.method(capability, "withCaller", (who: Parameters<AgentMemoryCapability["withCaller"]>[0]) => interrupted(bind(who)));
-  const dispose = hooks.register({ ...original, withRecovery: (input, work) => original.withRecovery!(input, async plan => {
+  const dispose = hooks.register({ ...original, withRecovery: (input, work) => original.withRecovery!(input, async (plan, proof) => {
     assert.equal(plan.kind, "runtime"); if (plan.kind !== "runtime") throw new Error("runtime plan required");
     assert.equal(plan.sessions.sessions.find(item => item.session.session_id === session.session_id)?.decision.operation_id, decision.operation_id);
     assert.ok(plan.memory.scopes.some(scope => scope.memories.some(row => row.memory_id === entry.memory_id && row.version === entry.version)));
@@ -178,7 +178,7 @@ for (const phase of ["purged", "prepared"] as const) test(`a new deletion recove
     await assert.rejects(f.memory().remove({ ...target, owner: f.kept.project_id, memory_id: other.memory_id, operation_id: `${plan.operation_id}:memory:${other.memory_id}` }));
     assert.deepEqual(records(), before, "discovery and rejected replacement effects do not write the originals");
     escaped = assert.rejects(escapeGate.then(() => f.memory().remove({ ...target, operation_id: child })), { code: "MEMORY_SCOPE_DENIED" });
-    entered(); await gate; return work(plan);
+    entered(); await gate; return work(plan, proof);
   }) }); t.after(dispose);
   const deleting = f.catalog.deleteProject(f.request);
   await Promise.race([waiting, deleting.then(() => { throw new Error("deletion did not reach the held original plan"); })]);

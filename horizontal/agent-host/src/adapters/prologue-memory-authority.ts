@@ -87,27 +87,11 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
     app_id: request.appId, target: { scope: request.target.scope as AgentMemorySourceRequest["target"]["scope"], owner: request.target.owner,
       ...(request.target.namespace === undefined ? {} : { namespace: request.target.namespace }) }, ...(request.signal ? { signal: request.signal } : {}),
   });
-  const sessionIds = (requests: Parameters<MemoryAuthority["authorize"]>[0]) => [...new Set(requests.flatMap(request =>
-    [request.context.sessionRef?.id, request.target.sessionRef?.id, request.before?.sessionRef?.id].filter((id): id is string => id !== undefined)))];
-  const assertSessions = (requests: Parameters<MemoryAuthority["authorize"]>[0]) => {
-    for (const id of sessionIds(requests)) {
-      try { index.capture(id)(); }
-      catch {
-        const call = calls.getStore(), caller = boundCaller(requests[0]!.context);
-        const allowed = caller && !requests.some(request => request.context.sessionRef) && call?.purge
-          ? options?.allowsSessionPurge?.(caller, requests, id, call.purge) : false;
-        requireSynchronous(allowed, "原会话清除许可必须同步完成");
-        if (allowed !== true) throw createPrologueError("MEMORY_SCOPE_DENIED", "原会话清除尚未完成，不能读取或修改记忆");
-      }
-    }
-  };
-  const inspectSessions = async (requests: Parameters<MemoryAuthority["authorize"]>[0]) => {
-    const ids = sessionIds(requests), checks = ids.map(id => index.capture(id, true));
-    const current = () => { for (const check of checks) check(); assertSessions(requests); };
-    // Read persisted lifecycle before applying the original owner's narrow purge permission, including after reopening.
-    for (const id of ids) { await index.inspect(id); current(); }
-    return current;
-  };
+  const { assert: assertSessions, inspect: inspectSessions } = sessionMemoryChecks(index, (requests, id) => {
+    const call = calls.getStore(), caller = boundCaller(requests[0]!.context);
+    return caller && !requests.some(request => request.context.sessionRef) && call?.purge
+      ? options?.allowsSessionPurge?.(caller, requests, id, call.purge) : false;
+  });
   return {
     async forAttempt(sessionId, attemptIndex, work) {
       const saved = await index.read(sessionId), attempt = saved?.attempts[attemptIndex];
@@ -188,4 +172,29 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
       },
     },
   };
+}
+
+/** One Session fence for persisted lifecycle, held generations and the original purge permission. */
+function sessionMemoryChecks(index: SessionIndexStore,
+  allowPurge: (requests: Parameters<MemoryAuthority["authorize"]>[0], id: string) => unknown) {
+  const sessionIds = (requests: Parameters<MemoryAuthority["authorize"]>[0]) => [...new Set(requests.flatMap(request =>
+    [request.context.sessionRef?.id, request.target.sessionRef?.id, request.before?.sessionRef?.id].filter((id): id is string => id !== undefined)))];
+  const assertSessions = (requests: Parameters<MemoryAuthority["authorize"]>[0]) => {
+    for (const id of sessionIds(requests)) {
+      try { index.capture(id)(); }
+      catch {
+        const allowed = allowPurge(requests, id);
+        requireSynchronous(allowed, "原会话清除许可必须同步完成");
+        if (allowed !== true) throw createPrologueError("MEMORY_SCOPE_DENIED", "原会话清除尚未完成，不能读取或修改记忆");
+      }
+    }
+  };
+  const inspectSessions = async (requests: Parameters<MemoryAuthority["authorize"]>[0]) => {
+    const ids = sessionIds(requests), checks = ids.map(id => index.capture(id, true));
+    const current = () => { for (const check of checks) check(); assertSessions(requests); };
+    // Read persisted lifecycle before applying the original owner's narrow purge permission, including after reopening.
+    for (const id of ids) { await index.inspect(id); current(); }
+    return current;
+  };
+  return { assert: assertSessions, inspect: inspectSessions };
 }

@@ -2591,3 +2591,11 @@ SDK 的无正文 preview 本身检查 `delete` eligibility，因此 action 名�
 本修复的定向工程结果：原 `pnpm build`、根 TypeScript、boundary、准确父 `8edc6d9` 的 health 均 exit 0。直接 authority 13/13、真实 Catalog 恢复 12/12 通过；后者分别从独立 prepared/purged 的两个 Session 和原 candidate 重开，验证普通 page 不泄正文、remove/清 meta/caller-only save 并发零写、准备中即使正确 child operation 也不能提前删、实际候选移除后的中断保 pending、旧 ALS 延迟调用失效，以及重启后同删除号与 Catalog `recovery_plan` 原字节续跑、旁项目与纯来源引用保留。包 README 必跑和影响面首批为 87/88 文件、775/776 项通过；唯一失败是既有 `project-deletion-memory-plan` fixture 未装原删除许可却要求直调清除。该例改走真实 Catalog/resident Host，保留原版本、无正文固定计划和物理移除断言，并新增无原 ALS 的 preview 拒绝；最终两恢复文件 22/22 通过，未机械重跑其余 87 文件。
 
 首败与边界：保留 TS2742 声明可移植性首败（返回类型已明确到现 policy owner），候选 fixture 的来源/公开 propose 参数错误，以及错误把 SDK preview 当 manage-read、把正式 purge 当不涨版本的中间失败。修正按现 SDK 合同，不降断言；普通 page 原语义为隐藏拒绝条目。迁移真实 Catalog 测试时发现公开 deletion 返回不含内部 recovery，已改从只读持久行核验，并同步修正新重试测试的原计划断言。最终日志为 `/private/tmp/molis-memory-session-foundation-recovery-required-20261025.log`、`/private/tmp/molis-memory-session-foundation-recovery-direct-retry-20261025.log` 与 `/private/tmp/molis-memory-session-foundation-recovery-persisted-final-20261025.log`。上述仅本片工程证据，不代表 root 最新聚合、完整业务/UI、真实 Home 或用户验收；无新 Action/schema、Index phase、SDK/vendor/锁变化。
+
+### 2026-10-25：已合 SDK #102 与源 Index、Session 恢复整合
+
+Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干净消费者、准确e371棘轮、类型/build/API/Cargo）及最终独审；新增7个公开Node探针通过。GitHub无评审阻塞，已合入main 0ff107a616efd88e4e489727cf6f2b00581992a7，合并整树与13c逐项一致。未等私库CI，未发布。沙箱监听EPERM和授权fetch首败保留；磁盘满环境两项未跑与inspection未交付副本GC驻留边界继续保留。
+
+本App从该干净13c原pnpm pack采用1,390,372 B/808个dist文件，已逐字节核对归档与完整质量构建；vendor无就地补丁，更新同名归档、sidecar、provenance、锁单一integrity及原来源断言。历史ee806归档仍可从Git取回。App也合入源Index ce5dda和Session原决定恢复ca741；冲突保留20ed的deletingCoverage、当前归属复核及verifyScopeCleanup先于抹除作用域的顺序，允许Session原清理的窄私有调用证明与这些检查共同成立，未放宽普通读写。新聚合实际安装/build、恢复/权限/源Index及相关影响面仍待实跑；上述SDK结果不代替App完整MEM-40、全量或用户验收。
+
+聚合首次验证保留：14文件13通过、recovery16/18；失败两例是新增测试withRecovery拦截器未转交20ed新增proof参数，触发assertCurrent读取undefined，尚未执行原部分删除断言。修正只转交原plan与proof，不伪造证明。准确d08健康同时拒绝新154行authority函数；将持久Session状态/代际及原purge同步许可检查抽为同文件完整职责，主装配仅传真实闭包，未改边界、阈值或门禁。其余已过用例不机械全跑；原构建及受影响权限/恢复组合需重验。新包实际安装808个dist与归档一致；资源仍仅Coding待批1,333 B，其他27项测量与前聚合一致。

@@ -9,22 +9,23 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "ee806705cdf1d992479425eb1edb03d12eb3744b",
+    "commit": "13c476a3a9ab3b44c811ad1e3cac7abeea9816c4",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
       "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/102",
-      "head": "ee806705cdf1d992479425eb1edb03d12eb3744b",
-      "status": "draft",
-      "note": "冻结候选，尚未合并；App 最终整合由统筹负责。"
+      "head": "13c476a3a9ab3b44c811ad1e3cac7abeea9816c4",
+      "status": "merged",
+      "note": "Merged #102; merge tree equals the validated package source.",
+      "mergeCommit": "0ff107a616efd88e4e489727cf6f2b00581992a7"
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1390295,
-    "sha256": "ffef5464b0b249fe9c28acd447de2b88e0436037dc1073673b461e88d65056d5",
-    "integrity": "sha512-9ooicSsDXNWgwi+FJHVHgVGJsrGTIIRX3gvW28bgX4TfYLJRMfg5ErLhmANyYWKJ6boUQqB593qzOgScWD1b1Q=="
+    "bytes": 1390372,
+    "sha256": "4ceebe6b506b4d00a7722eb378ec0bb80f62dd757fb3a05408f6dbe210fadf1c",
+    "integrity": "sha512-V8ZOgEqXZtyRp+THGRfTq8atdscQWvQK/Le+ioDQAX89jxm35fQGmOYd0mMmwf0f6ieE6heG6UqDMOuuVNYayQ=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,11 +33,11 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "固定干净 SDK ee806705；原 pnpm quality、准确 f175 基线 ratchet 与最终独立评审通过",
-      "统筹逐字节核对归档 808 个 dist 文件与最终质量构建，差异为 0",
-      "原 pnpm pack 产物，不在 vendor 修补；同步同名归档、sidecar、来源和 lock"
+      "固定干净SDK 13c476a3；已合#102 main 0ff107a6树完全相同；原quality与准确e371棘轮、独审通过",
+      "原归档808个dist逐字节等于最终质量构建",
+      "原pnpm pack产物，无vendor补丁；同步归档、sidecar、provenance与lock"
     ],
     "packedOn": "2026-10-25",
-    "note": "Draft #102 已合入主线 f175 的冻结候选，尚未合并。原 quality 70 文件 723 项和 4 质量门、干净消费者通过；最终独审原探针14项、新探针9项通过。磁盘满环境两项未执行；inspection拒交付私有副本未主动擦除。App完整MEM-40仍待验收。"
+    "note": "已合#102；原quality70文件723项与干净消费者通过，最终增量独审7探针通过。首败保留；磁盘满环境两项未跑，inspection拒交付私有副本未主动擦除。App完整MEM-40待验收。"
   }
 }

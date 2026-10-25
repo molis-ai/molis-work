@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 

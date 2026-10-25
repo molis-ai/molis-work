@@ -120,6 +120,18 @@ export const UI = {
   lines: /\b[A-Z][A-Z0-9_]*_(?:SCRIPT|STYLES?)\b|<style\b|\bclass(?:Name)?\s*=\s*\\?["']|\bclassList\b|\binnerHTML\b|\bdocument\.(?:querySelector|getElementById)\b/,
 };
 
+/**
+ * A file whose text is a stylesheet: a css/scss file, or a file under a styles folder (`packages/design-system/src/styles/…`).
+ * Its selectors, custom properties and attributes are not identifiers, so `tests/…` files that assert the built stylesheet by
+ * writing them as text are found by searching for those tokens, not by the name index (BL-153; W5-05 #630 deleted a skin and
+ * missed three tests that only write its selectors).
+ */
+export const STYLE_FILE = /\.(?:css|scss)$|\/(?:styles?|stylesheets?)\//;
+
+/** Where a changed contract field is declared: a source file of the contracts package. A field is a promise to callers (BL-153). */
+export const CONTRACT_SOURCE = /^packages\/contracts\/src\//;
+
+
 // ---- the rules about what the test touches ---------------------------------------------------------------------------------
 /**
  * A changed line in a product source file that calls a translator or has Chinese in a string: the text is shown to people.

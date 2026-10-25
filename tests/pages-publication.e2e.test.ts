@@ -2,7 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";

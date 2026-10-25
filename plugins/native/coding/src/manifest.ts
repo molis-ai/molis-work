@@ -225,6 +225,7 @@ export const codingManifest: PluginManifest = {
         title: "Coding",
         contribution_id: CODING_UI_CONTRIBUTION_ID,
         icon: "code",
+        hue: "cyan",
         order: 55,
         group: "code",
       },

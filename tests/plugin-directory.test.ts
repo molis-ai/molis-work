@@ -91,8 +91,8 @@ test("RAC-605 a plugin's name and declared texts come out escaped, and the direc
   // RAC-605-CLIENT-02: untrusted text still exercises the existing serializer after names leave the client projection.
   assert.match(scriptJson({ text: HOSTILE }), /\\u003c\/script\\u003e\\u003cimg src=x onerror=alert\(1\)\\u003e\\u0026\\u2028tail/u);
   const parsed = JSON.parse(data) as Array<{ id: string; accepts_objects: boolean }>;
-  assert.deepEqual(parsed.find(entry => entry.id === "evil"), { id: "evil", accepts_objects: true }, "the client receives its routing fields without the unconsumed name");
-  assert.deepEqual(clientPluginDirectory([hostile]), [{ id: "evil", accepts_objects: true }], "the direct projection also omits the display name");
+  assert.deepEqual(parsed.find(entry => entry.id === "evil"), { id: "evil", accepts_objects: true, hue: null }, "the client receives its routing fields without the unconsumed name");
+  assert.deepEqual(clientPluginDirectory([hostile]), [{ id: "evil", accepts_objects: true, hue: null }], "the direct projection also omits the display name");
   // Nothing the plugin wrote is markup in the page: its tag is text, its icon names no artwork.
   assert.doesNotMatch(html, /<img\b[^>]*src=x/u);
   assert.doesNotMatch(html, /<svg onload/u);
@@ -120,7 +120,7 @@ test("RAC-605 what is taken into the directory is held to plain keys, one line o
   assert.equal(entries.find(entry => entry.id === "group")!.ui.views[0]!.group, undefined);
 });
 
-test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps its own shell views and leaves the market entry intact", async () => {
+test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refused to start (S-75) and its place keeps its own shell key and views and leaves the market entry intact", async () => {
   const folder = mkdtempSync(join(tmpdir(), "directory-publisher-")), database = join(folder, "project.db");
   seedDemoBoard(database); const store = new LocalProjectDatabase(database);
   const ports = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
@@ -142,8 +142,10 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps it
   };
   try {
     assert.notEqual(definition.manifest.publisher.signature, builtin.manifest.publisher.signature);
+    // S-75: the Host's build owns its plugin ids, so the publisher's start is refused; a start that failed keeps its place in the directory.
     const report = await platform.start([{ definition }]);
-    assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []); assert.ok(report.running.includes(pluginId));
+    assert.deepEqual(report.failed.map(entry => [entry.plugin_id, entry.code]), [[pluginId, "plugin.id_namespace_conflict"]]);
+    assert.deepEqual(report.blocked, []); assert.deepEqual(report.running, []);
     const running = runningPluginDirectory(platform.supervisor);
     assert.deepEqual(running.map(entry => [entry.id, entry.plugin_id, entry.chosen]), [[pluginId, pluginId, false]], "the real Host directory does not grant the built-in key or trust to a different publisher");
     assert.equal(running[0]!.personal, undefined); assert.equal(running[0]!.always_on, undefined);
@@ -158,7 +160,8 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps it
     assert.ok(html.includes(`data-plugin-tile="${pluginId}"`), "the actual rail points to this publisher's shell surface");
     assert.equal(html.includes(`data-plugin-toggle="${pluginId}"`), false, "sharing a Manifest id does not turn it into a built-in project choice");
     assert.equal(headingOf(html, pluginId), "写与做");
-    assert.deepEqual(homeStartList(html).find(entry => entry.title === start.title), start, "the real page's start data keeps the same owner key");
+    const { plugin_id: _drawnIn, ...pageStart } = start; // the page's start data carries the words already applied, not the plugin that supplied them
+    assert.deepEqual(homeStartList(html).find(entry => entry.title === start.title), pageStart, "the real page's start data keeps the same owner key");
   } finally {
     await platform.closeCoordination();
     for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);
@@ -217,7 +220,7 @@ test("RAC-619 the Host's marks (personal, always_on, companions) are kept only a
   assert.equal(many!.companions!.length, 32);
   assert.doesNotMatch(renderPluginDirectoryData([kept!]), /personal|always_on|companions/u, "the page's scripts get none of them");
   // RAC-619-CLIENT-03: the marked server entry exposes only the two routing fields, with no display or Host fields.
-  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "kept", accepts_objects: false }]);
+  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "kept", accepts_objects: false, hue: null }]);
 });
 
 test("RAC-605 the Host reads the directory from the Manifests the project's Runtime runs, built-in and installed alike", async () => {
@@ -311,7 +314,7 @@ test("RAC-606 the page carries the directory for its scripts: a plugin that decl
   const html = renderMolisWorkWeb(view([installed("notes", { accepts_objects: true }), installed("plain")]));
   const parsed = JSON.parse(directoryData(html)) as Array<{ id: string; accepts_objects: boolean }>;
   // RAC-606-CLIENT-01: both Runtime entries and market fallbacks use exactly the fields the real script consumes.
-  for (const entry of parsed) assert.deepEqual(Object.keys(entry).sort(), ["accepts_objects", "id"]);
+  for (const entry of parsed) assert.deepEqual(Object.keys(entry).sort(), ["accepts_objects", "hue", "id"]);
   assert.deepEqual(parsed.filter(entry => entry.accepts_objects).map(entry => entry.id).includes("notes"), true);
   assert.equal(parsed.find(entry => entry.id === "plain")?.accepts_objects, false);
   assert.equal(parsed.find(entry => entry.id === "pages")?.accepts_objects, true, "a built-in the Host did not list is the market's, read the same way");

@@ -68,13 +68,12 @@ export {
 } from "./typeface.js";
 
 export { projectMonogram, renderProjectMonogram, type ProjectMonogramHue } from "./monogram.js";
-export { renderIconSprite, ICON_LIBRARY, PLUGIN_ICON, STATUS_ICON, listedIconNames, registeredIconNames } from "./icons.js";
+export { renderIconSprite, ICON_LIBRARY, STATUS_ICON, listedIconNames, registeredIconNames } from "./icons.js";
 export {
   MW_CONTENT_MARKS,
   MW_CONTENT_SURFACES,
   MW_CONTENT_THEME,
   MW_HUES,
-  MW_PLUGINS,
   MW_SURFACES,
   renderControlMetrics,
   renderPaletteTokens,

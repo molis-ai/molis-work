@@ -43,4 +43,4 @@ export {
   type MwFileGroupOptions,
   type MwBriefOptions,
 } from "./arrival.js";
-export { renderPrimitiveCatalog, PRIMITIVE_CATALOG_IDS } from "./catalog.js";
+export { renderPrimitiveCatalog, PRIMITIVE_CATALOG_IDS, type CatalogPluginIcon } from "./catalog.js";

@@ -6,8 +6,8 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest } from "./install-rules.js";
-import { isHostTrust } from "./trust-rules.js";
+import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest, assertStartable, type DeclarationOwners } from "./install-rules.js";
+import { assertRuleKeysUnreserved, isHostTrust } from "./trust-rules.js";
 import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
@@ -34,7 +34,7 @@ export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginState
 export {
   createPluginRuntimeReleaseArtifact,
   MemoryPluginRuntimeReleaseArtifactRepository,
-  SqlitePluginRuntimeReleaseArtifactRepository, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL,
+  SqlitePluginRuntimeReleaseArtifactRepository, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, readPluginReleaseManifest,
 } from "./release-artifacts.js";
 export type {
   PluginRuntimeReleaseArtifact,
@@ -155,7 +155,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   constructor(
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
-    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope;
+    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; reservedRuleKeys?(): ReadonlySet<string>;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). */
@@ -167,14 +167,13 @@ export class PluginRuntime implements PluginRuntimeApi {
     validateManifest(definition.manifest);
     const key = definitionKey(definition.manifest);
     const current = this.definitions.get(key);
-    if (current && current !== definition) {
-      throw pluginErrors.definition_conflict("同一 Plugin ID、Version 和签名不能注册两个实现");
-    }
+    if (current && current !== definition) throw pluginErrors.definition_conflict("同一 Plugin ID、Version 和签名不能注册两个实现");
     this.definitions.set(key, definition);
   }
 
   install(input: PluginInstallInput): PluginLifecycleReceipt {
     const trust = assertInstallIdentity(input, this.repository.list(), this.options.hostIds);
+    assertRuleKeysUnreserved(input.definition.manifest, trust, this.options.reservedRuleKeys?.());
     const receipt = this.installRecord(input, trust);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
     return receipt;
@@ -183,7 +182,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   private installRecord(input: PluginInstallInput, trust: PluginTrust): PluginLifecycleReceipt {
     const host = isHostTrust(trust);
     const manifest = input.definition.manifest;
-    validateInstalledManifest(manifest);
+    validateInstalledManifest(manifest, this.options.declarationOwners);
     const entrypoint = manifest.entrypoints.find((candidate) => candidate.deployment === input.deployment);
     if (!entrypoint) {
       throw pluginErrors.entrypoint_missing("Plugin 没有当前部署环境的 entrypoint");
@@ -294,7 +293,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   private async changeVersion(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[] }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
     return this.locks.run(input.install_id, async () => {
       const target = input.definition.manifest;
-      validateInstalledManifest(target);
+      validateInstalledManifest(target, this.options.declarationOwners);
       const current = this.requireInstall(input.install_id);
       if (current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能在升级时改变执行信任边界");
       if (rollbackCode && current.execution !== "sandbox") throw pluginErrors.state_invalid("代码回滚只适用于隔离的生成插件");
@@ -458,7 +457,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       throw pluginErrors.state_invalid(`Plugin 当前状态 ${current.state} 不能直接启动`);
     }
     const definition = this.requireDefinition(current);
-    assertRequiredGrants(definition.manifest, current.grants);
+    assertStartable(definition.manifest, current.grants, this.options.declarationOwners);
     try {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds);
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);

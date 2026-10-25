@@ -7,7 +7,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionClient, PluginArtifactClient, PluginDatabase, PluginDatabaseTransaction, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPagesPlugin, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
 type Stage = "before-begin" | "after-begin" | "after-publish-check" | "after-artifact" | "before-complete";

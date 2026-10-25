@@ -32,5 +32,5 @@ export const jellyManifest: PluginManifest = {
     { route_id: "jelly.ai", method: "POST", path: "/ai", max_body_bytes: 36_000_000, stream: "ndjson" },
     { route_id: "jelly.model.save", method: "POST", path: "/model-settings", max_body_bytes: 36_000_000 },
   ],
-  ui: { messages: JELLY_MESSAGES, translations: JELLY_EN, contributions: [JELLY_UI_CONTRIBUTION_ID], views: [{ view_id: "jelly", slot: "navigator", title: "Jelly", contribution_id: JELLY_UI_CONTRIBUTION_ID, icon: "calendar", order: 35, group: "personal" }] },
+  ui: { messages: JELLY_MESSAGES, translations: JELLY_EN, contributions: [JELLY_UI_CONTRIBUTION_ID], views: [{ view_id: "jelly", slot: "navigator", title: "Jelly", contribution_id: JELLY_UI_CONTRIBUTION_ID, icon: "calendar", hue: "mint", order: 35, group: "personal" }] },
 };

@@ -142,6 +142,7 @@ export const filesManifest: PluginManifest = {
         title: "Files",
         contribution_id: FILES_UI_CONTRIBUTION_ID,
         icon: "folder-tree",
+        hue: "yellow",
         order: 20,
         accepts_objects: true,
       },

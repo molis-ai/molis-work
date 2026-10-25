@@ -641,8 +641,8 @@ export interface AssistantMemoryCandidate {
 /**
  * `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work.
  * `reminder`: a reminder the person set in a Plugin came due (a time on a to-do); it belongs to no work.
- */
-export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder";
+ * `directory-read`: a Plugin read a local directory the person authorized (PG-049; every read is told, whoever started it). */
+export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder" | "directory-read";
 export interface AssistantNotice {
   notice_id: string;
   kind: AssistantNoticeKind;
@@ -762,7 +762,9 @@ export interface AssistantRoundDiagnostics {
     capability?: { capability_id: string; version: number; provider_id: string }; method?: { method_id: string; version?: number } }>;
   usage: { input: number; output: number; cached_input: number } | null;
   /** Calls that failed or whose outcome is not known, with the tool's own name and summary. */
-  failures: Array<{ tool: string; target: string; state: "failed" | "unknown"; summary: string }>;
+  failures: Array<{ tool: string; target: string; state: "failed" | "unknown"; summary: string;
+    /** The runtime's own words for the failure, bounded; when a summary only names a generic code, the rule that refused the call and its reason are here. */
+    detail?: string }>;
 }
 
 /** Immutable destination of a discussion work. The owner provides context and stores the final reply. */

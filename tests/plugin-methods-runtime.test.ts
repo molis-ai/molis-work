@@ -125,7 +125,7 @@ test("W4-02-04 RAC-192 RAC-194 a built-in plugin's methods come with its running
     assert.deepEqual(listed(home, "io.molis.work.pages"), [], "not running: no method for other Agents");
     const pages = platformIn(home), own = probe({ pluginId: "io.molis.work.pages", methods: [...pagesManifest.methods ?? []], bodies: [...pagesMethods] });
     try {
-      assert.deepEqual((await pages.platform.start([{ definition: own.definition }])).running, ["io.molis.work.pages"]);
+      assert.deepEqual((await pages.platform.start([{ definition: own.definition, trust: { level: "host" } }])).running, ["io.molis.work.pages"]);
       assert.equal(own.started(), 1);
       assert.match(homeAgentDefinitions(home).method("io.molis.work.pages", "meeting-notes", 2).body, /待定问题/, "the body its definition ships");
     } finally { pages.store.close(); }

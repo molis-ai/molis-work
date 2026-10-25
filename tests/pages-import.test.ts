@@ -11,7 +11,7 @@ import {
   type PagesStore,
   type PreparedPagesImport,
 } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { servePages } from "./fixtures/pages-runtime.js";
 

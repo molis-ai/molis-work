@@ -66,7 +66,7 @@ export const formManifest: PluginManifest = {
     translations: FORM_EN,
     contributions: [FORM_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", order: 57, group: "make",
+      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", hue: "orange", order: 57, group: "make",
         creates: { station: "form", title: "问卷" } },
     ],
   },

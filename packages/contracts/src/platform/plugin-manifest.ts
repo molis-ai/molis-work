@@ -80,6 +80,26 @@ export interface PluginRouteDeclaration {
   stream?: "ndjson";
 }
 
+/**
+ * The files a plugin can read from an imported 成果: the lower-case extensions with their dot, and whether a file the 成果库 kept as
+ * extracted text (an original too big to hold inline) counts when that text is not empty.
+ */
+export interface ArtifactFileDeclaration {
+  extensions: string[];
+  stored_text?: boolean;
+}
+
+/**
+ * One kind of link from a Plugin's objects to a 成果 version in the context ledger (「被谁引用」, 「目标的输入与交付物」). `role` is what the
+ * object does with the version: takes it as an input, or hands it in as an output; `proposal` marks the edge written for a person to
+ * confirm before the plain kind is.
+ */
+export interface ArtifactLinkDeclaration {
+  kind: string;
+  role: "input" | "output";
+  proposal?: boolean;
+}
+
 /** The dual-instance mark (docs/system/GLOSSARY.md) is not here: only the Host's registration can say it (S-48). */
 export interface PluginRuntimeDeclaration {
   readonly scope: "home";
@@ -128,10 +148,14 @@ export interface PluginManifest {
    * matches the object, for 「原文已改」 (A4b).
    * A plugin that can start new work from a version declares `continue` (`defineArtifactContinueAction`) on that type,
    * whether it produces it or only consumes it (「从这一版继续」, A4b).
+   * A consumed type that is an imported file says which files it can read (`file`), so the 成果库 lists the plugin for the files it can
+   * continue from and no others (ac-artifacts A3, PG-079).
    */
   artifacts: {
     produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
-    consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number } }>;
+    consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number }; file?: ArtifactFileDeclaration }>;
+    /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
+    links?: ArtifactLinkDeclaration[];
   };
   /** Exchange data this Plugin records for others and reads from them; kept out of the 成果库. A type is either a 成果 type or a process item type. */
   process_items?: {

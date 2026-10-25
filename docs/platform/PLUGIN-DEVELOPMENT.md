@@ -2,7 +2,7 @@
 
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
-新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：项目级的在 `apps/local-host/src/project-plugins.ts` 加监督器条目，Home 级的（个人数据跨项目一致、没有项目也能用）Manifest 写 `runtime: { scope: "home" }`、在插件自己 `src/registration.ts` 的 `registration` 上给出 `runtime: { create, package_name, factory_export, … }`，由宿主的 Home 监督器装配（写法见 `skills/molis-plugin-dev/host.md`）；不再手接 `ui-composition.ts` → `renderer.ts` → `shell-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是目录里要有它的条目：写在插件包的 `src/registration.ts`（导出 `registration: PluginRegistration`，Manifest、`summary`、`workbench` 次序与客户端资源都在里面；`package.json` 声明 `exports["./registration"]` 与 `"molis-work": { "registration": "./registration" }`），运行 `node scripts/generate-plugin-registry.mjs` 生成 `apps/workbench/src/builtin-plugins.ts`（不手改，`pnpm health:check` 跑它的 `--check`）；还要在 `scripts/workspace-packages.mjs` 加这个包的一行，在 `apps/workbench/package.json` 与 `apps/local-host/package.json` 里加这个插件包的依赖（这两处今天仍手写，`specs/repository-anti-corruption/privileges.md` PG-069 跟踪）；并把它的 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（门禁要求每个 Runtime 装配的 id 都有目录条目）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
+新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：项目级的在插件自己 `src/registration.ts` 的 `registration` 上声明 `project_runtime: { create, package_name, factory_export }`，由每个项目的监督器按登记装配（`apps/local-host/src/project-plugins.ts` 不为新插件改），Home 级的（个人数据跨项目一致、没有项目也能用）Manifest 写 `runtime: { scope: "home" }`、在同一份 `registration` 上给出 `runtime: { create, package_name, factory_export, … }`，由宿主的 Home 监督器装配（写法见 `skills/molis-plugin-dev/host.md`）；不再手接 `ui-composition.ts` → `renderer.ts` → `shell-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是目录里要有它的条目：写在插件包的 `src/registration.ts`（导出 `registration: PluginRegistration`，Manifest、`summary`、`workbench` 次序与客户端资源都在里面；`package.json` 声明 `exports["./registration"]` 与 `"molis-work": { "registration": "./registration" }`），运行 `node scripts/generate-plugin-registry.mjs` 生成 `apps/workbench/src/builtin-plugins.ts`（不手改，`pnpm health:check` 跑它的 `--check`），它在登记表里的那一条是自己 `package.json` 的 `molis-work` 块，两个应用与根 `package.json` 里对它的依赖也由生成器写，再跑 `pnpm install`（PG-069，包外不手改一个文件）（`tests/builtin-plugin-assembly-gate.test.ts` 从生成的登记读 Runtime 装配的 id，不用改）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
@@ -488,6 +488,12 @@ await caller.beforeEffect(); // 写业务记录之前
 - 沙箱插件经 broker 用同一份客户端（`sdk.connections.request`、`describe`、`release`）：操作要在 `effects.connections` 里写出用的槽，人批准后才能用；查询操作只能发 GET/HEAD、不能 `release`；宿主的客户端再按上面各条查一遍（`docs/system/SECURITY-INVARIANTS.md` S-60）。
 
 规则与拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` S-57。
+
+## 读人授权的本机目录（`services.directory`）
+
+插件要读人指定的本机目录（不是项目工作目录），在 Manifest 声明 `directory:read` 权限，安装确认里照常列出。目录只能由人经宿主的系统选择器给出：插件页面向 `POST /api/host/directory-grants`（项目页走 `/projects/<id>/api/host/directory-grants`）发 `{ plugin_id }`，选中后拿到 `grant_id`，再交给自己的动作，动作里用 `context.services.directory.read({ grant_id, path, kind })` 按相对路径读（`kind` 是 `directory`、`text` 或 `bytes`，各有上限；链接、`..` 和目录之外的路径拒）。
+
+授权一直有效，直到人在平台设置「本机目录」（`/settings/directories`）撤回；插件升级照用，卸载或删项目时撤掉（用户 2026-10-25 定，PG-049）。Agent、工作流、MCP 和插件自己的后台任务调到你的动作时也能读，但每一次读都记进那一页并通知本人，所以只在需要时读。目录被移走或换掉时读到 `changed`，请人重新选。插件自己的设置里可以放一个跳转：`/settings/directories?plugin=<你的 plugin_id>`。规则与拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` S-83。
 
 ## Home 主人的私有文件树
 

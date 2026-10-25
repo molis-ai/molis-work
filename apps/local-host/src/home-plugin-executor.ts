@@ -3,7 +3,7 @@ import { pluginPagesFor } from "./plugin-page-authority.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { pluginPageFiles } from "./plugin-page-files.js";
 import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginExecutor, type PluginInstanceRecord, type PluginStartContext, type PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient, StoppedServiceCalls, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
@@ -16,6 +16,7 @@ import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { pluginHomeFor } from "./home-side.js";
+import { declaresProjectCoordination } from "./plugin-project-coordination.js";
 import { givenService } from "./plugin-declared-services.js";
 import { forgetPluginAgentDefinitions, registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -33,7 +34,7 @@ import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
-/** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
+/** The Home service set deliberately contains no project Artifact, event, or wiring clients (`declaresProjectCoordination`, PG-025). */
 export class HomePluginExecutor implements PluginExecutor {
   private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase;
     background?: ReturnType<typeof pluginBackgroundFor> }>();
@@ -62,9 +63,8 @@ export class HomePluginExecutor implements PluginExecutor {
     refuseUngivenSandboxServices(definition, context);
     const manifest = definition.manifest;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
-    if (!this.options.dualInstance(definition) && (manifest.ports?.inputs.length || manifest.ports?.outputs.length || manifest.events?.publishes.length || manifest.events?.subscribes.length
-      || manifest.artifacts.produces.length || manifest.artifacts.consumes.length || manifest.process_items?.produces.length || manifest.process_items?.consumes.length)) {
-      throw new Error("Home Runtime 尚未提供项目成果、端口或事件服务");
+    if (!this.options.dualInstance(definition) && declaresProjectCoordination(manifest)) {
+      throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/dual-instance-plugins）");
     }
     let active = true, stopped = false;
     const generation = this.options.record(context.install_id)?.installation_generation;
@@ -187,6 +187,8 @@ export class HomePluginExecutor implements PluginExecutor {
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }
   uninstalled(record: PluginInstanceRecord): void {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
+    // A Home-level installation's directory grants, in every project, go with it (PG-049); kept data does not keep them.
+    directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }

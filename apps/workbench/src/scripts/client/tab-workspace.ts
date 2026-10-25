@@ -1,7 +1,6 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
 import { openPluginInSide, sideOpenedTabs } from "./plugin-place.js";
 import { recordRows, searchRows } from "../../search-rows.js";
-import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
 import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
@@ -46,10 +45,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const pool = document.querySelector("[data-surface-pool]");
   if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
-  const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
   const openInSide = (${openPluginInSide}).bind(null, ${sideOpenedTabs()});
-  const PLUGIN_TAB_TITLES = { home: "项目首页", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
+  const PLUGIN_TAB_TITLES = { home: "项目首页", market: L("插件市场"), ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   // Plugins installed at run time (built in the studio) name their own stage.
   document.querySelectorAll("[data-work-surface][data-installed-plugin]").forEach((surface) => { PLUGIN_TAB_TITLES[surface.dataset.workSurface] = surface.dataset.workSurfaceLabel; PLUGIN_TAB_ICON[surface.dataset.workSurface] = "package"; });
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
@@ -362,7 +360,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.itemId) button.dataset.itemId = tab.itemId;
     button.dataset.tabKind = tab.kind;
     if (tab.pinned) button.dataset.pinned = "true";
-    button.style.setProperty("--plugin-color", PLUGIN_COLOR[tab.plugin] || "var(--muted)");
+    button.style.setProperty("--plugin-color", "var(--ink-soft)");
     button.draggable = true;
     button.title = label;
     if (selected) button.setAttribute("aria-current", "page");
@@ -1166,7 +1164,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   // Search keeps owner-specific save/select behavior, including inside a split pane.
   const SEARCH_ROWS = ${JSON.stringify(searchRows())};
-  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab });
+  // Each plugin's group colour is the hue its Manifest declares, which the Host writes into the page's plugin directory.
+  const DIRECTORY_HUES = Object.fromEntries(JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter((entry) => entry.hue).map((entry) => [entry.id, entry.hue]));
+  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, hues: DIRECTORY_HUES });
   let cancelRecordJump = null;
   const openPluginRecord = (plugin, itemId) => {
     // A plugin with no search rows is still opened, and asked for the record by id below (the side panel's files).

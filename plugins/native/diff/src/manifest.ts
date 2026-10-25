@@ -123,7 +123,7 @@ export const diffManifest: PluginManifest = {
     translations: DIFF_EN,
     contributions: [DIFF_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "browse", slot: "navigator", title: "Diff", contribution_id: DIFF_UI_CONTRIBUTION_ID, icon: "git-compare", order: 65 },
+      { view_id: "browse", slot: "navigator", title: "Diff", contribution_id: DIFF_UI_CONTRIBUTION_ID, icon: "git-compare", hue: "cyan", order: 65 },
       {
         view_id: "comparison",
         slot: "stage",

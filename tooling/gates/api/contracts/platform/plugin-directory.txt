@@ -12,7 +12,7 @@ export interface PluginDirectoryEntry {
 export interface PluginDirectoryGrant {
     readonly grant_id: string;
     readonly root: string;
-    readonly expires_at: string;
+    readonly granted_at: string;
 }
 
 export interface PluginDirectoryReadRequest {

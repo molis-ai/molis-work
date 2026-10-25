@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
@@ -10,7 +12,7 @@ import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/m
 import { MolisWorkLocalHost, type MolisWorkProjectRuntime } from "../apps/local-host/dist/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
 import { createExternalMcpDirectory } from "../apps/local-host/dist/external-mcp-actions.js";
-import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
+import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability, mcpInputContract } from "../apps/local-host/dist/mcp-tool-actions.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
@@ -196,4 +198,39 @@ test("listing the servers again while an external tool is being called replaces 
     assert.equal(await find("echo"), undefined);
     assert.ok(await find("search"));
   } finally { directory.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// BL-155：MCP 参数标注的规则写在两份实现里——SDK 的校验副本（`mcpToolInputSchema`）和动作合同进目录时的副本
+// （`mcpActionInputSchema`）。SDK 没有公开它，包边界也不许深导入，所以这里钉住两份对同一批 schema 的结论一致，
+// 以及两处有意分歧：动作合同保留 `default`（它是约束，不是默认值注入）、只处理顶层标注。
+test("BL-155: the MCP parameter annotation rule is one behaviour in two copies: same accept, same reject, and `default` only in the action copy", async () => {
+  const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+  const packageRoot = dirname(dirname(requireSdk.resolve("@prologue/sdk")));
+  const sdk = await import(pathToFileURL(join(packageRoot, "dist", "mcp", "core", "input-schema.js")).href) as {
+    mcpToolInputSchema: (schema: Readonly<Record<string, unknown>>) => Record<string, unknown>;
+  };
+  const asJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
+  const annotated = (note: Record<string, unknown>) => ({ type: "object", properties: { note }, required: ["note"], additionalProperties: false });
+
+  // 合法标注：两边都去掉传输层标注，留下的动作合同相同（SDK 的对象没有原型，按 JSON 归一后比较）。
+  const legal = annotated({ type: "string", "x-mcp-header": "X-Note" });
+  const kept = mcpInputContract(legal);
+  assert.equal(kept.availability.available, true);
+  assert.deepEqual(asJson(kept.schema), asJson(sdk.mcpToolInputSchema(legal)));
+
+  // 有意分歧：动作合同保留 `default`（它是约束，不会注入默认值）；SDK 的校验副本把它当不需要的标注去掉。
+  const withDefault = annotated({ type: "string", default: "x", "x-mcp-header": "X-Note" });
+  assert.deepEqual((mcpInputContract(withDefault).schema.properties as Record<string, unknown>).note, { type: "string", default: "x" });
+  assert.deepEqual(asJson((sdk.mcpToolInputSchema(withDefault).properties as Record<string, unknown>).note), { type: "string" });
+
+  // 坏标注：两边都拒绝——SDK 拒绝整份 schema，动作合同让工具可见但不可用，等合同更新后重新发现。
+  const bad = [
+    annotated({ type: "string", "x-mcp-header": "bad header" }),
+    annotated({ type: "number", "x-mcp-header": "X-Note" }),
+    { type: "object", properties: { a: { type: "string", "x-mcp-header": "X-Dup" }, b: { type: "string", "x-mcp-header": "x-dup" } } },
+  ];
+  for (const schema of bad) {
+    assert.throws(() => sdk.mcpToolInputSchema(schema), (error: unknown) => (error as { code?: unknown }).code === "MCP_PROTOCOL_UNSUPPORTED");
+    assert.equal(mcpInputContract(schema).availability.code, "actions.schema_unsupported");
+  }
 });

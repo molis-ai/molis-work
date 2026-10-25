@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { TEXT_STATS_CLIENT_FACTORY_SCRIPT, TEXT_STATS_PROJECT_PLUGIN_ID, TEXT_STATS_STYLES, textStatsManifest, textStatsUiContribution } from "./index.js";
+import { createTextStatsPlugin, TEXT_STATS_CLIENT_FACTORY_SCRIPT, TEXT_STATS_PROJECT_PLUGIN_ID, TEXT_STATS_STYLES, textStatsManifest, textStatsUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -8,5 +8,6 @@ import { TEXT_STATS_CLIENT_FACTORY_SCRIPT, TEXT_STATS_PROJECT_PLUGIN_ID, TEXT_ST
 export const registration: PluginRegistration = {
   project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, catalog_order: 26,
   manifest: textStatsManifest,
+  project_runtime: { create: createTextStatsPlugin, package_name: "@molis-ai/molis-work-plugin-text-stats", factory_export: "createTextStatsPlugin" },
   workbench: { order: 24, contributions: [textStatsUiContribution], clientFactory: TEXT_STATS_CLIENT_FACTORY_SCRIPT, stylesheet: TEXT_STATS_STYLES },
 };

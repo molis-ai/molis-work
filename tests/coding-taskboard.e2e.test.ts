@@ -85,10 +85,10 @@ test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认�
       const t0=Date.parse('2026-09-26T07:00:00Z');
       const plan={revision:1,content:{title:'四步',steps:[{title:'改 a',acceptance:'a'},{title:'改 b',acceptance:'b'},{title:'看页面',acceptance:'c'},{title:'写说明',acceptance:'d'}],blockers:'',change_reason:''}};
       const nodes=[
-        {id:'step-1',state:'succeeded',owner:{kind:'session',label:'本会话'},reports:[{note:'a 改好了',at_ms:t0+1000,by:'本会话'}]},
-        {id:'user-1',state:'succeeded',inserted:true,title:'手工看页面',depends_on:['step-1'],owner:{kind:'person',label:'用户',actor_id:'user'},reports:[{note:'用户完成：页面正常',at_ms:t0+1500,by:'用户'}]},
-        {id:'step-2',state:'running',depends_on:[],owner:{kind:'subtask',label:'子任务「two」',subagent_id:'c1'},reports:[{note:'本会话 → 子任务「two」（派出子任务时交给它）',at_ms:t0+2000,by:'改派',handover:true},{note:'开始改 b',at_ms:t0+3000,by:'子任务「two」'}]},
-        {id:'step-3',state:'ready',depends_on:['step-1'],owner:{kind:'person',label:'用户',actor_id:'user'},reports:[{note:'本会话 → 用户（用户改派给自己处理）',at_ms:t0+4000,by:'改派',handover:true}]},
+        {id:'step-1',state:'succeeded',owner:{kind:'session',label:'本会话'},reports:[{note:'a 改好了',at_ms:t0+1000,by:{kind:'session',label:'本会话'}}]},
+        {id:'user-1',state:'succeeded',inserted:true,title:'手工看页面',depends_on:['step-1'],owner:{kind:'person',label:'用户',actor_id:'user'},reports:[{note:'用户完成：页面正常',at_ms:t0+1500,by:{kind:'person',label:'用户'}}]},
+        {id:'step-2',state:'running',depends_on:[],owner:{kind:'subtask',label:'子任务「two」',title:'two',subagent_id:'c1'},reports:[{note:'本会话 → 子任务「two」（派出子任务时交给它）',at_ms:t0+2000,by:{kind:'handover',label:'改派'},handover:true},{note:'开始改 b',at_ms:t0+3000,by:{kind:'subtask',label:'子任务「two」',title:'two'}}]},
+        {id:'step-3',state:'ready',depends_on:['step-1'],owner:{kind:'person',label:'用户',actor_id:'user'},reports:[{note:'本会话 → 用户（用户改派给自己处理）',at_ms:t0+4000,by:{kind:'handover',label:'改派'},handover:true}]},
         {id:'step-4',state:'ready',depends_on:[],owner:{kind:'none',label:'没人认领'},reports:[]},
       ];
       api.update('s',{session:{title:'会话'},plan:{...plan,confirmed:{artifact_id:'x',version:1}},

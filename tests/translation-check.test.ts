@@ -36,7 +36,13 @@ const branch = (name: string, mutate: () => void) => {
 // A scratch product: the Workbench dictionary (apps/workbench/src/i18n/en.ts builds the catalog the Host serves from the two
 // plugins' dictionaries and its own entries), two plugins with a dictionary each ("说明" is translated two ways, the one
 // frozen conflict), a server-rendered UI, and a browser script in a template literal. "旧的" is a dead key.
+// The two plugins are packages from the start, as the built-ins whose dictionaries the Workbench serves are: a plugin that only
+// became a package on a scenario's branch would be a new plugin named outside its package (the import in en.ts), which the
+// assembly gate refuses (W5-02 PR-C), and these scenarios are about translations.
+const pluginPackage = (owner: string) => put(`plugins/native/${owner}/package.json`, JSON.stringify({ name: `@scratch/${owner}` }));
 const base = () => {
+  pluginPackage("alpha");
+  pluginPackage("beta");
   put("tooling/gates/limits.json", JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
   put("specs/demo/spec.md", "# Demo\n\n状态：进行中\n");
   put("apps/workbench/src/i18n/en.ts", [
@@ -89,7 +95,7 @@ const addGamma = (entries: string) => { put("plugins/native/gamma/src/en.ts", ga
 const messages = (owner: string, entries: string) => `export const ${owner.toUpperCase()}_MESSAGES = {\n${entries}\n};\n`;
 // A plugin registers its words in its Manifest (`ui.messages`), and the built catalog lists the plugin's registration (PG-071).
 const catalogListing = (owner: string) => {
-  put(`plugins/native/${owner}/package.json`, `{ "name": "@scratch/${owner}" }\n`);
+  pluginPackage(owner);
   put(`plugins/native/${owner}/src/registration.ts`, `export const registration = { project_plugin_id: "${owner}" };\n`);
   return `import { registration as ${owner}Registration } from "@scratch/${owner}/registration";\nexport const BUILTIN_PLUGIN_CATALOG = [${owner}Registration];\n`;
 };

@@ -2,10 +2,8 @@ import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/pro
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
-import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
-import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
 import { sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
@@ -280,74 +278,4 @@ export const pluginLabel = (id: string, label: string, english: boolean): string
 export function pluginTabTitles(english = false, market: PluginDirectory = builtinPluginDirectory()): Record<string, string> {
   const enabled = market.map((entry) => entry.id);
   return Object.fromEntries([...railEntries(enabled, market), ...islandEntries(enabled, market)].map((entry) => [entry.id, pluginLabel(entry.id, entry.label, english)]));
-}
-
-/** A visible 成果 type as its owner declares it (specs/artifact-positioning A4). */
-export interface ArtifactTypeDeclaration {
-  readonly title: string;
-  readonly plugin_id: string;
-  readonly plugin_title: string;
-  /** The owner's surface in the workbench, where its work objects open. */
-  readonly surface: string;
-  readonly preview: ActionDefinition | null;
-  /** The owner's action that pins one of its work objects on the spot (A5), when the type has one. */
-  readonly pin: ActionDefinition | null;
-  /** The owner's action that says whether a version still matches its work object (A4b). */
-  readonly compare: ActionDefinition | null;
-}
-
-/** A plugin that can start new work from a 成果 type (「从这一版继续」, A4b), whether it owns the type or only reads it. */
-export interface ArtifactContinuer { readonly plugin_id: string; readonly plugin_title: string; readonly action: ActionDefinition }
-
-/** For each 成果 type, the built-in plugins that declare they can continue from it. */
-export function artifactContinuers(): ReadonlyMap<string, readonly ArtifactContinuer[]> {
-  const continuers = new Map<string, ArtifactContinuer[]>();
-  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of [...entry.manifest.artifacts.produces, ...entry.manifest.artifacts.consumes]) {
-    const declared = type.continue, action = declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) : undefined;
-    if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action }]);
-  }
-  return continuers;
-}
-
-/** The plugins that can say which of their objects link to a 成果 version (「被谁引用」, artifact-positioning 五.1). */
-export function artifactReferrerActions(): readonly ArtifactContinuer[] {
-  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.actions ?? []).filter(action => isArtifactReferrersAction(action.action))
-    .map(action => ({ plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action })));
-}
-
-/**
- * A 成果 producer that is part of the Host, not a plugin (Characters): what it writes, declared as a Manifest's `artifacts.produces`
- * would be, its actions, and the workbench surface its work objects open on. Wherever the built-in Manifests' declarations are
- * read, these are read with them.
- */
-export interface HostArtifactProducer {
-  readonly plugin_id: string;
-  readonly name: string;
-  readonly surface: string;
-  readonly produces: PluginManifest["artifacts"]["produces"];
-  readonly actions: readonly ActionDefinition[];
-}
-
-export const HOST_ARTIFACT_PRODUCERS: readonly HostArtifactProducer[] = [
-  { ...CHARACTER_ARTIFACT_PRODUCER, produces: [...CHARACTER_ARTIFACT_PRODUCER.produces], surface: "characters", actions: [characterArtifactPreviewAction] },
-];
-
-/** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests and the Host's own producers. */
-export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDeclaration> {
-  const declarations = new Map<string, ArtifactTypeDeclaration>();
-  const producers = [...BUILTIN_PLUGIN_CATALOG.map(entry => ({ plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, surface: entry.project_plugin_id,
-    produces: entry.manifest.artifacts.produces, actions: entry.manifest.actions ?? [] })), ...HOST_ARTIFACT_PRODUCERS];
-  for (const producer of producers) for (const type of producer.produces) {
-    if (!type.title) continue;
-    const action = (declared?: { capability_id: string; version: number }) => declared ? producer.actions.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
-    declarations.set(type.artifact_type_id, { title: type.title, plugin_id: producer.plugin_id, plugin_title: producer.name,
-      surface: producer.surface, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
-  }
-  return declarations;
-}
-
-/** Every 成果 type the built-in Manifests and the Host's own producers declare, as consumers name types (id and schema version). */
-export function declaredArtifactTypes(): Array<{ artifact_type_id: string; schema_version: number }> {
-  return [...BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest.artifacts.produces), ...HOST_ARTIFACT_PRODUCERS.map(producer => producer.produces)].flat()
-    .map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version }));
 }

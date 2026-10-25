@@ -30,14 +30,16 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*"
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
     "path": "plugins/native/todo",
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Protected first-party Todo: the person's formal list of things to move forward.",
+    "notResponsibleFor": "AI organizing and follow-through, Goal facts, reminder delivery, or material bodies.",
+    "legacySources": [],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -46,6 +48,10 @@
       "todo.ui-contribution.v1",
       "todo.http-routes.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   },
   "devDependencies": {

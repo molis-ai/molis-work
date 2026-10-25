@@ -27,7 +27,8 @@ import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { SystemFunctionsActions } from "./functions-actions.js";
-import type { FunctionsHostOptions } from "./functions-host.js";
+import { seedSceneRules, type FunctionsHostOptions } from "./functions-host.js";
+import { admitProviderRules } from "./scene-rule-admission.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
@@ -155,7 +156,13 @@ export class MolisWorkLocalHost {
     this.host = new LocalHost({
       instanceId: options.instanceId,
       actionSettled: this.settleAction,
-      actionProvidersChanged: provider => this.search?.providerChanged(provider),
+      admitActionProvider: (provider, scenes) => admitProviderRules(options.homeDirectory, provider, scenes),
+      actionProvidersChanged: (provider, scenes) => {
+        this.search?.providerChanged(provider);
+        // A scene's own rule is written when the scene is registered, so an installed plugin's rule is there the same way a shipped one is.
+        if (!scenes?.length || !options.homeDirectory) return;
+        try { seedSceneRules(options.homeDirectory, provider, scenes, options.functions); } catch (error) { hostLog.warn("functions", "scene_rule_seed_failed", error); }
+      },
       actionAvailability: options.actionAvailability,
       sceneAvailability: options.sceneAvailability,
       runtimeFactory: {

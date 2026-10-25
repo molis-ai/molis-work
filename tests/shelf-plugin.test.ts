@@ -469,7 +469,9 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.ok(sheet.indexOf(INTERACTION_TEXTURE_STYLES) < sheet.lastIndexOf("--da-action: var(--content-accent)"));
   assert.match(SHELF_STYLES, /--da-accent: var\(--accent\);/);
   assert.match(SHELF_STYLES, /\.shelf-primary \{[^}]*background: var\(--da-action\);/);
-  assert.match(sheet, /\[data-plugin-id="shelf"\][\s\S]*--plugin-tint: var\(--plugin-shelf\)/);
+  // PG-075 (#1303): no plugin has an identity colour of its own; Shelf's rail entry takes the neutral tint every plugin takes.
+  assert.match(sheet, /\.plugin-rail \[data-plugin-id\][^{]*\{ --plugin-tint: var\(--ink-soft\); \}/);
+  assert.doesNotMatch(sheet, /--plugin-shelf\b/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--action\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--content-side: var\(--surface-soft\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--mark-clay: #B27460;/);

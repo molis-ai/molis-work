@@ -4,6 +4,7 @@ import { ARTIFACT_FILE_IMPORT_ACTION, ARTIFACT_SUBJECT_KIND, artifactSubjectId, 
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./artifact-browser.js";
 import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./artifact-goal-context.js";
+import { linkKindOf, type ArtifactLinkKind, type ArtifactLinkKinds } from "./artifact-link-kinds.js";
 import type { ExternalDocumentSource, ModelRequired } from "./artifact-document-import.js";
 import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -114,6 +115,8 @@ export interface ArtifactActionPorts {
   projectId: string;
   artifacts: ArtifactsApplicationApi;
   ledger: ContextLedgerApi["query"];
+  /** The kinds of link Plugins declare from their objects to a version (Manifest `artifacts.links`); absent or empty reads as no links. */
+  linkKinds?: ArtifactLinkKinds;
   importDocument(input: ArtifactFileImport | ArtifactExternalImport, caller: ActionExecutionContext): Promise<ArtifactImportResult>;
   importSources(): Record<string, boolean>;
   importConnections?(): ConnectorConnectionView[];
@@ -134,7 +137,9 @@ interface ArtifactReferences {
   goals: Array<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>;
   other: number;
 }
-const GOAL_ROLES: Record<string, ArtifactReferences["goals"][number]["role"]> = { "goal.input": "input", "goal.input.proposal": "proposed_input", "goal.output": "deliverable", "goal.output.proposal": "proposed" };
+/** The role a declared link kind gives the object that wrote it, in the words 「被谁引用」 shows. */
+const referenceRole = (kind: ArtifactLinkKind): ArtifactReferences["goals"][number]["role"] =>
+  kind.role === "input" ? (kind.proposal ? "proposed_input" : "input") : (kind.proposal ? "proposed" : "deliverable");
 /** A version people can still hand on: in the 成果库, readable and not archived. */
 function requireUsable(ports: ArtifactActionPorts, reference: ArtifactReference): ArtifactVersionRecord {
   const artifact = ports.artifacts.query.getArtifactVersion(ports.projectId, reference);
@@ -164,9 +169,9 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       // Edges in this project's ledger name this project or no project (Goals' input bindings name none).
       const currentProject = (project: string | null | undefined) => project == null || project === ports.projectId;
       const edges = ports.ledger.list({ actor_id: caller.actor_id, scope });
-      const goalIds = edges.filter(edge => (edge.type === "goal.input" || edge.type === "goal.output")
+      const goalIds = edges.filter(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind !== null && !kind.proposal
         && edge.target.module === "artifacts" && edge.target.id === reference.artifact_id && edge.target.version === reference.version
-        && currentProject(edge.target.project_id) && edge.source.module === "goals" && currentProject(edge.source.project_id))
+        && currentProject(edge.target.project_id) && currentProject(edge.source.project_id); })
         .map(edge => edge.source.id);
       return artifactAnalysisContext(artifact, goalIds, input as { offset?: number });
     }),
@@ -204,7 +209,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     bind(artifactsActions.importFile, (input, caller) => ports.importDocument(input, caller)),
     bind(artifactsActions.importExternal, (input, caller) => ports.importDocument(input, caller)),
     bind(artifactsActions.importSources, () => ({ sources: ports.importSources(), connections: ports.importConnections?.() ?? [] })),
-    bind(artifactsActions.goalEmbeds, input => ({ embeds: readGoalArtifactEmbeds({ projectId: ports.projectId, goalId: input.goal_id, artifacts: ports.artifacts.query, ledger: ports.ledger, supportedTypes: input.supported_types }) })),
+    bind(artifactsActions.goalEmbeds, input => ({ embeds: readGoalArtifactEmbeds({ projectId: ports.projectId, goalId: input.goal_id, artifacts: ports.artifacts.query, ledger: ports.ledger, linkKinds: ports.linkKinds, supportedTypes: input.supported_types }) })),
     bind(artifactsActions.projectReference, input => ports.openProjectReference(input)),
     bind(artifactsActions.pluginInputs, async input => ({ inputs: await ports.pluginInputs?.(requireUsable(ports, input.reference)) ?? [] })),
     bind(artifactsActions.bindPluginInput, async (input, caller) => {
@@ -215,8 +220,8 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     bind(artifactsActions.links, (input, caller) => {
       const edges = ports.ledger.list({ actor_id: caller.actor_id, scope: { kind: "personal", id: ports.projectId } }).filter(edge => edge.state === "active"
         && edge.target.module === "artifacts" && edge.target.id === input.reference.artifact_id && edge.target.version === input.reference.version);
-      const goals = edges.filter(edge => edge.source.module === "goals" && GOAL_ROLES[edge.type])
-        .map(edge => ({ goal_id: edge.source.id, title: ports.goalTitle?.(edge.source.id) ?? edge.source.id, role: GOAL_ROLES[edge.type]! }));
+      const goals = edges.flatMap(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind === null ? []
+        : [{ goal_id: edge.source.id, title: ports.goalTitle?.(edge.source.id) ?? edge.source.id, role: referenceRole(kind) }]; });
       return { goals, other: edges.length - goals.length } satisfies ArtifactReferences;
     }),
     ...bindWorkflowContentHandlers(artifactsContentActions, {

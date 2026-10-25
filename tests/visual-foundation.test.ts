@@ -57,7 +57,8 @@ test("visual foundation enhances visible selects onto mw-menu", () => {
   const workbench = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(workbench, /\.mw-select-picker \{/);
   assert.match(workbench, /\.dataset-toolbar \.mw-select, \.dataset-toolbar \.mw-select-picker/);
-  assert.match(workbench, /\[data-work-surface="feed"\]/);
+  // RAC-705 (PG-075): every work surface gets the one neutral tint; no selector is written for a plugin.
+  assert.match(workbench, /\[data-work-surface\][^{}]*\{ --plugin-tint: var\(--ink-soft\); \}/);
   assert.match(workbench, /@keyframes craft-rise \{/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /--seg-tint/);
 });

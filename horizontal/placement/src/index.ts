@@ -400,7 +400,9 @@ interface PlacementInstanceAccess {
 }
 
 function placementText(ports: PlacementPorts, zh: string, vars: Record<string, string | number> = {}): string {
-  if (ports.text) return ports.text(zh, vars);
+  // Called as `text(…)`, the port's declared translator name, so the translation check reads the keys at every `placementText` call.
+  const { text } = ports;
+  if (text) return text(zh, vars);
   return Object.entries(vars).reduce((text, [name, value]) => text.split(`{${name}}`).join(String(value)), zh);
 }
 

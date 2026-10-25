@@ -47,6 +47,7 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./local-host.js";
+export type { HomeInitializationFailure } from "./home-storage-lifetime.js";
 export { MolisWorkWebServiceManager } from "./installer/web-service.js";
 export { type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceManagerOptions } from "./installer/web-service-contract.js";
 export { MolisWorkUninstallService } from "./installer/uninstall.js";

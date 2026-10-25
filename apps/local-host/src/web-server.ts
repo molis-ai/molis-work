@@ -37,11 +37,10 @@ import { handleBrowserHttp } from "./browser/browser-http.js";
 import { createWebStorageResources } from "./web-storage-resources.js";
 import type { createWebCatalogAccess } from "./web-catalog-access.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { closeHostResourceSteps, retainHomeStorageResources } from "./home-storage-lifetime.js";
+import { closeHostResourceSteps, retainHomeStorageResources, retainInitializationCleanup } from "./home-storage-lifetime.js";
 import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { awaitWebServerShutdown } from "./web-server-close.js";
-import { hostLog } from "./host-log.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -98,10 +97,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const completed = new Set<string>(), resources: Array<readonly [string, () => unknown]> = [];
     const cleanup = () => closeHostResourceSteps(completed, resources);
     let shutdown: (() => Promise<void>) | undefined;
+    let releaseTransport: (() => void) | undefined;
+    try {
     // The Host, including a borrowed one, cannot relinquish its lease while this transport still owns storage.
     localHost.configurePersonalPlanning(storageHome, withCatalog);
-    const releaseTransport = retainHomeStorageResources(localHost, () => shutdown ? shutdown() : cleanup());
-    try {
+    releaseTransport = retainHomeStorageResources(localHost, () => shutdown ? shutdown() : cleanup());
     if (platform.openCatalog) catalogAccess = localHost.ensureWebCatalog(storageHome, platform.openCatalog);
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });
     const webService = serverOptions.webServiceManager ?? new MolisWorkWebServiceManager({ homeDirectory: storageHome });
@@ -190,7 +190,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
     shutdown = awaitWebServerShutdown(server, () => { im.stop(); }, cleanup, async () => {
-      releaseTransport();
+      releaseTransport?.();
       if (ownsLocalHost) await localHost.close();
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
@@ -205,9 +205,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
     return server;
     } catch (error) {
-      void (async () => { await (shutdown ? shutdown() : cleanup()); releaseTransport(); if (ownsLocalHost) await localHost.close(); })()
-        .catch(failure => hostLog.warn("host", "web_initialization_cleanup_failed", failure));
-      throw error;
+      if (!ownsLocalHost && !releaseTransport) throw error;
+      throw retainInitializationCleanup(error, () => ownsLocalHost ? localHost.close() : (async () => { await (shutdown ? shutdown() : cleanup()); releaseTransport?.(); })(), "web_initialization_cleanup_failed");
     }
   }
 

@@ -36,6 +36,8 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 
 ### 2026-10-25 当前交付接续（PIPE）
 
+**F16有限任务已最终交接**：原来源亲核SOURCE6394197353、Mac TEST6394507263与新正式6402570452后完成三验证缺口收尾；Root已核official completed/idle，保存原归属/证据后改名「已交接｜#1264 PG-097 验证补齐 · Codex」、archive=true并list_archived读回。PIPE鲜核#1268 closed/merged=false/head da50；只读真实tracked对象，da50→1b的两测试与apps/local-host/src/material-home/native/upload五blob逐项完全相同。Linux原扫描5/5、材料9/6pass/3skip和RAC427有限推断按正式口径，不把1b执行回填da50、不把原PR关闭当独立merge、不外推PG097/RAC428/真实Mac原生或产品本人验收。分支da50与原件保留，不再唤醒来源索据/重跑。
+
 **20:16Z 正式三run核收与当前批39**：正式TEST6402570452（`/tmp/molis-verify-2026-10-25/pr1300-terminal-audit-20261025/TEST-3RUNS.md`）已PIPE全文亲读且与服务器逐字相同，46原joblogs/5ZIP只取一次，本正式结论覆盖本节此前“整理中/待终态”的临时时点，原FAIL/UNKNOWN历史保留。1b Full16真实checkout/16份70冷建、1472tracked减29个darwin且非browser=1443unique/无缺重，首1441exitOK+2FAIL，retry后1443文件级成功；Cognia390px dialog.open及两AC05 question_drafts/session未观察到请求仍UNKNOWN，retry不打印case数不补4/4，8success文件14NOTPASS。旧六红与context-card本次首pass不回填旧史。manual1b15jobs success但Linux原1110PASS/9整skip/1FAIL/44NOTRUN/308browserEXCLUDED，1120执行文件末次8717项=8596pass+1fail+120skip；uv文件末次5/6、两tries、首细节未留，Full同头6/6/setup-uv差异不当修复验收或恢复#734；44中43在Full首OK，picker是Full排除29之一。RAC427源码+聚合限定推断已Root接受，成功逐case TAP未留，不冒真实Mac/整个F16；正式已交Root/F16原流程收尾，不重probe。
 afee逻辑CI13checkout为f4bb，7冷建/14job success+Linuxskip；原缓存commit元数据f4bb/afee/fc1三整树同CBC，1b为8baa不同树。Product afee413/2914、manual413/2911各全首1；Security各217exec/215unique，afee1596/1607、manual1595/1606，各11NOTPASS原因compact未印；Health15/697、Contracts47/650、Gates11/350、Package9/241等按原集合不重叠加。资源gate afee对4db31/7548435B、manual对4f4 31/7548172B；Mac规则20/22两real-shellcheck skip、Linux规则9/9及Rust21文件/Swift7等原边界保持，不冒产品用例数或实时模型质量。
 

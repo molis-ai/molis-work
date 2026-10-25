@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMemoryLedger, readMemoryLedgerProfiles } from "@molis-ai/molis-work-storage";
 import { assertHomeBusinessUnchanged, homeBusinessTree } from "./fixtures/home-storage-files.js";
 
 function homeFor(t: TestContext) {
-  const home = mkdtempSync("/private/tmp/molis-storage-observation-");
+  const home = mkdtempSync(join(tmpdir(), "molis-storage-observation-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   return home;
 }

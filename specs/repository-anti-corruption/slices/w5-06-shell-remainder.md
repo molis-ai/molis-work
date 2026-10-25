@@ -58,6 +58,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
   - 写进 `<script type="application/json" data-plugin-directory>` 的 JSON 先转成安全形式：`<`、`>`、`&`、U+2028、U+2029 一律写成 `\u003c`、`\u003e`、`\u0026`、`\u2028`、`\u2029`，防 `</script>` 截断。这个序列化只在一处（工作台里一个函数），宿主与测试共用。
   - `icon`、`start.icon` 只认 design-system 图标集里的名字（`registeredIconNames`），不认 URL、SVG 或别的字符串；不认识的退回 `package`（rail）或 `settings`（设置页），与 2b 对设置图标的做法一致。
   - 客户端读目录后，文字只用 `textContent` 或经现有转义函数画，不拼进 `innerHTML`。
+- **宿主标记（与 W5-02 B1 约定，字段定义归本片）**：`PluginDirectoryEntry` 上平铺三项可选字段，缺省 = 没有该标记——`personal?: true`（跨项目持有个人数据的插件）、`always_on?: true`（每个项目都开、关不掉）、`companions?: readonly string[]`（一同显示、一同勾选的项目键，宿主算好的完整集合）。来源：宿主在 `apps/local-host/src/plugin-directory.ts` 的 `runningPluginDirectory` 里、内置命中时写，值取自宿主自己的可信登记（B1 把 `BUILTIN_PLUGIN_CATALOG` 换成 `plugin-registry.ts` 后从那里取），不读 Manifest；运行时装的插件、`chosen` 为 false 的条目一律不带。`sanitizePluginDirectory` 只认 `=== true` 的标记，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目三项都去掉。页面里：只在服务端渲染（选择器勾选、侧栏）用，**不进** `data-plugin-directory` 的 JSON（客户端脚本只读 `id/name/accepts_objects`），所以不增页面资源。宿主的 POST、动作、路由只认 `ProjectPluginRegistry`，页面上的值只用来显示和帮着勾选；「页面改了再提交，宿主不认」的拒绝用例归 B1。本片只定义类型和清洗，不替 B1 取值。验收 RAC-619。
 - 停用、卸载、被拒绝的插件不在目录里；撤权后下一次读页面就没有入口（与 S-47 的页面授权拒绝一致，不新增拒绝点）。
 - `skills/molis-plugin-dev/ui.md` 里「目前只对随宿主发布的插件生效」的限定（BL-542 要求注明的）撤掉，改成与行为一致。注意在途的 #1253 也改了这个文件（对象标签文档），合入顺序上谁后到谁重基。
 
@@ -69,6 +70,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 | RAC-608 | `creatableKinds`、`homeStarts` 对运行时装的插件生效（接第 1 片） | 同上 |
 | RAC-609 | 停用、卸载、被拒绝的插件，目录里没有；已打开的页面在下一次读时没有入口 | 同上 |
 | RAC-610 | `skills/molis-plugin-dev/ui.md` 的说法与行为一致 | `pnpm health:check` 文档引用组 + 文字核对 |
+| RAC-619 | 宿主标记：`personal`/`always_on` 只认 `true`，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目不带；`data-plugin-directory` 里没有这三项 | `tests/plugin-directory.test.ts` |
 | RAC-611 | 页面资源：脚本里去掉名单字面量、加一次读取，预期不增；增长按 §7 的页面资源一条 | `pnpm page-assets:check` |
 
 与 `ac-registry` 对齐（统筹 10-25）：它的 B1 把平台事实搬进 `apps/local-host/src/plugin-registry.ts`，工作台需要的平台事实经渲染端口下发——本片的 `plugin_directory` 就是那条端口，它复用、不另开。`web-goals-read.ts`、`plugin-catalog.ts`、`immersive-shell.ts` 两边都会碰：谁后到谁重基，同时在评审就照 `MERGE-QUEUE.md` §1a 同批落。

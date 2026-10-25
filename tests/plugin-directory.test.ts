@@ -13,7 +13,7 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import {
   BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinPluginDirectory, clientPluginDirectory, creatableKinds, homeStarts,
-  pluginDirectoryFor, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry,
+  pluginDirectoryFor, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry,
 } from "@molis-ai/molis-work-app-workbench";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
@@ -112,6 +112,21 @@ test("RAC-605 what is taken into the directory is held to plain keys, one line o
   assert.deepEqual(entries.find(entry => entry.id === "odd-view")!.ui.views.map(declared => declared.view_id), ["okay"], "a view the Host does not define is dropped");
   assert.equal(entries.find(entry => entry.id === "long")!.name.length, 80);
   assert.equal(entries.find(entry => entry.id === "group")!.ui.views[0]!.group, undefined);
+});
+
+test("RAC-619 the Host's marks (personal, always_on, companions) are kept only as exact values on a chosen entry", () => {
+  const marked = (id: string, chosen: boolean, marks: Record<string, unknown>): PluginDirectoryEntry => ({ ...installed(id), chosen, ...marks } as PluginDirectoryEntry);
+  const [kept, notChosen, loose, many] = sanitizePluginDirectory([
+    marked("kept", true, { personal: true, always_on: true, companions: ["inbox", "feed", "inbox", 'bad"key', 7] }),
+    marked("not-chosen", false, { personal: true, always_on: true, companions: ["inbox"] }),
+    marked("loose", true, { personal: "yes", always_on: 1, companions: "inbox" }),
+    marked("many", true, { companions: Array.from({ length: 50 }, (_, index) => `p${index}`) }),
+  ]) as PluginDirectoryEntry[];
+  assert.deepEqual([kept!.personal, kept!.always_on, kept!.companions], [true, true, ["inbox", "feed"]], "a plain key is kept once; a repeated one, a key outside the pattern and a non-string are dropped");
+  assert.deepEqual(Object.keys(notChosen!).sort(), ["chosen", "id", "name", "plugin_id", "ui"], "an entry the project does not choose carries no mark");
+  assert.deepEqual(Object.keys(loose!).filter(name => ["personal", "always_on", "companions"].includes(name)), [], "only true counts as a flag, only an array as companions");
+  assert.equal(many!.companions!.length, 32);
+  assert.doesNotMatch(renderPluginDirectoryData([kept!]), /personal|always_on|companions/u, "the page's scripts get none of them");
 });
 
 test("RAC-605 the Host reads the directory from the Manifests the project's Runtime runs, built-in and installed alike", async () => {

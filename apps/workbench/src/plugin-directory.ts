@@ -14,12 +14,21 @@ export interface PluginDirectoryEntry {
   readonly name: string;
   /** Whether the project's plugin list chooses it (a built-in). Otherwise it is in the project because it runs there. */
   readonly chosen: boolean;
+  /**
+   * Trusted marks the Host sets from its own registry of built-ins (W5-02 B1), never from a Manifest: the plugin holds the
+   * person's data across projects (`personal`), is on in every project and cannot be turned off (`always_on`), and the
+   * project keys it is shown and chosen together with (`companions`). Absent means not marked. Only a `chosen` entry carries
+   * them; the page uses them to draw and to pre-tick, and the Host's own registry decides what a submitted list means.
+   */
+  readonly personal?: true;
+  readonly always_on?: true;
+  readonly companions?: readonly string[];
   readonly ui: { readonly views: readonly UiViewDeclaration[] };
 }
 
 export type PluginDirectory = readonly PluginDirectoryEntry[];
 
-const MAX_ENTRIES = 200, MAX_VIEWS = 32;
+const MAX_ENTRIES = 200, MAX_VIEWS = 32, MAX_COMPANIONS = 32;
 const KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const CONTROL = /[\u0000-\u001f\u007f]/gu;
 
@@ -65,9 +74,20 @@ export function sanitizePluginDirectory(directory: PluginDirectory): PluginDirec
     if (!id || !pluginId || !name || seen.has(id)) continue;
     seen.add(id);
     const views = (entry.ui.views ?? []).slice(0, MAX_VIEWS).flatMap(view => { const clean = sanitizeView(view, icons); return clean ? [clean] : []; });
-    entries.push({ id, plugin_id: pluginId, name, chosen: entry.chosen === true, ui: { views } });
+    const chosen = entry.chosen === true;
+    entries.push({ id, plugin_id: pluginId, name, chosen, ...(chosen ? trustedMarks(entry) : {}), ui: { views } });
   }
   return entries;
+}
+
+/** The Host's marks on a chosen entry: a flag only when exactly `true`, companions as distinct keys (at most {@link MAX_COMPANIONS}). */
+function trustedMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "personal" | "always_on" | "companions"> {
+  const companions = [...new Set((Array.isArray(entry.companions) ? entry.companions : []).flatMap(value => { const clean = key(value); return clean ? [clean] : []; }))].slice(0, MAX_COMPANIONS);
+  return {
+    ...(entry.personal === true ? { personal: true as const } : {}),
+    ...(entry.always_on === true ? { always_on: true as const } : {}),
+    ...(companions.length ? { companions } : {}),
+  };
 }
 
 /**

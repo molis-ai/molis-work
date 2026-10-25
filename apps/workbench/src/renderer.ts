@@ -33,7 +33,7 @@ import {
 } from "./page-assets.js";
 import { renderGoalInputsHtml } from "./goal-inputs-html.js";
 import type { MolisWorkWebView } from "./page-view.js";
-import { creatableKinds, pluginDirectoryFor } from "./plugin-catalog.js";
+import { creatableKinds, pluginDirectoryFor, shownProjectPlugins } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { createWorkbenchProjectChooserRenderer } from "./arrival/chooser.js";
 import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";

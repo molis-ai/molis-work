@@ -1,8 +1,8 @@
 # W5-16 C5：MCP 按需启动常驻宿主
 
-状态：七个产品子路径已具分组有效证据，fresh-main 构建、必要新基底回归及余两项实装通过，有限独立 TEST 原件核收已齐；整片 FIRST 已完成且仅要求补安全行，本 PR 已按新裁定登记暂定 S-77，health 与文档引用实测仍因 S-71→S-77 不连续而失败，待统筹裁定本 PR 临时编号（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；目标完成程度为隔离 Home 中功能可用，不把分组证据叫作一轮全八项通过，也不代表整个 W5-16/C1/C3 完成、C5 已进入 main、真实 App 或本人验收通过。
+状态：七个产品子路径已具分组有效证据，fresh-main 构建、必要新基底回归及余两项实装通过，有限独立 TEST 原件核收已齐；整片 FIRST 已完成且仅要求补安全行，本 leaf 的物理安全行已按 Root/Claude 裁定临时改为 S-72，原批次预约 S-77 保留为历史，最终组合收验仍未完成（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；目标完成程度为隔离 Home 中功能可用，不把分组证据叫作一轮全八项通过，也不代表整个 W5-16/C1/C3 完成、C5 已进入 main、真实 App 或本人验收通过。
 
-统筹已在 [6394070792](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6394070792) 审定本稿：选 A 常驻；唯一 Home owner 允许短暂被拒的启动候选；20 秒总预算、1 秒探测、250 毫秒退避；EOF/cancellation 必须接通。初期按 Root 授权以 batch-36 `bb7137fc2550d8ae8fd7f8bb6caced55ee7cba9f` 为固定基底实施、只推自己的分支；#1254 的 A 实现现已随 #1270 在 11:14:03 UTC 实际进入 main `64a3ccc9c177ba6f3a2bbb44cf80dc1cce648f2a`，已鲜取并核对。整片完成后才交一个完整非 Draft PR。FIX4/FIX7/原 owner 关闭的生命周期 hunk 不在本片改写；按 [6398134833](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398134833) 的新裁定，本 PR 自带暂定 S-77 行并独立核验 health；组批需要连续号时由统筹统一改号。
+统筹已在 [6394070792](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6394070792) 审定本稿：选 A 常驻；唯一 Home owner 允许短暂被拒的启动候选；20 秒总预算、1 秒探测、250 毫秒退避；EOF/cancellation 必须接通。初期按 Root 授权以 batch-36 `bb7137fc2550d8ae8fd7f8bb6caced55ee7cba9f` 为固定基底实施、只推自己的分支；#1254 的 A 实现现已随 #1270 在 11:14:03 UTC 实际进入 main `64a3ccc9c177ba6f3a2bbb44cf80dc1cce648f2a`，已鲜取并核对。整片完成后才交一个完整非 Draft PR。FIX4/FIX7/原 owner 关闭的生命周期 hunk 不在本片改写；按 [Root 6398561106](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398561106) 与 [Claude 6398583925](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398583925) 的最新裁定，本 PR 自带临时 S-72 物理行并独立核验 health；原预约 S-77 是历史，batch-38 最终合成由 Claude 统一归号。
 
 ## 目标、依据与边界
 
@@ -98,9 +98,9 @@
 
 ## 待决与依赖
 
-1. 原 Claude 已选 A，并认可“一个长期 Home 宿主，允许被 owner 拒绝的短暂启动器候选”；启动命令只取同 Home 已安装入口、shell:false、工具参数不能指定命令/Home/端口、PATH 别的安装不用及 port 0 拒绝须配新安全行。统筹在 [6396548527](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6396548527) 将本片暂定编号裁为 **S-77**，此前的 carrier-only 登记安排已被 [6398134833](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398134833) 替代：由本 PR 补暂定 S-77 行，实际门禁通过才收口，组批改号交统筹。
+1. 原 Claude 已选 A，并认可“一个长期 Home 宿主，允许被 owner 拒绝的短暂启动器候选”；启动命令只取同 Home 已安装入口、shell:false、工具参数不能指定命令/Home/端口、PATH 别的安装不用及 port 0 拒绝须配新安全行。统筹在 [6396548527](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6396548527) 将本片暂定编号裁为 **S-77**，随后 [6398134833](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398134833) 改为本 PR 自带行，最新编号裁定为本 leaf 临时 S-72、原 S-77 预约仅作历史；实际门禁通过才收口，batch-38 改号交 Claude 统一处理。
 2. 初期 `bb7137fc` 分支及证据保留在 `feature/w5-16-mcp-autostart` 的 `8c6047062ce380b0a4cde828f715e153d259bac9`。实际依赖现已满足：后继 `feature/w5-16-mcp-autostart-main` 从 main `64a3ccc9` 只承接本片五个自有提交，含已准的最小 FIX19 CLI guard/gate；不整取旧 batch-36、旧 baseline/SI。`352c64e0c` 仅作设计历史证据。
-3. PIPE 已核 C5 没有第二 owner，沿用本份 spec 完成实现、验证与一个完整 PR；不提前开占位或 Draft PR，也不重跑 #1263 的原验证。完整非 Draft [#1292](https://github.com/molis-ai/molis-work/pull/1292) 已创建；门禁在本片独立分支按 Root 具体裁定与准确 FIX19 依赖一起实施。S-77 行按上述新裁定在本 PR 补齐，其他共同 hunk 仍由 carrier 串行合。
+3. PIPE 已核 C5 没有第二 owner，沿用本份 spec 完成实现、验证与一个完整 PR；不提前开占位或 Draft PR，也不重跑 #1263 的原验证。完整非 Draft [#1292](https://github.com/molis-ai/molis-work/pull/1292) 已创建；门禁在本片独立分支按 Root 具体裁定与准确 FIX19 依赖一起实施。本 leaf 的临时 S-72 行在本 PR 补齐，其他共同 hunk 仍由 carrier 串行合；不覆盖组合分支里已有的其他 S-72。
 
 ## 本机证据与保留边界
 
@@ -163,10 +163,14 @@ fresh-main 接续已逐项核范围：`64a3ccc9 → c20fc04db` 为本片 35 文�
 
 此前 12:04:36 UTC 取得双槽后，作者保留的 GO 控制层在 12:05:36 UTC 到期，未启动安装或产品子场景，原件 `/tmp/c5-main-remaining-7a63/` 单列保留。随后彻底移除 stdin/GO 依赖，在不占槽的微型无交互路径验证后按正常 FIFO 取得上述窗口；不是产品重试，也不抵消原慢因 UNKNOWN。当前七个子路径的证据是四项同源复用、一次 offline 单场景、一次余两场景，均按原范围记录；原整批首败历史保留。独立 TEST 已分别核收 fixture、单 offline 及本次余两项原件：最后一轮仅读既有 raw、83 条 observer、实际代码与释放记录，没有重新安装；也独立确认纯 spec 后继 `26e1f7d86` 的源码 digest 与本次 manifest 同为 `62c71585…ff2ba`。这些限定结论不代替最终组合收验。后续 Claude 整片 FIRST 与本 PR 安全行登记见末节；本片不提前宣称 health 或整条工作完成。
 
-### PR #1292 FIRST 与 S-77 登记
+### PR #1292 FIRST 与本 leaf 临时 S-72 登记
 
 [整片 FIRST 6398105155](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398105155) 绑定 `91e4c1642`，核心路径未发现确定缺陷，唯一挡合并项是安全测试未被公共表引用。[统筹 6398134833](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6398134833) 明确改为本 PR 自带暂定 S-77 行、health 独立转绿，组批连续号再由统筹统一改；本轮只补这一行和当前规格说明，不填 S-72～S-76 占位、不重排其他行、不改门禁。
 
 已有 [窄 REVIEW 6397949240](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6397949240) 与 [限定 TEST 6397962905](https://github.com/molis-ai/molis-work/pull/1292#issuecomment-6397962905) 保留原范围。本轮不改生产/测试/脚本，复用 source `62c71585dbb43060607cc747c8513709b14be9fce5cf58e1db152ba6c28ff2ba` 与 11:54:27.563 UTC 构建，不新 build、18 项安全回归、真实安装或 full。环境白名单及启动标记/fd 3 两项非阻塞建议由原队列后续处理，不在此次登记修复扩实现。实际 App、本人验收及最终组合仍未完成。
 
-按新安排补行后的实际重验：鲜取 `origin/main=54437998cefbff245a107d919ae01975bd4b08ec`，其公共表与本分支均只到 S-71，没有 S-72～S-76 实质行。`node scripts/check-health-gates.mjs --base origin/main` exit 1（比较点为 merge-base `64a3ccc9`），唯一报告已变为 S-01～S-71、S-77 不连续；原安全文件无人引用的报告消失。`node scripts/run-tests.mjs --jobs 1 tests/security-invariants-doc.test.ts` 同为 exit 1、0 pass/1 fail，只报同一编号问题，新增行的文件/逐字标题/CI 覆盖没有其他问题。原件 `/tmp/c5-s77-health.log`、`/tmp/c5-s77-doc-reference.log` 保留。没有填占位或放宽规则；本 PR 物理行是否暂用当前下一号 S-72、组批再由统筹归号，已交具体裁定，未擅自改掉已分配的 S-77。
+按新安排补行后的实际重验：鲜取 `origin/main=54437998cefbff245a107d919ae01975bd4b08ec`，其公共表与本分支均只到 S-71，没有 S-72～S-76 实质行。`node scripts/check-health-gates.mjs --base origin/main` exit 1（比较点为 merge-base `64a3ccc9`），唯一报告已变为 S-01～S-71、S-77 不连续；原安全文件无人引用的报告消失。`node scripts/run-tests.mjs --jobs 1 tests/security-invariants-doc.test.ts` 同为 exit 1、0 pass/1 fail，只报同一编号问题，新增行的文件/逐字标题/CI 覆盖没有其他问题。原件 `/tmp/c5-s77-health.log`、`/tmp/c5-s77-doc-reference.log` 保留。没有填占位或放宽规则；该次 S-77 编号失败原件保留，后续已获得下述临时 S-72 裁定，不倒改旧结果。
+
+恢复后已亲读 Root `6398561106` 与 Claude `6398583925` 的一致裁定：本 leaf 只把已登记的那个物理行从 S-77 改为临时 S-72，安全语义、代码位置和逐字测试标题全部保持；没有填占位、重排其他行、改门禁或引入其他依赖。原预约 S-77 留在上述历史，batch-38 由 Claude 统一归号。崩溃后旧工作树目录已不存在，但本地分支与远端均为 `bfa804d43`，S-72 修改未执行；现从该提交恢复同一隔离路径及原分支继续，未覆盖主检出。
+
+本轮只执行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/run-tests.mjs --jobs 1 tests/security-invariants-doc.test.ts` 和鲜取 main 后的 `pnpm secrets:check`，原件分别为 `/tmp/c5-s72-health.log`、`/tmp/c5-s72-doc-reference.log`、`/tmp/c5-s72-secrets.log`，实际结果随固定头发布在同 PR 回执。生产/测试/脚本与 `91e4c1642` 相同，原 source `62c71585…ff2ba` 构建及七路径分组证据按原范围复用；不重 build、安全 18 项、产品安装或 full。修复增量由现有 REVIEW/TEST 机械核收后，C5 writer 释放源码与本 spec 给 F2 后继，后续环境白名单及启动标记/fd 3 不并入此单；最终组合、实际 App 和本人验收仍分开记录。

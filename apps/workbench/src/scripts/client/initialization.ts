@@ -6,7 +6,7 @@ import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { PLUGIN_MEMBERSHIP_FACTORY_SCRIPT } from "./plugin-membership.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
-import { GLOBAL_SEARCH_FACTORY_SCRIPT, SEARCH_ITEM_TAB_SURFACES } from "./global-search.js";
+import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { ATTENTION_FACTORY_SCRIPT } from "./attention.js";
 import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
@@ -17,8 +17,15 @@ import { PLACEMENT_FACTORY_SCRIPT } from "./placement.js";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./context-actions.js";
 import { SIDE_FILES_FACTORY_SCRIPT } from "../../side-panel-files.js";
 import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
-/** AP3 Workbench client segment: initialization. */
+/**
+ * AP3 Workbench client segment: initialization.
+ *
+ * `itemTabs` are the surfaces whose tab opens one object by id: the platform's Artifacts, and each plugin the page's directory
+ * (`script[data-plugin-directory]`, written by the Host from the Manifests its Runtimes run) says has a view that accepts objects
+ * (W5-06 余项 2). The script keeps no list by plugin.
+ */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
+    const itemTabs = ["artifacts", ...JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter(entry => entry.accepts_objects).map(entry => entry.id)];
     const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
     boardLifetime = mountPluginClient(document.body);
 
@@ -68,10 +75,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3): an
     // object's tab where the surface opens objects by id, else the record in the plugin's list.
-    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])}.includes(plugin)
+    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
       ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
-      translate: L,
+      translate: L, itemTabs,
       route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
@@ -123,7 +130,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages,
       openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });
-    globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
+    globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(), itemTabs,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}

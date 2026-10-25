@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,7 +10,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { SCHEDULE_PLUGIN_ID, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -28,7 +27,8 @@ test("a plugin disabled in the project leaves the results and comes back when en
   { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "system-search-lifecycle-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "生命周期", actor_id: "owner" }));
-  await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" }); });
+  // Goals is a 常开 plugin (ac-trust T3) that no project removes; Schedule is an ordinary project plugin, so it is the one switched off and on here.
+  await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const open = () => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: projectActionAvailability(withCatalog, home) });
   let host = open();
@@ -45,35 +45,36 @@ test("a plugin disabled in the project leaves the results and comes back when en
         await new Promise(resolve => setTimeout(resolve, 200));
       }
     };
-    await call(goalsActions.create, { title: "季度复盘会议", outcome: "复盘结论写进文档", idempotency_key: randomUUID() });
+    const createTask = (title: string, instructions: string) => call(scheduleActions.createTask, { title, instructions, time: "09:00" });
+    await createTask("季度复盘会议", "把复盘结论写进文档");
     const first = await search("复盘");
     assert.deepEqual(titles(first), ["季度复盘会议"]);
-    const indexedAt = first.sources.find(source => source.plugin_id === "io.molis.work.goals")!.indexed_at;
+    const indexedAt = first.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)!.indexed_at;
     assert.ok(indexedAt);
 
-    await withCatalog({ homeDirectory: home }, catalog => { catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" }); });
+    await withCatalog({ homeDirectory: home }, catalog => { catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
     const disabled = await search("复盘");
     assert.deepEqual(titles(disabled), []);
-    assert.equal(disabled.sources.find(source => source.plugin_id === "io.molis.work.goals")?.state, "disabled");
+    assert.equal(disabled.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)?.state, "disabled");
 
-    await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" }); });
+    await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
     const enabled = await search("复盘");
     assert.deepEqual(titles(enabled), ["季度复盘会议"], "re-enabled, the plugin is indexed again from its own data");
-    const reindexedAt = enabled.sources.find(source => source.plugin_id === "io.molis.work.goals")!.indexed_at;
+    const reindexedAt = enabled.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)!.indexed_at;
 
     // Restart: the index is where it was; an unchanged collection is not rebuilt.
     await host.close();
     host = open();
     const afterRestart = await search("复盘");
     assert.deepEqual(titles(afterRestart), ["季度复盘会议"]);
-    assert.equal(afterRestart.sources.find(source => source.plugin_id === "io.molis.work.goals")!.indexed_at, reindexedAt);
+    assert.equal(afterRestart.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)!.indexed_at, reindexedAt);
 
     // The index file is lost while the Host is closed: the next Host rebuilds it from the owners.
     await host.close();
     for (const suffix of ["", "-wal", "-shm"]) { const file = homeSqlitePath(home, "search") + suffix; if (existsSync(file)) rmSync(file); }
     host = open();
     assert.deepEqual(titles(await search("复盘")), ["季度复盘会议"]);
-    await call(goalsActions.create, { title: "复盘之后的行动", outcome: "按复盘结论排期", idempotency_key: randomUUID() });
+    await createTask("复盘之后的行动", "按复盘结论排期");
     assert.deepEqual(titles(await search("复盘")), ["复盘之后的行动", "季度复盘会议"]);
   } finally {
     await host.close();

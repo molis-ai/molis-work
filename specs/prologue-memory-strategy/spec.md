@@ -2862,6 +2862,16 @@ Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私�
 验证：复用准确基线的完整构建产物，保留确定性旧断言失败，再跑原 Web 文件及必要启动/安全相邻文件、类型与准确 e801 健康门。仅工程验证；不代表最终 App 产品实操、真实用户 Home 或用户验收，不启动全量、推送或 CI。
 
 实证：已复制基础树的 71 处 dist；原完整构建以来只有测试/spec 改动，使用原 `computeBuildSourceDigest` 核对复制后的 `.molis-work-build.json` 完全一致，没有重建或改指纹。Node 24.14.0 下公开开库口固定等待后，旧 `ok` 断言确定性失败为 `starting !== ok`（`/private/tmp/molis-memory-web-health-readiness-red-20261025.log`）。修后原 Web 19 项、Catalog 恢复 4 项、Home 存储宿主安全 23 项及本机入口安全 15 项，共 4 文件 61 项全部通过，jobs1/browser1/retries0，无跳过；日志 `-green-20261025.log`。根类型检查及准确 e801 健康门通过，生产、依赖、资源、门禁与 retry/timeout 均未改。额外严格编译整个旧 Web 测试文件时，候选与准确 e801 同样有 4 条旧诊断（ScheduleJobPort 缺 register、旧 contract/update 字面量及 GoalsCoverageItem 导出），仅行号偏移；保留 `-test-types-20261025.log` 与 `-base-test-types-20261025.log`，没有将这项额外检查报告为通过，也没有扩大本刀修复。最终提交的 CI/Full 与产品/用户验收仍未验证。
+#### MEM-40 原项目 raw Session 与首次 target 准备（2026-10-25，实施前短合同）
+
+基线为 App 2e846ecc 与已冻结 bridge bbb21c 的合成树 d7796fff。只补同 AgentHost Session 主人的 cold 装配：完整可信同 Home 同历史 T1 Catalog 原计划已经拥有 refs、owner、parent_run 与拓扑；不重建当前关系、不按 ID 猜 owner，也不要求 T0 旧父 Run 额外 terminal。允许修改 AgentHost 原 cold Session/计划校验、桥接与公开出口、直接测试、AgentHost README 及本节；不改 SDK/vendor/lock、Storage90c、LocalHost 冷 Memory owner或外层 marker。
+
+writer 输入增加 projectSessionPurges: readonly ProjectSessionDeletionPlan[]。打开前复制整计划，逐计划核唯一 Session、父项在前、raw 必须有原父且同 owner，复用原 decision/preview/exact ref 校验。indexed 根可来自原在线 associated 关系，不能强制 owner.project_id 等于被删项目。与旧 standalone sessionPurges 重复拒绝；跨项目只有相同 Session 的 owner/decision/preview/indexed/parent_run 全相同才合并目标，冲突不任选。执行仍只收 purgeSessionTarget({session})。indexed 保留原状态机；raw 复用同 Session hold，真实 Index 必须不存在（含墓碑也不能当作没有 Index），当前 SDK present 必须与固定 preview/CAS 相同，purged 必须有匹配的原 termination。仅调用同 maintenance.purgeSession，不创建 synthetic Index；SDK 后核 complete 与原 preview/version，absent 或冲突保持原决定。
+
+首次 target 准备由 inspection.prepareProjectSessionPurge({sourcePlan,operationId,signal?}) 负责：source 只授权原 refs/owner/拓扑，读取 target 当前 canonical preview 与 Index exact facts 生成 target plan；已有 indexed purge 决定保其原 operation/preview，不以新操作覆盖。缺 Index、未知/坏归属、未决其他生命周期、absent 和不一致终止事实拒绝；不返回空计划或普通 Runtime fallback。已有 target original 不调用本口。inspection.verifyProjectSessionPurge({plan,signal?}) 仅核固定原件：SDK 原 terminal complete、indexed 原 owner/decision/preview/receipt 或 raw Index 缺席。只读证明不清同 ID 后继；后继与原 exact 身份冲突时拒绝并保留。
+
+所有异步读取后与实际 SDK/Index 使用前复核原 current/取消；沿原 bridge 管理读句柄、失败 close 重试与父 owner，不增配置、registry、第二 decoder 或删除核。用户确认仍由 Catalog 原决定与当前维护权限共同提供，不能用历史 actor、source complete 或 person:true 代替。验收走真实临时 Home 与正式 SDK：非空 raw 清除/重开、首次 target 版本不同于 source、已有 indexed 原决定保持、错父/owner/拓扑、同 ID Index（含墓碑）冲突、同 Session 并发、实际 await 后撤权/取消、absent、complete 后原件 proof 与未选后继字节保留；复用原 indexed/shared parent/current 回归。机器 FIFO build 和局部测试，不跑全量；只交工程证据，不宣称完整 MEM-40/App或用户验收。
+
 #### MEM-40 冷 Memory 归属覆盖与固定 Session 预览薄桥（2026-10-25，实施前短合同）
 
 准确 App 基线 `a9768da4e347c815205a4c31a9846c221d994a69` 已使用正式 SDK #106。现冷桥没有 verifyPurgeCoverage、维护态 inspectMemory/previewMemoryPurge，也未传固定 purgeSelections 或提供独立 purge-inspection 当前授权。目标是让现冷恢复主人通过 AgentHost 窄口取得真实 SDK 无正文检查结果；本片不接外层恢复 frame、不创建删除引擎，后续 Memory owner 仍复用 applyProjectMemoryPurge。

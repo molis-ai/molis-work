@@ -9,7 +9,7 @@ import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionV
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
-import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
+import { homeStarts, shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
 import { renderDeclaredStages } from "./declared-stages.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
@@ -281,7 +281,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           <div class="tab-workspace-panes" data-tab-panes></div>
           <div class="tab-workspace-exclusive" data-tab-exclusive hidden></div>
           <div class="tab-workspace-pool" data-surface-pool hidden>
-            ${renderProjectHome(view.project?.display_name || title, primitives)}
+            ${renderProjectHome(view.project?.display_name || title, primitives, homeStarts(enabledPlugins))}
             ${goalStage}
             ${frameStage}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}

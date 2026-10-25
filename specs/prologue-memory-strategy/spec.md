@@ -2862,3 +2862,11 @@ Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私�
 验证：复用准确基线的完整构建产物，保留确定性旧断言失败，再跑原 Web 文件及必要启动/安全相邻文件、类型与准确 e801 健康门。仅工程验证；不代表最终 App 产品实操、真实用户 Home 或用户验收，不启动全量、推送或 CI。
 
 实证：已复制基础树的 71 处 dist；原完整构建以来只有测试/spec 改动，使用原 `computeBuildSourceDigest` 核对复制后的 `.molis-work-build.json` 完全一致，没有重建或改指纹。Node 24.14.0 下公开开库口固定等待后，旧 `ok` 断言确定性失败为 `starting !== ok`（`/private/tmp/molis-memory-web-health-readiness-red-20261025.log`）。修后原 Web 19 项、Catalog 恢复 4 项、Home 存储宿主安全 23 项及本机入口安全 15 项，共 4 文件 61 项全部通过，jobs1/browser1/retries0，无跳过；日志 `-green-20261025.log`。根类型检查及准确 e801 健康门通过，生产、依赖、资源、门禁与 retry/timeout 均未改。额外严格编译整个旧 Web 测试文件时，候选与准确 e801 同样有 4 条旧诊断（ScheduleJobPort 缺 register、旧 contract/update 字面量及 GoalsCoverageItem 导出），仅行号偏移；保留 `-test-types-20261025.log` 与 `-base-test-types-20261025.log`，没有将这项额外检查报告为通过，也没有扩大本刀修复。最终提交的 CI/Full 与产品/用户验收仍未验证。
+
+### 冷 Ledger 与连接绑定聚合复核（2026-10-25）
+
+生产聚合 `2e846ecc21023d4de1a5d88258b2d314505159ca` 已纳入连接绑定修复 `465b03456`、冷 Ledger retention `90c341f16` 与基础 Web 就绪修正 `3a2dea91e`。连接绑定独立真实探针确认：库/祖先链接、零字节及旧版本拒绝时 source、原 target 字节与权限保持；真实写锁等待后撤权不再提交。冷 Ledger 最终独审确认目标链接、changes/candidates/uses 的列与 JSON 身份冲突均拒绝；COMMIT 被真实读事务阻塞及最后一次权限撤销会回滚且不交付 post snapshot。先前独审发现的源误写、身份冲突与未通过日志继续保留，不将最初候选视为通过。
+
+统筹在该聚合上完成原整体 `pnpm build`，随后 12 个实际文件 177 项通过，jobs2/browser1/retries0、零跳过，覆盖冷 retention、采用/恢复/事务、Memory retention roundtrip、SDK 采用、Catalog 原 Memory 计划与恢复、连接绑定维护、Web 与 Home 文件。根 TypeScript、准确 `3a2dea91e` health、boundary errors=[]、72 份 API 快照通过；页面资源仍仅 Coding 374,756 B 对已批准 373,423 B 超出 1,333 B，未放行。日志 `/private/tmp/molis-memory-retention-aggregate-{build,direct,types,health,boundary,api-final,assets}-20261025.log`；API 首次误传不支持的 `--check` 参数只产生用法错误，改用原默认检查后通过，原错误日志保留。
+
+#1064 的 `3a2dea91e` 普通 CI 已通过，Full suite `40197949022` 尚未结束，旧 e801 的 Full shard11 失败不重写为通过。下一步仍集中在 #1101 补原 SDK 桥接、冷 Memory owner 与完整 MEM-40；上述仅局部聚合工程验证。Coding 原两项待定、单 Session 业务副本清理、最终非空旅程、真实模型质量/token 与用户验收保持原要求。没有新增资源、真实 Home 操作、发布或付费模型调用。

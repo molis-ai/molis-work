@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -41,8 +42,8 @@ function reachProbe(options: { consumes?: readonly string[] } = {}) {
 }
 type ReachProbe = ReturnType<typeof reachProbe>;
 
-async function setup(t: TestContext, probe: ReachProbe, extra: readonly PluginDefinition[] = []) {
-  const home = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { home: [probe.definition, ...extra] } } });
+async function setup(t: TestContext, probe: ReachProbe, extra: readonly PluginDefinition[] = [], host: NonNullable<NonNullable<Parameters<typeof openTestHome>[1]>["host"]> = {}) {
+  const home = await openTestHome(t, { catalogPolicy: false, host: { ...host, pluginFixtures: { home: [probe.definition, ...extra] } } });
   const platform = await home.host.homePlugins!.ready();
   /** Grants are what the person confirmed: `projects:reach` is optional in the Manifest, so a fresh installation holds none. */
   const grant = async (granted: boolean) => {
@@ -59,6 +60,82 @@ async function setup(t: TestContext, probe: ReachProbe, extra: readonly PluginDe
 const hide = (home: TestHome, project: TestProject, plugin: string) => home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: plugin });
 const unhide = (home: TestHome, project: TestProject, plugin: string) => home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: plugin });
 const sorted = (ids: readonly string[] | null) => [...(ids ?? [])].sort();
+
+/** The existing close notification runs after resource release and is awaited before the Host drops its closing entry. */
+function closingBarrier() {
+  const entered = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
+  let projectId: string | undefined;
+  return { entered: entered.promise, release: () => resume.resolve(), hold: (project: TestProject) => { projectId = project.project_id; },
+    async onRuntimeClose(reference: { project_id: string }) {
+      if (reference.project_id === projectId) { entered.resolve(); await resume.promise; }
+    } };
+}
+
+test("RAC-590-CLOSE-01 S-70 a closing project with its catalog row still present is excluded by a real Home action; unopened and newly created projects remain readable", { timeout: 60_000 }, async t => {
+  const barrier = closingBarrier();
+  let deleting: Promise<unknown> | undefined;
+  t.after(async () => { barrier.release(); await deleting; });
+  const probe = reachProbe(), s = await setup(t, probe, [], { onRuntimeClose: barrier.onRuntimeClose });
+  await s.grant(true);
+  const closing = await s.home.createProject("Closing"), other = await s.home.createProject("Other"), unopened = await s.home.createProject("Not opened");
+  const database = await s.home.host.withProject(closing.reference, runtime => runtime.store.db);
+  await s.home.host.withProject(other.reference, () => undefined);
+  assert.equal(s.home.host.projects().some(project => project.project_id === unopened.project_id), false);
+  const caller = s.as("user"), readable = async () => (await s.call(probe.actions.list, caller)).readable!;
+  const before = await readable();
+  for (const project of [closing, other, unopened]) assert.ok(before.includes(project.project_id));
+  barrier.hold(closing);
+  deleting = s.home.web.post(`/api/settings/projects/${closing.project_id}/delete`, { delete_confirmed: true, idempotency_key: "reach-closing-project" });
+  await Promise.race([barrier.entered, deleting.then(() => assert.fail("deletion completed before the resource-release barrier"))]);
+  assert.equal(s.home.host.projects().find(project => project.project_id === closing.project_id)?.state, "closing");
+  assert.throws(() => database.prepare("SELECT 1"), /database.*(?:not open|closed)/iu, "the project's resources were actually released");
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: s.home.home });
+  try { assert.ok(catalog.listProjects().some(project => project.project_id === closing.project_id), "the real catalog row still exists"); } finally { catalog.close(); }
+  assert.equal(existsSync(closing.database_path), true);
+  const during = await readable();
+  assert.equal(during.includes(closing.project_id), false, "closing is excluded before the catalog removes the row");
+  for (const project of [other, unopened]) assert.ok(during.includes(project.project_id));
+  const created = await s.home.createProject("Created while another project closes");
+  const afterCreate = await readable();
+  assert.ok(afterCreate.includes(created.project_id));
+  assert.equal(afterCreate.includes(closing.project_id), false);
+  assert.equal(s.home.host.projects().some(project => project.project_id === unopened.project_id), false, "reading reach never opens a catalog-only project");
+  barrier.release();
+  const result = await deleting as { deletion: { cleanup_state: string } };
+  assert.equal(result.deletion.cleanup_state, "complete");
+  const after = await openMolisWorkProjectCatalog({ homeDirectory: s.home.home });
+  try { assert.equal(after.listProjects().some(project => project.project_id === closing.project_id), false); } finally { after.close(); }
+  assert.equal(existsSync(closing.database_path), false);
+});
+
+test("RAC-590-CLOSE-02 S-70 Todo all-projects reads exclude closing projects while live hidden state still changes on each call", { timeout: 60_000 }, async t => {
+  const barrier = closingBarrier();
+  let deleting: Promise<unknown> | undefined;
+  t.after(async () => { barrier.release(); await deleting; });
+  const home = await openTestHome(t, { host: { onRuntimeClose: barrier.onRuntimeClose } });
+  const closing = await home.createProject("Closing Todo"), reads = await home.createProject("Reads"), hidden = await home.createProject("Visibility changes");
+  const items = (project: TestProject) => `/projects/${project.project_id}/api/plugins/io.molis.work.todo/items`;
+  for (const [project, title] of [[closing, "Closing item"], [reads, "Readable item"], [hidden, "Visibility item"]] as const) {
+    await home.web.post(items(project), { title, placement: "project" });
+  }
+  const titles = async () => (await home.web.get<{ items: Array<{ title: string }> }>(`${items(reads)}?all=1&view=all`)).items.map(item => item.title).sort();
+  assert.deepEqual(await titles(), ["Closing item", "Readable item", "Visibility item"]);
+  barrier.hold(closing);
+  deleting = home.web.post(`/api/settings/projects/${closing.project_id}/delete`, { delete_confirmed: true, idempotency_key: "reach-closing-todo" });
+  await Promise.race([barrier.entered, deleting.then(() => assert.fail("deletion completed before the resource-release barrier"))]);
+  assert.equal(home.host.projects().find(project => project.project_id === closing.project_id)?.state, "closing");
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home.home });
+  try { assert.ok(catalog.listProjects().some(project => project.project_id === closing.project_id)); } finally { catalog.close(); }
+  assert.deepEqual(await titles(), ["Readable item", "Visibility item"]);
+  await hide(home, hidden, "todo");
+  assert.deepEqual(await titles(), ["Readable item"]);
+  await unhide(home, hidden, "todo");
+  assert.deepEqual(await titles(), ["Readable item", "Visibility item"]);
+  barrier.release();
+  const result = await deleting as { deletion: { cleanup_state: string } };
+  assert.equal(result.deletion.cleanup_state, "complete");
+  assert.deepEqual(await titles(), ["Readable item", "Visibility item"]);
+});
 
 test("RAC-590 S-70 the person's call to an action that declares project_reach gets the projects in the catalog now, worked out again at every call", async t => {
   const probe = reachProbe(), s = await setup(t, probe);

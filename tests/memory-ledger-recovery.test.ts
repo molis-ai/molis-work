@@ -39,6 +39,31 @@ function preview(ids: string[], scope = "user", owner = "person") {
       operationId: `scope-operation:${id}`, mutation: { kind: "purge" } })) } };
 }
 
+test("rewind requires exhaustion and retains one snapshot across a concurrent committed writer", t => {
+  const { home, db, marker } = fixture(t, true);
+  marker("memory-source-links:original", { sources: [{ event_id: "old-event", version: "old" }] });
+  const change = { change_id: "change", actor_id: "person", memory_id: "original", at, scope: "project", owner: "project",
+    project_id: "project", kind: "removed", state: "active", applied_version: 3, operation_id: "remove" };
+  db.prepare("INSERT INTO memory_changes VALUES (?,?,?,?,?)").run("change", "person", "original", at, JSON.stringify(change));
+  const reader = inspect(home);
+  assert.throws(() => reader.rewind(), { code: "memory.recovery_not_exhausted" });
+  const first = pages(reader, 1);
+  assert.deepEqual(first.flatMap(page => page.issues), []);
+  db.exec("BEGIN IMMEDIATE");
+  db.prepare("UPDATE memory_markers SET body=? WHERE key=?").run(JSON.stringify({ sources: [{ event_id: "new-event", version: "new" }] }), "memory-source-links:original");
+  marker("memory-forgotten:original", { memory_id: "original", state: "forgotten" }, "");
+  db.prepare("UPDATE memory_changes SET body=? WHERE change_id='change'").run(JSON.stringify({ ...change, applied_version: 4 }));
+  db.exec("COMMIT");
+  reader.rewind();
+  assert.deepEqual(pages(reader, 1), first);
+  reader.close();
+  assert.throws(() => reader.rewind(), { code: "memory.recovery_closed" });
+  const fresh = inspect(home), facts = pages(fresh).flatMap(page => page.facts); fresh.close();
+  assert.ok(facts.some(fact => fact.kind === "source-link" && fact.event_id === "new-event" && fact.version === "new"));
+  assert.ok(facts.some(fact => fact.kind === "forgotten" && fact.memory_id === "original"));
+  assert.ok(facts.some(fact => fact.kind === "change" && fact.applied_version === 4));
+});
+
 // This uses a real retained SQLite file and the public packages, never an internal decoder or fake SQL runner.
 test("nonempty pages cover marker producers and identity tables without text, reasons, or undo", t => {
   const { home, db, marker } = fixture(t);
@@ -149,6 +174,7 @@ test("final authority rejection retains the complete page and close releases the
   rejectAt = calls + 5; // Initial/pre-read, row fetch, row projection, then final publication check.
   assert.throws(() => handle.next({ limit: 1 }), /revoked/);
   rejectAt = Infinity;
+  assert.throws(() => handle.rewind(), { code: "memory.recovery_not_exhausted" });
   assert.equal((handle.next({ limit: 1 }).facts[0] as Extract<Fact, { kind: "forgotten" }>).memory_id, "first");
   assert.equal((handle.next({ limit: 1 }).facts[0] as Extract<Fact, { kind: "forgotten" }>).memory_id, "second");
   rejectAt = calls + 1; assert.throws(() => handle.close(), /revoked/); handle.close();

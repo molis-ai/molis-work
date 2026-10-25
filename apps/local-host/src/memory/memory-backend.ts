@@ -2,6 +2,8 @@ import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry
 import type { MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 
+export const prologueMemoryScope = (scope: MemoryScope) => scope === "personal" ? "user" as const : scope === "character" ? "character" as const : "project" as const;
+
 /** Prologue Memory of the runtime as the memory service's store: personal memories are its `user` scope. */
 export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapability>, control?: AgentMemoryExecutionControl, caller?: MemoryCaller): MemoryBackendPort {
   const store = async () => {
@@ -18,7 +20,7 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
     if (!memory.withExecution) throw memoryErrors.off("当前运行时不能保留记忆调用的执行控制");
     return memory.withExecution(control);
   };
-  const prologueScope = (scope: MemoryScope) => scope === "personal" ? "user" as const : scope === "character" ? "character" as const : "project" as const;
+  const prologueScope = prologueMemoryScope;
   const view = ({ scope: _scope, owner: _owner, ...entry }: AgentMemoryEntry) => entry;
   const candidateView = ({ scope: _scope, owner: _owner, ...entry }: AgentMemoryCandidateEntry) => entry;
   return {

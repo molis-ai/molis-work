@@ -3,7 +3,7 @@ import { memoryErrors } from "@molis-ai/molis-work-service-memory";
 import type { AgentMemoryPurgeCoverageQuery } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** A page-local result never proves the whole registry. The owner checks the same facts after every await. */
-export async function verifyMemoryCoverage(backend: MemoryBackendPort, input: AgentMemoryPurgeCoverageQuery, current: () => void): Promise<void> {
+export async function verifyMemoryCoverage(backend: Pick<MemoryBackendPort, "verifyPurgeCoverage">, input: AgentMemoryPurgeCoverageQuery, current: () => void): Promise<void> {
   let cursor: string | undefined;
   do {
     current();
@@ -17,7 +17,7 @@ export async function verifyMemoryCoverage(backend: MemoryBackendPort, input: Ag
 }
 
 /** Re-reading current identities is only an empty proof, never a new deletion plan. */
-export async function verifyProjectMemoryEmpty(backend: MemoryBackendPort, input: {
+export async function verifyProjectMemoryEmpty(backend: Pick<MemoryBackendPort, "previewPurge">, input: {
   scopes: readonly { scope: "project" | "character"; owner: string }[]; actor: string; sessions: readonly string[];
 }, current: () => void): Promise<void> {
   const targets = [...input.scopes.map(scope => ({ ...scope, session_ref: undefined as { kind: "session"; id: string; revision: number } | undefined })),

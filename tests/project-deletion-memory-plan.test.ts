@@ -5,28 +5,40 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { applyProjectMemoryPurge as applyFixedProjectMemoryPurge, previewProjectMemoryPurge, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
+import { applyProjectMemoryPurge as applyFixedProjectMemoryPurge, previewProjectMemoryPurge as previewFixedProjectMemoryPurge, readProjectMemoryPurgeLedgerFacts, projectMemoryPurgeLedger, type MemoryBackendPort, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
+import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryServiceHome, observeMemoryBackend, originalMemorySources, scriptedMemoryExtraction } from "./fixtures/memory-service-home.js";
 
 const caller = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui",
   person: true, purpose: "management", current_scene: "common", operation_id });
 const control = { beforeEffect: async () => undefined, assert_current: () => undefined };
-// These lower-level tests supply the scope owner's current empty proof through the real backend.
-function applyProjectMemoryPurge(ports: Omit<Parameters<typeof applyFixedProjectMemoryPurge>[0], "verifyScopeCleanup">,
+// Existing online fixtures bind the same production backend and ledger to the narrower deletion ports.
+type OnlinePorts = { backend: MemoryBackendPort | null; ledger: MemoryLedgerPort; caller: MemoryCaller };
+function previewProjectMemoryPurge(ports: OnlinePorts, projectId: string,
+  selection: Omit<Parameters<typeof previewFixedProjectMemoryPurge>[2], "scopes"> & { scopes?: Parameters<typeof previewFixedProjectMemoryPurge>[2]["scopes"] }) {
+  return previewFixedProjectMemoryPurge({ backend: ports.backend?.withCaller(ports.caller) ?? null, caller: ports.caller,
+    current() {}, readLedgerFacts: query => readProjectMemoryPurgeLedgerFacts(ports.ledger, query) }, projectId,
+  { ...selection, scopes: selection.scopes ?? [...ports.ledger.owners(projectId), ...ports.ledger.candidateOwners(projectId)]
+    .flatMap(item => item.scope === "character" ? [{ scope: item.scope, owner: item.owner }] : []) });
+}
+function applyProjectMemoryPurge(ports: OnlinePorts & { control: AgentMemoryExecutionControl },
   plan: Parameters<typeof applyFixedProjectMemoryPurge>[1]) {
-  return applyFixedProjectMemoryPurge({ ...ports, verifyScopeCleanup: async () => {
-    assert.ok(ports.backend);
+  const bound = ports.backend?.withCaller(ports.caller);
+  return applyFixedProjectMemoryPurge({ caller: ports.caller, control: ports.control,
+    backend: bound ? { purgeMemory: input => bound.remove(input), purgeCandidate: input => bound.candidates.purge(input) } : null,
+    ledger: projectMemoryPurgeLedger(ports.ledger, ports.caller.actor_id), verifyScopeCleanup: async () => {
+    assert.ok(bound);
     for (const target of plan.scopes.filter(item => item.scope !== "personal")) for (const kind of ["memory", "memory-candidate"] as const) {
-      const page = await ports.backend.withCaller(ports.caller).previewPurge({ scope: target.scope, owner: target.owner, kind });
+      const page = await bound.previewPurge({ scope: target.scope, owner: target.owner, kind });
       assert.equal(page.outcome, "completed"); assert.deepEqual(page.issues, []);
       assert.deepEqual(page.items, []); assert.equal(page.exhausted, true);
     }
   } }, plan);
 }
-
 
 test("project deletion freezes tombstones and original versions, then resumes SDK deletion after ledger failure", async t => {
   const f = await memoryServiceHome(t, { projects: ["project-a", "project-b"] });
@@ -209,7 +221,7 @@ test("online purge preview retains originals hidden from public listing after Se
   t.after(async () => { await host.close(); ledger.close(); catalog.close(); await rm(home, { recursive: true, force: true }); });
   const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, plugin_id: "io.molis.work.coding", install_id: "coding" };
   const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "coding", title: "Original scope binding" });
-  const who = { ...caller("session-original"), project_id: project.project_id, session_id: session.session_id, current_scene: "coding" as const };
+  const who = { ...caller("session-original"), purpose: "management" as const, project_id: project.project_id, session_id: session.session_id, current_scene: "coding" as const };
   const raw = () => adapter.memory!.withCaller(who), target = { scope: "project" as const, owner: project.project_id };
   const formal = await raw().write({ ...target, text: "Private Session original", origin: "Session", operation_id: "raw-original",
     meta: { kind: "convention", source: "manual", classification: { scenes: ["coding"], lifecycle: "session" },

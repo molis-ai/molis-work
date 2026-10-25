@@ -19,6 +19,7 @@
 
 - `ui.translations`（中文原文 → 英文）是过渡段：内置插件的页面代码仍以中文原文为键，直到逐个迁到稳定键（`apps/workbench/README.md`「界面文字」）。任何发布者都可以声明，但只翻译声明它的插件自己画的东西，所以第三方不会靠它改写宿主或别的插件的任何一句话（用户 2026-10-25 定：内置与第三方同一种方式加载）。
 - 登记表是进程内的、不随插件撤权或停用而注销：同一个键始终属于同一个插件，词典不含密钥与事实，留着的代价只是页面词典多几行。
+  [工作台入口](../../../apps/workbench/src/index.ts) 当前保留 `unregisterPluginMessages` 导出，供 [plugin-messages.test.ts](../../../tests/plugin-messages.test.ts) 与 [plugin-words-owned.test.ts](../../../tests/plugin-words-owned.test.ts) 在 `finally` 中清理测试登记、隔离用例。宿主生产代码尚无调用它的注销路径；保留此导出不承诺停用、撤权或卸载后自动撤词，也不是外部插件 SDK 新增 API。
 
 ## 已知限制
 

@@ -253,6 +253,10 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1129466, 1129736],
   "/assets/molis-work-plugins/shelf.js": [63376, 64623],
+  // #1306 (with F1's review fixes) reuses arrival's choice/field/button styles instead of the settings document stylesheet. The
+  // journey changes and the valid dark welcome pseudo-element selector net +135 B (681,352 -> 681,487). Shared glow declarations
+  // stay grouped; only dark opacity splits because :is() cannot contain a pseudo-element. No further reduction tried.
+  "/assets/molis-work-arrival.css": [681352, 681487],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -11,6 +11,7 @@ import { withContextJourneys, type ContextJourney, type ContextReference } from 
 import { startContextJourney, waitContextJourney } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 // The way in for a new person and for a new project, in a real browser (specs/archive/project-arrival-flow): the opening, the
 // two Welcome questions, and the journey from existing materials to a named project. The first test follows a person
@@ -84,6 +85,14 @@ const screen = (name: string) => `document.querySelector('.arrival')?.dataset.sc
 const obView = (name: string) => `!!document.querySelector('[data-ob-view=${JSON.stringify(name)}]')`;
 const resetIntro = "try { sessionStorage.clear(); localStorage.removeItem('molis-work:onboarding-intro'); } catch {}";
 
+/** Ignored review evidence from the actual page; no tracked screenshot group is added. */
+async function reviewShot(journey: NonNullable<Awaited<ReturnType<typeof openJourneyBrowser>>>, name: string) {
+  const directory = join(process.cwd(), ".impeccable", "qa", "review", "onboarding-review-fixes");
+  await mkdir(directory, { recursive: true });
+  const { data } = await journey.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, journey.sessionId);
+  await writeFile(join(directory, name + ".png"), Buffer.from(data, "base64"));
+}
+
 test("a new person's first run: the opening, two questions, materials, a name, and the project they made", { timeout: 180_000 }, async t => {
   const journey = await openJourneyBrowser(t, "empty");
   if (!journey) return;
@@ -105,7 +114,7 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   await assertLayoutClean(evaluate, "opening");
   await press("Enter");
   await waitFor(screen("welcome") + " && document.querySelector('.welcome')?.dataset.step === 'language'");
-  assert.equal(await evaluate("document.querySelectorAll('.mw-steps li').length"), 6);
+  assert.equal(await evaluate("document.querySelectorAll('.mw-steps li').length"), 7);
   assert.equal(await evaluate("[...document.querySelectorAll('.mw-steps li')].findIndex(li => li.hasAttribute('aria-current'))"), 0);
   assert.equal(await evaluate("document.querySelector('#cx-exit').textContent.trim()"), "稍后再说");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.arrival-global')).display"), "none", "only the theme switch stays in the titlebar");
@@ -135,6 +144,9 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   assert.equal(await evaluate("document.querySelector('[data-action=prepare]').disabled"), true, "nothing to confirm yet");
   assert.equal(await evaluate("document.querySelector('.arrival-bar .mw-bar-status')"), null);
   assert.match(await evaluate<string>("document.querySelector('.ob-right .ob-scene-note').textContent"), /材料会按来源排在这里/);
+  // ONB-INT-02: the 200 / 50 MB / 20 MB line was the old cap (2026-10-22). The sources step says there is no cap.
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('.ob-left').textContent"), /200 份|50 MB|20 MB/);
+  assert.match(await evaluate<string>("document.querySelector('.ob-left').textContent"), /不限份数和大小/);
   await assertLayoutClean(evaluate, "sources, empty");
 
   // A folder: its files are listed by name and size at once, and a pasted page adds a group beside it.
@@ -159,8 +171,11 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   await click(".ob-right .mw-file-group[data-group=browser] .mw-file-group__x");
   await waitFor("document.querySelectorAll('.ob-right .mw-file-group').length === 1");
 
-  // Confirm the scope: each file is a choice, and unchecking one makes its group read as partly chosen.
+  // Confirm the scope: the next step is the model, and the file list is the step behind it.
   await click("[data-action=prepare]");
+  await waitFor(`${obView("model")} && !!document.querySelector('[data-action=model-back]')`);
+  assert.equal(await evaluate("(document.querySelector('.ob-right')?.textContent || '').includes('首版功能范围')"), false, "the model step does not list the files");
+  await click("[data-action=model-back]");
   await waitFor(obView("preview"));
   assert.ok(await evaluate("document.querySelectorAll('.ob-right .mw-file-row .mw-check').length >= 4"));
   // No count or size limit (user 2026-10-22): no meters against a cap, no “up to 200 files / 50 MB”.
@@ -170,17 +185,25 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   await waitFor("document.querySelector('.mw-file-group__count')?.textContent.trim() === '3/4'");
   assert.equal(await evaluate("document.querySelector('.mw-file-group__head .mw-check').indeterminate"), true);
   assert.equal(await evaluate("document.activeElement?.matches('.mw-check[data-file]')"), true, "the focus stays on the row that changed");
+  // ONB-FILE-01: the range controls are not inside the checkbox label, the rest of the row selects, and the group folds.
+  assert.equal(await evaluate("document.querySelectorAll('label.mw-file-group__pick button, label.mw-file-group__head button').length"), 0);
+  await click(".ob-right .mw-file-row:has(.mw-check[data-file]:checked) .mw-file-row__size");
+  await waitFor("document.querySelector('.mw-file-group__count')?.textContent.trim() === '2/4'");
+  await click("[data-fold]");
+  await waitFor("document.querySelectorAll('.ob-right .mw-file-row').length === 0");
+  assert.equal(await evaluate("document.querySelector('[data-fold]')?.getAttribute('aria-expanded')"), "false");
+  await click("[data-fold]");
+  await waitFor("document.querySelectorAll('.ob-right .mw-file-row').length >= 4");
   await assertLayoutClean(evaluate, "scope");
   await click("[data-action=sources]");
   await waitFor(obView("sources"));
   assert.equal(await evaluate("document.querySelectorAll('.ob-right .mw-file-group').length"), 1, "going back keeps what was added");
   await click("[data-action=prepare]");
-  await waitFor(obView("preview"));
+  await waitFor(`${obView("model")} && !!document.querySelector('[data-action=start]')`);
 
   // No model is connected in this Home: the materials are kept, and the person names the project they begin.
   assert.equal(await evaluate("document.querySelector('[data-action=start] [data-slot=button-label]').textContent"), "先带入资料");
-  // RING-05: model setup retains its own connection state beside the existing copy.
-  assert.equal(await evaluate("document.querySelector('.ob-model .mw-state-ring')?.dataset.mwState"), "disconnected");
+  assert.match(await evaluate<string>("document.querySelector('.ob-right')?.textContent || ''"), /常用供应商/);
   // ONB-LIM-10: the upload goes by bytes across every source. Each upload waits a moment here, so the bar can be read part-way.
   await evaluate("(() => { const send = window.fetch; window.fetch = (url, init) => String(url).includes('/files?path=') ? new Promise(resolve => setTimeout(resolve, 400)).then(() => send(url, init)) : send(url, init); })()");
   await click("[data-action=start]");
@@ -202,6 +225,146 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   assert.match(await evaluate<string>("location.pathname"), /^\/projects\/[^/]+\/?$/);
   const created = await (await fetch(origin + "/api/settings/projects")).json() as { projects: Array<{ display_name: string }> };
   assert.deepEqual(created.projects.map(project => project.display_name), [LONG_NAME]);
+});
+
+// ONB-INT-01: choosing a large folder used to freeze the sources page until every name was saved.
+// The count is on screen first, part-way, and the old 200 / 50 MB / 20 MB line stays gone.
+test("ONB-INT-01 a large folder shows how far the count has come before the list appears", { timeout: 120_000 }, async t => {
+  const journey = await openJourneyBrowser(t, "empty");
+  if (!journey) return;
+  const { go, evaluate, waitFor } = journey;
+  await go("/onboarding");
+  await waitFor("!!document.querySelector('.arrival')");
+  await evaluate("localStorage.setItem('molis-work:onboarding-intro','done')");
+  await go("/onboarding");
+  await waitFor(obView("sources"));
+  await evaluate(`(() => {
+    const real = window.setTimeout;
+    window.setTimeout = (fn, ms, ...rest) => ms === 0 ? (window.__holdCount = fn, 1) : real(fn, ms, ...rest);
+    window.__restoreTimeout = () => { window.setTimeout = real; };
+    const input = document.getElementById('cx-upload-directory');
+    const data = new DataTransfer();
+    for (let i = 0; i < 3000; i++) data.items.add(new File(['x'], 'n' + i + '.md'));
+    input.files = data.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await waitFor("!!document.querySelector('.ob-upload [role=progressbar]')");
+  const progress = await evaluate<{ now: number; max: number; text: string }>("(() => { const bar = document.querySelector('.ob-upload [role=progressbar]'); return { now: +bar.getAttribute('aria-valuenow'), max: +bar.getAttribute('aria-valuemax'), text: document.querySelector('.ob-upload small').textContent }; })()");
+  assert.ok(progress.now > 0 && progress.now < progress.max, JSON.stringify(progress));
+  assert.equal(progress.max, 3000);
+  assert.match(progress.text, /已查看 \d+ \/ 3000 项 · 收录 \d+ 份/);
+  await evaluate("const resume = window.__holdCount; window.__restoreTimeout(); resume();");
+  await waitFor("document.querySelector('[data-open=folder] .ob-source__act.is-added')?.textContent === '已添加 3000'", 20_000);
+  assert.match(await evaluate<string>("document.querySelector('.ob-left').textContent"), /不限份数和大小/);
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('.ob-left').textContent"), /200 份|50 MB|20 MB/);
+});
+
+// ONB-MODEL-01: the step after the files is the text model. The right side is that step's own content, saved through
+// the model settings capability. Automation (arrival.still) shows the end state of the 130ms leave and 420ms enter.
+test("ONB-MODEL-01 connecting a text model is its own journey step and returns to the files", { timeout: 120_000 }, async t => {
+  const journey = await openJourneyBrowser(t, "empty");
+  if (!journey) return;
+  const { go, evaluate, waitFor, click, seed } = journey;
+  const id = seed(item => {
+    item.sources = [{ kind: "files", selected: true, files: [{ path: "笔记.md", size: 120, modified_ms: 1 }], metadata: { files: [{ path: "笔记.md", size: 120, modified_ms: 1, identity: "upload" }], skipped: 0, truncated: false } }];
+    item.previewed = true;
+  });
+  await go("/onboarding");
+  await waitFor("!!document.querySelector('.arrival')");
+  await evaluate("localStorage.setItem('molis-work:onboarding-intro','done')");
+  await go(`/onboarding?desktop=1&journey=${id}`);
+  await waitFor(`${obView("model")} && location.pathname === '/onboarding' && location.search.includes(${JSON.stringify(id)}) && !!document.querySelector('[data-ob-template=deepseek]')`, 20_000);
+  const step = await evaluate<{ settings: boolean; files: boolean; title: string; back: string; choices: string }>(`(() => ({
+    settings: !!document.querySelector('.settings-navigation, .project-preferences-chrome, [data-model-settings]'),
+    files: (document.querySelector('.ob-right')?.textContent || '').includes('笔记.md'),
+    title: document.querySelector('.ob-left #ob-title')?.textContent || '',
+    back: document.querySelector('[data-action=model-back]')?.textContent || '',
+    choices: document.querySelector('.ob-right [data-ob-template=deepseek]')?.textContent || '',
+  }))()`);
+  assert.equal(step.settings, false);
+  assert.equal(step.files, false);
+  assert.equal(step.title, "连接文字模型");
+  assert.equal(step.back, "返回");
+  assert.equal(step.choices, "DeepSeek");
+  await click("[data-ob-template=deepseek]");
+  await waitFor("!!document.querySelector('#ob-model-key')");
+  assert.equal(await evaluate("!!document.querySelector('[data-ob-base], [data-ob-model-id]')"), false, "DeepSeek already has an address and a model");
+  assert.equal(await evaluate("document.activeElement?.id"), "ob-model-key");
+  assert.equal(await evaluate("(document.querySelector('.ob-right')?.textContent || '').includes('笔记.md')"), false);
+  await click("[data-action=model-back]");
+  await waitFor(`${obView("preview")} && location.search.includes(${JSON.stringify(id)})`, 20_000);
+  assert.match(await evaluate<string>("document.querySelector('.ob-right')?.textContent || ''"), /笔记\.md/);
+  await click("[data-action=model]");
+  await waitFor(`${obView("model")} && !!document.querySelector('[data-ob-template=deepseek]')`);
+  assert.equal(await evaluate("(document.querySelector('.ob-right')?.textContent || '').includes('笔记.md')"), false);
+});
+
+test("ONB-FIX-01 connected provider and model text stays literal in the real journey DOM", { timeout: 120_000 }, async t => {
+  const journey = await openJourneyBrowser(t, "empty");
+  if (!journey) return;
+  const provider = '<img data-ob-injected="provider" src=x onerror="globalThis.__obXss = 1"> & "供应商"';
+  const model = '<svg data-ob-injected="model" onload="globalThis.__obXss = 2"></svg> <model>&\'';
+  await seedConfiguredModels(journey.homeDirectory, [{ provider_id: "literal-provider", display_name: provider, model_id: model }]);
+  const id = journey.seed(item => {
+    item.sources = [{ kind: "files", selected: true, files: [{ path: "笔记.md", size: 120, modified_ms: 1 }], metadata: { files: [{ path: "笔记.md", size: 120, modified_ms: 1, identity: "upload" }], skipped: 0, truncated: false } }];
+    item.previewed = true;
+  });
+  await journey.go("/onboarding");
+  await journey.evaluate("localStorage.setItem('molis-work:onboarding-intro','done')");
+  for (const [width, scheme] of [[1440, "light"], [390, "dark"]] as const) {
+    await journey.view(width, width === 390 ? 844 : 900, scheme);
+    await journey.go(`/onboarding?desktop=1&journey=${id}`);
+    await journey.waitFor(`${obView("model")} && !!document.querySelector('.ob-stage-head span') && !!document.querySelector('[data-ob-template=deepseek]')`, 20_000);
+    const configuration = await journey.evaluate<{ model: string }>("(async () => (await fetch('/api/onboarding/context')).json())()");
+    assert.ok(configuration.model.includes(provider)); assert.ok(configuration.model.includes(model));
+    const state = await journey.evaluate<{ text: string; elements: number; injected: number; executed: number }>(`(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const label = document.querySelector('.ob-stage-head span');
+      return { text: label?.textContent || '', elements: label?.childElementCount ?? -1,
+        injected: document.querySelectorAll('[data-ob-injected]').length, executed: Number(globalThis.__obXss || 0) };
+    })()`);
+    t.diagnostic(JSON.stringify({ acceptance: "ONB-FIX-01", width, scheme, ...state }));
+    assert.equal(state.text, configuration.model, `${width}/${scheme}: the raw provider and model text is preserved`);
+    assert.equal(state.elements, 0); assert.equal(state.injected, 0); assert.equal(state.executed, 0);
+    await reviewShot(journey, `model-label-${width}-${scheme}`);
+  }
+});
+
+// ONB-FOLDER-01: on the desktop, Downloads, Documents, Desktop and another folder are one vertical list and any of them can be on together.
+test("ONB-FOLDER-01 folder places are a vertical list and more than one can be included", { timeout: 120_000 }, async t => {
+  const journey = await openJourneyBrowser(t, "empty");
+  if (!journey) return;
+  const { go, evaluate, waitFor, click, command, sessionId } = journey;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const grants = {};
+    window.__TAURI__ = { core: { invoke: async (command, args = {}) => {
+      if (command === 'context_directory_status') return Object.values(grants);
+      if (command === 'context_directory_authorize') {
+        const grant = { id: args.id, name: args.id, path: '/Users/me/' + args.id, state: 'ready' };
+        grants[args.id] = grant;
+        return grant;
+      }
+      if (command === 'context_directory_forget') { delete grants[args.id]; return { id: args.id, name: args.id, state: 'unconnected' }; }
+      if (command === 'context_directory_preview') return { files: [{ path: args.id + '/笔记.md', size: 20, modified_ms: 1, identity: 'desktop' }], skipped: 0, truncated: false };
+      throw new Error('unexpected ' + command);
+    } } };
+  })();` }, sessionId);
+  await go("/onboarding");
+  await waitFor("!!document.querySelector('.arrival')");
+  await evaluate("localStorage.setItem('molis-work:onboarding-intro','done')");
+  await go("/onboarding");
+  await waitFor(obView("sources"));
+  await click("[data-open=folder]");
+  await waitFor("!!document.querySelector('.ob-picks')");
+  assert.equal((await evaluate<string>("getComputedStyle(document.querySelector('.ob-picks')).gridTemplateColumns")).split(" ").length, 1);
+  assert.deepEqual(await evaluate<string[]>("[...document.querySelectorAll('.ob-picks [data-pick]')].map(node => node.dataset.pick)"), ["downloads", "documents", "desktop", "custom"]);
+  await click("[data-pick=downloads]");
+  await waitFor("document.querySelector('[data-pick=downloads]')?.getAttribute('aria-pressed') === 'true'");
+  await click("[data-pick=documents]");
+  await waitFor("document.querySelectorAll('.ob-picks [aria-pressed=true]').length === 2");
+  assert.deepEqual(await evaluate<string[]>("[...document.querySelectorAll('.ob-picks [aria-pressed=true]')].map(node => node.dataset.pick)"), ["downloads", "documents"]);
+  await click("[data-pick=downloads]");
+  await waitFor("document.querySelector('[data-pick=downloads]')?.getAttribute('aria-pressed') === 'false' && document.querySelector('[data-pick=documents]')?.getAttribute('aria-pressed') === 'true'");
 });
 
 // While organizing (user 2026-10-22): reading goes by bytes, the summary by its calls, and once a call has finished the page says how
@@ -280,6 +443,7 @@ test("the opening types its name, the way on arrives a moment after it, and a fi
 });
 
 test("the opening and the two questions lay out cleanly at every width, in light and dark", { timeout: 300_000 }, async t => {
+  // ONB-FIX-02: real computed styles guard both the element and the welcome pseudo-element, not CSS text.
   const journey = await openJourneyBrowser(t, "empty");
   if (!journey) return;
   const { view, press, go, evaluate, waitFor } = journey;
@@ -292,9 +456,17 @@ test("the opening and the two questions lay out cleanly at every width, in light
       await go("/onboarding");
       await waitFor(screen("opening"));
       await waitFor("document.querySelector('.opening')?.classList.contains('is-done')");
+      await waitFor(`document.documentElement.dataset.resolvedTheme === ${JSON.stringify(scheme)}`);
+      const openingOpacity = await evaluate("getComputedStyle(document.querySelector('.opening-glow')).opacity");
+      assert.equal(openingOpacity, scheme === "dark" ? "0.5" : "1", where("opening opacity"));
+      if (width === 1440 && scheme === "dark") await reviewShot(journey, "opening-1440-dark");
       await assertLayoutClean(evaluate, where("opening"));
       await press("Enter");
       await waitFor("document.querySelector('.welcome')?.dataset.step === 'language'");
+      const welcomeOpacity = await evaluate("getComputedStyle(document.querySelector('.welcome'), '::before').opacity");
+      assert.equal(welcomeOpacity, scheme === "dark" ? "0.5" : "1", where("welcome pseudo opacity"));
+      if ([1440, 1024, 390].includes(width)) t.diagnostic(JSON.stringify({ acceptance: "ONB-FIX-02", width, scheme, openingOpacity, welcomeOpacity }));
+      if ([1440, 1024, 390].includes(width)) await reviewShot(journey, `welcome-${width}-${scheme}`);
       await assertLayoutClean(evaluate, where("language"));
       await press("Enter");
       await waitFor("document.querySelector('.welcome')?.dataset.step === 'appearance'");
@@ -365,7 +537,7 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
   return [
     ["sources, nothing added", "/onboarding?mode=new-project", obView("sources")],
     ["sources, materials added", `/onboarding?mode=new-project&journey=${added}`, `${obView("sources")} && document.querySelectorAll('.ob-right .mw-file-group').length === 2`],
-    ["scope, long names", `/onboarding?mode=new-project&journey=${scope}`, `${obView("preview")} && document.querySelectorAll('.mw-file-row').length > 20`],
+    ["scope, long names", `/onboarding?mode=new-project&journey=${scope}`, `${obView("model")} && !!document.querySelector('[data-action=model-back]')`],
     ["reading, interrupted", `/onboarding?mode=new-project&journey=${interrupted}`, obView("reading")],
     ["reading, a long queue interrupted", `/onboarding?mode=new-project&journey=${longQueue}`, `${obView("reading")} && document.querySelectorAll('.ob-phase').length === 3 && /120\\D+300/.test(document.querySelector('.ob-phases').textContent) && /8\\D+4/.test(document.querySelectorAll('.ob-phase')[1].textContent) && /6\\D+1/.test(document.querySelectorAll('.ob-phase')[2].textContent) && /48\\.0 MB \\/ 120\\.0 MB/.test(document.querySelector('.ob-phases').textContent) && document.querySelector('.ob-right [role=progressbar]').getAttribute('aria-valuenow') === '48000000' && document.querySelectorAll('.ob-phase [role=progressbar]').length === 2`],
     ["materials ready", `/onboarding?mode=new-project&journey=${needsModel}`, obView("materials")],
@@ -391,6 +563,10 @@ test("every screen of the journey lays out cleanly at every width, in light and 
       for (const [state, path, ready] of states) {
         await go(path + (width >= 760 ? "&desktop=1" : ""));
         await waitFor(ready, 10_000);
+        if (state === "scope, long names") {
+          await click("[data-action=model-back]");
+          await waitFor(`${obView("preview")} && document.querySelectorAll('.mw-file-row').length > 20`, 10_000);
+        }
         await assertLayoutClean(evaluate, `${state} · ${name} · ${scheme}`);
         if (state === "reading, interrupted") {
           // RING-05: keep the source failure distinct from retained materials, with no activity after interruption.
@@ -415,7 +591,7 @@ test("every screen of the journey lays out cleanly at every width, in light and 
 test("in English every screen of the journey lays out cleanly too: longer words, the same room", { timeout: 300_000 }, async t => {
   const journey = await openJourneyBrowser(t, true);
   if (!journey) return;
-  const { view, go, evaluate, waitFor, command, sessionId, origin } = journey;
+  const { view, go, evaluate, waitFor, click, command, sessionId, origin } = journey;
   await command("Network.enable", {}, sessionId);
   await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);
   const states = await seededScreens(journey);
@@ -424,6 +600,10 @@ test("in English every screen of the journey lays out cleanly too: longer words,
     for (const [state, path, ready] of states) {
       await go(path + (width >= 760 ? "&desktop=1" : ""));
       await waitFor(ready, 10_000);
+      if (state === "scope, long names") {
+        await click("[data-action=model-back]");
+        await waitFor(`${obView("preview")} && document.querySelectorAll('.mw-file-row').length > 20`, 10_000);
+      }
       await assertLayoutClean(evaluate, `${state} · ${name} · English`);
     }
   }
@@ -464,7 +644,7 @@ test("a new project begun from the chooser starts at the sources, a blank start 
   assert.equal(await evaluate("document.getElementById('cx-blank-name').value"), "Footballnia", "the name typed in the chooser's search comes with it");
   assert.equal(await evaluate("document.querySelector('.ob-project-name').textContent"), "Footballnia");
   assert.equal(await evaluate("document.querySelector('#cx-exit').textContent.trim()"), "返回项目");
-  assert.equal(await evaluate("document.querySelectorAll('.mw-steps li').length"), 4, "no Welcome questions on the way to a second project");
+  assert.equal(await evaluate("document.querySelectorAll('.mw-steps li').length"), 5, "no Welcome questions on the way to a second project");
   await click("[data-action=back]");
   await waitFor(obView("sources"));
   await navigate(() => click("#cx-exit"));

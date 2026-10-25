@@ -489,6 +489,12 @@ await caller.beforeEffect(); // 写业务记录之前
 
 规则与拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` S-57。
 
+## 读人授权的本机目录（`services.directory`）
+
+插件要读人指定的本机目录（不是项目工作目录），在 Manifest 声明 `directory:read` 权限，安装确认里照常列出。目录只能由人经宿主的系统选择器给出：插件页面向 `POST /api/host/directory-grants`（项目页走 `/projects/<id>/api/host/directory-grants`）发 `{ plugin_id }`，选中后拿到 `grant_id`，再交给自己的动作，动作里用 `context.services.directory.read({ grant_id, path, kind })` 按相对路径读（`kind` 是 `directory`、`text` 或 `bytes`，各有上限；链接、`..` 和目录之外的路径拒）。
+
+授权一直有效，直到人在平台设置「本机目录」（`/settings/directories`）撤回；插件升级照用，卸载或删项目时撤掉（用户 2026-10-25 定，PG-049）。Agent、工作流、MCP 和插件自己的后台任务调到你的动作时也能读，但每一次读都记进那一页并通知本人，所以只在需要时读。目录被移走或换掉时读到 `changed`，请人重新选。插件自己的设置里可以放一个跳转：`/settings/directories?plugin=<你的 plugin_id>`。规则与拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` S-83。
+
 ## Home 主人的私有文件树
 
 插件在自己的 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（PG-102，和 `databases.home` 一样写在 Manifest、不写在宿主条目上；读写权限和 `storage:private` 都要在 Manifest 的 permissions 里）。根目录沿唯一 HomeStoreRegistry 验证 owner；同一根可以同时放这个插件自己 Manifest 声明的库（`databases.home`，如 Images 的 `images/images.db` 与 `images/assets/`），但条目不能叫库文件（`<库名>.db*`）或分区目录 `projects`，别的插件的库、第二份 owner_files 不行；完整声明校验在受管开库之前完成。声明绑定宿主启动名单上的实际 definition 并深复制冻结：声明了文件却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明文件被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱、升级预检不能获得服务。Shelf 用它。

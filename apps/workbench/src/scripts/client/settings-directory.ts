@@ -63,6 +63,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const page = pageOf(root);
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
+    globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindMemorySettings?.(root);
     globalThis.molisWorkBindAgentDiagnostics?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);

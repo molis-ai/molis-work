@@ -120,7 +120,7 @@ test("RAC-605 what is taken into the directory is held to plain keys, one line o
   assert.equal(entries.find(entry => entry.id === "group")!.ui.views[0]!.group, undefined);
 });
 
-test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps its own shell views and leaves the market entry intact", async () => {
+test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refused to start (S-75) and its place keeps its own shell key and views and leaves the market entry intact", async () => {
   const folder = mkdtempSync(join(tmpdir(), "directory-publisher-")), database = join(folder, "project.db");
   seedDemoBoard(database); const store = new LocalProjectDatabase(database);
   const ports = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
@@ -142,8 +142,10 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps it
   };
   try {
     assert.notEqual(definition.manifest.publisher.signature, builtin.manifest.publisher.signature);
+    // S-75: the Host's build owns its plugin ids, so the publisher's start is refused; a start that failed keeps its place in the directory.
     const report = await platform.start([{ definition }]);
-    assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []); assert.ok(report.running.includes(pluginId));
+    assert.deepEqual(report.failed.map(entry => [entry.plugin_id, entry.code]), [[pluginId, "plugin.id_namespace_conflict"]]);
+    assert.deepEqual(report.blocked, []); assert.deepEqual(report.running, []);
     const running = runningPluginDirectory(platform.supervisor);
     assert.deepEqual(running.map(entry => [entry.id, entry.plugin_id, entry.chosen]), [[pluginId, pluginId, false]], "the real Host directory does not grant the built-in key or trust to a different publisher");
     assert.equal(running[0]!.personal, undefined); assert.equal(running[0]!.always_on, undefined);

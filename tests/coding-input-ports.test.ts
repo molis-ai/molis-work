@@ -79,7 +79,9 @@ test("W5-01-CODING-24 Coding reads the model list and each model's availability 
   const s = await codingSdkRuntime(t, { wrapCoding: definition => ({ ...definition, async start(context: PluginStartContext) { model = context.services?.model; return definition.start(context); } }) });
   const installed = s.platform.runtime.list().find(record => record.plugin_id === CODING_PLUGIN_ID) ?? assert.fail("Coding is installed");
   assert.equal(installed.grants.includes("model:read"), true);
-  assert.equal(installed.grants.includes("model:invoke"), false, "the installation was never given the right to send");
+  // The Host build holds every permission its Manifest declares (hostBuildGrants), model:invoke too, which Coding declares for the platform's
+  // draft action alone (CODING-23); what keeps complete() out of its reach is the action gate below, not the missing grant.
+  assert.equal(installed.grants.includes("model:invoke"), true, "the Host build holds its declared optional model:invoke");
   const client = model ?? assert.fail("Coding was given services.model");
   assert.deepEqual(client.choices().map(({ provider_id, model_id }) => ({ provider_id, model_id })), [{ provider_id: "fixture", model_id: "fixture" }]);
   assert.equal(client.availability({ provider_id: "fixture", model_id: "fixture" }).available, true);

@@ -75,11 +75,11 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
   try {
     const { store, platform } = project(directory);
     const report = await platform.start([
-      { definition: createFilesPlugin({ readable: () => true }) },
-      { definition: createDiffPlugin() },
-      { definition: createGitPlugin() },
-      { definition: createTextStatsPlugin() },
-      { definition: createCodingPlugin() },
+      { definition: createFilesPlugin({ readable: () => true }), trust: { level: "host" } },
+      { definition: createDiffPlugin(), trust: { level: "host" } },
+      { definition: createGitPlugin(), trust: { level: "host" } },
+      { definition: createTextStatsPlugin(), trust: { level: "host" } },
+      { definition: createCodingPlugin(), trust: { level: "host" } },
     ]);
     assert.deepEqual(report.failed, []);
     assert.deepEqual(report.blocked, []);
@@ -99,7 +99,7 @@ test("Files reads browsing settings without a Workspace binding and rejects the 
   let selected = { workspace_id: "one", display_name: "One", canonical_path: "/one", realpath_verified: true };
   const { store, platform } = project(directory, () => selected);
   try {
-    const report = await platform.start([{ definition: createFilesPlugin() }]);
+    const report = await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []);
     const read = () => platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "tester", query: {} });
     const first = await read();
@@ -125,8 +125,9 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
           createFilesPlugin({ readable: () => true }),
           (context) => { filesServices = context.services; },
         ),
+        trust: { level: "host" },
       },
-      { definition: createTextStatsPlugin({ onSnapshot: (input) => { counted.push(input); } }) },
+      { definition: createTextStatsPlugin({ onSnapshot: (input) => { counted.push(input); } }), trust: { level: "host" } },
     ]);
 
     platform.wiring.bind({

@@ -2512,6 +2512,20 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 ### 10.9 产品 HTTP 错误出口的接续验收（W3-02-G4）
 
+#### BL-305 补修：Agent busy 经 Coding HTTP 保持 409（2026-10-25，FIX1）
+
+基点 `4db89e26d6d5740e3002dfcfa868b40876385ded`；#1304 的[首评非阻塞第 1 项](https://github.com/molis-ai/molis-work/pull/1304#issuecomment-6401620828)及[统筹优先修复裁定](https://github.com/molis-ai/molis-work/pull/1304#issuecomment-6401645352)。共同 Coding HTTP 出口已按 kind 选状态，`agent.session_busy` 仍声明 invalid，导致 Agent 恢复/忙碌拒绝从原 409 变为 400。本补修只由错误主人把它归为 conflict，保留 code、消息及所有拒绝条件；不恢复 Coding 按 code 选 HTTP 的分支，不改其他错误或公开形状。
+
+生产范围仅 `horizontal/agent-host/src/errors.ts` 的该声明；验证扩到已有 Agent 控制、Coding HTTP、助理停放回答/恢复用例及本段。`assistant-error.ts` 与 `assistant-parked-answer.ts` 的忙碌消费按 code，核它们的映射/有限重试不变。HTTP 正文继续使用现有 code/error，不新增 kind 字段：在实际 Agent 错误产出边界断言 kind，再验证同一错误经生产 Coding HTTP 路由得到 409。审批 stream、write-checkers、Memory、SDK 包/provenance、共享 BACKLOG、预算和 CI 均不在范围；不改原 PR/main，候选由唯一 carrier 采用。
+
+- `BL305-BUSY-01`：现有 Prologue 控制的三种恢复/停放/历史暂不可读拒绝仍给出原 `agent.session_busy`、原本人消息和诊断码，kind 为 conflict。
+- `BL305-BUSY-02`：经实际 HTTP server 与生产 Coding control 路由触发同一 Prologue adapter 的拒绝，断言 409、原 code/message 及上游实际 kind；无业务状态推进。不能仅断言错误常量或手写 HTTP 映射。
+- `BL305-BUSY-03`：原 Coding 归档 409、未知对象 404、无权限 403，以及助理对同码忙碌的映射、读后单次重试/保留回答行为保持；原用例和源码审查按实际范围复用。
+
+先经公共 build FIFO 做完整 `pnpm build`，再用官方 runner 单进程必要定向 `agent-control-errors`、`coding-product-http`、`interaction-parked-answer`、`coding-session-recovery`、`prologue-start-refusal`、`prologue-recovery`，并核必要边界/错误门禁、源码与构建指纹及推前 fresh-fetch secrets。按本题明确限定不重 full、浏览器整批或真实模型，不把替身 Runtime 的 HTTP 机制证据称为真实模型/最终产品验收；固定 diff/源与原件直交窄 REVIEW、必要 TEST，再由 FIX1 主核交 PIPE/统筹。
+
+本轮验证：公共 FIFO 整体构建自然退出 0，源码与生成的构建指纹一致；六个定向文件全部通过（38/38），边界、对实际 merge-base 的 health、72 份公开 API 快照和 diff 检查通过，未改快照或门禁。新增 HTTP 场景通过真实插件 HTTP 适配器、Kernel 动作及 Coding control 路由进入现有 Prologue adapter；SDK 控制端是受控替身，没有调用真实模型。仅把独立树已构建错误产物的该 kind 暂改回 invalid，原 HTTP 用例即在原 code/message 的真实 400 上失败（预期 409）；产物随后逐字恢复，再跑上述六文件通过。首次 HTTP 夹具因缺少 owner 在输出合同处失败，已补齐真实会话/轮次 owner，原失败保留，未计作产品回归或通过。独立 REVIEW/必要 TEST 与 carrier 采用按固定候选回执另记。
+
 固定I5的只读调用链核对已补足旧计划遗漏，按G1/G3、Home F/F1及Goals H的实际依赖接续；G4不改Coding尚在用的四个Goals桥（PR-8另片），不提前做owner改名或Session全迁移。目标为六组实际HTTP出口走共同SDK，先给现行明确用户/状态拒绝owner kind，再移除mapper，保留成功/部分成功与原业务事实。
 
 | 编号 | 可观察结果与证明路径 |

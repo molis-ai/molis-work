@@ -162,6 +162,26 @@ Host 从创建时保存初始化句柄；失败后的显式 ready 先完成旧�
 
 补修作者证据：原19cc构建来源指纹重新核对匹配b1226d80，原公开API探针仍以exit1记录退订只调用一次/借用不可归还；相同故障的修后探针真实调用第二次退订，后续初始化、关闭、父owner释放与再次取得均成立。新增A-11/12六项通过。首轮30文件为29过/1红，既有system-agent-service指出已接纳ready应正常结算；修正生产分支并保留原断言后，相关8文件50项全过，与其余适用结果合计30唯一文件208项有效并集，不冒一个同头全绿批。原首败、19cc的369分阶段与可选live/Studio边界均保留。构建、strict、Biome、准确merge-base健康、边界和引用检查的原件在 `/tmp/molis-pr1254-init-cleanup-retry-20261024/`；固定修后头还须独立REVIEW增量/TEST与原Claude FIRST、CI/集成核收，本片不关闭完整A、snapshot/restore或C2。
 
+#### A 构造失败的清理句柄补修（FIX4，FIRST 6393270921 第1条）
+
+在已双核的b5211d8a5b9557783710ea7574a5e6d26751701e上，Host构造后段和Web升级装配抛错后，现有best-effort清理失败或挂起时，原对象没有交给调用方，无法通过公开入口等待/重试。真实临时Home、HomePluginHost.close和HTTP upgrade装配端口已复现：原异常身份保持，清理1次后同进程/另一进程仍busy，异常无close；私下捕获的失败实例只用于测试finally拆除，不当恢复入口。原件 `/tmp/molis-pr1254-construction-cleanup-retry-20261024/baseline-repro.log`。
+
+资源已经建立后的同步初始化失败保留本次cleanup的公开close():Promise<void>句柄；自动best-effort与显式close共用现行未完成attempt。普通可扩展Error保持原对象、message/code/cause和instanceof，close不可枚举；不能附加或已有同名属性才包装，ActionError使用同一共同错误类保code/kind/details/message，原异常在cause可查，其他原值以AggregateError保cause，既有字符串code保留。不新建Error子类，不把后台清理错误覆盖初始错误；重试失败由close独立拒绝表达。成功项不重做，全部成功才释Home owner；同步预检拒绝已完整归还所有权时仍直接抛原错误，不额外包装。
+
+Root明确验收：同步new/factory不自动等待；未await或仍有资源时立即重建继续busy。调用方catch后await公开句柄，或close失败后再次明确调用，成功后同Home可以立即合法重建。Host构造catch沿原Host.close，Web自有Host失败沿同一Host.close收尾其已登记传输；借用的Host只关闭本次Web传输，不能关闭或释放原Host。初始Web资源登记前的借用拒绝不取得新资源，保原错误。只在本实例异常/闭包保留短生命周期attempt，不建全局Home registry、不引入新长期重试政策、不把全线改成async factory。
+
+Claude 6393455820 与 Root 同题补充：search、placement 关不掉仍挡住归还 owner。现行关闭链没有统一超时，选每次公开 close 等待 10 秒为上限；这是调用方等待时限，不取消、不强杀资源，也不证明底层已关闭。并发调用共用本次有界 attempt；超时以共同错误模型的 `host.close_timeout` 拒绝并写结构化日志（固定事件、错误码、timeout_ms、pending，不记 Home 路径或错误正文）。底层 work 继续保留，新的明确 close 仅重新等待同一 work，不重复调用 pending 资源；底层稍后成功则完成余项并释放，稍后拒绝则消费并记录失败，下一次明确 close 才重试未完成项。成功步骤不重复。关闭没全部成功就不释放，进程退出时由系统释放 SQLite 排他锁。Host 正常关闭与构造异常的公开句柄均遵守这条，初始化错误本身不改成超时错误。S-07 由 FIX7/PIPE 在现行同一行串行合入对应短句，本题不覆盖其网关/信任元数据文字。
+
+| 编号 | 本题验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-105-A-13 | Host后段构造和Web升级装配失败，各在清理挂起/拒绝时仍占锁；公开异常句柄等待/再次close后同进程可立即重建、另一进程可取原inode | 真实Host/Web与HomePlugin/Kernel关闭端口及OS进程；并发共享attempt、完成步骤不重复、原异常分类和cause可辨识；测试恢复不用私下捕获的失败对象 |
+| RAC-105-A-14 | 借用Web失败只收尾自身传输，原Host继续运行/持锁；不能附加句柄时仍保初始原因及共同错误码，清理错误独立拒绝 | 借用Host正常重建Web/关闭、原Host最终关闭后取锁；不可扩展/同名属性/非Error抛值通过实际初始化调用方验证 |
+| RAC-105-A-15 | search、placement 真实关闭挂起时 close 在 10 秒有界拒绝、同 Home 仍拒绝另一 owner；再 close 只等原 work，晚成功或晚失败后显式重试全部成功才可立即重开 | 真实 Host/资源关闭端口与另进程 owner；测试时钟推进生产等待时限，资源和 SQLite 锁实际运行；并发共享、未完成项不重入、晚拒绝被消费并记结构化日志，构造失败句柄同样有界 |
+
+允许仅A lifetime、Host/Web初始化失败入口、Host关闭的本实例等待状态与错误声明、公开类型及针对性回归/README/本段；不动FIX7的旧删除网关/文档hunk、C2 snapshot/restore/SDK接线和e2d2ea19消费者候选。初始红来自匹配的b521实际构建；实现后公共槽整体build，再相关负向/恢复/正常消费者与静态门禁。原b521的有效208并集/19cc369分阶段证据保原范围，不机械重跑全量。与FIX7独立候选都不互推原PR，固定增量直REVIEW/TEST，PIPE按依赖唯一组装；不force/不merge。
+
+作者验证（本片，尚待独立 REVIEW/TEST）：b521 四种 Host/Web 构造拒绝/挂起均复现无公开句柄，search/placement 的实际关闭挂起在推进10秒后调用仍未返回，另一进程始终 busy。整体 build 实际 exit0，公开来源指纹与构建记录同为 `0bad07efabb5207912290f614c4d4f67edefcb468496a91a667e250708d24973`。修正新增测试的公开导入/HTTP重载类型后，scoped strict、6文件 Biome 通过；同一生产源码下本文件23项、14个相关文件113项全过，无跳过，共15唯一文件136项。真实资源/SQLite锁运行，mock时钟仅推进等待期限；晚拒绝被观察、锁保持、无重入、恢复后立即重开及原inode均有断言。boundary、准确 merge-base `bde02c59eb9a1d794a442419570819a80585708a` 健康、1431测试进程引用检查与27资源预算通过；fresh origin/main 当时为 `df5527f278fa8e631919794d15c52cfd3f364155`。原生构建曾被宿主工具更新中断、首次测试类型失败均保留，未冒全绿。raw `/tmp/molis-pr1254-construction-cleanup-retry-20261024/` 中 build-fixed-02 与各03日志；原369分阶段/full/live及本题未跑的其余建议仍保原边界，S-07文字由PIPE/FIX7串行合入。
+
 快照只在持 lease 的离线窗口枚举和读数据，逐库 backup，非 SQLite 与其引用取同一切点；写入私有暂存目录，全部验证后才发布完成清单。恢复先验证清单、所有文件、实际版本、完整性、摘要、密钥依赖和原路径；不自动盖版本或迁移。任何预检拒绝都不改原 Home。发布/回滚保留可观察状态和原数据，不复用旧数据库连接，不让半成品被宿主当成新 Home。
 
 ## 文件边界与验收

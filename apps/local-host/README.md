@@ -107,6 +107,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 ## 开发要求
 
+Host构造或Web工厂在创建资源后抛错时，异常带不可枚举的 `close(): Promise<void>`（公开类型 `HomeInitializationFailure`）。它与原best-effort清理共用同次attempt：等待尚在进行的关闭，失败后可再次明确调用，只补未完成项；全部真实关闭成功后才能立即重建同Home，未等待时仍排斥第二owner。普通可扩展Error保持原身份、message/code/cause和instanceof；不能附加或已有同名属性才包装，原原因由cause保留，ActionError继续使用共同错误类和原码/分类。清理失败独立拒绝close，不覆盖初始错误。借用Web的句柄只收尾自身传输，原Host仍归调用方关闭。Host及该句柄每次close最多等待10秒，超时以 `host.close_timeout` 拒绝并写结构化日志，底层清理继续、锁不释放；下一次close只重新等待仍pending的同一份工作，底层结算失败后才重试失败步骤。search、placement与其余资源全部实际关闭成功才释锁；进程退出时系统释放SQLite排他锁。回归见 `tests/security-invariants-home-storage-host.test.ts` 的RAC-105-A-13/14/15；完整约束见 [W5-16 A规格](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+
 生成插件的 SDK 声明由 Host 从已构建的 contracts 提供：`src/plugin-builder/build-sdk-declarations.ts` 持有 `SandboxSdk` 的声明依赖集合，`build-project.ts` 创建只读文件，`build-checks.ts` 的 G1 逐文件校验，隔离检查只复制这份 Host 集合。`developer/sdk.d.ts` 仍是作者的入口，依赖声明保留在 `developer/contracts/` 的原相对目录；不复制运行时代码，不增加插件权限，不改变公开合同。声明闭包修复只涉及这条生成、校验与快照链，不改变取消、恢复或执行语义。缺少构建声明时明确失败；声明被改动时在 G1 拒绝；错误的交互参数由 G2 拒绝，`skipLibCheck: false`、无 Node 环境类型、文件白名单与 Seatbelt 保持不变。验收是正常交互调用通过原六道门、错误参数不进入执行、篡改依赖不进入编译；整体构建后运行 `node scripts/run-tests.mjs tests/agent-built-plugins-checks.test.ts`。这证明生成插件的工程检查路径，不代表创作台完整体验或用户验收。
 
 炼金术士的关闭先停止接纳并撤销提交，再等待前台动作与 worker 的真实退出；只有工作室与搜索资源全部关闭后才移出登记和删除目录。失败保留 live 删除钩子与未关闭资源，公开 Host.close 的同次并发与成功后重复调用返回同一 Promise；失败后可单独重试炼金术士收尾，其余已完成 Host 收尾不重复执行。搜索组合直接拥有 query transport 的清理，避免 SEL 缓存一次关闭失败后无法重试；SEL 内部终端故障仍保留失败和资源，不假称清理成功。回归：`tests/security-invariants-alchemist-lifecycle.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/search-evidence-runtime.test.ts`。

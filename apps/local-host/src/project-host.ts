@@ -57,7 +57,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
 import { withoutRefusedPlugins } from "./project-plugin-databases.js";
-import { closeHomeStorageLifetime, ensureHomeStorageOwner, releaseHomeStorageOwner } from "./home-storage-lifetime.js";
+import { closeHomeStorageLifetime, ensureHomeStorageOwner, releaseHomeStorageOwner, retainInitializationCleanup } from "./home-storage-lifetime.js";
 
 /** One open project: its library, Goals' coordinator, and the library's one 成果库 and process items (D3). */
 export interface MolisWorkProjectRuntime extends ProjectVersionStores {
@@ -128,7 +128,7 @@ export class MolisWorkLocalHost {
   private readonly systemFunctions?: SystemFunctionsActions;
   private readonly alchemist?: AlchemistHostService;
   private agents?: { home: string; service: AgentHostComposition };
-  private readonly closing: { started?: boolean; completed: Set<string>; attempt?: Promise<void> } = { completed: new Set() };
+  private readonly closing: { started?: boolean; completed: Set<string>; attempt?: Promise<void>; work?: Promise<void> } = { completed: new Set() };
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
   /** System search over this Home's plugins; absent without a Home directory. */
@@ -253,8 +253,7 @@ export class MolisWorkLocalHost {
     }
     } catch (error) {
       // The failed object is never published. Close everything already constructed before relinquishing its lock.
-      void this.close().catch(failure => { hostLog.warn("host", "initialization_cleanup_failed", failure); });
-      throw error;
+      throw retainInitializationCleanup(error, () => this.close(), "initialization_cleanup_failed");
     }
   }
 

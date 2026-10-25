@@ -237,12 +237,7 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-const APPROVED_CEILINGS = {
-  // BL-430 (#1274, batch-37): the unavailable plugin placeholder's restart / release-quarantine click, which posts the host's
-  // lifecycle request; it reuses molisWorkRequest, route and an existing string. Reviewed by the coordinator on 2026-10-25, +541 B
-  // over the batch's lowered budget (+149 B over the merge-base's).
-  "/assets/molis-work-workbench.js": [1126567, 1126716],
-};
+const APPROVED_CEILINGS = {};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

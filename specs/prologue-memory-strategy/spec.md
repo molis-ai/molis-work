@@ -2463,6 +2463,7 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 统筹集成复验（2026-10-25）：`0779c69b40d3656bbcd3483ea44b688444e7f5ff` 合入上述1bff投影与421f SDK更新，生产无文本冲突；唯一spec追加冲突完整保留双方内容。该头原整体build、类型、准确基础9e的health和boundary通过；6文件65项首轮通过，覆盖投影4、不可重绑定2、项目清除3、采用28、角色来源3、运行权限25。27资源共7,678,780 B，与上一包更新后逐项相同。日志 `/private/tmp/molis-memory-owner-aggregate-{build,types,health,boundary,direct}-20261025.log`、`...-assets-20261025.json`。本头已推入既有#1101；资源既有Coding+1,333 B失败及未完成的Catalog覆盖、业务清除、全AppCI与完整恢复仍保留，不以本次65项替代它们。
 
 
+
 ### 2026-10-25：接入 SDK #102 最终主线合并包的短合同
 
 在原干净聚合8506上将受控 SDK 从0b33升级到ee806705（合入main f175）。新增固定App Index kind的窄维护口、共享字节metadata在等待前按原JSON持久化语义冻结，并保留主线只读全库认证；不在vendor补丁或改变App写主人、业务UI和资源额度。只换原归档/来源/锁与对应来源断言，旧包按原Git blob记入历史；先逐字节核对SDK最终quality构建，再冻结离线安装、整体build、采用/权限/项目清除直接回归及资源检查。原SDK quality、准确f175质量门和独审通过，磁盘满两项环境未执行、inspection未交付私有副本未主动擦除的证据边界保留；不能以SDK工程通过替代完整MEM-40。
@@ -2490,3 +2491,22 @@ WithProjectDeletionRecovery 回调新增仅在原 hold 有效的 verifyMemory/as
 固定 Node24.14.0/pnpm11.9，最终原 pnpm build、根类型、准确父 0779c69b 的 health 均 exit 0；boundary errors=[]、72 个 API 快照匹配。唯一公开形状变化是 AgentMemoryCapability 增加必需 verifyPurgeCoverage 及查询/状态类型，给内部主人接线；没有新增 Action、插件全 Home 查询或普通 caller 扫描许可，真实适配已同步。四份 README 去重后的 103 个非 browser 文件 1164/1164 项先通过，直接影响文件另验；唯一 README browser runtime-plugin-http-discovery 20/20、34.9s 通过。最后收尾顺序修改后只复验受影响 10 文件 107/107 项（jobs2/retries0），包括 recovery 17、policy 26、fixed-plan 10；未重复无新增影响的整批和 browser。
 
 所有日志保留在 /private/tmp/molis-memory-project-coverage-*-20261025.log：最终 build-ledger-final、types-ledger-final、health-ledger-final、ledger-final；README 和 browser 分别为 readme/browser。首批调用夹具缺可信关系、错误文本预期、旧 Demo 重放入口、Session view 错读 state 以及新增 ledger 夹具未配 canonical 候选/空 sources 被拒绝等首败均保留，未改时限、重试、门禁或放宽生产约束。探索性的单独 strict tsc 测试文件探针 test-types 未通过（这些文件不属根生产 tsconfig，含既有夹具类型问题；未做精确父对照，不宣称该探针通过）；新增回调参数已显式归置类型，正式 build/types 通过。无 SDK/vendor/锁/index/lifecycle/UI 改动，无新表/epoch/锁，无全量、真实 Home、付费模型、SingleSession exact 清除或 MEM-40 restore 验收；本片是指定项目删除调用链的工程证据，不宣称完整 P0 或用户验收完成。
+
+### MEM-40 搜索主人 existing-only 清理短合同（2026-10-25，owner 前置已实现，完整接线未完成）
+
+准确父 `8506bac7f27237b61a2c1eae55474928c4a269a0`。离线恢复 target 的原项目删除步骤需要清除该项目的搜索派生行；普通 `openTextSearchIndex` 会创建目录、重建坏库，不可用于这里。仅在原 Storage 搜索主人增加 `clearProjectInExistingTextSearchIndex({ homeDirectory, projectId, assertCurrent, signal? })`，不启动普通 Runtime，不扩大 SearchService 的查询/权限合同。目标 Home 与项目由调用者从本次原固定决定提供，重试使用同一对象；Catalog 继续拥有 operation 与完成账，不在搜索缓存建第二份 marker。
+
+只接受显式绝对、安全且存在的目标库；目标不存在返回 `absent`，它不是清除完成证明，不能继承 source 的 absent 决定跳过非空 target。当前 schema、完整结构与 FTS 定义核验通过后，以原 `BEGIN IMMEDIATE` 事务清除该项目的 `search_documents`、`search_sources` 及其 FTS 行；共用原 removeProject 删除实现，不迁移/建库/清空旁项目。拒绝符号/硬链接文件、非目录祖先、坏库/旧结构、额外触发器及未知结构。source 工作副本与 backup 不传入该写口，原件不打开。
+
+调用者持有已存在的维护 owner、固定路径与原决定。必填同步 `assertCurrent` 沿原维护 frame 复核 owner/当前权限，入口、事务内实际删除前和 COMMIT 前检查；取消或拒绝回滚本事务，异步/非 void checker 拒绝，不另建 registry/fence/锁。这里不证明 writer 已停或跨库一致快照，不给普通服务恢复放行。清理重复调用幂等；成功后必须关闭连接，故障保留上层 adopting/原决定供恢复。
+
+允许路径仅 Storage 搜索实现/公开出口、包 README、本 spec 和直接真实 SQLite 测试。验收：非空 target 清理且旁项目逐字段不变，关闭重开仍一致；absent 零目录/库创建；坏版本/结构/触发器/路径、取消、当前撤权零业务修改；同对象重试不影响旁项目。先整体 build，再跑本包 README 指定非浏览器回归、新 owner 回归与精确父健康/边界/类型检查。浏览器与全量交统筹排期；本刀不宣称完整 MEM-40 或用户验收通过。
+
+本片工程证据：固定 Node24.14.0 / pnpm11.9.0、原缓存 frozen/offline 安装通过；初次安装仅因 pnpm 缓存登记 symlink 被沙箱拒绝，批准同命令后完成。整体 `pnpm build` 首轮到 Swift ModuleCache 写入遭沙箱拒绝；获工具权限后同原构建 exit0。未改源码/脚本避过构建，原 ad-hoc 原生签名与打包 warning 不视为发布证据。
+
+新 `tests/text-search-maintenance.test.ts` 30/30（含子例）通过，覆盖非空目标、旁项目/个人项目全部文档及来源字段和 FTS 匹配保持、关闭重开/原目标重试、实际 absent 零创建、坏版本/缺表/未知表/触发器/FTS、链接文件/目录及 orphan sidecar、四个当前检查点撤权/取消回滚、异步 checker 拒绝、调用参数变动不改原 target，以及未 checkpoint WAL。source/backup 完整文件副本在该用例前后字节不变，仅证明本窄口未写它们，不证明真实停 writer 或跨库快照。权限回调在这些用例中为故障注入；实际维护 owner frame 与 Catalog operation 接线仍待主任务验证。
+
+Storage README 原指定11文件首批10/11文件、79/80项通过；唯一 `secret-store-keychain-retry` 的 Functions 回环 `listen EPERM` 属沙箱拒绝。批准临时回环监听后只重跑该整文件8/8通过，其余已绿复用，不写成一次11文件全绿。原 `system-search` 19/19在该批通过，包括普通重建、重启及授权语义。Storage typecheck、包边界、`git diff --check` 均通过；精确父 `8506bac7f27237b61a2c1eae55474928c4a269a0` health通过，首轮仅新增测试未tracked造成README链接失败，窄stage后复验通过，没有修改任何门禁/基线/API快照。
+
+完整日志位于 `/private/tmp/molis-memory-search-cleanup-{install,install-authorized,build,build-authorized,direct,storage,keychain-authorized,types,boundary,health,health-tracked}-20261025.log`。仅改本合同允许的7路径；没有SDK/vendor/锁/CI/资源门、LocalHost装配、SessionIndex或其他owner变更。未跑浏览器、全量、真实Home或模型；未做全App产品实操、完整MEM-40 T0/T1/T2或用户验收。本窄口成功不直接发布ledger complete，也不替上层证明source的absent。
+

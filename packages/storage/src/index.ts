@@ -62,3 +62,4 @@ export { openKnowledgeCards, clearKnowledgeProject, KNOWLEDGE_CARDS_STORE, KNOWL
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, TEXT_SEARCH_HOME_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";
 
 export { inspectMemoryLedgerCleanupSources, copyMemoryLedgerCleanupTargets, readMemoryLedgerCleanupDecision, beginMemoryLedgerCleanup, suppressMemoryLedgerCleanupSources, completeMemoryLedgerCleanupTarget, type MemoryLedgerCleanupTarget, type MemoryLedgerCleanupDecision } from "./adapters/memory-ledger-adoption-cleanup.js";
+export { clearProjectInExistingTextSearchIndex, type TextSearchProjectCleanupInput, type TextSearchProjectCleanupResult } from "./adapters/text-search-maintenance.js";

@@ -65,6 +65,14 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 `memory-ledger-adoption-cleanup` 是原离线采用的窄维护主人：直接复用 `BEGIN IMMEDIATE`，不经普通 `openMemoryLedger` 打开 ledger3。既有 memory-operation marker 固定无正文确认与每项子操作号；source-links、候选 source_refs 和原 promotion journal 提供已知来源，首次 SDK 删除前幂等保留 memory-source-forgotten。正式项沿 retention.forget 清历史、使用、成对记录与正文/undo，候选项只删准确投影；不按同源扩删 SDK 对象。每次事务核采用快照、原决定、当前权限和取消，未完成决定始终阻止 ledger4。相关回归 `tests/memory-ledger-adoption.test.ts`；新用例待正式 SDK 包集成后实跑。
 
+## 离线搜索目标清理
+
+`clearProjectInExistingTextSearchIndex` 供 MEM-40 原项目删除步骤维护停写 target：调用者固定目标 Home、项目及原操作决定，持有原维护 owner；必填同步 `assertCurrent` 检查同一 frame 的当前 owner/权限，`signal` 检查取消。入口、事务删除前与提交前均复核，拒绝回滚。它复用搜索当前 DDL、结构描述器和 `removeProject` 的删除事务，只清该项目文档、来源与对应 FTS，不启动 SearchService 或 Runtime。
+
+缺库只返回 `absent`，不创建目录/库，也不代表删除完成；上层不能用 source absent 替代 target 实测。只接受当前完整结构，拒绝旧/坏库、额外触发器、错误 FTS 定义以及链接/非普通文件，不迁移或重建。`cleared` 返回本事务删除的文档数；重试固定同一项目，operation 账仍由 Catalog 持有，不给缓存增加持久决定。source/backup 不传入此写入口；安全停 writer 与完整副本仍是调用者责任。
+
+回归：[text-search-maintenance.test.ts](../../tests/text-search-maintenance.test.ts) 使用真实 SQLite，经公开包入口验证旁项目保持、重开、缺库、坏结构、链接、撤权与取消。
+
 ## 开发要求
 
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。

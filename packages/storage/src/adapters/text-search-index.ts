@@ -11,6 +11,7 @@ import type {
 import { SEARCH_INDEX_CONTENT_CHARS } from "@molis-ai/molis-work-contracts/services/search";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
+import { TEXT_SEARCH_SCHEMA, TEXT_SEARCH_META_SCHEMA, TEXT_SEARCH_SCHEMA_VERSION, inTextSearchTransaction, removeTextSearchProject } from "./text-search-database.js";
 
 /**
  * Local full-text index for the system search (specs/archive/system-search §7). A technical cache: it holds only what a
@@ -21,7 +22,7 @@ import type { HomeStoreDeclaration } from "../home-stores.js";
  * which removes pair-matches that are not a real substring and gives the snippet and hit position.
  */
 export const TEXT_SEARCH_STORE = "search";
-const SCHEMA_VERSION = "2";
+
 const MAX_CANDIDATES = 400;
 const SNIPPET_BEFORE = 36;
 const SNIPPET_LENGTH = 160;
@@ -182,12 +183,6 @@ function relatedDocuments(db: DatabaseSync, projectId: string, query: string, li
 
 export interface TextSearchIndexOptions { homeDirectory: string }
 
-function inTransaction<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const value = run(); db.exec("COMMIT"); return value; }
-  catch (error) { try { db.exec("ROLLBACK"); } catch { /* already rolled back */ } throw error; }
-}
-
 /** Open (or create) the Home's search index. A missing, corrupt or outdated index is rebuilt empty. */
 export function openTextSearchIndex(options: TextSearchIndexOptions): SearchIndexPort {
   const path = homeSqlitePath(options.homeDirectory, TEXT_SEARCH_STORE);
@@ -204,27 +199,15 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     for (const suffix of ["", "-wal", "-shm"]) if (existsSync(path + suffix)) rmSync(path + suffix, { force: true });
     db = open();
   }
-  db.exec("CREATE TABLE IF NOT EXISTS search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+  db.exec(TEXT_SEARCH_META_SCHEMA);
   const version = (db.prepare("SELECT value FROM search_meta WHERE key = 'schema'").get() as Row | undefined)?.value;
-  if (version !== SCHEMA_VERSION) {
+  if (version !== TEXT_SEARCH_SCHEMA_VERSION) {
     db.exec("DROP TABLE IF EXISTS search_fts; DROP TABLE IF EXISTS search_documents; DROP TABLE IF EXISTS search_sources;");
-    db.exec(`
-      CREATE TABLE search_sources (
-        source_key TEXT PRIMARY KEY, project_id TEXT, provider_id TEXT NOT NULL, capability_id TEXT NOT NULL, version INTEGER NOT NULL,
-        plugin_id TEXT NOT NULL, title TEXT NOT NULL, collection_revision TEXT, state TEXT NOT NULL, error TEXT, synced_at INTEGER, checked_at INTEGER
-      );
-      CREATE TABLE search_documents (
-        doc_id INTEGER PRIMARY KEY, source_key TEXT NOT NULL, kind TEXT NOT NULL, object_id TEXT NOT NULL, project_id TEXT,
-        revision TEXT NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL, content TEXT NOT NULL, updated_at TEXT, open_json TEXT, content_policy TEXT NOT NULL,
-        UNIQUE (source_key, kind, object_id)
-      );
-      CREATE INDEX search_documents_project ON search_documents (project_id);
-      CREATE VIRTUAL TABLE search_fts USING fts5(title, body, content='', contentless_delete=1, tokenize='unicode61 remove_diacritics 0', prefix='2 3');
-    `);
-    db.prepare("INSERT OR REPLACE INTO search_meta (key, value) VALUES ('schema', ?)").run(SCHEMA_VERSION);
+    db.exec(TEXT_SEARCH_SCHEMA);
+    db.prepare("INSERT OR REPLACE INTO search_meta (key, value) VALUES ('schema', ?)").run(TEXT_SEARCH_SCHEMA_VERSION);
   }
 
-  const transaction = <T>(run: () => T): T => inTransaction(db, run);
+  const transaction = <T>(run: () => T): T => inTextSearchTransaction(db, run);
   const fromSource = (row: Row): SearchIndexSourceRecord => ({ source_key: str(row.source_key), project_id: nullable(row.project_id), provider_id: str(row.provider_id),
     capability_id: str(row.capability_id), version: Number(row.version), plugin_id: str(row.plugin_id), title: str(row.title),
     collection_revision: nullable(row.collection_revision), state: str(row.state) as SearchIndexSourceRecord["state"], error: nullable(row.error),
@@ -258,7 +241,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
           record.collection_revision, record.state, record.error, record.synced_at, record.checked_at);
     },
     removeSource: key => transaction(() => { const removed = dropDocuments("source_key = ?", key); db.prepare("DELETE FROM search_sources WHERE source_key = ?").run(key); return removed; }),
-    removeProject: projectId => transaction(() => { const removed = dropDocuments("project_id = ?", projectId); db.prepare("DELETE FROM search_sources WHERE project_id = ?").run(projectId); return removed; }),
+    removeProject: projectId => transaction(() => removeTextSearchProject(db, projectId)),
     revisions: key => new Map((db.prepare("SELECT kind, object_id, revision FROM search_documents WHERE source_key = ?").all(key) as Row[])
       .map(row => [`${str(row.kind)}\u0000${str(row.object_id)}`, str(row.revision)])),
     count: key => Number((db.prepare("SELECT COUNT(*) AS n FROM search_documents WHERE source_key = ?").get(key) as Row).n),

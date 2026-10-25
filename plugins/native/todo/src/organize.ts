@@ -1,8 +1,8 @@
 import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlacement, TodoSource } from "@molis-ai/molis-work-contracts/modules/todo";
-import { TODO_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";
-import { normalizeForMatch, TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
+import { normalizeForMatch, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
 import { todoRequestKey, type TodoAccess, type TodoFields, type TodoSql, type TodoStore } from "./store.js";
 
 /** What the person chose for one candidate in the review. */

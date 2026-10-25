@@ -1,6 +1,7 @@
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-contracts/modules/goals";
-import { renderHint, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderHint } from "@molis-ai/molis-work-design-system";
 import { PLANNING_ADOPTION_CLIENT_SCRIPT, PLANNING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkWebView } from "./page-view.js";
 import { type WebProjectNavigation, type createWorkbenchSettingsNavigation } from "./settings-navigation.js";
@@ -18,7 +19,7 @@ export interface ProjectSettingsPagePorts {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   formatDate(value: string | null | undefined): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
   htmlLang(): string;
   listJoin(values: readonly string[]): string;
   controlTokenMeta(token: string): string;

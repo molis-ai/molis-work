@@ -8,14 +8,8 @@ import {
   islandEntries, pluginMarketCards, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import {
-  LINGGUANG_CLIENT_FACTORY_SCRIPT,
-  LINGGUANG_UI_CONTRIBUTION_ID,
-  LINGGUANG_PROJECT_PLUGIN_ID,
-  lingguangActions,
-  lingguangManifest,
-  openLingguangStore,
-} from "@molis-ai/molis-work-plugin-lingguang";
+import { LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_UI_CONTRIBUTION_ID, LINGGUANG_PROJECT_PLUGIN_ID, lingguangActions, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   renderMolisWorkWeb,

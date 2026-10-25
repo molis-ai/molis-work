@@ -11,6 +11,8 @@ export const functionsErrors = defineErrorCodes("functions", {
   stale_preview: "invalid",
   published_immutable: "invalid",
   key_conflict: "invalid",
+  /** A plugin declared a default rule under a key another plugin already declared; its registration is refused. */
+  rule_key_taken: "conflict",
   preview_required: "invalid",
   not_found: "not_found",
   /** The record changed since the caller read it. */

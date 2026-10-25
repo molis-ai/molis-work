@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -30,7 +31,7 @@ for (const quarantined of [false, true]) test(`SYS-15-S8 authorized retry restor
     assert.equal((await request(`/api/settings/projects/${projectId}/plugins`, "POST", { plugin_id: "coding" })).status, 200);
     db = new Database(path.join(root, "projects", projectId, "molis-work.db"));
     const repository = new SqlitePluginRuntimeRepository(db);
-    const oldRuntime = new PluginRuntime(repository, undefined, { maxRecoveryAttempts: 1 });
+    const oldRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, maxRecoveryAttempts: 1 });
     const currentDiff = createDiffPlugin();
     const diff = { ...currentDiff, manifest: { ...currentDiff.manifest, version: "1.3.1" } };
     const diffInstall = oldRuntime.install({ trust: { level: "host" }, definition: diff, deployment: "local", grants: ["artifact:read"] }).install;

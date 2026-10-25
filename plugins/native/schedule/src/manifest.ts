@@ -58,7 +58,7 @@ export const scheduleManifest: PluginManifest = {
   ui: {
     contributions: [SCHEDULE_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Schedule", contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, icon: "timer", order: 35, group: "advance" },
+      { view_id: "directory", slot: "navigator", title: "Schedule", contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, icon: "timer", hue: "yellow", order: 35, group: "advance" },
     ],
   },
 };

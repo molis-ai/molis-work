@@ -7,49 +7,6 @@ export type { WorkbenchShellPageView, WorkbenchShellPageOwners } from "./shell-p
 export { ARTIFACT_EMBED_STYLES } from "./artifact-ui.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";
-export type { ArtifactBrowserUiModel } from "@molis-ai/molis-work-plugin-artifacts";
-export { isProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
-export {
-  activeOutgoingDependsOn,
-  allGoalViews,
-  buildDecisionGroups,
-  buildGoalCollectionModel,
-  buildGoalsNavigationItems,
-  createGoalActionPresenter,
-  createGoalStateExplainer,
-  displayedPassedCriterionIds,
-  findGoalView,
-  firstBlockedDescendant,
-  GOAL_DISPLAY_STATUSES,
-  GOAL_TREE_STATUS_ORDER,
-  GOALS_PRESENTATION_STATES,
-  GOALS_RELATION_LABELS,
-  goalTreeProposalNeedsDecision,
-  goalTreeReferenceLabel,
-  goalTreeReferenceLabels,
-  goalWorkSatisfied,
-  isBlockedWorkStatus,
-  matchGoalsPlanningRoute,
-  mergeGoalPolicyFormValues,
-  partOfChildViews,
-  pendingDecisionCount,
-  PLANNING_SETTINGS_STYLES,
-  resolveGoalsPageRoute,
-  resolveGoalsReadRoute,
-  sortGoalTreeItems,
-  TRASH_GOAL_STYLES,
-  unsatisfiedOutgoingDependencies,
-  visibleGoalStatus,
-  type DecisionEventKind,
-  type GoalDocumentCollection,
-  type GoalPresentationState,
-  type GoalsDecisionEvent,
-  type GoalsDocumentView,
-  type GoalsInputBinding,
-  type GoalsPlanningPrimitives,
-  type GoalsPolicyBinding,
-  type GoalsPolicyItem,
-} from "@molis-ai/molis-work-plugin-goals";
 export { createWorkbenchGoalsFragmentRenderer, type GoalsFragmentRenderers } from "./goals-fragment-renderer.js";
 export {
   renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest,
@@ -61,8 +18,6 @@ export {
   ONBOARDING_DISMISS_CLIENT_SCRIPT,
   PROJECT_GUIDANCE_CLIENT_SCRIPT,
   PROJECT_GUIDANCE_SETTINGS_STYLES,
-  PROJECT_RULES_CLIENT_SCRIPT,
-  PROJECT_RULES_SETTINGS_STYLES,
   RESPONSIVE_STYLES,
   SETTINGS_CLIENT_SCRIPT,
   SETTINGS_STYLES,
@@ -96,7 +51,7 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { createWorkbenchOnboardingRenderer, type MolisWorkOnboardingRenderOptions, type OnboardingRenderPrimitives } from "./onboarding-renderer.js";
 export { ONBOARDING_INTENT_FRAMES, onboardingIntentFrame, onboardingIntentFrameDefinition, onboardingPlanningHint, type OnboardingIntentFrame } from "./onboarding-intent.js";
 export { createWorkbenchSettingsNavigation, type WebProjectNavigation, type WebSettingsSection, type SettingsNavigationPrimitives } from "./settings-navigation.js";
-export { listPluginSettingsNavItems, findPluginSettingsNavItem, pluginSettingsNavItemsFrom, isHostGlobalSettingsSection } from "./plugin-settings-catalog.js";
+export { listPluginSettingsNavItems, findPluginSettingsNavItem, pluginSettingsDataAction, pluginSettingsNavItemsFrom, isHostGlobalSettingsSection } from "./plugin-settings-catalog.js";
 export { isProjectSettingsWorkbenchPath, projectSettingsPageFromPath, projectSettingsPath } from "./project-settings-stage.js";
 export { createWorkbenchProjectChooserRenderer, type ChooserArrival } from "./arrival/chooser.js";
 export { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "./arrival/project-brief.js";
@@ -108,8 +63,25 @@ export type { CallRowView } from "./call-row.js";
 export { renderMcpAccess, renderMcpAccessRows, mcpAccessEntryKey, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView } from "./page-view.js";
 export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
-export * from "./i18n.js";
-export * from "./ui-composition.js";
+export { createWorkbenchLocale, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, WEB_LOCALES, type WebLocale } from "./i18n.js";
+export {
+  artifactWorkbench,
+  createArtifactReferenceRenderer,
+  createWorkbenchGoalsContextRenderer,
+  createWorkbenchGoalsDialogsRenderer,
+  createWorkbenchGoalsDocumentRenderer,
+  createWorkbenchGoalsFactorsRenderer,
+  createWorkbenchGoalsMomentumRenderer,
+  createWorkbenchGoalsPlanningRenderer,
+  createWorkbenchGoalsPolicyRenderer,
+  createWorkbenchGoalsRelationRenderer,
+  createWorkbenchGoalsStatusRenderer,
+  createWorkbenchGoalsTreeRenderer,
+  createWorkbenchUiHost,
+  renderPluginSettingsContribution,
+  renderWorkbenchDocument,
+  WORKBENCH_UI_SLOTS,
+} from "./ui-composition.js";
 export { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
 export { createWorkbenchFocusSections, type FocusSectionCardOptions } from "./focus-sections.js";
 export { createWorkbenchProjectSettingsPages, type ProjectSettingsPagePorts } from "./project-settings-pages.js";
@@ -120,8 +92,8 @@ export { parseConditionFrame, renderMolisWorkConditionsSpecimen } from "./condit
 export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFrameOptions } from "./assistant-board-frame.js";
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
-export type * from "./capsule-view.js";
-export { BUILTIN_PLUGIN_CATALOG, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor } from "./plugin-catalog.js";
+export type { CapsuleGoalItem, CapsuleSnapshot, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
+export { BUILTIN_PLUGIN_CATALOG, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
 export { clientPluginDirectory, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export type { PluginCreatableKind, PluginHomeStart, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
 export { declaredStageContributionId, stageContributionId } from "./declared-stages.js";
@@ -145,7 +117,6 @@ export {
   type ModelTemplateChoice,
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
-export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer, type HostArtifactProducer } from "./plugin-catalog.js";
 
 export { deferredSurfaceClients, pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";

@@ -1,4 +1,4 @@
-import type { ScrollFollower } from "@molis-ai/molis-work-design-system";
+import type { ScrollFollower } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { createCodingTimeline } from "../../timeline.js";
 import { createCodingTurnChanges } from "../../turn-changes-client.js";
 import { createCodingCodePaint } from "../../code-paint-client.js";

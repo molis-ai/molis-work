@@ -8,6 +8,7 @@ import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { discardInstallationOwnerData, forgetInstallationRecords } from "./plugin-installation-cleanup.js";
+import { directoryForHome } from "./plugin-directory-service.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -97,10 +98,16 @@ export class PluginHostExecutor implements PluginExecutor {
 
   uninstalled(record: PluginInstanceRecord): void {
     forgetPluginAgentDefinitions(this.options.home, record.install_id);
+    // The local directories the person granted it in this project go with it (PG-049); kept data does not keep them.
+    if (this.options.home) directoryForHome(this.options.home.directory).forgetInstallation(record.install_id, this.options.project_id);
     // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
-    // Nor does it leave behind the original files it registered here, or the accounts bound to its records here (BL-356).
-    if (!record.retain_private_data) forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+    // File registrations and record bindings are authorization, removed on every uninstall even when private data is kept (BL-356).
+    forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+  }
+
+  prepareReinstall(record: PluginInstanceRecord): void {
+    forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
   }
 
   keptDataDiscarded(record: PluginInstanceRecord): void {

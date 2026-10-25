@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -8,8 +9,8 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { PluginRuntime, MemoryPluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineWorkflowContentActions, bindWorkflowContentHandlers } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, bindActionClient, WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, type ActionCallContext, type ActionDefinition, type BoundActionClient, type WorkflowContentActions, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createWorkflowContentPorts, createWorkflowsActionHandlers, openWorkflowsStore, manualLink, workflowsActions as w, workflowsManifest, WORKFLOWS_ACTION_PERMISSIONS,
-  type Workflow, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { createWorkflowContentPorts, createWorkflowsActionHandlers, manualLink, workflowsActions as w, workflowsManifest, WORKFLOWS_ACTION_PERMISSIONS, type Workflow, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { workflowsTestPorts, type WorkflowsPortOptions } from "./fixtures/workflows-actions.js";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 
@@ -27,7 +28,7 @@ async function fixture(run: (f: {
   const db = new DatabaseSync(join(home, "unknown-plugin.sqlite"));
   db.exec("CREATE TABLE drafts (id INTEGER PRIMARY KEY, project TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL)");
   const service = new ActionService();
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { actions: { registry: service, project_id: caller.project_id! } });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: caller.project_id! } });
   const register = async (version?: number) => {
     const actions = Object.fromEntries(Object.entries(declarations).map(([role, definition]) => [role, version === undefined ? definition : { ...definition, version }])) as unknown as WorkflowContentActions;
     const plugin = definePlugin({ manifest: {

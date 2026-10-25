@@ -37,6 +37,28 @@ test("W3-07-6-01: plugin dev lists the 成果 versions the plugin published alth
 });
 
 
+// A3: the development run is judged by the Manifest it runs, like any installation. Binding it to the project's version stores lets it
+// write what it declares; a type it does not declare is still refused (by the Runtime's own check first), and nothing is stored.
+test("W3-07-6-01 A3: a development plugin that does not declare the type it publishes is refused and stores nothing", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-dev-undeclared-"));
+  try {
+    const sample = join(directory, "sample");
+    mkdirSync(sample);
+    for (const file of ["index.mjs", "package.json"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file));
+    const manifest = JSON.parse(readFileSync(join(root, "examples/plugin-sample/manifest.json"), "utf8")) as { permissions: Array<{ permission: string }>; artifacts: { produces: unknown[] } };
+    manifest.artifacts.produces = [];
+    writeFileSync(join(sample, "manifest.json"), JSON.stringify(manifest));
+    mkdirSync(join(sample, "node_modules/@molis-ai"), { recursive: true });
+    symlinkSync(join(root, "packages/plugin-sdk"), join(sample, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
+    const run = () => runLocalPluginDevelopment({ directory: sample, state_directory: join(directory, "state"),
+      grants: manifest.permissions.map(value => value.permission), allow_unsigned_development: true });
+    const result = await run().then(value => ({ value }), error => ({ error }));
+    const refused = "error" in result ? String(result.error) : JSON.stringify(result.value.poll);
+    assert.match(refused, /未声明生产此成果|没有在 artifacts\.produces 声明/u);
+    if ("value" in result) assert.equal(result.value.artifacts.length, 0);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("W3-07-6-01: nonempty and unsupported development state are refused before loading code", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-dev-state-refusal-"));
   try {

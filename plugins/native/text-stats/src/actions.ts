@@ -2,7 +2,7 @@ import type { ActionCallContext, ActionDefinition, ActionHandlerBinding } from "
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parseFileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { projectTextStats, waitingStats, unavailableStats, countCodePoints, countLines, type TextStatsView } from "./core.js";
 import { TEXT_STATS_MESSAGES } from "./messages.js";
 import { renderTextStats } from "./ui.js";

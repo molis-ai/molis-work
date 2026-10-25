@@ -3,7 +3,7 @@
  * covers plugins and objects that were never opened; each plugin still owns how its object opens. Tools and quick actions
  * are local shortcuts filtered here.
  */
-import { pluginSearchRows } from "../../plugin-workbench.js";
+import { searchRows } from "../../search-rows.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Drop repeated plugin records before the result cap, so a second copy cannot crowd out a different record.
@@ -40,7 +40,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[char]));
   const inTerminal = (target) => Boolean(target?.closest?.("[data-tui-pane], .xterm"));
-  const RECORD_ROWS = ${JSON.stringify([...pluginSearchRows().map(([plugin]) => plugin), "feed", "characters"])};
+  const RECORD_ROWS = ${JSON.stringify(searchRows().map(([plugin]) => plugin))};
   const takeSearchHits = ${takeSearchHits.toString()};
   // The palette lives on project pages; a page served from one database without a catalog (the fixture server) is a project page without a catalog id.
   const hasProject = Boolean(projectId) || document.body.hasAttribute("data-board-view");

@@ -72,6 +72,7 @@ export class HomeConsentLedger implements PluginConsentLedger {
   }
   record: PluginConsentLedger["record"] = entry => this.use(ledger => ledger.record(entry));
   consents: PluginConsentLedger["consents"] = pluginId => this.use(ledger => ledger.consents(pluginId));
+  revoke: PluginConsentLedger["revoke"] = (consentId, at) => this.use(ledger => ledger.revoke(consentId, at));
   publishers: PluginConsentLedger["publishers"] = () => this.use(ledger => ledger.publishers());
   pinPublisher: PluginConsentLedger["pinPublisher"] = pin => this.use(ledger => ledger.pinPublisher(pin));
 }

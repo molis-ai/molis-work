@@ -121,7 +121,7 @@ test("every local address a seeded workbench links to is the workbench, leads in
 
 test("the workbench is one page: plugin content brings no page shell of its own", async t => {
   const { origin, prefix } = await seededHome(t);
-  const homePages = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").map(entry => `/plugins/${entry.project_plugin_id}`);
+  const homePages = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").map(entry => `/plugins/${entry.project_plugin_id}`);
   for (const address of [prefix + "/", ...homePages]) {
     const html = (await open(origin, address)).body;
     assert.ok(isWorkbench(html), address);

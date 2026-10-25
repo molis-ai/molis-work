@@ -4,7 +4,7 @@
 
 包名：`@molis-ai/molis-work-plugin-todo`。需求见 [specs/archive/todo-plugin/spec.md](../../../specs/archive/todo-plugin/spec.md)，实现与进度见 [implementation.md](../../../specs/archive/todo-plugin/implementation.md)。
 
-所有动作由插件的 `actions.ts` 声明，`scope: "home"`。Todo 是 Plugin Runtime 上的 Home 级插件（`src/plugin.ts` 的 `createTodoPlugin`，目录条目 `runtime: { scope: "home" }`，库由宿主的 Home 库服务按 `TODO_DATABASE` 打开）：没有项目时也能用。调用方在项目里时只看到个人、暂未归类和这个项目的待办；跨项目的“所有项目”不由 Todo 判断受众：声明了 `project_reach: "person"` 的动作，宿主只在本人自己的调用里（并且用户给了 `projects:reach`）把此刻显示 Todo 的项目放进 `caller.readable_project_ids`，Todo 只按这份清单放行（SECURITY-INVARIANTS S-74）；助理、工作流和 MCP 的调用没有清单，隐藏了 Todo 的项目也不在清单里。HTTP 是 Manifest 声明的路由（`/api/plugins/io.molis.work.todo/…`，每条经 `bindPluginActionRoute` 转成一个动作），只转参数：身份由 Host 绑定，项目只来自页面路径 `/projects/<id>/api/plugins/io.molis.work.todo/…`（宿主核对项目存在且显示 Todo，见 SECURITY-INVARIANTS S-31），请求体里的 `project_id` 被丢掉。
+所有动作由插件的 `actions.ts` 声明，`scope: "home"`。Todo 是 Plugin Runtime 上的 Home 级插件（`src/plugin.ts` 的 `createTodoPlugin`，Manifest 的 `runtime: { scope: "home" }` 与目录条目的 `runtime`，库由宿主的 Home 库服务按 `TODO_DATABASE` 打开）：没有项目时也能用。调用方在项目里时只看到个人、暂未归类和这个项目的待办；跨项目的“所有项目”不由 Todo 判断受众：声明了 `project_reach: "person"` 的动作，宿主只在本人自己的调用里（并且用户给了 `projects:reach`）把此刻显示 Todo 的项目放进 `caller.readable_project_ids`，Todo 只按这份清单放行（SECURITY-INVARIANTS S-74）；助理、工作流和 MCP 的调用没有清单，隐藏了 Todo 的项目也不在清单里。HTTP 是 Manifest 声明的路由（`/api/plugins/io.molis.work.todo/…`，每条经 `bindPluginActionRoute` 转成一个动作），只转参数：身份由 Host 绑定，项目只来自页面路径 `/projects/<id>/api/plugins/io.molis.work.todo/…`（宿主核对项目存在且显示 Todo，见 SECURITY-INVARIANTS S-31），请求体里的 `project_id` 被丢掉。
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/todo-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `TODO_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `TodoPage` 对象里（`page.ts`），列表、提醒、整理审阅、详情、快速输入各是一个部件，在启动时把自己的操作装到这个对象上；按钮是 `commands.ts` 里按顺序匹配的命令表；请求只经工作台的 `molisWorkRequest`（`request.ts`），不直接 `fetch`。Todo 与 Form 从公共 `platform/ui` 的 `UiPluginClientHost` 取实际字段，宿主同合同类型检查；`pluginId` 与 `pluginRoute` 来自 Manifest 和当前项目，`route` 只处理平台路径。esbuild 是包的直接开发依赖，版本与根相同；升级后的资源增长仍须按资源规则评审。
 
@@ -19,7 +19,7 @@
 - 负责：待办的记录、状态、三种日期（截止、计划处理、提醒）、归属（个人、项目、暂未归类）、来源与形成原因、关联、修改记录与撤销、视图、搜索与对象读取、批量处理；提醒的到期判断与首页事项；整理结果（候选、依据、与已有待办的关系、忽略与已处理的记忆）及其审阅与采用；整理方法（登记的指令 `todo.organize.basic`）。
 - 不负责：AI 整理与推进（系统 Assistant 经 Prologue 负责，Todo 只提供动作与对象读取）、Goal 与业务结果、提醒的送达渠道、材料正文（只存引用）。
 - 公开入口：`@molis-ai/molis-work-plugin-todo`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin` 与 `@molis-ai/molis-work-contracts/modules/todo`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `todo.<原因>`，状态由错误种类决定，Todo 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `todo.<原因>`，状态由错误种类决定，Todo 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 修改带读取时的 `expected_revision`，别处改过时拒绝，不覆盖。
   - 每次修改记一条历史；用户本人改过的字段记入 `edited_fields`，之后的自动更新据此保护。

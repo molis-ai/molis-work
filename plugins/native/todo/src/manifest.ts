@@ -29,6 +29,7 @@ export const todoManifest: PluginManifest = {
   artifacts: { produces: [], consumes: [] },
   actions: [...TODO_ACTIONS],
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
+  runtime: { scope: "home" },
   databases: { home: TODO_DATABASE },
   routes: [
     { route_id: "todo.list", method: "GET", path: "/items" },
@@ -54,7 +55,7 @@ export const todoManifest: PluginManifest = {
   ui: {
     contributions: [TODO_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "todo", slot: "navigator", title: "待办", contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", order: 25, group: "personal" },
+      { view_id: "todo", slot: "navigator", title: "待办", contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", hue: "green", order: 25, group: "personal" },
     ],
   },
 };

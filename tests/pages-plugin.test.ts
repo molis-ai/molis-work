@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { placeFloating, scrollShouldFollow } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
   pluginMarketCards, pluginWorkbenchClientAsset, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
@@ -101,9 +102,7 @@ import {
   outdentListItem,
   removeCodeIndent,
   pagesSchema,
-  placeFloating,
   scrollChildIntoView,
-  scrollShouldFollow,
   replaceEnclosingRow,
   revealHeading,
   headingIndexAt,
@@ -184,7 +183,7 @@ import {
   unwrapAtStart,
   unwrapColumns,
 } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { highlightRanges } from "@molis-ai/molis-work-plugin-pages/code-highlight";
 import { Fragment, Slice } from "prosemirror-model";
 import { EditorState, NodeSelection, TextSelection, type Command } from "prosemirror-state";

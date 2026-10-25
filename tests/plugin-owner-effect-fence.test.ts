@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -54,7 +55,7 @@ test("W3-09-AUTH-03 the SDK owner binder retains the real old invocation instead
     })] };
   } };
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
-    ui: new UiHost(), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest) }), { actions });
+    ui: new UiHost(), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["storage:private"] }).install;
   stop = () => runtime.stop(installed.install_id);
   await runtime.start(installed.install_id);

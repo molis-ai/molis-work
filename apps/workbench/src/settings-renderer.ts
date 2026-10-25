@@ -1,5 +1,6 @@
 import { renderModelSettingsDocument } from "./settings-models.js";
-import { renderHint, icon as modelIcon } from "@molis-ai/molis-work-design-system";
+import { icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderHint } from "@molis-ai/molis-work-design-system";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -12,6 +13,7 @@ import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
 import { renderAssistantSettings } from "./settings-assistant.js";
 import { renderMemorySettings } from "./settings-memory.js";
+import { renderLocalDirectorySettings } from "./settings-local-directories.js";
 import { renderDiagnosticsSettings } from "./settings-call-diagnostics.js";
 import { settingRow } from "./settings-row.js";
 import { createCapabilitiesRenderer } from "./capabilities.js";
@@ -189,10 +191,10 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         ? renderRuntimeSettings(view)
         : view.section === "assistant"
           ? renderAssistantSettings({ L, projectId: contextProject?.project_id ?? null })
-        : view.section === "prompts"
-          ? renderPromptSettings({ L })
+        : view.section === "prompts" ? renderPromptSettings({ L })
         : view.section === "memory"
           ? renderMemorySettings({ L, scope: "personal", projectId: null })
+        : view.section === "directories" ? renderLocalDirectorySettings({ L })
         : view.section === "mcp"
           ? renderMcpSettings(view, desktopShell)
           : view.section === "connectors"

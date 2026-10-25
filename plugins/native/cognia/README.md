@@ -43,7 +43,7 @@ Acceptance uses the actual desktop and narrow-screen UI for preview, explicit co
 - 负责：个人知识的导入、阅读与有出处的综合。
 - 不负责：修改来源库、项目事实、第二个运行时。
 - 公开入口：`@molis-ai/molis-work-plugin-cognia`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Home 监督器只装一个 Cognia；每个项目都读同一个库。`COGNIA_DATABASE` 保留原基线 1，读经 Runtime 库端口，写经 `database.transaction(caller.beforeEffect, …)`。停止、撤权或取消后不能保存晚到草稿。
   - 页面用共同请求客户端调用 `/api/plugins/io.molis.work.cognia/library`；仅导入预览显式声明 45,000,000 字节，容纳 32 MB 原始文件的 Base64 JSON。

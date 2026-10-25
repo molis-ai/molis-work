@@ -34,7 +34,6 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*"
   },
@@ -46,6 +45,9 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Personal image generation, project history, and saved image previews.",
+    "notResponsibleFor": "Text model providers, automatic retries, or another Plugin implementation.",
+    "legacySources": [],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -54,6 +56,11 @@
       "images.ui-contribution.v1",
       "images.generation.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   }
 }

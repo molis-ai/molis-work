@@ -1,5 +1,5 @@
 import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ISSUES_UI_CONTRIBUTION_ID } from "./manifest.js";
 
 export { ISSUES_STYLES } from "./styles.js";

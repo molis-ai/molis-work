@@ -39,10 +39,10 @@ export interface RunRecord {
  * published to their observers as views.
  */
 export class PrologueRunStore {
-  readonly sessions = new Map<string, SessionRecord>();
-  readonly runs = new Map<string, RunRecord>();
+  readonly #sessions = new Map<string, SessionRecord>();
+  readonly #runs = new Map<string, RunRecord>();
   /** Sessions starting a round, closing an interrupted one or preparing a rewind: one at a time each. */
-  readonly startingSessions = new Set<string>();
+  readonly #startingSessions = new Set<string>();
   readonly #restoring = new Map<string, Promise<SessionRecord>>();
   readonly #runtime: PrologueRuntimePort;
   readonly #approvals: PrologueApprovalBridge | undefined;
@@ -54,25 +54,54 @@ export class PrologueRunStore {
     this.#approvals = approvals;
   }
 
+  get sessions(): ReadonlyMap<string, SessionRecord> { return this.#sessions; }
+  get runs(): ReadonlyMap<string, RunRecord> { return this.#runs; }
+  get startingSessions(): ReadonlySet<string> { return this.#startingSessions; }
+
+  rememberSession(sessionId: string, session: SessionRecord): void {
+    this.#sessions.set(sessionId, session);
+  }
+
+  rememberRun(session: SessionRecord, record: RunRecord): void {
+    this.#runs.set(record.view.ref.run_id, record);
+    session.runs.push(record.view.ref);
+  }
+
+  /** The caller has just checked its original busy conditions; hold until all of its work has settled. */
+  async withSessionHeld<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
+    this.#startingSessions.add(sessionId);
+    try { return await work(); }
+    finally { this.#startingSessions.delete(sessionId); }
+  }
+
+  invalidateSession(sessionId: string): void {
+    this.#sessions.delete(sessionId);
+  }
+
+  reloadSession(sessionId: string): Promise<SessionRecord> {
+    this.invalidateSession(sessionId);
+    return this.loadSession(sessionId);
+  }
+
   /** A detail restore under way, which a cold status read must wait for rather than race. */
   restoring(sessionId: string): Promise<SessionRecord> | undefined {
     return this.#restoring.get(sessionId);
   }
 
   requireSession(sessionId: string): SessionRecord {
-    const record = this.sessions.get(sessionId);
+    const record = this.#sessions.get(sessionId);
     if (!record) throw agentErrors.session_unknown("找不到这条会话");
     return record;
   }
 
   requireRun(runId: string): RunRecord {
-    const record = this.runs.get(runId);
+    const record = this.#runs.get(runId);
     if (!record) throw agentErrors.run_unknown("找不到这次执行");
     return record;
   }
 
   async loadSession(sessionId: string): Promise<SessionRecord> {
-    const existing = this.sessions.get(sessionId);
+    const existing = this.#sessions.get(sessionId);
     if (existing) return existing;
     const held = this.#restoring.get(sessionId);
     if (held) return held;
@@ -102,11 +131,11 @@ export class PrologueRunStore {
         stop: unavailable, pause: unavailable, resume: unavailable, steer: unavailable, subscribe: () => () => {} };
       const view: AgentRunView = { ref: saved.ref, frozen: saved.frozen, started_at: saved.started_at, ended_at: endedAt,
         phase: state.phase, turns: [], activity: [], usage: state.usage, awaiting_input: [] };
-      this.runs.set(saved.ref.run_id, { view, state, control, unsubscribe: () => {}, listeners: new Set(), timingReady: true });
+      this.#runs.set(saved.ref.run_id, { view, state, control, unsubscribe: () => {}, listeners: new Set(), timingReady: true });
       session.runs.push(saved.ref);
       this.publish(saved.ref.run_id, false);
     }
-    this.sessions.set(sessionId, session);
+    this.#sessions.set(sessionId, session);
     return session;
   }
 
@@ -151,7 +180,7 @@ export class PrologueRunStore {
    * state before that event: the next Run would read incomplete history.
    */
   publish(runId: string, stampTerminal = true): void {
-    const record = this.runs.get(runId);
+    const record = this.#runs.get(runId);
     if (!record) return;
     const controlPhase = prologuePhaseOf(record.control.state);
     const awaitingCommit = isEnded(controlPhase) && !isEnded(record.state.phase);
@@ -222,7 +251,7 @@ export class PrologueRunStore {
         run: { ...run },
       });
     } catch (error) {
-      const record = this.runs.get(run.run_id);
+      const record = this.#runs.get(run.run_id);
       if (record) {
         record.state.activity.push({
           call_id: `approval-mirror-${event.pendingRef.id}`,

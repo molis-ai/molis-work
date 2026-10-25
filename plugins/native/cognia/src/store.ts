@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { DatabaseSync } from "node:sqlite";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { adopted, adoptedFrom, adoptedMaterial, KNOWLEDGE_SOURCE, viewDrafts, type StoredDraft } from "./drafts.js";
 import { contentHash, decodeFile, ignoredPath, linksFor, materialRole, metadata, safeRelativePath } from "./content.js";
 import { COGNIA_LIMITS, cogniaErrors, requireCognia, stringField, type Domain, type Draft, type ImportEntry, type ImportFile, type Material, type Preview, type Receipt, type Source } from "./types.js";
@@ -145,17 +144,5 @@ export class CogniaStore {
   }
 }
 
-export function openCogniaStore(home: string): CogniaStore {
-  const db = openHomeSqliteDatabase(home, COGNIA_HOME_STORE.path);
-  try { db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-    applySqliteBaseline(db, homeSqlitePath(home, COGNIA_HOME_STORE.path), COGNIA_DATABASE);
-    return new CogniaStore(cogniaSql(db), run => { db.exec("BEGIN IMMEDIATE"); try { const result = run(); db.exec("COMMIT"); return result; } catch (error) { db.exec("ROLLBACK"); throw error; } }, () => db.close()); } catch(error) { db.close(); throw error; }
-}
-
 /** This plugin's store in the Home's store registry (W4-11): `cognia/cognia.db` at its one baseline. */
 export const COGNIA_HOME_STORE: HomeStoreDeclaration = { path: "cognia", library: { baseline: COGNIA_DATABASE } };
-
-function cogniaSql(db: DatabaseSync): CogniaSql {
-  return { get: (sql, parameters = []) => db.prepare(sql).get(...parameters), all: (sql, parameters = []) => db.prepare(sql).all(...parameters),
-    run: (sql, parameters = []) => db.prepare(sql).run(...parameters) };
-}

@@ -13,8 +13,6 @@ export const packageDescriptor = {
   ],
 } as const;
 
-export { renderStateRing, type StateRingOptions } from "./state-ring.js";
-export { STATE_RING_FAMILIES, STATE_RING_LABELS, stateRingFamily, type StateRingState, type StateRingFamily } from "./state-ring-states.js";
 export { STATE_RING_CLIENT_SCRIPT } from "./state-ring-client.js";
 export { STATE_RING_STYLES } from "./styles/state-ring.js";
 
@@ -45,15 +43,13 @@ export { OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_WIDTH, overflowSides } from "./ove
 export { OVERFLOW_FADE_STYLES } from "./styles/overflow-fade.js";
 export { HIDDEN_SCROLLBAR_STYLES } from "./styles/scrollbars.js";
 export { COPY_FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT } from "./page-clients.js";
-export type { DropMark } from "./drop-zone.js";
-export type { Reflow } from "./reflow.js";
 export { FIELD_FIT_MAX, FIELD_FIT_ROOM, FIELD_FIT_STYLES, fieldHeight } from "./field-fit.js";
-export { SHOW_MORE_STYLES, type ShowMoreOptions } from "./show-more.js";
-export { STREAM_TEXT_STYLES, freshStart, type StreamTextOptions, type StreamTextResult } from "./stream-text.js";
-export { MEDIA_ZOOM_STYLES, mediaAxis, type MediaZoom, type MediaZoomOptions, type MediaZoomState } from "./media-zoom.js";
-export { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, FOLLOW_STYLES, followDistance, type FollowState, type ScrollFollower } from "./scroll-follow.js";
-export { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS, type CopyLabels } from "./copy-decay.js";
-export { DISCLOSURE_STYLES, processFold } from "./styles/disclosure.js";
+export { SHOW_MORE_STYLES } from "./show-more.js";
+export { STREAM_TEXT_STYLES, freshStart } from "./stream-text.js";
+export { MEDIA_ZOOM_STYLES, mediaAxis } from "./media-zoom.js";
+export { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, FOLLOW_STYLES, followDistance } from "./scroll-follow.js";
+export { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS } from "./copy-decay.js";
+export { DISCLOSURE_STYLES } from "./styles/disclosure.js";
 export { NUMBER_STYLES } from "./styles/numbers.js";
 export { COPY_FEEDBACK_STYLES } from "./styles/copy-feedback.js";
 export { SR_ONLY_STYLES } from "./styles/sr-only.js";
@@ -71,13 +67,12 @@ export {
 } from "./typeface.js";
 
 export { projectMonogram, renderProjectMonogram, type ProjectMonogramHue } from "./monogram.js";
-export { icon, renderIconSprite, ICON_LIBRARY, PLUGIN_ICON, STATUS_ICON, listedIconNames, registeredIconNames, type MolisWorkIcon } from "./icons.js";
+export { renderIconSprite, ICON_LIBRARY, STATUS_ICON, listedIconNames, registeredIconNames } from "./icons.js";
 export {
   MW_CONTENT_MARKS,
   MW_CONTENT_SURFACES,
   MW_CONTENT_THEME,
   MW_HUES,
-  MW_PLUGINS,
   MW_SURFACES,
   renderControlMetrics,
   renderPaletteTokens,
@@ -87,8 +82,6 @@ export {
   type MwHueId,
 } from "./palette.js";
 export * from "./primitives/index.js";
-export { renderPluginStageShell } from "./plugin-stage-shell.js";
-export { renderCompanionBrowserStage, renderCompanionListStage, type CompanionStageModel } from "./companion-stage.js";
 export * from './plugin-components.js';
 export * from './plugin-component-client.js';
 export * from './plugin-presentation.js';

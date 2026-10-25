@@ -22,10 +22,6 @@
       "types": "./dist/code-highlight.d.ts",
       "import": "./dist/code-highlight.js"
     },
-    "./testing": {
-      "types": "./dist/testing.d.ts",
-      "import": "./dist/testing.js"
-    },
     "./editor": "./dist/pages-editor.js"
   },
   "files": [
@@ -39,9 +35,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*",
     "highlight.js": "^11.11.2",
     "htmlparser2": "12.0.0",
     "lowlight": "^3.3.0",
@@ -65,6 +59,11 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Protected first-party Pages directory and ProseMirror document editor.",
+    "notResponsibleFor": "Goal/Artifact facts, model providers, or a hosted document service.",
+    "legacySources": [
+      "src/web/render.ts"
+    ],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -73,6 +72,25 @@
       "pages.ui-contribution.v1",
       "pages.http-routes.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {
+      "htmlparser2": "12.0.0",
+      "marked": "18.0.11",
+      "highlight.js": "^11.11.2",
+      "lowlight": "^3.3.0",
+      "prosemirror-dropcursor": "^1.8.3",
+      "prosemirror-gapcursor": "^1.4.1",
+      "prosemirror-commands": "^1.7.1",
+      "prosemirror-history": "^1.5.0",
+      "prosemirror-inputrules": "^1.5.1",
+      "prosemirror-keymap": "^1.2.3",
+      "prosemirror-model": "^1.25.4",
+      "prosemirror-schema-list": "^1.5.1",
+      "prosemirror-state": "^1.4.4",
+      "prosemirror-view": "^1.41.4"
+    },
     "registration": "./registration"
   }
 }

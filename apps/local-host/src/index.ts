@@ -53,6 +53,8 @@ export { type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type Mol
 export { MolisWorkUninstallService } from "./installer/uninstall.js";
 export { type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallChange, type UninstallProjectAccess } from "./installer/uninstall-contract.js";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
+export { createMcpResidentStarter, type EnsureMcpResidentHost } from "./mcp-resident-start.js";
+export { finishMcpWebStartup, reportMcpWebStartupFailure, watchMcpWebStartup } from "./mcp-web-startup.js";
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
 export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
@@ -63,7 +65,7 @@ export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./pr
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export * from "./goal-project-application.js";
-export { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
+export { openProjectVersionStores, restoreArtifactVersions, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
 export * from "./web-locale.js";
 
@@ -78,7 +80,7 @@ export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-del
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
 export {
   BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS,
-  availableProjectPluginIds, catalogProblems, shownProjectPlugins,
+  availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, shownProjectPlugins, type ProjectRuntimeDeclaration,
 } from "./plugin-registry.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";
@@ -100,8 +102,12 @@ export {
 export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
 
 export { createLocalFeedApplication } from "./feed-application.js";
+export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
+export { bindProjectArtifacts } from "./declared-types.js";
+export { declarationOwnersFor } from "./declaration-owners.js";
+export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, type InstallScope } from "./plugin-holders.js";
 export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
-export { withFunctionsService } from "./functions-host.js";
+export { seedSceneRules, withFunctionsService } from "./functions-host.js";
 
 export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
@@ -116,7 +122,10 @@ export { retainConnectorSetupsForSession } from "./connector-setup-retain.js";
 export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
+export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
+export { HomeConsentLedger } from "./home-plugin-store.js";
 export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";

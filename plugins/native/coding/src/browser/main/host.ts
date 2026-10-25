@@ -1,4 +1,4 @@
-import type { InteractionClient, InteractionClientHost } from "@molis-ai/molis-work-design-system";
+import type { InteractionClient, InteractionClientHost } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { ReceiptActions } from "../input-receipts.js";
 import type { Lifetime, ReceiptLinks, ShowReviews, Translate } from "../types.js";
 

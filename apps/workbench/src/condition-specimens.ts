@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { escapeHtml, renderChoice, renderToggleGroup } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, renderChoice } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderToggleGroup } from "@molis-ai/molis-work-design-system";
 
 /**
  * The component board's 条件与状态 section (specs/visual-ui-experience VUX-39): one parameter strip and the conditions frame

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { ActionError, type ActionCallContext, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { FEED_OPEN_BEHAVIOR_ID, INBOX_ADMIT_BEHAVIOR_ID, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FeedItemRecord, FeedOutRuleRecord } from "./projection.js";
 import { feedOutRuleMatches } from "./out-rules.js";
 
@@ -11,6 +11,8 @@ export const feedCaptureScene: ActionSceneDefinition = {
   event_schema: { type: "object", properties: { item_id: { type: "string", minLength: 1 }, rule_id: { type: "string", minLength: 1 } }, required: ["item_id", "rule_id"], additionalProperties: false },
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
   result_type: "molis.behavior-recommendation.v1",
+  default_rule: { function_key: SYSTEM_INBOX_ADMIT_FUNCTION_KEY, name: "是否进 Inbox", instructions: "看这条消息要不要进 Inbox。", subject_kinds: ["feed_item"],
+    options: [{ key: INBOX_ADMIT_BEHAVIOR_ID, description: "进入 Inbox" }, { key: FEED_OPEN_BEHAVIOR_ID, description: "留在 Feed" }] },
   recommendation_labels: { "inbox.admit": "加入 Inbox", "feed.open": "打开", "feed.save": "保存为资料", "feed.promote": "升格为 Goal", "feed.archive": "忽略" },
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] }, suggested_behavior_ids: { type: "array", items: { enum: ["inbox.admit", "feed.open", "feed.save", "feed.promote", "feed.archive"] } } }, required: ["status", "suggested_behavior_ids"] },
 };

@@ -1,6 +1,4 @@
-import { ringSegmentPath, stateRingGeometry } from "./state-ring-geometry.js";
-import { STATE_RING_FAMILIES, STATE_RING_ICON_STATES } from "./state-ring-states.js";
-import { STATE_RING_CORES } from "./state-ring.js";
+import { ringSegmentPath, STATE_RING_CORES, STATE_RING_FAMILIES, STATE_RING_ICON_STATES, stateRingGeometry } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** One renderer per document. Detached/hidden icons never keep an animation loop alive. A ring mounts already drawn in its
  * state; only a change of state settles into the new arrangement. Visibility only decides which rings draw frames, so a still

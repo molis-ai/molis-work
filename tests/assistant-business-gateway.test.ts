@@ -1241,6 +1241,10 @@ test("the developer diagnostics trace a round by its exact identities and frozen
     assert.equal(round!.frozen?.model_id, "fixture");
     assert.ok(round!.frozen!.prompts.length > 0, "the prompts it froze, with versions");
     assert.ok(round!.failures.some(failure => failure.tool === "read-capability" && failure.state === "failed"), JSON.stringify(round!.failures));
+    // BL-090: the typed summary alone only names a generic code; the runtime's own words say what actually refused the call.
+    const failed = round!.failures.find(failure => failure.tool === "read-capability")!;
+    assert.ok(failed.detail, "the runtime's own words, not only its error code");
+    assert.match(failed.detail ?? "", /No capability with that exact identity/);
     assert.ok(round!.usage && round!.usage.input > 0);
   } finally { await f.close(); }
 });

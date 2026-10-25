@@ -4,12 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
-  homeStores,
+  homeStores, installedArtifacts, artifactTypeDeclarations,
   DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, createPluginPlatform, molisWorkHostProjectReference, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -67,16 +68,74 @@ const pluginsSeen = async (host: MolisWorkLocalHost, reference: { project_id: st
 const fixtured = (home: string, ...project: PluginDefinition[]) => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project } });
 
 /** Everything `createPluginPlatform` needs except what the test is about: its Home. */
-function platformParts(directory: string) {
-  const file = join(mkdtempSync(join(directory, "board-")), "board.db");
-  seedDemoBoard(file);
+function platformParts(directory: string, reference?: { project_id: string; storage_key: string }) {
+  const file = reference?.storage_key ?? join(mkdtempSync(join(directory, "board-")), "board.db");
+  if (!reference) seedDemoBoard(file);
+  const projectId = reference?.project_id ?? DEMO_PROJECT_ID;
   const store = new LocalProjectDatabase(file);
-  const options = { actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
+  const options = { actions: pluginActions(store, projectId), project_id: projectId, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) };
   return { store, options };
 }
+
+test("BFTC-02 BFTC-03 a project's database closed on its own leaves the shared artifact directory readable and the other project's installation usable",
+  withDirectory(async directory => {
+    const { home, projects } = await homeWithProjects(directory, "先关库", "仍开放");
+    assert.notEqual(projects[0]!.project_id, projects[1]!.project_id);
+    const before = { effective: installedArtifacts.effective().map(manifest => manifest.plugin_id).sort(), known: [...installedArtifacts.known()].sort() };
+    const items = projects.map((reference, index) => {
+      const parts = platformParts(directory, reference), pluginId = index === 0 ? PROBE : SECOND;
+      const typeId = `example.project-${index}`, action = hello(pluginId);
+      const preview = defineArtifactPreviewAction(`${pluginId}.preview`, "预览", []);
+      const original = probe({ pluginId });
+      const definition: PluginDefinition = { ...original,
+        manifest: { ...original.manifest, actions: [action, preview],
+          artifacts: { produces: [{ artifact_type_id: typeId, schema_version: 1, title: typeId,
+            preview: { capability_id: preview.capability_id, version: preview.version } }], consumes: [] } },
+        async start() { return { kind: "app", views: [], actions: [
+          { ...action, handle: async () => `hello from ${pluginId}` },
+          { ...preview, handle: async () => ({ media_type: "text/plain", text: pluginId }) },
+        ] }; } };
+      const platform = createPluginPlatform({ ...parts.options, home: { directory: home, completeText: () => undefined, stores: homeStores() } });
+      return { ...parts, platform, definition, pluginId, typeId, action };
+    });
+    try {
+      for (const item of items) {
+        const report = await item.platform.start([{ definition: item.definition,
+          releaseArtifact: { capture: () => "export {}", restore: () => item.definition } }]);
+        assert.deepEqual(report.failed, []);
+        assert.deepEqual(report.running, [item.pluginId]);
+        assert.equal(item.platform.runtime.list().find(record => record.plugin_id === item.pluginId)?.state, "running");
+        assert.equal(artifactTypeDeclarations().get(item.typeId)?.plugin_id, item.pluginId);
+        assert.equal(installedArtifacts.known().has(item.pluginId), true);
+      }
+      const [closed, open] = items as [typeof items[number], typeof items[number]];
+      closed.store.close(); // Deliberately leave platform coordination alive: this must exercise db.open, not the normal close flag.
+      assert.equal(closed.store.db.open, false);
+      assert.equal(open.store.db.open, true);
+      const declarations = artifactTypeDeclarations(); // Reads the production watch/view directory shared by both project platforms.
+      assert.equal(declarations.has(closed.typeId), false);
+      assert.equal(declarations.get(open.typeId)?.plugin_id, open.pluginId);
+      assert.equal(installedArtifacts.effective().some(manifest => manifest.plugin_id === closed.pluginId), false);
+      assert.equal(installedArtifacts.known().has(closed.pluginId), false);
+      assert.equal(installedArtifacts.known().has(open.pluginId), true);
+      assert.equal(await open.options.actions.client.invoke(asUser(open.options.project_id), open.action, {}), `hello from ${open.pluginId}`);
+    } finally {
+      const cleanup = await Promise.allSettled(items.map(async item => {
+        try {
+          await item.platform.closeCoordination();
+          if (item.store.db.open) for (const record of item.platform.runtime.list()) {
+            if (record.state === "running") await item.platform.runtime.stop(record.install_id);
+          }
+        } finally { item.store.close(); }
+      }));
+      for (const result of cleanup) if (result.status === "rejected") throw result.reason;
+    }
+    assert.deepEqual(installedArtifacts.effective().map(manifest => manifest.plugin_id).sort(), before.effective);
+    assert.deepEqual([...installedArtifacts.known()].sort(), before.known, "both project watches have been removed");
+  }));
 
 test("a plugin platform takes a position on its Home: a Home it reaches or null; a caller that says nothing is refused, and the Home is not called while a plugin starts",
   withDirectory(async directory => {

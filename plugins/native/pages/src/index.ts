@@ -34,7 +34,7 @@ export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./te
 export { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
 export { columnDropAnchor, dragRows, nodesInSpan, nudgeSpan, placeCopySpan, previewCopySpan, previewDrop, previewSpan, reorderTopLevel, spanRoots } from "./reorder.js";
 export { convertedBlocks, convertedNodes } from "./convert.js";
-export { placeFloating, scrollChildIntoView, scrollShouldFollow } from "./floating.js";
+export { scrollChildIntoView } from "./floating.js";
 export { linkClickOpens, safePagesHref } from "./link.js";
 export { blocksFromMarkdown, markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
 export { nodesToMarkdown } from "./to-markdown.js";
@@ -164,7 +164,7 @@ export type { PagesLineHeadPort, PagesPublishArtifactPort, PagesReadArtifactPort
 
 export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";
 
-export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, createPagesActionHandlers } from "./actions.js";
+export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, PAGES_READABLE_EXTENSIONS, createPagesActionHandlers } from "./actions.js";
 export type { PagesActionPorts } from "./actions.js";
 
 export { pagesCommentActions, createPagesCommentHandlers } from "./comment-actions.js";

@@ -1,11 +1,9 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
-import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
-import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
 import { sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
@@ -20,8 +18,19 @@ export interface PluginMarketCard {
   readonly sites: readonly string[];
 }
 
-/** The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer). */
-export const DOCK_DEFAULT_PINS: readonly string[] = ["goals", "inbox", "feed"];
+/**
+ * The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer): the ones whose
+ * navigator view declares `pinned_default`, in the order of their views. Only a plugin the project chooses can be one.
+ */
+export function dockDefaultPins(directory: PluginDirectory = builtinPluginDirectory()): string[] {
+  const chosen = directory.filter(entry => entry.chosen);
+  return railEntries(chosen.map(entry => entry.id), chosen).filter(entry => entry.pinned_default).map(entry => entry.id);
+}
+
+/** The shell keys of the plugins that are a way to extend the workbench (a navigator view with `rail: "extend"`), kept out of the list of tools. */
+export function extendPluginIds(directory: PluginDirectory = builtinPluginDirectory()): ReadonlySet<string> {
+  return new Set(directory.filter(entry => entry.chosen && entry.ui.views.some(view => view.slot === "navigator" && view.rail === "extend")).map(entry => entry.id));
+}
 
 /**
  * Plugins whose page parts the workbench wires once, when the page loads and cannot change after, so adding or removing one
@@ -37,6 +46,10 @@ export interface RailEntry {
   glyph: string;
   /** The rail group the plugin's view names (W5-06 2b); null is 更多. */
   group: UiViewGroup | null;
+  /** The view's place in the rail apart from its group: `core` (the backbone) or `extend` (a way to extend the workbench); null is an ordinary tool. */
+  rail: UiViewRail | null;
+  /** Whether the Dock keeps the plugin until the person chooses others (the view's `pinned_default`). */
+  pinned_default: boolean;
   /** Whether the project's plugin list chooses it (a built-in); a plugin installed at run time is in the project because it runs there. */
   chosen: boolean;
 }
@@ -124,7 +137,9 @@ function placedViews(directory: PluginDirectory, enabled: readonly ProjectPlugin
 }
 
 function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }): RailEntry {
-  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package", group: view.group, chosen: entry.chosen };
+  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package", group: view.group,
+    // Only a plugin the project chooses can be the backbone, an extend entry or pinned by default, whoever built the directory.
+    rail: entry.chosen ? view.rail ?? null : null, pinned_default: entry.chosen && view.pinned_default === true, chosen: entry.chosen };
 }
 
 /** Navigator entries for the enabled set, in the order the Manifests declare. */
@@ -259,74 +274,4 @@ export const pluginLabel = (id: string, label: string, english: boolean): string
 export function pluginTabTitles(english = false, market: PluginDirectory = builtinPluginDirectory()): Record<string, string> {
   const enabled = market.map((entry) => entry.id);
   return Object.fromEntries([...railEntries(enabled, market), ...islandEntries(enabled, market)].map((entry) => [entry.id, pluginLabel(entry.id, entry.label, english)]));
-}
-
-/** A visible 成果 type as its owner declares it (specs/artifact-positioning A4). */
-export interface ArtifactTypeDeclaration {
-  readonly title: string;
-  readonly plugin_id: string;
-  readonly plugin_title: string;
-  /** The owner's surface in the workbench, where its work objects open. */
-  readonly surface: string;
-  readonly preview: ActionDefinition | null;
-  /** The owner's action that pins one of its work objects on the spot (A5), when the type has one. */
-  readonly pin: ActionDefinition | null;
-  /** The owner's action that says whether a version still matches its work object (A4b). */
-  readonly compare: ActionDefinition | null;
-}
-
-/** A plugin that can start new work from a 成果 type (「从这一版继续」, A4b), whether it owns the type or only reads it. */
-export interface ArtifactContinuer { readonly plugin_id: string; readonly plugin_title: string; readonly action: ActionDefinition }
-
-/** For each 成果 type, the built-in plugins that declare they can continue from it. */
-export function artifactContinuers(): ReadonlyMap<string, readonly ArtifactContinuer[]> {
-  const continuers = new Map<string, ArtifactContinuer[]>();
-  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of [...entry.manifest.artifacts.produces, ...entry.manifest.artifacts.consumes]) {
-    const declared = type.continue, action = declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) : undefined;
-    if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action }]);
-  }
-  return continuers;
-}
-
-/** The plugins that can say which of their objects link to a 成果 version (「被谁引用」, artifact-positioning 五.1). */
-export function artifactReferrerActions(): readonly ArtifactContinuer[] {
-  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.actions ?? []).filter(action => isArtifactReferrersAction(action.action))
-    .map(action => ({ plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action })));
-}
-
-/**
- * A 成果 producer that is part of the Host, not a plugin (Characters): what it writes, declared as a Manifest's `artifacts.produces`
- * would be, its actions, and the workbench surface its work objects open on. Wherever the built-in Manifests' declarations are
- * read, these are read with them.
- */
-export interface HostArtifactProducer {
-  readonly plugin_id: string;
-  readonly name: string;
-  readonly surface: string;
-  readonly produces: PluginManifest["artifacts"]["produces"];
-  readonly actions: readonly ActionDefinition[];
-}
-
-export const HOST_ARTIFACT_PRODUCERS: readonly HostArtifactProducer[] = [
-  { ...CHARACTER_ARTIFACT_PRODUCER, produces: [...CHARACTER_ARTIFACT_PRODUCER.produces], surface: "characters", actions: [characterArtifactPreviewAction] },
-];
-
-/** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests and the Host's own producers. */
-export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDeclaration> {
-  const declarations = new Map<string, ArtifactTypeDeclaration>();
-  const producers = [...BUILTIN_PLUGIN_CATALOG.map(entry => ({ plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, surface: entry.project_plugin_id,
-    produces: entry.manifest.artifacts.produces, actions: entry.manifest.actions ?? [] })), ...HOST_ARTIFACT_PRODUCERS];
-  for (const producer of producers) for (const type of producer.produces) {
-    if (!type.title) continue;
-    const action = (declared?: { capability_id: string; version: number }) => declared ? producer.actions.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
-    declarations.set(type.artifact_type_id, { title: type.title, plugin_id: producer.plugin_id, plugin_title: producer.name,
-      surface: producer.surface, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
-  }
-  return declarations;
-}
-
-/** Every 成果 type the built-in Manifests and the Host's own producers declare, as consumers name types (id and schema version). */
-export function declaredArtifactTypes(): Array<{ artifact_type_id: string; schema_version: number }> {
-  return [...BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest.artifacts.produces), ...HOST_ARTIFACT_PRODUCERS.map(producer => producer.produces)].flat()
-    .map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version }));
 }

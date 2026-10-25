@@ -1,5 +1,5 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentGrant, PluginConsentGranter, PluginConsentKind, PluginDeclarationNeedingConsent, PluginTrust, PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
 // Install trust and the declarations that need consent (ac-trust T1, specs/repository-anti-corruption/slices/ac-trust-install.md §2–§3).
@@ -13,6 +13,16 @@ export const HOST_BUILD_TRUST: PluginTrust = Object.freeze({ level: "host" });
 export const UNSIGNED_TRUST: PluginTrust = Object.freeze({ level: "unsigned" });
 
 export const isHostTrust = (trust: PluginTrust): boolean => trust.level === "host";
+
+/**
+ * The default-rule keys the Host's own build declares are the Host's: a plugin that is not host-trusted may not be installed declaring
+ * one, whatever id it carries. Refused before any record is written, so nothing of it is left behind.
+ */
+export function assertRuleKeysUnreserved(manifest: PluginManifest, trust: PluginTrust, reserved: ReadonlySet<string> | undefined): void {
+  if (!reserved?.size || isHostTrust(trust)) return;
+  const taken = (manifest.action_scenes ?? []).flatMap(scene => scene.default_rule && reserved.has(scene.default_rule.function_key) ? [scene.default_rule.function_key] : []);
+  if (taken.length) throw pluginErrors.rule_key_reserved(`默认规则 ${taken.join("、")} 是宿主自带场景的，未受宿主信任的插件不能声明`);
+}
 
 const LEVELS: readonly PluginTrustLevel[] = ["host", "pinned", "unsigned"];
 const KEY_ID = /^ed25519:sha256:[0-9a-f]{64}$/u;
@@ -42,6 +52,36 @@ export function assertPluginTrust(value: unknown): PluginTrust {
  */
 export function assertTrustFitsExecution(trust: PluginTrust, execution: "host" | "sandbox"): void {
   if (trust.level === "host" && execution === "sandbox") throw pluginErrors.grant_denied("沙箱里的生成插件不能当作随宿主发布的插件：它的权限是人确认的，不是 Manifest 声明的全部");
+}
+
+/**
+ * Where a plugin runs is its Manifest's (`runtime.scope`, PG-011), but nothing a plugin writes can start it in the Home: only code of
+ * the Host's build is started there (its Home registration), so an installed or generated plugin that writes `runtime.scope: "home"`
+ * is refused at install, until the sandbox host can run a Home instance. This is the one place that says so.
+ */
+export function assertHomeScopeAllowed(manifest: PluginManifest, trust: PluginTrust): void {
+  if (manifest.runtime?.scope === "home" && !isHostTrust(trust)) {
+    throw pluginErrors.home_scope_unavailable("Home 级插件要等沙箱宿主支持 Home 实例：现在只有随宿主发布的插件能在 Home 里运行，请删掉 Manifest 的 runtime");
+  }
+}
+
+/**
+ * Looking for command-line tools on this machine (`local_tools`, PG-112) is told to a plugin of the Host's build alone: what is installed
+ * here is information about the person's machine, and a plugin whose code the Host did not ship has no consent behind it yet. It is
+ * refused at install, before any record, so a declaration that could never be served does not sit in the permissions a person is asked
+ * to confirm (opening it to other plugins goes through the consent ledger, BL-626).
+ */
+export function assertLocalToolsAllowed(manifest: PluginManifest, trust: PluginTrust): void {
+  if (manifest.local_tools !== undefined && !isHostTrust(trust)) {
+    throw pluginErrors.declaration_invalid("本机工具查找（local_tools）现在只给随宿主发布的插件，请删掉 Manifest 的 local_tools");
+  }
+}
+
+/** What `install` asks of a definition's trust: it fits where the code runs, and a Home scope or a look for local tools in the Manifest is the Host build's alone. */
+export function assertTrustFitsDefinition(definition: PluginDefinition, trust: PluginTrust): void {
+  assertTrustFitsExecution(trust, definition.execution ?? "host");
+  assertHomeScopeAllowed(definition.manifest, trust);
+  assertLocalToolsAllowed(definition.manifest, trust);
 }
 
 /** Who a consent is recorded as given by: the Host, for the build it ships; a person, for everything else. */

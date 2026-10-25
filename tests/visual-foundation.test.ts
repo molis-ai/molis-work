@@ -56,7 +56,8 @@ test("visual foundation enhances visible selects onto mw-menu", () => {
   const workbench = renderMolisWorkWorkbenchStylesheet();
   assert.match(workbench, /\.mw-select-picker \{/);
   assert.match(workbench, /\.dataset-toolbar \.mw-select, \.dataset-toolbar \.mw-select-picker/);
-  assert.match(workbench, /\[data-work-surface="feed"\]/);
+  // RAC-705 (PG-075): every work surface gets the one neutral tint; no selector is written for a plugin.
+  assert.match(workbench, /\[data-work-surface\][^{}]*\{ --plugin-tint: var\(--ink-soft\); \}/);
   assert.match(workbench, /@keyframes craft-rise \{/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /--seg-tint/);
 });
@@ -448,6 +449,8 @@ test("plugin list titles yield at the squeeze edge", () => {
   // A kind is not a state, so kind labels are neutral (spec → 第三轮 · 颜色: status colours only for status).
   assert.match(workbench, /\.plugin-stage-kind\[data-kind\] \{ --status-tone: var\(--ink-soft\); \}/);
   assert.doesNotMatch(workbench, /\.plugin-stage-kind\[data-kind="(?:choice|score|noul)"\] \{ --status-tone: var\(--hue-/);
+  // RAC-700: the stage's kind chip has no row per plugin (they all resolved to --ink-soft); one neutral rule covers every kind.
+  assert.deepEqual(workbench.match(/\.plugin-stage-kind\[data-kind[^\]]*\]/gu), [".plugin-stage-kind[data-kind]"]);
   assert.match(workbench, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
   assert.match(workbench, /\.feed-stage-leading strong \{ flex: 1;/);
   assert.match(workbench, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);

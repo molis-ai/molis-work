@@ -1,10 +1,5 @@
 // The catalog board's choice group and composition specimens: the same primitives put together as product pages do.
-import { icon } from "../icons.js";
-import { renderButton } from "./button.js";
-import { renderField, renderForm, renderInput, renderInputGroup, renderSelect, renderTextarea, renderChoice } from "./field.js";
-import { renderAlert } from "./feedback.js";
-import { renderDirectoryPanel, renderDirectoryRow } from "./directory.js";
-import { renderFrame, renderScrollArea } from "./layout.js";
+import { icon, renderAlert, renderButton, renderChoice, renderDirectoryPanel, renderDirectoryRow, renderField, renderForm, renderFrame, renderInput, renderInputGroup, renderScrollArea, renderSelect, renderTextarea } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderToggleGroup, renderToolbar } from "./navigation.js";
 import { renderDialog, renderMenu, renderMenuItem } from "./overlay.js";
 import { mark, section, specimen } from "./catalog-parts.js";

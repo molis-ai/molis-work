@@ -190,3 +190,11 @@ A 已经落地（第 7.8 节），下面是落地之前的临时规则，保留�
 - **代价。** 同第 7.5 节表里 A 一行：多一条永久的向下规则，旧版本宿主打开新 Home 时会把记录改回自己带的版本。
 - **用例。** `tests/plugin-release-artifact.test.ts`：「a bundled Manifest below the installed version is followed …」「a bundled Manifest changed without a new version is followed …」换下了固定旧规则的两条；另有往返、三个方向的授权收敛（记录持有构建声明的全部时，结果是新清单声明的全部）、同版本声明对内置插件无效且新增必需权限照授予、`PluginRuntime.install` 本身、部署环境不变、内置插件不进市场更新列表；非内置插件的旧行为由原来两条的原文（去掉 `bundled`）和一条新的拒绝用例固定。`tests/bundled-plugin-grants.test.ts`：可选权限随全新安装打开；人关掉的可选权限在同一构建连续启动时保持关着、不报 `plugin.state_invalid`，重新打开的也保持打开；跟随新构建时关掉的仍关着、新声明的可选权限打开、改成必需的补上、不再声明的去掉；条目自己传较窄 `grants` 时首次安装就是全部、连续启动五次都不失败；`PluginRuntime.install` 带 `bundled` 时不看 `grants`，带 `declared_before` 时只打开记录自己那个构建没声明的，不带时不打开任何可选的。`tests/plugin-release-artifact.test.ts` 另有经真实存档的两条：关掉的可选权限跟随时仍关、存档没了时不打开任何可选的。`tests/plugin-upgrades.test.ts`：真实项目启动路径（7 个条目、真实发行物）下，安装记录高于构建、或同版本不同清单，都在启动时跟上。
 - **还剩的。** 0.3.0 的发布 PR：7 份清单的 `version` 改成产品版本；`scripts/verify-release-versions.mjs` 加「内置清单版本等于产品版本」；发布后在开发机的 Home 上照检查清单第 4.5 节核对记录已跟上。内置插件作者「改了清单要升版本」的约定（`skills/molis-plugin-dev`）在清单版本等于产品版本之后也该一并改，这一条留给那个发布 PR。
+
+### 7.9 版本跟随算安装信任（ac-trust，PG-016）
+
+跟着宿主的构建升降版本，是 `host` 等级安装的一部分，不是内置插件的特权，也不是某个条目手写的标记。
+
+- **判定与不跟的。** 见第 7.8 节「信任」一条：只有 `host` 等级的安装跟随；`pinned`、`unsigned` 不跟，版本不同仍是 `plugin.upgrade_required`，同版本摘要不同仍是 `plugin.definition_conflict`，升级只走「同发布者、版本更高、授权不扩」。
+- **为什么算安装信任。** 宿主换了构建，`host` 等级的记录下次启动就跟上，是因为代码就在宿主构建里，宿主为它担保；同意账本里 `granted_by: "host_build"` 的那些行是同一份担保，两处同来源。所以改 `host` 的发放条件，就是改这份担保，要走安装信任的评审（`specs/repository-anti-corruption/slices/ac-trust-install.md` §2.1），不能在某个条目上单独打开。
+- **发版时怎么读。** 检查清单第 4.5 节核对的记录，只有 `host` 等级的会随发版被改；`pinned`、`unsigned` 的安装发版不动，也不该在核对里出现为「没跟上」。

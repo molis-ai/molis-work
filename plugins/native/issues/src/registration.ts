@@ -7,7 +7,7 @@ import { issuesManifest, issuesUiContribution, createIssuesPlugin, ISSUES_CLIENT
  */
 export const registration: PluginRegistration = {
   project_plugin_id: "issues", catalog_order: 1, manifest: issuesManifest, messages: ISSUES_MESSAGES, personal: true,
-  runtime: { scope: "home", create: createIssuesPlugin, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin", keys: "Mod+Shift+I" },
+  runtime: { create: createIssuesPlugin, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin", keys: "Mod+Shift+I" },
   workbench: { order: 5, contributions: [issuesUiContribution], clientFactory: ISSUES_CLIENT_FACTORY_SCRIPT,
     searchRow: { selector: "[data-issue-id]", idDataset: "issueId" } },
 };

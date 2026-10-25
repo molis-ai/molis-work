@@ -12,6 +12,13 @@ import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-
 
 const PROJECT = "project-declared-stages";
 
+test("FIX-2 the shared view contribution rule preserves default ids and explicit overrides", () => {
+  const manifest = { ...BUILTIN_PLUGIN_CATALOG[0]!.manifest, plugin_id: "io.molis.work.id-probe" };
+  const view = { view_id: "main", slot: "stage" as const, title: "Probe" };
+  assert.equal(stageContributionId({ ...manifest, ui: { views: [view] } }), "io.molis.work.id-probe.main");
+  assert.equal(stageContributionId({ ...manifest, ui: { views: [{ ...view, contribution_id: "explicit.probe" }] } }), "explicit.probe");
+});
+
 function emptyView(): MolisWorkWebView {
   return {
     snapshot: {

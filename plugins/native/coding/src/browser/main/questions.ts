@@ -1,4 +1,4 @@
-import type { InteractionValues } from "@molis-ai/molis-work-design-system";
+import type { InteractionValues } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { errorMessage } from "../dom.js";
 import { terminal } from "./composer-state.js";
 import type { HostInteraction } from "./host.js";

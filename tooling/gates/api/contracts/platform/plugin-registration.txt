@@ -25,12 +25,16 @@ export interface PluginRegistration {
     readonly default_enabled?: true;
     readonly companions?: readonly string[];
     readonly runtime?: {
-        readonly scope: "home";
         readonly create: () => PluginDefinition;
         readonly package_name: string;
         readonly factory_export: string;
         readonly keys?: string;
         readonly dual_instance?: true;
+    };
+    readonly project_runtime?: {
+        readonly create: () => PluginDefinition;
+        readonly package_name: string;
+        readonly factory_export: string;
     };
     readonly project_data?: ProjectDataDeclaration;
     readonly home_store?: HomeStoreDeclaration;

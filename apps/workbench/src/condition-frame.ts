@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, escapeHtml, renderDirectoryRow, renderIconSprite, type MwStatusTone as DirectoryStatusTone } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, renderDirectoryRow, type MwStatusTone as DirectoryStatusTone } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { assistantTextHtml } from "./scripts/client/assistant-island.js";
 import { createAssistantCodeGrow } from "./scripts/client/assistant-code-grow.js";
 import { conditionSample, conditionStream, type ConditionKind, type ConditionText } from "./condition-samples.js";

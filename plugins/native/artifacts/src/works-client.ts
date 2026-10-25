@@ -10,8 +10,8 @@ export const ARTIFACT_WORKS_CLIENT_SCRIPT = String.raw`
     if (!box) return;
     let subjects = [];
     try { subjects = JSON.parse(box.dataset.artifactWorks || "[]"); } catch { return; }
-    const found = await Promise.all(subjects.map((id) => fetch(route("/api/assistant/related?kind=artifact&id=" + encodeURIComponent(id)), { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : { works: [] }).then((payload) => payload.works || []).catch(() => [])));
+    const found = await Promise.all(subjects.map((id) => molisWorkRequest(route("/api/assistant/related?kind=artifact&id=" + encodeURIComponent(id)))
+      .then((payload) => payload?.works || []).catch(() => [])));
     // A work can relate to the version more than once (where it started, and what it made): list it once, by its first relation.
     const works = found.flat().filter((work) => WORK_RELATIONS[work.relation]);
     const unique = works.filter((work, index) => works.findIndex((other) => other.work_id === work.work_id) === index);

@@ -83,12 +83,13 @@ export interface PluginRegistration {
   /** Short ids enabled together with this plugin in a project, whatever its ports say (Feed brings Inbox). Trusted, as above. */
   readonly companions?: readonly string[];
   /**
-   * Explicit Runtime activation in the Home; personal visibility alone never migrates an existing plugin. Trusted, as above.
-   * Its library is the Manifest's `databases.home` (PG-022). Its files, model settings and image generation are the Manifest's `owner_files`,
-   * `model_configuration` and `image_generation` (PG-102).
+   * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
+   * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;
+   * personal visibility alone never migrates an existing plugin. Trusted: the Host reads it from this registration only, never from a
+   * Manifest or an installed package. Its library is the Manifest's `databases.home` (PG-022). Its files, model settings and image
+   * generation are the Manifest's `owner_files`, `model_configuration` and `image_generation` (PG-102).
    */
   readonly runtime?: {
-    readonly scope: "home";
     readonly create: () => PluginDefinition;
     readonly package_name: string;
     readonly factory_export: string;
@@ -96,10 +97,21 @@ export interface PluginRegistration {
     readonly keys?: string;
     /**
      * This Home instance is one half of a dual-instance plugin (docs/system/GLOSSARY.md): the same plugin also runs as each
-     * project's instance from the project start list, and each half offers only its share of the one Manifest. Trusted, as above:
-     * no Manifest or installed package can say it. Every permission of such a Manifest is required (specs/dual-instance-plugins).
+     * project's instance from its `project_runtime`, and each half offers only its share of the one Manifest. Trusted, as above:
+     * no Manifest or installed package can say it (S-48). Every permission of such a Manifest is required (specs/dual-instance-plugins).
      */
     readonly dual_instance?: true;
+  };
+  /**
+   * Each project's instance, which the Host's project supervisor starts from this declaration (PG-067). Trusted, as above. A plugin
+   * whose library is the Manifest's `databases.home` runs only where the project has a Home. A factory that needs ports from the
+   * Host is not declared here; it stays in apps/local-host/src/project-plugins.ts (only Files, BL-616). A dual-instance plugin
+   * declares this and `runtime` (Shelf).
+   */
+  readonly project_runtime?: {
+    readonly create: () => PluginDefinition;
+    readonly package_name: string;
+    readonly factory_export: string;
   };
   /**
    * What this plugin keeps in the Home for a project that is more than rows of its library, and how to clear it. The Host runs it

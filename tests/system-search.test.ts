@@ -22,7 +22,8 @@ import { SEARCH_PROVIDER_ID, searchActions } from "@molis-ai/molis-work-contract
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath, openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { SearchService } from "@molis-ai/molis-work-service-search";
-import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 
 /** `refuse`: the object is still listed, but its reader will not hand it over now (a locked document, a version kept only as a file reference). */
 type Note = { id: string; title: string; body: string; version: number; secret?: boolean; refuse?: { code: string; text: string } | Error };

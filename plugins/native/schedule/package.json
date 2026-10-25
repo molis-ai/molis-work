@@ -37,6 +37,11 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Protected first-party Schedule alarm list, receipts, and pause.",
+    "notResponsibleFor": "Feed/Goal facts, cron expressions, or owner execute implementations.",
+    "legacySources": [
+      "src/web/render.ts"
+    ],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -47,6 +52,10 @@
       "schedule.conversation-tasks.v1",
       "schedule.actions.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   },
   "devDependencies": {

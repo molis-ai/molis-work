@@ -4,7 +4,7 @@ import { DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type 
 import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
 import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
 import { diffViewText, renderDiff, type DiffViewText } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { diffErrors } from "./errors.js";
 import { DIFF_MESSAGES, DIFF_TEMPLATES } from "./messages.js";
 import { DIFF_LABELS } from "./ui.js";

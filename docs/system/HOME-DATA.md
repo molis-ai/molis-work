@@ -60,6 +60,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 2 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge（`plugin-connections` 已登记：删项目时清插件为该项目里的记录选的账号绑定，账号本身不动） |
 | `context-onboarding/context-onboarding.db` | 宿主；`apps/local-host/src/context-onboarding-store.ts:46` 打开、`:51` 套用，`:44` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `plugin-originals/plugin-originals.db` | 宿主；`apps/local-host/src/material-original-files.ts` 打开并套用基线（`plugin_original_files`，主键 plugin_id + install_id + 激活所在的项目（Home 级激活为空串，各项目共用）+ 插件自己的记录键，存的是宿主入口交来的原始文件的真实路径）；只由 `materials:original` 服务读写，插件拿不到路径 | SQLite 带版本 · 1 | 必备份（登记的是人导入过的原始文件的位置） | purge（`plugin-originals` 已登记；删项目时按 `project_id` 清登记，原始文件本身不动） |
+| `plugin-directories/plugin-directories.db` | 宿主；`apps/local-host/src/plugin-directory-store.ts` 打开并套用基线（`plugin_directory_grants`：人经系统选择器授权给插件读的本机目录，一条绑定插件、安装、项目（Home 级激活为空串）与人，记目录的真实路径和设备号、inode；`plugin_directory_reads`：每次读的时间、发起来源、调用者与结果，不记文件名和内容，每条授权留最近 200 条）；只由 `apps/local-host/src/plugin-directory-service.ts` 读写，插件只拿到授权 id（PG-049，用户 2026-10-25） | SQLite 带版本 · 1 | 必备份（人给出的授权，撤回之前一直有效） | purge（`plugin-directories` 已登记；删项目时按 `project_id` 删授权与记录，卸载时按安装删，目录本身不动） |
 | `functions/functions.db` | Functions 模块；`modules/functions/src/service.ts:53` 的 `createFunctionsService` 经 `openFunctionsStore` 打开（`modules/functions/src/store.ts:284`），基线 `modules/functions/src/store-schema.ts:7` | SQLite 带版本 · 3 | 必备份 | purge |
 | `characters/characters.sqlite` | `modules/characters/src/open.ts`，由 `apps/local-host/src/characters-host.ts:72` 打开（还有 `:118`）；原生执行记录由 `apps/local-host/src/character-native-execution.ts` 经 `openCharacterRuns` 打开 | SQLite 带版本 · 2（v1 → v2 加 `character_runs`，真实 Home 待维护，见 `specs/repository-anti-corruption/spec.md` §4.1 的库版本维护清单），`CHARACTERS_STORE_BASELINE` 经 `applySqliteBaseline` 套用（无版本的表、别的版本都拒绝，原库不动） | 必备份 | purge |
 
@@ -365,6 +366,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 - 共享日志表 `events`、`idempotency_records` 的跨 owner 语句已清零：Goals 与 Governance 两个模块改用宿主注入的日志端口（PG-094 S9-1），`shared` 两条登记已删。其余跨 owner 直接 SQL 已由 W2-06 清零并有门禁。
 - 没有备份命令和快照；第 7 节的同一时点组没有工具保证（W5-16）。
 - 目录库存项目库的绝对路径（W5-17）。
+- W5-17 真实维护前的只读清单还须按各项目与 Home 的 Runtime 库分别列出违反 S-75 的安装：宿主保留 ID 或点分段嵌套、unsigned 同/异标签嵌套、不同 pinned key 嵌套及签名与信任不符；输出安装编号、插件号、信任等级与拒绝码，不输出私有数据或密钥。本片只记录后继检查要求，不扫描或改写真实 Home；正常启动重验拒绝并记诊断，既存记录的处置仍需维护窗口授权。
 - 旧 `goalboard-*` 的 release 与启动脚本卸载不认，而 `bin/goalboard-mcp` 还有进程在用（W4-11 的清除范围决策）。
 - purge 的用例读登记（W4-11），`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 也在遍历用例里写入再断言被删。`tests/uninstall.test.ts` 仍有一份写死的目录，只是它自己的场景，不再是清单。
 - 结构由宿主文件定义的库（assistant、placement、agent-definitions、context-onboarding、connectors、项目库的几段）按“库归 owner 包”看是错放，处理在 W3-06 与 W5-01。

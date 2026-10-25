@@ -10,6 +10,7 @@ mod drop_wheel;
 #[cfg(target_os = "macos")]
 mod drop_wheel_macos;
 mod external_links;
+mod page_files;
 mod runtime_env;
 mod selected_file;
 #[cfg(target_os = "macos")]
@@ -661,17 +662,22 @@ fn shelf_admit_paths_blocking(app: &tauri::AppHandle, paths: Vec<String>) -> Res
     Ok(added)
 }
 
-/// Double-click opens the copy with whatever the system uses for it.
+/// Double-click opens the copy with whatever the system uses for it. The page names its own file by relative path; the shell
+/// asks the Host which file that is (PG-113), so the window never hands the shell an absolute path.
 #[tauri::command]
-async fn shelf_open_path(path: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || shelf_open_path_blocking(path))
+async fn files_open(endpoint: String, page_id: String, paths: Vec<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || files_open_blocking(&endpoint, &page_id, &paths))
         .await
         .map_err(|error| format!("文件打开未完成：{error}"))?
 }
 
-fn shelf_open_path_blocking(path: String) -> Result<(), String> {
+fn files_open_blocking(endpoint: &str, page_id: &str, paths: &[String]) -> Result<(), String> {
+    let files = page_files::plugin_page_files(endpoint, page_id, paths)?;
+    let [path] = files.as_slice() else {
+        return Err("请选择一份文件".into());
+    };
     let status = std::process::Command::new("/usr/bin/open")
-        .arg(&path)
+        .arg(path)
         .status()
         .map_err(|error| format!("打不开这份文件：{error}"))?;
     if status.success() {
@@ -712,32 +718,56 @@ fn shelf_setup_status() -> ShelfSetupStatus {
 }
 
 #[tauri::command]
-fn shelf_copy_files(paths: Vec<String>) -> Result<(), String> {
+async fn files_copy(endpoint: String, page_id: String, paths: Vec<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || files_copy_blocking(&endpoint, &page_id, &paths))
+        .await
+        .map_err(|error| format!("复制未完成：{error}"))?
+}
+
+fn files_copy_blocking(endpoint: &str, page_id: &str, paths: &[String]) -> Result<(), String> {
+    let files = page_files::plugin_page_files(endpoint, page_id, paths)?;
     #[cfg(target_os = "macos")]
     {
-        shelf_drag_macos::copy_files(&paths)
+        shelf_drag_macos::copy_files(&files)
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = paths;
+        let _ = files;
         Err("这个平台还不支持复制文件".into())
     }
 }
 
-/// Drag a shelf file out to Finder, the Desktop, an upload field or a composer.
+/// Drag a page's file out to Finder, the Desktop, an upload field or a composer.
 #[tauri::command]
-fn shelf_drag_out(
+async fn files_drag_out(
     app: tauri::AppHandle,
+    endpoint: String,
+    page_id: String,
     paths: Vec<String>,
     item_ids: Option<Vec<String>>,
 ) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        files_drag_out_blocking(&app, &endpoint, &page_id, &paths, item_ids)
+    })
+    .await
+    .map_err(|error| format!("拖出未完成：{error}"))?
+}
+
+fn files_drag_out_blocking(
+    app: &tauri::AppHandle,
+    endpoint: &str,
+    page_id: &str,
+    paths: &[String],
+    item_ids: Option<Vec<String>>,
+) -> Result<(), String> {
+    let files = page_files::plugin_page_files(endpoint, page_id, paths)?;
     #[cfg(target_os = "macos")]
     {
-        shelf_drag_macos::begin(&app, &paths, &item_ids.unwrap_or_default())
+        shelf_drag_macos::begin(app, &files, &item_ids.unwrap_or_default())
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (app, paths, item_ids);
+        let _ = (app, files, item_ids);
         Err("这个平台还不支持拖出".into())
     }
 }
@@ -864,12 +894,12 @@ fn main() {
       context_directories::context_directory_preview,
       context_directories::context_directory_stage,
       shelf_surface_changed,
-      shelf_drag_out,
-      shelf_copy_files,
+      files_drag_out,
+      files_copy,
       shelf_find_files,
       selected_file::platform_read_selected_file,
       shelf_admit_paths,
-      shelf_open_path,
+      files_open,
       shelf_setup_status,
       shelf_hotkey_status,
       shelf_apply_hotkeys

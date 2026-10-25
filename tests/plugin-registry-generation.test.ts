@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { catalogProblems } from "@molis-ai/molis-work-app-local-host";
-import { CATALOG_FILE, PLATFORM_FILE, pluginRegistry, pluginRegistryProblems } from "../scripts/generate-plugin-registry.mjs";
+import { packageDescriptor as scheduleDescriptor } from "@molis-ai/molis-work-plugin-schedule";
+import { packageDescriptor as shelfDescriptor } from "@molis-ai/molis-work-plugin-shelf";
+import { packageDescriptor as pptDescriptor } from "@molis-ai/molis-work-plugin-ppt";
+import { CATALOG_FILE, PLATFORM_FILE, PLUGIN_DEPENDENCY_MANIFESTS, pluginDependencyManifests, pluginRegistry, pluginRegistryProblems } from "../scripts/generate-plugin-registry.mjs";
 import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
+import { assemblyMetrics } from "../scripts/gates/assembly.mjs";
+import { projectRuntimePackages } from "../scripts/gates/home-runtime-entries.mjs";
 
 // W5-02 (specs/repository-anti-corruption/privileges.md PG-065): each built-in plugin writes its catalog entry in its own
 // src/registration.ts, and scripts/generate-plugin-registry.mjs writes apps/workbench/src/builtin-plugins.ts (the shell's
@@ -18,7 +24,7 @@ import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 // loader boundary, proving that module initialization itself refuses them.
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const tracked = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
+const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean);
 const FEED = "plugins/native/feed/src/registration.ts", FEED_PACKAGE = "plugins/native/feed/package.json";
 const readReal = (file: string): string | null => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } };
 
@@ -191,7 +197,7 @@ test("W5-02-REG-02: loading the Host rejects an invalid catalog before the modul
   }
 });
 
-test("RAC-572 (the two apps; the root comes with PR-C): an app's package.json is not counted only while its plugin dependencies are exactly what its generated file imports", async () => {
+test("RAC-572 each of the three manifests is not counted only while its plugin dependencies are exactly what its generated files import", async () => {
   const { generatedMentionFiles } = await import("../scripts/gates/assembly.mjs");
   const plugins = new Set(["@fx/plugin-one", "@fx/plugin-two", "@fx/plugin-three"]);
   const generated = (...names: string[]) => names.map(name => `import { registration as x } from "${name}/registration";\n`).join("");
@@ -205,6 +211,48 @@ test("RAC-572 (the two apps; the root comes with PR-C): an app's package.json is
   assert.deepEqual(exempt({ ...workbench, "apps/workbench/package.json": manifest("@fx/plugin-one") }),
     ["apps/workbench/src/builtin-plugins.ts"], "one fewer: the manifest is counted");
   assert.deepEqual(exempt({ "apps/local-host/package.json": manifest() }), [], "without its generated file an app's manifest is counted");
+  const both = { ...workbench, "apps/local-host/src/plugin-registry.generated.ts": generated("@fx/plugin-two", "@fx/plugin-three") };
+  const generatedFiles = ["apps/local-host/src/plugin-registry.generated.ts", "apps/workbench/src/builtin-plugins.ts"];
+  assert.deepEqual(exempt({ ...both, "package.json": manifest("@fx/plugin-one", "@fx/plugin-two", "@fx/plugin-three") }),
+    [...generatedFiles, "package.json"], "the root against the union of both files: not counted");
+  assert.deepEqual(exempt({ ...both, "package.json": manifest("@fx/plugin-one", "@fx/plugin-two") }), generatedFiles, "the root without one of them: counted");
+  assert.deepEqual(exempt({ ...workbench, "package.json": manifest("@fx/plugin-one", "@fx/plugin-two") }), ["apps/workbench/src/builtin-plugins.ts"],
+    "the root while one of its generated files is missing: counted");
+});
+
+test("RAC-572 --check fails on one plugin dependency too many or too few in each of the three manifests, and the generator writes them back", () => {
+  // Every built-in plugin package declares a registration today, so the one too many is a plugin package that does not.
+  const unlisted = { path: "plugins/native/unlisted", name: "@molis-ai/molis-work-plugin-unlisted" };
+  const packages = [...WORKSPACE_PACKAGES, unlisted];
+  const unlistedFile = { [`${unlisted.path}/package.json`]: `${JSON.stringify({ name: unlisted.name, "molis-work": { kind: "native-plugin" } }, null, 2)}\n` };
+  const plugins = packages.filter(entry => entry.path.startsWith("plugins/native/")).map(entry => entry.name);
+  const { text, platformText } = pluginRegistry(tree(), WORKSPACE_PACKAGES);
+  const imported = (file: string) => new Set([...(file === CATALOG_FILE ? text! : platformText!).matchAll(/from "([^"]+)\/registration";/g)].map(match => match[1]));
+  for (const { manifest, files } of PLUGIN_DEPENDENCY_MANIFESTS) {
+    const json = JSON.parse(readReal(manifest)!) as { dependencies: Record<string, string> };
+    const wanted = new Set(files.flatMap(file => [...imported(file)]));
+    const extra = plugins.find(name => !wanted.has(name));
+    assert.ok(extra, `${manifest}: a plugin package its generated files do not import`);
+    const missing = [...wanted][0]!;
+    const edit = (change: (dependencies: Record<string, string>) => void) => {
+      const dependencies = { ...json.dependencies };
+      change(dependencies);
+      return { ...unlistedFile, [manifest]: `${JSON.stringify({ ...json, dependencies }, null, 2)}\n` };
+    };
+    const tooMany = edit(dependencies => { dependencies[extra] = "workspace:*"; });
+    // --check refuses a plugin package without a registration before it reads the manifests, so this case is the manifests' rule.
+    const manifestProblems = pluginDependencyManifests(tree(tooMany), packages, { [CATALOG_FILE]: text!, [PLATFORM_FILE]: platformText! })
+      .find(entry => entry.manifest === manifest)!.problems.join("\n");
+    assert.match(manifestProblems, new RegExp(`${manifest.replace(/[./]/g, "\\$&")} depends on ${extra.replace(/[./]/g, "\\$&")}, which .* does not import`));
+    const tooFew = edit(dependencies => { delete dependencies[missing]; });
+    assert.match(problems(tooFew), new RegExp(`${manifest.replace(/[./]/g, "\\$&")} does not depend on ${missing.replace(/[./]/g, "\\$&")}`));
+    for (const changed of [tooMany, tooFew]) {
+      const written = pluginDependencyManifests(tree(changed), packages, { [CATALOG_FILE]: text!, [PLATFORM_FILE]: platformText! })
+        .find(entry => entry.manifest === manifest)!;
+      assert.equal(written.text, readReal(manifest), `${manifest}: the generator writes it back to what is checked in`);
+    }
+  }
+  assert.equal(problems({}), "", "the checked-in manifests are what the generator writes");
 });
 
 test("W5-02-REG-03: a new plugin is its own package; the generator lists it and nothing else changes by hand", () => {
@@ -222,6 +270,95 @@ test("W5-02-REG-03: a new plugin is its own package; the generator lists it and 
   const listed = text.split("\n").filter(line => line.startsWith("  ")).map(line => line.trim().replace(/,$/, ""));
   assert.equal(listed.indexOf("futureRegistration"), BUILTIN_PLUGIN_CATALOG.length, "listed by catalog_order (after the last plugin), not by package name");
   assert.match(problems({ ...own, [CATALOG_FILE]: text }, packages), /plugin-registry\.generated\.ts is out of date/, "the platform's list too");
-  assert.deepEqual(problems({ ...own, [CATALOG_FILE]: text, [PLATFORM_FILE]: platformText }, packages), "",
-    "its package and the two regenerated files are the whole change");
+  const regenerated = { ...own, [CATALOG_FILE]: text, [PLATFORM_FILE]: platformText };
+  assert.match(problems(regenerated, packages), /does not depend on @molis-ai\/molis-work-plugin-future/, "the manifests do not depend on it until regenerated");
+  const manifests = Object.fromEntries(pluginDependencyManifests(tree(regenerated), packages, { [CATALOG_FILE]: text, [PLATFORM_FILE]: platformText! })
+    .map(entry => [entry.manifest, entry.text!]));
+  assert.deepEqual(Object.keys(manifests).sort(), ["apps/local-host/package.json", "apps/workbench/package.json", "package.json"]);
+  assert.deepEqual(problems({ ...regenerated, ...manifests }, packages), "",
+    "its package and what the generator writes (two files, three manifests) are the whole change");
+});
+
+test("RAC-574 RAC-575 a new plugin with a project runtime changes only its own package and what the generator writes, and is named outside it in no file", () => {
+  // The name is put together here so that this file, which the measure below reads too, does not name the new package.
+  const dir = "plugins/native/probe-future", name = ["@molis-ai/molis-work-plugin", "probe-future"].join("-"), sample = "plugins/native/text-stats";
+  const sampleJson = JSON.parse(readReal(`${sample}/package.json`)!) as { name: string; "molis-work": Record<string, unknown> };
+  const own = {
+    [`${dir}/package.json`]: `${JSON.stringify({ ...sampleJson, name, "molis-work": { ...sampleJson["molis-work"], path: dir } }, null, 2)}\n`,
+    [`${dir}/src/registration.ts`]: readReal(`${sample}/src/registration.ts`)!.replace(/catalog_order: \d+/, `catalog_order: ${NEXT_POSITION}`)
+      .replace("project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID", 'project_plugin_id: "probe-future"').replaceAll(sampleJson.name, name),
+  };
+  const packages = [...WORKSPACE_PACKAGES, { path: dir, name }];
+  const { text, platformText, problems: refused } = pluginRegistry(tree(own), packages);
+  assert.deepEqual(refused, []);
+  const regenerated = { ...own, [CATALOG_FILE]: text!, [PLATFORM_FILE]: platformText! };
+  const manifests = Object.fromEntries(pluginDependencyManifests(tree(regenerated), packages, { [CATALOG_FILE]: text!, [PLATFORM_FILE]: platformText! })
+    .map(entry => [entry.manifest, entry.text!]));
+  const changed = { ...regenerated, ...manifests };
+  assert.equal(problems(changed, packages), "", "its package and what the generator writes are the whole change");
+  for (const manifest of Object.keys(manifests)) assert.match(manifests[manifest]!, new RegExp(`"${name.replace(/[./]/g, "\\$&")}": "workspace:\\*"`), `${manifest} depends on it`);
+  assert.ok([...projectRuntimePackages(tree(changed))].includes(name), "each project's supervisor starts it from its registration");
+  const handWritten = Object.keys(changed).filter(file => !file.startsWith(`${dir}/`)).sort();
+  assert.deepEqual(handWritten, [PLATFORM_FILE, CATALOG_FILE, "apps/local-host/package.json", "apps/workbench/package.json", "package.json"].sort(),
+    "outside its package only the generator's two files and three manifests change");
+  // The gate's measure over every tracked text file, not only the gate's source areas: the strongest form of "named nowhere".
+  const mentions = assemblyMetrics({ perFile: {}, isSource: (file: string) => /\.(?:ts|mts|mjs|cjs|js|json|md|ya?ml)$/.test(file) })
+    .find(metric => metric.id === "pluginOutsideMentions")!;
+  const count = (changes: Record<string, string | null>) => (mentions.measure(tree(changes)) as Record<string, number>)["probe-future#outside-files"];
+  assert.equal(count(changed), 0, "RAC-574 named in no file outside its package");
+  assert.equal(count({ ...changed, "apps/local-host/src/names-probe.ts": `export const probe = "${name}";\n` }), 1, "RAC-575 one hand-written file is counted");
+  const extra = JSON.parse(manifests["apps/workbench/package.json"]!) as { dependencies: Record<string, string> };
+  delete extra.dependencies["@molis-ai/molis-work-plugin-text-stats"];
+  assert.equal(count({ ...changed, "apps/workbench/package.json": `${JSON.stringify(extra, null, 2)}\n` }), 1,
+    "RAC-575 a manifest that is no longer exactly the generated imports is counted");
+});
+
+test("W5-02-REG-04 Schedule, Shelf and PPT package capabilities match their implemented public descriptors", () => {
+  for (const descriptor of [scheduleDescriptor, shelfDescriptor, pptDescriptor]) {
+    const manifest = JSON.parse(readReal(`${descriptor.packagePath}/package.json`)!);
+    assert.deepEqual(manifest["molis-work"].capabilities, descriptor.capabilities, descriptor.packagePath);
+  }
+});
+
+// The review of #1299: a plugin's package.json carries its "molis-work" block, but not its layer. The boundary rules and the
+// CODEOWNERS role follow `kind`, so the path decides it (and the maturity); a package that writes another value fails the real check.
+test("RAC-576 W5-02-REG-05 a clean tracked fixture passes, then rejects another plugin kind or maturity", { timeout: 120_000 }, t => {
+  const scratch = mkdtempSync(path.join(tmpdir(), "plugin-kind-")), repository = path.join(scratch, "repo");
+  const untracked = mkdtempSync(path.join(root, "rac576-untracked-"));
+  try {
+    const sentinel = path.join(path.relative(root, untracked), ".claude/worktrees/nested/untracked.txt");
+    mkdirSync(path.dirname(path.join(root, sentinel)), { recursive: true });
+    writeFileSync(path.join(root, sentinel), "untracked fixture sentinel\n");
+    // The checker reads tracked sources/manifests/docs, not dist. Keep tracked symlinks as links; never follow a checkout's
+    // ignored output or nested worktrees. Its only runtime imports are TypeScript and test-kit's public built entry.
+    for (const file of tracked) {
+      const source = path.join(root, file), destination = path.join(repository, file);
+      mkdirSync(path.dirname(destination), { recursive: true });
+      if (lstatSync(source).isSymbolicLink()) symlinkSync(readlinkSync(source), destination);
+      else copyFileSync(source, destination);
+    }
+    symlinkSync(path.join(root, "node_modules"), path.join(repository, "node_modules"));
+    assert.equal(existsSync(path.join(repository, sentinel)), false, "untracked nested worktrees are not copied");
+    const sample = "plugins/native/text-stats/package.json", original = readReal(sample)!;
+    const check = (block: Record<string, unknown>) => {
+      const json = JSON.parse(original) as { "molis-work": Record<string, unknown> };
+      writeFileSync(path.join(repository, sample), `${JSON.stringify({ ...json, "molis-work": { ...json["molis-work"], ...block } }, null, 2)}\n`);
+      return spawnSync(process.execPath, ["scripts/check-package-boundaries.mjs"], { cwd: repository, encoding: "utf8" });
+    };
+    const unchanged = check({});
+    assert.equal(unchanged.status, 0, unchanged.stdout + unchanged.stderr);
+    assert.deepEqual(JSON.parse(unchanged.stdout).errors, [], "the complete unmodified fixture passes the real checker");
+    t.diagnostic(`unchanged fixture: exit ${unchanged.status}, ${tracked.length} tracked files, untracked nested sentinel excluded`);
+    const foundation = check({ kind: "foundation" });
+    assert.equal(foundation.status, 1, foundation.stdout + foundation.stderr);
+    assert.deepEqual(JSON.parse(foundation.stdout).errors, ["[workspace-inventory] plugins/native/text-stats: molis-work.kind mismatch"]);
+    t.diagnostic(`kind mutation: exit ${foundation.status}, ${JSON.stringify(JSON.parse(foundation.stdout).errors)}`);
+    const contractOnly = check({ maturity: "contract-only" });
+    assert.equal(contractOnly.status, 1, contractOnly.stdout + contractOnly.stderr);
+    assert.deepEqual(JSON.parse(contractOnly.stdout).errors, ["[workspace-inventory] plugins/native/text-stats: package maturity must be partial"]);
+    t.diagnostic(`maturity mutation: exit ${contractOnly.status}, ${JSON.stringify(JSON.parse(contractOnly.stdout).errors)}`);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+    rmSync(untracked, { recursive: true, force: true });
+  }
 });

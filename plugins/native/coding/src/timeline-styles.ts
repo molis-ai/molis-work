@@ -1,4 +1,4 @@
-import { processFold } from "@molis-ai/molis-work-design-system";
+import { processFold } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Rows of the conversation timeline: tool output, the words on a refused call, what a turn wrote. Part of CODING_STYLES.
  * A round's group and each step fold like the Assistant's process (VUX-13): the same `processFold`, not a copy. */

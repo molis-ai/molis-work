@@ -4,7 +4,7 @@ import { ensureSystemAgentService } from "./system-agent-service.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { handleMcpMessage,
+import {
   MCP_SERVER_INFO as SERVER_INFO,
   createActionMcpPorts, isPlatformMcpTool, isRuntimeContextMcpTool, molisWorkActionToolName,
   type McpToolResult, type McpToolCallContext, type McpRuntimeContextPorts } from "@molis-ai/molis-work-app-mcp";
@@ -21,8 +21,9 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { LocalActionGatewayClient } from "./action-gateway.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
 import { callMcpV1Tool } from "./mcp-v1-tool.js";
-import { formatMcpToolError, withCallIdMeta } from "./mcp-call-id.js";
-import { newCallId, recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { handleLocalMcpRequest, mcpRequestSignal, ensureMcpRequestResident, mcpResidentManagement } from "./mcp-request-lifetime.js";
+import { assertMcpStartInput, mcpResidentUnavailable } from "./mcp-start-preflight.js";
+import type { EnsureMcpResidentHost } from "./mcp-resident-start.js";
 import { localMcpContextTools, lookupContextTool } from "./mcp-context-tools.js";
 import { frozenRuntimeHost, type ContextCacheUpdate } from "./mcp-context-envelope.js";
 import { forwardMcpContext } from "./mcp-context-client.js";
@@ -60,6 +61,7 @@ export class LocalMcpServer {
     runtimeContextHost?: MolisWorkRuntimeContextHost | null,
     localHost?: MolisWorkLocalHost,
     private readonly actionServiceUrl?: string,
+    private readonly ensureResident?: EnsureMcpResidentHost,
   ) {
     this.audience =
       audience ?? (readProductEnv("MCP_AUDIENCE") === "management" ? "management" : "runtime");
@@ -73,7 +75,7 @@ export class LocalMcpServer {
       requireHost: (context) => this.requireRuntimeContextHost(context),
       actorFor: (host, context) => runtimeConnectionIdentity(host, context).actor_id,
       deleteProject: (request, host, context) => this.deleteProject(request, host, context),
-      contextSignal: () => this.transportLifetime.signal,
+      contextSignal: () => mcpRequestSignal(this.transportLifetime.signal),
       contextActions: () => this.contextActions(),
     });
     this.runtimeContextHost =
@@ -137,7 +139,8 @@ export class LocalMcpServer {
     const auditActor = sessionCall ? sessionActor(sessionCall) : undefined;
     const runtimeSessionId = auditActor?.slice(current.context.actor_id.length + 1);
     if (auditActor) current.context = { ...current.context, audit_actor_id: auditActor, actor_kind: "runtime", runtime_session_id: runtimeSessionId };
-    const checkContext = () => { this.connectionState.signal.throwIfAborted(); this.transportLifetime.signal.throwIfAborted();
+    const signal = mcpRequestSignal(this.connectionState.signal, this.transportLifetime.signal);
+    const checkContext = () => { signal.throwIfAborted();
       if (this.runtimeConnection !== connection || this.currentActions().context.actor_id !== current.context.actor_id
         || (sessionCall && sessionActor(sessionCall) !== auditActor))
         throw new ActionError("mcp.context_changed", "调用等待期间客户端或项目连接已变化，或会话身份不再一致，请重新发现能力");
@@ -145,10 +148,11 @@ export class LocalMcpServer {
     const home = this.runtimeContextHost?.homeDirectory;
     if (this.actionServiceUrl) {
       if (!home) throw new ActionError("actions.home_required", "跨进程动作需要明确的 Runtime Home");
+      await ensureMcpRequestResident(this.ensureResident, home, this.actionServiceUrl, signal); checkContext();
       const service = new LocalActionGatewayClient({ url: this.actionServiceUrl, homeDirectory: home,
         clientId: current.context.actor_id, projectId: current.context.project_id, runtimeSessionId });
       const context: ActionCallContext = { ...current.context,
-        signal: AbortSignal.any([this.connectionState.signal, this.transportLifetime.signal]),
+        signal,
         validate_authority: checkContext,
       };
       return { service, context,
@@ -163,7 +167,7 @@ export class LocalMcpServer {
   private async ensureCatalog(): Promise<AssembledMcpCatalog & { actionServiceError?: ActionError }> {
     try { await this.restoreBoundSessionConnection(); }
     catch (error) {
-      if (!this.actionServiceUrl || !(error instanceof ActionError) || !["actions.service_unavailable", "actions.home_required"].includes(error.code)) throw error;
+      if (!this.actionServiceUrl || !mcpResidentUnavailable(error)) throw error;
     }
     let discovered;
     let localGrants: ActionCallContext["allowed_actions"];
@@ -175,7 +179,7 @@ export class LocalMcpServer {
     }
     catch (error) {
       // Management platform tools use their protected factory; granted action tools keep the same gateway and never run locally on its refusal.
-      if (!this.actionServiceUrl || !(error instanceof ActionError) || (this.audience === "runtime" && !["actions.service_unavailable", "actions.home_required"].includes(error.code))) throw error;
+      if (!this.actionServiceUrl || !(error instanceof ActionError) || (this.audience === "runtime" && !mcpResidentUnavailable(error))) throw error;
       actionServiceError = error;
       discovered = [];
     }
@@ -220,6 +224,8 @@ export class LocalMcpServer {
   }
 
   private async callToolResult(name: string, arguments_: Record<string, unknown>, callContext: McpToolCallContext): Promise<string | McpToolResult> {
+    mcpRequestSignal(this.transportLifetime.signal).throwIfAborted();
+    if (this.ensureResident) assertMcpStartInput(this.audience, name, arguments_);
     if (this.actionServiceUrl && isRuntimeContextMcpTool(name)) {
       assertMcpToolAllowed({ audience: this.audience, connectionState: this.connectionState,
         runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, callContext);
@@ -227,13 +233,14 @@ export class LocalMcpServer {
       if (result === null) throw new ActionError("actions.transport_invalid", "常驻连接工具缺少结果");
       return result;
     }
-    const catalog = await this.ensureCatalog();
+    const managementTool = !!this.ensureResident && this.audience === "management" && isPlatformMcpTool(name) && !isRuntimeContextMcpTool(name);
+    const catalog: AssembledMcpCatalog & { actionServiceError?: ActionError } = managementTool ? assembleMcpCatalog({ audience: this.audience, actions: [], actionToolName: molisWorkActionToolName }) : await this.ensureCatalog();
     if (catalog.actionServiceError && !isRuntimeContextMcpTool(name) && !(this.audience === "management" && isPlatformMcpTool(name))) throw catalog.actionServiceError;
     const connection = this.runtimeConnection;
     assertMcpToolAllowed({ audience: this.audience, connectionState: this.connectionState,
       runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, callContext, catalog);
-    if (this.actionServiceUrl && this.runtimeContextHost?.panelId && callContext.runtimeSessionId) await this.forwardContext("alias", callContext);
-    else await this.linkPanelSession(this.runtimeContextHost, callContext.runtimeSessionId);
+    if (!managementTool && this.actionServiceUrl && this.runtimeContextHost?.panelId && callContext.runtimeSessionId) await this.forwardContext("alias", callContext);
+    else if (!managementTool) await this.linkPanelSession(this.runtimeContextHost, callContext.runtimeSessionId);
     const entry = findAssembledMcpTool(catalog, name);
     if (!entry) {
       throw new ActionError("mcp.tool_unknown", `未知 MCP 方法：${name}`);
@@ -251,21 +258,22 @@ export class LocalMcpServer {
     if (contextHandler) return contextHandler(arguments_ ?? {}, callContext);
     return callMcpV1Tool({ localHost: this.localHost, audience: this.audience,
       runtimeConnection: this.audience === "runtime" ? this.runtimeConnection : null,
-      ...(this.audience === "management" && (this.ownsLocalHost || this.actionServiceUrl) ? { resident: {
-        home: this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(),
-        origin: this.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL,
-        signal: this.transportLifetime.signal } } : {}) }, name, arguments_);
+      ...(this.audience === "management" && (this.ownsLocalHost || this.actionServiceUrl) ? { resident: mcpResidentManagement(this.ensureResident,
+        this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(), this.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL,
+        mcpRequestSignal(this.transportLifetime.signal)) } : {}) }, name, arguments_);
   }
 
   private requireRuntimeContextHost(context: MolisWorkMcpToolCallContext = EMPTY_TOOL_CALL_CONTEXT): MolisWorkRuntimeContextHost {
     return requireMcpRuntimeContextHost(this, context);
   }
 
-  private forwardContext(operation: "tool" | "restore" | "alias", context: McpToolCallContext,
+  private async forwardContext(operation: "tool" | "restore" | "alias", context: McpToolCallContext,
     tool?: { name: string; arguments: Record<string, unknown> }): Promise<string | null> {
     const host = this.runtimeContextHost;
-    if (!host) return Promise.reject(new ActionError("mcp.context_host_missing", "MCP 宿主没有提供 Runtime 标识"));
-    const signal = AbortSignal.any([this.transportLifetime.signal, this.connectionState.signal]);
+    if (!host) throw new ActionError("mcp.context_host_missing", "MCP 宿主没有提供 Runtime 标识");
+    const signal = mcpRequestSignal(this.transportLifetime.signal, this.connectionState.signal);
+    if (!host.homeDirectory) throw new ActionError("actions.home_required", "MCP 自动启动需要明确的 Runtime Home");
+    await ensureMcpRequestResident(this.ensureResident, host.homeDirectory, this.actionServiceUrl!, signal); signal.throwIfAborted();
     const cacheContext = operation === "restore" ? host.runtimeContext : requireMcpRuntimeContextHost({ runtimeContextHost: host }, context).runtimeContext;
     return forwardMcpContext({ url: this.actionServiceUrl!, host, context, operation, tool, signal,
       checkCurrent: () => { signal.throwIfAborted(); if (this.runtimeContextHost !== host) throw new ActionError("mcp.context_changed", "MCP 调用主体已变化"); },
@@ -281,19 +289,10 @@ export class LocalMcpServer {
     if (this.ownsLocalHost) await this.localHost.close();
   }
 
-  async handleMessage(
-    message: Record<string, unknown>,
-  ): Promise<Record<string, unknown> | null> {
-    // One message is one operation, and its number is made here, never read from the client: every call it causes, in this process or in the
-    // resident Host, runs under it. The result and the error text show it only when the operation left a row in the call log.
-    return withCallId(newCallId(), async () => {
-      const catalog = message.method === "tools/list" ? await this.ensureCatalog() : null;
-      return handleMcpMessage(message, {
-        serverInfo: SERVER_INFO,
-        tools: catalog?.tools ?? [],
-        callTool: async (name, arguments_, context) => withCallIdMeta(await this.callToolResult(name, arguments_, context)),
-        formatToolError: error => formatMcpToolError(error, recordedCallId()),
-      });
+  async handleMessage(message: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown> | null> {
+    return handleLocalMcpRequest(message, signal, {
+      tools: async () => (await this.ensureCatalog()).tools,
+      callTool: (name, input, context) => this.callToolResult(name, input, context),
     });
   }
 }

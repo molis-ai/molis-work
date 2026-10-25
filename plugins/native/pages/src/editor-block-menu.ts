@@ -1,6 +1,6 @@
 import type { Transaction } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
   addColumn, unwrapColumns, deleteBlock, deleteRow, deleteSpan, duplicateBlock, duplicateRow,
   duplicateSpan, turnSpanInto, setRowsTone, blockMenuKey, hoverMenuIndex,

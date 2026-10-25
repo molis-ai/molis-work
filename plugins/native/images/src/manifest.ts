@@ -30,6 +30,7 @@ export const imagesManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: Object.values(imagesActions),
+  runtime: { scope: "home" },
   databases: { home: IMAGES_DATABASE },
   owner_files: IMAGES_OWNER_FILES,
   image_generation: IMAGES_IMAGE_GENERATION,
@@ -45,6 +46,6 @@ export const imagesManifest: PluginManifest = {
   artifacts: { produces: [], consumes: [] },
   ui: {
     contributions: [IMAGES_UI_CONTRIBUTION_ID],
-    views: [{ view_id: "directory", slot: "navigator", title: "图片", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", order: 60, group: "make" }],
+    views: [{ view_id: "directory", slot: "navigator", title: "图片", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
   },
 };

@@ -1,11 +1,12 @@
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
-  escapeHtml,
-  icon,
+  registeredIconNames,
   renderIconSprite,
   renderPrimitiveCatalog,
+  type CatalogPluginIcon,
   renderProjectMonogram,
   renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
@@ -15,7 +16,7 @@ import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assista
 import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plugin-rows.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
-import { builtinPluginDirectory } from "./plugin-catalog.js";
+import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
 
 /**
  * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
@@ -25,6 +26,18 @@ import { builtinPluginDirectory } from "./plugin-catalog.js";
  */
 const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "plugin-builder", "images", "jelly", "shelf", "lingguang", "todo",
   "pages", "form", "dataset", "ppt", "alchemist", "workflows"];
+
+/** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
+const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [{ id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" }];
+
+/** The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), after the workbench's own surfaces. */
+function iconInventoryPlugins(): CatalogPluginIcon[] {
+  const glyphs = pluginTabGlyphs(), registered = registeredIconNames();
+  return [...SURFACE_GLYPHS, ...builtinPluginDirectory().flatMap(entry => {
+    const glyph = registered.find(name => name === glyphs[entry.id]);
+    return glyph ? [{ id: entry.id, name: entry.name, icon: glyph }] : [];
+  })];
+}
 
 /**
  * The resident bar exactly as the workbench composes it, on a strip of desk: Dock menu, pinned plugins,
@@ -183,7 +196,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "system", label: "系统", current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
-  const catalog = renderPrimitiveCatalog()
+  const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins() })
     .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
     .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
   return `<!doctype html>

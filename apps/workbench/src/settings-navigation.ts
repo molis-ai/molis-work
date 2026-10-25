@@ -1,4 +1,5 @@
-import { renderProjectMonogram, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderProjectMonogram } from "@molis-ai/molis-work-design-system";
 import { globalSettingsSectionPath, groupedGlobalSettingsSections } from "./settings-sections.js";
 
 export interface WebProjectNavigation {
@@ -10,7 +11,7 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "directories";
 type SettingsNavigationActive = string;
 type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "rules" | "planning";
 
@@ -18,7 +19,7 @@ type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "
 export interface SettingsNavigationPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {

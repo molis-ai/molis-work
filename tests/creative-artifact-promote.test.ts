@@ -9,26 +9,16 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import {
-  datasetActions,
-  openDatasetStore,
-  renderDatasetWorkbench,
-} from "@molis-ai/molis-work-plugin-dataset";
-import {
-  FORM_CLIENT_FACTORY_SCRIPT,
-  formActions,
-  openFormStore,
-  renderFormWorkbench,
-} from "@molis-ai/molis-work-plugin-form";
+import { datasetActions, renderDatasetWorkbench } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { FORM_CLIENT_FACTORY_SCRIPT, formActions, renderFormWorkbench } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
   renderPagesWorkbench,
 } from "@molis-ai/molis-work-plugin-pages";
-import {
-  openPptStore,
-  pptActions,
-  renderPptWorkbench,
-} from "@molis-ai/molis-work-plugin-ppt";
+import { pptActions, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? ""),

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -126,7 +127,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
         { ...reader, handle: () => subjectContext({ subject: { kind: "newcomer-note", id: "n1" }, revision: "1", title: "新来的笔记", content: "插件自己的正文里有鲸鱼", goal_ids: [] }) },
       ] }; } });
     const repository = await host.withProject(refA, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
-    runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(refA), project_id: refA.project_id } });
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(refA), project_id: refA.project_id } });
     const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
     await runtime.start(installId);
     const newcomer = await search(refA, "鲸鱼");

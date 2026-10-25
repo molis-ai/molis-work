@@ -129,14 +129,6 @@ export const gitManifest: PluginManifest = {
   ui: {
     embedded_plugins: ["io.molis.work.diff"],
     contributions: [GIT_UI_CONTRIBUTION_ID],
-    commands: [
-      {
-        command_id: "git.open-change",
-        title: "查看这处改动",
-        input_kinds: ["object"],
-        opens_view_id: "changes",
-      },
-    ],
     views: [
       {
         view_id: "changes",
@@ -144,6 +136,7 @@ export const gitManifest: PluginManifest = {
         title: "Git",
         contribution_id: GIT_UI_CONTRIBUTION_ID,
         icon: "git-branch",
+        hue: "orange",
         order: 30,
       },
     ],

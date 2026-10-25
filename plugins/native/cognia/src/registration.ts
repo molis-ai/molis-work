@@ -8,7 +8,7 @@ import { COGNIA_MESSAGES } from "./messages.js";
  */
 export const registration: PluginRegistration = {
   project_plugin_id: COGNIA_PROJECT_PLUGIN_ID, catalog_order: 2,
-  runtime: { scope: "home", create: createCogniaPlugin, package_name: "@molis-ai/molis-work-plugin-cognia", factory_export: "createCogniaPlugin" },
+  runtime: { create: createCogniaPlugin, package_name: "@molis-ai/molis-work-plugin-cognia", factory_export: "createCogniaPlugin" },
   messages: COGNIA_MESSAGES,
   manifest: cogniaManifest,
   personal: true,

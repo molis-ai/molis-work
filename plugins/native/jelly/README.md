@@ -19,7 +19,7 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
 - 负责：个人日历与笔记工作区；作为内容站点接收交来的笔记。
 - 不负责：原 Jelly App 的数据、项目 Goal 事实、第二个运行时。
 - 公开入口：`@molis-ai/molis-work-plugin-jelly`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-jelly/contract`（`src/contract.ts`）。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不访问或覆盖原 Jelly 数据。
   - AI 提案只有用户确认后才写入日历或笔记。

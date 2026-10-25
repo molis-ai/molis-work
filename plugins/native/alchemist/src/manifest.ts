@@ -27,7 +27,7 @@ export const alchemistManifest: PluginManifest = {
   ui: {
     contributions: [ALCHEMIST_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "炼金术士", contribution_id: ALCHEMIST_UI_CONTRIBUTION_ID, icon: "zap", order: 60, group: "research" },
+      { view_id: "directory", slot: "navigator", title: "炼金术士", contribution_id: ALCHEMIST_UI_CONTRIBUTION_ID, icon: "zap", hue: "purple", order: 60, group: "research" },
     ],
   },
 };

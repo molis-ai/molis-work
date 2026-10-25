@@ -1,12 +1,10 @@
 import { renderCatalogExamples } from "../catalog-examples.js";
-import { icon, ICON_LIBRARY, PLUGIN_ICON } from "../icons.js";
+import { icon, renderButton, renderDirectoryRow, renderStatusMark, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { ICON_LIBRARY } from "../icons.js";
 import { renderStateRingCatalog } from "./status-ring-catalog.js";
 import { renderProjectMonogram } from "../monogram.js";
 import { MW_ACTION_TONES, MW_CONTENT_MARKS, MW_CONTENT_SURFACES, MW_HUES, MW_STATUS_TONES, MW_SURFACES, MW_TYPE_TONES } from "../palette.js";
-import { renderButton } from "./button.js";
 import { renderBarContext, renderBarStatus, renderBrief, renderBriefFocus, renderBriefRecent, renderBriefSection, renderBriefStatus, renderCaption, renderFileGroup, renderFileRow, renderGoalTrack, renderSteps, renderWordmark } from "./arrival.js";
-import { renderStatusMark } from "./feedback.js";
-import { renderDirectoryRow } from "./directory.js";
 import { section, mark, specimen } from "./catalog-parts.js";
 import { CATALOG_CLIENT_SCRIPT } from "../page-clients.js";
 import { choiceSection, composeSection } from "./catalog-compose.js";
@@ -108,10 +106,16 @@ function craftSection(): string {
     </div>`);
 }
 
-/** The icon inventory: which glyph each plugin and each state uses, and the four sizes. */
-function iconInventorySection(): string {
-  const PLUGIN_NAMES: Record<string, string> = { home: "项目首页", goals: "Goals", inbox: "Inbox", feed: "Feed", schedule: "Schedule", workflows: "工作流程", pages: "Pages", form: "Forms", dataset: "Dataset", ppt: "PPT", artifacts: "Artifacts", images: "图片", jelly: "Jelly", cognia: "Cognia", shelf: "Shelf", lingguang: "灵光", coding: "Coding", characters: "Characters", alchemist: "炼金术士", "plugin-builder": "插件创作", market: "插件市场", files: "Files", git: "Git", diff: "Diff", "text-stats": "Text stats" };
-  const plugins = Object.entries(PLUGIN_ICON).map(([id, glyph]) => `<li>${icon(glyph)}<span><strong>${PLUGIN_NAMES[id] ?? id}</strong><code>${glyph}</code></span></li>`).join("");
+/** One row of the icon inventory: a plugin (or surface of the workbench), its name, and the glyph it draws. */
+export interface CatalogPluginIcon {
+  readonly id: string;
+  readonly name: string;
+  readonly icon: PluginIconName;
+}
+
+/** The icon inventory: which glyph each plugin and each state uses, and the four sizes. The plugin rows are given by the workbench, from the Manifests. */
+function iconInventorySection(pluginIcons: readonly CatalogPluginIcon[]): string {
+  const plugins = pluginIcons.map(({ name, icon: glyph }) => `<li>${icon(glyph)}<span><strong>${name}</strong><code>${glyph}</code></span></li>`).join("");
   const sizes = [[12, "2", "说明文字、计数旁"], [14, "2", "行内、菜单、按钮"], [16, "2", "按钮、行首、标签"], [20, "1.6", "Dock、常驻入口、空态纸张"]]
     .map(([size, stroke, use]) => `<li><span class="mw-icon-size" style="--s:${size}px">${icon("target")}</span><span><strong>${size}px</strong><small>描边 ${stroke} · ${use}</small></span></li>`).join("");
   return section("icon-inventory", "图标清单", `<p class="mw-catalog__hint">全站一套 Lucide 线性图标，24 栅格，不混填充图标。每个插件一个互不重复的图标，Dock、插件切换、标签、市场、空态与搜索用同一个；状态图标语义固定，颜色只来自状态色调。</p>
@@ -195,12 +199,13 @@ function iconSection(): string {
   return section("icons", "图标", `<div class="mw-icon-lib">${groups}</div>`);
 }
 
-export function renderPrimitiveCatalog(): string {
+/** `plugins` fills the icon inventory's plugin rows; the design system keeps no list of plugins (PG-075), so omitted means none. */
+export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[] } = {}): string {
   const sections = `
     ${paletteSection()}
     ${typefaceSection()}
     ${iconSection()}
-    ${iconInventorySection()}${renderStateRingCatalog()}
+    ${iconInventorySection(options.plugins ?? [])}${renderStateRingCatalog()}
     ${craftSection()}
     ${motionSection()}
     ${arrivalSection()}

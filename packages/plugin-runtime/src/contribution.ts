@@ -16,7 +16,7 @@ import type {
 /**
  * Which redemption a start owes. A Plugin that runs both in the Home and in a project (S0-2) starts once in each, and
  * each half is `partial`: what it returns is still checked against the Manifest in full, but a declared view, route,
- * command, action or scene it leaves out belongs to the other half. Ports and events reach only project instances, so a
+ * action or scene it leaves out belongs to the other half. Ports and events reach only project instances, so a
  * partial half still answers them unless the Host says no project reaches it (`outside_project`). Without a scope every
  * declared item is owed.
  */
@@ -111,14 +111,6 @@ function assertHandlers(manifest: PluginManifest, contribution: PluginAppContrib
   }
   if (inputs.length > 0 && !contribution.onUpstreamReady && projectInputsOwed) {
     problems.push("声明了输入端口但没有提供 onUpstreamReady");
-  }
-
-  const commands = manifest.ui.commands ?? [];
-  if (contribution.executeCommand && commands.length === 0) {
-    problems.push("提供了 executeCommand 但 Manifest 没有声明命令");
-  }
-  if (commands.length > 0 && !contribution.executeCommand && !scope.partial) {
-    problems.push("声明了命令但没有提供 executeCommand");
   }
   return problems;
 }

@@ -7,7 +7,8 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, openProjectVersionStores, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openDatasetStore, parseCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { parseCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 

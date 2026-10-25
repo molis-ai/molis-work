@@ -4,7 +4,7 @@ import type { PluginDeployment, PluginExecutor, PluginInstanceRecord, PluginMani
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 
 import { pluginManifestDigest } from "./identity.js";
-import { validateManifest } from "./runtime-rules.js";
+import { assertRequiredGrants, validateManifest } from "./runtime-rules.js";
 
 /**
  * Why a confirmed install at another version may not reuse the private data an uninstall kept, or undefined when it
@@ -118,9 +118,23 @@ export function abandonRefusal(current: PluginInstanceRecord, installed: PluginI
  * that changes its effect elsewhere (`always_on`, a default wiring, a default input group) is not refused here for where the
  * plugin came from: it takes effect only with a consent on the ledger (`trust-rules.ts`), whatever the plugin's trust level.
  */
-export function validateInstalledManifest(manifest: PluginManifest, owners: readonly DeclarationOwner[] = []): void {
+export function validateInstalledManifest(manifest: PluginManifest, owners?: DeclarationOwners): void {
   validateManifest(manifest);
-  const refusal = declarationClaimRefusal(manifest, owners);
+  assertDeclarationsFree(manifest, owners);
+}
+
+/** Whoever the Host says declares the names the platform keeps one owner for, asked about the Manifest that wants to declare some. It throws when it cannot tell. */
+export type DeclarationOwners = (manifest: PluginManifest) => readonly DeclarationOwner[];
+
+/** What a start needs besides a running host: the grants its Manifest requires, and its names still being its own (S-76: a start is where an enable lands). */
+export function assertStartable(manifest: PluginManifest, grants: readonly string[], owners?: DeclarationOwners): void {
+  assertRequiredGrants(manifest, grants);
+  assertDeclarationsFree(manifest, owners);
+}
+
+function assertDeclarationsFree(manifest: PluginManifest, owners?: DeclarationOwners): void {
+  if (!owners || (manifest.artifacts.produces.length === 0 && !manifest.artifacts.links?.length)) return;
+  const refusal = declarationClaimRefusal(manifest, owners(manifest));
   if (refusal) throw pluginErrors.definition_conflict(refusal);
 }
 

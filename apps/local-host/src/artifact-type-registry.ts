@@ -72,6 +72,8 @@ export const HOST_ARTIFACT_PRODUCERS: readonly HostArtifactProducer[] = [
 export interface InstalledArtifactView {
   effectiveManifests(): readonly PluginManifest[];
   knownPluginIds(): readonly string[];
+  /** False once the project the supervisor belongs to has closed; a closed view has no installs in effect. */
+  alive(): boolean;
 }
 
 /**
@@ -95,22 +97,25 @@ class InstalledArtifactDirectory {
     return new Set(this.#ask(view => view.knownPluginIds()));
   }
 
-  /** A view that can no longer answer (its project's database has closed) has no installs in effect: it is dropped, not allowed to fail the reader. */
+  /** A view whose project has closed is dropped; any other failure of a view is the reader's to see. */
   #ask<T>(read: (view: InstalledArtifactView) => readonly T[]): T[] {
     return [...this.#views].flatMap(view => {
-      try { return [...read(view)]; } catch { this.#views.delete(view); return []; }
+      if (view.alive()) return [...read(view)];
+      this.#views.delete(view);
+      return [];
     });
   }
 }
 
 export const installedArtifacts = new InstalledArtifactDirectory();
 
-/** What a supervisor and its Runtime say is in effect: the Manifests of enabled installs that are not uninstalled, and every Plugin they have held. */
-export function supervisedArtifacts(supervisor: PluginSupervisor, runtime: PluginRuntime): InstalledArtifactView {
+/** What a supervisor and its Runtime say is in effect: the Manifests of enabled installs that are not uninstalled and have not failed to start, and every Plugin they have held. */
+export function supervisedArtifacts(supervisor: PluginSupervisor, runtime: PluginRuntime, alive: () => boolean): InstalledArtifactView {
   return {
+    alive,
     effectiveManifests: () => supervisor.enabledPluginIds().flatMap(pluginId => {
       const manifest = supervisor.manifest(pluginId);
-      return manifest && supervisor.installation(pluginId) ? [manifest] : [];
+      return manifest && supervisor.installation(pluginId) && (supervisor.state(pluginId)?.status ?? "running") === "running" ? [manifest] : [];
     }),
     knownPluginIds: () => [...new Set([...supervisor.states().map(state => state.plugin_id), ...runtime.list().map(record => record.plugin_id)])],
   };
@@ -137,22 +142,6 @@ export function artifactProducerSources(): readonly ArtifactProducerSource[] {
     ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, name: host.name, surface: host.surface, artifacts: { produces: host.produces, consumes: [] }, actions: host.actions })),
     ...effective.filter(manifest => !shippedIds.has(manifest.plugin_id)).map(manifest => sourceOf(manifest, manifest.plugin_id)),
   ];
-}
-
-/**
- * Who declares the 成果 types and link kinds on this Host, for the Plugin Runtime to refuse an install that declares one another
- * Plugin owns (S-70.2, S-70.3): the plugins this build ships (their names stay reserved while one is disabled), the Host's own
- * producers, and the plugins installed and in effect.
- */
-export function artifactDeclarationOwners() {
-  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ plugin_id: entry.manifest.plugin_id, artifacts: entry.manifest.artifacts }));
-  return [...shipped, ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, artifacts: { produces: host.produces } })),
-    ...installedArtifacts.effective().map(manifest => ({ plugin_id: manifest.plugin_id, artifacts: manifest.artifacts }))];
-}
-
-/** A Plugin this Host has held that is not in effect: nothing it declares is written any more (S-70.4). */
-export function artifactProducerRetired(pluginId: string): boolean {
-  return installedArtifacts.known().has(pluginId) && !installedArtifacts.effective().some(manifest => manifest.plugin_id === pluginId);
 }
 
 /** For each 成果 type, the plugins that declare they can continue from it. */

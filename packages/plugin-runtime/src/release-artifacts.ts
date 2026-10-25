@@ -1,4 +1,4 @@
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginManifestDigest } from "./identity.js";
 
 export interface PluginRuntimeReleaseArtifact {
@@ -111,4 +111,18 @@ function validateArtifact(artifact: PluginRuntimeReleaseArtifact): void {
 
 function artifactKey(pluginId: string, publisherSignature: string, version: string, manifestDigest: string): string {
   return `${pluginId}\u0000${publisherSignature}\u0000${version}\u0000${manifestDigest}`;
+}
+
+/**
+ * The Manifest an install record was started with, as the release archive in the same database kept it (null when no row is there:
+ * the plugin was started without a stored release). Reads only: the table is not created, so a database opened read-only works,
+ * and one that never ran a start has no table and answers null.
+ */
+export function readPluginReleaseManifest(db: Pick<PluginRuntimeReleaseArtifactDatabase, "prepare">,
+  record: Pick<PluginInstanceRecord, "plugin_id" | "publisher_signature" | "version" | "manifest_digest">): PluginManifest | null {
+  if (!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'plugin_runtime_release_artifacts'").get()) return null;
+  const row = db.prepare(`SELECT artifact_json FROM plugin_runtime_release_artifacts
+    WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`)
+    .get(record.plugin_id, record.publisher_signature, record.version, record.manifest_digest) as { artifact_json: string } | undefined;
+  return row ? (JSON.parse(row.artifact_json) as PluginRuntimeReleaseArtifact).manifest : null;
 }

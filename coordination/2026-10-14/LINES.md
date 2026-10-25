@@ -39,6 +39,12 @@
 > - `ac-clients-1`：PG-070、PG-071 叠在 #1288（146fce17d）上一个 PR，RAC-750～769；资源涨超 10 KB 或新增资源先问。
 > - `ac-platform`：#1291 一轮挡 2 项（号段改 RAC-730～740、S-80/81；S-75/76 的拒绝测试进 `test:security`）。
 
+> **10-25 晚 死机后恢复（用户：「恢复各会话和工作内容，同时注意对 CPU 的保护」）**：本机 10 核 16 GB，死机前同时有约 9 条线 + 统筹的 build/测试，另有 ac-platform 留下的 4 个 `host-pages-error-model` 孤儿进程（`--inspect`/堆采样、各 3 GB 堆，统筹已按 PID 停掉）。从现在起：
+> - **同时最多 2 条重开发线 + 1 条轻活线**（轻活=开 PR、写文档、只读评审，不 build、不跑测试）+ 统筹；一条线做完一组才放下一条。
+> - 测试一律 `--jobs 1`、只跑改到的非浏览器文件；不跑浏览器批、不跑全量、不在本机做堆采样/`--inspect`；同一会话同一时间只开一个后台测试或构建；build 由机器槽位排队。
+> - 现在在跑：`ac-platform`（#1291 修复）、`ac-giants`（#1294 修复）；轻活 `ac-sc3`（开 S9-3～S12 的 PR）。
+> - 排队（工作树里的未提交改动都在，按序放）：`ac-coding`（T7，15 个文件）→ `ac-kernel`（W5-10 agent-host + BL-541，15 个文件）→ `ac-registry`（PG-069 组，31 个文件）→ `ac-clients-1`（PG-070/071，51 个文件）→ `ac-sandbox-sched`（FI-3）→ `ac-shell`（已推 `claude/ac-shell-rest` 58e877b21，待开 PR）。
+
 ## 1a. 在途但不在上表任何一条线里的 PR
 
 | PR | 谁在推 | 管的 PG 行 |

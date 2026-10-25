@@ -5,8 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { Worker } from "node:worker_threads";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeStores, projectDeletedHooksFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, PLATFORM_PLUGIN_REGISTRATIONS, createPluginPlatform, homeStores, projectDeletedHooksFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
@@ -21,7 +20,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // project (`databases.home.project_rows`), and the platform deletes them with the project, on its own connection to that library,
 // running none of the plugin's code.
 
-const catalog: PluginRegistration[] = BUILTIN_PLUGIN_CATALOG as PluginRegistration[];
+const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
 const DECLARING = ["dataset", "form", "lingguang", "pages", "ppt", "todo", "workflows"];
 
 function withHome(t: TestContext): string {

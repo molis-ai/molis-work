@@ -83,9 +83,9 @@ test("W5-02-REG-02: --check names the package whose declaration and file disagre
 });
 
 test("W5-02-REG-02: --check refuses keys the contract does not have, at the top and in workbench", () => {
-  assert.match(problems(feed("  summary:", "  extra: true,\n  summary:")), /has key "extra", which PluginRegistration does not declare/);
+  assert.match(problems(feed("  manifest: feedManifest,", "  extra: true,\n  manifest: feedManifest,")), /has key "extra", which PluginRegistration does not declare/);
   assert.match(problems(feed("    order: 5,", "    order: 5,\n    placement: \"stage\",")), /has workbench key "placement", which PluginRegistration's workbench does not declare/);
-  assert.match(problems(feed("  summary:", "  ...{},\n  summary:")), /has a member that is not a plain property \(\.\.\.\{\}\)/);
+  assert.match(problems(feed("  manifest: feedManifest,", "  ...{},\n  manifest: feedManifest,")), /has a member that is not a plain property \(\.\.\.\{\}\)/);
   assert.match(problems(feed("  manifest: feedManifest,", "  manifest: feedManifest,\n  manifest: feedManifest,")), /repeats key "manifest"/);
   assert.match(problems(feed("  workbench: {", "  workbench: WORKBENCH, _: {")), /must give "workbench" an object literal/);
   assert.match(problems(feed("export const registration: PluginRegistration =", "export let registration: PluginRegistration =")), /must declare `registration` with const/);

@@ -1,4 +1,4 @@
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { clearInExistingHomeSqlite, describeSqliteBaseline } from "@molis-ai/molis-work-storage";
 
@@ -41,7 +41,7 @@ export function assertProjectRowsEntries(entries: readonly { readonly definition
     const library = definition.manifest.databases?.home;
     if (!library?.project_rows) continue;
     if (definition.execution === "sandbox") throw sandboxRefusal(definition);
-    if (scope === "project" && !BUILTIN_PLUGIN_CATALOG.some(entry => entry.manifest === definition.manifest)) {
+    if (scope === "project" && !PLATFORM_PLUGIN_REGISTRATIONS.some(entry => entry.manifest === definition.manifest)) {
       throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 声明了 project_rows：这个项目插件的 Home 库没有登记项目删除步骤（BL-620）`);
     }
     projectRowsStatements(library, definition.manifest.plugin_id);

@@ -529,9 +529,10 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     button.disabled = true;
     const station = button.dataset.placementCreate, goalId = button.dataset.goalId || null;
-    const names = { pages: L("文档"), ppt: L("演示稿"), form: L("问卷"), dataset: L("数据表") };
+    // What this kind is called is the title its plugin's view declares; the button carries it (goal-inputs-html.ts).
+    const kind = L(button.dataset.placementCreateTitle || "");
     try {
-      const result = await api("create", { station, project_id: here(), goal_id: goalId, request_id: crypto.randomUUID(), title: L("未命名") + (names[station] || "") });
+      const result = await api("create", { station, project_id: here(), goal_id: goalId, request_id: crypto.randomUUID(), title: L("未命名") + kind });
       invalidate();
       const section = button.closest("[data-placement-goal-materials]");
       if (section && result.goal_key) {
@@ -545,7 +546,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         if (!list) { list = node("div", undefined, "bound-list"); section.querySelector(".empty-row")?.replaceWith(list); }
         list.prepend(row); paintMaterials();
       }
-      card(L("已新建{kind}《{title}》", { kind: names[station] || "", title: result.title }), L("存到 {place}", { place: result.location.title }) + (goalId ? " · " + L("已关联到这个 Goal") : ""),
+      card(L("已新建{kind}《{title}》", { kind, title: result.title }), L("存到 {place}", { place: result.location.title }) + (goalId ? " · " + L("已关联到这个 Goal") : ""),
         result.open ? [{ label: L("打开"), primary: true, run: () => openObject(result.open, result.title) }] : [], "done");
     } catch (error) { card(L("没能新建"), error, [], "error"); }
     finally { button.disabled = false; }

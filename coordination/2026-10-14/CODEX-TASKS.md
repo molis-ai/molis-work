@@ -130,6 +130,7 @@ Hub实核：本轮27OPEN与7个>100files固定头全页均核。snapshot-sqlite/
 | C1 | W5-13 收尾：宿主日志与吞掉的错误（§2） | 原owner实现1保持；115/bf09已随batch34 actualdf552，#1231已closed，116/#1238已actual584，117/#1240修后2f双PASS待batch35，118/119/#1244已actual52560f32/本片闭环；C1整线未完成 |
 | C2 | W5-16：Home 快照与恢复（§2） | A/b521修后与e2d消费者各窄双PASS，待原Claude A载体/完整首评-full-actual；snapshot4f保SDK已知红，d8预案后Root已START同owner独立SDK外restore，指定hubs无须全体停工。SDK双root认证和独立Molis Memory合法空恢复能力各待原owner实际claim/固定交付，C2合法ledger组合继续；合法空态当前安全拒但RAC108仍未完，不缩完整C2/真实Home验收 |
 | C3 | W5-10 的一部分：官方集成与横向服务巨大单元（§2） | Gmail516已Claude6389882200吸收35；横向完整区#1252固定8abab965c1f75bfb1ae1f695530a5d1a1312309f，15files533/-412/4→0，source释放、TEST6390184579定向PASS，FIRST6390137797实际请求尚待。28unique205/真实IM与原/变SQL类型修证据保范围，2非直接browser/selector及full仅Claude；实现1 C4准备完成只余三项WO，不开未授第三C3域，C1/C3整体未完成 |
+| C4 | PG-095：Images、Jelly 的插件合同从平台 contracts 挪进各自插件（§2） | RAC-620～624，BL-617 | 10-25 统筹新派，未开工 |
 | C4 | W5-11 OAuth/连接器声明搬迁 | 原已授权下一独立片，实现1准备已完；仅3项可开工WO由Claude6390280424给号段/base/FI3叠层、OAuth与MCP/CLI范围、callback/X3签名。已有安全规则直接沿用，不等1252 CI/full；T1等级与R48分开，不自定政策 |
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
@@ -450,6 +451,16 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 2. `horizontal/{placement,search,listener-host}` 与 `packages/im-ui`。不含 `horizontal/memory`（等记忆那条链合完再拆）和 `horizontal/scheduler`（归另一条线）。PlacementService、SearchService 在包内拆（spec §1 N-03 决定：不搬包）。
 
 做法：`node scripts/check-health-gates.mjs --report --top 60` 看逐单元数字；拆法照 `docs/system/HUGE-CLASS-MIGRATION.md` 对每个单元的判定（单一职责的文案表、样式表、静态数据可以登记例外，但登记不放行新增，见 `AGENTS.md`）。公开 API 不变（`pnpm api:update` 后快照无差异，有差异就是拆错了）。拆完跑 `node scripts/check-health-gates.mjs --update --base origin/main`。只跑被拆文件直接相关的少量测试。
+
+### C4 PG-095：Images、Jelly 的插件合同挪进插件
+
+`packages/contracts/src/modules/images.ts`、`modules/jelly.ts` 只有各自的插件和少数测试在用（ac-registry 稿 `slices/w5-02-registry.md` §7 核过）。这一片把它们挪进插件自己的公开入口（例如 `./contract` 子路径），平台 contracts 里不再留这两份。
+
+- 包外的使用者只经插件的公开入口取，不改成 import 插件内部文件；测试同样走公开入口（测试引用包内部的数字只许减少）。
+- 删掉 contracts 的两个子路径：`pnpm api:update` 刷新快照，PR 写清对调用方的影响（`docs/system/CONTRACT-CHANGES.md`，不留兼容期）；动作 id 与 schema 不变，`pnpm actions:update` 应当没有差别，有差别就停下问统筹。
+- 不碰 `modules/shelf.ts`（主人定为 `modules/shelf`，归 BL-618，另排）和 `modules/alchemist.ts`（不迁）。
+- 开工前 `gh pr list --state open` 加 `gh pr diff <n> --name-only`，查有没有在途 PR 碰 Images、Jelly 的 Manifest 和 contracts 的这两份。
+- 一个 PR。本机只跑 build、health（--base）、boundary、secrets 和直接改到的非浏览器用例；`full` 交统筹组批。
 
 ## 3. 交回
 

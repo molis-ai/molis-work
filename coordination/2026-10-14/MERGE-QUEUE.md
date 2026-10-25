@@ -430,3 +430,15 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 - 10-25 03:25 UTC：ac-kernel 读口修复 `8873301c2`（`workspacesFor` 端口从目录库给，与 browsingWorkspace 处理器同一主人）并进 batch-35（`b361a8149`，local-host 构建恢复）；统筹要它再补一个提交：去掉宿主入口为测试导出的 `ProjectBrowsingSettings`（故障从端口注入）、`workspacesFor` 改必填。#1251（A2b）一轮可合，4 项不挡合并交 Codex；#1250（T1）一轮挡合并 1 项（`as unknown as` 0→1）+ 6 项不挡合并交 Codex，统筹裁官方集成等级为 `host`（6392849194）。
 - 10-25 03:40 UTC：**batch-34 落地** #1241 → main `df5527f27`（与批末端 `93176d8b5` 逐字一致，另含其间的 #1244）。8 个源 PR（#1227、#1228、#1226、#1229、#1232、#1231、#1230、#1234）已关并删分支；另删 carrier、fixture 修复分支、`claude/ac-coding-bl521-hook`（已含在 #1230）、本地 ac-batch34 工作树。privileges 的 PG-007、PG-017、PG-031、PG-037、PG-044 状态格已在 main。batch-35 先合 batch-34 末端（真实历史，无冲突）再合 main（8 个冲突文件 main 版本都等于 batch-34 末端，取 batch-35 一侧），`batch/1024-35` 已推；等 ac-kernel 的补充提交后统一 build 与快照刷新、开批 PR、起全量。已通知 ac-sandbox-sched 开 BL-490 PR、ac-kernel 推补充后开 X1～X4。
 - 10-25 03:55 UTC：batch-35 开批 PR #1258（`batch/1024-35` `927897a11`）。源 PR 7 个：#1239、#1240、#1242、#1243、#1247、#1249、#1250，另并入 ac-kernel 的组合修复 `8873301c2`、`60ef1b902`、`8d4c254cd`（目录端口改必填，coding-session-follow 等 3 个测试的装配改走测试动作服务）。本机组合修复的 3 个文件全过；health（--base）、boundary、secrets 都过。privileges：PG-034 已做；PG-001、004、005 改为进行中（T1）；PG-056 进度更新。本批没有新 S 号。全量在 `integration/carrier-1024-35`（run 40159810466）上跑，期间不往这个分支推。#1256（ac-kernel X1～X4）已派 ac-review 做一轮。
+- 10-25 04:05 UTC：设计稿审过两份。
+  - ac-registry `slices/w5-02-registry.md`（`09555b064`）：方向认可，顺序 A→B→C→D→E，A 现在开工。
+    - B 拆成两个 PR：B1～B3 一个，B4 单独一个。
+    - 成果类型五项留给 A3。
+    - `project_rows` 与 S-暂A 照稿批准，另加三条必改：只删自己那份库，表名不带库限定；沙箱插件的 Home 库要么按声明删、要么明确拒绝；label 转义显示，并写清运行中实例持有写连接时怎样删。
+    - PG-095 的 Images、Jelly 两份作 Codex C4（RAC-620～624，BL-617）。Shelf 合同的主人定为 `modules/shelf`（BL-618）。
+    - 根 `package.json` 的生成豁免比用户 10-19 批的宽，C 开工前弹窗问用户。
+  - ac-shell `slices/w5-06-shell-remainder.md`（`16a121329`）：四片认可，第 1 片开工。
+    - D1 每次读页面时现算；D2 只放外壳要用的声明，加不可信文本的转义（JSON 进 script 标签按 `\u` 转义，icon 只认图标集）；D3 用只读转换动作，结果体积写清；D4 BACKLOG 不补行；D5 目标输入的 `CREATE` 归第 1 片。
+    - 第 3 片的重启只给失败或被隔离的实例，停用的插件发 restart 要被拒。
+  - 两条线的端口对齐：ac-shell 的 `plugin_directory` 就是 B1 的渲染端口，B1 不另开一条。`web-goals-read.ts`、`plugin-catalog.ts`、`immersive-shell.ts` 同时在评审时照 §1a 同批落。
+

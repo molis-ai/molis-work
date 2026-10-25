@@ -140,7 +140,7 @@ binding: "installation" | "per_record"
 | X3 | 401 后刷新一次再重发一次（BL-350 的刷新一半），过期前预先刷新沿用各服务已有的做法；令牌端点明确拒绝时在宿主进程里标 `reauth_required`（见 §4.1） | X1 |
 | X4 | 项目里卸载时删这个安装在本项目的 `per_record` 绑定，删项目时删该项目的 `per_record` 绑定（项目删除钩子，`ProjectDeletionService` 的删除跑）；按安装的绑定卸载时不删，见 §4.1 与 BL-596 | X2 |
 | X5 | Feed 迁 Runtime 时改走 `services.connections`，删宿主的 `resolveConnection`、`defaultProviderFor` 里取钥匙的分支和 `catalog-connector.ts`；`sources` 建库基线改为第 3 节的形状 | X2、X3；随 PG-093 |
-| — | 人选账号的界面（S0b-2b） | X2；归界面线 |
+| — | 人选账号的界面（S0b-2b）：按安装的槽在「服务连接 › 插件用的账号」里选（已做，BL-350，RAC-653）；`per_record` 槽在插件显示记录的地方选，随 X5 | X2 |
 
 - **S0b-2a**：BL-350 写的前置「S0b-2a 的外联服务先合入」，就是已合入的 #1081（`e0fe39027`，S-57）。统筹 2026-10-24 确认，没有另一片。
 - **顺序**（统筹 2026-10-24）：X1 → X2、X3 → X4，都本地叠片；PG-007 排在 X4 之后。X5 随 PG-093。
@@ -152,6 +152,10 @@ binding: "installation" | "per_record"
 
 - **S 号**：X1 是 S-69，X2 是 S-71，X3 是 S-70（batch-36 合入时的实际号，统筹 2026-10-25 改）；合入那批由统筹按当时的末号再核。SI 表门禁要求号连续，分支上暂用本基线的下一号（X1 写 S-64，X2、X3 各写 S-65），合入时改，测试名同步改。
 - **租户来源（X1）**：目录连接器的连接今天不在宿主里钉来源（`assertTarget` 只给模型、生图、MCP），租户型的服务登记不了，拆成 BL-595，排在 X4 之后：先在连接时把来源钉进连接记录，再登记 Jira、Confluence、Salesforce。凭据不是 `Bearer` 写法的几家（Discord、GitLab、Figma、Linear、ClickUp、Monday）另开「凭据加法」一片；飞书、Lark、企业微信与飞书 CLI 归 W5-11。
+  - **已做（PG-045 非 OAuth 余项，ac-kernel）**：BL-595 与「凭据加法」一起做完。登记表的 `credential` 改成按连接种类写法（`{ token?, oauth? }`，取 `bearer`、`bot`、`bare`、`private-token`、`x-figma-token`、`basic`），`auth_methods` 并进它；租户型服务写 `tenant: { domain, gateway? }`、不写来源。连接时（`activateConnectorConnection`）把凭据核过的租户来源钉进 `connector_connection_targets`，在别的租户上重新授权先拒；请求只到钉住的来源，没钉的连接（之前存下的）拒、要重连，不补钉。Jira、Confluence 的 OAuth 令牌经宿主转到 Atlassian 网关，插件照写站点地址；`describe` 给租户型服务钉住的来源。插件不能自己写 `PRIVATE-TOKEN`、`X-Figma-Token`。测试 RAC-654～656（S-69 行）。
+  - **#1290 首评接续（2026-10-25，Codex 承接原件；实现与验证中）**：保留没有固定租户来源的账号和已有绑定，在「插件用的账号」的选项、当前绑定与请求拒绝中明确说明要重新连接确认站点，并提供现有重连入口；未选的旧账号可见但可禁选。重连成功后同一连接固定来源、恢复可用。租户槽没绑账号时明确说请求会被拒，固定来源服务仍允许原匿名请求。只用连接已有的 `target_origin` 等事实派生页面，`describe` 用已存在的 `reauth_required` 表达没有来源的已绑定账号；不另存状态、不改 schema/状态枚举。`bind@1` 资格与版本保持，绑定不保证可请求，客户端保存反馈也须准确，请求继续严格拒绝。RAC-653/654/657 覆盖真实隔离 Home、页面操作、零外发与重连后仅固定来源收到请求；浏览器回归为 `tests/connector-tenant-reconnect.e2e.test.ts`。
+  - **RAC-654 激活前拒绝**：租户服务带目标的授权若无法确定来源，在任何 secret、连接行、固定来源或协议配置写入之前以现有 `connector.connection.invalid` 拒绝；解析非法令牌或站点也只给此受控错误，不带材料或 catalog 内部错误。原连接、绑定、凭据与配置保持。同租户重连成功、异租户 `service_mismatch`、等待期间 revision 已变的拒绝均保留。直接调用生产激活入口的回归在 `tests/security-invariants-connection-activation.test.ts`，定向命令 `node scripts/run-tests.mjs tests/security-invariants-connection-activation.test.ts tests/security-invariants-connection-services.test.ts`；完整组合、全量与最终资源结算由 Claude carrier 接续。本题不含 OAuth C4、服务注册政策、Memory 或门禁预算修改。
+  - **现有重连调用链**：服务详情的「更换令牌」表单仍提交原连接的 PATCH；无 `setup_id` 时也经 `activateConnectorConnection`，与 `setup.submit` 最终提交共用来源检查和 pin，不能直接换密钥后让原账号继续没有来源。仅改名和启停保持原入口与行为。第一轮 UI 原贡献固定自 `3c15b41`，Codex 只接其余激活拒绝、这条必需链路与保存/describe 投影差异；不是另写一套设置页。
 - **GitHub 的刷新（X1）**：GitHub App 的用户令牌 8 小时过期，API OAuth 本来就能刷新，登记成 `refresh: "host"`。
 - **`per_record` 绑定的存法（X2，统筹定 ①）**：沿用 Home connectors 库的 `connector_bindings`，不改结构、不升版本。`scope_id` 本来就是不透明的作用域键，扩成「安装 / 项目 / 记录」仍在这一列的本义里，真实 Home 不受影响。四条防隐患的要求：
   1. 只有 connector-host 里一个函数拼、一个函数解 `scope_id`，别处不写这个字符串。插件只给记录键：限长，不含 `/`、`:` 和控制字符，不合的以错误码拒（有拒绝测试）。项目只从调用上下文来。
@@ -167,7 +171,7 @@ S 号按合入顺序取，下面写的都是暂定。合入时以 SECURITY-INVAR
 
 | 暂定号 | 管什么 | 拒绝测试（每条至少一个） | 验收编号 |
 | --- | --- | --- | --- |
-| S-69 | 请求服务只能由平台登记；来源精确，租户型服务取连接记录上的来源；只有 `bearer` | 未登记的服务被 SDK 拒；登记来源之外的地址被拒（匿名也拒）；租户型服务请求别的租户来源被拒 | RAC-346 |
+| S-69 | 请求服务只能由平台登记；来源精确，租户型服务取连接记录上的来源；凭据按登记的写法（BL-595 后不止 `bearer`） | 未登记的服务被 SDK 拒；登记来源之外的地址被拒（匿名也拒）；租户型服务请求别的租户来源被拒 | RAC-346 |
 | S-71 | `per_record` 槽的绑定只由人建，键是安装、项目、槽、记录键；插件只能解除，只能看到不含凭据的视图；卸载时删干净 | 非 `user` 调绑定被拒；绑没声明的槽被拒；跨项目、跨插件用不上；`describe` 里没有凭据引用；`release` 后匿名；卸载后重装不沿用账号 | RAC-347、RAC-348 |
 | S-70 | 刷新只在宿主做，401 后刷新一次、重发一次；重发前复核调用；刷新材料和新令牌不进插件能看到的任何地方 | 第二次 401 原样交回；重发前取消就不发，服务端请求数不增加；`refresh: "none"` 不刷新；刷新失败不匿名重发；答复、错误、日志里都没有令牌 | RAC-349 |
 

@@ -71,4 +71,6 @@ export interface PluginConnectionDescription {
   /** The account's display name, when bound. */
   readonly display_name?: string;
   readonly state?: "connected" | "reauth_required" | "disconnected";
+  /** For a service on each tenant's own origin (Salesforce, Jira, Confluence): the origin the account's requests go to, when bound. */
+  readonly origin?: string;
 }

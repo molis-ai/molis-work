@@ -121,6 +121,7 @@ export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";

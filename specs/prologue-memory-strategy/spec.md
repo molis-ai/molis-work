@@ -1269,3 +1269,15 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 完成证据：准确基础树的 71 处 dist 复制后，原 `computeBuildSourceDigest` 与 `.molis-work-build.json` 均为 `88168e8b7d1b9ddec5239c7904de36f787c230e22c71da03ad8d785c7fdc971a`，没有改写指纹或重建。最终测试补充 390px 恢复阅读时 Add 无矩形、真实 Back 后 Add 有矩形的断言；原 4 个 actions 用例及相邻 Prologue 6 项、Workbench 2 项共 3 文件 12 项全部首次通过，无跳过或重试（`/private/tmp/molis-cognia-final-green.log`）。修前原单例先绿、固定真实恢复交错后同形失败的证据均保留，不把偶发通过当根因修复。根类型检查和准确 `3a2dea91e` 增量健康门通过；最终窄屏截图 `.impeccable/qa/review/action-service/cognia-http-disabled-390.png` 已目视确认返回列表、添加材料可见、模型停用提示可见，且新增本地材料已保存。
 
 持久等待只读浏览器的 `molis-work-plugin-records:<projectId>` 输出；对应 `tab-workspace.ts` 中“按设备记住插件当前记录，重载重开；Back 清除”的既有导航合同，不读运行时闭包或写入存储来制造 ready。随后仍必须观察真实子页的材料标题与展开状态，返回后观察收起与可见性；存储观察不能代替 UI。未改生产源码、依赖、公共合同、资源、CI、门禁或 retry/timeout；未运行全量、远端 CI 或真实用户 Home，未声称最终 App 产品验收或用户验收通过。
+
+### #1064 大代码块 50ms 门槛失败诊断（2026-10-25）
+
+准确 `51a0c4ff96b8a3f68fc2e3553ca26f6477195e93` 的 Full suite `40201390414` shard 8 / job `121193118442` 在 `tests/code-scale.e2e.test.ts` 的 SYS-49/VUX-33 用例失败：75 片，最长 54.1ms，原一次重试仍失败；同文件其余 4 项通过。旧 d08 的 retry-only UNKNOWN 与 SYS-49 既往首帧布局超时保留，不用本机通过消除。
+
+只读调用链确认：现计时已经局限于生产 painter 的 RAF 回调及其后的 `code.getBoundingClientRect()` 强制布局，不是 RAF 间隔，也没有把其他回调执行时间直接混入。未改产品的本机单例 75 片最长 13.6ms；明确标注的 4 倍 CPU 降速诊断在同一阈值失败，首片 JS 4.3ms + 布局 53.3ms，另一片 JS 2.5ms + 布局 50.6ms。Chrome trace 显示布局根为整页 `#document`；采 trace 又改变时序，同步初始 paintInto 51.3ms、片内最长 39.7ms。以上只证明本机可出现布局预算失败，不能冒称已定位 Linux 那次 54.1ms 的具体原因，更不能据此归因为环境、字体或 GC。
+
+本刀最小合同：仅增强该现有用例的失败观察与本节；保留原样本、生产页面、全部断言、原 50ms 阈值与计时起止。原总耗时仍包括整个 callback 及强制布局，只额外记录中间时点以区分 JS 与布局；初始与逐片原始样本写入现有测试日志/忽略的评审目录，便于统筹从真实 CI 获取失败构成。不增 sleep、预先布局、空帧、retry、CI 设置或新的发布依赖；临时 CPU 降速与 trace 代码不进入提交。不做证据不足的生产优化，根因未闭合和最终 CI 仍明确待核验。
+
+诊断原始文件：`/private/tmp/molis-code-scale-baseline.{log,json,png}`、`/private/tmp/molis-code-scale-profile-4x.{log,json,png}`、`/private/tmp/molis-code-scale-traced-4x-captured.log`、`/private/tmp/molis-code-scale-4x-trace.json`，汇总 `/private/tmp/molis-code-scale-diagnosis.json`。均来自临时 Home、隔离 Chrome 和复用且已核验指纹的准确构建，没有真实 Home 或付费模型调用。
+
+候选观测补丁在原条件下跑完整 `code-scale.e2e` 5/5 通过、零跳过/重试；日志 `/private/tmp/molis-code-scale-observation-validation.log` 留存原始 75 片，最长 7.0ms。此结果仅证明观测补丁在本机仍通过原合同，**不是性能问题已修复**。原同步初始、每片 <50ms、至少15片、增量着色、回改、离页停止、400,000上限及真实 Coding/Assistant 重开等断言均原样保留；总计时起点仍在 step 前、终点仍在强制布局后，中间只多一次读时钟。末尾移除了候选中仅失败时额外抓图的一行，避免截图故障盖过原性能断言；真实失败构成由既有 diagnostic 日志与 JSON 提供，前述诊断截图保留。

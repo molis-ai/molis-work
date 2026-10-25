@@ -23,6 +23,8 @@
 
 项目半与 Home 半是同一个 Manifest、两个 `PluginDefinition`，与 Shelf 同形（`plugins/native/shelf/src/home-plugin.ts`）。
 
+**片 D 开工前发现的缺口（2026-10-25，未解决，已报统筹）**：上面的 `plugin.ts` 和 `home-plugin.ts` 都要在插件包里用到 `modules/goals`、`modules/governance-collaboration` 的代码（`GoalsModule`、`GovernanceCollaborationModule`、`GoalInputBindings`、`resolvePlanningMethodPacks` 与内置方法包、`PersonalPlanningMethods`），而边界规则 `plugin-upward-dependency` 不许插件包依赖 Module 包（名单 `PLUGIN_MODULE_IMPORT_ALLOWLIST` 只许减少，Goals 不在其中）。项目半还能勉强由宿主经 `createGoalsPlugin(kit)` 把构造器递进来（`nativePluginReleaseArtifact` 的 `restore` 本来就是这样注入端口的）；**Home 半不行**：`registration.runtime.create` 是无参的 `() => PluginDefinition`，宿主递不进东西，而 `goals.planning.personal.list` 的合同是返回「内置 + 个人」合成后的方法（要内置方法包和合成逻辑，`method-packs.ts` 352 行、`personal-methods.ts` 66 行，`GoalsPlanningEngine` 自己也在用）。所以片 D/E 在 S9-3（两个模块纯搬进 `plugins/native/goals`）之前做不成：要么 S9-3 提前到 D 之前，要么只为 Home 半把方法包代码复制一份。取舍交统筹。
+
 ## 3. 适配层：同步 SQL 怎样跑在插件事务回调里（核心）
 
 ### 3.1 要适配的表面（读完两个模块全部源码后的数字）

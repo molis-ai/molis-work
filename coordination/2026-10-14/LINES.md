@@ -78,7 +78,7 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-07 | 见矩阵一 | 收尾时统筹核 |
 | W5-08 | 部分 | Feed/Functions 出口 #1120 在途；`index.ts` 的 `export *` 归统筹（各族迁完） |
 | W5-09 | **已完成** | `agent-host.ts` 拆分 #591；`platform/plugin.ts` 拆分 #1118（`f8d1e5ba9`，10-23） |
-| W5-10 | 进行中 | 设计系统归 `ac-giants`；官方集成与横向服务归 Codex C3；agent-host 归 `ac-kernel` |
+| W5-10 | 进行中（10-25 改口径：本身合理的标明、不硬拆） | 设计系统归 `ac-giants`；官方集成与横向服务归 Codex C3；agent-host 归 `ac-kernel`（10-25 13:50 派：改代码只 `prologue-checkpoints`、`prologue-taskboard`、`agent-host-composition`；与 #1064 重叠的五个只在 HUGE-CLASS-MIGRATION 重判、代码等 #1064；之后 BL-541、BL-470，同一分支、整组一个 PR，RAC-658～669） |
 | W5-11 | 部分 | OAuth 移进官方集成插件（统筹 + Codex） |
 | W5-12 | 见矩阵一 | 收尾时统筹核 |
 | W5-13 | 进行中（RAC113/114切片已落地，非整体完成） | Codex C1；RAC113 #1183/f586、RAC114 #1213随#1215/1712（12:52:01Z）均真实合入，快回归子集登记实际CI已核；剩余宿主日志/错误片按原C1 owner及Claude后续派单继续 |

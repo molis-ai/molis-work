@@ -40,9 +40,12 @@ function run(repository: string, command: string, args: readonly string[]) {
   return result.stdout;
 }
 const build = (repository: string, project: string) => run(repository, process.execPath, [path.join(repository, "node_modules/typescript/bin/tsc"), "-p", `${project}/tsconfig.json`]);
+/** What one phase of tests/fixtures/probe-lifecycle.mjs saw; the fields the test reads into are typed, the rest are compared whole. */
+type Phase = { [step: string]: unknown; error?: string; project_id: string; database_path: string;
+  installation: { install_id: string; state: string; error: string | null; version: string; trust: string } };
 function phase(repository: string, home: string, ...args: string[]) {
   const stdout = run(repository, process.execPath, ["--disable-warning=ExperimentalWarning", path.join(repository, "tests/fixtures/probe-lifecycle.mjs"), args[0]!, home, ...args.slice(1)]);
-  const seen = JSON.parse(stdout.trim().split("\n").at(-1)!) as Record<string, any>;
+  const seen = JSON.parse(stdout.trim().split("\n").at(-1)!) as Phase;
   assert.equal(seen.error, undefined, seen.error);
   return seen;
 }

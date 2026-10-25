@@ -7,8 +7,7 @@
 //   node probe-lifecycle.mjs after-upgrade <home> <id>    the upgraded version and the notes it kept; disable, revoke, uninstall
 import { randomUUID } from "node:crypto";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { homeAgentDefinitions, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { runningProjectPlatform } from "../../apps/local-host/dist/project-plugins.js";
+import { homeAgentDefinitions, MolisWorkLocalHost, molisWorkHostProjectReference, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 
 const [phase, home, givenProject] = process.argv.slice(2);
 const PLUGIN_ID = "io.molis.work.probe", KEY = "probe";

@@ -9,7 +9,8 @@ import { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { AssistantThreadContext } from "@molis-ai/molis-work-contracts/services/assistant";
-import { createPagesCommentHandlers, openPagesStore, ownPagesStores, pagesCommentActions } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesCommentHandlers, ownPagesStores, pagesCommentActions } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 

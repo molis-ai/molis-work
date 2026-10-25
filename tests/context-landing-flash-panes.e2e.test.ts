@@ -2,7 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CONTEXT_TOOLBAR_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // specs/context-program §21.4 W3-A3c: hovering a way to put the thing in hand at the landing flashes that landing, also when

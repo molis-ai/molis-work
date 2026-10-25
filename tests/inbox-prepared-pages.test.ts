@@ -10,7 +10,7 @@ import type { PagesInputSnapshot } from "@molis-ai/molis-work-contracts/modules/
 import { createInboxActionHandlers, inboxActions, INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, type InboxActionEntry, type InboxPagesInput } from "@molis-ai/molis-work-plugin-inbox";
 import { createInboxPagesHandlers, inboxPagesRequestHash } from "@molis-ai/molis-work-plugin-inbox";
 import { createPagesActionHandlers, ownPagesStores, pagesActions, preparePagesImport, PAGES_ACTIONS } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { createHomeOfferHandlers, homeOfferActions, type HomeActionOffers, type HomeOfferExecutionInput } from "../apps/local-host/src/home-offer-actions.js";
 
 const inboxId = "io.molis.work.inbox", pagesId = "io.molis.work.pages";

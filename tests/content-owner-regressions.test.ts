@@ -10,7 +10,8 @@ import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
-import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, openPagesStore, ownPagesStores, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, ownPagesStores, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
 import { createCogniaActionHandlers, ownCogniaStores, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 

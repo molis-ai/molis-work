@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { Worker } from "node:worker_threads";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { pagesIn } from "./fixtures/pages-runtime.js";

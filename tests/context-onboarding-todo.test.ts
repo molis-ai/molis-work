@@ -36,7 +36,7 @@ async function fixture(t: Parameters<Parameters<typeof test>[1]>[0], todoModel: 
     actions: async (_home: string, projectId: string, original_file?: { path: string; install_id: string }) => {
       const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-      return bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], ...original_file ? { original_file } : {} }));
+      return bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["pages:read", "pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], ...original_file ? { original_file } : {} }));
     },
     homeActions: (_home: string, signal: AbortSignal) => bindActionClient(host.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: ["todo:read", "todo:write", "model:invoke"], signal })),
   };

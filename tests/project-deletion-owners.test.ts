@@ -7,7 +7,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, EN, L, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";

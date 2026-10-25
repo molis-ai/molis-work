@@ -21,7 +21,7 @@ export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERI
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
 export { pagesMethods } from "./methods.js";
-export { openPagesStore, ownPagesStores, PagesStore, PAGES_DATABASE, PAGES_HOME_STORE } from "./store.js";
+export { ownPagesStores, PagesStore, PAGES_DATABASE, PAGES_HOME_STORE } from "./store.js";
 export { createPagesPlugin } from "./plugin.js";
 export type { PagesSql, PagesSqlValue, PagesStores } from "./store.js";
 export type { PagesImportDocumentsInput } from "./store.js";

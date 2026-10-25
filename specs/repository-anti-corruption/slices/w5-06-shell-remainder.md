@@ -1,6 +1,6 @@
 # W5-06 外壳余项：页面读声明、运行时目录、项目插件重启入口、引导走 Pages 公开动作（PG-060、PG-088）
 
-状态：统筹已审、必改已补（2026-10-25）；第 1 片已实现（#1261，一轮评审可合）、第 2 片已实现（#1272，叠在 #1261 FIX3 上，随 batch-37 落）、第 3 片已实现、叠在第 2 片上，只推分支，第 4 片接着做。事实按 `origin/main`（`df5527f27`）重核。分四片，每片一个 PR，依次做。D1～D5 已裁定，见 §6。
+状态：统筹已审、必改已补（2026-10-25）；第 1 片已实现（#1261，一轮评审可合）、第 2 片已实现（#1272，叠在 #1261 FIX3 上，随 batch-37 落）、第 3 片已实现（分支 `claude/ac-shell-slice3`，叠在 #1272 上）、第 4 片已实现（分支 `claude/ac-shell-slice4`，叠在第 3 片上），两片都只推分支。事实按 `origin/main`（`df5527f27`）重核。分四片，每片一个 PR，依次做。D1～D5 已裁定，见 §6。
 
 验收编号：RAC-600～619（各片的区间见下）。BL 号段 BL-635～644（本稿暂未取用）。
 
@@ -14,7 +14,7 @@
 | BL-542 | 行在 `BACKLOG.md:180`。`renderPluginRail`（`immersive-shell.ts:114`）只读构建期目录；运行时装的插件宿主只给 `plugin_rail: {surface,label}[]`（`web-goals-read.ts:148-153`、`page-view.ts:22-23`），`group`、`creates`、`start`、`icon` 都不读。创作台生成的 Manifest 只有 `stage` 槽的视图（`plugin-builder/installed.ts:35`），今天没有插件会因此丢东西；第三方安装（ac-trust 一组）进来以后才露出来 | 并入第 2 片 |
 | BL-430 | BACKLOG 里**没有这一行**（只在 `spec.md` W5-06 第 3 片点名）。Home 插件：`/plugins/<id>` 页有「重试启动 / 启用 / 停用」按钮（`home-plugin-page.ts:49,61`），不可用占位带「查看插件状态」链接（`unavailable-plugin-stage.ts:15`）。项目级：占位只有一句「请检查插件状态后重新打开。」（同文件 `:16`），没有状态也没有重启入口。**重启的宿主路由已有**：`POST /api/plugins/<id>/restart`、`/release-quarantine`（`plugin-route-operations.ts:50-60`，项目与 Home 共用，只给工作台外壳、不给插件页面框架）；缺的是界面。`ac-kernel` 的在途 PR（#1242 R8）只碰 `project-plugins.ts`、`project-plugin-ports.ts`，没做这件事 | 第 3 片 |
 | PG-088 | 宿主的 Pages 文件、根路由、构建期装配都已删（#847）。剩 `apps/local-host/src/context-onboarding-service.ts:6` 同时 import `pagesActions` 与 `blocksFromMarkdown`：前者是调用公开动作（`:451,463` 经 `actions.invoke(pagesActions.importDocuments…)`，已是公开动作），后者是 Pages 内部的 Markdown→ProseMirror 转换（`:386-389` 的 `pageBody`）。没有直接开 Pages 的库 | 第 4 片 |
-| V-18（PG-088 的核对行） | `plugins/native/pages/src/store.ts:62` 的 `attemptsByDatabase` 仍是模块级 Map（键：库的 realpath），`openPagesStore` 在生产代码里没有调用者（只导出，测试在用） | 第 4 片开工前核对，见 §6 |
+| V-18（PG-088 的核对行） | `plugins/native/pages/src/store.ts:62` 的 `attemptsByDatabase` 仍是模块级 Map（键：库的 realpath），`openPagesStore` 在生产代码里没有调用者（只导出，59 个测试文件在用） | 第 4 片搬到包的 `./testing` 出口，见 §5 的 V-18 结论 |
 
 PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`renderer.ts:78` 的 Feed、Inbox、Schedule 页面视图模型表（FI 线，PG-034/093）、`immersive-shell.ts:91` 骨干顺序与 `RAIL_EXTEND_PLUGIN_IDS`（PG-074，ac-registry）、`web-request.ts` 的 feed、inbox、alchemist 根路由（FI 线、Alchemist 本轮不删）、Goals 舞台（S11，ac-sc3 的 Goals 计划）。
 
@@ -99,7 +99,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 做法（B，本稿建议；待统筹裁定，见 §6 的 D3）：Pages 加一个**只读的转换动作**（暂名 `pagesActions.bodyFromMarkdown`，`documents.body_from_markdown`，输入 `{ markdown }`，输出 `{ body: PagesBody }`，权限 `pages:read`），内部用现有 `blocksFromMarkdown`。引导的 `pageBody` 改成调用它（变成 async，`pageParts` 随之变 async 生成器）。可见范围：只给需要的调用者——`audiences: ["user"]`（引导走的是「人在新项目里的动作」），不写 Pages 其他动作默认的 `workflow`、`agent`、`mcp`（`actions.ts` 的 `define` 默认四个都给），所以不进 MCP 工具名单，Agent 与工作流程也调不到；Pages 自己的内容交接处理器不用它（它有自己的转换）。`define` 加一个可选的 `audiences` 参数，其余动作不变。
 
-**结果体积**（D3 补）：转换动作自己守 Pages 单文档正文上限（`document.ts` 的 `MAX_BODY_CHARS`，1,500,000 编码字符）：转换后超过就返回明确错误 `pages.body_too_large`（`error.ts` 里 `defineErrorCodes("pages", …)` 加一条，kind `invalid`），不截断、不返回超大结果。所以动作结果恒 ≤ 1.5 MB（核对过：Runtime 动作结果没有通用字节上限，所以由动作自己限）；输入 `markdown` 上限 400,000 字符（引导的初始部分大小，减半只会更小）。引导照旧按减半重试：转换返回 `pages.body_too_large`，或返回的正文编码后超过引导自己的 `PAGE_BODY_MAX`（1,400,000），都把这一部分从中间减半再转换；部分长度小于 2 时把错误抛出，与现在一致。拆分、「第 k / N 部分」标题、按编码体积减半重试、每部分一个 `request_id` 的幂等，全部留在引导里不变（那是引导的策略，且用户 10-22 定了「来源不设上限」）。
+**结果体积**（D3 补）：转换动作自己守 Pages 单文档正文上限（`document.ts` 的 `MAX_BODY_CHARS`，1,500,000 编码字符）：转换后超过就返回明确错误 `pages.body_too_large`（`error.ts` 里 `defineErrorCodes("pages", …)` 加一条，kind `invalid`），不截断、不返回超大结果。所以动作结果恒 ≤ 1.5 MB（核对过：Runtime 动作结果没有通用字节上限，所以由动作自己限）；输入 `markdown` 上限 1,000,000 字符（与 Pages 自己的 `markdown` 写入字段同一个数；原稿写 400,000，但引导的摘要页不拆分、整篇转换，摘要加资料来源行可以超过 400,000，收紧会让原来能存的摘要失败。结果体积仍由 `pages.body_too_large` 守住；统筹 2026-10-25 裁：准用 1,000,000）。引导的客户端权限列表加 `pages:read`（`web-onboarding.ts`）。引导照旧按减半重试：转换返回 `pages.body_too_large`，或返回的正文编码后超过引导自己的 `PAGE_BODY_MAX`（1,400,000），都把这一部分从中间减半再转换；部分长度小于 2 时把错误抛出，与现在一致。拆分、「第 k / N 部分」标题、按编码体积减半重试、每部分一个 `request_id` 的幂等，全部留在引导里不变（那是引导的策略，且用户 10-22 定了「来源不设上限」）。
 
 放弃的写法：(A) 给 `importDocuments` 的文档项加 `markdown` 字段——宿主就量不到编码后体积，减半重试要搬进 Pages，同时带着随界面语言的标题后缀，更大；(C) 做一个 Pages 负责拆分的 `importMarkdown`——同样要 Pages 知道标题后缀的语言。
 
@@ -114,11 +114,13 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 收口（RAC-619，统筹合入后做，不在片里改）：每片 PR 正文「privileges.md 状态」一节写好 PG-060（余项全部做完后「已做」，带 PR 与 RAC-600～618）和 PG-088（带 PR 与 RAC-615～618）该写的状态；统筹合入后统一改状态列（`SLICE-RULES.md` §2）。
 
+**V-18 结论（统筹 2026-10-25 裁）**：`attemptsByDatabase`（`plugins/native/pages/src/store.ts`）只被同一文件的 `openPagesStore` 用；`openPagesStore` 在生产代码里没有调用者（`plugin.ts` 按实例持有 attempts），测试里有 59 个文件、142 处调用把它当通用的开库入口（开工前核对时误记成 4 份，已更正）。所以不是死代码，但留在主出口上以后生产代码一调用就又是跨实例状态：选「搬到测试出口」——`openPagesStore` 连同 Map 移到新模块 `plugins/native/pages/src/testing.ts`，包 `exports` 加 `./testing`，主出口不再导出；59 个测试文件的 import 用一条可重跑的命令改（命令写在第 4 片 PR 正文里，批头重跑同一条）；边界规则 `plugin-testing-entry-import`（`packages/test-kit/src/boundaries.ts`）拒绝生产源码 import 任何插件的 `./testing`，或插件自己的其他模块 import 它的 `testing` 模块。
+
 ## 6. 统筹裁定（2026-10-25，已定）
 
 - **D1**：`plugin_directory` 每次读页面时从 Runtime 现算，不加缓存。
 - **D2**：只放外壳要用的那部分声明；运行时装的插件的文字一律当不可信文本，转义与 JSON 序列化的要求写进第 2 片（§3）和 RAC-605。
-- **D3**：选 B（只读转换动作）；结果体积与可见范围写进第 4 片（§5）和 RAC-617。
+- **D3**：选 B（只读转换动作）；结果体积与可见范围写进第 4 片（§5）和 RAC-617。输入 `markdown` 上限用 1,000,000（原稿 400,000），理由见 §5「结果体积」，统筹 10-25 裁准。
 - **D4**：BACKLOG 不补 BL-388、BL-430 两行；做完把点名它们的句子改写。
 - **D5**：目标输入的 `CREATE` 随第 1 片关掉；`ac-registry` 只做 PG-076 余下的三项（统筹已告知）。
 
@@ -128,6 +130,6 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 - 第 1 片：确认 `view.enabled_plugins` 在 `renderGoalInputsHtml` 的调用点可得；确认 `data-plugin-id` 过滤删掉后，项目首页在「只显示 Goals」时的行为与现在一致。
 - 第 2 片：运行时装的插件在项目 Runtime 里的取法（`platform.runtime` 的安装记录与 Manifest）与 Home 级插件的取法（`home-plugins.ts`）；创作台的 `installedPluginStages` 路径（`web-goals-read.ts:150`）是否随目录并成一条，还是保持（创作台本轮不删、可绕过，用户 10-23）。
 - 第 3 片：`supervisor.state()` 的 `code` 能否区分「被隔离」；外壳脚本里发 `POST` 的现成封装（`molisWorkRequest`）与控制令牌的取法。
-- 第 4 片：V-18——`attemptsByDatabase` 的实际使用者；`openPagesStore` 在生产代码里没有调用者，则这个模块级 Map 只剩测试在用，记结论（删导出或留作测试工具，提给统筹）；Runtime 动作的结果体积是否有上限（转换结果可达 1.4 MB 编码）。
+- 第 4 片：V-18——`attemptsByDatabase` 的实际使用者；`openPagesStore` 在生产代码里没有调用者，则这个模块级 Map 只剩测试在用，记结论（统筹 10-25 裁：搬到 `./testing` 出口，见 §5）；Runtime 动作的结果体积是否有上限（转换结果可达 1.4 MB 编码）。
 - 页面资源：每片跑 `pnpm page-assets:check`；增长写进 PR，涨超过 10 KB 或新增资源先发统筹。
 - 本机只做：`pnpm build`、`check-health-gates --base origin/main`、`boundary:check`、`page-assets:check`、`secrets:check`，以及直接改到的几份非浏览器用例；浏览器用例与全量交 CI 和统筹的批。界面改动只在一次性 Home 的预览里看版面，用完即停、删 Home。

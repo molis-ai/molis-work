@@ -27,6 +27,7 @@ export type BoundaryViolationCode =
   | "root-package-import"
   | "platform-reverse-dependency"
   | "plugin-implementation-import"
+  | "plugin-testing-entry-import"
   | "plugin-upward-dependency"
   | "production-test-kit-dependency"
   | "public-sdk-private-dependency"
@@ -135,6 +136,25 @@ function exportedSubpath(specifier: string, target: BoundaryPackage): string | n
   if (specifier === target.name) return ".";
   if (!specifier.startsWith(`${target.name}/`)) return null;
   return `./${specifier.slice(target.name.length + 1)}`;
+}
+
+/**
+ * A Plugin's `./testing` entry opens its data the way a test does (outside the Plugin Runtime). The sources the checker scans are
+ * all production, so an import of it from them, from another package or from the Plugin's own other modules, is a violation.
+ */
+function importsPluginTestingEntry(observation: ImportObservation): boolean {
+  const { importer, target, specifier } = observation;
+  if (specifier.startsWith(".")) return isPlugin(importer.kind) && /(?:^|\/)testing(?:\.js)?$/u.test(specifier);
+  return target !== undefined && isPlugin(target.kind) && exportedSubpath(specifier, target) === "./testing";
+}
+
+function testingEntryViolations(observation: ImportObservation): readonly BoundaryViolation[] {
+  if (!importsPluginTestingEntry(observation)) return [];
+  return [violation(
+    "plugin-testing-entry-import",
+    observation,
+    `${observation.specifier} is a test entry: production code opens a Plugin's data through the Plugin Runtime, never through its ./testing export`,
+  )];
 }
 
 function violation(
@@ -279,6 +299,8 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
       ),
     );
   }
+
+  violations.push(...testingEntryViolations(observation));
 
   if (!target || target.name === importer.name) return violations;
 

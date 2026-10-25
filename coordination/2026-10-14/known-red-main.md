@@ -10,7 +10,7 @@
 
 ## 当前已知红（2 个文件，batch-39 落地后清零）
 
-2026-10-25 20:20 UTC：batch-39 全量 40227692337（carrier `8cf538f28`，含 main `fc1e03c3c`）16 片 14 绿；两个红文件都是 main 自己的红，由 #1304 的 BL-305（`f59f0e4fa`）带进来、#1304 没跑全量（R-57）。修复在 batch-39 `9652a4dcc`、`9b47fadc5`，随 #1307 落地后删行。`code-scale.e2e` 首轮红重跑过，记偶发（计时）；batch-38 首轮红的 `cognia-actions.e2e`、`interaction-no-crosstalk.e2e` 这次首轮过。Linux probe 的覆盖缺口见 RISKS R-58。
+2026-10-25 20:20 UTC：batch-39 全量 40227692337（carrier `8cf538f28`，含 main `fc1e03c3c`）16 片 14 绿；两个红文件都是 main 自己的红，由 #1304 的 BL-305（`f59f0e4fa`）带进来、#1304 没跑全量（R-57）。修复在 batch-39 `9652a4dcc`、`9b47fadc5`，随 #1307 落地后删行。`code-scale.e2e` 首轮红、重跑过，原因 UNKNOWN（未查原件，不定性为计时）；batch-38 首轮红的 `cognia-actions.e2e`、`interaction-no-crosstalk.e2e` 这次首轮过。Linux probe 的覆盖缺口见 RISKS R-58。
 
 | 文件 | 带进来的 PR | 原因类别 | 谁修 | 依据 |
 | --- | --- | --- | --- | --- |

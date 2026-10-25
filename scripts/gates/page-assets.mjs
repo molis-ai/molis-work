@@ -237,9 +237,10 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// batch-38 (#1300, coordinator review 2026-10-25): PG-055 moves the shared UI parts from the design system into
-// plugin-sdk/ui so plugins and the workbench take one copy; the workbench bundle carries the moved modules' boundaries, +388 B.
-const APPROVED_CEILINGS = { "/assets/molis-work-workbench.js": [1124423, 1124811] };
+// batch-39 (#1298, coordinator review 2026-10-25): PG-049 adds the platform settings page 本机目录 (view and revoke the local
+// folders a plugin was granted, with each read), the user's decision; its view and client script ride in the workbench bundle
+// beside the other settings pages, reusing their renderer and embed binding, and its English joins FLOW_EN, +3,672 B over batch-38.
+const APPROVED_CEILINGS = { "/assets/molis-work-workbench.js": [1124423, 1127466] };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

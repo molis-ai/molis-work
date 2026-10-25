@@ -656,6 +656,7 @@ export interface AgentMemoryTools {
         scope: "personal" | "project" | "character";
         applies: string;
         note?: string;
+        candidate_id?: string;
     }>;
     list(): Promise<Array<{
         memory_id: string;

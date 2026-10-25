@@ -3936,6 +3936,14 @@ export interface RetainedActionAuthority {
     readonly assertCurrent: () => void;
 }
 
+export declare const SANDBOX_PACKAGE_FILES: {
+    readonly manifest: "manifest.json";
+    readonly entrypoint: "plugin.mjs";
+    readonly contract: "contract.json";
+    readonly interface: "interface.json";
+    readonly prompts: "prompts.json";
+};
+
 export declare const SEARCH_ENTRIES_INPUT_SCHEMA: {
     type: string;
     properties: {
@@ -4444,6 +4452,20 @@ export declare const SUBJECT_OFFER_SCHEMA: {
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 
 export declare const SURFACE_BROWSER_PERMISSION = "surface:browser";
+
+export interface SandboxPackageInterface {
+    parts: SandboxJson[];
+    nodes: SandboxJson[];
+    presentation?: SandboxJson;
+    acceptance?: SandboxJson[];
+}
+
+export interface SandboxPackagePrompt {
+    id: string;
+    title: string;
+    purpose: string;
+    body: string;
+}
 
 export type SceneConfigurationInput = {
     binding_id: string;
@@ -5034,6 +5056,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly manifest_invalid: "invalid";
     readonly package_invalid: "invalid";
     readonly permission_invalid: "invalid";
+    readonly preview_unknown: "not_found";
     readonly publisher_revoked: "invalid";
     readonly publisher_untrusted: "invalid";
     readonly quarantined: "invalid";

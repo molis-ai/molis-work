@@ -99,6 +99,16 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - **宿主启动时为没有监督器安装的常开插件（Goals）代为同意**（`always-on-plugins.ts` 的 `recordHostAlwaysOnAgreements`，由 Home 插件宿主启动时调用）：Goals 不在任何监督器里，没有人替它写账本行，本人就没有可撤的东西；写入同样遵守「已有一行（含已撤回的）就不再写」，查询不写。
 - 恢复了 `tests/feed-promote-reader.test.ts` 里「项目没有 Goals 时不显示升格」的一半：撤回 Goals 的常开同意、移除、阅读页没有升格入口（BL-585 里 Feed 那一行的一部分）。
 
+**T2 落地（2026-10-25，与 T5、T8 叠在 `claude/ac-trust-t8`）：**安装服务、预览与确认、发布者固定、`verifyPluginPackage` 接上、`plugin install` 命令（S-80，RAC-382/383/387/393）。
+
+- **沙箱包是公开格式**（统筹 10-25 裁定 A 的约束 1）：五个文件（`manifest.json`、`plugin.mjs`、`contract.json`、`interface.json`、`prompts.json`），字段写在 `docs/platform/PLUGIN-DEVELOPMENT.md`「沙箱包格式与安装」，类型在 contracts（`SANDBOX_PACKAGE_FILES`、`SandboxPackageInterface`、`SandboxPackagePrompt`）。读它的是 `apps/local-host/src/sandbox-package.ts`，不引创作台的任何实现；创作台发布现在也把 `parts` 写进 `interface.json`（它是这个格式的一个作者，仍走自己的 release 目录，BL-589 让它出签名包）。
+- **不是这个格式的包**（约束 2）：签名验过之后、写任何记录之前，以 `plugin.declaration_invalid` 拒绝；`tests/security-invariants-plugin-install.test.ts` 的 RAC-383 用例逐项断言 11 种不合格（多一个文件、缺 `prompts.json`、缺 `contract.json`、合同是另一个插件的、`interface.json` 多余键、没有 `parts`、零件读区域里没有的操作、组件不在可选范围、坏的 prompt、清单多一条路由、清单的视图被改）并确认没有固定的发布者、没有保存的包、没有安装。
+- **沙箱形态映射不了的声明**（§7 T2 的 CI 点）：沙箱清单只有一种形状（`sandboxPluginManifest`），所以沙箱包不可能声明常开、默认连线、默认输入组或本机目录；`declarationsNeedingConsent` 对它恒为空，预览里没有同意项可列。信任等级固定是 `pinned`，指纹就是清单的 `publisher.signature`（S-75 ① 检查）。
+- **保存与重新验证**：`SandboxPackageStore` 按（插件、发布者指纹、版本）寻址，写 `bundle.json` 和只读的 `plugin.mjs`；每次启动从包重建发布，重新验证签名、格式，并核对 `plugin.mjs` 字节等于签名的入口，不对就不运行（错误进该安装的恢复说明）。
+- **命令行**：`molis-work plugin install <包> <项目> [--pin-as 名称] [--confirm]` 经常驻 Host 的 `/api/internal/plugin-install` 做同样两个动作，来源 `management`；没有常驻 Host 就停下。
+- **FIRST-3 做完**：生成插件的停用、卸载在撤授权和删密钥之前先过 `leaveRefusal`；生成插件的平台现在接了 Home 账本（`PluginPlatformOptions.consents`）。
+- **没做**：C1 的另一个方向（BL-588）、沙箱包的作者工具与创作台出签名包（BL-589）、升级与换发布者密钥（BL-586，沙箱包就地升级现在是先卸载再装）、发布者撤销（BL-559，T5 的另一半）、界面（T7）。动作的登记（`registerPluginTrustActions`）今天在 `plugin-trust-actions.ts` 里用一个循环登记两个提供方，是否过 `registerProvider` 站点门禁等统筹裁定。
+
 ### 3.4 常开从安装记录生成（PG-004）
 
 - 常开名单按 Manifest 的 `always_on` 声明、同一发布者的有效同意（未撤回）与安装状态生成，不再有写死的 `"goals"`。T3 对宿主构建目录的只读投影在首次记账前使用构建担保，精确边界见 §7 的 T3 口径；不把第三方安装视为宿主构建。
@@ -292,7 +302,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 
 1. **RAC-401 / FIRST-1（Codex 修复13）**：常开名单使用只读连接；仅缺库或本发布者无常开行时，宿主构建目录提供原有担保，不创建目录、库、表或同意行。现存库必须符合当前版本和完整结构，损坏、空库、旧版本和形状不符不当成缺库。安装记录经 Plugin Runtime 的只读口读取，不调用建表的 Repository 构造器；每次求值重新打开并关闭，不保存账本缓存。三个拒绝入口和无守卫的 `stop` 保持。
 2. **FIRST-2（说明由修复13；实现 owner 原 ac-trust T5 与 T7/BL-585）**：RAC-400 只覆盖服务端；撤回动作在 T5，BL-585 与撤回入口同时或更早落地。此处未实现撤回动作和新界面。
-3. **FIRST-3（说明由修复13；实现 owner 原 ac-trust T2）**：T2 接账本时，生成插件的停用、卸载必须在撤授权和删密钥之前检查。此处未实现 T2。
+3. **FIRST-3（说明由修复13；实现 owner 原 ac-trust T2）**：T2 接账本时，生成插件的停用、卸载必须在撤授权和删密钥之前检查。T2 已做（上文「T2 落地」）。
 4. **FIRST-4（Codex 修复13）**：两条 RAC-386 的暂定 `S-X1` 改为 `S-34`，同步安全表中的真实测试名，不改原断言或其他 S 号。
 
 RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本：缺库答案；合法空账本不补账；撤回后反复读取不复活、人重新同意即时生效；安装状态变化即时生效；第三方未同意不被构建担保；现有非法库明确拒绝且不写。Host 启动仍落账、重启与撤回不复活复用 `tests/plugin-runtime-maintenance-v3.test.ts` 的真实 Host 路径。验证用整体 `pnpm build`（公共机器槽）、`node scripts/run-tests.mjs tests/security-invariants-always-on-records.test.ts tests/security-invariants-always-on.test.ts tests/plugin-runtime-maintenance-v3.test.ts tests/home-store-baselines.test.ts tests/project-plugins.test.ts`，以及改动包 README 必跑、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check` 和 fresh-fetch 后 `pnpm secrets:check`；只有实际合同变化才刷新快照。full 仍由唯一 Claude 组批，当前未操作真实 Home。
@@ -336,7 +346,7 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 
 ## 9. 待办
 
-BL-556～561 写在 `specs/BACKLOG.md`（T2～T7 各一行；BL-562 即 T8 已做完，行已删）；T1 的 BL-555 和 T1 开工前核 Home 库账本的 BL-563（结论在 §10 待定 4）都已做完，行已删；BL-564 空着。
+BL-557～561 写在 `specs/BACKLOG.md`（T3～T7 各一行；T2 的 BL-556 与 BL-562 即 T8 已做完，行已删；T2 余项是 BL-588、BL-589）；T1 的 BL-555 和 T1 开工前核 Home 库账本的 BL-563（结论在 §10 待定 4）都已做完，行已删；BL-564 空着。
 
 ## 10. 待定
 

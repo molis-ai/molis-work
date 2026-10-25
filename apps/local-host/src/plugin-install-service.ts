@@ -77,7 +77,7 @@ export class PluginInstallService {
     if (!pin) {
       const label = input.pin_label?.trim();
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');
-      if (label.length > 80) throw new ActionError('actions.invalid_input', '发布者的名称不超过 80 个字');
+      if (label.length > 80) throw new ActionError('actions.input_invalid', '发布者的名称不超过 80 个字');
       this.ports.ledger.pinPublisher({ key_id: held.key_id, public_key_spki_base64: held.spki, label, pinned_at: this.now(), pinned_by: who.actor_id });
     }
     const directory = this.ports.packages.save(held.bundle, held.pkg);

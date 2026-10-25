@@ -17,7 +17,7 @@ export interface SandboxManifestInput {
   /** Whether the plugin lays its pages out with the Host's page-composition renderer. */
   presentation: boolean;
   /** Versions this one upgrades from; empty or absent for a first release. */
-  compatibleFrom?: readonly string[];
+  upgradesFrom?: readonly string[];
 }
 
 export function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest {
@@ -26,7 +26,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     schema_version: 2, host_api_version: 2, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
-    ...(input.compatibleFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.compatibleFrom] } } : {}),
+    ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),

@@ -9,7 +9,8 @@ import { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { AssistantThreadContext } from "@molis-ai/molis-work-contracts/services/assistant";
-import { createPagesCommentHandlers, openPagesStore, ownPagesStores, pagesCommentActions, purgePagesProject } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesCommentHandlers, openPagesStore, ownPagesStores, pagesCommentActions } from "@molis-ai/molis-work-plugin-pages";
+import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 const body = (marked: boolean): PagesBody => ({ type: "doc", content: [{ type: "paragraph", attrs: { note: "保留块备注" }, content: [{ type: "text", text: "可定位的原文", ...(marked ? { marks: [{ type: "comment", attrs: { id: "mark-1", text: "保留原批注" } }] } : {}) }] }] });
@@ -37,7 +38,7 @@ test("PAS-02 PAS-09: Pages persists scoped threads, preserves annotations and no
     assert.deepEqual(store.comments.reply(page.id, first.thread_id, "a", { ...response, message_id: randomUUID() }), replied);
     assert.deepEqual(store.get(page.id, "a"), changed, "reply cannot overwrite a document edited during the run");
     store.close();store = openPagesStore(home);assert.deepEqual(store.comments.get(page.id, first.thread_id, "a"), replied);
-    purgePagesProject(home, "a");assert.throws(() => store.comments.list(page.id, "a"), /不存在|找不到/);
+    assert.equal(await projectDeletedHooksFor(home).clear("pages", "a"), true);assert.throws(() => store.comments.list(page.id, "a"), /不存在|找不到/);
     const raw = openHomeSqliteDatabase(home, "pages");
     try { assert.equal(raw.prepare("SELECT count(*) AS n FROM page_comments").get()!.n, 0, "project deletion removes the discussion rows, not just their visible parent"); }
     finally { raw.close(); }

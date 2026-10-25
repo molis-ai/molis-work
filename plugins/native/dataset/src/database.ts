@@ -1,4 +1,4 @@
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * The dataset store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
@@ -29,6 +29,15 @@ const DATASET_SCHEMA = `
   );
   CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 `;
+/**
+ * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its datasets go with their
+ * saved versions and the receipts of datasets made into it.
+ */
+const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Dataset 数据表", order: 30, tables: [
+  { table: "dataset_versions", column: "dataset_id", parent: "datasets" },
+  { table: "datasets", column: "project_id" },
+  { table: "dataset_receipts", column: "project_id" },
+] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const DATASET_DATABASE: PluginDatabaseDeclaration = { store_name: "dataset", version: 1,
+export const DATASET_DATABASE: HomePluginDatabaseDeclaration = { project_rows: DATASET_PROJECT_ROWS, store_name: "dataset", version: 1,
   read_permission: "dataset:read", write_permission: "dataset:write", schema: DATASET_SCHEMA };

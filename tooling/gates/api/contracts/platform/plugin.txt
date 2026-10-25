@@ -2225,6 +2225,7 @@ export interface HomeOpenTarget {
 
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
     readonly partition?: "project";
+    readonly project_rows?: PluginProjectRowsDeclaration;
 }
 
 export interface HomeStoreDeclaration {
@@ -3634,6 +3635,22 @@ export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransact
 }
 
 export type PluginProjectRow = Record<string, null | number | string>;
+
+export interface PluginProjectRowsDeclaration {
+    readonly label: string;
+    readonly order?: number;
+    readonly tables: readonly PluginProjectRowsTable[];
+}
+
+export type PluginProjectRowsTable = {
+    readonly table: string;
+    readonly column: string;
+} | {
+    readonly table: string;
+    readonly column: string;
+    readonly parent: string;
+    readonly key?: string;
+};
 
 export interface PluginProjectStatement {
     readonly sql: string;

@@ -70,7 +70,7 @@ test("RAC-130 every word the Todo page says has a stable key with both languages
     assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
   }
   assert.ok(used.size > 200, "the page's keys were found");
-  const dynamicOwners = new Set(["actions.ts", "organize-actions.ts", "home-events.ts", "search.ts", "project-data.ts"].map(file => "plugins/native/todo/src/" + file));
+  const dynamicOwners = new Set(["actions.ts", "organize-actions.ts", "home-events.ts", "search.ts", "database.ts"].map(file => "plugins/native/todo/src/" + file));
   for (const key of Object.keys(TODO_EN)) {
     assert.ok(scan.calls.some(call => call.key === key && call.file.startsWith("plugins/native/todo/"))
       || scan.files.some(file => dynamicOwners.has(file.file) && file.mentions.has(key)), `${key} must have a Todo translator or an existing dynamic declaration owner`);

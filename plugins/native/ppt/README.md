@@ -31,7 +31,7 @@ JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME �
   - 大纲弹窗的一次请求只采用它开始时的演示稿、编辑版本与输入；关闭/Escape 中止该请求，迟到回包不能清空后来的输入或关掉重开的弹窗。
   - 冲突保留当前输入，并阻止发布、导出和离开。
   - 发布保存固定快照；中断后恢复原版本并保留后来的编辑。
-  - 项目被删除时宿主按目录条目上的 `project_data`（`pptProjectData`，`src/project-data.ts`：确认框里的标签与 `purgePptProject`）调用清掉演示稿，连同复制回执；只读库文件，库不存在时不创建，重复运行没有副作用。
+  - 项目被删除时平台按 Manifest 里 Home 库的 `project_rows`（`src/database.ts`：确认框里的标签与要删的表）删掉演示稿，连同复制回执；插件的代码不参与，平台在自己的连接上删，库不存在时不创建，重复运行没有副作用（PG-024）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/ppt-actions.test.ts tests/ppt-mcp.test.ts tests/ppt-client-bundle.test.ts tests/creative-tools-plugins.test.ts tests/creative-artifact-promote.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts`
 - 大纲等待、标题页与弹窗定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-editing-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；provider 停用由目录注册的 disposer 模拟，不代替真实 Host Catalog 停用）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。

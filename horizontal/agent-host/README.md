@@ -261,6 +261,10 @@ verifyPurgeCoverage 是内部无正文薄桥；inspection authority 只取真实
 
 ## MEM-40 冷维护 Session 清除
 
+冷 Memory 桥另接受可选 `purgeInspection`（原 operationId、整 Home knownScopes、只读 Session selections）与 `memoryPurges`（原 ref/identity/expectedVersion/子 operationId/selection 完整 tuple）。打开时克隆固定，拒重复 ref 或当前 scopes 外目标，不接受后续追加。`purgeMemoryTarget({ref,signal?})` 仅选择固定 tuple 并调用 SDK 原 purgeMemory；独立 session-purge 权限全 tuple 匹配，preview 许可不能授写。调用方必须先持久化原计划再创建受控 writer；旧采用清理口不变，不向 LocalHost 暴露 SDK storage/Runtime 或完整 Backend。
+
+两冷入口提供 `verifyPurgeCoverage`；维护桥补 `inspectMemory` / `previewMemoryPurge`。宽 knownScopes 只进入隐藏的真实 existing-only coverage reader，普通条目权限恒拒绝；当前项目的普通读写仍守原 scopes。维护检查每次新开真实 SDK reader，避免写后沿用旧版本；异步读取后复核原 current/取消，close 失败留下句柄，由原 close 重试，所有读资源与 SDK 关闭成功后才发布、归还父 owner。参数与返回沿 SDK 原无正文类型，covered 不证明正文健康或删除完成，unknown 不当空。不存在新 operation 注册表、删除核或配置。硬授权不可关闭，用户确认仍由原 App 删除决定负责。直接真实正式包回归为 `tests/prologue-memory-cold-bridge.test.ts`，已通过14项工程验证；连同原 adoption、Session、Index 与父 owner 影响面共9文件162项通过。外层冷 Memory owner、完整恢复和用户验收尚未完成。
+
 `openPrologueMemoryAdoption` 可固定 `sessionPurges`，`purgeSessionTarget({session})` 仅执行该集合。独占 owner 内重核真实 Index/SDK 原决定，经在线共用 purge 用例保存 prepared、SDK 原清除、sdk-complete 与最小 Index complete；重试不换 owner/operation/version/preview。缺 Index、未知 owner、absent 或不一致的 SDK termination 拒绝。原空集合行为保留，未选对象不参与执行；inspection 的 `inspectSession` 仅映射 SDK 无正文 canonical 读取。
 
 整 factory signal/current/close 覆盖存储提交，不增加单次取消假口。无普通 Runtime 启停、模型、空 effects 或第二状态机；在线 quiet/cleanup/effects、preparePurge/purgeWaits 和当前准入仍由原主人执行。最终 Index 逐字段构造，未知附加属性也不保留。此为 MEM-40 前置，缺失 Index 的完整联结与恢复验收仍待上层实现。直接回归 `tests/prologue-session-cold-purge.test.ts`，保留 lifecycle、cache、inspection、adoption 与开发要求的影响面。

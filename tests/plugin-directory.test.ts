@@ -9,12 +9,15 @@ import test from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_VIEW_GROUPS } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, releaseProjectPlugins, runningPluginDirectory, seedDemoBoard,
+  DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, createPluginPlatform, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, releaseProjectPlugins, runningPluginDirectory, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import {
   BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinPluginDirectory, clientPluginDirectory, creatableKinds, homeStarts,
-  pluginDirectoryFor, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry,
+  islandEntries, pluginDirectoryFor, railEntries, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, settingsEntries, type PluginDirectoryEntry,
 } from "@molis-ai/molis-work-app-workbench";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { defineWorkflowContentActions } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
@@ -59,7 +62,7 @@ function withGoal<T>(directory: readonly PluginDirectoryEntry[], run: (render: (
   } finally { store.close(); rmSync(folder, { recursive: true, force: true }); }
 }
 
-const unescape = (value: string) => value.replaceAll("&quot;", '"').replaceAll("&#39;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
+const unescape = (value: string) => value.replaceAll("&quot;", '"').replace(/&#0?39;/gu, "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
 const directoryData = (html: string) => /<script type="application\/json" data-plugin-directory>([^]*?)<\/script>/u.exec(html)![1]!;
 const homeStartList = (html: string) => JSON.parse(unescape(/data-work-surface="home" data-home-starts="([^"]*)"/u.exec(html)![1]!)) as Array<{ id: string; title: string; hint: string; glyph: string }>;
 const createButtons = (html: string) => [...html.matchAll(/data-placement-create="([^"]*)" data-placement-create-title="([^"]*)"/gu)].map(([, station, title]) => ({ station, title: unescape(title!) }));
@@ -112,6 +115,89 @@ test("RAC-605 what is taken into the directory is held to plain keys, one line o
   assert.deepEqual(entries.find(entry => entry.id === "odd-view")!.ui.views.map(declared => declared.view_id), ["okay"], "a view the Host does not define is dropped");
   assert.equal(entries.find(entry => entry.id === "long")!.name.length, 80);
   assert.equal(entries.find(entry => entry.id === "group")!.ui.views[0]!.group, undefined);
+});
+
+test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps its own shell views and leaves the market entry intact", async () => {
+  const folder = mkdtempSync(join(tmpdir(), "directory-publisher-")), database = join(folder, "project.db");
+  seedDemoBoard(database); const store = new LocalProjectDatabase(database);
+  const ports = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
+  const platform = createPluginPlatform({ db: store.db, project_id: DEMO_PROJECT_ID, actor_id: "tester", actions: pluginActions(store, DEMO_PROJECT_ID),
+    artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(), home: null,
+    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
+  const builtin = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "pages")!;
+  const pluginId = builtin.manifest.plugin_id;
+  const station = defineWorkflowContentActions({ id: "publisher-notes", title: "Other notes", icon: "note", subject_kind: "note", read_permissions: [], write_permissions: [], create: true });
+  const stationActions = [station.list, station.read, station.receive, station.create];
+  const definition: PluginDefinition = {
+    manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Other publisher", kind: "app",
+      publisher: { publisher_id: "directory-fixture", signature: "different-publisher-signature" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+      permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: stationActions,
+      ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: "Other publisher", icon: "note", group: "make",
+        creates: { station: "publisher-notes", title: "Other note" }, start: { title: "Start other publisher", hint: "Keep this publisher's surface" } }] } },
+    async start() { return { kind: "app", actions: stationActions.map(action => ({ ...action, handle: () => assert.fail("Reading the directory must not invoke business actions") })),
+      views: [{ descriptor: { contribution_id: `${pluginId}.main`, plugin_id: pluginId, kind: "primary-page", label: "Other publisher", slots: [] }, render: () => "<section>Other publisher</section>" }] }; },
+  };
+  try {
+    assert.notEqual(definition.manifest.publisher.signature, builtin.manifest.publisher.signature);
+    const report = await platform.start([{ definition }]);
+    assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []); assert.ok(report.running.includes(pluginId));
+    const running = runningPluginDirectory(platform.supervisor);
+    assert.deepEqual(running.map(entry => [entry.id, entry.plugin_id, entry.chosen]), [[pluginId, pluginId, false]], "the real Host directory does not grant the built-in key or trust to a different publisher");
+    assert.equal(running[0]!.personal, undefined); assert.equal(running[0]!.always_on, undefined);
+    const directory = pluginDirectoryFor(running), market = builtinPluginDirectory().find(entry => entry.id === "pages")!;
+    assert.deepEqual(directory.find(entry => entry.id === "pages"), market, "a different Runtime key does not remove the not-running built-in market entry");
+    const rail = railEntries(["pages"], directory);
+    assert.deepEqual(rail.filter(entry => entry.label === "Other publisher").map(entry => [entry.id, entry.surface, entry.chosen]), [[pluginId, pluginId, false]]);
+    assert.deepEqual(creatableKinds(["pages"], directory).filter(entry => entry.station === "publisher-notes"), [{ id: pluginId, station: "publisher-notes", title: "Other note" }]);
+    const start = { id: pluginId, title: "Start other publisher", hint: "Keep this publisher's surface", glyph: "note" };
+    assert.deepEqual(homeStarts(["pages"], directory).find(entry => entry.title === start.title), start);
+    const html = renderMolisWorkWeb({ ...view(running), enabled_plugins: ["pages"] });
+    assert.ok(html.includes(`data-plugin-tile="${pluginId}"`), "the actual rail points to this publisher's shell surface");
+    assert.equal(html.includes(`data-plugin-toggle="${pluginId}"`), false, "sharing a Manifest id does not turn it into a built-in project choice");
+    assert.equal(headingOf(html, pluginId), "写与做");
+    assert.deepEqual(homeStartList(html).find(entry => entry.title === start.title), start, "the real page's start data keeps the same owner key");
+  } finally {
+    await platform.closeCoordination();
+    for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);
+    store.close(); rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test("RAC-605-KEY-02 equal Manifest ids retain each entry's slots, chosen state, view identity and the original ordering", () => {
+  const pluginId = "io.molis.work.example.shared";
+  const entry = (id: string, chosen: boolean, order: number): PluginDirectoryEntry => ({ id, plugin_id: pluginId, name: id, chosen, ui: { views: [
+    { view_id: "main", slot: "navigator", title: `${id} nav`, order },
+    { view_id: "island", slot: "island", title: `${id} island`, order },
+    { view_id: "details", slot: "side", title: `${id} details`, order },
+    { view_id: "preferences", slot: "settings", title: `${id} settings`, order },
+  ] } });
+  const alpha = entry("alpha", false, 4), beta = entry("beta", true, 2);
+  const stage: PluginDirectoryEntry = { id: "stage-runtime", plugin_id: pluginId, name: "Stage runtime", chosen: false,
+    ui: { views: [{ view_id: "main", slot: "stage", title: "Stage view", order: 0 }] } };
+  const other = installed("other", { order: 3 });
+  const directory = pluginDirectoryFor([alpha, stage, other, beta]);
+  const rail = railEntries(["beta"], directory);
+  assert.deepEqual(rail.map(item => [item.id, item.label, item.chosen]), [["beta", "beta nav", true], ["other", "Notes", false], ["alpha", "alpha nav", false], ["stage-runtime", "Stage runtime", false]]);
+  assert.deepEqual(railEntries([], directory).map(item => item.id), ["other", "alpha", "stage-runtime"], "only chosen entries need membership; other running entries still open their own stage");
+  assert.deepEqual(islandEntries(["beta"], directory).map(item => [item.id, item.label]), [["beta", "beta island"], ["alpha", "alpha island"]]);
+  assert.deepEqual(settingsEntries(["beta"], directory).map(item => [item.plugin_title, item.plugin_id, item.view_id, item.contribution_id]),
+    [["beta", pluginId, "preferences", `${pluginId}.preferences`], ["alpha", pluginId, "preferences", `${pluginId}.preferences`]], "shell keys do not rewrite Manifest or contribution identity");
+  const tie = pluginDirectoryFor([entry("z-first", false, 1), entry("a-second", false, 1)]);
+  assert.deepEqual(railEntries([], tie).map(item => item.id), ["z-first", "a-second"], "equal order, Manifest id and view id retain declaration order, rather than sorting by shell key");
+  const copied: PluginDirectoryEntry = { ...entry("copied-runtime", false, 1), name: "Same name", ui: { views: [{ view_id: "main", slot: "navigator", title: "Same title", order: 1 }] } };
+  assert.deepEqual(railEntries(["copied-market"], pluginDirectoryFor([copied, { ...copied, id: "copied-market", chosen: true }])).map(item => item.id),
+    ["copied-runtime", "copied-market"], "identical untrusted names and view declarations still belong to their own shell keys");
+});
+
+test("RAC-605-KEY-03 only a sanitized Runtime entry overrides its matching market key", () => {
+  const market = builtinPluginDirectory().find(entry => entry.id === "pages")!;
+  const valid: PluginDirectoryEntry = { ...market, name: "Running pages", ui: { views: [{ view_id: "main", slot: "navigator", title: "Running pages" }] } };
+  const invalid: PluginDirectoryEntry = { ...valid, plugin_id: 'bad"id' };
+  assert.deepEqual(pluginDirectoryFor([invalid]).find(entry => entry.id === "pages"), market, "a rejected entry cannot hide the valid market fallback");
+  const directory = pluginDirectoryFor([invalid, valid, { ...valid, name: "Duplicate" }]);
+  assert.deepEqual(directory.filter(entry => entry.id === "pages"), [valid], "the first valid Runtime declaration wins over duplicate keys and market data");
+  assert.equal(railEntries(["pages"], directory).find(entry => entry.id === "pages")?.label, "Running pages");
+  assert.equal(railEntries([], directory).some(entry => entry.id === "pages"), false);
 });
 
 test("RAC-619 the Host's marks (personal, always_on, companions) are kept only as exact values on a chosen entry", () => {

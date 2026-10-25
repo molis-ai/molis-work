@@ -77,6 +77,24 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 碰的文件（预估）：`apps/workbench/src/{plugin-catalog,immersive-shell,shell-page-renderer,page-view,primitive-catalog}.ts`、`scripts/client/{global-search,placement,initialization}.ts`、`apps/local-host/src/web-goals-read.ts`（在途 #1242、#1251 也改它）、`skills/molis-plugin-dev/ui.md`。可能要 `pnpm api:update`（若 `MolisWorkWebView` 的 `plugin_rail` 换名属公开导出，核对后定）。删 BL-542；`primitive-catalog.ts:24` 与 `slices/w5-06-shell-plugin-rows.md`、`spec.md`、`EXTENSION-POINTS.md` 里点名 BL-388 的句子改成已做。
 
+### 3.1 FIRST 第 1 项：相同 Manifest id 的目录键与视图归属（FIX1）
+
+状态：已实现并完成本地工程验证，待独立 REVIEW/TEST；唯一源 `ab34bc79b6168cd87c419ce025eb899a5149dbd7`（#1272）。FIRST6394942921 已指出：不同发布者可以使用同一 `plugin_id`，Host 给它们不同外壳键；市场补回未运行的内置项后，`placedViews` 的 `Map<plugin_id, entry>` 会把 Runtime 的视图归到后面的市场键。目标是保留原目录与 UI 语义，修复这些视图的主人，而不是按 Manifest id 认内置信任。
+
+目录先清洗，再按有效条目的外壳键排除市场重复项。各条目分别经现有 `UiViewRegistry` 解释，保留其外壳键、`chosen`、视图与贡献 id，再按原先的 `order → plugin_id → view_id` 顺序组合；不同键不因共享 Manifest id 而互相覆盖，也不删除另一发布者的市场入口。只改 `plugin-catalog.ts` 中目录组合和视图映射、`tests/plugin-directory.test.ts` 与本节；不动 B1 标记/权限/信任、内置 blocked 产品行为、FIRST 第 2～4 项或作者后续片。
+
+- **RAC-605-KEY-01**：真实临时 Plugin Runtime 运行一个与内置项同 Manifest id、不同发布者签名的插件，经 `runningPluginDirectory → pluginDirectoryFor → rail/creates/start/真实页面` 仍用其自己的外壳键，未获内置 `chosen` 或标记；未运行内置项的市场条目保留，标题与入口不串到它。
+- **RAC-605-KEY-02**：同 Manifest id 的两个有效不同键逐条保留 navigator/island/side/stage 的归属，视图 id 与默认贡献 id 不改，顺序仍为原排序。`chosen` 条目受 enabled 控制，非 chosen 的运行项保持可见；不同 Manifest id 的合法条目照旧。
+- **RAC-605-KEY-03**：只有清洗后有效的 Runtime 条目优先于同键市场项；无效项不能遮掉市场项。已有重复键、文本/图标/slot 清洗及不可信文本转义断言完整保留；本片不改变清洗或信任合同。
+
+先在未改生产代码的 `ab34` 构建上运行真实回归留红，再修复、整体构建后同用例留绿。按 workbench README 跑必跑非浏览器文件，加目录/视图声明相关回归、health 对照 `origin/main`、boundary、页面资源与 fresh-fetch secrets。整机 FIFO、有限份数；不跑 full 或本机浏览器、不碰真实 Home。固定独立候选直交 REVIEW、TEST、PIPE/Root，双核后才接下一题。
+
+本地验证（FIX1，2026-10-25）：离线安装、`ab34` 整体构建通过。未改生产代码时，`red-confirmed.log` 原 8 项通过、新 3 项失败：真实 Runtime 视图变成 `pages/pages/chosen=true`、重复 Manifest id 覆盖条目、无效条目遮掉市场。
+修复后整体构建通过，目录文件 11/11；README 18 个必跑文件及目录函数的直接消费方另 31 文件 376/376，合计 **32 个唯一非浏览器文件、387 项通过，0 fail/cancel/skip**。
+首次接线错误（测试入口未导出、夹具缺内容站声明）保留原件，不算业务红；首次绿跑 10/11 检出测试 HTML 解码器漏认生产输出的 `&#039;`，补齐单次解码，原断言和不可信文本要求未放宽。
+health 对照 `origin/main` 的 merge-base `3817f875`、正式 boundary（70 包无错误）及页面资源检查通过；27 项资源未增长，快照、预算和门禁未改。原件在 `/tmp/molis-plugin-publisher-views-20261025/`；提交后另做 fresh-fetch secrets 并固定双核。
+没有 full、浏览器点击或用户验收，其他三条 FIRST 不挡项仍不在本片。
+
 ## 4. 第 3 片：项目级 Runtime 插件的状态与重启入口（BL-430，RAC-612～614）
 
 不新增页面（插件只提供内容、挂在工作台位置，不出整页）。做法：项目级不可用占位（`unavailable-plugin-stage.ts` 的 `scope: "project"` 分支）在原因下面加两样：

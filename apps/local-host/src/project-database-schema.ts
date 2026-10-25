@@ -30,7 +30,7 @@ import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-setting
  * Goals' and Governance's tables are not here either: Goals declares them (S8).
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 9,
+  version: 10,
   schema: [
     PROJECT_ROOT_SCHEMA_SQL,
     ARTIFACTS_SCHEMA_SQL,

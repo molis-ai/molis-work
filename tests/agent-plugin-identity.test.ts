@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { composeAgentHost } from "@molis-ai/molis-work-app-local-host";
-import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
-import { PluginRuntime, createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginHostExecutor, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
+import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -33,7 +33,7 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
   const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, store, artifacts }), close: () => {} } });
   let modelCalls = 0;
   t.mock.method(globalThis, "fetch", async () => { modelCalls++; return cogniaModelResponse("Original owner result"); });
-  const composition = composeAgentHost({ localHost: { registerCapability: local.register.bind(local), registerAction: local.registerAction.bind(local), client: local.client.bind(local) } as any,
+  const composition = composeAgentHost({ localHost: { registerAction: local.registerAction.bind(local), client: local.client.bind(local) } as any,
     workspaceFor: () => ({ workspace_id: "workspace", canonical_path: home, realpath_verified: true }),
     prologue: { storageRoot: join(home, "runtime"), modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" } });
   const contexts: PluginStartContext[] = [], definitions: PluginDefinition[] = [];
@@ -49,14 +49,14 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
     definitions.push(definition); return definition;
   };
   const actions = { registry: local.actionRegistry(project), client: { ...local.actionClient(project), ...local.syncActionClient(project) }, project_id: project.project_id };
-  const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), capabilities: local.client(project),
+  const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), dependencyCheck: hostDependencyCheck(local.client(project)),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const runtime = new PluginRuntime(undefined, executor);
-  const first = runtime.install({ definition: make("io.molis.work.example.own-agent"), deployment: "local", grants: [] }).install;
-  const second = runtime.install({ definition: make("io.molis.work.example.other-agent"), deployment: "local", grants: [] }).install;
+  const first = runtime.install({ trust: { level: "unsigned" }, definition: make("io.molis.work.example.own-agent"), deployment: "local", grants: [] }).install;
+  const second = runtime.install({ trust: { level: "unsigned" }, definition: make("io.molis.work.example.other-agent"), deployment: "local", grants: [] }).install;
   try {
     await runtime.start(first.install_id); await runtime.start(second.install_id);
-    const a = contexts[0]!, b = contexts[1]!, api = a.services!.capabilities!, other = b.services!.capabilities!;
+    const a = contexts[0]!, b = contexts[1]!, api = a.services!.actions!, other = b.services!.actions!;
     const owner = { project_id: project.project_id, plugin_id: a.plugin_id, install_id: a.install_id, actor_id: "web-user", directory: { canonical_path: home, realpath_verified: true } };
     assert.deepEqual(await api.invoke(agent.availableRoles, ["prologue"]), [{ role_id: "private-reader", available: true }], "the caller's own roles");
     const forged = { ...owner, plugin_id: "io.molis.work.coding", install_id: "forged-install" };
@@ -65,13 +65,12 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
     await assert.rejects(api.invoke(agent.createSession, ["prologue", { ...forged, title: "Forged" } as never]), invalid);
     // RAC-182: nor is the plugin whose roles are read; naming one is an input the action does not take.
     await assert.rejects(api.invoke(agent.availableRoles, ["prologue", "io.molis.work.coding"] as never), invalid);
-    const forgedOptions = { plugin_caller: { ...forged, project_id: project.project_id, assertActive() {}, declaration: { manifest: definitions[0]!.manifest } }, consumer: undefined };
-    // A caller in the call options is not the plugin's to give either: its SDK drops it, and the session is the plugin's own.
-    const unforged = await api.invoke(agent.createSession, ["prologue", { ...place, title: "Forged options" }], forgedOptions);
+    const forgedControl = { beforeEffect: async () => {}, host_plugin: { ...forged, project_id: project.project_id, assertActive() {}, declaration: { manifest: definitions[0]!.manifest } } };
+    // A caller in the call's control is not the plugin's to give either: its SDK drops it, and the session is the plugin's own.
+    const unforged = await api.invoke(agent.createSession, ["prologue", { ...place, title: "Forged options" }], forgedControl);
     assert.deepEqual((await api.invoke(agent.readSession, [unforged])).owner, { project_id: project.project_id, plugin_id: a.plugin_id, install_id: a.install_id, actor_id: "web-user" });
-    const bareSdk = createPluginCapabilityClient(definitions[0]!.manifest, local.client(project));
-    // An SDK the Host did not bind to an installation presents no caller: the action service refuses it before the Agent Host is asked.
-    await assert.rejects(bareSdk.invoke(agent.createSession, ["prologue", { ...place, title: "Unbound SDK" }], forgedOptions), { code: "actions.forbidden" });
+    // The Host's own project client is no plugin's: it calls as the person, and the plugin-only Agent action refuses it before the Agent Host is asked.
+    await assert.rejects(local.client(project).invoke(agent.createSession, ["prologue", { ...place, title: "Unbound client" }]), { code: "actions.forbidden" });
     assert.equal(modelCalls, 0);
     const session = await api.invoke(agent.createSession, ["prologue", { ...place, title: "Owned" }]);
     const view = await api.invoke(agent.readSession, [session]);
@@ -92,8 +91,9 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
     const queueWait = new Promise<void>(resolve => { releaseQueue = resolve; });
     const stopReady = new Promise<void>(resolve => { stopEntered = resolve; });
     stopWait = new Promise<void>(resolve => { releaseStop = resolve; });
-    const blocker = { capability_id: "fixture.hold", version: 1, operation: "command" as const };
-    local.register(blocker, async () => { queueEntered(); await queueWait; });
+    const blocker = { capability_id: "fixture.hold", version: 1, operation: "command" as const, action: { title: "Hold", description: "Hold the project's line",
+      kind: "operation" as const, scope: "project" as const, audiences: ["user" as const], permissions: [], subject_kinds: [], input_schema: { type: "object" } } };
+    local.registerAction(blocker, async () => { queueEntered(); await queueWait; });
     const holding = local.client(project).invoke(blocker, {}); await queueReady;
     const queued = api.invoke(agent.createSession, ["prologue", { ...place, title: "Queued before stop" }]);
     // A stopping installation's calls are refused: by the SDK once it is stopped, or, now that these are actions, by the action

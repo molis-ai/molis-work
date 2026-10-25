@@ -7,7 +7,7 @@
 import type { PluginDefinition, PluginInstanceRecord, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentBuilderPorts, AgentRelease } from './installed-plugin-host.js';
-import type { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
 import type { PluginSecrets } from './plugin-builder/secrets.js';
 import { changeInstalledVersion } from './installed-plugin-version.js';
@@ -90,7 +90,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
    */
   const install = async (release: AgentRelease, grants: Grants) => {
     const pluginId = release.pluginId, secrets = secretsOf(grants.secrets, release);
-    const entry = { definition: c.definition(release, release.permissions), grants: ['storage:private'] };
+    const entry = { definition: c.definition(release, release.permissions), grants: ['storage:private'], trust: UNSIGNED_TRUST };
     const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
     const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
     const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;

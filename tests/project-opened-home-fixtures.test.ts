@@ -10,7 +10,8 @@ import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/wor
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOST_WORKSPACE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
-import { openPagesStore, pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { PluginHostEvents } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -144,7 +145,9 @@ for (const fixture of ["serveHomeRuntime", "openTestHome"] as const) {
       const { opened } = observe(t);
       const f = await open(t, fixture, { workspacesFor: fault === "missing" ? undefined : () => { throw new ActionError("actions.connection_required", "directory unavailable"); } });
       const project = await f.project("opening diagnostic"), base = pagesPath(project.project_id);
-      const code = fault === "missing" ? "actions.dependency_missing" : "actions.connection_required";
+      // With no folder port the Host registers no browsing-folder action: since the typed channel went (R8, #1242), asking an
+      // unregistered action is refused as `actions.missing`, the action service's code for it.
+      const code = fault === "missing" ? "actions.missing" : "actions.connection_required";
       const response = await post(f, base, " ".repeat(1_000_001));
       const id = response.headers.get("x-molis-work-call-id");
       assert.ok(id, "an opening failure actually wrote a diagnostic in this request");

@@ -21,15 +21,15 @@
 | --- | --- |
 | 拆 | 路线（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）里有一片负责拆它，写片号；大多数是 W5-10，见 §2 |
 | 归线 | 路线里别的整改线会让它消失或换形态，写任务书的节号和片号：§4.8（改需求、修 bug、调交互的便利：浏览器代码打包、删旧皮肤）、§4.7（多人并行：热点聚合文件改成各主人自己登记，如翻译词典按主人分）、§4.6（扩展点与插件装配）、§4.3（分层与边界：能力机制、宿主瘦身） |
-| 例外 | 单一职责而必然很长（文案表、样式表、静态数据、生成代码）；登记在 `tooling/gates/giant-exceptions.json`，带理由，由门禁校验 |
+| 例外 | 本身合理、只做一件事而很长（文案表、样式表、静态数据、生成代码，或内聚的状态机、解析器、协议适配这类拆开反而把一件事散到几处的单元）；在 `tooling/gates/giant-exceptions.json` 标明，带理由和实测大小，由门禁校验。巨大单元不硬拆（用户 2026-10-25 定）：只有混了几件事的才判“拆” |
 
 **例外的门禁规则**（`scripts/check-health-gates.mjs`，用例在 `tests/health-gates-merge-base.test.ts`）：
 
-- 条目的键与 `baseline.json` 里的单元键相同（`file …`、`class …#名`、`function …#名`），值是 `{ kind, reason }`。`kind` 取 `translation-table`、`stylesheet`、`static-data`、`generated-code` 之一；`reason` 至少 20 个非空白字符，写明为什么拆开反而更糟。
+- 条目的键与 `baseline.json` 里的单元键相同（`file …`、`class …#名`、`function …#名`），值是 `{ kind, reason, size }`。`kind` 取 `translation-table`、`stylesheet`、`static-data`、`generated-code`、`cohesive-unit` 之一（最后一个给内聚而很长的代码单元）；`reason` 至少 20 个非空白字符，写明这个单元做的是哪一件事、为什么拆开反而更糟；`size` 是门禁量出的大小：文件与函数写行数，类写 `{ "lines": …, "methods": … }`。
 - 条目必须对应一个现存的巨大单元。拆小了、改名了、删了，条目要在同一个 PR 里跟着改，否则门禁报“条目已过期”；所以登记表随清单一起缩小。文件改名时条目改成新键；搬动的同时又大改，git 认不出改名，会被算成新单元，所以先搬后改，分两个 PR。
-- **登记不放行新增**：对 merge-base 不是巨大单元的，不管有没有登记都按新增失败。登记表和代码在同一个 PR 里，登记要是能放行，那个 PR 加一个超长单元再加一条理由就过了，而评审请求并不强制（决定：SSOT 与 CODEOWNERS 的负责人，spec §1 2026-10-07）。登记只记“这个已经超限的单元必须长”的理由，不是通行证；所以新写的、必然很长的单元在 PR 里没有登记这条路，见 §4。
-- 已登记的单元和所有巨大单元一样，只许变小；已记录单元的增长不因登记放行。
-- 条目的增删和 `limits.json` 一样落在 `tooling/gates/` 下，在 CODEOWNERS 里请求负责人评审（不强制）；但它不是改数字的入口：登记既不放行新增，也不放行增长。
+- **标明的单元放行新增与变大**（用户 2026-10-25 定）：条目齐全、`size` 等于实测的单元，对 merge-base 是新的也好、变大了也好，门禁都放行。`size` 与实测不等的条目什么都不放行，并且按绝对规则失败（不看 merge-base）：所以单元每变一次大小，PR 里都要把新数字写进条目，大小的变化落在 `tooling/gates/` 的 diff 里、由评审看见，不会悄悄长大。
+- 没有标明的巨大单元照旧：对 merge-base 是新的就失败，变大了也失败；拆到阈值以下也仍是出路。
+- 条目的增删和 `limits.json` 一样落在 `tooling/gates/` 下，在 CODEOWNERS 里请求负责人评审（不强制）。评审按改门禁的标准看：理由里写的事实要能在代码里查到，“懒得拆”不是理由，混了几件事的单元要拆。
 
 ## 2. 现状
 
@@ -208,19 +208,27 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 
 本轮定向结果（2026-10-24）：原 `ef71a03c1` 实现上三项新回归为 1/3，无接收者依赖的正控通过，两项实例方法用例均在真实生产 `settleReview` 丢接收者失败；最小修复后同三项 3/3，通过真实决定与原错误对象验证。整体构建、24 个必要回归文件、边界及对合并基点 `112114f23` 的健康检查通过；未增加内部导入、未改公共 API、基线或门禁，也未重新拆其他单元。原四文件的逐片证据保留，本轮结果交独立复查与共同集成，不代替 full 或实际合并。
 
+R-38 第 2 片的恢复守卫补修（PR #1273 FIRST 第 2 项，2026-10-25，Codex，恢复守卫定向工程验证通过，待独立复查与集成）：固定源 `d97df5ab75fb21dc445d1aea0abf56ea117d61aa` 在装配 `guardedRecovery` 时展开 Runtime，丢失原型 getter 并冻结当时的 `checkpoints` 引用，可能让随后正在回退的会话被关闭。只改 `adapters/prologue.ts` 装配、`prologue-adapter-capabilities.ts` 参数与读取、现有 `tests/prologue-recovery.test.ts` 及本段；保留原 Runtime 对象，恢复能力单独传入，`close` 决策当刻读取原对象的 `checkpoints.busy(session)`。不改公开 API、SDK、Memory、其他 FIRST 项或上述拆分表状态。
+
+输入仍为原会话引用、轮次 id 与预期版本；忙碌时返回原 `agent.session_busy`，不调用底层关闭、不写恢复状态或重载缓存；解除忙碌后返回底层报告，并按原顺序清除会话缓存、重载现状。会话/子任务归属、`startingSessions` 互斥与 `try/finally` 释放、原错误及失败状态保持。目标仅为该问题的定向工程修复，独立复查与共同集成后再裁决，不代表 R-38、W5-10 或整条防腐线完成。
+
+验收：**R38-RECOVERY-LIVE-01** 通过真实 `PrologueAgentAdapter.recovery.close`，原型 getter 提供的当前 busy 状态必须拒绝，底层关闭零调用、恢复状态零写；**R38-RECOVERY-LIVE-02** 同一 adapter 构造后替换 `runtime.checkpoints` 为 busy 也必须拒绝，不能读构造时快照；**R38-RECOVERY-LIVE-03** 两种端口解除 busy 后均可合法关闭并重载当前会话，原错误会话/轮次拒绝、并发互斥及恢复失败投影回归保持。先在固定源运行新增回归并保留首次失败，再做最小修复；整体 `pnpm build` 后运行恢复、检查点和 Agent Host README/Skill 要求的定向用例，执行 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check`。构建与浏览器批次遵循公共 FIFO，不启动 full 或真实 Home。
+
+本轮验证：最终同版三项回归在独立 `d97` 源码上 1 通过 / 2 失败（均为应拒绝却放行），候选 3/3 通过；修后首次两次运行另暴露新增断言误把即时 busy 当固定值、把空轮次当 `undefined`，按现行合同改为 busy 为真、空轮次为 `null`，原失败日志保留，生产补丁未再改。整体构建、边界及对合并基点 `3817f875` 的健康检查通过，无门禁或基线改动。README/Skill 的 84 个非浏览器文件通过（574 项通过、2 项既有 npm/MiniMax opt-in 跳过）；4 个浏览器文件首次 2 通过 / 2 失败，完整日志保留。升级授权的本地 HTTPS 400/TLS 断开在 `d97` 同样失败；`W2-18-BUILDER-LATE-01` 首次等待 ready 超时，而 `d97` 同文件 42/42 通过，原因未确定，不以时序概括，也不把扩展回归记为全绿。独立复查与统一 full 另行裁决。
+
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
 | `adapters/plugin-builder.ts` | `createPluginBuilderAgent` 函数 204 行<br>`run` 函数 153 行 | 已拆（W5-10，R-38 第 1 片） | 已做：代码角色的权限钩子（`frozenAuthority`）、`plugin-checks`（`pluginChecks`）、Skill 挂载、截图入库、事件记账、重启时标记中断的记录各成模块级函数，`run` 只剩执行顺序。原计划：`run` 里 `execution` 一段 127 行，另有 `guard`（5）、`record`（3）；`createPluginBuilderAgent` 里 `authority` 16 行。执行体、守卫、记录、权限各成函数。`run` 内嵌在 `createPluginBuilderAgent` 里（同一段计两次）。 | 5 |
-| `adapters/prologue-action-gateway.ts` | `prologueActionGateway` 函数 174 行 | 拆 · W5-10 | `executors` 表（51 行）、`invoke`（30）、`tools` 装配（24）各成函数；`memoryExecutors`、`delegationExecutors` 已是模块级函数，和 `executors` 放进同一个目录。 | 4 |
-| `adapters/prologue-checkpoints.ts` | `createPrologueCheckpoints` 函数 221 行 | 拆 · W5-10 | `capability` 对象 125 行：`busy`、`restore`、`context` 等方法各抽成函数，`context` 里拼“宿主的实际操作记录”提示文字的一段单独成文件；`restore`（30）、`document`、`settle`（各 15）已是独立块。 | 1 |
+| `adapters/prologue-action-gateway.ts` | `prologueActionGateway` 函数 174 行 | 已在阈值以下（R-38 收尾核对，2026-10-25） | 现 148 行（函数阈值 150），门禁 `--report` 已不列，不再拆；以后再长超过阈值时照原计划拆。原计划：`executors` 表（51 行）、`invoke`（30）、`tools` 装配（24）各成函数；`memoryExecutors`、`delegationExecutors` 已是模块级函数，和 `executors` 放进同一个目录。 | 4 |
+| `adapters/prologue-checkpoints.ts` | `createPrologueCheckpoints` 函数 221 行 | 已拆（W5-10，R-38 第 2 片） | 已做：审查预览（`rewindDocument`）、结果收口（`settleRewind`）、给下一轮的回退记录（`rewindContext`）、列检查点（`sessionCheckpoints`）、把人的决定送到 SDK（`answerRewind`）各成模块级函数，主函数只留会话状态与恢复。原计划：`capability` 对象 125 行：`busy`、`restore`、`context` 等方法各抽成函数，`context` 里拼“宿主的实际操作记录”提示文字的一段单独成文件；`restore`（30）、`document`、`settle`（各 15）已是独立块。 | 1 |
 | `adapters/prologue-git.ts` | `createPrologueGitReviews` 函数 188 行 | 已拆（W5-10，R-38 第 1 片） | 已做：人工核对的绑定搬到 `prologue-git-recovery.ts`（`bindGitRecovery`），`requestOf`、读审查归属、结果收口成模块级函数。原计划：返回的对象 72 行、`bindRecovery` 50 行、`restore` 23 行；操作各成函数，恢复绑定独立成文件。 | 2 |
 | `adapters/prologue-mcp.ts` | `createPrologueMcpLibrary` 函数 232 行 | 已拆（W5-10，R-38 第 1 片） | 已做：读配置、关连接、视图、凭据解析、按传输方式建配置、连接、两种校验、已连接工具各成模块级函数，共用状态经 `McpState` 传入。原计划：`library` 对象 165 行：`list`、`save` 等方法各成函数，`save` 里按传输方式（stdio、http）的分支各成校验函数；`refreshSelected`（13）、`view`（10）随各自的操作。 | 2 |
 | `adapters/prologue-messages.ts` | `createSessionMessages` 函数 170 行 | 已拆（W5-10，R-38 第 1 片） | 已做：发信钩子（`guardSessionSend`）、给收信轮的文字、给人看的视图成模块级函数。原计划：只超 20 行。返回对象 85 行、钩子注册 33 行、`unsubscribe` 21 行；把钩子注册与返回对象分成两个函数。 | 0 |
-| `adapters/prologue-stream.ts` | `applyPrologueEvent` 函数 304 行 | 拆 · W5-10 | `applyPrologueEvent` 是一个 298 行的 `switch`；每种事件一个处理函数，`switch` 只分发。 | 6 |
-| `adapters/prologue-taskboard.ts` | `createPrologueTaskBoards` 函数 220 行 | 拆 · W5-10 | 返回对象 147 行、钩子 31 行、`unsubscribe` 17 行：钩子注册、跟随（`following`/`stopFollowing`）、返回的任务板操作各成函数。 | 2 |
-| `adapters/prologue.ts` | 文件 1,026 行<br>`PrologueAgentAdapter` 类 658 行 / 18 方法<br>`(module) callback 1` 函数 187 行 | 拆 · W5-10 | 文件、类、私有方法三个单元互相包含：文件 1,026 行 > `PrologueAgentAdapter` 658 行/18 方法 > 私有方法 `#start` 187 行（门禁里记作 `(module) callback 1`，见 §1）。`#start` 按阶段拆；类里还有 `constructor`（81）、`#publish`（63）；会话读写（`createSession`、`readSession`、`#loadSession`、`#restoreSession`）与运行控制（`start`、`control`、`observe`）分成两个协作者；类型与端口声明另放文件，文件回到 800 行以下。W4-06 不含它。 | 8 |
-| `capability-registration.ts` | `registerAgentHostCapabilities` 函数 393 行 | 拆 · W5-10 | `registerAgentHostCapabilities` 的 `disposers` 数组占 326 行；按能力族分成几个 `register…` 函数，主函数合并它们的撤销函数。 | 2 |
-| `index.ts` | `AgentHost` 类 409 行 / 12 方法<br>`start` 函数 267 行 | 拆 · W5-10 | `start` 267 行、53 条语句，`if` 块最大 22 行：预算与执行计划冻结、提示词解析、角色与运行时能力检查、工作区模式检查（含无工作区推理的限制）、起运行并回收（`handle` 23 行）各成函数；`AgentHost` 的 12 个方法其余部分（`availableRoles` 27、`createSession` 20）随之。`start` 在类里（类和方法各计一次）。 | 8 |
+| `adapters/prologue-stream.ts` | `applyPrologueEvent` 函数 304 行 | 已拆（W5-10，R-38 第 2 片） | 已做：每种事件一个处理函数，全部登记在 `HANDLERS` 表里，`applyRunEvent` 按类型分发，表里没有的计为未知帧；三种用量事件与用量汇总搬到 `prologue-stream-usage.ts`；结束类事件共用 `endRound`。原计划：`applyPrologueEvent` 是一个 298 行的 `switch`；每种事件一个处理函数，`switch` 只分发。 | 6 |
+| `adapters/prologue-taskboard.ts` | `createPrologueTaskBoards` 函数 220 行 | 已在阈值以下（R-38 收尾核对，2026-10-25） | 协作包搬进 Prologue 之后（P3a，#534）现 129 行（函数阈值 150），门禁 `--report` 已不列，不再拆。原计划：返回对象 147 行、钩子 31 行、`unsubscribe` 17 行：钩子注册、跟随（`following`/`stopFollowing`）、返回的任务板操作各成函数。 | 2 |
+| `adapters/prologue.ts` | 文件 1,026 行<br>`PrologueAgentAdapter` 类 658 行 / 18 方法<br>`(module) callback 1` 函数 187 行 | 已拆（W5-10，R-38 第 2 片） | 已做：端口与类型声明搬到 `prologue-ports.ts`（`prologue.ts` 原样转出），会话与运行的持有、恢复、跟随与发布搬到 `prologue-run-store.ts`（`PrologueRunStore`），起一轮（原 `#start`）搬到 `prologue-run-start.ts`，能力矩阵与恢复、回退、子任务的守卫搬到 `prologue-adapter-capabilities.ts`；`prologue.ts` 剩 321 行，适配器只留各能力入口与会话读写。原计划：文件、类、私有方法三个单元互相包含：文件 1,026 行 > `PrologueAgentAdapter` 658 行/18 方法 > 私有方法 `#start` 187 行（门禁里记作 `(module) callback 1`，见 §1）。`#start` 按阶段拆；类里还有 `constructor`（81）、`#publish`（63）；会话读写（`createSession`、`readSession`、`#loadSession`、`#restoreSession`）与运行控制（`start`、`control`、`observe`）分成两个协作者；类型与端口声明另放文件，文件回到 800 行以下。W4-06 不含它。 | 8 |
+| `capability-registration.ts` | `registerAgentHostCapabilities` 函数 393 行 | 已拆（W5-10，R-38 第 2 片） | 已做：方法库与 MCP（`library-actions.ts`）、跟随与控制一轮及项目排队（`run-actions.ts`）、会话间的信与后台命令（`message-actions.ts`）、命令回执、中断核对、检查点与审查（`recovery-actions.ts`）各成 `register…` 函数，共用的调用端口在 `capability-ports.ts`；主函数只留身份解析、会话与运行时的读写。原计划：`registerAgentHostCapabilities` 的 `disposers` 数组占 326 行；按能力族分成几个 `register…` 函数，主函数合并它们的撤销函数。 | 2 |
+| `index.ts` | `AgentHost` 类 409 行 / 12 方法<br>`start` 函数 267 行 | 已拆（W5-10，R-38 第 2 片） | 已做：角色与工作区检查、会话核对、Character 选择、授权守卫、逐项能力与能力网关、MCP、整理与收尾提示、子任务、冻结结果核对各成 `run-start.ts` 的函数，`start` 只按顺序调用并起跑；`composeRolePrompts` 等角色规则随之搬过去。原计划：`start` 267 行、53 条语句，`if` 块最大 22 行：预算与执行计划冻结、提示词解析、角色与运行时能力检查、工作区模式检查（含无工作区推理的限制）、起运行并回收（`handle` 23 行）各成函数；`AgentHost` 的 12 个方法其余部分（`availableRoles` 27、`createSession` 20）随之。`start` 在类里（类和方法各计一次）。 | 8 |
 
 ### 其他横向服务 `horizontal/*`（含平台产品服务：记忆、放置、搜索）
 
@@ -228,11 +236,11 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
-| `listener-host` | `src/index.ts` | `ListenerHost` 类 373 行 / 18 方法 | 拆 · W5-10 | `ListenerHost` 的 18 个方法分三组：运行（`run` 144 行、`saveRun`、`recoverInterruptedRuns`）、投递（`acceptDelivery` 61、`persistDeliveries` 35、`pendingDeliveries`）、检查点与租约（`ensureCheckpoint`、`acquireLease`、`advanceCursor`、`updateCheckpointFailure`）。投递与检查点各成协作者，`run` 本身按步骤拆。 | 5 |
+| `listener-host` | `src/index.ts` | `ListenerHost` 类 289 行 / 18 方法 | 已拆 · W5-10 | `584112c6` 实测 361→289 行（原表 373 为旧值）；投递转换/Signal 回执提交和批量持久化提为同文件函数，显式传原 db/signals/options 与晚取的时钟/cursor 操作。运行、租约与 checkpoint 留在原实例，最大函数 `run` 135 行，文件 760 行。 | 5 |
 | `memory` | `src/service.ts` | 文件 1,338 行<br>`MemoryService` 类 1,101 行 / 56 方法 | 拆 · W5-10 | 决定 N-03：代码不搬，只在包内拆。`MemoryService` 56 个方法分组：偏好、召回与使用（`recall` 57）、写入与候选（`commit` 107、`change` 71、`propose`、`accept`）、从工作中学习（`learnFromWork`）、维护（`upkeep` 91、`pairs`）、范围操作（`previewScope`、`clearScope`、`exportScope`、`importScope`）。每组一个协作者；声明与类型另放，文件回到 800 行以下。路线 W4-08 末尾写“再拆 MemoryService”，但 N-03 决定把 W4-08 改成文档与边界规则，所以拆分改归这一片。 | 3 |
-| `placement` | `src/index.ts` | `PlacementService` 类 419 行 / 28 方法 | 拆 · W5-10 | 决定 N-03：代码不搬。`PlacementService` 28 个方法分四组：位置读取（`locate`、`describe` 69、`readIn` 27、`location`）、关系（`link`、`unlink`、`related`）、目标绑定（`goals`、`bindGoal`、`goalBindings`）、移动复制转换（`move`、`moveHome`、`copy`、`convert` 40）。 | 3 |
+| `placement` | `src/index.ts` | `PlacementService` 类 286 行 / 20 方法 | 已拆 · W5-10 | `584112c6` 实测 399/28→286/20（原表 419 为旧值）；同包同文件拆出 Goal 查询、复制/转换及位置/可用操作投影函数。读取、定位、记账与打开按原实例晚绑定；移动及 S-35 恢复原实现保留，不增加提交间隙或共享 caller。最大函数 `describe` 69 行，文件 540 行。 | 3 |
 | `scheduler` | `src/index.ts` | `createScheduleService` 函数 282 行 | 拆 · W5-10 | `createScheduleService` 里 `fire` 86 行、`register` 38、`claim` 23、`setEnabled` 20、`toRecord` 20、`tick` 19、`renewExecutions` 16：触发（`fire`、`claim`、`tick`、`renewExecutions`）与登记管理（`register`、`setEnabled`、`toRecord`）分成两个文件。 | 2 |
-| `search` | `src/index.ts` | `SearchService` 类 407 行 / 26 方法 | 拆 · W5-10 | `SearchService` 26 个方法分三组：查询（`query`、`open` 44、`entrySources`、`scoped`、`matchesFilter`）、同步（`runSync` 67、`reconcile`、`needsSync`、`catchUp`、`scheduleRefresh`、`refreshKnown`）、登记与状态（`markRegistration`、`markChanged`、`announce`、`status`、`statuses`、`purgeDisabled`）。决定 #19 的按需搜索来源已删（W2-03），`onDemand` 与 `querySources` 已去掉，所以上面的行数和方法数是删后的；可以直接拆。 | 4 |
+| `search` | `src/index.ts` | `SearchService` 类 283 行 / 21 方法 | 已拆 · W5-10 | `584112c6` 实测 392/25→283/21（原表 407/26 为旧值）；同步索引、正文读取、来源/状态投影与范围判断提为同文件函数，最大 67 行，文件 597 行。map/timer/inflight/close 留在实例，changeSeq/closed 在原位置晚取，时钟保原接收者；query 的 ACA005 授权复核和同步尾检保留。 | 4 |
 
 ### 业务事实 Module `modules/*`
 
@@ -267,10 +275,10 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 | `design-system` | `src/styles/personal-workbench-v3.ts` | 文件 1,422 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 4 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/repository-anti-corruption/spec.md` §W4-12。 | 1 |
 | `design-system` | `src/styles/primitives.ts` | 文件 1,276 行 | 例外 · 样式表 | `PRIMITIVE_STYLES` 一个模板字符串，纯 CSS，开头只有几个共用的 CSS 片段常量。 | 1 |
 | `im-ui` | `src/browser/controller.ts` | 文件 966 行<br>`startIm` 函数 957 行 | 已拆（W5-10） | `startIm` 剩约 35 行装配：页面状态收进一个 `ImState`（原来 29 个闭包变量），元素与服务放进 `ImCtx`，十层各一个自包含工厂 `controller-{shell,composer,sync,rooms,topics,navigate,dialogs,startup,page,clicks}.ts`（最大 126 行），层与层经 `c.<名字>` 后绑定调用，仍由 `client.ts` 用 `toString` 序列化进页面。函数体逐字搬动，只把变量引用改成 `s.<名字>`/`c.<名字>`；一处原有的空 `catch` 补了说明。浏览器用例交集成批。 | 1 |
-| `im-ui` | `src/views.ts` | `createViews` 函数 164 行 | 拆 · W5-10 | `createViews` 里 `stream` 84 行、`context` 16、`markup` 12、`restoreScroll` 12：流、上下文、滚动保持各成视图函数。 | 0 |
+| `im-ui` | `src/views.ts` | `createViews` 函数 149 行 | 已拆 · W5-10 | `584112c6` 实测 162→149 行（原表 164 为旧值）；chrome 的 markup/cache/focus 操作提为同文件私有装配函数，由 client 显式捕获进序列化闭包。根节点与两 WeakMap 仍按实例持有，controller/交互规则不变；相关说明移到函数外仍保留，实际下发脚本 81,646→81,448 字节。 | 0 |
 | `kernel` | `src/action-service.ts` | `ActionService` 类 413 行 / 15 方法 | 拆 · W5-10 | `registerProvider` 的 `try` 块有两个循环：动作登记（每个动作的 `execute` 闭包里是限速、生命周期、`beforeEffect` 检查、输出校验）和场景登记（逐项校验、登记）。W3-01 把结算搬出 `execute`（到 `action-settlement.ts`，由 `invoke` 与 `invokeSync` 做），`registerProvider` 因此降到阈值下、不再是巨大单元；两个循环各成函数、`execute` 的各步再各成助手仍是 W5-10 的做法。类里场景相关的 `discoverScenes`、`bind`、`runScene`、`requireScene` 为一组，动作相关的 `discover`、`inspect`、`directory`、`invoke` 为另一组。W3-05 的交叉校验已做：校验代码在 SDK 的 `action-cross-references.ts`，`registerProvider` 只在原有的一行里多调一个函数，没有加行（它离阈值不远，以后也这样加）。 | 3 |
 | `plugin-runtime` | `src/events.ts` | `PluginEventBus` 类 420 行 / 23 方法 | 拆 · W5-10 | `PluginEventBus` 的 23 个方法分三组：发布与匹配（`publish` 72、`#match`、`#enqueue`）、投递（`#deliver` 99、`#fail`、`#resume`、`drain`）、游标与恢复（`#saveCursor`、`recover`、`recoveryHistory`、`cursors`）。 | 4 |
-| `plugin-runtime` | `src/index.ts` | `PluginRuntime` 类 660 行 / 30 方法（文件 886 行，W3-06 A 把 `MemoryPluginRuntimeRepository`、`NativePluginExecutor` 和 `validateManifest` 等模块级函数移到 `memory-repository.ts`、`native-executor.ts`、`runtime-rules.ts`，文件 760 行，已不是巨大单元） | 拆 · W5-10 | `PluginRuntime` 660 行/30 方法分三组：安装与卸载（`install` 115、`uninstall*`）、版本切换（`upgrade`、`rollback`、`changeVersion` 117）、生命周期（`start*`、`stop*`、`recover*`、`reportCrash*`，各有 `…Once` 版本）。W3-06 要加 Home 级实例，类已冻结，它的新增部分先写在新文件里。 | 4 |
+| `plugin-runtime` | `src/index.ts` | `PluginRuntime` 类 631 行 / 30 方法；当前文件 800 行，未超过文件阈值（53ca + 46f + F14 11f 语义组合，2026-10-25） | 例外 · cohesive-unit | 同一安装的身份、世代、grant context、持锁队列与生命周期转换需要共同裁决；SQL、私有数据/文件/授权清理、Manifest 校验、动作与同意账本已有外部 owner。此次新增只编排预检→保存→通知→发布及按本次世代补偿，拆开会分散同一生存期的不变量；两个定义检查/释放助手归现有 install-rules，不再沿旧 W5-10 计划硬拆这个状态机。按现行机制登记实测大小，由本题独立评审检查整个类是否确实内聚；如发现混合职责再具体调整。 | 4 |
 | `plugin-runtime` | `src/supervisor.ts` | `PluginSupervisor` 类 592 行 / 31 方法 | 拆 · W5-10 | `PluginSupervisor` 31 个方法分三组：启动与重启（`start` 56、`#restart` 39、`#activate` 37、`ensureStarted`）、升级回滚（`#changeVersion` 57、`upgrade`、`rollback`、`#resolveInstalledEntry` 51）、撤销与启用（`revoke` 30、`enable`）。W4-02 要在监督器里登记和收回 Manifest methods，类已冻结，它的新增部分先写在新文件里。 | 3 |
 | `plugin-runtime` | `src/wiring.ts` | `PluginInputGraph` 类 497 行 / 26 方法 | 拆 · W5-10 | `PluginInputGraph` 26 个方法：解析（`#resolve` 134 行）抽成求值器；绑定与选择（`bind` 46、`bindArtifact`、`unbind`、`selectInputGroup`）、发布与失效（`publish`、`invalidate`、`retain`）、视图与状态（`status`、`view`、`reference`、`currentVersion`）各成协作者。 | 4 |
 | `plugin-sandbox` | `src/runner.ts` | `createSandboxRunner` 函数 174 行 | 拆 · W5-10 | `createSandboxRunner` 39 条语句：消息接收 `receive`（42）、返回对象（42）、子进程启动（`try` 14）、看门狗（12）、关停（9）各成函数。 | 1 |
@@ -323,14 +331,15 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
 | `catalog` | `src/catalog.ts` | 文件 1,015 行 | 例外 · 静态数据 | 39 个连接器的声明表，条目互相独立（`CATALOG` 834 行），所以不为拆而拆。但文件冻结在现有行数，不能直接往里加：新增连接器要先把已有条目挪进各自的文件、腾出行数，再加新的。 | 1 |
-| `gmail` | `src/oauth-pending.ts` | `createGmailPendingSessions` 函数 178 行 | 拆 · W5-10 | `createGmailPendingSessions` 把 `validatePendingGmailOAuthSession`（72）、`prunePendingIndex`（35）、`parsePending`（17）等做成内嵌函数；提到模块级，依赖显式传入。 | 1 |
-| `gmail` | `src/oauth-token-lifecycle.ts` | `createGmailTokenLifecycle` 函数 170 行 | 拆 · W5-10 | 只超 20 行。`resolveUsableGmailAccessToken` 98 行等内嵌函数提到模块级。 | 1 |
-| `gmail` | `src/oauth.ts` | `createGmailOAuth` 函数 177 行 | 拆 · W5-10 | 只超 27 行。`completeGmailOAuthFlow`（92）、`startGmailOAuthFlow`（65）两个内嵌函数提到模块级。 | 1 |
-| `gmail` | `src/provider.ts` | 文件 957 行<br>`createGmailProvider` 函数 198 行 | 拆 · W5-10 | 文件 957 行：同步（`runFullSync` 61、`runIncremental` 120、`fetchBoundedDetails` 65、`fetchMessagesList`）、消息映射（`mapMessageDetailToItem` 53、`classifyGmailPath`）、夹具数据 `FIXTURE_MAIL` 分三个文件；`createGmailProvider` 198 行返回的 141 行对象里各操作抽成函数。 | 2 |
+| `gmail` | `src/oauth-pending.ts` | `createGmailPendingSessions` 函数 8 行 | 已拆 · W5-10 | 基线实测 178 → 8 行；存取、清理与校验提到同文件模块级，显式传入实例 Ports 与捕获的配置函数。最大函数 72 行，保留 state/时间/身份校验、Secret 方法接收者与每次实例的独立会话。 | 1 |
+| `gmail` | `src/oauth-token-lifecycle.ts` | `createGmailTokenLifecycle` 函数 8 行 | 已拆 · W5-10 | 基线实测 168 → 8 行（原表 170 为旧值）；同文件模块级函数处理凭据读取、刷新与写入，最大 101 行。保留 refresh-token 复查、原 opts 的同步 `beforePersist` 与连续凭据写入。 | 1 |
+| `gmail` | `src/oauth.ts` | `createGmailOAuth` 函数 14 行 | 已拆 · W5-10 | 基线实测 177 → 14 行；start/complete 操作提到模块级，按实例绑定原 Ports 与函数引用，最大 93 行。先消耗 state 再交换，先核邮箱、解析 refs 再同步提交；公开参数与返回保持。 | 1 |
+| `gmail` | `src/provider.ts` | 文件 263 行<br>`createGmailProvider` 函数 63 行 | 已拆 · W5-10 | 基线实测文件 910 → 263、factory 177 → 63 行（原表 957/198 为旧值）；health/sync 操作留在本文件模块级，实例 resolver 保留原 opts 接收者。私有 `provider-sync.ts` 446 行（最大函数 93）、`provider-message.ts` 176 行（最大函数 53）、`provider-fixture.ts` 38 行。分页、详情界限、映射与游标进度不变，无新增公开出口或例外。 | 2 |
 
 ## 4. 维护
 
 - 拆完一个单元：改这里对应的行（删行或改数字），在同一个 PR 里跑 `node scripts/check-health-gates.mjs --update --base origin/main` 更新本地快查；它如果有例外条目，同时删掉条目。
-- 新写的东西超限：在功能 PR 里只有一条路，拆到每一块都在阈值以下（样式表按界面分文件，静态数据按条目分组分文件，别的按职责拆）。登记不是路：新增的超限单元，不管有没有登记，门禁都按新增失败，必然很长的也一样。真拆不开的，只能另起一个改门禁本身的 PR（脚本、`limits.json`、CI 步骤），那要过评审、先问用户。`tooling/gates/giant-exceptions.json` 只给**已经**超限的单元记理由（文案表、样式表、静态数据或生成代码），并在这里有一行；不要把“懒得拆”写成理由，理由里写的事实要能在代码里查到。
-- 给已冻结的单元加功能：先把要加的部分抽到新文件，再接上去；门禁不会放行它变大。清单里点名的各片（W3-01、W3-05、W3-06、W3-07、W4-02、W5-02）会碰到的类，也这样处理。
+- 新写的东西超限：先看它是不是只做一件事。混了几件事的，按职责拆到每一块都在阈值以下；本身合理的（文案表、样式表、静态数据、生成代码、内聚的状态机或解析器），在 `tooling/gates/giant-exceptions.json` 标明（`kind`、理由、门禁报错里给出的 `size`），并在这里加一行“例外”。不要把“懒得拆”写成理由，理由里写的事实要能在代码里查到。
+- 给没有标明的单元加功能：先把要加的部分抽到新文件，再接上去，门禁不会放行它变大；它若本身合理，也可以在同一个 PR 里标明并写上新的 `size`，这里的判定改成“例外”。清单里点名的各片（W3-01、W3-05、W3-06、W3-07、W4-02、W5-02）会碰到的类，也这样处理。
+- 判“拆”的单元（多数在 W5-10）照上面重新看一遍：本身合理的改判“例外”并标明，不为凑数字硬拆。
 - 路线收尾（W6-04）重量这些数字，和 2026-10-02 开工时对比：当时 37 个超过 800 行的文件、43 个超过 300 行的类、25 个方法数超过 25 的类、99 个超过 150 行的函数（`specs/repository-anti-corruption/spec.md` §2.3）。

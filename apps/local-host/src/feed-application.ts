@@ -52,7 +52,7 @@ export function createLocalFeedApplication(
   const journal = new LocalSqliteJournal(db);
   // Listener Host's storage is plain functions, so it has no constructor to create its tables; the other owners do.
   db.exec(LISTENER_HOST_SCHEMA_SQL);
-  const goals = createGoalReadServices(db).query;
+  const goals = createGoalReadServices(db, journal).query;
   let feedItems!: FeedModule;
   let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
   const attention = new AttentionModule(db, {

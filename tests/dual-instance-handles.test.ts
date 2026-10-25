@@ -101,7 +101,7 @@ async function openHalves() {
     undefined, { redemption: () => redemption, actions: { registry: service, ...(projectId ? { project_id: projectId } : {}), providerId: () => PLUGIN } });
   for (const [which, target] of [["home", runtime({ partial: true, outside_project: true })], ["project", runtime({ partial: true }, PROJECT)]] as const) {
     const definition = half(which, actions, handles, reached, contexts);
-    const installed = target.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(item => item.permission) }).install;
+    const installed = target.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: definition.manifest.permissions.map(item => item.permission) }).install;
     await target.start(installed.install_id);
   }
   const home: ActionCallContext = { actor_id: "alice", audience: "user", permissions: PERMISSIONS };

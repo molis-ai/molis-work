@@ -12,7 +12,6 @@ export const registration: PluginRegistration = {
   messages: COGNIA_MESSAGES,
   manifest: cogniaManifest,
   personal: true,
-  summary: "导入本地知识，带来源检索问答。",
   workbench: {
     order: 0,
     contributions: [cogniaUiContribution],

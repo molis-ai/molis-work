@@ -1,11 +1,12 @@
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginCleanupResult, PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
-import { StoppedServiceCalls, type PluginCapabilityPort, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { StoppedServiceCalls, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
-import { discardInstallationOwnerData } from "./plugin-installation-cleanup.js";
+import type { PluginDependencyCheck } from "./plugin-actions-client.js";
+import { discardInstallationOwnerData, forgetInstallationRecords } from "./plugin-installation-cleanup.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -50,7 +51,7 @@ export interface PluginHostExecutorOptions {
    */
   invalidateView?(pluginId: string): void;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
-  /** The private KV owner's synchronous deletion port for non-retaining uninstall and cleanup before a reinstall/discard is published. */
+  /** The private KV owner deletes non-retaining data before reinstall, or explicit retained-data discard after the replacement is saved. */
   deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
@@ -66,7 +67,8 @@ export interface PluginHostExecutorOptions {
   /** What the Host itself tells one installation (X-6). Never handed to a Plugin: only `stop` reaches it. */
   hostEvents?: PluginHostEvents;
   wiring?: PluginInputGraph;
-  capabilities?: PluginCapabilityPort;
+  /** Whether an action a plugin consumes is registered and ready in this project: what `services.actions.availability` asks. */
+  dependencyCheck?: PluginDependencyCheck;
   /**
    * Opaque scope key stamped on this Plugin's outputs, so the Host can tell two
    * inputs belong to the same scope without reading business fields.
@@ -96,7 +98,12 @@ export class PluginHostExecutor implements PluginExecutor {
     forgetPluginAgentDefinitions(this.options.home, record.install_id);
     // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
     const cleanup = !record.retain_private_data ? discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id, projectLibrary: this.options.projectLibrary }, record, this.options.deleteInstallationData) : undefined;
+    forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
     return cleanup;
+  }
+
+  prepareReinstall(record: PluginInstanceRecord): void {
+    forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
   }
 
   keptDataDiscarded(record: PluginInstanceRecord): PluginCleanupResult | undefined {
@@ -117,7 +124,7 @@ export class PluginHostExecutor implements PluginExecutor {
     events?: PluginEventBus;
     hostEvents?: PluginHostEvents;
     wiring?: PluginInputGraph;
-    capabilities?: PluginCapabilityPort;
+    dependencyCheck?: PluginDependencyCheck;
     scopeKey?: string | null;
   }): void {
     this.options = { ...this.options, ...services };

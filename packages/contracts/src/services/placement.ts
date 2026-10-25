@@ -40,7 +40,9 @@ export interface PlacementAssociation {
   label: string;
   /** The other end: a project, a Goal, or another object. */
   target: { kind: "project"; project_id: string; title: string } | { kind: "goal"; project_id: string | null; goal_id: string; title: string }
-    | { kind: "object"; object: PlacedObject; title: string; state: PlacementObjectState; location: PlacementLocation | null };
+    | { kind: "object"; object: PlacedObject; title: string; state: PlacementObjectState; location: PlacementLocation | null;
+      /** The plugin that keeps the object, as its owner names it; null when nothing reads it (a deleted object, a disabled plugin). */
+      plugin: { plugin_id: string; title: string } | null };
   since: string | null;
   removable: boolean;
 }

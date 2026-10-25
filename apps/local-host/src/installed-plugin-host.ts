@@ -25,6 +25,7 @@ import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, generatedRegistration, readPluginPrompts, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
 import { APPROVED_KEY, covered, installedLifecycle } from './installed-plugin-lifecycle.js';
+import { forgetInstallationProjectBindings } from './connector-plugin-requests.js';
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
 const SIGNATURE = installedSignature('');
@@ -36,7 +37,7 @@ interface InstalledPluginHostOptions {
   actorId?: string;
   routePrefix?: string;
   actions?: PluginPlatformOptions['actions'] & Pick<ProjectActions, 'inspect'>;
-  capabilities?: PluginPlatformOptions['capabilities'];
+  dependencyCheck?: PluginPlatformOptions['dependencyCheck'];
   /** Explicit fixture/embed replacement only; production uses the shared Home inference owner. */
   generate?: CapabilityImplementations['generate'];
 }
@@ -96,7 +97,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     deleteInstallationData: id => privateStorage.deleteInstallationData(id),
     capturePrivateData: id => privateStorage.snapshotInstallationData(id),
     restorePrivateData: (id, snapshot) => privateStorage.restoreInstallationData(id, snapshot as ReturnType<typeof privateStorage.snapshotInstallationData>),
-    ...(options.capabilities ? { capabilities: options.capabilities } : {}) });
+    ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
   const records = () => platform.runtime.list().filter(item => item.publisher_signature.startsWith(SIGNATURE) && item.state !== 'uninstalled');
   const recordFor = (pluginId: string) => records().find(item => item.plugin_id === pluginId);
   const releaseFor = (pluginId: string) => {
@@ -160,6 +161,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
       for (const [key, entry] of definitions) if (entry.pluginId === pluginId) definitions.delete(key);
+      // The account it used for each of its records here goes with it; its installation slot's account is every project's (BL-596).
+      forgetInstallationProjectBindings(homeDirectory, installId, projectId);
     } });
   const close = async () => {
     if (closed) return;

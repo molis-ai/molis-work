@@ -1,4 +1,4 @@
-import { renderPluginDocumentShell } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginDocumentShell, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
 import { pluginPagesFor, pluginPageRequest } from "../plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -27,6 +27,7 @@ import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
+import { generatedPluginManifest } from './installed.js';
 import { capabilityLimits, latestCapability, slowOperations, type CapabilityImplementations, type Lane } from './capabilities.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, designerCatalog, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
@@ -47,7 +48,7 @@ export interface AgentStudioOptions {
   choice?: { choose: NonNullable<AgentBuilderPorts['choose']>; selectionAvailable(): boolean };
   browserExecutable?: string;
   actorId?: string;
-  capabilities?: PluginPlatformOptions['capabilities'];
+  dependencyCheck?: PluginPlatformOptions['dependencyCheck'];
   actions?: PluginPlatformOptions['actions'] & Pick<ProjectActions, 'inspect'>;
   /** Enables a built-in plugin in this project (by its manifest id), as project settings would. */
   enablePlugin?(pluginId: string): Promise<void>;
@@ -353,8 +354,8 @@ function html(response: ServerResponse, body: string) {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); response.end(body);
 }
 
-/** An installed plugin's stage in the workbench and the name it was published under. */
-export interface InstalledPluginStage { pluginId: string; surface: string; label: string; stage: string }
+/** An installed plugin's stage in the workbench, the name it was published under, and what its Manifest declares (the page's plugin directory). */
+export interface InstalledPluginStage { pluginId: string; surface: string; label: string; stage: string; directory: PluginDirectoryEntry }
 /**
  * The project's installed agent-built plugins as workbench stages beside the built-in ones. Each stage frames the
  * plugin's installed page (host renderer, sandboxed backend) and loads only when opened. A disabled or quarantined
@@ -367,7 +368,8 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
     const release = installed.releaseFor(item.plugin_id);
     if (!release) return [];
     const surface = 'app-' + release.buildId, label = release.design.title;
-    return [{ pluginId: item.plugin_id, surface, label, stage: '<section class="desktop-work-surface pb-surface" data-work-surface="' + surface + '" data-work-surface-label="' + escapeHtml(label) + '" data-installed-plugin="' + escapeHtml(item.plugin_id) + '" hidden>'
+    const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, name: label, chosen: false, ui: { views: generatedPluginManifest(release).ui.views ?? [] } };
+    return [{ pluginId: item.plugin_id, surface, label, directory, stage: '<section class="desktop-work-surface pb-surface" data-work-surface="' + surface + '" data-work-surface-label="' + escapeHtml(label) + '" data-installed-plugin="' + escapeHtml(item.plugin_id) + '" hidden>'
       + '<iframe src="' + escapeHtml(prefix + '/plugins/' + item.plugin_id + '?' + FRAME_QUERY) + '" title="' + escapeHtml(label) + '" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe></section>' }];
   });
 }

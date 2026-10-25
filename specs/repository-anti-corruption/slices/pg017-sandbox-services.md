@@ -12,9 +12,11 @@ BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）
 
 保留 batch-37 的 `host` 信任、`followHostBuild`、现行安装签名、consents 与 projectReach；后续已落地输入的 hostIds / T4～T6 不能被旧实现覆盖。安装的合法性、权限、定义冲突和无持久效果的 schema 校验仍先于准备、定义登记和保存。数据丢弃依 FIX14 的新顺序：`saveInstalled(repository, executor, record, replaced, discard)` 先保存安装行，再通知宿主处理 retained-data discard；把清理返回的 `PluginCleanupResult` 送入同一生命周期回执。非保留卸载的重清仍在新安装准备阶段。卸载无论成功或失败均释放同安装已加载定义，保现行生命周期锁、拒绝与 finally。项目只清自己行/KV/绑定、保 Home 共享库；Home 唯一实例停下并关闭连接后才清自己的文件→ledger→KV；不新增映射、引用计数、兼容读取或清理状态。
 
-输入待核必须以 Git 内容为准：准确 46f 的 `prepareInstallationData` 尚无 `executor.prepareReinstall`，其合同也尚无该端口；已定位 F14 原提交 `33312c934a1954bf7787651685910d191688a0b8`，承接来源/时机交 Root/PIPE 明确，其他冲突照常推进。保存后清理抛错时的安装行、定义及显式重试必须有同一份明确合同，不用原 53ca 的保存前失败断言代证新顺序；必要裁定缩到该输入和状态转换，不另外实现 F14 的授权修复。
+第三份准确语义输入由 Root 补充授权：F14 的 `5a55e0824e0f5680aad73c23b9cbdbb81d10d073 → 11f3dfe916014e9d4c5da717ae56416afbf4ebe2`（生产引入 `33312c934a1954bf7787651685910d191688a0b8`，REVIEW 6396954489 / TEST 6397041805）。46f 确实没有 `prepareReinstall`，11f 也不是其祖先；本片只从这份已审候选迁入必要同步端口、state 检查后且 retain 早退前的调用、唯一授权 owner 和真实失败恢复测试，先交 PIPE 登记以免重复，不复制全祖先或借 movingtree。prepare 的 void 不覆盖已有清理结果/notes。保留11f的主10例有效证据、其相关99文件中的既有两项失败及strict类型检查缺口；不把它们冒成三输入组合通过。保存后清理抛错的最小整合已由 Root 明确：回调内可见新行；通知失败仅在当前仍属本次世代且现有 abandonRefusal 允许时补偿原卸载行，不能覆盖回调或别处替换/卸载后的行。成功前不登记本次 definition、consent 或成功回执。补偿只针对安装记录，不恢复已删文件/KV；保真实剩余数据，同/新Runtime显式discard重试补完。
 
-允许修改范围是本片与该准确组合产生的 Runtime、Host executor/装配、数据库 owner、公开合同、必要测试/API 快照及本片说明；不改无关插件、共享 backlog、门禁规则/阈值、真实 Home 或 CI。S-68 保持本片暂定历史，最终 S 号由 carrier 统一合成。按公共 FIFO 一次必要整体 `pnpm build`；受影响非浏览器回归用 `node scripts/machine-slot.mjs run browser --label "1255 tests" -- node scripts/run-tests.mjs --jobs 1 <相关文件>`，然后在冻结输入上核 health、boundary、版本与 fresh-fetch 后 secrets；不借别的工作树 dist，不另跑 full。原失败及未覆盖边界保留；最终固定提交、原始日志与 scoped diff 直交原 REVIEW / TEST，再由 PIPE/Claude 采用。
+Root 已按现行 10-25 政策允许本题的一项准确登记候选：PluginRuntime 是同一安装身份/世代/锁/授权与生命周期转换的协调状态机，实际数据与副作用 owner 在类外；两个定义检查/释放助手归已有 install-rules，index 文件维持 800 行阈值内。仅在 giant-exceptions 登记该类实测 631 行/30 方法，并同步 HUGE-CLASS-MIGRATION 的旧“拆”判定与具体理由；不改脚本/limits/生产门禁机制或无关 baseline。独立 REVIEW 必须检查整个类是否真内聚，不凭“状态机”称谓放行。
+
+允许修改范围是本片与该准确组合产生的 Runtime、Host executor/装配、数据库 owner、公开合同、必要测试/API 快照及本片说明；不改无关插件、共享 backlog、门禁规则/阈值、真实 Home 或 CI。原片 S-68 保持历史；PIPE 已为准确 46f 基表连续到 S-74 的当前独立叶指定临时 S-75，Home 条目、测试与本片引用同步，不预约全局号、不覆盖未来38的S-75；最终 carrier 按实际末号重排。按公共 FIFO 一次必要整体 `pnpm build`；受影响非浏览器回归用 `node scripts/machine-slot.mjs run browser --label "1255 tests" -- node scripts/run-tests.mjs --jobs 1 <相关文件>`，然后在冻结输入上核 health、boundary、版本与 fresh-fetch 后 secrets；不借别的工作树 dist，不另跑 full。原失败及未覆盖边界保留；最终固定提交、原始日志与 scoped diff 直交原 REVIEW / TEST，再由 PIPE/Claude 采用。
 
 ### 1.1 沙箱插件是什么、怎样拿到服务
 
@@ -34,7 +36,7 @@ BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）
 | 连接 `services.connections`（协调的清单里没列，同一批排除，S-57） | `plugin-connections-service.ts:14` | Manifest `connections:use` + 槽位 | Manifest ✔ |
 | 后台作业 `services.background` | `plugin-background-service.ts:8` | Manifest `actions[].background_job` 或 `background.jobs` | Manifest ✔ |
 | 插件指令与方法（V-20） | `plugin-instructions.ts:33` | `PluginDefinition.instructions`/`methods`（正文），Manifest `methods`/`agent`（声明） | 定义 + Manifest；PG-051 P2 归到唯一登记口 |
-| Home 库 `services.database` | `plugin-database-entries.ts:34` | Manifest `databases.home`（PG-022） | Home Runtime 里给（BL-490，S-68）；项目里拒 |
+| Home 库 `services.database` | `plugin-database-entries.ts:34` | Manifest `databases.home`（PG-022） | Home Runtime 里给（BL-490，当前叶临时 S-75）；项目里拒 |
 | 私有文件 `services.files` | `plugin-files-entries.ts:12` | 条目 `files` | **只在条目上**（PG-102、PG-104） |
 | 主人文件 `ownerFiles` | `plugin-owner-files-entries.ts:40` | 条目 `owner_files` | **只在条目上**（PG-102、PG-103） |
 | 模型设置 `services.model.configuration` | `services.ts` 的 `NOT_GIVEN`（S-60 启动拒绝） | Manifest `model_configuration` + 宿主启动名单绑定 | Manifest 已有声明；沙箱尚不给（BL-490/491） |
@@ -105,18 +107,21 @@ BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）
 - **`files`**：形状是字节读写（`list/read/create/remove`），可以做成 base64 且有上限的 broker 方法；**但声明只在条目上**（PG-102），且有两套服务要合成一套（PG-104、§4 n）。所以：等 PG-102/104 把声明放进 Manifest、文件服务合成一套之后，沙箱经 broker 拿同一套（BL-491）；这一组里不给。
 - **`ownerFiles`**（P2c，S-64，用户 2026-10-24 定：给，有界）：沙箱包在 Manifest 里声明 `owner_files`，经 broker 读写自己的文件。**不**把宿主的 `rootPath()` 和 writer 回调递进去：沙箱 SDK 只有 `stat`、`list`、`read`（一个文件，至多 256 KiB，没有就是 `null`）、`write`（至多 16 步，每步是 `mkdir`、`write`、`replace_atomic`、`copy`、`remove`、`set_access` 之一，字节是 base64，每个文件 ≤ 256 KiB，一次调用合计 ≤ 512 KiB，`list` 至多 1000 项），路径一律是相对路径，由宿主已有的 port 按声明的顶层条目查（越界、链接、硬链接、特殊节点、非严格相对路径全部拒绝）。效果键 `ownerFiles: ["read"]` / `["read", "write"]`，查询不能写；写在 broker 一侧先等这次调用的 `beforeEffect()`，宿主客户端自己再查一遍授权与动作作用域。
   - **根放哪里**（统筹 10-24 认可）：宿主内的插件根在 Home 里按插件的店名登记；沙箱包是装进来的，没有登记项，所以根是这个安装自己的目录，`<store_name>`（Manifest 的）是里面的一层。**项目里**：`<Home>/projects/<项目>/plugin-files/<安装>/<store_name>/`——按项目、按安装各一份，删项目时随项目目录一起删。**Home Runtime 里**（统筹 10-24 追加：用户定沙箱插件有主人文件，Home 级的也有）：`<Home>/plugin-files/<安装>/<store_name>/`，`plugin-files` 登记为宿主的 Home 库（`home-stores.ts`，owner `apps/local-host`），所以 `uninstall --purge-user-data` 覆盖它。项目 ID 与安装 ID 只许是普通目录名（`plugin-sandbox-owner-files.ts`）；没有 Home 的平台启动即拒。沙箱包不经启动名单，只走 `runtime.install`，所以 `assertHomeOnlyDeclarations` 与启动名单上对沙箱条目的拒绝（`assertOwnerFilesEntries`）与它无关；Home 执行器对沙箱定义不走 `ownerFilesGiven`（那是启动名单给的），走 `sandboxOwnerFilesFor`。
-  - **卸载时的清理**（统筹 10-24 要求二选一，选“平台清理”：两个执行器的 `uninstalled` 钩子，不是创作台生命周期里的一行）：运行时存下卸载这一行之后调执行器的 `uninstalled(record)`，沙箱安装且这次卸载不留私有数据（`retain_private_data: false`，含装到一半失败被收回）就删这个安装的目录，只删这一个；留数据的卸载留着目录，重装沿用同一个安装 ID，找回的就是它，和私有数据同口径。重装时放弃上次卸载保留的数据（`discard_kept_data`）：运行时验证授权并在登记/保存新安装之前调 `keptDataDiscarded(earlier)`（`PluginExecutor`）；执行器先清文件和账本归属 Home 库，再清 KV，成功后才发布候选，失败保留原卸载行供重试（#1246 准备路径与 #1255 裁 A 的明确 discard 增量）。删除前父目录解析到 Home 之外就拒，符号链接不跟（只解开链接本身）。不靠插件自己交 `purge`（RAC-239 的口径）。
+  - **卸载时的清理**（统筹 10-24 要求二选一，选“平台清理”：两个执行器的 `uninstalled` 钩子，不是创作台生命周期里的一行）：运行时存下卸载这一行之后调执行器的 `uninstalled(record)`，沙箱安装且这次卸载不留私有数据（`retain_private_data: false`，含装到一半失败被收回）就删这个安装的目录，只删这一个；留数据的卸载留着目录，重装沿用同一个安装 ID，找回的就是它，和私有数据同口径。重装时放弃上次卸载保留的数据（`discard_kept_data`）：运行时存下新的安装行之后调新增的可选钩子 `keptDataDiscarded(earlier)`（`PluginExecutor`，合同里多一个可选成员），执行器删目录，在新代码启动之前。删除前父目录解析到 Home 之外就拒，符号链接不跟（只解开链接本身）。不靠插件自己交 `purge`（RAC-239 的口径）。
+    - **清理失败后的定义释放及重装（#1210、#1246 评审补修，RAC-357-U1）**：卸载记录已保存后，即使宿主清理 hook 抛错，也释放这个 `plugin_id` 与发布者签名下的已加载定义，其他插件或发布者的定义不变；失败对象与错误码原样返回，不产生成功收据。再次卸载仍走现有按安装串行的重放路径，重新执行实际清理，保留第一次保存的卸载状态、世代、时间与数据选择，不重新启动或停止代码。移除链接故障后，同安装重放完成实际目录清理，再重放仍安全。
+    - 旧记录已经卸载且 `retain_private_data: false` 时，每次重装都在注册新定义、生成和保存新安装之前同步重清，跨宿主重启也一样，不另记「曾失败」。复用 `keptDataDiscarded(earlier)` 的同步能力：先完成现有无副作用输入、部署、清单和 grant 合法性检查；有卸载清理责任却没有同步钩子时，以 `plugin.state_invalid` 拒绝。宿主先确认 KV owner 的删除端口存在，再清理主人文件，成功后才调用 KV owner 的 `deleteInstallationData`；项目执行器经组合参数取得该端口，Home 执行器复用已有 storage。不跨表 SQL、不借用 restore，不改同步 `install` 的形状、安装后再补 grant 的规则、已保留数据的兼容性及回滚规则。
+    - 路径拒绝发生在任何删除前时，文件及 KV 均保留；清理执行中后一步出错可以已有部分删除，仍拒绝新安装，保留原卸载事实，不产生新安装行、事件、世代或本次注册的定义，后续幂等重清补完。已有 `ActionError` 原样返回，普通宿主异常在重装拒绝边界转为 `plugin.executor_failed`，不改变卸载本身的错误。无外部清理责任的 `NativePluginExecutor` 无清理 hook，仍可直接重装。旧 `retain_private_data: true` 且本次明确 `discard_kept_data` 的路径仍在保存新安装后通知原同步钩子，由 Host 同一数据清理口返回回执说明；若通知抛错，仅当记录仍属于本次世代且现有 abandonRefusal 允许时补偿回被替换的卸载行。成功前不发布本次 definition、consent 或成功回执；这不是文件系统事务，已删除的数据不恢复，保留真实剩余数据，同/新 Runtime 的显式 discard 重试可继续完成。
   - **和宿主内同样待遇**：同一份 `PluginOwnerFilesClient`、同一个 port，所以 R1（动作之内凭动作与原调用者、动作之外凭安装现行授权）、`beforeEffect`、模式 0600/0700 都不另写一套。
 
 ### 3.7 Home 库、模型设置、生图、项目清理
 
 这四项都属于“**Home 级**”：库在 Home、偏好文件在 Home、连接绑定在 Home、清理由宿主在删项目时调函数。沙箱插件今天只会作为项目里的实例运行（创作台的第二个平台 `home: null`，PG-083）。设计：
 
-- **Home 库（`database`）**（BL-490，S-68，已做）：项目库已经给了（`projectDatabase`，S-59）。PG-022 把声明搬进 Manifest 之后，Home Runtime 里的沙箱包按 `databases.home` 拿账本里的库（`openInstalledPluginLibrary`，和装进来的任何插件一样），语句沿用 S-59 的子进程（`ProjectStatementProcess` 的 `record` 为空即 Home 库，引擎换 node:sqlite 的两条连接，没有 S-46 的记录检查，因为整个文件都归这个插件），不另写一套；宿主只做出文件就放手，不留连接。broker 多 `homeDatabase` 效果（和 `projectDatabase` 同一段检查），服务多 `database_statements`。项目里运行的沙箱包不能声明 Home 库（`plugin.declaration_invalid`）。
+- **Home 库（`database`）**（BL-490，当前叶临时 S-75，原片已做）：项目库已经给了（`projectDatabase`，S-59）。PG-022 把声明搬进 Manifest 之后，Home Runtime 里的沙箱包按 `databases.home` 拿账本里的库（`openInstalledPluginLibrary`，和装进来的任何插件一样），语句沿用 S-59 的子进程（`ProjectStatementProcess` 的 `record` 为空即 Home 库，引擎换 node:sqlite 的两条连接，没有 S-46 的记录检查，因为整个文件都归这个插件），不另写一套；宿主只做出文件就放手，不留连接。broker 多 `homeDatabase` 效果（和 `projectDatabase` 同一段检查），服务多 `database_statements`。项目里运行的沙箱包不能声明 Home 库（`plugin.declaration_invalid`）。
   - **声明在任何真实效果前检查**：沙箱入口复用现有 `inspectPluginProjectSchema`（PLIB-03）检查每一句只建无库名前缀的表或索引，先在同一 SQLite 的空内存库试建；其他语句、无效结构都以 `plugin.declaration_invalid` 拒绝，不执行到真实插件库、账本或外部文件。安装也可能因明确 discard 清旧数据，所以 Home/项目组合向 Runtime 提供同步、无持久效果的 `validateInstall`，在任何清理/登记之前复用同一校验；开库时跨 turn 再查，Runtime 不依赖 Host 或 SQLite。不另写解析或放宽既有检查。原登记冲突检查也在破坏性准备前执行，授权不合法、定义冲突或坏 schema 都不能先清旧库/KV。通过后在账本的 open 回调经已有 `openPluginDatabase` 建库并立即关闭宿主连接，再交原语句子进程；版本检查复用该共同路径，不改门禁/例外/版本。
   - **真实生命周期**：测试通过真实 Home Runtime 的 `runtime.install` 装入声明 Home 库的 sandbox 定义，交真实 Seatbelt runner/broker 与库语句子进程，验证启动/写入/停止/卸载后的调用拒绝和本次子进程退出。不会使用启动名单 fixture 绕过沙箱限制，也不把直接 helper 用例当装配证据。原 `homeLibraryFor` 对 sandbox 忽略给定条目绑定的规则也覆盖。
   - **数据去留（统筹 6395368971，取代泛 A 的删除范围）**：native 与 sandbox 按安装层级使用同一规则。项目级 `retain_private_data: false` 卸载和明确 `discard_kept_data` 只清可信项目连接里该 plugin/publisher 的表内行、该安装的项目私有文件与 KV；Home 共享库文件与 `plugin_home_libraries` 行一律保留，不从一个项目推断全 Home 删除权限。项目表由原 `plugin_project_databases` owner 按已有对象账本清行，保留 schema/账本，不执行插件新声明中的 SQL。清理钩子返回临时说明，经 Runtime 加入 `PluginLifecycleReceipt.notes`：有本 owner 的 Home 库时如实写「Home 共享库保留（其他项目可能在用）」，不存新状态。A/B 两真实项目、B 保持 SQLite/WAL 连接时，A 的非保留卸载和明确丢弃都须保 B 的连接、内容及 Home 文件/账本；A 的项目行/KV清空，回执说明保留。
-  - **Home 级唯一实例**（Home 监督器的 `runtime.scope: "home"`）：仍由 Home 执行器在实例停止、连接关闭后，经原账本 owner 检查可信 plugin/publisher 和实际 reserved 登记表，先删文件、再删账本行、最后清 KV；文件失败保账本、可重试，`retain=true` 保留。别家、reserved 和无登记目录不动。保留 #1246 `d42891e3f` 的准备/发布顺序及 retained=true + 明确 discard 的增量；授权、定义冲突与 schema 预检仍先于清理，清完才 register/save，不退回后置重复回调。
+  - **Home 级唯一实例**（Home 监督器的 `runtime.scope: "home"`）：仍由 Home 执行器在实例停止、连接关闭后，经原账本 owner 检查可信 plugin/publisher 和实际 reserved 登记表，先删文件、再删账本行、最后清 KV；文件失败保账本、可重试，`retain=true` 保留。别家、reserved 和无登记目录不动。保留授权、定义冲突与 schema 预检先于准备。非保留卸载的重清在新行保存前；retained=true 且明确 discard 按 §1.0 的现行五参数 saveInstalled，先保存再通知、成功后才登记定义并返回 notes，失败仅补偿本次仍拥有的安装记录，不能声称恢复已删除数据。
   - **组合与保留边界**：本项目的连接/材料授权绑定交既有 owner 的公共卸载生命周期（F14）处理，置于私有清理之后、无 retain 条件；本片不从旧基线硬搬新的 Connector API，不另造绑定名单。Home 共享库即使最后一个项目卸载也暂留：没有可信全体安装来源，不新增映射、引用计数或清理状态。BL 文案交 PIPE/统筹写共享 backlog：「Home 共享插件库回收：建立可信全体安装来源后，确认 owner/publisher 已无项目安装、关闭使用者，再回收共享库文件和账本；当前保留，代价仅为空间。」
   - **storage 端口**：`openHomeSqliteFile` 继续沿用 SQLite 行为：只读打开缺失文件会失败，普通读写打开可以创建空文件；这里只修注释，不新增文件存在性契约。
 - **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64）。模型设置现有 Manifest 字段 `model_configuration` 已能声明，沙箱还没有其 broker 方法与设置端口，按 S-60 启动即以 `sandbox.service_not_given` 拒绝该声明；不让项目平台静默不给，Home 也不等后续条目校验才报错。正式开放仍属 BL-490/491，不随本轮修复接入。生图按 PG-102 的前提开放，`generate` 是花钱的，只给 `command`，字节结果有大小上限（BL-491）。
@@ -154,7 +159,7 @@ BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）
 4. **P3 后台**（S-67，本地分支 `claude/ac-pg017-p3-background`）：3.5，第二个进程（lane）而不是 runner 并行；验收见下面「P3 验收」。
 4a. **P2c 主人文件**（S-64，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
 4b. **P2d 本机页面与原文件**（S-65，本地分支，叠在 P2c 上）：3.4 的 `fetch_local` 与 `original`，验收见下面「P2d 验收」。
-5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库（BL-490，S-68，已做）/ 模型设置/生图（BL-491）、方法与角色（BL-493）。
+5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库（BL-490，当前叶临时 S-75，原片已做）/ 模型设置/生图（BL-491）、方法与角色（BL-493）。
 
 ## 5. 验收与安全不变量
 
@@ -174,7 +179,7 @@ BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）
 | RAC-238（条目一半，PG-022/PG-102 之后；`ownerFiles` 已由 P2c 给） | 现在只在宿主条目上声明的项（`ownerFiles`、Home 库、`files`、生图；模型设置的现行声明按 §3.7 带码拒绝）：声明搬进 Manifest 之后，沙箱定义里声明它们时同样带码拒绝或给出，不再是六处无码的 `Error`；在那之前它们在沙箱里根本没有入口，这一半不算做完 |
 | RAC-239 | 声明式清理对沙箱插件成立：删项目时它的私有存储、项目库里的表、后台执行被平台清掉，不需要它交 `purge` |
 
-**BL-490 验收**（S-68，RAC-240～249 本片 240～246）：`tests/security-invariants-sandbox-home-database.test.ts`
+**BL-490 验收**（当前独立叶临时 S-75，原片历史 S-68，最终 carrier 重排；RAC-240～249；240～246 见此文件，247～249 见安装记录与生命周期回归）：`tests/security-invariants-sandbox-home-database.test.ts`
 
 | 编号 | 断言 |
 | --- | --- |
@@ -202,8 +207,11 @@ BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）
 | RAC-355 | 大文件（256 KiB 加一字节）不读进宿主，目录超 1000 项即拒；调用被取消、`beforeEffect` 拒绝，什么都不写 |
 | RAC-356 | 各安装各一份目录；平台没有 Home 时启动即拒 |
 | RAC-357 | 项目里：不留数据的卸载删这个安装的目录，同项目里别的安装的不动；留数据的卸载留着目录，同一个安装 ID 重装找回它；重装时放弃保留的数据（`discard_kept_data`）在新代码启动之前删目录；重装后是空的。清理时父目录解析到 Home 之外（`plugin-files` 是指向外面的链接）即拒，链接指向的东西不动 |
+| RAC-357-U1 | 真实项目与 Home Runtime 遇到主人文件父目录指向 Home 外的链接时，卸载和重放均拒绝清理、保留已卸载记录且释放应撤下的定义；外部文件、其他插件及发布者的定义/安装/数据不变。修复链接后，同安装重放实际清掉自己的目录，后续重放无额外停止或记录改写。带非空文件和 KV 的不留数据安装，无论同进程或重启、同对象或新定义对象，重清失败时均带码拒绝重装，无新安装行、事件、世代、启动或定义残留；重清成功后的新代码及动作读不到旧文件和 KV。缺同步钩子/必需 KV owner 端口明确拒绝，普通宿主错误带主人码，已有 ActionError 原样，保留 Native 无外部清理与留数据的显式选择。`tests/security-invariants-sandbox-owner-files.test.ts` 证明真实链接路径、重装及定义释放，`tests/plugin-lifecycle-states.test.ts` 同时证明原错误对象、撤权、串行、缺钩子拒绝及跨重启 |
 | RAC-358 | Home Runtime 里：沙箱包得到 `<Home>/plugin-files/<安装>/<store_name>/`，同一个有界服务、同样的拒绝（未声明的效果、查询写、根之外的路径、错误形状、`rootPath`）；没有项目目录、没有按登记的 Home 库建目录 |
 | RAC-359 | Home Runtime 里各安装各一份；留数据的卸载留着，不留的删掉，别的安装的不动；`plugin-files` 登记为宿主的 Home 库（purge 覆盖，`homeStores()` 与钉死的清单一致） |
+
+RAC-357-U1 的实现覆盖 Runtime 卸载 `finally` 释放定义，以及不留数据的已卸载安装在重装前同步重清。沿原 `plugin_id`/发布者条件释放定义；新清理阶段在无副作用校验后、注册/世代/保存前复用同步钩子。Host 只编排现有主人文件能力与 KV owner 公开删除接口，三个真实 Project 构造接齐删除端口，Home 复用已有 storage；不增异步 install、持久标记、迁移、跨表 SQL 或第二份清理实现，巨大类不增长。原 `87ebba4c` 的定义释放有效红保留；在 `80e5ee7d` 上，新增真实项目/Home（含实际重启）回归进一步证明重装代码会读回非空旧文件和 KV，且清理失败未阻断安装，再补最小修复。定向命令仍为 `node scripts/run-tests.mjs tests/security-invariants-sandbox-owner-files.test.ts tests/plugin-lifecycle-states.test.ts`，按新增安装、授权规范化、KV 与 Host 接线风险选回归；原有效证据保留适用范围。共享核心的统一 full 由 Claude 排批，本片不自行启动。真实 Home 未动，权限、路径拒绝、存储结构及留数据的回滚合同不变。
 
 **P2d 验收**（S-65，RAC-360～369，统筹 10-24 分配）：`tests/security-invariants-sandbox-local-original.test.ts`
 

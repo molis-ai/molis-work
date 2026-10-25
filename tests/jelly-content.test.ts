@@ -8,7 +8,7 @@ import { openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { jellySourceHash } from "@molis-ai/molis-work-plugin-jelly";
 import { jellyMarkdownToBlocks, jellyBlocksToMarkdown, jellyBlocksToHtml, jellyHtmlToBlocks } from "@molis-ai/molis-work-plugin-jelly";
 import { decodeJellyImport } from "@molis-ai/molis-work-plugin-jelly";
-import type { JellyPlan } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyPlan } from "@molis-ai/molis-work-plugin-jelly/contract";
 function temporary(t: test.TestContext): string { const home = mkdtempSync(join(tmpdir(), "molis-jelly-")); t.after(() => rmSync(home, { recursive: true, force: true })); return home; }
 const schedule = { start_date: "2026-09-22", end_date: "2026-09-22", start_time: 540, end_time: 600 };
 

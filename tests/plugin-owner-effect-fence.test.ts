@@ -34,7 +34,8 @@ test("W3-09-AUTH-03 the SDK owner binder retains the real old invocation instead
   const storage = new SqlitePluginPrivateStorage(store.db);
   const action: ActionDefinition<Record<string, never>, boolean> = { capability_id: "fixture.owner.save", version: 1, operation: "command", action: {
     title: "Save own fact", description: "One installation's real SQLite fact", kind: "operation", scope: "project", scheduling: "concurrent",
-    audiences: ["user"], permissions: ["storage:private"], subject_kinds: [],
+    // `plugin`: the installation invokes its own action outside every call (PG-028 gives that self-call the plugin audience).
+    audiences: ["user", "plugin"], permissions: ["storage:private"], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "boolean" },
   } };
   const definition: PluginDefinition = { manifest: {
@@ -54,7 +55,7 @@ test("W3-09-AUTH-03 the SDK owner binder retains the real old invocation instead
   } };
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
     ui: new UiHost(), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest) }), { actions });
-  const installed = runtime.install({ definition, deployment: "local", grants: ["storage:private"] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["storage:private"] }).install;
   stop = () => runtime.stop(installed.install_id);
   await runtime.start(installed.install_id);
   const context = contexts[0];

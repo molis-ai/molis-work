@@ -29,7 +29,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const platform = createPluginPlatform({ project_id: 'p', actor_id: 'owner', db: store.db, actions, ui: new UiHost(), home: null,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
+    privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest), deleteInstallationData: id => privateStorage.deleteInstallationData(id) });
   const entered = gate(), releaseGate = gate(), finished = gate(), controller = new AbortController();
   t.signal.addEventListener('abort', () => { controller.abort(); releaseGate.resolve(); }, { once: true });
   let allowed = true, externalEffects = 0, serviceCalls = 0;
@@ -254,7 +254,7 @@ for (const mode of ['cancelled', 'revoked'] as const) test(`PLIB-10 S-18 an inst
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: 'owner', db: store.db, actions, ui: new UiHost(), home: null,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
+    privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest), deleteInstallationData: id => privateStorage.deleteInstallationData(id) });
   const entered = gate(), releaseGate = gate(), controller = new AbortController();
   t.signal.addEventListener('abort', () => { controller.abort(); releaseGate.resolve(); }, { once: true });
   let allowed = true;

@@ -64,7 +64,7 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
     return { workspace_id: "work", writer_workspace_id: "child", source_path: `${root}-child`, target_path: root, branch: "writer/child", base_commit: "abc123", files: structuredClone(files) };
   });
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", escapeHtml: String, translate: (value: string) => value,
-    capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
+    agentHost: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
       const id = definition.capability_id;
       if (id === agent.readSession.capability_id) return { runs: [ref] } as O;
       if (id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;

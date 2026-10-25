@@ -7,8 +7,8 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoBoard, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // Every plugin is content in the one workbench (specs/shell-page-exceptions, S7). Following every local link a seeded
@@ -144,6 +144,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/document-shell.ts": "the workbench document itself",
   "apps/workbench/src/shell-page-renderer.ts": "the workbench",
   "apps/workbench/src/home-plugin-page.ts": "Home workbench: Host document and UI lifetime, Runtime plugin content only",
+  "apps/workbench/src/plugin-store-unavailable.ts": "Host static recovery document for an unreadable Home ledger; no plugin content or client (ac-trust-install §7.3, RAC-404)",
   "apps/workbench/src/side-view-document.ts": "宿主排版的侧栏文档",
   "apps/local-host/src/web-project-platform-routes.ts": "宿主排版的侧栏文档：插件不在时侧栏框里的一句说明",
   "apps/workbench/src/arrival/shell.ts": "进入页",

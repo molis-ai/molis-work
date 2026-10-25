@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority, openByDefault } from "../apps/local-host/dist/mcp-action-grants.js";
 import { parseMcpToolPreference, readMcpToolPreference, writeMcpActionGrant, writeMcpActionGrants, mcpToolPreferencePath } from "../apps/local-host/dist/mcp-settings-store.js";
@@ -129,9 +129,12 @@ test("Host inspection exposes metadata without execution rights; exact scope and
   await assert.rejects(client.invoke({ ...authorized, allowed_capability_ids: [action.capability_id] }, newer, {}), { code: "actions.forbidden" });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   t.after(() => release.resolve());
-  const blocking = { capability_id: "fixture.block", version: 1, operation: "command" as const };
-  host.register(blocking, async () => { entered.resolve(); await release.promise; });
-  const first = host.client(reference).invoke(blocking, undefined); await entered.promise;
+  // A Host action of the same project holds its queue, so the MCP call below waits behind it.
+  const blocking: ActionDefinition<Record<string, never>, null> = { capability_id: "fixture.block", version: 1, operation: "command",
+    action: { title: "Block", description: "Hold the project's queue", kind: "operation", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [],
+      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "null" } } };
+  host.registerAction(blocking, async () => { entered.resolve(); await release.promise; return null; });
+  const first = host.client(reference).invoke(blocking, {}); await entered.promise;
   const mutable = { ...authorized, allowed_actions: [...authorized.allowed_actions!] };
   const queued = client.invoke({ ...mutable, validate_authority: async ref => assertMcpActionAuthority(caller, [action], await readMcpToolPreference(home), ref) }, action, {});
   const rejected = assert.rejects(queued, { code: "mcp.action_revoked" });

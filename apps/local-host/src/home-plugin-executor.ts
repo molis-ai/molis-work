@@ -11,7 +11,7 @@ import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
-import { discardInstallationOwnerData } from "./plugin-installation-cleanup.js";
+import { discardInstallationOwnerData, forgetInstallationRecords } from "./plugin-installation-cleanup.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
@@ -191,8 +191,13 @@ export class HomePluginExecutor implements PluginExecutor {
   uninstalled(record: PluginInstanceRecord): PluginCleanupResult | undefined {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     const cleanup = !record.retain_private_data ? discardInstallationOwnerData({ home: pluginHomeFor(this.options.home), project_id: null }, record, id => this.options.storage.deleteInstallationData(id)) : undefined;
+    forgetInstallationRecords({ home: pluginHomeFor(this.options.home), project_id: null }, record);
     return cleanup;
   }
+  prepareReinstall(record: PluginInstanceRecord): void {
+    forgetInstallationRecords({ home: pluginHomeFor(this.options.home), project_id: null }, record);
+  }
+
   keptDataDiscarded(record: PluginInstanceRecord): PluginCleanupResult | undefined {
     return discardInstallationOwnerData({ home: pluginHomeFor(this.options.home), project_id: null }, record, id => this.options.storage.deleteInstallationData(id));
   }

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
+import { openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
 import { readProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 test("project result references are read from the project's workspace through the bounded reader", async () => {

@@ -25,6 +25,7 @@ export interface PeriodicTasks {
 export function createPeriodicTasks(): PeriodicTasks {
   const tasks = new Map<string, { task: PeriodicTask; timer: NodeJS.Timeout; view: Omit<PeriodicTaskView, "id" | "title" | "owner" | "interval_ms">; current?: Promise<void> }>();
   let stopped = false;
+  let stopping: Promise<void> | undefined;
   const tick = (id: string) => {
     const entry = tasks.get(id);
     if (!entry || entry.current || stopped) return;
@@ -48,10 +49,12 @@ export function createPeriodicTasks(): PeriodicTasks {
       return () => { remove(task.id); };
     },
     list: () => [...tasks.values()].map(({ task, view }) => ({ id: task.id, title: task.title, owner: task.owner, interval_ms: task.intervalMs, ...view })),
-    async stop() {
+    stop() {
       stopped = true;
-      const running = [...tasks.keys()].map(remove).map(entry => entry?.current);
-      await Promise.all(running);
+      return stopping ??= (async () => {
+        const running = [...tasks.keys()].map(remove).map(entry => entry?.current);
+        await Promise.all(running);
+      })().catch(error => { stopping = undefined; throw error; });
     },
   };
 }

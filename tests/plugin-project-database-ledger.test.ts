@@ -60,7 +60,7 @@ const refused = (code: string, run: () => unknown, mentions?: RegExp) => assert.
 });
 const open = (db: DatabaseSync, lent = inspector(), owner = OWNER) => openPluginProjectDatabase(db, owner, lent, { path: PATH, now: () => new Date("2026-10-20T01:00:00.000Z") });
 
-test("S-68 RAC-242 project cleanup removes its publisher's rows together, preserves schema and other owners, and refuses another publisher", () => {
+test("S-75 RAC-242 project cleanup removes its publisher's rows together, preserves schema and other owners, and refuses another publisher", () => {
   const db = library();
   try {
     db.exec("PRAGMA foreign_keys = ON");
@@ -80,7 +80,7 @@ test("S-68 RAC-242 project cleanup removes its publisher's rows together, preser
   } finally { db.close(); }
 });
 
-test("S-68 RAC-242 a failure partway through project row cleanup rolls all its deletes back and permits retry", () => {
+test("S-75 RAC-242 a failure partway through project row cleanup rolls all its deletes back and permits retry", () => {
   const db = library();
   try {
     db.exec("PRAGMA foreign_keys = ON");

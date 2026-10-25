@@ -80,6 +80,7 @@
     "@molis-ai/molis-work-plugin-todo": "workspace:*",
     "@molis-ai/molis-work-plugin-pages": "workspace:*",
     "@molis-ai/molis-work-plugin-ppt": "workspace:*",
+    "@molis-ai/molis-work-plugin-issues": "workspace:*",
     "@molis-ai/molis-work-plugin-runtime": "workspace:*",
     "@molis-ai/molis-work-plugin-schedule": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",

@@ -20,12 +20,11 @@ class Node {
 }
 
 type Reply = { receipt: { input_id: string; replayed: boolean; delivered: "run" | "queued" } };
-function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { q?: (selector: string) => Node | null; landed?: (sent: { text: string }, said: string) => void } = {}) {
+function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { find?: (selector: string) => Node | null; landed?: (sent: { text: string }, said: string) => void } = {}) {
   const sent: Array<Record<string, unknown>> = [];
   let uuid = 0;
   const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
-    document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` }, TypeError,
-    L: pageText("zh"), // the main script's translator, which the inlined factory uses
+    document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` },
   }) as (ports: object) => {
     steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
     act(id: string, run: string): { withdraw(inputId: string): Promise<string>; correct(about: string, text: string, key: string): Promise<string> };
@@ -33,7 +32,7 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
   const paths: string[] = [];
   let refreshed = 0;
   const api = (path: string, _method: string, body: Record<string, unknown>) => { paths.push(path); sent.push(body); return reply(body); };
-  return { ui: factory({ api, refresh: () => { refreshed++; }, q: () => null, landed: () => {}, ...ports }), sent, paths, refreshed: () => refreshed };
+  return { ui: factory({ api, translate: pageText("zh"), refresh: () => { refreshed++; }, q: () => null, find: () => null, landed: () => {}, ...ports }), sent, paths, refreshed: () => refreshed };
 }
 /** The round's record before it shows the supplement. */
 const nothing = { turns: [] };
@@ -112,7 +111,7 @@ test("RC-18, D38: what waits for the next round is in the shared tray; Coding ha
 test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {
   const marked = async (mode: string, delivered: "run" | "queued" = "run", replayed = false) => {
     const node = new Node();
-    await receipts(() => taken(delivered, replayed), { q: selector => selector === ".coding-turn.is-writing" ? node : null }).ui.steer("s", "r", "改用新接口", mode);
+    await receipts(() => taken(delivered, replayed), { find: selector => selector === ".coding-turn.is-writing" ? node : null }).ui.steer("s", "r", "改用新接口", mode);
     return node.classes.has("is-dropped") && /这段回复已丢掉（你打断了它）/u.test(node.text);
   };
   assert.equal(await marked("interrupt"), true);

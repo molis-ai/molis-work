@@ -2,11 +2,12 @@ import type { TodoActorKind, TodoLink, TodoPlacement, TodoSource, TodoStatus, To
 
 /**
  * Who is asking and what they may see. A caller inside a project sees personal, unplaced and that
- * project's todos; `everything` (the person's own Todo page) also sees other projects'.
+ * project's todos; `projectIds` (the Host's list of the projects the person may reach, PG-014) also lets them see those projects'.
+ * The plugin does not decide that list from who is asking: it uses the one the Host gave.
  */
 export interface TodoAccess {
   readonly projectId: string | null;
-  readonly everything: boolean;
+  readonly projectIds: readonly string[];
   readonly actor: TodoActorKind;
   readonly actorId: string;
 }

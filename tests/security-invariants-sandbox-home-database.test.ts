@@ -72,7 +72,7 @@ function ledger(home: string): Array<{ plugin_id: string; publisher_signature: s
 }
 const add = (text: string) => ({ sql: "INSERT INTO sbxhome_notes (text) VALUES (?)", parameters: [text] });
 
-test("S-68 RAC-240 a sandboxed package's Home library is made under the ledger with the install record's publisher, and its statements run in a process, not on the Host", async t => {
+test("S-75 RAC-240 a sandboxed package's Home library is made under the ledger with the install record's publisher, and its statements run in a process, not on the Host", async t => {
   const home = newHome(t);
   const { sandbox } = library(t, home);
   assert.deepEqual(ledger(home), [{ plugin_id: PLUGIN_ID, publisher_signature: "probe-sbxhome", store_name: "sbxhome" }]);
@@ -83,7 +83,7 @@ test("S-68 RAC-240 a sandboxed package's Home library is made under the ledger w
   assert.equal(workers().length, 1, "the statements run in a child process of the Host");
 });
 
-test("S-68 RAC-240 untrusted schema is refused before any library or ledger exists and cannot change an external SQLite file", t => {
+test("S-75 RAC-240 untrusted schema is refused before any library or ledger exists and cannot change an external SQLite file", t => {
   const outside = newHome(t), victim = join(outside, "outside.db"), db = new DatabaseSync(victim);
   db.exec("CREATE TABLE private_notes (text TEXT NOT NULL); INSERT INTO private_notes VALUES ('untouched');");
   db.close();
@@ -108,7 +108,7 @@ test("S-68 RAC-240 untrusted schema is refused before any library or ledger exis
   assert.deepEqual(rows(home), [], "a valid table and index declaration still creates its library");
 });
 
-test("S-68 RAC-241 another publisher's library, a name the Host or another plugin holds, and a library partitioned by project open nothing", async t => {
+test("S-75 RAC-241 another publisher's library, a name the Host or another plugin holds, and a library partitioned by project open nothing", async t => {
   const home = newHome(t);
   library(t, home);
   assert.equal(await nobodyRuns(), true, "this case begins without a statement worker");
@@ -131,7 +131,7 @@ test("S-68 RAC-241 another publisher's library, a name the Host or another plugi
   assert.equal(await nobodyRuns(), true, "no refused call leaves even one statement worker");
 });
 
-test("S-68 RAC-242 a grant taken back, or a closed library, stops the next call before it reaches the process", async t => {
+test("S-75 RAC-242 a grant taken back, or a closed library, stops the next call before it reaches the process", async t => {
   const home = newHome(t);
   const { sandbox, grants, opened } = library(t, home);
   await sandbox.transaction(context(), [add("kept")]);
@@ -145,7 +145,7 @@ test("S-68 RAC-242 a grant taken back, or a closed library, stops the next call 
   assert.equal(await nobodyRuns(), true, "closing the library ends its process");
 });
 
-test("S-68 RAC-243 the keyword filters of the Host's own client apply: a write is not a read, a read is not a write, and a read that starts as a query cannot write", async t => {
+test("S-75 RAC-243 the keyword filters of the Host's own client apply: a write is not a read, a read is not a write, and a read that starts as a query cannot write", async t => {
   const home = newHome(t);
   const { sandbox } = library(t, home);
   await sandbox.transaction(context(), [add("a")]);
@@ -161,7 +161,7 @@ test("S-68 RAC-243 the keyword filters of the Host's own client apply: a write i
   assert.deepEqual(rows(home), ["a"], "nothing a refused statement did is left");
 });
 
-test("S-68 RAC-244 a read past its time is killed and answered with a code while the Host keeps running; the next read runs in a fresh process", async t => {
+test("S-75 RAC-244 a read past its time is killed and answered with a code while the Host keeps running; the next read runs in a fresh process", async t => {
   const home = newHome(t);
   const { sandbox } = library(t, home, { limits: { readMs: 500 } });
   await sandbox.transaction(context(), Array.from({ length: 300 }, (_, n) => add(`row ${n}`)));
@@ -174,7 +174,7 @@ test("S-68 RAC-244 a read past its time is killed and answered with a code while
   assert.equal(rows(home).length, 300);
 });
 
-test("S-68 RAC-245 a write past its time is killed with its transaction: none of its statements stays and the next transaction runs", async t => {
+test("S-75 RAC-245 a write past its time is killed with its transaction: none of its statements stays and the next transaction runs", async t => {
   const home = newHome(t);
   const { sandbox } = library(t, home, { limits: { writeMs: 500, transactionMs: 2000 } });
   await sandbox.transaction(context(), Array.from({ length: 300 }, (_, n) => add(`row ${n}`)));
@@ -240,7 +240,7 @@ async function assertProcessesExit(pids: number[]): Promise<void> {
   assert.deepEqual(pids.filter(processExists), [], "every process of this activation actually exited");
 }
 
-test("S-68 RAC-242 a package installed in the real Home Runtime writes through its sandbox, stops and uninstalls with no surviving calls or processes", { skip: process.platform !== "darwin", timeout: 60_000 }, async t => {
+test("S-75 RAC-242 a package installed in the real Home Runtime writes through its sandbox, stops and uninstalls with no surviving calls or processes", { skip: process.platform !== "darwin", timeout: 60_000 }, async t => {
   const home = mkdtempSync(join(tmpdir(), "sandbox-home-runtime-")), bundlePath = join(home, "installed.mjs");
   writeFileSync(bundlePath, `export const operations={
     write:async(input,sdk)=>({value:JSON.stringify(await sdk.homeDatabase.transaction(JSON.parse(input)))}),
@@ -251,7 +251,7 @@ test("S-68 RAC-242 a package installed in the real Home Runtime writes through i
   t.after(async () => { try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
   assert.equal(await nobodyRuns(), true);
   const runtime = (await host.ready()).runtime;
-  const { install } = runtime.install({ definition: probe.definition, deployment: "local", grants: probe.permissions });
+  const { install } = runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: probe.permissions });
   const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: probe.permissions };
   await runtime.start(install.install_id);
   assert.deepEqual(await actions.invoke(caller, probe.write, JSON.stringify([add("from Home Runtime")])), { value: JSON.stringify([{ changes: 1 }]) });
@@ -279,7 +279,7 @@ test("S-68 RAC-242 a package installed in the real Home Runtime writes through i
   await assertProcessesExit([secondRunner.pid, ...secondWorkers]);
   assert.deepEqual(rows(home), ["from Home Runtime"], "a retaining uninstall keeps the library");
 
-  const retained = runtime.install({ definition: probe.definition, deployment: "local", grants: probe.permissions }).install;
+  const retained = runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: probe.permissions }).install;
   await runtime.start(retained.install_id);
   assert.deepEqual(await actions.invoke(caller, probe.read, JSON.stringify(["SELECT text FROM sbxhome_notes", []])),
     { value: JSON.stringify([{ text: "from Home Runtime" }]) }, "retaining reinstall reads the old library");
@@ -288,7 +288,7 @@ test("S-68 RAC-242 a package installed in the real Home Runtime writes through i
   await assertProcessesExit([thirdRunner.pid, ...thirdWorkers]);
   assert.equal(existsSync(join(home, declaration.store_name)), false);
   assert.deepEqual(ledger(home), [], "non-retaining uninstall removed this owner's claim after its files");
-  const fresh = runtime.install({ definition: probe.definition, deployment: "local", grants: probe.permissions }).install;
+  const fresh = runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: probe.permissions }).install;
   await runtime.start(fresh.install_id);
   assert.deepEqual(await actions.invoke(caller, probe.read, JSON.stringify(["SELECT text FROM sbxhome_notes", []])), { value: "[]" },
     "the sandbox package cannot read discarded library data after reinstall");
@@ -298,7 +298,7 @@ test("S-68 RAC-242 a package installed in the real Home Runtime writes through i
   assert.equal(await nobodyRuns(), true);
 });
 
-test("S-68 RAC-240 a replacement's untrusted schema is refused before explicit retained-data discard can touch the old library, ledger, KV or external file", { skip: process.platform !== "darwin", timeout: 60_000 }, async t => {
+test("S-75 RAC-240 a replacement's untrusted schema is refused before explicit retained-data discard can touch the old library, ledger, KV or external file", { skip: process.platform !== "darwin", timeout: 60_000 }, async t => {
   const home = mkdtempSync(join(tmpdir(), "sandbox-home-install-schema-")), bundlePath = join(home, "installed.mjs");
   writeFileSync(bundlePath, `export const operations={
     write:async(input,sdk)=>({value:JSON.stringify(await sdk.homeDatabase.transaction(JSON.parse(input)))}),
@@ -308,7 +308,7 @@ test("S-68 RAC-240 a replacement's untrusted schema is refused before explicit r
   const host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
   t.after(async () => { try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
   const runtime = (await host.ready()).runtime, caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: probe.permissions };
-  const { install } = runtime.install({ definition: probe.definition, deployment: "local", grants: probe.permissions });
+  const { install } = runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: probe.permissions });
   await runtime.start(install.install_id);
   await actions.invoke(caller, probe.write, JSON.stringify([add("old library")]));
   probe.storage[0]!.set("old", "old private value");
@@ -325,7 +325,7 @@ test("S-68 RAC-240 a replacement's untrusted schema is refused before explicit r
   const outsideBytes = readFileSync(victim), candidate = homePackage(bundlePath);
   candidate.definition.manifest = { ...candidate.definition.manifest, version: "1.1.0", databases: { home: { ...declaration,
     schema: `${declaration.schema} ATTACH DATABASE '${victim.replaceAll("'", "''")}' AS outside; UPDATE outside.private_notes SET text = 'changed';` } } };
-  assert.throws(() => runtime.install({ definition: candidate.definition, deployment: "local", grants: candidate.permissions, discard_kept_data: true }),
+  assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition: candidate.definition, deployment: "local", grants: candidate.permissions, discard_kept_data: true }),
     { code: "plugin.declaration_invalid" });
   assert.deepEqual(runtime.get(install.install_id), before.record);
   assert.deepEqual(ledger(home), before.ledger);
@@ -333,7 +333,7 @@ test("S-68 RAC-240 a replacement's untrusted schema is refused before explicit r
   assert.deepEqual(privateRows(), before.kv);
   assert.deepEqual(readFileSync(victim), outsideBytes);
   assert.equal(candidate.runners.length, 0);
-  runtime.install({ definition: probe.definition, deployment: "local", grants: probe.permissions });
+  runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: probe.permissions });
   await runtime.start(install.install_id);
   assert.equal(probe.storage.at(-1)!.get("old"), "old private value");
   assert.deepEqual(await actions.invoke(caller, probe.read, JSON.stringify(["SELECT text FROM sbxhome_notes", []])),
@@ -343,7 +343,7 @@ test("S-68 RAC-240 a replacement's untrusted schema is refused before explicit r
   await assertProcessesExit(pids);
 });
 
-test("S-68 RAC-240 the real development loader preserves sandbox execution and rejects bad Home schema before retrying a non-retaining cleanup", async t => {
+test("S-75 RAC-240 the real development loader preserves sandbox execution and rejects bad Home schema before retrying a non-retaining cleanup", async t => {
   const home = mkdtempSync(join(tmpdir(), "sandbox-development-schema-")), projectFile = join(home, "project.db");
   seedDemoBoard(projectFile);
   const store = new LocalProjectDatabase(projectFile), privateData = new SqlitePluginPrivateStorage(store.db);
@@ -351,7 +351,7 @@ test("S-68 RAC-240 the real development loader preserves sandbox execution and r
   const base = homePackage("unused.mjs"), manifest = { ...base.definition.manifest, kind: "integration" as const, actions: [] };
   const definition: PluginDefinition = { execution: "sandbox", manifest, async start() { throw new Error("must never start"); } };
   const repository = new MemoryPluginRuntimeRepository(), seed = new PluginRuntime(repository);
-  const { install } = seed.install({ definition, deployment: "local", grants: base.permissions });
+  const { install } = seed.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: base.permissions });
   // A concrete earlier, non-retaining uninstall with unfinished Host cleanup, as permitted by the pre-fix implementation.
   repository.save({ ...install, state: "uninstalled", retain_private_data: false });
   privateData.restoreInstallationData(install.install_id, [{ item_key: "old", item_value: "old private value" }]);
@@ -382,7 +382,7 @@ test("S-68 RAC-240 the real development loader preserves sandbox execution and r
   assert.deepEqual(readFileSync(victim), outsideBytes);
 });
 
-test("S-68 RAC-246 a real sandbox reaches its Home library through the broker only when its operation declared it and the person approved it", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
+test("S-75 RAC-246 a real sandbox reaches its Home library through the broker only when its operation declared it and the person approved it", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
   const home = newHome(t);
   const { opened } = library(t, home);
   const bundlePath = join(home, "sandboxed.mjs");

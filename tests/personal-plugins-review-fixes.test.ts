@@ -412,7 +412,8 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
       const { platform } = await ensureProjectPlugins({ store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID,
         actorId: "web-user", homeDirectory: home, actions: pluginActions(store, DEMO_PROJECT_ID) });
       assert.ok(platform, "Runtime 必须实际启动，不能仅将 app 插件从检查中排除");
-      const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true || Boolean(entry.summary));
+      // A plugin's market words are its Manifest's `summary` since W5-02 PR-B (B2); the registration no longer carries them.
+      const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true || Boolean(entry.manifest.summary));
       const packed = new Set(BUILTIN_PLUGIN_WORKBENCH.map(pack => pack.project_plugin_id));
       for (const entry of shipped) {
         if (packed.has(entry.project_plugin_id)) continue;

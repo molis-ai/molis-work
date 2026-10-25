@@ -31,7 +31,7 @@ const plugin = definePlugin({ manifest: {
 const reference = { project_id: project, storage_key: database };
 const host = new LocalHost({ runtimeFactory: { open: () => db, close: value => value.close() } });
 const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { actions: { registry: host.actionRegistry(reference), project_id: project } });
-const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:write"] }).install;
+const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:write"] }).install;
 await runtime.start(installed.install_id);
 const ports = createActionMcpPorts({ service: host.actionClient(reference), serverInfo: { name: "molis-action-fixture", version: "1.0.0" },
   context: () => ({ actor_id: actor, project_id: project, audience: "mcp", permissions: ["notes:write"] }),

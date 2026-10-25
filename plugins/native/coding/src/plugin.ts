@@ -114,7 +114,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
     },
     async health(context: PluginStartContext): Promise<{ ok: boolean; message: string }> {
       // Honest about the one thing that decides whether a Run can start at all.
-      const capabilities = context.services?.capabilities;
+      const capabilities = context.services?.actions;
       return capabilities === undefined
         ? { ok: false, message: "宿主没有提供能力入口，起不了 Run" }
         : { ok: true, message: "就绪" };

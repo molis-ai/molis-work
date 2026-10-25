@@ -20,6 +20,7 @@ export const datasetManifest: PluginManifest = {
   plugin_id: DATASET_PLUGIN_ID,
   version: "0.3.0",
   name: "Dataset",
+  summary: "做表格，导入 CSV，可回到旧版。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-dataset-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

@@ -18,6 +18,7 @@ export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
 export { LocalCatalogMetadata } from "./catalog-metadata.js";
 
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
+export { acquireStorageOwner, assertStorageOwner, borrowStorageOwner, hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, type StorageOwner, type StorageOwnerBorrow } from "./adapters/storage-owner.js";
 
 export {
   homeSqlitePartitionDirectory,
@@ -44,7 +45,7 @@ export {
 export {
   runWithMolisWorkHome,
   resolveMolisWorkHome,
-  resolveFeedSecurityDirectory,
+  resolveHomeSecurityDirectory,
   readProductEnv,
   resolveProjectDatabaseFile,
   DEFAULT_HOME_DIRNAME,
@@ -53,6 +54,7 @@ export {
 
 export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 export { inspectSealedSecretsSnapshot, readSealedSecretSnapshotEntry, readExistingSecret, type SealedSecretsSnapshotInspection } from "./adapters/file-secret-store.js";
+export { sealExistingHomePayload, openExistingHomePayload, type SealedHomePayload } from "./adapters/file-secret-store.js";
 
 export * from "./adapters/search-storage.js";
 

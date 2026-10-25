@@ -14,7 +14,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | `SearchService`：来源发现、同步、失败恢复、查询聚合、打开核对 |
+| [src/index.ts](src/index.ts) | `SearchService` 保留实例状态、生命周期与授权查询；同文件函数负责索引同步、正文读取、来源与状态投影 |
 | [src/references.ts](src/references.ts) | 可引用的对象：`findReferenceCandidates`（`search.references` 动作，按种类在调用者的项目里找、每个都向对象主人重读）与 `confirmReferences`（宿主在带引用的回答交给运行之前逐个再读，安全不变量 S-26）。上下文条的落点取候选也走这一对 |
 
 合同在 `@molis-ai/molis-work-contracts/services/search`（消费合同与索引端口）和 `@molis-ai/molis-work-contracts/platform/actions`（插件实现的搜索来源协议）。索引持久化由 `@molis-ai/molis-work-storage` 的 `openTextSearchIndex` 实现，Host 装配在 [apps/local-host/src/search-actions.ts](../../apps/local-host/src/search-actions.ts)。

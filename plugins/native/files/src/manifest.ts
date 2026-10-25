@@ -15,9 +15,10 @@ import {
   GIT_FILE_CHANGED_EVENT,
   workspaceReadActions,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { FILES_PLUGIN_ID } from "./plugin-id.js";
 import { FILES_UI_CONTRIBUTION_ID } from "./ui.js";
 
-export const FILES_PLUGIN_ID = "io.molis.work.files";
+export { FILES_PLUGIN_ID };
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
 const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
@@ -46,6 +47,7 @@ export const filesManifest: PluginManifest = {
   plugin_id: FILES_PLUGIN_ID,
   version: "0.3.0",
   name: "Files",
+  summary: "查看工作区文件与保留的内容。",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-files-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

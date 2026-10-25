@@ -1,7 +1,7 @@
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   UiCommandDeclaration,
   UiViewCreateEntry,
+  UiViewDeclaration,
   UiViewGroup,
   UiViewSlot,
   UiViewStartEntry,
@@ -29,13 +29,20 @@ export interface UiPlacedView {
   start?: UiViewStartEntry;
 }
 
+/** What the registry reads of a Manifest: who it is and where its views and commands are placed. */
+export interface UiViewRegistryManifest {
+  readonly plugin_id: string;
+  readonly name: string;
+  readonly ui: { readonly views?: readonly UiViewDeclaration[]; readonly commands?: readonly UiCommandDeclaration[] };
+}
+
 export interface UiViewRegistryInput {
-  manifest: PluginManifest;
+  manifest: UiViewRegistryManifest;
   /** Only enabled Plugins are placed. A disabled Plugin leaves no gap behind. */
   enabled: boolean;
 }
 
-function defaultContributionId(manifest: PluginManifest, viewId: string): string {
+function defaultContributionId(manifest: UiViewRegistryManifest, viewId: string): string {
   return `${manifest.plugin_id}.${viewId}`;
 }
 

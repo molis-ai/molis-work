@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
+import { readArtifactBrowser } from "@molis-ai/molis-work-module-artifacts";
 import { pinnedArtifact, titleOf } from "./fixtures/artifacts.js";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { MolisWorkLocalHost, GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";

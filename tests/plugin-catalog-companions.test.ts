@@ -2,12 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  availableProjectPluginIds,
-  BUILTIN_PLUGIN_CATALOG,
-  BUILTIN_PLUGIN_REGISTRY,
-  PROJECT_SCOPED_PLUGIN_IDS,
-  railEntries,
+  BUILTIN_PLUGIN_CATALOG, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
+import { availableProjectPluginIds, BUILTIN_PLUGIN_REGISTRY, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * Enabling a Plugin has to leave the user with something that can work.

@@ -87,7 +87,7 @@ function platformIn(directory: string, projectId = DEMO_PROJECT_ID) {
 }
 
 type Item = ReturnType<typeof platformIn>;
-const install = (item: Item, definition: PluginDefinition) => item.platform.runtime.install({ definition, deployment: "local", grants: GRANTS }).install.install_id;
+const install = (item: Item, definition: PluginDefinition) => item.platform.runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: GRANTS }).install.install_id;
 /** Install and start; resolves with the install id. */
 async function run(item: Item, definition: PluginDefinition) {
   const installId = install(item, definition);
@@ -112,7 +112,7 @@ const ledgerRows = (home: string) => existsSync(join(home, LEDGER))
 const notes = (home: string, name = LIBRARY.store_name) => read(libraryFile(home, name), db => db.prepare("SELECT text FROM notes ORDER BY id").all().map(row => (row as { text: string }).text));
 const noteInto = (database: PluginDatabase, text: string) => database.transaction(async () => {}, tx => tx.run("INSERT INTO notes (text) VALUES (?)", [text]));
 
-test("S-68 RAC-242 library cleanup refuses another publisher or a reserved store and never touches unregistered directories", withDirectory(async directory => {
+test("S-75 RAC-242 library cleanup refuses another publisher or a reserved store and never touches unregistered directories", withDirectory(async directory => {
   const item = platformIn(directory), plugin = probe();
   const unregistered = join(directory, "not-in-ledger");
   mkdirSync(unregistered); writeFileSync(join(unregistered, "keep.txt"), "unclaimed");
@@ -136,7 +136,7 @@ test("S-68 RAC-242 library cleanup refuses another publisher or a reserved store
   } finally { item.store.close(); }
 }));
 
-test("S-68 RAC-242 cleanup removes only its recorded owner while another retained library and its ledger row stay unchanged", withDirectory(async directory => {
+test("S-75 RAC-242 cleanup removes only its recorded owner while another retained library and its ledger row stay unchanged", withDirectory(async directory => {
   const item = platformIn(directory), own = probe(), kept = probe({ name: "kept-library", library: { store_name: "kept-library" } });
   try {
     const ownId = await run(item, own.definition), keptId = await run(item, kept.definition);
@@ -152,7 +152,7 @@ test("S-68 RAC-242 cleanup removes only its recorded owner while another retaine
   } finally { item.store.close(); }
 }));
 
-test("S-68 RAC-242 a file-removal failure keeps the owner row and data, and retry actually removes both", async t => {
+test("S-75 RAC-242 a file-removal failure keeps the owner row and data, and retry actually removes both", async t => {
   const directory = mkdtempSync(join(tmpdir(), "installed-library-cleanup-failure-")), item = platformIn(directory), plugin = probe();
   t.after(() => { item.store.close(); rmSync(directory, { recursive: true, force: true }); });
   const id = await run(item, plugin.definition);
@@ -173,7 +173,7 @@ test("S-68 RAC-242 a file-removal failure keeps the owner row and data, and retr
   assert.deepEqual(ledgerRows(directory), []);
 });
 
-test("S-68 RAC-242 even the last project uninstall clears its KV but retains the shared Home library and reports it", withDirectory(async directory => {
+test("S-75 RAC-242 even the last project uninstall clears its KV but retains the shared Home library and reports it", withDirectory(async directory => {
   const item = platformIn(directory), plugin = probe();
   try {
     const id = await run(item, plugin.definition);
@@ -195,7 +195,7 @@ test("S-68 RAC-242 even the last project uninstall clears its KV but retains the
   } finally { item.store.close(); }
 }));
 
-test("S-68 RAC-242 a project uninstall cannot delete a Home library even when the live registry reserves its name", withDirectory(async directory => {
+test("S-75 RAC-242 a project uninstall cannot delete a Home library even when the live registry reserves its name", withDirectory(async directory => {
   const item = platformIn(directory), plugin = probe();
   try {
     const id = await run(item, plugin.definition);
@@ -211,7 +211,7 @@ test("S-68 RAC-242 a project uninstall cannot delete a Home library even when th
   } finally { item.store.close(); }
 }));
 
-test("S-68 RAC-242 retaining one project's installation leaves a second real project's shared Home library and live WAL connection usable", withDirectory(async directory => {
+test("S-75 RAC-242 retaining one project's installation leaves a second real project's shared Home library and live WAL connection usable", withDirectory(async directory => {
   const a = platformIn(directory, "library-project-a"), b = platformIn(directory, "library-project-b");
   const first = probe(), second = probe();
   try {
@@ -239,7 +239,7 @@ test("S-68 RAC-242 retaining one project's installation leaves a second real pro
 }));
 
 for (const execution of [undefined, "sandbox"] as const) for (const discard of [false, true]) {
-  test(`S-68 RAC-242 project ${execution ?? "native"} ${discard ? "explicit discard" : "non-retaining uninstall"} clears only its rows and KV while B keeps its live shared Home connection`, withDirectory(async directory => {
+  test(`S-75 RAC-242 project ${execution ?? "native"} ${discard ? "explicit discard" : "non-retaining uninstall"} clears only its rows and KV while B keeps its live shared Home connection`, withDirectory(async directory => {
     const a = platformIn(directory, "library-project-a"), b = platformIn(directory, "library-project-b");
     // The sandbox execution fixture uses the real isolated project-statement child. Its project manifest cannot declare Home;
     // B's native installation holds the same plugin/publisher's existing shared Home library throughout A's cleanup.
@@ -265,7 +265,7 @@ for (const execution of [undefined, "sandbox"] as const) for (const discard of [
         assert.deepEqual(projectNotes(a), ["A private row"]);
         assert.equal(a.privateStorage.snapshotInstallationData(aId).length, 1);
         const replacement = probe({ execution, projectData: true, version: "1.2.0" });
-        receipt = a.platform.runtime.install({ definition: replacement.definition, deployment: "local", grants: GRANTS, discard_kept_data: true });
+        receipt = a.platform.runtime.install({ trust: { level: "unsigned" }, definition: replacement.definition, deployment: "local", grants: GRANTS, discard_kept_data: true });
         assert.notEqual(receipt.install.installation_generation, aBefore.installation_generation);
         assert.equal(replacement.started.length, 0, "cleanup completed before the new installation starts");
       } else receipt = await a.platform.runtime.uninstall(aId, { retain_private_data: false });
@@ -293,7 +293,7 @@ for (const execution of [undefined, "sandbox"] as const) for (const discard of [
   }));
 }
 
-test("S-68 RAC-242 a project row cleanup failure preserves KV and the earlier installation until a successful retry", withDirectory(async directory => {
+test("S-75 RAC-242 a project row cleanup failure preserves KV and the earlier installation until a successful retry", withDirectory(async directory => {
   const item = platformIn(directory), plugin = probe({ projectData: true });
   try {
     const id = await run(item, plugin.definition);
@@ -304,7 +304,7 @@ test("S-68 RAC-242 a project row cleanup failure preserves KV and the earlier in
     await assert.rejects(item.platform.runtime.uninstall(id, { retain_private_data: false }), /project cleanup interrupted/u);
     const before = item.platform.runtime.get(id), failed = probe({ projectData: true, version: "1.2.0" });
     assert.equal(before.state, "uninstalled");
-    assert.throws(() => item.platform.runtime.install({ definition: failed.definition, deployment: "local", grants: GRANTS }), { code: "plugin.executor_failed" });
+    assert.throws(() => item.platform.runtime.install({ trust: { level: "unsigned" }, definition: failed.definition, deployment: "local", grants: GRANTS }), { code: "plugin.executor_failed" });
     assert.deepEqual(item.platform.runtime.get(id), before);
     assert.deepEqual(item.privateStorage.snapshotInstallationData(id), kvBefore);
     assert.deepEqual(ledgerRows(directory), ledgerBefore);
@@ -312,7 +312,7 @@ test("S-68 RAC-242 a project row cleanup failure preserves KV and the earlier in
     assert.equal(item.store.db.prepare("SELECT count(*) AS n FROM ledger_project_notes").get()!.n, 1);
     item.store.db.exec("DROP TRIGGER fail_cleanup");
     const retry = probe({ projectData: true, version: "1.2.0" });
-    const receipt = item.platform.runtime.install({ definition: retry.definition, deployment: "local", grants: GRANTS });
+    const receipt = item.platform.runtime.install({ trust: { level: "unsigned" }, definition: retry.definition, deployment: "local", grants: GRANTS });
     assert.deepEqual(receipt.notes, ["Home 共享库保留（其他项目可能在用）"]);
     assert.deepEqual(item.privateStorage.snapshotInstallationData(id), []);
     assert.equal(item.store.db.prepare("SELECT count(*) AS n FROM ledger_project_notes").get()!.n, 0);
@@ -320,14 +320,14 @@ test("S-68 RAC-242 a project row cleanup failure preserves KV and the earlier in
   } finally { item.store.close(); }
 }));
 
-test("S-68 RAC-242 the unique Home installation finishes file, ledger and KV cleanup before publishing a replacement; failure is retryable", async t => {
+test("S-75 RAC-242 the unique Home installation finishes file, ledger and KV cleanup before publishing a replacement; failure is retryable", async t => {
   const directory = mkdtempSync(join(tmpdir(), "installed-library-discard-")), plugin = probe({ scope: "home" }), actions = new ActionService();
   const host = new HomePluginHost({ home: directory, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
   t.after(async () => {
     try { await host.close(); } finally { rmSync(directory, { recursive: true, force: true }); }
   });
   const runtime = (await host.ready()).runtime;
-  const id = runtime.install({ definition: plugin.definition, deployment: "local", grants: GRANTS }).install.install_id;
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: plugin.definition, deployment: "local", grants: GRANTS }).install.install_id;
   await runtime.start(id);
   await noteInto(plugin.database(), "old library");
   plugin.started.at(-1)!.storage!.set("old", "private value");
@@ -343,7 +343,7 @@ test("S-68 RAC-242 the unique Home installation finishes file, ledger and KV cle
   });
   syncBuiltinESMExports();
   try {
-    assert.throws(() => runtime.install({ definition: candidate.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }),
+    assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition: candidate.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }),
       { code: "plugin.executor_failed" });
   } finally { injected.mock.restore(); syncBuiltinESMExports(); }
   assert.deepEqual(runtime.get(id), before, "cleanup failure did not publish a replacement record");
@@ -351,7 +351,7 @@ test("S-68 RAC-242 the unique Home installation finishes file, ledger and KV cle
   assert.deepEqual(readFileSync(libraryFile(directory, LIBRARY.store_name)), bytes);
   assert.deepEqual(privateRows(), privateBefore, "file failure happened before any KV deletion");
   const retry = probe({ version: "1.2.0", scope: "home" });
-  const receipt = runtime.install({ definition: retry.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }), installed = receipt.install;
+  const receipt = runtime.install({ trust: { level: "unsigned" }, definition: retry.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }), installed = receipt.install;
   assert.equal(installed.install_id, id);
   assert.notEqual(installed.installation_generation, before.installation_generation);
   assert.equal(existsSync(join(directory, LIBRARY.store_name)), false);
@@ -363,7 +363,61 @@ test("S-68 RAC-242 the unique Home installation finishes file, ledger and KV cle
   assert.equal(candidate.started.length, 0, "the failed candidate never started");
 });
 
-test("S-68 RAC-242 invalid grants or a conflicting registered replacement cannot discard an existing library or private data", withDirectory(async directory => {
+test("S-75 RAC-248 partial Home file deletion preserves the real remainder and explicit discard retries in the same or a new Runtime", async t => {
+  for (const restart of [false, true]) await t.test(restart ? "new Runtime" : "same Runtime", async t => {
+    const directory = mkdtempSync(join(tmpdir(), "installed-library-partial-discard-"));
+    const createHost = () => {
+      const actions = new ActionService();
+      return new HomePluginHost({ home: directory, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
+    };
+    let host = createHost(), runtime = (await host.ready()).runtime;
+    t.after(async () => { try { await host.close(); } finally { rmSync(directory, { recursive: true, force: true }); } });
+    const plugin = probe({ scope: "home" });
+    const id = runtime.install({ trust: { level: "unsigned" }, definition: plugin.definition, deployment: "local", grants: GRANTS }).install.install_id;
+    await runtime.start(id); await noteInto(plugin.database(), "already deleted after failure");
+    plugin.started.at(-1)!.storage!.set("kept", "real remaining KV");
+    await runtime.uninstall(id, { retain_private_data: true });
+    const before = runtime.get(id), ledgerBefore = ledgerRows(directory);
+    const privateRows = () => read(join(directory, "plugin-runtime", "plugin-runtime.db"), db => db.prepare("SELECT item_key, item_value FROM plugin_private_values WHERE install_id = ?").all(id));
+    const privateBefore = privateRows(), observed: string[] = [], failed: ReturnType<typeof probe>[] = [];
+    const original = fs.rmSync;
+    const injected = t.mock.method(fs, "rmSync", (...args: Parameters<typeof fs.rmSync>) => {
+      if (args[0] === join(directory, LIBRARY.store_name)) {
+        const saved = runtime.get(id);
+        assert.equal(saved.state, "installed"); assert.equal(saved.version, "1.2.0");
+        assert.notEqual(saved.installation_generation, before.installation_generation);
+        observed.push(saved.installation_generation);
+        original(...args);
+        throw new Error("file was deleted before cleanup failed");
+      }
+      return original(...args);
+    });
+    syncBuiltinESMExports();
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt === 1 && restart) { await host.close(); host = createHost(); runtime = (await host.ready()).runtime; }
+        const candidate = probe({ version: "1.2.0", scope: "home" }); failed.push(candidate);
+        assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition: candidate.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }), { code: "plugin.executor_failed" });
+        assert.deepEqual(runtime.get(id), before, "only the still-owned installation record was compensated");
+        assert.equal(existsSync(join(directory, LIBRARY.store_name)), false, "deleted files were not restored or silently recreated");
+        assert.deepEqual(ledgerRows(directory), ledgerBefore, "failed cleanup retains its remaining ledger claim");
+        assert.deepEqual(privateRows(), privateBefore, "the failure occurred before deleting the remaining KV");
+        assert.equal(candidate.started.length, 0);
+      }
+    } finally { injected.mock.restore(); syncBuiltinESMExports(); }
+    assert.equal(observed.length, 2, "the second explicit attempt retries cleanup rather than replaying a failed installed row");
+    assert.notEqual(observed[0], observed[1]);
+    const retry = probe({ version: "1.2.0", scope: "home" });
+    const receipt = runtime.install({ trust: { level: "unsigned" }, definition: retry.definition, deployment: "local", grants: GRANTS, discard_kept_data: true });
+    assert.equal(receipt.replayed, false); assert.equal(receipt.notes, undefined);
+    assert.deepEqual(ledgerRows(directory), []); assert.deepEqual(privateRows(), []);
+    await runtime.start(id);
+    assert.deepEqual(notes(directory), [], "successful retry makes a fresh library, not the already deleted data");
+    assert.ok(failed.every(candidate => candidate.started.length === 0));
+  });
+});
+
+test("S-75 RAC-242 invalid grants or a conflicting registered replacement cannot discard an existing library or private data", withDirectory(async directory => {
   const item = platformIn(directory), plugin = probe();
   try {
     const id = await run(item, plugin.definition);
@@ -372,10 +426,10 @@ test("S-68 RAC-242 invalid grants or a conflicting registered replacement cannot
     const before = { record: structuredClone(item.platform.runtime.get(id)), rows: ledgerRows(directory), bytes: readFileSync(libraryFile(directory, LIBRARY.store_name)),
       kv: item.privateStorage.snapshotInstallationData(id) };
     const registered = probe({ version: "1.2.0" });
-    assert.throws(() => item.platform.runtime.install({ definition: registered.definition, deployment: "local", grants: ["undeclared:write"], discard_kept_data: true }), { code: "plugin.grant_denied" });
+    assert.throws(() => item.platform.runtime.install({ trust: { level: "unsigned" }, definition: registered.definition, deployment: "local", grants: ["undeclared:write"], discard_kept_data: true }), { code: "plugin.grant_denied" });
     item.platform.runtime.register(registered.definition);
     const conflict = probe({ version: "1.2.0" });
-    assert.throws(() => item.platform.runtime.install({ definition: conflict.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }), { code: "plugin.definition_conflict" });
+    assert.throws(() => item.platform.runtime.install({ trust: { level: "unsigned" }, definition: conflict.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }), { code: "plugin.definition_conflict" });
     assert.deepEqual(item.platform.runtime.get(id), before.record);
     assert.deepEqual(ledgerRows(directory), before.rows);
     assert.deepEqual(readFileSync(libraryFile(directory, LIBRARY.store_name)), before.bytes);

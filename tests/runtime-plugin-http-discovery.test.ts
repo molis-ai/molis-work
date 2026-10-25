@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, openProjectVersionStores, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
 import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -22,6 +22,7 @@ import { FORM_PLUGIN_ID } from "@molis-ai/molis-work-plugin-form";
 import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import { lingguangActions, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
@@ -253,7 +254,7 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
   const platform = await host.withProject(reference, async runtime => {
     runtime.store.db.exec("CREATE TABLE web_plugin_notes (text TEXT NOT NULL)");
     const started = await ensureProjectPlugins({ store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: project.project_id, actorId: "web-user",
-      homeDirectory: home, capabilities: host.client(reference),
+      homeDirectory: home, dependencyCheck: hostDependencyCheck(host.client(reference)),
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: project.project_id } });
     assert.ok(started.platform);
     await started.platform.start([{ definition: {
@@ -410,6 +411,174 @@ test("S-47 RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running
   assert.match(await page(), /data-form-new/u, "the same live instance draws again after its contribution becomes available");
 });
 
+
+test("RAC-612 RAC-613 RAC-614 a failed or crashed project plugin's placeholder says why and offers to start it again; one switched off, blocked, stopped or uninstalled gets no button", { timeout: 90_000 }, async t => {
+  const { host, project, request } = await serveHomeRuntime(t);
+  const one = await project("Project placeholder restart");
+  await request(`/projects/${one.project_id}`); // opening the project page starts its plugin platform
+  const platform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  assert.ok(platform);
+  const installId = platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!;
+  const placeholder = async (locale = "zh") => {
+    const response = await request(`/projects/${one.project_id}`, { headers: { cookie: `molis_work_locale=${locale}` } });
+    assert.equal(response.status, 200);
+    return (await response.text()).match(/<section\b[^>]*data-work-surface="form"[^>]*data-project-plugin-unavailable[^>]*>[\s\S]*?<\/section>/u)?.[0] ?? null;
+  };
+  const button = (stage: string | null) => stage?.match(/<button[^>]*data-project-plugin-restart="([a-z-]+)"[^>]*data-restart-plugin="([^"]+)"/u)?.slice(1) ?? null;
+  assert.equal(await placeholder(), null, "a running Form draws its stage");
+
+  // RAC-612: a crashed instance (the supervisor still counts it running) says so and offers a restart; the Host's route starts it again.
+  await platform.runtime.reportCrash(installId);
+  const crashed = await placeholder();
+  assert.ok(crashed, "a crashed instance gets the placeholder");
+  assert.deepEqual(button(crashed), ["restart", FORM_PLUGIN_ID]);
+  assert.ok(crashed.includes(">重启<") && crashed.includes("data-project-plugin-restart-status"));
+  assert.ok((await placeholder("en"))!.includes(">Restart<"), "RAC-614: the English placeholder has the button text");
+  assert.equal((await request(`/projects/${one.project_id}/api/plugins/${FORM_PLUGIN_ID}/restart`, { method: "POST", body: {} })).status, 200);
+  assert.equal(await placeholder(), null, "after the restart the stage is drawn again");
+
+  const state = platform.supervisor.state.bind(platform.supervisor), contribution = platform.supervisor.contribution.bind(platform.supervisor), get = platform.runtime.get.bind(platform.runtime);
+  const fault = (supervisor: Record<string, unknown> | null, instance?: string) => {
+    const mocks = [t.mock.method(platform.supervisor, "contribution", id => id === FORM_PLUGIN_ID ? null : contribution(id))];
+    if (supervisor) mocks.push(t.mock.method(platform.supervisor, "state", id => id === FORM_PLUGIN_ID ? { plugin_id: FORM_PLUGIN_ID, install_id: installId, code: null, message: null, ...supervisor } : state(id)));
+    if (instance) mocks.push(t.mock.method(platform.runtime, "get", id => id === installId ? { ...get(id), state: instance } : get(id)));
+    return () => mocks.forEach(mock => mock.mock.restore());
+  };
+  const failed = { status: "failed", code: "plugin.start_failed", message: "启动时出错" };
+
+  // RAC-612: the supervisor's failure shows as a status line with its code and reason, and a restart.
+  let restore = fault(failed, "crashed");
+  try {
+    for (const [locale, status, reason] of [["zh", "状态：启动失败", "启动时出错"], ["en", "Status: Failed to start", "启动时出错"]]) {
+      const stage = (await placeholder(locale))!;
+      assert.deepEqual(button(stage), ["restart", FORM_PLUGIN_ID]);
+      assert.ok(stage.includes(status) && stage.includes("plugin.start_failed") && stage.includes(reason), `${locale}: status, code and reason`);
+    }
+  } finally { restore(); }
+
+  // RAC-614: a quarantined instance is released, not just restarted.
+  restore = fault({ status: "running" }, "quarantined");
+  try {
+    assert.deepEqual(button((await placeholder())!), ["release-quarantine", FORM_PLUGIN_ID]);
+    const stage = (await placeholder("en"))!;
+    assert.ok(stage.includes(">Release quarantine and restart<"));
+    assert.equal(button(stage)?.[0], "release-quarantine");
+  } finally { restore(); }
+
+  // RAC-613: no button for a plugin the person switched off, one the Runtime blocks, one only stopped, and one uninstalled.
+  for (const [name, supervisor, instance] of [
+    ["switched off", { status: "failed", code: "plugin.revoked", message: "插件的停用还没有完成，请稍后再试" }, "crashed"],
+    ["blocked", { status: "blocked", code: "plugin.blocked", message: "被阻止" }, "crashed"],
+    ["stopped", { status: "running" }, "disabled"],
+    ["uninstalled", failed, "uninstalled"],
+  ] as const) {
+    restore = fault(supervisor, instance);
+    try {
+      const stage = await placeholder();
+      assert.ok(stage, `${name}: the placeholder is drawn`);
+      assert.doesNotMatch(stage, /data-project-plugin-restart/u, `${name}: no restart button`);
+      assert.equal(/data-project-plugin-status/u.test(stage), name === "blocked" || name === "uninstalled", `${name}: the status line shows for what the supervisor reports, not for a switch-off or a stop`);
+    } finally { restore(); }
+  }
+
+  // Only the Host's route starts it again: the 409 for a switched-off plugin and the refusal of the page frame are asserted in the tests above
+  // (`restart must not re-enable a revoked plugin`, tests/security-invariants-home-route-project.test.ts); nothing here adds a route.
+  assert.equal(await placeholder(), null, "with the faults gone the stage is drawn again");
+});
+
+test("RAC-612 RAC-613 RAC-614 the served client ignores forged controls, shows a real 409 and retries, encodes the target, and restores crashed and quarantined stages", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!browser) return;
+  const { localHost, projectId, databasePath, evaluate, click, waitFor, reloadPage, navigate } = browser;
+  assert.ok(localHost && projectId);
+  await navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${projectId}/` }, browser.sessionId));
+  const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId }), runtime => runningProjectPlatform(runtime.store, projectId));
+  assert.ok(platform);
+  const installId = platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!;
+  const stage = '[data-work-surface="form"][data-project-plugin-unavailable]';
+  const button = stage + ' button[data-project-plugin-restart]', note = stage + ' [data-project-plugin-restart-status]';
+  const requests: Array<{ url: string; method: string; token: string | string[] | undefined }> = [];
+  browser.server.on("request", request => {
+    if (/\/(restart|release-quarantine)$/u.test(request.url ?? "")) requests.push({ url: request.url!, method: request.method!, token: request.headers["x-molis-work-control-token"] });
+  });
+  await platform.runtime.reportCrash(installId);
+  await reloadPage();
+  await click('[data-plugin-strip] [data-plugin-id="form"]');
+  await waitFor(`!!document.querySelector(${JSON.stringify(button)})`);
+
+  // The real fetch is retained. Recording at dispatch makes zero requests observable without a timing sleep.
+  await evaluate(`(() => {
+    window.restartDispatches = [];
+    const send = window.fetch.bind(window);
+    window.fetch = (url, init) => { if (/\\/(restart|release-quarantine)$/.test(new URL(url, location.href).pathname)) window.restartDispatches.push(String(url)); return send(url, init); };
+    const home = document.querySelector('[data-work-surface="home"]'), fake = document.createElement('div'); fake.id = 'restart-forgeries';
+    fake.innerHTML = '<button id="forged-restart" data-project-plugin-restart="restart" data-restart-plugin="${FORM_PLUGIN_ID}">Forged restart</button>'
+      + '<div data-tab-workspace><div data-surface-pool>' + document.querySelector(${JSON.stringify(stage)}).outerHTML + '</div></div>';
+    const nested = fake.querySelector('[data-project-plugin-unavailable]'); nested.hidden = false; nested.querySelector('button').id = 'nested-forged-restart';
+    home.append(fake);
+  })()`);
+  await click('[data-plugin-strip] [data-plugin-id="home"]');
+  await click("#forged-restart");
+  await click("#nested-forged-restart");
+  assert.deepEqual(await evaluate("window.restartDispatches"), [], "RAC-613: a plugin's content, even with a forged workspace/pool/placeholder, cannot borrow the shell's request");
+  assert.equal(requests.length, 0);
+  await evaluate("document.querySelector('#restart-forgeries').remove()");
+  await click('[data-plugin-strip] [data-plugin-id="form"]');
+  await evaluate(`document.querySelector(${JSON.stringify(button)}).dataset.projectPluginRestart = 'disable'`);
+  await click(button);
+  assert.deepEqual(await evaluate("window.restartDispatches"), [], "RAC-613: an unknown operation cannot turn into release-quarantine");
+  await evaluate(`document.querySelector(${JSON.stringify(button)}).dataset.projectPluginRestart = 'restart'`);
+
+  // The existing Host route returns { state } on 409. Its actual reason must reach the placeholder as text.
+  const restart = platform.supervisor.restart.bind(platform.supervisor), reason = "重启被拒：<b>依赖仍不可用</b>";
+  let refuse = true;
+  t.mock.method(platform.supervisor, "restart", async (id, options) => refuse && id === FORM_PLUGIN_ID
+    ? { ...platform.supervisor.state(id)!, status: "failed", code: "plugin.start_failed", message: reason }
+    : restart(id, options));
+  await click(button);
+  await waitFor(`document.querySelector(${JSON.stringify(note)})?.textContent === ${JSON.stringify(reason)} && !document.querySelector(${JSON.stringify(button)}).disabled`);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(note)}).hidden`), false);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(note)}).querySelector('b')`), null, "the Host reason is text, never HTML");
+  assert.deepEqual(requests, [{ url: `/projects/${projectId}/api/plugins/${encodeURIComponent(FORM_PLUGIN_ID)}/restart`, method: "POST", token: browser.controlToken }]);
+  assert.equal(platform.runtime.get(installId).state, "crashed", "the refused restart did not restore the instance");
+
+  // Transport probe on the same Host-rendered control: reserved characters stay inside one encoded plugin-id segment.
+  const encodedId = "io.molis.work.example/a b?x=1&y=%", barrier = await sendBarrier(browser, [{ urlPattern: "*/api/plugins/*/restart", requestStage: "Request" }]);
+  try {
+    await evaluate(`document.querySelector(${JSON.stringify(button)}).dataset.restartPlugin = ${JSON.stringify(encodedId)}`);
+    await click(button);
+    const paused = await barrier.next();
+    assert.equal(new URL(paused.request.url).pathname, `/projects/${projectId}/api/plugins/${encodeURIComponent(encodedId)}/restart`);
+    assert.equal(paused.request.postData, "{}");
+    await browser.command("Fetch.fulfillRequest", { requestId: paused.requestId, responseCode: 409,
+      responseHeaders: [{ name: "Content-Type", value: "application/json" }], body: Buffer.from(JSON.stringify({ state: { message: "编码目标的拒绝原因" } })).toString("base64") }, browser.sessionId);
+    await waitFor(`document.querySelector(${JSON.stringify(note)}).textContent === '编码目标的拒绝原因' && !document.querySelector(${JSON.stringify(button)}).disabled`);
+  } finally {
+    await barrier.close();
+    await evaluate(`document.querySelector(${JSON.stringify(button)}).dataset.restartPlugin = ${JSON.stringify(FORM_PLUGIN_ID)}`);
+  }
+
+  refuse = false;
+  await navigate(() => click(button)); // The production listener, not the test, calls location.reload().
+  await waitFor(`!document.querySelector(${JSON.stringify(stage)}) && !!document.querySelector('[data-work-surface="form"]')`);
+  assert.equal(platform.runtime.get(installId).state, "running");
+  const form = await pluginFrameBrowser(t, browser, "form");
+  await form.waitFor("!!document.querySelector('[data-form-new]')");
+
+  // Reach real quarantine through the Runtime's recovery budget, then use the other Host-generated operation.
+  for (let attempt = 0; attempt < 4 && platform.runtime.get(installId).state !== "quarantined"; attempt++) {
+    await platform.runtime.reportCrash(installId);
+    await platform.supervisor.restart(FORM_PLUGIN_ID);
+  }
+  assert.equal(platform.runtime.get(installId).state, "quarantined");
+  await reloadPage();
+  await click('[data-plugin-strip] [data-plugin-id="form"]');
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(button)}).dataset.projectPluginRestart`), "release-quarantine");
+  await navigate(() => click(button));
+  await waitFor(`!document.querySelector(${JSON.stringify(stage)})`);
+  assert.equal(platform.runtime.get(installId).state, "running");
+  assert.deepEqual(requests.at(-1), { url: `/projects/${projectId}/api/plugins/${encodeURIComponent(FORM_PLUGIN_ID)}/release-quarantine`, method: "POST", token: browser.controlToken });
+});
 
 test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale, escape owner messages and distinguish a running instance without a view", { timeout: 60_000 }, async t => {
   const { host, project, request } = await serveHomeRuntime(t);

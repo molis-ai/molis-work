@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
@@ -226,7 +227,8 @@ const selection = (over: Record<string, unknown>, request_id = "req-1") => ({ re
 
 test("W4-2-06 W4-2-12: 存为文档 is declared on pages.create@2 with its own deterministic offers query, and the declarations check", () => {
   assert.equal(actions.create.version, 2);
-  assert.ok(Object.entries(actions).filter(([name]) => name !== "create").every(([, action]) => action.version === 1));
+  // RAC-633-MIG-01: only creation and the revised subject reader have version 2; all other contracts stay at version 1.
+  for (const action of Object.values(actions)) assert.equal(action.version, ["pages.create", "pages.subject.read"].includes(action.capability_id) ? 2 : 1, action.capability_id);
   const intake = actions.create.action.intake!;
   assert.deepEqual([intake.intake_id, intake.verb, intake.material_field, intake.effect, intake.prepare], ["document", "存为文档", "markdown", undefined, { capability_id: "pages.intake.offers", version: 1 }]);
   assert.ok(intake.examples.length >= 1 && intake.examples.length <= 3);

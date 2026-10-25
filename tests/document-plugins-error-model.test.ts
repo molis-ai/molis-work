@@ -17,7 +17,8 @@ import { datasetActions, openDatasetStore } from "@molis-ai/molis-work-plugin-da
 import { formActions, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
-import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, openPagesStore, ownPagesStores, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, ownPagesStores, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { PPT_ACTION_PERMISSIONS, openPptStore, pptActions } from "@molis-ai/molis-work-plugin-ppt";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
@@ -55,7 +56,7 @@ interface OwnerSpec {
 
 const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
   pages: { pkg: "@molis-ai/molis-work-plugin-pages", declarations: "pagesErrors", removed: ["PagesError", "pagesRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, unsupported: 400 } },
+    status: { invalid: 400, body_too_large: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, unsupported: 400 } },
   ppt: { pkg: "@molis-ai/molis-work-plugin-ppt", declarations: "pptErrors", removed: ["PptError", "pptRouteErrorResponse"],
     status: { invalid: 400, not_found: 404, conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
   dataset: { pkg: "@molis-ai/molis-work-plugin-dataset", declarations: "datasetErrors", removed: ["DatasetError", "datasetRouteErrorResponse"],

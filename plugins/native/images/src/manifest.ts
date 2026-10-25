@@ -2,7 +2,7 @@ import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf
 import { imagesActions, IMAGES_ACTION_PERMISSIONS } from "./actions.js";
 import { IMAGES_FILES_WRITE, IMAGES_OWNER_FILES } from "./owner-files.js";
 import type { PluginManifest, PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { IMAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/images";
+import { IMAGES_PLUGIN_ID } from "./contract.js";
 import { IMAGES_DATABASE } from "./database.js";
 import { IMAGES_IMAGE_GENERATION } from "./image-generation.js";
 
@@ -25,6 +25,7 @@ export const imagesManifest: PluginManifest = {
   plugin_id: IMAGES_PLUGIN_ID,
   version: "0.3.0",
   name: "图片",
+  summary: "连接生图服务，按描述生成图片。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

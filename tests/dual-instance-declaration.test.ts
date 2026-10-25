@@ -98,7 +98,7 @@ test("DUAL-12 a sandboxed definition is no half: a fixture refuses it, and the R
   const { host } = await openHost(t, { home: [{ definition: sandboxed, dual_instance: true }], project: [dual.project] });
   await assert.rejects(host.homePlugins!.ready(), /是沙箱执行的/u);
   assert.equal(dual.services.home, undefined);
-  assert.throws(() => new PluginRuntime().install({ definition: { ...dual.project, execution: "sandbox" }, deployment: "local", bundled: true, grants: [dual.read] }),
+  assert.throws(() => new PluginRuntime().install({ definition: { ...dual.project, execution: "sandbox" }, deployment: "local", trust: { level: "host" }, grants: [dual.read] }),
     { code: "plugin.grant_denied" });
 });
 

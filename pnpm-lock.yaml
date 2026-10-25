@@ -434,6 +434,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-issues':
+        specifier: workspace:*
+        version: link:../../plugins/native/issues
       '@molis-ai/molis-work-plugin-jelly':
         specifier: workspace:*
         version: link:../../plugins/native/jelly
@@ -681,6 +684,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@prologue/sdk':
         specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz
         version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz
@@ -1039,6 +1045,10 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/feed:
     dependencies:
@@ -1069,6 +1079,10 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/form:
     dependencies:
@@ -1100,6 +1114,10 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/goals:
     dependencies:
@@ -1285,6 +1303,13 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/shelf:
     dependencies:
@@ -1306,6 +1331,10 @@ importers:
       '@xterm/xterm':
         specifier: ^6.0.0
         version: 6.0.0
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/text-stats:
     dependencies:
@@ -1318,6 +1347,10 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/todo:
     dependencies:

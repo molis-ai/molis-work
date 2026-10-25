@@ -191,7 +191,7 @@ test("Listener persists a failed provider pull, retains the cursor and replays w
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("Listener refusal after accepting a Signal preserves that receipt but cannot mark delivery, advance cursor or write a failure; restart dedupes it", async () => {
+test("RAC-129-LISTENER: refusal after accepting a Signal preserves the receipt and options receivers; restart dedupes without premature cursor or failure writes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "listener-effect-authority-")), databasePath = join(directory, "project.sqlite");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
@@ -201,13 +201,17 @@ test("Listener refusal after accepting a Signal preserves that receipt but canno
     let allowed = true;
     const driver: ConnectorDriver = { driver_id: "authority-driver", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async poll() { return { ok: true, mode: "live", events: [event], cursor_after: { page: 1 } }; } };
-    const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands, {
-      afterSignalAccepted: async () => { entered.resolve(); await release.promise; },
-    });
+    const controls = {
+      accepted: 0,
+      now(): Date { assert.equal(this, controls); return new Date(); },
+      async afterSignalAccepted(): Promise<void> { assert.equal(this, controls); this.accepted += 1; entered.resolve(); await release.promise; },
+    };
+    const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands, controls);
     const input = { project_id: DEMO_PROJECT_ID, source_id: sourceId, connection_id: "fixture-connection", operation_id: "listener-authority-1", adapter: adapter(),
       beforeEffect: async () => { if (!allowed) throw new ActionError("actions.revoked", "Revoked"); } };
     const pending = listener.run(input), rejected = assert.rejects(pending, { code: "actions.revoked" });
     await entered.promise;
+    assert.equal(controls.accepted, 1);
     const state = () => ({ signals: signals.query.list(DEMO_PROJECT_ID, sourceId), run: listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id),
       deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE source_id = ?").all(sourceId),
       checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE source_id = ?").get(sourceId) });
@@ -483,7 +487,7 @@ for (const fail of [false, true]) test(`Listener revocation during a provider ${
     const before = listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id);
     allowed = false; release.resolve(); await rejected;
     assert.deepEqual(listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id), before);
-    assert.equal(store.db.prepare("SELECT count(*) AS n FROM listener_deliveries WHERE source_id = ?").get(source)!.n, 0);
+    assert.equal((store.db.prepare("SELECT count(*) AS n FROM listener_deliveries WHERE source_id = ?").get(source) as { n: number }).n, 0);
     assert.deepEqual(listener.checkpoint(DEMO_PROJECT_ID, source).cursor, {});
     allowed = true; pause = false;
     const recovery = await listener.run(input);

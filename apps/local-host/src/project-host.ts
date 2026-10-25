@@ -22,9 +22,8 @@ import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
-import { registerPluginTrustActions } from "./plugin-trust-actions.js";
-import { PluginInstallService } from "./plugin-install-service.js";
-import { SandboxPackageStore } from "./sandbox-package-store.js";
+import { pluginConsentProvider } from "./installed-plugin-consent-actions.js";
+import { pluginInstallProviderFor } from "./plugin-trust-actions.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -32,7 +31,7 @@ import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { ensureProjectPluginActions, installPackageInProject, prepareInstalledPlugins } from "./project-plugin-ports.js";
+import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
 import path from "node:path";
 import { prepareMemoryHome } from "./memory/memory-adoption.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
@@ -212,22 +211,21 @@ export class MolisWorkLocalHost {
       if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "判断目录缺少当前项目运行环境");
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
-    if (options.homeDirectory) {
-      const ledger = new HomeConsentLedger(options.homeDirectory), source = { host: this.host, options: this.options, agents: () => this.agents?.service };
-      registerPluginTrustActions(this.host.actionRegistry(), { ledger, install: new PluginInstallService({ ledger, packages: new SandboxPackageStore(options.homeDirectory),
-        install: (projectId, release) => installPackageInProject(source, projectId, release) }) });
-    }
-    if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id))));
+    // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
+    const platform: ActionProviderRegistration[] = [
+      actionUsagesProvider(caller => {
+        const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
+        if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
+        return project ? this.actionClient(project) : this.homeActionClient();
+      }, options.homeDirectory),
+      ...(options.homeDirectory ? [pluginConsentProvider(new HomeConsentLedger(options.homeDirectory)), pluginInstallProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service }), connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id)))] : []),
+    ];
+    registerHostPlatformProviders(this.host.actionRegistry(), platform);
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.
       this.connectorMcp = createConnectorMcpDirectory({ localHost: this, homeDirectory: options.homeDirectory });
       try { this.connectorMcp.sync(); } catch (error) { hostLog.warn("connections", "mcp_sync_failed", error); } // The connections page lists them again.
     }
-    this.host.actionRegistry().registerProvider(actionUsagesProvider(caller => {
-      const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
-      if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
-      return project ? this.actionClient(project) : this.homeActionClient();
-    }, options.homeDirectory));
     registerProjectCapabilities(
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },
@@ -417,6 +415,14 @@ export class MolisWorkLocalHost {
 
   status(): LocalHostStatus {
     return this.host.status();
+  }
+}
+
+/** The Host's own providers are `system` and belong to no plugin; this is not a way to hand-register a plugin's actions. */
+function registerHostPlatformProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): void {
+  for (const registration of providers) {
+    if (registration.provider.kind !== "system" || registration.provider.plugin_id) throw new Error("Host 平台动作只登记 system 提供方：" + registration.provider.provider_id);
+    registry.registerProvider(registration);
   }
 }
 

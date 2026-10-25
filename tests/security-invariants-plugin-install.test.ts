@@ -9,7 +9,7 @@ import type { PluginInstanceRecord, PluginManifest, PluginPackageBundle } from "
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger, SqlitePluginRuntimeRepository, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { DEMO_PROJECT_ID, HomeConsentLedger, LocalProjectDatabase, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
-  pluginInstallActions, registerPluginTrustActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+  pluginConsentProvider, pluginInstallActions, pluginInstallProvider, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 
 // S-80 (ac-trust T2): a plugin is installed from a signed package only through one path the person walks, and the Host checks the package
@@ -137,7 +137,7 @@ test("RAC-393 S-80 only the person's own action installs: no other audience reac
   const h = await harness();
   try {
     const actions = new ActionService();
-    registerPluginTrustActions(actions, { ledger: h.ledger, install: h.service });
+    actions.registerProvider(pluginConsentProvider(h.ledger)); actions.registerProvider(pluginInstallProvider(h.service));
     const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: who.project_id, permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });
     const bundle = signedPackage(newPublisher());
     const preview = (context: ActionCallContext) => actions.invoke(context, { capability_id: pluginInstallActions.preview.capability_id, version: 1 }, { bundle });

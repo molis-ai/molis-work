@@ -16,7 +16,7 @@ export { hashChoiceConfig, hashFunctionConfig } from "./hash.js";
 export { FUNCTIONS_STORE_BASELINE, FUNCTIONS_HOME_STORE } from "./store-schema.js";
 export { assertReadyToPublish, assertReadyToEvaluate } from "./record-rules.js";
 export type { RecordJudgmentInput } from "./judgments.js";
-export type { BuiltinRuleSubject } from "./builtin.js";
+export type { DeclaredRuleSubject, DeclaredSceneRule } from "./declared-rules.js";
 export { purgeFunctionsProject, functionsProjectData } from "./project-data.js";
 export { createFunctionsService, FunctionsService } from "./service.js";
 export type { FunctionsServiceOptions, TypeSafeProvider, TypeSafeEvaluateResult } from "./service.js";

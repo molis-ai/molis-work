@@ -345,6 +345,21 @@ export interface ActionHandlerBinding {
   availability?(context: ActionCallContext): ActionAvailability;
 }
 
+/**
+ * The rule a scene's owner ships for the judgment its scene consumes. The Host writes it once into the Home's rules when the scene
+ * is registered (built in or installed alike); a rule that is already there under the same `function_key` keeps what it has.
+ */
+export interface ActionSceneDefaultRule {
+  /** The rule's stable key; the first declaration of a key wins, a later one never replaces it. */
+  readonly function_key: string;
+  readonly name: string;
+  readonly instructions: string;
+  /** The finite set the rule chooses from, each with the description the model reads; keys are symbolic (a recommendation or an offer id). */
+  readonly options: readonly { readonly key: string; readonly description: string }[];
+  /** The object kinds the rule judges; the scene's own `subject_kinds` can be empty when the rule's kinds come from its choice. */
+  readonly subject_kinds: readonly string[];
+}
+
 /** A real consumer of a judgment, not just a label for a dropdown. */
 export interface ActionSceneDefinition {
   readonly scene_id: string;
@@ -367,6 +382,8 @@ export interface ActionSceneDefinition {
   readonly configuration_permissions?: readonly string[];
   /** Trigger payload is separate from the context passed to the judgment. Required with prepare. */
   readonly event_schema?: ActionSchema;
+  /** The rule the Host seeds for this scene when it is registered; the owner declares it, nothing else names it. */
+  readonly default_rule?: ActionSceneDefaultRule;
 }
 
 export interface ActionSceneView {

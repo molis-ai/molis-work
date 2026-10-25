@@ -15,7 +15,7 @@ import { ActionService, CapabilityRegistry, judgmentRecommendationKeys, refuseCa
   type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
-  type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "./host-log.js";
 import { admitPluginCall, dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 
@@ -39,8 +39,8 @@ export interface LocalHostOptions<Runtime> {
   instanceId?: string;
   sceneAvailability?(context: ActionCallContext, scene: ActionSceneView): ActionAvailability | Promise<ActionAvailability>;
   actionAvailability?: ActionAvailabilityPolicy;
-  /** A provider was registered or withdrawn, with the project it was bound to. Observers must not throw. */
-  actionProvidersChanged?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider): void;
+  /** A provider was registered or withdrawn, with the project it was bound to; on registration, also the consumption scenes it registered. Observers must not throw. */
+  actionProvidersChanged?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider, scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[]): void;
   /** Every call, once, as it ended (a handler's result or failure, or a refusal before any handler), with its caller and the operation's call id; never its input or result. */
   actionSettled?(caller: CallContext, action: CallDescription, outcome: CallOutcome): void;
 }
@@ -180,10 +180,10 @@ export class LocalHost<Runtime> {
           : registration.availability?.(caller) ?? { available: true },
       });
       const owner = entry?.actionDisposers ?? this.globalActionDisposers;
-      const announce = () => { try { this.options.actionProvidersChanged?.(bound); } catch { /* An observer never changes registration. */ } };
+      const announce = (scenes?: readonly ActionSceneDefinition[]) => { try { this.options.actionProvidersChanged?.(bound, scenes); } catch { /* An observer never changes registration. */ } };
       const dispose = () => { remove(); owner.delete(dispose); announce(); };
       owner.add(dispose);
-      announce();
+      announce(registration.scenes);
       return dispose;
     } };
   }

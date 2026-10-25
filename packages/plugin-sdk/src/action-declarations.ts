@@ -254,12 +254,13 @@ function sceneListProblems(scenes: unknown): string[] {
   if (scenes === undefined) return [];
   if (!Array.isArray(scenes)) return ["action_scenes 必须是数组"];
   const seen = new Set<string>();
-  return scenes.flatMap(scene => sceneProblems(scene, seen));
+  const ruleKeys = new Set<string>();
+  return scenes.flatMap(scene => sceneProblems(scene, seen, ruleKeys));
 }
 
-function sceneProblems(s: unknown, seen: Set<string>): string[] {
+function sceneProblems(s: unknown, seen: Set<string>, ruleKeys: Set<string>): string[] {
   if (!isObject(s) || !isId(s.scene_id) || !isVersion(s.version)) return ["消费场景需要有效身份和版本"];
-  const problems = sceneContractProblems(s);
+  const problems = [...sceneContractProblems(s), ...defaultRuleProblems(s, ruleKeys)];
   const key = `${s.scene_id}@${s.version}`;
   if (seen.has(key)) problems.push(`消费场景重复：${key}`);
   seen.add(key);
@@ -282,6 +283,27 @@ function sceneContractProblems(s: Record<string, unknown>): string[] {
       problems.push(`消费场景 ${s.scene_id} 的推荐名称必须对应结果合同中的选项`);
     }
   }
+  return problems;
+}
+
+const DEFAULT_RULE_KEY = /^[a-z][a-z0-9_]{1,63}$/;
+const DEFAULT_RULE_OPTION_KEY = /^[a-z][a-z0-9_.]{0,63}$/;
+
+/** The rule a scene ships for itself: a finite choice with its own words, whose options are recommendations the scene can name. */
+function defaultRuleProblems(s: Record<string, unknown>, ruleKeys: Set<string>): string[] {
+  const rule = s.default_rule;
+  if (rule === undefined) return [];
+  const invalid = `消费场景 ${s.scene_id} 的默认规则无效`;
+  if (!isObject(rule) || typeof rule.function_key !== "string" || !DEFAULT_RULE_KEY.test(rule.function_key) || !isText(rule.name) || rule.name.length > 80
+    || !isText(rule.instructions) || rule.instructions.length > 4000 || !isStrings(rule.subject_kinds) || !Array.isArray(rule.options)
+    || rule.options.length < 2 || rule.options.length > 20) return [invalid];
+  const keys = rule.options.map(option => isObject(option) && typeof option.key === "string" && DEFAULT_RULE_OPTION_KEY.test(option.key) && isText(option.description) && option.description.length <= 200 ? option.key : null);
+  if (keys.includes(null) || new Set(keys).size !== keys.length) return [invalid];
+  const problems: string[] = [];
+  const labels = s.recommendation_labels;
+  if (isObject(labels) && keys.some(key => !(key as string in labels))) problems.push(`消费场景 ${s.scene_id} 的默认规则选项必须是它的推荐名称`);
+  if (ruleKeys.has(rule.function_key)) problems.push(`默认规则重复：${rule.function_key}`);
+  ruleKeys.add(rule.function_key);
   return problems;
 }
 

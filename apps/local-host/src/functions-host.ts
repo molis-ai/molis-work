@@ -3,22 +3,22 @@ import { selectedTypeSafeConnection, typeSafeCredential, typeSafeConfiguration }
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { HOME_DOCK_SCENE_ID, type FunctionSceneMap, type FunctionsSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
-import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { FunctionSceneMap, FunctionsSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
+import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   createFunctionsService,
-  type BuiltinRuleSubject,
+  type DeclaredRuleSubject,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 
 /**
- * The Home dock rule recommends the offers the shipped plugins declare for its subject: each of its options is an offer id, and
- * its target is the key of the declaration that answers to that id, which names the declaring plugin as the key's owner. An id that
- * two declarations answer to is left unmapped rather than guessed. The other built-in rules keep their option keys as they are.
+ * A rule whose scene recommends the offers plugins declare (`recommendation_source: "subject-offers"`) has an offer id for each of its
+ * options, and its target is the key of the declaration that answers to that id, which names the declaring plugin as the key's owner.
+ * An id that two declarations answer to is left unmapped rather than guessed. Any other rule keeps its option keys as they are.
  */
-function declaredRuleTargets(rule: BuiltinRuleSubject): FunctionSceneMap {
-  if (rule.scene_id !== HOME_DOCK_SCENE_ID) return {};
+function declaredRuleTargets(rule: DeclaredRuleSubject): FunctionSceneMap {
+  if (rule.recommendation_source !== "subject-offers") return {};
   const targets = new Map<string, Set<string>>();
   for (const { manifest } of BUILTIN_PLUGIN_CATALOG) {
     for (const definition of manifest.actions ?? []) {
@@ -32,6 +32,16 @@ function declaredRuleTargets(rule: BuiltinRuleSubject): FunctionSceneMap {
     }
   }
   return Object.fromEntries([...targets].flatMap(([offerId, keys]) => keys.size === 1 ? [[offerId, [...keys][0]!]] : []));
+}
+
+/**
+ * Writes the rules the scenes just registered declare for themselves, built in or installed alike, each once into the Home's library.
+ * Scenes without a rule do not open the library.
+ */
+export function seedSceneRules(homeDirectory: string, scenes: readonly ActionSceneDefinition[], options: FunctionsHostOptions = {}): void {
+  const rules = scenes.flatMap(scene => scene.default_rule
+    ? [{ scene_id: scene.scene_id, ...(scene.recommendation_source ? { recommendation_source: scene.recommendation_source } : {}), rule: scene.default_rule }] : []);
+  if (rules.length) withFunctionsService(homeDirectory, service => service.seedDeclaredRules(rules, declaredRuleTargets), options);
 }
 
 export interface FunctionsHostOptions {
@@ -71,7 +81,6 @@ function functionsCredential(home: string, options: FunctionsHostOptions): () =>
 export function openFunctionsService(homeDirectory: string, options: FunctionsHostOptions = {}) {
   const service = createFunctionsService({
     home: homeDirectory,
-    builtinSceneMap: declaredRuleTargets,
     credential: functionsCredential(homeDirectory, options),
     env: options.env ?? process.env,
     provider: options.provider ?? createPrologueTypeSafeProvider(homeDirectory, {

@@ -45,8 +45,13 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   if (!dock) return;
   const rail = () => [...dock.querySelectorAll('.plugin-rail-items [data-plugin-id]')];
   const railItem = (id) => dock.querySelector('.plugin-rail-items [data-plugin-id="' + CSS.escape(id) + '"]');
+  // The market and the plugin studio are buttons at the head of the switcher, not rows of the rail: the chip names them
+  // from there too, so a place the rail does not list still reads as its name rather than its id (BL-114).
+  const headItem = (id) => dock.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(id) + '"]');
   const labelOf = (node) => node.querySelector('span')?.textContent?.trim() || node.getAttribute('title') || '';
-  const glyphOf = (id) => railItem(id)?.querySelector('svg')?.cloneNode(true) || null;
+  const namedItem = (id) => railItem(id) || headItem(id);
+  const nameOf = (id) => { const item = namedItem(id); return (item && labelOf(item)) || id; };
+  const glyphOf = (id) => namedItem(id)?.querySelector('svg')?.cloneNode(true) || null;
 
   /* The switcher. */
   const picker = dock.querySelector('[data-plugin-picker]');
@@ -98,7 +103,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
         return;
       }
       const entries = shown();
-      put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), railItem(entry.plugin) ? labelOf(railItem(entry.plugin)) : entry.plugin)));
+      put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), nameOf(entry.plugin))));
       current.parentElement?.classList.toggle('is-split', entries.length > 1);
       dock.querySelectorAll('[data-dock-pin]').forEach((button) => {
         const id = button.dataset.dockPin;

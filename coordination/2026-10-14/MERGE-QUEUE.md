@@ -499,3 +499,16 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
   - C 组：R-38 拆分让 placement 的 57 个翻译键脱出扫描，另外 S-64 行的括号把 RAC-358、RAC-359 断开了。统筹已修，8ac246913。
   - D组：connector-managed-install两次900s，Claude6394614068已查明Host.close先等待retained web transport而connector abort在其后，形成在途安装互等；F4之后表现为10s timeout/pending。现正式并A，Root已撤销旧D保原Claude临时限制，由同一FIX15单题修。PIPE已鲜核并授project-host.close现有connectors tuple→earlySteps精确hunk，F4源码阶段释放、carrier该文件无dirty；F4 lifetime10s/pending/所有资源完成后才放owner不动，保实际中断与零晚连接/子进程。
   - carrier等实际FIX15 A+D、FIX13 B及其余已收固定增量按真实树接续；逐片有效审验保留，新增hunk/冲突/交互风险增量核，组合FIRST/必要security/full/队列仍Claude唯一组批。未收新head/双核/full不因“只等FIX20”或旧64文件而Ready。
+- 10-25 07:40 UTC：batch-36 的进展：
+  - 并进 #1254 FIX4（`39a444f89`），得 `ebf1e0ef6`。
+  - Codex 首评 P1：常开名单遇非法库按构建默认放行，这一条成立，已撤回（`cd4000a2a`）。改成 fail-closed，页面在边界上处理拒绝，交 **FIX21**（#1270 6394606641）。
+  - connector-managed-install 卡死归 A 组，并入 **FIX20**。
+  - maintenance-v8 演练补上 v10 的 Attention owner（`ada0b7d4a`）。
+  - 裁定：#1267 FIX19 purge 接受窄合同，带四个条件（6394555141）；#1268 的 Linux 原件等 batch-37 carrier 的 probe（6394616374）。
+- 10-25 07:40 UTC：**batch-37 开组**（`batch/1025-37`，叠在 batch-36 `ada0b7d4a` 上，暂未推送）。
+  - 并入的 PR：#1257+#1265 FIX12、#1260+FIX15、#1261+FIX3、#1262+#1269 FIX17、#1264+#1268 FIX16、#1266+FIX9。
+  - #1266 的暂定 S 号落为 **S-72～74**（只改它自己提交加的行）。
+  - privileges：PG-013/014/028/096/097 已做；PG-060、PG-065 记进度。
+  - 等着进批的：ac-shell 第 2 片 PR、ac-kernel R-38 第 2 组 PR、ac-registry B（合 main 之后）。
+  - 不进本批：#1255（A 清理还在做）、#1267 与 #1271（等 FIX19 和上游 Prologue #103，#103 已派 ac-review 严格评审）。
+  - 落地顺序：batch-36 先落 main，batch-37 再合 b36 的头与 main，然后跑全量。

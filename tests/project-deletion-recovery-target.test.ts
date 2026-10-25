@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog, openDesktopProjectDeletionRecoveryTarget } from "@molis-ai/molis-work-app-desktop";
-import { openProjectDeletionRecoveryInspection, openProjectDeletionCatalogObservation, projectDeletedHooksFor, type ProjectDeletedOwner,
+import { openProjectDeletionRecoveryInspection, openProjectDeletionRecoveryTarget, openProjectDeletionCatalogObservation, projectDeletedHooksFor, type ProjectDeletedOwner,
   type ProjectDeletionRecoveryGroup, type ProjectDeletionCatalogSnapshot } from "@molis-ai/molis-work-app-local-host";
 import { ProjectsModule, type StoredProjectDeletion } from "@molis-ai/molis-work-module-projects";
 
@@ -422,3 +422,73 @@ test("MEM-40: observation refuses replaced database, linked WAL and linked ances
     assert.deepEqual(observe.read(), before);
   } finally { observe.close(); }
 });
+
+
+for (const scenario of ["reader-success", "reader-invalid", "writer-failure", "writer-closed-error"] as const) {
+  test(`MEM-40: initialization ${scenario} preserves the original cleanup and both errors`, async t => {
+    const f = await fixture(t), source = f.sourceReceipt();
+    if (scenario === "reader-invalid") f.projects.lifecycle.insertDeletion({ ...source, recovery_plan: "invalid-plan" });
+    const writer = scenario.startsWith("writer"), afterClosed = scenario === "writer-closed-error";
+    const original = Database.prototype.close, closeError = new Error("actual SQLite initialization close failed");
+    const businessError = Object.assign(new Error("panel owner assembly failed"), { code: "test.panel_assembly" });
+    const filename = join(f.home, "projects", "catalog.db"), marker = join(f.home, "recovery-association.json");
+    const originalReceipts = f.projects.query.listProjectDeletions();
+    let connection: Database.Database | undefined, attempts = 0, checks = 0, writes = 0, assemblies = 0, revoked = false;
+    const hook = t.mock.method(Database.prototype, "close", function (this: Database.Database) {
+      if (this.name === filename && this.readonly === !writer) {
+        connection ??= this;
+        assert.equal(this, connection, "retry must close the original SQLite connection");
+        attempts++;
+        if (afterClosed) original.call(this);
+        if (attempts <= 2 || afterClosed) throw closeError;
+      }
+      return original.call(this);
+    });
+    try {
+      const inspection = await openProjectDeletionRecoveryInspection({ homeDirectory: f.sourceHome, assertCurrent() {} });
+      t.after(() => inspection.close());
+      const failure: unknown = await openProjectDeletionRecoveryTarget({ homeDirectory: f.home, source: inspection,
+        groups: [], memory: f.memory, assertCurrent() { checks++; if (revoked) throw new Error("maintenance revoked"); },
+        async recordTargets(group) { writes++; await writeFile(marker, JSON.stringify(group)); },
+        catalogCommitted() { throw new Error("initialization must not commit deletion"); },
+      }, { createPanels() { assemblies++; throw businessError; } }).then(() => assert.fail("initialization must fail"), error => error);
+      assert.equal(attempts, 1, "failed initialization must not automatically retry close");
+      assert.equal(connection?.open, !afterClosed);
+      t.diagnostic(JSON.stringify({ scenario, attempts, connectionOpen: connection?.open, onlyCloseError: failure === closeError, cleanup: failure instanceof Error ? typeof Reflect.get(failure, "close") : "absent" }));
+      assert.ok(failure instanceof AggregateError, "retain both the initial failure and close failure");
+      assert.equal(failure.errors.at(-1), closeError);
+      if (writer) { assert.equal(failure.cause, businessError); assert.equal(Reflect.get(failure, "code"), businessError.code); }
+      else if (scenario === "reader-invalid") {
+        assert.equal(Reflect.get(failure.errors[0], "code"), "catalog.project_storage_invalid");
+        assert.equal(failure.cause, failure.errors[0]);
+      } else { assert.equal(failure.cause, closeError); assert.deepEqual(failure.errors, [closeError]); }
+      assert.equal(typeof Reflect.get(failure, "close"), "function", "caller must retain same-connection cleanup");
+      assert.equal(Object.keys(failure).includes("close"), false);
+      assert.ok("close" in failure && typeof failure.close === "function");
+      const cleanup = failure.close;
+      const beforeChecks = checks, beforeMarker = writer ? await readFile(marker, "utf8") : null;
+      for (const method of ["exec", "prepare", "pragma"] as const) {
+        t.mock.method(connection!, method, () => { throw new Error("cleanup must not issue SQL"); });
+      }
+      revoked = true; f.revoke();
+      if (!afterClosed) {
+        await assert.rejects(cleanup(), error => error === closeError);
+        assert.equal(connection?.open, true);
+      }
+      await Promise.all([cleanup(), cleanup()]);
+      await cleanup();
+      assert.equal(connection?.open, false);
+      assert.equal(attempts, afterClosed ? 1 : 3, "completed physical close must never be replayed");
+      assert.equal(checks, beforeChecks, "cleanup does not reenter current business authority");
+      assert.equal(writes, writer ? 1 : 0); assert.equal(assemblies, writer ? 1 : 0);
+      if (writer) assert.equal(await readFile(marker, "utf8"), beforeMarker, "already persisted association is neither replayed nor rolled back");
+      else assert.equal(existsSync(marker), false);
+      assert.deepEqual(f.projects.query.listProjectDeletions(), originalReceipts);
+      assert.equal(f.clearCount, 0);
+      assert.equal(await readFile(join(f.home, "projects", f.gone.project_id, "original.txt"), "utf8"), "original target");
+    } finally {
+      hook.mock.restore();
+      if (connection?.open) original.call(connection);
+    }
+  });
+}

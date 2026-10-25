@@ -344,3 +344,6 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 维护 control 分支的目录删除在最终复核后同步执行，避免异步 rm 尚未完成时祖先目录被 JavaScript 中的另一个操作替换；普通入口仍异步。分区主人仍先等待声明 purge，返回后复核原目标再同步删除。`tests/project-deletion-directory-interleaving.test.ts` 通过公开 owner 和真实文件覆盖这个窗口；这不是对同 OS 权限进程任意竞态替换路径的原子防护。
 
 `plugin-connections` 项目文件主人消费同一 `ProjectDeletionControl`：维护清理走 Storage existing-only 库/结构/物理路径核验与显式写事务，拿锁后、实际绑定删除前、COMMIT 前复核，拒绝回滚。Connector 原 `forgetProjectBindings` 拥有项目选集；账号、凭据、别项目及按安装绑定保持。维护不初始化或修复库、不 chmod、不调用 Secrets Port；普通无 control 与安装卸载语义不变。公开 owner 真实回归 `tests/security-invariants-plugin-connection-maintenance.test.ts`，配合原 `tests/security-invariants-connection-records.test.ts` 与 `tests/connector-connections.test.ts`。
+
+
+Catalog target 初始化的 readonly 预检和 writer 装配若收尾失败，异常按既有 `HomeInitializationFailure` 形状保留不可枚举的 `close(): Promise<void>`。AggregateError 同时保留原业务错误与实际关闭错误，cause/code 以原业务原因为准；没有业务失败时以关闭原因为准。显式 close 只关闭同一实际连接，不查 current、不发 SQL、不重开库、不重放关联或删除；反复失败可再试，实际已关闭后再报错也不再关或重开。成功返回的 target/observation 资源合同保持。回归：`tests/project-deletion-recovery-target.test.ts`；本行为仅保证初始化资源仍可清理，不宣称父恢复完成。

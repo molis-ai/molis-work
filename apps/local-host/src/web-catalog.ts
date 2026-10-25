@@ -5,7 +5,6 @@ import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
-import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
 import { handleFunctionsHttp } from "./functions-http.js";
@@ -26,11 +25,9 @@ import { redirectSettingsAddress } from "./web-settings-arrival.js";
 import { L } from "./web-locale.js";
 import { handleComponentBoardHttp } from "./web-catalog-board.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
-import { findPluginSettingsNavItem, renderCharactersSettingsEntry, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
+import { findPluginSettingsNavItem, pluginSettingsDataAction, renderCharactersSettingsEntry, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
+import type { SettingsPageContext, SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import { shownProjectPlugins } from "./plugin-registry.js";
-import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
-import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
-import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
@@ -65,7 +62,7 @@ export async function handleLocalCatalogWebRequest(
   runtimeIntegrations: RuntimeIntegrationService, webService: MolisWorkWebServiceManager, controlToken: string,
   localHost: MolisWorkLocalHost, projects: WebProjectNavigation[], composition: LocalWebComposition,
   deletionPorts: ProjectDeletionPorts,
-  codingRuntimes: () => Promise<readonly AgentRuntimeDescriptor[]> = async () => [],
+  agentRuntimes: () => Promise<readonly AgentRuntimeDescriptor[]> = async () => [],
 ): Promise<void> {
   const { PAGE_CSP, handleOnboarding, renderCapsuleShell, isDesktopShellRequest, planningHttp, projectSettings, servePtyClient } = composition;
   const { renderMolisWorkSettings, renderMolisWorkProjectIndex, renderMolisWorkProjectBrief } = composition.workbenchRenderer;
@@ -172,33 +169,22 @@ export async function handleLocalCatalogWebRequest(
   const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
   const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
   if (request.method === "GET" && pluginSettings && serverOptions.homeDirectory) {
-    let plugin_settings_html = await renderCatalogPluginSettings(pluginSettings.contribution_id, localHost);
-    if (!plugin_settings_html && pluginSettings.contribution_id !== CODING_SETTINGS_UI_CONTRIBUTION_ID) {
-      sendJson(response, 404, { error: L("页面不存在") });
-      return;
-    }
     const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory);
     const contextProjectId = url.searchParams.get("project");
     const contextProject = contextProjectId
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
       : null;
-    if (pluginSettings.contribution_id === CODING_SETTINGS_UI_CONTRIBUTION_ID) {
-      const runtimes = await codingRuntimes();
-      const model = {
-        roles: codingAgentManifest.roles.map(role => ({ ...role, execution: role.execution ?? "read-only" })),
-        runtimes: runtimes.map(runtime => ({ ...runtime,
-          can_write: runtime.capabilities["text-edit"] !== "unsupported",
-          can_command: runtime.capabilities.command !== "unsupported",
-          methods: runtime.capabilities.skills,
-        })),
-        methods: codingAgentManifest.skills ?? [],
-        projects: projects.map(project => ({ project_id: project.project_id, name: project.display_name })),
-        project_name: contextProject?.display_name,
-        project_href: contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : null,
-        primitives: { escape: escapeSettingsHtml, text: L },
-      };
-      plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
-    }
+    // One route for every plugin's settings page (W5-02 PR-D, PG-072): the platform's facts in one shape, and the answer of the read
+    // action the page's Manifest view declares (`settings_data`). The Host knows no plugin here; the page renders what it is given.
+    const context: SettingsPageContext = {
+      projects: projects.map((project) => ({ project_id: project.project_id, name: project.display_name })),
+      project: contextProject ? { project_id: contextProject.project_id, name: contextProject.display_name, href: `/projects/${encodeURIComponent(contextProject.project_id)}/` } : null,
+      runtimes: await agentRuntimes(),
+    };
+    const dataAction = pluginSettingsDataAction(pluginSettings.contribution_id);
+    const data = dataAction ? await bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS).invoke(dataAction, {}) : undefined;
+    const model: SettingsPageModel = { context, data, primitives: { escape: escapeSettingsHtml, text: L } };
+    const plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
     const membership = await pluginMembership(composition, serverOptions.homeDirectory, contextProject?.project_id ?? null);
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
@@ -207,7 +193,7 @@ export async function handleLocalCatalogWebRequest(
     });
     response.end(renderMolisWorkSettings({
       section: pluginSettings.section_id,
-      plugin_settings_html: plugin_settings_html ?? undefined,
+      plugin_settings_html,
       context_project: contextProject,
       enabled_plugins: membership.plugins,
       hidden_plugins: membership.hidden,
@@ -293,17 +279,3 @@ function escapeSettingsHtml(value: unknown): string {
     .replaceAll('"', "&quot;");
 }
 
-async function renderCatalogPluginSettings(contributionId: string, host: MolisWorkLocalHost): Promise<string | null> {
-  const primitives = { escape: escapeSettingsHtml, text: L };
-  if (contributionId === SHELF_SETTINGS_UI_CONTRIBUTION_ID) {
-    const snapshot = await bindLocalWebActions(host, undefined, SHELF_ACTION_PERMISSIONS).invoke(shelfActions.snapshot, {});
-    return renderPluginSettingsContribution(contributionId, {
-      settings: snapshot.settings,
-      runtime: snapshot.runtime,
-      ai: snapshot.ai,
-      storage_path: snapshot.root,
-      primitives,
-    });
-  }
-  return null;
-}

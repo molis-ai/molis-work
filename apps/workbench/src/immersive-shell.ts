@@ -1,7 +1,7 @@
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
@@ -38,6 +38,7 @@ function directoryPlugins(directory: PluginDirectory, enabled: readonly string[]
     label: pluginLabel(entry.id, entry.label, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
+    rail: entry.rail,
     chosen: entry.chosen,
   }));
 }
@@ -75,6 +76,7 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[], i
     label: pluginLabel(entry.id, entry.label, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
+    rail: entry.rail,
     chosen: entry.chosen,
   }));
 }
@@ -94,8 +96,6 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[], i
  * (`group`, W5-06 2b), and one that names none, including one added later, lands in 更多, so adding
  * a Plugin never edits the shell.
  */
-const RAIL_CORE_ORDER = ["goals", "inbox", "feed"];
-const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 /**
  * The names of the groups a view can name, which the Host owns (their order is `UI_VIEW_GROUPS`'): 推进 (the backbone plus
  * its helpers), 写与做 (things one makes), 个人 (what belongs to the person), 研究, 编码. See
@@ -103,7 +103,6 @@ const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
  */
 const RAIL_GROUP_LABELS: Readonly<Record<UiViewGroup, string>> = { advance: "推进", make: "写与做", personal: "个人", research: "研究", code: "编码" };
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
-const RAIL_EXTEND_PLUGIN_IDS = new Set(["plugin-builder"]);
 
 /**
  * The person's entries, the backbone, this project's tools (recent first, the rest one click away), the account.
@@ -124,8 +123,9 @@ export function renderPluginRail(
 ): string {
   const { L, icon, escapeHtml } = primitives;
   const have = new Set(enabled);
+  const extendIds = extendPluginIds(directory), pinned = new Set(dockDefaultPins(directory));
   const cards = pluginMarketCards(options, directory);
-  const addable = cards.map(card => card.id).filter(id => !have.has(id) && !RAIL_EXTEND_PLUGIN_IDS.has(id));
+  const addable = cards.map(card => card.id).filter(id => !have.has(id) && !extendIds.has(id));
   const everyone = [...enabled, ...addable];
   const entries = directoryPlugins(directory, everyone, english(primitives));
   const islands = islandPlugins(directory, everyone, english(primitives));
@@ -153,7 +153,7 @@ export function renderPluginRail(
   const named = (ids: readonly string[]) => ids.map(id => names.get(id) ?? id).join("|");
   // The pin: kept in the Dock (graphite) or not (grey); out of reach until the plugin is in the project.
   const pinButton = (plugin: { id: string; label: string }, owned: boolean) => {
-    const kept = owned && DOCK_DEFAULT_PINS.includes(plugin.id);
+    const kept = owned && pinned.has(plugin.id);
     return renderButton({ variant: kept ? "primary" : "secondary", size: "sm", icon: "pin", iconOnly: true, className: "dock-keep", disabled: !owned,
       label: say(L, "常驻 Dock：{name}", { name: plugin.label }), attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: L("常驻 Dock") } });
   };
@@ -176,7 +176,7 @@ export function renderPluginRail(
     const installed = plugin.chosen === false;
     const owned = installed || have.has(plugin.id);
     const label = escapeHtml(plugin.label);
-    const kept = owned && DOCK_DEFAULT_PINS.includes(plugin.id);
+    const kept = owned && pinned.has(plugin.id);
     const along = owned ? [] : alongWith(plugin.id), dependents = owned ? dependentsOf(plugin.id) : [];
     const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${L(hints[plugin.id])}</small>` : "";
     const main = owned ? link(plugin, zone, mark)
@@ -185,10 +185,9 @@ export function renderPluginRail(
   };
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
   const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home", hint: L(RAIL_HOME_HINT) }, "core");
-  const core = entries.filter(plugin => RAIL_CORE_PLUGIN_IDS.has(plugin.id))
-    .sort((a, b) => RAIL_CORE_ORDER.indexOf(a.id) - RAIL_CORE_ORDER.indexOf(b.id)).map(plugin => tile(plugin, "core")).join("");
+  const core = entries.filter(plugin => plugin.rail === "core").map(plugin => tile(plugin, "core")).join("");
   // 灵光 is a plugin like any other: an island leads the group its view names (个人).
-  const tools = [...islands, ...entries].filter(plugin => !RAIL_CORE_PLUGIN_IDS.has(plugin.id) && !RAIL_EXTEND_PLUGIN_IDS.has(plugin.id));
+  const tools = [...islands, ...entries].filter(plugin => plugin.rail === null);
   const grouped = UI_VIEW_GROUPS.map((group, index) => {
     const links = tools.filter(plugin => plugin.group === group).map(plugin => tile(plugin, "tool")).join("");
     // The backbone already sits under the first heading; its helpers follow without a second one.
@@ -208,7 +207,7 @@ export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, e
   const { L } = primitives;
   const item = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName }, suffix = "") =>
     pluginLink(primitives, plugin, "account-global-item", suffix);
-  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => RAIL_EXTEND_PLUGIN_IDS.has(plugin.id)).map(plugin => item(plugin)).join("");
+  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => plugin.rail === "extend").map(plugin => item(plugin)).join("");
   const market = item({ id: "market", surface: "market", label: L("插件市场"), glyph: "grid" },
     `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
   return `${market}${builder}`;
@@ -226,7 +225,7 @@ export function renderPickerExtend(primitives: ImmersiveShellPrimitives, enabled
       attrs: { "data-plugin-id": plugin.id, ...(DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? {} : { "data-directory-open": plugin.id }), "data-work-surface-open": plugin.surface, title: plugin.label } });
     return html.replace(/<\/button>$/, `${suffix}</button>`);
   };
-  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => RAIL_EXTEND_PLUGIN_IDS.has(plugin.id)).map(plugin => button(plugin)).join("");
+  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => plugin.rail === "extend").map(plugin => button(plugin)).join("");
   const market = button({ id: "market", surface: "market", label: L("插件市场"), glyph: "grid" },
     `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
   return `<div class="plugin-picker-extend" data-global-menu role="group" aria-label="${L("添加与创作插件")}">${market}${builder}</div>`;

@@ -3,6 +3,7 @@ import type {
   UiViewCreateEntry,
   UiViewDeclaration,
   UiViewGroup,
+  UiViewRail,
   UiViewSlot,
   UiViewStartEntry,
   UiWorkspaceCommand,
@@ -25,6 +26,9 @@ export interface UiPlacedView {
   order: number;
   /** The rail group a navigator or island view is listed in; null is 更多. */
   group: UiViewGroup | null;
+  /** A navigator view's place in the rail apart from its group (`core` backbone, `extend`), and whether the Dock keeps it by default. */
+  rail?: UiViewRail;
+  pinned_default?: true;
   creates?: UiViewCreateEntry;
   start?: UiViewStartEntry;
 }
@@ -79,6 +83,8 @@ export class UiViewRegistry {
           ...(view.context_binding ? { context_binding: view.context_binding } : {}),
           order: view.order ?? 100,
           group: view.group ?? null,
+          ...(view.rail ? { rail: view.rail } : {}),
+          ...(view.pinned_default === true ? { pinned_default: true as const } : {}),
           ...(view.creates ? { creates: { ...view.creates } } : {}),
           ...(view.start ? { start: { ...view.start } } : {}),
         });

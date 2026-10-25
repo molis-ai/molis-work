@@ -1,4 +1,5 @@
 import type {
+  SettingsPageModel,
   UiContribution,
   UiContributionDeclaration,
   UiRenderRequest,
@@ -12,6 +13,7 @@ import type {
   ShelfItemKind,
   ShelfPanelKeySlot,
   ShelfRuntimeStatus,
+  ShelfSnapshot,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import {
   HOTKEY_GUIDE,
@@ -49,13 +51,16 @@ export const shelfSettingsUiDescriptor: UiContributionDeclaration = {
   slots: [],
 };
 
-export const shelfSettingsUiContribution: UiContribution<ShelfSettingsUiModel> = {
+/** The page is drawn from the answer of the `settings_data` action its Manifest view declares (`shelf.snapshot`). */
+export const shelfSettingsUiContribution: UiContribution<SettingsPageModel<ShelfSnapshot>> = {
   descriptor: shelfSettingsUiDescriptor,
-  render(request: UiRenderRequest<ShelfSettingsUiModel>): string {
+  render(request: UiRenderRequest<SettingsPageModel<ShelfSnapshot>>): string {
     if (request.surface !== "settings") {
       throw new Error(`Shelf settings surface ${request.surface} 不存在`);
     }
-    return renderShelfSettings(request.model);
+    const { data, primitives } = request.model;
+    if (!data) throw new Error("Shelf 设置页缺少 settings_data 的结果");
+    return renderShelfSettings({ settings: data.settings, runtime: data.runtime, ai: data.ai, storage_path: data.root, primitives });
   },
 };
 

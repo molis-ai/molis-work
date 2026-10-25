@@ -28,10 +28,6 @@ import {
   type ScheduleUiModel,
   type ScheduleUiSurface,
 } from "@molis-ai/molis-work-plugin-schedule";
-import {
-  SHELF_SETTINGS_UI_CONTRIBUTION_ID,
-  type ShelfSettingsUiModel,
-} from "@molis-ai/molis-work-plugin-shelf";
 import { UiHost, createSurfaceRenderer, createSurfaceRenderers } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
@@ -105,10 +101,6 @@ export function renderPluginSettingsContribution(
     slot: WORKBENCH_UI_SLOTS.settings,
     contribution: { contribution_id: contributionId, surface: "settings", model },
   }).html;
-}
-
-export function renderShelfSettingsContribution(model: ShelfSettingsUiModel): string {
-  return renderPluginSettingsContribution(SHELF_SETTINGS_UI_CONTRIBUTION_ID, model);
 }
 
 

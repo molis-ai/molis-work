@@ -11,7 +11,7 @@ import { createPluginRuntimeReleaseArtifact, PluginRuntime, SqlitePluginRuntimeR
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, artifactLinkKinds, artifactTypeDeclarations, bindProjectArtifacts, createPluginPlatform, declaredArtifactTypes,
-  heldInstalls, homeStores, installedArtifacts, openProjectVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+  heldInstalls, homeStores, installedArtifacts, openProjectVersionStores, openRestoreVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -152,6 +152,15 @@ test("RAC-416 S-75 a producer the project cannot be asked about is refused, neve
   const unbind = bindProjectArtifacts(store.db, { alive: () => true, effectiveManifests: () => { throw new Error("cannot ask"); }, knownPluginIds: () => [] });
   t.after(unbind);
   assert.throws(() => write(alone, DEMO_PROJECT_ID, OTHER, "example.note", "y"), { ...undeclared, message: /查不到（cannot ask）/ }, "a supervisor that cannot answer");
+});
+
+test("RAC-416 S-75 a project rebuilt from a bundle takes a producer it has not installed, and still holds an installed one to its Manifest", { timeout: 180_000 }, async t => {
+  const p = project(t, bareHome(t)), restoring = openRestoreVersionStores(p.store);
+  assert.throws(() => write(p.versions, p.projectId, OTHER, "example.note", "ordinary"), { ...undeclared, message: /不是这个项目里装着的插件|没有找到这个项目的插件监督器/ }, "an ordinary write for an uninstalled producer is refused");
+  assert.equal(write(restoring, p.projectId, OTHER, "example.note", "restored").replayed, false, "the restore takes the history of a producer not installed here");
+  await p.supervisor.start([entry(plugin(PRODUCER, "1.0.0", ["example.note"]))]);
+  assert.equal(write(restoring, p.projectId, PRODUCER, "example.note", "own").replayed, false);
+  assert.throws(() => write(restoring, p.projectId, PRODUCER, "example.other", "undeclared"), undeclared, "an installed producer is held to its Manifest in a restore too");
 });
 
 test("RAC-417 S-76 a name has one owner in the whole Home: a disabled owner still holds it, and so does one in another project", { timeout: 180_000 }, async t => {

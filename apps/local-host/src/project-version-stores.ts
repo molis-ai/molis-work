@@ -1,4 +1,4 @@
-import { projectVersionStores } from "@molis-ai/molis-work-module-artifacts";
+import { projectVersionStores, restoreVersionStores } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectTypeDeclared } from "./declared-types.js";
@@ -9,6 +9,17 @@ export interface ProjectVersionStores {
   readonly artifacts: ArtifactsApplicationApi;
   /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
   readonly processItems: ProcessItemsApplicationApi;
+}
+
+/**
+ * The stores of a project being rebuilt from a work-assets bundle: the only ones that take a version from a producer the project has
+ * not installed (the restore warns that the plugin is missing, S-75). Only the restore opens them; every other write goes through
+ * `openProjectVersionStores`. They are their own pair, never the project's shared one, so the looser check stays with the restore.
+ */
+export function openRestoreVersionStores(store: LocalProjectDatabase): ProjectVersionStores {
+  const journal = { now: () => new Date().toISOString(), appendEvent: store.appendEvent.bind(store), eventCursor: store.eventCursor.bind(store), declared: projectTypeDeclared(store.db, true) };
+  const { artifacts, processItems } = restoreVersionStores({ db: store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, ...journal });
+  return { artifacts: { query: artifacts.query, commands: artifacts.commands }, processItems: { query: processItems.query, commands: processItems.commands } };
 }
 
 /**

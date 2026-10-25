@@ -63,7 +63,7 @@ export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./pr
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export * from "./goal-project-application.js";
-export { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
+export { openProjectVersionStores, openRestoreVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
 
 export * from "./web-locale.js";
 

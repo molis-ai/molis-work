@@ -28,8 +28,10 @@ function shippedDeclaration(pluginId: string): Declares | undefined {
  * (the build's, where the project has no supervisor for it). Any other producer must be an installation in effect in this project;
  * one that was disabled or uninstalled here writes nothing, and a project the Host holds no supervisor for, or one that cannot be
  * asked, writes nothing for it either: the answer is a refusal, never a pass.
+ * `restoring` is the one exception (S-75): a project rebuilt from a work-assets bundle takes the history of producers it has not installed
+ * yet, and says so in its warnings. It judges an installation the project has, or a producer that ships with the Build, by the Manifest as above.
  */
-export function projectTypeDeclared(db: object) {
+export function projectTypeDeclared(db: object, restoring = false) {
   return (producer: { plugin_id: string }, type: { artifact_type_id: string; schema_version: number }, kind: "artifact" | "process_item"): string | null => {
     const store = kind === "artifact" ? "成果库" : "过程项";
     const shipped = shippedDeclaration(producer.plugin_id), views = [...projectViews.get(db) ?? []];
@@ -42,6 +44,7 @@ export function projectTypeDeclared(db: object) {
     }
     if (shipped && known && !installed) return `${producer.plugin_id} 在这个项目里已停用或已卸载，不能写入${store}`;
     const source: Declares | undefined = installed ?? shipped;
+    if (!source && restoring && !known) return null;
     if (!source) return views.length === 0 ? `${producer.plugin_id} 没有找到这个项目的插件监督器，不能确认它装着，不能写入${store}`
       : known ? `${producer.plugin_id} 在这个项目里已停用或已卸载，不能写入${store}` : `${producer.plugin_id} 不是这个项目里装着的插件，不能写入${store}`;
     const field = kind === "artifact" ? "artifacts.produces" : "process_items.produces";

@@ -19,11 +19,38 @@ export interface GovernanceSqliteStatement {
   run(...params: unknown[]): { changes: number | bigint; lastInsertRowid?: number | bigint };
 }
 
+/**
+ * What Governance needs of a SQLite connection: statements, a transaction that nests, and a point it can roll back to without ending
+ * the transaction (the Goal Tree preview). No free SQL: Governance sends nothing a plugin's statement check would refuse.
+ * `savepoint` undoes the body's writes when `keep` is false or the body throws, and gives the body's value either way.
+ */
 export interface GovernanceSqliteDatabase {
   prepare(sql: string): GovernanceSqliteStatement;
-  exec(sql: string): unknown;
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
-  pragma(source: string): unknown;
+  savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T;
+}
+
+/** The connection `better-sqlite3` gives (the project library's own, in tests and in the Host while it assembles Goals), as Governance meets it. */
+export function governanceSqlite(db: Pick<GovernanceSqliteDatabase, "prepare" | "transaction"> & { exec(sql: string): unknown }): GovernanceSqliteDatabase {
+  let points = 0;
+  return {
+    prepare: sql => db.prepare(sql),
+    transaction: operation => db.transaction(operation),
+    savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T {
+      const name = `governance_savepoint_${++points}`;
+      db.exec(`SAVEPOINT ${name}`);
+      try {
+        const result = body();
+        if (!result.keep) db.exec(`ROLLBACK TO ${name}`);
+        db.exec(`RELEASE ${name}`);
+        return result.value;
+      } catch (error) {
+        db.exec(`ROLLBACK TO ${name}`);
+        db.exec(`RELEASE ${name}`);
+        throw error;
+      }
+    },
+  };
 }
 
 /**

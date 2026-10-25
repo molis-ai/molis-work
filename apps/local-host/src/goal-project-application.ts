@@ -3,7 +3,7 @@ import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { listProjectRoots, writeProjectRoot } from "@molis-ai/molis-work-module-projects";
-import { GovernanceCollaborationModule, type GovernanceSqliteDatabase } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule, governanceSqlite } from "@molis-ai/molis-work-module-governance-collaboration";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import {
   GoalsModule,
@@ -55,7 +55,7 @@ export class GoalProjectApplication {
     private readonly personalPlanningMethodPacks: readonly PlanningMethodPack[] | (() => readonly PlanningMethodPack[]) = [],
   ) {
     const governanceModule = new GovernanceCollaborationModule({
-      db: this.store.db as unknown as GovernanceSqliteDatabase,
+      db: governanceSqlite(this.store.db),
       journal: this.store,
       now: () => this.clock().toISOString(),
     });

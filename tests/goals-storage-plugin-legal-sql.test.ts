@@ -7,10 +7,10 @@ import test from "node:test";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { GoalsModule } from "@molis-ai/molis-work-module-goals";
 import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
-import { pluginLegalSql, SAVEPOINTS } from "./fixtures/plugin-legal-sql.js";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 // PG-094 S9-1 (specs/repository-anti-corruption/slices/goals-s9-1-journal-seam.md): what of Goals' and Governance's SQL a plugin's
-// statement check would refuse today, and that it is nothing but the savepoints.
+// statement check would refuse today, and (S11) that it is nothing: the preview's undo is the platform's savepoint, not an `exec`.
 
 const MODULES = ["modules/goals/src", "modules/governance-collaboration/src"];
 
@@ -85,13 +85,19 @@ test("RAC-284 the statement check the modules run under refuses a statement on t
   } finally { dispose(); }
 });
 
-test("RAC-285 the only SQL the modules run that a plugin cannot is the Goal Tree preflight's savepoints, pinned until the cutover answers them", () => {
+test("RAC-285 neither module runs a free-form exec, and the Goal Tree preview undoes its writes through a savepoint, not through SQL it passes", () => {
+  const withExec = MODULES.flatMap(directory => sources(directory))
+    .filter(path => !path.endsWith("planning/personal-methods.ts") && !path.endsWith("governance-collaboration/src/repository.ts"))
+    .filter(path => /\.(?:exec|pragma)\(/u.test(readFileSync(path, "utf8")));
+  assert.deepEqual(withExec, [], "a plugin has no exec; its undo is the transaction handle's savepoint");
+
   const { store, dispose } = library();
   try {
     const legal = pluginLegalSql(store);
-    const governance = new GovernanceCollaborationModule({ db: legal.db, journal: store });
+    const governance = new GovernanceCollaborationModule({ db: legal.governance, journal: store });
     assert.equal(governance.decisions.previewMaterialization(() => "whole"), "whole");
     assert.equal(governance.decisions.previewMaterializationItem(() => ({ keep: false, value: "item" })), "item");
-    assert.deepEqual([...legal.stats.savepoints].sort(), [...SAVEPOINTS].sort());
+    assert.equal(legal.stats.savepoints, 2, "each preview opened one savepoint");
+    assert.throws(() => legal.db.exec("SAVEPOINT free_form"), "Goals' own connection has no exec");
   } finally { dispose(); }
 });

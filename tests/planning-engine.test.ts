@@ -431,7 +431,7 @@ test("Goals public Planning API owns method versions, graph checks, and change i
       idempotency_key: "init-module-planning",
     });
     // W5-08-MOD-02: planning crosses the same business interface as the Host.
-    const governance = new GovernanceCollaborationModule({ db: pluginLegalSql(store).db, journal: store });
+    const governance = new GovernanceCollaborationModule({ db: pluginLegalSql(store).governance, journal: store });
     const goals = new GoalsModule(pluginLegalSql(store).db, store, {
       supersedePendingContractProposals: (...args) => governance.records.supersedePendingContractProposals(...args),
       currentActionToken: () => "token:planning",

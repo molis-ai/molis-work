@@ -9,27 +9,13 @@ export class GovernanceDecisionTransactions implements GovernanceDecisionApi {
     return this.db.transaction(operation).immediate();
   }
 
+  /** Runs the whole materialization to see what it would do, then undoes all of it, whether it finished or threw. */
   previewMaterialization<T>(operation: () => T): T {
-    this.db.exec("SAVEPOINT goal_tree_materialization_preflight");
-    try {
-      return operation();
-    } finally {
-      this.db.exec("ROLLBACK TO goal_tree_materialization_preflight");
-      this.db.exec("RELEASE goal_tree_materialization_preflight");
-    }
+    return this.db.savepoint(() => ({ keep: false, value: operation() }));
   }
 
+  /** One item's preview inside a preview: its writes stay only when the operation says `keep`; a throw undoes them. */
   previewMaterializationItem<T>(operation: () => { keep: boolean; value: T }): T {
-    this.db.exec("SAVEPOINT goal_tree_item_preflight");
-    try {
-      const result = operation();
-      if (!result.keep) this.db.exec("ROLLBACK TO goal_tree_item_preflight");
-      this.db.exec("RELEASE goal_tree_item_preflight");
-      return result.value;
-    } catch (error) {
-      this.db.exec("ROLLBACK TO goal_tree_item_preflight");
-      this.db.exec("RELEASE goal_tree_item_preflight");
-      throw error;
-    }
+    return this.db.savepoint(operation);
   }
 }

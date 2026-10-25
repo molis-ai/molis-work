@@ -18,4 +18,4 @@
 
 **剪贴板：** 桌面壳轮询系统剪贴板的变化计数；读得到内容就记历史（文件直接进材料、不占历史，隐蔽类型不记）。现代 macOS 可能只给变化计数不给内容，这时 `shelf_setup_status.clipboard_readable` 为 false，设置页改说「按 ⌘V 上架」。
 
-**人工终端：** 九个引擎与自定义 Runtime 仍可手动打开或发送。目录和快照只做被动发现，不因自动动作启动 CLI。终端选择不改变自动动作的 AI 模型。生产走真实 PATH；隔离试用与测试可用 `MOLIS_WORK_SHELF_AGENT=off`、`MOLIS_WORK_SHELF_AGENT_PATH=<目录>`、`MOLIS_WORK_SHELF_AGENT=<引擎>` 钉死人工入口。
+**人工终端：** 九个引擎与自定义 Runtime 仍可手动打开或发送。目录和快照只做被动发现，不因自动动作启动 CLI。终端选择不改变自动动作的 AI 模型。生产走真实 PATH 与 Manifest 声明的安装目录；隔离试用与测试可用平台的 `MOLIS_WORK_LOCAL_TOOLS=off`、`MOLIS_WORK_LOCAL_TOOLS_PATH=<目录>` 钉死（`<引擎>` 的偏好环境变量已删，偏好是设置页里的 Runtime 选择）。

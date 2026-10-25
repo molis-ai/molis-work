@@ -118,14 +118,6 @@ export const diffManifest: PluginManifest = {
   routes: [{ route_id: "diff.state", method: "GET", path: "/state" }],
   ui: {
     contributions: [DIFF_UI_CONTRIBUTION_ID],
-    commands: [
-      {
-        command_id: "diff.open-comparison",
-        title: "把这次对比固定下来",
-        input_kinds: ["current", "artifacts"],
-        opens_view_id: "comparison",
-      },
-    ],
     views: [
       { view_id: "browse", slot: "navigator", title: "Diff", contribution_id: DIFF_UI_CONTRIBUTION_ID, icon: "git-compare", order: 65 },
       {

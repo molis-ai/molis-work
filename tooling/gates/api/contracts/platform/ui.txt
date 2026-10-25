@@ -138,22 +138,6 @@ export interface UiClientScope extends UiRequestScope {
 
 export type UiClientTranslate = (key: string, values?: Record<string, string | number>) => string;
 
-export type UiCommandAvailability = {
-    readonly available: true;
-} | {
-    readonly available: false;
-    readonly reason: string;
-};
-
-export interface UiCommandDeclaration {
-    readonly command_id: string;
-    readonly title: string;
-    readonly input_kinds: readonly UiCommandInputKind[];
-    readonly opens_view_id: string;
-}
-
-export type UiCommandInputKind = (typeof UI_COMMAND_INPUT_KINDS)[number];
-
 export interface UiContribution<TModel = unknown> {
     readonly descriptor: UiContributionDeclaration;
     render(request: UiRenderRequest<TModel>): string;
@@ -207,11 +191,6 @@ export interface UiMountResult {
 
 export interface UiNestedContentModel {
     readonly nested?: Readonly<Record<string, string>>;
-}
-
-export interface UiOpenedObjectView {
-    readonly ref: UiViewObjectRef;
-    readonly title: string;
 }
 
 export interface UiPageActions {
@@ -513,13 +492,6 @@ export interface UiViewStartEntry {
     readonly title: string;
     readonly hint: string;
     readonly icon?: string;
-}
-
-export interface UiWorkspaceCommand {
-    readonly plugin_id: string;
-    readonly plugin_title: string;
-    readonly declaration: UiCommandDeclaration;
-    readonly availability: UiCommandAvailability;
 }
 
 export interface WorkbenchDocumentRenderRequest {

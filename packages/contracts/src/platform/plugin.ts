@@ -3,7 +3,7 @@ export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInterac
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
 import type { ContractDescriptor } from "./package.js";
-import type { UiCommandAvailability, UiContribution, UiOpenedObjectView } from "./ui.js";
+import type { UiContribution } from "./ui.js";
 import type { PluginEventRecord, PluginEventDeliveryContext, PluginEventType } from "./plugin-events.js";
 import type { PluginInputDeliveryContext, PluginUpstreamReadyInputs, PluginUpstreamUnavailableReason } from "./plugin-wiring.js";
 import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
@@ -21,14 +21,16 @@ export type { PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, Plu
 export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";
 export type { PluginImageTarget, PluginImageConnectionState, PluginImageGenerationRequest, PluginImageGenerationClient, PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
+export { PLUGIN_LOCAL_TOOLS_PERMISSION, PLUGIN_LOCAL_TOOLS_LIMITS } from "./plugin-local-tools.js";
+export type { PluginLocalToolsClient, PluginLocalToolsDeclaration } from "./plugin-local-tools.js";
 // The services, the Manifest and the route types are declared beside this file (W5-09); this subpath exports all of them.
 export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient } from "./plugin-host-services.js";
 import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-services.js";
-export type { PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginManifest } from "./plugin-manifest.js";
+export type { PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginRuntimeDeclaration, PluginManifest } from "./plugin-manifest.js";
 export { SURFACE_BROWSER_PERMISSION, browserSiteDeclarations } from "./plugin-manifest.js";
 import type { PluginDeployment, PluginManifest } from "./plugin-manifest.js";
-export type { PluginCommandInput, PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
-import type { PluginCommandInput, PluginRouteBinding } from "./plugin-routes.js";
+export type { PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
+import type { PluginRouteBinding } from "./plugin-routes.js";
 
 export const platformPluginContract = {
   contractId: "io.molis.work.platform.plugin.v1",
@@ -92,11 +94,6 @@ export interface PluginAppContribution {
   views?: readonly UiContribution[];
   /** Handlers for the routes the Manifest declares. */
   routes?: readonly PluginRouteBinding[];
-  commandAvailability?(commandId: string): UiCommandAvailability;
-  executeCommand?(
-    commandId: string,
-    input: PluginCommandInput,
-  ): UiOpenedObjectView | Promise<UiOpenedObjectView>;
   /** Complete, fixed input set. The Host never delivers a partial change. */
   onUpstreamReady?(
     inputs: PluginUpstreamReadyInputs,
@@ -139,7 +136,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

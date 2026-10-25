@@ -1,7 +1,7 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { assertConsentsDeclared, assertPluginTrust, assertTrustFitsExecution } from "./trust-rules.js";
+import { assertConsentsDeclared, assertPluginTrust, assertTrustFitsDefinition } from "./trust-rules.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // Who an install may say it is (ac-trust T6, specs/repository-anti-corruption/slices/ac-trust-install.md §3.6, S-75). A publisher's
@@ -28,7 +28,7 @@ export function assertInstallIdentity(
 ): PluginTrust {
   const trust = assertPluginTrust(input.trust);
   const { plugin_id: id, publisher } = input.definition.manifest;
-  assertTrustFitsExecution(trust, input.definition.execution ?? "host");
+  assertTrustFitsDefinition(input.definition, trust);
   assertConsentsDeclared(input.definition.manifest, input.consents ?? []);
   if (trust.level === "pinned" ? publisher.signature !== trust.publisher_key_id : publisher.signature.trim().toLowerCase().startsWith(FINGERPRINT_FORM)) {
     throw pluginErrors.signer_mismatch("发布者签名只有验过的固定公钥才能写成指纹的形式；自己写的标签不能冒充某个发布者");

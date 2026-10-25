@@ -17,6 +17,7 @@ export const pluginErrors = defineErrorCodes("plugin", {
   event_type_undeclared: "invalid",
   executor_failed: "invalid",
   grant_denied: "invalid",
+  home_scope_unavailable: "invalid",
   id_namespace_conflict: "invalid",
   install_replaced: "invalid",
   kept_data_incompatible: "invalid",

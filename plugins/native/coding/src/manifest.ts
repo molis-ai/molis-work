@@ -213,33 +213,6 @@ export const codingManifest: PluginManifest = {
   ui: {
     embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
-    /**
-     * Entries the command menu and content actions offer.
-     *
-     * Each names the object it acts on rather than assuming the current one, so
-     * "open this report" works from anywhere the report is visible instead of
-     * only from inside the session that made it.
-     */
-    commands: [
-      {
-        command_id: "coding.new-session",
-        title: "开一条编码会话",
-        input_kinds: ["current"],
-        opens_view_id: "directory",
-      },
-      {
-        command_id: "coding.open-changeset",
-        title: "查看这一轮的变更",
-        input_kinds: ["agent-session"],
-        opens_view_id: "directory",
-      },
-      {
-        command_id: "coding.open-report",
-        title: "打开报告",
-        input_kinds: ["artifacts"],
-        opens_view_id: "directory",
-      },
-    ],
     views: [
       { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID, accepts_objects: true },
       {

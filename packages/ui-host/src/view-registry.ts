@@ -1,12 +1,10 @@
 import type {
-  UiCommandDeclaration,
   UiViewCreateEntry,
   UiViewDeclaration,
   UiViewGroup,
   UiViewRail,
   UiViewSlot,
   UiViewStartEntry,
-  UiWorkspaceCommand,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /**
@@ -33,11 +31,11 @@ export interface UiPlacedView {
   start?: UiViewStartEntry;
 }
 
-/** What the registry reads of a Manifest: who it is and where its views and commands are placed. */
+/** What the registry reads of a Manifest: who it is and where its views are placed. */
 export interface UiViewRegistryManifest {
   readonly plugin_id: string;
   readonly name: string;
-  readonly ui: { readonly views?: readonly UiViewDeclaration[]; readonly commands?: readonly UiCommandDeclaration[] };
+  readonly ui: { readonly views?: readonly UiViewDeclaration[] };
 }
 
 export interface UiViewRegistryInput {
@@ -58,15 +56,9 @@ function defaultContributionId(manifest: UiViewRegistryManifest, viewId: string)
  */
 export class UiViewRegistry {
   readonly #views: UiPlacedView[];
-  readonly #commands: Array<{ plugin_id: string; plugin_title: string; declaration: UiCommandDeclaration }>;
 
   constructor(entries: readonly UiViewRegistryInput[]) {
     const views: UiPlacedView[] = [];
-    const commands: Array<{
-      plugin_id: string;
-      plugin_title: string;
-      declaration: UiCommandDeclaration;
-    }> = [];
     for (const entry of entries) {
       if (!entry.enabled) continue;
       const manifest = entry.manifest;
@@ -89,19 +81,11 @@ export class UiViewRegistry {
           ...(view.start ? { start: { ...view.start } } : {}),
         });
       }
-      for (const declaration of manifest.ui.commands ?? []) {
-        commands.push({
-          plugin_id: manifest.plugin_id,
-          plugin_title: manifest.name,
-          declaration,
-        });
-      }
     }
     this.#views = views.sort((left, right) =>
       left.order - right.order
       || left.plugin_id.localeCompare(right.plugin_id)
       || left.view_id.localeCompare(right.view_id));
-    this.#commands = commands;
   }
 
   /** Views for one region, already in the order the shell should render them. */
@@ -116,29 +100,5 @@ export class UiViewRegistry {
   view(pluginId: string, viewId: string): UiPlacedView | null {
     const found = this.#views.find((item) => item.plugin_id === pluginId && item.view_id === viewId);
     return found ? { ...found } : null;
-  }
-
-  /**
-   * Commands with availability resolved by the owning Plugin. An unavailable
-   * command still appears, with the reason, instead of silently vanishing.
-   */
-  commands(
-    availability: (pluginId: string, commandId: string) => UiWorkspaceCommand["availability"],
-  ): UiWorkspaceCommand[] {
-    return this.#commands.map((entry) => ({
-      plugin_id: entry.plugin_id,
-      plugin_title: entry.plugin_title,
-      declaration: entry.declaration,
-      availability: availability(entry.plugin_id, entry.declaration.command_id),
-    }));
-  }
-
-  /** Commands that accept one input kind, for a content action menu. */
-  commandsFor(
-    inputKind: UiCommandDeclaration["input_kinds"][number],
-    availability: (pluginId: string, commandId: string) => UiWorkspaceCommand["availability"],
-  ): UiWorkspaceCommand[] {
-    return this.commands(availability)
-      .filter((command) => command.declaration.input_kinds.includes(inputKind));
   }
 }

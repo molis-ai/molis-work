@@ -27,7 +27,7 @@ export { SqlitePluginRuntimeRepository, readPluginRuntimeRecords, PLUGIN_RUNTIME
 export { alwaysOnAgreed, consentStands, leaveRefusal } from "./always-on-rules.js";
 export { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsentLedger } from "./consent-ledger.js";
 export type { PluginConsentEntry, PluginConsentLedger } from "./consent-ledger.js";
-export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertPluginTrust, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust } from "./trust-rules.js";
+export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeScopeAllowed, assertLocalToolsAllowed, assertPluginTrust, assertTrustFitsDefinition, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust } from "./trust-rules.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
 export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, openPluginProjectDatabase, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
 export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginStatementMode } from "./project-database-statements.js";
@@ -53,6 +53,8 @@ export { createPluginModelConfigurationClient } from "./model-configuration.js";
 export type { PluginModelConfigurationPort } from "./model-configuration.js";
 export { createPluginImageGenerationClient } from "./image-generation.js";
 export type { PluginImageGenerationPort, PluginImageGenerationGate, PluginImageGenerationDispatch } from "./image-generation.js";
+export { createPluginLocalToolsClient } from "./local-tools.js";
+export type { PluginLocalToolsPort, PluginLocalToolsGate } from "./local-tools.js";
 export type { PluginModelDispatch, PluginModelGate, PluginModelPort } from "./model-service.js";
 export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";

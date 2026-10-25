@@ -15,7 +15,7 @@
 | --- | --- |
 | `packages/contracts/src/platform/plugin-host-services.ts` | `PluginHostServices` 与它直接用的客户端接口：`PluginPrivateStorage`、`PluginUiClient`、`PluginActionDirectory`、`PluginActionClient`、`PluginTerminalClient` |
 | `packages/contracts/src/platform/plugin-manifest.ts` | `PluginManifest` 与各项声明：`PluginDeployment`、`PluginKind`、`PluginPermissionDeclaration`、`SURFACE_BROWSER_PERMISSION`、`browserSiteDeclarations`、`PluginEntrypointManifest`、`PluginRequirementDeclaration`、`PluginUpgradeCompatibilityDeclaration`、`PluginRouteMethod`、`PluginRouteDeclaration` |
-| `packages/contracts/src/platform/plugin-routes.ts` | 路由与命令输入：`PluginCommandInput`（及其内部的 `PluginCommandInputOf`）、`PluginRouteRequest`、`PluginRouteStreamLine`、`PluginExecutionControl`、`PluginRouteResponse`、`PluginRouteBinding` |
+| `packages/contracts/src/platform/plugin-routes.ts` | 路由：`PluginRouteRequest`、`PluginRouteStreamLine`、`PluginExecutionControl`、`PluginRouteResponse`、`PluginRouteBinding` |
 
 - `PluginCapabilityClient` 留在 `plugin.ts`：它引用 `HostCapabilityDefinition`，typed 能力的门禁按文件计数，搬走就是新文件里多一处。它随 typed 通路一起删。
 - `plugin.ts` 按名字逐个转出搬走的声明，`platform/plugin` 子路径与根入口的导出不变；新文件不是子路径。

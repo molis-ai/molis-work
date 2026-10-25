@@ -41,7 +41,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条（W5-02 PR-1a 起由 `node scripts/generate-plugin-registry.mjs` 从各包 `src/registration.ts` 生成，不手改），在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
 - `RUNTIME_ASSEMBLED`（13）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang、pages、ppt、dataset、workflows，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 12。（CHR-1 已移出，2026-10-22：现在是 12，列表里没有 characters。）
-- Home 级（5）：issues、todo、cognia、images、jelly，包自己的 `registration` 带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
+- Home 级（5）：issues、todo、cognia、images、jelly，Manifest 写 `runtime: { scope: "home" }`、包自己的 `registration` 带 `runtime: { create, … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
 - `BUILD_TIME_ASSEMBLED`（8）：alchemist、artifacts、feed、goals、inbox、plugin-builder、schedule、sessions。
 
 PPT 的本地 Runtime 迁移候选已实现（见防腐 spec W5-01-PPT；宿主 `ppt-actions.ts`/`ppt-native-plugin-http.ts` 已删，尚未推送/合入）。

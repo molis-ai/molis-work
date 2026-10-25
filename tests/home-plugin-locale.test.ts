@@ -5,7 +5,7 @@ import { BUILTIN_PLUGIN_CATALOG, createWorkbenchLocale, renderHomePluginPage } f
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
-const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.runtime?.scope === "home");
+const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.runtime?.scope === "home");
 assert.ok(entry, "the production catalog has a Home view");
 
 test("W2-18-HOME-LOCALE-01: the Home document uses its request locale before mounting its client", () => {

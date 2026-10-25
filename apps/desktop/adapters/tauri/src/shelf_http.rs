@@ -353,12 +353,21 @@ fn post_json_offering(
     body: &serde_json::Value,
     original: Option<&str>,
 ) -> Result<String, String> {
-    let token = control_token()?;
-    let encoded = body.to_string();
-    let key = idempotency_key();
     let offered = original
         .map(|file| format!("{ORIGINAL_PATH_HEADER}: {}\r\n", percent_encode_path(file)))
         .unwrap_or_default();
+    post_json_with(path, body, &offered)
+}
+
+/// `headers` is zero or more complete `Name: value\r\n` lines; the caller has already checked their values.
+pub(crate) fn post_json_with(
+    path: &str,
+    body: &serde_json::Value,
+    headers: &str,
+) -> Result<String, String> {
+    let token = control_token()?;
+    let encoded = body.to_string();
+    let key = idempotency_key();
     let request = format!(
         "POST {path} HTTP/1.1\r\n\
          Host: {SHELF_HOST}\r\n\
@@ -368,7 +377,7 @@ fn post_json_offering(
          Connection: close\r\n\
          x-molis-work-control-token: {token}\r\n\
          x-molis-work-idempotency-key: {key}\r\n\
-         {offered}\
+         {headers}\
          \r\n\
          {encoded}",
         encoded.len()

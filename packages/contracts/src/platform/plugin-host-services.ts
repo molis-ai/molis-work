@@ -105,6 +105,8 @@ export interface PluginHostServices {
   readonly model?: PluginModelClient;
   /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
+  /** Which of the Manifest's `local_tools` this machine has (PG-112); only for a plugin the Host runs itself that declares them, with `local-tools:read`. */
+  readonly localTools?: import("./plugin-local-tools.js").PluginLocalToolsClient;
   /** Host material readers, each declared on its own: materials:read, materials:fetch, materials:fetch_local, materials:original. */
   readonly materials?: PluginMaterialsClient;
   /** Requests through the accounts the person bound to the Manifest's connection slots, when it declares `connections:use` (S-57). */

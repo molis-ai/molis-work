@@ -4,7 +4,7 @@ import type { SidePanelPluginTab } from "./side-panel.js";
 
 /** Home views share their instance; a project side view keeps the project named by its route. */
 export function homePluginSideTabs(routePrefix = ""): SidePanelPluginTab[] {
-  return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").flatMap(entry =>
+  return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").flatMap(entry =>
     (entry.manifest.ui?.views ?? []).filter(view => view.slot === "side").map((view, index) => ({
       key: `${entry.project_plugin_id}/${view.view_id}`, title: view.title,
       ...(view.context_binding ? { contextOwner: entry.manifest.plugin_id, contextSurface: entry.project_plugin_id } : {}),
@@ -37,7 +37,7 @@ function keysLabel(keys: string): string {
 
 /** Home tools stay within reach; declared side views open beside the current work. */
 export function renderHomePluginNavigation(href?: (path: string) => string): string {
-  const entries = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").flatMap(entry => {
+  const entries = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").flatMap(entry => {
     const stage = entry.manifest.ui?.views?.find(view => view.slot === "stage");
     if (!stage) return [];
     const glyph = entry.manifest.ui?.views?.find(view => view.slot === "navigator")?.icon;

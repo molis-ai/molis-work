@@ -16,6 +16,7 @@ export const issuesManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: ISSUES_ACTIONS,
   methods: issuesMethods.map(({ body: _body, ...method }) => ({ ...method, tools: [...method.tools] })),
+  runtime: { scope: "home" },
   databases: { home: ISSUES_DATABASE },
   routes: [
     { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write" },

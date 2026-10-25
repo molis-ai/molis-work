@@ -10,7 +10,6 @@ import test from "node:test";
 import { readMaterialWebsite } from "../apps/local-host/dist/material-web.js";
 import {
   isShelfFailure,
-  clearShelfRuntimeCache,
   defaultPanelKeys,
   defaultShelfDeviceSettings,
   parseSettingsWriteBody,
@@ -40,11 +39,9 @@ ${body}
 
 async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   const home = await mkdtemp(join(tmpdir(), "molis-work-shelf-settings-"));
-  clearShelfRuntimeCache();
   try {
     return await run(home);
   } finally {
-    clearShelfRuntimeCache();
     await rm(home, { recursive: true, force: true });
   }
 }
@@ -89,17 +86,15 @@ test("terminal choice preserves all engines while automatic jobs use the shared 
     const bin = join(home, "bin");
     await fakeAgent(bin, "claude", HELP_WITH_PRINT, "exit 0");
     await fakeAgent(bin, "gemini", "Usage: gemini\\n  --prompt <text>", "exit 0");
-    const store = openTestShelfStore(home, { pathEnvironment: bin, home }, {}, shelfTestAi());
-    assert.equal(store.runtime().runtime_key, "claude");
+    const store = openTestShelfStore(home, { pathEnvironment: bin }, {}, shelfTestAi());
+    assert.equal((await store.runtime()).runtime_key, "claude");
     await store.saveSettings({ engine: "gemini" });
-    clearShelfRuntimeCache();
-    assert.equal(store.runtime().runtime_key, "gemini");
+    assert.equal((await store.runtime()).runtime_key, "gemini");
 
     const custom = await fakeAgent(bin, "house-agent", "Usage: house-agent", `printf '%s\\n' "# 摘要" "" "这份材料的重点。" > summary.md`);
     await store.saveSettings({ custom_runtimes: [{ id: "house", title: "House CLI", executable: custom, kind: "cli" }] });
     await store.saveSettings({ engine: "custom:house" });
-    clearShelfRuntimeCache();
-    const runtime = store.runtime();
+    const runtime = await store.runtime();
     assert.equal(runtime.runtime_key, "custom:house");
     assert.equal(runtime.can_run_job, false);
     assert.equal(runtime.capability_pending, true);
@@ -117,7 +112,7 @@ test("a saved shortcut action runs on the copy and writes 原名-动作.md", asy
   await withHome(async (home) => {
     const bin = join(home, "bin");
     await fakeAgent(bin, "claude", HELP_WITH_PRINT, `printf '%s\\n' "# 联系人" "" "张三 · 13800000000" > 报价-抽联系人.md`);
-    const store = openTestShelfStore(home, { pathEnvironment: bin, home }, {}, shelfTestAi());
+    const store = openTestShelfStore(home, { pathEnvironment: bin }, {}, shelfTestAi());
     const settings = await store.saveSettings({
       shortcuts: [{ id: "act1", name: "抽联系人", prompt: "把材料里的联系人写成一张表。", kinds: ["markdown", "pdf"] }],
     });
@@ -184,7 +179,7 @@ test("a folder comes in whole: children stay in place and a recipe gets the tree
   await withHome(async (home) => {
     const bin = join(home, "bin");
     await fakeAgent(bin, "claude", HELP_WITH_PRINT, `printf '%s\\n' "# 合稿" "" "读了整棵树。" > summary.md`);
-    const store = openTestShelfStore(home, { pathEnvironment: bin, home }, {}, shelfTestAi());
+    const store = openTestShelfStore(home, { pathEnvironment: bin }, {}, shelfTestAi());
     const folder = await store.admitFolder({
       name: "报价材料",
       entries: [
@@ -285,7 +280,8 @@ else
 fi
 `, { mode: 0o700 });
     await writeFile(other, `#!/bin/sh\nprintf start > '${otherMarker}'\n`, { mode: 0o700 });
-    const store = openTestShelfStore(home, { pathEnvironment: bin, home, preferred: "claude" }, {}, shelfTestAi());
+    const store = openTestShelfStore(home, { pathEnvironment: bin }, {}, shelfTestAi());
+    await store.saveSettings({ engine: "claude" });
     const item = await store.admit({ filename: "note.md", bytes: Buffer.from("A local fixture"), mime: "text/markdown" });
     for (let index = 0; index < 3; index++) {
       const snapshot = await store.snapshot();

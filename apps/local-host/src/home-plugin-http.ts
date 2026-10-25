@@ -3,7 +3,7 @@ import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -145,7 +145,7 @@ async function routeProject(segment: string, pluginId: string, projectPlugins: H
   try { projectId = decodeURIComponent(segment); } catch { return new ActionError("actions.missing", "找不到这个项目"); }
   const found = projectPlugins ? await projectPlugins(projectId) : null;
   if (!found) return new ActionError("actions.missing", "找不到这个项目");
-  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.runtime?.scope === "home" && item.manifest.plugin_id === pluginId);
+  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.some(item => runsInHome(item) && item.manifest.plugin_id === pluginId);
   if (!found.reaches(pluginId) && (shipped || !dualInstance)) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   return { ...molisWorkHostProjectReference({ databasePath: found.database_path, projectId }), display_name: found.display_name };
 }

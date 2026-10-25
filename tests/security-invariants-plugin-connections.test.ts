@@ -148,7 +148,7 @@ test("S-57 RAC-653 the connections page lists a plugin's installation slot and t
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "Work GitHub", token: BEARER_VALUE }));
   const page = async () => { const response = await request("/settings/connectors"); assert.equal(response.status, 200); return response.text(); };
   const listed = await page();
-  assert.ok(listed.includes(`data-install-id="${install.install_id}"`), "the installation slot is listed");
+  assert.ok(listed.includes(`&quot;install_id&quot;:&quot;${install.install_id}&quot;`), "the installation slot is listed");
   assert.ok(!listed.includes("connectionspickerrecords"), "a per_record slot is chosen where its plugin shows the record, not here");
   assert.ok(listed.includes(`<option value="${connection.connection_id}">`), "the person's account of that service is offered, not yet chosen");
   assert.equal(listed.includes(BEARER_VALUE), false);

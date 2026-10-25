@@ -308,14 +308,12 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         }
       });
       click('[data-connectors-back]', button => showDetail(''));
-      // 插件用的账号 (BL-350): choosing saves at once, as the person; a refusal puts back what was saved.
       const slots = box.querySelector('[data-plugin-slots]');
       slots?.querySelectorAll('[data-plugin-slot-account]').forEach(select => select.addEventListener('change', async () => {
         const row = select.closest('[data-plugin-slot]'), result = row.querySelector('[data-plugin-slot-result]'), project = slots.dataset.pluginSlotsProject;
         busy(select, true);
         try {
-          await api('plugin-slots' + (project ? '?project=' + encodeURIComponent(project) : ''), { install_id: row.dataset.installId, plugin_id: row.dataset.pluginId,
-            slot_id: row.dataset.slotId, service_id: row.dataset.serviceId, connection_id: select.value || null });
+          await api('plugin-slots' + (project ? '?project=' + encodeURIComponent(project) : ''), { ...JSON.parse(row.dataset.pluginSlot), connection_id: select.value || null });
           select.dataset.saved = select.value;
           output(result, L(select.value ? '已保存，插件之后的请求用这个账号。' : '已解除，插件之后的请求不带凭据。'));
         } catch (error) { select.value = select.dataset.saved || ''; fail(result, error); }

@@ -21,7 +21,7 @@ export function renderPluginSlots(view: Pick<MolisWorkSettingsView, "plugin_slot
     const accounts = connections.filter(connection => connection.service_id === slot.service_id && !connection.project_id
       && (connection.state !== "disconnected" || connection.connection_id === slot.connection_id));
     const options = accounts.map(connection => `<option value="${e(connection.connection_id)}"${connection.connection_id === slot.connection_id ? " selected" : ""}>${e(connection.display_name)}${connection.account_label ? ` · ${e(connection.account_label)}` : ""}${connection.state === "disconnected" ? ` · ${L("已断开")}` : ""}</option>`).join("");
-    return `<div class="settings-connection-row settings-plugin-slot" data-plugin-slot data-install-id="${e(slot.install_id)}" data-plugin-id="${e(slot.plugin_id)}" data-slot-id="${e(slot.slot_id)}" data-service-id="${e(slot.service_id)}">
+    return `<div class="settings-connection-row settings-plugin-slot" data-plugin-slot="${e(JSON.stringify({ install_id: slot.install_id, plugin_id: slot.plugin_id, slot_id: slot.slot_id, service_id: slot.service_id }))}">
       ${p.mark(slot.service_id)}
       <div class="settings-connection-row__identity"><strong>${e(slot.plugin_name)}</strong><small>${e(service)} · ${e(slot.reason)}</small></div>
       <div class="settings-connection-row__actions">

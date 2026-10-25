@@ -116,7 +116,7 @@ async function oldHome(directory: string): Promise<OldHome> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => ({ available: true }) });
   try {
     const caller: ActionCallContext = { actor_id: "runtime:maintenance", project_id: projectId, audience: "agent", permissions: ["goals:read", "goals:write"] };
-    const bound = bindActionClient(host.actionClient(reference, false), () => caller);
+    const bound = bindActionClient(host.actionClient(reference), () => caller);
     await bound.invoke(goalsActions.create, { title: "维护前的目标", goal_id: "KEPT-GOAL", outcome: "维护后还在", idempotency_key: "create-kept", source_kind: "runtime" as const });
     await bound.invoke(goalsActions.note, { goal_id: "KEPT-GOAL", body: "维护前的便笺", idempotency_key: "note-kept" });
   } finally { await host.close(); }

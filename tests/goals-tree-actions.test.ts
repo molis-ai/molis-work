@@ -34,10 +34,10 @@ test("tree actions preserve proposals, protected authority, atomic materializati
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [decider.definition] }, actionAvailability: (_caller, view) =>
     denied.has(view.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Tree disabled" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "runtime:tree", audit_actor_id: "runtime:tree:session", runtime_session_id: "session", actor_kind: "runtime",
-    project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
+    project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write", "attention:write"] };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   const trusted: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: project.project_id, audience: "user",
-    permissions: ["goals:read", "goals:write", "goals:decide"], user_action: { source: "management", conversation_ref: "conversation://tree",
+    permissions: ["goals:read", "goals:write", "goals:decide", "attention:write"], user_action: { source: "management", conversation_ref: "conversation://tree",
       message_ref: "message://approve", whole_confirmation_prompted: true } };
   const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.project_id));
   const input = proposalInput("original");
@@ -176,7 +176,7 @@ test("Web tree approval reaches action policy, preserves trusted provenance and 
     denied && view.capability_id === goalsActions.treeDecide.capability_id ? { available: false, code: "actions.plugin_disabled", reason: "Tree disabled" } : { available: true } });
   const token = "tree-control-token-012345678901234";
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
-  const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "planner", audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write"] }));
+  const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "planner", audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write", "attention:write"] }));
   const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.project_id));
   try {
     const proposal = await actions.invoke(goalsActions.treeSubmit, proposalInput("web"));

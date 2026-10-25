@@ -33,7 +33,7 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
     const project = catalogManagementProject(home, body.database_path);
     if (!project || project.project_id !== body.project_id) throw new ActionError("actions.scope_mismatch", "管理调用的项目数据库不属于当前 Home");
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const actions = bindGoalsManagementActions(host.actionClient(reference, false), reference, { signal: controller.signal });
+    const actions = bindGoalsManagementActions(host.actionClient(reference), reference, { signal: controller.signal });
     await withCallId(body.call_id, async () => {
       try { const result = await actions.invoke(definition, body.input, body.evidence); if (!response.destroyed) sendJson(response, 200, { result, ...recordedCallIdField() }); }
       catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, { ...refused.body, ...recordedCallIdField() }); }

@@ -83,8 +83,8 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             .replace(/\s+/gu, " ")
             .trim()
             .slice(0, 120) || input.projectName;
-          // The Web person's Goals call, behind this route's origin, control-token and key checks; it starts none of the project's plugins.
-          const createdGoal = (await bindGoalsWebActions(localHost.actionClient(reference, false), reference).invoke(goalEntryActions.create, {
+          // The Web person's Goals call, behind this route's origin, control-token and key checks; Goals is a plugin of the project, which the client starts.
+          const createdGoal = (await bindGoalsWebActions(localHost.actionClient(reference), reference).invoke(goalEntryActions.create, {
             title,
             outcome: input.outcome,
             why: "把第一次表达的目标保存为可继续澄清的共同事实",

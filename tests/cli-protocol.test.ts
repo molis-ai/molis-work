@@ -94,14 +94,14 @@ test("CLI help and failed input retain storage side effects, error order and inj
     const output = await captureCli(() => runV1Cli(["init", "--db", databasePath, "--file", file], { localHost: host }));
     assert.match(output[0]!, /\n  "/, "JSON output remains indented");
     const reference = molisWorkHostProjectReference({ databasePath, projectId: input.project_id });
-    const snapshot = await managementGoals(host.actionClient(reference, false), input.project_id).invoke(goalsActions.snapshot, {});
+    const snapshot = await managementGoals(host.actionClient(reference), input.project_id).invoke(goalsActions.snapshot, {});
     assert.equal(snapshot.board.project_id, input.project_id);
     await assert.rejects(runV1Cli(["unknown", "--db", databasePath, "--project-id", input.project_id], { localHost: host }), {
       message: "未知 V1 operation: unknown",
     });
     assert.equal(host.status().state, "running");
     assert.equal(opens, 1);
-    assert.deepEqual(await managementGoals(host.actionClient(reference, false), input.project_id).invoke(goalsActions.snapshot, {}), snapshot);
+    assert.deepEqual(await managementGoals(host.actionClient(reference), input.project_id).invoke(goalsActions.snapshot, {}), snapshot);
   } finally {
     await host.close();
     rmSync(directory, { recursive: true, force: true });

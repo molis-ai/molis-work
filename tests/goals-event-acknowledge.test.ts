@@ -90,11 +90,11 @@ async function mcpRig(runtimeId: string, stable: string | null) {
   const directory = await mkdtemp(join(tmpdir(), "goals-ack-mcp-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const host = createMolisWorkLocalHost();
+  const host = createMolisWorkLocalHost({ homeDirectory });
   const project = await catalog.createProject({ display_name: "Ack MCP", actor_id: "user" });
   await grantGoalsMcp(homeDirectory, project, `runtime:${runtimeId}`);
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const actions = host.actionClient(ref, false), project_id = project.project_id, person = managementGoals(actions, project_id);
+  const actions = host.actionClient(ref), project_id = project.project_id, person = managementGoals(actions, project_id);
   const mcp = new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project_id, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory, runtimeContext: { runtime_id: runtimeId, stable_work_context_id: stable, host_declares_stable: stable !== null } }, host);
   const call = async (id: string, input: object) => JSON.parse(await mcp.callTool(TOOL(id), input));

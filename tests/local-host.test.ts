@@ -257,7 +257,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     assert.equal(mcpCreated.goal.goal_id, "shared-entry-goal");
     assert.equal(mcpReplay.replayed, true);
     assert.deepEqual(mcpReplay.goal, mcpCreated.goal, "the runtime action replays its own Goal");
-    const workbenchCreated = await managementGoals(host.actionClient(reference, false), projectId).invoke(goalsActions.create, { goal_id: "workbench-entry-goal", title: "工作台入口 Goal",
+    const workbenchCreated = await managementGoals(host.actionClient(reference), projectId).invoke(goalsActions.create, { goal_id: "workbench-entry-goal", title: "工作台入口 Goal",
       outcome: "管理入口记本机这个人", idempotency_key: "workbench-goal-command",
     });
     assert.equal(workbenchCreated.replayed, false);
@@ -273,7 +273,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     await host.close();
     const restarted = createMolisWorkLocalHost({ instanceId: "restarted-entry-host" });
     try {
-      const restored = await managementGoals(restarted.actionClient(reference, false), projectId).invoke(goalsActions.snapshot, {});
+      const restored = await managementGoals(restarted.actionClient(reference), projectId).invoke(goalsActions.snapshot, {});
       assert.deepEqual(restored.goals.map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
     } finally {
       await restarted.close();

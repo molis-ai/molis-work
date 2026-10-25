@@ -21,7 +21,7 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
   const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const client = managementGoals(host.actionClient(reference, false), projectId);
+  const client = managementGoals(host.actionClient(reference), projectId);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: {

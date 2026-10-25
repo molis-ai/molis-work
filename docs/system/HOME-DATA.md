@@ -78,6 +78,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `dataset/dataset.db` | `plugins/native/dataset/src/store.ts:310`，基线 `:283` | 1 · 回滚 | `datasets`、`dataset_versions`、`dataset_receipts` |
 | `ppt/ppt.db` | `plugins/native/ppt/src/store.ts:239`，基线 `:218` | 1 · 回滚 | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |
+| `goals/goals.db` | Goals 的 Home 半：`plugins/native/goals/src/home-database.ts`（`GOALS_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半的表在各项目库里 | 1 · 回滚 | `personal_planning_method_packs`（个人规划方法；原在目录库，PG-094 S13 由 `scripts/maintenance/goals-personal-planning-move.mjs` 搬来） |
 | `todo/todo.db` | `plugins/native/todo/src/store.ts:522-524`，基线 `:464` | 1 · WAL | `todo_items`、`todo_changes`、`todo_requests`、`todo_batches`、`todo_source_memory` |
 | `jelly/jelly.db` | `plugins/native/jelly/src/store.ts:97-100`，基线 `:89` | 1 · WAL | `jelly_workspace`、`jelly_note_versions`、`jelly_history`、`jelly_previews` |
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
@@ -111,14 +112,13 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 一个 SQLite 文件里可以有多个 owner 的表。结构由宿主按 owner 导出的建表语句拼出；owner 导出，宿主只拼装。
 
-### 4.1 `projects/catalog.db`（v22）
+### 4.1 `projects/catalog.db`（v22；个人规划表搬走随落地时 main 的下一个版本号，见 R-52）
 
 | owner | 表 |
 | --- | --- |
 | `packages/storage` | `catalog_meta`（`src/catalog-metadata.ts`） |
 | `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`） |
 | `modules/private-work-context` | `runtime_context_bindings`、`runtime_context_binding_events`、`runtime_context_setup_requests`、`runtime_context_suggestion_rejections` |
-| `plugins/native/goals` | `personal_planning_method_packs`（`src/module/planning/personal-methods.ts`） |
 | `modules/context-ledger` | `context_edges` |
 | `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`） |
 | `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref` |

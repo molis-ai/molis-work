@@ -17,7 +17,7 @@ import { watchSettlements, type Settlement } from "./fixtures/settlements.js";
 import { callerPlugin, issuedCaller, registerProbe, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 
 // N-12: Host-internal callers of Goals (the first-run Goal, the project guidance read of a Run) call the
-// Goals actions, and an action client can be asked not to start the project's Runtime plugins first.
+// Goals actions, through the client that starts the project's Runtime plugins (Goals is one of them).
 
 const CONTROL_TOKEN = "onboarding-goals-actions-control-token-0123456789";
 const RUNTIME_PLUGINS = ["io.molis.work.coding", "io.molis.work.diff", "io.molis.work.shelf", "io.molis.work.text-stats"];
@@ -25,7 +25,7 @@ const RUNTIME_PLUGINS = ["io.molis.work.coding", "io.molis.work.diff", "io.molis
 const personCaller = (projectId: string): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
   permissions: ["goals:read", "goals:write", "artifact:read", "files:read", "git:read"] });
 
-test("an action client asked not to prepare the project calls Goals without starting any Runtime plugin", async () => {
+test("Goals is a Runtime plugin of the project: the default client starts it before a call, an unprepared one reaches none of its actions", async () => {
   const directory = await mkdtemp(join(tmpdir(), "goals-unprepared-client-"));
   const host = createMolisWorkLocalHost({ homeDirectory: directory, completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "unprepared" });
@@ -34,15 +34,15 @@ test("an action client asked not to prepare the project calls Goals without star
   try {
     const bare = host.actionClient(reference, false);
     const listed = await providers(bare);
-    assert.ok(listed.has(GOALS_PLUGIN_ID), "Goals is registered when the project opens, so it needs no preparation");
+    assert.equal(listed.has(GOALS_PLUGIN_ID), false, "Goals is a plugin like the others: nothing of it is there before the project's plugins start");
     assert.deepEqual(RUNTIME_PLUGINS.filter(plugin => listed.has(plugin)), [], "no Runtime plugin was started by listing the actions");
-    await managementGoals(bare, "unprepared").invoke(goalsActions.initialize, { idempotency_key: "init" });
-    assert.deepEqual((await bindActionClient(bare, () => caller).invoke(goalsActions.snapshot, {})).goals, [], "the calls reached Goals");
-    const after = await providers(bare);
-    assert.deepEqual(RUNTIME_PLUGINS.filter(plugin => after.has(plugin)), [], "and still started no Runtime plugin");
+    await assert.rejects(bindActionClient(bare, () => caller).invoke(goalsActions.snapshot, {}), { code: "actions.missing" });
 
-    const prepared = await providers(host.actionClient(reference));
-    assert.deepEqual(RUNTIME_PLUGINS.filter(plugin => !prepared.has(plugin)), [], "the default client still starts the project's Runtime plugins before a call");
+    const prepared = host.actionClient(reference), after = await providers(prepared);
+    assert.ok(after.has(GOALS_PLUGIN_ID), "the default client starts the project's plugins, Goals among them");
+    assert.deepEqual(RUNTIME_PLUGINS.filter(plugin => !after.has(plugin)), [], "and the others with it");
+    await managementGoals(prepared, "unprepared").invoke(goalsActions.initialize, { idempotency_key: "init" });
+    assert.deepEqual((await bindActionClient(prepared, () => caller).invoke(goalsActions.snapshot, {})).goals, [], "the calls reached Goals");
   } finally { await host.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -69,7 +69,7 @@ test("the first-run Goal is made by the Goals action, as the person, and leaves 
     assert.deepEqual(settled.filter(row => row.capability_id === goalsActions.create.capability_id).map(row => [row.operation, row.ok]), [["command", true]]);
 
     const reference = molisWorkHostProjectReference({ databasePath: (await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId))).database_path, projectId });
-    const goal = (await bindActionClient(host.actionClient(reference, false), () => personCaller(projectId)).invoke(goalsActions.snapshot, {})).goals.find(item => item.goal_id === created.goal_id);
+    const goal = (await bindActionClient(host.actionClient(reference), () => personCaller(projectId)).invoke(goalsActions.snapshot, {})).goals.find(item => item.goal_id === created.goal_id);
     assert.equal(goal?.outcome, "让第一次使用的人建立可以继续澄清的目标");
     assert.equal(goal?.definition_state, "draft");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }

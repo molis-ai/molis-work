@@ -23,7 +23,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
   const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const client = managementGoals(host.actionClient(reference, false), projectId);
+  const client = managementGoals(host.actionClient(reference), projectId);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: { runtime_id: "chain", stable_work_context_id: "session", host_declares_stable: true },
@@ -146,7 +146,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     await runtime.close();
     await host.close();
     const restarted = createMolisWorkLocalHost();
-    try { assert.deepEqual(await managementGoals(restarted.actionClient(reference, false), projectId).invoke(goalsActions.snapshot, {}), beforeReplay); }
+    try { assert.deepEqual(await managementGoals(restarted.actionClient(reference), projectId).invoke(goalsActions.snapshot, {}), beforeReplay); }
     finally { await restarted.close(); }
   } finally {
     await runtime.close();

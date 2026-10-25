@@ -26,11 +26,11 @@ export function checkGoalsManagementWiring(source, mode) {
   const opened = call?.arguments[0], fallback = declarations.get("fallback");
   const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost()).actionClient";
   if (!imports.has("./goals-actions.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
-    || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 2
-    || text(opened.arguments[0]) !== "reference" || opened.arguments[1].kind !== ts.SyntaxKind.FalseKeyword
+    || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 1
+    || text(opened.arguments[0]) !== "reference"
     || text(call.arguments[1]) !== "reference" || text(call.arguments[2]) !== (mcp ? "{signal:caller.resident?.signal}" : "{signal:options.signal}")
     || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || fallback.initializer.body !== call) {
-    reject("bindGoalsManagementActions must build the single lazy fallback with the unprepared actionClient(reference, false), bound reference and original signal");
+    reject("bindGoalsManagementActions must build the single lazy fallback with the project's actionClient(reference) (it starts the project's plugins, Goals among them), bound reference and original signal");
   }
   const resident = namedCalls("residentManagementActions"), residentCall = resident.length === 1 ? resident[0] : undefined;
   const residentInput = residentCall?.arguments[0];

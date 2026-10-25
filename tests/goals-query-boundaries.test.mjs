@@ -74,10 +74,10 @@ test("the CLI and management MCP call Goals' actions through the management call
   assert.match(changed("dispatcher", add("const x = coordinator.goals.query;")), /coordinator\.goals/);
   // The snapshot is read through Goals' own action, not another one and not by hand.
   assert.match(changed("dispatcher", source => source.replace("goalEntryActions.snapshot", "goalEntryActions.list")), /goalEntryActions\.snapshot/);
-  // The Host side builds the caller with the factory, over the client that does not prepare the project's plugins.
+  // The Host side builds the caller with the factory, over the project's client (it starts the project's plugins, Goals among them).
   assert.match(changed("project", source => source.replace("bindGoalsManagementActions(", "somethingElse(")), /cli-project\.ts.*bindGoalsManagementActions/);
-  assert.match(changed("project", source => source.replace("actionClient(reference, false)", "actionClient(reference)")), /cli-project\.ts.*actionClient\(reference, false\)/);
-  assert.match(changed("project", source => source.replace("actionClient(reference, false)", "client(reference)")), /cli-project\.ts/);
+  assert.match(changed("project", source => source.replace("actionClient(reference)", "actionClient(reference, false)")), /cli-project\.ts.*actionClient\(reference\)/);
+  assert.match(changed("project", source => source.replace("actionClient(reference)", "client(reference)")), /cli-project\.ts/);
   // W3-07-4-01: management MCP has the same boundary; Runtime is handed no management port.
   assert.match(changed("mcp", source => source.replace(/McpManagementActions/g, "Other")), /tool-dispatch\.ts.*McpManagementActions/);
   assert.match(changed("mcp", add("const x = coordinator.goals;")), /tool-dispatch\.ts/);
@@ -115,8 +115,8 @@ test("W3-07-4-01: the MCP gate rejects typed or domain callers and requires thre
   assert.match(changed("mcp", text => text.replace("actions.invoke(goalEntryActions.initialize,", "actions.invoke(typed,")), /invoke must name a Goals action/);
 });
 
-test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open and gives only management its unprepared action port", () => {
-  const bind = "bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference, { signal: caller.resident?.signal })";
+test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open and gives only management its project action port", () => {
+  const bind = "bindGoalsManagementActions(caller.localHost.actionClient(reference), reference, { signal: caller.resident?.signal })";
   const preopen = "await caller.localHost.client(reference).withScope(() => undefined);";
   const dispatch = "dispatchMcpProjectTool(actions, name, arguments_,";
   const source = transportSources().mcp.host;
@@ -125,13 +125,13 @@ test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open an
     ["wrong factory", text => text.replace("bindGoalsManagementActions(", "anotherFactory(")],
     ["factory from elsewhere", text => text.replace('from "./goals-actions.js"', 'from "./elsewhere.js"')],
     ["type-only factory", text => text.replace("import { bindGoalsManagementActions }", "import type { bindGoalsManagementActions }")],
-    ["prepared client", text => text.replace("actionClient(reference, false)", "actionClient(reference, true)")],
-    ["default preparation", text => text.replace("actionClient(reference, false)", "actionClient(reference)")],
+    ["explicit preparation", text => text.replace("actionClient(reference)", "actionClient(reference, true)")],
+    ["unprepared client", text => text.replace("actionClient(reference)", "actionClient(reference, false)")],
     ["another Host", text => text.replace("caller.localHost.actionClient", "otherHost.actionClient")],
-    ["another client reference", text => text.replace("actionClient(reference, false)", "actionClient(otherReference, false)")],
+    ["another client reference", text => text.replace("actionClient(reference)", "actionClient(otherReference)")],
     ["another factory reference", text => text.replace(bind, bind.replace(", reference,", ", otherReference,"))],
     ["extra factory argument", text => text.replace(bind, `${bind.slice(0, -1)}, caller)`) ],
-    ["missing reference", text => text.replace(bind, "bindGoalsManagementActions(caller.localHost.actionClient(reference, false))")],
+    ["missing reference", text => text.replace(bind, "bindGoalsManagementActions(caller.localHost.actionClient(reference))")],
     ["Runtime gets a port", text => text.replace('audience === "management"', 'audience === "runtime"')],
     ["every audience gets a port", text => text.replace('audience !== "management" ? null : ', "")],
     ["Runtime gets an object", text => text.replace('audience !== "management" ? null : ', 'audience !== "management" ? {} : ')],
@@ -203,16 +203,17 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
   assert.match(changed("dispatcher", source => source.replace("goalEntryActions.snapshot", "goalEntryActions.list").concat('\n// goalEntryActions.snapshot\nconst note = "goalEntryActions.snapshot";')), /goalEntryActions\.snapshot/);
 
   // The local fallback keeps its original reference and signal; the dispatcher receives the selected resident/local port.
-  const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference, false), reference, { signal: options.signal })";
+  const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal })";
   const source = read("apps/local-host/src/cli-project.ts");
   assert.ok(source.includes(bind), "the real cli-project.ts holds the call these mutations edit");
   for (const [mutation, edit] of [
     ["another factory reference", source => source.replace(bind, bind.replace(", reference,", ", otherReference,"))],
     ["a copy of the factory reference", source => source.replace(bind, bind.replace(", reference,", ", { ...reference },"))],
     ["extra factory argument", source => source.replace(bind, `${bind.slice(0, -1)}, caller)`)],
-    ["missing factory reference", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(reference, false))")],
-    ["another client reference", source => source.replace("actionClient(reference, false)", "actionClient(otherReference, false)")],
-    ["prepared client", source => source.replace("actionClient(reference, false)", "actionClient(reference, true)")],
+    ["missing factory reference", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(reference))")],
+    ["another client reference", source => source.replace("actionClient(reference)", "actionClient(otherReference)")],
+    ["explicit preparation", source => source.replace("actionClient(reference)", "actionClient(reference, true)")],
+    ["unprepared client", source => source.replace("actionClient(reference)", "actionClient(reference, false)")],
     ["wrong factory import", source => source.replace('from "./goals-actions.js"', 'from "./elsewhere.js"')],
     ["type-only factory import", source => source.replace('import { bindGoalsManagementActions }', 'import type { bindGoalsManagementActions }')],
     ["unused selected port", source => source.replace("dispatchCliProjectCommand(actions, args, input)", "dispatchCliProjectCommand(makeActions(), args, input)")],

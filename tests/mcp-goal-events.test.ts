@@ -244,7 +244,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
     const reference = molisWorkHostProjectReference({
       databasePath: project.database_path, projectId: project.project_id,
     });
-    const before = await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {});
+    const before = await managementGoals(host.actionClient(reference), project.project_id).invoke(goalsActions.snapshot, {});
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
@@ -260,7 +260,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
         && error.code === "kernel.runtime_identity_missing" && error.kind === "invalid"
         && /稳定 Session/.test(error.message),
     );
-    const after = await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {});
+    const after = await managementGoals(host.actionClient(reference), project.project_id).invoke(goalsActions.snapshot, {});
     assert.equal(after.goals.length, before.goals.length);
     assert.deepEqual(after.goals.map((goal) => goal.goal_id), before.goals.map((goal) => goal.goal_id));
 

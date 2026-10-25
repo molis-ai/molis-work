@@ -46,7 +46,7 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     databasePath,
     projectId,
   });
-  const fallback = () => bindGoalsManagementActions(caller.localHost.actionClient(reference, false), reference, { signal: caller.resident?.signal });
+  const fallback = () => bindGoalsManagementActions(caller.localHost.actionClient(reference), reference, { signal: caller.resident?.signal });
   const owned = audience === "management" && caller.resident ? catalogManagementProject(caller.resident.home, databasePath) : undefined;
   if (owned && owned.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
   if (owned) reference = molisWorkHostProjectReference({ databasePath: owned.database_path, projectId: owned.project_id });

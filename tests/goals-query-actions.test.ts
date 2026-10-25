@@ -34,7 +34,7 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.equal(state.work_status, "open");
     const snapshot = await actions.invoke(goalsActions.snapshot, {});
     assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(project_id)));
-    assert.deepEqual(await host.actionClient(ref, false).invoke({ actor_id: "second-reader", audience: "user", project_id, permissions: ["goals:read"] }, goalsActions.snapshot, {}), snapshot);
+    assert.deepEqual(await host.actionClient(ref).invoke({ actor_id: "second-reader", audience: "user", project_id, permissions: ["goals:read"] }, goalsActions.snapshot, {}), snapshot);
     const contract = await actions.invoke(goalsActions.contract, { goal_id });
     assert.deepEqual(contract, await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(project_id, goal_id)));
     const checkReadBoundary = async <Input, Output>(action: ActionDefinition<Input, Output>, input: Input) => {

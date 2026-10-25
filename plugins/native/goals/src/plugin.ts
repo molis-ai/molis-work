@@ -2,11 +2,11 @@ import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import { createGoalsActionHandlers } from "./actions.js";
 import { readMolisWorkSnapshot } from "./board-snapshot-query.js";
 import { goalsRoutes } from "./http/index.js";
 import { GOALS_CATCH_UP_JOB, goalsManifest } from "./manifest.js";
+import { personalPlanningActions } from "./personal-planning-actions.js";
 import { goalsTreeUiContribution } from "./tree-ui.js";
 import { goalsSettingsUiContribution } from "./settings-ui.js";
 import { GoalsModule, GoalInputBindings, resolvePlanningMethodPacks } from "./module/index.js";
@@ -16,7 +16,6 @@ import { PluginSqlite } from "./plugin-sqlite.js";
 import { attentionOver, journalOver, ledgerOver, PersonalMethodsSnapshot } from "./runtime-ports.js";
 
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: 1 } as const;
-const READ_PERSONAL_METHODS = { capability_id: "goals.planning.personal.list", version: 1 } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
   "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin"]);
@@ -84,7 +83,9 @@ export function createGoalsPlugin(): PluginDefinition {
         checkGoalTreeProposal: input => application.goalTreeCheck.checkGoalTreeProposal(input),
         decideGoalTreeProposal: input => application.goalTreeDecision.decideGoalTreeProposal(input) } });
 
-    const loadPersonal = async () => (await actions.invokeQuery<Record<string, never>, { methods: PlanningMethodPack[] }>(READ_PERSONAL_METHODS, {})).methods
+    // The person's methods are the plugin's own data, in its other instance: asked as the plugin (its own action), never as the caller,
+    // whose grants (an agent's, say) need not reach a Home-wide action.
+    const loadPersonal = async (caller: ActionExecutionContext) => (await actions.invoke(personalPlanningActions.list, {}, controlOf(caller))).methods
       .filter(method => method.scope === "personal");
     let ready: Promise<void> = Promise.resolve();
     const windowed = (binding: ActionHandlerBinding): ActionHandlerBinding => {
@@ -96,7 +97,7 @@ export function createGoalsPlugin(): PluginDefinition {
           window.write(caller, () => personal.within(packs, () => binding.handle(caller, input)))
         : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0]) =>
           window.read(() => personal.within(packs, () => binding.handle(caller, input)));
-      return { ...binding, handle: async (caller, input) => { await ready; return personal.run(loadPersonal, packs => run(caller, input, packs)); } };
+      return { ...binding, handle: async (caller, input) => { await ready; return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs)); } };
     };
 
     // What drifted while the project was closed catches up once: the board of a library the platform made with its root row alone,

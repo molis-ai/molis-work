@@ -38,7 +38,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
     databasePath,
     projectId: String(input.project_id ?? value(args, "--project-id") ?? `database:${databasePath}`),
   });
-  const fallback = () => bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference, false), reference, { signal: options.signal });
+  const fallback = () => bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal });
   try {
     return await withCallId(newCallId(), async () => {
       const home = options.homeDirectory ?? resolveMolisWorkHome();

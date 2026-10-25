@@ -19,7 +19,7 @@ test("a confirmed source becomes the Goal's input receipt, once, under the calle
   let denied = false;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>
     denied && view.capability_id === goalsActions.inputsConfirm.capability_id ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已停用" } : { available: true } });
-  const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["goals:read", "goals:write"] };
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["goals:read", "goals:write", "context-ledger:write"] };
   const actions = host.actionClient(ref), bound = bindActionClient(actions, () => caller);
   const receipts = (goal_id: string) => host.withProject(ref, runtime => runtime.coordinator.goalInputs.list(project.project_id).filter(receipt => receipt.goal_id === goal_id));
   const digest = `sha256:${"a".repeat(64)}`;
@@ -51,14 +51,14 @@ test("a confirmed source becomes the Goal's input receipt, once, under the calle
     await assert.rejects(actions.invoke({ ...caller, project_id: "foreign" }, goalsActions.inputsConfirm, input), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.inputsConfirm, input), { code: "actions.forbidden" });
     const runtime = await actions.invoke({ actor_id: "runtime:confirmer", audit_actor_id: "runtime:confirmer:session", runtime_session_id: "session", actor_kind: "runtime",
-      audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write"] }, goalsActions.inputsConfirm,
+      audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write", "context-ledger:write"] }, goalsActions.inputsConfirm,
       { ...input, source: { kind: "feed_item", id: "item-3" } }) as { binding: { binding_id: string } };
     assert.equal((await receipts("INPUT-GOAL")).find(item => item.binding_id === runtime.binding.binding_id)?.created_by, "runtime:confirmer:session");
 
     // Only the person's call records the input confirmed; the assistant, an Agent, a workflow and an MCP client propose it for the person to accept.
     assert.equal(first.binding.state, "confirmed");
     const asRuntime = { actor_id: "runtime:confirmer", audit_actor_id: "runtime:confirmer:session", runtime_session_id: "session", actor_kind: "runtime" as const,
-      project_id: project.project_id, permissions: ["goals:read", "goals:write"] };
+      project_id: project.project_id, permissions: ["goals:read", "goals:write", "context-ledger:write"] };
     const proposals = await Promise.all((["agent", "workflow", "mcp"] as const).map(async audience =>
       (await actions.invoke({ ...asRuntime, audience }, goalsActions.inputsConfirm, { ...input, source: { kind: "feed_item", id: `item-by-${audience}` } }) as { binding: { binding_id: string; state: string } }).binding));
     assert.deepEqual(proposals.map(binding => binding.state), ["proposed", "proposed", "proposed"]);
@@ -97,9 +97,9 @@ test("an input an Agent proposed waits for the person, who alone accepts it, and
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Accept", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const person: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["goals:read", "goals:write"] };
+  const person: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["goals:read", "goals:write", "context-ledger:write"] };
   const agent: ActionCallContext = { actor_id: "runtime:proposer", audit_actor_id: "runtime:proposer:session", runtime_session_id: "session", actor_kind: "runtime",
-    audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write"] };
+    audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write", "context-ledger:write"] };
   const actions = host.actionClient(ref), asPerson = bindActionClient(actions, () => person);
   const receipts = (goal_id: string) => host.withProject(ref, runtime => runtime.coordinator.goalInputs.list(project.project_id).filter(receipt => receipt.goal_id === goal_id));
   const digest = `sha256:${"b".repeat(64)}`;

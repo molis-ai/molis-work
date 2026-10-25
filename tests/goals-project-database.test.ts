@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_HOME_DATABASE, GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, openPluginProjectDatabase, type PluginProjectSchemaInspector,
@@ -45,7 +45,8 @@ const tableNames = (db: DatabaseSync) => listSqliteObjects(db).filter(object => 
 
 test("PLIB-12 Goals' Manifest declares its project library: the plugin entry's declaration passes the SDK shape check", () => {
   const manifest = parsePluginManifest(structuredClone(goalsManifest));
-  assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE });
+  // The same Manifest also declares the person's planning library in the Home (PG-094 S13), for the plugin's Home half.
+  assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE, home: GOALS_HOME_DATABASE });
   assert.equal(GOALS_PROJECT_DATABASE.store_name, "goals");
   assert.equal(GOALS_PROJECT_DATABASE.version, 1);
   // A plugin's own tables in the library are its private storage (D23), and the Manifest declares that permission.

@@ -104,7 +104,7 @@ test("inputs from anyone but the person are proposals, kept apart from deliverab
     handlers: createGoalsDeliverableActionHandlers({ projectId: "board", goalExists: id => id === "G1", ledger,
       readArtifact: () => ({ title: "资料", artifact_type_id: "doc", availability: "available", lifecycle_state: "active" }),
       pin: async () => { throw new Error("not used"); }, pinnableKinds: async () => [], boundObjects: () => [] }) });
-  const caller = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: audience === "user" ? "web-user" : "assistant", audience, project_id: "project", permissions: ["goals:read", "goals:write"] });
+  const caller = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: audience === "user" ? "web-user" : "assistant", audience, project_id: "project", permissions: ["goals:read", "goals:write", "context-ledger:write", "artifacts:read"] });
   const reference = { artifact_id: "doc", version: 1 };
   const proposed = await actions.invoke(caller("agent"), goalsArtifactInputActions.add, { goal_id: "G1", reference, reason: "背景资料" }) as { input: GoalDeliverable };
   assert.deepEqual([proposed.input.proposed, proposed.input.reason], [true, "背景资料"]);

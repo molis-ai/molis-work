@@ -63,7 +63,7 @@ async function setup() {
       return JSON.parse(lines.at(-1)!) as Printed;
     } finally { printing.mock.restore(); }
   };
-  const person = managementGoals(host.actionClient(reference, false), PROJECT);
+  const person = managementGoals(host.actionClient(reference), PROJECT);
   return { home, host, reference, cli, person, calls: watchCalls(host),
     done: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }

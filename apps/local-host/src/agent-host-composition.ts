@@ -283,7 +283,7 @@ async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: Molis
   let view: ProjectGuidanceView;
   try {
     const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
-    view = await readProjectGuidance(localHost.actionClient(reference, false), reference);
+    view = await readProjectGuidance(localHost.actionClient(reference), reference);
   } catch {
     // Guidance is an addition, not a precondition. A project whose guidance
     // cannot be read still starts Runs; it just starts them without this layer.

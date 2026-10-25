@@ -1273,9 +1273,9 @@ function goalsBindingsOtherThanActions(node, kind) {
  * The transport entries reach Goals through the platform, not through a Host client of their own. `cli`: the dispatcher is handed the
  * management port the Host builds (`CliManagementActions`), reaches only the action contract, `goalEntryActions` and its protocol file,
  * holds no Host client under any spelling and reads the snapshot through Goals' own action; `cli-project.ts` builds that port with
- * `bindGoalsManagementActions(<host>.actionClient(reference, false), reference)`, over the client that does not prepare the project's
- * plugins and the very reference the command is bound to, and hands the dispatcher what it returned. `mcp`: the dispatcher takes only
- * the Host's management port or null; mcp-v1-tool builds it only for management over the same unprepared client/reference. Each part is the source text of the file it names; a comment or a
+ * `bindGoalsManagementActions(<host>.actionClient(reference), reference)`, over the project's client (it starts the project's
+ * plugins, Goals among them) and the very reference the command is bound to, and hands the dispatcher what it returned. `mcp`: the dispatcher takes only
+ * the Host's management port or null; mcp-v1-tool builds it only for management over the same client/reference. Each part is the source text of the file it names; a comment or a
  * string is not a caller.
  */
 export function checkGoalTransportCallers({ cli, mcp }) {

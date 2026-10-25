@@ -43,7 +43,7 @@ async function fixture() {
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
   const written = async () => ({
-    goals: (await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {})).goals.length,
+    goals: (await managementGoals(host.actionClient(reference), project.project_id).invoke(goalsActions.snapshot, {})).goals.length,
     ...(await host.withProject(reference, runtime => {
       const row = createLocalFeedApplication(runtime.store.db).getItem(project.project_id, item.item_id);
       return { receipts: runtime.coordinator.goalInputs.list(project.project_id).length, item: { linked_goal_id: row.linked_goal_id, revision: row.revision, disposition: row.disposition } };

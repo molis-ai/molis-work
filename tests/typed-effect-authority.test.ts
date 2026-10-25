@@ -36,7 +36,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   } } });
   t.signal.addEventListener("abort", () => release.resolve(), { once: true });
   const project = await home.createProject("Typed origin authority");
-  const goals = managementGoals(home.host.actionClient(project.reference, false), project.project_id);
+  const goals = managementGoals(home.host.actionClient(project.reference), project.project_id);
   const goal_id = "TYPED-EFFECT";
   await goals.invoke(goalsActions.create, { goal_id, title: "Only currently authorized progress", idempotency_key: "create" });
   const beforeState = await goals.invoke(goalsActions.state, { goal_id });

@@ -1,7 +1,7 @@
 import { goalEntryActions, goalPluginActions, type GoalCreateActionInput, type GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 export type { GoalCreateActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 export type { GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineSearchEntriesAction, defineSubjectContextAction, searchEntriesPage, searchText, subjectContext, type SearchEntriesInput, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { type GoalEventAcknowledgementsApi, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage, type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction as action, goalActor } from "./action-contract.js";
@@ -123,7 +123,8 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     { ...goalsActions.fragmentOffers, handle: (_caller, input) => ({ offers: prepareGoalsFragmentOffers(input as FragmentOffersInput, { cursor: goalId => {
       try { return readGoal(goalId) && events.readDirectoryItem(projectId, goalId) ? events.readState(projectId, goalId).goal_event_cursor : null; } catch { return null; }
     } }) }) },
-    bindSearchEntriesHandler(goalsActions.searchEntries, () => {
+    // Synchronous on purpose: the handler runs inside the plugin's database window, which refuses a body that returns a promise.
+    { ...goalsActions.searchEntries, handle: (_caller, input) => {
       const entries: SearchEntry[] = [];
       let after: string | undefined;
       do {
@@ -137,8 +138,8 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
         }
         after = page.next_cursor ?? undefined;
       } while (after);
-      return entries;
-    }),
+      return searchEntriesPage(entries, input as SearchEntriesInput);
+    } },
     ...createGoalsBoardActionHandlers(projectId, board),
     createGoalsCollectionActionHandler(projectId, collection),
     { ...goalsActions.snapshot, handle: () => history.snapshot() },

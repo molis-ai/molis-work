@@ -109,8 +109,8 @@ function managementUserAction(projectId: string, capabilityId: string, input: un
  * check and never by the entry: the person on this machine, origin management, one Goals action at a time with that action's own
  * permissions and nothing else pinned. The input names no one (an identity in the arguments of a write is refused first, in the words
  * the typed door used), and the entry cannot say who acts or through which entry it came. The
- * call number belongs to the operation the entry opened, which the kernel reads; it is not made here. Give it the client that does
- * not prepare the project's plugins (`actionClient(reference, false)`): Goals is registered when the project opens.
+ * call number belongs to the operation the entry opened, which the kernel reads; it is not made here. Give it the project's
+ * client (`actionClient(reference)`): Goals is a plugin of the project, which that client starts.
  */
 export function bindGoalsManagementActions(client: ActionClient, reference: LocalHostProjectReference, transport: { signal?: AbortSignal } = {}): GoalsManagementActions {
   const projectId = reference.project_id;

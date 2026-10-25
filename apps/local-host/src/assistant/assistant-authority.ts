@@ -155,7 +155,7 @@ export async function assistantProjectPrompts(localHost: Pick<MolisWorkLocalHost
   const reference = work.project_ref;
   if (!reference) return [];
   let view: ProjectGuidanceView;
-  try { view = await readProjectGuidance(localHost.actionClient(reference, false), reference); }
+  try { view = await readProjectGuidance(localHost.actionClient(reference), reference); }
   catch { return []; }
   if (view.entries.length === 0) return [];
   return [{ prompt_id: "project-guidance", version: view.revisions.length, layer: "project", body: view.runtime_prompt_prefix }];

@@ -61,7 +61,7 @@ test("every management write records the person on this machine and refuses an i
 
     for (const [definition, business] of [[goalsActions.create, { title: "目标" }], [goalsActions.decide, { goal_id, conclusion: "可以" }]] as const) {
       for (const identity of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }]) {
-        await assert.rejects(actions.invoke({ ...managementCaller(project_id), permissions: ["goals:read", "goals:write", "goals:decide"] }, definition, { ...business, idempotency_key: "refused", ...identity } as never),
+        await assert.rejects(actions.invoke({ ...managementCaller(project_id), permissions: ["goals:read", "goals:write", "goals:decide", "attention:write"] }, definition, { ...business, idempotency_key: "refused", ...identity } as never),
           { code: "actions.input_invalid" });
       }
       await assert.rejects(actions.invoke(managementCaller("foreign"), definition, { ...business, idempotency_key: "foreign", actor_id: "someone-else" } as never),
@@ -199,9 +199,9 @@ async function approvalProject(name: string) {
   const project_id = project.project_id, management = managementGoals(host.actionClient(ref), project_id);
   const mcp = new MolisWorkServer("management", null, null, host);
   const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:closer", audit_actor_id: "runtime:closer:session",
-    actor_kind: "runtime", audience: "agent", project_id, permissions: ["goals:read", "goals:write"] }));
+    actor_kind: "runtime", audience: "agent", project_id, permissions: ["goals:read", "goals:write", "attention:write"] }));
   const web = bindActionClient(host.actionClient(ref), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id,
-    permissions: ["goals:read", "goals:write", "goals:decide"], user_action: { source: "web", conversation_ref: "web:approval", message_ref: "web:click" } }));
+    permissions: ["goals:read", "goals:write", "goals:decide", "attention:write"], user_action: { source: "web", conversation_ref: "web:approval", message_ref: "web:click" } }));
   const requirement = (goal_id: string) => `${goal_id}-requirement`;
   const supported = async (goal_id: string, { human = false } = {}) => {
     await runtime.invoke(goalsActions.create, { goal_id, title: "需要点头", outcome: "结果可以检查", idempotency_key: `create-${goal_id}`,
@@ -446,7 +446,7 @@ test("a structure proposal written through the management door records the perso
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const project_id = project.project_id, management = managementGoals(host.actionClient(ref), project_id);
   const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:writer", audit_actor_id: "runtime:writer:session", actor_kind: "runtime",
-    audience: "agent", project_id, permissions: ["goals:read", "goals:write"], runtime_session_id: "session" }));
+    audience: "agent", project_id, permissions: ["goals:read", "goals:write", "attention:write"], runtime_session_id: "session" }));
   const identities = [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }];
   try {
     // Structure proposal submit.

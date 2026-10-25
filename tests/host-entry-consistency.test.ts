@@ -20,7 +20,7 @@ test("RAC-180 MCP Goal directory cannot be split by a queued competing Goal writ
   const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const client = managementGoals(host.actionClient(reference, false), projectId);
+  const client = managementGoals(host.actionClient(reference), projectId);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: { runtime_id: "entry", stable_work_context_id: "session", host_declares_stable: true },

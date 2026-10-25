@@ -25,9 +25,10 @@ const inspector: PluginProjectSchemaInspector = {
 
 const outcomes = new WeakMap<object, ReadonlyMap<string, ProjectPluginDatabaseOutcome>>();
 
-/** The built-in project plugins that declare tables in the project's library, from the one catalog, in its order. */
+/** The built-in project plugins that declare tables in the project's library, from the one catalog, in its order. A dual-instance plugin's Home entry is also its project half. */
 function projectDatabasePlugins(): PluginManifest[] {
-  return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope !== "home" && entry.manifest.databases?.project).map(entry => entry.manifest);
+  return BUILTIN_PLUGIN_CATALOG.filter(entry => (entry.runtime?.scope !== "home" || entry.runtime.dual_instance === true) && entry.manifest.databases?.project)
+    .map(entry => entry.manifest);
 }
 
 /** Open one plugin's tables in the library at `path` (made and recorded the first time), or throw its refusal. */

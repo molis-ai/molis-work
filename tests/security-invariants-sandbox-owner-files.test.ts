@@ -471,7 +471,8 @@ test("S-64 RAC-357-U1 a missing project KV owner cleanup port refuses before del
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   mkdirSync(join(outside, id));
   renameSync(holder, backup); symlinkSync(outside, holder);
-  await assert.rejects(runtime.uninstall(id, { retain_private_data: false }), { code: "plugin.declaration_invalid" });
+  await assert.rejects(runtime.uninstall(id, { retain_private_data: false }), { code: "plugin.state_invalid" });
+  assert.deepEqual(readdirSync(join(outside, id)), [], "the missing KV owner is refused before the unsafe owner-files path is reached");
   rmSync(holder); renameSync(backup, holder);
   const records = runtime.list(), privateBefore = r.project.privateData(id), cursor = r.project.eventCursor?.();
   assert.throws(() => runtime.install({ trust: { level: "unsigned" }, definition: { ...r.probe.definition }, deployment: "local", grants: r.probe.permissions }), { code: "plugin.state_invalid" });

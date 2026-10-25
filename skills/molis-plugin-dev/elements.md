@@ -108,7 +108,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - 输入口默认必选。项目启用时会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。不会永远有生产者就不要声明必选入口。
 - 缺绑定仍然可以 `start`。状态是 `missing`，Host 不会调用 `onUpstreamReady`。整份构建里没有产出者时，解析只记 `port_type_unsatisfiable`，插件不因此进 `blocked`。挡住启动的是必需 Capability、依赖成环，或依赖的插件被挡住。
 - 产品里没有通用连线页：输入口由默认连线（下一条）接上，或由人在成果库详情把某一版接给插件输入（`artifacts.plugin_inputs.bind`，只对人开放）。`PluginWiringApi.bind` / `selectInputGroup` 在 Runtime 里。Local Host 没有挂 `/api/plugins/:id/ports`。
-- 默认连线由消费方自己的 Manifest 声明：输入口写 `default_source: { plugin_id, port }`（另一个插件的输出口，类型必须相同），有输入组的写一个 `default: true` 的组（至多一个）。宿主在两个插件都在项目里运行、这个口什么也没读时接上（`apps/local-host/src/plugin-default-bindings.ts`），人选过的来源或固定成果版本不被覆盖；来源插件不在、没有那个口或类型不同就不接。没有名单可加（W4-03，原 D-04）。**现在只在随 Host 发布的插件之间生效**：已安装的插件写了 `default_source` 或默认组也不会自动接上，它的输入口由人接；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成任何插件声明了、经同意或按安装信任就有，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按上文。
+- 默认连线由消费方自己的 Manifest 声明：输入口写 `default_source: { plugin_id, port }`（另一个插件的输出口，类型必须相同），有输入组的写一个 `default: true` 的组（至多一个）。宿主在两个插件都在项目里运行、这个口什么也没读时接上（`apps/local-host/src/plugin-default-bindings.ts`），人选过的来源或固定成果版本不被覆盖；来源插件不在、没有那个口或类型不同就不接。没有名单可加（W4-03，原 D-04）。**要有同意才接上**（ac-trust T4，S-X3）：默认连线与默认组只在 Home 的同意账本里有这个插件的发布者一行未撤回的同意时生效，宿主为随它发布的插件代为同意（只同意从同样随宿主发布的来源读），其余插件由装的人在安装确认里同意；同意带来源插件此刻的发布者签名，后来占了同一个 `plugin_id` 的别家插件不会被默认读取。没有同意，写了 `default_source` 或默认组也不会自动接上，输入口由人接。撤回同意会解开它绑出的默认连线，人选的来源不动。
 - 输出口：`services.outputs.publish`、`invalidate(port, 给人看的原因)`、`retain(引用)`。同一轮输入是否算一组，由 Host 创建 client 时附上 `scope_key`。`publish` 参数里没有这个字段。
 - `input_groups`：组之间换着用；选中的那一组端口生效，其余不绑也不算失败。
 - 完整输入一次送达 `onUpstreamReady`；失效走 `onUpstreamUnavailable`。Host 不投递半套。

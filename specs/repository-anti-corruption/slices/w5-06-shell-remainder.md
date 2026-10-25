@@ -1,6 +1,6 @@
 # W5-06 外壳余项：页面读声明、运行时目录、项目插件重启入口、引导走 Pages 公开动作（PG-060、PG-088）
 
-状态：待统筹审（2026-10-25）。只写稿，未写代码；事实按 `origin/main`（`df5527f27`）重核。分四片，每片一个 PR，依次做；审过再动手。
+状态：统筹已审、必改已补（2026-10-25）；第 1 片开工，其余三片依次做。事实按 `origin/main`（`df5527f27`）重核。分四片，每片一个 PR，依次做。D1～D5 已裁定，见 §6。
 
 验收编号：RAC-600～619（各片的区间见下）。BL 号段 BL-635～644（本稿暂未取用）。
 
@@ -44,23 +44,30 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 目标：外壳读的是「这个项目里运行中的插件的 Manifest」，内置与运行时装的一视同仁（10-18 同等待遇）；内置插件不再因为在构建目录里而有第二条路。
 
-设计（待统筹裁定，见 §6 的 D1、D2）：
+设计（D1、D2 已裁定，见 §6）：
 
-- 宿主在渲染项目页时，从项目的 Plugin Runtime（内置项目级插件 + Home 级插件 + 运行时装的）取每个运行中安装的 Manifest，只抽外壳要用的声明（`plugin_id`、名称、`ui.views` 的 `slot/group/icon/order/creates/start/accepts_objects/title`），作为 `plugin_directory` 放进 `MolisWorkWebView`，取代 `plugin_rail`（`{surface,label}`）。
+- 宿主在渲染项目页时**每次现算**（不加缓存与失效逻辑），从项目的 Plugin Runtime（内置项目级插件 + Home 级插件 + 运行时装的）取每个运行中安装的 Manifest，只抽外壳要用的声明（`plugin_id`、名称、`ui.views` 的 `slot/group/icon/order/creates/start/accepts_objects/title`），作为 `plugin_directory` 放进 `MolisWorkWebView`，取代 `plugin_rail`（`{surface,label}`）。
 - 工作台里读目录的函数（`plugin-catalog.ts` 的 `registryFor`、`placedViews`、`creatableKinds`、`homeStarts`、`objectTabPlugins`，`immersive-shell.ts` 的 rail）改成显式收一份目录参数，构建目录只是调用方在没有运行时的地方（规格板、无 Runtime 的夹具）传进去的默认值，不再作为模块全局被直接读。
 - 三处构建期写进脚本的对象标签名单（`global-search.ts:33,48`、`placement.ts:13`、`initialization.ts:71`）改读页面下发的目录：页面带一个 `<script type="application/json" data-plugin-directory>`，客户端启动时读一次。
+- **运行时装的插件的名称、视图标题、`creates.title`、`start` 的标题与提示都是不可信文本**：
+  - 服务端写进 HTML 时转义（沿用 `escapeHtml`，属性与文本各按其位）。
+  - 写进 `<script type="application/json" data-plugin-directory>` 的 JSON 先转成安全形式：`<`、`>`、`&`、U+2028、U+2029 一律写成 `\u003c`、`\u003e`、`\u0026`、`\u2028`、`\u2029`，防 `</script>` 截断。这个序列化只在一处（工作台里一个函数），宿主与测试共用。
+  - `icon`、`start.icon` 只认 design-system 图标集里的名字（`registeredIconNames`），不认 URL、SVG 或别的字符串；不认识的退回 `package`（rail）或 `settings`（设置页），与 2b 对设置图标的做法一致。
+  - 客户端读目录后，文字只用 `textContent` 或经现有转义函数画，不拼进 `innerHTML`。
 - 停用、卸载、被拒绝的插件不在目录里；撤权后下一次读页面就没有入口（与 S-47 的页面授权拒绝一致，不新增拒绝点）。
 - `skills/molis-plugin-dev/ui.md` 里「目前只对随宿主发布的插件生效」的限定（BL-542 要求注明的）撤掉，改成与行为一致。注意在途的 #1253 也改了这个文件（对象标签文档），合入顺序上谁后到谁重基。
 
 | 编号 | 验收 | 证明 |
 | --- | --- | --- |
-| RAC-605 | 页面的 `plugin_directory` 来自项目 Runtime 里运行中安装的 Manifest；内置与运行时装的是同一形状 | 新 `tests/plugin-directory.test.ts`，用一个带 `group/creates/start/accepts_objects` 的 fixture 插件装进临时项目 |
+| RAC-605 | 页面的 `plugin_directory` 来自项目 Runtime 里运行中安装的 Manifest；内置与运行时装的是同一形状。**不可信文本**：fixture 里加一个插件，名称、视图标题、`creates.title`、`start.title/hint` 里带 `</script><img src=x onerror=…>`、`<`、`&`、U+2028，断言：页面里的 JSON 没有裸 `<`、`>`、`&`、U+2028、U+2029，HTML 里不出现可执行的标签或事件属性，界面显示的是原文；`icon` 写成 URL 或 SVG 的退回默认图标，不进 `href`、`src`、`innerHTML` | 新 `tests/plugin-directory.test.ts`，用一个带 `group/creates/start/accepts_objects` 的 fixture 插件和一个带上述文本的恶意 fixture 装进临时项目；浏览器里「不执行」的一条交 CI |
 | RAC-606 | 对象标签名单（搜索、放置卡、侧栏文件）读下发的目录：fixture 插件声明 `accepts_objects` 即可按 id 开标签；脚本里没有构建期写死的名单 | 同上 + 扫描 `CLIENT_SCRIPT` |
 | RAC-607 | rail 读运行中 Manifest 的 `group/icon/order`：fixture 的 `group: "make"` 在「写与做」下，不写的在「更多」 | 同上 |
 | RAC-608 | `creatableKinds`、`homeStarts` 对运行时装的插件生效（接第 1 片） | 同上 |
 | RAC-609 | 停用、卸载、被拒绝的插件，目录里没有；已打开的页面在下一次读时没有入口 | 同上 |
 | RAC-610 | `skills/molis-plugin-dev/ui.md` 的说法与行为一致 | `pnpm health:check` 文档引用组 + 文字核对 |
 | RAC-611 | 页面资源：脚本里去掉名单字面量、加一次读取，预期不增；增长按 §7 的页面资源一条 | `pnpm page-assets:check` |
+
+与 `ac-registry` 对齐（统筹 10-25）：它的 B1 把平台事实搬进 `apps/local-host/src/plugin-registry.ts`，工作台需要的平台事实经渲染端口下发——本片的 `plugin_directory` 就是那条端口，它复用、不另开。`web-goals-read.ts`、`plugin-catalog.ts`、`immersive-shell.ts` 两边都会碰：谁后到谁重基，同时在评审就照 `MERGE-QUEUE.md` §1a 同批落。
 
 碰的文件（预估）：`apps/workbench/src/{plugin-catalog,immersive-shell,shell-page-renderer,page-view,primitive-catalog}.ts`、`scripts/client/{global-search,placement,initialization}.ts`、`apps/local-host/src/web-goals-read.ts`（在途 #1242、#1251 也改它）、`skills/molis-plugin-dev/ui.md`。可能要 `pnpm api:update`（若 `MolisWorkWebView` 的 `plugin_rail` 换名属公开导出，核对后定）。删 BL-542；`primitive-catalog.ts:24` 与 `slices/w5-06-shell-plugin-rows.md`、`spec.md`、`EXTENSION-POINTS.md` 里点名 BL-388 的句子改成已做。
 
@@ -69,13 +76,13 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 不新增页面（插件只提供内容、挂在工作台位置，不出整页）。做法：项目级不可用占位（`unavailable-plugin-stage.ts` 的 `scope: "project"` 分支）在原因下面加两样：
 
 - 状态行：运行状态、原因、错误码（读 `supervisor.state()` 的 `status/message/code`，由 `project-plugin-stages.ts` 的 `unavailableStage` 带进 `UnavailablePluginStage`）。
-- 「重新启动」按钮；插件被隔离（quarantine）时显示「解除隔离并重启」。按钮由工作台外壳的脚本发 `POST <route>/api/plugins/<plugin_id>/restart`（或 `/release-quarantine`），带控制令牌，成功后重新读页面，失败在占位里写原因。占位仍是宿主画的静态内容，不执行插件客户端、不申请页面授权（S-47 的做法不变）。
+- 「重新启动」按钮**只在实例是失败或被隔离时显示**：宿主按 `supervisor.state()` 与 `runtime.get(install_id).state` 算出 `restart: "restart" | "release-quarantine" | null` 带进 `UnavailablePluginStage`——`status: "failed"` 且 `code` 不是 `plugin.revoked`、安装没卸载 → `restart`；安装是 `quarantined` → `release-quarantine`（显示「解除隔离并重启」）；用户停用或撤回同意（`plugin.revoked`，T5 以后同理）、`blocked`、已卸载 → `null`，占位只写状态，不画按钮。路由本身也拒：`supervisor.restart` 对撤销启用的插件不重新启用，返回 409（`plugin.revoked`），卸载的安装 `dispatchRuntimePluginRoute` 不接（落到 404）。按钮（`data-project-plugin-restart`，值是操作名与插件 id）由工作台外壳的脚本发 `POST <route>/api/plugins/<plugin_id>/restart`（或 `/release-quarantine`），带控制令牌，成功后重新读页面，失败在占位里写原因。占位仍是宿主画的静态内容，不执行插件客户端、不申请页面授权（S-47 的做法不变）。
 - Home 级占位保持「查看插件状态」链接，不动。
 
 | 编号 | 验收 | 证明 |
 | --- | --- | --- |
-| RAC-612 | 停掉项目里的 Form 实例后，占位显示状态与原因和「重新启动」；点击后实例恢复、占位消失、舞台恢复可用；重启失败时占位写出原因 | `tests/runtime-plugin-http-discovery.test.ts` 加断言（该文件已有 RAC-79 的停止/重启用例）；浏览器验证交 CI |
-| RAC-613 | 重启只接受外壳（控制令牌）发起；来自插件页面框架的同一请求被拒（沿用 `PLUGIN_MANAGEMENT_OPERATIONS` 的拒绝，不新增拒绝点） | `tests/plugin-route-operations.test.ts`、`tests/security-invariants-*` 已有的拒绝用例确认仍绿；不新增 S 号 |
+| RAC-612 | 项目里的 Form 实例失败后，占位显示状态与原因和「重新启动」；点击后实例恢复、占位消失、舞台恢复可用；重启失败时占位写出原因 | `tests/runtime-plugin-http-discovery.test.ts` 加断言（该文件已有 RAC-79 的停止/重启用例）；浏览器验证交 CI |
+| RAC-613 | 重启只接受外壳（控制令牌）发起；来自插件页面框架的同一请求被拒（沿用 `PLUGIN_MANAGEMENT_OPERATIONS` 的拒绝，不新增拒绝点）。**停用（撤销启用）的插件发 restart 被拒**，不被重新启用，占位也不画按钮；被卸载的、blocked 的同样不画。按钮只在失败或被隔离时画 | 停用被拒：已有断言 `tests/runtime-plugin-http-discovery.test.ts` 的 `formal Runtime HTTP entry discovers a new registered plugin without a Host ID list`（`restart must not re-enable a revoked plugin`，409），本片确认仍绿；页面框架被拒：`tests/security-invariants-home-route-project.test.ts` 与 `tests/plugin-route-operations.test.ts` 已有用例；按钮显隐（失败、隔离、停用、blocked、卸载五种）新增在 `tests/runtime-plugin-http-discovery.test.ts`；不新增 S 号 |
 | RAC-614 | 中英文占位文案都在词典里；隔离状态显示「解除隔离并重启」 | `tests/runtime-plugin-http-discovery.test.ts`（已验中英文占位）、`pnpm health:check` 翻译组 |
 
 碰的文件：`apps/workbench/src/unavailable-plugin-stage.ts`、`scripts/client/` 里一个按钮处理（挂在现有外壳脚本上，不新增资源）、`apps/local-host/src/project-plugin-stages.ts`、`tests/runtime-plugin-http-discovery.test.ts`。`spec.md` W5-06 第 3 片里「项目状态与重启入口仍属 BL-430」改写为已做。
@@ -84,7 +91,9 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 目标：`context-onboarding-service.ts` 不再 import Pages 的 Markdown→ProseMirror 转换；转换由 Pages 经公开动作提供。
 
-做法（B，本稿建议；待统筹裁定，见 §6 的 D3）：Pages 加一个**只读的转换动作**（暂名 `pagesActions.bodyFromMarkdown`，`documents.body_from_markdown`，输入 `{ markdown }`，输出 `{ body: PagesBody }`，权限 `pages:read`），内部用现有 `blocksFromMarkdown`。引导的 `pageBody` 改成调用它（变成 async，`pageParts` 随之变 async 生成器）。拆分、「第 k / N 部分」标题、按编码体积减半重试、每部分一个 `request_id` 的幂等，全部留在引导里不变（那是引导的策略，且用户 10-22 定了「来源不设上限」）。
+做法（B，本稿建议；待统筹裁定，见 §6 的 D3）：Pages 加一个**只读的转换动作**（暂名 `pagesActions.bodyFromMarkdown`，`documents.body_from_markdown`，输入 `{ markdown }`，输出 `{ body: PagesBody }`，权限 `pages:read`），内部用现有 `blocksFromMarkdown`。引导的 `pageBody` 改成调用它（变成 async，`pageParts` 随之变 async 生成器）。可见范围：只给需要的调用者——`audiences: ["user"]`（引导走的是「人在新项目里的动作」），不写 Pages 其他动作默认的 `workflow`、`agent`、`mcp`（`actions.ts` 的 `define` 默认四个都给），所以不进 MCP 工具名单，Agent 与工作流程也调不到；Pages 自己的内容交接处理器不用它（它有自己的转换）。`define` 加一个可选的 `audiences` 参数，其余动作不变。
+
+**结果体积**（D3 补）：转换动作自己守 Pages 单文档正文上限（`document.ts` 的 `MAX_BODY_CHARS`，1,500,000 编码字符）：转换后超过就返回明确错误 `pages.body_too_large`（`error.ts` 里 `defineErrorCodes("pages", …)` 加一条，kind `invalid`），不截断、不返回超大结果。所以动作结果恒 ≤ 1.5 MB（核对过：Runtime 动作结果没有通用字节上限，所以由动作自己限）；输入 `markdown` 上限 400,000 字符（引导的初始部分大小，减半只会更小）。引导照旧按减半重试：转换返回 `pages.body_too_large`，或返回的正文编码后超过引导自己的 `PAGE_BODY_MAX`（1,400,000），都把这一部分从中间减半再转换；部分长度小于 2 时把错误抛出，与现在一致。拆分、「第 k / N 部分」标题、按编码体积减半重试、每部分一个 `request_id` 的幂等，全部留在引导里不变（那是引导的策略，且用户 10-22 定了「来源不设上限」）。
 
 放弃的写法：(A) 给 `importDocuments` 的文档项加 `markdown` 字段——宿主就量不到编码后体积，减半重试要搬进 Pages，同时带着随界面语言的标题后缀，更大；(C) 做一个 Pages 负责拆分的 `importMarkdown`——同样要 Pages 知道标题后缀的语言。
 
@@ -92,20 +101,20 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 | --- | --- | --- |
 | RAC-615 | 引导源码不 import `blocksFromMarkdown`、不 import ProseMirror；Markdown→正文走 Pages 的公开动作；同一段文字的结果与之前逐字相同（以现有引导用例的正文为准） | `tests/context-onboarding.test.ts`（已有用例读回 Pages 文档）、新增一条 Pages 动作的单测（`tests/pages-body-from-markdown.test.ts`） |
 | RAC-616 | 动作合同快照已更新并提交（`pnpm build` 后 `pnpm actions:update`），PR 写对调用方的影响（工作流程、MCP 工具名、Skill）；动作只在需要的调用者可见 | `tests/action-contract-snapshot.test.ts` |
-| RAC-617 | 长文拆分与重试保持：同一 `request_id` 重试返回同一份文档，超长文本仍按减半拆开 | `tests/context-onboarding.test.ts`、`tests/context-onboarding-documents.test.ts` |
+| RAC-617 | 长文拆分与重试保持：同一 `request_id` 重试返回同一份文档，超长文本仍按减半拆开。**结果体积**：转换后超过 1,500,000 编码字符的输入，动作返回 `pages.body_too_large`、不返回正文；引导遇到它按减半重试，最终每部分都能存下；部分长度小于 2 仍超限时错误抛出，不无限循环；动作结果恒不超过 1.5 MB。动作只对 `user` 受众可见，MCP 工具名单、Agent 与工作流程的动作目录里没有它 | `tests/context-onboarding.test.ts`、`tests/context-onboarding-documents.test.ts`；新 `tests/pages-body-from-markdown.test.ts`（用一千万个单字符行的病态输入验证 `pages.body_too_large`）；可见范围由 `tests/action-contract-snapshot.test.ts` 与 MCP 工具名单用例钉住 |
 | RAC-618 | 门禁数字不增：`check-health-gates --base origin/main`、`boundary:check`；该文件对 Pages 包的点名只剩 `pagesActions`（动作描述符，与 `inbox-actions.ts`、`content-action-providers.ts` 同一做法） | 两条门禁命令 |
 
 碰的文件：`apps/local-host/src/context-onboarding-service.ts`（在途 #1251 改了其中一行 import，重基无冲突）、`plugins/native/pages/src/{actions,manifest}.ts`（动作与 Manifest 声明）、`tests/` 三份、`tooling/gates/actions/`。
 
 收口（RAC-619，统筹合入后做，不在片里改）：每片 PR 正文「privileges.md 状态」一节写好 PG-060（余项全部做完后「已做」，带 PR 与 RAC-600～618）和 PG-088（带 PR 与 RAC-615～618）该写的状态；统筹合入后统一改状态列（`SLICE-RULES.md` §2）。
 
-## 6. 待统筹裁定
+## 6. 统筹裁定（2026-10-25，已定）
 
-- **D1**：第 2 片的 `plugin_directory` 由宿主在每次读页面时从 Runtime 现算，还是只在装/卸/启/停时更新一份？建议现算（和 `renderProjectRuntimeStages` 一样，每次渲染读运行中的状态，不加缓存与失效逻辑）。
-- **D2**：目录里只放外壳要用的声明子集，还是整份 Manifest？建议子集：页面里不放权限、动作、服务等不相干的部分。
-- **D3**：PG-088 用「只读转换动作」（本稿建议），还是 (A)(C)？本稿建议 B 的理由在 §5。这是新增一个 Pages 公开动作，改动作合同快照。
-- **D4**：BACKLOG 里补不补 BL-388、BL-430 两行？本稿的做法是不补（本线自己做完，不进 BACKLOG，避免动热文件）；做完时 spec/slice 里点名它们的句子一并改写。若统筹要先有行，请给号或用我的 BL-635、BL-636。
-- **D5**：PG-076 的「目标输入的 CREATE」随第 1 片关掉（见 §1 边界提醒），是否同意，并请告知 ac-registry。
+- **D1**：`plugin_directory` 每次读页面时从 Runtime 现算，不加缓存。
+- **D2**：只放外壳要用的那部分声明；运行时装的插件的文字一律当不可信文本，转义与 JSON 序列化的要求写进第 2 片（§3）和 RAC-605。
+- **D3**：选 B（只读转换动作）；结果体积与可见范围写进第 4 片（§5）和 RAC-617。
+- **D4**：BACKLOG 不补 BL-388、BL-430 两行；做完把点名它们的句子改写。
+- **D5**：目标输入的 `CREATE` 随第 1 片关掉；`ac-registry` 只做 PG-076 余下的三项（统筹已告知）。
 
 ## 7. 开工前核对（每片开工前重做一遍）
 

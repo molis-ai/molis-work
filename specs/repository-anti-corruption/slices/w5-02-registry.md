@@ -288,6 +288,12 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 
 **统筹 10-25 定（方案 1）**：查实「装上的插件」今天没有安装入口（没有 `plugin install`，安装服务是 ac-trust T2，未合入），所以 E 分两步、叠在本地分支 `claude/ac-registry-w401` 上，整组补齐才推送、开 PR：先按内置在一次性 Home 里跑完整生命周期并加 `replay-plugins.mjs`；装上的那一半等 T2 合入再补。B4 + C 先开一个 PR。装上的插件声明不了的两项先不进探针，各记一行后续：到期提醒（只能是 Home 范围的动作，装上的插件没有 Home 一半，BL-621）、放置（要带 `project_rows` 的 Home 库，BL-620，BL-622）。
 
+**第一步已做（本地分支，未推送）**：
+- 探针 `examples/probe-plugin/`：私有存储里的笔记，两条路由与五个动作（列、建、删，搜索来源，文件来源），建笔记声明撤销（映射到删），一个 `background` 作业，一个方法（`probe-notes@1`）；`registration` 是 `project_runtime`，包名之外哪里都不点名它。
+- `tests/probe-plugin.test.ts`（RAC-579）：在仓库副本里放进 `plugins/native/probe`、跑生成器与 `pnpm install`，断言包外只变两份生成文件、三份 `package.json` 与锁文件；构建后由 `tests/fixtures/probe-lifecycle.mjs` 分两段走：启用前无动作、路由 403 → 启用（running、宿主构建的信任）→ 发现 → 路由建与列 → 按声明撤销 → 搜索与侧栏文件能找到 → 方法登记；改版本重建后 → 升级（同一安装、数据在）→ 停用（403 `actions.plugin_disabled`、动作与方法都没有）→ 再启用 → 撤一项必需权限（`plugin.grant_denied`，路由 503）→ 恢复 → 卸载（404）。为此 local-host 的公开入口导出 `runningProjectPlatform`，测试不深引 `dist`。
+- `scripts/replay-plugins.mjs`（RAC-770、RAC-771，`tests/replay-plugins.test.ts`）：每个样本一个临时 Home，加载并按 SDK 解析 Manifest → 调一个声明的动作并比对答案 → 升到下一个补丁版本（`upgrade_compatibility` 写明当前版本）→ 再调。语料 `tests/fixtures/replay-plugins/corpus.json` 现有 plugin-sample（目录）与 text-stats（`pnpm pack` 的包）；打包的内置插件在它自己的位置上回放（宿主已用同一 id 跑着出厂的那份，同一 id 两份会撞能力登记），打包代码作为升级进来。坏样本（未声明的权限、没有这个动作、答案不同）各自失败。
+- 创作台产物进语料放到第二步：它们按沙箱执行、经安装路径跑，`pluginFixtures` 拒绝沙箱定义，回放与装上的那一半走同一条 T2 安装路径；届时在隔离 Home 里用 MiniMax 真跑 2～3 个，源码与清单入库。
+
 ## 7. PG-095、PG-111 的评估（插件合同放在平台 contracts 里）
 
 登记这条线不依赖它们：`registration.ts` 只引用插件自己的 Manifest 与常量，不读 `contracts/modules/<插件>`。所以不进上面五个 PR。

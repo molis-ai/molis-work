@@ -32,6 +32,42 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 
 评论写法：第一行写结论（可合 / 要修 N 项 / 已修到 `<head>`），带固定 head，正文十行以内；长证据写日志路径，不贴进评论。
 
+### 2026-10-25 当前交付接续（PIPE）
+
+本节覆盖下方旧阶段状态；源码/审验/入批/actual merge 分开。Root唯一巡检及新独立单派发，PIPE按交付立即接续；独立writer可并行，只有实际同hunk/合同/候选串行。Claude仍唯一组批/full/批PR入队与来源关闭。
+
+| 实施owner | 当前单与固定基线 | 当前实际结果、依赖与下一动作 |
+| --- | --- | --- |
+| FIX1 01a1682d-0a26-7522-b2b2-4446d904a7b7 | #1258 / 927897a11e6b09fef1fe5fc676cec20f532a800c；唯一claim6393431452 | 原kernel树ec206 giant题、相关夹具无dirty/claim，已明确转此唯一writer。原6+后4+最终3共13个R8后fixture/API消费者失败逐一核因；不恢复typed、不删业务/诊断拒绝断言。树full35-coding-fixtures、feature/full35-coding-fixture-repair，正确baseline整体build走公共槽；最终固定候选直REVIEW/TEST/PIPE/Root，原927/full冻结。旧T1 cf63双PASS责任保留。 |
+| FIX2 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | #1253 / 22537bd078fabda259b751d18134b287b42be55e，FIRST6393236570 | RAC84缺Chrome明确未验证：原fixture实际已有t.skip，原/新受控无浏览器均0pass/1skip，不把file success算case通过；原119真实冷热证据保留。Claude6393461414已把22537并batch36并冻结原分支，仅交独立修复候选双核后吸收；不push原PR。 |
+| FIX3 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | #1258 FIRST6393271026；候选75d274d08f3723af08dedaf7ae0db877dfc58ce7/父927 | 独立feature/pr1258-first-maintenance已普通push，2files119/-1；render快照注释、S15按原parser拆段保36引用72标题。第2项固定927仅一处纯空端口，Root独立核实不造helper，据证关闭。REVIEW6393482627 PASS，TEST待；不动13失败夹具/原full。旧resident6b双PASS仍未吸收。 |
+| FIX4 01a16f15-e025-71a3-adac-2e84f0e83fdd | #1254 FIRST6393270921 item1 / b5211d8a5b9557783710ea7574a5e6d26751701e | 独立pr1254-construction-cleanup-retry。Root裁保同步构造，失败实例显式可重试close，清完后可立即重开，未await仍busy正确；不加全局registry/全线async。实际constructor/factory初始化hunk与FIX7旧route/import独立，最终独立候选审验后串行组装；不推原PR。 |
+| FIX5 01a16f24-7a33-76f2-80b4-f20c55006d09 | #1255 / d0f6cc53b88930b7ffe5ad016a2f2a34012febb9，FIRST6392998821/sole6393025853 | 2阻塞+4有效项实际实施。Claude6393088218选A：native/sandbox同名false/discard、ledger证明owner/publisher库、files→ledger→KV→发布，失败留row可重试。跨项目共享库仍6393304647待具体范围，不能A安装默删B活动库。Root批准无副作用validateInstall复用PLIB03在prepare/register/save前；plugin-development已实证可达sandbox并补同validator及真实loader拒绝/全不变回归；第四official-integrations固定工厂/新MemoryRepo无此旧库链，不凭文件名排除。最小采用1246/d428原8生产hunk及Home上下文，不改其冻结头/第二清理算法。最终package清单变化要真实重建指纹；其余独立验证继续。 |
+| FIX6 01a16fa8-53d9-7622-8169-0c424357366c | #1252 FIRST6393236358 / 8abab965c1f75bfb1ae1f695530a5d1a1312309f | 独立维护候选15c1f36dd9df3c49633125449e5340fe0a4a37ee，4files50/-32，源码等价已核，最终build/README8与built脚本待。Claude6393461199已把8aba并batch36冻结原分支；仅feature/fix6-horizontal-review候选双核后吸收，原205不机械重跑。 |
+| FIX7 01a1710d-f78c-7aa1-8e98-829d787ce44b | #1254 FIRST6393270921 items2–4 / b521 | SDK42ccc/a0e8窄题独立双核已交，现单题退役无消费者旧删除gateway/client/route，S07真实MCP元数据信任与actions.missing影响文档。独立fix7-pr1254-deletion-gateway；web-server仅import/旧route，与FIX4初始化hunk独立；67唯一Node文件计划不当已过。正文段落/tmp/fix7-pr1254-deletion-gateway-20261024/pr-body-insert.md由PIPE最终一次合成。 |
+| FIX8 01a17148-2b8c-7103-ba87-6f49b98b92b0 | #1256 FIRST6393224393 items1/4 / db8ce0b2ca4e3f08fd5daa58df3f4e30438c0681，claim6393401209 | 独立release/describe真实取消撤权停用/beforeEffect绑定保持与broker拒绝；安装槽release用unsupported码。和FIX9请求刷新段不同hunk，不全文件停工。原db8已Claude6393460077冻结入36，仅candidate双核吸收，不直接推原PR。 |
+| FIX9 01a17148-9ee0-7aa0-8719-abe77a09d430 | #1256 FIRST6393224393 item3 / db8 | 无真实刷新材料保第一次401，refresh:none及真实失败政策保留；新27测试基线24/27三真实红原件已交，改2生产+2测试+同spec4行，增量build等槽，未最终固定/独立PASS。FIX11同request/refresh与§2.3须等本固定候选后串行。 |
+| FIX10 01a1714d-f6cf-7281-bc10-78e9b061d754 | #1258 translation-check / 927，claim6393423455/6393477608 | Root新单，已鲜核原workflows无同题writer，PIPE明确START。df552旧键9204/稳定3387→927旧8994/稳定3649，Schedule/Shelf本批-210旧/+262稳定，scanner/test本身未变，missing/unserved/stableErrors=0。保实质拒绝，以独立发现词典/固定事实和三种受控漏扫反例替代脆弱9000总量，不改门禁；固定后独立双核。 |
+| FIX11 01a17156-c6df-7652-992c-f6dc06d6a8f0 | #1256 Claude6393460077 新取消/刷新调度单 | Root新唯一owner，原kernel无此调度claim。已结束调用不新刷新重发；在途刷新可维护凭据；同连接singleflight/约60s冷却。真实生产hunk及s57§2.3在FIX9固定后接续；当前仅临时方案/独立回归设计，不并写第二份合同。 |
+| FIX12 01a17157-8ec9-7081-9934-89e0c2741611 | #1257 FIRST6393290823 / 27d3ef4c0309eee5d2ff1462baeaae66814c87de | Root新唯一owner，原ac-giants已转A7且无同题改动。先做最长owner前缀与互为前缀回归；插件only/所有平台owner前缀合同由PIPE6393512277一次交Claude裁，只相关hunk等，不自行扩平台政策或第二名单。 |
+
+| FIX13 01a17159-48df-7d02-b6f0-9e627622eed0 | #1259 FIRST6393364629 / 10791b4f7，base cf63/T1 | Root新单，鲜读原PR仅FIRST、无同题修复claim；只读常开名单、撤回不复活/坏库不作缺失与配套T3/T2前拒绝/T5-BL585时序/S-X1→S34，不实现T2/T5。独立candidate，不推原PR。 |
+| FIX14 01a1715a-561b-7bc3-ba7d-be3d5de076d9 | #1256 item2后半 / db8 | Root新单，只本项目本安装per_record清理由forget移共同PluginHostExecutor.uninstalled，复用原owner。与FIX5同uninstalled hunk等其固定候选/明确窄窗口串行；不做Home全域/最后安装算法，先独立回归设计。 |
+
+**full35最终失败**：TEST6393499386，run40159810466/attempt1@927，自然completed failure；1422顶层−29Mac=1393 Linux，每文件唯一覆盖1393、0重复/遗漏，1379文件过/14未过（13fixture/API消费者含coding-history双900s超时归FIX1，translation归FIX10）。assistant-undo-refresh首DOM超时retry过因未定；8成功文件另14项未计通过。原16worker+aggregate/raw/first+retry在/tmp/molis-verify-2026-10-24/full35-run40159810466-test/，不称全case全绿/环境归因。原组合3文件fresh CI实际20/20首过；作者本机20的local-host构建No projects matched是no-op，不认证最终构建。Mac29仅已核来源范围，1242原170仍待。
+
+**原1255四十文件原件已找到**：原ac-sandbox-sched贡献保留；/tmp/molis-pr1255-original40-origin-20261024/含bl490.log、bl490-files.txt、build3.log和origin-audit.json，原CLI27334/27358/27379可追溯e2dcc505→d0仅API快照一行，40unique、621/622、自然exit0，network6/7不冒全case通过。TEST已独立核source继承d0，不继承到新FIX5候选；不再要求原作者重跑40。
+
+**1256剩余义务**：Claude6393460077已把Home per_record最后安装清理并BL596、指定ac-kernel/W6前必做（非已实现）；项目forget→共同Executor.uninstalled已明确FIX14，与FIX5实际hunk串行。共享googleapis/Graph来源边界是OAuth scope的说明由Root明确交FIX11同s57稿一次写准；暂号残留由原carrier处理，项目清理已明确FIX14。36已重排X1=S69/X3=S70/X2=S71，不由FIX8/9各改。刷新调度新决议归FIX11，不混其余题。
+
+**C2实际进展**：restore checkpoint0dbde60642fec7ba294d0efe32ecaf22c2dc5a1b已保留，snapshot SDK消费在独立feature/codex-w5-16-home-snapshot-sdk基4f上。SDK代码42ccc/最终docs a0e8、349ad包原独立双PASS已交并被本地vendor采用；App认证首次I/O时限取消原件保留，独占I/O槽同断言复跑24/24、0fail/cancel/skip，正确最终build2自然exit0。91非browser必跑正在执行，4browser后续独立槽，尚无S固定PR交付。Memory归档零写已采用资格/合法空态恢复仍待原领域owner，failclosed不等于RAC108完成；完整restore/真实Home/本人验收未完。
+
+**C4现行WO已交付**：实现1按Claude7aa12923完整提交PG095 Images/Jelly contract/RAC620–624/BL617，非Draft #1263@eb01f8f7b49f0b26945d2bc38e16d0f5edeb456f/base df552，40files106/-265，树c4-pg095-plugin-contracts clean/source冻结释放。PIPE已Git/API核scope；作者正确整体build/70boundary/health/api仅2删除/actions unchanged/4直接34实际项/27资产/secrets原件在/tmp/molis-pg095-20261024/，FIRST6393549737已一次交Claude，独立TEST待核，不把作者34当独立PASS。其余62unit/13browser未跑、full shared-core+3包仅Claude。与旧OAuth C4三WO不同；不扩Shelf/Alchemist/登记生成，不关PG095整体或C1/C3。
+
+**批次边界**：35固定7源1239/1240/1242/1243/1247/1249/1250与3kernel增量；1245/1246/1251/resident6b不在35，不能成为T1本批新增门槛。Claude已声明36叠35并含1251/1246/1245/1252/1253/1254（另e2d消费者）/1256，来源冻结不再推，最终包含/批PR/适用full/actual仍核真实树，修复候选独立双核后交其吸收。
+
+**新完整片FIRST入口**：1260/c2c21（真实叠1245）6393511700；1261/b559b21 W5-06声明行6393511889；1262/dc7c379 project_rows6393512114，均鲜核评论/共享未见实际首评认领后仅补一次Claude入口，待其真实结论，不派Codex重复首评。1262新head仍须鲜核；其BL619/620与1255依赖不虚记覆盖。
+
 **当前修复单（统筹 10-24 晚，下一批 batch-34 用）**：`ac-review` 一轮六个都是「可合」，没有挡合并项；下面的不挡合并项请在原 PR 上修完再二轮，修完的进 batch-34。页面资源、`baseline.json`、S 号这些共用文件不用管，统筹在批分支里一次处理。
 
 | PR | 一轮评论 | 要修 | 二轮 |
@@ -61,7 +97,7 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 
 **batch35组合合同补正（Root核源码/6389783641已传Claude）**：b86 browsingWorkspace仍query，action-call-log70–74成功非command不记行，838已registerAction/actionService；“删typed后动作每次都留行、必然污染首路由”不成立，不能登记为已证产品回归。原Claude carrier可做窄Host内部项目读口：同可信project/runtime、同workspacesFor/Catalog owner+ProjectBrowsingSettings.read投影，保null/多目录未选/撤关联/失效目录及成功每平台一次/失败重试/broadcast-drain；不复制SQL/算法、不信请求project、不向SDK/公开动作暴露绕权入口或扩写权限。无号用例仅限正式装配+内部读成功+本请求无其他实际记行调用时首400/413；真失败/缺依赖/其他实际行仍须号可查、正文头一致。call-scope/formatter/ActionCallLog不改，不用新scope或抑制记录；FIX1不为35预做。合同裁决不等实现/验证通过。
 
-| #1250 | FIRST6390022295；Claude6392849194已裁host | FIX1最终cf63b8e9e50f8e76d7422c96df7488a1e637e3e3已普通push/源码释放，REVIEW6392993542/TEST6393061723精确cf63双PASS | 原交付/认领6390172876已原位更新，PIPE鲜核PR/远端同头、本地pr1250-trust-delivery/goalboard clean，d4..cf63三提交8files173/-10；原六项a7c/a875有效预审/32unique616与build70原件保留，本次等级定稿a875..cf63仅2文件注释/原spec7/-6，生产host代码/token不变。最终health准确MB584/2109行secrets已核，原cast首败/S34列误标首败保留，不冒原作者334已认证。REVIEW6392993542已正式通过该精确修复增量，TEST6393061723已正式PASS，亲读/tmp/molis-verify-2026-10-24/pr1250-cf63-test/test-handoff.md，独立计数原32unique616并做Git token比对，未重跑有效批；03:33UTC鲜核最终cf63暂无workflow runs，不称CI通过/actual；mergeable=false的1245 schema/四dump与1246先files后KV/清完发布仍唯一carrier解决，不让作者为共用冲突重base/full，不混FI3/R48/C4/T2或泛赋外部host |
+| #1250 | FIRST6390022295 / REVIEW6392993542 / TEST6393061723 | T1全部有效意见修后双PASS | 固定cf63b8e9e50f8e76d7422c96df7488a1e637e3e3，三提交8files173/-10，32unique616原件按代码未变继承，原334 raw边界保留；已真实为35/927祖先，原full14文件未过/未actual。1245/1246不在35，不构成T1本批新门槛；未来36真实共同hunk/项目v10/四dump一次合成，原作者不反复同步。 |
 | #1255 | Claude FIRST6392998821：2阻塞+4有效nonblock | Root START原FIX5唯一6393025853，固定d0f6cc53b88930b7ffe5ad016a2f2a34012febb9/base df552，实际修复中 | 原pg017-sandbox-services slice/RAC240–246；修schema真实效果前PLIB03严格预检和release-version动态建库共同生产路径（不改门禁），补真实临时Home Runtime写/停用卸载拒绝/子进程退出、RAC241前后worker零新增及storage注释。retain_private_data=false清库/ledger项由同FIX5先核现合同+1246顺序，现同名选项跨native/sandbox统一目标/本片边界已6393081731交原Claude裁，只有该清理hunk待、其余五项不停；不扩BL377/491/492/P2e/原40文件/full。C2 installed-lib archive只读、project DB inspect与storage显式出口具体hunk不并写；实际需共享helper才局部串行。原1245e34双PASS/冻结/原carrier责任保留，无第二writer/首评，固定后直REVIEW/TEST/PIPE/Root→唯一Claude carrier/CI/full/actual |
 | #1251 | FIRST6390053800 / 二轮6390380705 / TEST6390400572 | 四项修后双PASS固定候选 | 固定267ffa225ea1630fe3a9a50bf34559068ce2f4c5，7d..267共9files42/-38，REVIEW6390380705/TEST6390400572修复增量双PASS/source冻结释放；16unique122首次全过/0skip或retry，公开指纹56c4b309与实际manifest一致，首次冷build并行boundary失序原件保留/正式串行boundary等通过。四项文档、真实跨包store→purge保异项目、删无用module声明出口、consumerTypes合现schema、递归576TS/153nested齐。原123三类失败/作者环境或known-main归因未认证，3browser未跑及full仍交carrier/TEST；原raw请求6390190399。最终PR正文已Root交FIX6仅metadata重写且实际fetch读回逐字一致，去已删文件/纠正归因，无源码/CI重刷；当前mergeable=true不取消batch真实hunk/同headCI/full/actual条件，C2 argv/Host/A6未动。；固定候选交Claude6390619194 |
 
@@ -130,9 +166,9 @@ Hub实核：本轮27OPEN与7个>100files固定头全页均核。snapshot-sqlite/
 | C1 | W5-13 收尾：宿主日志与吞掉的错误（§2） | 原owner实现1保持；115/bf09已随batch34 actualdf552，#1231已closed，116/#1238已actual584，117/#1240修后2f双PASS待batch35，118/119/#1244已actual52560f32/本片闭环；C1整线未完成 |
 | C2 | W5-16：Home 快照与恢复（§2） | A/b521修后与e2d消费者各窄双PASS，待原Claude A载体/完整首评-full-actual；snapshot4f保SDK已知红，d8预案后Root已START同owner独立SDK外restore，指定hubs无须全体停工。SDK双root认证和独立Molis Memory合法空恢复能力各待原owner实际claim/固定交付，C2合法ledger组合继续；合法空态当前安全拒但RAC108仍未完，不缩完整C2/真实Home验收 |
 | C3 | W5-10 的一部分：官方集成与横向服务巨大单元（§2） | Gmail516已Claude6389882200吸收35；横向完整区#1252固定8abab965c1f75bfb1ae1f695530a5d1a1312309f，15files533/-412/4→0，source释放、TEST6390184579定向PASS，FIRST6390137797实际请求尚待。28unique205/真实IM与原/变SQL类型修证据保范围，2非直接browser/selector及full仅Claude；实现1 C4准备完成只余三项WO，不开未授第三C3域，C1/C3整体未完成 |
-| C4 | PG-095：Images、Jelly 的插件合同从平台 contracts 挪进各自插件（§2） | RAC-620～624，BL-617 | 10-25 统筹新派，未开工 |
+| C4 | PG-095 Images/Jelly插件合同；WO7aa/RAC620–624/BL617 | #1263固定eb01f8f7b49f0b26945d2bc38e16d0f5edeb456f，作者40files106/-265/4直接34和正确build原件已交，FIRST6393549737/独立TEST待；full仅Claude，source释放不关闭PG095整体/C1/C3或旧OAuth C4 |
 | C5 | W5-16 后续：MCP 需要时按需启动常驻宿主（用户 10-25 定，§2） | RAC-625～629，BL-645 | 10-25 统筹新派，等 #1254 随 batch-36 落地 |
-| C4 | W5-11 OAuth/连接器声明搬迁 | 原已授权下一独立片，实现1准备已完；仅3项可开工WO由Claude6390280424给号段/base/FI3叠层、OAuth与MCP/CLI范围、callback/X3签名。已有安全规则直接沿用，不等1252 CI/full；T1等级与R48分开，不自定政策 |
+| C4 | PG-095 Images/Jelly插件合同；WO7aa/RAC620–624/BL617 | #1263固定eb01f8f7b49f0b26945d2bc38e16d0f5edeb456f，作者40files106/-265/4直接34和正确build原件已交，FIRST6393549737/独立TEST待；full仅Claude，source释放不关闭PG095整体/C1/C3或旧OAuth C4 |
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 

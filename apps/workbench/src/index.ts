@@ -106,7 +106,7 @@ export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
 export type { CallRowView } from "./call-row.js";
 export { renderMcpAccess, renderMcpAccessRows, mcpAccessEntryKey, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView } from "./page-view.js";
-export type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
+export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 export * from "./i18n.js";
 export * from "./ui-composition.js";
 export { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";

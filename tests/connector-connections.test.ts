@@ -12,7 +12,7 @@ import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-conne
 import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
+import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin } from "@molis-ai/molis-work-plugin-images";
 import { refreshFeedConnectionState } from "../apps/local-host/dist/web-connector-connections.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
@@ -79,7 +79,7 @@ test("Images uses the chosen Connector credential for each generation and surviv
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   const registry = new ActionService();
   const imageHost = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry, client: registry, entries: [{ scope: "home", manifest: imagesManifest, create: createImagesPlugin,
-    project_data: { owner_id: "images", declaration: imagesProjectData }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
+    project_data: { owner_id: "images" }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
   const seen: string[] = [];
   const unbind = bindPrologueInference(home, {
     completeText: async () => { throw new Error("Unexpected text inference"); },

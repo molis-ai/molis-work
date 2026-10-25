@@ -174,6 +174,4 @@ export const ARTIFACT_EN: Record<string, string> = {
   "下载原文件": "Download original file",
   "下载正文": "Download text",
   "在 Pages、问卷、演示稿、数据表里「存为固定版本」，或在侧栏「资料」里导入文件，固定下来的版本都在这里。": "Versions you keep with “Save as fixed version” in Pages, questionnaires, decks or tables, and files imported in the side panel’s Knowledge tab, are all here.",
-  // modules/artifacts/src/artifact-original-store.ts
-  "成果库保存的大文件原件": "Large original files kept in Results",
 };

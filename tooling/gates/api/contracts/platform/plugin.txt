@@ -3713,6 +3713,14 @@ export interface PluginProjectRowsDeclaration {
     readonly label: string;
     readonly order?: number;
     readonly tables: readonly PluginProjectRowsTable[];
+    readonly files?: readonly PluginProjectRowsFiles[];
+}
+
+export interface PluginProjectRowsFiles {
+    readonly table: string;
+    readonly column: string;
+    readonly key?: string;
+    readonly directory: string;
 }
 
 export type PluginProjectRowsTable = {

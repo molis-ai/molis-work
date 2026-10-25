@@ -4,6 +4,7 @@ import { mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
 /**
@@ -16,6 +17,16 @@ export const ARTIFACT_ORIGINAL_INLINE_MAX_BYTES = 6_000_000;
 
 /** This store in the Home's store registry: `artifacts/projects/<project>/originals/<sha256>`. */
 export const ARTIFACTS_HOME_STORE: NonNullable<PluginRegistration["home_store"]> = { path: "artifacts" };
+
+/**
+ * What the 成果库 keeps in the Home for a project, for the project's deletion: the project's directory of originals. It is the
+ * module's, like Functions' and Characters' data, so the Host names this owner itself (PG-024); it works on the files, so any
+ * process on the Home can run it, and it is idempotent.
+ */
+export const artifactsProjectData: ProjectDataDeclaration = {
+  label: "成果库保存的大文件原件",
+  purge: (home, projectId) => rm(projectDirectory(home, projectId), { recursive: true, force: true }),
+};
 
 /** An original kept in the store, as a version names it. */
 export interface StoredArtifactOriginal { sha256: string; size_bytes: number }

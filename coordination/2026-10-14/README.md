@@ -3635,3 +3635,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - #1267 W5-16 与 PG-022 P1b 冲突的 2 个，统筹自修：personal-plugins-review-fixes、installed-plugin-libraries（RAC-321）。快照对安装库账本严格读，purge 也读这一份。统筹定：账本有被改过的行时 purge 停在冲突、说出账本的问题，不绕开它删（宁停不猜）；RAC-321 行与测试同步改。另外两份夹具把用户家目录放进了 Home，按 FIX19 的规则改到 Home 外，并给账本补上现行版本号和 64 位十六进制摘要。
   - work-placement.e2e「Inspected target navigated or closed」：本机复现排在槽位队列里，结果未知，不算时序。
   - 教训（补充 21:55 那条）：叠在别的分支上、没跑过 CI 的 PR（#1302、#1267）并进批之前，要在批的合成树上先跑一遍 Verify 子集和它们改到的文件。
+- 10-25 23:30 UTC：batch-40 PR 头 `309c0aa1b`：purge 读严格账本，测试本机过；R-59 登记。#1302 的 7 个失败交 ac-clients-1 在 `claude/b40-pg071-fixes` 修，还在做。
+  - 交出、待评审：
+    - ac-coding：T7+T3b，`claude/b40-t7-t3b` `25d998b32`，S-85，RAC-407～409；workbench.js +8,838 B、css +1,369 B，都在 10 KB 内。评审交 ac-review-2。
+    - ac-platform：第 6 组，`ac-platform/group6-contracts` `334656fd0`，Form、灵光、PPT、Dataset、Todo、Pages 的合同进各插件，RAC-820～825。评审交 ac-review。
+    - ac-shell：`claude/ac-shell-d3` `c603be282`，PG-053 加 W6-03 剩下的 54 条（51 条改了，A06 随 S11，A07、C06 不用改）。评审交 ac-review。
+    - ac-sandbox-sched：FI-5，`claude/ac-feed-inbox-designs` `35449e675`，Feed 的 12 张表声明、基线 v11 暂定、维护夹具；26 个文件过。接着做 FI-6。
+    - Codex：F2 `4ea83ee3d`（#1307 的两项不挡合并）、R-55 回归测试 `f502e480c`、Goals 集合英文回归测试 `74191f112`、PACKAGE-BOUNDARIES 接缝说明 `0598e26b2`。各等它们自己的 REVIEW/TEST 收据，再进 batch-41。
+  - ac-giants 停着，等 PG-024 或维护时段。ac-coding 接着做 PG-054，然后 T5b。

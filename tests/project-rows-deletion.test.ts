@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -142,8 +142,8 @@ function rowsProbe(label = ROWS.label, id = "io.molis.work.example.rowsprobe") {
 }
 
 /** A Host behind the desktop HTTP composition, given the probe as a Home plugin it did not ship, granted and running. */
-async function runningProbe(t: TestContext, probe: ReturnType<typeof rowsProbe>) {
-  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+async function runningProbe(t: TestContext, probe: ReturnType<typeof rowsProbe>, homeDirectory?: string) {
+  const f = await serveHomeRuntime(t, { ...(homeDirectory ? { homeDirectory } : {}), pluginFixtures: { home: [probe.definition] } });
   const platform = await f.host.homePlugins!.ready(), install = f.host.homePlugins!.installation(probe.id)!;
   await platform.runtime.stop(install.install_id);
   platform.runtime.grant(install.install_id, PERMISSIONS.map(item => item.permission));
@@ -290,4 +290,23 @@ test("RAC-563 a deletion waits for a write another connection holds on the libra
   await exited;
   assert.ok(events.includes("released"), "the deletion ran only once the write was let go");
   assert.equal(marks(home, library.store_name, ["pa"]).pages!.pa, 0);
+});
+
+test("MEM-40 running declared-row owner retains current after the actual write lock and closes the refused connection", async t => {
+  const probe = rowsProbe(), home = realpathSync(mkdtempSync(join(tmpdir(), "project-rows-current-")));
+  const f = await runningProbe(t, probe, home);
+  seed(f.home, LIBRARY, ["pa", "pb"]);
+  const calls = [...probe.calls], expected = marks(f.home, LIBRARY.store_name, ["pa", "pb"]), denied = new Error("row owner revoked after lock");
+  let locked: DatabaseSync | undefined;
+  const exec = DatabaseSync.prototype.exec;
+  const interception = t.mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) {
+    const result = exec.call(this, sql); if (sql === "BEGIN IMMEDIATE") locked = this; return result;
+  });
+  try { await assert.rejects(projectDeletedHooksFor(f.home).clear(probe.id, "pa", undefined, { assertCurrent() { if (locked) throw denied; } }), error => error === denied); }
+  finally { interception.mock.restore(); }
+  assert.ok(locked); assert.throws(() => locked!.prepare("SELECT 1"), /not open/);
+  assert.deepEqual(marks(f.home, LIBRARY.store_name, ["pa", "pb"]), expected);
+  await projectDeletedHooksFor(f.home).clear(probe.id, "pa", undefined, { assertCurrent() {} });
+  assert.deepEqual(marks(f.home, LIBRARY.store_name, ["pa", "pb"]), { items: { pa: 0, pb: 1 }, notes: { pa: 0, pb: 1 } });
+  assert.deepEqual(probe.calls, calls);
 });

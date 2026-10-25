@@ -7,6 +7,7 @@ import { HomePluginHost, pluginPagesFor, projectDeletedHooksFor, type HomePlugin
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { deferred, homeProbe } from "./fixtures/home-runtime.js";
 
@@ -24,9 +25,10 @@ function fixture(t: TestContext) {
   const base = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "issues");
   assert.ok(base?.runtime);
   const runtime = base.runtime;
-  const behavior: { stop?(): Promise<void>; beforePurge?(): void } = {};
+  const behavior: { stop?(): Promise<void>; beforePurge?(): void; control?: ProjectDeletionControl } = {};
   let generation = 0;
-  const data = { label, order: 90, purge(directory: string, project: string) {
+  const data = { label, order: 90, purge(directory: string, project: string, control?: ProjectDeletionControl) {
+    behavior.control = control;
     assert.equal(directory, home); assert.equal(project, "p1"); behavior.beforePurge?.();
     trace.push("purge"); rmSync(marker, { force: true });
   } };
@@ -118,4 +120,12 @@ test("W5-01-RPC-01 project cleanup still purges when a same-id installation of a
     "the fixture must put the unrelated publisher before the running trusted installation");
   f.mark(); await f.hooks.clear(f.ownerId, "p1");
   assert.deepEqual(f.trace, ["purge"]); assert.equal(existsSync(f.marker), false);
+});
+
+test("MEM-40 the running Home owner forwards the original project deletion control to its accepted purge", async t => {
+  const f = fixture(t); await f.ready(); f.mark();
+  const control = { assertCurrent() {} };
+  assert.equal(await f.hooks.clear(f.ownerId, "p1", undefined, control), true);
+  assert.equal(f.behavior.control, control); assert.equal(existsSync(f.marker), false);
+  assert.deepEqual(f.trace, ["purge"]);
 });

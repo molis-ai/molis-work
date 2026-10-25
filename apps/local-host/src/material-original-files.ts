@@ -1,11 +1,11 @@
 import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createHash } from "node:crypto";
-import { constants, type Stats } from "node:fs";
+import { constants, existsSync, type Stats } from "node:fs";
 import { lstat, open, realpath, stat, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOriginalFileKey } from "@molis-ai/molis-work-plugin-runtime";
-import { openBaselineHomeSqlite, clearInExistingHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite, clearInExistingHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 /**
  * The original files plugins may read again: for each plugin installation, the project its activation runs in and its own record key,

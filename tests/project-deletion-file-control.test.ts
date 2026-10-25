@@ -6,11 +6,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "@molis-ai/molis-work-app-local-host";
 import { projectDeletedHooksFor, purgeAssistantProject, AssistantStore, ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME } from "@molis-ai/molis-work-app-local-host";
 import { clearInExistingHomeSqlite, createFileSecretStore, homeSqlitePath, homeSqlitePartitionDirectory, openBaselineHomeSqlite, openExistingBaselineSqlite,
   peekSealedEntry, runWithMolisWorkHome, type SqliteBaseline } from "@molis-ai/molis-work-storage";
-import { openPagesStore, PAGES_DATABASE } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_DATABASE } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
@@ -130,7 +131,7 @@ test("Assistant rechecks after live stop and preserves works and relations on re
 });
 
 test("partition owner rechecks after awaiting declared purge before removing its directory", async t => {
-  const home = homeFor(t), catalog = BUILTIN_PLUGIN_CATALOG as PluginRegistration[], template = catalog.find(entry => entry.project_plugin_id === "pages")!;
+  const home = homeFor(t), catalog = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[], template = catalog.find(entry => entry.project_plugin_id === "pages")!;
   const directory = homeSqlitePartitionDirectory(home, "control-probe", "gone"); mkdirSync(directory, { recursive: true }); writeFileSync(join(directory, "kept"), "kept");
   let revoked = false, received: unknown;
   const control = { assertCurrent() { if (revoked) throw denied; } };

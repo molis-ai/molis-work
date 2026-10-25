@@ -51,8 +51,9 @@ export function prepareAssistantSessionPurge(db: Database | undefined, binding: 
 }
 
 /** The Host supplies one transaction for relations, all own child rows, and the Work anchor last. */
-export function clearAssistantSessionPurge(db: Database, selection: AssistantSessionPurgeSelection, current: () => void): void {
+export function clearAssistantSessionPurge(db: Database | undefined, selection: AssistantSessionPurgeSelection, current: () => void): void {
   validate(selection); current();
+  if (!db) return;
   if (new Set(selection.works.map(work => work.work_id)).size !== selection.works.length) throw conflict();
   const relations = new AssistantRelations(db);
   const currentWorks = rows(db, selection).map(row => original(row, selection));
@@ -70,7 +71,8 @@ export function clearAssistantSessionPurge(db: Database, selection: AssistantSes
   current(); verifyAssistantSessionPurge(db, selection);
 }
 
-export function verifyAssistantSessionPurge(db: Database, selection: AssistantSessionPurgeSelection): void {
-  validate(selection); const relations = new AssistantRelations(db);
+export function verifyAssistantSessionPurge(db: Database | undefined, selection: AssistantSessionPurgeSelection): void {
+  validate(selection); if (!db) return;
+  const relations = new AssistantRelations(db);
   for (const work of selection.works) { verifyAssistantWorkRowsAbsent(db, work.work_id); relations.verifyPurge(work, work.relations); }
 }

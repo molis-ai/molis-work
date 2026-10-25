@@ -1,9 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { hostErrors } from "./host-errors.js";
 import { describeSqliteSchema, inspectExistingSqlitePath, listSqliteObjects, LocalSqliteStorage, openExistingSqliteConnection,
   SqliteSchemaVersionError, type SqliteBaseline, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 
-const conflict = () => new ActionError("agent.session_busy", "业务原件库或原恢复所有权已变化");
+const conflict = () => hostErrors.session_purge_conflict("业务原件库或原恢复所有权已变化");
 
 /** Existing-only connections belong to this operation until their actual close succeeds. */
 export class SessionBusinessDatabases {
@@ -20,13 +20,14 @@ export class SessionBusinessDatabases {
           void Promise.resolve(result).catch(() => undefined);
         throw conflict();
       }
+      if (this.closed || this.cleanupPending) throw conflict();
     }
   }
   withDatabase<T>(path: string, baseline: SqliteBaseline, project: boolean, write: boolean,
     work: (db: SqliteDatabase, current: () => void) => T, absent: () => T): T {
     this.current(); const target = inspectExistingSqlitePath(path);
     const current = () => { this.current(); target.assertCurrent(); };
-    if (!target.exists) { current(); return absent(); }
+    if (!target.exists) { current(); const result = absent(); current(); return result; }
     const db = openExistingSqliteConnection(path, { readonly: !write }); this.open.add(db);
     let failed = false, failure: unknown;
     try {

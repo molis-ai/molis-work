@@ -374,7 +374,7 @@ test("W5-01-DELEGATE-04 S-43 same-plugin invoke and directory delegation preserv
     audit_actor_id: "agent:prologue:memory-session", runtime_session_id: "memory-session", runtime_memory: runtimeMemory, runtime_memory_read: runtimeMemoryRead };
   assert.equal(await s.run({ op: "query" }, original, selfcall), "done");
   assert.equal(depth, 2);
-  assert.deepEqual(audiences, ["agent", "user", "workflow"]);
+  assert.deepEqual(audiences, ["agent", "agent", "workflow"], "same-plugin calls retain the outer audience; only declared delegation changes it to workflow");
   assert.equal(observed, 1, "the declared query actually executed after both nested calls");
   assert.equal(original.runtime_memory, runtimeMemory);
   assert.deepEqual(original.runtime_memory, originalPolicy);

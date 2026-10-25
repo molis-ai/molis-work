@@ -303,4 +303,5 @@ export { pluginPagesFor } from "./plugin-page-authority.js";
 export { openProjectDeletionRecoveryInspection, type ProjectDeletionRecoveryInspection, type ProjectDeletionRecoverySource } from "./project-deletion-recovery-inspection.js";
 export { createColdMemoryProjectOwner, type ColdMemoryProjectOwnerInput, type ColdMemoryProjectPreparation } from "./memory/memory-cold-project-owner.js";
 export type { ColdProjectMemoryInspection, ColdProjectMemoryWriter, ColdProjectMemoryPurgeTarget } from "./memory/memory-cold-project-sdk.js";
-export { createSessionBusinessPurgeOwner, type SessionBusinessPurgeInput, type SessionBusinessPurgeOwner, type SessionBusinessPurgeSelection } from "./session-business-purge.js";
+export { createSessionBusinessPurgeOwner } from "./project-plugins.js";
+export type { SessionBusinessPurgeInput, SessionBusinessPurgeOwner, SessionBusinessPurgeSelection } from "./session-business-purge.js";

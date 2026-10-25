@@ -5,7 +5,7 @@ type ArchivedSession = { session_id: string; title: string; state: string };
 export function codingArchive(ports: {
   readonly root: HTMLElement;
   readonly listen: (target: EventTarget, name: string, callback: (event: Event) => void) => void;
-  readonly api: (path: string, method?: string, body?: unknown) => Promise<{ archive_decision?: unknown; unarchive_decision?: unknown; sessions?: ArchivedSession[] }>;
+  readonly api: (path: string, method?: "GET" | "POST" | "PATCH", body?: unknown) => Promise<{ archive_decision?: unknown; unarchive_decision?: unknown; sessions?: ArchivedSession[] }>;
   readonly path: (id: string) => string;
   readonly confirm: UiPageDialogs["confirm"];
   readonly current: () => string;

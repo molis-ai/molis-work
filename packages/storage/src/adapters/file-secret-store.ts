@@ -730,7 +730,7 @@ export function deleteSecretEntriesWithPrefix(prefix: string, control?: { assert
   control?.assertCurrent();
   const target = control ? inspectExistingStoragePath(secretsPath(), "file") : undefined;
   if (target ? !target.exists : !fs.existsSync(secretsPath())) return 0;
-  const directory = control ? inspectExistingStoragePath(resolveFeedSecurityDirectory(), "directory") : undefined;
+  const directory = control ? inspectExistingStoragePath(resolveHomeSecurityDirectory(), "directory") : undefined;
   const authority = control ? { assertCurrent() { control.assertCurrent(); directory!.assertCurrent(); } } : undefined;
   return withSecretsLock(() => {
     authority?.assertCurrent(); target?.assertCurrent();

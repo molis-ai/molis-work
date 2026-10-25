@@ -77,12 +77,14 @@ test("MEM-40 Coding purges its canonical aggregate and fixed keys, retaining nei
   independentStore.update("person", independent.work_id, independent.revision, { session_id: "independent-assistant-canonical", handover_brief: "independent Work text" });
   independentStore.addRound(independent.work_id, { run_id: "independent-run", executor: "plugin", text: "kept result", materials: [], context: null, started_at: at });
   const independentBefore = { work: independentStore.get("person", independent.work_id), rounds: independentStore.rounds(independent.work_id) };
+  const activation = t.mock.method(PluginRuntime.prototype, "start", () => { throw new Error("cold maintenance must not activate a plugin"); });
   const before = f.snapshot(), selected = await maintenance.prepare({ session, owner: f.binding, wait_ids: ["wait-original"] });
   assert.equal(selected.kind, "coding"); if (selected.kind !== "coding") assert.fail();
   assert.deepEqual(selected.selection.sessions.map(item => item.session_id), ["original"]);
   assert.deepEqual(selected.selection.waits, [{ wait_id: "wait-original", keys: ["queued:wait-original", "wake-note:wait-original"] }]);
   assert.ok(!JSON.stringify(selected).includes("secret:")); assert.deepEqual(f.snapshot(), before, "prepare is read-only");
   await maintenance.clear(selected); await maintenance.verifyOriginal(selected); await maintenance.clear(selected);
+  assert.equal(activation.mock.callCount(), 0);
   assert.deepEqual({ work: independentStore.get("person", independent.work_id), rounds: independentStore.rounds(independent.work_id) }, independentBefore);
   const after = f.snapshot(); assert.deepEqual(after.sessions, before.sessions.filter(row => (row as { session_id: string }).session_id === "neighbor"));
   assert.deepEqual(after.drafts, []);
@@ -235,4 +237,53 @@ for (const guard of ["home", "project"] as const) test(`MEM-40 asynchronous ${gu
     projectDatabase: () => ({ path: f.path, assertCurrent: guard === "project" ? async () => {} : () => {} }) });
   t.after(() => maintenance.close());
   await assert.rejects(maintenance.prepare({ session, owner: f.binding, wait_ids: [] })); assert.deepEqual(f.snapshot(), before);
+});
+
+test("MEM-40 business owner keeps its original Home, authority and project resolver after caller mutation", async t => {
+  const f = await coding(t), before = f.snapshot();
+  const input = { homeDirectory: f.directory, assertCurrent() {}, projectDatabase: (_id: string) => ({ path: f.path, assertCurrent() {} }) };
+  const maintenance = createSessionBusinessPurgeOwner(input); t.after(() => maintenance.close());
+  input.homeDirectory = home(t); input.assertCurrent = () => { throw new Error("replacement authority"); };
+  input.projectDatabase = () => { throw new Error("replacement Catalog"); };
+  const selected = await maintenance.prepare({ session, owner: f.binding, wait_ids: [] });
+  assert.equal(selected.kind, "coding"); assert.deepEqual(f.snapshot(), before);
+});
+
+for (const command of ["prepare", "clear", "verifyOriginal"] as const) test(`MEM-40 ${command} isolates its original selection before a current callback can change it`, async t => {
+  const f = await coding(t); let change: (() => void) | undefined;
+  const maintenance = owner(t, f.directory, f.path, () => { const run = change; change = undefined; run?.(); });
+  const selected = await maintenance.prepare({ session, owner: f.binding, wait_ids: [] });
+  if (command === "prepare") {
+    const binding = { session: { ...session }, owner: { ...f.binding }, wait_ids: [] };
+    change = () => { binding.session.session_id = "other-canonical"; };
+    const prepared = await maintenance.prepare(binding);
+    assert.equal(prepared.selection.session.session_id, session.session_id);
+    assert.deepEqual(prepared, selected);
+  } else {
+    const original = structuredClone(selected);
+    if (command === "verifyOriginal") await maintenance.clear(selected);
+    change = () => { original.selection.session.runtime_id = "replacement-runtime"; };
+    await maintenance[command](original);
+    assert.deepEqual(f.store.db.prepare("SELECT session_id FROM coding_sessions ORDER BY session_id").all(), [{ session_id: "neighbor" }]);
+  }
+});
+
+test("MEM-40 a close inside the absent-library current check still refuses prepare", async t => {
+  const directory = home(t); let calls = 0, maintenance: SessionBusinessPurgeOwner;
+  maintenance = owner(t, directory, "unused", () => { if (++calls === 3) void maintenance.close(); });
+  await assert.rejects(maintenance.prepare({ session, owner: assistantOwner, wait_ids: [] }), { code: "host.session_purge_conflict", kind: "conflict" });
+  assert.equal(existsSync(homeSqlitePath(directory, ASSISTANT_STORE_NAME)), false);
+});
+
+test("MEM-40 an absent Assistant library never validates a Coding selection or a forged Assistant identity", async t => {
+  const f = await coding(t), maintenance = owner(t, f.directory, f.path), before = f.snapshot();
+  const invalid = { kind: "assistant" as const, selection: { session, owner: f.binding, works: [] } };
+  await assert.rejects(maintenance.clear(invalid)); await assert.rejects(maintenance.verifyOriginal(invalid));
+  for (const owner of [{ ...assistantOwner, install_id: "another-install" }, { ...assistantOwner, actor_id: "" }]) {
+    const forged = { kind: "assistant" as const, selection: { session, owner, works: [] } };
+    await assert.rejects(maintenance.clear(forged)); await assert.rejects(maintenance.verifyOriginal(forged));
+  }
+  const absent = await maintenance.prepare({ session, owner: assistantOwner, wait_ids: [] });
+  await maintenance.clear(absent); await maintenance.verifyOriginal(absent);
+  assert.deepEqual(f.snapshot(), before); assert.equal(existsSync(homeSqlitePath(f.directory, ASSISTANT_STORE_NAME)), false);
 });

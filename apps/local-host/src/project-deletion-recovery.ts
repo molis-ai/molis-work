@@ -4,7 +4,7 @@ import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { ProjectSessionDeletionPlan } from "@molis-ai/molis-work-service-agent-host";
 import type { ProjectMemoryPurgePlan } from "@molis-ai/molis-work-service-memory";
-import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
 import { assertCurrentCatalog, assertOwnedCatalog } from "./catalog-schema.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 import type { ProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, renameSync, rmSync, symlinkSync } from "node:fs";
 import test from "node:test";
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PROBE, later, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, read, write } from "./fixtures/partition-probe.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
@@ -115,4 +116,26 @@ test("PART-03 a partitioned library's owner with no purge of its own: the deleti
   assert.equal(await f.hooks.clear(PROBE, "p1"), true);
   assert.deepEqual(probe.trace, []);
   assert.equal(existsSync(partitionDirectory(f.home, "p1")), false);
+});
+
+for (const reason of ["revoked", "path"] as const) test(`MEM-40 running partition owner closes the library but refuses ${reason} after purge before directory removal`, async t => {
+  const home = realpathSync(mkdtempSync("/private/tmp/molis-partition-current-")), purged = deferred();
+  let received: ProjectDeletionControl | undefined, revoked = false;
+  const entry = probeEntry({ project_data: { owner_id: PROBE, declaration: { label: "original partition",
+    purge(_home, _project, control) { received = control; return purged.promise; } } } });
+  const f = partitionHome(t, [entry], home); await f.ready();
+  await f.invoke(write, { text: "original" }, "p1"); await f.invoke(write, { text: "neighbor" }, "p2");
+  const denied = new Error("partition authority revoked"), control = { assertCurrent() { if (revoked) throw denied; } };
+  const directory = partitionDirectory(home, "p1"), saved = directory + "-held";
+  const clearing = f.hooks.clear(PROBE, "p1", undefined, control);
+  assert.equal(received, control); assert.equal(open(home, "p1"), false); assert.equal(existsSync(directory), true);
+  if (reason === "revoked") revoked = true;
+  else { renameSync(directory, saved); symlinkSync(partitionDirectory(home, "p2"), directory); }
+  purged.resolve();
+  try { await assert.rejects(clearing, error => reason === "revoked" ? error === denied : code(error) === "storage.maintenance_path"); }
+  finally { if (reason === "path") { rmSync(directory); renameSync(saved, directory); } revoked = false; }
+  assert.deepEqual(await f.invoke(read, {}, "p1"), ["original"]);
+  assert.deepEqual(await f.invoke(read, {}, "p2"), ["neighbor"]);
+  assert.equal(await f.hooks.clear(PROBE, "p1", undefined, control), true);
+  assert.equal(existsSync(directory), false); assert.deepEqual(await f.invoke(read, {}, "p2"), ["neighbor"]);
 });

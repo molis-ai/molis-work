@@ -6,7 +6,7 @@ import { ProjectsModule, normalizeProjectWorkspace, readProjectDeletionRecoveryP
   type ProjectDeletionSourceIdentity } from "@molis-ai/molis-work-module-projects";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { createRuntimeContextModule, createRuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
-import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
 import { closeCatalogInitialization } from "./project-deletion-catalog-close.js";
 import { assertCurrentCatalog, assertOwnedCatalog } from "./catalog-schema.js";
 import { createCatalogCommit } from "./catalog-commit.js";

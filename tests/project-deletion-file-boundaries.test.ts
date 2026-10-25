@@ -8,7 +8,8 @@ import { DatabaseSync } from "node:sqlite";
 import { syncBuiltinESMExports } from "node:module";
 import test, { type TestContext } from "node:test";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
-import { openPagesStore, PAGES_DATABASE } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_DATABASE } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
 import { createFileSecretStore, homeSqlitePath, openBaselineHomeSqlite, openExistingBaselineSqlite, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 

@@ -1,7 +1,7 @@
 import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { existsSync } from "node:fs";
 import { inspectExistingSqlitePath, homeSqlitePath, openBaselineHomeSqlite, openExistingBaselineSqlite } from "@molis-ai/molis-work-storage";
-import { AssistantRelations } from "./assistant-relations.js";
+import { AssistantRelations, identity } from "./assistant-relations.js";
 import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from "./assistant-store.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentSessionOwner, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -79,11 +79,8 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
     db.exec("BEGIN IMMEDIATE");
     try {
       for (const work of works) {
-        const identity = { work_id: work.work_id, project_id: work.project_ref?.project_id ?? null };
-        for (const related of relations.forWork(identity)) {
-          control?.assertCurrent(); target?.assertCurrent();
-          relations.unlink(identity, related.relation, related.object, "项目已删除");
-        }
+        const source = identity(work), current = () => { control?.assertCurrent(); target?.assertCurrent(); };
+        current(); relations.clearPurge(source, relations.preparePurge(source), current);
         clearAssistantWorkRows(db, work.work_id, () => { control?.assertCurrent(); target?.assertCurrent(); });
       }
       control?.assertCurrent(); target?.assertCurrent();

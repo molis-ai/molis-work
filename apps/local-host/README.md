@@ -365,3 +365,7 @@ Catalog target 初始化的 readonly 预检和 writer 装配若收尾失败，�
 公开 `createSessionBusinessPurgeOwner` 接收 Home 原恢复 current 与可信 Catalog 的 `projectDatabase(projectId)` 窄口，提供 `prepare({session,owner,wait_ids}) → clear(original) → verifyOriginal(original)` 与可重试 `close()`。父在 SDK purge 前保存纯选择和原 wait IDs；SDK 旧 complete 已失原 ID 的情况不能用空页补证明。该入口不装配普通 Runtime。Assistant 保留原策略下的无正文用量统计和个人设置。
 
 本刀定向回归为 `tests/session-business-purge.test.ts`，并运行 ContextLedger、PluginRuntime/private-storage/project-database、Coding store/lifecycle、Storage baseline、project-deletion-owners/studios 与 LocalHost 的原公开入口回归。它证明业务 owner 冷维护的工程路径，父恢复/SDK 组合验收仍归原 Memory spec。
+
+Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolver；prepare/clear/verifyOriginal 在首次外部 current 前隔离本次原 binding/selection。current 的每次外部回调返回后仍须未关闭且未待清理。Assistant 库缺席仍经原业务 owner 的 runtime/plugin/install/actor 身份校验，不得由伪 kind 跳过 Coding 原件；合法缺库保持零创建、零删除。
+
+公开 createSessionBusinessPurgeOwner 由既有 project-plugins 装配根绑定 Coding manifest 与 prepare/clear/verify 实现；内部业务资源 owner 只消费这份窄口和现有 DTO，调用者不能提供实现或自造权限，不启动插件。Host 自身固定身份、路径/结构与资源生命周期冲突统一为 host.session_purge_conflict；下层 SDK/业务 owner 抛出的原码与 cause 保留。没有新注册表，也不借项目 project_data 表达 canonical Session 清理。

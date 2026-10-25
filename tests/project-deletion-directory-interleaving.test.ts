@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test, { type TestContext } from "node:test";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "@molis-ai/molis-work-app-local-host";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
 function directoryPair(t: TestContext, owner: string, partition: string) {
@@ -39,7 +39,7 @@ for (const owner of ["plugin-builder", "alchemist", "artifacts"] as const) test(
 
 test("MEM-40-FILE-RM-02: partition cleanup cannot yield between its post-purge checks and directory removal", async t => {
   const owner = "directory-interleaving-probe", pair = directoryPair(t, owner, "projects/gone");
-  const catalog = BUILTIN_PLUGIN_CATALOG as PluginRegistration[], template = catalog.find(entry => entry.project_plugin_id === "pages")!;
+  const catalog = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[], template = catalog.find(entry => entry.project_plugin_id === "pages")!;
   let purged = false, queued = false;
   const control = { assertCurrent() {
     pair.assertCurrent();

@@ -63,6 +63,6 @@ export function clearProjectRows(home: string, library: HomePluginDatabaseDeclar
   const statements = projectRowsStatements(library, pluginId);
   if (statements.length === 0) return;
   clearInExistingHomeSqlite(home, library.store_name, library, db => {
-    for (const statement of statements) db.prepare(statement).run(projectId);
+    for (const statement of statements) { control?.assertCurrent(); db.prepare(statement).run(projectId); }
   }, control);
 }

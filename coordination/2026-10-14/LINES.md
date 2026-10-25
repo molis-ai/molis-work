@@ -71,6 +71,19 @@
 | #1098、#1107、#1112 W5-06 链 | Codex / 合并 Agent | PG-060 |
 | 统筹的状态 PR #1133 | 统筹 | PG-027、052 标已做 |
 
+## 1b. privileges 逐行核查后的归属裁定（统筹 10-25；依据 DeepSeek 核查 `deepseek/privileges-audit` `2f5c09cf7`）
+
+| 行 | 裁定 |
+| --- | --- |
+| PG-058（无主） | 拆开归：Feed、Inbox 的宿主 HTTP 随 FI 线迁 Runtime（FI-4～7）删掉；artifact 那份归 `ac-artifacts`（A3 之后的 A 片）；Alchemist 那份按用户 10-23（BL-376）不迁、绕过。别名表 `native-plugin-api.ts` 随最后一份删掉。 |
+| PG-095、PG-111（无主） | 归 `ac-platform`，作为它「后三组」之后的一组：插件合同从平台 contracts 搬回各插件公开入口（照 Images、Jelly 的 C4 #1263 做法）；Alchemist 的合同按 BL-376 绕过。 |
+| PG-074 的 Goals 一半（无主） | 归 Goals 迁移线（`ac-sc3` 的 S11：`locked`、`SURFACE_OVERRIDES`），随 Goals 离开宿主私路删掉。 |
+| PG-049（冲突：表里给 ac-trust） | 归 `ac-kernel`（实际实现者，#1298 随 batch-39 #1307 落地）。 |
+| PG-031（冲突：表里给 ac-platform） | 归 `ac-kernel`（同上）；剩下 Feed/Inbox 那几处随 FI 线。 |
+| PG-053（冲突：ac-sc3 与 ac-shell） | 归 `ac-shell`，排在它现在的顺序之后；ac-sc3 不再列。 |
+| PG-029（冲突：表里给 ac-kernel） | 删除工作随 #1295（ac-sc3 迁移线，等用户维护时段）；ac-kernel 不再列。 |
+| 17 条在途可关的行 | batch-38（#1300）、batch-39（#1307）落地后，统筹按核查报告「合入在途后可改已做」逐条改 privileges.md。 |
+
 ## 2. 待开线（一条线空出来就按这个顺序开）
 
 | 序 | 线 | 内容 | 管的 PG 行 | 前置 |

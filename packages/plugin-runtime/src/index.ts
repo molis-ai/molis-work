@@ -156,8 +156,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
-      /** The `plugin_id`s the Host's build ships: an install of another level may not take one or nest with it (S-75). */
-      hostIds?: ReadonlySet<string>;
+      /** The `plugin_id`s the Host's build ships: an install of another level may not take one or nest with it (S-75). */ hostIds?: ReadonlySet<string>;
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string; projectReach?: PluginProjectReach } } = {},
   ) {}
 

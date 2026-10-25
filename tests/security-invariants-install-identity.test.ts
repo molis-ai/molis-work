@@ -41,7 +41,7 @@ test("RAC-395 S-75 ids on one dotted path belong to one publisher: another's ins
   assert.deepEqual(runtime.list().map(record => record.plugin_id), ["io.molis.work.example.tools"], "the refused installs wrote no record");
   assert.equal(install(runtime, "io.molis.work.example.toolset", "second").install.publisher_trust, "unsigned", "a name that only shares letters is another name");
   assert.throws(() => install(runtime, "io.molis.work.example.tools.extra", FINGERPRINT, PINNED), code("plugin.id_namespace_conflict"), "a pinned key is a publisher too");
-  assert.equal(install(runtime, "io.molis.work.example.tools.more", "first").install.plugin_id, "io.molis.work.example.tools.more", "the same publisher may nest its own ids");
+  assert.throws(() => install(runtime, "io.molis.work.example.tools.more", "first"), code("plugin.id_namespace_conflict"), "a label is not an identity: the same label does not nest either");
   install(runtime, "io.molis.work.example.same", "first");
   assert.notEqual(install(runtime, "io.molis.work.example.same", "second").install.install_id, runtime.list().find(record => record.publisher_signature === "first")!.install_id,
     "an equal id from another publisher is another install, as before");
@@ -102,6 +102,7 @@ test("RAC-395 S-75 an installation on record that breaks the names rule does not
   let started = 0;
   const executor = { async start() { started += 1; throw new Error("must not run"); }, async stop() {} } as never;
   const now = new PluginRuntime(repository, executor, { hostIds: new Set([shipped]) });
+  for (const record of [squatter, first, repository.get("kept-from-before-the-rule")!]) now.register(definition({ ...manifest(record.plugin_id, record.publisher_signature) }));
   for (const id of [squatter.install_id, first.install_id, "kept-from-before-the-rule"]) {
     await assert.rejects(now.start(id), code("plugin.id_namespace_conflict"), id);
     assert.deepEqual([repository.get(id)?.state, repository.get(id)?.last_error_code], ["crashed", "plugin.id_namespace_conflict"], id);

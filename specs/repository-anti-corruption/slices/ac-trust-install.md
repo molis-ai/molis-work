@@ -147,9 +147,11 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 **T6 落地（2026-10-25）：**Runtime 的 `install` 第一步改成 `assertInstallIdentity`（`packages/plugin-runtime/src/install-identity.ts`），顺序是：证据的形状、证据与执行形态相配、同意只点声明过的、签名形状（第一条）、宿主名单（`hostIds`）与别的发布者的前缀（第二、三条）。两处注册提供方的地方经 `actionProviderId`：宿主给的 id 只有两种答案被接受——安装 id，或 `host` 等级安装的 `plugin_id`。几个口径：
 
-- 「发布者」是 `host`，或「等级加签名」（`pinned` 的签名是指纹，`unsigned` 的是作者写的标签）。同一发布者的 id 可以互相嵌套；相同的 `plugin_id`、不同发布者本来就是两个安装 id，不受影响。
+- 「发布者」是 `host`，或「等级加签名」（`pinned` 的签名是指纹，`unsigned` 的是作者写的标签）。只有同一把固定公钥（`pinned`、同一指纹）才算同一个发布者，它的 id 可以互相嵌套；**没签名的安装之间一律不许嵌套**，同标签也不算（标签不给身份，抄标签的作者不能嵌到别人的 id 之下，统筹 2026-10-25 裁）。相同的 `plugin_id`、不同发布者本来就是两个安装 id，不受影响。
 - `host` 等级的安装不做宿主名单和前缀检查：它是宿主自己的构建，名单就从它的目录来。某个 id 随新版本的宿主出现、而外部已经装了同一个 id 时，已装的那个仍留着，不在安装路上拒绝宿主。
 - 名单（`hostIds`）是宿主构建目录里全部的 `plugin_id`（`apps/local-host/src/host-plugin-ids.ts`）。检查是「相同或互为前缀」，所以 `io.molis.work.goals.extra`（在名单 id 之下）和 `io.molis.work`（在名单 id 之上）都被拒；后者本来也过不了 Manifest 形状检查（SDK 的 `PLUGIN_ID` 要求 `io.molis.work.` 之后还有一段），所以 §5.2 第 4 条点名的 `io.molis` 与 `io.molis.work` 不会出现在安装路上，不另列。
+- **启动时重查**（统筹裁）：`startOnce` 在执行器之前对已有的记录重跑同一套命名空间检查（`assertInstalledNamespace`），违规的安装记 `crashed`、错误码同为 `plugin.id_namespace_conflict`，执行器不运行它，也不成为提供方；这与「存量由维护改成现行、读取不兜底」一致，真实 Home 维护前用 `docs/releases/CHECKLIST.md` 里 T1 维护那一项的只读查询列出违规的安装。
+- **宿主名单必传**：`assertInstallIdentity` 的 `hostIds` 参数必填；`PluginRuntime` 的选项仍可省（192 处测试夹具都不带它，省了就是「不保留任何 id」），改由测试扫 `apps/local-host/src` 里每一处 `new PluginRuntime(` 必须传（`official-integrations.ts` 原先漏了，已补）。名单取自 `plugin-registry.ts` 的 `PLATFORM_PLUGIN_REGISTRATIONS`，不再 import 工作台的目录（#1281 的 RAC-564）。
 - 提供方 id 对 `pinned` 仍是安装 id（§10 第 6 项），没变；`host` 等级之前只靠「宿主名单里的定义对象」认，现在加了等级这一条核对，两者缺一不可。
 
 ### 3.7 版本跟随（PG-016）

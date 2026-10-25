@@ -2459,3 +2459,5 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 唯一 README browser 文件首轮在 19 个子测试输出后由 runner 报 TIMEOUT（11785.4s，报告 killed after1200s），无整个文件通过结论，墙钟异常原因未证实。按统筹批准保留原参数单文件复验一次，20/20 项、28.0s 通过，包含最终真实 Form frame 停止/重启路径；未改变时限、重试或原断言。安装 store EPERM、Swift cache 写权限及嵌套 sandbox、非 browser 首批 loopback EPERM、类型初放 memory.ts 触发 giant 门的首败也全部保留；分别按真实权限运行原命令、移回既有类型落点收束，不掩盖失败。日志统一为 `/private/tmp/molis-memory-owner-relations-*-20261025.log`，最终 build-final、health-final、readme-approved、coverage-final、browser-repeat 对应上述结果。
 
 这只证明 body-free 关系投影前置，不是 SDK coverage/authority 接线、实际 Catalog complete、完整 P0/MEM-40、真实 Home 或用户验收。未运行全量、付费模型或跨库删除；只有历史 Round、裸 operation/adoption-cleanup 或 SDK 双缺且 App 无原据的 owner 仍是未知，不能称完整覆盖。
+
+统筹集成复验（2026-10-25）：`0779c69b40d3656bbcd3483ea44b688444e7f5ff` 合入上述1bff投影与421f SDK更新，生产无文本冲突；唯一spec追加冲突完整保留双方内容。该头原整体build、类型、准确基础9e的health和boundary通过；6文件65项首轮通过，覆盖投影4、不可重绑定2、项目清除3、采用28、角色来源3、运行权限25。27资源共7,678,780 B，与上一包更新后逐项相同。日志 `/private/tmp/molis-memory-owner-aggregate-{build,types,health,boundary,direct}-20261025.log`、`...-assets-20261025.json`。本头已推入既有#1101；资源既有Coding+1,333 B失败及未完成的Catalog覆盖、业务清除、全AppCI与完整恢复仍保留，不以本次65项替代它们。

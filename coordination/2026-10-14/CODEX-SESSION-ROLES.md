@@ -1,6 +1,6 @@
 # 防腐 PR 专职会话分工
 
-状态：2026-10-25 #1270/batch36为人类首优先，恢复页已入cd909，新增登记补尾59ce待双核；SDK105已actualmain，F5/F6及四新验收专项归档，F13/F14因具体新修复正式恢复。当前职责以下表为准。
+状态：2026-10-25 #1270首优先已采用59ce为5bbf，新Verify绿，适用Security/Product与full最终归因待收；F13再次来源归档，F14在途。Root两新SDK独立单已接，当前职责以下表为准。
 
 一骏最新纠偏：“整体还是听Claude统筹，可以从他那领取独立任务处理，不一定只解决问题和review问题，可以与他组织好领取独立任务，分配1-2个独立任务实现的session。”此前组织合并、持续接续评审与全部有效意见修复的要求保留。Claude是整条防腐线的总统筹，决定任务范围、优先级、跨线依赖和全量排期；下表Codex流水线职责只在Codex侧执行，不能替代Claude。
 
@@ -12,7 +12,8 @@
 | 评审 | 专职｜防腐 PR 评审与复审 · Codex | 01a16bc4-68fe-71d3-af0e-83523232c1ea | 修复后按精确head只读二轮，复用ac-review有效一轮并给正式结论；gpt-6-astra/xhigh | 一轮全归Claude ac-review；不改源/构建/测试/合并，block/nonblock分别保留 |
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
 | 修复1（当前client字段） | Root单题/既有专职，gpt-6.1-sol/max | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | FIRST1 5a9/FIRST2 5b已双核释放；当前Root FIRST4独立5b后继去未消费ClientDirectoryEntry.name，19有限文件/实际build在途 | FIRST3与Claude PR-D默认目录hunk按固定来源后到串行；B1可信目录等T6+B1组合后Root再派，不混当前 |
-| 修复2（当前Store ownership） | Root单题/既有专职，gpt-6.1-sol/max | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | FIRST2 9f双核释放；当前FIRST3 Store受控写/只读观察后继，6文件build与定向绿、health/boundary排FIFO | Memory顺序d97→9f→Store→1064 d08→1101 a804；后到原Memory适配实际写清单，不强转ReadonlyMap/整文件覆 |
+| 修复2（Store固定待TEST） | Root既有专职，gpt-6.1-sol/max | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | 9f→7ea固定push，6文件188/-30，REVIEW6396744933 PASS/独立TEST待，作者必要工程证据齐 | Memory后到融合d97→9f→7ea→1064 d08→1101 a804，受控恢复批次/清除/单份coalescing，禁readonly强转/重复append；不等第二泛批准才交付 |
+
 | 修复3（页面默认值已双核释放） | Root单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | 旧48a双PASS已释放；新S64原9c红，实际8ac已由原Claude实现，FIX3只核现成S20 mutation/doc | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
 | 修复4（初始化失败清理恢复） | Root单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | #1254 FIRST6393270921 item1/6393455820；39a444f89b5adf9d585a09f1533aa2611e9c9e71直接b521 | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
 | 修复5（政策源已双核归档） | Root单题/既有专职，gpt-6.1-sol/max | 01a16f24-7a33-76f2-80b4-f20c55006d09 | 政策53ca/源build bd576，REVIEW6395912201/TEST6396197917限定PASS，Root已官方归档 | 原2b五项与政策分记；新retained授权P1归F14唯一writer，已释放prepare窗/保notes，不唤醒收据；采用/full/main仍carrier |
@@ -23,7 +24,8 @@
 | 修复10（翻译覆盖已采用） | Root单题专职，gpt-6.1-sol/max | 01a1714d-f6cf-7281-bc10-78e9b061d754 | 66de117876fe8ee8d8fb12303ee0069ab1cc1eb3/父927 | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
 | 修复11（刷新调度已双核） | Root单题专职，gpt-6.1-sol/max | 01a17156-c6df-7652-992c-f6dc06d6a8f0 | 1651a529905ee51027141d40c5cc1d21b30406e2，链fe8→72→1651 | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
 | 修复12（DOM前缀已双核） | Root单题专职，gpt-6.1-sol/max | 01a17157-8ec9-7081-9934-89e0c2741611 | #1265最终56d3b6e5cdcdb2ac9918d0b178f9ce086057f7ec，原1257基点27d | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
-| 修复13（已恢复：1270登记补尾） | Root单题/既有专职，gpt-6.1-sol/max | 01a17159-48df-7d02-b6f0-9e627622eed0 | 恢复页4e双核已Claude采用cd909；当前59cee3e8fb1e9c3d46d2668d85bd74515abd0977仅3tests/spec27/-2，源build复用/作者gate3+HTTP6，双核待 | 人类首优先#1270；唯一修PAGE_PRODUCERS登记/真实Host文档边界，无新URL例外/扫描放宽；现有full跑完前不推carrier |
+| 修复13（59ce已采用/再次归档） | Root单题专职，gpt-6.1-sol/max | 01a17159-48df-7d02-b6f0-9e627622eed0 | cd909→59ce登记/HTTP补尾双核6396713760/6396728640，已采用5bbf，Root已最终idle归档 | 来源职责结束，保原件/分支不唤醒收据；exact5bbf适用checks/full复用/正常入队/actual九来源由唯一Claude/PIPE |
+
 | 修复14（已恢复：1276/P1） | Root单题/既有专职，gpt-6.1-sol/max | 01a1715a-561b-7bc3-ba7d-be3d5de076d9 | 新1276 uninstall grants及retained重装P1唯一writer，33312固定未push，旧生产新6真红已证，代码预审6396482815无新P1但运行待 | 保F5 53ca state/notes，prepareReinstall在retain早退/注册前；条件私有cleanup→无条件forget→return，不复用旧c6 direct append双删，原P1未关 |
 | 修复15（SQL夹具验证边界） | Root单题专职，gpt-6.1-sol/max | 01a17189-e0e1-73a2-8a22-5723aa84cf69 | A+D83fc/父ebf已REVIEW6395225354/TEST6395306682双PASS，独立八文件8/8、32/32；PIPE6395337315已交Claude吸收，原13/18红保留，Root已核收并归档 | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
 | 修复16（改名/材料链验证） | Root单题专职，gpt-6.1-sol/max | 01a1718a-8840-7d31-a73b-568b29cb2178 | #1268 da50d106216322043b2a7d05c3498e16bbed5f1e/父93ba，code ba1a06bb1 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
@@ -38,10 +40,13 @@
 | #1277 placement（实际实施） | Root单题专职，gpt-6.1-sol/max | 01a1725d-9275-72b0-a50f-67eba05e23e1 | 43049后继mover/copier/moveBack歧义与零副作用验收 | 保原guard/@2/RAC639，640–645后继固定直双核，不重复原dirty来源 |
 | #1277 UI（候选待双核） | Root单题专职，gpt-6.1-sol/max | 01a17260-f086-75f1-9d25-00e5288cbdc7 | ac7单parent43049仅4tests/spec，REVIEW6396653070已PASS，TEST/health待 | 保三生产guard/@2/placement，真实拒后内容/renderer不变；不同client hunk与1278组合保双方 |
 | #1279 T6（候选待双核） | Root单题专职，gpt-6.1-sol/max | 01a17277-21cd-7bb1-a50e-61ff2e9eaaed | bd926单basef992已push，作者33文件646最终过，原夹具6红已基线分记 | B1后host-plugin-ids实际两行取平台registry，S75/0380编号由carrier，F14不同prepare hunk只串行实重叠 |
-| #1280 PG015（契约待Claude裁） | Root单题专职，gpt-6.1-sol/max | 01a17271-0e27-73c3-95c4-5338edd84a29 | 仅ac308诊断WIP，SDK唯一kind/剥provider真实证明；A合同或暂收诊断待现行统筹具体裁定 | 不改kind持久语义或当前C2仅103包，不冒完整碰撞修复；与B1实际hunk串行 |
+| #1280 PG015（已按B实际实施） | Root单题专职，gpt-6.1-sol/max | 01a17271-0e27-73c3-95c4-5338edd84a29 | Claude6396510491已正式B：同kind多可用安装两边不列/各诊断/回读歧义拒绝；原writer已亲读实际实施 | 不扩SDK/改kind语义；A完整provider合同#1101后采用线，正式BL由Claude共用文件owner分配，当前不为编号空等或提前写已做 |
+
 | #1280 RAC651（已双核归档） | Root单题专职，gpt-6.1-sol/max | 01a17273-724c-7a91-aa2e-d371848e7052 | d12单parentd654，REVIEW6396273958/TEST6396272893，Root已归档 | 仅test+PG008一行，静态接线不冒HTTP/full；carrier保PG015同spec窄hunk，不唤醒收据 |
 | #1281 RAC564（已双核归档） | Root单题专职，gpt-6.1-sol/max | 01a1727a-f047-7db1-b13a-b0e74ffd8e05 | a35单parent4e09，REVIEW6396341145/TEST6396355943，Root已归档 | 仅test/spec，名单未放大，T6+B1真实host ids源修仍carrier，不唤醒收据 |
 | #1281 S31（已双核归档） | Root单题专职，gpt-6.1-sol/max | 01a1727b-024c-70c3-9e1f-4a4807b87891 | 59e单parent4e09，REVIEW6396532689/TEST6396554305，Root已归档 | 4tests/spec真实两层counter，继承health623→624与S号/full/main另核，不唤醒收据 |
+| #1283默认规则种类校验 | Root单题专职，gpt-6.1-sol/max | 01a172af-ff72-7d62-8d29-3a75d753b154 | base9b，SDK action-declarations本题函数+独立新test/同FI2 spec | 不动原ac-fi2 block1/卸载/旧test/Runtime/库，固定直双核/PIPE、只分支不另PR/full |
+| #1284SDK DOM类型边界 | Root单题专职，gpt-6.1-sol/max | 01a172b0-0dcd-76c3-8382-93face22d05f | based67，已实际接手Node/Browser SDK编译/真实消费类型验证 | 不碰actions校验或共享builder，normalFIFO整体build保C5窗口，不另浏览器/full；固定直双核/PIPE |
 
 已有角色 owner 与有效技术裁定保持。独立树、独立明确问题且无真实重叠可多writer；同一实际hunk/合同/候选串行。Claude唯一组批/full/批PR队列；batch35七来源close-only已由Root窄移交PIPE实际关完，其他来源职责不变。Root唯一定时发现/初始派单/复杂裁决；本流水线交付驱动接续与既有普通小PR合并职责保持。整机一份build、一批browser，machine-slot排队。
 

@@ -1,4 +1,5 @@
-import { escapeHtml, icon, renderIconSprite, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { renderWorkbenchDocument } from "./document-shell.js";

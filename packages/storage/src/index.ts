@@ -72,6 +72,6 @@ export { createMemoryLedgerSelectedRetention, type MemoryLedgerSelectedRetention
 export { openKnowledgeCards, clearKnowledgeProject, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, KNOWLEDGE_CARDS_HOME_STORE } from "./adapters/knowledge-cards.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, TEXT_SEARCH_HOME_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";
 
-export { inspectMemoryLedgerCleanupSources, copyMemoryLedgerCleanupTargets, readMemoryLedgerCleanupDecision, beginMemoryLedgerCleanup, suppressMemoryLedgerCleanupSources, completeMemoryLedgerCleanupTarget, type MemoryLedgerCleanupTarget, type MemoryLedgerCleanupDecision } from "./adapters/memory-ledger-adoption-cleanup.js";
+export { inspectMemoryLedgerCleanupSources, inspectMemoryLedgerSelectedSources, copyMemoryLedgerCleanupTargets, readMemoryLedgerCleanupDecision, beginMemoryLedgerCleanup, suppressMemoryLedgerCleanupSources, completeMemoryLedgerCleanupTarget, type MemoryLedgerCleanupTarget, type MemoryLedgerCleanupDecision } from "./adapters/memory-ledger-adoption-cleanup.js";
 export { clearProjectInExistingTextSearchIndex, type TextSearchProjectCleanupInput, type TextSearchProjectCleanupResult } from "./adapters/text-search-maintenance.js";
 export { openMemoryLedgerRecoveryInspection, type MemoryLedgerRecoveryInspection } from "./adapters/memory-ledger-recovery.js";

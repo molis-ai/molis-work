@@ -1,10 +1,12 @@
 # Prologue SDK 受控包
 
-当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 来自已合并 [#106](https://github.com/molis-ai/molis-prologue/pull/106) 的干净 main `b54429dbf43e8f9f8f4b910999674c192077c247`；合并树与已独审头 `281678bc115dfa13178ab9738be4f837fa85fc05` 相同。在 #102 的冷 inspection/maintenance 基础上接入原 Memory 主人的归属覆盖与固定 canonical Session 选择；两类冷句柄清理失败后可显式重试同一资源，业务权限保持永久关闭。
+当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 来自已合并 [#107](https://github.com/molis-ai/molis-prologue/pull/107) 的干净源 `1cc80b05253df798eeb34afff65d1bda06bee587`；正式合并 `ccafbb74fb9db0e3a124ec502c57291677487e23` 与该源没有文件差异。在 #106 的冷恢复能力上，将 canonical wait 清除、迟到 material 与投递写入纳入原 Session 永久屏障，持久失败阻止派出，同请求键保留失败而不自动重放；归档仍保留等待。
 
-归档 1,391,846 字节，810 个 dist 文件，SHA-256 `58eec2e9ca12551a7c021ef228c57953154f323b4304ca06483568c87c6d5eaa`；全部 dist 与原 quality 的最终构建逐字节相同。sidecar、provenance、lock 同步，仍只保留两份现有包；上一份 #102 的归档身份记入 patch-history notes，从 Git 历史取回。
+归档 1,397,575 字节，816 个 dist 文件，SHA-256 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`；全部 dist 与干净源的原构建逐字节相同，包内 `package.json` 与上一份归档一致。sidecar、provenance、lock 同步，仍只保留两份现有包；上一份 #106 的字节数、摘要、integrity、源提交及归档和两份 sidecar 的 Git blob 记入 patch-history notes，从 Git 历史取回。
 
-重建：固定上述干净 SHA，使用 Node 24.14.0 / pnpm 11.9.0，`pnpm install --frozen-lockfile --offline --store-dir <既有缓存>`、`QUALITY_BASE=0ff107a616efd88e4e489727cf6f2b00581992a7 pnpm quality`，再在 `packages/sdk` 执行 `pnpm pack --pack-destination <独立目录>`。原 quality 的类型/build/API/棘轮/文档、70 文件 723 项、原干净消费者及 Cargo 通过；6 文件 139 项恢复影响面通过，新 tgz 干净消费者与独审同句柄清零失败恢复通过。Molis 消费原归档，无 vendor 补丁；App 父 owner、完整 MEM-40 和用户验收仍待完成。旧类型与回环端口权限失败的记录保留，不作为通过证据。
+Node 冷 inspection 新增无正文的 `inspectSessionWaits({ref,preview,limit?,cursor?,signal?})`。Molis 消费者必须固定原 ref/preview，从无 cursor 开始穷尽全局扫描的 continuation，并在 SDK purge 前把原 wait IDs 写入原 business 父计划；SDK purge 后的墓碑没有 Session 关系，旧 complete 但缺 App 原计划仍是 incomplete，不能猜为空。采用与该消费者同一补丁交付。
+
+重建：固定上述干净 SHA，使用 Node 24.14.0 / pnpm 11.9.0，`pnpm install --frozen-lockfile --offline --store-dir <既有缓存>`、`QUALITY_BASE=b54429dbf43e8f9f8f4b910999674c192077c247 pnpm quality`，再在 `packages/sdk` 执行 `pnpm pack --pack-destination <独立目录>`。上游 #107 记录最终头原 quality（类型/build/API/棘轮/干净包消费者/Rust、71 文件 748 项）及投递/App wait 影响 24 项通过；远端 quality 未启动，不记作 CI 通过。本次核对归档与源的一致性，无 vendor 补丁；Molis 完整 MEM-40 与用户验收仍需单独验证。历史失败记录保留，不作为通过证据。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 

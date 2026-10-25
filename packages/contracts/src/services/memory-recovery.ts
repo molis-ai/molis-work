@@ -2,6 +2,20 @@ import type { MemoryOwnerRelation, MemoryScope } from "./memory.js";
 import type { AgentSessionDecision, AgentSessionPurgePreview, AgentSessionRef } from "./agent-host-runtime.js";
 import type { AgentSessionOwner } from "./agent-host-start.js";
 import type { ProjectDeletionRecoveryGroup } from "../modules/projects.js";
+import type { CodingSessionPurgeSelection } from "../modules/coding.js";
+import type { AssistantSessionPurgeSelection } from "./assistant-session-purge.js";
+
+/** Explicit stopped working copies. This DTO carries no maintenance authority or default Home. */
+export interface MemoryHomeRecoveryRequest {
+  readonly homeDirectory: string;
+  readonly sourceDirectory: string;
+  readonly operation_id: string;
+}
+export interface MemoryHomeRecoveryResult {
+  readonly outcome: "completed";
+  readonly operation_id: string;
+  readonly replayed: boolean;
+}
 
 /** Provenance already interpreted by the original owner; never an SDK write grant. */
 export type MemoryHomeRecoverySource =
@@ -23,6 +37,8 @@ export interface MemoryHomeRecoverySession {
   readonly source: { readonly preview: Omit<AgentSessionPurgePreview, "state">; readonly phase: "cleaning" | "complete";
     readonly version: number };
   readonly target: { readonly decision: AgentSessionDecision; readonly preview: AgentSessionPurgePreview };
+  readonly business: { readonly kind: "coding"; readonly selection: CodingSessionPurgeSelection }
+    | { readonly kind: "assistant"; readonly selection: AssistantSessionPurgeSelection };
 }
 /** One immutable selection and Catalog mapping, followed by one atomic final publication. */
 export interface MemoryHomeRecoveryDecision {

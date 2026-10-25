@@ -84,3 +84,5 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap4`, `goal-reorg-dv4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+显式停写维护 `recoverDesktopMemoryHome` 只把生产面板适配器装到 LocalHost `recoverMemoryHome`，沿同一 Catalog/Memory/Session owner；不启动普通桌面或运行服务，不猜 Home。真实临时备份组合覆盖见 `tests/memory-home-recovery-composition.test.ts`、`tests/memory-home-recovery-project.test.ts`、`tests/memory-home-recovery-session.test.ts`，最终用户恢复旅程另验。

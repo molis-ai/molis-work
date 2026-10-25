@@ -284,3 +284,5 @@ inspection 和维护 bridge 的 `verifySessionPurge({target,signal?})` 只核原
 `openPrologueMemoryAdoption` 可固定 `sessionPurges`，`purgeSessionTarget({session})` 仅执行该集合。独占 owner 内重核真实 Index/SDK 原决定，经在线共用 purge 用例保存 prepared、SDK 原清除、sdk-complete 与最小 Index complete；重试不换 owner/operation/version/preview。缺 Index、未知 owner、absent 或不一致的 SDK termination 拒绝。原空集合行为保留，未选对象不参与执行；inspection 的 `inspectSession` 仅映射 SDK 无正文 canonical 读取。
 
 整 factory signal/current/close 覆盖存储提交，不增加单次取消假口。无普通 Runtime 启停、模型、空 effects 或第二状态机；在线 quiet/cleanup/effects、preparePurge/purgeWaits 和当前准入仍由原主人执行。最终 Index 逐字段构造，未知附加属性也不保留。raw 只沿上面的完整原项目计划接入；跨主人完整恢复仍由外层验收。直接回归 `tests/prologue-session-cold-purge.test.ts` 与 `tests/prologue-project-deletion.test.ts`；连同原桥接、父 owner、Index、生命周期和缓存共8文件163项工程验证通过，完整 MEM-40 与用户验收未在本片证明。
+
+冷 inspection 薄透传 SDK #107 的 `inspectSessionWaits({ref,preview,limit?,cursor?,signal?})`：只读原 Wait exact refs，cursor 是全局扫描续点，调用方固定 ref/preview 从 undefined 穷尽，空非终页仍继续。LocalHost 在任何 canonical Session purge 前保存原 IDs 到同一父业务选择；purged 且无原 App 计划不能推断空等待。已持久原计划重试不再收集 IDs。该接口沿原 inspection current、取消和原 reader close 生命周期，不提供 Wait 写入或新 Session 删除核。

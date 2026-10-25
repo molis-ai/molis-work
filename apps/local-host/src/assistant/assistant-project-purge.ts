@@ -5,18 +5,49 @@ import { AssistantRelations, identity } from "./assistant-relations.js";
 import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from "./assistant-store.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentSessionOwner, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ownerOf } from "./assistant-round-start.js";
 import type { LedgerConnection } from "../context-ledger-database.js";
+import { assistantErrors } from "./assistant-errors.js";
+
+const uncertainWork = () => assistantErrors.conflict("助理保留的工作、项目关联或会话归属无法确认");
+const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+
+/** Decode only the original identity and association fields used by this owner query, before filtering any Work. */
+function projectSessionWork(row: unknown): StoredWork {
+  if (!object(row) || typeof row.body !== "string") throw uncertainWork();
+  let work: StoredWork;
+  try { work = JSON.parse(row.body) as StoredWork; } catch { throw uncertainWork(); }
+  if (!object(work) || !text(work.work_id) || work.work_id !== row.work_id || work.actor_id !== row.actor_id
+    || work.actor_id !== LOCAL_PERSON_ACTOR_ID || work.revision !== row.revision || !Number.isSafeInteger(work.revision) || work.revision < 1
+    || !object(work.scope) || !(work.session_id === null || text(work.session_id))) throw uncertainWork();
+  if (work.scope.kind === "project") { if (!text(work.scope.project_id)) throw uncertainWork(); }
+  else if (work.scope.kind !== "personal" || "project_id" in work.scope) throw uncertainWork();
+  if (work.project_ref !== undefined && (!object(work.project_ref) || !text(work.project_ref.project_id)
+    || work.scope.kind === "project" && work.scope.project_id !== work.project_ref.project_id)) throw uncertainWork();
+  return work;
+}
+
+/** MEM-40-FRAME-06: existing Work facts only; an association does not grant purge authority or redefine ownerOf. */
+export function readAssistantProjectSessions(db: Pick<ReturnType<typeof openBaselineHomeSqlite>, "prepare">, projectId: string): Array<{ session: AgentSessionRef; owner: AgentSessionOwner }> {
+  if (!text(projectId)) throw uncertainWork();
+  const sessions: Array<{ session: AgentSessionRef; owner: AgentSessionOwner }> = [];
+  for (const row of db.prepare("SELECT work_id, actor_id, revision, body FROM assistant_works ORDER BY work_id").iterate()) {
+    const work = projectSessionWork(row);
+    if (work.session_id !== null && (work.project_ref?.project_id === projectId || work.scope.kind === "project" && work.scope.project_id === projectId))
+      sessions.push({ session: { runtime_id: "prologue", session_id: work.session_id },
+        owner: { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: work.actor_id } });
+  }
+  return sessions;
+}
 
 /** Full owner query, including archived Works; project association never changes the Session's actual owner. */
 export function assistantProjectSessions(home: string, projectId: string): Array<{ session: AgentSessionRef; owner: AgentSessionOwner }> {
   if (!existsSync(homeSqlitePath(home, ASSISTANT_STORE_NAME))) return [];
   const db = openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
   try {
-    return (db.prepare("SELECT body FROM assistant_works WHERE json_extract(body, '$.project_ref.project_id') = ? OR json_extract(body, '$.scope.project_id') = ?")
-      .all(projectId, projectId) as Array<{ body: string }>).map(row => JSON.parse(row.body) as StoredWork)
-      .filter(work => work.session_id !== null).map(work => ({ session: { runtime_id: "prologue", session_id: work.session_id! },
-        owner: { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: work.actor_id } }));
+    return readAssistantProjectSessions(db, projectId);
   } finally { db.close(); }
 }
 

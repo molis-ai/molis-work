@@ -14,7 +14,7 @@ const denied = { code: "memory.adoption_conflict" };
 const full: MemoryPrefs = { enabled: true, task_recall: true, form: true, auto: false, learn_from_work: true, learn_from_ui: true,
   consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: true }, plugins: {}, class_restrictions: [] };
 const key = (id = "restore") => `memory-operation:${id}:home-recovery`;
-function fixture(t: TestContext) {
+function fixture(t: TestContext, adopting = true) {
   const home = realpathSync(mkdtempSync(join(tmpdir(), "molis-home-recovery-")));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const ledger = openMemoryLedger({ homeDirectory: home }); ledger.close();
@@ -27,7 +27,7 @@ function fixture(t: TestContext) {
     db.prepare("INSERT INTO memory_markers VALUES ('','memory-forgotten:original','before',?)").run(JSON.stringify({ memory_id: "original", state: "forgotten" }));
     db.prepare("INSERT INTO memory_revisions VALUES ('successor',2,?)").run(JSON.stringify({ version: 2, text: "later unrelated original" }));
   });
-  beginMemoryLedgerAdoption({ homeDirectory: home, snapshot: inspectMemoryLedgerAdoption({ homeDirectory: home }) });
+  if (adopting) beginMemoryLedgerAdoption({ homeDirectory: home, snapshot: inspectMemoryLedgerAdoption({ homeDirectory: home }) });
   const profiles = [{ actor_id: "person", key: "personal", prefs: { ...full, auto: true } }];
   const owner = (current: () => void = () => {}, operation_id = "restore", signal?: AbortSignal) =>
     createMemoryLedgerHomeRecovery({ homeDirectory: home, operation_id, assertCurrent: current, ...(signal ? { signal } : {}) });
@@ -40,6 +40,7 @@ function fixture(t: TestContext) {
 }
 function decision(operation_id = "restore"): Omit<MemoryHomeRecoveryDecision, "phase"> {
   const session = { session_id: "session", runtime_id: "runtime" };
+  const owner = { project_id: "project", plugin_id: "coding", install_id: "install", actor_id: "person" };
   return { kind: "home-recovery", operation_id, known_scopes: [{ scope: "personal", owner: "person" }, { scope: "project", owner: "project" }],
     memories: [
       { identity: { scope: "personal", owner: "person" }, source: { kind: "forgotten" },
@@ -50,10 +51,13 @@ function decision(operation_id = "restore"): Omit<MemoryHomeRecoveryDecision, "p
         target: { ref: { kind: "memory", id: "session-memory", revision: 1 }, mode: "present-purge", operation_id: "purge-session-memory", expected_version: 1,
           selection: { session, operation_id: "purge-session" } } },
     ],
-    sessions: [{ session, owner: { project_id: "project", plugin_id: "coding", install_id: "install", actor_id: "person" },
+    sessions: [{ session, owner,
       source: { preview: { session, version: 2, runs: 1, resources: 2, destroys_key: true }, phase: "complete", version: 3 },
       target: { decision: { operation_id: "purge-session", expected_version: 1, expected_state: "active" },
-        preview: { session, version: 1, state: "active", runs: 1, resources: 1, destroys_key: true } } }],
+        preview: { session, version: 1, state: "active", runs: 1, resources: 1, destroys_key: true } },
+      business: { kind: "coding", selection: { session, owner, installation_generation: "original-install",
+        sessions: [{ session_id: "coding-session", created_at: "before", keys: ["draft:coding-session"] }],
+        waits: [{ wait_id: "original-wait", keys: ["queued:original-wait"] }] } } }],
     barriers: [{ actor_id: "person", identity: { scope: "project", owner: "project" }, sources: [{ event_id: "bare-event" }, { event_id: "versioned-event", version: "v1" }] }],
     project_groups: [{ project_id: "project", sources: [{ deletion_id: "project-deletion-aaaa", project_id: "project", actor_id: "person", idempotency_key: "delete", request_fingerprint: "original" }],
       targets: [{ source_deletion_id: "project-deletion-aaaa", target_deletion_id: "project-deletion-bbbb" }], disposal: { primary_target: "project-deletion-bbbb", dependent_targets: [] } }],
@@ -88,6 +92,59 @@ test("MEM-40-PARENT-02: parent body or at changes conflict even while adoption s
     const before = f.state(); assert.throws(() => owner.complete({ expected: original, profiles: f.profiles }), denied);
     assert.deepEqual(f.state(), before); await owner.close();
   }
+});
+
+test("MEM-40-FRAME-03: the original parent owner starts adoption before accepting its immutable choice", async t => {
+  const f = fixture(t, false), owner = f.owner(), expected = owner.read(), before = f.state();
+  assert.throws(() => owner.begin({ expected, decision: decision() }), denied);
+  assert.deepEqual(f.state(), before);
+  const adopted = owner.adopt(expected);
+  assert.deepEqual(adopted.before, expected); assert.equal(adopted.after.parent, null);
+  assert.deepEqual(adopted.after.snapshot.adoptions[0]!.body, { origin: "adopting", original_origin: "existing-home", retained: "keep" });
+  assert.deepEqual(owner.read(), adopted.after); assert.deepEqual(f.state().originals, before.originals);
+  assert.throws(() => owner.adopt(expected), denied);
+  const pending = owner.begin({ expected: adopted.after, decision: decision() }).after;
+  assert.throws(() => owner.adopt(pending), denied);
+  const published = owner.complete({ expected: pending, profiles: f.profiles }).after;
+  const done = f.state(); assert.throws(() => owner.adopt(published), denied); assert.deepEqual(f.state(), done);
+  await owner.close();
+});
+
+test("MEM-40-FRAME-05: body-free business selections reopen unchanged; missing, substituted and expanded identities refuse before acceptance", async t => {
+  const f = fixture(t), owner = f.owner(), expected = owner.read(), d = decision(), item = d.sessions[0]!;
+  const coding = item.business.selection;
+  const bad: unknown[] = [undefined, { kind: "none" }, { kind: "coding", selection: coding, text: "not an identity" },
+    { kind: "coding", selection: { ...coding, session: { ...item.session, session_id: "another" } } },
+    { kind: "coding", selection: { ...coding, owner: { ...item.owner, actor_id: "another" } } },
+    { kind: "coding", selection: { ...coding, installation_generation: "" } },
+    { kind: "coding", selection: { ...coding, sessions: [{ session_id: "original", created_at: "before", keys: ["same", "same"] }] } },
+    { kind: "coding", selection: { ...coding, waits: [{ wait_id: "wait", keys: [], note: "not an identity" }] } },
+  ];
+  const before = f.state();
+  for (const business of bad) assert.throws(() => owner.begin({ expected, decision: {
+    ...d, sessions: [{ ...item, business }],
+  } as Omit<MemoryHomeRecoveryDecision, "phase"> }), denied);
+  assert.deepEqual(f.state(), before);
+  const chosen = owner.begin({ expected, decision: d }).after; await owner.close();
+  const reopened = f.owner(); assert.deepEqual(reopened.read(), chosen); await reopened.close();
+
+  const a = fixture(t), assistant = a.owner(), identity = { module: "assistant", id: "work", version: null,
+    project_id: "project", object_type: "work", scope: { kind: "personal", id: "assistant" } } as const;
+  const edge = { key: "original-edge", revision: 1, type: "assistant.result", source: identity,
+    target: { ...identity, module: "plugins", id: "document", object_type: "pages_document" } as const };
+  const selection = { session: item.session, owner: item.owner,
+    works: [{ work_id: "work", actor_id: "person", project_id: "project", revision: 2, created_at: "before", relations: [edge] }] };
+  const choice: Omit<MemoryHomeRecoveryDecision, "phase"> = { ...d, sessions: [{ ...item, business: { kind: "assistant", selection } }] };
+  const first = assistant.read(), untouched = a.state();
+  for (const relation of [{ ...edge, cause: "private text" }, { ...edge, source: { ...identity, id: "neighbor" } },
+    { ...edge, target: { ...edge.target, scope: { kind: "unknown", id: "assistant" } } }]) {
+    assert.throws(() => assistant.begin({ expected: first, decision: { ...choice, sessions: [{ ...item,
+      business: { kind: "assistant", selection: { ...selection, works: [{ ...selection.works[0], relations: [relation] }] } } }],
+    } as Omit<MemoryHomeRecoveryDecision, "phase"> }), denied);
+  }
+  assert.deepEqual(a.state(), untouched);
+  const kept = assistant.begin({ expected: first, decision: choice }).after; await assistant.close();
+  const again = a.owner(); assert.deepEqual(again.read(), kept); await again.close();
 });
 
 test("MEM-40-PARENT-01: original cleanup projection preserves its real global actor without inventing a person", async t => {
@@ -238,6 +295,22 @@ function interruptClose(t: TestContext, path: string, at: number, failures = 1) 
   return { error, get connection() { assert.ok(connection); return connection; }, get attempts() { return attempts; } };
 }
 
+test("MEM-40-FRAME-03: adoption COMMIT plus close failure keeps the real connection and never posts or replays", async t => {
+  const f = fixture(t, false); let calls = 0;
+  const owner = f.owner(() => { calls++; }), expected = owner.read(), fault = interruptClose(t, f.path, 2, 2);
+  let post: unknown;
+  assert.throws(() => { post = owner.adopt(expected); }, AggregateError);
+  assert.equal(post, undefined); assert.equal(fault.connection.isOpen, true);
+  const committed = f.state(), checked = calls;
+  assert.equal(JSON.parse(String(committed.markers.find(row => row.key === "strategy-adoption")!.body)).origin, "adopting");
+  assert.equal(committed.markers.some(row => row.key === key()), false);
+  assert.throws(() => owner.read(), denied); assert.throws(() => owner.adopt(expected), denied);
+  await assert.rejects(owner.close(), AggregateError); assert.equal(fault.connection.isOpen, true);
+  await owner.close(); assert.equal(fault.connection.isOpen, false); assert.equal(fault.attempts, 3);
+  assert.equal(calls, checked); assert.deepEqual(f.state(), committed);
+  const reopened = f.owner(); assert.equal(reopened.read().parent, null); await reopened.close();
+});
+
 test("MEM-40-PARENT-04: published COMMIT survives close failure; facade closes the same connection without replay or post", async t => {
   const f = fixture(t); let calls = 0, revoked = false;
   const owner = f.owner(() => { calls++; if (revoked) throw new Error("revoked after COMMIT"); });
@@ -270,4 +343,27 @@ test("MEM-40-PARENT-04: nested current initialization failure retains its origin
   await assert.rejects(owner.close(), AggregateError); assert.equal(fault.connection.isOpen, true);
   await owner.close(); assert.equal(fault.connection.isOpen, false); assert.equal(calls, 1); assert.equal(fault.attempts, 3);
   assert.equal(f.state().markers.some(row => row.key === key()), false);
+});
+
+test("MEM-40-PARENT-06: only the original personal Assistant identity links to its personal actor scope", async t => {
+  const f = fixture(t), parent = f.owner(), expected = parent.read(), d = decision(), original = d.sessions[0]!;
+  const session = { session_id: original.session.session_id, runtime_id: "prologue" };
+  const owner = { project_id: "home", plugin_id: "io.molis.work.assistant", install_id: "system", actor_id: "person" };
+  const personal = { ...original, session, owner,
+    source: { ...original.source, preview: { ...original.source.preview, session } },
+    target: { ...original.target, preview: { ...original.target.preview, session } },
+    business: { kind: "assistant" as const, selection: { session, owner, works: [] } } };
+  const base = { ...d, known_scopes: [{ scope: "personal" as const, owner: "person" }], memories: [], barriers: [], project_groups: [] };
+  const before = f.state();
+  for (const patch of [{ plugin_id: "another" }, { install_id: "another" }, { actor_id: "another" }]) {
+    const changed = { ...owner, ...patch };
+    assert.throws(() => parent.begin({ expected, decision: { ...base, sessions: [{ ...personal, owner: changed,
+      business: { kind: "assistant", selection: { ...personal.business.selection, owner: changed } } }] } }), denied);
+  }
+  assert.throws(() => parent.begin({ expected, decision: { ...base, sessions: [{ ...personal,
+    business: { kind: "coding", selection: { session, owner, installation_generation: "old", sessions: [], waits: [] } } }] } }), denied);
+  assert.deepEqual(f.state(), before);
+  const saved = parent.begin({ expected, decision: { ...base, sessions: [personal] } }).after;
+  assert.deepEqual(saved.parent!.body.sessions[0], personal); await parent.close();
+  const reopened = f.owner(); assert.deepEqual(reopened.read(), saved); await reopened.close();
 });

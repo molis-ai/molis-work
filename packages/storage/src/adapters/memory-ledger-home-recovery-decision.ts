@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { MemoryHomeRecoveryDecision, MemoryHomeRecoveryMemory, MemoryHomeRecoverySession,
   MemoryLedgerRecoveryIdentity } from "@molis-ai/molis-work-contracts/services/memory";
 import type { ProjectDeletionRecoveryGroup } from "@molis-ai/molis-work-contracts/modules/projects";
+import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 
 type Body = Record<string, unknown>;
 export interface MemoryHomeRecoveryRecord { readonly at: string; readonly body: MemoryHomeRecoveryDecision }
@@ -33,7 +34,7 @@ function preview(value: unknown, state: boolean) {
   return item;
 }
 function session(value: unknown): MemoryHomeRecoverySession {
-  const item = body(value, ["session", "owner", "source", "target"]), ref = sessionRef(item.session);
+  const item = body(value, ["session", "owner", "source", "target", "business"]), ref = sessionRef(item.session);
   const owner = body(item.owner, ["project_id", "plugin_id", "install_id", "actor_id"]);
   for (const key of ["project_id", "plugin_id", "install_id", "actor_id"]) text(owner[key]);
   const source = body(item.source, ["preview", "phase", "version"]), original = preview(source.preview, false);
@@ -44,7 +45,58 @@ function session(value: unknown): MemoryHomeRecoverySession {
   text(decision.operation_id); number(decision.expected_version);
   if (!isDeepStrictEqual(ref, original.session) || !isDeepStrictEqual(ref, shown.session)
     || decision.expected_version !== shown.version || decision.expected_state !== shown.state) homeRecoveryConflict();
+  business(item.business, ref, owner);
   return value as MemoryHomeRecoverySession;
+}
+
+function objectRef(value: unknown): Body {
+  const ref = body(value, ["module", "id", "version", "revision", "scope", "project_id", "object_type"]);
+  if (!["goals", "artifacts", "feed", "private-work-context", "projects", "assistant", "plugins", "agent-host"].includes(text(ref.module))) homeRecoveryConflict();
+  text(ref.id); if (ref.version !== null) number(ref.version);
+  if (ref.module === "artifacts" && ref.version === null) homeRecoveryConflict();
+  if ("revision" in ref) text(ref.revision);
+  if ("project_id" in ref && ref.project_id !== null) text(ref.project_id);
+  if ("object_type" in ref) text(ref.object_type);
+  const scope = body(ref.scope, ["kind", "id"]);
+  if (scope.kind !== "personal" && scope.kind !== "team_project") homeRecoveryConflict();
+  text(scope.id); return ref;
+}
+
+/** Only persisted shape and parent linkage; each business owner still checks its own current records and permissions. */
+function business(value: unknown, ref: ReturnType<typeof sessionRef>, owner: Body): void {
+  const item = body(value, ["kind", "selection"]);
+  if (item.kind !== "coding" && item.kind !== "assistant") homeRecoveryConflict();
+  const selection = body(item.selection, ["session", "owner", ...(item.kind === "coding" ? ["installation_generation", "sessions", "waits"] : ["works"])]);
+  if (!isDeepStrictEqual(selection.session, ref) || !isDeepStrictEqual(selection.owner, owner)) homeRecoveryConflict();
+  if (item.kind === "coding") {
+    text(selection.installation_generation);
+    const keys: string[] = [];
+    for (const [name, id] of [["sessions", "session_id"], ["waits", "wait_id"]] as const) {
+      const ids = list(selection[name]).map(raw => {
+        const entry = body(raw, [id, "keys", ...(name === "sessions" ? ["created_at"] : [])]);
+        if (name === "sessions") text(entry.created_at);
+        keys.push(...list(entry.keys).map(text)); return text(entry[id]);
+      });
+      unique(ids);
+    }
+    unique(keys); return;
+  }
+  const relations: string[] = [];
+  const works = list(selection.works).map(raw => {
+    const work = body(raw, ["work_id", "actor_id", "project_id", "revision", "created_at", "relations"]);
+    text(work.work_id); text(work.actor_id); text(work.created_at); number(work.revision);
+    if (work.actor_id !== owner.actor_id) homeRecoveryConflict();
+    if (work.project_id !== null) text(work.project_id);
+    for (const raw of list(work.relations)) {
+      const edge = body(raw, ["key", "revision", "type", "source", "target"]);
+      text(edge.key); number(edge.revision); text(edge.type);
+      const source = objectRef(edge.source); objectRef(edge.target);
+      if (source.module !== "assistant" || source.id !== work.work_id || (source.project_id ?? null) !== work.project_id) homeRecoveryConflict();
+      relations.push(JSON.stringify([edge.key, edge.revision]));
+    }
+    return text(work.work_id);
+  });
+  unique(works); unique(relations);
 }
 function memory(value: unknown, sessions: readonly MemoryHomeRecoverySession[]): MemoryHomeRecoveryMemory {
   const item = body(value, ["identity", "source", "target"]), where = identity(item.identity);
@@ -107,7 +159,12 @@ export function decodeMemoryHomeRecoveryDecision(value: unknown, operationId: st
   const known = new Set(scopes.map(scopeKey));
   const requireScope = (where: MemoryLedgerRecoveryIdentity) => { if (!known.has(scopeKey(where))) homeRecoveryConflict(); };
   for (const entry of memories) requireScope(entry.identity);
-  for (const entry of sessions) requireScope({ scope: "project", owner: entry.owner.project_id });
+  for (const entry of sessions) {
+    const personalAssistant = entry.business.kind === "assistant" && entry.owner.project_id === ASSISTANT_PERSONAL_OWNER;
+    if (personalAssistant && (entry.session.runtime_id !== "prologue" || entry.owner.plugin_id !== ASSISTANT_PLUGIN_ID
+      || entry.owner.install_id !== ASSISTANT_INSTALL_ID)) homeRecoveryConflict();
+    requireScope(personalAssistant ? { scope: "personal", owner: entry.owner.actor_id } : { scope: "project", owner: entry.owner.project_id });
+  }
   for (const entry of groups) requireScope({ scope: "project", owner: entry.project_id });
   const barriers = list(item.barriers).map(raw => {
     const barrier = body(raw, ["actor_id", "identity", "sources"]), actor = text(barrier.actor_id), where = identity(barrier.identity);

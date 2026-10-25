@@ -5,7 +5,7 @@ import type { MemoryHomeRecoveryDecision } from "@molis-ai/molis-work-contracts/
 import { homeSqlitePath, openReadOnlyHomeSqlite } from "../home-sqlite.js";
 import { inspectExistingSqlitePath } from "../storage-maintenance-path.js";
 import { MEMORY_LEDGER_STORE } from "./memory-ledger.js";
-import { changeMemoryLedgerAdoption, completeMemoryLedgerAdoptionInTransaction, memoryLedgerAdoptionSnapshot,
+import { beginMemoryLedgerAdoptionInTransaction, changeMemoryLedgerAdoption, completeMemoryLedgerAdoptionInTransaction, memoryLedgerAdoptionSnapshot,
   type MemoryLedgerAdoptionProfile, type MemoryLedgerAdoptionSnapshot } from "./memory-ledger-adoption.js";
 import { memoryLedgerCloseFailures, withMemoryLedgerDatabase, type MemoryLedgerCloseFailure } from "./memory-ledger-close.js";
 import { decodeMemoryHomeRecoveryDecision, homeRecoveryConflict as conflict, homeRecoveryKey, memoryHomeRecoveryRecords,
@@ -18,6 +18,7 @@ export interface MemoryLedgerHomeRecoveryExpected {
 export interface MemoryLedgerHomeRecoveryChange { readonly before: MemoryLedgerHomeRecoveryExpected; readonly after: MemoryLedgerHomeRecoveryExpected }
 export interface MemoryLedgerHomeRecovery {
   read(): MemoryLedgerHomeRecoveryExpected;
+  adopt(expected: MemoryLedgerHomeRecoveryExpected): MemoryLedgerHomeRecoveryChange;
   begin(input: { readonly expected: MemoryLedgerHomeRecoveryExpected; readonly decision: Omit<MemoryHomeRecoveryDecision, "phase"> }): MemoryLedgerHomeRecoveryChange;
   complete(input: { readonly expected: MemoryLedgerHomeRecoveryExpected; readonly profiles: readonly MemoryLedgerAdoptionProfile[] }): MemoryLedgerHomeRecoveryChange;
   close(): Promise<void>;
@@ -53,13 +54,13 @@ export function createMemoryLedgerHomeRecovery(input: {
     snapshot: memoryLedgerAdoptionSnapshot(db, path),
     parent: memoryHomeRecoveryRecords(db).find(parent => parent.body.operation_id === id) ?? null,
   });
-  const change = (expected: MemoryLedgerHomeRecoveryExpected, work: (db: DatabaseSync) => void): MemoryLedgerHomeRecoveryChange => {
+  const change = (expected: MemoryLedgerHomeRecoveryExpected, work: (db: DatabaseSync) => void, requireAdopting = true): MemoryLedgerHomeRecoveryChange => {
     current();
     return changeMemoryLedgerAdoption({ homeDirectory, snapshot: expected.snapshot }, db => {
       const before = observe(db);
       if (!isDeepStrictEqual(before, expected)) conflict();
-      if (!before.snapshot.adoptions.length || before.snapshot.adoptions.some(mark => !mark.body || typeof mark.body !== "object"
-        || !("origin" in mark.body) || mark.body.origin !== "adopting")) conflict();
+      if (requireAdopting && (!before.snapshot.adoptions.length || before.snapshot.adoptions.some(mark => !mark.body || typeof mark.body !== "object"
+        || !("origin" in mark.body) || mark.body.origin !== "adopting"))) conflict();
       if (memoryHomeRecoveryRecords(db).some(parent => parent.body.operation_id !== id && parent.body.phase === "pending")) conflict();
       current(); work(db); current();
       return { before, after: observe(db) };
@@ -71,6 +72,11 @@ export function createMemoryLedgerHomeRecovery(input: {
       return withMemoryLedgerDatabase(openReadOnlyHomeSqlite(homeDirectory, MEMORY_LEDGER_STORE), db => {
         current(); db.exec("BEGIN"); const result = observe(db); current(); return result;
       });
+    }),
+    adopt: expected => run(() => {
+      const fixed = structuredClone(expected);
+      if (fixed.parent !== null) return conflict();
+      return change(fixed, db => beginMemoryLedgerAdoptionInTransaction(db, fixed.snapshot), false);
     }),
     begin: request => run(() => {
       const fixed = structuredClone(request);

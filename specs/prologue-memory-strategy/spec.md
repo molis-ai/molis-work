@@ -2975,7 +2975,7 @@ writer 输入增加 projectSessionPurges: readonly ProjectSessionDeletionPlan[]�
 本刀以 `3da5b4dc64c2fa5e0c0f683e0967b55122b95d89`（聚合1c95224e2加已确认d86）为基，只实现原Ledger中的恢复父决定和最终采用发布，不接LocalHost外层producer，不代表完整MEM-40。沿原memory_markers、adoption事务和实际连接close能力；纯envelope放现contracts/services/memory-recovery，Memory解释仍在原主人。必要新持久解码由Storage单一decoder负责，原读取投影复用它，不复制Catalog计划或SDK行解码。
 
 - **MEM-40-PARENT-01**：唯一global `memory-operation:<operation_id>:home-recovery` 固定最小已解释source依据、target Memory present-purge/already-cleared元组、独立Session原DTO、事件屏障、known_scopes与一次完整ProjectDeletionRecoveryGroup；不存全Home事实数组、Catalog plans/steps/completion、逐项状态或审计冗余。只允许pending→committed，已有原父不能重预览扩选。
-- **MEM-40-PARENT-02**：公开facade仅read/begin/complete/close，固定绝对目标与operation；existing-only、原路径/current同步检查。read同只读BEGIN返回adoption snapshot及parent(at/body)。begin/complete同原BEGIN IMMEDIATE同时比较两份expected；snapshot相同而父改变仍冲突。命令先clone，再进入任何外部current回调；完整groups一次begin，不提供recordGroup、bypass或SQL回调。
+- **MEM-40-PARENT-02**：公开facade提供read/adopt/begin/complete/close，固定绝对目标与operation；existing-only、原路径/current同步检查。read同只读BEGIN返回adoption snapshot及parent(at/body)。adopt/begin/complete同原BEGIN IMMEDIATE同时比较两份expected；snapshot相同而父改变仍冲突。adopt复用原采用阻断，只有父缺席时可建立阻断，并由同facade保有真实关闭失败资源；不另开不受管的初始化写口。命令先clone，再进入任何外部current回调；完整groups一次begin，不提供recordGroup、bypass或SQL回调。
 - **MEM-40-PARENT-03**：begin只在已有adopting、原父缺席且无外来pending/坏父时写入。普通completeMemoryLedgerAdoption拒任何pending或损坏父；恢复complete同事务将精确原父改committed后复用私有原adoption发布，含全部profiles身份/完整prefs、origin恢复与version4。真实COMMIT失败全部回滚；只有COMMIT及本次关闭成功返回before/after。
 - **MEM-40-PARENT-04**：复用b55真实close能力；facade捕获自身或current嵌套初始化失败中的实际能力，封住后续业务，显式close只重试原句柄，不current/SQL/重开/重放/补post。COMMIT后close失败原调用仍失败、持久发布仍是真的；关闭成功不冒充业务成功。父Home owner保持及最终同operation只读对账由上层负责。
 - **MEM-40-PARENT-05**：父header/target在旧通用memory-operation分支之前由同decoder识别，有界无正文投影；既有plan-target/Project版本要求不放宽。原Memory interpreter只将来源含义解释为inspect-target/event-barrier，不授SDK grant。already-cleared不伪造版本、不能升为SDK写；原件全表验证可能读取后继行，但不能从后继重新选目标或删除。
@@ -3091,6 +3091,32 @@ withWriter({memoryPurges,sessionPlan},work) 属外层真实 SDK 装配，仅 Cat
 
 推送前全分支secrets通过。随后本次fetch已确认main更新为 `4f4e59a33`（batch37，734文件变化，含AgentHost/插件登记/项目清理）；上文544合成证据仍只属于544，本轮257项属于070基础的22a聚合，不能宣称已整合4f。先提交当前已验成果，基础与应用按依赖顺序继续处理新main交集；不改门禁或把未整合记为通过。
 
+### MEM-40 LocalHost 恢复资源与最终发布接线（2026-10-26，尚未完成）
+
+沿已冻结父决定合同，LocalHost 内部恢复帧只组合现 Home storage owner、Catalog observation、Storage parent 和各主人真实资源；没有新的锁、registry、删除核或持久状态。当前必须保护的是同一 Home 的独占生命周期、当前 Catalog 与 Ledger/父决定双 expected，以及关闭失败后的原连接；采用既有 Home lifetime/resource 方法，不另造资源框架。所有 SDK writer 串行借用这一个父 owner，独立只读检查不冒充 writer。最终公开恢复入口仍需接全来源和各业务主人，本段内部接线尚无调用方/验收证据，不能宣称已可恢复 Home。
+
+**MEM-40-FRAME-02**：完整 current 读取原 Catalog 的当前已提交投影和 parent.read 的同事务双 expected，比较同一恢复帧记录的事实；Storage/Catalog 只有正常提交返回的 before→after 可推进各自 expected，回调不重读吞掉未知变化。父自身的 current 只读 Catalog/原权限，不递归调用 parent.read。开启停止或关闭后拒绝新业务；同步 current 回调里请求关闭也不得继续写。
+
+**MEM-40-FRAME-03**：原采用阻断先于 SDK 格式写，父选择先于 Catalog 接纳。业务/source/inspection/writer 资源全部由既有 Home resource owner 保有；失败初始化只接纳已知原主人返回的纯 close 能力，不调用任意外部错误对象的同名方法。关闭失败保留实际对象；错误携带只清理资源的 close，明确重试不重放命令或发布。权限撤销不阻碍释放原资源。
+
+**MEM-40-FRAME-04**：所有业务资源及长期 Catalog observer 真正关闭后，parent.complete 才能执行。其末次 current 仍用原 Catalog observation 临时读取当前事实并先关闭，失败则阻断 Ledger 提交并保留实际 reader；不用已关闭 reader 或内存 Catalog 值冒充当前。父 committed 与采用解除在 Storage 原一笔事务发布；Publisher 自身关闭成功后才释放 Home。COMMIT 后 close 失败仍报失败、不交 post；错误的 close 只补原资源，后续用同 operation 新开只读区间核对，不能重放 complete。
+
+**MEM-40-FRAME-05**：独立 Session 的父选择必须带同一 session/owner 的 Coding 或 Assistant 原业务选择，先持久化再清 SDK。Coding 保存原安装代、业务会话身份与精确私有键、原 wait IDs；Assistant 保存自己的 Work 身份与原关系历史身份，不保存正文，不为各业务子表另造 manifest。父持久边界一次校验闭合形状与身份联结，实际可清范围仍由原业务主人验证。无 business、未知种类、额外正文或身份错配均拒绝；不能用 none 推断没有业务数据。工程验证覆盖原选择重开、失败不写父及未知/替换拒绝；该持久边界本身不代替外层原件清除和用户恢复旅程。
+
+**MEM-40-FRAME-06，公开恢复调用顺序（2026-10-26，实施前冻结）。** `recoverMemoryHome` 收明确的 source 工作副本、原绝对路径的 target 工作副本、稳定 operation_id、同步停写/维护授权检查和可选取消信号。两端不得相同、互为祖先或通过链接/硬链接共用持久文件；不替用户停服务，也不操作 T0/T1 原件。沿既有路径主人绑定，source 的 Catalog、Ledger 和 SDK 只读；target 借同一 Home owner，任何 SDK 格式写之前先由父 facade 建立 adopting。采用转换复用原 `profilesForAdoption` / `convert`，不复制旧形状规则。
+
+首次选择依次为：穷尽来源 Catalog、同快照两遍 Ledger 负向观察以及 SDK termination/Index；按原 Catalog 计划或精确 Index owner 联结每一终止 Session，未归属或相矛盾拒绝。target 检查真实对象及版本；Catalog 所拥有的 Session 不进入独立口。独立 Session 在 `prepareSessionPurge` 返回原 target preview 后、任何 `purgeSessionTarget` 之前，用 SDK #107 `inspectSessionWaits({ref,preview})` 从 cursor=undefined 完整穷尽；每页保持同 ref/preview，空的非 exhausted 页仍按原 cursor 继续。把精确 wait IDs 交原业务 owner.prepare，与 Coding/Assistant 原业务选集一同先写入父决定。已经进入 SDK cleaning/complete 的旧 target 若没有原父业务选择，不能用空 wait 页猜原来没有等待：此前部分 purge 已可能移除 wait 的 Session 关系，因此保持 incomplete。Index prepared 而 SDK 仍 present 时可在 purge 前保留全部原等待。已有父决定直接用其原选择验证/续跑，不重新 prepare、枚举 wait 或扩选。 重试仍检查当前 source 的删除意图；新 Memory、事件屏障或独立 Session 不能悄悄加入同一已固定 operation。
+
+Session 绑定 Memory/候选的预览与持久 selection 使用该 Session 的原 `target.decision.operation_id`，不能借整次 Home operation 替换；Home operation 只标识父恢复与对应 Memory 清理项。个人 Assistant 的 `home` 是原个人 namespace，不伪造成 Catalog Project：必须是同一原 Prologue Session、Assistant plugin/install 与业务 kind，owner/selection 全元组联结后使用该 actor 的 personal scope。实际 Work namespace、关系及可清权限仍由原 Assistant owner 验证，不能单凭字符串 home 放行。
+
+所有 Memory、独立 Session 与完整 Catalog groups 一次持久化后，按原主人执行：来源屏障先落账；SDK 原 Memory 与候选、Ledger 原副本；SDK 原 Session 与最小 Index；原 App 业务副本；项目则复用既有 Catalog/冷 Memory/项目业务主人。每一步只接受原主人正常提交的 before→after，不用任意刷新吞掉外来变化。全部原件证明、元数据归属覆盖、实际资源 close 成功之后，才沿 FRAME-04 原子发布。取消、未知、资源关闭失败保持失败及可重试的原资源；用同操作号重开只能对账原决定。
+
+已 committed 的重试仍重新执行原只读 SDK 全归属覆盖证明，不能仅凭旧父与原件已清就返回完成；新增不明 SDK owner 保留并拒绝，既不写新父也不重放发布。目标 Ledger 来源与五表身份读取仍由原 owner 的 SQL/decoder 逐行迭代，不创建全 Home 正文数组或第二扫描器。
+
+本补丁同时采用已合并 SDK #107 的准确源头 `1cc80b05253df798eeb34afff65d1bda06bee587`（merge `ccafbb74fb9db0e3a124ec502c57291677487e23`），AgentHost 只增加原 inspection 的无正文薄透传。SDK wait tombstone 不保存 Session 关系，因此包采用与上述 App 原 ID 计划、调用顺序和公开消费者同批交付，不能单独把换包称为闭环。无新扫描器、删除核、锁、hash、manifest、registry 或每表计划；原件完整性只在现 vendor 产物规则要求处使用摘要。原明确 source/target 停写条件和用户真实验收不由工程测试替代。
+
+允许 LocalHost memory 恢复装配、必要内部采用逻辑复用、原公开入口/README、本 spec 和真实组合回归；不在本帧改变 SDK、Catalog/Memory 删除语义、业务计划或门禁。用户来源及目标必须是明确停写的工作副本，没有默认真实 Home；本任务仅操作隔离数据。后续验收以公开恢复入口、非空 T0/T1/T2 为准，覆盖当前事实变更、源关闭失败、SDK child 释放、Publisher 提交/关闭失败、原请求重开及第二 owner 排他；内部函数编译通过不算完成。
+
 ### MEM-40 独立 Session 冷准备与原件证明（2026-10-26）
 
 独立且已有可信 T1 Index owner/SDK termination 的 Session，首次 target 决定由 AgentHost 原冷 Session 主人准备。只读 inspection 增加 `prepareSessionPurge({source:{session,owner,termination:{preview,phase,version}},operationId,signal?})`；source preview 是原 `AgentSessionPurgePreview` 去掉 state，不把源版本或历史状态当 target CAS。输入在首次 await 前隔离，校验源 exact Session/terminal 关系；target 必须已有同 owner Index。当前 present 取真实 target preview/state，已有 target purge 决定完整保留其 operation/preview/state；未知、相反的未完成决定、absent 或缺 Index 拒绝，不生成空计划或 Index。Catalog 已持有的 Session 沿原项目 receipt/plan，不进入此独立口另派决定；调用方负责已校验的 source/Catalog 分流，不从会话名猜测关联。
@@ -3158,3 +3184,16 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 最终提交补充合同（2026-10-26）：实际复现了最后一次 Memory 覆盖读取结束后，另一正常 Catalog 调用创建项目 B 并通过原 AgentMemory 入口保存记忆，旧实现仍将项目 A 清理记为 complete。B 的正文未被删除，但完成状态用了失效的覆盖结果。沿用原完成事务和 Memory 主人：`ProjectDeletionMemoryProof.verifyMemory()` 成功后返回该次读取的同步有效性检查；最终 Catalog 事务获得写锁后、写入 complete 前执行它。在线主人检查原目标归属与该次读取开始时的已知归属；有变化保留 pending，以原操作号重新核验，不扩大原删除选集。冷恢复和空态主人返回原有的严格检查。不加全局锁、扫描器或持久化状态。最后完整读取前已出现的无内容新项目仍可通过；读取后新增归属不能沿用旧证明。验收包含真实双 Catalog 与 SDK 保存交错、原关系消失、并行空项目创建、pending 原决定重试。
 
 本批工程收口：准确 21db 基础上的原 FIFO 构建通过，原 computeBuildSourceDigest 与构建 manifest 一致；README/安全/受影响并集 503 文件分批验证，初始 475 native 中两文件失败已定位修复，20 browser 与新基础两文件 browser 均通过。最新在线影响复验为 reach 8、memory-plan 12（含两个真实 SDK/归属交错）、memory 3、coverage 4、recovery 18；Session business 27、项目 Assistant purge 4、声明行 14、partition 6 在新装配构建通过。原 native 有 3 项实际跳过（官方 npm/Seatbelt、registry HTTPS、MiniMax live），不记为测试体通过。Root/local-host strict、准确 21db health、boundary/API 通过；新增 owner/memory-plan 额外 strict 通过，原 reach fixture 缺 role.name 与原 recovery fixture 的 tracked unknown 均在对应未改来源同样失败，不改无关夹具。日志 `/private/tmp/application-batch37-*` 保留首红、修后与构建分界；未跑全量、不 push，无付费模型或真实 Home。Coding 资源 pending、冷 Home 父闭环及用户体验仍不属于本刀通过结论。
+
+
+公开装配的责任边界：LocalHost `recoverMemoryHome` 持有恢复区间，Desktop `recoverDesktopMemoryHome` 注入同一真实面板主人。纯请求/结果 DTO 在 Contracts；停止两端写入的活权限由 App 装配传入，不来自 JSON。`project-runtime` 仍保留原步骤和顺序：冷入口从未启动普通 App Runtime，本次 SessionBusinessDatabases 每次操作返回前须真关原连接，冷步骤调用该真实资源持有者的 close；失败保持 pending，父 owner 不释放。Catalog 项目库位置经原 query 与 managedProjectDirectory 校验，不能从 source 绝对路径或字符串猜库。目标当前 Index 和 Assistant Work 项目关联必须均属于原项目计划；额外归属拒绝。
+
+沿用原 MEM-40 的同 Home、同历史、完整 T0/T1、明确停写工作副本前提。这些读取不能证明任意污染目标的所有 raw Session：现冷公开口可枚举 Index/termination、按原 refs 核 canonical，但没有全量活 raw Session/子图枚举；不能把 Index 无额外项称作 raw 全拓扑证明，也不另造扫描器。可信 source 原 Catalog 拓扑覆盖该前提下的 T0 原件。source 独立 Index prepared 而 SDK 仍 present 继续按原“未决决定保留阻断”与“未决状态不能变为空集合”拒绝；这与 target 原 prepared 决定续跑是不同分支。
+
+本片的完成声明限于公开停写维护能力及生产 Desktop adapter 的工程组合验证。普通运行入口没有自动恢复，隔离备份路径通过不代表真实用户 Home 操作、完整 CLI/界面旅程或用户验收。真实维护 CLI 消费接线由同一聚合补丁完成后另外验证，不复制恢复核。
+
+公开 Home 恢复的本轮工程核验（2026-10-26）：原 Node24.14.0/pnpm11.9.0 的第五次 FIFO 构建通过；非空 T0/T1/T2 的 Desktop 真实装配覆盖普通删除、原项目删除、Coding Session/原等待与个人 Assistant Work，原业务失败、实际连接 close 失败、父 COMMIT 后 close 失败、原操作重启，以及 source prepared/缺原等待计划/新来源意图/未知 SDK 归属的拒绝。三个组合反例先真实失败再修正：Session-bound Memory 用错父操作号、个人 Assistant 被要求虚构 Project、committed 重试漏掉全归属复核。修后与原 Ledger 回归 11 文件 101 项通过；按相关 README 合并的 158 文件（含三个浏览器文件）通过，新增个人 Assistant 已单独进入上述定向集合。日志为 `/private/tmp/molis-memory-home-recovery-{fifth-build,fifth-focused,required-node,required-browser}-20261026.log`；原失败日志保留，不借新绿结果掩去。
+
+随后为原 Catalog 最终完成尾窗接入同步证明校验：`ProjectDeletionMemoryProof.verifyMemory()` 返回该次已完成读取的同步 `assertCovered`；原 Managed 最终 Catalog complete 事务内调用。冷 owner 在 cleanup/original 两分支返回同一恢复 frame 的 current，继续严格核整个 Catalog；不扩大已冻结 SDK knownScopes 或原计划。该共享 Port 适配与 selected-source 文本字段的显式类型拒绝已通过源码类型检查，**尚待同批 App+Home+CLI 的最终构建和运行回归**，不得计入 build5 的运行通过范围。最新准确父基 health、包边界、新增测试 strict 通过；直接 lint 的唯一错误是基线 vendor-provenance 测试 helper 原有的 any，未新增或放宽。现有项目恢复测试另有原 invoke 返回 unknown 的 strict 诊断，仍如实保留，不改其断言绕过。
+
+上述均为隔离完整工作副本的工程证据；没有操作真实用户 Home、没有调用外部/付费模型、没有发布或替代 MEM-40 完整维护 CLI/最终产品与用户验收。个人 Assistant fixture 的真实 Service/AgentHost/SDK 只连接本地有界 HTTP 响应，冷恢复本身要求网络/模型调用为零。

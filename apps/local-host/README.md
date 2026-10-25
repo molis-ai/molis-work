@@ -358,6 +358,7 @@ Catalog target 初始化的 readonly 预检和 writer 装配若收尾失败，�
 项目删除的声明式 project_rows 与既有 purge 共用 ProjectDeletionControl 和原 Storage 事务；Assistant 原 Work 清理必须在同一事务清除精确 source 边及其 cause 历史，保留引用目标、别的 Work 和纯数值 assistant_usage。验收走公开项目 purge 的非空、故障与重开路径，不能以独立 Session 清理替代。
 
 
+
 ### 独立 Session 业务原件冷维护（MEM-40）
 
 独立 Session 业务冷 owner 只调 Coding/Assistant 真实主人，父 Home 决定先保存精确纯 DTO 再允许 SDK 与业务写入。不同 canonical 的独立 Work 和 executor 引用不级联；Assistant 仅清自身 canonical 匹配 Work。资源 existing-only，准备只读，写事务先核全部原集合；close失败保留原连接明确重试，父提交等待全部资源成功关闭。
@@ -371,3 +372,7 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 公开 createSessionBusinessPurgeOwner 由既有 project-plugins 装配根绑定 Coding manifest 与 prepare/clear/verify 实现；内部业务资源 owner 只消费这份窄口和现有 DTO，调用者不能提供实现或自造权限，不启动插件。Host 自身固定身份、路径/结构与资源生命周期冲突统一为 host.session_purge_conflict；下层 SDK/业务 owner 抛出的原码与 cause 保留。没有新注册表，也不借项目 project_data 表达 canonical Session 清理。
 
 在线项目删除固定目标 scopes，并要求原 knownScopes 仍全部存在；无关新建空项目不撤销原决定。SDK 全量覆盖检查始终使用原 knownScopes，不追加覆盖授权；新 scope 有实际 SDK 原件、目标归属变化或旧归属缺失仍保持 pending。冷 Home 恢复的整个 Catalog 固定合同不因此放宽。
+
+`recoverMemoryHome({homeDirectory,sourceDirectory,operation_id,assertCurrent,signal?}, platform)` 是显式停写 Home 工作副本的恢复区间，Desktop 的 `recoverDesktopMemoryHome` 注入现面板 owner。请求/结果来自 Contracts；不选默认 Home，不启动普通 Runtime 或模型。source 只读；target 先 adopting，负向观察与真实目标版本、Session 的原 wait IDs/业务选集和全部 Catalog groups 一次写父决定，再调用原清理主人。重试只继续父原选集，新来源意图、额外归属和不明对象拒绝。最后所有实际资源关完，父 committed 与 Ledger4 才同事务发布；COMMIT 后关闭失败仍失败并持 owner，`error.close()` 只关原资源。Catalog 的 `projectDatabase(id)` 通过原查询和受管目录规则提供固定项目库路径，不能猜路径。
+
+同一纯归属合并 `collectMemoryOwnerCoverage` 服务在线与冷读取；`openAssistantMemoryRelations` 的 `read/projectSessions/close` 复用原 Assistant 查询及真实只读连接，关闭失败只重试原句柄。冷 `project-runtime` 步骤关闭本次真实 Session 业务资源，不用无操作函数冒充 Runtime 已收尾。当前可证明范围仍以同历史完整停写备份为前提，不能声称扫描了任意污染目标的全部 raw Session 子图。专项回归：`tests/memory-home-recovery-composition.test.ts`、`tests/memory-home-recovery-project.test.ts`、`tests/memory-home-recovery-session.test.ts`、`tests/memory-home-recovery-assistant.test.ts`、`tests/memory-recovery-owner-coverage.test.ts`；公开维护工程结果与最终产品/用户验收分开记录。

@@ -9,23 +9,23 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "b54429dbf43e8f9f8f4b910999674c192077c247",
+    "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
-      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/106",
-      "head": "281678bc115dfa13178ab9738be4f837fa85fc05",
+      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/107",
+      "head": "1cc80b05253df798eeb34afff65d1bda06bee587",
       "status": "merged",
-      "mergeCommit": "b54429dbf43e8f9f8f4b910999674c192077c247",
-      "note": "Merge tree equals independently reviewed and fully verified candidate."
+      "mergeCommit": "ccafbb74fb9db0e3a124ec502c57291677487e23",
+      "note": "Archive was packed from the clean reviewed head. GitHub compare confirms that its merged commit has no file differences."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1391846,
-    "sha256": "58eec2e9ca12551a7c021ef228c57953154f323b4304ca06483568c87c6d5eaa",
-    "integrity": "sha512-j0+N42LsgBWHUAJ7RumpFFG0KmsRfT9lTOvD9sTq5fWC64PiNL2E6omNxag7ZmkBrk0AptiTkHgO+gIIOUW9KQ=="
+    "bytes": 1397575,
+    "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
+    "integrity": "sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ=="
   },
   "build": {
     "node": "24.14.0",
@@ -33,11 +33,12 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "固定已合 #106 的干净 main b54429db；树等于已验 281678bc，生产/测试最后修改 54bff7db",
-      "Node 24.14.0 / pnpm 11.9.0；原 pnpm quality、准确 0ff107a 棘轮、独审和干净包消费者通过",
-      "packages/sdk 原 pnpm pack；归档全部 810 个 dist 文件与最终质量构建逐字节相同；无 vendor 补丁"
+      "Use clean source 1cc80b05253df798eeb34afff65d1bda06bee587; merged #107 at ccafbb74fb9db0e3a124ec502c57291677487e23 has no file differences.",
+      "pnpm install --frozen-lockfile --offline --store-dir <existing-cache>",
+      "QUALITY_BASE=b54429dbf43e8f9f8f4b910999674c192077c247 pnpm quality",
+      "In packages/sdk: pnpm pack --pack-destination <isolated-directory>; all 816 archived dist files match the original build byte-for-byte, without vendor patches."
     ],
-    "packedOn": "2026-10-25",
-    "note": "原 quality 70文件723项；恢复直接影响面6文件139项；已安装包与独审同句柄清理故障重试通过。历史失败保留；App完整MEM-40与用户验收待完成。"
+    "packedOn": "2026-10-26",
+    "note": "Upstream #107 records final-head quality (71 files, 748 tests) and 24 delivery/App-wait regression tests passing. This adoption verifies the clean source, all 816 dist files, and unchanged archived package.json. Upstream remote quality did not start and is not claimed as CI passing. The same Molis consumer patch must persist original wait IDs before SDK purge; complete App MEM-40 and user acceptance require their own verification."
   }
 }

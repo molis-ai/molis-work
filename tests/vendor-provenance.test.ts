@@ -215,16 +215,28 @@ describe("the records of this repository", () => {
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
     // The merged tree equals the exact quality-checked package source.
-    assert.equal(provenance.source.commit, "b54429dbf43e8f9f8f4b910999674c192077c247");
-    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/106");
-    assert.equal(provenance.source.candidateUpstream.head, "281678bc115dfa13178ab9738be4f837fa85fc05");
+    assert.equal(provenance.source.commit, "1cc80b05253df798eeb34afff65d1bda06bee587");
+    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/107");
+    assert.equal(provenance.source.candidateUpstream.head, "1cc80b05253df798eeb34afff65d1bda06bee587");
     assert.equal(provenance.source.candidateUpstream.status, "merged");
-    assert.equal(provenance.source.candidateUpstream.mergeCommit, "b54429dbf43e8f9f8f4b910999674c192077c247");
+    assert.equal(provenance.source.candidateUpstream.mergeCommit, "ccafbb74fb9db0e3a124ec502c57291677487e23");
     assert.equal(provenance.source.inFlight, undefined);
     // The historical ancestry audit remains pinned to the main commit it actually checked.
     assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
+  });
+
+  test("the replaced SDK 106 archive and its original sidecars remain retrievable from Git", () => {
+    const note: string = json(`${folder}/patch-history.json`).notes.at(-1);
+    const previous = JSON.parse(note.slice(note.indexOf("{")));
+    assert.equal(previous.commit, "b54429dbf43e8f9f8f4b910999674c192077c247");
+    assert.equal(previous.file, current);
+    assert.equal(previous.bytes, 1_391_846);
+    assert.equal(previous.sha256, "58eec2e9ca12551a7c021ef228c57953154f323b4304ca06483568c87c6d5eaa");
+    assert.equal(previous.gitBlob, "bc4823b3b5445753ad279665bd8db20ca436d66c");
+    assert.equal(previous.provenanceGitBlob, "96e4dd60953844e3f07c1ef73e2c1fcdd05ac305");
+    assert.equal(previous.sha256GitBlob, "84d7410f0898a335ea3e58c53f13819bc0c011c1");
   });
 
   test("only the patch the provenance names is left in vendor/prologue-sdk", () => {

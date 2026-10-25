@@ -85,9 +85,9 @@ MEM-40-SELECTED-07：SDK canonical inspection 的 cleared 结果没有版本；s
 
 ## 恢复父决定
 
-MEM-40 恢复父决定沿原 Ledger marker 持久化，一次冻结来源含义、目标元组、事件屏障及完整 Catalog groups；不存 Catalog 计划/步骤/完成。`createMemoryLedgerHomeRecovery` 只提供 read/begin/complete/close，沿原 existing-only adoption 事务同时核 snapshot 与原 parent(at/body)，不以 snapshot 代替父比较。普通采用完成拒 pending/坏父；恢复完成同事务改父 committed 并沿原采用发布。COMMIT 后关闭失败仍报原失败、不补 post；facade 留住自身及嵌套初始化错误中的真实 close 能力、封住业务，显式 close 不重新授权/开库/执行。纯 DTO 位于 contracts，Storage 同一父 decoder 供原 recovery 投影复用，Memory 原解释只返回 inspect-target，绝不因父 phase 或 cleared 字符串授权 SDK 写。原件全表证明可读取后继，但不从后继重新选择或删除。本刀无 LocalHost producer、新表/锁/registry；短合同及验收见 Memory spec 的 MEM-40-PARENT-01..06。
+MEM-40 恢复父决定沿原 Ledger marker 持久化，一次冻结来源含义、目标元组、原 Session 业务选择、事件屏障及完整 Catalog groups；不存 Catalog 计划/步骤/完成。`createMemoryLedgerHomeRecovery` 提供 read/adopt/begin/complete/close，沿原 existing-only adoption 事务同时核 snapshot 与原 parent(at/body)，不以 snapshot 代替父比较。adopt 只在原父缺席时复用原采用阻断，初始化的关闭失败也由该 facade 保有。普通采用完成拒 pending/坏父；恢复完成同事务改父 committed 并沿原采用发布。COMMIT 后关闭失败仍报原失败、不补 post；facade 留住自身及嵌套初始化错误中的真实 close 能力、封住业务，显式 close 不重新授权/开库/执行。纯 DTO 位于 contracts，Storage 同一父 decoder 供原 recovery 投影复用，Memory 原解释只返回 inspect-target，绝不因父 phase 或 cleared 字符串授权 SDK 写。原件全表证明可读取后继，但不从后继重新选择或删除。LocalHost 的显式停写恢复生产者复用该 facade；无新表/锁/registry。个人 Assistant 只按原 kind/plugin/install/Session/actor 联结其个人 scope，不伪造项目。短合同及验收见 Memory spec 的 MEM-40-PARENT-01..06、MEM-40-FRAME-05..06。
 
-直接回归 `tests/memory-home-recovery.test.ts` 的12项使用公开入口、真实SQLite与实际连接关闭故障，覆盖双expected、原父重开、输入冻结、当前权限、真实COMMIT拒绝/回滚、COMMIT后close失败及nested初始化资源；只验证Storage父片，不代替外层原件清除或完整Home发布验收。原三包README和相关调用方定向结果见同spec。
+直接回归 `tests/memory-home-recovery.test.ts` 使用公开入口、真实SQLite与实际连接关闭故障，覆盖双expected、原父重开、输入冻结、当前权限、真实COMMIT拒绝/回滚、COMMIT后close失败及nested初始化资源；只验证Storage父片，不代替外层原件清除或完整Home发布验收。原三包README和相关调用方定向结果见同spec。
 
 ## 离线搜索目标清理
 
@@ -148,3 +148,5 @@ MEM-40 恢复父决定沿原 Ledger marker 持久化，一次冻结来源含义�
 ### 独立 Session 冷维护连接
 
 `openExistingSqliteConnection(filename, {readonly})` 只打开已存在的 BetterSqlite 文件，缺库拒绝；不配置 PRAGMA、不建表、不迁移。调用者拿到句柄立即纳入原资源的 close 集合，再校验 schema、设置所需 foreign_keys、拿写锁并复核 current。初始化校验或 PRAGMA 失败与 close 失败须同时可见；关闭失败只明确重试同一连接，不重开库、不重放业务。普通 `LocalSqliteStorage` 行为不变。
+
+冷恢复的 `inspectMemoryLedgerSelectedSources` 只接受原 Memory ref/identity，由原 adoption cleanup 的来源查询返回保留的事件身份；不开通用 Ledger，不复制候选来源规则。它在同一只读事务核现行采用 schema、表身份与物理路径，首回调前固定入参，返回前再核 current；初始化和关闭失败沿原资源 close 能力保留。外层在父决定中保存这些来源，再交既有 selected retention 做原屏障/原件清理。

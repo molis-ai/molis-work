@@ -53,7 +53,7 @@ export interface MemoryHomeAdoptionResult {
 }
 
 /** Only explicit offline adoption fills the known prior shapes; all stored choices and current restrictions survive. */
-function profilesForAdoption(snapshot: MemoryLedgerAdoptionSnapshot): MemoryLedgerAdoptionProfile[] {
+export function profilesForAdoption(snapshot: MemoryLedgerAdoptionSnapshot): MemoryLedgerAdoptionProfile[] {
   const profiles = snapshot.profiles.map(profile => {
     const value = profile.prefs;
     if (!value || typeof value !== "object" || Array.isArray(value)) throw memoryErrors.invalid("旧记忆设置不完整，不能推断缺失的开关");
@@ -99,7 +99,7 @@ function nextCursor(page: { exhausted: boolean; cursor?: string }, previous: str
   return page.cursor;
 }
 
-async function convert(bridge: MemoryHomeAdoptionBridge, scopes: readonly MemoryHomeAdoptionScope[], result: MemoryHomeAdoptionResult, signal?: AbortSignal) {
+export async function convert(bridge: MemoryHomeAdoptionBridge, scopes: readonly MemoryHomeAdoptionScope[], result: MemoryHomeAdoptionResult, signal?: AbortSignal) {
   for (const scope of scopes) for (const kind of ["memory", "memory-candidate"] as const) {
     let cursor: string | undefined;
     do {

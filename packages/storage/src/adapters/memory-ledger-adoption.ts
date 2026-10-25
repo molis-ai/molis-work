@@ -100,14 +100,19 @@ function originalOrigin(body: Record<string, unknown>): "new-home" | "existing-h
 /** Blocks normal startup before SDK conversion; a failed conversion intentionally leaves this state in place. */
 export function beginMemoryLedgerAdoption(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot; assertCurrent?: () => void }): MemoryLedgerAdoptionSnapshot {
   return changeMemoryLedgerAdoption(input, db => {
-    if (!input.snapshot.adoptions.length) conflict("旧记忆账本没有采用记录");
-    for (const marker of input.snapshot.adoptions) {
-      const body = adoptionBody(marker.body);
-      db.prepare("UPDATE memory_markers SET body=? WHERE actor_id=? AND key='strategy-adoption'")
-        .run(JSON.stringify({ ...body, origin: "adopting", original_origin: originalOrigin(body) }), marker.actor_id);
-    }
+    beginMemoryLedgerAdoptionInTransaction(db, input.snapshot);
     return memoryLedgerAdoptionSnapshot(db, homeSqlitePath(input.homeDirectory, MEMORY_LEDGER_STORE));
   }, input.assertCurrent);
+}
+
+/** The same adoption barrier, inside the recovery owner's original transaction and resource lifetime. */
+export function beginMemoryLedgerAdoptionInTransaction(db: DatabaseSync, snapshot: MemoryLedgerAdoptionSnapshot): void {
+  if (!snapshot.adoptions.length) conflict("旧记忆账本没有采用记录");
+  for (const marker of snapshot.adoptions) {
+    const body = adoptionBody(marker.body);
+    db.prepare("UPDATE memory_markers SET body=? WHERE actor_id=? AND key='strategy-adoption'")
+      .run(JSON.stringify({ ...body, origin: "adopting", original_origin: originalOrigin(body) }), marker.actor_id);
+  }
 }
 
 /** The Host validates/maps full profiles; this owner atomically checks the old snapshot and publishes ledger 4. */

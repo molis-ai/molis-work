@@ -284,6 +284,18 @@ export interface MemoryHomeRecoveryMemory {
     });
 }
 
+export interface MemoryHomeRecoveryRequest {
+    readonly homeDirectory: string;
+    readonly sourceDirectory: string;
+    readonly operation_id: string;
+}
+
+export interface MemoryHomeRecoveryResult {
+    readonly outcome: "completed";
+    readonly operation_id: string;
+    readonly replayed: boolean;
+}
+
 export interface MemoryHomeRecoverySession {
     readonly session: AgentSessionRef;
     readonly owner: AgentSessionOwner;
@@ -295,6 +307,13 @@ export interface MemoryHomeRecoverySession {
     readonly target: {
         readonly decision: AgentSessionDecision;
         readonly preview: AgentSessionPurgePreview;
+    };
+    readonly business: {
+        readonly kind: "coding";
+        readonly selection: CodingSessionPurgeSelection;
+    } | {
+        readonly kind: "assistant";
+        readonly selection: AssistantSessionPurgeSelection;
     };
 }
 

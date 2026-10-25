@@ -1,4 +1,5 @@
 import { MolisWorkProjectCatalog, openProjectDeletionRecoveryTarget, type ProjectDeletionRecoveryTargetInput,
+  recoverMemoryHome, type MemoryHomeRecoveryInput,
   type MolisWorkProjectCatalogOptions } from "@molis-ai/molis-work-app-local-host";
 import { DesktopPanelService } from "./panels.js";
 import { createDesktopPanelTables, SqliteDesktopPanelRepository } from "./adapters/sqlite-panels.js";
@@ -18,6 +19,13 @@ export async function withMolisWorkProjectCatalog<T>(options: MolisWorkProjectCa
 /** Offline recovery uses the same panel owner without opening normal Catalog/Runtime services. */
 export function openDesktopProjectDeletionRecoveryTarget(input: ProjectDeletionRecoveryTargetInput) {
   return openProjectDeletionRecoveryTarget(input, {
+    createPanels: (db, ports) => new DesktopPanelService({ ...ports, repository: new SqliteDesktopPanelRepository(db) }),
+  });
+}
+
+/** Explicit offline Home recovery with the production desktop panel owner. */
+export function recoverDesktopMemoryHome(input: MemoryHomeRecoveryInput) {
+  return recoverMemoryHome(input, {
     createPanels: (db, ports) => new DesktopPanelService({ ...ports, repository: new SqliteDesktopPanelRepository(db) }),
   });
 }

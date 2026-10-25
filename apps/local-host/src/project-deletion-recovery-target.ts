@@ -18,6 +18,7 @@ import { homeProjectOwners, SEARCH_OWNER } from "./project-deleted-owners.js";
 import { decodeProjectDeletionRecovery } from "./project-deletion-recovery.js";
 import type { ProjectDeletionRecoveryInspection, ProjectDeletionRecoverySource } from "./project-deletion-recovery-inspection.js";
 import { reconcileProjectDeletionHistory, type ProjectDeletionRecoveryGroup } from "./project-deletion-recovery-history.js";
+import { managedProjectDirectory } from "./project-file-paths.js";
 
 export type { ProjectDeletionRecoveryGroup, ProjectDeletionSourceRequest } from "./project-deletion-recovery-history.js";
 export interface ProjectDeletionCatalogSnapshot {
@@ -83,8 +84,8 @@ function snapshot(storage: LocalSqliteStorage): ProjectDeletionCatalogSnapshot {
 /** The outer frame compares this fresh committed projection with its expected facts. Control must not recurse into read. */
 export function openProjectDeletionCatalogObservation(input: {
   homeDirectory: string; assertCurrent(): void; signal?: AbortSignal;
-}): { read(): ProjectDeletionCatalogSnapshot; close(): void } {
-  const filename = catalogFile(input.homeDirectory), files = inspectExistingSqlitePath(filename);
+}): { read(): ProjectDeletionCatalogSnapshot; projectDatabase(projectId: string): string; close(): void } {
+  const homeDirectory = input.homeDirectory, filename = catalogFile(homeDirectory), files = inspectExistingSqlitePath(filename);
   const { assertCurrent, signal } = input;
   let closed = false, disposed = false;
   const current = () => {
@@ -103,6 +104,16 @@ export function openProjectDeletionCatalogObservation(input: {
         const value = snapshot(storage);
         current();
         return value;
+      } finally { storage.db.exec("ROLLBACK"); }
+    },
+    projectDatabase(projectId) {
+      current(); storage.db.exec("BEGIN");
+      try {
+        assertOwnedCatalog(storage, "目标 Catalog"); assertCurrentCatalog(storage, "目标 Catalog");
+        const projects = new ProjectsModule({ db: storage.db, plugins: BUILTIN_PLUGIN_REGISTRY });
+        const project = projects.query.getProject(projectId);
+        managedProjectDirectory(path.join(homeDirectory, "projects"), project);
+        current(); return project.database_path;
       } finally { storage.db.exec("ROLLBACK"); }
     },
     close() { closed = true; if (!disposed) { storage.close(); disposed = true; } },

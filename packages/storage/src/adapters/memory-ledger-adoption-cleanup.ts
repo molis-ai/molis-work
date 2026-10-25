@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { DatabaseSync } from "node:sqlite";
-import { openReadOnlyHomeSqlite } from "../home-sqlite.js";
+import { homeSqlitePath, openReadOnlyHomeSqlite } from "../home-sqlite.js";
 import { MEMORY_LEDGER_STORE } from "./memory-ledger.js";
-import { changeMemoryLedgerAdoption, type MemoryLedgerAdoptionSnapshot } from "./memory-ledger-adoption.js";
-import { createMemoryLedgerRetention, dropMemoryLedgerCandidate, suppressMemoryLedgerSources } from "./memory-ledger-retention.js";
+import { assertMemoryLedgerAdoptionSchema, changeMemoryLedgerAdoption, type MemoryLedgerAdoptionSnapshot } from "./memory-ledger-adoption.js";
+import { assertMemoryLedgerRetentionIdentities, createMemoryLedgerRetention, dropMemoryLedgerCandidate, suppressMemoryLedgerSources } from "./memory-ledger-retention.js";
+import { inspectExistingSqlitePath } from "../storage-maintenance-path.js";
+import { withMemoryLedgerDatabase } from "./memory-ledger-close.js";
 
 export interface MemoryLedgerCleanupTarget {
   readonly ref: { readonly kind: "memory"; readonly id: string; readonly revision: number } | { readonly kind: "memory-candidate"; readonly id: string; readonly revision: number };
@@ -58,7 +60,7 @@ export function copyMemoryLedgerCleanupTargets(values: readonly unknown[]): read
 }
 
 /** Ledger projection, not an SDK decoder: only proven source identities leave this owner. */
-function sourcesOf(db: DatabaseSync, target: Omit<MemoryLedgerCleanupTarget, "sources">): MemoryLedgerCleanupTarget["sources"] {
+function sourcesOf(db: DatabaseSync, target: Pick<MemoryLedgerCleanupTarget, "ref" | "identity">): MemoryLedgerCleanupTarget["sources"] {
   const sources = new Map<string, { actor_id: string; event_id: string; version: string }>();
   const scope = target.identity.scope === "user" ? "personal" : target.identity.scope;
   const add = (actor: string, refs: unknown) => {
@@ -71,18 +73,18 @@ function sourcesOf(db: DatabaseSync, target: Omit<MemoryLedgerCleanupTarget, "so
     }
   };
   if (target.ref.kind === "memory") {
-    for (const row of db.prepare("SELECT actor_id, body FROM memory_markers WHERE key=?").all(`memory-source-links:${target.ref.id}`)) {
+    for (const row of db.prepare("SELECT actor_id, body FROM memory_markers WHERE key=?").iterate(`memory-source-links:${target.ref.id}`)) {
       add(String(row.actor_id), object(JSON.parse(String(row.body))).sources);
     }
   }
-  for (const row of db.prepare("SELECT actor_id,body FROM memory_candidates").all()) {
+  for (const row of db.prepare("SELECT actor_id,body FROM memory_candidates").iterate()) {
     const note = object(JSON.parse(String(row.body)));
     if (target.ref.kind === "memory" ? note.memory_id === target.ref.id : note.candidate_id === target.ref.id) {
       if (note.scope !== scope || note.owner !== target.identity.owner) conflict();
       if (note.source_refs !== undefined) add(String(row.actor_id), note.source_refs);
     }
   }
-  for (const row of db.prepare("SELECT actor_id,body FROM memory_markers WHERE key LIKE 'memory-operation:%:promotion-journal'").all()) {
+  for (const row of db.prepare("SELECT actor_id,body FROM memory_markers WHERE key LIKE 'memory-operation:%:promotion-journal'").iterate()) {
     const mark = object(JSON.parse(String(row.body)));
     const candidate = mark.candidate === undefined ? undefined : object(mark.candidate);
     if (mark.kind === "promotion" && mark.scope === scope && mark.owner === target.identity.owner
@@ -95,6 +97,35 @@ export function inspectMemoryLedgerCleanupSources(input: { homeDirectory: string
   const db = openReadOnlyHomeSqlite(input.homeDirectory, MEMORY_LEDGER_STORE);
   try { db.exec("BEGIN"); return input.targets.map(target => ({ ...target, sources: sourcesOf(db, target) })); }
   finally { db.close(); }
+}
+
+/** Exact target sources reuse the same Ledger owner; no synthetic orphan Session or SDK preview is required. */
+export function inspectMemoryLedgerSelectedSources(input: { readonly homeDirectory: string;
+  readonly targets: readonly Pick<MemoryLedgerCleanupTarget, "ref" | "identity">[];
+  readonly assertCurrent: () => void; readonly signal?: AbortSignal }): readonly {
+    readonly ref: MemoryLedgerCleanupTarget["ref"]; readonly identity: MemoryLedgerCleanupTarget["identity"];
+    readonly sources: MemoryLedgerCleanupTarget["sources"];
+  }[] {
+  const { homeDirectory, assertCurrent, signal } = input, targets = structuredClone(input.targets);
+  for (const target of targets) if (!target || Object.keys(target).some(key => key !== "ref" && key !== "identity")
+    || !target.ref || !["memory", "memory-candidate"].includes(target.ref.kind) || typeof target.ref.id !== "string" || !target.ref.id.trim() || target.ref.revision !== 1
+    || Object.keys(target.ref).some(key => !["kind", "id", "revision"].includes(key))
+    || !target.identity || !["user", "project", "character"].includes(target.identity.scope) || typeof target.identity.owner !== "string" || !target.identity.owner.trim()
+    || Object.keys(target.identity).some(key => key !== "scope" && key !== "owner")) conflict();
+  const files = inspectExistingSqlitePath(homeSqlitePath(homeDirectory, MEMORY_LEDGER_STORE));
+  const current = () => {
+    signal?.throwIfAborted(); files.assertCurrent();
+    const result: unknown = assertCurrent();
+    if (result !== undefined) { void Promise.resolve(result).catch(() => undefined); conflict(); }
+    signal?.throwIfAborted(); files.assertCurrent();
+  };
+  current();
+  return withMemoryLedgerDatabase(openReadOnlyHomeSqlite(homeDirectory, MEMORY_LEDGER_STORE), db => {
+    current(); db.exec("BEGIN"); assertMemoryLedgerAdoptionSchema(db, homeSqlitePath(homeDirectory, MEMORY_LEDGER_STORE));
+    assertMemoryLedgerRetentionIdentities(db);
+    const result = targets.map(target => ({ ...target, sources: sourcesOf(db, target) }));
+    current(); return result;
+  });
 }
 function read(db: DatabaseSync, operation: string): MemoryLedgerCleanupDecision | undefined {
   const row = db.prepare("SELECT body FROM memory_markers WHERE actor_id='' AND key=?").get(keyOf(operation));

@@ -65,6 +65,8 @@ export type PrologueMemoryAdoptionInspection = Pick<PrologueMemoryAdoptionBridge
   inspectSessionIndexes(input: { limit?: number; cursor?: string; signal?: AbortSignal }): Promise<PrologueSessionIndexPage>;
   inspectSession: NodeRecoveryInspection["inspectSession"];
   sessionTerminations: NodeRecoveryInspection["sessionTerminations"];
+  /** Exact original wait IDs must be retained by the App before its canonical Session purge. */
+  inspectSessionWaits: NodeRecoveryInspection["inspectSessionWaits"];
   inspectMemory: NodeRecoveryInspection["inspectMemory"];
   previewMemoryPurge: NodeRecoveryInspection["previewMemoryPurge"];
   verifyPurgeCoverage: NodeRecoveryInspection["verifyPurgeCoverage"];
@@ -339,6 +341,10 @@ export async function openPrologueMemoryAdoptionInspection(input: Omit<PrologueM
     previewCleanup: request => perform(request.signal, signal => inspection.previewAdoptionCleanup({ ...request, signal })),
     inspectSession: request => perform(request.signal, signal => inspection.inspectSession({ ...request, signal })),
     sessionTerminations: request => perform(request.signal, signal => inspection.sessionTerminations({ ...request, signal })),
+    inspectSessionWaits: request => {
+      const { signal: requestedSignal, ...data } = request, fixed = structuredClone(data);
+      return perform(requestedSignal, signal => inspection.inspectSessionWaits({ ...fixed, signal }));
+    },
     inspectMemory: request => perform(request.signal, signal => inspection.inspectMemory({ ...request, signal })),
     previewMemoryPurge: request => perform(request.signal, signal => inspection.previewMemoryPurge({ ...request, signal })),
     inspectSessionIndexes: request => {

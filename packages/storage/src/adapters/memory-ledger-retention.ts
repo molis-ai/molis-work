@@ -14,19 +14,19 @@ const sourceKey = (scope: MemoryScope, owner: string, event: string) => `memory-
 
 /** Refuse contradictory retained identities before any fixed-plan mutation or completion proof. */
 export function assertMemoryLedgerRetentionIdentities(db: DatabaseSync): void {
-  for (const row of db.prepare("SELECT * FROM memory_revisions").all()) {
+  for (const row of db.prepare("SELECT * FROM memory_revisions").iterate()) {
     try { assertMemoryRevisionIdentity(row, record(row.body)); } catch { retentionConflict(); }
   }
-  for (const row of db.prepare("SELECT * FROM memory_uses").all()) {
+  for (const row of db.prepare("SELECT * FROM memory_uses").iterate()) {
     try { assertMemoryUseIdentity(row, record(row.body)); } catch { retentionConflict(); }
   }
-  for (const row of db.prepare("SELECT * FROM memory_pairs").all()) {
+  for (const row of db.prepare("SELECT * FROM memory_pairs").iterate()) {
     try { assertMemoryPairIdentity(row, record(row.body)); } catch { retentionConflict(); }
   }
-  for (const row of db.prepare("SELECT * FROM memory_changes").all()) {
+  for (const row of db.prepare("SELECT * FROM memory_changes").iterate()) {
     try { assertMemoryChangeIdentity(row, record(row.body)); } catch { retentionConflict(); }
   }
-  for (const row of db.prepare("SELECT * FROM memory_candidates").all()) {
+  for (const row of db.prepare("SELECT * FROM memory_candidates").iterate()) {
     const candidate = record(row.body);
     try { decodeMemoryCandidateRelation(row, candidate); } catch { retentionConflict(); }
     if (candidate.memory_id !== null && typeof candidate.memory_id !== "string") retentionConflict();
@@ -70,12 +70,12 @@ export function assertMemoryLedgerRetainedObjectsCleared(db: DatabaseSync, input
     if (db.prepare("SELECT 1 FROM memory_revisions WHERE memory_id=? LIMIT 1").get(id)
       || db.prepare("SELECT 1 FROM memory_uses WHERE memory_id=? LIMIT 1").get(id)) retentionConflict();
   }
-  for (const row of db.prepare("SELECT memory_id,body FROM memory_changes").all()) {
+  for (const row of db.prepare("SELECT memory_id,body FROM memory_changes").iterate()) {
     const change = record(row.body);
     if (typeof row.memory_id === "string" && memories.has(row.memory_id)
       && (change.text !== "" || change.reason !== null || change.undoable !== false || change.undo !== null)) retentionConflict();
   }
-  for (const row of db.prepare("SELECT body FROM memory_pairs").all()) {
+  for (const row of db.prepare("SELECT body FROM memory_pairs").iterate()) {
     const pair = record(row.body);
     for (const name of ["a", "b"]) {
       const item = pair[name];
@@ -83,7 +83,7 @@ export function assertMemoryLedgerRetainedObjectsCleared(db: DatabaseSync, input
       if (memories.has(item.memory_id)) retentionConflict();
     }
   }
-  for (const row of db.prepare("SELECT body FROM memory_candidates").all()) {
+  for (const row of db.prepare("SELECT body FROM memory_candidates").iterate()) {
     const candidate = record(row.body);
     if (typeof candidate.memory_id === "string" && memories.has(candidate.memory_id)) retentionConflict();
   }

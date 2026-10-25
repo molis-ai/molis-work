@@ -114,7 +114,7 @@ test("PG049-STATUS-04 real settings shows invalid identity and prior history, an
   await click(oldRow + " summary");
   await waitFor("document.querySelector(" + JSON.stringify(oldRow + " details") + ")?.open === true");
   assert.match(await evaluate<string>("document.querySelector(" + JSON.stringify(oldRow + " details") + ").textContent"), /directory/);
-  const captures = new URL("../../.impeccable/qa/review/directory-grant-status/", import.meta.url);
+  const captures = new URL("../.impeccable/qa/review/directory-grant-status/", import.meta.url);
   await mkdir(captures, { recursive: true });
   for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);

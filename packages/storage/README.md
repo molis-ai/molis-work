@@ -83,6 +83,12 @@ MEM-40 的 Ledger 临时连接关闭失败由 Storage 留住实际原连接：`M
 
 MEM-40-SELECTED-07：SDK canonical inspection 的 cleared 结果没有版本；selected 正式/候选项因此另允许 `{memory_id|candidate_id,state:"cleared"}`，与原带真实 version 的条目互斥，cleared 分支不得出现 version。该分支仅承接已由上层确认的 Ledger 原件清理/证明，不是 SDK 删除许可；Storage 不调用 SDK、不替缺版本 present 项填值。ProjectRetention 的原项目条目仍必须有真实 version，并在运行时拒绝 cleared。未选 ID、同项目后继、owner/偏好/signals 保持；上层仍须把原选择和当前权限绑定，不把 state 字符串当作跨主人证明。真实公开 SDK 与 SQLite 回归见 `tests/memory-ledger-selected-cleared.test.ts`。
 
+## 恢复父决定
+
+MEM-40 恢复父决定沿原 Ledger marker 持久化，一次冻结来源含义、目标元组、事件屏障及完整 Catalog groups；不存 Catalog 计划/步骤/完成。`createMemoryLedgerHomeRecovery` 只提供 read/begin/complete/close，沿原 existing-only adoption 事务同时核 snapshot 与原 parent(at/body)，不以 snapshot 代替父比较。普通采用完成拒 pending/坏父；恢复完成同事务改父 committed 并沿原采用发布。COMMIT 后关闭失败仍报原失败、不补 post；facade 留住自身及嵌套初始化错误中的真实 close 能力、封住业务，显式 close 不重新授权/开库/执行。纯 DTO 位于 contracts，Storage 同一父 decoder 供原 recovery 投影复用，Memory 原解释只返回 inspect-target，绝不因父 phase 或 cleared 字符串授权 SDK 写。原件全表证明可读取后继，但不从后继重新选择或删除。本刀无 LocalHost producer、新表/锁/registry；短合同及验收见 Memory spec 的 MEM-40-PARENT-01..06。
+
+直接回归 `tests/memory-home-recovery.test.ts` 的12项使用公开入口、真实SQLite与实际连接关闭故障，覆盖双expected、原父重开、输入冻结、当前权限、真实COMMIT拒绝/回滚、COMMIT后close失败及nested初始化资源；只验证Storage父片，不代替外层原件清除或完整Home发布验收。原三包README和相关调用方定向结果见同spec。
+
 ## 离线搜索目标清理
 
 `clearProjectInExistingTextSearchIndex` 供 MEM-40 原项目删除步骤维护停写 target：调用者固定目标 Home、项目及原操作决定，持有原维护 owner；必填同步 `assertCurrent` 检查同一 frame 的当前 owner/权限，`signal` 检查取消。入口、事务删除前与提交前均复核，拒绝回滚。它复用搜索当前 DDL、结构描述器和 `removeProject` 的删除事务，只清该项目文档、来源与对应 FTS，不启动 SearchService 或 Runtime。

@@ -1,5 +1,9 @@
 # 公共类型与协议
 
+MEM-40 的 MemoryHomeRecoveryDecision 是 services/memory 现入口导出的纯持久 envelope：固定已解释来源、Memory present-purge/already-cleared 元组、原 AgentSession DTO、事件屏障与 ProjectDeletionRecoveryGroup，不含 Catalog plans/steps/completion 或任意 JSON 授权。来源事实与父 phase 不授写；现 plan-target 的必填版本保持，新父使用独立 header/target 事实。Storage 持有唯一 decoder，Memory 原 interpreter 只解释来源；最终恢复装配不由类型存在证明。
+
+source confirmed-plan 的 actor_id 允许原 adoption-cleanup 全局事实的空字符串；原样保存来源，不代填操作者，也不把它用作 SelectedRetention 的执行 actor。
+
 ## Run 记忆展开合同（实施中，未验证）
 
 依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，`AgentMemoryTools.list` 改为无正文展开回执，保留纠正所需 memory_id/version。Agent Action 调用控制与 Host 私有 `ActionCallContext` 携带仅供同 Run 的展开窄口，不可从业务输入建立，不序列化或暴露给插件回调。`memory.list@5` / `memory.recall@3` 用明确输出 union 区分既有非 Run 查询与运行中 Agent 的无正文展开；按当前开发阶段同步所有消费者，不增加兼容层。SDK 类型只留 AgentHost Adapter 边界，contracts 只提供本仓 DTO。具体字段已按核对合同接入；快照由统筹统一生成，尚未验证。

@@ -1,5 +1,9 @@
 # 平台记忆
 
+MEM-40 父恢复事实仍经原纯 interpreter：Storage 同一持久 decoder 产生 home-recovery header 与逐条 target，完整 header 联结后仅返回 inspect-target，不授 SDK 写权。already-cleared 没有原目标版本，解释结果不伪造 version；固定父 identity 可参与原 forgotten 精确身份联结。Catalog、Session 和最终发布由各自原主人执行；本片不增加第二删除核，完整恢复尚须外层接线。
+
+原 interpreter 的可选第三参数 retained 只透传已有 forgotten resolver，供来源收集器交入 Catalog 原主人已验证的固定 ID/identity，不复制解释分支。它与来源事实不一致时仍 unresolved，不能作为目标删除许可。
+
 ## 同一 Run 按需读取
 
 依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，本人管理读取继续返回已授权内容；运行中 Agent 的 list/recall 则由 owner 选择可见固定引用，交 Host 绑定的同 Run 展开窄口，输出仅为无正文回执和 memory_id/version。scope/owner 由可信 caller 解析，工具输入只能收窄；无 Run 控制不得回落普通正文结果。最终 canonical 读取、预算、去重、状态及派发前权限仍归 SDK，本包不另排注入循环。

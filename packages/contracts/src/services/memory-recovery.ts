@@ -1,4 +1,41 @@
 import type { MemoryOwnerRelation, MemoryScope } from "./memory.js";
+import type { AgentSessionDecision, AgentSessionPurgePreview, AgentSessionRef } from "./agent-host-runtime.js";
+import type { AgentSessionOwner } from "./agent-host-start.js";
+import type { ProjectDeletionRecoveryGroup } from "../modules/projects.js";
+
+/** Provenance already interpreted by the original owner; never an SDK write grant. */
+export type MemoryHomeRecoverySource =
+  | { readonly kind: "forgotten" }
+  | { readonly kind: "original-purge" | "merge-drop" | "confirmed-plan"; readonly actor_id: string;
+      readonly operation_id: string; readonly expected_version: number }
+  | { readonly kind: "session-termination"; readonly session: AgentSessionRef };
+export interface MemoryHomeRecoveryMemory {
+  readonly identity: MemoryLedgerRecoveryIdentity;
+  readonly source: MemoryHomeRecoverySource;
+  readonly target: { readonly ref: { readonly kind: "memory" | "memory-candidate"; readonly id: string; readonly revision: 1 } } & (
+    | { readonly mode: "present-purge"; readonly expected_version: number; readonly operation_id: string;
+        readonly selection?: { readonly session: AgentSessionRef; readonly operation_id: string } }
+    | { readonly mode: "already-cleared" });
+}
+export interface MemoryHomeRecoverySession {
+  readonly session: AgentSessionRef;
+  readonly owner: AgentSessionOwner;
+  readonly source: { readonly preview: Omit<AgentSessionPurgePreview, "state">; readonly phase: "cleaning" | "complete";
+    readonly version: number };
+  readonly target: { readonly decision: AgentSessionDecision; readonly preview: AgentSessionPurgePreview };
+}
+/** One immutable selection and Catalog mapping, followed by one atomic final publication. */
+export interface MemoryHomeRecoveryDecision {
+  readonly kind: "home-recovery";
+  readonly operation_id: string;
+  readonly phase: "pending" | "committed";
+  readonly known_scopes: readonly MemoryLedgerRecoveryIdentity[];
+  readonly memories: readonly MemoryHomeRecoveryMemory[];
+  readonly sessions: readonly MemoryHomeRecoverySession[];
+  readonly barriers: readonly { readonly actor_id: string; readonly identity: MemoryLedgerRecoveryIdentity;
+    readonly sources: readonly { readonly event_id: string; readonly version?: string }[] }[];
+  readonly project_groups: readonly ProjectDeletionRecoveryGroup[];
+}
 
 /** Body-free provenance. Row numbers locate defects without echoing corrupt JSON or marker keys. */
 export interface MemoryLedgerRecoveryLocation {
@@ -18,6 +55,8 @@ export interface MemoryLedgerRecoveryOperation extends MemoryLedgerRecoveryIdent
   readonly result?: { readonly memory_id?: string; readonly candidate_id?: string; readonly version?: number; readonly outcome?: "duplicate" | "candidate" };
 }
 export type MemoryLedgerRecoveryFact = { readonly location: MemoryLedgerRecoveryLocation; readonly actor_id: string; readonly at?: string } & (
+  | { readonly kind: "home-recovery"; readonly operation_id: string; readonly phase: "pending" | "committed" }
+  | { readonly kind: "home-recovery-target"; readonly operation_id: string; readonly memory: MemoryHomeRecoveryMemory }
   | { readonly kind: "forgotten"; readonly memory_id: string }
   | ({ readonly kind: "source-forgotten"; readonly event_id: string } & MemoryLedgerRecoveryIdentity)
   | { readonly kind: "source-link"; readonly event_id: string; readonly version: string;

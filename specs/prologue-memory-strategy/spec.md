@@ -2959,6 +2959,29 @@ writer 输入增加 projectSessionPurges: readonly ProjectSessionDeletionPlan[]�
 
 #1064 的 `3a2dea91e` Full suite 在 Cognia 390px 失败，Web 19/19 已通过；6 分片通过、9 分片取消，整套未通过。Cognia 修正 `51a0c4ff96` 经独立真实阅读恢复红绿与截图核验后已推送；新普通 CI `40201369931` 与 Full `40201390414` 正在执行。原日志 `/private/tmp/molis-memory-foundation-3a-full11-20261025.log` 及 `/private/tmp/molis-cognia-390-independent-{red-real,green}.log` 保留。仍待最终 CI、冷 Memory/Session/外层恢复组合、原单 Session 业务副本与最终实操/模型收益/用户验收；本记录不改变原范围或门禁。
 
+### MEM-40 恢复父决定 Storage 短合同（2026-10-26，实施前）
+
+本刀以 `3da5b4dc64c2fa5e0c0f683e0967b55122b95d89`（聚合1c95224e2加已确认d86）为基，只实现原Ledger中的恢复父决定和最终采用发布，不接LocalHost外层producer，不代表完整MEM-40。沿原memory_markers、adoption事务和实际连接close能力；纯envelope放现contracts/services/memory-recovery，Memory解释仍在原主人。必要新持久解码由Storage单一decoder负责，原读取投影复用它，不复制Catalog计划或SDK行解码。
+
+- **MEM-40-PARENT-01**：唯一global `memory-operation:<operation_id>:home-recovery` 固定最小已解释source依据、target Memory present-purge/already-cleared元组、独立Session原DTO、事件屏障、known_scopes与一次完整ProjectDeletionRecoveryGroup；不存全Home事实数组、Catalog plans/steps/completion、逐项状态或审计冗余。只允许pending→committed，已有原父不能重预览扩选。
+- **MEM-40-PARENT-02**：公开facade仅read/begin/complete/close，固定绝对目标与operation；existing-only、原路径/current同步检查。read同只读BEGIN返回adoption snapshot及parent(at/body)。begin/complete同原BEGIN IMMEDIATE同时比较两份expected；snapshot相同而父改变仍冲突。命令先clone，再进入任何外部current回调；完整groups一次begin，不提供recordGroup、bypass或SQL回调。
+- **MEM-40-PARENT-03**：begin只在已有adopting、原父缺席且无外来pending/坏父时写入。普通completeMemoryLedgerAdoption拒任何pending或损坏父；恢复complete同事务将精确原父改committed后复用私有原adoption发布，含全部profiles身份/完整prefs、origin恢复与version4。真实COMMIT失败全部回滚；只有COMMIT及本次关闭成功返回before/after。
+- **MEM-40-PARENT-04**：复用b55真实close能力；facade捕获自身或current嵌套初始化失败中的实际能力，封住后续业务，显式close只重试原句柄，不current/SQL/重开/重放/补post。COMMIT后close失败原调用仍失败、持久发布仍是真的；关闭成功不冒充业务成功。父Home owner保持及最终同operation只读对账由上层负责。
+- **MEM-40-PARENT-05**：父header/target在旧通用memory-operation分支之前由同decoder识别，有界无正文投影；既有plan-target/Project版本要求不放宽。原Memory interpreter只将来源含义解释为inspect-target/event-barrier，不授SDK grant。already-cleared不伪造版本、不能升为SDK写；原件全表验证可能读取后继行，但不能从后继重新选目标或删除。
+- **MEM-40-PARENT-06**：公开构建入口真实SQLite覆盖双expected、外来pending/坏父、clone/current交错、来源与target完整元组拒绝、真实发布COMMIT失败、发布COMMIT后close失败及嵌套初始化资源、关闭撤权后仍可重试、原父重开/新投影。保留原adoption/close/retention/recovery和三包README定向回归；原FIFO完整build，strict/lint/API更新、准确基底health/boundary/secrets。无新表、锁、hash、registry、SDK依赖或第二删除核；不跑全量、不改真实Home。
+
+硬边界是当前权限、原决定不可扩选、原子发布与真实资源归属，不能配置关闭；本刀无新增可换执行逻辑或阈值，调用者提供已校验选择和现assertCurrent，用户操作与来源/目标装配仍归App。最终跨主人证明、一次发布前全部业务资源close与真实恢复旅程由后续外层接线验收。
+
+原两遍来源收集的最小接线：`interpretMemoryLedgerRecoveryFact` 新增可选第三参数 retained，仅透给原 `resolveForgottenMemoryIdentity`，消费已由 Catalog 原主人提供的固定正式ID/identity；其他解释不变。这样收集器仍只调用同一个解释器，不复制 forgotten 分支、不伪造 Fact，retained 单独不授写且与现身份矛盾仍 unresolved。
+
+来源形状核实：原 adoption-cleanup 为 global marker，公共 confirmed-plan Fact 的 actor_id 真实为 `''`，父 source 必须原样允许这个空 actor，不代填 LOCAL_PERSON；其他版本化来源仍要求原非空 actor。新 envelope 不凭空 actor 识别或证明来源家族；合法原来源仍由原事实 decoder 与 Memory interpreter 先确认。它不是 SelectedRetention 执行 actor 或目标授权，实际选中 Ledger/owner 的可信装配仍归外层。直接回归通过原 beginMemoryLedgerCleanup→source inspection→interpreter 取得该事实，再由另一个真实 Ledger 接受父，避免测试伪造 Fact。
+
+本片本地工程结果（2026-10-26）：生产9文件，新增Storage decoder 134行与facade 111行，四方法与单一envelope职责分开；原adoption最终发布只提取事务内函数，原解释器只补父事实分支及retained透传。未新增表/schema、registry、锁、删除核、SQL公开口、SDK/LocalHost依赖或Error子类；私有Symbol仅识别现Storage真实连接关闭cap。准确3da基健康门保持79巨型单元、422测试内部引用、156双unknown转换及其它冻结数不增长；一份services/memory API快照增加4个纯DTO及两种事实，最终72份3058声明。原memory.ts因新增显式转出一行达到801，改成同一recovery类型文件的统一type转出后799行；生成器确认实际API未改变，不改门禁/例外。
+
+`tests/memory-home-recovery.test.ts`新增12项全部通过：parent at/body改而snapshot不变仍拒绝；current修改调用输入不换掉已clone原件；外来pending/坏父、错scope/元组、取消拒绝；真实SQLite第二连接持读锁，journal证明BEGIN及实际发布写已发生，COMMIT约5秒后被拒且父/采用同时回滚；同步current显式close也阻止提交。真实连接close故障只拦关闭边界、不mock SQL/事务：COMMIT已持久但调用无post，原facade封业务，撤权后显式close只重试同连接；nested初始化AggregateError/cause内原cap同样保留。原全局cleanup public投影与新父投影均经公共包及原解释器验证。源/target业务清除和最终Home owner释放尚非本片完成证据。
+
+有效定向结果共51个不同文件780项：父12、原六Ledger文件59、三包README及采用维护调用方44文件709；零retry/skip，global来源修正后已补跑直接交集，类型转出/注释不重跑未受影响的广域行为。最终原FIFO build、strict、Biome、准确3da health、boundary errors=[]与diff检查通过。首轮新增测试因误用包名未装载，已更正为现公开service-memory；首次导入/类型失败和801行门禁日志保留，没有放宽断言。日志前缀 `/private/tmp/molis-memory-home-recovery-` 后缀 `-20261026.log`：build-freeze、parent-freeze、global-direct、impact、types-freeze、lint-final、health-final、boundary、api-final；direct/types/health为首次原结果。未跑全量、真实Home、SDK删除或产品旅程；完整MEM-40和独立Session业务副本仍待各原主人及LocalHost装配验收。
+
 ### MEM-40 Catalog 原资源关闭重试（2026-10-25，实施前）
 
 外层恢复装配复核发现：现 target.close 在实际 SQLite close 前就将 closed 置真；实际关闭失败后，下一次 close 会直接成功返回，仍未关闭的原连接无法重试。这违反既定“实际资源关闭成功后才能发布恢复完成、释放父 owner”。本刀只修原 Catalog target 的关闭控制：开始关闭即拒新恢复；同次关闭共享在途 Promise；等原 tail 后关闭同一连接，只有成功才记资源关闭，失败清除本次尝试，下一次明确 close 重试原连接。已完成的删除不重放，关闭不重新授权业务。

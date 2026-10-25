@@ -24,6 +24,7 @@ export function resolveForgottenMemoryIdentity(memoryId: string, facts: Iterable
       if (fact.kind === "upkeep") add(fact.drop?.memory_id, fact);
     } else if (fact.kind === "candidate" || fact.kind === "change") add(fact.memory_id, fact);
     else if (fact.kind === "plan-target" && fact.target === "memory") add(fact.id, fact.identity);
+    else if (fact.kind === "home-recovery-target" && fact.memory.target.ref.kind === "memory") add(fact.memory.target.ref.id, fact.memory.identity);
   }
   for (const entry of retained) add(entry.memory_id, entry);
   return conflict ? { kind: "unresolved", reason: "identity-conflict" }
@@ -65,8 +66,17 @@ function scopeClearDecision(headers: readonly Extract<Fact, { kind: "plan" }>[],
   return parent.started ? "confirmed" : "decision-missing";
 }
 
-/** Pass the complete, issue-aware source set when linking; an exhausted page alone is never completeness evidence. */
-export function interpretMemoryLedgerRecoveryFact(fact: Fact, evidence: readonly Fact[] = []): MemoryRecoveryObservation {
+/** After the complete issue-aware source scan, pass all evidence relevant to this link; one exhausted page is insufficient. */
+export function interpretMemoryLedgerRecoveryFact(fact: Fact, evidence: readonly Fact[] = [],
+  retained: Iterable<Identity & { memory_id: string }> = []): MemoryRecoveryObservation {
+  if (fact.kind === "home-recovery-target") {
+    if (!evidence.some(entry => entry.kind === "home-recovery" && entry.actor_id === fact.actor_id && entry.operation_id === fact.operation_id))
+      return { kind: "unresolved", reason: "decision-missing" };
+    const { identity, target, source } = fact.memory;
+    return { kind: "inspect-target", identity, target: target.ref.kind, id: target.ref.id, ref_revision: target.ref.revision,
+      intent: source.kind === "session-termination" ? "confirmed-plan" : source.kind,
+      ...(target.mode === "present-purge" ? { operation_id: target.operation_id, source_expected_version: target.expected_version } : {}) };
+  }
   if (fact.kind === "plan" && fact.family === "scope-clear" && fact.started !== undefined) {
     const headers = evidence.filter((entry): entry is Extract<Fact, { kind: "plan" }> => entry.kind === "plan"
       && entry.actor_id === fact.actor_id && entry.family === fact.family && entry.plan_id === fact.plan_id);
@@ -87,7 +97,7 @@ export function interpretMemoryLedgerRecoveryFact(fact: Fact, evidence: readonly
   if (fact.kind === "source-forgotten") return { kind: "event-barrier", actor_id: fact.actor_id,
     identity: { scope: fact.scope, owner: fact.owner }, event_id: fact.event_id };
   if (fact.kind === "forgotten") {
-    const resolved = resolveForgottenMemoryIdentity(fact.memory_id, evidence);
+    const resolved = resolveForgottenMemoryIdentity(fact.memory_id, evidence, retained);
     return resolved.kind === "unresolved" ? resolved : { kind: "inspect-target", identity: resolved.identity,
       target: "memory", id: fact.memory_id, intent: "forgotten" };
   }

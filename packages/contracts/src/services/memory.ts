@@ -795,5 +795,4 @@ export interface MemoryLedgerPort {
   transaction<T>(work: () => T): T;
   close(): void;
 }
-export type { MemoryLedgerRecoveryLocation, MemoryLedgerRecoveryIdentity, MemoryLedgerRecoveryFamily,
-  MemoryLedgerRecoveryOperation, MemoryLedgerRecoveryFact, MemoryLedgerRecoveryIssue, MemoryLedgerRecoveryPage } from "./memory-recovery.js";
+export type * from "./memory-recovery.js";

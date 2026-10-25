@@ -2,6 +2,7 @@ import type { MemoryLedgerRecoveryFact as Fact, MemoryLedgerRecoveryIssue as Iss
   MemoryLedgerRecoveryIdentity as Identity, MemoryLedgerRecoveryOperation as Operation, MemoryLedgerRecoveryFamily as Family } from "@molis-ai/molis-work-contracts/services/memory";
 import { decodeMemoryLedgerCleanupDecision } from "./memory-ledger-adoption-cleanup.js";
 import { assertMemoryChangeIdentity, decodeMemoryCandidateRelation, decodeMemoryOwnerRelation } from "./memory-ledger-relations.js";
+import { decodeMemoryHomeRecoveryDecision } from "./memory-ledger-home-recovery-decision.js";
 
 type Body = Record<string, unknown>;
 type Base = { location: Location; actor_id: string; at?: string };
@@ -175,7 +176,15 @@ export function* projectMemoryLedgerRecoveryRow(location: Location, row: Body): 
     if (location.table === "markers") {
       const key = text(row.key);
       // Cleanup's existing decoder remains the only owner of this decision's shape.
-      if (key.startsWith("memory-operation:") && key.endsWith(":adoption-cleanup")) {
+      if (key.startsWith("memory-operation:") && key.endsWith(":home-recovery")) {
+        if (actor !== "") invalid();
+        const id = text(key.slice("memory-operation:".length, -":home-recovery".length));
+        const decision = decodeMemoryHomeRecoveryDecision(b, id);
+        yield { fact: { ...base, kind: "home-recovery", operation_id: id, phase: decision.phase } };
+        for (const memory of decision.memories) yield { fact: { ...base, kind: "home-recovery-target", operation_id: id, memory } };
+        for (const barrier of decision.barriers) for (const source of barrier.sources) yield { fact: { ...base,
+          actor_id: barrier.actor_id, kind: "source-forgotten", ...barrier.identity, event_id: source.event_id } };
+      } else if (key.startsWith("memory-operation:") && key.endsWith(":adoption-cleanup")) {
         if (actor !== "") invalid();
         const id = text(key.slice("memory-operation:".length, -":adoption-cleanup".length));
         const decision = decodeMemoryLedgerCleanupDecision(b, id);

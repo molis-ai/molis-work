@@ -7,6 +7,7 @@ import { describeSqliteBaseline, describeSqliteSchema, SqliteSchemaVersionError 
 import { MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE } from "./memory-ledger.js";
 import type { ExistingStoragePath } from "../storage-maintenance-path.js";
 import { withMemoryLedgerDatabase } from "./memory-ledger-close.js";
+import { memoryHomeRecoveryRecords } from "./memory-ledger-home-recovery-decision.js";
 
 export interface MemoryLedgerAdoptionProfile { readonly actor_id: string; readonly key: string; readonly prefs: MemoryPrefs }
 export interface MemoryLedgerAdoptionSnapshot {
@@ -111,7 +112,14 @@ export function beginMemoryLedgerAdoption(input: { homeDirectory: string; snapsh
 
 /** The Host validates/maps full profiles; this owner atomically checks the old snapshot and publishes ledger 4. */
 export function completeMemoryLedgerAdoption(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot; profiles: readonly MemoryLedgerAdoptionProfile[]; assertCurrent?: () => void }): void {
-  changeMemoryLedgerAdoption(input, db => {
+  changeMemoryLedgerAdoption(input, db => completeMemoryLedgerAdoptionInTransaction(db, input), input.assertCurrent);
+}
+
+/** Shared final publication inside the existing adoption transaction, without a pending-parent bypass. */
+export function completeMemoryLedgerAdoptionInTransaction(db: DatabaseSync, input: {
+  snapshot: MemoryLedgerAdoptionSnapshot; profiles: readonly MemoryLedgerAdoptionProfile[];
+}): void {
+    if (memoryHomeRecoveryRecords(db).some(parent => parent.body.phase === "pending")) conflict("仍有未完成的恢复父决定，不能完成记忆采用");
     for (const row of db.prepare("SELECT body FROM memory_markers WHERE key LIKE 'memory-operation:%:adoption-cleanup'").all()) {
       const mark = adoptionBody(JSON.parse(String(row.body)));
       if (mark.kind !== "adoption-cleanup" || mark.phase !== "committed") conflict("仍有未完成的确认清理，不能完成记忆采用");
@@ -130,5 +138,4 @@ export function completeMemoryLedgerAdoption(input: { homeDirectory: string; sna
     for (const profile of input.profiles) db.prepare("UPDATE memory_prefs SET body=? WHERE actor_id=? AND key=?")
       .run(JSON.stringify(profile.prefs), profile.actor_id, profile.key);
     db.exec("PRAGMA user_version=4");
-  }, input.assertCurrent);
 }

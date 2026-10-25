@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, EN, L, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, L, ownerLabel, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
@@ -169,10 +169,15 @@ test("the fixed-id demo never starts on what an earlier demo left, however it wa
 
 test("the delete dialog lists the library owners' data in the person's language", async () => {
   await withHome(async ({ home }) => {
-    const scope = projectDeletedHooksFor(home).owners().flatMap(owner => owner.label ? [owner.label] : []);
+    const owners = projectDeletedHooksFor(home).owners().flatMap(owner => owner.label ? [owner] : []);
+    const scope = owners.map(owner => owner.label);
     for (const label of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "放在这个项目里的待办", "灵光里的想法与对话"]) assert.ok(scope.includes(label), label);
-    for (const label of scope) assert.ok(EN[label], `${label} has an English translation`);
+    // A plugin owner's text is the plugin's own: the dialog translates it with that plugin's words, and the Host's page does not know it.
+    for (const owner of owners.filter(item => item.words_of)) runWithLocale("en", () => assert.notEqual(ownerLabel(owner), owner.label, `${owner.label} has an English translation`));
+    for (const owner of owners.filter(item => !item.words_of)) runWithLocale("en", () => assert.notEqual(ownerLabel(owner), owner.label, `${owner.label} (the Host's) has an English translation`));
     assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹");
-    runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages documents and folders"));
+    runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹", "the Host's page alone does not know it"));
+    const pages = owners.find(owner => owner.label === "Pages 文稿与文件夹")!;
+    runWithLocale("en", () => assert.equal(ownerLabel(pages), "Pages documents and folders"));
   });
 });

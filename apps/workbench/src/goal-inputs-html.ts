@@ -4,6 +4,8 @@
  * created straight into the project; plugin objects are filled in by the placement client from their owners. A source an assistant,
  * an Agent, a workflow or an MCP client only proposed reads 「待确认」 and carries 「认可」 and 「移除」: the person decides it here.
  */
+import { withPluginWords } from "./i18n.js";
+
 interface GoalInputsItem {
   readonly goal: { readonly goal_id: string };
   readonly input_bindings: ReadonlyArray<{ readonly binding_id: string; readonly source_type: string; readonly source_ref: string; readonly input_name: string;
@@ -23,6 +25,8 @@ interface GoalInputsPrimitives {
 export interface GoalInputsCreatableKind {
   readonly station: string;
   readonly title: string;
+  /** The plugin whose words translate `title`. */
+  readonly plugin_id: string;
 }
 
 export function renderGoalInputsHtml(item: GoalInputsItem, { L, escapeHtml, renderReference }: GoalInputsPrimitives, creatable: readonly GoalInputsCreatableKind[]): string {
@@ -50,7 +54,7 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { L, escapeHtml, rend
   });
   const rows = [...live, ...fixed].join("");
   // The button carries the declared title; the placement client names a new object and its card from it, so no table by plugin lives there.
-  const create = creatable.map(({ station, title }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-goal-id="${goalId}">${escapeHtml(L(title))}</button>`).join("");
+  const create = creatable.map(({ station, title, plugin_id }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-goal-id="${goalId}">${escapeHtml(withPluginWords(plugin_id, () => L(title)))}</button>`).join("");
   return `<section class="placement-goal-materials" data-placement-goal-materials data-goal-inputs data-goal-id="${goalId}"><h3>${L("输入")}</h3>
     <div class="placement-goal-create"><button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-goal-input-add data-goal-id="${goalId}">${L("加输入…")}</button><span>${L("或为这个 Goal 新建")}</span>${create}</div>
     ${rows ? `<div class="bound-list">${rows}</div>` : `<p class="empty-row">${L("还没有输入。")}</p>`}

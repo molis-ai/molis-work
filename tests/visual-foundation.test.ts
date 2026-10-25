@@ -22,6 +22,7 @@ import {
   renderMolisWorkArrivalStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
+  renderMolisWorkWorkbenchWithPluginStylesheets,
 } from "./workbench-renderer-fixture.js";
 
 // Soft Workbench (specs/archive/soft-workbench-rollout): every layer takes its base tokens from one helper.
@@ -53,7 +54,7 @@ test("visual foundation enhances visible selects onto mw-menu", () => {
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /className = "mw-menu mw-select-picker__menu"/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /dataset\.mwSelectSkip === "true"/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-select-picker__menu/);
-  const workbench = renderMolisWorkWorkbenchStylesheet();
+  const workbench = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(workbench, /\.mw-select-picker \{/);
   assert.match(workbench, /\.dataset-toolbar \.mw-select, \.dataset-toolbar \.mw-select-picker/);
   // RAC-705 (PG-075): every work surface gets the one neutral tint; no selector is written for a plugin.

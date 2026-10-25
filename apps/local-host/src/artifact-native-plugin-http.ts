@@ -11,7 +11,7 @@ import {
   ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-module-artifacts";
-import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
+import { artifactWorkbench, inWordsOf, withPluginWords } from "@molis-ai/molis-work-app-workbench";
 import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -40,7 +40,13 @@ function escape(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-const primitives = { escape, text: (value: string) => escape(L(value)), formatDate: (value: string) => new Date(value).toLocaleString(dateTimeLocale()) };
+/** A type's name is its owner's own text, so the plugin that declares it translates it, whoever published it (artifact-positioning A4). */
+const typeTitle = (declaration: ArtifactTypeDeclaration): string => withPluginWords(declaration.plugin_id, () => L(declaration.title));
+const typeTitlesOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>) => Object.fromEntries([...declarations].map(([type, declaration]) => [type, typeTitle(declaration)]));
+const typeTitleOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>, type: string): string => { const declaration = declarations.get(type); return declaration ? typeTitle(declaration) : type; };
+/** What this plugin's own pages and answers say is English in its own words (its `ui.translations`), as in any other place it is drawn. */
+const ownL = inWordsOf(ARTIFACTS_PLUGIN_ID, L);
+const primitives = { escape, text: (value: string) => escape(ownL(value)), formatDate: (value: string) => new Date(value).toLocaleString(dateTimeLocale()) };
 
 /**
  * The owner's preview of a 成果 version (specs/artifact-positioning A4): the type's declared preview action turns the
@@ -74,7 +80,7 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
 export function renderGoalArtifactContext(embeds: GoalArtifactEmbed[]): string {
   // The containing Goal fragment applies its Project prefix once to every local link; types are named as their owners declare.
   return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives,
-    typeTitles: Object.fromEntries([...artifactTypeDeclarations()].map(([type, declaration]) => [type, declaration.title])) });
+    typeTitles: typeTitlesOf(artifactTypeDeclarations()) });
 }
 
 /** The name the page sends with a raw original (percent-encoded UTF-8): one file name, no path. */
@@ -100,7 +106,7 @@ async function importRawOriginal(request: IncomingMessage, response: ServerRespo
       ...new URL(request.url ?? "/", "http://host").searchParams.get("allow_model_download") === "true" ? { allow_model_download: true } : {} };
     const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
       const saved = await context.offeredActions({ path, install_id: ARTIFACTS_PLUGIN_ID }).invoke(artifactsActions.importFile, input, undefined, on_progress ? { on_progress } : undefined);
-      return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved), warnings: saved.warnings.map(warning => L(warning)) } };
+      return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved), warnings: saved.warnings.map(warning => ownL(warning)) } };
     };
     if (requestHeader(request, "accept")?.includes("application/x-ndjson")) await answerPluginRouteStream(response, emit => answer(emit), () => undefined);
     else { const result = await answer(); sendLocalWebJson(response, result.status, result.body); }
@@ -129,7 +135,7 @@ export function createLocalArtifactHttp() {
             ? await context.actions.invoke(artifactsActions.importFile, input as unknown as ArtifactFileImport, undefined, transport)
             : await context.actions.invoke(artifactsActions.importExternal, input as unknown as ArtifactExternalImport, undefined, transport);
           const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
-          return { status: result.reused ? 200 : 201, body: { ...result, warnings: result.warnings.map(warning => L(warning)) } };
+          return { status: result.reused ? 200 : 201, body: { ...result, warnings: result.warnings.map(warning => ownL(warning)) } };
         };
         // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
         if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => undefined);
@@ -173,7 +179,7 @@ export function createLocalArtifactHttp() {
           if (!current || version.version > current.version) latest.set(version.artifact_id, version);
         }
         sendLocalWebJson(response, 200, { versions: [...latest.values()].map(version => ({ reference: { artifact_id: version.artifact_id, version: version.version },
-          title: version.title, type_title: declarations.get(version.artifact_type_id)?.title ?? version.artifact_type_id, created_at: version.created_at })) });
+          title: version.title, type_title: typeTitleOf(declarations, version.artifact_type_id), created_at: version.created_at })) });
         return true;
       }
       const route = matchArtifactBrowserRoute(pathname);
@@ -233,11 +239,11 @@ export function createLocalArtifactHttp() {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
       response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), continuers, pluginInputs,
-        typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])) }, compact ? "frame-block" : "detail"));
+        typeTitles: typeTitlesOf(declarations) }, compact ? "frame-block" : "detail"));
       return true;
     } catch (error) {
       // The status is the one of the failure's kind. This is the one edge where the Host translates a failure's message itself.
-      const failure = actionErrorResponse(error, { translate: L });
+      const failure = actionErrorResponse(error, { translate: ownL });
       sendLocalWebJson(response, failure.status, failure.body);
       return true;
     }

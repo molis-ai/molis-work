@@ -72,6 +72,8 @@ export type PrologueEvent =
 export interface PrologueApprovalWaiting {
   pending_id: string;
   effect_id: string;
+  pending_revision?: number;
+  effect_revision?: number;
   why: string;
   character?: string;
 }
@@ -214,30 +216,32 @@ function closeStreamingText(state: PrologueStreamState): void {
 }
 
 /**
- * A Run that ends (or is restored) while an approval is still pending never dispatched that call: the engine stops
- * before the effect runs and nobody answered. Mark the call as failed with that reason, instead of leaving a started
- * step that the panel can only call "outcome unknown" (BL-100).
+ * Only the original SDK approval records can prove that a specific call never dispatched. Read them at closure,
+ * because a waiting event may have been answered since it was emitted. Missing or ambiguous origins stay unknown.
  */
 const AWAITING_APPROVAL_ENDED = "等待批准时这一轮结束，没有执行";
 
-function closeAwaitingApproval(state: PrologueStreamState): void {
-  if (state.awaiting_approval.length === 0) return;
-  // A Run waits on one call at a time; its own call is the last step still under way.
-  for (let index = state.activity.length - 1; index >= 0; index -= 1) {
-    const activity = state.activity[index]!;
-    if (activity.state !== "started") continue;
+type ApprovalCallReader = (waiting: PrologueApprovalWaiting) => string | undefined;
+
+function closeAwaitingApproval(state: PrologueStreamState, readCall?: ApprovalCallReader): void {
+  for (const waiting of state.awaiting_approval) {
+    const callId = readCall?.(waiting);
+    if (callId === undefined) continue;
+    // SDK call ids may repeat. An ambiguous association cannot prove which activity never ran.
+    const matches = state.activity.filter(activity => activity.call_id === callId);
+    const activity = matches.length === 1 ? matches[0] : undefined;
+    if (activity?.state !== "started") continue;
     activity.state = "failed";
     activity.summary = `${activity.name} · ${AWAITING_APPROVAL_ENDED}`;
-    return;
   }
 }
 
 /** A restored prefix is readable history, not a live stream or a tool receipt. */
-export function closeInterruptedPrologueStream(state: PrologueStreamState): void {
+export function closeInterruptedPrologueStream(state: PrologueStreamState, readCall?: ApprovalCallReader): void {
   closeStreaming(state);
   closeInputs(state);
   closeSleep(state);
-  closeAwaitingApproval(state);
+  closeAwaitingApproval(state, readCall);
   for (const activity of state.activity) {
     if (activity.state === "started") {
       activity.state = "unknown";
@@ -454,9 +458,9 @@ function applyModelSwitched(state: PrologueStreamState, event: PrologueEvent, at
   return true;
 }
 
-function applyRunRecovered(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+function applyRunRecovered(state: PrologueStreamState, event: PrologueEvent, at: string | null, readCall?: ApprovalCallReader): boolean {
   const recovered = event as Extract<PrologueEvent, { type: "run-recovered" }>;
-  closeInterruptedPrologueStream(state);
+  closeInterruptedPrologueStream(state, readCall);
   const labels = { completed: "已执行", failed: "执行失败（可能部分生效）", "not-dispatched": "未执行", unknown: "结果未知" };
   state.turns.push({ turn_id: `recovery-${state.turns.length + 1}`, kind: "notice", at,
     sequence: state.next_sequence++, text: [recovered.transcript === "durable-prefix"
@@ -487,7 +491,7 @@ function applyRetryWaiting(state: PrologueStreamState, event: PrologueEvent): bo
 const ENDS_RETRY_WAIT = new Set(["text-delta", "reasoning-delta", "tool-call", "usage-recorded", "awaiting-approval", "awaiting-input",
   "compaction-started", "tripped", "completed", "failed", "cancelled"]);
 
-type Handler = (state: PrologueStreamState, event: PrologueEvent, at: string | null) => boolean;
+type Handler = (state: PrologueStreamState, event: PrologueEvent, at: string | null, readCall?: ApprovalCallReader) => boolean;
 
 function applyPrompt(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
   const prompt = event as Extract<PrologueEvent, { type: "prompt" }>;
@@ -545,6 +549,8 @@ function applyAwaitingApproval(state: PrologueStreamState, event: PrologueEvent)
   state.awaiting_approval.push({
     pending_id: waiting.pendingRef.id,
     effect_id: waiting.effectRef.id,
+    ...(waiting.pendingRef.revision === undefined ? {} : { pending_revision: waiting.pendingRef.revision }),
+    ...(waiting.effectRef.revision === undefined ? {} : { effect_revision: waiting.effectRef.revision }),
     why: waiting.why,
     ...(waiting.character === undefined ? {} : { character: waiting.character }),
   });
@@ -596,30 +602,30 @@ function applyCompactionEnded(state: PrologueStreamState, event: PrologueEvent, 
 }
 
 /** The round's end: what it was streaming closes, a wait it slept in ends, and the phase says how it ended. */
-function endRound(state: PrologueStreamState, phase: AgentRunPhase, stopReason?: string): boolean {
+function endRound(state: PrologueStreamState, phase: AgentRunPhase, stopReason?: string, readCall?: ApprovalCallReader): boolean {
   closeStreaming(state);
   closeSleep(state);
-  closeAwaitingApproval(state);
+  closeAwaitingApproval(state, readCall);
   state.phase = phase;
   if (stopReason !== undefined) state.stop_reason = stopReason;
   return true;
 }
 
-function applyTripped(state: PrologueStreamState, event: PrologueEvent): boolean {
+function applyTripped(state: PrologueStreamState, event: PrologueEvent, _at: string | null, readCall?: ApprovalCallReader): boolean {
   const tripped = event as Extract<PrologueEvent, { type: "tripped" }>;
   // A guardrail stop is terminal but is not a failure of the work.
   return endRound(state, "stopped", tripped.failed === true
     ? `护栏 ${tripped.rail} 自身出错，已按绊停处理`
-    : `被护栏 ${tripped.rail} 拦下：${tripped.why}`);
+    : `被护栏 ${tripped.rail} 拦下：${tripped.why}`, readCall);
 }
 
-function applyFailed(state: PrologueStreamState, event: PrologueEvent): boolean {
+function applyFailed(state: PrologueStreamState, event: PrologueEvent, _at: string | null, readCall?: ApprovalCallReader): boolean {
   const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
   return endRound(state, "failed", failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。"
     : failed.error?.code?.startsWith("CONTEXT_COMPACTION") ? "上下文整理失败，原上下文未被替换，而它已放不下模型窗口，这一轮停下了；可以点继续再整理一次。"
     : failed.error === undefined
     ? failed.why ?? "运行时报告失败"
-    : `${failed.error.code}: ${failed.error.safeMessage}`);
+    : `${failed.error.code}: ${failed.error.safeMessage}`, readCall);
 }
 
 /**
@@ -645,9 +651,9 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   "compaction-started": applyCompactionStarted,
   ...Object.fromEntries(["compacted", "compaction-skipped", "compaction-failed", "compaction-cancelled"].map(type => [type, applyCompactionEnded])),
   tripped: applyTripped,
-  completed: state => endRound(state, "completed"),
+  completed: (state, _event, _at, readCall) => endRound(state, "completed", undefined, readCall),
   failed: applyFailed,
-  cancelled: state => endRound(state, "cancelled", "已取消"),
+  cancelled: (state, _event, _at, readCall) => endRound(state, "cancelled", "已取消", readCall),
   "model-response-repair": applyResponseRepair,
   "memory-recalled": applyMemoryRecalled,
   "todo-changed": applyTodoChanged,
@@ -665,10 +671,10 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
  * Apply one event of a round to its view: the stream itself, then its supplements' receipts, which the runtime projects
  * from the same events. Returns true when the view changed.
  */
-export function applyRunEvent(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+export function applyRunEvent(state: PrologueStreamState, event: PrologueEvent, at: string | null, readCall?: ApprovalCallReader): boolean {
   const waited = state.retry_wait !== undefined && ENDS_RETRY_WAIT.has(event.type);
   if (waited) delete state.retry_wait;
-  const changed = (Object.hasOwn(HANDLERS, event.type) ? HANDLERS[event.type]! : applyUnknown)(state, event, at) || waited;
+  const changed = (Object.hasOwn(HANDLERS, event.type) ? HANDLERS[event.type]! : applyUnknown)(state, event, at, readCall) || waited;
   return noteInputEvent(state, event) || changed;
 }
 

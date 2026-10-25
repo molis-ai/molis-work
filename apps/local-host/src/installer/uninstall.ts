@@ -2,13 +2,17 @@ import { installerErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import type { StorageOwner } from "@molis-ai/molis-work-storage";
+import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
+import type { HomeSnapshotStoreRegistry } from "../home-store-snapshot.js";
 import { resolveConfiguredHome } from "../product-home.js";
 import { homeStores } from "../home-stores.js";
 import { hostLog } from "../host-log.js";
-import { installedLibraryPaths } from "../installed-plugin-libraries.js";
 import { RuntimeIntegrationService } from "./runtime-integration.js";
 import { SUPPORTED_RUNTIME_IDS } from "./runtime-integration-contract.js";
 import { MolisWorkWebServiceManager } from "./web-service.js";
+import { withUninstallOwner } from "./uninstall-owner.js";
+import { assertPurgeComplete, inspectPurgeInventory, purgePathFingerprint, purgeRegisteredPath } from "./uninstall-purge.js";
 import { UNINSTALL_OWNER, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallChange, type PreparedUninstallPlan, type UninstallReceipt } from "./uninstall-contract.js";
 import { inspectOwnedHomeAssets, existingPaths, assetKind, assetKindLabel, pathFingerprint, digest, removeEmptyDirectory } from "./uninstall-files.js";
 export class MolisWorkUninstallService {
@@ -38,9 +42,9 @@ export class MolisWorkUninstallService {
     const assets = await inspectOwnedHomeAssets(this.homeDirectory);
     // The libraries installed plugins made are named by a ledger; one that cannot be read leaves them unknown, and a purge that cannot
     // say what it removes does not run.
-    let installedLibraries: string[] = [], ledgerConflict: string | null = null;
+    let purgeRegistry: HomeSnapshotStoreRegistry | undefined, ledgerConflict: string | null = null;
     if (purgeUserData) {
-      try { installedLibraries = installedLibraryPaths(this.homeDirectory, homeStores()); }
+      try { purgeRegistry = homeStores(this.homeDirectory); }
       catch (error) { ledgerConflict = `装进来的插件的库账本读不出来，不能确认要清除哪些库：${error instanceof Error ? error.message : String(error)}`; }
     }
     const conflicts = [
@@ -55,8 +59,10 @@ export class MolisWorkUninstallService {
     const purgeDataPaths = purgeUserData
       // Every store the Home's registry lists (W4-11): its owners declare them, so a new store is purged without a list here; and the
       // libraries installed plugins made, which the ledger in `plugin-libraries` names (PG-022 P1b).
-      ? await existingPaths([...homeStores().paths(this.homeDirectory), ...installedLibraries])
+      ? await existingPaths((purgeRegistry ?? homeStores()).paths(this.homeDirectory))
       : [];
+    if (purgeUserData) conflicts.push(...await inspectPurgeInventory(this.homeDirectory,
+      [...purgeDataPaths, ...assets.ownedPaths, ...(webPlan.status === "ready" ? [this.webService.receiptPath] : [])], this.receiptPath));
     const changes: MolisWorkUninstallChange[] = [
       ...runtimePlans.flatMap((plan) => plan.status === "ready"
         ? [{ kind: "runtime" as const, target: plan.display_name, description: `移除 Molis Work 创建的 ${plan.display_name} 接入` }]
@@ -75,11 +81,12 @@ export class MolisWorkUninstallService {
         target: dataPath,
         description: dataPath === path.join(this.homeDirectory, "projects")
           ? `永久删除 ${userProjects.length} 个用户项目及 catalog`
+          : dataPath === agentRuntimeDirectory(this.homeDirectory) ? "清除 Agent 业务数据和密钥，保留原互斥锁骨架"
           : `永久删除 Molis Work 生成的 ${path.basename(dataPath)}`,
       })),
     ];
     const preservedPaths = purgeUserData
-      ? []
+      ? [agentRuntimeDirectory(this.homeDirectory)]
       : [path.join(this.homeDirectory, "projects"), path.join(this.homeDirectory, "backups"), path.join(this.homeDirectory, "logs")];
     const status = conflicts.length > 0 ? "conflict" : changes.length > 0 ? "ready" : "no_change";
     const plan: MolisWorkUninstallPlan = {
@@ -93,7 +100,7 @@ export class MolisWorkUninstallService {
       preserved_paths: preservedPaths,
       conflicts,
       confirmation: purgeUserData
-        ? `永久清除 ${this.homeDirectory} 中的 ${userProjects.length} 个用户项目；必须再次提供完全相同的目录和项目数量`
+        ? `永久清除 ${this.homeDirectory} 中的 ${userProjects.length} 个用户项目与密钥，仅保留互斥锁骨架；必须再次提供完全相同的目录和项目数量`
         : "卸载 Molis Work 程序和自有接入；保留用户项目、catalog、备份与日志",
       message: status === "conflict"
         ? "发现不再符合 Molis Work 所有权收据的配置；没有执行卸载"
@@ -106,7 +113,8 @@ export class MolisWorkUninstallService {
     const snapshotPaths = [...assets.snapshotPaths, path.join(this.homeDirectory, "projects", "catalog.db"), ...purgeDataPaths];
     this.plans.set(plan.plan_id, {
       publicPlan: plan,
-      snapshotHash: await this.snapshotHash(snapshotPaths),
+      snapshotHash: await this.snapshotHash(snapshotPaths, purgeRegistry),
+      purgeRegistry,
       runtimePlans,
       webPlan,
       ownedPaths: assets.ownedPaths,
@@ -123,6 +131,17 @@ export class MolisWorkUninstallService {
     purge_confirmation?: { home_directory: string; user_project_count: number };
   }): Promise<MolisWorkUninstallResult> {
     const prepared = this.plans.get(input.plan_id);
+    if (input.decision === "declined" || prepared?.publicPlan.status !== "ready") return this.confirmPrepared(input);
+    if (!prepared.publicPlan.purge_user_data && this.options.localHost && prepared.webPlan.detection.running) {
+      throw installerErrors["installer.uninstall.conflict"]("请先从另一个进程明确关闭常驻服务，再重新预览卸载；承载卸载的宿主不能等待自己退出");
+    }
+    // Refuse before consuming the preview or writing a receipt. The same explicit confirmation can retry after release.
+    return withUninstallOwner(this.homeDirectory, this.options.localHost,
+      owner => this.confirmPrepared(input, owner), prepared.publicPlan.purge_user_data);
+  }
+
+  private async confirmPrepared(input: Parameters<MolisWorkUninstallService["confirm"]>[0], owner?: StorageOwner): Promise<MolisWorkUninstallResult> {
+    const prepared = this.plans.get(input.plan_id);
     if (!prepared) throw installerErrors["installer.uninstall.plan_missing"]("卸载预览不存在或已失效，请重新预览");
     this.plans.delete(input.plan_id);
     const plan = prepared.publicPlan;
@@ -130,12 +149,18 @@ export class MolisWorkUninstallService {
       return { status: "declined", home_directory: this.homeDirectory, removed_paths: [], preserved_paths: plan.preserved_paths, receipt_path: null, message: "已取消，没有修改 Molis Work 安装或数据" };
     }
     if (plan.status === "conflict") throw installerErrors["installer.uninstall.conflict"](plan.message);
-    if (await this.snapshotHash(prepared.snapshotPaths) !== prepared.snapshotHash) {
+    if (await this.snapshotHash(prepared.snapshotPaths, prepared.purgeRegistry) !== prepared.snapshotHash) {
       throw installerErrors["installer.uninstall.plan_stale"]("Molis Work 安装内容在预览后发生变化，请重新预览");
     }
     if (plan.purge_user_data) this.requirePurgeConfirmation(plan, input.purge_confirmation);
     if (plan.status === "no_change") {
       return { status: "unchanged", home_directory: this.homeDirectory, removed_paths: [], preserved_paths: plan.preserved_paths, receipt_path: null, message: plan.message };
+    }
+    if (plan.purge_user_data) {
+      if (!owner) throw installerErrors["installer.uninstall.conflict"]("永久清除必须持有独立 Home 所有权");
+      const conflicts = await inspectPurgeInventory(this.homeDirectory,
+        [...prepared.purgeDataPaths, ...prepared.ownedPaths, ...(prepared.webPlan.status === "ready" ? [this.webService.receiptPath] : [])], this.receiptPath);
+      if (conflicts.length) throw installerErrors["installer.uninstall.plan_stale"](conflicts.join("；"));
     }
 
     const catalogInspection = await this.options.projects.inspect();
@@ -180,8 +205,7 @@ export class MolisWorkUninstallService {
       receipt.completed_steps.push("owned-program-files");
       if (plan.purge_user_data) {
         for (const dataPath of prepared.purgeDataPaths) {
-          await fs.rm(dataPath, { recursive: true, force: true });
-          receipt.removed_paths.push(dataPath);
+          receipt.removed_paths.push(...await purgeRegisteredPath(this.homeDirectory, dataPath, owner!));
         }
         receipt.completed_steps.push("user-data-purged");
       }
@@ -194,10 +218,10 @@ export class MolisWorkUninstallService {
           path.join(this.homeDirectory, "config"),
           path.join(this.homeDirectory, "bin"),
           path.join(this.homeDirectory, "releases"),
-          this.homeDirectory,
         ]) {
           if (await removeEmptyDirectory(directory)) receipt.removed_paths.push(directory);
         }
+        await assertPurgeComplete(this.homeDirectory, owner!);
       }
       return {
         status: plan.purge_user_data ? "purged" : "uninstalled",
@@ -206,7 +230,7 @@ export class MolisWorkUninstallService {
         preserved_paths: plan.preserved_paths,
         receipt_path: plan.purge_user_data ? null : this.receiptPath,
         message: plan.purge_user_data
-          ? "Molis Work 程序、接入和用户数据已按强确认永久清除"
+          ? "Molis Work 程序、接入、业务数据和密钥已永久清除；Home 仅保留互斥锁骨架，文件夹未删除"
           : "Molis Work 程序和自有接入已卸载；用户项目、catalog、备份与日志仍保留",
       };
     } catch (error) {
@@ -236,12 +260,19 @@ export class MolisWorkUninstallService {
   private async writeReceipt(receipt: UninstallReceipt): Promise<void> {
     await fs.mkdir(path.dirname(this.receiptPath), { recursive: true });
     const temporary = `${this.receiptPath}.tmp-${randomUUID()}`;
-    await fs.writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-    await fs.rename(temporary, this.receiptPath);
+    try {
+      await fs.writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+      await fs.rename(temporary, this.receiptPath);
+    } catch (error) {
+      await fs.rm(temporary, { force: true }).catch(cleanupError => hostLog.warn("installer", "uninstall_receipt_cleanup_failed", cleanupError,
+        { purge_user_data: receipt.purge_user_data }));
+      throw error;
+    }
   }
 
-  private async snapshotHash(paths: string[]): Promise<string> {
-    const values = await Promise.all([...new Set(paths)].sort().map(async (target) => ({ target, value: await pathFingerprint(target) })));
+  private async snapshotHash(paths: string[], registry?: HomeSnapshotStoreRegistry): Promise<string> {
+    const values = await Promise.all([...new Set(paths)].sort().map(async (target) => ({ target,
+      value: await (registry ? purgePathFingerprint(this.homeDirectory, target, registry) : pathFingerprint(target)) })));
     return digest(JSON.stringify(values));
   }
 }

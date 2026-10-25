@@ -24,6 +24,7 @@ export const pluginErrors = defineErrorCodes("plugin", {
   manifest_invalid: "invalid",
   package_invalid: "invalid",
   permission_invalid: "invalid",
+  preview_unknown: "not_found",
   publisher_revoked: "invalid",
   publisher_untrusted: "invalid",
   quarantined: "invalid",

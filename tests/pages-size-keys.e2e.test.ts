@@ -17,7 +17,7 @@ async function mount(t: TestContext) {
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/` }, b.sessionId));
   await b.evaluate(`Promise.all([
     new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/assets/molis-work-pages-editor.js';script.onload=resolve;script.onerror=reject;document.head.append(script)}),
-    new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href='/assets/molis-work-workbench.css';css.onload=resolve;css.onerror=reject;document.head.append(css)})
+    Promise.all(['/assets/molis-work-workbench.css','/assets/molis-work-plugins/pages.css'].map(href=>new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href=href;css.onload=resolve;css.onerror=reject;document.head.append(css)})))
   ]).then(()=>undefined)`);
   // A 400 × 100 picture, drawn here so it passes the editor's own image check.
   const src = await b.evaluate<string>("(() => { const c = document.createElement('canvas'); c.width = 400; c.height = 100; const g = c.getContext('2d'); g.fillStyle = '#888'; g.fillRect(0, 0, 400, 100); return c.toDataURL('image/png'); })()");

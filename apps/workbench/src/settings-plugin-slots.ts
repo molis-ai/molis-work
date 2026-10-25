@@ -40,7 +40,7 @@ export function renderPluginSlots(view: Pick<MolisWorkSettingsView, "plugin_slot
     </div>`;
   }).join("");
   const project = view.context_project;
-  return `<section class="settings-connection-section settings-plugin-slots" aria-label="${e(L("插件用的账号"))}" data-plugin-slots${project ? ` data-plugin-slots-project="${e(project.project_id)}"` : ""}>
+  return `<section class="settings-connection-section settings-plugin-slots" aria-label="${e(L("插件用的账号"))}" data-plugin-slots="${e("plugin-slots" + (project ? "?project=" + encodeURIComponent(project.project_id) : ""))}">
     <header><div><h2>${L("插件用的账号")}</h2><p>${L("插件经平台向这些服务发请求时用哪个账号。插件看不到凭据。不选账号时，请求不带凭据；Salesforce、Jira、Confluence 这类按租户分站点的服务不选账号，插件就不能请求。")}${project ? "" : ` ${L("这里只列出个人插件；从项目进入设置，可以看到这个项目装的插件。")}`}</p></div></header>
     <div class="settings-connection-list">${rows}</div>
   </section>`;

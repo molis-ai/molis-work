@@ -64,6 +64,8 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 
 ## 开发要求
 
+`listPluginProjectDatabases(database)` 只读项目库的现行插件 ledger，沿该 owner 的严格 parser 返回插件 id、库名、版本与发布者，用于离线快照子版本记录；不激活插件、不迁移或初始化账本，不向 Host 暴露跨 owner SQL。回归包含 `tests/home-snapshot-content.test.ts`。
+
 显式解除隔离时，Runtime 先把安装转为可恢复状态，再启动新激活，使启动期间声明的常驻作业接受同一安装检查；启动失败恢复隔离。普通恢复仍拒绝隔离安装，不能绕过用户决定。验证见 `tests/plugin-compatible-recovery-http.test.ts` 与 `tests/plugin-host-executor.test.ts`。
 
 - 负责：插件身份、安装、授予、隔离、生命周期与回滚。

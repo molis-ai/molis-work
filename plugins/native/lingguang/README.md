@@ -16,7 +16,7 @@
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/lingguang-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `LINGGUANG_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `LingguangPage` 对象里（`page.ts`），编辑与空白灵光的丢弃（`editor.ts`，空白灵光怎样离开的完整说明在它的开头注释）、列表与它的读取（`list.ts`、`load.ts`）、读取文件与链接（`material.ts`）、头脑风暴与交给助理（`chat.ts`）、按钮命令表（`commands.ts`）各是一个部件，在启动时把自己的操作装到这个对象上；请求只经工作台的 `molisWorkRequest`（`request.ts`，带 `scope`，离开页面即取消），不直接 `fetch`；插件路径来自 `host.pluginRoute`，插件 id 来自 `host.pluginId`，浏览器代码里不写 id。esbuild 是包的直接开发依赖，版本与根相同；升级后的资源增长仍须按资源规则评审。
 
-页面上的字是稳定键（`lingguang.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `LINGGUANG_EN` 只留 7 条宿主还按中文原文翻译的词（灵光自己的服务端标签与错误，BL-459），新页面文字一律加稳定键。
+页面上的字是稳定键（`lingguang.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `LINGGUANG_EN` 只留 7 条宿主还按中文原文翻译的词（灵光自己的服务端标签与错误，BL-459），新页面文字一律加稳定键。
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`

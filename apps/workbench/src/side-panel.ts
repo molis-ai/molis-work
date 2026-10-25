@@ -1,3 +1,4 @@
+import { withPluginWords } from "./i18n.js";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SIDE_CONTEXT_FACTORY } from "./side-panel-context.js";
 import { SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
@@ -44,7 +45,7 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
   const body = (id: string, label: string, inner: string, extra = "") =>
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
   // A plugin's side view names itself in its Manifest; the panel shows that name in the interface language.
-  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry, title: L(entry.title) }));
+  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry, title: withPluginWords(entry.key.split("/")[0] ?? "", () => L(entry.title)) }));
   const own = projectTools ? OWN_TABS.map(([id, label, glyph, order]) => ({ id, order, html: tab(id, L(label), glyph) })) : [];
   const ordered = [...own, ...plugins.map(entry => ({ id: entry.id, order: entry.order ?? 100, html: tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}`) }))]
     .sort((a, b) => a.order - b.order);

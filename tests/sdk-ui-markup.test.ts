@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import * as sdkUi from "@molis-ai/molis-work-plugin-sdk/ui";
+import * as diffView from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import {
   icon,
   renderAlert,
@@ -96,6 +97,24 @@ test("every class a /ui part writes has a rule in the host's style sheets", () =
   // the host has no rule that adds to it; every other class is the part's and the host defines each.
   const BASE_LOOK = new Set(["extra", "mw-alert--info", "mw-alert--neutral"]);
   const missing = [...written].filter((token) => !BASE_LOOK.has(token) && !defined(token)).sort();
+  assert.deepEqual(missing, []);
+});
+
+// RAC-766
+test("every class the SDK's diff view writes has a rule in the host's style sheets", () => {
+  const sheets = [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet(), renderMolisWorkSettingsStylesheet()].join("\n");
+  const defined = (token: string): boolean => new RegExp(`\\.${token.replace(/[\\^$*+?.()|[\]{}]/gu, "\\$&")}(?![\\w-])`, "u").test(sheets);
+  const roles = ["before", "after", "pinned", "mismatch", "partial", "coarse", "created", "removed", "identical", "comment_before", "comment_after", "insert", "delete", "same", "reveal"] as const;
+  const labels = Object.fromEntries(roles.map((role) => [role, `K.${role}`])) as diffView.DiffViewLabels;
+  const primitives = { escape: (value: unknown) => String(value), text: (key: string) => key, icon: (name: string) => name };
+  const side = { workspace_id: "w", workspace_name: "W", path: "a.ts", source_plugin_id: "p", content_version: 1 };
+  const view = diffView.compareChange("g", { before: side, after: side }, { before: "a\n", after: "c\n", created: true });
+  const html = diffView.renderDiff({ view, line_feedback: true, labels, primitives });
+  const written = classesOf(html);
+  assert.ok(written.size > 8, `expected the diff view to write its classes, saw ${[...written].join(", ")}`);
+  // These name hooks other pages select on (Coding's split columns, a file row's own layout), not rules of the view itself.
+  const HOOKS = new Set(["mw-diff-files", "mw-diff-counts", "mw-diff-path", "mw-diff-left", "mw-diff-right"]);
+  const missing = [...written].filter((token) => !HOOKS.has(token) && !defined(token)).sort();
   assert.deepEqual(missing, []);
 });
 

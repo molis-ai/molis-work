@@ -118,7 +118,7 @@ test("VUX-40: every sentence the Host's Git code sends to the Git page has an En
 });
 
 test("VUX-40: the Git surface's branch, upstream and status lines read in English; the upstream is fields the page says (⑧)", () => {
-  const en = pageText("en"), zh = pageText("zh");
+  const en = pageText("en", "git"), zh = pageText("zh");
   const view = (record: string) => projectGit({ phase: "ready", status: parsePorcelainStatus({ stdout: `${record}\0` }) });
   // User 2026-10-23 ⑧: the view gives the upstream's name and how far ahead and behind; the page writes the sentence.
   const cases: Array<[record: string, fields: { name: string; ahead: number; behind: number }, zh: string, en: string]> = [

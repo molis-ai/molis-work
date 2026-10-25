@@ -13,6 +13,7 @@ import { databaseDeclarationProblems } from "./database-declarations.js";
 import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
 import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
+import { messageDeclarationProblems } from "./message-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { createStations, settingsReadActions, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
@@ -206,6 +207,8 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["attention", manifest.attention],
     ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
+    ["ui.messages", ui.messages],
+    ["ui.translations", ui.translations],
   ];
   for (const [name, value] of v2Blocks) {
     if (value !== undefined) {
@@ -247,6 +250,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   ));
   problems.push(...inspectMethodDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));
+  problems.push(...messageDeclarationProblems(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));

@@ -153,14 +153,15 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refus
     assert.deepEqual(directory.find(entry => entry.id === "pages"), market, "a different Runtime key does not remove the not-running built-in market entry");
     const rail = railEntries(["pages"], directory);
     assert.deepEqual(rail.filter(entry => entry.label === "Other publisher").map(entry => [entry.id, entry.surface, entry.chosen]), [[pluginId, pluginId, false]]);
-    assert.deepEqual(creatableKinds(["pages"], directory).filter(entry => entry.station === "publisher-notes"), [{ id: pluginId, station: "publisher-notes", title: "Other note" }]);
-    const start = { id: pluginId, title: "Start other publisher", hint: "Keep this publisher's surface", glyph: "note" };
+    assert.deepEqual(creatableKinds(["pages"], directory).filter(entry => entry.station === "publisher-notes"), [{ id: pluginId, plugin_id: pluginId, station: "publisher-notes", title: "Other note" }]);
+    const start = { id: pluginId, plugin_id: pluginId, title: "Start other publisher", hint: "Keep this publisher's surface", glyph: "note" };
     assert.deepEqual(homeStarts(["pages"], directory).find(entry => entry.title === start.title), start);
     const html = renderMolisWorkWeb({ ...view(running), enabled_plugins: ["pages"] });
     assert.ok(html.includes(`data-plugin-tile="${pluginId}"`), "the actual rail points to this publisher's shell surface");
     assert.equal(html.includes(`data-plugin-toggle="${pluginId}"`), false, "sharing a Manifest id does not turn it into a built-in project choice");
     assert.equal(headingOf(html, pluginId), "写与做");
-    assert.deepEqual(homeStartList(html).find(entry => entry.title === start.title), start, "the real page's start data keeps the same owner key");
+    const { plugin_id: _drawnIn, ...pageStart } = start; // the page's start data carries the words already applied, not the plugin that supplied them
+    assert.deepEqual(homeStartList(html).find(entry => entry.title === start.title), pageStart, "the real page's start data keeps the same owner key");
   } finally {
     await platform.closeCoordination();
     for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);

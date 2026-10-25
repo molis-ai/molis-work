@@ -1,6 +1,8 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginBoardSpecimenPorts, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { inWordsOf } from "./i18n.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
+import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js";
 
 /**
@@ -12,14 +14,22 @@ import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js"
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 export function renderBoardPluginRows(L: Say, sample: PluginBoardSpecimenPorts["sample"], catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): string {
-  // The page's own primitives; a date as Coding's Host writes it on the first paint (its day), the one plugin that shows one here.
-  const ports: PluginBoardSpecimenPorts = { escape: escapeHtml, text: L, icon: (name) => icon(name as Parameters<typeof icon>[0]), formatDate: (value) => value.slice(0, 10), sample };
-  const figures = catalog.flatMap((entry) => (entry.workbench.specimens?.(ports) ?? []).map((one) => `<figure class="mw-cond-plugin" data-board-plugin="${escapeHtml(entry.project_plugin_id)}" data-board-specimen="${escapeHtml(one.id)}" data-place="${one.place}">
+  // The page's own primitives, each plugin's text in that plugin's own words (its Manifest's `ui.translations`, which only apply while it draws);
+  // a date as Coding's Host writes it on the first paint (its day), the one plugin that shows one here.
+  const portsOf = (pluginId: string): PluginBoardSpecimenPorts => ({ escape: escapeHtml, text: inWordsOf(pluginId, L), icon: (name) => icon(name as Parameters<typeof icon>[0]), formatDate: (value) => value.slice(0, 10), sample });
+  const figures = catalog.flatMap((entry) => (entry.workbench.specimens?.(portsOf(entry.manifest.plugin_id)) ?? []).map((one) => `<figure class="mw-cond-plugin" data-board-plugin="${escapeHtml(entry.project_plugin_id)}" data-board-specimen="${escapeHtml(one.id)}" data-place="${one.place}">
       <figcaption><strong>${escapeHtml(L(entry.manifest.name))}</strong><span>${escapeHtml(one.title)}</span><span class="mw-cond-tag">${escapeHtml(L("样例数据（模拟）"))}</span></figcaption>
       <div class="mw-cond-plugin__body">${one.html}</div>
     </figure>`));
   return `<section data-board-plugin-rows><h2>${escapeHtml(L("插件行视图"))}</h2><p class="mw-cond-note">${escapeHtml(L("插件自己的行渲染器画出的样例：数据是固定样例，行就是插件页面画的那一行。目录里的行按一栏的宽度排，主区的视图占满。"))}</p>
     <div class="mw-cond-plugins">${figures.join("")}</div></section>`;
+}
+
+/** The sheets the specimens' plugins bring beside the workbench sheet (and those of the plugins their rows draw), so a specimen is styled as its page is. */
+export function boardPluginStyleLinks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): string {
+  const drawn = new Set(catalog.filter((entry) => entry.workbench.specimens).map((entry) => entry.project_plugin_id));
+  const ids = new Set(pluginSurfaceClients().filter((client) => drawn.has(client.id)).flatMap((client) => client.styles));
+  return [...ids].map((id) => `<link rel="stylesheet" href="/assets/molis-work-plugins/${encodeURIComponent(id)}.css">`).join("");
 }
 
 /** The board page's own rule for the section's frame: as tall as its rows need, not the conditions frame's height. */

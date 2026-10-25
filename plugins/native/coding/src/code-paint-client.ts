@@ -176,13 +176,13 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
       }
       if (row < shown.length) later(step);
     };
-    if (list.matches(".diff-split") || shown.reduce((size, row) => size + row.text.length, 0) <= SLICE / 4) { step(); return; }
+    if (list.matches(".mw-diff-split") || shown.reduce((size, row) => size + row.text.length, 0) <= SLICE / 4) { step(); return; }
     // Let the plain rows lay out once. Their remembered natural size keeps the scroll range while the browser skips
     // offscreen rows; full text and tokens stay in the DOM. Minified plain rows keep their full measured width.
     for (const row of rows) if (row.text.length > 40000 && row.code.parentElement) row.code.parentElement.dataset.diffMeasure = "";
     const probe = rows.find((row) => row.text.length && !row.code.parentElement?.hasAttribute("hidden"))?.code.parentElement;
     if (probe) probe.dataset.diffMeasure = "";
-    const number = probe?.querySelector(".diff-before"), content = probe?.querySelector("code"), size = () => [list.clientWidth, probe?.getBoundingClientRect().height, number?.getBoundingClientRect().width, content?.getBoundingClientRect().width].join(":");
+    const number = probe?.querySelector(".mw-diff-before"), content = probe?.querySelector("code"), size = () => [list.clientWidth, probe?.getBoundingClientRect().height, number?.getBoundingClientRect().width, content?.getBoundingClientRect().width].join(":");
     const remember = () => { list.style.setProperty("--diff-width", list.scrollWidth + "px"); list.dataset.diffSized = ""; };
     let measured = size();
     const refresh = (force = false) => {

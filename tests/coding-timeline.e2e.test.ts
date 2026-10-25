@@ -17,7 +17,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
   try {
     const page = await browser.page();
     // The words come through the page's translator, as on the Coding page (`host.translate`).
-    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`);
     // The factory is injected into the page by toString in production, so it runs here the same way.
     const result = await page.evaluate<Record<"waiting" | "running" | "done" | "stopped" | "failed", Reading>>(`(()=>{
       const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
@@ -187,7 +187,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.equal(changes.kept, true, "the same row is redrawn in place and stays open");
     assert.match(changes.hint, /像密钥的一段，没有写入/, "a refused secret write reads in words above its raw code");
     // VUX-40: the same timeline through the English translator draws no Chinese: rows, summary, live line and cards.
-    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const english = await page.evaluate<{ summary: string; rows: string[]; footer: string; failed: string; quiet: string; han: string[] }>(`(()=>{
       const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const block=document.createElement('section'),detail=document.createElement('details');detail.dataset.codingActivity='en:0';block.append(detail);document.body.append(block);
@@ -222,7 +222,7 @@ test("VUX-43 a live round's time keeps one format per range and one box across 9
   try {
     const page = await browser.page();
     const read = async (locale: "zh" | "en") => {
-      await page.evaluate(`(()=>{${pageTextScript(locale)}})()`);
+      await page.evaluate(`(()=>{${pageTextScript(locale, "coding")}})()`);
       return page.evaluate<Array<{ text: string; box: string; text_width: number }>>(`(()=>{
         document.body.innerHTML = ""; const style = document.createElement("style"); style.textContent = ${JSON.stringify(NUMBER_STYLES)}; document.head.append(style);
         const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));

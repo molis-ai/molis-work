@@ -309,7 +309,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         await writeFile(target, await readBuildFile(dirname(bundlePath), bundlePath.slice(dirname(bundlePath).length + 1), 8 * 1024 * 1024), { mode: 0o400, flag: 'wx' });
         await writeFile(join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2), { mode: 0o400, flag: 'wx' });
         await writeFile(join(directory, 'contract.json'), JSON.stringify(build.design!.contract, null, 2), { mode: 0o400, flag: 'wx' });
-        await writeFile(join(directory, 'interface.json'), JSON.stringify({ nodes: build.nodes, acceptance: build.design!.acceptance, presentation: build.design!.presentation }, null, 2), { mode: 0o400, flag: 'wx' });
+        await writeFile(join(directory, 'interface.json'), JSON.stringify({ parts: build.design!.parts, nodes: build.nodes, acceptance: build.design!.acceptance, presentation: build.design!.presentation }, null, 2), { mode: 0o400, flag: 'wx' });
         // What it tells the model, as the checked sources declare it: registered when this version is installed.
         const { prompts, problems } = readPluginPrompts(await buildSources(build.directory!, settledFor(build.directory!), build.design!.contract.operations.length));
         if (problems.length) throw new Error('发布前请先修好调用模型的写法：' + problems[0]);

@@ -63,7 +63,7 @@ export type { CallRowView } from "./call-row.js";
 export { renderMcpAccess, renderMcpAccessRows, mcpAccessEntryKey, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView } from "./page-view.js";
 export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
-export { createWorkbenchLocale, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, WEB_LOCALES, type WebLocale } from "./i18n.js";
+export { createWorkbenchLocale, inWordsOf, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, registerPluginMessages, unregisterPluginMessages, WEB_LOCALES, withPluginWords, type WebLocale } from "./i18n.js";
 export {
   artifactWorkbench,
   createArtifactReferenceRenderer,
@@ -97,7 +97,7 @@ export { BUILTIN_PLUGIN_CATALOG, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES
 export { clientPluginDirectory, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export type { PluginCreatableKind, PluginHomeStart, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
 export { declaredStageContributionId, stageContributionId } from "./declared-stages.js";
-export { pluginWorkbenchPacks } from "./plugin-workbench.js";
+export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export {
   isDecidable,
@@ -118,7 +118,10 @@ export {
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
 
-export { deferredSurfaceClients, pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
+export { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
+export { pluginSettingsStyleLinks } from "./plugin-workbench.js";
+export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
+export { selectorNames, splitPluginStylesheet, type SplitStylesheet } from "./plugin-styles.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter, type WriteCheckerFields } from "./scripts/write-checkers.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
@@ -127,6 +130,6 @@ export { renderMolisWorkCharactersClientScript } from "./characters/client-asset
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
 
-export { renderPluginFrameClientScript } from "./plugin-frame.js";
+export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";

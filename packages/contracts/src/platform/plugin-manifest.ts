@@ -104,6 +104,11 @@ export interface ArtifactLinkDeclaration {
 export interface PluginRuntimeDeclaration {
   readonly scope: "home";
 }
+/** A Plugin's words by stable key, each in both page languages. */
+export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
+
+/** A Plugin's English for words still keyed by their Chinese source text. */
+export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 
 export interface PluginManifest {
   /** 1 is the original shape. 2 adds ports, events, views, commands, routes and agent. */
@@ -163,6 +168,21 @@ export interface PluginManifest {
     embedded_plugins?: string[];
     /** v2: where each contribution is placed. Absent means the Host places nothing. */
     views?: UiViewDeclaration[];
+    /**
+     * v2: the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
+     * Plain data in the Manifest, so a built-in and a third-party Plugin bring their words the same way; the Host reads
+     * them from the Manifests of the Plugins that are installed, never from a list of its own. A key one Plugin has
+     * declared is refused to another.
+     */
+    messages?: PluginMessagesDeclaration;
+    /**
+     * v2: English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
+     * stable keys (specs/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
+     * what this Plugin draws itself (its frame and its contributions) and to the text it supplies where the Host draws it
+     * (an action's title, a deletion dialog's data description): the same Chinese sentence on the Host's pages or in another
+     * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
+     */
+    translations?: PluginTranslationsDeclaration;
   };
   /** v2: named, typed connection points wired by the user inside a project. */
   ports?: PluginPortsDeclaration;

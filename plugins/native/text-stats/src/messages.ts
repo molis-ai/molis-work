@@ -5,9 +5,6 @@ export const TEXT_STATS_MESSAGES = {
   "text-stats.count.lines": { zh: "行", en: "Lines" },
   // The view's and the actions' own sentences are action output an Agent reads too, so they stay as written and are their
   // own keys here: the page shows them through the translator.
-  "固定一份文件快照后，这里会显示该版本的文本统计": { zh: "固定一份文件快照后，这里会显示该版本的文本统计", en: "Pin a file snapshot and its text stats show here" },
-  "捕获的快照已经不在了": { zh: "捕获的快照已经不在了", en: "The pinned snapshot is gone" },
-  "重新捕获一次，或者在 Sources 里换一个输入": { zh: "重新捕获一次，或者在 Sources 里换一个输入", en: "Pin it again, or choose another input in Sources" },
   "text-stats.stage.refresh": { zh: "刷新", en: "Refresh" },
   "text-stats.stage.open-files": { zh: "打开 Files", en: "Open Files" },
   "text-stats.stage.reading": { zh: "正在读取固定内容…", en: "Reading the pinned versions…" },

@@ -16,6 +16,7 @@ import { projectScopeEntries } from "./plugin-scope-entries.js";
 import { projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
+import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 import { projectRuntimeDeclarations } from "./plugin-registry.js";
 
 export interface ProjectPluginPorts {
@@ -131,7 +132,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       journal: ports.store,
       artifacts: ports.artifacts,
       processItems: ports.processItems,
-      ui: new UiHost(),
+      ui: new UiHost({ drawingAs: withPluginWords }),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
       deleteInstallationData: installId => storage.deleteInstallationData(installId),
       capturePrivateData: installId => storage.snapshotInstallationData(installId),

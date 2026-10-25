@@ -34,6 +34,7 @@ export {
   describeSqliteSchema,
   listSqliteObjects,
   openBaselineHomeSqlite,
+  openExistingBaselineSqlite,
   type SqliteBaseline,
   type SqliteBaselineDatabase,
   type SqliteSchemaObject,

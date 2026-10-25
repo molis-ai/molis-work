@@ -13,10 +13,12 @@ export function pluginBuilderProjectOwner(home: string): ProjectDeletedOwner {
   return {
     id: "plugin-builder",
     label: "插件创作台的构建、发布包和已保存的密钥",
-    async clear(projectId) {
+    async clear(projectId, _deletion, control) {
       // A project id names one directory; anything that could name another is not an id this Home ever made.
       if (!projectId || projectId === "." || projectId === ".." || basename(projectId) !== projectId) return;
+      control?.assertCurrent();
       await rm(join(home, "plugin-builder", projectId), { recursive: true, force: true });
+      control?.assertCurrent();
       runWithMolisWorkHome(home, () => deleteSecretEntriesWithPrefix(`plugin-builder-secret:${projectId}:`));
     },
   };

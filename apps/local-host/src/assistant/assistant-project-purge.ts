@@ -1,5 +1,6 @@
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { existsSync } from "node:fs";
-import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite, openExistingBaselineSqlite } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
 import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from "./assistant-store.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -38,9 +39,11 @@ const WORK_TABLES = ["assistant_rounds", "assistant_cards", "assistant_notices",
  * library's file, so a process without the Assistant clears the rows too; running it again finds nothing.
  * Returns how many works went.
  */
-export async function purgeAssistantProject(home: string, projectId: string, live?: AssistantProjectLive): Promise<number> {
+export async function purgeAssistantProject(home: string, projectId: string, live?: AssistantProjectLive, control?: ProjectDeletionControl): Promise<number> {
+  control?.assertCurrent();
   if (!existsSync(homeSqlitePath(home, ASSISTANT_STORE_NAME))) return 0;
-  const db = openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
+  const db = control ? openExistingBaselineSqlite(homeSqlitePath(home, ASSISTANT_STORE_NAME), ASSISTANT_STORE_BASELINE)
+    : openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
   try {
     db.exec("PRAGMA busy_timeout = 5000;");
     const works = (db.prepare("SELECT body FROM assistant_works WHERE json_extract(body, '$.project_ref.project_id') = ? OR json_extract(body, '$.scope.project_id') = ?")
@@ -48,20 +51,32 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
     if (!works.length) return 0;
     if (live) {
       for (const work of works) {
+        control?.assertCurrent();
         await live.stop(work.work_id).catch(() => undefined);
+        control?.assertCurrent();
         for (const row of db.prepare("SELECT followup_id FROM assistant_followups WHERE work_id = ?").all(work.work_id) as Array<{ followup_id: string }>) {
+          control?.assertCurrent();
           await live.dropFollowUp(row.followup_id).catch(() => undefined);
+          control?.assertCurrent();
         }
       }
     }
     const relations = new AssistantRelations(db);
+    control?.assertCurrent();
     db.exec("BEGIN IMMEDIATE");
     try {
       for (const work of works) {
         const identity = { work_id: work.work_id, project_id: work.project_ref?.project_id ?? null };
-        for (const related of relations.forWork(identity)) relations.unlink(identity, related.relation, related.object, "项目已删除");
-        for (const table of WORK_TABLES) db.prepare(`DELETE FROM ${table} WHERE work_id = ?`).run(work.work_id);
+        for (const related of relations.forWork(identity)) {
+          control?.assertCurrent();
+          relations.unlink(identity, related.relation, related.object, "项目已删除");
+        }
+        for (const table of WORK_TABLES) {
+          control?.assertCurrent();
+          db.prepare(`DELETE FROM ${table} WHERE work_id = ?`).run(work.work_id);
+        }
       }
+      control?.assertCurrent();
       db.exec("COMMIT");
     } catch (error) { db.exec("ROLLBACK"); throw error; }
     return works.length;

@@ -4,7 +4,7 @@ import { mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
-import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectDataDeclaration, ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
 /**
@@ -65,7 +65,8 @@ export async function openArtifactOriginal(home: string, projectId: string, orig
 }
 
 /** The project is deleted: its stored originals go. Idempotent; works on the files, so any process on the Home can run it. */
-export async function purgeArtifactOriginals(home: string, projectId: string): Promise<void> {
+export async function purgeArtifactOriginals(home: string, projectId: string, control?: ProjectDeletionControl): Promise<void> {
+  control?.assertCurrent();
   await rm(projectDirectory(home, projectId), { recursive: true, force: true });
 }
 

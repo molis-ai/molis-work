@@ -72,6 +72,7 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（Manifest 解析与版本比较，路由器的拒绝用它的 `actionErrorResponse` 答）。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 安装事实存 SQLite repository；私有存储按安装 ID 隔离。
+  - 每次重装已卸载的安装，都在注册代码、保存新代之前同步调用 Host 的 `PluginExecutor.prepareReinstall`，补清原文件登记、按记录连接等授权；保留私有数据也不能跳过。授权 owner 失败就拒绝发布，原卸载记录不变，关闭后新建 Runtime 也照常检查。这个端口不删私有数据；不能在同步安装中重放允许异步返回的 `uninstalled`。回归见 `tests/security-invariants-installation-records.test.ts` 的 RAC-472/473。
   - 稳定 install_id 用于私有数据；installation_generation 区分每次确认安装，重启、启停和升级不变，卸载重装生成新值。持久任务绑定二者。安装记录必有 installation_generation 与 execution（`host` 或 `sandbox`），缺的记录不是当前 schema。
   - `stop()` 默认记录 disabled；Host 正常关闭可传 `preserve_enabled: true`，停止进程与撤销上下文后保留 installed 状态。该选项不能重新启用已经 disabled 的安装，失败仍记录 crashed。是否启动由 Host 的当前启用策略决定。
   - 不保留数据的卸载后 Host 还要调用 `deleteInstallationData`，但不能删除已交换出去的 Artifacts。

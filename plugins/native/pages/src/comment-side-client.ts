@@ -1,3 +1,4 @@
+import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiSideContext, UiPageMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { CommentSideHost, CommentDraft, CommentElements, CommentOpening, CommentStatus, CommentCommandResult, PendingCommentCommand } from "./comment-browser-types.js";
@@ -21,8 +22,7 @@ export function mountComments(host: CommentSideHost): void {
   const error=(text: string)=>{q('error').textContent=text||'';q('error').hidden=!text;q('reload').hidden=!text;};
   const request=async<T>(address: string,body?: object): Promise<T>=>{
     const url=address+(address.includes('?')?'&':'?')+'project_id='+encodeURIComponent(project);
-    const response=await fetch(url,{method:body===undefined?'GET':'POST',headers:host.controlHeaders(),...(body===undefined?{}:{body:JSON.stringify(body)})});
-    const data=await response.json();if(!response.ok)throw new Error(data.error||L('pages.error.request'));return data;
+    return molisWorkRequest<T>(url,{...(body===undefined?{}:{body}),fallback:L('pages.error.request')});
   };
   const pagePath=(id: string)=>host.pluginRoute('/pages/'+encodeURIComponent(id)+'/comments');
   const target=()=>({provider_id:'io.molis.work.pages',subject_kind:'pages_document',subject_id:context!.object_ref.id,thread_id:active});

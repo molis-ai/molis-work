@@ -1216,3 +1216,8 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 
 
 本合并结果的首轮工程验证：原冻结离线安装、整体 build、根 typecheck、73 份 API 快照和正式 Action 快照均 exit 0；权限与本人原件、SDK 排队效果、撤权/晋升、采用、库基线和搜索共 15 文件 178 项首次通过，日志 `/private/tmp/molis-memory-main3817-direct-20261025.log`。真实资源测得 27 项共 7,594,739 B，仅 Workbench 1,126,567→1,129,760（+3,193 B）和 Coding 372,136→372,853（+717 B）相对准确 main 增长，其余逐项相同；仅按上述原授权净增重定位一次性配对。构建及类型日志为 `/private/tmp/molis-memory-main3817-{integration-build,types}-20261025.log`。合并提交后的准确主线健康、边界和秘密门以及最终 CI/Full suite 仍需完成，不把这批结果当作完整通过。
+
+
+准确合并 d5f320d3c 的后续验证：主线3817健康、boundary、API/Action、资源与secrets均通过；本地现有快查基线也以只读方式通过且没有待降低项，无需写基线。自动审批曾拒绝一次更新基线请求，未执行该写入，未改变基线或门禁。独立深审核对主线Action/原件/后台/撤权调用链，无阻塞；四个独立边界用例最终通过，沙箱内回环EPERM伴随的Node原生失败日志保留。
+
+平台补验首次6/8文件通过：install 22/23，原因是本次资源脚本更新使原构建指纹过期，真实安装正确拒绝；另一个失败是统筹误填不存在的backup.test.ts，未运行备份用例。随后原pnpm build刷新最终指纹，install 23/23、实际home-backup-recovery 1/1及runtime-config-backup-maintenance 6/6均通过。原日志与复验日志分别为 /private/tmp/molis-memory-main3817-platform-20261025.log、/private/tmp/molis-memory-main3817-install-backup-final-20261025.log。未修改生产、断言、重试或门禁处理这两项失败。最终普通CI/Full suite仍待运行，旧Cloudflare未知及用户验收边界继续保留。

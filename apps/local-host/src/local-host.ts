@@ -39,6 +39,8 @@ export interface LocalHostOptions<Runtime> {
   instanceId?: string;
   sceneAvailability?(context: ActionCallContext, scene: ActionSceneView): ActionAvailability | Promise<ActionAvailability>;
   actionAvailability?: ActionAvailabilityPolicy;
+  /** Throws to refuse a provider before it is registered: nothing is registered or written for a refused one. */
+  admitActionProvider?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider, scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[]): void;
   /** A provider was registered or withdrawn, with the project it was bound to; on registration, also the consumption scenes it registered. Observers must not throw. */
   actionProvidersChanged?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider, scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[]): void;
   /** Every call, once, as it ended (a handler's result or failure, or a refusal before any handler), with its caller and the operation's call id; never its input or result. */
@@ -173,6 +175,7 @@ export class LocalHost<Runtime> {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
       }
       const bound = { ...registration.provider, ...(project ? { project_id: project.project_id } : {}) };
+      this.options.admitActionProvider?.(bound, registration.scenes);
       const remove = this.actionService.registerProvider({ ...withSceneConfigurationActions(registration, this.sceneClient(project)),
         provider: bound,
         availability: caller => this.state !== "running" || entry?.state === "closing"
@@ -182,8 +185,7 @@ export class LocalHost<Runtime> {
       const owner = entry?.actionDisposers ?? this.globalActionDisposers;
       const announce = (scenes?: readonly ActionSceneDefinition[]) => { try { this.options.actionProvidersChanged?.(bound, scenes); } catch { /* An observer never changes registration. */ } };
       const dispose = () => { remove(); owner.delete(dispose); announce(); };
-      owner.add(dispose);
-      announce(registration.scenes);
+      owner.add(dispose); announce(registration.scenes);
       return dispose;
     } };
   }

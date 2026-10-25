@@ -36,6 +36,7 @@ import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
+import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -160,7 +161,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { redemption: definition => ({ partial: identity.dualInstance(definition) }), ...options.home ? { consents: options.home.consents } : {},
+    { redemption: definition => ({ partial: identity.dualInstance(definition) }), ...options.home ? { consents: options.home.consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),

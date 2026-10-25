@@ -16,6 +16,7 @@ import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { bindHomeRegistration } from "./home-registration.js";
+import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -164,7 +165,7 @@ export class HomePluginHost {
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
-    const runtime = new PluginRuntime(repository, executor, { consents: new SqlitePluginConsentLedger(db),
+    const runtime = new PluginRuntime(repository, executor, { consents: new SqlitePluginConsentLedger(db), reservedRuleKeys: hostReservedRuleKeys,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });

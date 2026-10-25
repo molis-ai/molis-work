@@ -7,7 +7,7 @@ import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type 
 
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest } from "./install-rules.js";
-import { assertConsentsDeclared, assertPluginTrust, assertTrustFitsExecution, isHostTrust } from "./trust-rules.js";
+import { assertInstallAllowed, assertPluginTrust, isHostTrust } from "./trust-rules.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
 import { leaveRefusal } from "./always-on-rules.js";
@@ -155,6 +155,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
+      reservedRuleKeys?(): ReadonlySet<string>;
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string; projectReach?: PluginProjectReach } } = {},
   ) {}
 
@@ -170,8 +171,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   install(input: PluginInstallInput): PluginLifecycleReceipt {
     const trust = assertPluginTrust(input.trust);
-    assertTrustFitsExecution(trust, input.definition.execution ?? "host");
-    assertConsentsDeclared(input.definition.manifest, input.consents ?? []);
+    assertInstallAllowed(input, trust, this.options.reservedRuleKeys?.());
     const receipt = this.installRecord(input, trust);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
     return receipt;

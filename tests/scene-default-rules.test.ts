@@ -1,34 +1,21 @@
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
-import { withFunctionsService, type FunctionsHostOptions } from "@molis-ai/molis-work-app-local-host";
+import { withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
   INBOX_DISMISS_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_INBOX_NEXT_FUNCTION_KEY,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import type { ActionProviderRegistration, ActionSceneDefaultRule, ActionSceneDefinition, ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionSceneDefaultRule, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
+import { DECLARED_RULE_OPTIONS, declaredRegistration, declaredRule, declaredScene } from "./fixtures/declared-rules.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const ROOT = new URL("../", import.meta.url);
-const OPTIONS: FunctionsHostOptions = { env: {}, credential: () => null };
-
-const rule = (function_key: string, overrides: Partial<ActionSceneDefaultRule> = {}): ActionSceneDefaultRule => ({
-  function_key, name: "挑下一步", instructions: "看这条该显示哪个按钮。", subject_kinds: ["fixture_item"],
-  options: [{ key: "fixture.first", description: "第一个" }, { key: "fixture.second", description: "第二个" }], ...overrides,
-});
-
-const scene = (scene_id: string, default_rule?: ActionSceneDefaultRule): ActionSceneDefinition => ({
-  scene_id, version: 1, title: "示例用途", description: "示例用途的说明", trigger: "示例事件", scope: "project", subject_kinds: ["fixture_item"],
-  permissions: ["fixture:read"], configuration_permissions: ["fixture:write"], input_schema: { type: "object", properties: {} }, result_schema: { type: "object", properties: {} },
-  ...(default_rule ? { default_rule } : {}),
-});
-
-const registration = (provider_id: string, scenes: readonly ActionSceneDefinition[]): ActionProviderRegistration => ({
-  provider: { provider_id, plugin_id: provider_id, title: "已安装的插件", kind: "plugin" }, definitions: [], handlers: [], scenes,
-  scene_handlers: scenes.map(({ scene_id, version }): ActionSceneHandlerBinding => ({ scene_id, version, bindings: () => [], targets: () => [],
-    bind: () => undefined, consume: () => ({}) })),
-});
+const OPTIONS = DECLARED_RULE_OPTIONS, rule = declaredRule, scene = declaredScene, registration = declaredRegistration;
 
 /** The scenes the shipped plugins declare, from the built-in catalog's public export; the Home dock's is the Host's own and is checked on a started Host. */
 const declared = (): ActionSceneDefinition[] => BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.manifest.action_scenes ?? []).filter(candidate => candidate.default_rule);
@@ -56,7 +43,7 @@ test("RAC-484 a Home no scene has been registered into has no rule, and a starte
   assert.deepEqual(dock.criteria.map(option => option.key), [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID]);
   for (const record of withFunctionsService(home.home, service => service.list(), OPTIONS)) {
     assert.equal(record.status, "published");
-    assert.match(record.id, /^declared-/);
+    assert.match(record.id, /^declared:/);
   }
 });
 
@@ -75,20 +62,54 @@ test("RAC-485 a rule an installed plugin's scene declares is written like a ship
   } finally { dispose(); }
 });
 
-test("RAC-486 the first declaration of a rule key wins: a later declaration of the same key, from any plugin, never writes over it", async t => {
+test("RAC-486 a rule key belongs to the plugin that declared it first: another plugin declaring it is refused, with nothing registered or written", async t => {
   const home = await openTestHome(t, { host: { functions: OPTIONS } });
   const registry = home.host.actionRegistry();
   const first = registry.registerProvider(registration("io.molis.work.example.first", [scene("example.first", rule("example_shared", { name: "先声明的" }))]));
   const before = withFunctionsService(home.home, service => service.getByKey("example_shared"), OPTIONS)!;
-  const second = registry.registerProvider(registration("io.molis.work.example.second", [scene("example.second", rule("example_shared", { name: "后声明的" }))]));
-  const again = registry.registerProvider(registration("io.molis.work.example.third", [scene("example.third", rule("example_shared", { name: "第三个声明的", instructions: "另一套说明" }))]));
   try {
+    for (const [plugin, name] of [["second", "后声明的"], ["third", "第三个声明的"]] as const) {
+      assert.throws(() => registry.registerProvider(registration(`io.molis.work.example.${plugin}`, [scene(`example.${plugin}`, rule("example_shared", { name, instructions: "另一套说明" }))])),
+        (error: { code?: string }) => error.code === "functions.rule_key_taken", `${plugin} is refused`);
+    }
     const kept = withFunctionsService(home.home, service => service.list().filter(record => record.function_key === "example_shared"), OPTIONS);
     assert.equal(kept.length, 1);
-    assert.equal(kept[0]!.name, "先声明的");
     assert.deepEqual(kept[0], before, "the stored rule is untouched");
+    assert.equal(kept[0]!.id, "declared:io.molis.work.example.first:example_shared", "the row names who declared it");
     assert.equal(kept[0]!.scene_id, "example.first");
-  } finally { again(); second(); first(); }
+    // The declarer registering again (its provider restarted) is no conflict.
+    first();
+    const again = registry.registerProvider(registration("io.molis.work.example.first", [scene("example.first", rule("example_shared", { name: "先声明的" }))]));
+    again();
+    assert.deepEqual(withFunctionsService(home.home, service => service.getByKey("example_shared"), OPTIONS), before);
+  } finally { first(); }
+});
+
+test("RAC-501 the keys the Host's own scenes declare are reserved: any other plugin declaring one is refused at registration, and a plugin that is not host-trusted is refused at install", async t => {
+  const reserved = BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.action_scenes ?? []).flatMap(candidate => candidate.default_rule ? [candidate.default_rule.function_key] : []));
+  assert.ok(reserved.includes(SYSTEM_INBOX_NEXT_FUNCTION_KEY));
+  const home = await openTestHome(t, { host: { functions: OPTIONS } });
+  for (const key of [...reserved, SYSTEM_HOME_DOCK_FUNCTION_KEY]) {
+    assert.throws(() => home.host.actionRegistry().registerProvider(registration("io.molis.work.example.squatter", [scene("example.squat", rule(key))])),
+      (error: { code?: string }) => error.code === "functions.rule_key_taken", key);
+  }
+  assert.deepEqual(withFunctionsService(home.home, service => service.list(), OPTIONS), [], "a refused registration writes nothing");
+
+  const repository = new MemoryPluginRuntimeRepository();
+  const runtime = new PluginRuntime(repository, undefined, { reservedRuleKeys: () => new Set(reserved) });
+  const base = ownerFilesProbe("reservedkeys", "project").withoutFiles();
+  const declaring = (key: string, suffix = ""): PluginDefinition => ({ ...base, manifest: { ...base.manifest, plugin_id: `${base.manifest.plugin_id}${suffix}`,
+    publisher: { ...base.manifest.publisher, signature: `${base.manifest.publisher.signature}${suffix}` },
+    permissions: [...base.manifest.permissions, ...["fixture:read", "fixture:write"].map(permission => ({ permission, required: false, reason: "Scene fixture" }))], action_scenes: [scene("reservedkeys.pick", rule(key))] } });
+  for (const trust of [{ level: "unsigned" }, { level: "pinned", publisher_key_id: `ed25519:sha256:${"a".repeat(64)}` }] as const) {
+    assert.throws(() => runtime.install({ definition: declaring(reserved[0]!), deployment: "local", trust, grants: [] }),
+      (error: { code?: string }) => error.code === "plugin.rule_key_reserved", trust.level);
+  }
+  assert.deepEqual(repository.list(), [], "a refused install leaves no record");
+  runtime.install({ definition: declaring("example_not_reserved"), deployment: "local", trust: { level: "unsigned" } });
+  assert.equal(repository.list().length, 1, "a key nobody reserved installs");
+  runtime.install({ definition: declaring(reserved[0]!, ".shipped"), deployment: "local", trust: HOST_BUILD_TRUST });
+  assert.equal(repository.list().length, 2, "a reserved key under host trust is the Host's own build, and installs");
 });
 
 test("RAC-487 a malformed default rule is refused with the scene, and nothing is written", async t => {

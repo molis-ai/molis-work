@@ -4,10 +4,12 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { FunctionSceneMap, FunctionsSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
-import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, type ActionProvider, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
+  admitDeclaredRulesIn,
   createFunctionsService,
   type DeclaredRuleSubject,
+  type DeclaredSceneRule,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
@@ -34,13 +36,27 @@ function declaredRuleTargets(rule: DeclaredRuleSubject): FunctionSceneMap {
   return Object.fromEntries([...targets].flatMap(([offerId, keys]) => keys.size === 1 ? [[offerId, [...keys][0]!]] : []));
 }
 
+/** Who a provider's declared rules are recorded under: the plugin, whichever installation registered it; the Host's own provider for a scene the Host declares. */
+export const ruleDeclarer = (provider: ActionProvider): string => provider.plugin_id ?? provider.provider_id;
+
+const declaredRules = (provider: ActionProvider, scenes: readonly ActionSceneDefinition[]): DeclaredSceneRule[] => scenes.flatMap(scene => scene.default_rule
+  ? [{ declarer: ruleDeclarer(provider), scene_id: scene.scene_id, ...(scene.recommendation_source ? { recommendation_source: scene.recommendation_source } : {}), rule: scene.default_rule }] : []);
+
+/**
+ * Refuses a provider whose scenes declare a rule key another plugin already declared, before it is registered and before anything is
+ * written. Scenes without a rule do not touch the library, and a Home without one has nothing declared yet.
+ */
+export function admitSceneRules(homeDirectory: string, provider: ActionProvider, scenes: readonly ActionSceneDefinition[]): void {
+  const rules = declaredRules(provider, scenes);
+  if (rules.length) admitDeclaredRulesIn(homeDirectory, rules);
+}
+
 /**
  * Writes the rules the scenes just registered declare for themselves, built in or installed alike, each once into the Home's library.
  * Scenes without a rule do not open the library.
  */
-export function seedSceneRules(homeDirectory: string, scenes: readonly ActionSceneDefinition[], options: FunctionsHostOptions = {}): void {
-  const rules = scenes.flatMap(scene => scene.default_rule
-    ? [{ scene_id: scene.scene_id, ...(scene.recommendation_source ? { recommendation_source: scene.recommendation_source } : {}), rule: scene.default_rule }] : []);
+export function seedSceneRules(homeDirectory: string, provider: ActionProvider, scenes: readonly ActionSceneDefinition[], options: FunctionsHostOptions = {}): void {
+  const rules = declaredRules(provider, scenes);
   if (rules.length) withFunctionsService(homeDirectory, service => service.seedDeclaredRules(rules, declaredRuleTargets), options);
 }
 

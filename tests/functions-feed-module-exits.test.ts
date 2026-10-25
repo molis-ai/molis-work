@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
+import { PLATFORM_PLUGIN_REGISTRATIONS, seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
   INBOX_DISMISS_BEHAVIOR_ID,
@@ -37,6 +37,8 @@ const HOME_DOCK: ActionSceneDefinition = {
     options: [{ key: INBOX_DONE_BEHAVIOR_ID, description: "做完了" }, { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" }] },
 };
 /** The scenes the shipped Feed and Inbox declare, from the built-in catalog's public export, with the Home dock above: the three rules. */
+/** The provider the rules below are declared by: one stand-in for the Host and the shipped plugins, since these tests read what is seeded, not who declared it. */
+const DECLARING_PROVIDER = { provider_id: "test.declarer", title: "测试", kind: "system" } as const;
 const shippedScenes = (): ActionSceneDefinition[] => [...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.manifest.action_scenes ?? []), HOME_DOCK];
 
 test("RAC-170 the Feed entry exports no Repository or Store, and no second evidence-content store", () => {
@@ -61,7 +63,7 @@ test("RAC-172 the Home rule is seeded with the targets the Inbox declaration giv
     // How the targets were written before they were found by declaration: the one Inbox provider, spelled out.
     const pinned = (offer_id: string) => subjectOfferChoiceKey({ capability_id: "inbox.actions.prepare", version: 1, provider_id: "io.molis.work.inbox" },
       { offer_id, title: offer_id, action: { capability_id: "inbox.entry.status", version: 1 } });
-    seedSceneRules(home, shippedScenes(), { env: {}, credential: () => null });
+    seedSceneRules(home, DECLARING_PROVIDER, shippedScenes(), { env: {}, credential: () => null });
     withFunctionsService(home, service => {
       assert.deepEqual({ ...service.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)!.scene_map },
         { [INBOX_DONE_BEHAVIOR_ID]: pinned(INBOX_DONE_BEHAVIOR_ID), [INBOX_DISMISS_BEHAVIOR_ID]: pinned(INBOX_DISMISS_BEHAVIOR_ID) });
@@ -79,7 +81,7 @@ test("RAC-172 neither the Functions Module nor its Host file names a plugin id",
   }
 });
 
-const declaredRules = () => shippedScenes().map(scene => ({ scene_id: scene.scene_id, rule: scene.default_rule! }));
+const declaredRules = () => shippedScenes().map(scene => ({ declarer: DECLARING_PROVIDER.provider_id, scene_id: scene.scene_id, rule: scene.default_rule! }));
 
 test("RAC-173 a rule that is already there keeps its stored targets, and the resolver is asked only for rules it writes", async () => {
   await withHome(home => {
@@ -108,7 +110,7 @@ test("RAC-173 the resolver is given each rule's scene, subject kinds and option 
   await withHome(home => {
     const seen = new Map<string, unknown>();
     const service = createFunctionsService({ home, credential: () => null });
-    service.seedDeclaredRules([{ scene_id: "home.dock", recommendation_source: "subject-offers", rule: HOME_DOCK.default_rule! }], rule => { seen.set(rule.function_key, rule); return {}; });
+    service.seedDeclaredRules([{ declarer: DECLARING_PROVIDER.provider_id, scene_id: "home.dock", recommendation_source: "subject-offers", rule: HOME_DOCK.default_rule! }], rule => { seen.set(rule.function_key, rule); return {}; });
     service.close();
     assert.deepEqual(seen.get(SYSTEM_HOME_DOCK_FUNCTION_KEY), { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, scene_id: "home.dock", recommendation_source: "subject-offers",
       subject_kinds: ["inbox_entry"], option_keys: [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID] });
@@ -117,20 +119,20 @@ test("RAC-173 the resolver is given each rule's scene, subject kinds and option 
 
 /**
  * RAC-176: an offer id two declarations answer to is left unmapped rather than guessed (PG-010's ambiguity branch). The one
- * composition point the Host reads is the built catalog's public export, so a second declaration of Inbox's offers is pushed
+ * composition point the Host reads is its own registrations' public export, so a second declaration of Inbox's offers is pushed
  * there for this test and removed in `finally`; no test-only entry point is added.
  */
 test("RAC-176 an offer id that two declarations answer to is left unmapped, not guessed", async () => {
-  const inbox = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === "io.molis.work.inbox");
+  const inbox = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === "io.molis.work.inbox");
   assert.ok(inbox, "the Inbox plugin is in the built-in catalog");
   const offers = inbox.manifest.actions?.find(definition => definition.capability_id === "inbox.actions.prepare");
   assert.ok(offers?.action.subject_offer_choices?.some(choice => choice.offer_id === INBOX_DONE_BEHAVIOR_ID), "Inbox declares the Home rule's done option");
   const second: PluginRegistration = { ...inbox, manifest: { ...inbox.manifest, plugin_id: "io.molis.work.inbox.second" } };
-  const declarations = BUILTIN_PLUGIN_CATALOG as PluginRegistration[];
+  const declarations = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
   declarations.push(second);
   try {
     await withHome(home => {
-      seedSceneRules(home, [HOME_DOCK], { env: {}, credential: () => null });
+      seedSceneRules(home, DECLARING_PROVIDER, [HOME_DOCK], { env: {}, credential: () => null });
       withFunctionsService(home, service => {
         assert.deepEqual({ ...service.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)!.scene_map }, {},
           "the done and dismiss offers are declared twice, so neither target is picked");

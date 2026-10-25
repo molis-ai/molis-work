@@ -16,6 +16,8 @@ export function registerSessionLifecycleActions<C>(register: <I, O>(definition: 
   return [
     register(agentSessionLifecycleActions.read, async (call, input) => { const { port, owner } = bound(call, input.session.runtime_id); return port.read(input.session, owner); }),
     register(agentSessionLifecycleActions.previewPurge, async (call, input) => { const { port, owner } = bound(call, input.session.runtime_id); return port.previewPurge(input.session, owner); }),
+    register(agentSessionLifecycleActions.preparePurge, async (call, input) => { const { port, owner } = bound(call, input.session.runtime_id); return port.preparePurge(input.session, input.decision, input.preview, owner); }),
+    register(agentSessionLifecycleActions.purgeWaits, async (call, input) => { const { port, owner } = bound(call, input.session.runtime_id); return port.purgeWaits(input.session, input.decision, input.page, owner); }),
     register(agentSessionLifecycleActions.archive, async (call, input) => { const { port, owner } = bound(call, input.session.runtime_id); return port.archive(input.session, input.decision, owner); }),
     register(agentSessionLifecycleActions.unarchive, async (call, input) => { const { port, owner } = bound(call, input.session.runtime_id); return port.unarchive(input.session, input.decision, owner); }),
     register(agentSessionLifecycleActions.purge, async (call, input) => { const { port, owner } = bound(call, input.session.runtime_id); return port.purge(input.session, input.decision, input.preview, owner); }),

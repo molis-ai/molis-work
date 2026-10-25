@@ -13,6 +13,7 @@ import type { HostCapabilityDefinition, HostCapabilityInvocation } from "@molis-
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
+const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
 const app = { appId: "io.molis.session-lifecycle-test", appVersion: "1.0.0" };
 const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "installation", actor_id: "person" };
 const decision = (view: { version: number | null; state: string }, operation_id: string): AgentSessionDecision => {
@@ -20,6 +21,71 @@ const decision = (view: { version: number | null; state: string }, operation_id:
   return { operation_id, expected_version: view.version, expected_state: view.state };
 };
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
+
+test("public prepare persists only the original decision and resumes after reopening before any body deletion", async t => {
+  const f = await fixture(t), session = await f.create(), other = await f.create(), run = await f.finishRun(session);
+  const preview = await f.call(actions.previewPurge, { session }), change = decision(preview, "prepare-original");
+  const root = await f.sdkRoot(session.session_id), child = await f.sdkRun(run.ref), original = await f.readIndex(session.session_id);
+  const prepared = await f.call(actions.preparePurge, { session, decision: change, preview });
+  assert.deepEqual(prepared, { session, session_ref: { kind: "session", id: session.session_id, revision: 1 }, decision: change, preview });
+  assert.deepEqual(await f.sdkRoot(session.session_id), root); assert.deepEqual(await f.sdkRun(run.ref), child);
+  assert.deepEqual((await f.readIndex(session.session_id)).attempts, original.attempts);
+  assert.equal((await f.readIndex(session.session_id)).title, original.title);
+  assert.equal((await f.readIndex(session.session_id)).lifecycle?.phase, "prepared");
+  const before = f.records();
+  assert.deepEqual(await f.call(actions.preparePurge, { session, decision: change, preview }), prepared);
+  assert.deepEqual(f.records(), before, "repeating preparation never rewrites its original");
+  await assert.rejects(f.adapter.readSession(session));
+  await assert.rejects(f.adapter.start(f.runRequest(session)));
+  assert.equal((await f.adapter.readSession(other)).session.session_id, other.session_id);
+  await f.reopen();
+  for (const input of [{ session, decision: { ...change, operation_id: "replacement" }, preview },
+    { session, decision: change, preview: { ...preview, resources: preview.resources + 1 } }]) await assert.rejects(f.call(actions.preparePurge, input));
+  await assert.rejects(f.call(actions.preparePurge, { session, decision: change, preview }, { caller: { ...owner, actor_id: "other" } }));
+  assert.deepEqual(await f.call(actions.preparePurge, { session, decision: change, preview }), prepared);
+  const receipt = await f.call(actions.purge, { session, decision: change, preview });
+  assert.equal(receipt.state, "purged"); assert.equal(await f.sdkRun(run.ref), undefined);
+});
+
+test("prepared wait pages include ended historical waits, bind the original decision, and expose only metadata", async t => {
+  const f = await fixture(t), session = await f.create(), other = await f.create();
+  const expected = await f.historicalWaits(session, other);
+  const preview = await f.call(actions.previewPurge, { session }), change = decision(preview, "wait-identities");
+  await assert.rejects(f.call(actions.purgeWaits, { session, decision: change, page: { limit: 2 } }));
+  await f.call(actions.preparePurge, { session, decision: change, preview });
+  const before = f.records(), first = await f.call(actions.purgeWaits, { session, decision: change, page: { limit: 2 } });
+  assert.equal(first.exhausted, false); assert.equal(first.wait_ids.length, 2); assert.ok(first.cursor);
+  assert.deepEqual(Object.keys(first).sort(), ["session", "operation_id", "wait_ids", "exhausted", "cursor"].sort());
+  const last = await f.call(actions.purgeWaits, { session, decision: change, page: { limit: 2, cursor: first.cursor } });
+  assert.equal(last.exhausted, true); assert.equal(last.cursor, undefined);
+  assert.deepEqual([...first.wait_ids, ...last.wait_ids], expected);
+  assert.deepEqual(f.records(), before, "reading every page does not write or delete any record");
+  for (const page of [{ limit: 0 }, { limit: 201 }, { limit: 1.5 }, { limit: 2, cursor: "bad" }]) {
+    await assert.rejects(f.call(actions.purgeWaits, { session, decision: change, page }));
+  }
+  await assert.rejects(f.call(actions.purgeWaits, { session, decision: { ...change, operation_id: "different" }, page: { limit: 2, cursor: first.cursor } }));
+  const otherPreview = await f.call(actions.previewPurge, { session: other }), otherChange = decision(otherPreview, "other-original");
+  await f.call(actions.preparePurge, { session: other, decision: otherChange, preview: otherPreview });
+  await assert.rejects(f.call(actions.purgeWaits, { session: other, decision: otherChange, page: { limit: 2, cursor: first.cursor } }));
+  assert.deepEqual((await f.sdkRoot(session.session_id))?.metadata.state, "active");
+  const beforeReopen = f.records(); await f.reopen();
+  assert.deepEqual(await f.call(actions.purgeWaits, { session, decision: change, page: { limit: 2 } }), first);
+  assert.deepEqual(f.records(), beforeReopen, "reopened wait inspection has no writes");
+});
+
+test("an exact preparation excludes project holds and same-session commands while another Session stays independent", async t => {
+  const f = await fixture(t), session = await f.create(), other = await f.create();
+  const preview = await f.call(actions.previewPurge, { session }), change = decision(preview, "held-prepare");
+  const entered = deferred(), release = deferred();
+  const pending = f.adapter.withEffect({ beforeEffect: async () => { entered.resolve(); await release.promise; }, assert_current() {} },
+    () => f.adapter.sessionLifecycle!.preparePurge(session, change, preview, owner));
+  await entered.promise;
+  try {
+    await assert.rejects(f.adapter.projectDeletion.withHold({ project_id: owner.project_id, associated_sessions: [] }, async () => {}));
+    await assert.rejects(f.call(actions.preparePurge, { session, decision: change, preview }));
+    assert.equal((await f.call(actions.read, { session: other })).state, "active");
+  } finally { release.resolve(); await pending; }
+});
 
 test("public lifecycle actions bind current owner, keep canonical archive state, and reject an old decision after unarchive", async t => {
   const f = await fixture(t), session = await f.create(), other = await f.create();
@@ -453,6 +519,29 @@ async function fixture(t: TestContext) {
     holdProvider() { const held = { entered: deferred(), release: deferred() }; providerHold = held; t.after(() => held.release.resolve()); return { entered: held.entered.promise, release: held.release.resolve }; },
     create: () => adapter.createSession({ ...owner, workspace: "none", role_id: "reader", title: "Private Session title" }),
     reopen: async (beforeOpen?: () => Promise<void>) => { await adapter.close(); await beforeOpen?.(); adapter = await open(); wire(); },
+    async historicalWaits(session: AgentSessionRef, other: AgentSessionRef): Promise<string[]> {
+      await adapter.close();
+      const runtime = await createRuntime({ app, host: createNodeHost({ storageRoot: home }), config: { waits: { autoContinue: false } } });
+      const ids: string[] = [];
+      try {
+        const ref = (id: string) => ({ kind: "session" as const, id, revision: 1 });
+        const board = await runtime.boards.admit({ nodes: ["one", "two", "three", "other", "blocker"].map(id => ({ id, title: "PRIVATE WAIT TITLE", dependsOn: [], onFailure: "block-for-human" as const,
+          assignee: ref(id === "other" || id === "blocker" ? other.session_id : session.session_id) })) });
+        for (const node of ["one", "two", "three", "other"]) {
+          await runtime.boards.transition({ ref: board.ref, nodeId: node, to: "running" });
+          const target = node === "other" ? other : session;
+          const { wait } = await runtime.waits.arm({ session: ref(target.session_id), by: "app", reason: "PRIVATE WAIT REASON", arrangement: {
+            scope: { board: board.ref.id, node, generation: 1 }, on: [{ kind: "node", board: board.ref.id, node: "blocker" }],
+            mode: "all", until: "success", onFailure: "block", onEarlyContinue: "keep", deadlineMs: Date.now() + 60_000, autoContinue: false, afterwards: "end-step",
+          } }, Date.now());
+          if (runtime.waits.get(wait.ref.id)?.state === "waiting") await runtime.waits.cancel(wait.ref.id, Date.now(), "PRIVATE CANCELLATION NOTE");
+          assert.notEqual(runtime.waits.get(wait.ref.id)?.state, "waiting", "the historical wait must be terminal before preparation");
+          if (node !== "other") ids.push(wait.ref.id);
+        }
+        await runtime.boards.transition({ ref: board.ref, nodeId: "blocker", to: "cancelled" });
+      } finally { await runtime.shutdown(); adapter = await open(); wire(); }
+      return ids.sort();
+    },
     async readIndex(id: string): Promise<RawIndex> { const bytes = await inspector.storage.readSecure({ kind: indexKind, id }); try { return JSON.parse(new TextDecoder().decode(bytes)); } finally { bytes.fill(0); } },
     async writeIndex(id: string, value: RawIndex) {
       const record = await inspector.storage.get({ kind: indexKind, id }); assert.ok(record);

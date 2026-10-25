@@ -23,6 +23,8 @@ export type {
   AgentSessionRef,
   AgentSessionDecision,
   AgentSessionPurgePreview,
+  AgentSessionPurgePreparation,
+  AgentSessionPurgeWaitPage,
   AgentSessionLifecycleView,
   AgentSessionLifecycleReceipt,
   AgentSessionLifecycle,

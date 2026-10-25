@@ -83,6 +83,19 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
     app_id: request.appId, target: { scope: request.target.scope as AgentMemorySourceRequest["target"]["scope"], owner: request.target.owner,
       ...(request.target.namespace === undefined ? {} : { namespace: request.target.namespace }) }, ...(request.signal ? { signal: request.signal } : {}),
   });
+  const sessionIds = (requests: Parameters<MemoryAuthority["authorize"]>[0]) => [...new Set(requests.flatMap(request =>
+    [request.context.sessionRef?.id, request.target.sessionRef?.id, request.before?.sessionRef?.id].filter((id): id is string => id !== undefined)))];
+  const inspectSessions = async (requests: Parameters<MemoryAuthority["authorize"]>[0]) => {
+    const ids = sessionIds(requests), checks = ids.map(id => index.capture(id));
+    const current = () => { for (const check of checks) check(); };
+    // Inspect the persisted original even on the first request after reopening. This read does not re-enter an Index write lane.
+    for (const id of ids) { await index.inspect(id); current(); }
+    return current;
+  };
+  const assertSessions = (requests: Parameters<MemoryAuthority["authorize"]>[0]) => {
+    try { for (const id of sessionIds(requests)) index.capture(id)(); }
+    catch { throw createPrologueError("MEMORY_SCOPE_DENIED", "原会话清除尚未完成，不能读取或修改记忆"); }
+  };
   return {
     async forAttempt(sessionId, attemptIndex, work) {
       const saved = await index.read(sessionId), attempt = saved?.attempts[attemptIndex];
@@ -121,7 +134,9 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
         if (requests.length === 0) return true;
         const caller = await callerFor(requests[0]!.context);
         if (!caller || requests.some(request => !isDeepStrictEqual(request.context, requests[0]!.context))) return false;
-        return options.authorize(caller, requests, boundCaller(requests[0]!.context) ? calls.getStore()?.operation : undefined);
+        const current = await inspectSessions(requests);
+        const allowed = await options.authorize(caller, requests, boundCaller(requests[0]!.context) ? calls.getStore()?.operation : undefined);
+        current(); return allowed;
       },
       assertCurrent(requests) {
         effects.assertCurrent();
@@ -132,9 +147,11 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
           || requests.some(request => !isDeepStrictEqual(request.context, requested))) {
           throw createPrologueError("MEMORY_SCOPE_DENIED", "记忆最终检查缺少本次可信身份");
         }
+        assertSessions(requests);
         const allowed = options.assertCurrent?.(caller, requests, bound ? calls.getStore()?.operation : undefined);
         requireSynchronous(allowed, "记忆最终授权检查必须同步完成");
         if (allowed === false) throw createPrologueError("MEMORY_SCOPE_DENIED", "记忆权限已变更");
+        assertSessions(requests);
       },
       async authorizeRecall(request) {
         const caller = await callerFor(request.context);

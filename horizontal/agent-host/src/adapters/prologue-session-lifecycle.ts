@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import type { Runtime } from "@prologue/sdk";
-import type { AgentSessionDecision, AgentSessionLifecycle, AgentSessionLifecycleReceipt, AgentSessionLifecycleView, AgentSessionOwner, AgentSessionPurgePreview, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentSessionDecision, AgentSessionLifecycle, AgentSessionLifecycleReceipt, AgentSessionLifecycleView, AgentSessionOwner, AgentSessionPurgePreparation, AgentSessionPurgePreview, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
 import type { PrologueEffects } from "./prologue-effects.js";
@@ -17,13 +17,17 @@ interface LifecycleDeps {
 
 const conflict = () => agentErrors.session_busy("会话或原决定已变化，请核对当前状态；不会重放旧决定");
 const sameOwner = (a: AgentSessionOwner, b: AgentSessionOwner) => ["project_id", "plugin_id", "install_id", "actor_id"].every(key => a[key as keyof AgentSessionOwner] === b[key as keyof AgentSessionOwner]);
+const owned = (index: SessionIndex, session: AgentSessionRef, owner: AgentSessionOwner) => {
+  if (session.runtime_id !== "prologue" || index.ref.id !== session.session_id || !sameOwner(index.owner, owner)
+    || !Object.values(owner).every(value => typeof value === "string" && value.length)) throw agentErrors.session_unknown("当前身份不能管理这条会话");
+};
+const validate = (decision: AgentSessionDecision) => {
+  if (typeof decision.operation_id !== "string" || !decision.operation_id.trim() || decision.operation_id.length > 200
+    || !Number.isSafeInteger(decision.expected_version) || decision.expected_version < 1 || !["active", "archived"].includes(decision.expected_state)) throw conflict();
+};
 
 /** Session lifecycle is SDK-owned; the App index only binds its original decision and cleanup phases. */
 export function createSessionLifecycle(deps: LifecycleDeps): AgentSessionLifecycle {
-  const owned = (index: SessionIndex, session: AgentSessionRef, owner: AgentSessionOwner) => {
-    if (session.runtime_id !== "prologue" || index.ref.id !== session.session_id || !sameOwner(index.owner, owner)
-      || !Object.values(owner).every(value => typeof value === "string" && value.length)) throw agentErrors.session_unknown("当前身份不能管理这条会话");
-  };
   const quiet = async (index: SessionIndex, session: AgentSessionRef) => {
     if (deps.checkpointBusy(session)) throw conflict();
     const opened = await deps.runtime.sessions.open(index.ref);
@@ -45,16 +49,12 @@ export function createSessionLifecycle(deps: LifecycleDeps): AgentSessionLifecyc
     return { session, preview, state: session.state };
   };
   const request = (session: AgentSessionRef, owner: AgentSessionOwner) => ({ session: structuredClone(session), owner: structuredClone(owner) });
-  const validate = (decision: AgentSessionDecision) => {
-    if (typeof decision.operation_id !== "string" || !decision.operation_id.trim() || decision.operation_id.length > 200
-      || !Number.isSafeInteger(decision.expected_version) || decision.expected_version < 1 || !["active", "archived"].includes(decision.expected_state)) throw conflict();
-  };
   const change = async (sessionInput: AgentSessionRef, ownerInput: AgentSessionOwner, decisionInput: AgentSessionDecision,
-    action: "archive" | "unarchive" | "purge", submitted?: AgentSessionPurgePreview): Promise<AgentSessionLifecycleReceipt> => {
+    action: "archive" | "unarchive" | "purge", submitted?: AgentSessionPurgePreview, prepareOnly = false): Promise<AgentSessionLifecycleReceipt | AgentSessionPurgePreparation> => {
     const { session, owner } = request(sessionInput, ownerInput), decision = structuredClone(decisionInput), preview = submitted && structuredClone(submitted);
     validate(decision);
     const mutation = { action, operation_id: decision.operation_id };
-    return deps.index.lifecycle(session.session_id, (index, save) => deps.effects.admit(() => deps.index.assertLifecycle(session.session_id, mutation), async () => {
+    const execute = () => deps.index.lifecycle(session.session_id, (index, save) => deps.effects.admit(() => deps.index.assertLifecycle(session.session_id, mutation), async () => {
       owned(index, session, owner); await deps.effects.beforeEffect(); deps.effects.assertCurrent();
       let held = index.lifecycle;
       const same = held?.action === action && isDeepStrictEqual(held.decision, decision)
@@ -64,6 +64,7 @@ export function createSessionLifecycle(deps: LifecycleDeps): AgentSessionLifecyc
       if (held && (held.phase !== "complete" || held.decision.operation_id === decision.operation_id || held.action === "purge")) {
         if (!same) throw conflict();
         if (held.phase === "complete") {
+          if (prepareOnly) throw conflict();
           if (!held.receipt) throw conflict();
           if (action !== "purge") { const now = await canonical(index); if (now.state !== held.receipt.state || now.preview.atVersion !== held.receipt.version) throw conflict(); }
           deps.effects.assertCurrent(); return structuredClone(held.receipt);
@@ -79,6 +80,11 @@ export function createSessionLifecycle(deps: LifecycleDeps): AgentSessionLifecyc
         index.lifecycle = held; await save(index);
       }
       if (!held) throw conflict();
+      if (prepareOnly) {
+        if (held.phase !== "prepared" || !preview) throw conflict();
+        deps.effects.assertCurrent();
+        return { session, session_ref: { kind: "session" as const, id: index.ref.id, revision: 1 as const }, decision, preview };
+      }
       if (held.phase === "prepared") {
         // The start admission is closed for this whole decision. A retry resumes only its persisted original.
         await deps.cleanup(session.session_id, owner, action === "purge", index.attempts.flatMap(attempt => attempt.run_id ? [attempt.run_id] : []));
@@ -105,6 +111,12 @@ export function createSessionLifecycle(deps: LifecycleDeps): AgentSessionLifecyc
       held.phase = "complete"; await save(index);
       deps.effects.assertCurrent(); return structuredClone(held.receipt);
     }), mutation);
+    return action === "purge" ? deps.index.holdSession(session.session_id, decision.operation_id, execute) : execute();
+  };
+  const complete = async (...args: Parameters<typeof change>): Promise<AgentSessionLifecycleReceipt> => {
+    const result = await change(...args);
+    if (!("scope" in result)) throw conflict();
+    return result;
   };
   return {
     async read(sessionInput, ownerInput) {
@@ -141,8 +153,44 @@ export function createSessionLifecycle(deps: LifecycleDeps): AgentSessionLifecyc
       current(); deps.index.assertIdle(session.session_id);
       return { session, version: now.preview.atVersion, state: now.state, runs: now.preview.runs, resources: now.preview.resources, destroys_key: now.preview.destroysKey };
     },
-    archive: (session, decision, owner) => change(session, owner, decision, "archive"),
-    unarchive: (session, decision, owner) => change(session, owner, decision, "unarchive"),
-    purge: (session, decision, preview, owner) => change(session, owner, decision, "purge", preview),
+    async preparePurge(session, decision, preview, owner) {
+      const result = await change(session, owner, decision, "purge", preview, true);
+      if (!("session_ref" in result)) throw conflict();
+      return result;
+    },
+    purgeWaits: (...args) => purgeWaitPage(deps, ...args),
+    archive: (session, decision, owner) => complete(session, owner, decision, "archive"),
+    unarchive: (session, decision, owner) => complete(session, owner, decision, "unarchive"),
+    purge: (session, decision, preview, owner) => complete(session, owner, decision, "purge", preview),
   };
+}
+
+/** The prepared Session's historical wait inventory is independent of its current collaboration view. */
+async function purgeWaitPage(deps: LifecycleDeps, ...input: Parameters<AgentSessionLifecycle["purgeWaits"]>) {
+  const [session, decision, page, owner] = structuredClone(input);
+  validate(decision);
+  if (!Number.isInteger(page.limit) || page.limit < 1 || page.limit > 200) throw conflict();
+  return deps.index.holdSession(session.session_id, decision.operation_id, () => deps.index.lifecycle(session.session_id, async index => {
+    owned(index, session, owner);
+    if (index.lifecycle?.action !== "purge" || index.lifecycle.phase !== "prepared" || !isDeepStrictEqual(index.lifecycle.decision, decision)) throw conflict();
+    const captured = deps.index.capture(session.session_id, true);
+    const current = () => { captured(); deps.index.assertLifecycle(session.session_id, { action: "purge", operation_id: decision.operation_id }); };
+    await deps.effects.beforeEffect(); deps.effects.assertCurrent(); current();
+    let after: string | undefined;
+    if (page.cursor !== undefined) {
+      if (typeof page.cursor !== "string" || !page.cursor || page.cursor.length > 4096) throw conflict();
+      try {
+        const value = JSON.parse(Buffer.from(page.cursor, "base64url").toString("utf8"));
+        if (!isDeepStrictEqual(Object.keys(value).sort(), ["after", "decision", "session"]) || !isDeepStrictEqual(value.session, session)
+          || !isDeepStrictEqual(value.decision, decision) || typeof value.after !== "string" || !value.after) throw conflict();
+        after = value.after;
+      } catch { throw conflict(); }
+    }
+    const all = deps.runtime.waits.list({ session: index.ref.id }).map(wait => wait.ref.id).sort();
+    if (after !== undefined && !all.includes(after)) throw conflict();
+    const start = after === undefined ? 0 : all.indexOf(after) + 1, wait_ids = all.slice(start, start + page.limit), exhausted = start + wait_ids.length === all.length;
+    deps.effects.assertCurrent(); current();
+    return { session, operation_id: decision.operation_id, wait_ids, exhausted,
+      ...(!exhausted ? { cursor: Buffer.from(JSON.stringify({ session, decision, after: wait_ids.at(-1) })).toString("base64url") } : {}) };
+  }, { action: "purge", operation_id: decision.operation_id }));
 }

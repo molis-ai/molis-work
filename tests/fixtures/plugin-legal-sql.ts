@@ -3,15 +3,15 @@ import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { pluginStatementGuard } from "@molis-ai/molis-work-plugin-runtime";
 
 /**
- * The project library as Goals' and Governance's SQL will meet it once it runs as a plugin (PG-094 S9-1): every statement the two
- * modules prepare is run through the statement check a plugin's `services.project_database` calls go through
+ * The project library for the SQL reached by Goals' and Governance's test cases (PG-094 S9-1): `all/get/run` pass the same
+ * statement check a plugin's `services.project_database` calls go through
  * (`pluginStatementGuard`, over Goals' recorded tables), before it runs on the library's own connection. A refusal is an exception
  * at the statement that caused it. `exec` is refused too, except the savepoints of the Goal Tree preflight (`SAVEPOINTS`), which
- * the cutover has to answer differently and which a test here pins until it does.
+ * the cutover has to answer differently and which a test here pins until it does. Other statement members are refused: the
+ * modules' statement contracts need no other methods or metadata. This checks executed paths, not every possible SQL branch.
  *
- * It is a test seam, not a product path: the Host assembles Goals over the connection itself until S9's last slice, where the
- * check is the platform's own and runs once per statement (it prepares an `EXPLAIN` on every call, which the Host does not want
- * on every read of a board).
+ * It is a test seam, not a product path: the Host assembles Goals over the connection itself until S9's last slice. The platform's
+ * guard caches accepted SQL by statement mode and schema version; this fixture uses that same guard without extending its coverage.
  */
 export const SAVEPOINTS = [
   "SAVEPOINT goal_tree_materialization_preflight",
@@ -25,7 +25,7 @@ export const SAVEPOINTS = [
 export interface PluginLegalSql {
   /** The library's connection, behind the check; hand it to `GoalsModule` and `GovernanceCollaborationModule`. */
   readonly db: LocalProjectDatabase["db"];
-  /** Statements run through the check. */
+  /** Check attempts and savepoints actually reached by the test cases. */
   readonly stats: { checked: number; savepoints: Set<string> };
 }
 
@@ -38,7 +38,9 @@ export function pluginLegalSql(store: LocalProjectDatabase): PluginLegalSql {
   const stats: PluginLegalSql["stats"] = { checked: 0, savepoints: new Set() };
   const statement = (sql: string) => new Proxy(store.db.prepare(sql), {
     get(target, property) {
-      if (property !== "all" && property !== "get" && property !== "run") return Reflect.get(target, property, target);
+      if (property !== "all" && property !== "get" && property !== "run") {
+        throw new Error(`unsupported plugin statement member: ${String(property)}`);
+      }
       return (...parameters: unknown[]) => {
         stats.checked += 1;
         guard(sql, parameters as never[], property === "run" || writes(sql) ? "write" : "read");

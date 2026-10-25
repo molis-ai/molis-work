@@ -9,8 +9,8 @@ import { GoalsModule } from "@molis-ai/molis-work-module-goals";
 import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
 import { pluginLegalSql, SAVEPOINTS } from "./fixtures/plugin-legal-sql.js";
 
-// PG-094 S9-1 (specs/repository-anti-corruption/slices/goals-s9-1-journal-seam.md): what of Goals' and Governance's SQL a plugin's
-// statement check would refuse today, and that it is nothing but the savepoints.
+// PG-094 S9-1 (specs/repository-anti-corruption/slices/goals-s9-1-journal-seam.md): the journal boundary and the savepoint exceptions
+// reached by these cases. The fixture checks executed paths; the spec's 13 manually reviewed SQL templates are not execution coverage.
 
 const MODULES = ["modules/goals/src", "modules/governance-collaboration/src"];
 
@@ -85,13 +85,74 @@ test("RAC-284 the statement check the modules run under refuses a statement on t
   } finally { dispose(); }
 });
 
-test("RAC-285 the only SQL the modules run that a plugin cannot is the Goal Tree preflight's savepoints, pinned until the cutover answers them", () => {
+test("RAC-284 supported all/get/run preserve real reads, committed writes and transaction rollback", () => {
+  const { store, dispose } = library();
+  try {
+    const { db } = pluginLegalSql(store);
+    const update = db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?");
+    const read = db.prepare("SELECT updated_at FROM boards WHERE project_id = ?");
+    const result = db.transaction(() => update.run("committed", "board-legal")).immediate();
+    assert.equal(result.changes, 1);
+    assert.deepEqual(read.get("board-legal"), { updated_at: "committed" });
+    assert.deepEqual(read.all("board-legal"), [{ updated_at: "committed" }]);
+    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), { updated_at: "committed" });
+
+    assert.throws(() => db.transaction(() => {
+      update.run("rolled-back", "board-legal");
+      assert.deepEqual(read.get("board-legal"), { updated_at: "rolled-back" });
+      throw new Error("rollback fixture write");
+    }).immediate(), /rollback fixture write/);
+    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), { updated_at: "committed" });
+  } finally { dispose(); }
+});
+
+test("RAC-284 unsupported statement methods refuse journal SQL before reading or changing rows", () => {
+  const { store, dispose } = library();
+  try {
+    let reads = 0;
+    store.db.function("fixture_read_probe", (seq: number) => { reads += 1; return seq; });
+    const sql = "SELECT fixture_read_probe(seq) AS seq FROM events WHERE project_id = ?";
+    assert.ok(store.db.prepare(sql).all("board-legal").length > 0, "the real journal query has rows to read");
+    assert.ok(reads > 0, "SQLite invokes the probe when the query actually reads rows");
+    reads = 0;
+    const { db } = pluginLegalSql(store);
+    const statement = db.prepare(sql);
+    assert.throws(() => [...statement.iterate("board-legal")], /unsupported plugin statement member: iterate/);
+    assert.throws(() => statement.raw().all("board-legal"), /unsupported plugin statement member: raw/);
+    assert.throws(() => statement.pluck().get("board-legal"), /unsupported plugin statement member: pluck/);
+    assert.throws(() => statement.columns(), /unsupported plugin statement member: columns/);
+    assert.throws(() => statement.safeIntegers(), /unsupported plugin statement member: safeIntegers/);
+    assert.throws(() => statement.expand(), /unsupported plugin statement member: expand/);
+    assert.throws(() => statement.database, /unsupported plugin statement member: database/);
+    assert.equal(reads, 0, "unsupported methods neither return journal rows nor execute the SQL function");
+
+    const before = store.db.prepare("SELECT seq, reason FROM events ORDER BY seq").all();
+    const write = db.prepare("UPDATE events SET reason = ? RETURNING seq");
+    assert.throws(() => [...write.iterate("forbidden write")], /unsupported plugin statement member: iterate/);
+    assert.throws(() => write.bind("forbidden write").run(), /unsupported plugin statement member: bind/);
+    assert.deepEqual(store.db.prepare("SELECT seq, reason FROM events ORDER BY seq").all(), before, "unsupported write methods change no journal rows");
+  } finally { dispose(); }
+});
+
+test("RAC-285 the SQL reached by these cases uses only the six pinned preflight savepoint exceptions and rolls back previews", () => {
   const { store, dispose } = library();
   try {
     const legal = pluginLegalSql(store);
     const governance = new GovernanceCollaborationModule({ db: legal.db, journal: store });
-    assert.equal(governance.decisions.previewMaterialization(() => "whole"), "whole");
-    assert.equal(governance.decisions.previewMaterializationItem(() => ({ keep: false, value: "item" })), "item");
+    const before = store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal");
+    const update = legal.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?");
+    assert.equal(governance.decisions.previewMaterialization(() => {
+      assert.equal(update.run("whole-preview", "board-legal").changes, 1);
+      assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), { updated_at: "whole-preview" });
+      return "whole";
+    }), "whole");
+    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), before);
+    assert.equal(governance.decisions.previewMaterializationItem(() => {
+      assert.equal(update.run("item-preview", "board-legal").changes, 1);
+      assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), { updated_at: "item-preview" });
+      return { keep: false, value: "item" };
+    }), "item");
+    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), before);
     assert.deepEqual([...legal.stats.savepoints].sort(), [...SAVEPOINTS].sort());
   } finally { dispose(); }
 });

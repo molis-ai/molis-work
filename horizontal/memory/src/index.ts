@@ -22,3 +22,4 @@ export const packageDescriptor = {
 } as const;
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { interpretMemoryLedgerRecoveryFact, resolveForgottenMemoryIdentity, type MemoryRecoveryObservation } from "./recovery-facts.js";
+export { collectMemoryLedgerRecoveryObservations, type MemoryRecoverySourceReader, type MemoryRecoverySourceObservation } from "./recovery-source.js";

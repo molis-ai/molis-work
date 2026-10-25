@@ -233,3 +233,41 @@ test("contradictory owner relations and an isolated candidate purge remain unres
   assert.equal(candidate.sources_known, false); assert.equal(candidate.supersedes, "original");
   for (const fact of facts) assert.equal(interpretMemoryLedgerRecoveryFact(fact, facts).kind, "unresolved");
 });
+
+
+test("scope-clear retains parent/part conflicts and accepts original legal plans without surviving owners", t => {
+  const { home, db, marker } = fixture(t);
+  const part = (scope: string, owner: string, ids: string[]) => ({
+    ...preview(ids, scope === "personal" ? "user" : scope, owner), scope, owner,
+  });
+  const cases = [
+    { name: "personal-foreign-project", scope: "personal", owner: "person", parts: [part("project", "foreign", ["foreign"])], conflict: true },
+    { name: "personal-mixed", scope: "personal", owner: "person", parts: [part("personal", "person", ["own"]), part("project", "foreign", ["foreign"])], conflict: true },
+    { name: "character-foreign-owner", scope: "character", owner: "character", parts: [part("character", "other", ["foreign"])], conflict: true },
+    { name: "project-foreign-project", scope: "project", owner: "project", parts: [part("project", "other", ["foreign"])], conflict: true },
+    { name: "project-missing-own-part", scope: "project", owner: "project", parts: [part("character", "character", ["child"])], conflict: true },
+    { name: "duplicate-part", scope: "personal", owner: "person", parts: [part("personal", "person", ["one"]), part("personal", "person", ["two"])], conflict: true },
+    { name: "personal", scope: "personal", owner: "person", parts: [part("personal", "person", ["own"])], conflict: false },
+    { name: "character", scope: "character", owner: "character", parts: [part("character", "character", ["own"])], conflict: false },
+    { name: "project-with-character", scope: "project", owner: "project", parts: [part("project", "project", ["own"]), part("character", "character", ["child"])], conflict: false },
+    { name: "project-empty-own-part", scope: "project", owner: "project", parts: [part("project", "project", []), part("character", "character", ["child"])], conflict: false },
+  ];
+  for (const entry of cases) marker(`memory-clear:${entry.name}`, { scope: entry.scope, owner: entry.owner, started: true, parts: entry.parts });
+  const handle = inspect(home), result = pages(handle, 1); handle.close();
+  assert.deepEqual(result.flatMap(page => page.issues), []);
+  const facts = result.flatMap(page => page.facts);
+  assert.equal(db.prepare("SELECT count(*) AS count FROM memory_owners").get()?.count, 0);
+  for (const entry of cases) {
+    const targets = facts.filter(fact => fact.kind === "plan-target" && fact.plan_id === entry.name);
+    assert.ok(targets.length > 0, entry.name);
+    for (const target of targets) {
+      const observed = interpretMemoryLedgerRecoveryFact(target, facts);
+      if (entry.conflict) assert.deepEqual(observed, { kind: "unresolved", reason: "identity-conflict" }, entry.name);
+      else assert.ok(observed.kind === "inspect-target" && observed.intent === "confirmed-plan", entry.name);
+    }
+  }
+  db.prepare("INSERT INTO memory_owners VALUES (?,?,?,?,?)").run("character", "character", "other-project", "", "character");
+  const conflictHandle = inspect(home), conflicting = pages(conflictHandle).flatMap(page => page.facts); conflictHandle.close();
+  const target = conflicting.find(fact => fact.kind === "plan-target" && fact.plan_id === "project-with-character" && fact.identity.scope === "character")!;
+  assert.deepEqual(interpretMemoryLedgerRecoveryFact(target, conflicting), { kind: "unresolved", reason: "identity-conflict" });
+});

@@ -42,6 +42,29 @@ function purgeDecision(purge: Extract<Fact, { kind: "operation" }>, evidence: It
   return false;
 }
 
+/** Scope clear retains its original parts after cleanup removes the owner rows. */
+function scopeClearDecision(headers: readonly Extract<Fact, { kind: "plan" }>[], evidence: readonly Fact[]):
+  "confirmed" | "identity-conflict" | "decision-missing" {
+  const parent = headers.find(header => header.started !== undefined);
+  if (!parent?.identity) return "decision-missing";
+  const where = parent.identity, parts = headers.filter(header => header.started === undefined);
+  const seen = new Set<string>();
+  let includesParent = false;
+  for (const part of parts) {
+    if (!part.identity) return "identity-conflict";
+    const child = part.identity, own = same(where, child), key = JSON.stringify([child.scope, child.owner]);
+    if (seen.has(key) || !own && !(where.scope === "project" && child.scope === "character")) return "identity-conflict";
+    seen.add(key); includesParent ||= own;
+    if (where.scope === "project" && child.scope === "character" && evidence.some(entry => {
+      if (entry.kind !== "owner" && entry.kind !== "candidate") return false;
+      const relation = entry.kind === "owner" ? entry.relation : entry;
+      return same(relation, child) && relation.project_id !== where.owner;
+    })) return "identity-conflict";
+  }
+  if (!includesParent) return "identity-conflict";
+  return parent.started ? "confirmed" : "decision-missing";
+}
+
 /** Pass the complete, issue-aware source set when linking; an exhausted page alone is never completeness evidence. */
 export function interpretMemoryLedgerRecoveryFact(fact: Fact, evidence: readonly Fact[] = []): MemoryRecoveryObservation {
   if (fact.kind === "owner" || fact.kind === "candidate") {
@@ -74,7 +97,11 @@ export function interpretMemoryLedgerRecoveryFact(fact: Fact, evidence: readonly
   const headers = evidence.filter((entry): entry is Extract<Fact, { kind: "plan" }> => entry.kind === "plan"
     && entry.actor_id === fact.actor_id && entry.family === fact.family && entry.plan_id === fact.plan_id);
   let confirmed = fact.family === "adoption-cleanup" && headers.some(header => header.phase !== undefined);
-  if (fact.family === "scope-clear") confirmed = headers.some(header => header.started === true);
+  if (fact.family === "scope-clear") {
+    const decision = scopeClearDecision(headers, evidence);
+    if (decision !== "confirmed") return { kind: "unresolved", reason: decision };
+    confirmed = true;
+  }
   if (fact.family === "selection") {
     if (!headers.some(header => header.action === "remove")) return { kind: "none" };
     const purge = evidence.find((entry): entry is Extract<Fact, { kind: "operation" }> => entry.kind === "operation"

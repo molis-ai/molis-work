@@ -2,6 +2,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { captureHostLog, DEMO_PROJECT_ID, ensureProjectPlugins, handleProjectPluginHttp, LocalProjectDatabase, openProjectVersionStores, releaseProjectPlugins, seedDemoBoard,
   type HostLogEntry, type ProjectPluginHttpPorts } from "@molis-ai/molis-work-app-local-host";
 import { PluginHostEvents } from "@molis-ai/molis-work-plugin-runtime";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { mkdtemp, mkdir, readdir, rm } from "node:fs/promises";
@@ -11,7 +12,7 @@ import path from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeProjectSettings, pluginActions } from "./fixtures/plugin-actions.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
 const TOKEN = "molis-work-workspace-settings-events-0123456789";
@@ -184,17 +185,19 @@ test("RAC-463 BL-521 R-47 a platform's first route whose own call left a row ans
 });
 
 /**
- * Real project platform and public HTTP entry; the opening reads the project's linked folders through `workspacesFor`, the port a
- * test faults or counts. With one linked folder and nothing chosen, that folder is the one the project browses.
+ * Real project platform and public HTTP entry; the opening asks the project's browsing folder through the Host's action client, as
+ * the Host itself (`local-host`), and `browsing` answers that ask (`projectSettingsCapabilities.browsingWorkspace`) for the test to
+ * fault or count. Files, which reads the folder again once the opening is announced, is told none.
  */
-async function openingRouteFixture(t: TestContext, workspacesFor: ProjectPluginHttpPorts["workspacesFor"],
+async function openingRouteFixture(t: TestContext, browsing: () => unknown,
   options: { arrived?(): void; heard?: Array<Heard & { host: PluginHostEvents }> } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-project-opened-"));
   const file = path.join(directory, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const ports: ProjectPluginHttpPorts = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user",
-    actions: pluginActions(store, DEMO_PROJECT_ID), workspacesFor };
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  fakeProjectSettings(actions, (_definition, caller) => caller.actor_id === "local-host" ? browsing() : null, [projectSettingsCapabilities.browsingWorkspace]);
+  const ports: ProjectPluginHttpPorts = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions };
   const heard: Array<Heard & { host: PluginHostEvents }> = options.heard ?? [];
   if (!options.heard) {
     const original = PluginHostEvents.prototype.broadcast;
@@ -228,7 +231,7 @@ async function openingRouteFixture(t: TestContext, workspacesFor: ProjectPluginH
   return { platform, ports, request, opened, heard, finished: () => finished };
 }
 
-/** One folder linked to the project and usable. */
+/** One folder linked to the project, usable and browsed. */
 const linked = (workspace_id: string) => ({ workspace_id, canonical_path: "/test/" + workspace_id, realpath_verified: true, display_name: workspace_id });
 
 for (const failure of ["throw", "reject"] as const) {
@@ -242,7 +245,7 @@ for (const failure of ["throw", "reject"] as const) {
         if (failure === "throw") throw error;
         return Promise.reject(error);
       }
-      return Promise.resolve([linked("workspace-recovered")]);
+      return Promise.resolve(linked("workspace-recovered"));
     });
     assert.equal(reads, 0, "headless platform startup must not read the browsing directory");
     assert.deepEqual(f.opened(), [], "headless startup must not announce an opening");
@@ -263,7 +266,7 @@ for (const failure of ["throw", "reject"] as const) {
 test("RAC-463 BL-521 S-54 concurrent web routes share the announcement and drain, while another platform opens independently", async t => {
   const read = deferred(), reading = deferred(), arrived = deferred(), draining = deferred(), drained = deferred();
   let reads = 0, requests = 0;
-  const f = await openingRouteFixture(t, () => { reads++; reading.resolve(); return read.promise.then(() => [linked("workspace-concurrent")]); },
+  const f = await openingRouteFixture(t, () => { reads++; reading.resolve(); return read.promise.then(() => linked("workspace-concurrent")); },
     { arrived: () => { if (++requests === 2) arrived.resolve(); } });
   const drain = f.platform.hostEvents.drain.bind(f.platform.hostEvents);
   t.mock.method(f.platform.hostEvents, "drain", async () => { await drain(); draining.resolve(); await drained.promise; });
@@ -275,7 +278,7 @@ test("RAC-463 BL-521 S-54 concurrent web routes share the announcement and drain
     assert.deepEqual(f.opened(), []);
 
     let otherReads = 0;
-    const other = await openingRouteFixture(t, () => { otherReads++; return Promise.resolve([]); }, { heard: f.heard });
+    const other = await openingRouteFixture(t, () => { otherReads++; return Promise.resolve(null); }, { heard: f.heard });
     assert.equal((await other.request()).status, 200);
     assert.equal(otherReads, 1, "another platform with the same project id has its own opening");
     assert.deepEqual(other.opened().map(item => item.workspace_id), [""]);

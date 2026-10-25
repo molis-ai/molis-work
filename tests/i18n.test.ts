@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
-import { EN, L, clientI18nScript, htmlLang, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "@molis-ai/molis-work-app-local-host";
+import { L, clientI18nScript, htmlLang, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "@molis-ai/molis-work-app-local-host";
 import { IMAGES_MESSAGES, renderImagesWorkbench } from "@molis-ai/molis-work-plugin-images";
 import { createGoalStateExplainer, type GoalPresentationState } from "@molis-ai/molis-work-plugin-goals";
-import { isProductSource, scanTree, summarise, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
+import { STABLE_KEY, isProductSource, scanTree, summarise, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 const { explainWorkState } = createGoalStateExplainer(L);
 
 test("locale defaults to Chinese, then cookie, then Accept-Language", () => {
@@ -62,12 +62,16 @@ test("every translator call in the product source has an English translation", (
 });
 
 test("the scan reads exactly the English catalog the Host serves", () => {
-  // The scan finds the dictionaries by shape; the catalog is what the running Host really holds (en.ts spreads them in its
-  // own order, the last one wins). They have to agree on the keys, and the English served for a key has to be one the
+  // The scan finds the dictionaries by shape; the catalog is what the running Host really sends to a page in English: the
+  // Workbench's `EN` and the `ui.translations` of the Plugins it has registered (the host's wins on a shared key), with the
+  // stable-key words left out. They have to agree on the keys, and the English served for a key has to be one the
   // dictionaries give for it.
-  assert.deepEqual([...scan.byKey.keys()].filter(key => !(key in EN)), [], "keys the scan sees that the catalog lacks");
-  assert.deepEqual(Object.keys(EN).filter(key => !scan.byKey.has(key)), [], "keys the catalog serves that the scan does not see");
-  const unknown = [...scan.byKey].filter(([key, list]: [string, Array<{ value: string | null }>]) => !list.some(item => item.value === EN[key])).map(([key]) => key);
+  const page: { MOLIS_WORK_MESSAGES?: Record<string, string> } = {};
+  runWithLocale("en", () => runInNewContext(clientI18nScript(), page));
+  const served = Object.fromEntries(Object.entries(page.MOLIS_WORK_MESSAGES ?? {}).filter(([key]) => !STABLE_KEY.test(key)));
+  assert.deepEqual([...scan.byKey.keys()].filter(key => !(key in served)), [], "keys the scan sees that the catalog lacks");
+  assert.deepEqual(Object.keys(served).filter(key => !scan.byKey.has(key)), [], "keys the catalog serves that the scan does not see");
+  const unknown = [...scan.byKey].filter(([key, list]: [string, Array<{ value: string | null }>]) => !list.some(item => item.value === served[key])).map(([key]) => key);
   assert.deepEqual(unknown, [], "the served English is not any of the dictionaries' texts for the key");
 });
 

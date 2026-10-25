@@ -10,14 +10,16 @@
 //             committed baseline lists today's conflicts (key -> number of different English texts) and a conflict may only
 //             disappear or stay as it is. A new key, or one more variant of an old key, fails. With --base the comparison is
 //             the merge-base's own scan, so rewriting the baseline in a PR hides nothing.
-//   unserved  a `*_EN` dictionary that the English catalog the Host serves (SERVED_ROOT, `EN`) never imports, directly or through
-//             a dictionary that it imports: its English would never be shown. Absolute: the head must have none.
+//   unserved  a `*_EN` dictionary that the English the Host serves never reaches: neither the Workbench's own catalog
+//             (SERVED_ROOT, `EN`) nor a plugin Manifest's `ui.translations` (a `plugins/*/*/src/manifest.ts`) names it, directly
+//             or through a dictionary that one imports: its English would never be shown. Absolute: the head must have none.
 //   dead      a dictionary key no source file mentions as a literal. Reported, not enforced: dynamic keys have to become
 //             constants or stable keys first (W5-03). The count is printed; `--dead` lists the keys.
 //   stable    the target scheme: a key such as `jelly.calendar.empty` with `{ zh, en }` in its owner's dictionary. Checked as
 //             soon as one exists, so files can move one at a time (apps/workbench/README.md, section 界面文字).
 //             One definition per key, a key starts with its owner, zh and en use the same {placeholders}, a key is used only
-//             by its owner (shared words are `common.*`), and the named dictionary feeds a catalog entry's `messages` field.
+//             by its owner (shared words are `common.*`), and the named dictionary feeds a Manifest's `ui.messages` (of a plugin the
+//             built catalog lists).
 //             A registered dictionary may be assembled from parts, `export const X_MESSAGES = { ...X_A_MESSAGES, ...X_B_MESSAGES }`
 //             (exportedSpreads), so one owner's words can span several files; each part is checked like any dictionary and
 //             must be defined by the same owner as the dictionary that spreads it.
@@ -67,6 +69,8 @@ const FUNCTIONS_DICTIONARY = "apps/workbench/src/functions/en.ts";
 export const SERVED_ROOT = "apps/workbench/src/i18n/en.ts";
 const SERVED_CATALOG = "EN";
 export const MESSAGES_ROOT = "apps/workbench/src/builtin-plugins.ts";
+// Where a plugin declares its words: `ui: { messages: X_MESSAGES, translations: X_EN }` (PG-071).
+const MANIFEST_FILE = /^plugins\/[^/]+\/[^/]+\/src\/manifest\.ts$/u;
 
 // ---- who owns a file ----------------------------------------------------------------------------------------------------
 export const ownerOf = (file) => {
@@ -257,32 +261,6 @@ const stableEntryOf = (property, source) => {
 // A stable dictionary must feed an actual `messages` field of the build catalog. Like the Chinese catalog check, this
 // follows exported names (including import aliases), not module resolution. Importing it or using it in a different object
 // is insufficient; entries must be named flat objects, and the catalog field must directly refer to that name.
-const registeredMessages = (source) => {
-  if (source.fileName !== MESSAGES_ROOT) return new Set();
-  const imports = new Map();
-  for (const statement of source.statements) {
-    const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : null;
-    if (bindings && ts.isNamedImports(bindings)) for (const item of bindings.elements) imports.set(item.name.text, item.propertyName?.text ?? item.name.text);
-  }
-  const registered = new Set();
-  const visit = (node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "BUILTIN_PLUGIN_CATALOG") {
-      const array = unwrap(node.initializer);
-      if (array && ts.isArrayLiteralExpression(array)) for (const item of array.elements) {
-        const object = objectOf(item);
-        const field = object?.properties.find(property => ts.isPropertyAssignment(property) && nameOf(property.name) === "messages");
-        const reference = field && unwrap(field.initializer);
-        if (reference && ts.isIdentifier(reference) && imports.has(reference.text)) registered.add(imports.get(reference.text));
-      }
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(source);
-  return registered;
-};
-
-// `export const X = { ...A, ...B as C }`: the names each exported object literal spreads, under their exported names (an
-// import alias is followed back). Only identifiers count; a spread of a call or a property is not a dictionary part.
 const exportedSpreads = (source) => {
   const imports = new Map();
   for (const statement of source.statements) {
@@ -309,12 +287,30 @@ const stableDictionaryName = (property) => {
 
 const mentionable = (text) => text.length <= 600 && (HAN.test(text) || STABLE_KEY.test(text));
 
-// Every `messages: X_MESSAGES` a registration declares. The catalog imports registration objects, so the dictionary is
-// registered through that field rather than a direct `messages:` entry in the catalog file itself.
-const messageReferences = (source) => [...source.getFullText().matchAll(/\bmessages\s*:\s*([A-Za-z_$][\w$]*)/gu)].map((match) => match[1]);
+// The dictionaries a Manifest declares as its `ui.messages`, by their exported names (`ui: { messages: X_MESSAGES }`, or an
+// import alias of it). Only that field counts: the same words in another object, or an import nothing uses, register nothing.
+const messageReferences = (source) => {
+  const imports = new Map();
+  for (const statement of source.statements) {
+    const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : null;
+    if (bindings && ts.isNamedImports(bindings)) for (const item of bindings.elements) imports.set(item.name.text, item.propertyName?.text ?? item.name.text);
+  }
+  const names = [];
+  const visit = (node) => {
+    if (ts.isPropertyAssignment(node) && nameOf(node.name) === "ui") {
+      const ui = objectOf(node.initializer);
+      const field = ui?.properties.find((property) => ts.isPropertyAssignment(property) && nameOf(property.name) === "messages");
+      const reference = field && unwrap(field.initializer);
+      if (reference && ts.isIdentifier(reference)) names.push(imports.get(reference.text) ?? reference.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return names;
+};
 
 // The registration modules the generated catalog actually imports. A generated catalog lists identifiers such as
-// `codingRegistration`; the dictionary is reached through that module's `messages:` field, not a direct catalog field.
+// `codingRegistration`; the dictionary is reached through that plugin's Manifest (`ui.messages`), not a direct catalog field.
 const exportedNames = (source) => {
   const names = new Set();
   for (const statement of source.statements) {
@@ -386,7 +382,7 @@ export function scanFile(file, text, shared) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const declared = declaredTranslators(source);
   const result = {
-    file, messages: registeredMessages(source), messageRefs: messageReferences(source), catalogRegistrations: catalogRegistrationImports(source), exports: exportedNames(source), spreads: exportedSpreads(source), entries: [], stable: [], dictionaries: [], usesBy: dictionaryUses(source), calls: [], dynamic: [], mentions: new Set(),
+    file, messageRefs: messageReferences(source), catalogRegistrations: catalogRegistrationImports(source), exports: exportedNames(source), spreads: exportedSpreads(source), entries: [], stable: [], dictionaries: [], usesBy: dictionaryUses(source), calls: [], dynamic: [], mentions: new Set(),
     // for linkPrograms: the relative modules it imports, how many browser scripts it holds, and the wrappers those define
     imports: source.statements.filter((node) => (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text.startsWith(".")).map((node) => node.moduleSpecifier.text),
     scripts: 0, scriptWrappers: new Map(),
@@ -554,6 +550,8 @@ export function unservedDictionaries(files) {
   for (const file of files) for (const { name } of file.dictionaries) if (name !== SERVED_CATALOG || isCatalog(file, name)) declaredBy.set(name, [...(declaredBy.get(name) ?? []), file]);
   const served = new Set([SERVED_CATALOG]), queue = [SERVED_CATALOG];
   const reach = (name) => { if (!served.has(name)) { served.add(name); queue.push(name); } };
+  // A plugin brings its English in its Manifest (`ui.translations`), so the dictionaries a Manifest file names are served too.
+  for (const file of files) if (MANIFEST_FILE.test(file.file)) file.usesBy.get("")?.forEach(reach);
   while (queue.length) {
     const name = queue.pop();
     for (const file of declaredBy.get(name) ?? []) for (const owner of [name, ""]) file.usesBy.get(owner)?.forEach(reach);
@@ -589,13 +587,12 @@ export function analyse(files) {
 
   const stableByKey = new Map();
   const stableErrors = [];
-  const registered = new Set([
-    ...(files.find(file => file.file === MESSAGES_ROOT)?.messages ?? []),
-  ]);
+  const registered = new Set();
   for (const { spec } of files.find(file => file.file === MESSAGES_ROOT)?.catalogRegistrations ?? []) {
     const plugin = spec.split("/")[1]?.replace(/^molis-work-plugin-/u, "");
-    const file = plugin && files.find((candidate) => candidate.file.endsWith(`/${plugin}/src/registration.ts`));
-    for (const name of file?.messageRefs ?? []) registered.add(name);
+    for (const file of plugin ? files.filter((candidate) => candidate.file.endsWith(`/${plugin}/src/manifest.ts`)) : []) {
+      for (const name of file.messageRefs ?? []) registered.add(name);
+    }
   }
   // A registered dictionary's parts are registered too, when the same owner defines them (a part with no stable entries,
   // say a table of something else, adds nothing to check).
@@ -623,7 +620,7 @@ export function analyse(files) {
   for (const file of files) {
     const dictionaries = new Set(file.stable.map(entry => entry.dictionary));
     for (const name of dictionaries) if (!name || !registered.has(name)) {
-      stableErrors.push(`stable dictionary ${name ?? "(unnamed)"} (${file.file}) is not registered in ${MESSAGES_ROOT}'s BUILTIN_PLUGIN_CATALOG messages field`);
+      stableErrors.push(`stable dictionary ${name ?? "(unnamed)"} (${file.file}) is not registered: name it in the \`ui.messages\` of the Manifest of a plugin that ${MESSAGES_ROOT}'s BUILTIN_PLUGIN_CATALOG lists`);
     }
   }
   for (const file of files) {
@@ -723,7 +720,7 @@ export function missingErrors(result) {
 }
 
 export const unservedErrors = (result) => result.detail.scan.unserved.map((item) =>
-  `dictionary ${item.name} (${item.file}:${item.line}) is not part of the English the Host serves, so its texts are never shown in English; import ${item.name} in ${SERVED_ROOT} (or in a dictionary that it imports) and spread it into ${SERVED_CATALOG}`);
+  `dictionary ${item.name} (${item.file}:${item.line}) is not part of the English the Host serves, so its texts are never shown in English; import ${item.name} in ${SERVED_ROOT} (or in a dictionary that it imports) and spread it into ${SERVED_CATALOG}, or, for a plugin's own words, name it in the \`ui.translations\` of the plugin's Manifest`);
 
 /** The conflict rule: against the merge-base's (or the committed baseline's) key -> variants, nothing may be new or grow. */
 export function conflictGrowth(head, reference) {

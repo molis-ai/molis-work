@@ -3,6 +3,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";
 import { ARTIFACT_ACTIONS } from "./actions.js";
 
+import { ARTIFACT_EN } from "./en.js";
 export const ARTIFACTS_PLUGIN_ID = "io.molis.work.artifacts";
 /** What the project database stores for this Plugin. */
 export const ARTIFACTS_PROJECT_PLUGIN_ID = "artifacts";
@@ -32,6 +33,7 @@ export const artifactsManifest: PluginManifest = {
     consumes: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
   },
   ui: {
+    translations: ARTIFACT_EN,
     contributions: [ARTIFACT_BROWSER_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "browser", slot: "navigator", title: "成果", contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, icon: "package", order: 60, group: "make" },

@@ -10,6 +10,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
+import { registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
 import {
   PluginEventBus,
   PluginHostEvents,
@@ -202,6 +203,9 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // it never acknowledged once it is running again.
   let stopArtifactRefresh: (() => void) | undefined;
   const detachActivation = supervisor.observeActivation(pluginId => {
+    // The words the Manifest declares (`ui.messages`) reach the pages' catalog the same way for a built-in and an installed plugin.
+    const manifest = supervisor.manifest(pluginId);
+    if (manifest) registerPluginMessages(manifest, { host: identity.shipsWithHost(manifest) });
     if (!stopArtifactRefresh && options.journal && supervisor.manifest(pluginId)?.ports?.inputs.length) {
       stopArtifactRefresh = observePluginArtifacts(options.project_id, options.journal, wiring);
     }

@@ -9,6 +9,8 @@ import {
 import { DIFF_ACTIONS } from "./actions.js";
 import { DIFF_UI_CONTRIBUTION_ID } from "./ui.js";
 
+import { DIFF_MESSAGES } from "./messages.js";
+import { DIFF_EN } from "./en.js";
 export const DIFF_PLUGIN_ID = "io.molis.work.diff";
 /** What the project database stores for this Plugin. */
 export const DIFF_PROJECT_PLUGIN_ID = "diff";
@@ -117,6 +119,8 @@ export const diffManifest: PluginManifest = {
   },
   routes: [{ route_id: "diff.state", method: "GET", path: "/state" }],
   ui: {
+    messages: DIFF_MESSAGES,
+    translations: DIFF_EN,
     contributions: [DIFF_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "browse", slot: "navigator", title: "Diff", contribution_id: DIFF_UI_CONTRIBUTION_ID, icon: "git-compare", order: 65 },

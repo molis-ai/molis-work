@@ -55,7 +55,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 ### 现在怎么工作
 
-翻译调用支持主人稳定键（如 `L("images.compose.generate")`）与尚未迁移的中文键（如 `L("设置")`）。稳定词典由插件自己的 `src/messages.ts` 定义，经插件自己 `src/registration.ts` 里 `registration` 的 `messages` 登记（目录由它生成）；[`src/i18n.ts`](src/i18n.ts) 按当前请求语言查找，浏览器收到当前页面语言的同一份词条。中文键的英文仍写在各主人的 `X_EN` 词典中，由 [`src/i18n/en.ts`](src/i18n/en.ts) 按顺序并成 `EN`，后写的覆盖先写的；中文页直接显示中文原文。两种调用均在查词后替换参数。
+翻译调用支持主人稳定键（如 `L("images.compose.generate")`）与尚未迁移的中文键（如 `L("设置")`）。稳定词典由插件自己的 `src/messages.ts` 定义，在插件 Manifest 的 `ui.messages` 里声明（PG-071：Manifest 是纯数据，内置与第三方插件同一条路，平台只读已安装插件的 Manifest）；[`src/i18n.ts`](src/i18n.ts) 的插件词条表（[`src/plugin-messages.ts`](src/plugin-messages.ts)）在内置插件启动时、其他插件被 Host 启用时登记它们，按当前请求语言查找，浏览器收到当前页面语言的同一份词条，只含已登记插件的。中文键的英文：Workbench 自己的写在 `X_EN` 词典里，由 [`src/i18n/en.ts`](src/i18n/en.ts) 按顺序并成 `EN`；插件自己的 `X_EN` 写在插件包里，由它的 Manifest 的 `ui.translations` 声明（只有随 Host 构建的插件可用，等它的文字换成稳定键就不再需要；过渡机制记在 `specs/repository-anti-corruption`），查词时先 `ui.messages`，再 `ui.translations`，最后 `EN`；中文页直接显示中文原文。两种调用均在查词后替换参数。
 
 检查是 [`scripts/gates/translations.mjs`](../../scripts/gates/translations.mjs)，接在 `pnpm health:check` 里，CI 的「Health gates」步骤用 `--base` 跑它。它扫整个源码树（`apps`、`plugins`、`packages`、`modules`、`horizontal`、`server`、`tooling` 下的 `.ts`，不含测试和构建产物），不用文件名单：
 
@@ -100,9 +100,9 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 5. 跑 `node scripts/check-health-gates.mjs`（缺英文为零，没有新冲突），再跑 `node scripts/run-tests.mjs tests/i18n.test.ts tests/translation-check.test.ts` 和该插件自己的用例。冲突或无用键少了，在同一个 PR 里 `node scripts/check-health-gates.mjs --update --base origin/main`。
 6. 一个插件里一部分文件用稳定键、一部分仍用中文键是允许的；检查两种都认。
 
-**运行时登记**：在插件公开入口导出 `X_MESSAGES`，并在包 `src/registration.ts` 的 `registration` 写 `messages: X_MESSAGES`，不往 `i18n/en.ts` 加稳定词典的 import。服务端 `L()` 按当前请求语言查表；`clientI18nScript()` 将当前语言的词条放进 `MOLIS_WORK_MESSAGES`，浏览器的 `L()` 使用这张表。未定义的文本保持原样；缺词由现有静态检查拦截。同一门禁要求稳定词典实际用在某个 `registration`（或生成目录里的条目）的 `messages` 字段；只 import、只放进无关对象、使用别的字段都会失败，更新基线也不能放行。词典须为具名扁平对象，字段直接引用 import 的名字（支持别名）；和现有英文词典检查一样按导出名字识别，不解析模块路径。
+**运行时登记**：在插件包里导出 `X_MESSAGES`，并在包 `src/manifest.ts` 的 `ui` 写 `messages: X_MESSAGES`，不往 `i18n/en.ts` 加插件词典的 import，也不在 `registration` 里写词典（`registration.messages` 已删）。键必须以插件自己的名字（`plugin_id` 的最后一段）开头，`common` 留给通用词；SDK 的 `messageDeclarationProblems` 在 Manifest 解析时检查形状、大小、占位符，Host 登记时再拒绝与别的插件重复的键。服务端 `L()` 按当前请求语言查表；`clientI18nScript()` 将当前语言的词条放进 `MOLIS_WORK_MESSAGES`，浏览器的 `L()` 使用这张表。未定义的文本保持原样；缺词由现有静态检查拦截。同一门禁要求稳定词典实际用在目录里某个插件的 Manifest 的 `ui.messages` 字段；只 import、只放进无关对象、使用别的字段都会失败，更新基线也不能放行。词典须为具名扁平对象，字段直接引用 import 的名字（支持别名）；和现有英文词典检查一样按导出名字识别，不解析模块路径。
 
-**动作输出里的句子**：视图或拒绝理由里的句子（如 Diff 的 `view.message`、Files 动作的拒绝理由）同时是 Agent 读到的动作输出，不改成键；页面画它们时经翻译（`p.text(view.message)`、浏览器 `L(error.message)`），句子本身就是主人稳定词典（`src/messages.ts`）里的键，带 `zh`、`en`，随目录条目的 `messages` 发到页面，不另并进 `i18n/en.ts`；没有的照原样显示。Host 画插件页面时把当前请求语言的 `L` 作为 `text` 交给渲染函数，浏览器脚本从 `host.translate` 拿同一张表（visual-ui-experience 第三十五片）。
+**动作输出里的句子**：视图或拒绝理由里的句子（如 Diff 的 `view.message`、Files 动作的拒绝理由）同时是 Agent 读到的动作输出，不改成键；页面画它们时经翻译（`p.text(view.message)`、浏览器 `L(error.message)`），句子本身就是 Manifest `ui.translations` 里的键（中文原文 → 英文，写在插件包的 `src/en.ts`），随已登记的插件发到页面，不并进 `i18n/en.ts`；没有的照原样显示。这条路只给随 Host 构建的插件用；第三方插件的视图要有英文，就让视图给稳定键并在 `ui.messages` 里声明，句子形式的动作输出现在无法翻译（已知限制）。Host 画插件页面时把当前请求语言的 `L` 作为 `text` 交给渲染函数，浏览器脚本从 `host.translate` 拿同一张表（visual-ui-experience 第三十五片）。
 
 ### 第一个样板：Images（`plugins/native/images`）
 

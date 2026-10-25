@@ -23,7 +23,7 @@
 - 手动补录保存期间只运行一次提交，沿用同一草稿 ID；回执丢失或 JSON 损坏时保留输入和身份，刷新或再次保存先核对真实记录，不重复新建。离开页面后的截图保留仍遵守上面的约定。
 - update / delete 要求读取时的 `expected_version`，beforeEffect 后同步事务提交；冲突不覆盖，结果未知不自动重试。页面遇到冲突时读回最新内容，把自己改过的字段放在上面继续编辑，提示核对后再保存。
 - 十一个动作显式声明读、写和不可撤销删除。客户端构建直接声明 esbuild 开发依赖，源码保持可读，不增加运行时依赖；资源预算见 `tooling/gates/page-assets.json`；必要增长按仓库单次评审规则放行。
-- 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/issues-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，样式表由 `tooling/minify-styles.mjs` 压缩后 `--define:ISSUES_CSS` 放进去）；`src/client.ts` 的 `ISSUES_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `IssuesPage` 对象里（`page.ts`），列表、详情、截图、录入、重新整理各是一个部件；请求只经工作台的 `molisWorkRequest`（`request.ts`），不直接 `fetch`；公开 Host/Scope 合同来自 contracts，全局请求类型只从 SDK 引入，插件路由来自 `host.pluginRoute`。页面上的字是稳定键（`issues.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`；服务端画的静态控件用 `ui.ts` 里视图模型的 `primitives.text`。
+- 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/issues-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，样式表由 `tooling/minify-styles.mjs` 压缩后 `--define:ISSUES_CSS` 放进去）；`src/client.ts` 的 `ISSUES_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `IssuesPage` 对象里（`page.ts`），列表、详情、截图、录入、重新整理各是一个部件；请求只经工作台的 `molisWorkRequest`（`request.ts`），不直接 `fetch`；公开 Host/Scope 合同来自 contracts，全局请求类型只从 SDK 引入，插件路由来自 `host.pluginRoute`。页面上的字是稳定键（`issues.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明；服务端画的静态控件用 `ui.ts` 里视图模型的 `primitives.text`。
 - Home Runtime 不提供项目成果、事件和端口，不得虚构项目满足服务。无团队共享、状态流转、被动采集或旧 Casebook 数据导入。
 
 ## 起标题的规则与助理方法

@@ -18,7 +18,7 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/dataset-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂），`src/client.ts` 只读这份包；请求经共同的 `molisWorkRequest`，路径来自 `host.pluginRoute`，浏览器代码里不写插件 id。
 
-页面上的字是稳定键（`dataset.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `DATASET_EN` 只留 15 条宿主还按中文原文翻译的词（服务端标签与错误、别的主人在查的词，BL-460）。
+页面上的字是稳定键（`dataset.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `DATASET_EN` 只留 15 条宿主还按中文原文翻译的词（服务端标签与错误、别的主人在查的词，BL-460）。
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`

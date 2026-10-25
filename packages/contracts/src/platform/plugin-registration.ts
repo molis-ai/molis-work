@@ -114,7 +114,5 @@ export interface PluginRegistration {
    * stores. A library is not written here: the registry reads it from the Manifest's `databases.home`.
    */
   readonly home_store?: HomeStoreDeclaration;
-  /** Owner-scoped UI words, projected into the page language by the common translator. */
-  readonly messages?: Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
   readonly workbench: PluginWorkbenchRegistration;
 }

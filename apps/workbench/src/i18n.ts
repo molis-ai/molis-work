@@ -2,10 +2,16 @@
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { EN } from "./i18n/en.js";
 import { BUILTIN_PLUGIN_CATALOG, pluginTabTitles } from "./plugin-catalog.js";
+import { createPluginMessageStore } from "./plugin-messages.js";
 
-const PLUGIN_MESSAGES: Record<string, { readonly zh: string; readonly en: string }> = Object.assign(
-  {}, ...BUILTIN_PLUGIN_CATALOG.map(entry => entry.messages),
-);
+/** The words of the installed Plugins, from their Manifests: the built-in ones at start, the others as the Host installs them. */
+const pluginMessages = createPluginMessageStore();
+for (const entry of BUILTIN_PLUGIN_CATALOG) {
+  const problems = pluginMessages.register(entry.manifest, { host: true });
+  if (problems.length > 0) throw new Error(`${entry.manifest.plugin_id}: ${problems.join("；")}`);
+}
+export const registerPluginMessages = pluginMessages.register;
+export const unregisterPluginMessages = pluginMessages.unregister;
 
 
 export { EN } from "./i18n/en.js";
@@ -102,7 +108,7 @@ function localeSwitchHref(locale: WebLocale, nextPath: string): string {
 
 function L(key: string, vars?: Record<string, string | number>): string {
   const locale = currentLocale();
-  return fillMessage(PLUGIN_MESSAGES[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? key) : key), vars);
+  return fillMessage(pluginMessages.messages()[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? pluginMessages.translations()[key] ?? key) : key), vars);
 }
 
 function renderLocaleSwitch(nextPath: string): string {
@@ -114,8 +120,8 @@ function renderLocaleSwitch(nextPath: string): string {
 }
 
 function catalogJson(locale: WebLocale): string {
-  const messages = Object.fromEntries(Object.entries(PLUGIN_MESSAGES).map(([key, text]) => [key, text[locale]]));
-  return JSON.stringify({ ...(locale === "en" ? EN : {}), ...messages }).replaceAll("<", "\\u003c");
+  const messages = Object.fromEntries(Object.entries(pluginMessages.messages()).map(([key, text]) => [key, text[locale]]));
+  return JSON.stringify({ ...(locale === "en" ? { ...pluginMessages.translations(), ...EN } : {}), ...messages }).replaceAll("<", "\\u003c");
 }
 
 function englishCatalogJson(): string {

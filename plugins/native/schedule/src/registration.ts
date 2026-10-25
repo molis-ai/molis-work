@@ -1,5 +1,4 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { SCHEDULE_MESSAGES } from "./messages.js";
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "./index.js";
 
 /**
@@ -9,7 +8,6 @@ import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, SCHEDULE_CLIENT_FACTORY_S
 export const registration: PluginRegistration = {
   project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID, catalog_order: 9,
   default_enabled: true,
-  messages: SCHEDULE_MESSAGES,
   manifest: scheduleManifest,
   workbench: {
     order: 7,

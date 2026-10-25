@@ -3289,6 +3289,8 @@ export interface PluginManifest {
         contributions: string[];
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
+        messages?: PluginMessagesDeclaration;
+        translations?: PluginTranslationsDeclaration;
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;
@@ -3335,6 +3337,11 @@ export interface PluginMaterialsClient {
     readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
 }
+
+export type PluginMessagesDeclaration = Readonly<Record<string, {
+    readonly zh: string;
+    readonly en: string;
+}>>;
 
 export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
@@ -3869,6 +3876,8 @@ export interface PluginTerminalClient {
         panelId: string;
     }>;
 }
+
+export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 
 export interface PluginUiClient {
     register<TModel>(contribution: UiContribution<TModel>): void;

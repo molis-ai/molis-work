@@ -33,10 +33,6 @@ export interface PluginRegistration {
     };
     readonly project_data?: ProjectDataDeclaration;
     readonly home_store?: HomeStoreDeclaration;
-    readonly messages?: Readonly<Record<string, {
-        readonly zh: string;
-        readonly en: string;
-    }>>;
     readonly workbench: PluginWorkbenchRegistration;
 }
 

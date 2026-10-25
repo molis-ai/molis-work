@@ -4,6 +4,8 @@ import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE } from "@molis-ai/moli
 import { TEXT_STATS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { TEXT_STATS_ACTIONS } from "./actions.js";
 
+import { TEXT_STATS_MESSAGES } from "./messages.js";
+import { TEXT_STATS_EN } from "./en.js";
 export const TEXT_STATS_PLUGIN_ID = "io.molis.work.text-stats";
 /** What the project database stores for this Plugin. */
 export const TEXT_STATS_PROJECT_PLUGIN_ID = "text-stats";
@@ -51,6 +53,8 @@ export const textStatsManifest: PluginManifest = {
   },
   routes: [{ route_id: "text-stats.state", method: "GET", path: "/state" }],
   ui: {
+    messages: TEXT_STATS_MESSAGES,
+    translations: TEXT_STATS_EN,
     contributions: [TEXT_STATS_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "browse", slot: "navigator", title: "Text Stats", contribution_id: TEXT_STATS_UI_CONTRIBUTION_ID, icon: "hash", order: 66 },

@@ -146,7 +146,7 @@ function sortGoals(items: WebGoalView[]): WebGoalView[] {
 }
 
 const goalsTreeRenderer = createWorkbenchGoalsTreeRenderer({
-  translate: L, escapeHtml, currentLocale, listJoin, icon,
+  translate: L, escapeHtml, listJoin, icon,
   renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES,
 });
 

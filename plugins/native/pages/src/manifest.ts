@@ -7,6 +7,8 @@ import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pagesMethods } from "./methods.js";
 import { PAGES_DATABASE } from "./database.js";
 
+import { PAGES_MESSAGES } from "./messages.js";
+import { PAGES_EN } from "./en.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID };
 
 const PAGES_BODY_BYTES = 1_000_000;
@@ -63,6 +65,8 @@ export const pagesManifest: PluginManifest = {
     consumes: [{ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: 1, continue: { capability_id: "pages.artifacts.continue", version: 1 } }],
   },
   ui: {
+    messages: PAGES_MESSAGES,
+    translations: PAGES_EN,
     contributions: [PAGES_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },

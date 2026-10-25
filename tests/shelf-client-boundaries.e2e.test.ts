@@ -17,8 +17,8 @@ import { directShelfActions, ShelfPluginRouteTable, openTestShelfFiles } from ".
 // The only stub is runtime availability, so client handoffs can be exercised
 // without installing or launching an agent. Storage and HTTP handlers are real.
 class FixtureShelfStore extends ShelfStore {
-  override runtime() {
-    return { ...super.runtime(), runtime_key: "fixture", executable: "/fixture/not-launched", title: "Fixture" };
+  override async runtime() {
+    return { ...await super.runtime(), runtime_key: "fixture", executable: "/fixture/not-launched", title: "Fixture" };
   }
 }
 
@@ -26,7 +26,7 @@ async function openShelfBrowser(t: TestContext) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Shelf boundary E2E"); return null; }
   const home = await mkdtemp(join(tmpdir(), "shelf-client-boundaries-"));
-  const shelf = new FixtureShelfStore(join(home, "shelf"), openTestShelfFiles(home), { disabled: true });
+  const shelf = new FixtureShelfStore(join(home, "shelf"), openTestShelfFiles(home));
   await shelf.admit({ filename: "目录材料.md", bytes: Buffer.from("# Shelf 专用测试页\n"), mime: "text/markdown" });
   const routes = new ShelfPluginRouteTable(createShelfRouteHandlers({ actions: directShelfActions(shelf) }));
   const requests: string[] = [];

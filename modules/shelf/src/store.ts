@@ -41,7 +41,7 @@ import {
 import {
   detectShelfRuntime,
   emptyShelfRuntime,
-  type ShelfRuntimeProbe,
+  type ShelfRuntimeLookup,
 } from "./runtimes.js";
 import {
   defaultShelfDeviceSettings,
@@ -123,27 +123,22 @@ function within(base: string, relative: string): string {
 }
 
 export class ShelfStore {
-  private readonly probe: ShelfRuntimeProbe;
+  private readonly lookup: ShelfRuntimeLookup;
 
   /**
    * Shelf's own data is read and written only through `files`; `root` is the real folder behind it, named in the snapshot and nowhere
    * else (a job's model reads its frozen copies through `files` too). The folders are created by the first write that needs them.
    */
-  constructor(readonly root: string, private readonly files: PluginOwnerFilesClient, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts) {
-    this.probe = probe;
+  constructor(readonly root: string, private readonly files: PluginOwnerFilesClient, lookup: ShelfRuntimeLookup = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts) {
+    this.lookup = lookup;
   }
 
   /** Manual terminal discovery. Automatic recipes use the independent AI port. */
-  runtime(settings: ShelfDeviceSettings = this.settings(), probeCapabilities = false): ShelfRuntimeStatus {
+  async runtime(settings: ShelfDeviceSettings = this.settings()): Promise<ShelfRuntimeStatus> {
     const image_text = this.materials.imageTextAvailable?.() ?? false;
     try {
       return {
-        ...detectShelfRuntime({
-          ...this.probe,
-          skipHelp: !probeCapabilities,
-          preferred: this.probe.preferred ?? settings.engine,
-          customRuntimes: settings.custom_runtimes,
-        }),
+        ...await detectShelfRuntime({ ...this.lookup, preferred: settings.engine, customRuntimes: settings.custom_runtimes }),
         image_text,
       };
     } catch {
@@ -167,7 +162,7 @@ export class ShelfStore {
     const visible = (group: StoredItem["group"]) =>
       catalog.items.filter((item) => item.group === group && !item.hidden).map(publicItem);
     const settings = normalizeSettings(catalog.settings);
-    const runtime = this.runtime(settings);
+    const runtime = await this.runtime(settings);
     const ai = this.ai?.status(settings.model_selection) ?? noAi;
     return {
       ai,
@@ -416,11 +411,10 @@ export class ShelfStore {
     if (items.length < spec.minimum_count) {
       throw shelfErrors.recipe_unavailable(`「${spec.short_title}」至少要两份材料`);
     }
-    const runtime = this.runtime(settings);
     const ai = spec.requires_agent ? this.ai?.status(settings.model_selection) ?? noAi : noAi;
     if (spec.requires_agent && (!ai.available || !ai.selected)) throw shelfErrors.no_model(ai.reason ?? noAi.reason!);
     if (!spec.requires_agent && !this.materials.extract) throw shelfErrors.extraction_unavailable("材料提取服务不可用，请从 Molis Work 打开置物架后重试");
-    if (!spec.requires_agent && items.some(item => item.kind === "image") && !runtime.image_text) throw shelfErrors.no_ocr(OCR_MISSING);
+    if (!spec.requires_agent && items.some(item => item.kind === "image") && !(this.materials.imageTextAvailable?.() ?? false)) throw shelfErrors.no_ocr(OCR_MISSING);
     const optionId = spec.choices.length ? resolvedChoiceId(spec.recipe, input.option_id) : null;
     await assertOriginsUntouched(this.materials, items, control?.signal);
     const copyHashes = new Map<string, string>();
@@ -832,8 +826,8 @@ export function initializeShelfFiles(writer: PluginOwnerFilesWriter): void {
 }
 
 /** `root` is the real folder behind `files`; the Host that supplies both keeps them the same place. */
-export function openShelfStore(root: string, files: PluginOwnerFilesClient, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts): ShelfStore {
-  return new ShelfStore(root, files, probe, materials, ai);
+export function openShelfStore(root: string, files: PluginOwnerFilesClient, lookup: ShelfRuntimeLookup = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts): ShelfStore {
+  return new ShelfStore(root, files, lookup, materials, ai);
 }
 
 async function beforeShelfEffect(control?: ShelfExecutionControl): Promise<void> {

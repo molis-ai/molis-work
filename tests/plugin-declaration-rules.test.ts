@@ -329,7 +329,7 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   // views
   { rule: "conforming views", manifest: declarationManifest({ ui: uiOf() }), expected: "" },
   { rule: "views that are not a list", manifest: declarationManifest({ ui: uiOf({ views: {} }) }), expected: "ui.views 必须为数组" },
-  { rule: "a view without an id", manifest: declarationManifest({ ui: uiOf({ views: [{ slot: "stage", title: "Main" }] }) }), expected: "视图缺少 ID；命令 open 打开的视图 main 未声明" },
+  { rule: "a view without an id", manifest: declarationManifest({ ui: uiOf({ views: [{ slot: "stage", title: "Main" }] }) }), expected: "视图缺少 ID" },
   { rule: "a view twice", manifest: declarationManifest({ ui: uiOf({ views: [view(), view()] }) }), expected: "视图重复：main" },
   { rule: "a view with an unknown slot", manifest: declarationManifest({ ui: uiOf({ views: [view({ slot: "floating" })] }) }), expected: "视图 main 的 slot 不合法" },
   { rule: "a view without a title", manifest: declarationManifest({ ui: uiOf({ views: [view({ title: " " })] }) }), expected: "视图 main 缺少标题" },

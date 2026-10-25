@@ -52,6 +52,9 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
     ["notifications", declaring({}, {}, [permission("notifications:write", true)]), []],
     ["installations", declaring({}, {}, [permission("plugins:read", true)]), []],
     ["actions", declaring({}, {}, [permission("actions:delegate", true)]), []],
+    // PG-112 RAC-664: the Manifest's local_tools (or the permission) asks for the Host's look for command-line tools, which answers with paths outside the sandbox.
+    ["localTools", declaring({}, { local_tools: { tools: [{ tool_id: "probe", binaries: ["probe"] }] } }, [permission("local-tools:read", true)]), []],
+    ["localTools", declaring({}, {}, [permission("local-tools:read", false)]), ["local-tools:read"]],
     // Project artifacts, process items, ports and events: each declaration, and the artifact permissions, ask for the services the sandbox is not given.
     ["artifacts", declaring({}, { artifacts: { produces: [{ type: "probe" } as never], consumes: [] } }), []],
     ["artifacts", declaring({}, { artifacts: { produces: [], consumes: [{ type: "probe" } as never] } }), []],

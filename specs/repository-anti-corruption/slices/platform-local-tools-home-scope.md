@@ -34,7 +34,7 @@ Manifest 的 `ui.commands` 共 6 条（Coding 三、Diff 一、Files 一、Git �
 
 这一片要证明的是：
 
-1. 插件和 Module 不读宿主环境变量、不 import `node:child_process`/`node:fs`/`node:os`；
+1. 插件和 Module 不读宿主环境变量、不 import `node:child_process`/`node:os`，也不用 `node:fs` 去找工具（只剩两个页面客户端文件读自己打包好的脚本）；
 2. 找哪些 CLI、在哪些目录找，写在 Manifest 里，由平台执行，用户装插件时看得到；
 3. 平台不为插件起任何进程；查找有缓存，`snapshot()` 读缓存，缓存热的时候不碰文件系统。
 
@@ -119,15 +119,19 @@ interface PluginLocalToolsClient {
 
 **新的边界（S 号，暂定 S-75）**：平台给插件的本机工具查找只由 Manifest 的 `local_tools` 声明：工具名、目录来自声明、只做文件系统查询、不起进程；未授权、没声明、撤权、停用、取消的调用被拒；沙箱不给。测试断言每一种「拒绝」。
 
-### 2.2 PG-113：桌面壳只接受平台文件的句柄
+### 2.2 PG-113：桌面壳不再收路径，自己向宿主换
 
-我推荐**加固路径形（A）**而不是改成句柄形（B），理由在 D2。
+我先写的 A（Rust 一侧把路径收窄到某个根下）要么写死 `shelf`、要么再加一条取根的宿主调用，且只是缩小；读完 `shelf_http.rs` 后改成 **B-lite**：路径根本不过 IPC。
 
-- 三个命令改名：`plugin_files_open`、`plugin_files_copy`、`plugin_files_drag_out`（旧名删，`permissions/*.toml`、`main.rs` 注册、`native-files.ts` 一起改）。
-- Rust 一侧新增 `plugin_files::confine(paths, roots)`：每个路径必须是绝对路径、`canonicalize` 后落在 Home 的某个**插件主人文件根**之下、是普通文件、不是链接、`nlink == 1`；任何一项不符，整批拒绝，不打开。根的列表从宿主取（`/api/host/plugin-page-files` 的响应多回一项 `roots`，或壳启动时从宿主读一次；壳本来就有访问宿主的凭据，见 `shelf_http`），不写死 `shelf`。
-- 打开前再检查一次（减小换链接的窗口）：用 `open` 的 `-R`/文件描述符做不到时，至少在 `open` 之前立刻 `symlink_metadata`；窗口仍在，写进 `SECURITY-INVARIANTS` 的「读不到的」。
+- 壳已经有到宿主的连接（`shelf_http.rs` 的 `exchange_http`，带控制令牌）。新增 `shelf_http::plugin_page_files(endpoint, page_id, relative_paths)`：壳自己向宿主的 `/api/host/plugin-page-files` 发请求（头 `x-molis-plugin-page`），宿主按页面当前的安装、授权、声明的文件条目和 `O_NOFOLLOW` 检查把相对路径换成绝对路径，回给壳。
+- 三个命令改名、换参数：`files_open`、`files_copy`、`files_drag_out` 收 `{ endpoint, page_id, paths（相对路径）, item_ids }`，不再收绝对路径。`endpoint` 必须匹配 `^(/projects/[A-Za-z0-9_-]{1,100})?/api/host/plugin-page-files$`（项目里的页面带项目前缀），`page_id` 必须匹配 `^[A-Za-z0-9_-]{8,100}$`，`paths` 至多 100 个、每个不含 NUL、`\`、`..`、不以 `/` 开头；任何一项不符，不发请求。
+- 拿到的绝对路径壳再核一遍才动（纵深）：绝对路径、`symlink_metadata` 是普通文件、不是链接、硬链接数为 1；一项不符整批拒绝。
+- 父页的 `handoffPageFiles` 不再自己请求宿主，直接把 `{ endpoint: route("/api/host/plugin-page-files"), page_id, paths, item_ids }` 交给壳——TS 变短，页面资源只会变小。用户手势、`itemIds` 形状检查不变。
+- `permissions/shelf.toml` 里三个旧命令名换成新名。
+- 主窗口里的代码因此得不到任何新能力：它能做的仍是「向宿主要这个页面自己的文件」，宿主照旧检查；它不能再让壳打开、复制或拖出任意路径。
+- 换路径到打开之间的窗口：宿主检查后到壳 `open` 之间，文件仍可能被换成链接。壳在 `open` 之前立刻再检查一次，窗口缩到毫秒级但没有消除，写进 `SECURITY-INVARIANTS` 的「读不到的」。
 - `shelf_admit_paths`、`shelf_find_files`、`platform_read_selected_file` 是「人在系统选择器里选了文件」的方向，不动。
-- 测试：Rust 单元测试（`cargo test`，CI 的 `native-checks`）断言：相对路径、`..`、链接、根之外的绝对路径、目录、多硬链接文件、空列表都被拒；TypeScript 一侧 `tests/` 里断言父页只会发 `plugin_files_*` 且参数来自 `/api/host/plugin-page-files` 的响应。
+- 测试：Rust 单元测试（`cargo test`，CI 的 `native-checks`）断言 endpoint、page_id、相对路径的每一种拒绝，和壳核对宿主回的路径时的拒绝（相对路径、目录、链接、多硬链接）；TypeScript 一侧的测试读 `main.rs`、`permissions/shelf.toml` 与 `native-files.ts`，断言旧命令名不再注册、父页不再传绝对路径。浏览器用例里捕获 `invoke` 的几处（`security-invariants-plugin-terminals.e2e.test.ts` 等）跟着改期望，由 CI 全量跑。
 
 ### 2.3 PG-011：运行范围写进 Manifest（本片的一半）
 
@@ -147,10 +151,10 @@ interface PluginLocalToolsClient {
 | RAC-662 | 服务：没声明就没有；权限未授权时 `find`/`isExecutable` 被拒；撤权、停用、取消后被拒；没声明 `custom_executables` 时 `isExecutable` 被拒 | `tests/plugin-local-tools-service.test.ts` |
 | RAC-663 | 服务：只做文件系统查询（源码不 import `child_process`），并发的 `find` 合成一次扫描，缓存 30 秒、`refresh()` 清掉；`isExecutable` 拒相对路径、NUL、过长路径，只回布尔 | 同上 |
 | RAC-664 | `MOLIS_WORK_LOCAL_TOOLS_PATH` 钉死搜索路径，`MOLIS_WORK_LOCAL_TOOLS=off` 回全 null；沙箱插件声明 `local_tools` 在启动时被拒 | 同上、`tests/security-invariants-sandbox-services.test.ts` |
-| RAC-665 | `modules/shelf` 与 `plugins/native/shelf` 的源码不含 `process.env`、`child_process`、`node:fs`、`node:os`（AST 扫描） | `tests/builtin-plugin-composition.test.ts` 或新文件 |
+| RAC-665 | `modules/shelf` 与 `plugins/native/shelf` 的源码不含 `process.env`、`child_process`、`node:os`；`node:fs` 只在 `client.ts`、`settings-client.ts` 两个页面客户端文件里读自己打包好的脚本（文本扫描） | `tests/plugin-local-tools-service.test.ts` |
 | RAC-666 | Shelf 的终端 Agent 发现、能否跑任务、隔离等级与改之前同输入同输出 | `tests/shelf-settings.test.ts`、`tests/shelf-dropagent-parity.e2e.test.ts` 里不开浏览器的部分 |
-| RAC-670 | 桌面壳三个命令：相对路径、`..`、链接、根外绝对路径、目录、硬链接多的文件、空列表被拒 | `apps/desktop` 的 `cargo test` |
-| RAC-671 | 父页只发 `plugin_files_*`，参数来自宿主的响应；旧 `shelf_*_path` 名不再注册 | `tests/` 里读 `main.rs` 与 `native-files.ts` 的断言 |
+| RAC-670 | 桌面壳三个命令：endpoint、page_id、相对路径各种不合格的输入不发请求；宿主回的路径是相对路径、目录、链接、硬链接多的文件时整批拒绝 | `apps/desktop/adapters/tauri/src/page_files.rs` 的 `rac_670_…`（`cargo test`，CI 的 `native-checks`） |
+| RAC-671 | 父页只发 `files_*`，参数里没有绝对路径；旧 `shelf_open_path`/`shelf_copy_files`/`shelf_drag_out` 名不再注册 | `tests/security-invariants-desktop-ipc.test.ts`「S-14 the shell's file commands take a page's relative paths…」，e2e 期望跟着改：`tests/security-invariants-plugin-terminals.e2e.test.ts`、`tests/security-invariants-plugin-pages.e2e.test.ts`、`tests/shelf-dropagent-parity.e2e.test.ts` |
 | RAC-680 | Manifest 的 `runtime.scope` 被解析；不合法的组合被拒 | `tests/plugin-manifest-v2.test.ts` |
 | RAC-681 | 非 `HOST_BUILD_TRUST` 的安装声明 Home 级被拒，`plugin.home_scope_unavailable` | `tests/home-scope-trust.test.ts` |
 | RAC-682 | 现有 Home 级插件的集合（由 Manifest 推出）与改之前由登记推出的集合逐项相同 | `tests/builtin-plugin-composition.test.ts` |
@@ -164,6 +168,6 @@ interface PluginLocalToolsClient {
 ## 5. 待统筹裁定（裁定前按推荐做）
 
 - **D1 PG-112 不建「起进程探测」，只建「查找」**：推荐。`--help` 探测在产品里没有一处走到（`capability_pending` 恒真），为它建平台的起进程服务是给死代码加合同面；删掉它，平台服务只做文件系统查询，不起进程。BL-380 原文要的「超时、不在请求路径上同步起进程」自然满足（没有进程）。若 ① 要保留能力探测，作后续片，那时再加 `probes` 与起进程。
-- **D2 PG-113 做 A 还是 B**：推荐 A（Rust 一侧收窄路径到插件主人文件根）。B（宿主发一次性句柄，壳拿句柄回宿主换路径）更彻底，但壳要新增一条到宿主的认证调用，换链接窗口也只是小一点；A 已让「能在主窗口里调命令的代码」不再能打开任意文件。若要 B，作为后续片。
+- **D2 PG-113**：推荐 B-lite（§2.2）：壳自己向宿主换路径，路径不过 IPC。原先写的 A（Rust 收窄到某个根）已放弃。无法在本机跑桌面壳，Rust 单元测试和 CI 的 `native-checks` 是这一块的证据，真机验收归用户。
 - **D3 PG-011 只做范围来源和信任闸**：推荐。安装与沙箱宿主等 ac-sandbox-sched；若它已有 Home 实例的计划，我把闸留成一处，它来改。
 - **D4 `MOLIS_WORK_SHELF_AGENT*` 两个环境变量改名为平台的 `MOLIS_WORK_LOCAL_TOOLS*`，偏好那个删掉**：推荐（现在不留兼容期）。需要同步改的测试与文档我来改。

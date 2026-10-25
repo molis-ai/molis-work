@@ -44,21 +44,13 @@ export type { ShelfRecipeSpec } from "./recipes.js";
 export {
   NO_AGENT_REASON,
   SHELF_ENGINES,
-  canRunJob,
-  clearShelfRuntimeCache,
   detectShelfRuntime,
   emptyShelfRuntime,
-  installedShelfEngines,
   isolationFact,
   shelfRuntimeCatalog,
   missingJobReason,
-  readCliHelp,
-  shelfRuntimeCandidates,
-  shelfRuntimeProbe,
-  shelfSearchDirectories,
-  supportsWorkspaceSandbox,
 } from "./runtimes.js";
-export type { ShelfEngine, ShelfRuntimeProbe } from "./runtimes.js";
+export type { ShelfEngine, ShelfLocalToolsPort, ShelfRuntimeLookup } from "./runtimes.js";
 export { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
 export {
   SHELF_JOB_TIMEOUT_MS,

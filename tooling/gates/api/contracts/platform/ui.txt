@@ -7,8 +7,6 @@ export interface OwnedUiContribution<TModel = unknown> {
     render(request: UiRenderRequest<TModel>): string;
 }
 
-export declare const UI_COMMAND_INPUT_KINDS: readonly ["current", "object", "agent-session", "artifacts"];
-
 export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
 
 export declare const UI_VIEW_SLOTS: readonly ["navigator", "stage", "settings", "island", "side"];
@@ -24,22 +22,6 @@ export interface UiClientScope extends UiRequestScope {
 }
 
 export type UiClientTranslate = (key: string, values?: Record<string, string | number>) => string;
-
-export type UiCommandAvailability = {
-    readonly available: true;
-} | {
-    readonly available: false;
-    readonly reason: string;
-};
-
-export interface UiCommandDeclaration {
-    readonly command_id: string;
-    readonly title: string;
-    readonly input_kinds: readonly UiCommandInputKind[];
-    readonly opens_view_id: string;
-}
-
-export type UiCommandInputKind = (typeof UI_COMMAND_INPUT_KINDS)[number];
 
 export interface UiContribution<TModel = unknown> {
     readonly descriptor: UiContributionDeclaration;
@@ -94,11 +76,6 @@ export interface UiMountResult {
 
 export interface UiNestedContentModel {
     readonly nested?: Readonly<Record<string, string>>;
-}
-
-export interface UiOpenedObjectView {
-    readonly ref: UiViewObjectRef;
-    readonly title: string;
 }
 
 export interface UiPageActions {
@@ -380,24 +357,12 @@ export interface UiViewDeclaration {
 
 export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
 
-export interface UiViewObjectRef {
-    readonly view_id: string;
-    readonly object_id: string;
-}
-
 export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 
 export interface UiViewStartEntry {
     readonly title: string;
     readonly hint: string;
     readonly icon?: string;
-}
-
-export interface UiWorkspaceCommand {
-    readonly plugin_id: string;
-    readonly plugin_title: string;
-    readonly declaration: UiCommandDeclaration;
-    readonly availability: UiCommandAvailability;
 }
 
 export interface WorkbenchDocumentRenderRequest {

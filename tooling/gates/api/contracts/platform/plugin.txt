@@ -2472,6 +2472,14 @@ export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:wr
 
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 
+export declare const PLUGIN_LOCAL_TOOLS_LIMITS: Readonly<{
+    tools: 32;
+    binaries: 4;
+    directories: 24;
+}>;
+
+export declare const PLUGIN_LOCAL_TOOLS_PERMISSION = "local-tools:read";
+
 export declare const PLUGIN_MODEL_LIMITS: {
     readonly default_timeout_ms: 120000;
     readonly max_timeout_ms: 600000;
@@ -2546,8 +2554,6 @@ export interface PluginAppContribution {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
     views?: readonly UiContribution[];
     routes?: readonly PluginRouteBinding[];
-    commandAvailability?(commandId: string): UiCommandAvailability;
-    executeCommand?(commandId: string, input: PluginCommandInput): UiOpenedObjectView | Promise<UiOpenedObjectView>;
     onUpstreamReady?(inputs: PluginUpstreamReadyInputs, context: PluginInputDeliveryContext): void | Promise<void>;
     onUpstreamUnavailable?(reason: PluginUpstreamUnavailableReason): void | Promise<void>;
     onEvent?(event: PluginEventRecord, context: PluginEventDeliveryContext): void | Promise<void>;
@@ -2622,14 +2628,6 @@ export interface PluginBackgroundExecution<T> {
     readonly result: Promise<T>;
     cancel(): void;
 }
-
-export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommandInputOf<"object", {
-    ref: UiViewObjectRef;
-}> | PluginCommandInputOf<"agent-session", {
-    session_id: string;
-}> | PluginCommandInputOf<"artifacts", {
-    references: readonly ArtifactReference[];
-}>;
 
 export interface PluginConsumableVersion extends ArtifactReference {
     kind: "artifact" | "process_item";
@@ -2922,6 +2920,7 @@ export interface PluginHostServices {
     readonly terminal?: PluginTerminalClient;
     readonly model?: PluginModelClient;
     readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
+    readonly localTools?: import("platform/plugin-local-tools").PluginLocalToolsClient;
     readonly materials?: PluginMaterialsClient;
     readonly connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsClient;
     readonly directory?: import("@molis-ai/molis-work-contracts/platform/plugin-directory").PluginDirectoryService;
@@ -3202,6 +3201,28 @@ export type PluginLifecycleState = "installed" | "running" | "disabled" | "crash
 
 export type PluginLocalPageRequest = Pick<MaterialExtractionOptions, "signal">;
 
+export interface PluginLocalToolsClient {
+    find(options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<readonly {
+        readonly tool_id: string;
+        readonly executable: string | null;
+    }[]>;
+    isExecutable(path: string, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<boolean>;
+    refresh(): void;
+}
+
+export interface PluginLocalToolsDeclaration {
+    readonly tools: readonly {
+        readonly tool_id: string;
+        readonly binaries: readonly string[];
+    }[];
+    readonly directories?: readonly string[];
+    readonly custom_executables?: true;
+}
+
 export interface PluginManifest {
     schema_version: 1 | 2;
     plugin_id: string;
@@ -3267,7 +3288,6 @@ export interface PluginManifest {
         contributions: string[];
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
-        commands?: UiCommandDeclaration[];
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;
@@ -3280,6 +3300,7 @@ export interface PluginManifest {
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
     model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
+    local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
     attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     background?: {
@@ -3855,7 +3876,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -5123,10 +5144,6 @@ interface DestinationDeclaration {
     readonly prepare?: Pick<ActionReference, "capability_id" | "version">;
     readonly places?: readonly SurfacePlace[];
 }
-
-type PluginCommandInputOf<Kind extends UiCommandInputKind, Payload = unknown> = {
-    kind: Kind;
-} & Payload;
 
 type RoundRef = {
     session_id: string;

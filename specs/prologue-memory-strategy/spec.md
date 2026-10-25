@@ -2628,6 +2628,14 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 - **MEM-40-CAT-04，同一删除主人与当前权限。** 冷维护仅装配既有 Catalog、Projects、binding/panel 主人、原 commit 与 ManagedProjectDeletion。首次目标决定的步骤为源原要求与 target 当前声明的稳定并集，Memory 优先，缺席主人保持 pending；已有决定按 CAT-02 保留原步骤，并完整覆盖该 source 原要求。目录只能由 target 原决定构造，不能使用源绝对路径。维护 checker 必须进入 owner 的真实副作用和异步后边界，包含 pending/error 记账、目录 rename/rm、步骤及最终提交；不能仅在最后 complete 检查或传 noop。未决原件/coverage 阻断后续业务清除，关闭失败不发布。
 - **MEM-40-FRAME-01，自有删除不使维护失效。** 完整恢复的范围由可信 source 与 target 原固定计划确定；普通采用的活动项目重算规则保留。新的恢复 frame 同时核当前维护权限/取消、原 owner、adopting 与预期 Ledger/Catalog 身份快照。合法 forgetScopes/removeFacts 只能由实际主人事务返回其提交后的最新快照，再推进该 frame 的预期值；不得用任意重新读取覆盖预期、忽略差异或从清空后的关系猜完整性。失败或结果未知保持 adopting，重开沿持久原决定对账。SDK 的固定授权范围不因自身删掉关系而丢失，也不能因此增加选项或让普通 Runtime 获维护许可。
 
+**MEM-40 Storage 冷 retention 窄口（2026-10-25，实施前短合同）。** 准确基底8b026bbe。Storage公开 `createMemoryLedgerProjectRetention({homeDirectory, plan, mode, assertCurrent, signal?})`，固定一次绝对目标路径、原项目/actor/operation及scope内正式ID/候选ID/版本/来源；该数据合同与上层原项目计划结构相容，但Storage不依赖Memory/SDK、不拥有Catalog计划或完成账。factory不打开普通Ledger，不造持久状态或新锁。`mode:"cleanup"`只准按原集合 `suppressSources({snapshot,scope,owner,sources})`、`dropCandidate({snapshot,candidate_id})`、`forget({snapshot,memory_id})`、`forgetScopes({snapshot})`；前两种ID均须命中原scope，来源精确核原event/version，设置/信号/整理键只从固定非个人scope和项目推导，调用方不能任填键。正式遗忘复用原retention对该ID所有账本副本的清理，不把同源其他SDK对象加入选集。`mode:"original"`拒绝全部写方法，只提供同份选集的 `verifyOriginal({snapshot})`。
+
+写入逐次复用原existing-only `changeMemoryLedgerAdoption`：BEGIN IMMEDIATE内比较输入expected snapshot，复核同步current/取消及adopting，再调用原retention/原来源抑制/原候选移除实现，在同事务内取得post snapshot，最后current后COMMIT；只有COMMIT和资源关闭正常返回后才交post给父frame。输入snapshot在调用开始复制，current不能篡改本次比较值。返回仍只是schema/profiles/adoption/owner身份快照，不冒充全部Ledger版本；正式删除由SDK CAS、固定计划与原父owner保证。失败不自动重试、不重新inspect覆盖expected、不返回未知提交的post；原决定重开对账归父frame。
+
+`verifyOriginal`用同一existing-only只读事务比较expected并核当前权限，只查原精确ID/来源：候选账注不存在；正式ID的revisions/uses/pairs无残留、changes的text为空/reason与undo为null/undoable为false，引用该正式ID的候选副本已被原retention清理，原memory-forgotten屏障与每条(actor,scope,owner,event)来源屏障存在。坏JSON/不明结构拒绝，不以forgotten marker单独证明完成。它不调用forgetScopes、不要求当前同ID项目为空、不改后继prefs/owner/新SDK IDs。cleanup的scope收尾须由上层先完成原SDK coverage证明；Storage在写前复核固定scope归属且拒绝不在计划内的现候选/changes/pairs残留，不用范围删除抹去未选择原件。
+
+允许修改Storage原retention/adoption/cleanup共享实现、必要同职责冷适配与公开出口、Storage README、本spec和直接真实SQLite测试；不改SDK/vendor/锁、外层frame/marker/Catalog、schema、质量门。验证非空原副本与旁范围保持、固定输入和计划外拒绝、末次current撤回回滚、旧snapshot与并发变更冲突、COMMIT前/后故障无成功post和原决定重试、仅marker伪证明拒绝、original模式同ID后继保持。整体构建走FIFO，直接测试与Storage README适用影响面、strict/准确8b健康/边界/API；不跑App全量、浏览器、模型或真实Home。此为合同，尚非实现或验收结果。
+
 依赖顺序：源 Ledger/Memory 解释、Catalog 读取和冷 Session 清除并行；统筹集成唯一恢复父 operation/frame 与 target Catalog 接纳，再完成全主人 T0/T1/T2、原请求重开、逐 owner 故障、WAL/缺钥/撤权、关闭与第二 owner 交错验证。当前来源读取和冷 Session 仅提供各自局部能力；完整 MEM-40、最终用户旅程与收益对照仍未通过。所有变更继续集中既有 #1101，先由 #1064 依原 CI/评审要求进入 main，不再为上述内部职责新开小 PR。
 
 ### MEM-40 冷维护目标 Session 清除前置（2026-10-25，实施前短合同）

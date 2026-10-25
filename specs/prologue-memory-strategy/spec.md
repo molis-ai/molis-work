@@ -2547,3 +2547,7 @@ Storage README 原指定11文件首批10/11文件、79/80项通过；唯一 `sec
 最终430f已通过Verify及所有必需检查；产品子集40180408090的2/2分片与Full suite40180486942的12/16分片均在同一MEM-35用例失败。GitHub原artifact与本地准确430f复现一致：tests/assistant-executor.test.ts新插件直接调用PluginRuntime.install时遗漏主线现在必填的trust，在安装阶段收到plugin.state_invalid，未执行原身份/撤权断言。Full suite因此按既有bail/fail-fast取消9个分片，不能称完整通过；保留两次CI失败及被取消结果。
 
 只为测试样例补真实身份trust:{level:"unsigned"}，不把测试插件冒称host，不改生产安装检查、权限、任何原断言、时限、重试或CI。原整文件从14/15变为15/15，未跳过，日志 /private/tmp/molis-memory-1064-assistant-executor-{repro,trust}-20261025.log。产品子集原artifact /private/tmp/molis-memory-1064-product-subset-2-20261025.zip 保留。后继提交必须重跑最终CI及Full suite；此前旧Cloudflare失败影响和历史仅重试通过的UNKNOWN仍未由该局部修正消除。
+
+### 2026-10-25：App 安装夹具跟随主线 trust 合同
+
+聚合6fd4121ce合入基础d08后，原assistant-executor整文件首次15/17；App归档交错用例的第二个PluginRuntime.install夹具同样遗漏主线必填trust，在进入原断言前拒绝安装。只补trust:{level:"unsigned"}，原归档、迟到回调、无新增执行/轮次断言全部保留，未改生产、权限、时限、重试或CI。整文件随后17/17、无skip/retry通过，日志 /private/tmp/molis-memory-app-d08-executor-trust-20261025.log；首败 /private/tmp/molis-memory-app-d08-executor-20261025.log保留。此一行测试变化不改变此前008706聚合的350项及资源实测适用范围，最终App完整CI与产品验收仍未完成。

@@ -141,6 +141,7 @@ export function createLocalGoalsReadHttp(ports: {
             actorId: LOCAL_PERSON_ACTOR_ID,
             escapeHtml,
             translate: (value: string) => value,
+            // Only for this render: both directory readers use this page request's snapshot.
             workspaces: projectConfiguration.workspaces, workspacesFor: async () => projectConfiguration.workspaces,
             routePrefix: view.route_prefix,
           };

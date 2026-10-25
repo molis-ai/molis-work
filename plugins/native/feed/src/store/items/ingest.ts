@@ -1,16 +1,16 @@
 import { randomUUID } from "node:crypto";
-import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type {
   FeedItemRecord,
   FeedMaterialRecord,
   IngestFeedItemInput,
 } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedRecords } from "./records.js";
+import type { FeedAttentionPort } from "./types.js";
 import { mapFeedItem, normalizeSummary, normalizeTitle, type Row } from "./rows.js";
 
 /** Writes that bring an item or its material into the Feed: ingest, and the material upsert it shares. */
 export class FeedIngest {
-  constructor(private readonly records: FeedRecords, private readonly attention: AttentionApi) {}
+  constructor(private readonly records: FeedRecords, private readonly attention: FeedAttentionPort) {}
 
   ingest(input: IngestFeedItemInput): {
     item: FeedItemRecord;

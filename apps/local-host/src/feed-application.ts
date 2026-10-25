@@ -1,4 +1,3 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   LocalSqliteJournal,
 } from "@molis-ai/molis-work-storage";
@@ -16,20 +15,8 @@ import {
 import {
   AttentionModule,
 } from "@molis-ai/molis-work-module-attention-resumption";
-import {
-  deleteListenerSourceState,
-  FeedModule,
-  fromBetterSqlite,
-  getListenerRunByOperationId,
-  listListenerRuns,
-  readListenerCheckpoint,
-  recoverInterruptedListenerRuns,
-  saveListenerRun,
-  SourcesModule,
-  writeListenerCursor,
-  type FeedSql,
-} from "@molis-ai/molis-work-plugin-feed/store";
-import { FEED_PLUGIN_ID, FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
+import { fromBetterSqlite, type FeedSql } from "@molis-ai/molis-work-plugin-feed/store";
+import { assembleFeedApplication, FEED_PLUGIN_ID, type FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
 import { projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedHistoryRelease } from "./feed-history-release.js";
@@ -62,43 +49,9 @@ export function createLocalFeedApplication(
   options: LocalFeedApplicationOptions = {},
 ): FeedApplication {
   const sql = feedSql(db);
-  const sources = new SourcesModule(sql);
   const journal = new LocalSqliteJournal(db);
   const goals = createGoalReadServices(db, journal).query;
-  let feedItems!: FeedModule;
   let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
-  const attention = new AttentionModule(db, {
-    exists: (projectId, subjectType, subjectId) => {
-      if (subjectType === "feed_item") return feedItems.query.exists(projectId, subjectId);
-      if (subjectType === "source_fault") {
-        try {
-          sources.query.get(projectId, subjectId);
-          return true;
-        } catch (error) {
-          if (error instanceof ActionError && error.code === "sources.not_found") return false;
-          throw error;
-        }
-      }
-      return goals.getGoal(projectId, subjectId) !== null;
-    },
-  }, {
-    eventSink: (event) => {
-      appendEvent(event.project_id, "inbox_entry", event.entry_id, event.type, event.reason, event.payload, event.at);
-      if (event.type === "inbox_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
-    },
-  });
-  feedItems = new FeedModule(sql, attention, {
-    ledger: createContextLedger(db, { authorize: (access) => access.scope.kind === "personal" && access.actor_id === "module:feed" }),
-    eventSink: (event) => appendEvent(
-      event.project_id,
-      "feed_item",
-      event.item_id,
-      event.type,
-      event.reason,
-      event.payload,
-      event.at,
-    ),
-  });
 
   function appendEvent(...args: Parameters<FeedApplicationPorts["appendEvent"]>): void {
     const [projectId, objectType, objectId, type, reason, payload, at] = args;
@@ -122,11 +75,24 @@ export function createLocalFeedApplication(
     }),
     eventCursor: (projectId) => journal.eventCursor(projectId),
   }).artifacts;
-  return new FeedApplication({
-    sources, feed: feedItems, attention, appendEvent,
+  return assembleFeedApplication({
+    sql, appendEvent,
+    attention: subjects => new AttentionModule(db, {
+      exists: (projectId, subjectType, subjectId) => {
+        if (subjectType === "feed_item") return subjects.feedItemExists(projectId, subjectId);
+        if (subjectType === "source_fault") return subjects.sourceExists(projectId, subjectId);
+        return goals.getGoal(projectId, subjectId) !== null;
+      },
+    }, {
+      eventSink: (event) => {
+        appendEvent(event.project_id, "inbox_entry", event.entry_id, event.type, event.reason, event.payload, event.at);
+        if (event.type === "inbox_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
+      },
+    }),
+    ledger: createContextLedger(db, { authorize: (access) => access.scope.kind === "personal" && access.actor_id === "module:feed" }),
     subscribeInboxCreated: listener => { inboxCreated = listener; },
     // A refused Feed library leaves the project without capture rules; the rest of Feed is the Modules' and goes on.
-    ...projectPluginDatabaseRefusal(db, FEED_PLUGIN_ID) ? {} : { outRules: new FeedOutRuleStore(db) },
+    ...projectPluginDatabaseRefusal(db, FEED_PLUGIN_ID) ? {} : { outRules: new FeedOutRuleStore(sql) },
     artifacts: options.artifacts ?? {
       registerVersion: (input) => artifactsModule().commands.registerVersion(input),
       latestVersion: (projectId, artifactId) => artifactsModule().query.latestArtifactVersion(projectId, artifactId),
@@ -135,15 +101,5 @@ export function createLocalFeedApplication(
     captureJudgment: options.captureJudgment,
     inboxJudgment: options.inboxJudgment,
     homeJudgment: options.homeJudgment,
-    transaction: (operation) => db.transaction(operation).immediate(),
-    listener: {
-      listRuns: (projectId) => listListenerRuns(sql, projectId),
-      getRunByOperationId: (projectId, operationId) => getListenerRunByOperationId(sql, projectId, operationId),
-      saveRun: (run) => saveListenerRun(sql, run),
-      recoverInterruptedRuns: (projectId) => recoverInterruptedListenerRuns(sql, projectId),
-      checkpoint: (projectId, sourceId, at) => readListenerCheckpoint(sql, projectId, sourceId, at),
-      writeCursor: (projectId, sourceId, cursor, at) => writeListenerCursor(sql, projectId, sourceId, cursor, at),
-      deleteSourceState: (projectId, sourceId) => deleteListenerSourceState(sql, projectId, sourceId),
-    },
   });
 }

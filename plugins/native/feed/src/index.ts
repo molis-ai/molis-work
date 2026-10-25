@@ -40,6 +40,7 @@ export * from "./projection.js";
 
 
 export { FeedApplication } from "./application.js";
+export { assembleFeedApplication, type FeedAssemblyPorts, type FeedSubjects } from "./application-assembly.js";
 export type { FeedApplicationPorts } from "./application-ports.js";
 export { receiptContentRefs, FEED_RECEIPT_CONTENT_REFS, type FeedSourceHistory, type FeedSourceHistoryHolding, type FeedSourceHistoryRelease } from "./source-history.js";
 export * from "./application-errors.js";
@@ -54,7 +55,7 @@ export {
   parseFeedOutRulePatch,
   parseFeedOutRuleWrite,
 } from "./out-rules.js";
-export type { FeedArtifactProducer, FeedOutRuleWrite, FeedPluginSqliteDatabase } from "./out-rules.js";
+export type { FeedArtifactProducer, FeedOutRuleWrite } from "./out-rules.js";
 
 export { createFeedExactRouteResolver, type FeedExactSourceDefinitions } from "./exact-source-routes.js";
 

@@ -1,14 +1,12 @@
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import type {
-  AttentionApi,
-  AttentionStatus,
-} from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { FeedItemDisposition, FeedItemRecord } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedRecords } from "./records.js";
+import type { FeedAttentionPort } from "./types.js";
 
 /** What happens to an item after it is in the Feed: its disposition, read mark, Goal link, and removal with its source. */
 export class FeedDispositions {
-  constructor(private readonly records: FeedRecords, private readonly attention: AttentionApi) {}
+  constructor(private readonly records: FeedRecords, private readonly attention: FeedAttentionPort) {}
 
   setDisposition(
     projectId: string,
@@ -182,7 +180,7 @@ export class FeedDispositions {
  * An item can be in the Inbox for more than one reason at once (the person added it, a capture rule admitted it,
  * a capture-out failure). What happens to the item happens to all of those entries, in the item's transaction.
  */
-function settleActiveAttention(attention: AttentionApi, projectId: string, itemId: string, status: AttentionStatus): void {
+function settleActiveAttention(attention: FeedAttentionPort, projectId: string, itemId: string, status: AttentionStatus): void {
   for (const entry of attention.query.findForSubject(projectId, "feed_item", itemId)) {
     if (entry.status === "open" || entry.status === "in_progress") {
       attention.commands.setStatus(projectId, entry.entry_id, status, entry.revision);

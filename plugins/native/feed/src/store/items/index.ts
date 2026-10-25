@@ -1,4 +1,3 @@
-import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type {
   FeedApi,
   FeedItemDisposition,
@@ -11,9 +10,9 @@ import { FeedIngest } from "./ingest.js";
 import { FeedRecords } from "./records.js";
 import { text, type Row } from "./rows.js";
 import type { FeedSql } from "../sql.js";
-import type { FeedModuleOptions } from "./types.js";
+import type { FeedAttentionPort, FeedModuleOptions } from "./types.js";
 
-export type { FeedJournalEvent, FeedModuleOptions } from "./types.js";
+export type { FeedAttentionPort, FeedJournalEvent, FeedModuleOptions } from "./types.js";
 export { FEED_ITEMS_SCHEMA_SQL } from "./schema.js";
 
 /** The evidence bodies the Feed materials in this database point at (`content_ref`), each once. */
@@ -27,7 +26,7 @@ export class FeedModule implements FeedApi {
   readonly commands: FeedApi["commands"];
   readonly events: FeedApi["events"];
 
-  constructor(db: FeedSql, attention: AttentionApi, options: FeedModuleOptions) {
+  constructor(db: FeedSql, attention: FeedAttentionPort, options: FeedModuleOptions) {
     const records = new FeedRecords(db, new FeedGoalLinks(options.ledger), options);
     const ingest = new FeedIngest(records, attention);
     const dispositions = new FeedDispositions(records, attention);

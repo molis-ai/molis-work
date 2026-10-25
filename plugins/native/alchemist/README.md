@@ -28,6 +28,8 @@ AI 固定指令统一定义于 `src/prompts.ts`，`ALCHEMIST_INSTRUCTIONS` 由 H
 
 ## 开发要求
 
+公开 `ALCHEMIST_STUDIO_BASELINE` 与已有搜索库基线供离线快照核当前结构/版本；不另写库版本或从宿主查询工作室业务表。实际双分区读回见 `tests/home-snapshot-content.test.ts`。
+
 - 负责：按项目隔离的 Alchemist 工作室：方向探索、有证据的研究与创始人决策。
 - 不负责：宿主模型凭据、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-alchemist`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。

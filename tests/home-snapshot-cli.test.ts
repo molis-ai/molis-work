@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,4 +59,16 @@ test("RAC-109-S-05: missing/unknown arguments and existing or in-Home destinatio
   }
   assert.equal(await readFile(join(existing, "keep"), "utf8"), "existing result");
   assert.deepEqual((await readdir(f.directory)).sort(), ["existing", "home"]);
+});
+
+test("RAC-109-S-05: a symlink destination and a destination that contains Home are refused without touching either", async t => {
+  const f = await fixture(t), existing = join(f.directory, "existing"), alias = join(f.directory, "alias");
+  await mkdir(existing); await writeFile(join(existing, "keep"), "another owner's result");
+  await symlink(existing, alias);
+  for (const destination of [alias, f.directory]) {
+    const result = await cli(t, ["snapshot", "--home", f.home, "--to", destination, "--json"]);
+    assert.equal(result.code, 1, result.stderr); assert.equal(result.stdout, "");
+  }
+  assert.equal(await readFile(join(existing, "keep"), "utf8"), "another owner's result");
+  assert.deepEqual((await readdir(f.directory)).sort(), ["alias", "existing", "home"]);
 });

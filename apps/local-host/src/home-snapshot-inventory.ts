@@ -35,7 +35,7 @@ export function assertSnapshotHomeInventory(home: string, registry: HomeSnapshot
 function disposition(home: string, store: HomeSnapshotStore, file: string): SnapshotDisposition {
   const retained = store.snapshot.retained;
   if (retained && file) {
-    if (file === retained.content.dependency) return { kind: "key" };
+    if (file === retained.content.dependency) return { kind: "key", bytes: 32 };
     const known = [retained.database.file, retained.content.directory, retained.content.dependency];
     if (!known.some(path => path === file || path.startsWith(file + "/") || file.startsWith(retained.content.directory + "/"))
       && !["-journal", "-wal", "-shm"].some(suffix => file === retained.database.file + suffix)) {

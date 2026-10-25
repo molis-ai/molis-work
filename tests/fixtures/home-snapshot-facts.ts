@@ -21,7 +21,7 @@ function libraryFacts(project: string): Record<string, Seed> {
     connectors: { table: "connector_connections", values: { connection_id: id, service_id: "github", display_name: title, auth_method: "token", credential_ref: "snapshot:api", source: "manual", created_at: at, updated_at: at }, field: "display_name" },
     "context-onboarding": { table: "journeys", values: { id, body, updated_at: at }, field: "body" },
     "plugin-originals": { table: "plugin_original_files", values: { plugin_id: "io.snapshot.fixture", install_id: id, project_id: project, record_key: "original", real_path: "/snapshot-fixture/original.txt", registered_at: at }, field: "real_path" },
-    functions: { table: "functions", values: { id, name: title, function_key: "fixture-rule", primitive: "classify", status: "draft", version: 1, instructions: "Keep this rule", created_at: at, updated_at: at }, field: "name" },
+    functions: { table: "functions", values: { id, name: title, function_key: "fixture-rule", primitive: "classify", status: "draft", version: 1, model: "fixture", instructions: "Keep this rule", criteria_json: "{}", config_hash: "fixture-content-identity", created_at: at, updated_at: at }, field: "name" },
     characters: { table: "character_drafts", values: { character_id: id, owner_actor_id: actor, revision: 2, updated_at: at, record: body }, field: "record" },
     memory: { table: "memory_candidates", values: { candidate_id: id, actor_id: actor, state: "pending", body }, field: "body" },
     knowledge: { table: "knowledge_cards", values: { card_id: 701, project_id: project, kind: "goal", object_id: id, body }, field: "body" },

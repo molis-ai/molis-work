@@ -1,5 +1,17 @@
 # CLI 与开发
 
+## Home 离线快照
+
+`molis-work home snapshot --to /绝对路径/新目录 --home /原Home --json` 从已存在的 Home 捕获快照；`--home` 省略时沿用产品的 Home 解析。`--to` 必填，目标尚不存在、父目录已存在，并且目标与 Home 不能互相包含。参数重复、未知或缺值直接拒绝。成功 stdout 是 JSON（不加 `--json` 时是路径和数量），失败只向 stderr 写错误并返回 1。
+
+先停止使用该 Home 的 Web/Desktop/Agent，再在离线窗口执行。命令取得与 Host/Agent 相同的存储所有权，不启动业务 Host 或在线暂停；忙时不建立输出。存储集合来自 `homeStores()`，包括实际安装库和项目分区。SQLite 使用 backup API，包含最新已提交 WAL，侧车和所有权锁不复制；未知条目、错版、坏库、链接或未完成维护整次拒绝。
+
+快照只适用于同一台机器、原 canonical Home 路径和原密钥。SDK、构建 run 和退役会话 key 只记录引用和身份摘要，Home master/Keychain 不导出。CLI `.home` 和 Home 内的目录书签由现有 owner 密封；不要把快照当作密钥备份。浏览器登录态不捕获，恢复后需重新登录；系统不接受原书签时须重新选择目录。Home 外 AppData 不读取，受管理程序和可重建缓存需保留或重装。普通文件流式读取；vault、书签等需要 owner 整体处理的单文件最多 32 MiB，CLI 私有状态另遵循其 owner 的 10,000 节点、32 MiB 原文和 128 MiB 密文限额。
+
+输出使用 0700 私有 sibling 暂存和 0600 文件，manifest 保存原 mode、版本、完整性、摘要和依赖。全部校验并刷盘后才发布到新目录，既有目标不覆盖。普通失败或 SIGINT/SIGTERM 清理本次未发布暂存；强制杀进程可能留下 `.molis-home-snapshot-*`。确认对应进程已退出、位置确为本次目标父目录且未发布后，才可删除该残留并重试。报告“已发布，持久化未确认”时保留报告中的目标，核验 manifest 和 payload，不要当作零产物覆盖。
+
+W5-16 仍在实施：当前 SDK 缺零源写的公开密文认证端口，尚不能交付为可恢复快照；完整 `home restore`、统一发布/回滚和重启续写也未完成。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。现行范围和证据见 [W5-16 slice](../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+
 ## 安装代码的开发边界
 
 `pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 70 个 workspace 包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。

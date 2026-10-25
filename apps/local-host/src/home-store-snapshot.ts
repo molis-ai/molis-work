@@ -15,7 +15,7 @@ export const homeSnapshotErrors = defineErrorCodes("host.home_snapshot", {
   key_unavailable: "unavailable", published_unconfirmed: "internal",
 });
 
-export type SnapshotDisposition = { readonly kind: "keep" | "key" | "sealed" } | { readonly kind: "omit"; readonly reason: string };
+export type SnapshotDisposition = { readonly kind: "keep" | "sealed" } | { readonly kind: "key"; readonly bytes?: number } | { readonly kind: "omit"; readonly reason: string };
 export interface SnapshotKeyDependency {
   readonly kind: "file-key" | "master-key";
   readonly location: string;
@@ -66,18 +66,27 @@ export const alchemistSnapshot: HomeStoreSnapshotPolicy = {
     : /^projects\/[^/]+\/search\.sqlite$/u.test(file) ? { baseline: ALCHEMIST_SEARCH_BASELINE } : undefined,
 };
 
-/** This is path classification, never a second ownership test or a read of a lock descriptor. */
+/** Current SDK paths, not SDK decryption: unknown leftovers cannot accidentally export a renamed original key. */
+function sdkEntry(file: string): SnapshotDisposition {
+  if (/^\.molis-runtime-owner\.db(?:-journal|-wal|-shm)?$/u.test(file)) return excluded("Storage ownership lock");
+  if (/^(?:leases|image-intake|logs)(?:\/|$)/u.test(file)) return excluded("Agent temporary state or logs");
+  if (/^records\/[^/]+\/[^/]+\.json(?:\.cas|\.[0-9a-f]{12}\.tmp)$/u.test(file)) return excluded("Uncommitted SDK claim/temporary file");
+  if (file === "storage.key") return { kind: "key", bytes: 32 };
+  if (/^(?:records|checkpoints)$/u.test(file) || /^records\/[^/]+(?:\/[^/]+\.json)?$/u.test(file) || /^checkpoints\/[^/]+\.json$/u.test(file)) return { kind: "keep" };
+  return unknown(file);
+}
+
 export const agentSnapshot: HomeStoreSnapshotPolicy = {
-  entry: (_home, file) => /^\.molis-runtime-owner\.db(?:-journal|-wal|-shm)?$/u.test(file) ? excluded("Home ownership lock")
-    : /^(?:leases|image-intake)(?:\/|$)/u.test(file) ? excluded("Agent temporary state")
-      : file === "storage.key" ? { kind: "key" } : { kind: "keep" },
+  entry: (_home, file) => sdkEntry(file),
   requiredKeys: files => files.some(file => /^(?:records|checkpoints)\//u.test(file)) ? ["storage.key"] : [],
 };
 
 export const builderSnapshot: HomeStoreSnapshotPolicy = {
-  entry: (_home, file) => /^[^/]+\/runs\/[^/]+\/\.molis-runtime-owner\.db(?:-journal|-wal|-shm)?$/u.test(file) ? excluded("Build Agent ownership lock")
-    : /^[^/]+\/runs\/[^/]+\/storage\.key$/u.test(file) ? { kind: "key" }
-    : /(?:^|\/)(?:node_modules|\.cache|leases)(?:\/|$)/u.test(file) ? excluded("Rebuildable dependencies/cache or execution lease") : { kind: "keep" },
+  entry: (_home, file) => {
+    const run = /^[^/]+\/runs\/[^/]+\/(.+)$/u.exec(file);
+    if (run) return sdkEntry(run[1]!);
+    return /(?:^|\/)(?:node_modules|\.cache)(?:\/|$)/u.test(file) ? excluded("Rebuildable build dependencies/cache") : { kind: "keep" };
+  },
   requiredKeys: files => [...new Set(files.flatMap(file => {
     const found = /^([^/]+\/runs\/[^/]+)\/(?:records|checkpoints)\//u.exec(file);
     return found ? [found[1] + "/storage.key"] : [];
@@ -86,7 +95,8 @@ export const builderSnapshot: HomeStoreSnapshotPolicy = {
 
 export const feedSnapshot: HomeStoreSnapshotPolicy = {
   entry: (_home, file) => /^secrets\.lock\.sqlite(?:-journal|-wal|-shm)?$/u.test(file) ? excluded("SecretStore mutex")
-    : file === "secrets.key" ? { kind: "key" } : { kind: "keep" },
+    : file === "secrets.key" ? { kind: "key" } : file === "secrets.json"
+      || /^evidence(?:-recovered-v2)?(?:\/blobs(?:\/[0-9a-f]{2}(?:\/[0-9a-f]{64}\.blob)?)?)?$/u.test(file) ? { kind: "keep" } : unknown(file),
   validateFile: async (home, file) => {
     if (file !== "secrets.json") return undefined;
     const inspected = inspectSealedSecretsSnapshot(home, readSnapshotFile(join(home, "feed", file), 32 * 1024 * 1024).toString("utf8"));

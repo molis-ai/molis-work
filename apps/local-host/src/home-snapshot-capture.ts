@@ -50,6 +50,7 @@ export async function captureSnapshotStore(home: string, stage: string, inventor
     control.assertCurrent(); control.signal?.throwIfAborted();
     const path = sourcePath(inventory, entry);
     if (entry.disposition.kind === "key") {
+      if (entry.disposition.bytes !== undefined && entry.info.size !== entry.disposition.bytes) throw homeSnapshotErrors.key_unavailable(`原密钥格式无效，不会生成替代值: ${path}`);
       keys.add({ kind: "file-key", location: "home:" + path, sha256: snapshotFileDigest(entry.path).sha256 });
       continue;
     }

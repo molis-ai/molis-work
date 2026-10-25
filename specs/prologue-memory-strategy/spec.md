@@ -1285,6 +1285,12 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 
 ### #1064 接入 batch37 主干（2026-10-26）
 
+完整 CI 暴露的 Coding 重试边界补正：共享请求助手已经以 `ui_host.outcome_unknown`（写入结果未知）和 `ui_host.invalid_response`（成功答复无法解析）表达不确定性，Coding 必须消费这份现行合同，不再按原生异常类名判断。两类失败保留同一补充键、原输入身份、正文和模式；明确拒绝仍清掉待发送泡泡，下次由人发起新请求。不改变请求助手、自动重试、权限或模型行为。以实际请求助手加真实页面的发送失败→同键重发验证，旧夹具仅同步当前错误合同，原关键断言保留。
+
+最终补验记录：准确 3b 与干净 main 4f 都在真实 Coding 页面复现原发送失败后没有重试泡泡；诊断确认旧 fetch 拦截确已生效，页面收到共享助手的结果未知错误，根因是 Coding 仍按原生异常类名判断。修正后原五文件 18 项通过；等价精简到现行 `UiRequestFailure` 合同后，最终 bundle 的两文件 8 项再次通过、零重试，真实资源为 Coding 290388 B，比 3b 少 12 B，其他资源不变，已由原 `--update` 收紧预算，无新额度。类型、72 份 API、准确 4f 健康、boundary、secrets 通过。日志为 `/private/tmp/molis-foundation-{main4f-baseline-browser,coding-receipt-diagnostic,receipts-fix-tests,receipts-compact-tests,receipts-compact-assets-update,receipts-final-*}-20261026.log`。
+
+同轮 Full 的 `work-placement.e2e` 390px 报页面导航时目标关闭，本机原测试与准确 main 均通过，未直接复现原 Linux 错误。受控响应实验只确认旧 pathname 等待跨越了文档导航；候选只用现 `navigate` 包围实际跨项目打开动作，再等新页面检查内容，不改 pointer receipt、cleanup、超时或断言。最终 1440/390px 两项通过；不能据此宣称原 CI 根因完全确证，需最终头的远端 Full 验证。原失败、两次诊断与实验自身 teardown 错误均保留在 `/private/tmp/molis-foundation-placement-*`，临时诊断未入库。
+
 本刀将准确 `070bdd28284d031de0602d27e1f588e315affc46` 与主干 `4f4e59a33b6830839323f9c33f87a7ad9047943f` 集成。保留既有人的原输入、续跑引用、不可重放的恢复、MemoryUsage 回执与关闭时最后事件的记账；沿主干 Prologue ports / run store / run start 的原主人接线，Coding 原输入及补充回执进入 typed browser 的真实生产 bundle。不恢复巨类、旧 inline 客户端或第二套恢复解释；Host audience、projectReach 与 registry 新边界不回退。
 
 范围为上述冲突与真实调用链、当前文档及必要回归；不混入 #1101 后续 Catalog/维护恢复，不更换 SDK、schema、模型或授权。原输入来源与权限、关闭期间最后记账是不可配置硬边界；现有端口可替换，App 配置和用户选项保持现合同，不新增旋钮。按原 FIFO build、双方 README 必跑及相关回归、strict、boundary、API、准确 4f 健康和真实 page-assets 验证；现 main 资源起点与规则保留，不套用旧 070 的一次性额度或手拼健康数字。最终 CI/全量与用户验收由统筹核验，本刀不自行声明完成。

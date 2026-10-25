@@ -1,3 +1,4 @@
+import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { StepNode } from "./shapes.js";
 import type { PagePorts, ReceiptLinks } from "./types.js";
 
@@ -46,7 +47,7 @@ export interface InputReceipts {
 interface Receipt { readonly delivered: string; readonly replayed?: boolean }
 
 /** An answer that never came, or could not be read: the request may or may not have arrived. */
-const unsure = (error: unknown) => error !== null && typeof error === "object" && "name" in error && (error.name === "TypeError" || error.name === "SyntaxError");
+const unsure = (error: unknown) => ["ui_host.outcome_unknown", "ui_host.invalid_response"].includes((error as Partial<UiRequestFailure>)?.code ?? "");
 
 const control = (id: string) => "/sessions/" + encodeURIComponent(id) + "/control";
 

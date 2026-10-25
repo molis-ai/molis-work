@@ -14,7 +14,7 @@ import { backupSnapshotSqlite, copySnapshotFile, readSnapshotFile, snapshotFileD
 import { changeSnapshotSource, type InjectedSnapshotChange } from "./fixtures/home-snapshot-error-change.js";
 import { smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 
-const staticCases = ["file-link", "sqlite-schema", "sqlite-integrity", "sqlite-foreign-key", "sqlite-corrupt-page", "metadata-owner", "metadata-version", "metadata-missing-table", "metadata-missing-column"] as const;
+const staticCases = ["file-link", "sqlite-schema", "sqlite-integrity", "sqlite-integrity-function", "sqlite-foreign-key", "sqlite-foreign-schema", "sqlite-corrupt-page", "metadata-owner", "metadata-version", "metadata-missing-table", "metadata-missing-column"] as const;
 const changedCases = ["file-append", "file-truncate", "file-replace", "sqlite-version", "sqlite-owner", "sqlite-schema", "sqlite-replace"] as const;
 const walChanges = new Set(["sqlite-version", "sqlite-owner", "sqlite-schema"]);
 
@@ -42,6 +42,11 @@ async function fixture(t: TestContext, kind: string, changing = false) {
       db.prepare("INSERT INTO sessions VALUES (?,?)").run("retained", "Business content must not enter error output");
       if (kind === "sqlite-integrity") db.exec("PRAGMA ignore_check_constraints=ON; INSERT INTO sessions VALUES ('broken','')");
       if (kind === "sqlite-foreign-key") db.exec("PRAGMA foreign_keys=OFF; CREATE TABLE child (id TEXT REFERENCES sessions(id)); INSERT INTO child VALUES ('missing')");
+      if (kind === "sqlite-foreign-schema") db.exec("CREATE TABLE parent (id TEXT); CREATE TABLE child (id TEXT REFERENCES parent(id))");
+      if (kind === "sqlite-integrity-function") {
+        db.function("fixture_check", () => 1);
+        db.exec("CREATE TABLE checked (value TEXT CHECK(fixture_check())); INSERT INTO checked VALUES ('retained')");
+      }
       if (kind === "metadata-missing-table") db.exec("DROP TABLE session_meta");
       if (kind === "metadata-missing-column") db.exec("ALTER TABLE session_meta RENAME COLUMN value TO wrong_column");
     }

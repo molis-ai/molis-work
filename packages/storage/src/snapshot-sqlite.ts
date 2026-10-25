@@ -48,6 +48,14 @@ export function readSqliteSnapshotMetadata(database: SqliteDatabase, expected: S
 }
 
 function inspect(database: SqliteDatabase, file: string, options: SqliteSnapshotOptions, previous?: SqliteSnapshotInfo): SqliteSnapshotInfo {
+  try { return inspectDatabase(database, file, options, previous); }
+  catch (error) {
+    if (error !== options.signal?.reason && error instanceof Database.SqliteError && error.code === "SQLITE_ERROR") throw invalid(`快照库结构或完整性检查失败: ${file}`);
+    throw error;
+  }
+}
+
+function inspectDatabase(database: SqliteDatabase, file: string, options: SqliteSnapshotOptions, previous?: SqliteSnapshotInfo): SqliteSnapshotInfo {
   const userVersion = Number(database.pragma("user_version", { simple: true }));
   if (previous && userVersion !== previous.user_version) throw changed(file);
   const expectedVersion = options.baseline?.version ?? options.version;

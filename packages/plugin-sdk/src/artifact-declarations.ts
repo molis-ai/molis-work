@@ -25,15 +25,52 @@ const ROLES: Readonly<Record<Role, { label: string; operation: "query" | "comman
  */
 export function artifactDeclarationProblems(manifest: Pick<PluginManifest, "schema_version" | "artifacts" | "actions">): string[] {
   const produced = records(manifest.artifacts?.produces), consumed = records(manifest.artifacts?.consumes);
-  if (manifest.schema_version === 1) return versionOneProblems(produced, consumed);
+  if (manifest.schema_version === 1) return [...versionOneProblems(produced, consumed), ...(manifest.artifacts?.links === undefined ? [] : ["成果链接种类（artifacts.links）需要 schema_version 2"])];
   const actions = declaredActions(manifest.actions);
-  return [...produced.flatMap(type => producedTypeProblems(type, actions)), ...consumed.flatMap(type => roleProblems(type, "continue", actions))];
+  return [...produced.flatMap(type => producedTypeProblems(type, actions)), ...consumed.flatMap(type => [...roleProblems(type, "continue", actions), ...fileProblems(type)]),
+    ...linkProblems(manifest.artifacts?.links),
+    ...produced.filter(type => type.file !== undefined).map(type => `成果类型 ${keyOf(type)} 是产出的类型，file 只能写在读取的类型（artifacts.consumes）上`)];
+}
+
+/** `links` names the kinds of ledger edge a plugin writes to a 成果 version: each kind once, with a role. */
+function linkProblems(links: unknown): string[] {
+  if (links === undefined) return [];
+  if (!Array.isArray(links)) return ["artifacts.links 必须是数组"];
+  const problems: string[] = [], seen = new Set<string>();
+  for (const value of links) {
+    const link = value as Part | null;
+    if (typeof link !== "object" || link === null || Array.isArray(link)) { problems.push("artifacts.links 的每一项必须是对象"); continue; }
+    const kind = link.kind;
+    if (typeof kind !== "string" || !/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/u.test(kind)) problems.push(`链接种类 ${String(kind)} 必须是小写字母开头、用点分段的名字（如 "goal.input"）`);
+    else if (seen.has(kind)) problems.push(`链接种类 ${kind} 声明了不止一次`);
+    else seen.add(kind);
+    if (link.role !== "input" && link.role !== "output") problems.push(`链接种类 ${String(kind)} 的 role 必须是 "input" 或 "output"`);
+    if (link.proposal !== undefined && typeof link.proposal !== "boolean") problems.push(`链接种类 ${String(kind)} 的 proposal 必须是布尔值`);
+    for (const name of Object.keys(link)) if (name !== "kind" && name !== "role" && name !== "proposal") problems.push(`链接种类 ${String(kind)} 没有 ${name} 这一项`);
+  }
+  return problems;
+}
+
+/** `file` names the extensions a plugin reads from an imported file; a type that is not continued from has nothing to filter. */
+function fileProblems(type: Part): string[] {
+  if (type.file === undefined) return [];
+  const key = keyOf(type), file = type.file as Part | null;
+  if (typeof file !== "object" || file === null || Array.isArray(file)) return [`成果类型 ${key} 的 file 必须是对象`];
+  const problems: string[] = [];
+  const extensions = file.extensions;
+  if (!Array.isArray(extensions) || extensions.length === 0 || !extensions.every(item => typeof item === "string" && /^\.[a-z0-9]+$/u.test(item))) {
+    problems.push(`成果类型 ${key} 的 file.extensions 必须是非空数组，每项为带点的小写扩展名（如 ".md"）`);
+  } else if (new Set(extensions).size !== extensions.length) problems.push(`成果类型 ${key} 的 file.extensions 有重复`);
+  if (file.stored_text !== undefined && typeof file.stored_text !== "boolean") problems.push(`成果类型 ${key} 的 file.stored_text 必须是布尔值`);
+  for (const name of Object.keys(file)) if (name !== "extensions" && name !== "stored_text") problems.push(`成果类型 ${key} 的 file 没有 ${name} 这一项`);
+  if (type.continue === undefined) problems.push(`成果类型 ${key} 声明了 file，必须同时声明继续动作（continue）`);
+  return problems;
 }
 
 function versionOneProblems(produced: Part[], consumed: Part[]): string[] {
   return [
     ...produced.map(type => `成果类型 ${keyOf(type)} 需要 schema_version 2：产出成果类型要有显示名和本插件的预览动作，v1 Manifest 不能声明动作`),
-    ...consumed.filter(type => type.continue !== undefined).map(type => `成果类型 ${keyOf(type)} 的继续动作需要 schema_version 2`),
+    ...consumed.filter(type => type.continue !== undefined || type.file !== undefined).map(type => `成果类型 ${keyOf(type)} 的继续动作需要 schema_version 2`),
   ];
 }
 

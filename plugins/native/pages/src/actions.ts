@@ -52,7 +52,8 @@ type WrittenFields = Fields & { markdown?: string };
 /** The object kind every Pages action and surface names. */
 export const PAGES_SUBJECT_KIND = "pages_document";
 /** What Pages can start documents from: text it reads, and the Word, CSV and ZIP (e.g. Notion export) files it parses. */
-export const PAGES_READABLE_FILE = /\.(?:md|markdown|txt|html?|csv|docx|zip)$/iu;
+export const PAGES_READABLE_EXTENSIONS = [".md", ".markdown", ".txt", ".html", ".htm", ".csv", ".docx", ".zip"];
+export const PAGES_READABLE_FILE = new RegExp(`(?:${PAGES_READABLE_EXTENSIONS.map(extension => extension.replace(".", "\\.")).join("|")})$`, "iu");
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"], scheduling?: ActionDefinition["action"]["scheduling"]): ActionDefinition<I, O> {
   return { capability_id: `pages.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}),
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],

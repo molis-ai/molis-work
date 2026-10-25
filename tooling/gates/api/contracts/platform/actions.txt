@@ -643,6 +643,17 @@ export interface ActionSceneConfigureOptions {
     readonly before_write?: () => void | Promise<void>;
 }
 
+export interface ActionSceneDefaultRule {
+    readonly function_key: string;
+    readonly name: string;
+    readonly instructions: string;
+    readonly options: readonly {
+        readonly key: string;
+        readonly description: string;
+    }[];
+    readonly subject_kinds: readonly string[];
+}
+
 export interface ActionSceneDefinition {
     readonly scene_id: string;
     readonly version: number;
@@ -660,6 +671,7 @@ export interface ActionSceneDefinition {
     readonly permissions: readonly string[];
     readonly configuration_permissions?: readonly string[];
     readonly event_schema?: ActionSchema;
+    readonly default_rule?: ActionSceneDefaultRule;
 }
 
 export interface ActionSceneExecutionContext extends ActionCallContext {

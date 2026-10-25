@@ -109,6 +109,15 @@ export function projectVersionStores(options: ArtifactsModuleOptions): ProjectVe
   return stores;
 }
 
+/**
+ * A pair of stores of their own on a library, never the shared pair above: the Host opens it for a restore from a bundle, whose
+ * `declared` check is the only one that takes a version from a producer the project has not installed (S-81).
+ */
+export function restoreVersionStores(options: ArtifactsModuleOptions): ProjectVersionStores {
+  const { homeOwner: _homeOwner, ...rest } = options;
+  return { artifacts: new ArtifactsModule(options), processItems: new ProcessItemsModule(rest) };
+}
+
 export { createPluginArtifactClient } from "./plugin-client.js";
 export { createPluginArtifactOperations, type PluginArtifactOperationsInput } from "./plugin-operations.js";
 export { pluginArtifactErrors } from "./plugin-errors.js";
@@ -156,3 +165,4 @@ export type { ArtifactDocumentImportPorts, ArtifactOriginalFile, ImportedArtifac
 export { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, ARTIFACTS_HOME_STORE, artifactOriginalPath, openArtifactOriginal, storeArtifactOriginal } from "./artifact-original-store.js";
 export type { StoredArtifactOriginal } from "./artifact-original-store.js";
 export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./artifact-goal-context.js";
+export { linkKindOf, type ArtifactLinkKind, type ArtifactLinkKinds } from "./artifact-link-kinds.js";

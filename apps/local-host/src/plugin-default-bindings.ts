@@ -11,7 +11,7 @@ import type { PluginPlatform } from "./plugin-platform.js";
  * plugin whose group was selected keeps it. A default whose source is not running here, has no such output, or offers another
  * type is left unbound, as the person would find it.
  *
- * A default applies only on a standing agreement in the Home's consent ledger (PG-005, ac-trust T4, S-78): the plugin's own publisher
+ * A default applies only on a standing agreement in the Home's consent ledger (PG-005, ac-trust T4, S-X3): the plugin's own publisher
  * agreed to this port reading that source, for the publisher the source runs under now, so a plugin that took over the source's
  * `plugin_id` later is not read by default; the Host agrees on its own build's behalf for the plugins it ships, and a person agrees
  * to the rest when installing. No agreement, no default: a platform without a ledger binds none. A default that was bound

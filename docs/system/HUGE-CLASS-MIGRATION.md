@@ -208,6 +208,14 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 
 本轮定向结果（2026-10-24）：原 `ef71a03c1` 实现上三项新回归为 1/3，无接收者依赖的正控通过，两项实例方法用例均在真实生产 `settleReview` 丢接收者失败；最小修复后同三项 3/3，通过真实决定与原错误对象验证。整体构建、24 个必要回归文件、边界及对合并基点 `112114f23` 的健康检查通过；未增加内部导入、未改公共 API、基线或门禁，也未重新拆其他单元。原四文件的逐片证据保留，本轮结果交独立复查与共同集成，不代替 full 或实际合并。
 
+R-38 第 2 片的恢复守卫补修（PR #1273 FIRST 第 2 项，2026-10-25，Codex，恢复守卫定向工程验证通过，待独立复查与集成）：固定源 `d97df5ab75fb21dc445d1aea0abf56ea117d61aa` 在装配 `guardedRecovery` 时展开 Runtime，丢失原型 getter 并冻结当时的 `checkpoints` 引用，可能让随后正在回退的会话被关闭。只改 `adapters/prologue.ts` 装配、`prologue-adapter-capabilities.ts` 参数与读取、现有 `tests/prologue-recovery.test.ts` 及本段；保留原 Runtime 对象，恢复能力单独传入，`close` 决策当刻读取原对象的 `checkpoints.busy(session)`。不改公开 API、SDK、Memory、其他 FIRST 项或上述拆分表状态。
+
+输入仍为原会话引用、轮次 id 与预期版本；忙碌时返回原 `agent.session_busy`，不调用底层关闭、不写恢复状态或重载缓存；解除忙碌后返回底层报告，并按原顺序清除会话缓存、重载现状。会话/子任务归属、`startingSessions` 互斥与 `try/finally` 释放、原错误及失败状态保持。目标仅为该问题的定向工程修复，独立复查与共同集成后再裁决，不代表 R-38、W5-10 或整条防腐线完成。
+
+验收：**R38-RECOVERY-LIVE-01** 通过真实 `PrologueAgentAdapter.recovery.close`，原型 getter 提供的当前 busy 状态必须拒绝，底层关闭零调用、恢复状态零写；**R38-RECOVERY-LIVE-02** 同一 adapter 构造后替换 `runtime.checkpoints` 为 busy 也必须拒绝，不能读构造时快照；**R38-RECOVERY-LIVE-03** 两种端口解除 busy 后均可合法关闭并重载当前会话，原错误会话/轮次拒绝、并发互斥及恢复失败投影回归保持。先在固定源运行新增回归并保留首次失败，再做最小修复；整体 `pnpm build` 后运行恢复、检查点和 Agent Host README/Skill 要求的定向用例，执行 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check`。构建与浏览器批次遵循公共 FIFO，不启动 full 或真实 Home。
+
+本轮验证：最终同版三项回归在独立 `d97` 源码上 1 通过 / 2 失败（均为应拒绝却放行），候选 3/3 通过；修后首次两次运行另暴露新增断言误把即时 busy 当固定值、把空轮次当 `undefined`，按现行合同改为 busy 为真、空轮次为 `null`，原失败日志保留，生产补丁未再改。整体构建、边界及对合并基点 `3817f875` 的健康检查通过，无门禁或基线改动。README/Skill 的 84 个非浏览器文件通过（574 项通过、2 项既有 npm/MiniMax opt-in 跳过）；4 个浏览器文件首次 2 通过 / 2 失败，完整日志保留。升级授权的本地 HTTPS 400/TLS 断开在 `d97` 同样失败；`W2-18-BUILDER-LATE-01` 首次等待 ready 超时，而 `d97` 同文件 42/42 通过，原因未确定，不以时序概括，也不把扩展回归记为全绿。独立复查与统一 full 另行裁决。
+
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
 | `adapters/plugin-builder.ts` | `createPluginBuilderAgent` 函数 204 行<br>`run` 函数 153 行 | 已拆（W5-10，R-38 第 1 片） | 已做：代码角色的权限钩子（`frozenAuthority`）、`plugin-checks`（`pluginChecks`）、Skill 挂载、截图入库、事件记账、重启时标记中断的记录各成模块级函数，`run` 只剩执行顺序。原计划：`run` 里 `execution` 一段 127 行，另有 `guard`（5）、`record`（3）；`createPluginBuilderAgent` 里 `authority` 16 行。执行体、守卫、记录、权限各成函数。`run` 内嵌在 `createPluginBuilderAgent` 里（同一段计两次）。 | 5 |

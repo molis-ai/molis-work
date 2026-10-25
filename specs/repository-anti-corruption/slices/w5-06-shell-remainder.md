@@ -68,7 +68,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 | RAC-606 | 对象标签名单（搜索、放置卡、侧栏文件）读下发的目录：fixture 插件声明 `accepts_objects` 即可按 id 开标签；脚本里没有构建期写死的名单 | 同上 + 扫描 `CLIENT_SCRIPT` |
 | RAC-607 | rail 读运行中 Manifest 的 `group/icon/order`：fixture 的 `group: "make"` 在「写与做」下，不写的在「更多」 | 同上 |
 | RAC-608 | `creatableKinds`、`homeStarts` 对运行时装的插件生效（接第 1 片） | 同上 |
-| RAC-609 | 停用、卸载、被拒绝的插件，目录里没有；已打开的页面在下一次读时没有入口 | 同上 |
+| RAC-609 | 停用、卸载、被拒绝的插件，目录里没有；已打开的页面在下一次读时没有入口 | `tests/plugin-directory.test.ts` 保留撤销启用并补 RAC-609-BLOCK-01；`tests/installed-plugin-host.test.ts` 的 RAC-609-UNINSTALL-01 经真实 Host 卸载路径验证，见 §3.2 |
 | RAC-610 | `skills/molis-plugin-dev/ui.md` 的说法与行为一致 | `pnpm health:check` 文档引用组 + 文字核对 |
 | RAC-619 | 宿主标记：`personal`/`always_on` 只认 `true`，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目不带；`data-plugin-directory` 里没有这三项 | `tests/plugin-directory.test.ts` |
 | RAC-611 | 页面资源：脚本里去掉名单字面量、加一次读取，预期不增；增长按 §7 的页面资源一条 | `pnpm page-assets:check` |
@@ -94,6 +94,20 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 首次接线错误（测试入口未导出、夹具缺内容站声明）保留原件，不算业务红；首次绿跑 10/11 检出测试 HTML 解码器漏认生产输出的 `&#039;`，补齐单次解码，原断言和不可信文本要求未放宽。
 health 对照 `origin/main` 的 merge-base `3817f875`、正式 boundary（70 包无错误）及页面资源检查通过；27 项资源未增长，快照、预算和门禁未改。原件在 `/tmp/molis-plugin-publisher-views-20261025/`；提交后另做 fresh-fetch secrets 并固定双核。
 没有 full、浏览器点击或用户验收，其他三条 FIRST 不挡项仍不在本片。
+
+### 3.2 FIRST 第 2 项：blocked 与卸载后的真实目录验收（FIX1）
+
+状态：已补齐并完成本地有限验证，待独立 REVIEW/TEST；独立后继以已双核的 `5a9f2dd8a4244bcaf5a4e0a9ed24404dbc3293c9` 为唯一基线，不改第 1 项冻结候选。原 RAC-609 只跑了 `supervisor.revoke`。现行 `enabledPluginIds` 和目录函数会排除 blocked；正常 Host 卸载由 `installedLifecycle` 先 revoke，再调用 Runtime uninstall。本片补这两条真实路径的证明，不把单独调用底层 Runtime、绕过 Host 撤销启用的操作当作正常卸载入口。
+
+- **RAC-609-BLOCK-01**：在临时项目真实 Runtime 中安装带必需缺失能力的非内置插件，经真实 Supervisor 得到 `blocked / plugin.capability_missing`，安装记录保留且工厂不执行；同一个 Supervisor 的正常插件仍在目录里，受阻插件不出现在 `runningPluginDirectory`、页面目录、rail 或首页起点中。不造状态数组或 mock 目录。
+- **RAC-609-UNINSTALL-01**：复用真实已发布插件与 Host 安装入口，经 `installed.lifecycle('uninstall', …)` 分别保留和删除数据；断言实际 Runtime 记录已 uninstalled，下一次 `runningPluginDirectory(installed.platform.supervisor)` 没有该插件，重新安装后目录恢复。原停用、数据保留/删除及重新安装断言保留。
+
+只改 `tests/plugin-directory.test.ts`、`tests/installed-plugin-host.test.ts` 的现有安装夹具用例与本节/本片验收证明；不新增私有源码导入或生产导出。第 1 项 KEY 回归、作者 §4/§5 保持；不改内置 blocked 后市场补回的产品行为、B1 身份/权限/信任，FIRST 第 3/4 项另做。
+
+先核绑定基线源码摘要与已成功的实际 build manifest 一致，再将冻结构建产物复制到独立后继供测试使用；测试/spec 不在该源码摘要的输入内，验证后再核摘要。无生产变更时只跑两份实际涉及文件：`node scripts/run-tests.mjs --jobs 1 --verbose --retries 0 tests/plugin-directory.test.ts tests/installed-plugin-host.test.ts`，核实际通过/失败/跳过；installed Host 的既有 macOS 条件如实保留。再做 scoped diff、health 对 `origin/main` 与提交后 fresh-fetch secrets，不重复 whole build、README18/32文件、full 或浏览器，不碰真实 Home。若揭露生产缺陷，先保精确失败并更新本节，再按源码规则构建与有限回归。
+
+本地验证（FIX1，2026-10-25）：两个完整相关文件单次自然通过，目录 12/12、installed Host 21/21，合计 **2 个唯一文件、33 项，0 fail/cancel/skip/todo，无重试**；两个新验收在 macOS 实际执行。现行生产行为正确，本次没有生产修复或人为制造的业务红。
+离线安装、冻结构建复用、测试后源码绑定均通过：生产源码摘要与 `5a9` 原成功构建（2026-10-25T08:28:20.594Z）同为 `3f59a8f81d507aa21d1800ed170b5cbf9c08b8fc92f95878f3380de61b2aa396`，只复制 71 份既有 dist，未新跑构建。官方 FIFO health 对 `origin/main` 的 merge-base `3817f875` 自然退出 0，无门禁/预算/基线改写。原件与交接在 `/tmp/molis-plugin-directory-exclusions-20261025/`；提交后另做 fresh-fetch secrets，固定候选直交独立双核，不重复前片的 32/387 或整合验证。
 
 ## 4. 第 3 片：项目级 Runtime 插件的状态与重启入口（BL-430，RAC-612～614）
 

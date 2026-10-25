@@ -247,8 +247,15 @@ const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === byte
 // first freeze; from the next PR on it only falls like every other.
 // User approved 2026-10-21 (specs/archive/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
 // shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
+// User approved 2026-10-24 (pop-up decision, W5-04 third group): Files, Git, Diff and Text Stats each ship their own bundle now that
+// Coding lends them to its panels through `clientUses` instead of copying their code into coding.js; coding.js falls by 82 KB.
+// Each is frozen once at the measured bytes.
 const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugin-frame.js": 187120,
+  "/assets/molis-work-plugins/diff.js": 1483,
+  "/assets/molis-work-plugins/files.js": 11227,
+  "/assets/molis-work-plugins/git.js": 29496,
+  "/assets/molis-work-plugins/text-stats.js": 1281,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

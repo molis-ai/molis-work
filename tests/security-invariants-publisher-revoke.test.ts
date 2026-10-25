@@ -16,7 +16,8 @@ import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage, type PackageFiles } fro
 // S-87 (ac-trust T5b, BL-559): a publisher the person pinned can be taken back, and only the person can: at the Host's settings entry,
 // the same one that takes an agreement back (S-77). Taking one back is for good. What it signed can no longer be installed; what is
 // installed from it can no longer do anything (denied at its next effect, whatever began before), is stopped when its project next looks,
-// is not started again by a restart and cannot be enabled; its data stays, and the person can uninstall it.
+// is not started again by a restart and cannot be enabled; its data stays, and the person can uninstall it. Enabling has no public path yet (BL-623), so
+// that refusal is asserted at the lifecycle itself, in tests/installed-plugin-host.test.ts (this one is macOS-only too).
 
 const AT = "2026-10-25T00:00:00.000Z", LATER = "2026-10-26T00:00:00.000Z";
 const KEY = "ed25519:sha256:" + "a".repeat(64);
@@ -107,7 +108,7 @@ async function installed() {
     async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
 }
 
-test("RAC-391 RAC-392 S-87 a publisher taken back: what it signed does nothing from then on (no write), stops, cannot be enabled or restarted, keeps its data, and its next package is refused", mac, async () => {
+test("RAC-391 RAC-392 S-87 a publisher taken back: what it signed does nothing from then on (no write), stops, is not started again by a restart, keeps its data, and its next package is refused", mac, async () => {
   const h = await installed(), publisher = newPublisher();
   try {
     await h.install(signedPackage(publisher, readsAndWrites));

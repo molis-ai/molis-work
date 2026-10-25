@@ -9,7 +9,8 @@ import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionV
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
-import { homeStarts, shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
+import { homeStarts, sideEntries } from "./plugin-catalog.js";
+import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { renderDeclaredStages } from "./declared-stages.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
@@ -176,7 +177,7 @@ function renderMolisWorkWeb(
   const initialDesktopSurface = requestedGoalId || archiveView || trashView ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
-  const enabledPlugins = shownProjectPlugins(view.enabled_plugins ?? ["goals", "inbox", "feed", "artifacts"], view.hidden_plugins ?? []);
+  const enabledPlugins = shownPagePlugins(view);
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(L, enabledPlugins, view.hidden_plugins, view.pane_plugin);

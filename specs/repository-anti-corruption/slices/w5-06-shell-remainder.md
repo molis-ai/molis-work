@@ -22,7 +22,11 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 ## 2. 第 1 片：BL-387 三处手写行改读声明（RAC-600～604）
 
-读法：服务端按本项目显示的插件（`shownProjectPlugins(view.enabled_plugins, view.hidden_plugins)`，与 rail 同一份）算出，写进页面；客户端脚本只读页面上的值，不再按插件名写表。
+读法：服务端按本项目显示的插件（`shownPagePlugins(view)`，两入口共用，内部沿用 `shownProjectPlugins`，与 rail 同一份）算出，写进页面；客户端脚本只读页面上的值，不再按插件名写表。
+
+**第 1 片首评修正（#1261，FIRST6393589926；固定父 `b559b21ac`）**：Goal 输入新建入口在 `enabled_plugins` 缺省时传空集合，页面外壳却用既有的 `goals/inbox/feed/artifacts` 缺省集合。两入口改调同一个页面显示小函数：只把外壳现有缺省值移到这一处，再交给现有 `shownProjectPlugins` 处理；不增加名单或缓存。只有字段缺省才使用这份缺省值，显式 `[]` 不补项目插件；个人插件仍按既有规则加入，`hidden_plugins` 继续传给原规则，已隐藏的个人插件不因缺省被放回。显式输入的行为不变，不做本稿第 2～4 片。
+
+当前四个 `creates` 都来自个人插件，错误缺省值在当前声明下恰好产出相同按钮。回归除了按独立字面期望检查真实页面的缺省、显式空、隐藏、显式启用，还临时给缺省集合中的 Goals 视图增加一条测试专用创建声明，再调用真实页面渲染；错误的空缺省必须漏掉该入口而失败，显式空集合则仍不画它。声明在测试结束后恢复，不改生产 Manifest、授权或 Runtime。英文与原有显式输入断言保留；HTML/JSON 转义仍按现有页面路径核对，不以两个 helper 产物相等作证明。
 
 - `goal-inputs-html.ts`：`renderGoalInputsHtml` 多收一份 `creatableKinds(shown)`（`renderer.ts:236` 的调用点有 `view`），按钮由它画，`data-placement-create` 是声明的 `station`，另带 `data-placement-create-title`（声明的 `creates.title`，经 `L()`）；`CREATE` 表删除。
 - `placement.ts`：`names` 表删除；默认标题与完成提示里的种类名读按钮上的值。
@@ -32,13 +36,13 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 | 编号 | 验收 | 证明 |
 | --- | --- | --- |
-| RAC-600 | Goal「输入」区的新建按钮 = 本项目显示的插件的 `creates`（站、标题、声明顺序）；隐藏或没装的插件没有按钮；源码里没有 `CREATE` 表 | `tests/view-placement-declarations.test.ts` 加断言；`tests/work-placement-plugins.e2e.test.ts` 已按 `[data-placement-create="ppt"]` 点击，浏览器用例交 CI |
-| RAC-601 | 新建的默认标题与提示卡的种类名来自按钮上的声明值；客户端脚本里没有按站点写的名称表 | 同上，加一条扫描 `CLIENT_SCRIPT` 的断言 |
-| RAC-602 | 项目首页「起点」= 本项目显示的插件的 `start`（声明顺序、标题、提示、图标）；只有 Goals 一个插件显示时只有它；客户端里没有 `starts` 表 | 同上 |
-| RAC-603 | 英文页面里新建按钮和起点显示英文；中文原文没有掉出词典 | `tests/i18n.test.ts` 加断言；`pnpm health:check` 翻译组 |
+| RAC-600 | Goal「输入」区的新建按钮 = 本项目显示的插件的 `creates`（站、标题、声明顺序）；隐藏或没装的插件没有按钮；源码里没有 `CREATE` 表；缺省使用页面既有缺省集合，显式空集合不恢复项目插件 | `tests/shell-declared-placement-rows.test.ts` 的真实页面断言，含受控创建声明的缺省回归；`tests/work-placement-plugins.e2e.test.ts` 的 `[data-placement-create="ppt"]` 实际点击由 TEST/Claude 在统一浏览器批核收，本窄修未运行，不据静态渲染宣称点击通过 |
+| RAC-601 | 新建的默认标题与提示卡的种类名来自按钮上的声明值；客户端脚本里没有按站点写的名称表 | `tests/shell-declared-placement-rows.test.ts` 扫描实际 `CLIENT_SCRIPT` 的取值与旧表移除；实际点击、创建和提示卡链路由上述统一浏览器批证明 |
+| RAC-602 | 项目首页「起点」= 本项目显示的插件的 `start`（声明顺序、标题、提示、图标）；只有 Goals 一个插件显示时只有它；客户端里没有 `starts` 表；缺省/显式空/隐藏/显式启用与新建入口共用页面规则 | `tests/shell-declared-placement-rows.test.ts` 检查真实页面的 `data-home-starts` 和客户端旧表移除，各场景期望独立写明 |
+| RAC-603 | 英文页面里新建按钮和起点显示英文；中文原文没有掉出词典 | `tests/shell-declared-placement-rows.test.ts` 检查实际英文按钮、首页起点数据及其英文词典；首页起点由客户端翻译，最终显示与点击仍交统一浏览器批，本窄修不声明已验；`pnpm health:check` 翻译组作补充 |
 | RAC-604 | 页面资源不增（`pnpm page-assets:check`）；增长则按 §7 的页面资源一条写进 PR | `tooling/gates/page-assets.json` |
 
-碰的文件：`apps/workbench/src/{goal-inputs-html,renderer,project-home,shell-page-renderer}.ts`、`scripts/client/{placement,project-home}.ts`、`tests/view-placement-declarations.test.ts`。BACKLOG 删 BL-387；`slices/w5-06-shell-plugin-rows.md` 的「没做、交给后面」里 BL-387 一条改写为已做。
+碰的文件：`apps/workbench/src/{goal-inputs-html,renderer,project-home,shell-page-renderer}.ts`、`scripts/client/{placement,project-home}.ts`、`tests/shell-declared-placement-rows.test.ts`。首评窄修只涉及 `renderer.ts`、`shell-page-renderer.ts`、`plugin-catalog.ts`（或同模块必要小 helper）、该测试及本节，不修改运行时目录、第 2～4 片或浏览器用例断言。BACKLOG 删 BL-387；`slices/w5-06-shell-plugin-rows.md` 的「没做、交给后面」里 BL-387 一条改写为已做。
 
 ## 3. 第 2 片：运行时目录（BL-388 + BL-542，RAC-605～611）
 

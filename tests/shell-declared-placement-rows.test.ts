@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DEMO_PROJECT_ID, EN, GoalProjectApplication, LocalProjectDatabase, runWithLocale, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { CLIENT_SCRIPT, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 
@@ -81,5 +81,59 @@ test("RAC-603 every declared create title, start title and hint has its English 
     const texts = [...creates(html).map(kind => kind.title), ...homeStarts(html).flatMap(start => [start.title, start.hint])];
     assert.equal(texts.length, 4 + 3 * 2);
     for (const text of texts) assert.ok(EN[text] && EN[text] !== text, `${text} has an English sentence`);
+  });
+});
+
+test("RAC-600 RAC-602 page defaults, an explicit empty selection, hidden personal plugins and an explicit selection keep their own visible entries", () => {
+  withView((view, goalId) => {
+    const defaults = { ...view };
+    delete defaults.enabled_plugins;
+    delete defaults.hidden_plugins;
+    const defaultHtml = renderMolisWorkWeb(defaults, goalId);
+    assert.deepEqual(creates(defaultHtml).map(kind => kind.station), ["pages", "form", "dataset", "ppt"]);
+    assert.deepEqual(homeStarts(defaultHtml).map(start => start.id), ["goals", "pages", "lingguang"]);
+
+    const emptyHtml = renderMolisWorkWeb({ ...defaults, enabled_plugins: [] }, goalId);
+    assert.deepEqual(creates(emptyHtml).map(kind => kind.station), ["pages", "form", "dataset", "ppt"], "personal plugins still follow the existing visibility rule");
+    assert.deepEqual(homeStarts(emptyHtml).map(start => start.id), ["pages", "lingguang"], "an explicit empty selection does not restore Goals");
+
+    const hiddenHtml = renderMolisWorkWeb({ ...defaults, hidden_plugins: ["pages", "form", "dataset", "ppt", "lingguang"] }, goalId);
+    assert.deepEqual(creates(hiddenHtml), []);
+    assert.deepEqual(homeStarts(hiddenHtml).map(start => start.id), ["goals"], "defaults do not restore hidden personal plugins");
+
+    const explicitHtml = renderMolisWorkWeb(only(view, ["ppt"]), goalId);
+    assert.deepEqual(creates(explicitHtml).map(kind => kind.station), ["ppt"]);
+    assert.deepEqual(homeStarts(explicitHtml).map(start => start.id), ["goals"]);
+  });
+});
+
+test("RAC-600 RAC-602 a default project's declared create reaches the real page, remains absent from an explicit empty selection, and stays escaped", t => {
+  // Today's creates all belong to personal plugins. Give an already-default project plugin a legal create declaration so that
+  // the page's wrong empty fallback cannot pass just because the current personal declarations hide the difference.
+  const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals");
+  assert.ok(goals);
+  const original = Object.getOwnPropertyDescriptor(goals.manifest.ui, "views");
+  assert.ok(original);
+  const views = goals.manifest.ui.views!.map(view => view.slot === "navigator"
+    ? { ...view, creates: { station: "default-goal", title: '默认 "</button><script>&' },
+      start: { title: '起点 "</script>&', hint: '说明 " onmouseover="alert(1)', icon: "target" } } : view);
+  Object.defineProperty(goals.manifest.ui, "views", { ...original, value: views });
+  t.after(() => Object.defineProperty(goals.manifest.ui, "views", original));
+
+  withView((view, goalId) => {
+    const defaults = { ...view };
+    delete defaults.enabled_plugins;
+    delete defaults.hidden_plugins;
+    const html = renderMolisWorkWeb(defaults, goalId);
+    assert.deepEqual(creates(html).map(kind => kind.station), ["default-goal", "pages", "form", "dataset", "ppt"]);
+    assert.deepEqual(creates(html)[0], { station: "default-goal", title: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;", label: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;" });
+    assert.doesNotMatch(html, /默认 "<\/button><script>&/u);
+    assert.deepEqual(homeStarts(html).map(start => start.id), ["goals", "pages", "lingguang"]);
+    assert.deepEqual(homeStarts(html)[0], { id: "goals", title: '起点 "</script>&', hint: '说明 " onmouseover="alert(1)', glyph: "target" });
+    assert.doesNotMatch(html, /起点 "<\/script>&/u);
+
+    const empty = renderMolisWorkWeb({ ...defaults, enabled_plugins: [] }, goalId);
+    assert.deepEqual(creates(empty).map(kind => kind.station), ["pages", "form", "dataset", "ppt"]);
+    assert.deepEqual(homeStarts(empty).map(start => start.id), ["pages", "lingguang"]);
   });
 });

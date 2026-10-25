@@ -411,6 +411,80 @@ test("S-47 RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running
 });
 
 
+test("RAC-612 RAC-613 RAC-614 a failed or crashed project plugin's placeholder says why and offers to start it again; one switched off, blocked, stopped or uninstalled gets no button", { timeout: 90_000 }, async t => {
+  const { host, project, request } = await serveHomeRuntime(t);
+  const one = await project("Project placeholder restart");
+  await request(`/projects/${one.project_id}`); // opening the project page starts its plugin platform
+  const platform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  assert.ok(platform);
+  const installId = platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!;
+  const placeholder = async (locale = "zh") => {
+    const response = await request(`/projects/${one.project_id}`, { headers: { cookie: `molis_work_locale=${locale}` } });
+    assert.equal(response.status, 200);
+    return (await response.text()).match(/<section\b[^>]*data-work-surface="form"[^>]*data-project-plugin-unavailable[^>]*>[\s\S]*?<\/section>/u)?.[0] ?? null;
+  };
+  const button = (stage: string | null) => stage?.match(/<button[^>]*data-project-plugin-restart="([a-z-]+)"[^>]*data-restart-plugin="([^"]+)"/u)?.slice(1) ?? null;
+  assert.equal(await placeholder(), null, "a running Form draws its stage");
+
+  // RAC-612: a crashed instance (the supervisor still counts it running) says so and offers a restart; the Host's route starts it again.
+  await platform.runtime.reportCrash(installId);
+  const crashed = await placeholder();
+  assert.ok(crashed, "a crashed instance gets the placeholder");
+  assert.deepEqual(button(crashed), ["restart", FORM_PLUGIN_ID]);
+  assert.ok(crashed.includes(">重启<") && crashed.includes("data-project-plugin-restart-status"));
+  assert.ok((await placeholder("en"))!.includes(">Restart<"), "RAC-614: the English placeholder has the button text");
+  assert.equal((await request(`/projects/${one.project_id}/api/plugins/${FORM_PLUGIN_ID}/restart`, { method: "POST", body: {} })).status, 200);
+  assert.equal(await placeholder(), null, "after the restart the stage is drawn again");
+
+  const state = platform.supervisor.state.bind(platform.supervisor), contribution = platform.supervisor.contribution.bind(platform.supervisor), get = platform.runtime.get.bind(platform.runtime);
+  const fault = (supervisor: Record<string, unknown> | null, instance?: string) => {
+    const mocks = [t.mock.method(platform.supervisor, "contribution", id => id === FORM_PLUGIN_ID ? null : contribution(id))];
+    if (supervisor) mocks.push(t.mock.method(platform.supervisor, "state", id => id === FORM_PLUGIN_ID ? { plugin_id: FORM_PLUGIN_ID, install_id: installId, code: null, message: null, ...supervisor } : state(id)));
+    if (instance) mocks.push(t.mock.method(platform.runtime, "get", id => id === installId ? { ...get(id), state: instance } : get(id)));
+    return () => mocks.forEach(mock => mock.mock.restore());
+  };
+  const failed = { status: "failed", code: "plugin.start_failed", message: "启动时出错" };
+
+  // RAC-612: the supervisor's failure shows as a status line with its code and reason, and a restart.
+  let restore = fault(failed, "crashed");
+  try {
+    for (const [locale, status, reason] of [["zh", "状态：启动失败", "启动时出错"], ["en", "Status: Failed to start", "启动时出错"]]) {
+      const stage = (await placeholder(locale))!;
+      assert.deepEqual(button(stage), ["restart", FORM_PLUGIN_ID]);
+      assert.ok(stage.includes(status) && stage.includes("plugin.start_failed") && stage.includes(reason), `${locale}: status, code and reason`);
+    }
+  } finally { restore(); }
+
+  // RAC-614: a quarantined instance is released, not just restarted.
+  restore = fault({ status: "running" }, "quarantined");
+  try {
+    assert.deepEqual(button((await placeholder())!), ["release-quarantine", FORM_PLUGIN_ID]);
+    const stage = (await placeholder("en"))!;
+    assert.ok(stage.includes(">Release quarantine and restart<"));
+    assert.equal(button(stage)?.[0], "release-quarantine");
+  } finally { restore(); }
+
+  // RAC-613: no button for a plugin the person switched off, one the Runtime blocks, one only stopped, and one uninstalled.
+  for (const [name, supervisor, instance] of [
+    ["switched off", { status: "failed", code: "plugin.revoked", message: "插件的停用还没有完成，请稍后再试" }, "crashed"],
+    ["blocked", { status: "blocked", code: "plugin.blocked", message: "被阻止" }, "crashed"],
+    ["stopped", { status: "running" }, "disabled"],
+    ["uninstalled", failed, "uninstalled"],
+  ] as const) {
+    restore = fault(supervisor, instance);
+    try {
+      const stage = await placeholder();
+      assert.ok(stage, `${name}: the placeholder is drawn`);
+      assert.doesNotMatch(stage, /data-project-plugin-restart/u, `${name}: no restart button`);
+      assert.equal(/data-project-plugin-status/u.test(stage), name === "blocked" || name === "uninstalled", `${name}: the status line shows for what the supervisor reports, not for a switch-off or a stop`);
+    } finally { restore(); }
+  }
+
+  // Only the Host's route starts it again: the 409 for a switched-off plugin and the refusal of the page frame are asserted in the tests above
+  // (`restart must not re-enable a revoked plugin`, tests/security-invariants-home-route-project.test.ts); nothing here adds a route.
+  assert.equal(await placeholder(), null, "with the faults gone the stage is drawn again");
+});
+
 test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale, escape owner messages and distinguish a running instance without a view", { timeout: 60_000 }, async t => {
   const { host, project, request } = await serveHomeRuntime(t);
   const one = await project("Home stage language");

@@ -1,6 +1,6 @@
 # W5-06 外壳余项：页面读声明、运行时目录、项目插件重启入口、引导走 Pages 公开动作（PG-060、PG-088）
 
-状态：统筹已审、必改已补（2026-10-25）；第 1 片已实现（#1261，一轮评审可合）、第 2 片已实现、叠在 #1261 分支上，只推分支，其余两片依次做。事实按 `origin/main`（`df5527f27`）重核。分四片，每片一个 PR，依次做。D1～D5 已裁定，见 §6。
+状态：统筹已审、必改已补（2026-10-25）；第 1 片已实现（#1261，一轮评审可合）、第 2 片已实现（#1272，叠在 #1261 FIX3 上，随 batch-37 落）、第 3 片已实现、叠在第 2 片上，只推分支，第 4 片接着做。事实按 `origin/main`（`df5527f27`）重核。分四片，每片一个 PR，依次做。D1～D5 已裁定，见 §6。
 
 验收编号：RAC-600～619（各片的区间见下）。BL 号段 BL-635～644（本稿暂未取用）。
 
@@ -81,8 +81,8 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 不新增页面（插件只提供内容、挂在工作台位置，不出整页）。做法：项目级不可用占位（`unavailable-plugin-stage.ts` 的 `scope: "project"` 分支）在原因下面加两样：
 
-- 状态行：运行状态、原因、错误码（读 `supervisor.state()` 的 `status/message/code`，由 `project-plugin-stages.ts` 的 `unavailableStage` 带进 `UnavailablePluginStage`）。
-- 「重新启动」按钮**只在实例是失败或被隔离时显示**：宿主按 `supervisor.state()` 与 `runtime.get(install_id).state` 算出 `restart: "restart" | "release-quarantine" | null` 带进 `UnavailablePluginStage`——`status: "failed"` 且 `code` 不是 `plugin.revoked`、安装没卸载 → `restart`；安装是 `quarantined` → `release-quarantine`（显示「解除隔离并重启」）；用户停用或撤回同意（`plugin.revoked`，T5 以后同理）、`blocked`、已卸载 → `null`，占位只写状态，不画按钮。路由本身也拒：`supervisor.restart` 对撤销启用的插件不重新启用，返回 409（`plugin.revoked`），卸载的安装 `dispatchRuntimePluginRoute` 不接（落到 404）。按钮（`data-project-plugin-restart`，值是操作名与插件 id）由工作台外壳的脚本发 `POST <route>/api/plugins/<plugin_id>/restart`（或 `/release-quarantine`），带控制令牌，成功后重新读页面，失败在占位里写原因。占位仍是宿主画的静态内容，不执行插件客户端、不申请页面授权（S-47 的做法不变）。
+- 状态行：监督器说的状态（启动失败、已被阻止）、原因、错误码（读 `supervisor.state()` 的 `status/message/code`，由 `project-plugin-stages.ts` 的 `unavailableStage` 带进 `UnavailablePluginStage`）；监督器记 `running`（实例只是停了或崩溃）或 `plugin.revoked`（用户停用）时不画状态行，免得「暂不可用」下面写着「运行中」或「启动失败」。
+- 「重新启动」按钮**只在实例是失败、崩溃或被隔离时显示**：宿主按 `supervisor.state()` 与 `runtime.get(install_id).state` 算出 `restart: "restart" | "release-quarantine" | null` 带进 `UnavailablePluginStage`——监督器 `status: "failed"` 或安装是 `crashed`（运行中崩溃时监督器仍记 `running`，所以两个都看）、`code` 不是 `plugin.revoked`、安装没卸载 → `restart`；安装是 `quarantined` → `release-quarantine`（显示「解除隔离并重启」）；只被停止（`disabled`）的不画；用户停用或撤回同意（`plugin.revoked`，T5 以后同理）、`blocked`、已卸载 → `null`，占位只写状态，不画按钮。路由本身也拒：`supervisor.restart` 对撤销启用的插件不重新启用，返回 409（`plugin.revoked`），卸载的安装 `dispatchRuntimePluginRoute` 不接（落到 404）。按钮（`data-project-plugin-restart` 是操作名，`data-restart-plugin` 是插件 id）由工作台外壳的脚本（`initialization.ts` 里一个委托的点击处理）发 `POST <route>/api/plugins/<plugin_id>/restart`（或 `/release-quarantine`），带控制令牌，成功后重新读页面，失败在占位里写原因。占位仍是宿主画的静态内容，不执行插件客户端、不申请页面授权（S-47 的做法不变）。
 - Home 级占位保持「查看插件状态」链接，不动。
 
 | 编号 | 验收 | 证明 |

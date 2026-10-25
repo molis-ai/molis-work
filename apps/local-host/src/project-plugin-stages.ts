@@ -1,5 +1,6 @@
-import { BUILTIN_PLUGIN_CATALOG, declaredStageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, declaredStageContributionId, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import type { UiContribution, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { PluginSupervisorState } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginHttpPorts } from "./project-plugin-http.js";
@@ -51,23 +52,41 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
   if (!contribution) {
     const active = state.platform?.supervisor.state(pluginId);
     const running = active?.status === "running" && active.install_id && state.platform?.runtime.get(active.install_id).state === "running";
-    return unavailableStage(entry, projectPluginProblem(state, store, pluginId)?.reason
+    return unavailableStage(state, entry, projectPluginProblem(state, store, pluginId)?.reason
       ?? (running ? L("插件正在运行，但未提供页面") : L("插件没有在运行")));
   }
   const view = contribution.kind === "app" ? contribution.views?.find(item => item.descriptor.contribution_id === contributionId
     && item.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
-  if (!view) return unavailableStage(entry, L("插件页面未注册"));
+  if (!view) return unavailableStage(state, entry, L("插件页面未注册"));
   try {
     const own = model(entry.project_plugin_id), nested = nestedContent(state, entry, view, own);
     return view.render({ contribution_id: contributionId, surface: "workbench", model: nested ? { ...own as Record<string, unknown>, nested } : own });
   } catch (error) {
     hostLog.warn("plugins", "project_stage_failed", error, { plugin_id: pluginId });
-    return unavailableStage(entry, L("插件页面读取失败"));
+    return unavailableStage(state, entry, L("插件页面读取失败"));
   }
 }
 
-function unavailableStage(entry: CatalogEntry, reason: string): UnavailablePluginStage {
-  return { surface: entry.project_plugin_id, label: entry.manifest.name, reason, scope: "project" };
+/**
+ * The placeholder says why (the supervisor's status, code and message) and, when the person can do something about it, offers it
+ * (W5-06 余项 3, BL-430). The Host decides the offer from the instance, never from the page: the shell's button only names it.
+ */
+function unavailableStage(state: ProjectPluginState, entry: CatalogEntry, reason: string): UnavailablePluginStage {
+  const pluginId = entry.manifest.plugin_id, active = state.platform?.supervisor.state(pluginId);
+  return { surface: entry.project_plugin_id, label: entry.manifest.name, reason, scope: "project", plugin_id: pluginId,
+    ...(active && active.status !== "running" && active.code !== "plugin.revoked" ? { status: active.status, code: active.code } : {}), restart: restartOffer(state, active) };
+}
+
+/**
+ * An instance that failed or crashed is started again; a quarantined one is released first (the supervisor's own restart takes each
+ * of these states). A plugin the person switched off or whose consent was withdrawn (`plugin.revoked`), one the Runtime blocks, one
+ * that was only stopped and one that was uninstalled get no button: a restart must never turn a switched-off plugin back on.
+ */
+function restartOffer(state: ProjectPluginState, active: PluginSupervisorState | null | undefined): PluginRestartOffer | null {
+  if (!state.platform || !active?.install_id || active.status === "blocked" || active.code === "plugin.revoked") return null;
+  const installed = state.platform.runtime.get(active.install_id).state;
+  if (installed === "quarantined") return "release-quarantine";
+  return installed !== "uninstalled" && (installed === "crashed" || active.status === "failed") ? "restart" : null;
 }
 
 /**

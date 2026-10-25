@@ -378,6 +378,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         if (referenceRequest === request && referenceDialog.open) body.textContent = text;
       } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) molisWorkRequest.show(body,error,L("项目内引用无法打开")); }
     });
+    document.addEventListener("click", async (event) => {
+      const button = event.target?.closest?.("[data-project-plugin-restart]");
+      if (!button || button.disabled) return;
+      button.disabled = true;
+      try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(button.dataset.restartPlugin) + (button.dataset.projectPluginRestart === "restart" ? "/restart" : "/release-quarantine")), { body: {}, fallback: L("插件状态未能更改") }); location.reload(); }
+      catch (error) { const note = button.nextElementSibling; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
+    });
     updateRelationPreviews();
     updateAllRelationFormPreviews();
     // Off the Goal stage the board cursor comes with the attention read (W4-10).

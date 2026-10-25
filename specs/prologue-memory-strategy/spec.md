@@ -3079,6 +3079,18 @@ withWriter({memoryPurges,sessionPlan},work) 属外层真实 SDK 装配，仅 Cat
 
 实施核验：准确37f原构建上新增五场景得到4红1绿（原35项均绿），日志逐项保留连接open状态与丢失cleanup事实。修后source40项/target30项全部通过；LocalHost README必跑57文件548项通过（合计59文件618项，jobs2/browser1/retries0，无skip）。原FIFO整体build、根与两份测试严格TypeScript、准确37f health、boundary errors=[]、72份API快照及diff检查通过；原computeBuildSourceDigest与最终manifest完全一致。日志 `/private/tmp/catalog-source-init-{red,fixed-build,green,required,root-types,test-types,health,boundary,api,digest}.log`。source原返回句柄的正常close流程没有改动；这刀只收束初始化失败资源与原错误原因链，target共享helper仅迁移、不变语义。未跑全量、未push、未动真实Home/付费模型；完整父frame/恢复发布与产品、用户验收仍待原范围验证。
 
+### 2026-10-26 父决定、完整来源与 Session 前置聚合
+
+本轮生产聚合为 `22a8aecd0`，沿既有 #1101：Storage父决定2d902b84、Memory两遍来源794c26cc、Catalog源初始化关闭31216420、AgentHost独立Session前置a5e7f90a均已纳入。统筹复核实际生产diff、真实首红与当前结果；Session前置另有6组独立公共SDK/Index探针，覆盖原tuple、三类正文残留、真实读后CAS变化、关闭时撤权以及同一key的明确关闭重试，日志 `/private/tmp/molis-standalone-session-independent-final-20261026.log`。仅spec追加冲突，保留双方合同与证据；没有修改生产语义解决冲突。
+
+准确聚合的原FIFO整体build、14文件257项真实交集回归通过，零skip/重试；根TypeScript、准确070基础health、boundary errors=[]、72 API快照3058声明和diff检查通过。日志前缀 `/private/tmp/molis-memory-parent-source-aggregate-`，后缀 `-20261026.log`：build、tests、types、health、boundary、api。资源门仍只失败Coding +1,333 B（373,423→374,756），没有提高上限；父与来源没有增加页面资源。已授权Assistant +4,064 B保持原登记，不扩用到Coding。
+
+另已确认真实待修范围：正式SDK b544 Session purge后重启仍可通过waits.get/list取得终态wait的reason，正常App视图会排除purged Index，但物理正文尚在；旧eligible continuation在同Session已purged的重开后仍调用startContinuation。两个公共入口反例分别为 `/private/tmp/molis-session-wait-retention-final-20261026.log` 与 `/private/tmp/prologue-wait-purge-continuation-independent-20261026.log`，未调用模型。SDK修复须回原Session/Orchestration主人、同永久屏障与原派出门，App在SDK清除前保留业务所需原wait IDs，不新造执行核或以界面隐藏当清理证明。SDK及App业务副本尚未由本聚合完成。
+
+完整LocalHost恢复帧仍在独立工作树接线，没有混入本轮可审生产提交；最终非空T0/T1/T2、Coding/Assistant全旅程、质量/token对照和用户验收仍未完成。前述筛选用例Node native async_id崩溃继续UNKNOWN，不能以本次无筛选交集通过抹去。#1064准确070普通/Full已过；与main544合成8b89637e的原build、247项规则回归及资源逐项相同已由统筹复核，旧Cloudflare93b影响仍待核，不把历史失败改写成通过。
+
+推送前全分支secrets通过。随后本次fetch已确认main更新为 `4f4e59a33`（batch37，734文件变化，含AgentHost/插件登记/项目清理）；上文544合成证据仍只属于544，本轮257项属于070基础的22a聚合，不能宣称已整合4f。先提交当前已验成果，基础与应用按依赖顺序继续处理新main交集；不改门禁或把未整合记为通过。
+
 ### MEM-40 独立 Session 冷准备与原件证明（2026-10-26）
 
 独立且已有可信 T1 Index owner/SDK termination 的 Session，首次 target 决定由 AgentHost 原冷 Session 主人准备。只读 inspection 增加 `prepareSessionPurge({source:{session,owner,termination:{preview,phase,version}},operationId,signal?})`；source preview 是原 `AgentSessionPurgePreview` 去掉 state，不把源版本或历史状态当 target CAS。输入在首次 await 前隔离，校验源 exact Session/terminal 关系；target 必须已有同 owner Index。当前 present 取真实 target preview/state，已有 target purge 决定完整保留其 operation/preview/state；未知、相反的未完成决定、absent 或缺 Index 拒绝，不生成空计划或 Index。Catalog 已持有的 Session 沿原项目 receipt/plan，不进入此独立口另派决定；调用方负责已校验的 source/Catalog 分流，不从会话名猜测关联。

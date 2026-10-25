@@ -96,10 +96,21 @@ export interface PluginRegistration {
     readonly keys?: string;
     /**
      * This Home instance is one half of a dual-instance plugin (docs/system/GLOSSARY.md): the same plugin also runs as each
-     * project's instance from the project start list, and each half offers only its share of the one Manifest. Trusted, as above:
+     * project's instance from its `project_runtime`, and each half offers only its share of the one Manifest. Trusted, as above:
      * no Manifest or installed package can say it. Every permission of such a Manifest is required (specs/dual-instance-plugins).
      */
     readonly dual_instance?: true;
+  };
+  /**
+   * Each project's instance, which the Host's project supervisor starts from this declaration (PG-067). Trusted, as above. A plugin
+   * whose library is the Manifest's `databases.home` runs only where the project has a Home. A factory that needs ports from the
+   * Host is not declared here; it stays in apps/local-host/src/project-plugins.ts (only Files, BL-616). A dual-instance plugin
+   * declares this and `runtime` (Shelf).
+   */
+  readonly project_runtime?: {
+    readonly create: () => PluginDefinition;
+    readonly package_name: string;
+    readonly factory_export: string;
   };
   /**
    * What this plugin keeps in the Home for a project that is more than rows of its library, and how to clear it. The Host runs it

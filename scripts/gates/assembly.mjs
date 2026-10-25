@@ -1,6 +1,6 @@
 // Built-in plugin assembly gates (specs/repository-anti-corruption §4.6/R-01/R-03, W1-05).
 //
-// AGENTS.md: a new built-in plugin goes through the Plugin Runtime only (apps/local-host/src/project-plugins.ts). The old
+// AGENTS.md: a new built-in plugin goes through the Plugin Runtime only (its registration's `runtime` or `project_runtime`). The old
 // build-time path (a registerProvider line in project-host.ts, an <plugin>-native-plugin-http.ts file, a catalog entry) is
 // frozen and may only shrink; tests/builtin-plugin-assembly-gate.test.ts holds the name lists and checks them against the
 // disk. This adds the part a name list cannot do, as numbers compared with the merge-base (so a PR cannot widen them):
@@ -17,7 +17,7 @@
 //                          (user 10-19; W5-02 PR-B pulls it forward from PR-C for the Host's new file).
 // A plugin that is new at the reference starts at NEW_PLUGIN_OUTSIDE_FILES for the last one; everything else starts at 0.
 import ts from "typescript";
-import { homeRuntimePackages } from "./home-runtime-entries.mjs";
+import { homeRuntimePackages, projectRuntimePackages } from "./home-runtime-entries.mjs";
 import { hasPath, recordMetric } from "./record-metric.mjs";
 
 const HOST_SRC = /^apps\/local-host\/src\//;
@@ -59,8 +59,8 @@ export function describePlugins(snapshot) {
     if (typeof name === "string") plugins.push({ dir: match[1], name });
   }
   const supervisor = snapshot.read(PROJECT_PLUGINS) ?? "";
-  const home = homeRuntimePackages(snapshot);
-  const runtime = new Set(plugins.filter((plugin) => supervisor.includes(`"${plugin.name}"`) || home.has(plugin.name)).map((plugin) => plugin.dir));
+  const declared = new Set([...homeRuntimePackages(snapshot), ...projectRuntimePackages(snapshot)]);
+  const runtime = new Set(plugins.filter((plugin) => supervisor.includes(`"${plugin.name}"`) || declared.has(plugin.name)).map((plugin) => plugin.dir));
   return { plugins: plugins.sort((a, b) => a.dir.localeCompare(b.dir)), runtime };
 }
 

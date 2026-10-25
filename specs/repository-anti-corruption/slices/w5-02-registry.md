@@ -176,6 +176,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 - 起停顺序按 `catalog_order`；与今天的顺序不同的地方实现前先核是否有依赖（今天的注释说伴随插件「一起启动」，不靠顺序）。
 - `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 改读生成物；`home-runtime-entries.mjs`、`assembly.mjs`、`package-inventory.mjs` 认 `project_runtime`，同样要求字面量的包名与工厂名。`node scripts/gates/package-inventory.mjs --table` 重生成 §5.1 的行。
 - 文档：`AGENTS.md` 硬约束里「项目级的是 `project-plugins.ts` 的监督器条目」改成写在包的登记上；`skills/molis-plugin-dev/host.md`。
+- 实现时核过（10-25）：项目监督器的激活顺序由 `resolvePluginActivation` 按依赖排，名单顺序只决定没有依赖关系的几个谁先；`ProjectPluginState.plugins` 只当集合用（`project-plugin-stages.ts`）。所以名单改成「登记按 `catalog_order`，再接手写的 Files」，与之前的差别（Home 库六个之间、Diff 与 Git 互换、Files 挪到最后）不影响谁能启动。双实例门禁（`scripts/gates/dual-instance.mjs`）同样认 `project_runtime` 为项目一半；Files 一条记 BL-616，`tests/builtin-plugin-assembly-gate.test.ts` 的 `HAND_STARTED` 冻结、只许减少。
 
 ### B 的验收
 

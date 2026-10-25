@@ -19,8 +19,11 @@ const CATALOG = "apps/workbench/src/builtin-plugins.ts";
 const PACKAGE = "@molis-ai/molis-work-plugin-probe";
 const lines = (...parts: string[]) => `${parts.join("\n")}\n`;
 
-/** A tree with one dual-instance plugin, `probe`, written the way a built-in plugin package writes it. */
-function dualTree(change: { runtime?: string; manifest?: string; project?: string; permissions?: string } = {}): Tree {
+/**
+ * A tree with one dual-instance plugin, `probe`. Its project half is an entry of the project start list by default; `declared`
+ * writes it as the registration's `project_runtime` instead, the way a built-in plugin package writes it (PG-067).
+ */
+function dualTree(change: { runtime?: string; manifest?: string; project?: string; permissions?: string; declared?: string } = {}): Tree {
   return {
     [CATALOG]: lines(`import { registration as probe } from "${PACKAGE}/registration";`, "export const BUILTIN_PLUGIN_CATALOG = [probe];"),
     "plugins/native/probe/package.json": JSON.stringify({ name: PACKAGE }),
@@ -29,6 +32,7 @@ function dualTree(change: { runtime?: string; manifest?: string; project?: strin
       "export const registration = {",
       `  manifest: ${change.manifest ?? "probeManifest"},`,
       `  runtime: { scope: "home", create: createProbePlugin, package_name: "${PACKAGE}", factory_export: "createProbePlugin"${change.runtime ?? ", dual_instance: true"} },`,
+      ...change.declared === undefined ? [] : [`  project_runtime: ${change.declared},`],
       "};"),
     "plugins/native/probe/src/index.ts": lines(`export * from "./manifest.js";`, `export { createProbePlugin } from "./plugin.js";`),
     "plugins/native/probe/src/manifest.ts": lines(
@@ -51,6 +55,15 @@ test("DUAL-12 a marked Home entry needs its project half, and a plugin on both l
   const [unmarked] = dualInstanceProblems(snapshot(dualTree({ runtime: "" })));
   assert.match(unmarked, /@molis-ai\/molis-work-plugin-probe is also a Home catalog entry .*runtime\.dual_instance: true/u);
   assert.match(dualInstanceProblems(snapshot(dualTree({ runtime: ", dual_instance: Boolean(1)" })))[0], /write runtime\.dual_instance as the literal true/u);
+});
+
+test("DUAL-12 RAC-571 the project half may be the registration's project_runtime: marked passes, unmarked fails, an unreadable one fails", () => {
+  const declared = `{ create: createProjectProbePlugin, package_name: "${PACKAGE}", factory_export: "createProjectProbePlugin" }`;
+  const startsOther = "{ definition: createOtherPlugin(), trust: HOST_BUILD_TRUST }";
+  assert.deepEqual(dualInstanceProblems(snapshot(dualTree({ declared, project: startsOther }))), []);
+  const [unmarked] = dualInstanceProblems(snapshot(dualTree({ declared, project: startsOther, runtime: "" })));
+  assert.match(unmarked, /plugins\/native\/probe\/src\/registration\.ts: @molis-ai\/molis-work-plugin-probe is also a Home catalog entry .*runtime\.dual_instance: true/u);
+  assert.match(dualInstanceProblems(snapshot(dualTree({ declared: "PROJECT_RUNTIME", project: startsOther })))[0], /cannot tell which plugin package project_runtime starts/u);
 });
 
 test("DUAL-12 both halves ship with the Host: a project half that is not bundled fails", () => {

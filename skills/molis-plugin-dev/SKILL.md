@@ -49,7 +49,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 | kind | 何时 | 现在 |
 | --- | --- | --- |
-| `native` | 一等产品入口。新的内置插件经 Plugin Runtime 监督器启动（`apps/local-host/src/project-plugins.ts`，例如 Shelf）；构建期装配只剩 `tests/builtin-plugin-assembly-gate.test.ts` 冻结的旧名单，只许减少 | 监督器：Shelf；构建期（冻结）：Feed、Inbox、Goals、Pages、灵光、Jelly… |
+| `native` | 一等产品入口。新的内置插件经 Plugin Runtime 监督器启动（登记上的 `project_runtime` 或 `runtime`，例如 Shelf 两个都写）；构建期装配只剩 `tests/builtin-plugin-assembly-gate.test.ts` 冻结的旧名单，只许减少 | 监督器：Shelf；构建期（冻结）：Feed、Inbox、Goals、Pages、灵光、Jelly… |
 | `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Files、Git、Diff、Text stats |
 | `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS、YouTube、Catalog、Web Query |
 
@@ -117,7 +117,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 ## 接到哪里（写完声明立刻看）
 
-- **内置插件**：workspace 包，包里 `src/registration.ts` 写目录条目（manifest、personal、summary、workbench pack；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`），再 `node scripts/generate-plugin-registry.mjs` 生成 `builtin-plugins.ts`（不手改）+ `apps/local-host/src/project-plugins.ts` 的监督器条目（`trust: HOST_BUILD_TRUST` + `nativePluginReleaseArtifact`），并把 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（+ i18n），在 `specs/repository-anti-corruption/spec.md` §5.1 的包清单表里补一行（`node scripts/gates/package-inventory.mjs --table` 生成；缺行或状态与监督器不符，`pnpm health:check` 变红）。构建期 Native 的 Host HTTP 与动作装配已冻结，只许减少。清单：[host.md](host.md)。
+- **内置插件**：workspace 包，包里 `src/registration.ts` 写目录条目（manifest、personal、summary、workbench pack；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`），项目级的在同一份登记写 `project_runtime: { create, package_name, factory_export }`，再 `node scripts/generate-plugin-registry.mjs` 生成 `builtin-plugins.ts` 与宿主的 `plugin-registry.generated.ts`（都不手改）；项目监督器按登记启动它（`trust: HOST_BUILD_TRUST` + `nativePluginReleaseArtifact` 由宿主给），`apps/local-host/src/project-plugins.ts` 与 `tests/builtin-plugin-assembly-gate.test.ts` 都不用改（+ i18n），在 `specs/repository-anti-corruption/spec.md` §5.1 的包清单表里补一行（`node scripts/gates/package-inventory.mjs --table` 生成；缺行或状态与登记不符，`pnpm health:check` 变红）。构建期 Native 的 Host HTTP 与动作装配已冻结，只许减少。清单：[host.md](host.md)。
 - **Runtime 插件**（Coding 族、Shelf）：`createXPlugin` 加监督器 `start()`。`start()` 必须兑现 Manifest 每一条 view、route、action、action_scene，以及 commands、events.subscribes、ports.inputs 对应的处理器。
 - **integration**：`definePollingIntegrationPlugin` + Connector Host；OAuth/secret 见 [integrations.md](integrations.md)。
 - **第三方 / 本地样例**：`molis-work plugin create` → `validate` → `dev` → `pack`。今天脚手架是 integration 样例，不是产品一级入口插件。

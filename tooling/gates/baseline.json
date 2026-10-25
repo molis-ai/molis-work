@@ -1,5 +1,5 @@
 {
-  "giantUnits": 84,
+  "giantUnits": 80,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1842,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -31,8 +31,8 @@
       "methods": 41
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 217,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 179,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 176,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
@@ -58,24 +58,12 @@
       "methods": 12
     },
     "function horizontal/agent-host/src/index.ts#start": 252,
-    "class horizontal/listener-host/src/index.ts#ListenerHost": {
-      "lines": 361,
-      "methods": 18
-    },
     "file horizontal/memory/src/service.ts": 1259,
     "class horizontal/memory/src/service.ts#MemoryService": {
       "lines": 1079,
       "methods": 51
     },
-    "class horizontal/placement/src/index.ts#PlacementService": {
-      "lines": 399,
-      "methods": 28
-    },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
-    "class horizontal/search/src/index.ts#SearchService": {
-      "lines": 392,
-      "methods": 25
-    },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
       "lines": 371,
       "methods": 29
@@ -115,7 +103,6 @@
     "function modules/shelf/src/store.ts#runJob": 183,
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
-    "function packages/im-ui/src/views.ts#createViews": 162,
     "class packages/kernel/src/action-service.ts#ActionService": {
       "lines": 396,
       "methods": 15
@@ -125,7 +112,7 @@
       "methods": 23
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 623,
+      "lines": 624,
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
@@ -610,10 +597,10 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 270,
+  "pluginOutsideMentionsTotal": 260,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 11,
-    "artifacts#outside-files": 19,
+    "artifacts#outside-files": 9,
     "coding#outside-files": 10,
     "cognia#outside-files": 6,
     "dataset#outside-files": 7,

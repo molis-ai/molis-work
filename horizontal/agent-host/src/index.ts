@@ -680,3 +680,4 @@ export type { PrologueMemoryOptions } from "./adapters/prologue-memory-authority
 export type { PrologueProjectDeletion, ProjectSessionDeletionPlan } from "./adapters/prologue-project-deletion.js";
 
 export type { PrologueSessionPurgeTarget } from "./adapters/prologue-session-purge.js";
+export type { SessionPurgePreparationInput, SessionPurgeVerificationInput } from "./adapters/prologue-project-session-cold.js";

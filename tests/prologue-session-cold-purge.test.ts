@@ -253,3 +253,161 @@ for (const cause of ["cancel", "revoke", "index-conflict"] as const)
       const after = f.records(); for (const [path, content] of Object.entries(before)) if (!path.includes(kind)) assert.deepEqual(after[path], content);
     }
   });
+
+/** A real later T1 copy: its archived/purged SDK version must never become the T0 target CAS. */
+async function laterSource(t: TestContext, f: Awaited<ReturnType<typeof fixture>>) {
+  const storageRoot = fs.realpathSync(mkdtempSync(join(tmpdir(), "molis-session-source-")));
+  fs.cpSync(f.storageRoot, storageRoot, { recursive: true });
+  t.after(() => rmSync(storageRoot, { recursive: true, force: true }));
+  const source = await createPrologueNodeAdapter({ app, storageRoot,
+    modelConfiguration: async () => { throw new Error("source fixture must not call a model"); } });
+  try {
+    await source.sessionLifecycle!.archive(f.session, { operation_id: "later-source-archive", expected_version: f.target.preview.version, expected_state: "active" }, owner);
+    const preview = await source.sessionLifecycle!.previewPurge(f.session, owner);
+    await source.sessionLifecycle!.purge(f.session, { operation_id: "source-purge", expected_version: preview.version, expected_state: preview.state }, preview, owner);
+  } finally { await source.close(); }
+  const reader = await openPrologueMemoryAdoptionInspection({ ...f.input, storageRoot });
+  try {
+    const observed = await reader.inspectSession({ ref: ref(f.session.session_id) }); assert.equal(observed.state, "purged");
+    if (observed.state !== "purged") throw new Error("real source termination absent");
+    const index = (await reader.inspectSessionIndexes({})).facts.find(value => value.sessionRef.id === f.session.session_id);
+    assert.deepEqual(index?.owner, owner); assert.equal(index?.lifecycle?.phase, "complete");
+    const { preview, phase, version } = observed.termination;
+    return { session: structuredClone(f.session), owner: structuredClone(owner), termination: { phase, version,
+      preview: { session: structuredClone(f.session), version: preview.atVersion, runs: preview.runs, resources: preview.resources, destroys_key: preview.destroysKey } } };
+  } finally { await reader.close(); }
+}
+
+test("standalone preparation reads real target CAS, isolates inputs, and original proof rejects retained body and successors", async t => {
+  const f = await fixture(t), source = await laterSource(t, f), before = f.records();
+  assert.notEqual(source.termination.preview.version, f.target.preview.version);
+  const reader = await openPrologueMemoryAdoptionInspection(f.input);
+  const request = { source, operationId: "first-target-original" };
+  const preparing = reader.prepareSessionPurge(request);
+  request.source.owner.actor_id = "caller-mutation"; request.source.session.session_id = "caller-mutation"; request.operationId = "caller-mutation";
+  const target = await preparing;
+  assert.deepEqual(target, { ...f.target, decision: { ...f.target.decision, operation_id: "first-target-original" } });
+  assert.deepEqual(f.records(), before); await assert.rejects(reader.verifySessionPurge({ target })); await reader.close();
+  const writer = await f.open({ sessionPurges: [target] });
+  try {
+    await writer.purgeSessionTarget({ session: f.session });
+    const checking = structuredClone(target), proof = writer.verifySessionPurge({ target: checking });
+    checking.decision.operation_id = "caller-mutation"; await proof;
+    const complete = await f.readIndex(), done = f.records();
+    await assert.rejects(writer.verifySessionPurge({ target: { ...target, decision: { ...target.decision, operation_id: "other-decision" } } }));
+    assert.deepEqual(f.records(), done);
+    for (const residue of [{ ...complete, title: privateText }, { ...complete, extra: privateText }, { ...complete, owner: { ...complete.owner, extra: privateText } }]) {
+      await f.writeIndex(residue); const retained = f.records();
+      await assert.rejects(writer.verifySessionPurge({ target })); assert.deepEqual(f.records(), retained);
+    }
+    await f.writeIndex({ ...complete, owner: { ...complete.owner, actor_id: "later-owner" } });
+    const successor = f.records(); await assert.rejects(writer.verifySessionPurge({ target })); assert.deepEqual(f.records(), successor);
+  } finally { await writer.close(); }
+});
+
+for (const phase of ["prepared", "sdk-complete", "complete"] as const)
+  test(`standalone preparation preserves the real target original at ${phase}`, async t => {
+    const f = await fixture(t), source = await laterSource(t, f), rename = fs.renameSync; let hit = false;
+    const hook = t.mock.method(fs, "renameSync", (...args: Parameters<typeof fs.renameSync>) => {
+      const destination = String(args[1]);
+      const envelope = destination === f.sdkFile ? JSON.parse(readFileSync(args[0], "utf8")) : undefined;
+      const selected = phase === "prepared" ? destination === f.indexFile : phase === "sdk-complete" && envelope?.metadata?.purge?.phase === "complete";
+      rename(...args);
+      if (selected && !hit) { hit = true; throw new Error("original target interruption"); }
+    });
+    syncBuiltinESMExports();
+    const first = await f.open();
+    try {
+      if (phase === "complete") await first.purgeSessionTarget({ session: f.session });
+      else await assert.rejects(first.purgeSessionTarget({ session: f.session }));
+    } finally { hook.mock.restore(); syncBuiltinESMExports(); await first.close(); }
+    assert.equal(hit, phase !== "complete");
+    const held = await f.readIndex(); assert.equal(held.lifecycle.phase, phase === "complete" ? "complete" : "prepared");
+    if (phase === "sdk-complete") assert.equal((await f.sdkRoot()).metadata.purge.phase, "complete");
+    const before = f.records(), reader = await openPrologueMemoryAdoptionInspection(f.input);
+    const target = await reader.prepareSessionPurge({ source, operationId: "must-not-replace-original" });
+    assert.deepEqual(target, f.target);
+    if (phase === "complete") await reader.verifySessionPurge({ target });
+    else await assert.rejects(reader.verifySessionPurge({ target }));
+    await reader.close(); assert.deepEqual(f.records(), before);
+    const retry = await f.open({ sessionPurges: [target] });
+    try {
+      assert.equal((await retry.purgeSessionTarget({ session: f.session })).operation_id, f.target.decision.operation_id);
+      await retry.verifySessionPurge({ target });
+      if (phase === "complete") assert.deepEqual(f.records(), before);
+    } finally { await retry.close(); }
+  });
+
+for (const cause of ["wrong-owner", "opposite-decision", "absent-sdk", "absent-index", "unclaimed-terminal"] as const)
+  test(`standalone preparation refuses ${cause} without target writes`, async t => {
+    const f = await fixture(t), source = await laterSource(t, f);
+    if (cause === "wrong-owner") source.owner.actor_id = "untrusted";
+    else if (cause === "opposite-decision") {
+      const row = await f.readIndex(); row.lifecycle = { action: "archive", phase: "prepared", decision: f.target.decision }; await f.writeIndex(row);
+    } else if (cause === "absent-sdk" || cause === "absent-index") {
+      const selectedKind = cause === "absent-sdk" ? `${app.appId}~sessions` : kind;
+      const record = await f.host.storage.get({ kind: selectedKind, id: f.session.session_id });
+      await f.host.storage.remove({ kind: selectedKind, id: f.session.session_id, expectedVersion: record.version });
+      await f.host.storage.purge({ kind: selectedKind, id: f.session.session_id });
+    } else {
+      const runtime = await createRuntime({ app, host: createNodeHost({ storageRoot: f.storageRoot }) });
+      try { const session = await runtime.sessions.open(ref(f.session.session_id)); assert.ok(session); await session.purge(await session.previewPurge()); }
+      finally { await runtime.shutdown(); }
+    }
+    const before = f.records(), reader = await openPrologueMemoryAdoptionInspection(f.input);
+    try { await assert.rejects(reader.prepareSessionPurge({ source, operationId: "first-target" })); }
+    finally { await reader.close(); }
+    assert.deepEqual(f.records(), before);
+  });
+
+for (const operation of ["prepare", "proof"] as const) for (const cause of ["cancel", "revoke", "index-conflict"] as const)
+  test(`standalone ${operation} refuses ${cause} across real SDK reads`, async t => {
+    const f = await fixture(t), source = await laterSource(t, f), controller = new AbortController(); let allowed = true, hit = false;
+    if (operation === "proof") { const writer = await f.open(); try { await writer.purgeSessionTarget({ session: f.session }); } finally { await writer.close(); } }
+    const original = await f.readIndex(), record = await f.host.storage.get({ kind, id: f.session.session_id });
+    const data = new TextEncoder().encode(JSON.stringify({ ...original, owner: { ...original.owner, actor_id: "concurrent-owner" } }));
+    const before = f.records(), reader = await openPrologueMemoryAdoptionInspection({ ...f.input, assertCurrent: () => { if (!allowed) throw new Error("revoked"); } });
+    const identity = fs.statSync(f.sdkFile, { bigint: true }), read = fs.readFileSync; let external: Promise<unknown> | undefined;
+    const hook = t.mock.method(fs, "readFileSync", (...args: Parameters<typeof fs.readFileSync>) => {
+      const result = read(...args), held = typeof args[0] === "number" ? fs.fstatSync(args[0], { bigint: true }) : undefined;
+      if (!hit && held?.dev === identity.dev && held?.ino === identity.ino) {
+        hit = true;
+        if (cause === "index-conflict") external = f.host.storage.commit({ kind, id: f.session.session_id, expectedVersion: record.version, metadata: record.metadata, secureBody: data });
+        else queueMicrotask(() => { if (cause === "cancel") controller.abort(); else allowed = false; });
+      }
+      return result;
+    });
+    syncBuiltinESMExports();
+    try {
+      await assert.rejects(operation === "prepare" ? reader.prepareSessionPurge({ source, operationId: "first-target", signal: controller.signal })
+        : reader.verifySessionPurge({ target: f.target, signal: controller.signal }));
+    } finally { hook.mock.restore(); syncBuiltinESMExports(); await reader.close(); await external; data.fill(0); }
+    assert.equal(hit, true);
+    if (cause !== "index-conflict") assert.deepEqual(f.records(), before);
+    else {
+      assert.equal((await f.readIndex()).owner.actor_id, "concurrent-owner");
+      for (const [path, content] of Object.entries(before)) if (!path.includes(kind)) assert.deepEqual(f.records()[path], content);
+    }
+  });
+
+for (const operation of ["prepare", "proof"] as const)
+  test(`standalone ${operation} retains the failed reader for exact close retry and permanently stops business`, async t => {
+    const f = await fixture(t), source = await laterSource(t, f);
+    if (operation === "proof") { const writer = await f.open(); try { await writer.purgeSessionTarget({ session: f.session }); } finally { await writer.close(); } }
+    const before = f.records(), reader = await openPrologueMemoryAdoptionInspection(f.input), fill = Buffer.prototype.fill;
+    let failedKey: Buffer | undefined, retries = 0, failing = true;
+    const hook = t.mock.method(Buffer.prototype, "fill", function(this: Buffer, ...args: unknown[]) {
+      if (this.length === 32 && args[0] === 0 && (failedKey === undefined || this === failedKey)) {
+        failedKey ??= this; retries++; if (failing) throw new Error("original reader close failed");
+      }
+      return Reflect.apply(fill, this, args);
+    });
+    try {
+      await assert.rejects(operation === "prepare" ? reader.prepareSessionPurge({ source, operationId: "first-target" }) : reader.verifySessionPurge({ target: f.target }), /original reader close failed/);
+      assert.ok(failedKey); await assert.rejects(reader.inspectSession({ ref: ref(f.session.session_id) }));
+      await assert.rejects(reader.close(), /original reader close failed/); assert.equal(retries, 2);
+      failing = false; await reader.close(); assert.equal(retries, 3); assert.ok(failedKey.every(byte => byte === 0));
+      await reader.close(); assert.equal(retries, 3);
+      await assert.rejects(reader.inspectSession({ ref: ref(f.session.session_id) })); assert.deepEqual(f.records(), before);
+    } finally { failing = false; await reader.close(); hook.mock.restore(); }
+  });

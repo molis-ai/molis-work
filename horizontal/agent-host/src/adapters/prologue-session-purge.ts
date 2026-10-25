@@ -25,11 +25,26 @@ export function validateSessionDecision(decision: AgentSessionDecision): void {
 export function sessionPurgePreview(target: PrologueSessionPurgeTarget): PurgePreview {
   const { session, decision, preview } = target;
   validateSessionDecision(decision);
+  if (preview.version !== decision.expected_version || preview.state !== decision.expected_state) throw sessionConflict();
+  return sessionPurgeFacts(session, preview);
+}
+/** Same body-free preview facts for a trusted source termination and an executable target. */
+export function sessionPurgeFacts(session: AgentSessionRef, preview: Omit<AgentSessionPurgePreview, "state">): PurgePreview {
   if (session.runtime_id !== "prologue" || typeof session.session_id !== "string" || !session.session_id
-    || !isDeepStrictEqual(preview.session, session) || preview.version !== decision.expected_version || preview.state !== decision.expected_state
+    || !isDeepStrictEqual(preview.session, session) || !Number.isSafeInteger(preview.version) || preview.version < 1
     || preview.destroys_key !== true || ![preview.runs, preview.resources].every(n => Number.isSafeInteger(n) && n >= 0)) throw sessionConflict();
   return { sessionRef: { kind: "session", id: session.session_id, revision: 1 }, atVersion: preview.version,
     runs: preview.runs, resources: preview.resources, destroysKey: preview.destroys_key };
+}
+
+/** The sole completed Index representation, shared by publication and cold original proof. */
+export function completedSessionPurgeIndex(target: PrologueSessionPurgeTarget, receipt: AgentSessionLifecycleReceipt): SessionIndex {
+  const { session, owner, decision } = target;
+  return { schema: 1, ref: { kind: "session", id: session.session_id, revision: 1 },
+    owner: { project_id: owner.project_id, plugin_id: owner.plugin_id, install_id: owner.install_id, actor_id: owner.actor_id }, title: "", attempts: [],
+    lifecycle: { action: "purge", phase: "complete", decision: { operation_id: decision.operation_id, expected_version: decision.expected_version, expected_state: decision.expected_state },
+      preview: sessionPurgePreview(target), receipt: { scope: "agent-host-session", session: { runtime_id: "prologue", session_id: session.session_id },
+        operation_id: decision.operation_id, action: "purge", state: "purged", version: receipt.version } } };
 }
 
 /** Matches the original persisted tuple before any external work or retry. */
@@ -81,12 +96,7 @@ export async function purgeIndexedSession(index: SessionIndex, save: (value: Ses
   }
   if (!held.receipt) throw sessionConflict();
   // Only declared stable facts survive. Unknown nested properties may also contain old body text.
-  const { owner, decision } = target, receipt = held.receipt;
-  const minimal: SessionIndex = { schema: 1, ref: { kind: "session", id: index.ref.id, revision: 1 },
-    owner: { project_id: owner.project_id, plugin_id: owner.plugin_id, install_id: owner.install_id, actor_id: owner.actor_id }, title: "", attempts: [],
-    lifecycle: { action: "purge", phase: "complete", decision: { operation_id: decision.operation_id, expected_version: decision.expected_version, expected_state: decision.expected_state },
-      preview, receipt: { scope: "agent-host-session", session: { runtime_id: "prologue", session_id: index.ref.id },
-        operation_id: decision.operation_id, action: "purge", state: "purged", version: receipt.version } } };
+  const minimal = completedSessionPurgeIndex(target, held.receipt);
   execution.current(); await save(minimal); execution.current();
   return structuredClone(minimal.lifecycle!.receipt!);
 }

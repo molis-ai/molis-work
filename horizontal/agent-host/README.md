@@ -261,6 +261,10 @@ verifyPurgeCoverage 是内部无正文薄桥；inspection authority 只取真实
 
 ## MEM-40 冷维护 Session 清除
 
+独立 Session 只读准备口为 `prepareSessionPurge({source:{session,owner,termination:{preview,phase,version}},operationId,signal?})`；source 是可信 T1 Index owner 与 SDK termination 的已联结事实，preview 沿 `AgentSessionPurgePreview` 但不带 state。target 必须有同 owner Index，实际 CAS/state 从当前 SDK 读取；已存在 target purge 决定保留完整原 tuple，不以 source/version/新 operation 覆盖。缺 Index、absent、相反的未完成决定均拒绝。Catalog claimed 项只走原项目计划；外层负责该可信分流，本口不接受 raw 或伪造 ProjectPlan。
+
+inspection 和维护 bridge 的 `verifySessionPurge({target,signal?})` 只核原 SDK complete 与同决定的最小 Index complete，拒绝正文残留、同 ID 后继和未完成状态。单项准备/证明与下述 Project 口共享实现；执行复用 `sessionPurges` / `purgeSessionTarget`。调用输入首次 await 前固定，异步读取后 current 与末尾 Index 原版本重核；临时 reader 沿同一受管集合关闭/重试。此口不清 Coding/Assistant 副本、wait Registry 或 Memory，也不证明完整恢复。真实回归沿 `tests/prologue-session-cold-purge.test.ts`。 本刀新增17项，相关五文件125项与README必跑19文件129项通过；原FIFO build、类型、准确37f父基health和包边界通过，范围仍为本地工程验证。
+
 任一受管临时 reader 关闭失败，原 bridge 立即永久停止业务，只允许原 `close()` 重试同一资源；清理成功后也不能恢复业务。所有 reader 与 SDK 清理成功前不发布、不归还父 owner 借用；外层是否重开仍由原父决定和当前权限负责。
 
 冷项目 Session 的固定计划合同：`projectSessionPurges?: readonly ProjectSessionDeletionPlan[]` 只接受可信 Catalog 已解码的完整固定项目计划。每个计划保持原父项在前的拓扑、owner、decision、preview 与 indexed；raw 必须继承计划内父 owner，关联的 indexed 根可属于其他项目。与旧 `sessionPurges` 重复拒绝；不同项目计划只有完整目标 tuple 相同才共享一个目标。调用仍只有 `purgeSessionTarget({session})`，不能改目标或操作号。indexed 沿原 prepared/sdk-complete/complete 状态机；raw 沿同一 Session hold，拒绝任何同 ID Index，以同 SDK maintenance.purgeSession 执行并核原 terminal preview/complete/version，absent 不证明完成，不创建 Index。

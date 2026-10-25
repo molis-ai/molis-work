@@ -11,7 +11,8 @@ import type { PrologueMemoryOptions } from "./prologue-memory-authority.js";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 import { inspectSessionIndexPage, sessionIndexKind, type PrologueSessionIndexPage } from "./prologue-session-index-reader.js";
 import type { ProjectSessionDeletionPlan } from "./prologue-project-deletion.js";
-import { fixedColdSessionTargets, prepareProjectSessionPurge, verifyProjectSessionPurge, type ProjectSessionPurgePreparationInput, type ProjectSessionPurgeVerificationInput } from "./prologue-project-session-cold.js";
+import { fixedColdSessionTargets, prepareProjectSessionPurge, prepareSessionPurge, verifyProjectSessionPurge, verifySessionPurge,
+  type ProjectSessionPurgePreparationInput, type ProjectSessionPurgeVerificationInput, type SessionPurgePreparationInput, type SessionPurgeVerificationInput } from "./prologue-project-session-cold.js";
 
 export interface PrologueMemoryAdoptionScope { readonly scope: "user" | "project" | "character"; readonly owner: string }
 type MemoryPurgeTarget = Omit<Parameters<NodeRecoveryMaintenance["purgeMemory"]>[0], "signal">;
@@ -45,6 +46,7 @@ export interface PrologueMemoryAdoptionBridge {
   previewCleanup(input: PrologueMemoryAdoptionScope & { kind: "memory" | "memory-candidate"; cursor?: string; signal?: AbortSignal }): Promise<MemoryAdoptionCleanupPage>;
   purgeCleanupTarget(input: { target: MemoryAdoptionCleanupItem; operation_id: string; signal?: AbortSignal }): Promise<void>;
   purgeSessionTarget(input: { session: AgentSessionRef }): Promise<AgentSessionLifecycleReceipt>;
+  verifySessionPurge(input: SessionPurgeVerificationInput): Promise<void>;
   verifyProjectSessionPurge(input: ProjectSessionPurgeVerificationInput): Promise<void>;
   purgeMemoryTarget(input: { ref: MemoryPurgeTarget["ref"]; signal?: AbortSignal }): Promise<void>;
   verifyPurgeCoverage: NodeRecoveryInspection["verifyPurgeCoverage"];
@@ -55,6 +57,8 @@ export interface PrologueMemoryAdoptionBridge {
 }
 
 export type PrologueMemoryAdoptionInspection = Pick<PrologueMemoryAdoptionBridge, "previewCleanup"> & {
+  prepareSessionPurge(input: SessionPurgePreparationInput): Promise<PrologueSessionPurgeTarget>;
+  verifySessionPurge(input: SessionPurgeVerificationInput): Promise<void>;
   prepareProjectSessionPurge(input: ProjectSessionPurgePreparationInput): Promise<ProjectSessionDeletionPlan>;
   verifyProjectSessionPurge(input: ProjectSessionPurgeVerificationInput): Promise<void>;
   /** One bounded source page; empty/exhausted does not certify SDK/Catalog Session coverage. */
@@ -208,6 +212,16 @@ function recoveryReaders(prepared: ReturnType<typeof prepare>) {
       return perform(requestedSignal, signal => read(memory, signal,
         reader => prepareProjectSessionPurge(reader, app.appId, { ...fixed, signal }, () => { current(); signal.throwIfAborted(); }), true));
     },
+    prepareSessionPurge: (request: SessionPurgePreparationInput) => {
+      const { signal: requestedSignal, ...data } = request, fixed = structuredClone(data);
+      return perform(requestedSignal, signal => read(memory, signal,
+        reader => prepareSessionPurge(reader, app.appId, { ...fixed, signal }, () => { current(); signal.throwIfAborted(); }), true));
+    },
+    verifySessionPurge: (request: SessionPurgeVerificationInput) => {
+      const { signal: requestedSignal, ...data } = request, fixed = structuredClone(data);
+      return perform(requestedSignal, signal => read(memory, signal,
+        reader => verifySessionPurge(reader, app.appId, { ...fixed, signal }, () => { current(); signal.throwIfAborted(); }), true));
+    },
     verifyProjectSessionPurge: (request: ProjectSessionPurgeVerificationInput) => {
       const { signal: requestedSignal, ...data } = request, fixed = structuredClone(data);
       return perform(requestedSignal, signal => read(memory, signal,
@@ -272,6 +286,7 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
   };
   try { current(); } catch (error) { await close(); throw error; }
   return {
+    verifySessionPurge: readers.verifySessionPurge,
     verifyProjectSessionPurge: readers.verifyProjectSessionPurge,
     verifyPurgeCoverage: readers.verifyPurgeCoverage,
     inspectMemory: readers.inspectMemory,
@@ -316,6 +331,8 @@ export async function openPrologueMemoryAdoptionInspection(input: Omit<PrologueM
   })().catch(error => { closing = undefined; throw error; });
   try { current(); } catch (error) { await close(); throw error; }
   return {
+    prepareSessionPurge: readers.prepareSessionPurge,
+    verifySessionPurge: readers.verifySessionPurge,
     prepareProjectSessionPurge: readers.prepareProjectSessionPurge,
     verifyProjectSessionPurge: readers.verifyProjectSessionPurge,
     verifyPurgeCoverage: readers.verifyPurgeCoverage,

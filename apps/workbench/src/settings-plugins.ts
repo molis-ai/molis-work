@@ -3,7 +3,7 @@
  * with who signed it, what it asked for and why, what it keeps doing in the background and the agreements the person gave it; installing a
  * signed package (preview, then confirm); taking an agreement back. What it shows and installs goes through
  * `/projects/<id>/api/plugin-trust/*`, which invokes the shared `plugins.*` actions as the person; an agreement is taken back through the
- * Host's one settings door for it, `/api/settings/plugin-consents/revoke` (S-77), never through a route of the plugin page's own.
+ * Host's one settings door for it, `/api/settings/plugin-consents/revoke` (S-77), never through a route of the plugin page's own; taking a publisher back goes through the same door (`/api/settings/plugin-publishers/revoke`, S-86).
  */
 export function renderPluginTrustSettings({ L, projectId, chevron }: { L(text: string): string; projectId: string; chevron: string }): string {
   return `<section class="settings-document plugin-trust-settings" aria-labelledby="plugin-trust-title" data-plugin-trust-settings data-project="${projectId}">
@@ -107,7 +107,19 @@ if (plugin.manifest_available) body.append(jobs(plugin.jobs));
 body.append(consents(plugin)); box.append(summary, body);
 const item = el("li"); item.append(box); return item;
 };
-const publisher = (pin) => row(pin.label + " · " + short(pin.key_id), pin.revoked_at ? L("已于 {date} 撤销", { date: day(pin.revoked_at) }) : L("固定于 {date}", { date: day(pin.pinned_at) }));
+const publisher = (pin) => {
+const item = row(pin.label + " · " + short(pin.key_id), pin.revoked_at ? L("已于 {date} 撤销", { date: day(pin.revoked_at) }) : L("固定于 {date}", { date: day(pin.pinned_at) }));
+if (!pin.revoked_at) {
+const revoke = button(L("撤销信任"), "mw-btn--ghost");
+revoke.addEventListener("click", async () => {
+if (!await ask(L("撤销对这个发布者的信任？"), L("{name} 签的包不能再安装；已经装上的它的插件马上不能再做任何事，随后停用，数据保留，只能卸载。撤销不能撤回。", { name: pin.label }), L("撤销信任"))) return;
+error.hidden = true;
+try { await molisWorkRequest("/api/settings/plugin-publishers/revoke", { body: { key_id: pin.key_id } }); toast(L("已撤销对这个发布者的信任")); await load(); } catch (failure) { fail(failure); }
+});
+item.append(revoke);
+}
+return item;
+};
 const load = async () => {
 const data = await api("/overview");
 draw($("[data-plugin-trust-list]"), L("这个项目里还没有装插件"), data.plugins.map(installed));

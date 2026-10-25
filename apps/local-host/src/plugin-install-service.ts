@@ -12,6 +12,7 @@ import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plu
 import type { PluginInstalledView, PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';
+import { consentsChanged } from './consent-revision.js';
 import { readSandboxPackage, type SandboxPackage } from './sandbox-package.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
@@ -81,6 +82,7 @@ export class PluginInstallService {
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');
       if (label.length > 80) throw new ActionError('actions.input_invalid', '发布者的名称不超过 80 个字');
       this.ports.ledger.pinPublisher({ key_id: held.key_id, public_key_spki_base64: held.spki, label, pinned_at: this.now(), pinned_by: who.actor_id });
+      consentsChanged();
     }
     const directory = this.ports.packages.save(held.bundle, held.pkg);
     await this.ports.install(held.project_id, packagedRelease(held.pkg, directory, this.now()));
@@ -88,6 +90,17 @@ export class PluginInstallService {
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }
+
+  /**
+   * Takes a publisher back (BL-559, S-86): its pin is revoked for good, and every installation of a package it signed stops running, its data
+   * kept. The stop is each project's own: an installation is denied at its next effect, and stopped when its project next looks.
+   */
+  revokePublisher(keyId: string): PluginPublisherPin {
+    const pin = this.ports.ledger.revokePublisher(keyId, this.now());
+    if (!pin) throw pluginErrors.publisher_untrusted('没有固定过这个发布者');
+    consentsChanged();
+    return pin;
+  }
 
   /** The project's installed plugins as their detail page shows them: trust, permissions, jobs and the person's agreements. */
   async installed(projectId: string): Promise<PluginInstalledView[]> { return installedPluginViews(await this.ports.installed(projectId), this.ports.ledger); }

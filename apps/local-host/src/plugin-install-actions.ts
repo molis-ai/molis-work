@@ -1,5 +1,6 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import type { PluginInstalledView, PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { assertPluginConsentSettingsEntry } from "./plugin-consent-settings-entry.js";
 import type { PluginInstallPreviewResult, PluginInstallService } from "./plugin-install-service.js";
 
 // Installing a plugin from a signed package, as the person's own act (ac-trust T2, specs/repository-anti-corruption/slices/ac-trust-install.md
@@ -61,6 +62,11 @@ export const pluginInstallActions = {
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["publishers"], properties: { publishers: { type: "array", items: pinView } } } } } as ActionDefinition<Record<string, never>, { publishers: unknown[] }>,
+  revokePublisher: { capability_id: "plugins.publishers.revoke", version: 1, operation: "command", action: { ...metadata, scope: "home",
+    title: "撤销对发布者的信任", description: "撤销本机对一个发布者的信任：它签的包不能再安装，已经装进任何项目的它的插件马上不能再做任何事、随后停用，数据保留，之后只能卸载；撤销不能撤回，要再信任它得换一个发布者密钥。",
+    kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
+    input_schema: { type: "object", properties: { key_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["key_id"], additionalProperties: false },
+    output_schema: { type: "object", additionalProperties: false, required: ["publisher"], properties: { publisher: pinView } } } } as ActionDefinition<{ key_id: string }, { publisher: PluginPublisherPin }>,
   installed: { capability_id: "plugins.installed.list", version: 1, operation: "query", action: { ...metadata, scope: "project",
     title: "查看项目里装的插件", description: "列出这个项目里装着的插件：谁签的名、信任到哪一级、它要了哪些权限（含插件自己写的理由和平台对权限的说明）、它在后台常做的事，以及本人给过它的同意（含已撤回的）。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
@@ -84,6 +90,11 @@ export function pluginInstallHandlers(service: PluginInstallService): ActionHand
       return await service.confirm(input as { preview_id: string; consent: boolean; pin_label?: string }, who);
     } },
     { capability_id: pluginInstallActions.publishers.capability_id, version: 1, handle: () => ({ publishers: service.publishers() }) },
+    { capability_id: pluginInstallActions.revokePublisher.capability_id, version: 1, handle: async (caller, input) => {
+      assertPluginConsentSettingsEntry(caller);
+      await caller.beforeEffect();
+      return { publisher: service.revokePublisher((input as { key_id: string }).key_id) };
+    } },
     { capability_id: pluginInstallActions.installed.capability_id, version: 1, handle: async caller => {
       if (!caller.project_id) throw new ActionError("actions.project_required", "请选择一个项目");
       return { plugins: await service.installed(caller.project_id) };

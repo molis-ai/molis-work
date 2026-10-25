@@ -103,7 +103,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 - 账本多一个 `revoke(consent_id, at)`（只写第一次的 `revoked_at`，行不删）；`plugins.consents.list@1`（按插件列，含已撤回的）与 `plugins.consents.revoke@1` 两个只给本人的动作，在宿主的 `plugin-consents` 提供方下，处理器须核宿主设置入口凭据（下文首评修复合同；`apps/local-host/src/installed-plugin-consent-actions.ts`）。
 - **效果**：`always_on` 撤回后，下一次被问就不在名单里（T3 本来就每次现算），服务端不再拒绝移除、停用、卸载；默认连线撤回后，项目下一次碰到插件时对账解开（T4 的 `bindDeclaredDefaults`，由 `consent-revision.ts` 的计数让已开的项目知道要再看一次账本；一个 Home 一个执行进程，进程内计数就够）。默认组当前选择记录没有来源，撤回后不解开，归 T4 的 BL-587，本题不扩大它的行为。
-- **在途调用**：三类同意（常开、默认连线、默认组）都不是某一次调用的授权，没有「在途调用」要在 `beforeEffect()` 前收回；RAC-391 与 RAC-392 讲的是发布者撤销（停用，走既有的撤权路径），随 T2 的发布者固定一起做，BL-559 改记这一半。
+- **在途调用**：三类同意（常开、默认连线、默认组）都不是某一次调用的授权，没有「在途调用」要在 `beforeEffect()` 前收回；RAC-391 与 RAC-392 讲的是发布者撤销（停用，走既有的撤权路径），随 T5b 做完（§7.5，S-86）。
 - 设计稿说的「授权世代」：安装记录的 `installation_generation` 只在新装时变，权限撤回走的是记录里的授权列表（`beforeEffect()` 每次重读），所以同意撤回不需要新的世代；发布者撤销停用安装用现成的 `stop`。
 - **宿主启动时为没有监督器安装的常开插件（Goals）代为同意**（`always-on-plugins.ts` 的 `recordHostAlwaysOnAgreements`，由 Home 插件宿主启动时调用）：Goals 不在任何监督器里，没有人替它写账本行，本人就没有可撤的东西；写入同样遵守「已有一行（含已撤回的）就不再写」，查询不写。
 - 恢复了 `tests/feed-promote-reader.test.ts` 里「项目没有 Goals 时不显示升格」的一半：撤回 Goals 的常开同意、移除、阅读页没有升格入口（BL-585 里 Feed 那一行的一部分）。
@@ -133,7 +133,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - **命令行**：`molis-work plugin install <包> <项目> [--pin-as 名称] [--confirm]` 经常驻 Host 的 `/api/internal/plugin-install` 做同样两个动作，来源 `management`；没有常驻 Host 就停下。
 - **CLI 与 Agent 的核对边界**（T2-FIX-04）：`plugin-install-client.ts` 经 `resident-host-request.ts` 从 Home 令牌文件取控制令牌；`plugin-install-gateway.ts` 在本机变更门之后由 Host 固定 management 身份（S-03、S-06、S-07），三个安装动作的受众限制与可信上下文由 S-17 管。Coding 的 `plugins/native/coding/src/start-round.ts` 调 AgentHost 的 `startRun`；助理的 `apps/local-host/src/assistant/assistant-http.ts` 将同一 Host Agent 服务交给线程。`agent-host-composition.ts` 装配 Prologue Node 适配器，`horizontal/agent-host/src/adapters/prologue-node-port.ts` 选择 workspace-write/untrusted 或 read-only/on-request 执行规则，`prologue-node.ts` 交给 SDK 的 `createNodeHost`。这只核实已有装配/审查配置；本题未执行模型/命令来证明 Coding、助理或用户自选运行时的 OS 文件隔离，也未审尽 SDK 命令驱动，S-06 的 0600 本身不证明同 OS 用户的 Agent 被隔离。此处是未验证边界，不是已证实的绕过。**必要后续裁定**：信任设计须明确“能读 Home 令牌的本机进程”能否作为安装确认，以及 Agent 命令访问该令牌时所需的文件隔离或独立确认；新增授权机制另行裁定，本轮不实现或声称已解决（作者现行 S-81 ③ 相应限定）。
 - **FIRST-3 做完**：生成插件的停用、卸载在撤授权和删密钥之前先过 `leaveRefusal`；生成插件的平台现在接了 Home 账本（`PluginPlatformOptions.consents`）。
-- **没做**：C1 的另一个方向（BL-588）、沙箱包的作者工具与创作台出签名包（BL-589）、升级与换发布者密钥（BL-586，沙箱包就地升级现在是先卸载再装）、发布者撤销（BL-559，T5 的另一半）、界面（T7）。动作的登记按统筹 10-25 裁定走 `project-host.ts` 里平台提供方的一个列表（只收 `system`、不属于任何插件的提供方），`plugins.install.*`、`plugins.publishers.list` 与同意动作都在里面。
+- **没做**：C1 的另一个方向（BL-588）、沙箱包的作者工具与创作台出签名包（BL-589）、升级与换发布者密钥（BL-586，沙箱包就地升级现在是先卸载再装）、界面（T7，已做）。发布者撤销（BL-559）随 T5b 做完，见 §7.5。动作的登记按统筹 10-25 裁定走 `project-host.ts` 里平台提供方的一个列表（只收 `system`、不属于任何插件的提供方），`plugins.install.*`、`plugins.publishers.list` 与同意动作都在里面。
 
 #### T2 FIRST 收尾 WO（2026-10-25，FIX1）
 
@@ -414,6 +414,12 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 
 一个 PR：界面与 Goals 缺席的余项。**数据**（`e5a42d258`）：合同里 `PluginPermissionView`、`PluginJobView`、`PluginInstalledView` 与 `platformPermissionMeaning`（平台权限的说明文字只在这一处，BL-353；PG-002 的开关要用同一份，不另写）；安装预览的每一项权限带插件的理由和平台的说明，后台作业列出（BL-362）；动作 `plugins.installed.list@1`（只给本人，需要项目）。**界面**：项目设置里新增「插件」页（目录里也有），列出已装的插件与它们要的权限、作业、同意（含已撤回的），可以装签名包（先预览、再确认并给发布者起名）、撤回一项同意；走 `/projects/<id>/api/plugin-trust/*`，写入一律要控制令牌与页面来源、不读请求里的人。T3b 见 §3.4.1。BL-561、BL-353、BL-362、BL-585 做完，行已删；浏览器里的两条用例随 PR 交 CI。页面资源脚本与样式的增长写在 PR 里。
 
+### 7.5 T5b 落地（2026-10-25）
+
+发布者撤销（BL-559，RAC-391、RAC-392，S-86），叠在 T7 与 T3b 的分支上。**动作**：`plugins.publishers.revoke@1`（Home 范围、只给本人、`plugin-install:write`），处理器和同意撤回一样只收宿主设置入口的凭据（S-77），入口是 `/api/settings/plugin-publishers/revoke`；项目设置的「插件」页在“你信任的发布者”那一栏给每个未撤销的发布者一个“撤销信任”按钮，确认后调它。**账本**：`revokePublisher(key_id, at)`，只写第一次的 `revoked_at`，行不删，`pinPublisher` 再固定解不开；撤销不能撤回，要再信任同一个人要换发布者密钥（BL-586）。**停用**不做跨项目的逐个扫描，而是让每个项目自己判断：`installed-publisher-standing.ts` 按 `consentRevision` 读一次账本，已装的包的发布者没固定或已撤销就算失效——`assertInstalled`（每次副作用之前）拒，所以撤销之前开始的调用走到下一次副作用也被拒、不写业务记录；项目下一次被看（列概览、准备项目的插件）时 `reconcilePublishers` 把它们停用（`disabled`，数据保留）；启动恢复先问同一个判断，失效的不启动、写上原因；`packagedFor` 读包前先问它，不只验签；`enable` 以 `plugin.publisher_revoked` 拒；账本读不出来时谁都不信任。安装一侧本来就拒已撤销的发布者（T2，预览和确认）。
+
+没做的：撤销时不主动打开所有项目去停用（别的项目在下次被看时停，在那之前它的插件已经什么都做不了）；取回撤销（见上）。BL-559 做完，行已删。
+
 ## 8. 验收
 
 | 编号 | 内容 | 证据（测试文件待实现片定，名字里写编号） |
@@ -439,8 +445,8 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-388 | 默认连线：`unsigned`/`pinned` 声明的 `default_source` 没有同意不绑，有同意才绑；`host` 等级的行为与今天一致 | `tests/plugin-default-bindings.test.ts` 扩展 |
 | RAC-389 | 默认连线的来源签名对不上同意记录就不绑（防抢注，S-67.3） | 同上 |
 | RAC-390 | 撤回一项默认连线只解开对应的 `origin: "default"` 绑定，人手选的不动，且不再自动绑 | 同上 |
-| RAC-391 | 撤回按撤权处理：一个 `concurrent` 动作在 `beforeEffect()` 前被撤回，不写任何业务记录；处理器开始前被撤回，只留「未执行」诊断行（S-67.4） | 并入 S-18 的测试文件 |
-| RAC-392 | 撤销发布者：其所有安装停用、不能升级、数据保留 | Runtime 集成测试 |
+| RAC-391 | 撤回按撤权处理：一个 `concurrent` 动作在 `beforeEffect()` 前被撤回，不写任何业务记录；处理器开始前被撤回，只留「未执行」诊断行（S-67.4）。发布者撤销这一半：已装的它的插件的下一次副作用被拒、不写（S-86） | `tests/security-invariants-publisher-revoke.test.ts`（沙箱包的下一次写入被拒，数据不变） |
+| RAC-392 | 撤销发布者：其所有安装停用、不能升级、数据保留（S-86） | `tests/security-invariants-publisher-revoke.test.ts` 与 `tests/installed-plugin-host.test.ts` |
 | RAC-393 | 安装、同意、撤回、固定的动作只接受带 `caller.user_action` 的人；T5 的同意清单与撤回另须 §3.3 的宿主设置入口凭据；模型、MCP、工作流、插件调用被拒（S-67.1） | T5：`tests/security-invariants-consent-revoke.test.ts`、`tests/security-invariants-consent-settings.test.ts`；细项见 §3.3 |
 | RAC-394 | 非 `pinned` 标签去首尾空白/忽略大小写后不许冒充指纹；pinned Manifest 签名须等于可信 key，拒绝无记录/同意/私有数据副作用（S-75.1） | `tests/security-invariants-install-identity.test.ts` |
 | RAC-395 | 点分段嵌套拒绝且零副作用；unsigned 同/异标签都拒，仅同 pinned key/host 合法；启动重验冲突记 crashed、未登记提供方（S-75.2，BL-506） | `tests/security-invariants-install-identity.test.ts` |
@@ -465,7 +471,7 @@ BL-557～561 写在 `specs/BACKLOG.md`（T3～T7 各一行，T7 的 BL-561 与 T
 6. **提供方 id 对 `pinned` 保持 `plugin-install-<hash>`。统筹 10-24 定。** 固定了提供方的引用在重装后显式失效。
 7. **BL-506 的前缀规则落在哪几处命名空间。统筹 10-24 定：T6 开工时核。** 核完若某处是精确匹配，规则可以放宽（S-75.4 的宿主名单规则同理）。
    **T6 核完（2026-10-25）：规则保留。**按前缀敏感的是界面贡献 id：`${plugin_id}.${view_id}`，`view_id` 是插件自由写的文本，登记在宿主的一张全局表里，重复登记就冲突（`UiHost.register` 的 `contribution_conflict`），先登记的占住。`io.a.b` 带一个视图 `c` 与 `io.a.b.c` 的插件本身，拼出来的是同一个 id，所以两个发布者的 `plugin_id` 互为前缀时，先装的能把后装的挡在外面。相同的 `plugin_id`、不同发布者也有同一个问题，规则没有覆盖，记为 BL-586（要先定换签名密钥的升级怎么走）。其余命名空间核过都是精确匹配：S9-0 / S9-0b 的日志键用冒号分隔，接线的 `retained` 键用 NUL 分隔，路由按路径段。因此第二、三条不放宽；四条里没有一条因这次核对而变。
-8. **撤回的两个动作归 T5（统筹 10-25 定）。** `plugins.consents.revoke@1` 已在 T5；`plugins.publishers.revoke@1`（RAC-391、RAC-392）也算 T5 的另一半：它依赖 T2 的发布者固定，所以在 T2 之后、同一分支上补做，T2 只带 `plugins.publishers.list@1`。T5 的这一半没做完之前，一个已固定的发布者人撤不回，见 `specs/repository-anti-corruption/spec.md` §1.1 的登记。
+8. **撤回的两个动作归 T5（统筹 10-25 定）。** `plugins.consents.revoke@1` 已在 T5；`plugins.publishers.revoke@1`（RAC-391、RAC-392）也算 T5 的另一半：它依赖 T2 的发布者固定，所以在 T2 之后、同一分支上补做，T2 只带 `plugins.publishers.list@1`。T5b 已做（§7.5，S-86），`spec.md` §1.1 里「T5 未完成的一半」那一条已删。
 
 ## 11. 防腐复查
 

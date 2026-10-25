@@ -13,7 +13,7 @@ import type { PluginPackageBundle } from '@molis-ai/molis-work-contracts/platfor
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
-import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions } from '@molis-ai/molis-work-app-local-host';
+import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
@@ -792,5 +792,24 @@ test('T2-FIX-05 pinned upgrade and rollback return plugin.state_invalid without 
       assert.deepEqual(h.ledger.publishers(), pins); assert.deepEqual(await readFile(release.bundlePath), bytes);
       assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID)?.packaged?.manifest.version, '1.0.0');
     }
+  } finally { await h.close(); }
+});
+
+test('RAC-392 S-86 an installation of a publisher taken back is stopped when the project opens, cannot be enabled, is not read back from its package, and says why', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
+  try {
+    await h.confirm(bundle);
+    const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    new PluginInstallService({ ledger: h.ledger, packages: h.packages, install: async () => undefined, installed: async () => [] }).revokePublisher(publisher.identity);
+    const stopped = async () => {
+      const installed = await h.control();
+      assert.equal(installed.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'disabled', 'stopped, not left running');
+      await assert.rejects(installed.lifecycle('enable', release, {}), (error: unknown) => error instanceof ActionError && error.code === 'plugin.publisher_revoked');
+      assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID), undefined, 'a package of a publisher taken back is not read back for a run');
+      assert.match(installed.recoveryErrors.get(PACKAGE_PLUGIN_ID) ?? '', /撤销/, 'the person is told why');
+      assert.equal(h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0').pluginId, PACKAGE_PLUGIN_ID, 'the kept package and its data are not removed');
+    };
+    await stopped();
+    await h.reopen(); await stopped();
   } finally { await h.close(); }
 });

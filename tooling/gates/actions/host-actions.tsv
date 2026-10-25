@@ -178,6 +178,7 @@ plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	
 plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	da2e9ff3ba28	39cf85b6a33c	-
 plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	7d61f2cc7e95	-
 plugins.publishers.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	a19dca1e2764	-
+plugins.publishers.revoke	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	d1f041aa7b79	ef12c05bf93d	-
 projects.settings.runtime.read.v1	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.runtime.optional	9cecb8ebe607	8c923fd28c9a	-
 projects.settings.runtime.select.v1	1	platform	command	operation	project	write	-	user	projects:settings	project	-	project.runtime.optional	65d08d19afe5	8c923fd28c9a	-
 projects.workspace.files.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	9a0d0d76ae5b	a2c799262a3c	-

@@ -53,7 +53,11 @@ export async function installedPluginsInProject(source: ProjectPluginHost, proje
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
   await ensureProjectPluginActions(source, reference);
-  return await source.host.withRuntime(reference, runtime => installedPluginEntries(runtime.store.db));
+  return await source.host.withRuntime(reference, async runtime => {
+    // A publisher the person took back since this project last looked: its installations are stopped before they are listed.
+    if (source.options.homeDirectory) await (await installedPluginsOf(source, reference, runtime)).reconcilePublishers();
+    return installedPluginEntries(runtime.store.db);
+  });
 }
 
 /** The project's built-in Runtime plugins (Coding, Files, Git, ...): started once per project, their actions registered. */

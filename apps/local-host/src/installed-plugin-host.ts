@@ -2,7 +2,7 @@ import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { resolve } from 'node:path';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
-import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { openProjectVersionStores } from './project-version-stores.js';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
@@ -19,6 +19,7 @@ import { generatedPluginManifest, installedSignature, sandboxedPluginDefinition 
 import { installedVersion, releaseVersion, type InstalledRelease } from './installed-release.js';
 import { SandboxPackageStore } from './sandbox-package-store.js';
 import { HomeConsentLedger } from './home-plugin-store.js';
+import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
@@ -94,8 +95,9 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     return catalogPending;
   };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
+  const ledger = new HomeConsentLedger(homeDirectory), standing = publisherStanding(ledger);
   const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost({ drawingAs: withPluginWords }), home: null,
-    consents: new HomeConsentLedger(homeDirectory),
+    consents: ledger,
     ...openProjectVersionStores(store),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     deleteInstallationData: id => privateStorage.deleteInstallationData(id),
@@ -106,8 +108,9 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const records = () => platform.runtime.list().filter(item => (item.publisher_signature.startsWith(SIGNATURE) || item.publisher_trust === 'pinned') && item.state !== 'uninstalled');
   const recordFor = (pluginId: string) => records().find(item => item.plugin_id === pluginId);
   const packages = new SandboxPackageStore(homeDirectory), packaged = new Map<string, InstalledRelease>();
-  /** A packaged release is read back (and checked again) from the Home's package store the first time an installation asks for it. */
-  const packagedFor = (record: { plugin_id: string; publisher_signature: string; version: string }): InstalledRelease => {
+  /** A packaged release is read back (and checked again) from the Home's package store the first time an installation asks for it; a signature that checks is not enough, the publisher must still be trusted (BL-559). */
+  const packagedFor = (record: PluginInstanceRecord): InstalledRelease => {
+    if (!standing.trusted(record)) throw pluginErrors.publisher_revoked(PUBLISHER_REVOKED_MESSAGE);
     const key = JSON.stringify([record.plugin_id, record.publisher_signature, record.version]);
     let release = packaged.get(key);
     if (!release) { release = packages.load(record.plugin_id, record.publisher_signature, record.version); packaged.set(key, release); }
@@ -124,7 +127,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   let closed = false;
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
-    if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running') {
+    if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running' || !standing.trusted(record)) {
       throw new SandboxError('plugin.capability_denied', '插件的安装执行身份已失效');
     }
   };
@@ -173,7 +176,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]);
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') =>
     registerGeneratedPrompts(homeDirectory, generatedRegistration(release, release.packaged ? [release] : releases.versions(release.buildId), state, installedVersion(release)), promptScope(recordFor(release.pluginId)!.install_id));
-  const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
+  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
+  const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
       for (const [key, entry] of definitions) if (entry.pluginId === pluginId) definitions.delete(key);
@@ -196,6 +200,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   try {
     for (const record of records()) {
       try {
+        if (!standing.trusted(record)) { await stops.suspend(record); continue; }
         const release = releaseFor(record.plugin_id), approved = approvedFor(record.plugin_id);
         if (!release) throw new Error(recoveryErrors.get(record.plugin_id) ?? '找不到已安装版本 ' + record.version + ' 的发布记录');
         if (!approved) throw new Error('找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装');
@@ -210,7 +215,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */
       installPackage: (release: InstalledRelease, input: { consent: true }) => lifecycle('install', release, input),
-      refreshPublicActions: async () => { if (exposed.size) await catalog(); },
+      refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); }, reconcilePublishers: stops.reconcile,
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.startsWith(SIGNATURE) ? item.publisher_signature.slice(SIGNATURE.length) : item.publisher_signature, version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };
   } catch (error) { await close(); throw error; }

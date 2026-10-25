@@ -71,3 +71,5 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap1`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+`readProjectDeletionRecoveryPage` 是 Catalog 停写工作副本的内部只读来源口：按 deletion_id keyset 有界枚举 pending/complete，严格解码原身份、状态、连续且唯一的 owner 步骤与当前/retained 项目白名单。空步骤或 complete 与 pending 步骤矛盾拒绝；原计划 JSON 仅供 Catalog 唯一 decoder。调用方必须先核 Catalog owner/schema 并持有同一 read transaction；此口不证明删除完成或授权删除同 ID 后继。专项回归 `tests/project-deletion-recovery-inspection.test.ts`。

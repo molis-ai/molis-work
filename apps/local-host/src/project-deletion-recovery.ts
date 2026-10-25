@@ -36,10 +36,11 @@ const object = (value: unknown, keys: readonly string[]): Record<string, unknown
 const text = (value: unknown) => { if (typeof value !== "string" || !value.trim()) throw invalid(); };
 const number = (value: unknown, minimum = 1) => { if (!Number.isSafeInteger(value) || (value as number) < minimum) throw invalid(); };
 const rows = (value: unknown): unknown[] => { if (!Array.isArray(value)) throw invalid(); return value; };
-const session = (value: unknown) => { const row = object(value, ["runtime_id", "session_id"]); if (row.runtime_id !== "prologue") throw invalid(); text(row.session_id); };
+const session = (value: unknown) => { const row = object(value, ["runtime_id", "session_id"]); if (row.runtime_id !== "prologue") throw invalid(); text(row.session_id); return row.session_id as string; };
 
 /** The persisted boundary is decoded once. AgentHost still validates the original owner/decision before effects. */
 export function decodeProjectDeletionRecovery(saved: string | null, projectId: string, operationId: string): ProjectDeletionRecovery {
+  text(projectId); text(operationId);
   if (!saved) throw invalid();
   let input: unknown;
   try { input = JSON.parse(saved); } catch { throw invalid(); }
@@ -49,16 +50,20 @@ export function decodeProjectDeletionRecovery(saved: string | null, projectId: s
   if (plan.kind !== "runtime") throw invalid();
   const sessions = object(plan.sessions, ["project_id", "operation_id", "sessions"]);
   if (sessions.project_id !== projectId || sessions.operation_id !== operationId) throw invalid();
+  const sessionIds = new Set<string>();
   for (const value of rows(sessions.sessions)) {
     const item = object(value, ["session", "owner", "decision", "preview", "state", "indexed", "parent_run"]);
-    session(item.session);
+    const sessionId = session(item.session);
+    if (sessionIds.has(sessionId)) throw invalid();
+    sessionIds.add(sessionId);
     const owner = object(item.owner, ["project_id", "plugin_id", "install_id", "actor_id"]);
     for (const key of ["project_id", "plugin_id", "install_id", "actor_id"]) text(owner[key]);
     const decision = object(item.decision, ["operation_id", "expected_version", "expected_state"]);
     text(decision.operation_id); number(decision.expected_version);
     if (!["active", "archived"].includes(decision.expected_state as string)) throw invalid();
     const preview = object(item.preview, ["session", "version", "state", "runs", "resources", "destroys_key"]);
-    session(preview.session); number(preview.version); number(preview.runs, 0); number(preview.resources, 0);
+    if (session(preview.session) !== sessionId || preview.version !== decision.expected_version || preview.state !== decision.expected_state) throw invalid();
+    number(preview.version); number(preview.runs, 0); number(preview.resources, 0);
     if (!["active", "archived"].includes(preview.state as string) || typeof preview.destroys_key !== "boolean"
       || typeof item.indexed !== "boolean" || !["active", "archived", "purged"].includes(item.state as string)) throw invalid();
     if (item.parent_run !== undefined) { const parent = object(item.parent_run, ["session_id", "run_id"]); text(parent.session_id); text(parent.run_id); }

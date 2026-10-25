@@ -290,3 +290,4 @@ export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService
 export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 
 export { pluginPagesFor } from "./plugin-page-authority.js";
+export { openProjectDeletionRecoveryInspection, type ProjectDeletionRecoveryInspection, type ProjectDeletionRecoverySource } from "./project-deletion-recovery-inspection.js";

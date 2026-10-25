@@ -324,3 +324,5 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 项目删除的当前 Memory 证明沿原 hold/固定 recovery plan 传 verifyMemory 与 assertCurrent；业务清理前及最终 Catalog commit 前核验覆盖穷尽和目标空态。旧 complete 只读核验、不重写历史；旧 memory complete/absent 不免检，当前无 Runtime 且 ledger 仅 prefs 的同步空态每次提交重验。
 
 原项目删除恢复独立 prepared/purged Session 的残留记忆时，仅承认 AgentHost 实际无正文 preview/逐项 purge 的调用证明。原删除 ALS 必须仍有效，Session 在可信集合；preview 限当前 scope，delete 仅在原 clear 执行区间逐项匹配持久计划的 ref/原 version 和精确 child operation，保留 SDK 同操作墓碑再物理移除的语义。普通读取、写入、清 meta、person/ui 或项目 hold 无此许可；scope/owner 和最终 current 继续走原 Memory policy。无新持久状态、schema 或通用 bypass。直接工程回归在 `tests/project-deletion-recovery.test.ts`，覆盖两种旧 Session 状态、并发拒绝、旧 ALS 失效和实际部分清除后重启同原计划续跑。
+
+`openProjectDeletionRecoveryInspection` 只打开操作者明确提供的 T1 工作副本的既有 readonly Catalog，在同一个 BEGIN 快照中分页读取全部删除决定。默认 40、上限 100；最终当前权限/取消检查通过才推进，失败可重读原页。close 即使撤权后仍释放 snapshot/connection。它不建库、不迁移、不 checkpoint、不启动 Runtime；WAL 由 SQLite 正常读取，副本可能产生侧车。输出只含无正文身份、原计划、步骤和项目身份观察；不包含错误、显示名、路径、原 JSON。页穷尽不证明跨 owner 恢复完成，时间不授权后继删除；原件/target 隔离和停写由上层维护负责。专项回归 `tests/project-deletion-recovery-inspection.test.ts`。

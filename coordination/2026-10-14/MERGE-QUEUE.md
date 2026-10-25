@@ -467,3 +467,6 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
     - 没刷新就把原 401 交回。
   - #1254 的裁定：search、placement 关不掉时照旧不释放所有权，交 Codex 补有界超时与 S-07 的说明。
 
+- 10-25 04:45 UTC：**batch-35 全量 40159810466 红**（16 个文件）。归因：#1242 删 typed capabilities、`workspacesFor` 改必填后 Coding/Files 的 HTTP 测试没注册 projectSettings 动作（503 `actions.dependency_missing`），mcp-action-grants 还用 `host.register`，project-opened-home-fixtures 两例 RAC-463-FIXTURE-03 待定——派 ac-kernel 在 `ac-kernel/b35-announce-read` 上只改测试修；translation-check 金丝雀下限 8994 < 9000 是 W5-04 第二组搬词进稳定键的预期变化，用 Codex FIX10 `66de11787`（双过后并入，统筹的一半下限 00a638bc1 已撤回）；assistant-undo-refresh.e2e 重跑过，记 flaky。另并入 FIX3 `75d274d08`（REVIEW PASS）。batch-35 头 `06dc68aa0`（未推），修好后重推 carrier。
+- 10-25 04:45 UTC：#1257 裁定（6393559237）：`molis-<owner>-` 只给插件主人，判定用 `PAGE_STATE_OWNERS` 本表（files 全在同一插件包目录里），跨包的拒绝；平台主人只用三个平台前缀；三处文档同句，加平台主人发 owner 前缀被拦的拒绝用例。
+- 10-25 04:45 UTC：评审派单：ac-review → #1262、#1260；ac-review-2 → #1261、#1263。batch-36 待并入：#1256 FIX8 `dac0c5296`（REVIEW PASS）、#1253 增量 `7f17a75d4`。

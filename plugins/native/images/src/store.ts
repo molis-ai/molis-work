@@ -1,5 +1,5 @@
 import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
-import { clearInExistingHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { inspectExistingStoragePath, clearInExistingHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
 import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -123,8 +123,11 @@ export function purgeImagesProject(homeDirectory: string, projectId: string, con
 }
 
 function removeAssetFiles(directory: string, filenames: readonly string[], control?: ProjectDeletionControl): void {
+  const target = control ? inspectExistingStoragePath(directory, "directory") : undefined;
   for (const name of filenames) if (ASSET_FILE.test(name)) {
     control?.assertCurrent();
+    target?.assertCurrent();
+    if (control) inspectExistingStoragePath(join(directory, name), "file").assertCurrent();
     rmSync(join(directory, name), { force: true });
   }
 }

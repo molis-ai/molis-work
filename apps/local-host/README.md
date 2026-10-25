@@ -328,3 +328,5 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 `openProjectDeletionRecoveryInspection` 只打开操作者明确提供的 T1 工作副本的既有 readonly Catalog，在同一个 BEGIN 快照中分页读取全部删除决定。默认 40、上限 100；最终当前权限/取消检查通过才推进，失败可重读原页。close 即使撤权后仍释放 snapshot/connection。它不建库、不迁移、不 checkpoint、不启动 Runtime；WAL 由 SQLite 正常读取，副本可能产生侧车。输出只含无正文身份、原计划、步骤和项目身份观察；不包含错误、显示名、路径、原 JSON。页穷尽不证明跨 owner 恢复完成，时间不授权后继删除；原件/target 隔离和停写由上层维护负责。专项回归 `tests/project-deletion-recovery-inspection.test.ts`。
 
 项目文件主人清理沿 `ProjectDeletionControl` 从 Port/owner 传到声明 purge；冷维护入口负责提供已验证的同步控制。文件/SQLite 主人在实际清理、事务提交、等待后的下个副作用前检查：partition purge 后再 rm、Plugin Builder rm 后再清密钥、Assistant 停轮后再删账、Images 每次删文件前。拒绝停止后继动作，未提交 SQLite 回滚；已删文件不声称回滚。带 control 的既有库只打开并核当前结构，不初始化空库。回归：`tests/project-deletion-file-control.test.ts`，配合原 owner/declarations/Assistant/studios 用例；不代替完整冷恢复或用户验收。
+
+维护的原目标还包含物理路径：数据库/现存侧车和 rm 祖先不能被链接重定向，异步清理后按原目录身份重核。Plugin Builder 的同一 control 进入原 secret owner 的 SQLite 等锁与原子 rename，外层最终拒绝不能替代该检查。专项 `tests/project-deletion-file-boundaries.test.ts` 覆盖真实重定向和拿锁后撤权；原 Images 清单回滚重试仍由 `project-deletion-file-control` 验证。

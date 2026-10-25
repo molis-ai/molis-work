@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
@@ -16,7 +16,7 @@ import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform
 
 const denied = new Error("test authority revoked");
 function homeFor(t: TestContext) {
-  const home = mkdtempSync(join(tmpdir(), "molis-file-owner-control-"));
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "molis-file-owner-control-")));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   return home;
 }

@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
-import { memoryLedgerHasOnlyPreferences, MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { inspectExistingStoragePath, memoryLedgerHasOnlyPreferences, MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -122,9 +122,12 @@ function purgeOf(home: string, id: string, data: ProjectDataDeclaration): Projec
 function removePartition(home: string, data: ProjectDataDeclaration, store: string): ProjectDeletedOwner["clear"] {
   return async (projectId, _deletion, control) => {
     control?.assertCurrent();
+    const directory = homeSqlitePartitionDirectory(home, store, projectId);
+    const target = control ? inspectExistingStoragePath(directory, "directory") : undefined;
     await data.purge?.(home, projectId, control);
     control?.assertCurrent();
-    await rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true });
+    target?.assertCurrent();
+    await rm(directory, { recursive: true, force: true });
   };
 }
 
@@ -139,7 +142,9 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
   return [
     ...declaredProjectOwners(home),
     // Without a running Host there is no studio to close, only its directory to remove; the Host's own owner replaces this one.
-    { id: "alchemist", label: "炼金术士的研究空间", clear: (projectId, _deletion, control) => { control?.assertCurrent(); return rm(alchemistProjectDirectory(home, projectId), { recursive: true, force: true }); } },
+    { id: "alchemist", label: "炼金术士的研究空间", clear: (projectId, _deletion, control) => { control?.assertCurrent(); const directory = alchemistProjectDirectory(home, projectId);
+      if (control) inspectExistingStoragePath(directory, "directory").assertCurrent();
+      return rm(directory, { recursive: true, force: true }); } },
     pluginBuilderProjectOwner(home),
     // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.
     { id: "assistant", label: "助理在这个项目里的工作", clear: async (projectId, _deletion, control) => { await purgeAssistantProject(home, projectId, undefined, control); } },

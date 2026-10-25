@@ -2695,3 +2695,19 @@ Images 收尾修正依据：初版真实回归确认旧顺序先 COMMIT jobs 后
 本片工程结果：独立树摘入类型/hooks 合同 `715b1e6ed`（本树为 `8f111a9585b6e504490fb92e6eef5a0cd977f348`），现有文件主人控制传递和 existing-only 开库已实现。原 `pnpm build`/FIFO、专项 strict TypeScript、boundary（errors=[]）通过。README 必跑并集 161 文件按 jobs2/browser1/retries0 执行，160 通过；唯一 `verify-release-versions.test.ts` 为 21/22，发布清单仍指拆分前 `text-search-index.ts#SCHEMA_VERSION`，准确父已如此且本片未修改这些文件；统筹负责同聚合修正指针，首败保留 `/private/tmp/molis-memory-file-owner-control-readme.log`。Images 修正后再次原 build 通过，6 个相关文件 36 项通过（专项 9 项），不重复 161 批。日志 `/private/tmp/molis-memory-file-owner-control-{images-build,images-targeted,test-types,boundary,final-health}.log`。准确父 health 仅 projects/Memory 两份既有公开 API 快照待统筹生成，本片不改 gates。
 
 本结果只支持已覆盖的工程路径，不代表 MEM-40、完整冷恢复、真实 Home 或用户验收完成。新 main `64a3ccc9` 新增的 plugin-connections 数据主人尚不在本片旧基底，已由统筹确认纳入同片后续精确接线；在新基底继续，不让缺席主人被视为清理成功。Artifacts 常规原件读写已迁到 Module，但项目 purge 仍由 plugin 原 project_data 函数拥有，聚合须保留新 main 的位置与语义。
+
+
+#### 文件主人独审 P1 修正短合同（2026-10-25，基于 a7df493）
+
+两个真实反例说明单核 Home 根和外层 current 不够：Pages 库链接可删 source 行，Images assets 祖先链接可删 source 图；Plugin Builder 等待原 secrets SQLite mutex 后撤权仍会改密文。修复沿原 Storage 主人：提取现 Search 的逐祖先 lstat、普通单链接文件与 dev/ino 校验，供 existing-only SQLite 打开、拿到事务后/COMMIT 前及实际 rm 的祖先检查复用。数据库与现存 WAL/SHM/journal 分别核验；缺失与链接/类型未知分开，未知拒绝而非当空。Images 的库与 assets 独立核验，失败仍回滚 jobs 保留原清单；未选数据及 source/T0 不变。
+
+密钥仍由原 file-secret-store 删除前缀；同一窄 control 进入原锁、保存和原子 rename，在锁取得后、实际写/rename/提交前复核当前权限和原路径身份。失败释放锁/连接，不依赖已撤销权限；不生成密钥、不解密、不新建凭据库或修复结构。无 control 普通入口保留原语义。复用现 Storage 纯路径检查，不新增清理服务、目录登记、恢复 journal 或第二执行链。允许扩展原 Storage 路径/atomic-write/file-secret-store 主人及其公开窄导出、原清理调用点、相关 Contract/README/真实回归；不改 connector、冷 Memory 或门禁。
+
+验收在隔离 canonical Home 经公开 file owner：数据库/侧车/祖先链接拒绝且源字节不变；Images assets 重定向时 jobs 与图片保持，换回原路径后正常重试；真实双进程 secrets mutex 中撤权时选中与未选密文均保持，重新授权仅删原前缀；保存到 rename 之间撤权也保留原 vault。原 Images 撤权与 IO 恢复正例继续通过。首个独审错误日志与新增正确期望在旧构建上的红测保留，再正式 FIFO build 和必要影响面验证。
+
+
+P1 修正验证（2026-10-25）：新增公开包回归在旧构建上 12 项中 10 项失败，覆盖库/祖先/硬链接、Images 文件祖先、目录主人、secret mutex 与 rename 撤权；首败保留 `/private/tmp/molis-memory-file-owner-boundaries-before.log`。修复后新增 13 项、原 file-control 9 项、Search 30 项通过，Storage/Images/owner 与 Artifacts 相关 32 文件 219 项通过，合计 35 文件 271 项；首次影响面命令误点了不存在的 `artifact-original-files.test.ts`，随后按 Artifacts README 的 13 份实际文件补齐，未跳过实际用例。交接后固定 Node 24.14.0 离线 frozen 安装、原整体 build 通过，三份专项 52 项再次通过（jobs1、无重试），专项 strict TypeScript 通过。
+
+准确父 `a7df493113cf2bb9e193c5a6dbdec722671ff7e0` 与原实现基线 `8f111a9585b6e504490fb92e6eef5a0cd977f348` 的 health 均只报 projects/Memory 两份既有公开 API 快照待统筹聚合，没有新增结构或复杂度失败；本片不修改门禁算法、阈值、快照或豁免。Artifacts 的 Storage 实际依赖经统筹授权同步 package.json、lock、workspace 包登记和 README，专用于复用路径检查。本结果仍仅为隔离真实 SQLite/文件/双进程锁的工程证据，不代表完整 MEM-40 恢复、真实 Home、App 产品实操或用户验收完成。后续新 main 的 plugin-connections 接线仍由统筹在新基底处理。
+
+依赖登记同步后的最终 `pnpm build` 由原机器 FIFO 完成，`pnpm boundary:check` 返回 errors=[]；`git diff --check` 通过。最终日志 `/private/tmp/molis-memory-file-owner-finish-{build-final,boundary-final,direct,types,health-parent,health-original}.log`，前两轮被权限限制或中断的命令不计为通过。

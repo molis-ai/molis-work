@@ -1,3 +1,4 @@
+import { inspectExistingStoragePath } from "@molis-ai/molis-work-storage";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream, type ReadStream } from "node:fs";
 import { mkdir, open, rename, rm } from "node:fs/promises";
@@ -67,7 +68,9 @@ export async function openArtifactOriginal(home: string, projectId: string, orig
 /** The project is deleted: its stored originals go. Idempotent; works on the files, so any process on the Home can run it. */
 export async function purgeArtifactOriginals(home: string, projectId: string, control?: ProjectDeletionControl): Promise<void> {
   control?.assertCurrent();
-  await rm(projectDirectory(home, projectId), { recursive: true, force: true });
+  const directory = projectDirectory(home, projectId);
+  if (control) inspectExistingStoragePath(directory, "directory").assertCurrent();
+  await rm(directory, { recursive: true, force: true });
 }
 
 /** What this package keeps in the Home for a project and how the project's deletion clears it; the Host reads it from the catalog. */

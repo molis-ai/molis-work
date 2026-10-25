@@ -1,3 +1,4 @@
+import { inspectExistingSqlitePath } from "./storage-maintenance-path.js";
 import { isDeepStrictEqual } from "node:util";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
@@ -62,9 +63,12 @@ export function openBaselineHomeSqlite(homeDirectory: string, storeName: string,
 
 /** Existing-only maintenance open: validates the complete current schema without initialization or permission changes. */
 export function openExistingBaselineSqlite(filename: string, baseline: SqliteBaseline): DatabaseSync {
+  const target = inspectExistingSqlitePath(filename);
+  if (!target.exists) throw Object.assign(new Error("维护目标库不存在"), { code: "storage.maintenance_path" });
   const uri = pathToFileURL(filename); uri.searchParams.set("mode", "rw");
   const db = new DatabaseSync(uri.href);
   try {
+    target.assertCurrent();
     const found = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
     if (found !== baseline.version) throw new SqliteSchemaVersionError(filename, found, baseline.version);
     const reference = new DatabaseSync(":memory:");
@@ -74,6 +78,7 @@ export function openExistingBaselineSqlite(filename: string, baseline: SqliteBas
         || !isDeepStrictEqual(listSqliteObjects(db), listSqliteObjects(reference)))
         throw Object.assign(new Error("现有库的结构不符合当前基线，未执行清理"), { code: "storage.schema_structure_mismatch" });
     } finally { reference.close(); }
+    target.assertCurrent();
     return db;
   } catch (error) { db.close(); throw error; }
 }
@@ -161,17 +166,18 @@ export function describeSqliteBaseline(baseline: SqliteBaseline): SqliteSchemaSh
 export function clearInExistingHomeSqlite<T>(homeDirectory: string, storeName: string, baseline: SqliteBaseline,
   clear: (db: ReturnType<typeof openBaselineHomeSqlite>) => T, control?: { assertCurrent(): void }): T | undefined {
   control?.assertCurrent();
-  if (!existsSync(homeSqlitePath(homeDirectory, storeName))) return undefined;
+  const target = control ? inspectExistingSqlitePath(homeSqlitePath(homeDirectory, storeName)) : undefined;
+  if (target ? !target.exists : !existsSync(homeSqlitePath(homeDirectory, storeName))) return undefined;
   const db = control ? openExistingBaselineSqlite(homeSqlitePath(homeDirectory, storeName), baseline)
     : openBaselineHomeSqlite(homeDirectory, storeName, baseline);
   try {
     db.exec("PRAGMA busy_timeout = 5000;");
-    control?.assertCurrent();
+    control?.assertCurrent(); target?.assertCurrent();
     db.exec("BEGIN IMMEDIATE");
     try {
-      control?.assertCurrent();
+      control?.assertCurrent(); target?.assertCurrent();
       const result = clear(db);
-      control?.assertCurrent();
+      control?.assertCurrent(); target?.assertCurrent();
       db.exec("COMMIT");
       return result;
     } catch (error) { db.exec("ROLLBACK"); throw error; }

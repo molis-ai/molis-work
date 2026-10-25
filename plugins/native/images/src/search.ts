@@ -1,5 +1,5 @@
 import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { IMAGES_PROJECT_PLUGIN_ID, type ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import { IMAGES_PROJECT_PLUGIN_ID, type ImageJob } from "./contract.js";
 import { imagesErrors } from "./error.js";
 import type { ImagesService } from "./service.js";
 

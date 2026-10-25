@@ -313,9 +313,10 @@
     },
     "storage": {
       "paths": [
-        "packages/storage/src/adapters/file-secret-store.ts"
+        "packages/storage/src/adapters/file-secret-store.ts",
+        "packages/storage/src/adapters/storage-owner.ts"
       ],
-      "reason": "The platform SecretStore owns sealed-vault snapshot format, existing-master dependency and integrity refusals; its new typed codes start with storage."
+      "reason": "Platform storage owns sealed-vault integrity and the shared filesystem storage owner's exclusive lease and capability refusals."
     },
     "ui_host": {
       "paths": [

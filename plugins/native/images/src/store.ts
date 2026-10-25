@@ -1,5 +1,5 @@
 import { clearInExistingHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
+import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "./contract.js";
 import { DatabaseSync } from "node:sqlite";
 import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { rmSync } from "node:fs";

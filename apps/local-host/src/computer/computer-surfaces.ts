@@ -9,6 +9,7 @@ import { HelperConnection } from "./helper-connection.js";
 import { handleComputerHttp } from "./computer-http.js";
 import { attachMolisWorkComputerSocket } from "./computer-socket.js";
 import type { PeriodicTasks } from "../periodic-tasks.js";
+import { hostLog } from "../host-log.js";
 
 /**
  * What the Agent Host may attach from the person's Mac (specs/computer-use): the one desktop desk, offered only when the
@@ -78,16 +79,21 @@ export function installComputerDesk(localHost: object, homeDirectory: string, pe
   // Screenshots in records hold screen content: cleared after the retention period, swept hourly.
   // A failed sweep is recorded and retried the next hour.
   const stopSweep = periodic.every({ id: "computer.records", title: "清理过期的桌面截图", owner: "local-host", intervalMs: 60 * 60 * 1000, run: () => records.sweep() });
-  const dispose = () => { unregisterSurfaces(); unregisterHolder(); stopSweep(); desk.close(); void helper.close(); };
+  let closing: Promise<void> | undefined;
+  const dispose = () => closing ??= (async () => { unregisterSurfaces(); unregisterHolder(); stopSweep(); desk.close(); await helper.close(); })()
+    .catch(error => { closing = undefined; throw error; });
   return {
     desk,
+    close: dispose,
     handleHttp: (request, response, url) => handleComputerHttp(request, response, url, { settings, helper, desk, records }),
-    attach: (server, controlToken) => { attachMolisWorkComputerSocket(server, controlToken, () => desk); server.once("close", dispose); },
+    attach: (server, controlToken) => { attachMolisWorkComputerSocket(server, controlToken, () => desk);
+      server.once("close", () => { void dispose().catch(error => hostLog.warn("computer", "shutdown_failed", error)); }); },
   };
 }
 
-interface InstalledComputerDesk {
+export interface InstalledComputerDesk {
   readonly desk: ComputerDesk;
+  close(): Promise<void>;
   handleHttp(request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse, url: URL): Promise<boolean>;
   attach(server: import("node:http").Server, controlToken: string): void;
 }

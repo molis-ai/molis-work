@@ -60,6 +60,9 @@ export const goalsManifest: PluginManifest = {
   name: "Goals",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
+  // 常开插件 (specs/repository-anti-corruption/slices/ac-trust-install.md §3.4): on in every project, and removable only after the person
+  // takes the mark back. The Host reads the agreement from the consent ledger, not from this list.
+  always_on: true,
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     ...actionPermissionDeclarations([...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS], "按调用者授权读取、推进和决定项目目标"),

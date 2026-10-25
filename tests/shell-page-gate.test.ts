@@ -144,6 +144,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/document-shell.ts": "the workbench document itself",
   "apps/workbench/src/shell-page-renderer.ts": "the workbench",
   "apps/workbench/src/home-plugin-page.ts": "Home workbench: Host document and UI lifetime, Runtime plugin content only",
+  "apps/workbench/src/plugin-store-unavailable.ts": "Host static recovery document for an unreadable Home ledger; no plugin content or client (ac-trust-install §7.3, RAC-404)",
   "apps/workbench/src/side-view-document.ts": "宿主排版的侧栏文档",
   "apps/local-host/src/web-project-platform-routes.ts": "宿主排版的侧栏文档：插件不在时侧栏框里的一句说明",
   "apps/workbench/src/arrival/shell.ts": "进入页",

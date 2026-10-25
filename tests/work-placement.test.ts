@@ -264,7 +264,7 @@ test("LOGIC-06 when the note cannot move back, a later lookup finds the place th
   assert.deepEqual(f.service.locate(old), { object: { kind: "note", id: "n1", project_id: "q4" }, moved: true });
 });
 
-test("copying makes an independent object that remembers where it came from; converting records its source both ways", async () => {
+test("RAC-129-PLACEMENT: copying makes an independent object that remembers its source; converting records it both ways", async () => {
   const f = fixture();
   f.notes.set("n1", { id: "n1", project: "q4", title: "访谈提纲", body: "问题一\n问题二", version: 1 });
   const source = { kind: "note", id: "n1", project_id: "q4" };

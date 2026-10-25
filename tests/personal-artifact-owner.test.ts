@@ -9,7 +9,8 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { artifactsActions, artifactsManifest, createArtifactActionHandlers, importArtifactDocument } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions, createArtifactActionHandlers, importArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
+import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
 import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores, type ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 

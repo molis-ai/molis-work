@@ -16,6 +16,7 @@ export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
+export * from "./plugin-attention.js";
 export type { PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration } from "./plugin-scheduler.js";
 export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";
@@ -138,7 +139,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };
@@ -187,7 +188,7 @@ export interface PluginExecutor {
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /** The installation is uninstalled and its row saved: remove what the Host kept for it (PG-051 Q1 b). Must be idempotent: uninstall retries call this again, including after a cleanup failure or a completed uninstall. */
   uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
-  /** A confirmed install dropped the private data an earlier uninstall kept (`discard_kept_data`), and its row is saved: what the Host kept beside that data goes too. `record` is the uninstalled row it replaced. */
+  /** Synchronous, idempotent Host cleanup of the earlier uninstalled `record`. With `retain_private_data: false`, before a reinstall registers code or saves a new row: remove its owner files, then private KV; a throw refuses the reinstall. With retained data and explicit `discard_kept_data`, called after the replacement row is saved as before; the Host's existing kept-data handling remains responsible for private KV. */
   keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 

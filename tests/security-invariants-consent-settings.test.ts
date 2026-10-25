@@ -15,7 +15,7 @@ const SETTINGS = "/api/settings/plugin-consents/";
 type Host = Awaited<ReturnType<typeof serveHomeRuntime>>;
 const settings = (f: Host, action: "list" | "revoke", body: unknown) => f.request(SETTINGS + action, { method: "POST", body });
 
-test("RAC-385-SETTINGS S-79 the real Host settings entry lists, revokes and preserves the first revocation timestamp", async t => {
+test("RAC-385-SETTINGS S-77 the real Host settings entry lists, revokes and preserves the first revocation timestamp", async t => {
   const f = await serveHomeRuntime(t);
   await f.host.homePlugins!.ready();
   const ledger = new HomeConsentLedger(f.home), original = ledger.consents(GOALS);
@@ -66,7 +66,7 @@ function consentProbe() {
   return { id, definition, seen, permissions };
 }
 
-test("RAC-393-PAGE RAC-393-DELEGATE S-79 a real plugin page with user_action and an actions:delegate action cannot list or revoke", async t => {
+test("RAC-393-PAGE RAC-393-DELEGATE S-77 a real plugin page with user_action and an actions:delegate action cannot list or revoke", async t => {
   const probe = consentProbe(), f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   const platform = await f.host.homePlugins!.ready(), install = f.host.homePlugins!.installation(probe.id)!;
   assert.equal(install.state, "running");
@@ -95,7 +95,7 @@ test("RAC-393-PAGE RAC-393-DELEGATE S-79 a real plugin page with user_action and
   assert.equal(legitimate.status, 200, "the Host settings entry still succeeds after refusing the plugin");
 });
 
-test("RAC-390-LIVE S-79 a running Host reconciles a revoked default on the next project request and never rebinds it", async t => {
+test("RAC-390-LIVE S-77 a running Host reconciles a revoked default on the next project request and never rebinds it", async t => {
   const id = "io.molis.work.example.consentreader", signature = "consent-reader", source = { plugin_id: "io.molis.work.files", port: "before" };
   const reader: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "Consent reader", kind: "app",
     publisher: { publisher_id: "example", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],

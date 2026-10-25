@@ -9,7 +9,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsentLedger, alwaysOnAgreed, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "@molis-ai/molis-work-app-local-host";
 
-// S-79 (ac-trust T5): an agreement is taken back by the person and only the person. Revoking writes `revoked_at` once and nothing else
+// S-77 (ac-trust T5): an agreement is taken back by the person and only the person. Revoking writes `revoked_at` once and nothing else
 // is rewritten; the host's own build does not agree again afterwards; what stood on the agreement (the 常开 list) stops at once.
 
 const GOALS = "io.molis.work.goals";
@@ -43,10 +43,10 @@ function hostDoesNotAgreeAgain(ledger: PluginConsentLedger): void {
   assert.equal(alwaysOnAgreed(ledger, GOALS, SIGNATURE), true, "agreeing again is the person's own act");
 }
 
-test("RAC-385 S-79 the memory ledger: revoking writes revoked_at once, answers the row, and an unknown id answers nothing", () => revokesOnce(memory()));
-test("RAC-385 S-79 the sqlite ledger: revoking writes revoked_at once, answers the row, and an unknown id answers nothing", () => revokesOnce(sqlite()));
-test("RAC-385 S-79 the memory ledger: the host's build does not agree again once a person took the agreement back", () => hostDoesNotAgreeAgain(memory()));
-test("RAC-385 S-79 the sqlite ledger: the host's build does not agree again once a person took the agreement back", () => hostDoesNotAgreeAgain(sqlite()));
+test("RAC-385 S-77 the memory ledger: revoking writes revoked_at once, answers the row, and an unknown id answers nothing", () => revokesOnce(memory()));
+test("RAC-385 S-77 the sqlite ledger: revoking writes revoked_at once, answers the row, and an unknown id answers nothing", () => revokesOnce(sqlite()));
+test("RAC-385 S-77 the memory ledger: the host's build does not agree again once a person took the agreement back", () => hostDoesNotAgreeAgain(memory()));
+test("RAC-385 S-77 the sqlite ledger: the host's build does not agree again once a person took the agreement back", () => hostDoesNotAgreeAgain(sqlite()));
 
 function service(ledger: PluginConsentLedger) {
   const actions = new ActionService();
@@ -64,7 +64,7 @@ class ObservedLedger extends MemoryPluginConsentLedger {
   override revoke(id: string, at: string) { this.writes += 1; return super.revoke(id, at); }
 }
 
-test("RAC-393-ENTRY RAC-393-LIST S-79 both actions refuse non-user audiences and fabricated settings provenance before touching the ledger", async () => {
+test("RAC-393-ENTRY RAC-393-LIST S-77 both actions refuse non-user audiences and fabricated settings provenance before touching the ledger", async () => {
   const ledger = new ObservedLedger();
   const row = record(ledger);
   const { actions, caller, revoke } = service(ledger);
@@ -86,7 +86,7 @@ test("RAC-393-ENTRY RAC-393-LIST S-79 both actions refuse non-user audiences and
   assert.deepEqual(ledger.consents(GOALS), [row], "every rejection preserves the original ledger");
 });
 
-test("RAC-385 S-79 the Host agrees to Goals' 常开 once at startup, and a person's revocation stands across the next start", async () => {
+test("RAC-385 S-77 the Host agrees to Goals' 常开 once at startup, and a person's revocation stands across the next start", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-consent-startup-"));
   const start = async () => { const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); await host.homePlugins!.ready(); await host.homePlugins!.close(); await host.close(); };
   const goalsAgreements = () => new HomeConsentLedger(home).consents(GOALS).filter(row => row.kind === "always_on");

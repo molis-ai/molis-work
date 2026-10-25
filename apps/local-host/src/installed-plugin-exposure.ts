@@ -1,9 +1,8 @@
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { AgentRelease } from './installed-plugin-host.js';
 import type { PluginPlatform } from './plugin-platform.js';
 import { exposeInstalledPlugin, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
-import { releaseVersion } from './plugin-builder/installed.js';
+import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { pluginPagesFor } from './plugin-page-authority.js';
 
 interface ExposurePorts {
@@ -16,9 +15,9 @@ interface ExposurePorts {
 
 /** A stale catalog response belongs to its original exposure and enablement, not the plugin id's newest instance. */
 export function installedPluginExposure(c: ExposurePorts) {
-  return async (release: AgentRelease, onFailure?: 'caller') => {
+  return async (release: InstalledRelease, onFailure?: 'caller') => {
     const pluginId = release.pluginId, record = c.recordFor(pluginId), epoch = c.platform.supervisor.generation(pluginId);
-    if (c.closed() || !record || epoch === undefined || record.state !== 'running' || record.version !== releaseVersion(release.version)) throw new Error('原插件安装或启用状态已变化，不能采用旧曝光结果');
+    if (c.closed() || !record || epoch === undefined || record.state !== 'running' || record.version !== installedVersion(release)) throw new Error('原插件安装或启用状态已变化，不能采用旧曝光结果');
     c.withdraw(pluginId);
     let exposure: InstalledPluginActions | undefined;
     const current = () => {

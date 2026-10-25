@@ -1,5 +1,6 @@
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { projectRouteControl } from "./plugin-actions-client.js";
@@ -18,6 +19,8 @@ import { sendLocalWebJson } from "./web-http.js";
 export interface ProjectPluginHttpPorts extends ProjectPluginPorts {
   /** Who is calling through the page, for routes that forward to actions; without it a route runs under its plain controls. */
   routeCaller?(): Promise<ActionCallContext>;
+  /** The folders linked to the project now, read once per platform for the folder its opening announcement names; without it, none. */
+  workspacesFor?(): Promise<readonly ProjectWorkspaceRef[]>;
 }
 
 /** How many plugin deliveries wait on the person in this project; the market resolves them (the page's attention read). */

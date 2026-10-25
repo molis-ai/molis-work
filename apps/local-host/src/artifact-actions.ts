@@ -2,7 +2,7 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistrati
 import { logPreviewFailure } from "./host-log.js";
 import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
+import { artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { readProjectReference } from "./project-file-reference.js";
 import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isArtifactCompareAction, isArtifactContinueAction, isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
-import { BUILTIN_PLUGIN_CATALOG, HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes } from "@molis-ai/molis-work-app-local-host";
 
 /** Who declares 成果 types: the built-in Manifests, and the Host's own producers (Characters since CHR-1). */
 const PRODUCERS = [...BUILTIN_PLUGIN_CATALOG.map(entry => ({ plugin_id: entry.manifest.plugin_id, produces: entry.manifest.artifacts.produces, actions: entry.manifest.actions ?? [] })),

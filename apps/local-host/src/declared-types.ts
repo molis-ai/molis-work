@@ -1,4 +1,4 @@
-import { HOST_ARTIFACT_PRODUCERS } from "@molis-ai/molis-work-app-workbench";
+import { HOST_ARTIFACT_PRODUCERS } from "./artifact-type-registry.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 

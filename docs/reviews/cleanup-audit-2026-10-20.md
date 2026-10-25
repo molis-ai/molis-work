@@ -490,10 +490,10 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 | 导出 | 文件 | 值/类型 |
 | --- | --- | --- |
-| `sameTypeDefinition` | [`modules/goals/src/event-facts-validation.ts`](../../modules/goals/src/event-facts-validation.ts) | 值 |
-| `resolveDecisionEffects` | [`modules/goals/src/event-state-authorization.ts`](../../modules/goals/src/event-state-authorization.ts) | 值 |
-| `decisionCoversScope` | [`modules/goals/src/event-state-authorization.ts`](../../modules/goals/src/event-state-authorization.ts) | 值 |
-| `contractInputFromGoal` | [`modules/goals/src/goal-contract-records.ts`](../../modules/goals/src/goal-contract-records.ts) | 值 |
+| `sameTypeDefinition` | [`modules/goals/src/event-facts-validation.ts`](../../plugins/native/goals/src/module/event-facts-validation.ts) | 值 |
+| `resolveDecisionEffects` | [`modules/goals/src/event-state-authorization.ts`](../../plugins/native/goals/src/module/event-state-authorization.ts) | 值 |
+| `decisionCoversScope` | [`modules/goals/src/event-state-authorization.ts`](../../plugins/native/goals/src/module/event-state-authorization.ts) | 值 |
+| `contractInputFromGoal` | [`modules/goals/src/goal-contract-records.ts`](../../plugins/native/goals/src/module/goal-contract-records.ts) | 值 |
 
 **apps/workbench**（3）
 

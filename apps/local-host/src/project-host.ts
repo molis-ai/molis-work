@@ -10,11 +10,8 @@ import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./conne
 import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
-import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
-import { PersonalPlanningActions } from "./personal-planning-actions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
-import { goalsActionProvider } from "./goals-actions.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { charactersActionProvider } from "./characters-host.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
@@ -40,7 +37,6 @@ import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
 import { releaseProjectPlugins } from "./project-plugins.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActionProvider } from "./inbox-actions.js";
@@ -67,7 +63,6 @@ export interface MolisWorkProjectRuntime extends ProjectVersionStores {
 }
 
 export interface MolisWorkLocalHostOptions {
-  planningMethods?: () => readonly PlanningMethodPack[];
   clock?: () => Date;
   instanceId?: string;
   homeDirectory?: string;
@@ -118,7 +113,6 @@ export function molisWorkHostProjectReference(input: {
  */
 export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
-  private personalPlanning?: PersonalPlanningActions;
   private personalPlanningHome?: string;
   /** Tools of remote MCP connections in 服务连接, as Home actions; absent without a Home. */
   readonly connectorMcp?: ConnectorMcpDirectory;
@@ -155,9 +149,8 @@ export class MolisWorkLocalHost {
         open: async (reference) => {
           options.onRuntimeOpen?.(reference);
           const store = new LocalProjectDatabase(reference.storage_key);
-          const personalMethods = options.planningMethods ?? (() => this.personalPlanningHome ? readPersonalPlanningMethodPacks(this.personalPlanningHome) : []);
           const clock = options.clock ?? (() => new Date());
-          const coordinator = new GoalProjectApplication(store, clock, personalMethods);
+          const coordinator = new GoalProjectApplication(store, clock);
           const runtime: MolisWorkProjectRuntime = { store, coordinator, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
             const scenes = this.sceneClient(reference);
@@ -165,7 +158,6 @@ export class MolisWorkLocalHost {
             const feed = createLocalFeedApplication(store.db, eventFeed);
             bindPluginNotificationFeed(store.db, control => workflowEventsFeedOptions(scenes, reference.project_id, control));
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
-            add(goalsActionProvider(runtime, personalMethods, this.actionClient(reference)));
             add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
@@ -193,8 +185,6 @@ export class MolisWorkLocalHost {
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), entries: BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, manifest: entry.manifest,
         ...(entry.project_data ? { project_data: { owner_id: entry.project_plugin_id, declaration: entry.project_data } } : {}),
       }] : []), fixtures: options.pluginFixtures?.home });
-    if (this.personalPlanningHome) this.personalPlanning = new PersonalPlanningActions(this.personalPlanningHome, this.host.actionRegistry(),
-      () => readPersonalPlanningMethodPacks(this.personalPlanningHome!));
     if (options.homeDirectory) {
       this.alchemist = new AlchemistHostService(options.homeDirectory, options.alchemist);
       this.host.actionRegistry().registerProvider(this.alchemist.provider());
@@ -267,8 +257,6 @@ export class MolisWorkLocalHost {
     const canonicalHome = path.resolve(home);
     if (this.personalPlanningHome && this.personalPlanningHome !== canonicalHome) throw new ActionError("actions.scope_mismatch", "不能把个人规划服务绑定到其他 Home");
     this.personalPlanningHome = canonicalHome;
-    this.personalPlanning ??= new PersonalPlanningActions(canonicalHome, this.host.actionRegistry(), () => readPersonalPlanningMethodPacks(canonicalHome));
-    this.personalPlanning.configure(withCatalog);
     this.catalogRunner = withCatalog;
     bindPluginCatalog(this, canonicalHome, withCatalog);
   }

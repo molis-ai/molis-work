@@ -19,7 +19,7 @@ export type GoalsContextUiModel = { primitives: GoalsContextUiPrimitives } & (
 export const GOALS_CONTEXT_UI_SURFACES = { renderAcceptanceSummary: "acceptance-summary", renderChildProgress: "child-progress", renderContractCoverage: "contract-coverage" } as const satisfies Record<keyof GoalsContextRenderer, GoalsContextUiModel["kind"]>;
 export const goalsContextUiContribution: UiContribution<GoalsContextUiModel> = {
   descriptor: {
-    contribution_id: GOALS_CONTEXT_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal context",
+    contribution_id: GOALS_CONTEXT_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.goals", kind: "embedded", label: "Goal context",
     surfaces: Object.values(GOALS_CONTEXT_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
   },
   render({ surface, model }) {

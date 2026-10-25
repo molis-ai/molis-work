@@ -52,7 +52,6 @@ export { type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisW
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
-export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 
 
 export { LocalProjectDatabase } from "./project-database.js";

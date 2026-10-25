@@ -1,3 +1,4 @@
+import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -85,8 +86,9 @@ export function createGoalsPlugin(): PluginDefinition {
 
     const loadPersonal = async () => (await actions.invokeQuery<Record<string, never>, { methods: PlanningMethodPack[] }>(READ_PERSONAL_METHODS, {})).methods
       .filter(method => method.scope === "personal");
+    let ready: Promise<void> = Promise.resolve();
     const windowed = (binding: ActionHandlerBinding): ActionHandlerBinding => {
-      if (SELF_WINDOWED.has(binding.capability_id)) return binding;
+      if (SELF_WINDOWED.has(binding.capability_id)) return { ...binding, handle: async (caller, input) => { await ready; return binding.handle(caller, input); } };
       const definition = goalsManifest.actions!.find(entry => entry.capability_id === binding.capability_id && entry.version === binding.version);
       if (!definition) throw new ActionError("actions.unredeemed", `${binding.capability_id} 不在 Goals 的 Manifest 里`);
       const run = definition.operation === "command"
@@ -94,12 +96,15 @@ export function createGoalsPlugin(): PluginDefinition {
           window.write(caller, () => personal.within(packs, () => binding.handle(caller, input)))
         : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0]) =>
           window.read(() => personal.within(packs, () => binding.handle(caller, input)));
-      return { ...binding, handle: (caller, input) => personal.run(loadPersonal, packs => run(caller, input, packs)) };
+      return { ...binding, handle: async (caller, input) => { await ready; return personal.run(loadPersonal, packs => run(caller, input, packs)); } };
     };
 
     // What drifted while the project was closed catches up once: the board of a library the platform made with its root row alone,
     // and the decision reminders. It runs as the installation's own job, the one place a write outside an action may reach Attention.
-    background.keep(GOALS_CATCH_UP_JOB, async control => {
+    // A call waits for the catch-up to end (it ends in one transaction), so the first call of a new project meets its board.
+    ready = background.keep(GOALS_CATCH_UP_JOB, async control => {
+      // Nothing is written inside activation: the Runtime registers the contribution and marks the installation running first.
+      await setTimeout(0, undefined, { signal: control.signal });
       try {
         await database.transaction(() => control.beforeEffect(), transaction => sqlite.write(transaction, () => {
           if (!goals.query.getBoard(projectId)) goals.commands.initializeBoard({ project_id: projectId, actor_id: context.actor_id ?? "", idempotency_key: `project-catalog-create-${projectId}` });
@@ -110,7 +115,7 @@ export function createGoalsPlugin(): PluginDefinition {
         control.assert_authority_current();
         problem = error instanceof Error ? error.message : "Goals 的开板与提醒补齐失败";
       }
-    });
+    }).done.then(() => undefined, () => undefined);
 
     return { kind: "app", views: [goalsTreeUiContribution, goalsSettingsUiContribution],
       actions: handlers.map(windowed),

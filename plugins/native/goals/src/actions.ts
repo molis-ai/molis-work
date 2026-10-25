@@ -93,7 +93,8 @@ export const goalsActions = {
 } as const;
 
 export const GOALS_ACTIONS: readonly ActionDefinition[] = Object.values(goalsActions);
-export const GOALS_ACTION_PERMISSIONS = ["goals:read", "goals:write", "goals:decide"] as const;
+/** What the person on this machine holds for Goals: the Goal permissions, and the service permissions its tree, link and deliverable actions declare (`usingServices`). */
+export const GOALS_ACTION_PERMISSIONS = ["goals:read", "goals:write", "goals:decide", "attention:write", "context-ledger:write", "artifacts:read"] as const;
 
 /** The plugin keeps its original transaction, event history and idempotency owner. */
 export function createGoalsActionHandlers({ events, acknowledgements, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables }: {

@@ -1,6 +1,7 @@
 import { createSchedulePlugin } from "@molis-ai/molis-work-plugin-schedule";
 import { scheduleServiceFor } from "./project-clock.js";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
+import { createGoalsPlugin } from "@molis-ai/molis-work-plugin-goals";
 import type { ProjectVersionStores } from "./project-version-stores.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
@@ -181,6 +182,12 @@ function projectPluginEntries(ports: ProjectPluginPorts): PluginPlatformEntry[] 
       bundled: true,
       releaseArtifact: nativePluginReleaseArtifact<typeof createShelfPlugin>(
         "@molis-ai/molis-work-plugin-shelf", "createShelfPlugin", factory => factory()),
+    },
+    {
+      definition: createGoalsPlugin(),
+      bundled: true,
+      releaseArtifact: nativePluginReleaseArtifact<typeof createGoalsPlugin>(
+        "@molis-ai/molis-work-plugin-goals", "createGoalsPlugin", factory => factory()),
     },
     ...ports.homeDirectory ? homeLibraryPlugins() : [],
     {

@@ -25,7 +25,7 @@ export type GoalsPlanningUiModel = {
 export const GOALS_PLANNING_UI_SURFACES = { renderLibrary: "library", renderMethod: "method", renderProject: "project" } as const satisfies Record<keyof GoalsPlanningRenderer, GoalsPlanningUiModel["kind"]>;
 export const goalsPlanningUiContribution: UiContribution<GoalsPlanningUiModel> = {
     descriptor: {
-        contribution_id: GOALS_PLANNING_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Planning methods",
+        contribution_id: GOALS_PLANNING_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.goals", kind: "embedded", label: "Planning methods",
         surfaces: Object.values(GOALS_PLANNING_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
     },
     render({ surface, model }) {

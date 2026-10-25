@@ -1,43 +1,11 @@
-import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
-import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { ActionError, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { MolisWorkProjectRuntime } from "./project-host.js";
-import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
-import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-plugin-goals/module";
-import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import type { PlanningMethodPack, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 
 /** Permissions of the owners' pin actions: the local person handing in a deliverable pins with each owner's own permissions (A5). */
 const pinPermissions = () => [...new Set([...artifactTypeDeclarations().values()].flatMap(declaration => declaration.pin?.action.permissions ?? []))];
-
-/** Goals' assembly for one opened project; 2026-10-18 改: S9 turns this into the plugin's own start(). */
-export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMethods: () => readonly PlanningMethodPack[], client: ActionClient): ActionProviderRegistration {
-  // A refused Goals stops alone (PLIB-14): the catch-up would read the tables the platform refused, so it waits until they are put right.
-  if (!projectPluginDatabaseRefusal(runtime.store.db, GOALS_PLUGIN_ID)) runtime.coordinator.projectOpened(runtime.project_id);
-  return { provider: { provider_id: goalsManifest.plugin_id, plugin_id: goalsManifest.plugin_id,
-    title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
-    definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, acknowledgements: runtime.coordinator.goalAcknowledgements, projectId: runtime.project_id,
-      board: { initializeBoard: input => runtime.coordinator.initializeBoard(input) },
-      collection: { snapshot: projectId => runtime.store.snapshot(projectId), events: projectId => runtime.store.readEventsDescending(projectId),
-        goals: runtime.coordinator.goalQueries, inputs: runtime.coordinator.goalInputs, eventWork: runtime.coordinator.goalEvents },
-      readGoal: goalId => runtime.coordinator.goalQueries.getGoal(runtime.project_id, goalId),
-      readContract: goalId => runtime.coordinator.goalQueries.readGoalContract(runtime.project_id, goalId),
-      deliverables: { readArtifact: reference => runtime.artifacts.query.getArtifactVersion(runtime.project_id, reference),
-        ledger: createContextLedger(runtime.store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.project_id }),
-        pin: async (caller, subject) => (await pinActionSubject(client, caller, subject)).artifact, pinnableKinds: caller => pinnableSubjectKinds(client, caller) },
-      history: {
-      snapshot: () => runtime.store.snapshot(runtime.project_id), journalEvents: () => runtime.store.readEventsDescending(runtime.project_id),
-    }, planning: { planning: runtime.coordinator.goals.planning, baseMethods: () => resolvePlanningMethodPacks(personalMethods()) },
-    guidance: { commands: runtime.coordinator.goals.commands, read: projectId => runtime.coordinator.goalQueries.readProjectGuidance(projectId) },
-    lifecycle: { lifecycle: runtime.coordinator.goals.lifecycle, setActiveGoal: (...args) => runtime.coordinator.setActiveGoal(...args),
-      eventCursor: () => runtime.store.eventCursor(runtime.project_id) },
-    configuration: { commands: runtime.coordinator.goals.commands, query: runtime.store.goalsQuery, eventCursor: () => runtime.store.eventCursor(runtime.project_id) },
-    tree: { submitGoalTreeProposal: input => runtime.coordinator.goalTreeSubmission.submitGoalTreeProposal(input),
-      listGoalTreeProposals: query => runtime.coordinator.goalTree.listGoalTreeProposals(query),
-      checkGoalTreeProposal: input => runtime.coordinator.goalTreeCheck.checkGoalTreeProposal(input),
-      decideGoalTreeProposal: input => runtime.coordinator.goalTreeDecision.decideGoalTreeProposal(input) } }) };
-}
 
 /** Called only after the local Web request's origin/control-token checks. */
 export function bindGoalsWebActions(client: ActionClient, reference: LocalHostProjectReference): BoundActionClient {

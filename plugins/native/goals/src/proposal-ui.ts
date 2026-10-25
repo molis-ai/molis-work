@@ -210,7 +210,7 @@ export type GoalsProposalUiModel = { primitives: GoalsProposalUiPrimitives } & (
 /** Which surface each renderer method mounts (W5-06): the shell builds its renderer from this, and the descriptor lists these. */
 export const GOALS_PROPOSAL_UI_SURFACES = { renderGoalTreeProposalDecision: "decision", renderGoalTreeProposalList: "list" } as const satisfies Record<keyof GoalsProposalRenderer, GoalsProposalUiModel["kind"]>;
 export const goalsProposalUiContribution: UiContribution<GoalsProposalUiModel> = {
-  descriptor: { contribution_id: GOALS_PROPOSAL_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal tree proposal decision",
+  descriptor: { contribution_id: GOALS_PROPOSAL_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.goals", kind: "embedded", label: "Goal tree proposal decision",
     surfaces: Object.values(GOALS_PROPOSAL_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
   render({ surface, model }) {
     if (surface !== model.kind) throw new Error("Goals proposal surface does not match its model");

@@ -220,6 +220,14 @@ const missing: Scenario[] = [
   }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-flows\.ts:3\)/] },
   { name: "a key with placeholders that no dictionary has", mutate: () => put("apps/workbench/src/renderer.ts", `${read("apps/workbench/src/renderer.ts")}export const n = (L: (zh: string, vars?: Record<string, number>) => string) => L("共 {count} 项", { count: 3 });\n`),
     expect: [/no English for "共 \{count\} 项"/] },
+  // RAC-775: a Plugin's own text is drawn with LF(pluginId, text), or a wrapper bound to it; a script that calls only those (no L())
+  // is still read, and a Chinese key that no dictionary has is still missing.
+  { name: "an LF(pluginId, text) in a browser script that never calls L()", mutate: () => put("plugins/native/beta/src/bound.ts",
+    "export const BOUND = String.raw`\n  document.title = LF('io.example.beta', '新的');\n`;\n"),
+    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/bound\.ts:2\)/] },
+  { name: "a wrapper bound to LF(pluginId, text) in a browser script that never calls L()", mutate: () => put("plugins/native/beta/src/bound.ts",
+    "export const BOUND = String.raw`\n  const FL = (text, vars) => LF('io.example.beta', text, vars);\n  document.title = FL('新的');\n`;\n"),
+    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/bound\.ts:3\)/] },
 ];
 
 const failsAndStaysFailing = (scenario: Scenario) => {
@@ -236,6 +244,13 @@ const failsAndStaysFailing = (scenario: Scenario) => {
   });
 };
 for (const scenario of missing) failsAndStaysFailing(scenario);
+
+test("RAC-775 LF(pluginId, text) and a wrapper bound to it are translator calls, the plugin id is not a key", () => {
+  const text = "export const BOUND = String.raw`\n  const FL = (text, vars) => LF('io.example.beta', text, vars);\n  document.title = FL('新的') + LF('io.example.beta', '另一个');\n`;\n";
+  const found = scanFile("plugins/native/beta/src/bound.ts", text);
+  assert.deepEqual(found.calls.map((call: { callee: string; key: string }) => [call.callee, call.key]).sort(), [["FL", "新的"], ["LF", "另一个"]]);
+  assert.deepEqual(found.dynamic, [], "forwarding the parameter is not a dynamic call");
+});
 
 // The sharing stops where the program stops: a file that neither imports a script nor is imported by one keeps its own names (its
 // own `tx` is not the program's), and so does a file of another plugin, even when it imports the program.

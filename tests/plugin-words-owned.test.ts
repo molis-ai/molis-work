@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -85,4 +86,27 @@ test("RAC-774 stable keys stay page-wide: a Plugin's ui.messages are English for
     assert.equal(page.LF?.(OTHER, TITLE), TITLE);
     assert.equal(page.LF?.(ACME, TITLE), "Tidy notes");
   } finally { unregisterPluginMessages(ACME); }
+});
+
+// Hub review 2026-10-25: the new-project onboarding drafts to-dos by kind, and said them in Chinese on the English page: the kind
+// names were English only in Todo's own words, which the Host's own script does not read.
+test("RAC-777 the Host's onboarding names the kinds of to-do it drafts in English without any Plugin's dictionary", () => {
+  const kinds: Array<[string, string]> = [["要你处理", "Asked of you"], ["你的承诺", "Your promise"], ["在等别人", "Waiting on others"]];
+  runWithLocale("en", () => { for (const [zh, en] of kinds) assert.equal(L(zh), en); });
+  const page = browser("en") as ReturnType<typeof browser> & { L?: (key: string) => string };
+  for (const [zh, en] of kinds) assert.equal(page.L?.(zh), en, "the page's own L, which the onboarding script draws with, has them too");
+  runWithLocale("zh", () => { for (const [zh] of kinds) assert.equal(L(zh), zh); });
+});
+
+// Scripts of a Plugin that run inside the Host page would draw with the page-wide L and lose words only that Plugin declares;
+// each binds its own translator, so its sentences are English in its own words.
+test("RAC-778 Goals' and Artifacts' scripts that run in the Host page draw with their own Plugin's words", async () => {
+  const { PLANNING_SETTINGS_CLIENT_SCRIPT, PLANNING_ADOPTION_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT } = await import("@molis-ai/molis-work-plugin-goals");
+  const goals = /const L = \(key, vars\) => LF\("io\.molis\.work\.goals", key, vars\);/;
+  assert.match(PLANNING_SETTINGS_CLIENT_SCRIPT, goals);
+  assert.match(PLANNING_ADOPTION_CLIENT_SCRIPT, goals);
+  assert.match(PROJECT_RULES_CLIENT_SCRIPT, goals);
+  const workbench = readFileSync(new URL("../apps/workbench/src/scripts/client/plugin-workbench.ts", import.meta.url), "utf8");
+  assert.match(workbench, /const AL = \(key, vars\) => LF\(\$\{JSON\.stringify\(ARTIFACTS_PLUGIN_ID\)\}, key, vars\);/, "Artifacts' snippets, which share the factory's scope, draw with their own translator");
+  assert.match(workbench, /inArtifactsWords\(ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT \+ ARTIFACT_WORKS_CLIENT_SCRIPT \+ ARTIFACT_HANDOFF_CLIENT_SCRIPT \+ ARTIFACT_PORT_INPUT_CLIENT_SCRIPT\)/);
 });

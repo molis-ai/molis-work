@@ -223,4 +223,8 @@ export const SHARED_WORDS_EN: Record<string, string> = {
   "Inbox · 工作流程": "Inbox · Workflow",
   "工作流程交过来": "Handed over by a workflow",
   "第 {n} 步": "Step {n}",
+  // The new-project onboarding (the Host's own script) names the kinds of to-do it drafts; Todo says the same words in its own pages.
+  "要你处理": "Asked of you",
+  "你的承诺": "Your promise",
+  "在等别人": "Waiting on others",
 };

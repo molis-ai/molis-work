@@ -371,9 +371,10 @@ const dictionaryUses = (source) => {
 };
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// Whether a template literal is worth parsing as a browser script: it calls L, or a wrapper that the other files of its program
-// define (`tx(`, or `globalThis.L(`): a call by one of those names.
-const scriptPattern = (shared) => new RegExp(`(?:^|[^\\w$])(?:L${shared?.size ? `|${[...shared.keys()].map(escapeRegExp).join("|")}` : ""})\\(`);
+// Whether a template literal is worth parsing as a browser script: it calls L (or LF, a Plugin's text in that Plugin's words, which a
+// script usually binds once: `const FL = (text) => LF(id, text)`), or a wrapper that the other files of its program define
+// (`tx(`, or `globalThis.L(`): a call by one of those names.
+const scriptPattern = (shared) => new RegExp(`(?:^|[^\\w$])(?:LF?${shared?.size ? `|${[...shared.keys()].map(escapeRegExp).join("|")}` : ""})\\(`);
 
 /**
  * Everything one file says about translations. `shared` is `name -> indexes` of the wrappers that the browser scripts of the

@@ -483,7 +483,7 @@ test("reinstall binds a new cursor and cannot inherit pending work or late ackno
   const old = rig.supervisor.installation(FILES)!;
   rig.publish(CODING, CHANGED, 1, 'old'); await entered.promise;
   rig.supervisor.revoke(FILES); await rig.runtime.uninstall(old.install_id);
-  rig.runtime.install({ definition: files.definition, deployment: 'local', grants: [] });
+  rig.runtime.install({ trust: { level: "unsigned" }, definition: files.definition, deployment: 'local', grants: [] });
   await rig.start(); await rig.supervisor.enable(FILES);
   const current = rig.supervisor.installation(FILES)!;
   assert.notEqual(current.installation_generation, old.installation_generation);

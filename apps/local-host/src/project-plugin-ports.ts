@@ -6,6 +6,7 @@ import { ensureInstalledPlugins } from "./installed-plugin-host.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
+import { hostDependencyCheck } from "./plugin-actions-client.js";
 
 /**
  * What the project's plugin ports are read from. `agents` is read when a call needs it, not when the Host is built: the
@@ -23,7 +24,7 @@ export async function prepareInstalledPlugins(source: ProjectPluginHost, referen
   if (!options.homeDirectory) return;
   const installed = await ensureInstalledPlugins({ store: runtime.store, projectId: runtime.project_id, homeDirectory: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
     routePrefix: options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
-    capabilities: host.client(reference),
+    dependencyCheck: hostDependencyCheck(host.client(reference)),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id,
       // This internal directory is already in a prepared Host; recursing through the public entry would wait on itself.
       inspect: caller => host.inspectActions(caller, reference) } });
@@ -36,7 +37,7 @@ export function ensureProjectPluginActions(source: ProjectPluginHost, reference:
   const agents = () => source.agents();
   return host.withRuntime(reference, runtime => ensureProjectPlugins({
     store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: options.homeDirectory,
-    capabilities: host.client(reference),
+    dependencyCheck: hostDependencyCheck(host.client(reference)),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
     ...(agents() ? { observeReviewSettlements: listener => observeReviewSettlements(agents()!.agentHost.reviews, runtime.project_id, listener,
       agentWritePlaces(source, runtime.project_id)) } : {}),

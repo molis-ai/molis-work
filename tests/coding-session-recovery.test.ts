@@ -16,13 +16,13 @@ test("one unreadable runtime history does not hide other sessions or lose its dr
   await sessions.setRuntimeSession(noEffect, "board", "broken", "sdk-broken", at);
   await sessions.setState(noEffect, "board", "broken", "done", at);
   const drafts = new Map([["draft:broken", "不要丢掉未提交的要求"]]);
-  // The Agent Host's actions and the Host's other entries answer alike here: an empty list, but the broken session's history cannot be read.
+  // The Agent Host's actions answer an empty list here, but the broken session's history cannot be read.
   const answer = { invoke: async (definition: { capability_id: string }) => {
     if (definition.capability_id === agent.readSession.capability_id) throw new Error("SESSION_HISTORY_UNAVAILABLE");
     return [];
   } };
   const context = { project_id: "board", plugin_id: "io.molis.work.coding", services: {
-    storage: { get: (key: string) => drafts.get(key) }, capabilities: answer, actions: answer,
+    storage: { get: (key: string) => drafts.get(key) }, actions: answer,
   } } as unknown as PluginStartContext;
   const routes = codingRoutes(context, sessions);
   const call = async (id: string, params = {}) => {
@@ -51,7 +51,7 @@ test("command receipt route binds the selected app session and exact runtime run
   await sessions.create(noEffect, { project_id: "board", session_id: "app-session", title: "检查", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
   await sessions.setRuntimeSession(noEffect, "board", "app-session", "sdk-session", "2026-09-20T00:00:00Z");
   const reads: unknown[] = [];
-  const context = codingContext({ capabilities: { invoke: async (definition: { capability_id: string }, args: unknown[]) => {
+  const context = codingContext({ agent: { invoke: async (definition: { capability_id: string }, args: unknown[]) => {
     if (definition.capability_id === agent.readSession.capability_id) return { runs: [{ session_id: "sdk-session", run_id: "owned" }] };
     if (definition.capability_id === agent.readCommandOutput.capability_id) { reads.push(args); return { exit_code: 7, stdout: "saved", stderr: "check failed" }; }
     throw new Error("unexpected capability");
@@ -67,17 +67,17 @@ test("command receipt route binds the selected app session and exact runtime run
 
 /**
  * A Coding context in project `board` with the services a test gives; the rest of the context is not read by these routes.
- * The Agent Host's actions answer through the same fake as its typed calls, after the route's write fence.
+ * The Agent Host's actions answer through the test's `agent` fake, after the route's write fence.
  */
-const codingContext=(services:{capabilities:{invoke:(definition:{capability_id:string},args:unknown[])=>Promise<unknown>}}&Record<string,unknown>)=>({project_id:'board',plugin_id:'io.molis.work.coding',
-  services:{actions:{invoke:async(definition:{capability_id:string},input:unknown[],control?:{beforeEffect():Promise<void>})=>{await control?.beforeEffect();return services.capabilities.invoke(definition,input);}},...services}}) as unknown as PluginStartContext;
+const codingContext=({agent:host,...services}:{agent:{invoke:(definition:{capability_id:string},args:unknown[])=>Promise<unknown>}}&Record<string,unknown>)=>({project_id:'board',plugin_id:'io.molis.work.coding',
+  services:{actions:{invoke:async(definition:{capability_id:string},input:unknown[],control?:{beforeEffect():Promise<void>})=>{await control?.beforeEffect();return host.invoke(definition,input);}},...services}}) as unknown as PluginStartContext;
 
 test("answer route preserves the original run and questionnaire, rejects foreign runs and malformed selections",async()=>{
   const db = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["board"]);
   const sessions=new CodingSessionStore(db),at='2026-09-20T00:00:00Z';
   await sessions.create(noEffect, {project_id:'board',session_id:'app',title:'问卷',runtime_id:'prologue',at});await sessions.setRuntimeSession(noEffect, 'board','app','sdk',at);
   let phase='awaiting-input';const delivered:unknown[]=[];
-  const context=codingContext({capabilities:{invoke:async(definition:{capability_id:string},args:unknown[])=>{
+  const context=codingContext({agent:{invoke:async(definition:{capability_id:string},args:unknown[])=>{
     if(definition.capability_id===agent.readSession.capability_id)return {runs:[{session_id:'sdk',run_id:'owned'}]};
     if(definition.capability_id===agent.readRun.capability_id)return {phase,awaiting_input:[]};
     if(definition.capability_id===agent.controlRun.capability_id){delivered.push(args);return;}
@@ -113,7 +113,7 @@ test("AC-07 an answer to a round parked at a restart opens the next round, or sa
   await sessions.create(noEffect, {project_id:'board',session_id:'app',title:'问卷',runtime_id:'prologue',at});await sessions.setRuntimeSession(noEffect, 'board','app','sdk',at);
   const saved=new Map<string,string>(),calls:string[]=[];let busy=0;
   const context=codingContext({storage:{get:(key:string)=>saved.get(key)??null,set:(key:string,value:string)=>{saved.set(key,value);},delete:(key:string)=>{saved.delete(key);}},
-    capabilities:{invoke:async(definition:{capability_id:string})=>{
+    agent:{invoke:async(definition:{capability_id:string})=>{
       calls.push(definition.capability_id);
       if(definition.capability_id===agent.readSession.capability_id)return {runs:[{session_id:'sdk',run_id:'parked'}]};
       if(definition.capability_id===agent.readRun.capability_id)return {phase:'reconcile-required',awaiting_input:[{pending_id:'asked',pending_revision:1,parked:true}]};
@@ -151,7 +151,7 @@ test("AC-07 the round after a parked answer is started by the one who answered, 
   const started:Array<{actor_id?:string}>=[];
   const view={phase:'reconcile-required',awaiting_input:[{pending_id:'asked',pending_revision:1,parked:true}],frozen:{history:'session',text_materials:[]},usage:{}};
   const context=codingContext({storage:{get:(key:string)=>saved.get(key)??null,set:(key:string,value:string)=>{saved.set(key,value);},delete:(key:string)=>{saved.delete(key);}},
-    capabilities:{invoke:async(definition:{capability_id:string},args:unknown[])=>{
+    agent:{invoke:async(definition:{capability_id:string},args:unknown[])=>{
       if(definition.capability_id===agent.readSession.capability_id)return {runs:[{session_id:'sdk',run_id:'parked'}]};
       if(definition.capability_id===agent.readRun.capability_id)return view;
       if(definition.capability_id===agent.controlRun.capability_id)return;

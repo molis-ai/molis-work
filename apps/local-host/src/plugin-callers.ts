@@ -39,16 +39,6 @@ export function routedPluginCaller(caller: HostPluginCaller, projectId: string |
 }
 
 /**
- * A typed Host call made for a plugin: the caller must be one the Host issued, still active, and of this project. A caller of
- * another project is refused as the gateway refuses it, as an issued caller that does not match its call.
- */
-export function requireIssuedPluginCaller(caller: HostPluginCaller, projectId: string): void {
-  if (!issued.has(caller)) throw hostErrors.plugin_caller_invalid("插件调用没有宿主发出的有效身份");
-  if (caller.project_id !== projectId) throw hostErrors.plugin_caller_mismatch("插件调用不属于当前项目");
-  caller.assertActive();
-}
-
-/**
  * The installation starting a person-reviewed Host operation (PG-009): the plugin whose issued caller made this call. It holds
  * the operation while its caller is still issued and active and holds `review:<kind>`, asked when the review is created, when a
  * person approves and right before the operation runs. Revoking, disabling, stopping or upgrading the installation withdraws
@@ -66,7 +56,7 @@ export function reviewAuthority(caller: HostPluginCaller | undefined, kind: Plug
 /**
  * Who a dependency check asks as (PG-035). A plugin asks whether a Host action it consumes is registered and ready, not whether it
  * may call it: who calls and what it holds are checked on the call (S-15). So an action offered to plugins is asked as the plugin
- * audience holding what the action needs; a typed entry, or an action a plugin reaches only through the typed client, as before.
+ * audience holding what the action needs; an action not offered to plugins is asked as the person.
  */
 export function dependencyCaller(projectId: string, definition: { readonly capability_id: string; readonly action?: ActionMetadata }, consumer: "plugin" | undefined): ActionCallContext {
   const action = consumer === "plugin" && definition.action && actionReachesAudience(definition.action, definition.capability_id, "plugin") ? definition.action : undefined;

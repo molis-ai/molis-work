@@ -1,5 +1,5 @@
 // This file is copied alone to a .mjs file. No host modules or credentials enter the sandbox.
-import type { SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxModelChoice, SandboxModelResult, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const write = process.stdout.write.bind(process.stdout);
 /** The Host's cap for one original file, and the part the channel carries at a time (the broker holds the same two numbers). */
@@ -72,6 +72,15 @@ function sdk(callId: string): SandboxSdk {
       list: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['list']>>>(invoke('ownerFiles.list', [path])),
       read: path => answer<Awaited<ReturnType<SandboxSdk['ownerFiles']['read']>>>(invoke('ownerFiles.read', [path])),
       write: async changes => { await invoke('ownerFiles.write', [json(changes)]); },
+    },
+    model: {
+      choices: () => answer<SandboxModelChoice[]>(invoke('model.choices', [])),
+      availability: selection => answer<SandboxModelAvailability>(invoke('model.availability', [selection === undefined ? null : json(selection)])),
+      complete: request => answer<SandboxModelResult>(invoke('model.complete', [json(request)])),
+    },
+    background: {
+      start: (operation, input) => invoke('background.start', [operation, json(input)]) as Promise<string>,
+      cancel: id => invoke('background.cancel', [id]) as Promise<boolean>,
     },
     interaction: {
       questionHtml: (question, options) => invoke('interaction.questionHtml', [json(question), json(options ?? {})]) as Promise<string>,

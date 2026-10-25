@@ -11,6 +11,7 @@ import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
+import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js";
 
 interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
@@ -60,7 +61,9 @@ export function registerProjectCapabilities(
       if (!workspaces.some(item => item.workspace_id === workspaceId && item.realpath_verified)) throw hostErrors.workspace_unavailable("请选择当前项目已关联且可用的工作目录");
       await invocation.beforeEffect?.();
       invocation.assertAuthorityCurrent();
-      return new ProjectBrowsingSettings(runtime.store.db).select(runtime.project_id, workspaceId, workspaces);
+      const selected = new ProjectBrowsingSettings(runtime.store.db).select(runtime.project_id, workspaceId, workspaces);
+      await announceWorkspaceSettingsChange(runtime.store, runtime.project_id, selected.workspace_id);
+      return selected;
     });
   }
   // The Runtime pick does not depend on where the project's folders are kept: it is registered with the other current-project settings.

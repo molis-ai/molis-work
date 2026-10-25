@@ -42,7 +42,7 @@ const pluginOf = (context: ActionCallContext) => context.actor_id.startsWith('pl
 
 /** The studio's own capabilities, as actions of the platform provider: only plugins may call them. */
 export function registerPlatformCapabilities(actions: ProjectActions, implementations: Pick<CapabilityImplementations, 'generate'>): () => void {
-  const define = (id: 'model.generate', effect: 'read' | 'write', scheduling?: ActionDefinition['scheduling']): ActionDefinition => {
+  const define = (id: 'model.generate', effect: 'read' | 'write', scheduling?: ActionDefinition['action']['scheduling']): ActionDefinition => {
     const known = studioCapability(id)!;
     return { capability_id: id, version: 1, operation: 'command', provider_id: PLATFORM_PROVIDER_ID,
       action: { ...(scheduling ? { scheduling } : {}), execution: known.execution, title: known.title, description: known.description, kind: 'operation', scope: 'project', effect, audiences: ['plugin'], permissions: [], subject_kinds: [],

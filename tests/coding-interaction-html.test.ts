@@ -51,7 +51,7 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
   ];
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const values = args as ReadonlyArray<{ session_id?: string; run_id?: string }>;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: runs.map(entry => entry.ref) } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return structuredClone(runs.find(entry => entry.ref.run_id === values[1]?.run_id)) as Output;
@@ -118,12 +118,12 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
 
 test("PG062-13: the Host no longer decorates Coding's answers, and a project route takes no hook after the plugin answered", () => {
   // coding-surface.ts is gone (PG-036 C9); what took over its stage and route work must not use these names either.
-  const surface = ["project-plugin-stages.ts", "project-plugin-input-refresh.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
+  const surface = ["project-plugin-stages.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
   for (const name of ["decorateCodingResult", "codingNextSteps", "afterDispatch", "agentQuestionHtml", "assistantCardHtml", "cardView", "renderInteractionNextSteps", "codingFollowUps"]) {
     assert.equal(surface.includes(name), false, `the Host's stage and route code no longer uses ${name}`);
   }
   const entry = readFileSync(new URL("../apps/local-host/src/project-plugin-http.ts", import.meta.url), "utf8");
-  assert.match(entry, /export type ProjectPluginRouteHooks = \(route: ProjectPluginRoute\) => Pick<RuntimePluginRouteHooks, "beforeDispatch">;/);
+  assert.doesNotMatch(entry, /ProjectPluginRouteHooks|beforeDispatch/);
   assert.doesNotMatch(entry, /around\.afterDispatch/);
   // Coding words its own follow-ups: the workbench's dictionary no longer carries them for it.
   const gap = readFileSync(new URL("../apps/workbench/src/i18n/renderer-gap-en.ts", import.meta.url), "utf8");

@@ -23,8 +23,9 @@ export function codingFixtureRoutes(context: PluginStartContext, sessions: Codin
   kept.set(key, jobs);
   fixture.services.background ??= fixtureBackground(jobs);
   const surface = codingSurface(context, sessions);
-  const others = fixture.services.actions as { invoke(definition: unknown, input: unknown, control?: unknown): Promise<unknown> } | undefined;
+  const others = fixture.services.actions as { availability?(reference: unknown): unknown; invoke(definition: unknown, input: unknown, control?: unknown): Promise<unknown> } | undefined;
   fixture.services.actions = {
+    availability: (reference: unknown) => others?.availability?.(reference) ?? { available: true },
     discover: async () => surface.actions.map(handler => ({ capability_id: handler.capability_id, version: handler.version,
       provider: { provider_id: fixture.install_id, plugin_install_id: fixture.install_id }, availability: { available: true } })),
     // The route's own call control, when a test gives one, is the caller's check before each write.

@@ -53,7 +53,7 @@ export function filesBrowsing(context: PluginStartContext) {
   return {
     /** The folder selected now, or null; with `beforeWrite`, a switch is recorded and the old folder's snapshots withdrawn. */
     async confirm(beforeWrite?: () => Promise<void>) {
-      const selected = await services?.capabilities?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
+      const selected = await services?.actions?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
       const id = selected?.workspace_id ?? null;
       if (beforeWrite && id !== previousWorkspace) {
         await beforeWrite();

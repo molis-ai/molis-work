@@ -4,6 +4,8 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { homeStores } from "./home-stores.js";
+import { HomeConsentLedger } from "./home-plugin-store.js";
+import type { PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
 import type { PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginPlatformEntry } from "./plugin-platform.js";
@@ -25,6 +27,8 @@ export interface PluginPlatformHome {
   completeText(): HostCompleteText | null | undefined;
   /** The Home's stores (W4-11): a plugin is given a library only when the library is registered here as its own. */
   readonly stores: HomeStoreRegistry;
+  /** What a person agreed to for the plugins of this Home, and the publishers they pinned (ac-trust): one answer for every project. */
+  readonly consents: PluginConsentLedger;
 }
 
 type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "workspaceFor" | "workspacesFor">;
@@ -64,7 +68,8 @@ export function releaseHomeSide(host: MolisWorkLocalHost): void {
 /** The Home for a platform to be given: what it reads of the Host is looked up on each call. */
 export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
   const directory = path.resolve(homeDirectory);
-  return { directory, completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures) };
+  return { directory, completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures),
+    consents: new HomeConsentLedger(directory) };
 }
 
 /** The existing, single Agent runtime of this Home; never creates a second runtime for a plugin. */
@@ -99,7 +104,7 @@ export function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]):
 export type PluginFixture = PluginDefinition | PluginOwnerFilesEntry;
 
 /**
- * The test fixtures the Host bound to this Home was given, as start entries for a project's platform. Never `bundled`: a
+ * The test fixtures the Host bound to this Home was given, as start entries for a project's platform. Never `host` trust: a
  * fixture is not a plugin the Host ships, so it registers under its installation id and no shipped plugin's id.
  */
 export function projectFixtureEntries(homeDirectory: string | undefined): PluginPlatformEntry[] {
@@ -120,7 +125,7 @@ export function fixtureDeclarationsFor(homeDirectory: string | undefined, scope:
   return pluginFixtureDeclarations(homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.[scope] ?? [] : []);
 }
 
-/** Both scopes use the same unbundled, in-process fixture declarations. */
+/** Both scopes use the same in-process fixture, without `host` trust, declarations. */
 export function pluginFixtureEntries(fixtures: readonly PluginFixture[]): PluginPlatformEntry[] {
   return pluginFixtureDeclarations(fixtures).map(entry => {
     const { definition } = entry;

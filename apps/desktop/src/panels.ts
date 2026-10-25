@@ -2,6 +2,7 @@ import type { DesktopPanelErrorCode, DesktopPanelRepository, DesktopPanelContext
 export type { DesktopPanelErrorCode, DesktopPanelRepository, DesktopPanelContextPort, DesktopPanelServiceOptions } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { desktopLaunchArgs } from "./launch.js";
 
 import type { DesktopPanelApi, DesktopPanelRecord, OpenDesktopPanelInput } from "@molis-ai/molis-work-contracts/platform/app-host";
 export type { DesktopPanelRecord, OpenDesktopPanelInput } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -39,7 +40,7 @@ export class DesktopPanelService implements DesktopPanelApi {
     }
     const cwd = this.normalizeOptionalAbsolutePath(input.cwd);
     const hostSessionId = input.host_session_id?.trim() || null;
-    const args = Array.isArray(input.launch_args) ? input.launch_args.map(String) : [];
+    const args = desktopLaunchArgs(input.launch_args);
 
     return this.repository.transaction(() => {
       this.context.assertProject(projectId);
@@ -91,6 +92,11 @@ export class DesktopPanelService implements DesktopPanelApi {
   list(projectId: string, goalId?: string): DesktopPanelRecord[] {
     const id = this.required(projectId, "catalog.project_not_found", "项目 ID 不能为空");
     return this.repository.list(id, goalId?.trim());
+  }
+
+  listIds(projectId: string): string[] {
+    const id = this.required(projectId, "catalog.project_not_found", "项目 ID 不能为空");
+    return this.repository.listIds(id);
   }
 
   get(panelId: string): DesktopPanelRecord {

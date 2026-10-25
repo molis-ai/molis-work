@@ -17,14 +17,14 @@
 ### Schedule（RAC-162、RAC-163）
 
 - 370 行的客户端改成 `src/browser/`（`types`、`dom`、`request`、`page`、`form`、`actions`、`operation`、`recovery`、`stage`、`client`、`factory`）：任务表单与暂停、定时操作的审阅（确认决定、确认恢复）与未知结果的重试或跳过，逐段照搬。
-- 页面文字：`ui.ts`、`operation-ui.ts` 和客户端里的中文原文改成 96 个稳定键 `schedule.<区域>.<名称>`；`src/en.ts` 从 88 条减到 26 条（宿主仍按中文原文翻译的词，见 BL-463）。
+- 页面文字：`ui.ts`、`operation-ui.ts` 和客户端里的中文原文改成 96 个稳定键 `schedule.<区域>.<名称>`；`src/en.ts` 从 88 条减到 26 条（宿主仍按中文原文翻译的词，见 BL-545）。
 - `package.json` 加 `@molis-ai/molis-work-plugin-sdk`（只用它的类型认出 `molisWorkRequest`），`scripts/workspace-packages.mjs` 的登记和 README「依赖」同步。
 
 ### Shelf（RAC-164～166）
 
 - 1,640 行的 `client.ts`、`reading-client.ts`、`result-client.ts` 改成 `src/browser/` 的 27 个文件，每块压在函数 150 行以内：页面状态在一个 `ShelfPage` 对象里（`types.ts`），列表、预览、编辑、动作栏、确认、运行、放入、剪贴板、终端、材料交换、结果交换各是一个部件（`rows`、`panes`、`preview`、`edit`、`bar`、`confirm`、`run`、`admit`、`clips`、`tui`、`material`、`result` 等），点击由 `bench.ts` 里按顺序匹配的处理表分发。
 - 设置页的客户端（533 行）改成 `src/browser/settings/`，打成 `dist/shelf-settings-client.js`；`src/settings-client.ts` 在前面放热键表和路由后交给设置页（热键默认表取自 `@molis-ai/molis-work-module-shelf`，仍是同一份）。
-- 页面文字：`ui.ts`、客户端和设置页的中文原文改成 166 个稳定键 `shelf.<区域>.<名称>`（156 个页面的、10 个设置页的）；`src/en.ts` 从 335 条减到 187 条（服务端标签与错误、`settings-ui.ts` 的词和别的主人在查的词，见 BL-464）。
+- 页面文字：`ui.ts`、客户端和设置页的中文原文改成 166 个稳定键 `shelf.<区域>.<名称>`（156 个页面的、10 个设置页的）；`src/en.ts` 从 335 条减到 187 条（服务端标签与错误、`settings-ui.ts` 的词和别的主人在查的词，见 BL-546）。
 - 登记的页面事件 `PAGE_STATE_OWNERS.shelf.files` 指向新的文件（`browser/document.ts`、`browser/tui.ts`、`browser/settings/reload.ts`，`terminal-client.ts` 不变），`tooling/gates/api/contracts/platform/dom-events.txt` 同步；事件名和载荷没变，对插件和调用方没有影响。
 
 ### Git（RAC-167、RAC-168）
@@ -74,5 +74,5 @@
 
 ## 登记的遗留
 
-- BL-463：Schedule 的 `src/en.ts` 保留 26 条宿主仍按中文原文翻译的词（服务端标签与错误、别的主人在查的词）。
-- BL-464：Shelf 的 `src/en.ts` 保留 187 条，其中 `settings-ui.ts` 还有 47 处 `p.text("中文原文")`、没有稳定键；把设置页服务端画的词也改成键后，这些条目才能删。
+- BL-545：Schedule 的 `src/en.ts` 保留 26 条宿主仍按中文原文翻译的词（服务端标签与错误、别的主人在查的词）。
+- BL-546：Shelf 的 `src/en.ts` 保留 187 条，其中 `settings-ui.ts` 还有 47 处 `p.text("中文原文")`、没有稳定键；把设置页服务端画的词也改成键后，这些条目才能删。

@@ -48,7 +48,7 @@ test("a workflow step runs any registered action — even one the Host never hea
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [create.definition] }, async start() { return { kind: "app", actions: [create.handler] }; } });
   const runtime = await host.withProject(reference, project => new PluginRuntime(new SqlitePluginRuntimeRepository(project.store.db), undefined,
     { actions: { registry: host.actionRegistry(reference), project_id: PROJECT } }));
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["tickets:write"] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["tickets:write"] }).install;
   await runtime.start(installed.install_id);
 
   const caller = { actor_id: "web-user", project_id: PROJECT, audience: "user" as const,

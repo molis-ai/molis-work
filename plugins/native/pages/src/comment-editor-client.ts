@@ -48,16 +48,16 @@ export function bindComments(state: CommentEditorState): (markId: string|null) =
         answer.notes = notes; answer.version = state.selected.version;
       } else if (command.kind === 'focus-mark') {
         answer.found = focusComment(state.editor, command.mark_id);
-        if(!answer.found) throw new Error(L('原文已变更，保留引用'));
+        if(!answer.found) throw new Error(L('pages.comments.detached'));
       } else if (command.kind === 'discuss-note') {
-        if (state.dirty || state.selected.version !== command.version) throw new Error(L('正文已改变，请保存后重新发起评论'));
+        if (state.dirty || state.selected.version !== command.version) throw new Error(L('pages.comments.doc-changed'));
         const markId = commentBlock(state.editor, command.index);
-        if (!markId) throw new Error(L('请在正文中选择要讨论的文字'));
+        if (!markId) throw new Error(L('pages.comments.pick-text'));
         await commentOpen(markId);answer.opened = true;
       } else if (command.kind === 'save-note') {
-        if (state.dirty || state.selected.version !== command.version) throw new Error(L('正文已改变，请保存后重新发起评论'));
+        if (state.dirty || state.selected.version !== command.version) throw new Error(L('pages.comments.doc-changed'));
         const node = state.editor.view.state.doc.maybeChild(command.index);
-        if (!node || !('note' in node.attrs) || typeof command.note !== 'string' || command.note.length > 20000) throw new Error(L('文档请求失败'));
+        if (!node || !('note' in node.attrs) || typeof command.note !== 'string' || command.note.length > 20000) throw new Error(L('pages.error.request'));
         let pos = 0; for (let i=0;i<command.index;i++) pos += state.editor.view.state.doc.child(i).nodeSize;
         state.editor.view.dispatch(state.editor.view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, note: command.note.trim() }));
         await persistCurrent(); answer.saved = true;

@@ -62,8 +62,8 @@ async function platform(t: TestContext, sandbox = false) {
   });
   const mine = notes(), other = items();
   const grants = ["storage:private", mine.declaration.read_permission, mine.declaration.write_permission];
-  const starting = sandbox ? { definition: { ...mine.definition, execution: "sandbox" as const }, grants } : { definition: mine.definition, bundled: true as const };
-  assert.deepEqual((await running.start([starting, { definition: other.definition, bundled: true }])).running.toSorted(), [mine.id, other.id].toSorted());
+  const starting = sandbox ? { definition: { ...mine.definition, execution: "sandbox" as const }, grants } : { definition: mine.definition, trust: { level: "host" } as const };
+  assert.deepEqual((await running.start([starting, { definition: other.definition, trust: { level: "host" } }])).running.toSorted(), [mine.id, other.id].toSorted());
   const database = (plugin: Probe): PluginDatabase => plugin.services().project_database ?? assert.fail(`${plugin.id} was given no services.project_database`);
   const statements = (plugin: Probe) => plugin.services().project_statements ?? assert.fail(`${plugin.id} was given no services.project_statements`);
   const count = (table: string) => Number((store.db.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n);

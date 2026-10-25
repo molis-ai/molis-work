@@ -96,6 +96,7 @@ tests/assistant-delegation.test.ts
 tests/assistant-diagnostics.test.ts
 tests/assistant-followups.test.ts
 tests/assistant-followups-collaborator.test.ts
+tests/assistant-http-logging.test.ts
 tests/assistant-image-restart-http.test.ts
 tests/assistant-island-script.test.ts
 tests/assistant-material.test.ts
@@ -201,6 +202,9 @@ tests/feed-receive-chain.test.ts
 tests/feed-rich-content.test.ts
 tests/feed-sync-concurrency.test.ts
 tests/feed.test.ts
+
+# gmail
+tests/gmail-factory-boundaries.test.ts
 
 # goal
 tests/goal-decision-attention.test.ts
@@ -354,6 +358,7 @@ tests/creative-artifact-promote.test.ts
 tests/creative-tools-plugins.test.ts
 tests/cross-device-client.test.ts
 tests/demo-plugin-sample.test.ts
+tests/desktop-launch-args.test.ts
 tests/desktop-shell-bootstrap.test.ts
 tests/diff-plugin.test.ts
 tests/document-import-providers.test.ts

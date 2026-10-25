@@ -1,13 +1,16 @@
-import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLUGIN_CONNECTION_RECORD_KEY_MAX, type PluginConnectionSlotDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
-import { pluginSlotScope } from "./connector-plugin-requests.js";
+import { pluginSlotScope, targetScope } from "./connector-plugin-requests.js";
+import { shownState } from "./connector-refresh-refusals.js";
 
 // Which of the person's accounts a plugin installation's connection slot uses (`services.connections`, S0b-2, S-57). Only the person
 // binds: the audience is `user`, so neither a plugin page nor an Agent nor MCP can choose the account a plugin sends requests with.
 // The slot's declaration is checked when the plugin sends (its Manifest's slot and service), so a binding for a slot the
-// installation does not declare is never used.
+// installation does not declare is never used. Version 2 binds a `per_record` slot (S-71 provisional): one account for one of the
+// plugin's records, in the caller's project, and only for an installation of that project (or the Home's) that declares the slot so.
 
 const slot = {
   install_id: { type: "string", minLength: 1, maxLength: 160 },
@@ -16,6 +19,17 @@ const slot = {
 };
 const metadata = { scope: "home", audiences: ["user"], subject_kinds: ["connector"] } as const;
 interface SlotInput { install_id: string; plugin_id: string; slot_id: string }
+interface RecordInput extends SlotInput { record_key: string }
+type BindInput<Input> = Input & { service_id: string; connection_id: string | null };
+const record = { ...slot, record_key: { type: "string", minLength: 1, maxLength: PLUGIN_CONNECTION_RECORD_KEY_MAX, pattern: "^[^/:\\u0000-\\u001f\\u007f]+$" } };
+const binding = { service_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" }, connection_id: { anyOf: [{ type: "string", pattern: "^[a-z0-9-]{1,100}$" }, { type: "null" }] } };
+const result = { type: "object", properties: { connection: { type: ["object", "null"] } }, required: ["connection"], additionalProperties: false };
+
+export const pluginSlotErrors = defineErrorCodes("connector.plugin_slots", { installation_missing: "not_found", slot_undeclared: "invalid", project_required: "invalid" });
+
+/** The slots an installation in the caller's project (or the Home) declares, `null` when there is no such installation of that plugin. */
+export type PluginSlotDeclarations = (caller: ActionCallContext, install_id: string, plugin_id: string) => Promise<readonly PluginConnectionSlotDeclaration[] | null>;
+const noInstallations: PluginSlotDeclarations = async () => null;
 
 export const connectorPluginSlotActions = {
   read: { capability_id: "connectors.plugin_slot.read", version: 1, operation: "query", action: { ...metadata,
@@ -30,17 +44,33 @@ export const connectorPluginSlotActions = {
       connection_id: { anyOf: [{ type: "string", pattern: "^[a-z0-9-]{1,100}$" }, { type: "null" }] } },
     required: ["install_id", "plugin_id", "slot_id", "service_id", "connection_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { connection: { type: ["object", "null"] } }, required: ["connection"], additionalProperties: false } } } as ActionDefinition<SlotInput & { service_id: string; connection_id: string | null }, { connection: ConnectorConnectionView | null }>,
+  readRecord: { capability_id: "connectors.plugin_slot.read", version: 2, operation: "query", action: { ...metadata, scope: "project",
+    title: "查看插件记录的账号", description: "读取本项目里一个插件安装按记录绑定的连接槽上，某条记录绑定的账号；没有绑定时插件为这条记录发的请求不带凭据。不返回凭据。",
+    kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ],
+    input_schema: { type: "object", properties: record, required: ["install_id", "plugin_id", "slot_id", "record_key"], additionalProperties: false },
+    output_schema: result } } as ActionDefinition<RecordInput, { connection: ConnectorConnectionView | null }>,
+  bindRecord: { capability_id: "connectors.plugin_slot.bind", version: 2, operation: "command", action: { ...metadata, scope: "project",
+    title: "为插件的一条记录选择账号", description: "在本项目里，把本人的一条已连通的服务连接绑定到插件安装按记录绑定的连接槽上的一条记录，或传 connection_id: null 解除绑定。只认这个项目（或 Home）里安装、在 Manifest 里声明为 per_record 的槽。插件看不到凭据。",
+    kind: "operation", effect: "write", permissions: [CONNECTOR_MANAGEMENT_WRITE],
+    input_schema: { type: "object", properties: { ...record, ...binding }, required: ["install_id", "plugin_id", "slot_id", "record_key", "service_id", "connection_id"], additionalProperties: false },
+    output_schema: result } } as ActionDefinition<BindInput<RecordInput>, { connection: ConnectorConnectionView | null }>,
 };
 
-function bound(home: string, input: SlotInput): ConnectorConnectionView | null {
+function bound(home: string, input: SlotInput, scope = pluginSlotScope(input.install_id)): ConnectorConnectionView | null {
   return withConnectorConnections(home, store => {
-    const binding = store.binding(pluginSlotScope(input.install_id), input.plugin_id, input.slot_id);
+    const binding = store.binding(scope, input.plugin_id, input.slot_id);
     const connection = binding && store.get(binding.connection_id);
-    return connection ? store.view(connection) : null;
+    return connection ? { ...store.view(connection), state: shownState(home, connection, store.state(connection)) } : null;
   });
 }
 
-export function connectorPluginSlotHandlers(home: string): ActionHandlerBinding[] {
+/** A record's scope, in the caller's project: the project is never read from the input. */
+function recordScope(caller: ActionCallContext, input: RecordInput): string {
+  if (!caller.project_id) throw pluginSlotErrors.project_required("按记录绑定的账号要在一个项目里选择");
+  return targetScope({ install_id: input.install_id, project_id: caller.project_id, record_key: input.record_key });
+}
+
+export function connectorPluginSlotHandlers(home: string, declarations: PluginSlotDeclarations = noInstallations): ActionHandlerBinding[] {
   return [
     { capability_id: connectorPluginSlotActions.read.capability_id, version: 1, handle: (_caller, input) => ({ connection: bound(home, input as SlotInput) }) },
     { capability_id: connectorPluginSlotActions.bind.capability_id, version: 1, handle: async (caller, value) => {
@@ -50,6 +80,25 @@ export function connectorPluginSlotHandlers(home: string): ActionHandlerBinding[
         ? store.unbind(pluginSlotScope(input.install_id), input.plugin_id, input.slot_id)
         : store.bind({ scopeId: pluginSlotScope(input.install_id), pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id }));
       return { connection: bound(home, input) };
+    } },
+    { capability_id: connectorPluginSlotActions.readRecord.capability_id, version: 2, handle: (caller, value) => {
+      const input = value as RecordInput;
+      return { connection: bound(home, input, recordScope(caller, input)) };
+    } },
+    { capability_id: connectorPluginSlotActions.bindRecord.capability_id, version: 2, handle: async (caller, value) => {
+      const input = value as BindInput<RecordInput>, scope = recordScope(caller, input);
+      // BL-350, the binding half: an installation here that declares this slot, for this service, one account per record. Unbinding
+      // only takes an account away, so a binding left by a plugin no longer installed can still be removed.
+      if (input.connection_id !== null) {
+        const slots = await declarations(caller, input.install_id, input.plugin_id);
+        if (!slots) throw pluginSlotErrors.installation_missing(`这个项目里没有插件 ${input.plugin_id} 的这个安装`);
+        const declared = slots.find(item => item.slot_id === input.slot_id);
+        if (declared?.binding !== "per_record" || declared.service_id !== input.service_id) throw pluginSlotErrors.slot_undeclared(`插件没有声明按记录绑定、用 ${input.service_id} 的连接槽 ${input.slot_id}`);
+      }
+      await caller.beforeEffect();
+      withConnectorConnections(home, store => input.connection_id === null ? store.unbind(scope, input.plugin_id, input.slot_id)
+        : store.bind({ scopeId: scope, pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id }));
+      return { connection: bound(home, input, scope) };
     } },
   ];
 }

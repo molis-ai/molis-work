@@ -1,7 +1,8 @@
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
+import { CatalogLiveError, catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { apiOAuthConnectionId, apiOAuthContext, resolveApiOAuthToken } from "./connector-api-oauth.js";
+import { ApiOAuthError, apiOAuthConnectionId, apiOAuthContext, resolveApiOAuthToken } from "./connector-api-oauth.js";
+import { clearRefreshRefused, markRefreshRefused, tokenEndpointRefused } from "./connector-refresh-refusals.js";
 import { resolveUsableNotionToken } from "./notion-oauth.js";
 import { resolveUsableGmailAccessToken } from "./gmail-oauth.js";
 import { feishuCliFetch, feishuCliMarker } from "./feishu-cli.js";
@@ -24,6 +25,11 @@ function cliConnectionFetch(home: string, id: string): typeof fetch {
 export async function resolveApiConnection(home: string, id: string, service?: string, forceRefresh = false) {
   const connection = withConnectorConnections(home, store => store.require(id, service));
   if (!connection.enabled || connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "none") throw new Error("所选连接不能用于此 API 读取，请选择有效的 API 账号");
+  // A refresh the token endpoint refuses marks the connection (`connector-refresh-refusals.ts`); a forced refresh that succeeds clears it.
+  const refreshing = async <T>(run: () => Promise<T>, refusedBy: (error: unknown) => boolean): Promise<T> => {
+    try { const value = await run(); if (forceRefresh) clearRefreshRefused(home, id); return value; }
+    catch (error) { if (refusedBy(error)) markRefreshRefused(home, connection); throw error; }
+  };
   return runWithMolisWorkHome(home, async () => {
     if (connection.auth_method === "cli") {
       if (connection.service_id !== "feishu") throw new Error("此 CLI 连接请通过连接设置中的只读操作使用");
@@ -31,15 +37,23 @@ export async function resolveApiConnection(home: string, id: string, service?: s
       return { connection, token: feishuCliMarker(), fetchImpl: cliConnectionFetch(home, id), authExtras: undefined };
     }
     const oauthId = apiOAuthConnectionId(connection.credential_ref ?? undefined);
-    if (oauthId) return { connection, token: await resolveApiOAuthToken(home, id, forceRefresh), authExtras: apiOAuthContext(home, id), fetchImpl: undefined };
+    if (oauthId) {
+      const token = await refreshing(() => resolveApiOAuthToken(home, id, forceRefresh), error => error instanceof ApiOAuthError && error.refused);
+      return { connection, token, authExtras: apiOAuthContext(home, id), fetchImpl: undefined };
+    }
     if (connection.auth_method === "oauth" && connection.service_id === "notion" && connection.refresh_ref) {
-      const token = await resolveUsableNotionToken(id, forceRefresh);
+      const token = await refreshing(() => resolveUsableNotionToken(id, forceRefresh),
+        error => error instanceof CatalogLiveError && error.kind === "needs_auth" && tokenEndpointRefused(error.status));
       if (!token) throw new Error("Notion 连接需要重新授权");
       return { connection, token, authExtras: undefined, fetchImpl: undefined };
     }
     if (connection.auth_method === "oauth" && connection.service_id === "gmail" && connection.credential_ref && connection.refresh_ref && connection.expires_ref) {
-      const result = await resolveUsableGmailAccessToken({ forceRefresh, tokenRefs: { access: connection.credential_ref, refresh: connection.refresh_ref, expiresAt: connection.expires_ref } });
-      if (!result.ok) throw new Error("Gmail 连接需要重新授权");
+      const refs = { access: connection.credential_ref, refresh: connection.refresh_ref, expiresAt: connection.expires_ref };
+      const result = await refreshing(async () => {
+        const answer = await resolveUsableGmailAccessToken({ forceRefresh, tokenRefs: refs });
+        if (!answer.ok) throw Object.assign(new Error("Gmail 连接需要重新授权"), { refused: answer.status === "needs_auth" && answer.refused === true });
+        return answer;
+      }, error => (error as { refused?: boolean }).refused === true);
       return { connection, token: result.accessToken, authExtras: undefined, fetchImpl: undefined };
     }
     const token = connection.credential_ref ? createFileSecretStore().get(connection.credential_ref) : null;

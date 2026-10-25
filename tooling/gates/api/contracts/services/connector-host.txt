@@ -387,9 +387,10 @@ export interface ConnectorReceipt {
 }
 
 export interface ConnectorRequestService {
-    readonly origin: string;
+    readonly origins: readonly string[];
     readonly credential: "bearer";
     readonly auth_methods: readonly ("token" | "oauth")[];
+    readonly refresh: "host" | "none";
 }
 
 export interface ConnectorSetupLink {

@@ -1,16 +1,18 @@
 import { existsSync } from "node:fs";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
+import type { PluginConnectionDescription, PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { PluginConnectionDispatch, PluginConnectionsPort, PluginConnectionTarget } from "@molis-ai/molis-work-plugin-runtime";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
+import { shownState } from "./connector-refresh-refusals.js";
 import { sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from "./public-https.js";
 
-// The Host's side of a plugin's `services.connections` (S0b-2, security invariant S-57): which account a slot is bound to, the
-// credential, the one origin it may reach and the transport. The runtime client (packages/plugin-runtime `createPluginConnectionsClient`)
+// The Host's side of a plugin's `services.connections` (S0b-2, security invariants S-57 and S-69): which account a slot is bound to, the
+// credential, the origins it may reach and the transport. The runtime client (packages/plugin-runtime `createPluginConnectionsClient`)
 // has already checked the call, the permission, the slot and the request's shape before anything reaches here.
 
 export const pluginRequestErrors = defineErrorCodes("connector.plugin_requests", {
@@ -19,12 +21,29 @@ export const pluginRequestErrors = defineErrorCodes("connector.plugin_requests",
 });
 
 /**
- * The scope an installation's slot bindings live under. `install_id` is the installation identity (`installIdentity`: the plugin id and
- * the publisher's signature), the same in every project and after a reinstall, so a binding follows the plugin until it is unbound
- * (the uninstall gap is listed under S-57); another publisher's build of the same plugin id never reads it.
+ * The scope an installation slot's bindings live under (connector-host `pluginBindingScope` writes every plugin scope). `install_id` is
+ * the installation identity (`installIdentity`: the plugin id and the publisher's signature), the same in every project and after a
+ * reinstall, so a binding follows the plugin until it is unbound (the uninstall gap is listed under S-57); another publisher's build of
+ * the same plugin id never reads it.
  */
 export function pluginSlotScope(install_id: string): string {
-  return `plugin-installation:${install_id}`;
+  return pluginBindingScope({ install_id });
+}
+
+/** A deleted project's `per_record` bindings, of every plugin (S-57 extension X4); a Home that never saved an account has none. */
+export function forgetProjectConnectionBindings(home: string, project_id: string): void {
+  if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.forgetProjectBindings(project_id));
+}
+
+/** An installation's `per_record` bindings in a project it is uninstalled from (S-57 extension X4). */
+export function forgetInstallationProjectBindings(home: string, install_id: string, project_id: string): void {
+  if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.forgetInstallationProjectBindings(install_id, project_id));
+}
+
+/** A target's scope: an installation slot's, or a `per_record` slot's, which is also the call's project's and the record's (S-71 provisional). */
+export function targetScope(target: Pick<PluginConnectionTarget, "install_id" | "project_id" | "record_key">): string {
+  return target.project_id === undefined && target.record_key === undefined ? pluginSlotScope(target.install_id)
+    : pluginBindingScope({ install_id: target.install_id, project_id: target.project_id!, record_key: target.record_key! });
 }
 
 /** Response headers a plugin may see: no cookies, nothing that names the credential. */
@@ -43,41 +62,69 @@ export interface PluginConnectionsPortOptions {
 }
 
 /**
- * Requests reach only the slot's service origin, exactly. An unbound slot sends nothing but what the plugin wrote; a bound slot whose
- * account is gone, disabled, disconnected, of another service, for another address, or of a kind whose secret the Host cannot send,
+ * Requests reach only the slot's service origins, exactly. An unbound slot sends nothing but what the plugin wrote; a bound slot whose
+ * account is gone, disabled, disconnected, of another service, pinned to another of the service's origins, or of a kind whose secret the Host cannot send,
  * is refused rather than sent without it. The person's credential is added here and nowhere else, and redirects come back unfollowed.
+ * A 401 to a credential the Host can refresh (S-70 provisional: the service's `refresh: "host"` and an OAuth connection) is refreshed once
+ * and the same request sent once more; a second 401 goes back to the plugin as it is, and a refresh that fails refuses the request.
  */
 export function createPluginConnectionsPort(home: string, options: PluginConnectionsPortOptions = {}): PluginConnectionsPort {
   return {
     async request(target, dispatch) {
       const service = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, target.service_id) ? CONNECTOR_REQUEST_SERVICES[target.service_id]! : undefined;
       if (!service) throw pluginRequestErrors.service_unknown(`平台没有登记服务 ${target.service_id} 的请求来源`);
-      if (dispatch.url.origin !== service.origin) throw pluginRequestErrors.origin_refused(`连接槽 ${target.slot_id} 只能请求 ${service.origin}`);
-      const connection_id = boundConnection(home, target, service);
-      if (connection_id === null) return send(dispatch, undefined, options);
+      const origin = dispatch.url.origin;
+      if (!service.origins.includes(origin)) throw pluginRequestErrors.origin_refused(`连接槽 ${target.slot_id} 只能请求 ${service.origins.join("、")}`);
+      const connection = boundConnection(home, target, service, origin);
+      if (connection === null) return send(dispatch, undefined, options);
+      const { connection_id } = connection;
       return withConnectorRequest(home, connection_id, dispatch.signal, async signal => {
-        let token: string;
-        try { token = (await resolveApiConnection(home, connection_id, target.service_id)).token; }
-        catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号需要重新授权，请在设置里检查连接"); }
-        return send({ ...dispatch, signal }, `Bearer ${token}`, options);
+        // The token, refreshed or not, stays here: a refusal names no credential, and the refreshed token is not in the answer.
+        const token = async (refresh: boolean) => {
+          try { return (await resolveApiConnection(home, connection_id, target.service_id, refresh)).token; }
+          catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号需要重新授权，请在设置里检查连接"); }
+        };
+        const sent = { ...dispatch, signal };
+        const first = await send(sent, `Bearer ${await token(false)}`, options);
+        if (first.status !== 401 || service.refresh !== "host" || connection.auth_method !== "oauth") return first;
+        // Once: the resend asks the call again after its own DNS (`beforeEffect`), so a call that ended meanwhile sends nothing more.
+        return send(sent, `Bearer ${await token(true)}`, options);
       });
+    },
+    describe(target) {
+      return describeBinding(home, target);
+    },
+    release(target) {
+      if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.unbind(targetScope(target), target.plugin_id, target.slot_id));
     },
   };
 }
 
+/** Whether the slot has an account, its name and how it stands; never the connection's id or anything about its credential. */
+function describeBinding(home: string, target: PluginConnectionTarget): PluginConnectionDescription {
+  if (!existsSync(homeSqlitePath(home, "connectors"))) return { bound: false };
+  return withConnectorConnections(home, store => {
+    const connection = store.binding(targetScope(target), target.plugin_id, target.slot_id);
+    if (!connection) return { bound: false };
+    const state = connection.service_id === target.service_id ? shownState(home, connection, store.state(connection)) : "disconnected";
+    return { bound: true, display_name: connection.display_name, state };
+  });
+}
+
 /** The connection bound to this installation's slot, `null` when none is; refuses one that cannot be used as it is. */
-function boundConnection(home: string, target: PluginConnectionTarget, service: ConnectorRequestService): string | null {
+function boundConnection(home: string, target: PluginConnectionTarget, service: ConnectorRequestService, origin: string)
+  : { connection_id: string; auth_method: string } | null {
   // A Home that has never saved an account has bound nothing; reading must not create its registry.
   if (!existsSync(homeSqlitePath(home, "connectors"))) return null;
   return withConnectorConnections(home, store => {
-    const binding = store.binding(pluginSlotScope(target.install_id), target.plugin_id, target.slot_id);
+    const binding = store.binding(targetScope(target), target.plugin_id, target.slot_id);
     if (!binding) return null;
     const connection = store.get(binding.connection_id);
-    const usable = connection && connection.service_id === target.service_id && store.state(connection) === "connected"
+    const usable = connection && connection.service_id === target.service_id && shownState(home, connection, store.state(connection)) === "connected"
       && (service.auth_methods as readonly string[]).includes(connection.auth_method)
-      && (store.targetOrigin(connection.connection_id) ?? service.origin) === service.origin;
+      && (store.targetOrigin(connection.connection_id) ?? origin) === origin;
     if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");
-    return connection.connection_id;
+    return { connection_id: connection.connection_id, auth_method: connection.auth_method };
   });
 }
 

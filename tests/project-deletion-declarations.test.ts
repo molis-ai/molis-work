@@ -30,7 +30,7 @@ test("a plugin's project data is what its catalog entry declares, and the confir
     // The ids are the receipt's stable names, so a change here orphans the steps of receipts that are still pending.
     assert.deepEqual(owners.map(owner => owner.id), [
       "pages", "form", "dataset", "ppt", "workflows", "todo", "functions", "lingguang", "images",
-      "characters", "artifacts", "alchemist", "plugin-builder", "assistant", "knowledge", "plugin-originals", "memory", "search",
+      "characters", "artifacts", "alchemist", "plugin-builder", "assistant", "knowledge", "plugin-originals", "plugin-connections", "memory", "search",
     ]);
     assert.deepEqual(owners.flatMap(owner => owner.label ? [owner.label] : []), [
       "Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "Dataset 数据表", "PPT 演示稿", "工作流程及其运行记录", "放在这个项目里的待办",

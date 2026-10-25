@@ -1,8 +1,8 @@
 # W5-16 C5：MCP 按需启动常驻宿主
 
-状态：叠层实现已推送，夹具增量收验与受控单 offline-owner 路径通过，整片最终实装收验未完成，待剩余验证与父链实际落地（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；目标完成程度为隔离 Home 中功能可用，下列既有通过范围不覆盖最终实装首败，也不代表整个 W5-16/C1/C3 完成、已进入 main、真实 App 或本人验收通过。
+状态：夹具增量收验与受控单 offline-owner 路径通过，父链实际落地已核实，正接续 fresh-main 构建和剩余原场景，整片实装收验未完成（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；目标完成程度为隔离 Home 中功能可用，下列既有通过范围不覆盖最终实装首败，也不代表整个 W5-16/C1/C3 完成、C5 已进入 main、真实 App 或本人验收通过。
 
-统筹已在 [6394070792](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6394070792) 审定本稿：选 A 常驻；唯一 Home owner 允许短暂被拒的启动候选；20 秒总预算、1 秒探测、250 毫秒退避；EOF/cancellation 必须接通。Root 已授权以推送的 batch-36 `bb7137fc2550d8ae8fd7f8bb6caced55ee7cba9f` 为固定实施基底，只推自己的 feature 分支。#1254 尚未实际落地；batch-36 合入后核实际 main 增量与共享 hunk，再交一个完整非 Draft PR。FIX4/FIX7 的原生命周期 hunk 不在本片改写；S 新编号和共同行由 carrier 唯一登记，本片交确切语义及拒绝测试引用。
+统筹已在 [6394070792](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6394070792) 审定本稿：选 A 常驻；唯一 Home owner 允许短暂被拒的启动候选；20 秒总预算、1 秒探测、250 毫秒退避；EOF/cancellation 必须接通。初期按 Root 授权以 batch-36 `bb7137fc2550d8ae8fd7f8bb6caced55ee7cba9f` 为固定基底实施、只推自己的分支；#1254 的 A 实现现已随 #1270 在 11:14:03 UTC 实际进入 main `64a3ccc9c177ba6f3a2bbb44cf80dc1cce648f2a`，已鲜取并核对。整片完成后才交一个完整非 Draft PR。FIX4/FIX7/原 owner 关闭的生命周期 hunk 不在本片改写；S-77 正式共同行由 carrier 唯一登记，本片只交暂定引用、确切语义及拒绝测试。
 
 ## 目标、依据与边界
 
@@ -99,7 +99,7 @@
 ## 待决与依赖
 
 1. 原 Claude 已选 A，并认可“一个长期 Home 宿主，允许被 owner 拒绝的短暂启动器候选”；启动命令只取同 Home 已安装入口、shell:false、工具参数不能指定命令/Home/端口、PATH 别的安装不用及 port 0 拒绝须配新安全行。统筹在 [6396548527](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6396548527) 将本片暂定编号裁为 **S-77**，正式公共表行由收 C5 的唯一 carrier 落地；本分支不并写公共表，不把暂定号当成 health 已通过。
-2. 已获准在推送的 `bb7137fc` 上先叠写、只推分支。#1254/A 随 batch-36 **实际落地**后，基于实际 main 再核上述入口及原 owner 的收尾修复/共享 hunk；`352c64e0c` 保留为设计证据，不冒充实际依赖已满足。
+2. 初期 `bb7137fc` 分支及证据保留在 `feature/w5-16-mcp-autostart` 的 `8c6047062ce380b0a4cde828f715e153d259bac9`。实际依赖现已满足：后继 `feature/w5-16-mcp-autostart-main` 从 main `64a3ccc9` 只承接本片五个自有提交，含已准的最小 FIX19 CLI guard/gate；不整取旧 batch-36、旧 baseline/SI。`352c64e0c` 仅作设计历史证据。
 3. PIPE 已核 C5 没有第二 owner，沿用本份 spec 完成实现、验证与一个完整 PR；不提前开占位或 Draft PR，也不重跑 #1263 的原验证。新的安全不变量编号/共同行由 PIPE/原 carrier 串行登记；门禁在本片独立分支按 Root 具体裁定与准确 FIX19 依赖一起实施，最终共同 hunk 由 carrier 串行合，本片不并写共享表。
 
 ## 本机证据与保留边界
@@ -112,7 +112,7 @@
 
 历史失败保留原范围：真实安装两次在 release staging 超过 240 秒、零进程子场景，不称为 flaky 或产品通过；之后按同一公共重活 FIFO 与整体构建隔离，原限额内完整实装通过。首次竞争测试误要求两个同键并发创建都成功，后改为保留原冲突/已完成回执合同并断言只有一个项目；其失败曾导致后继场景未在无宿主状态，旧取消结论作废。另有一组在组合构建尚排队时误启动的校验已作废，实际记录只使用构建后的 11/11 结果。
 
-父基线 `desktop-entry-failures.test.ts` 的 `transport-reject` 仍期望 Host close 一次而实际为零：本片与独立干净 `bb7137fc` 均为同一 12/14，已交原 Home-owner A/FIX15，未改其关闭/资源 lifetime hunk。独立 REVIEW 已复核门禁 v2 窄增量；最终整片独立 REVIEW/TEST、统一 full、父链合入后的实际 main 增量复核仍由 PIPE 接续。本轮没有运行 macOS App/WebKit 的实际复用/退出，也没有一骏本人验收；不能用上述 Node/安装测试替代它们。
+旧父基线 `desktop-entry-failures.test.ts` 的 `transport-reject` 曾期望 Host close 一次而实际为零：本片与独立干净 `bb7137fc` 当时均为同一 12/14，已交原 Home-owner A/FIX15，未改其关闭/资源 lifetime hunk。fresh-main 后继保留该线在 `64a3ccc9` 的后续修复；旧 12/14 不作为当前基底仍失败的结论。独立 REVIEW 已复核门禁 v2 窄增量；整片 FIRST/独立 TEST 与统一 full 仍按统筹流程接续。本轮没有运行 macOS App/WebKit 的实际复用/退出，也没有一骏本人验收；不能用上述 Node/安装测试替代它们。
 
 ### 冻结提交后的失败追查
 
@@ -136,7 +136,7 @@
 
 ### 原首红、取消与可复用证据
 
-`3077bfc` 之后只有 tests/specs 改动，生产源码、构建输入及四项成功路径的业务断言没有变化；本次 public 安装也实际通过原构建指纹检查。保留该次首四项有效证据，不因同一父测试稍后超时而重跑它们，也不把整份失败日志标为全绿。
+旧叠层分支 `3077bfc → 8c6047062` 只有 tests/specs 改动，C5 生产源码、构建输入及四项成功路径的业务断言没有变化；本次 public 安装也实际通过原构建指纹检查。保留该次首四项有效证据，不因同一父测试稍后超时而重跑它们，也不把整份失败日志标为全绿。fresh-main 后继的父修复与重建结果单独记录，不把旧构建冒充新基底产物。
 
 | 原场景 | `3077bfc` 首轮原件 | 现有有效范围与下一动作 |
 | --- | --- | --- |
@@ -150,3 +150,5 @@
 | 父测试 240 秒取消 | cancelled | 原始取消与清理竞态记录保留；设施修复已有独立正例、实际删等待行反例和限定 REVIEW/TEST。安装慢因未定，有限场景通过不改写整批首轮历史。 |
 
 后续仅必要的两个原场景按现有 FIFO 执行；保持 20/240 秒和既有外层限额，不重全八、不抬预算、不把旧 8/8 代当前头。原 Claude 的整片 FIRST 入口为本分支固定头、同一 spec 与这份范围映射；专职 Codex 的 v2 门禁及夹具评审仍只限各自增量。
+
+fresh-main 接续已逐项核范围：`64a3ccc9 → c20fc04db` 为本片 35 文件 1,388/+、79/−；C5 生产文件、测试及门禁与旧固定分支逐字节相同，唯一重叠入口 `apps/local-host/src/index.ts` 保留了 main 新增的 `HomeInitializationFailure` 类型导出。`project-host.ts`、`home-storage-lifetime.ts`、公共 SI、baseline 与 API/动作快照均与 main 相同，没有改写原 owner 或父收尾修复。锁文件/依赖未变。后继须先按现有 FIFO 整体构建，再跑必要定向回归与两个原未验证场景；实际构建和执行结果尚未写成通过。

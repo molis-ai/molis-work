@@ -435,7 +435,7 @@ test("unknown canonical Character ownership blocks the real Catalog acceptance w
   } finally { await inspect.shutdown(); }
 });
 
-test("a changed relation between coverage pages rejects the old cursor before accepting a deletion", { timeout: 60_000 }, async t => {
+test("a new target relation between coverage pages rejects the old cursor before accepting a deletion", { timeout: 60_000 }, async t => {
   const f = await fixture(t), entry = await f.memory().write({ scope: "project", owner: f.gone.project_id, text: "Wait for complete coverage", origin: "person", operation_id: "before-pages", meta });
   const ledger = openMemoryLedger({ homeDirectory: f.home }); t.after(() => ledger.close());
   const capability = f.adapter().memory!, bind = capability.withCaller.bind(capability); let changed = false;
@@ -444,7 +444,7 @@ test("a changed relation between coverage pages rejects the old cursor before ac
     verifyPurgeCoverage: async input => {
       const page = await bound.verifyPurgeCoverage({ ...input, limit: 1 });
       if (!changed && !page.exhausted) {
-        changed = true; ledger.noteOwner({ scope: "character", owner: characterOwner(f.kept.project_id, "new-role"), project_id: f.kept.project_id, subject: "new-role", title: "Kept role" });
+        changed = true; ledger.noteOwner({ scope: "character", owner: characterOwner(f.gone.project_id, "new-role"), project_id: f.gone.project_id, subject: "new-role", title: "New target role" });
       }
       return page;
     } });
@@ -472,20 +472,23 @@ test("a completed Memory step cannot delete a later original or certify the pend
   finally { await inspect.shutdown(); }
 });
 
-test("a relation change after the final asynchronous proof cannot cross the synchronous Catalog complete commit", { timeout: 60_000 }, async t => {
+test("an original relation disappearing after the final asynchronous proof cannot cross the synchronous Catalog complete commit", { timeout: 60_000 }, async t => {
   const f = await fixture(t), hooks = projectDeletedHooksFor(f.home), original = hooks.owners().find(owner => owner.id === "memory")!;
   const ledger = openMemoryLedger({ homeDirectory: f.home }); t.after(() => ledger.close());
+  const retainedOwner = { scope: "character" as const, owner: characterOwner(f.kept.project_id, "commit-window"), project_id: f.kept.project_id, subject: "commit-window", title: "Kept role" };
+  ledger.noteOwner(retainedOwner);
   let armed = false, checks = 0;
   const business = hooks.register({ id: "test-arm-final-proof", label: null, clear: () => { armed = true; } }); t.after(business);
   const wrapped = hooks.register({ ...original, withRecovery: (input, work) => original.withRecovery!(input, (plan, proof) => work(plan, { ...proof,
     verifyMemory: async () => {
       await proof.verifyMemory();
-      if (armed && ++checks === 2) ledger.noteOwner({ scope: "character", owner: characterOwner(f.kept.project_id, "commit-window"), project_id: f.kept.project_id, subject: "commit-window", title: "Kept role" });
+      if (armed && ++checks === 2) ledger.forgetScopes({ scopes: [retainedOwner], project_id: f.kept.project_id, prefs_keys: [], signal_prefixes: [], marker_keys: [] });
     } })) }); t.after(wrapped);
   const result = await f.catalog.deleteProject(f.request);
   assert.equal(checks, 2, "the injected change follows the final beforeAcquire proof");
   assert.equal(result.deletion.cleanup_state, "pending"); assert.equal(result.deletion.cleaned_at, null); assert.match(result.deletion.cleanup_error ?? "", /归属已变化/);
-  wrapped(); assert.equal((await f.catalog.deleteProject(f.request)).deletion.cleanup_state, "complete");
+  wrapped(); ledger.noteOwner(retainedOwner);
+  assert.equal((await f.catalog.deleteProject(f.request)).deletion.cleanup_state, "complete");
 });
 
 test("a real archived Work relation both covers and purges a Character that has no ledger mapping", { timeout: 60_000 }, async t => {

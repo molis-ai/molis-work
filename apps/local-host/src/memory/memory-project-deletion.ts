@@ -72,7 +72,11 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
           frame.scopes = projection.scopes;
           const current = () => {
             if (!frame.active || !ports.alive()) throw memoryErrors.unavailable("原项目删除主人已关闭");
-            if (!isDeepStrictEqual(readMemoryOwnerCoverage({ ...ports, projectId: input.project_id }), projection))
+            const observed = readMemoryOwnerCoverage({ ...ports, projectId: input.project_id });
+            const known = new Set(observed.knownScopes.map(scope => JSON.stringify([scope.scope, scope.owner])));
+            // New unrelated owners do not change this decision; coverage below still uses the original frozen list.
+            if (!isDeepStrictEqual(observed.scopes, projection.scopes)
+              || projection.knownScopes.some(scope => !known.has(JSON.stringify([scope.scope, scope.owner]))))
               throw memoryErrors.conflict("原删除归属已变化，须从首页重新核验且不能扩大原计划");
           };
           frame.coverage = { operation: input.operation_id, projection, current };

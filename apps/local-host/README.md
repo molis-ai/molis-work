@@ -369,3 +369,5 @@ Catalog target 初始化的 readonly 预检和 writer 装配若收尾失败，�
 Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolver；prepare/clear/verifyOriginal 在首次外部 current 前隔离本次原 binding/selection。current 的每次外部回调返回后仍须未关闭且未待清理。Assistant 库缺席仍经原业务 owner 的 runtime/plugin/install/actor 身份校验，不得由伪 kind 跳过 Coding 原件；合法缺库保持零创建、零删除。
 
 公开 createSessionBusinessPurgeOwner 由既有 project-plugins 装配根绑定 Coding manifest 与 prepare/clear/verify 实现；内部业务资源 owner 只消费这份窄口和现有 DTO，调用者不能提供实现或自造权限，不启动插件。Host 自身固定身份、路径/结构与资源生命周期冲突统一为 host.session_purge_conflict；下层 SDK/业务 owner 抛出的原码与 cause 保留。没有新注册表，也不借项目 project_data 表达 canonical Session 清理。
+
+在线项目删除固定目标 scopes，并要求原 knownScopes 仍全部存在；无关新建空项目不撤销原决定。SDK 全量覆盖检查始终使用原 knownScopes，不追加覆盖授权；新 scope 有实际 SDK 原件、目标归属变化或旧归属缺失仍保持 pending。冷 Home 恢复的整个 Catalog 固定合同不因此放宽。

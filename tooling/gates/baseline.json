@@ -1,10 +1,10 @@
 {
-  "giantUnits": 72,
+  "giantUnits": 71,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1837,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1826,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1480,
-      "methods": 90
+      "lines": 1469,
+      "methods": 89
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -39,16 +39,16 @@
     "file apps/workbench/src/i18n/en.ts": 3308,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 284,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 1999,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
-    "file horizontal/memory/src/service.ts": 1151,
+    "file horizontal/memory/src/service.ts": 905,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1015,
-      "methods": 48
+      "lines": 758,
+      "methods": 47
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
@@ -79,7 +79,7 @@
       "methods": 12
     },
     "class modules/projects/src/repository.ts#ProjectsRepository": {
-      "lines": 287,
+      "lines": 277,
       "methods": 29
     },
     "file modules/shelf/src/store.ts": 1067,
@@ -111,7 +111,6 @@
       "methods": 26
     },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 173,
-    "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 151,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
       "lines": 377,

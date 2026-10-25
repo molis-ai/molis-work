@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { applyProjectMemoryPurge as applyFixedProjectMemoryPurge, previewProjectMemoryPurge as previewFixedProjectMemoryPurge, readProjectMemoryPurgeLedgerFacts, projectMemoryPurgeLedger, type MemoryBackendPort, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
+import { characterOwner, applyProjectMemoryPurge as applyFixedProjectMemoryPurge, previewProjectMemoryPurge as previewFixedProjectMemoryPurge, readProjectMemoryPurgeLedgerFacts, projectMemoryPurgeLedger, type MemoryBackendPort, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryServiceHome, observeMemoryBackend, originalMemorySources, scriptedMemoryExtraction } from "./fixtures/memory-service-home.js";
+
+import { openTestHome } from "./fixtures/test-home.js";
 
 const caller = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui",
   person: true, purpose: "management", current_scene: "common", operation_id });
@@ -256,3 +260,49 @@ test("online purge preview retains originals hidden from public listing after Se
   await raw().remove({ ...target, memory_id: formal.memory_id,
     expected_version: formal.version + 1, operation_id: "prove-original-absent" });
 });
+
+for (const change of ["target-owner", "foreign-content"] as const) test(
+  `online project deletion refuses ${change} during runtime release without widening its saved plan`, { timeout: 60_000 }, async t => {
+    const entered = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
+    let heldProject = "", deleting: Promise<ProjectDeletionResult> | undefined;
+    t.after(async () => { resume.resolve(); await deleting; });
+    const home = await openTestHome(t, { host: { async onRuntimeClose(reference) {
+      if (reference.project_id === heldProject) { entered.resolve(); await resume.promise; }
+    } } });
+    const target = await home.createProject("Original deletion"), neighbor = await home.createProject("Original neighbor");
+    await home.host.withProject(target.reference, () => undefined);
+    const service = ensureSystemAgentService(home.host, home.home, withMolisWorkProjectCatalog); await service.ready;
+    const adapter = service.agentHost.adapter("prologue"), ledger = openMemoryLedger({ homeDirectory: home.home });
+    const raw = (projectId: string) => adapter.memory!.withCaller({ ...caller("interleaving"), project_id: projectId, purpose: "management" as const, current_scene: "coding" as const });
+    const write = (projectId: string, text: string) => raw(projectId).write({ scope: "project", owner: projectId, text, origin: "Person", operation_id: text,
+      meta: { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+    const savedPlan = () => {
+      const db = new DatabaseSync(join(home.home, "projects", "catalog.db"), { readOnly: true });
+      try { return (db.prepare("SELECT recovery_plan FROM project_deletions WHERE project_id=?").get(target.project_id) as { recovery_plan: string }).recovery_plan; }
+      finally { db.close(); }
+    };
+    try {
+      const original = await write(target.project_id, "Original target memory"), kept = await write(neighbor.project_id, "Neighbor body stays exact");
+      heldProject = target.project_id;
+      deleting = home.web.post(`/api/settings/projects/${target.project_id}/delete`, { delete_confirmed: true, idempotency_key: `coverage-${change}` });
+      await Promise.race([entered.promise, deleting.then(() => assert.fail("runtime release barrier was not reached"))]);
+      const plan = savedPlan();
+      assert.ok(plan.includes(original.memory_id));
+      let added: { project_id: string } | undefined, addedMemory: { memory_id: string } | undefined;
+      if (change === "target-owner") ledger.noteOwner({ scope: "character", owner: characterOwner(target.project_id, "late-role"), project_id: target.project_id, subject: "late-role", title: "New target relation" });
+      else {
+        added = await home.createProject("New unrelated project");
+        addedMemory = await write(added.project_id, "New unrelated SDK body stays exact");
+      }
+      resume.resolve();
+      const result = await deleting;
+      assert.equal(result.deletion.cleanup_state, "pending");
+      assert.match(result.deletion.cleanup_error ?? "", change === "target-owner" ? /原删除归属已变化/u : /记忆归属覆盖不完整/u);
+      assert.equal(result.deletion.owner_steps.find(step => step.owner_id === "memory")?.state, "complete");
+      assert.equal(savedPlan(), plan, "the original decision is never replaced or expanded");
+      assert.equal(existsSync(target.database_path), true, "pending deletion retains the original directory");
+      const read = async (projectId: string) => (await raw(projectId).page({ scope: "project", owner: projectId })).items;
+      assert.deepEqual((await read(neighbor.project_id)).map(item => [item.memory_id, item.text]), [[kept.memory_id, "Neighbor body stays exact"]]);
+      if (added && addedMemory) assert.deepEqual((await read(added.project_id)).map(item => [item.memory_id, item.text]), [[addedMemory.memory_id, "New unrelated SDK body stays exact"]]);
+    } finally { resume.resolve(); await deleting; ledger.close(); }
+  });

@@ -112,7 +112,7 @@ test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present
   assert.equal(s.home.host.projects().some(project => project.project_id === unopened.project_id), false, "reading reach never opens a catalog-only project");
   barrier.release();
   const result = await deleting as { deletion: { cleanup_state: string } };
-  assert.equal(result.deletion.cleanup_state, "complete");
+  assert.equal(result.deletion.cleanup_state, "complete", JSON.stringify(result));
   const after = await openMolisWorkProjectCatalog({ homeDirectory: s.home.home });
   try { assert.equal(after.listProjects().some(project => project.project_id === closing.project_id), false); } finally { after.close(); }
   assert.equal(existsSync(closing.database_path), false);

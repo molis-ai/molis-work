@@ -1,5 +1,5 @@
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginCleanupResult, PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { StoppedServiceCalls, type PluginCapabilityPort, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatformHome } from "./home-side.js";
@@ -92,14 +92,15 @@ export class PluginHostExecutor implements PluginExecutor {
     return this.options.restorePrivateData?.(installId, snapshot);
   }
 
-  uninstalled(record: PluginInstanceRecord): void {
+  uninstalled(record: PluginInstanceRecord): PluginCleanupResult | undefined {
     forgetPluginAgentDefinitions(this.options.home, record.install_id);
     // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
-    if (!record.retain_private_data) discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id }, record, this.options.deleteInstallationData);
+    const cleanup = !record.retain_private_data ? discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id, projectLibrary: this.options.projectLibrary }, record, this.options.deleteInstallationData) : undefined;
+    return cleanup;
   }
 
-  keptDataDiscarded(record: PluginInstanceRecord): void {
-    discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id }, record, this.options.deleteInstallationData);
+  keptDataDiscarded(record: PluginInstanceRecord): PluginCleanupResult | undefined {
+    return discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id, projectLibrary: this.options.projectLibrary }, record, this.options.deleteInstallationData);
   }
 
   /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */

@@ -1,6 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDeployment, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginCleanupResult, PluginDeployment, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 
 import { pluginManifestDigest } from "./identity.js";
@@ -30,7 +30,7 @@ export function installationGrants(current: PluginInstanceRecord | null, manifes
 }
 
 /** Finish an earlier non-retaining uninstall or an explicit retained-data discard before registering/publishing another installation. */
-export function prepareInstallationData(executor: PluginExecutor, previous: PluginInstanceRecord | null, manifest: PluginManifest, bundled: boolean, discard: boolean): void {
+export function prepareInstallationData(executor: PluginExecutor, previous: PluginInstanceRecord | null, manifest: PluginManifest, bundled: boolean, discard: boolean): PluginCleanupResult | void {
   const refusal = keptDataRefusal(previous, manifest, bundled, discard);
   if (refusal) throw pluginErrors.kept_data_incompatible(refusal);
   if (previous?.state !== "uninstalled" || previous.retain_private_data && !discard) return;
@@ -38,7 +38,7 @@ export function prepareInstallationData(executor: PluginExecutor, previous: Plug
     if (executor.uninstalled) throw pluginErrors.state_invalid("Plugin 的宿主没有同步数据清理能力，暂不能丢弃数据后重装");
     return;
   }
-  try { executor.keptDataDiscarded(previous); }
+  try { return executor.keptDataDiscarded(previous); }
   catch (error) {
     if (error instanceof ActionError) throw error;
     throw pluginErrors.executor_failed("Plugin 已卸载数据清理失败，暂不能重装，请重试清理");

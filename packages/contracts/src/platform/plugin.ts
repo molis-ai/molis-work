@@ -187,6 +187,9 @@ export interface PluginExecutorHandle {
   contribution: PluginContribution;
 }
 
+/** A Host cleanup's user-visible scope, returned with the lifecycle receipt and never persisted as installation state. */
+export interface PluginCleanupResult { readonly notes: readonly string[] }
+
 export interface PluginExecutor {
   start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
   stop(definition: PluginDefinition, context: PluginStartContext): Promise<void>;
@@ -196,9 +199,9 @@ export interface PluginExecutor {
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /** The installation is uninstalled and its row saved: remove what the Host kept for it (PG-051 Q1 b). Must be idempotent: uninstall retries call this again, including after a cleanup failure or a completed uninstall. */
-  uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
+  uninstalled?(record: PluginInstanceRecord): Promise<PluginCleanupResult | void> | PluginCleanupResult | void;
   /** Before a replacement is registered or saved, finish a non-retaining uninstall or explicit discard_kept_data. Remove Host-owned files/libraries before KV; failure keeps the earlier uninstalled record and is retryable. `record` is that earlier record. */
-  keptDataDiscarded?(record: PluginInstanceRecord): void;
+  keptDataDiscarded?(record: PluginInstanceRecord): PluginCleanupResult | void;
 }
 
 export interface PluginRuntimeRepository {
@@ -213,6 +216,8 @@ export interface PluginLifecycleReceipt {
   install: PluginInstanceRecord;
   at: string;
   replayed: boolean;
+  /** What the Host deliberately preserved outside this installation's cleanup scope. */
+  notes?: readonly string[];
 }
 
 export interface PluginRuntimeApi {

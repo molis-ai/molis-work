@@ -4,7 +4,7 @@
 
 ## 1. 现状
 
-BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）：本轮目标是补齐该服务的功能与安全拒绝证据，不代表完整 PG-017 或生成插件接线完成。修复范围限下列 Home 库合同、真实 Home Runtime 生命周期回归、严格进程断言与 storage 准确注释；不扩 BL-377/491/492/P2e，不动真实 Home。原作者 40 文件的原始清单与构建来源已定位：构建在 `e2dcc505e`，到 `d0f6cc53b` 只改 API 快照；原日志逐例统计 621/622，剩余一例未计入通过，原因不能从紧凑日志判定。它只属于原头证据，修复后按相关包与受影响路径验证，全量留唯一 carrier。跨项目共用同一 Home 库时，项目卸载/明确 discard 的清理授权范围尚待统筹对评论 6393304647 明确；当前双执行器删除接线只是可审阅候选，不据此推送或宣称 RAC-242 全部完成。
+BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）：本轮目标是补齐该服务的功能与安全拒绝证据，不代表完整 PG-017 或生成插件接线完成。修复范围限下列 Home 库合同、真实 Home Runtime 生命周期回归、严格进程断言与 storage 准确注释；不扩 BL-377/491/492/P2e，不动真实 Home。原作者 40 文件的原始清单与构建来源已定位：构建在 `e2dcc505e`，到 `d0f6cc53b` 只改 API 快照；原日志逐例统计 621/622，剩余一例未计入通过，原因不能从紧凑日志判定。恢复候选 `2b27655f` 的五项独立修复已获增量 REVIEW/TEST 核收，96 文件 / 1172 例是同源分阶段的有效并集，原 Keychain 首次超时仍保留、原因未知，不能记成一次全绿或全量。2026-10-25 统筹在评论 6395368971 明确清理范围：项目操作保留 Home 共享库；Home 级唯一实例才在停止后删库。以下按该裁定接续，保原五项证据，仅新增范围的定向验证，全量留唯一 carrier。
 
 ### 1.1 沙箱插件是什么、怎样拿到服务
 
@@ -105,7 +105,9 @@ BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）
 - **Home 库（`database`）**（BL-490，S-68，已做）：项目库已经给了（`projectDatabase`，S-59）。PG-022 把声明搬进 Manifest 之后，Home Runtime 里的沙箱包按 `databases.home` 拿账本里的库（`openInstalledPluginLibrary`，和装进来的任何插件一样），语句沿用 S-59 的子进程（`ProjectStatementProcess` 的 `record` 为空即 Home 库，引擎换 node:sqlite 的两条连接，没有 S-46 的记录检查，因为整个文件都归这个插件），不另写一套；宿主只做出文件就放手，不留连接。broker 多 `homeDatabase` 效果（和 `projectDatabase` 同一段检查），服务多 `database_statements`。项目里运行的沙箱包不能声明 Home 库（`plugin.declaration_invalid`）。
   - **声明在任何真实效果前检查**：沙箱入口复用现有 `inspectPluginProjectSchema`（PLIB-03）检查每一句只建无库名前缀的表或索引，先在同一 SQLite 的空内存库试建；其他语句、无效结构都以 `plugin.declaration_invalid` 拒绝，不执行到真实插件库、账本或外部文件。安装也可能因明确 discard 清旧数据，所以 Home/项目组合向 Runtime 提供同步、无持久效果的 `validateInstall`，在任何清理/登记之前复用同一校验；开库时跨 turn 再查，Runtime 不依赖 Host 或 SQLite。不另写解析或放宽既有检查。原登记冲突检查也在破坏性准备前执行，授权不合法、定义冲突或坏 schema 都不能先清旧库/KV。通过后在账本的 open 回调经已有 `openPluginDatabase` 建库并立即关闭宿主连接，再交原语句子进程；版本检查复用该共同路径，不改门禁/例外/版本。
   - **真实生命周期**：测试通过真实 Home Runtime 的 `runtime.install` 装入声明 Home 库的 sandbox 定义，交真实 Seatbelt runner/broker 与库语句子进程，验证启动/写入/停止/卸载后的调用拒绝和本次子进程退出。不会使用启动名单 fixture 绕过沙箱限制，也不把直接 helper 用例当装配证据。原 `homeLibraryFor` 对 sandbox 忽略给定条目绑定的规则也覆盖。
-  - **数据去留（统筹裁 A，评论 6393088218）**：账本可证明归属的已装 native 与 sandbox Home 库同一规则；`retain_private_data: false` 卸载和明确 `discard_kept_data` 均由原账本 owner 的窄清理口核可信 plugin/publisher、只清其登记库，文件成功后删该行再清 KV；失败留账本可重试，清完才登记/发布候选。`retain=true` 保留并可重装读回，丢弃后重装读不回。保留库、别家库、宿主 reserved 名和未登记目录不动，不扩 native 存量迁移。沿 #1246 `d42891e3f` 已接受的准备/发布顺序组合，不另写相反逻辑；本片已复用该原片的准备/发布与 KV owner 接线，并在同一准备口补 retained=true 且明确 discard 的分支；不另建清理状态。
+  - **数据去留（统筹 6395368971，取代泛 A 的删除范围）**：native 与 sandbox 按安装层级使用同一规则。项目级 `retain_private_data: false` 卸载和明确 `discard_kept_data` 只清可信项目连接里该 plugin/publisher 的表内行、该安装的项目私有文件与 KV；Home 共享库文件与 `plugin_home_libraries` 行一律保留，不从一个项目推断全 Home 删除权限。项目表由原 `plugin_project_databases` owner 按已有对象账本清行，保留 schema/账本，不执行插件新声明中的 SQL。清理钩子返回临时说明，经 Runtime 加入 `PluginLifecycleReceipt.notes`：有本 owner 的 Home 库时如实写「Home 共享库保留（其他项目可能在用）」，不存新状态。A/B 两真实项目、B 保持 SQLite/WAL 连接时，A 的非保留卸载和明确丢弃都须保 B 的连接、内容及 Home 文件/账本；A 的项目行/KV清空，回执说明保留。
+  - **Home 级唯一实例**（Home 监督器的 `runtime.scope: "home"`）：仍由 Home 执行器在实例停止、连接关闭后，经原账本 owner 检查可信 plugin/publisher 和实际 reserved 登记表，先删文件、再删账本行、最后清 KV；文件失败保账本、可重试，`retain=true` 保留。别家、reserved 和无登记目录不动。保留 #1246 `d42891e3f` 的准备/发布顺序及 retained=true + 明确 discard 的增量；授权、定义冲突与 schema 预检仍先于清理，清完才 register/save，不退回后置重复回调。
+  - **组合与保留边界**：本项目的连接/材料授权绑定交既有 owner 的公共卸载生命周期（F14）处理，置于私有清理之后、无 retain 条件；本片不从旧基线硬搬新的 Connector API，不另造绑定名单。Home 共享库即使最后一个项目卸载也暂留：没有可信全体安装来源，不新增映射、引用计数或清理状态。BL 文案交 PIPE/统筹写共享 backlog：「Home 共享插件库回收：建立可信全体安装来源后，确认 owner/publisher 已无项目安装、关闭使用者，再回收共享库文件和账本；当前保留，代价仅为空间。」
   - **storage 端口**：`openHomeSqliteFile` 继续沿用 SQLite 行为：只读打开缺失文件会失败，普通读写打开可以创建空文件；这里只修注释，不新增文件存在性契约。
 - **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64）。模型设置现有 Manifest 字段 `model_configuration` 已能声明，沙箱还没有其 broker 方法与设置端口，按 S-60 启动即以 `sandbox.service_not_given` 拒绝该声明；不让项目平台静默不给，Home 也不等后续条目校验才报错。正式开放仍属 BL-490/491，不随本轮修复接入。生图按 PG-102 的前提开放，`generate` 是花钱的，只给 `command`，字节结果有大小上限（BL-491）。
 - **项目清理**：`purge` 是宿主调的函数，沙箱插件没有。设计：沙箱插件的数据（私有存储、项目库里它自己的表、`files`）都归平台按安装和声明清掉（删项目时平台先停它的后台，再关库、清分区，§4 a），不需要它交一个函数。这一项不是“给沙箱一项服务”，而是确认**声明式清理对沙箱插件同样成立**，测试里补一条；`assertProjectCleanupEntries` 里对沙箱的拒绝改成带码的错误并写明理由。
@@ -168,7 +170,7 @@ BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）
 | --- | --- |
 | RAC-240 | 沙箱包的 Home 库经账本做出，发布者是安装记录的；写、读都在子进程里（宿主进程没有连接）。建库前复用 PLIB-03，只许建表/索引；非声明语句、无效 schema 以 `plugin.declaration_invalid` 拒绝，插件库未建、账本无行、预置外部 SQLite 文件逐字不变；合法 schema 仍成功 |
 | RAC-241 | 别的发布者、被宿主存储或别的插件占用的名字、Home 里已有的目录、按项目分开的库：一律带码拒绝，什么库都没做；逐项比较拒绝前后本测试进程的语句 worker PID 集合不变，结束后无新增或泄漏，不容许一个未知 worker |
-| RAC-242 | 授权被撤之后下一次读、写被拒且什么都没写；关闭库之后的调用被拒，子进程随库结束。真实 Home Runtime 安装 sandbox 包，启动写入后停止、重新启动与卸载，后续公开动作和保留的库调用拒绝，本次语句及沙箱进程退出 |
+| RAC-242 | 授权被撤之后下一次读、写被拒且什么都没写；关闭库之后的调用被拒，子进程随库结束。真实 Home Runtime 安装 sandbox 包，启动写入后停止、重启与卸载，后续公开动作和旧句柄拒绝、本次进程退出。项目级 native/sandbox 非保留卸载与明确 discard 清本项目行/KV、保 Home 文件和账本；真实 B 项目持 WAL 时持续读写，A 回执说明共享库保留；最后项目卸载仍保留。Home 唯一实例停止后才删，失败保 ledger 可重试 |
 | RAC-243 | 读只认 SELECT、WITH，写只认 INSERT、UPDATE、DELETE；PRAGMA、ATTACH 都不过；以 WITH 开头的写句过了关键字也写不进只读连接 |
 | RAC-244 | 读超时的进程被杀并带码回答，宿主照常；递归查询不会被拒、由时钟截止；下一次读在新进程里跑 |
 | RAC-245 | 写超时整个事务回滚，没有任何一句留下，下一个事务照常 |

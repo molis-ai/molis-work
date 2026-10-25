@@ -6,15 +6,16 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import test from "node:test";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDatabase, PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkUninstallService, MolisWorkWebServiceManager, RuntimeIntegrationService, createPluginPlatform, homeStores, seedDemoBoard, removeInstalledPluginLibrary,
+  DEMO_PROJECT_ID, HomePluginHost, LocalProjectDatabase, MolisWorkUninstallService, MolisWorkWebServiceManager, RuntimeIntegrationService, createPluginPlatform, homeStores, seedDemoBoard, removeInstalledPluginLibrary,
 } from "@molis-ai/molis-work-app-local-host";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 // specs/repository-anti-corruption/slices/pg022-manifest-declarations.md, P1b: a plugin the Host did not ship, run by the Host, gets the
@@ -35,13 +36,16 @@ interface ProbeOptions {
   signature?: string;
   version?: string;
   library?: Partial<HomePluginDatabaseDeclaration>;
+  projectData?: boolean;
+  execution?: "sandbox";
+  scope?: "project" | "home";
 }
 
 /** An installed plugin (not on any start list): one write action over its library; it keeps the services it was started with. */
 function probe(options: ProbeOptions = {}) {
-  const { name = "ledgerprobe", signature = "publisher-one", version = "1.1.0", library = {} } = options;
+  const { name = "ledgerprobe", signature = "publisher-one", version = "1.1.0", library = {}, projectData = false, execution, scope = "project" } = options;
   const id = `io.molis.work.example.${name}`;
-  const shape = { scope: "project" as const, audiences: ["user" as const], permissions: [], subject_kinds: [] };
+  const shape = { scope, audiences: ["user" as const], permissions: [], subject_kinds: [] };
   const note: ActionDefinition<{ text: string }, string> = { capability_id: `${id}.note`, version: 1, operation: "command",
     action: { ...shape, title: "记一行", description: "把一行字写进插件自己的库", kind: "operation",
       input_schema: { type: "object", additionalProperties: false, required: ["text"], properties: { text: { type: "string" } } }, output_schema: { type: "string" } } };
@@ -49,9 +53,10 @@ function probe(options: ProbeOptions = {}) {
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version, name: id, kind: "app",
     publisher: { publisher_id: "molis", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [STORAGE, READ, WRITE], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
-    actions: [note], databases: { home: { ...LIBRARY, ...library } },
+    actions: [note], databases: { ...(execution === "sandbox" && scope === "project" ? {} : { home: { ...LIBRARY, ...library } }),
+      ...(projectData ? { project: { ...LIBRARY, store_name: "ledger-project", schema: "CREATE TABLE ledger_project_notes (text TEXT NOT NULL);" } } : {}) },
     upgrade_compatibility: { compatible_from_versions: Array.from({ length: 12 }, (_, minor) => `1.${minor}.0`).filter(earlier => Number(earlier.split(".")[1]) < Number(version.split(".")[1])), migratable_from_versions: [] } };
-  const definition: PluginDefinition = { manifest, async start(context) {
+  const definition: PluginDefinition = { manifest, ...(execution ? { execution } : {}), async start(context) {
     started.push(context.services);
     return { kind: "app", views: [], actions: [{ ...note, handle: () => "stored" }] };
   } };
@@ -168,7 +173,7 @@ test("S-68 RAC-242 a file-removal failure keeps the owner row and data, and retr
   assert.deepEqual(ledgerRows(directory), []);
 });
 
-test("S-68 RAC-242 an installed native package retains its Home library on request and cannot read it after a non-retaining uninstall and reinstall", withDirectory(async directory => {
+test("S-68 RAC-242 even the last project uninstall clears its KV but retains the shared Home library and reports it", withDirectory(async directory => {
   const item = platformIn(directory), plugin = probe();
   try {
     const id = await run(item, plugin.definition);
@@ -177,16 +182,20 @@ test("S-68 RAC-242 an installed native package retains its Home library on reque
     assert.equal(ledgerRows(directory).length, 1);
     await run(item, plugin.definition);
     assert.deepEqual(notes(directory), ["kept for reinstall"]);
-    await item.platform.runtime.uninstall(id, { retain_private_data: false });
-    assert.equal(existsSync(join(directory, LIBRARY.store_name)), false);
-    assert.deepEqual(ledgerRows(directory), []);
+    plugin.started.at(-1)!.storage!.set("old", "private value");
+    const receipt = await item.platform.runtime.uninstall(id, { retain_private_data: false });
+    assert.deepEqual(receipt.notes, ["Home 共享库保留（其他项目可能在用）"]);
+    assert.equal(existsSync(join(directory, LIBRARY.store_name)), true);
+    assert.equal(ledgerRows(directory).length, 1);
+    assert.deepEqual(item.privateStorage.snapshotInstallationData(id), []);
     await run(item, plugin.definition);
-    assert.deepEqual(notes(directory), []);
+    assert.deepEqual(notes(directory), ["kept for reinstall"]);
+    assert.equal(plugin.started.at(-1)!.storage!.get("old"), null);
     await item.platform.runtime.stop(id);
   } finally { item.store.close(); }
 }));
 
-test("S-68 RAC-242 lifecycle cleanup uses the platform's actual reserved-store registry and leaves library and KV retryable on refusal", withDirectory(async directory => {
+test("S-68 RAC-242 a project uninstall cannot delete a Home library even when the live registry reserves its name", withDirectory(async directory => {
   const item = platformIn(directory), plugin = probe();
   try {
     const id = await run(item, plugin.definition);
@@ -194,14 +203,10 @@ test("S-68 RAC-242 lifecycle cleanup uses the platform's actual reserved-store r
     await item.platform.runtime.stop(id);
     const before = { rows: ledgerRows(directory), bytes: readFileSync(libraryFile(directory, LIBRARY.store_name)), kv: item.privateStorage.snapshotInstallationData(id) };
     item.home.stores = homeStoreRegistry([...homeStores().stores, { path: LIBRARY.store_name, owner: "system" }]);
-    await assert.rejects(item.platform.runtime.uninstall(id, { retain_private_data: false }), { code: "plugin.home_database.object_taken" });
+    const receipt = await item.platform.runtime.uninstall(id, { retain_private_data: false });
+    assert.deepEqual(receipt.notes, ["Home 共享库保留（其他项目可能在用）"]);
     assert.deepEqual(ledgerRows(directory), before.rows);
     assert.deepEqual(readFileSync(libraryFile(directory, LIBRARY.store_name)), before.bytes);
-    assert.deepEqual(item.privateStorage.snapshotInstallationData(id), before.kv);
-    item.home.stores = homeStores();
-    await item.platform.runtime.uninstall(id);
-    assert.equal(existsSync(join(directory, LIBRARY.store_name)), false);
-    assert.deepEqual(ledgerRows(directory), []);
     assert.deepEqual(item.privateStorage.snapshotInstallationData(id), []);
   } finally { item.store.close(); }
 }));
@@ -233,41 +238,127 @@ test("S-68 RAC-242 retaining one project's installation leaves a second real pro
   }
 }));
 
-test("S-68 RAC-242 retained-data discard finishes library and KV cleanup before publishing a replacement, or leaves the old row and data retryable", async t => {
-  const directory = mkdtempSync(join(tmpdir(), "installed-library-discard-")), item = platformIn(directory), plugin = probe();
+for (const execution of [undefined, "sandbox"] as const) for (const discard of [false, true]) {
+  test(`S-68 RAC-242 project ${execution ?? "native"} ${discard ? "explicit discard" : "non-retaining uninstall"} clears only its rows and KV while B keeps its live shared Home connection`, withDirectory(async directory => {
+    const a = platformIn(directory, "library-project-a"), b = platformIn(directory, "library-project-b");
+    // The sandbox execution fixture uses the real isolated project-statement child. Its project manifest cannot declare Home;
+    // B's native installation holds the same plugin/publisher's existing shared Home library throughout A's cleanup.
+    const first = probe({ execution, projectData: true }), second = probe({ projectData: true });
+    const projectNotes = (item: Item) => item.store.db.prepare("SELECT text FROM ledger_project_notes ORDER BY rowid").all().map(row => (row as { text: string }).text);
+    const putProjectNote = async (plugin: ReturnType<typeof probe>, text: string) => {
+      const services = plugin.started.at(-1)!;
+      if (services.project_statements) await services.project_statements.transaction(async () => {}, [{ sql: "INSERT INTO ledger_project_notes VALUES (?)", parameters: [text] }], new AbortController().signal);
+      else await services.project_database!.transaction(async () => {}, tx => tx.run("INSERT INTO ledger_project_notes VALUES (?)", [text]));
+    };
+    try {
+      const aId = await run(a, first.definition), bId = await run(b, second.definition);
+      await putProjectNote(first, "A private row"); await putProjectNote(second, "B private row");
+      first.started.at(-1)!.storage!.set("old", "A private KV"); second.started.at(-1)!.storage!.set("old", "B private KV");
+      await noteInto(second.database(), "shared before A cleanup");
+      const path = libraryFile(directory, LIBRARY.store_name), inode = statSync(path).ino, ledgerBefore = ledgerRows(directory);
+      const bPrivateBefore = b.privateStorage.snapshotInstallationData(bId), aBefore = a.platform.runtime.get(aId);
+      assert.equal(read(path, db => db.prepare("PRAGMA journal_mode").get()?.journal_mode), "wal");
+      assert.equal(existsSync(`${path}-wal`), true);
+      let receipt;
+      if (discard) {
+        await a.platform.runtime.uninstall(aId, { retain_private_data: true });
+        assert.deepEqual(projectNotes(a), ["A private row"]);
+        assert.equal(a.privateStorage.snapshotInstallationData(aId).length, 1);
+        const replacement = probe({ execution, projectData: true, version: "1.2.0" });
+        receipt = a.platform.runtime.install({ definition: replacement.definition, deployment: "local", grants: GRANTS, discard_kept_data: true });
+        assert.notEqual(receipt.install.installation_generation, aBefore.installation_generation);
+        assert.equal(replacement.started.length, 0, "cleanup completed before the new installation starts");
+      } else receipt = await a.platform.runtime.uninstall(aId, { retain_private_data: false });
+      assert.deepEqual(receipt.notes, ["Home 共享库保留（其他项目可能在用）"]);
+      assert.deepEqual(projectNotes(a), []);
+      assert.deepEqual(a.privateStorage.snapshotInstallationData(aId), []);
+      assert.deepEqual(projectNotes(b), ["B private row"]);
+      assert.deepEqual(b.privateStorage.snapshotInstallationData(bId), bPrivateBefore);
+      assert.equal(b.platform.runtime.get(bId).state, "running");
+      assert.equal(statSync(path).ino, inode, "A never replaced or unlinked the file B is using");
+      assert.deepEqual(ledgerRows(directory), ledgerBefore);
+      assert.deepEqual(second.database().all("SELECT text FROM notes ORDER BY id").map(row => ({ ...row })), [{ text: "shared before A cleanup" }]);
+      await noteInto(second.database(), "B writes after A cleanup");
+      assert.deepEqual(notes(directory), ["shared before A cleanup", "B writes after A cleanup"]);
+      const last = await b.platform.runtime.uninstall(bId, { retain_private_data: false });
+      assert.deepEqual(last.notes, ["Home 共享库保留（其他项目可能在用）"]);
+      assert.equal(statSync(path).ino, inode, "the last project also lacks authority to remove the shared Home file");
+      assert.deepEqual(ledgerRows(directory), ledgerBefore);
+    } finally {
+      for (const item of [a, b]) {
+        try { for (const record of item.platform.runtime.list()) if (record.state === "running") await item.platform.runtime.stop(record.install_id); }
+        finally { item.store.close(); }
+      }
+    }
+  }));
+}
+
+test("S-68 RAC-242 a project row cleanup failure preserves KV and the earlier installation until a successful retry", withDirectory(async directory => {
+  const item = platformIn(directory), plugin = probe({ projectData: true });
+  try {
+    const id = await run(item, plugin.definition);
+    item.store.db.exec("INSERT INTO ledger_project_notes VALUES ('old row'); CREATE TRIGGER fail_cleanup BEFORE DELETE ON ledger_project_notes BEGIN SELECT RAISE(ABORT, 'project cleanup interrupted'); END;");
+    plugin.started.at(-1)!.storage!.set("old", "private value");
+    await noteInto(plugin.database(), "shared value");
+    const ledgerBefore = ledgerRows(directory), kvBefore = item.privateStorage.snapshotInstallationData(id);
+    await assert.rejects(item.platform.runtime.uninstall(id, { retain_private_data: false }), /project cleanup interrupted/u);
+    const before = item.platform.runtime.get(id), failed = probe({ projectData: true, version: "1.2.0" });
+    assert.equal(before.state, "uninstalled");
+    assert.throws(() => item.platform.runtime.install({ definition: failed.definition, deployment: "local", grants: GRANTS }), { code: "plugin.executor_failed" });
+    assert.deepEqual(item.platform.runtime.get(id), before);
+    assert.deepEqual(item.privateStorage.snapshotInstallationData(id), kvBefore);
+    assert.deepEqual(ledgerRows(directory), ledgerBefore);
+    assert.deepEqual(notes(directory), ["shared value"]);
+    assert.equal(item.store.db.prepare("SELECT count(*) AS n FROM ledger_project_notes").get()!.n, 1);
+    item.store.db.exec("DROP TRIGGER fail_cleanup");
+    const retry = probe({ projectData: true, version: "1.2.0" });
+    const receipt = item.platform.runtime.install({ definition: retry.definition, deployment: "local", grants: GRANTS });
+    assert.deepEqual(receipt.notes, ["Home 共享库保留（其他项目可能在用）"]);
+    assert.deepEqual(item.privateStorage.snapshotInstallationData(id), []);
+    assert.equal(item.store.db.prepare("SELECT count(*) AS n FROM ledger_project_notes").get()!.n, 0);
+    assert.equal(failed.started.length, 0);
+  } finally { item.store.close(); }
+}));
+
+test("S-68 RAC-242 the unique Home installation finishes file, ledger and KV cleanup before publishing a replacement; failure is retryable", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "installed-library-discard-")), plugin = probe({ scope: "home" }), actions = new ActionService();
+  const host = new HomePluginHost({ home: directory, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
   t.after(async () => {
-    try { for (const record of item.platform.runtime.list()) if (record.state === "running") await item.platform.runtime.stop(record.install_id); }
-    finally { item.store.close(); rmSync(directory, { recursive: true, force: true }); }
+    try { await host.close(); } finally { rmSync(directory, { recursive: true, force: true }); }
   });
-  const id = await run(item, plugin.definition);
+  const runtime = (await host.ready()).runtime;
+  const id = runtime.install({ definition: plugin.definition, deployment: "local", grants: GRANTS }).install.install_id;
+  await runtime.start(id);
   await noteInto(plugin.database(), "old library");
   plugin.started.at(-1)!.storage!.set("old", "private value");
-  await item.platform.runtime.uninstall(id, { retain_private_data: true });
-  const before = structuredClone(item.platform.runtime.get(id)), ledgerBefore = ledgerRows(directory);
-  const privateBefore = item.privateStorage.snapshotInstallationData(id), bytes = readFileSync(libraryFile(directory, LIBRARY.store_name));
+  await runtime.uninstall(id, { retain_private_data: true });
+  const privateRows = () => read(join(directory, "plugin-runtime", "plugin-runtime.db"), db => db.prepare("SELECT item_key, item_value FROM plugin_private_values WHERE install_id = ? ORDER BY item_key").all(id));
+  const before = structuredClone(runtime.get(id)), ledgerBefore = ledgerRows(directory);
+  const privateBefore = privateRows(), bytes = readFileSync(libraryFile(directory, LIBRARY.store_name));
   assert.equal(privateBefore.length, 1);
-  const candidate = probe({ version: "1.2.0" }), failure = new Error("discard file removal interrupted"), original = fs.rmSync;
+  const candidate = probe({ version: "1.2.0", scope: "home" }), failure = new Error("discard file removal interrupted"), original = fs.rmSync;
   const injected = t.mock.method(fs, "rmSync", (...args: Parameters<typeof fs.rmSync>) => {
     if (args[0] === join(directory, LIBRARY.store_name)) throw failure;
     return original(...args);
   });
   syncBuiltinESMExports();
   try {
-    assert.throws(() => item.platform.runtime.install({ definition: candidate.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }),
+    assert.throws(() => runtime.install({ definition: candidate.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }),
       { code: "plugin.executor_failed" });
   } finally { injected.mock.restore(); syncBuiltinESMExports(); }
-  assert.deepEqual(item.platform.runtime.get(id), before, "cleanup failure did not publish a replacement record");
+  assert.deepEqual(runtime.get(id), before, "cleanup failure did not publish a replacement record");
   assert.deepEqual(ledgerRows(directory), ledgerBefore);
   assert.deepEqual(readFileSync(libraryFile(directory, LIBRARY.store_name)), bytes);
-  assert.deepEqual(item.privateStorage.snapshotInstallationData(id), privateBefore, "file failure happened before any KV deletion");
-  const retry = probe({ version: "1.2.0" });
-  const installed = item.platform.runtime.install({ definition: retry.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }).install;
+  assert.deepEqual(privateRows(), privateBefore, "file failure happened before any KV deletion");
+  const retry = probe({ version: "1.2.0", scope: "home" });
+  const receipt = runtime.install({ definition: retry.definition, deployment: "local", grants: GRANTS, discard_kept_data: true }), installed = receipt.install;
   assert.equal(installed.install_id, id);
   assert.notEqual(installed.installation_generation, before.installation_generation);
   assert.equal(existsSync(join(directory, LIBRARY.store_name)), false);
   assert.deepEqual(ledgerRows(directory), []);
-  assert.deepEqual(item.privateStorage.snapshotInstallationData(id), [], "retained=true with explicit discard also clears KV");
-  await item.platform.runtime.start(id);
+  assert.equal(receipt.notes, undefined, "unique Home cleanup has no shared-retention note");
+  assert.deepEqual(privateRows(), [], "retained=true with explicit discard also clears KV");
+  await runtime.start(id);
   assert.deepEqual(notes(directory), []);
   assert.equal(candidate.started.length, 0, "the failed candidate never started");
 });

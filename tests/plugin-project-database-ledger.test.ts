@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, openPluginProjectDatabase, type PluginProjectSchemaInspector,
+  PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, clearPluginProjectRows, openPluginProjectDatabase, type PluginProjectSchemaInspector,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
 
@@ -59,6 +59,43 @@ const refused = (code: string, run: () => unknown, mentions?: RegExp) => assert.
   return true;
 });
 const open = (db: DatabaseSync, lent = inspector(), owner = OWNER) => openPluginProjectDatabase(db, owner, lent, { path: PATH, now: () => new Date("2026-10-20T01:00:00.000Z") });
+
+test("S-68 RAC-242 project cleanup removes its publisher's rows together, preserves schema and other owners, and refuses another publisher", () => {
+  const db = library();
+  try {
+    db.exec("PRAGMA foreign_keys = ON");
+    open(db, inspector(), { ...OWNER, declaration: { ...NOTES, schema: NOTES.schema.replaceAll("ON DELETE CASCADE", "ON DELETE NO ACTION") } });
+    db.exec("INSERT INTO notes_items(project_id, note_id) VALUES ('p-1', 'n-1'); INSERT INTO notes_links VALUES ('p-1', 'n-1', 'target'); INSERT INTO feed_items VALUES ('p-1', 'kept');");
+    const schemaBefore = objects(db), ledgerBefore = ledger(db);
+    refused("plugin.project_database.publisher_mismatch", () => clearPluginProjectRows(db, { ...OWNER, publisher_signature: "publisher-b" }));
+    assert.equal(db.prepare("SELECT count(*) AS n FROM notes_items").get()!.n, 1);
+    clearPluginProjectRows(db, OWNER);
+    for (const table of ["notes_items", "notes_links"]) assert.equal(db.prepare(`SELECT count(*) AS n FROM ${table}`).get()!.n, 0);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM feed_items").get()!.n, 1);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM project_root").get()!.n, 1);
+    assert.deepEqual(objects(db), schemaBefore);
+    assert.deepEqual(ledger(db), ledgerBefore);
+    clearPluginProjectRows(db, OWNER);
+    assert.equal(db.isTransaction, false);
+  } finally { db.close(); }
+});
+
+test("S-68 RAC-242 a failure partway through project row cleanup rolls all its deletes back and permits retry", () => {
+  const db = library();
+  try {
+    db.exec("PRAGMA foreign_keys = ON");
+    open(db, inspector(), { ...OWNER, declaration: { ...NOTES, schema: NOTES.schema.replaceAll("ON DELETE CASCADE", "ON DELETE NO ACTION") } });
+    db.exec("INSERT INTO notes_items(project_id, note_id) VALUES ('p-1', 'n-1'); INSERT INTO notes_links VALUES ('p-1', 'n-1', 'target'); CREATE TRIGGER interrupt_cleanup BEFORE DELETE ON notes_links BEGIN SELECT RAISE(ABORT, 'cleanup interrupted'); END;");
+    const ledgerBefore = ledger(db);
+    assert.throws(() => clearPluginProjectRows(db, OWNER), /cleanup interrupted/u);
+    for (const table of ["notes_items", "notes_links"]) assert.equal(db.prepare(`SELECT count(*) AS n FROM ${table}`).get()!.n, 1, "the earlier table's delete was rolled back too");
+    assert.deepEqual(ledger(db), ledgerBefore);
+    assert.equal(db.isTransaction, false);
+    db.exec("DROP TRIGGER interrupt_cleanup");
+    clearPluginProjectRows(db, OWNER);
+    for (const table of ["notes_items", "notes_links"]) assert.equal(db.prepare(`SELECT count(*) AS n FROM ${table}`).get()!.n, 0);
+  } finally { db.close(); }
+});
 
 test("PLIB-02 the first open makes the declared tables in one transaction with the ledger row; the next open finds them as declared", () => {
   const db = library(), before = objects(db);

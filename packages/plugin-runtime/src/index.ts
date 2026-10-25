@@ -19,7 +19,7 @@ export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from ".
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
 export { SqlitePluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "./repository.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
-export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, openPluginProjectDatabase, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
+export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, clearPluginProjectRows, inspectPluginProjectSchema, openPluginProjectDatabase, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
 export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginStatementMode } from "./project-database-statements.js";
 export {
   createPluginRuntimeReleaseArtifact,
@@ -87,6 +87,7 @@ export { pluginPublisherIdentity, assertPluginPackagePath, parsePluginPackage, p
 import type {
   PluginContribution,
   PluginDefinition,
+  PluginCleanupResult,
   PluginDeployment,
   PluginExecutor,
   PluginInstanceRecord,
@@ -193,7 +194,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const grants = installationGrants(current, manifest, input.bundled === true, input.grants);
     availableDefinitionKey(this.definitions, input.definition);
     this.options.validateInstall?.(input.definition);
-    prepareInstallationData(this.executor, current, manifest, input.bundled === true, input.discard_kept_data === true);
+    const cleanup = prepareInstallationData(this.executor, current, manifest, input.bundled === true, input.discard_kept_data === true);
     this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
       if (!(manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version)) {
@@ -245,7 +246,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       retain_private_data: input.retain_private_data ?? current?.retain_private_data ?? true,
     };
     saveInstalled(this.repository, record);
-    return this.receipt("install", record, false);
+    return this.receipt("install", record, false, cleanup);
   }
 
   /** Replace one installed version after an explicit Host action and preflight. */
@@ -632,12 +633,12 @@ export class PluginRuntime implements PluginRuntimeApi {
       uninstalled_at: at,
     };
     if (!replayed) this.repository.save(updated);
-    await this.executor.uninstalled?.(updated);
+    const cleanup = await this.executor.uninstalled?.(updated);
     // No implementation survives its installation. A later explicit reinstall may supply a new in-memory object.
     for (const [key, definition] of this.definitions) {
       if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) this.definitions.delete(key);
     }
-    return this.receipt("uninstall", updated, replayed);
+    return this.receipt("uninstall", updated, replayed, cleanup);
   }
 
   get(installId: string): PluginInstanceRecord {
@@ -731,14 +732,14 @@ export class PluginRuntime implements PluginRuntimeApi {
   private receipt(
     operation: PluginLifecycleReceipt["operation"],
     install: PluginInstanceRecord,
-    replayed: boolean,
+    replayed: boolean, cleanup?: PluginCleanupResult | void,
   ): PluginLifecycleReceipt {
     return {
       receipt_id: `plugin-receipt-${randomUUID()}`,
       operation,
       install: cloneRecord(install),
       at: this.now(),
-      replayed,
+      replayed, ...(cleanup?.notes.length ? { notes: cleanup.notes } : {}),
     };
   }
 

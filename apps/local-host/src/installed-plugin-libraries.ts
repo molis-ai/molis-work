@@ -142,6 +142,15 @@ export function removeInstalledPluginLibrary(home: string, owner: InstalledLibra
   } finally { ledger.close(); }
 }
 
+/** Read this owner's existing claim without making a ledger or opening its shared library. */
+export function hasInstalledPluginLibrary(home: string, owner: InstalledLibraryOwner): boolean {
+  if (!existsSync(join(home, INSTALLED_LIBRARIES_HOME_STORE.path, `${INSTALLED_LIBRARIES_HOME_STORE.path}.db`))) return false;
+  const ledger = openReadOnlyHomeSqlite(home, INSTALLED_LIBRARIES_HOME_STORE.path);
+  try {
+    return !!ledger.prepare("SELECT 1 FROM plugin_home_libraries WHERE plugin_id = ? AND publisher_signature = ?").get(owner.plugin_id, owner.publisher_signature);
+  } finally { ledger.close(); }
+}
+
 /**
  * The directories of the libraries installed plugins made, for `uninstall --purge-user-data`. A row is only a name the Host wrote, but
  * it becomes a path that is deleted, so a name that is not one plain directory name, or that a registered store has, is not listed.

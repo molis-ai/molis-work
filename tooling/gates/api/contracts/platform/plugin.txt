@@ -2555,6 +2555,10 @@ export interface PluginCapabilityClient {
     invoke<Input, Output>(capability: HostCapabilityDefinition<Input, Output>, input: Input, options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions): Promise<Output>;
 }
 
+export interface PluginCleanupResult {
+    readonly notes: readonly string[];
+}
+
 export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommandInputOf<"object", {
     ref: UiViewObjectRef;
 }> | PluginCommandInputOf<"agent-session", {
@@ -2817,8 +2821,8 @@ export interface PluginExecutor {
     validateUpgrade?(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void>;
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
-    uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
-    keptDataDiscarded?(record: PluginInstanceRecord): void;
+    uninstalled?(record: PluginInstanceRecord): Promise<PluginCleanupResult | void> | PluginCleanupResult | void;
+    keptDataDiscarded?(record: PluginInstanceRecord): PluginCleanupResult | void;
 }
 
 export interface PluginExecutorHandle {
@@ -3115,6 +3119,7 @@ export interface PluginLifecycleReceipt {
     install: PluginInstanceRecord;
     at: string;
     replayed: boolean;
+    notes?: readonly string[];
 }
 
 export type PluginLifecycleState = "installed" | "running" | "disabled" | "crashed" | "quarantined" | "uninstalled";

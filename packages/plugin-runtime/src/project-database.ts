@@ -233,3 +233,34 @@ export function openPluginProjectDatabase(connection: PluginRuntimeDatabase,
     throw error;
   }
 }
+
+/** Clear only this publisher's rows in this project's recorded tables; keep its schema and ledger for a reinstall. */
+export function clearPluginProjectRows(connection: PluginRuntimeDatabase, owner: { readonly plugin_id: string; readonly publisher_signature: string }): void {
+  if (!connection.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'plugin_project_databases'").get()) return;
+  connection.exec("BEGIN IMMEDIATE");
+  try {
+    const row = connection.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json, created_at FROM plugin_project_databases WHERE plugin_id = ?")
+      .get(owner.plugin_id) as LedgerRow | undefined;
+    if (row) {
+      if (row.publisher_signature !== owner.publisher_signature) throw pluginProjectDatabaseErrors.publisher_mismatch("这个项目库属于另一个发布者，不能清理");
+      const objects = record(row).objects;
+      if (!Array.isArray(objects) || objects.some(name => typeof name !== "string" || fold(name).startsWith("sqlite_")
+        || fold(name) === PROJECT_ROOT_REFERENCE.table || fold(name) === "plugin_project_databases")) {
+        throw pluginProjectDatabaseErrors.shape_mismatch("项目库账本的对象不能用于清理");
+      }
+      // Resolve every name before deleting anything. Indexes have no rows; they and the table declarations remain in place.
+      const tables: string[] = [];
+      for (const name of objects) {
+        const object = connection.prepare("SELECT type FROM sqlite_master WHERE name = ?").get(name) as { type: string } | undefined;
+        if (!object || !["table", "index"].includes(object.type)) throw pluginProjectDatabaseErrors.shape_mismatch("项目库账本的对象已改变，不能清理");
+        if (object.type === "table") tables.push(name);
+      }
+      connection.exec("PRAGMA defer_foreign_keys = ON");
+      for (const name of tables) connection.exec(`DELETE FROM "${name.replaceAll('"', '""')}"`);
+    }
+    connection.exec("COMMIT");
+  } catch (error) {
+    try { connection.exec("ROLLBACK"); } catch { /* SQLite may already have ended the transaction. */ }
+    throw error;
+  }
+}

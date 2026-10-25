@@ -3,7 +3,7 @@ import { pluginPagesFor } from "./plugin-page-authority.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { pluginPageFiles } from "./plugin-page-files.js";
 import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginCleanupResult, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient, StoppedServiceCalls, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
@@ -188,12 +188,13 @@ export class HomePluginExecutor implements PluginExecutor {
   }
 
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }
-  uninstalled(record: PluginInstanceRecord): void {
+  uninstalled(record: PluginInstanceRecord): PluginCleanupResult | undefined {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
-    if (!record.retain_private_data) discardInstallationOwnerData({ home: pluginHomeFor(this.options.home), project_id: null }, record, id => this.options.storage.deleteInstallationData(id));
+    const cleanup = !record.retain_private_data ? discardInstallationOwnerData({ home: pluginHomeFor(this.options.home), project_id: null }, record, id => this.options.storage.deleteInstallationData(id)) : undefined;
+    return cleanup;
   }
-  keptDataDiscarded(record: PluginInstanceRecord): void {
-    discardInstallationOwnerData({ home: pluginHomeFor(this.options.home), project_id: null }, record, id => this.options.storage.deleteInstallationData(id));
+  keptDataDiscarded(record: PluginInstanceRecord): PluginCleanupResult | undefined {
+    return discardInstallationOwnerData({ home: pluginHomeFor(this.options.home), project_id: null }, record, id => this.options.storage.deleteInstallationData(id));
   }
   restorePrivateData(installId: string, snapshot: unknown): void {
     this.options.storage.restoreInstallationData(installId, snapshot as ReturnType<SqlitePluginPrivateStorage["snapshotInstallationData"]>);

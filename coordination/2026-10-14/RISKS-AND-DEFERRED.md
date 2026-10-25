@@ -275,3 +275,4 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 评审末段建议过渡包加入104、provenance记main：**本次不采用**，与现行only103窄WO冲突。过渡源必须记真实2c7+final103及显式最小port固定头；dcaa参考包/main f175均不是该过渡来源。该处理保留Root裁定与后续明确范围变更入口，不用review建议替换人类/统筹工单。
 
 本节实际接续也已公开至 SDK104 的PIPE评论6395597509；bridge最终源交付见 Molis1267/6395547824。源ba交付不冒包、Molis采用或restore完成。
+| R-59 | 新（10-25，batch-40 全量归因）：W5-16 的 `snapshotFileStat` 要求 `realpathSync(file) === file`，Home 路径上任何一级是链接都会被拒，Home 快照和 `uninstall --purge` 都会停。macOS 的 `tmpdir()` 在 `/var -> /private/var` 后面，测试已改用真实路径。真实 Home 默认在 `~/.molis-work`，平常没有链接；但用户的家目录或 Home 若经过链接（迁移盘、同步目录），会看到「快照文件不是稳定的普通文件，或带有链接」，看不出原因 | 用户的 Home 路径有链接时，快照和清除都做不成，提示也看不懂 | 未改：要么入口（CLI、宿主）把 Home 先解析成真实路径再往下传，要么只拒最后一级是链接的。动 S-11 的边界，改前先定 | 统筹 → Codex W5-16 原作者 | 交 Codex 修复队列；W6 收尾前定 |

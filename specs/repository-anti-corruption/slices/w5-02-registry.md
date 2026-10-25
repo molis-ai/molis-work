@@ -129,6 +129,8 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 - Q3：下发；宿主的判断永远不读回页面上的值（POST、动作、路由的授权只认宿主的 `ProjectPluginRegistry`）。加一条拒绝用例：页面把 `personal` 或 `companions` 改了再提交，宿主不认（RAC-564 之外另记，号在 RAC-56x 段里实现时定）。
 - B 等 batch-35（#1258，含 #1243）落地后才开 PR；之前叠着写、只推分支。`MolisWorkLocalHost` 的数字用 `--base` 实测。
 
+**与 ac-shell 定的字段（10-25）**：`PluginDirectoryEntry` 上平铺三个可选字段 `personal?: true`、`always_on?: true`、`companions?: readonly string[]`（项是项目键），只有 `chosen: true` 的条目带，缺省即没有。类型与清洗（只认 `=== true`；`companions` 逐项过 `KEY`、去重、至多 32 项；`chosen` 为 false 的三项都去掉）归 ac-shell 第 2 片；取值归 B1，在 `apps/local-host/src/plugin-directory.ts` 的 `runningPluginDirectory` 里 builtin 命中时从 `plugin-registry.ts` 写，Manifest 与运行时装的插件一律不带。三项不进 `data-plugin-directory`（页面体积不变），只在服务端渲染里用；客户端今天写死的个人插件 id（`scripts/client/plugin-workbench.ts`）改成读服务端渲染时标在市场卡片上的属性。基点 #1261 + FIX3 + 第 2 片，第 2 片推新分支后给头。
+
 **当时的待裁**
 
 - **Q1 B1 和 #1261 的先后。** 第 3 条要用 `plugin_directory`。推荐：B1 叠在 #1261 上做，#1261 合入后再开 PR；两个同时在评审就照 §1a 同批。另一种是 B1 先在 `MolisWorkWebView` 上加单独的字段，等 #1261 再并进去。这就是统筹 10-24 不要的平行端口，所以不推荐。

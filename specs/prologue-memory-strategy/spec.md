@@ -2721,3 +2721,13 @@ product-interaction.e2e、coding-workbench.e2e、code-scale.e2e 三文件仅依�
 原冻结离线安装及完整 `pnpm build` 通过；真实 Home 排他、初始化清理、SDK 借用、System Agent、采用/维护、Memory 权限和项目删除共 14 文件 115 项首次通过，无跳过或重试，日志 `/private/tmp/molis-memory-foundation-batch36-{install,build,direct}-20261025.log`。此前 d08 的普通 CI 与 Full suite 已通过，但只证明 d08；本合并结果仍需门禁、安装/备份及最终 head 的完整 CI。旧 Cloudflare 影响和历史首败 UNKNOWN 保留，尚未合并 main，也未完成产品/用户验收。
 
 合并 `914474507` 后，根类型、准确 main64a 健康门、boundary、72 份 API 快照及正式页面资源门均通过；27 资源仍为 7,594,739 B，只有此前批准的 workbench.js +3,193 B 与 coding.js +717 B，没有新增长。原健康命令确认相关超限项下降后，以 `--update --base 64a3ccc9` 生成本地快查，没有修改门禁脚本、阈值或例外。独立深审实际合并交集未发现确定新增 P1/P2，报告 `/private/tmp/molis-memory-foundation-914-independent-review-20261025.md`，结论仅限本次 Home/Memory 权限与关闭调用链。LocalHost/AgentHost README 必跑并集及安装、备份、macOS TUI 共 85 文件正在按原 runner、零重试验证，不能预记通过；最终 CI/Full suite 仍待本头推送后运行。
+
+### #1064 完整 CI 的操作号观察修正（2026-10-25）
+
+`a0758deb3` 的普通 CI `40191391181` 已通过；Full suite `40191419677` 的 4/16 分片在 `resident-management-actions` 的 UUID 断言失败，实际值为 undefined，原有一次重试仍失败。6/16 分片通过，其余 14 片由现有 fail-fast 取消，整套失败，不能用普通 CI 或旧头结果代替。
+
+实际调用链中，同一 `actionAvailability` 默认兼用于动作调用与目录发现，目录采样可以没有操作号。旧测试把所有采样压在一个数组并取最后一条，合法目录刷新会覆盖真实 CLI 的观察。原用例中加入公开 `host.inspectActions` 的确定性交错后，原断言稳定失败；修正沿既有 `snapshotForDiscovery` 分开观察，并新增断言：目录刷新确实发生、没有伪造操作号、执行样本保持原值且只有一个真实 UUID。真实 CLI 输出、常驻单一执行器、成功查询没有持久调用记录、MCP 授权和拒绝伪造身份的原断言全保留；没有生产实现、CI、重试或超时修改。
+
+原两实际文件 7 项及相邻管理安全、入口身份、操作号 3 文件 27 项在 Node 24.14.0 上通过，零跳过或重试；准确 main64a 健康门与全分支 secrets 通过。第一条绿色定向命令误列不存在的 `resident-management-gateway.test.ts`，该命令整体退出 1；这里只采信两份实际运行结果，保留清单错误，不记整条命令成功。确定性红/绿及相邻日志分别为 `/private/tmp/molis-memory-foundation-resident-observer-{red,green,adjacent}-20261025.log`。此前 85 文件 765 项也已完成并全部通过，原未完成记录保留为当时状态。新最终头仍须普通 CI 和 Full suite，Cloudflare 未核失败与最终产品/用户验收边界不变。
+
+推送前远端 main 前进至 `54437998cefbff245a107d919ae01975bd4b08ec`，仅 #1289 的巨大单元门禁规则、登记与文档，没有生产行为变更；三方合并检查无冲突。本次修正不借用新规则增加例外，仍通过原 main64a 的更严格检查，最终合并结果由普通 CI 核验。

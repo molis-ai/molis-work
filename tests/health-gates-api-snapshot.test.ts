@@ -381,7 +381,9 @@ test("the committed snapshots of this repository leave no mentioned declaration 
   const DECLARATION = /^(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?(?:const|let|var|function|class|interface|type|enum|namespace)\s+([A-Za-z_$][A-Za-z0-9_$]*)/gm;
   const carried = new Set(snapshots.flatMap(({ text }) => [...text.matchAll(DECLARATION)].map((match) => match[1])));
   const missing = snapshots.flatMap(({ file, text }) => {
-    const body = text.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/^\/\/.*$/gm, "");
+    // A property key (`STEP: …` in an object type) names no declaration whatever its case; only what follows its colon can.
+    const body = text.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/^\/\/.*$/gm, "")
+      .replace(/(^|[{;,(])(\s*(?:readonly\s+)?)[A-Za-z_$][A-Za-z0-9_$]*\??(?=\s*:)/gm, "$1$2");
     return [...new Set(body.match(/(?<![A-Za-z0-9_$])[A-Z][A-Za-z0-9_$]*/g) ?? [])].filter((name) => declared.has(name) && !carried.has(name)).map((name) => `${path.relative(repoRoot, file)}: ${name}`);
   });
   assert.deepEqual(missing, [], "a snapshot mentions a declaration that no snapshot carries; the helper lookup in scripts/gates/api-snapshot.mjs does not reach it");

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { GIT_SENTENCE_TABLE } from "./sentences.js";
 
 /**
- * The Git directory and result panel's client, as Coding's bundle mounts it (`clientFrom`): a factory `(host) => …` that returns
+ * The Git directory and result panel's client, as the workbench mounts it, and as Coding's bundle takes it for its panel: a factory `(host) => …` that returns
  * what it mounted. Its code is the type-checked TypeScript in `src/browser/` (tsconfig.browser.json), bundled by esbuild into
  * `dist/git-client.js` when the package builds, already wrapped in a factory `(host, sentences, git) => { … return git }` (the
  * build's banner and footer). This reads it and gives it the table of the Host's sentence templates, built from the messages,

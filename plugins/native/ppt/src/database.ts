@@ -1,4 +1,4 @@
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * The presentation store's one current schema (repository-anti-corruption §4.1): new stores are created from it,
@@ -23,6 +23,14 @@ const PPT_SCHEMA = `
   );
   CREATE TABLE presentation_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 `;
+/**
+ * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its presentations go with the
+ * receipts of copies made into it.
+ */
+const PPT_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "PPT 演示稿", order: 40, tables: [
+  { table: "presentations", column: "project_id" },
+  { table: "presentation_copies", column: "project_id" },
+] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const PPT_DATABASE: PluginDatabaseDeclaration = { store_name: "ppt", version: 1,
+export const PPT_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PPT_PROJECT_ROWS, store_name: "ppt", version: 1,
   read_permission: "ppt:read", write_permission: "ppt:write", schema: PPT_SCHEMA };

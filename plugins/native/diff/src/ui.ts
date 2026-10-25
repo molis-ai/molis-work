@@ -1,6 +1,6 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { renderCompanionListStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
@@ -33,9 +33,8 @@ export const DIFF_LABELS: DiffViewLabels = {
 export type DiffUiPrimitives = DiffViewPrimitives;
 export type DiffUiModel = Omit<DiffViewModel<DiffInputGroup>, "labels">;
 
-export const diffUiDescriptor: UiContributionDescriptor = {
+export const diffUiDescriptor: UiContributionDeclaration = {
   contribution_id: DIFF_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.diff",
   kind: "primary-page",
   navigation_id: "diff",
   label: "Diff",

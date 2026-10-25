@@ -21,7 +21,7 @@ test("W2-18-PAGE-CARDS-01: both page cards remain visible and executing or ignor
   assert.deepEqual(await cards(), [[first.card.card_id, "ready"], [second.card.card_id, "ready"]], "both Host cards must be reachable in the same work");
   const savedTodos = () => {
     const store = openTodoStore(browser.homeDirectory);
-    try { return store.list({ projectId: browser.projectId, everything: false, actor: "user", actorId: "web-user" }).map(todo => todo.title); }
+    try { return store.list({ projectId: browser.projectId, projectIds: [], actor: "user", actorId: "web-user" }).map(todo => todo.title); }
     finally { store.close(); }
   };
   assert.ok(!savedTodos().includes("执行第一张页面卡"), "placing a card performs no business action");

@@ -13,7 +13,7 @@ export function eventCrashDefinition(id: string, handler?: (context: PluginEvent
     ui: { contributions: [id + '.main'], views: [{ view_id: 'main', slot: 'stage', title: 'Main' }] },
     events: { publishes, subscribes: id === EVENT_SUBSCRIBER ? [{ event_type_id: EVENT_TYPE, type_version: 1, from_plugin_ids: [EVENT_SOURCE] }] : [] } },
     event_types: publishes.map(type => ({ ...type, validate: payload => payload })),
-    async start() { return { kind: 'app', views: [{ descriptor: { contribution_id: id + '.main', plugin_id: id, kind: 'primary-page', label: 'Main', slots: [] }, render: () => '' }],
+    async start() { return { kind: 'app', views: [{ descriptor: { contribution_id: id + '.main', kind: 'primary-page', label: 'Main', slots: [] }, render: () => '' }],
       ...(handler ? { onEvent: (_event, context) => handler(context) } : {}) }; }, async stop() {} };
 }
 

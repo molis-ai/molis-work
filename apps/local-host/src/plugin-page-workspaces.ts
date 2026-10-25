@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { projectSettingsCapabilities, projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { WebRequestContext } from "./web-route-table.js";
@@ -16,7 +16,7 @@ export async function changePageWorkspace(context: WebRequestContext, project: L
     || typeof body.value !== "string" || !body.value.trim() || body.value.length > 4096) throw new ActionError("actions.input_invalid", "工作目录请求无效");
   const beforeEffect = async () => {
     page.assertCurrent();
-    const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === page.plugin_id);
+    const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === page.plugin_id);
     if (shown && entry && !(await shown()).includes(entry.project_plugin_id)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
     page.assertCurrent();
   };

@@ -63,7 +63,7 @@ export type GoalsStatusUiModel = {
 export const GOALS_STATUS_UI_SURFACES = { renderStatus: "status", renderActionStatus: "action", renderVisibleGoalStatus: "visible", visibleGoalStatusIcon: "icon" } as const satisfies Record<keyof GoalsStatusRenderer, GoalsStatusUiModel["kind"]>;
 export const goalsStatusUiContribution: UiContribution<GoalsStatusUiModel> = {
     descriptor: {
-        contribution_id: GOALS_STATUS_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal status",
+        contribution_id: GOALS_STATUS_UI_CONTRIBUTION_ID, kind: "embedded", label: "Goal status",
         surfaces: Object.values(GOALS_STATUS_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
     },
     render({ surface, model }) {

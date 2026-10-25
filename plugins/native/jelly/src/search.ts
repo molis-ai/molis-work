@@ -38,12 +38,12 @@ export function createJellySearchHandlers(withStore: <T>(run: (store: JellyStore
     { ...jellySearchActions.item, handle: (_caller, input) => {
       const item = [...read().items, ...read().series].find(entry => entry.id === id(input));
       if (!item) throw missing("日程");
-      return subjectContext({ subject: { kind: JELLY_ITEM_SUBJECT_KIND, id: item.id }, revision: item.updated_at, title: item.title, content: itemText(item), goal_ids: [], open: open(item.id) });
+      return subjectContext({ subject: { kind: JELLY_ITEM_SUBJECT_KIND, id: item.id }, revision: item.updated_at, title: item.title, content: itemText(item), open: open(item.id) });
     } },
     { ...jellySearchActions.note, handle: (_caller, input) => {
       const note = read().notes.find(entry => entry.id === id(input));
       if (!note || note.archived_at) throw missing("笔记");
-      return subjectContext({ subject: { kind: JELLY_NOTE_SUBJECT_KIND, id: note.id }, revision: String(note.revision), title: note.title || "未命名笔记", content: noteText(note), goal_ids: [], open: open(note.id) }, input as { offset?: number });
+      return subjectContext({ subject: { kind: JELLY_NOTE_SUBJECT_KIND, id: note.id }, revision: String(note.revision), title: note.title || "未命名笔记", content: noteText(note), open: open(note.id) }, input as { offset?: number });
     } },
   ];
 }

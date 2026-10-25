@@ -25,7 +25,7 @@ export interface GoalsSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-interface GoalsEventInput {
+export interface GoalsEventInput {
   eventId: string;
   projectId: string;
   actorId: string;
@@ -37,7 +37,7 @@ interface GoalsEventInput {
   at: string;
 }
 
-interface GoalsIdempotencyInput {
+export interface GoalsIdempotencyInput {
   projectId: string;
   actorId: string;
   operation: string;
@@ -47,8 +47,20 @@ interface GoalsIdempotencyInput {
   at: string;
 }
 
+/**
+ * The project's journal as Goals reaches it (PG-094 S9-1): the storage package's methods over `events` and `idempotency_records`,
+ * which are not Goals' tables. A statement naming either table is refused by the statement check a plugin's SQL goes through, so
+ * Goals names neither; the Host hands over the storage's own journal (the same methods `services.project_database.journal` binds).
+ */
+export interface GoalsJournal {
+  eventCursor(projectId: string): number;
+  appendEvent(input: GoalsEventInput): number;
+  getIdempotency(projectId: string, actorId: string, operation: string, key: string): { request_hash: string; outcome: unknown } | null;
+  putIdempotency(input: GoalsIdempotencyInput): void;
+}
+
 export class GoalsRepository {
-  constructor(readonly db: GoalsSqliteDatabase) {}
+  constructor(readonly db: GoalsSqliteDatabase, private readonly journal: GoalsJournal) {}
 
   immediate<T>(operation: () => T): T {
     return this.db.transaction(operation).immediate();
@@ -234,62 +246,19 @@ export class GoalsRepository {
   }
 
   eventCursor(projectId: string): number {
-    const row = this.db
-      .prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?")
-      .get(projectId) as Row;
-    return number(row.cursor);
+    return this.journal.eventCursor(projectId);
   }
 
   appendEvent(input: GoalsEventInput): number {
-    const result = this.db.prepare(`
-      INSERT INTO events (
-        event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      input.eventId,
-      input.projectId,
-      input.actorId,
-      input.type,
-      input.objectType,
-      input.objectId,
-      input.reason,
-      json(input.payload),
-      input.at,
-    );
-    return Number(result.lastInsertRowid ?? 0);
+    return this.journal.appendEvent(input);
   }
 
-  getIdempotency(
-    projectId: string,
-    actorId: string,
-    operation: string,
-    key: string,
-  ): { request_hash: string; outcome: unknown } | null {
-    const row = this.db.prepare(`
-      SELECT request_hash, outcome_json FROM idempotency_records
-      WHERE project_id = ? AND actor_id = ? AND operation = ? AND idempotency_key = ?
-    `).get(projectId, actorId, operation, key) as Row | undefined;
-    if (!row) return null;
-    return {
-      request_hash: text(row.request_hash),
-      outcome: parseJson(row.outcome_json, null),
-    };
+  getIdempotency(projectId: string, actorId: string, operation: string, key: string): { request_hash: string; outcome: unknown } | null {
+    return this.journal.getIdempotency(projectId, actorId, operation, key);
   }
 
   putIdempotency(input: GoalsIdempotencyInput): void {
-    this.db.prepare(`
-      INSERT INTO idempotency_records (
-        project_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      input.projectId,
-      input.actorId,
-      input.operation,
-      input.key,
-      input.requestHash,
-      json(input.outcome),
-      input.at,
-    );
+    this.journal.putIdempotency(input);
   }
 }
 

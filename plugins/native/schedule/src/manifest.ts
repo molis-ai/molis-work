@@ -19,6 +19,7 @@ export const scheduleManifest: PluginManifest = {
   plugin_id: SCHEDULE_PLUGIN_ID,
   version: "0.3.0",
   name: "Schedule",
+  summary: "定时跑对话任务，也替插件准时提醒。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-schedule-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

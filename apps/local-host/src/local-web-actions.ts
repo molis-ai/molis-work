@@ -5,13 +5,17 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import { pageLocale } from "./web-locale.js";
 import { localOwnerPermissionsOver } from "./local-owner-permissions.js";
 
+/** What the Host's own entry adds to the person's call: the file the person handed it (an import), never any authority. */
+export type LocalWebEntry = Pick<ActionCallContext, "original_file">;
+
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
-  builtinPermissions: readonly string[], signal?: AbortSignal): Promise<ActionCallContext> {
+  builtinPermissions: readonly string[], signal?: AbortSignal, entry: LocalWebEntry = {}): Promise<ActionCallContext> {
   signal?.throwIfAborted();
   // What a handler sends back to be shown follows the page the call came from; a call no page made keeps the handler's default.
   const locale = pageLocale();
-  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal, ...(locale ? { locale } : {}) };
+  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal,
+    ...(locale ? { locale } : {}), ...(entry.original_file ? { original_file: entry.original_file } : {}) };
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
   const catalog = await host.inspectActions(base, reference);
   signal?.throwIfAborted();
@@ -84,12 +88,12 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
  * the process restarts. Someone acting for the person later (the Assistant's scheduled follow-up) binds a new client when it acts.
  */
 export function bindLocalWebActions(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
-  builtinPermissions: readonly string[]): BoundActionClient {
+  builtinPermissions: readonly string[], entry: LocalWebEntry & { readonly signal?: AbortSignal } = {}): BoundActionClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();
   // A bound client serves one request: its calls share one authority snapshot instead of inspecting the whole directory per call.
   // A grant revoked meanwhile is still refused, because every call re-reads its owner (validate_authority) and the dispatcher re-checks availability.
   let context: Promise<ActionCallContext> | undefined;
-  const current = () => context ??= localWebActionContext(host, reference, builtinPermissions).catch(error => { context = undefined; throw error; });
+  const current = () => context ??= localWebActionContext(host, reference, builtinPermissions, entry.signal, entry).catch(error => { context = undefined; throw error; });
   return {
     discover: async () => client.discover(await current()),
     // A control (whose call this is still counting, say) joins this caller's checks the way every bound client joins it: at the

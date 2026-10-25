@@ -4,7 +4,6 @@
  * are local shortcuts filtered here.
  */
 import { pluginSearchRows } from "../../plugin-workbench.js";
-import { objectTabPlugins } from "../../plugin-catalog.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Drop repeated plugin records before the result cap, so a second copy cannot crowd out a different record.
@@ -28,12 +27,8 @@ export function takeSearchHits(
   return matched.slice(0, limit);
 }
 
-/** Surfaces whose tab opens one object by id (they handle `molis-work:select-item`, or name the row to click): the
- *  platform's Artifacts, and every plugin a Manifest view of which `accepts_objects`. */
-export const SEARCH_ITEM_TAB_SURFACES: readonly string[] = ["artifacts", ...objectTabPlugins()];
-
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId } = host;
+  const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId, itemTabs: ITEM_TABS } = host;
   const dialog = document.querySelector("[data-global-search-dialog]");
   const form = document.querySelector("[data-global-search-form]");
   const input = document.querySelector("[data-global-search]");
@@ -45,7 +40,6 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[char]));
   const inTerminal = (target) => Boolean(target?.closest?.("[data-tui-pane], .xterm"));
-  const ITEM_TABS = ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])};
   const RECORD_ROWS = ${JSON.stringify([...pluginSearchRows().map(([plugin]) => plugin), "feed", "characters"])};
   const takeSearchHits = ${takeSearchHits.toString()};
   // The palette lives on project pages; a page served from one database without a catalog (the fixture server) is a project page without a catalog id.

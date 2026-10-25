@@ -91,10 +91,10 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
       contexts.push(context);
       const services = context.services!;
       const count = Number(services.storage!.get("visits") ?? "0") + 1;
-      const descriptor = { contribution_id: "example.notes", plugin_id: id, kind: "primary-page" as const,
+      const descriptor = { contribution_id: "example.notes", kind: "primary-page" as const,
         label: "Notes", slots: [], surfaces: [{ surface_id: "main", target_slot_id: "main", format: "html" }] };
       services.ui.register({ descriptor, render: () => `<p>Visit ${count}</p>` });
-      descriptor.plugin_id = "changed-after-registration";
+      (descriptor as { label: string }).label = "changed-after-registration";
       if (failStart) throw new Error("start failed after UI registration");
       services.storage!.set("visits", String(count));
       services.artifacts.publish({ artifact_id: "hosted-note", version: count, artifact_type_id: "example.note",
@@ -108,14 +108,20 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     const installId = installation.install.install_id;
     await runtime.start(installId);
     const old = contexts[0]!.services!;
-    assert.equal(ui.list()[0]!.plugin_id, id);
+    assert.equal(ui.list()[0]!.plugin_id, id, "RAC-635 the owner is the one the installation's Manifest names");
+    assert.equal(ui.list()[0]!.label, "Notes", "what the plugin changes after registering is not what the registry holds");
     assert.equal(ui.mount({ slot: { slot_id: "main", version: 1, accepts: ["html"] },
       contribution: { contribution_id: "example.notes", surface: "main", model: null } }).html, "<p>Visit 1</p>");
     assert.deepEqual(old.artifacts.read({ artifact_id: "hosted-note", version: 1 })!.payload, { visits: 1 });
     // UIERR-01: an actual Plugin client cannot remove another owner or register undeclared content.
     assert.throws(() => old.ui.unregister("another-plugin"), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
-    assert.throws(() => old.ui.register({ descriptor: { contribution_id: "undeclared", plugin_id: id,
+    assert.throws(() => old.ui.register({ descriptor: { contribution_id: "undeclared",
       kind: "primary-page", label: "No", slots: [] }, render: () => "bad" }), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
+    // RAC-636: a declaration that names an owner is refused, another plugin's and its own alike; the Host fills it, so there is nothing to compare.
+    for (const claimed of ["another-plugin", id]) {
+      assert.throws(() => old.ui.register({ descriptor: { contribution_id: "example.notes", plugin_id: claimed, kind: "primary-page", label: "Claimed", slots: [] }, render: () => "bad" } as never),
+        (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden", claimed);
+    }
     assert.equal(ui.list().length, 1);
     await runtime.reportCrash(installId);
     assert.deepEqual(ui.list(), []);
@@ -183,7 +189,7 @@ test("compatible Host execution and crash recovery use the implementation versio
       if (failStart) throw new Error("fixture still broken");
       const count = Number(context.services!.storage!.get("visits") ?? "0") + 1;
       context.services!.storage!.set("visits", String(count));
-      context.services!.ui.register({ descriptor: { contribution_id: "example.compatible", plugin_id: base.manifest.plugin_id,
+      context.services!.ui.register({ descriptor: { contribution_id: "example.compatible",
         kind: "primary-page", label: "Compatible", slots: [], surfaces: [{ surface_id: "main", target_slot_id: "main", format: "html" }] },
         render: () => `<p>${version}</p>` });
       context.services!.artifacts.publish({ artifact_id: "compatible-note", version: count,

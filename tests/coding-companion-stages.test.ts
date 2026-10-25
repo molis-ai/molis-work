@@ -159,8 +159,9 @@ test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is g
   assert.deepEqual(importers("diff"), ["project-plugins.ts"]);
   assert.deepEqual(importers("text-stats"), ["project-plugins.ts"]);
   assert.deepEqual(importers("files"), ["project-plugins.ts"]);
-  // The one stage module draws any plugin's page from its declarations: it names no plugin.
-  assert.doesNotMatch(readFileSync(join(dir, "project-plugin-stages.ts"), "utf8"), /molis-work-plugin-|["'`](coding|files|git|diff|text-stats)["'`]/);
+  // The one stage module draws any plugin's page from its declarations: it names no plugin. The Plugin Runtime and the plugin
+  // SDK are the platform, not plugins, so their package names are not a plugin's name (#1274 reads the supervisor's state type).
+  assert.doesNotMatch(readFileSync(join(dir, "project-plugin-stages.ts"), "utf8"), /molis-work-plugin-(?!runtime"|sdk["/])|["'`](coding|files|git|diff|text-stats)["'`]/);
 });
 
 test("RAC-439 BL-521 the Host has no route hook that reads Files for a consumer of its outputs: a change of the workspace settings reaches Files as an event", () => {

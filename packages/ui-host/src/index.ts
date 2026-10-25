@@ -1,6 +1,6 @@
 import { uiHostErrors } from "./ui-errors.js";
 import type {
-  UiContribution,
+  OwnedUiContribution,
   UiContributionDescriptor,
   UiHostApi,
   UiMountRequest,
@@ -17,7 +17,7 @@ export { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "./client-lifecycle.js";
 export { shortCallId } from "./call-id.js";
 export { createUiFailureView, createUiRequest, UI_REQUEST_CLIENT_SCRIPT } from "./request-client.js";
 export type { UiFailureViewPorts, UiFetchInit, UiRequestPorts, UiTranslate, UiViewDocument, UiViewElement } from "./request-client.js";
-export type { UiPlacedView, UiViewRegistryInput } from "./view-registry.js";
+export type { UiPlacedView, UiViewRegistryInput, UiViewRegistryManifest } from "./view-registry.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-ui-host",
@@ -39,7 +39,7 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
  * interprets Feed, Goal, Artifact, or other product state.
  */
 export class UiHost implements UiHostApi {
-  private readonly contributions = new Map<string, UiContribution<unknown>>();
+  private readonly contributions = new Map<string, OwnedUiContribution<unknown>>();
   private readonly slots: ReadonlyMap<string, UiSlotDescriptor>;
 
   /** `slots` are the places this host offers; `mountDeclared` puts a surface in the one its contribution names. */
@@ -47,7 +47,7 @@ export class UiHost implements UiHostApi {
     this.slots = new Map((options.slots ?? []).map((slot) => [slot.slot_id, slot]));
   }
 
-  register<TModel>(contribution: UiContribution<TModel>): void {
+  register<TModel>(contribution: OwnedUiContribution<TModel>): void {
     const contributionId = contribution.descriptor.contribution_id.trim();
     if (!contributionId) {
       throw uiHostErrors.surface_invalid("UI Contribution 必须声明稳定 ID");
@@ -55,7 +55,7 @@ export class UiHost implements UiHostApi {
     if (this.contributions.has(contributionId)) {
       throw uiHostErrors.contribution_conflict(`UI Contribution ${contributionId} 已注册`);
     }
-    this.contributions.set(contributionId, contribution as UiContribution<unknown>);
+    this.contributions.set(contributionId, contribution as OwnedUiContribution<unknown>);
   }
 
   unregister(contributionId: string): void {

@@ -45,17 +45,32 @@ class RevokableLedger extends MemoryPluginConsentLedger {
 }
 
 type Platform = ReturnType<typeof createPluginPlatform>;
-function project(run: (platform: Platform, ledger: RevokableLedger) => Promise<void>, ledger = new RevokableLedger(), withLedger = true) {
+type Restart = (entries: Parameters<Platform["start"]>[0]) => Promise<Platform>;
+function project(run: (platform: Platform, ledger: RevokableLedger, restart: Restart) => Promise<void>, ledger = new RevokableLedger(), withLedger = true) {
   return async () => {
     const directory = mkdtempSync(join(tmpdir(), "default-consent-"));
     const file = join(directory, "board.db");
     seedDemoBoard(file);
-    const store = new LocalProjectDatabase(file);
-    const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db,
+    let store = new LocalProjectDatabase(file);
+    const create = () => createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db,
       artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
       processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
       ui: new UiHost(), home: null, ...(withLedger ? { consents: ledger as PluginConsentLedger } : {}), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
-    try { await run(platform, ledger); } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+    let platform = create();
+    const close = async () => {
+      await platform.closeCoordination();
+      for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);
+    };
+    const restart: Restart = async entries => {
+      await close();
+      store.close();
+      store = new LocalProjectDatabase(file);
+      platform = create();
+      await platform.start(entries);
+      return platform;
+    };
+    try { await run(platform, ledger, restart); }
+    finally { try { await close(); } finally { store.close(); rmSync(directory, { recursive: true, force: true }); } }
   };
 }
 const port = (platform: Platform, name: string) => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === PROBE)?.ports.find(item => item.port === name);
@@ -124,4 +139,70 @@ test("RAC-390 S-X3 revoking an agreement takes off that default only: the person
     assert.equal(port(platform, "text")?.source, undefined, `round ${round}: the revoked default is off and stays off`);
     assert.deepEqual([port(platform, "chosen")?.source, port(platform, "chosen")?.origin], [{ source_plugin_id: FILES, source_port: "after" }, "user"], "what the person chose is not touched");
   }
+}));
+
+test("RAC-389-T4-SWITCH S-78 a bound default is removed after its source changes publisher signature and stays removed on reevaluation and restart; the person's source stays", project(async (platform, ledger, restart) => {
+  const source = { definition: createFilesPlugin(), trust: { level: "host" as const } };
+  const reader = { definition: probe([
+    snapshotPort("text", { plugin_id: FILES, port: "before" }), snapshotPort("chosen", { plugin_id: FILES, port: "before" })]) };
+  await platform.start([source, reader]);
+  platform.runtime.install({ definition: reader.definition, deployment: "local", trust: { level: "unsigned" },
+    grants: ["artifact:read"], consents: [wiringOf("text"), wiringOf("chosen")] });
+  const consents = ledger.consents(PROBE);
+  platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: PROBE, target_port: "chosen", source_plugin_id: FILES, source_port: "after", origin: "user" });
+  bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
+  assert.deepEqual([port(platform, "text")?.source, port(platform, "text")?.origin], [{ source_plugin_id: FILES, source_port: "before" }, "default"]);
+
+  const replacement: PluginDefinition = { ...createFilesPlugin(), manifest: { ...source.definition.manifest,
+    publisher: { ...source.definition.manifest.publisher, signature: "another-files-publisher" } } };
+  // Same display labels, id, version and port declarations; only the signature in the consent subject changes.
+  assert.deepEqual({ ...replacement.manifest, publisher: { ...replacement.manifest.publisher, signature: filesSignature } }, source.definition.manifest);
+  let current = await restart([{ ...source, definition: replacement }, reader]);
+  assert.equal(current.supervisor.state(FILES)?.status, "running");
+  assert.equal(current.supervisor.manifest(FILES)?.publisher.signature, "another-files-publisher");
+  assert.equal(port(current, "text")?.origin, "default", "the previously bound default was loaded from the project database before reconciliation");
+  for (let round = 0; round < 2; round += 1) {
+    bindDeclaredDefaults(current, DEMO_PROJECT_ID, "tester");
+    assert.equal(port(current, "text")?.source, undefined, `round ${round}: the old agreement never reads the new publisher`);
+    assert.deepEqual([port(current, "chosen")?.source, port(current, "chosen")?.origin], [{ source_plugin_id: FILES, source_port: "after" }, "user"]);
+  }
+  current = await restart([{ ...source, definition: replacement }, reader]);
+  assert.equal(port(current, "text")?.source, undefined, "removing the default was persisted, not hidden in a view");
+  bindDeclaredDefaults(current, DEMO_PROJECT_ID, "tester");
+  assert.equal(port(current, "text")?.source, undefined);
+  assert.deepEqual([port(current, "chosen")?.source, port(current, "chosen")?.origin], [{ source_plugin_id: FILES, source_port: "after" }, "user"]);
+  assert.deepEqual(ledger.consents(PROBE), consents, "source replacement neither grants a new agreement nor rewrites the old one");
+}));
+
+test("RAC-389-T4-RETURN S-78 a bound default is removed while its source is absent from the start list and restored when the same source returns under the standing agreement; the person's source stays", project(async (platform, ledger, restart) => {
+  const source = { definition: createFilesPlugin(), trust: { level: "host" as const } };
+  const reader = { definition: probe([
+    snapshotPort("text", { plugin_id: FILES, port: "before" }), snapshotPort("chosen", { plugin_id: FILES, port: "before" })]) };
+  await platform.start([source, reader]);
+  platform.runtime.install({ definition: reader.definition, deployment: "local", trust: { level: "unsigned" },
+    grants: ["artifact:read"], consents: [wiringOf("text"), wiringOf("chosen")] });
+  const consents = ledger.consents(PROBE);
+  platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: PROBE, target_port: "chosen", source_plugin_id: FILES, source_port: "after", origin: "user" });
+  bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
+  assert.equal(port(platform, "text")?.origin, "default");
+
+  let current = await restart([reader]);
+  assert.equal(current.supervisor.manifest(FILES), undefined, "the source is absent from the actual new supervisor, not just marked in a fixture");
+  assert.ok(current.runtime.list().some(record => record.plugin_id === FILES), "its old installation record alone cannot keep a default alive");
+  assert.equal(port(current, "text")?.origin, "default", "the previous binding survived the platform restart");
+  for (let round = 0; round < 2; round += 1) {
+    bindDeclaredDefaults(current, DEMO_PROJECT_ID, "tester");
+    assert.equal(port(current, "text")?.source, undefined, `round ${round}: no default while the source is absent`);
+    assert.deepEqual([port(current, "chosen")?.source, port(current, "chosen")?.origin], [{ source_plugin_id: FILES, source_port: "after" }, "user"]);
+  }
+  current = await restart([source, reader]);
+  assert.equal(current.supervisor.state(FILES)?.status, "running");
+  assert.equal(current.supervisor.manifest(FILES)?.publisher.signature, filesSignature);
+  assert.equal(port(current, "text")?.source, undefined, "the removal was persisted; restoring the default still requires evaluation");
+  for (let round = 0; round < 2; round += 1) {
+    bindDeclaredDefaults(current, DEMO_PROJECT_ID, "tester");
+    assert.deepEqual([port(current, "text")?.source, port(current, "text")?.origin], [{ source_plugin_id: FILES, source_port: "before" }, "default"]);
+    assert.deepEqual([port(current, "chosen")?.source, port(current, "chosen")?.origin], [{ source_plugin_id: FILES, source_port: "after" }, "user"]);
+  }
+  assert.deepEqual(ledger.consents(PROBE), consents, "the original agreement survived absence and return without a new grant");
 }));

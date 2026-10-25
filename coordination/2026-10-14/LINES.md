@@ -24,7 +24,12 @@
 > - `ac-clients-1` → **W5-04 第三组**（Coding、Diff、text-stats 的客户端，样式按需加载），之后写 PG-055 设计稿（SDK 公开界面部件）。
 > - `ac-kernel` → S-57 X1～X4（号段 10-24 21:35 改为 RAC-470～479、520～539，避开 Feed/Inbox 的 480 段）合成一个 PR（等 #1242 二轮、#1241 合入后合 main、S 号排 S-68～70）；然后 R-38 第 2 片。
 > - `ac-sc3` → Goals S9-0b #1245（统筹把对象种类隔离升为挡合并，Codex 在修）；S9-1 等 #1245 过一轮；S9-2 等维护时段。
-> - 待开线：`ac-registry`（W5-02，PG-024 片挡着 ac-artifacts 的 A3/A6），下一条线空出来就开。
+> - 待开线：`ac-registry`（W5-02，PG-024 片挡着 ac-artifacts 的 A3/A6），→ 10-25 已开，见下。
+> - **10-25 04:00 UTC 新开三条线（用户 10-25：「代码工程实现可以加速，如果还有工程开发任务的话，可以不只有 2-3 个会话额度」）**：
+>   - `ac-registry`（`local_a2bb6a1a`，Opus high；RAC-560～579、BL-615～624）：W5-02 PR-1b（PG-105、067、065、066、068）→ PR-2（PG-069）→ PR-3（PG-072～076）→ PG-024（挡 ac-artifacts A3/A6，能提前就提前）→ 门禁 7→0 → W4-01 探针夹具；PG-095、111 在稿里评估。先写 `slices/w5-02-registry.md` 交统筹审。
+>   - `ac-platform`（`local_91072c95`，Sonnet xhigh；RAC-580～599、BL-625～634）：授权与受众（PG-013、028、014）→ 写死名字（PG-032、098、100、099）→ PG-061、008、011 → PG-112、113 → PG-025、023、020（PG-020 开工前与 ac-sc3、ac-sandbox-sched 定边界）。先写 `slices/platform-authority-audience.md`。
+>   - `ac-shell`（`local_6e0d7986`，Sonnet xhigh；RAC-600～619、BL-635～644）：BL-387 页面一半 → BL-388 → PG-060 余项 → BL-430（先查 ac-kernel）→ PG-088 余项（引导改走 Pages 公开动作）；Goals S11 留在 ac-sc3。先写 `slices/w5-06-shell-remainder.md`。
+>   - 同时：ac-coding 接 T3 及之后各片、ac-giants 接 A4、ac-sc3 叠在 #1245 修复头上做 S9-1，各线一片做完直接接下一片。
 
 ## 1a. 在途但不在上表任何一条线里的 PR
 

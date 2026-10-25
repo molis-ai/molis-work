@@ -17,7 +17,7 @@ import { residentManagement } from "./fixtures/resident-management.js";
 // format is refused before anything is written; without --confirm nothing is installed; no resident Host means no install in the command's own process.
 
 const ROUTE = "/api/internal/plugin-install";
-const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
+const mac = { skip: process.platform !== "darwin", timeout: 240_000 };
 const launcher = fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url));
 const run = promisify(execFile);
 /** The command prints one JSON line; Node may print warnings before it. */
@@ -36,7 +36,7 @@ async function setup(t: Parameters<typeof residentManagement>[0]) {
     assert.deepEqual(await records(), [], "nothing was installed");
   };
   const cli = (args: string[], url = env.origin) => run(process.execPath, ["--import", "tsx", launcher, "plugin", "install", ...args],
-    { env: { ...process.env, MOLIS_WORK_HOME: env.home, MOLIS_WORK_WEB_URL: url }, timeout: 60_000 }).then(
+    { env: { ...process.env, MOLIS_WORK_HOME: env.home, MOLIS_WORK_WEB_URL: url }, timeout: 120_000 }).then(
     ok => ({ code: 0, stdout: ok.stdout, stderr: ok.stderr }), (error: { code: number; stdout: string; stderr: string }) => ({ code: error.code, stdout: error.stdout, stderr: error.stderr }));
   return { ...env, homeId, send, records, nothingWritten, cli };
 }

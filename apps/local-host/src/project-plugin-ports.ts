@@ -3,6 +3,8 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
 import { ensureInstalledPlugins } from "./installed-plugin-host.js";
+import { installedPluginEntries } from "./plugin-installation-directory.js";
+import type { InstalledPluginEntry } from "./plugin-installed-view.js";
 import type { InstalledRelease } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
@@ -44,6 +46,13 @@ export async function installPackageInProject(source: ProjectPluginHost, project
     await installed.installPackage(release, { consent: true });
     await installed.refreshPublicActions();
   });
+}
+
+/** The plugins installed in a project, each with the Manifest it was installed with. */
+export async function installedPluginsInProject(source: ProjectPluginHost, projectId: string): Promise<InstalledPluginEntry[]> {
+  const reference = source.host.projects().find(row => row.project_id === projectId);
+  if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
+  return await source.host.withRuntime(reference, runtime => installedPluginEntries(runtime.store.db));
 }
 
 /** The project's built-in Runtime plugins (Coding, Files, Git, ...): started once per project, their actions registered. */

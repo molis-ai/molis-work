@@ -25,7 +25,7 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
   const home = await mkdtemp(join(tmpdir(), "molis-work-install-"));
   const installed: Array<{ project: string; plugin: string; trust: unknown }> = [];
   const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore(home), now: () => AT,
-    install: async (project, release) => { installed.push({ project, plugin: release.pluginId, trust: release.packaged?.trust }); } });
+    install: async (project, release) => { installed.push({ project, plugin: release.pluginId, trust: release.packaged?.trust }); }, installed: async () => [] });
   /** Nothing the install path writes exists: no pinned publisher, no kept package, no installation. */
   const nothingWritten = () => {
     assert.deepEqual(ledger.publishers(), [], "no publisher was pinned");

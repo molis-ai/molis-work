@@ -58,6 +58,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
 import { withoutRefusedPlugins } from "./project-plugin-databases.js";
+import { closeHomeStorageLifetime, ensureHomeStorageOwner, releaseHomeStorageOwner } from "./home-storage-lifetime.js";
 
 /** One open project: its library, Goals' coordinator, and the library's one 成果库 and process items (D3). */
 export interface MolisWorkProjectRuntime extends ProjectVersionStores {
@@ -128,7 +129,7 @@ export class MolisWorkLocalHost {
   private readonly systemFunctions?: SystemFunctionsActions;
   private readonly alchemist?: AlchemistHostService;
   private agents?: { home: string; service: AgentHostComposition };
-  private readonly closing: { resources?: Promise<void>; attempt?: Promise<void> } = {};
+  private readonly closing: { started?: boolean; completed: Set<string>; attempt?: Promise<void> } = { completed: new Set() };
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
   /** System search over this Home's plugins; absent without a Home directory. */
@@ -143,7 +144,8 @@ export class MolisWorkLocalHost {
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
-    if (options.homeDirectory) prepareMemoryHome(path.resolve(options.homeDirectory));
+    prepareHostMemoryHome(this, options.homeDirectory);
+    try {
     this.personalPlanningHome = options.homeDirectory ? path.resolve(options.homeDirectory) : undefined;
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
@@ -251,23 +253,28 @@ export class MolisWorkLocalHost {
         projectClient: value => this.actionClient(value), homeClient: () => this.homeActionClient(),
         ownerContext: value => localWebActionContext(this, value, LOCAL_OWNER_PERMISSIONS) });
     }
+    } catch (error) {
+      // The failed object is never published. Close everything already constructed before relinquishing its lock.
+      void this.close().catch(failure => { hostLog.warn("host", "initialization_cleanup_failed", failure); });
+      throw error;
+    }
   }
 
   /** A borrowed Web transport keeps the shared connection alive until its external Host closes. */
   ensureWebCatalog(home: string, open: Parameters<typeof createWebCatalogAccess>[1]) {
-    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+    if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = path.resolve(home);
-    if (this.options.homeDirectory && path.resolve(this.options.homeDirectory) !== canonicalHome || this.webCatalog && this.webCatalog.home !== canonicalHome) {
-      throw new ActionError("actions.home_mismatch", "项目目录与 Host 必须属于同一个 Home");
-    }
+    const storageOwner = ensureHomeStorageOwner(this, canonicalHome);
+    if (!this.webCatalog) prepareMemoryHome(canonicalHome, storageOwner);
     return (this.webCatalog ??= { home: canonicalHome, access: createWebCatalogAccess(canonicalHome, open) }).access;
   }
 
   /** Platform startup injects the existing Catalog owner before accepting requests. */
   configurePersonalPlanning(home: string, withCatalog: LocalWebCatalogRunner): void {
-    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+    if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = path.resolve(home);
     if (this.personalPlanningHome && this.personalPlanningHome !== canonicalHome) throw new ActionError("actions.scope_mismatch", "不能把个人规划服务绑定到其他 Home");
+    ensureHomeStorageOwner(this, canonicalHome);
     this.personalPlanningHome = canonicalHome;
     this.personalPlanning ??= new PersonalPlanningActions(canonicalHome, this.host.actionRegistry(), () => readPersonalPlanningMethodPacks(canonicalHome));
     this.personalPlanning.configure(withCatalog);
@@ -276,13 +283,11 @@ export class MolisWorkLocalHost {
   }
 
   /** A transport borrows this service; only the Host owns its lifetime. */
-  ensureAgentService(homeDirectory: string, create: () => AgentHostComposition): AgentHostComposition {
-    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+  ensureAgentService(homeDirectory: string, create: (owner: import("@molis-ai/molis-work-storage").StorageOwner) => AgentHostComposition): AgentHostComposition {
+    if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const home = path.resolve(homeDirectory);
-    if (this.options.homeDirectory && path.resolve(this.options.homeDirectory) !== home || this.agents && this.agents.home !== home) {
-      throw new ActionError("actions.home_mismatch", "Agent 服务与 Host 必须属于同一个 Home");
-    }
-    return (this.agents ??= { home, service: create() }).service;
+    const owner = ensureHomeStorageOwner(this, home);
+    return (this.agents ??= { home, service: create(owner) }).service;
   }
 
   /**
@@ -347,10 +352,10 @@ export class MolisWorkLocalHost {
   }
 
   private async prepareHomeActions(): Promise<void> {
-    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+    if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     // The Home keeps its failed ready promise; unrelated providers remain available while its HTTP entry reports that failure.
     await this.homePlugins?.ready().catch(() => undefined);
-    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+    if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     this.systemFunctions?.refresh();
   }
 
@@ -382,18 +387,12 @@ export class MolisWorkLocalHost {
   }
 
   close(): Promise<void> {
-    return this.closing.attempt ??= settleHostClose(this.closing.resources ??= (async () => {
-      releaseHomeSide(this);
-      await closeConnectorResources(this.options.homeDirectory, this.connectorMcp);
-      await this.search?.close().catch(error => { hostLog.warn("projects", "close_step_failed", error, { step: "search" }); });
-      try { this.placement?.close(); } catch (error) { hostLog.warn("projects", "close_step_failed", error, { step: "placement" }); } // One that fails to close does not keep the rest open.
-      try { await this.host.close(); }
-      finally {
-        this.systemFunctions?.dispose();
-        try { await Promise.all([this.agents?.service.dispose(), this.homePlugins?.close()]); }
-        finally { await this.webCatalog?.access.close(); }
-      }
-    })(), this.alchemist?.close()).catch(error => { this.closing.attempt = undefined; throw error; });
+    return closeHomeStorageLifetime(this, this.closing, [
+        ["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
+        ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
+        ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
+        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()],
+    ], () => this.webCatalog?.access.close(), [["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);
   }
 
   get instanceId(): string {
@@ -401,7 +400,7 @@ export class MolisWorkLocalHost {
   }
 
   lifecycle(): LocalHostStatus["state"] {
-    return this.closing.resources && this.host.lifecycle() === "running" ? "closing" : this.host.lifecycle();
+    return this.closing.started && this.host.lifecycle() === "running" ? "closing" : this.host.lifecycle();
   }
 
   projects(): LocalHostStatus["projects"] {
@@ -440,15 +439,16 @@ async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () 
   if (failures.length) throw new AggregateError(failures, "项目关闭时有多处没有完成");
 }
 
+/** This synchronous preflight closes its own ledger before throwing; no Host business resource exists yet. */
+function prepareHostMemoryHome(host: MolisWorkLocalHost, home: string | undefined): void {
+  if (!home) return;
+  const owner = ensureHomeStorageOwner(host, home);
+  try { prepareMemoryHome(path.resolve(home), owner); }
+  catch (error) { releaseHomeStorageOwner(host); throw error; }
+}
+
 export function createMolisWorkLocalHost(options: MolisWorkLocalHostOptions = {}): MolisWorkLocalHost {
   const host = new MolisWorkLocalHost(options);
   if (options.homeDirectory) registerProjectRuntimeOwner(host, path.resolve(options.homeDirectory));
   return host;
-}
-
-/** Retry Alchemist independently, while the remaining Host teardown retains its original lifetime. */
-async function settleHostClose(host: Promise<void>, alchemist: Promise<void> | undefined): Promise<void> {
-  const results = await Promise.allSettled([host, alchemist]);
-  const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
-  if (failure) throw failure.reason;
 }

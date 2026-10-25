@@ -34,6 +34,7 @@ export class HomePluginHost {
   private executor?: HomePluginExecutor;
   private db?: ReturnType<typeof openHomePluginStore>["db"];
   private closed = false;
+  private closing?: Promise<void>;
   private retryable = false;
   private releaseProjectOwners?: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
@@ -80,11 +81,12 @@ export class HomePluginHost {
   stopProjectJobs(projectId: string): void {
     this.executor?.stopProjectJobs(projectId);
   }
-  async close(): Promise<void> {
-    if (this.closed) return;
+  close(): Promise<void> {
     this.closed = true;
-    try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
-    await this.release();
+    return this.closing ??= (async () => {
+      try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
+      await this.release();
+    })().catch(error => { this.closing = undefined; throw error; });
   }
   private async release(): Promise<void> {
     const failures: unknown[] = [];

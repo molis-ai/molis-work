@@ -14,13 +14,13 @@ Home Runtime 渲染工作台页面时，同时交回每个已画 stage 的 contr
 
 助理接续监听归 Local Host：关闭借用 Web 传输不终止共享助理，Host 关闭开始时释放监听，持久等待留待重启恢复。手动构造 `AssistantService` 的嵌入者需在关闭运行时及数据库前调用 `service.continuations.close()`；回归见 `tests/assistant-continuation-control.test.ts`、`tests/assistant-connector-continuation.test.ts`。
 
-Web 工厂自建 Host 时，`server.close(callback)` 在自有 Host 和目录连接关闭后才调用回调；调用方应等待它，再退出或清理 Home。传入的借用 Host 仍由嵌入者负责 `await host.close()`。
+Host 在业务库、插件与后台初始化前持有同一 `agent-runtime/.molis-runtime-owner.db` 所有权，空闲及 Agent 未启动时也排斥第二 Host 或离线操作；首次给无 Home 的 Host 绑定目录或服务也先获取。SDK 只借该 owner。Web 工厂自建 Host 时，`server.close(callback)` 等待实际 HTTP、调度、IM、浏览器、桌面 helper、自有 Host 与目录连接关闭；借用 Web 关闭只释放自己的资源，Host 最终由嵌入者 `await host.close()`。反向关闭借用 Host 也会先关闭仍活的 Web 存储资源。并发 close 等待同一结果，关闭失败保留 lease，明确重试只执行未完成步骤。回归：`tests/security-invariants-home-storage-host.test.ts`。
 
 ## 一次典型调用
 
 createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项目复用运行实例，capability 调用进入受控队列。project-host 负责连接生命周期，project-capabilities 绑定各 owner；GoalProjectApplication 组合跨 Module 用例。Web 工厂在入口统一解析显式 Home、MOLIS_WORK_HOME 和默认目录。
 
-Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git 后台服务，由 LocalHost 持有，同一 Host 只装配一次。正式 stdio launcher 有明确 Runtime Home 时，通过 `LocalActionGatewayClient` 将公共动作发现和调用转发到常驻 Web Host，不再装配另一个 Agent 执行器（它的 Host 只有构造时不启动运行时的惰性装配，不采用该服务；删除项目时也不为记忆启动运行时）；页面无需打开。嵌入者关闭借用 Host 的传输后，仍须在整个 Host 不再使用时 `await host.close()`。能力注册不会启动 SDK、CLI 或请求模型，实际操作才初始化执行器。独立嵌入者仍受原存储目录的独占锁保护，避免相互误恢复。
+Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git 后台服务，由 LocalHost 持有，同一 Host 只装配一次。正式 stdio launcher 有明确 Runtime Home 时，只构造无 Home 的协议装配；公共动作经 `LocalActionGatewayClient` 转发，context 的 resolve/list/bind/unbind/reject/create+bind、恢复绑定读取与 panel alias 也交给常驻 Host，不打开本地可写 Catalog，不装配 Home 业务 Host 或第二个 SDK。常驻传输调用同一套 MCP context handlers、presenter 和原 Catalog owner，保留确认、幂等、协议 Session 作者和面板别名行为；工具 arguments 不携带传输身份。创建并绑定项目的目录暂存、提升和提交前均复查原调用。失败、拒绝或结果未知不回退本地写入。回归：`tests/security-invariants-home-context.test.ts`、`tests/security-invariants-home-context-lifecycle.test.ts`。嵌入者关闭借用 Host 的传输后，仍须在整个 Host 不再使用时 `await host.close()`。能力注册不会启动 SDK、CLI 或请求模型，实际操作才初始化执行器。
 
 通道使用 Runtime 的 `webBaseUrl`（默认 `http://127.0.0.1:4173`）和同一 Home 已有控制凭据，只接受数字 loopback HTTP，拒绝重定向；常驻服务校验 Home/实例、从原目录解析项目，并使用原逐客户端动作授权。项目/主体更换或 MCP 关闭会取消旧请求，连接丢失不自动重试或退回本地执行。服务离线时只列出连接工具，其余调用返回 `actions.service_unavailable`。MCP 目录只有平台工具（连接与受信管理入口）加已授权的动作，没有旧名称或旧开关；Files/Git 的跨调用者成果归属仍未完成。
 

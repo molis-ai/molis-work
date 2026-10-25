@@ -149,7 +149,62 @@ B2a 首轮作者工程证据（`dbec1b89d`，独立评审后来发现上面的�
 
 两项 mustfix 短修：新增正式回归在旧生产输入上为 12/16，通过的原 12 条不受影响，新增 4 条均红；修后整体构建通过，10 个相关文件 58/58，skip/cancel 为 0，其中 Runtime owner 6/6、只读快照 4/4、维护 6/6。`ct` 必须为字符串、可以为空，nonce 保持 12 字节、tag 为完整 16 字节，仍由 GCM 完成认证；缺字段、截短/篡改 tag、坏 nonce 和错 key 拒绝且零写。严格 UTF-8 用 `ignoreBOM: true` 保留原字符，仅在描述符分类时忽略开头 BOM，密封/恢复正文不去 BOM。空原件经真实 prepare/confirm、子进程公开读取、无关 secret 和后续非空捕获验证；空 raw、BOM 加非空 Unicode/换行、0640 权限经 list/apply、新进程 Buffer 对照、外部原件和重复零改验证。其余有效工程证据沿用，不重跑 full；新固定提交、复审/独立复验、静态与推前密钥扫描分别在交付记录绑定，作者验证不替代独立结论。
 
-A 当前真实入口是 agent-host 的 `acquirePrologueStorageOwner`，对 `agent-runtime/.molis-runtime-owner.db` 持有 SQLite EXCLUSIVE；它目前随惰性 Agent 启动，不能覆盖空闲宿主。必要前置的唯一责任仍归 C2：将同一 lease 技术放到可共用的现有公开边界，宿主早期持有，Agent 按可信所有权转借，失败/退出只释放一次；restore 不移动、替换或复制持锁 inode。拟涉及 storage 的通用 lease 端口、agent-host 当前锁适配，以及 local-host 的最小启动/Agent 装配接线。实施 A 前再核实际文件认领，记录精确路径与合同；在途冲突只暂停相关接线。
+### A：同一 Home 的早期所有权（2026-10-24 作者验证完成，待首评与集成）
+
+本片从实际 main `bde02c59eb9a1d794a442419570819a80585708a` 独立实施，负责人仍是 C2。Root 与流水线的具体 WO 补充本段；B2b 本轮由 FIX4 在 #1239 `5e1d8a29156509d6fc51f75fd5bcc17316e3f225` 固定后释放共享窗口。本片只追加 A 的行为与证据，统一 carrier 合并时保留该头的 B2b 最终段落，不把早期 lease 当作完整快照或恢复。
+
+现行 `acquirePrologueStorageOwner` 的 SQLite EXCLUSIVE 算法上提到 storage 唯一技术端口；仍使用同一 `agent-runtime/.molis-runtime-owner.db`、`busy_timeout = 0` 和同一 inode，不另建锁、进程名单或同 PID 豁免。一个 Home 的第二 Host，包括同一进程中的第二对象，都拒绝。Host 在业务存储、插件或调度初始化之前取得所有权，未给 Home 的 Host 在首次明确绑定前也须取得；空闲或尚未启动 Agent 时已排斥离线操作。锁文件及其侧车不进快照，restore 不移动、替换或复制锁文件，也不以改名整个 `agent-runtime` 父目录绕开它。
+
+所有权是 storage 模块内 WeakMap 认证的 opaque capability，核 canonical root、原目录/锁 inode 和 live 状态；请求字段、复制对象、布尔值和 PID 都不能造出 proof。一个父 owner 至多有一个执行服务借用；父 owner 有借用时不能释放，Agent 关闭仅归还借用，创建失败也只归还自己的部分。独立适配器取得同一底层锁。Molis 的 `createPrologueNodeAdapter` 类型和运行时都要求明确的绝对 `storageRoot`，缺失、空值、相对路径在任何 SDK/磁盘初始化前拒绝，不解析到 cwd 或用户 `.prologue`；上游 SDK 默认行为不变。
+
+生产 stdio 是转发器：不构造 Home 业务 Host/SDK、不直接打开可写 Catalog。context 的 resolve/list/bind/unbind/reject/create+bind、恢复绑定读取及 panel alias 经同一受保护内部传输调用原 Catalog/context owner；不复制绑定算法、不增 MCP 工具或参数、权限名单或通用 SQL/RPC。Runtime/Session/Panel 来自环境和协议 callContext 的传输上下文，与用户工具 arguments 分开；服务端绑定自身 Home、instance 与生命周期，按既有 identity 工厂推导 actor，项目与路径由本 Home Catalog 核实。复用数字回环、no redirect、Home token、Origin、一次性键和请求大小门；元数据/operation 采用 closed shape。断连、主体变化、重启/关闭后的迟到操作拒绝提交，拒绝或结果未知都不回退本地写入，原确认与幂等语义保持。
+
+Web 的首次 Catalog 与后台初始化在持锁后；关闭先阻止新调用并停止现有后台，再等待项目、插件、Agent 和 Catalog 的实际关闭后释放 owner。并发关闭等待同一个结果；清理失败保留仍活的资源及锁，下一次显式 close 只重试未完成步骤，不自动循环或把一次失败永久缓存。初始化失败清理已建资源；进程死亡由 SQLite/OS 释放锁，不删除锁文件。不改在线调度策略，不操作真实 Home、账号、Keychain 或上游 SDK。
+
+允许生产路径是 storage 新 `adapters/storage-owner.ts` 和既有公开出口、Agent 的锁适配/Node 组合与必要依赖、Local Host 的 `home-storage-lifetime.ts`、`project-host.ts`、`system-agent-service.ts`、Web/MCP 启停与必要的窄 context 薄传输、现有 owner 的提交前检查；配套正式进程/安全回归、README/手册与本段。保留 Memory authority/observer/业务关闭顺序、FIX4 B2b 和 #1240 删除检查/桌面 launch args 的独立 hunk。共享出口与同一 spec 已按具体窗口串行，不等待无关 CI 或合入。
+
+Web 生命周期的实际依赖包括 `web-server-close.ts`、`web-storage-resources.ts`、`web-catalog-access.ts`、`periodic-tasks.ts` 与 `computer/computer-surfaces.ts`：只串接已有关闭、共享在途关闭结果与失败后的明确重试，不改变 timer、派发、凭据或桌面业务规则。context 薄传输为 `mcp-context-{envelope,client,gateway,tools}.ts`；`project-catalog.ts` 与 `managed-project-files.ts` 仅增加来自可信调用上下文的提交前检查，确认、绑定与幂等仍由原 owner 决定。
+
+Host 关闭保留原 Home 绑定立即撤下、Alchemist 立即进入 closing 的时点，与原其余资源关闭链并行等待，仍在等模型的前台轮次不能趁关闭等待迟到提交。全部实际关闭均成功后才关闭 Catalog 并释放 lease；不将所有 owner 或 Memory/SDK 一并并行，也不改变记忆先于 SDK 的原业务顺序。既有 Alchemist close/close-late-failure 拒绝断言保持。
+
+早取锁会使原来空的 Home 多出技术目录，因此 `memory/memory-adoption.ts` 的 fresh 判定接收同一个 opaque owner：只有 Home 仅含 `agent-runtime`、且 storage 在 live proof 下核实其中仅有锁/侧车，才仍按新 Home 初始化。已有 SDK、未知文件、ledger、marker 与 prefs 的采用/完整性拒绝保持；不把布尔值或请求字段当作证明，也不读锁原件的字节。与 Memory Draft #1101 `e3d0d4523154f4313b97e5c0c588de36713bf888` 后续合并时保留其独立 profile 校验、`projectDeletionPending`、project deletion 返回端口及 Session pending/live 检查；本片不采用该未接受候选。
+
+`system-agent-service.ts` 外层关闭仍按原顺序撤下绑定、关闭记忆、关闭 SDK；只缓存同一关闭尝试，并记录已经完成的记忆关闭，防止 SDK 关闭失败后重复关闭 ledger。context 输入中的身份拒绝仍由原 handlers 决定；resident 在 handler 请求 scope 之后才关联协议 Session 的面板别名，不能让输入伪造 actor 的失败调用先写别名。
+
+早取锁同样会影响删除项目时的 SDK 存在性判断：本基点的 `project-deleted-owners.ts` 与 `memory/memory-host.ts` 原来只检查目录存在，必须复用 storage 对同一组技术文件的只读元数据识别。缺目录或只有合法锁/侧车的目录没有 SDK 业务数据，保持原 ledger-only 删除且不启动 SDK；真实 SDK、未知项、链接或异常继续按原 pending/拒绝边界处理。这个只读检查不获取锁、不打开锁原件的描述符、不创建文件，也不授予所有权、采用或写入权；新 Home 判定仍必须有 genuine live opaque owner。Root 已确认这是 A 的必要回归修复。与 Memory Draft `c8c23dbec543f34185e8fa94737cf00c22270864` 合成时，其删除 owner 已移到 memory-project-deletion，统一 carrier 将同一技术判断接到新位置，保留其 preview、recovery 和全部独立业务块，不整片采用 Draft。
+
+构造的同步记忆预检单独成段：该函数返回或抛错前已关闭自己的 ledger，尚未创建任何 Host 业务资源，此阶段拒绝立即归还刚取得的 owner，后一个入口继续得到原记忆/版本错误。业务资源创建后的失败仍等待实际异步关闭，失败清理保留 lease。原 Host/Web/嵌入式 MCP/晚绑定拒绝断言保持；字节检查在打开文件前排除纯技术锁和侧车，不因检查本身释放 POSIX 锁。
+
+| 编号 | 本片可观察验收 | 证明边界 |
+| --- | --- | --- |
+| RAC-105-A-01/04 | 同一 inode 排斥同进程/跨进程第二 owner，两种启动顺序成立，别的 Home 独立 | 真实进程与原文件、业务字节对照；不冒充完整 CLI 命令 |
+| RAC-105-A-02/03/05/06 | 伪造/错 Home/释放后/第二借用及链接、替换拒绝；归还子借用不释父锁，正常退出与 SIGKILL 后可重取 | 公开 storage/SDK 调用与独立父进程观察，原 inode 保持 |
+| RAC-105-A-07 | 空闲 Host 提前排斥离线 owner，SDK 借父 owner；缺/相对 root 拒绝且零 SDK/磁盘副作用；纯技术目录保持 ledger-only 删除、不启动 SDK，未知/实际 SDK 数据仍保原边界 | 隔离进程与临时 HOME、真实 Node SDK、原 project-deletion-studios/processes 失败及相应数据控制；不取凭据或调用商业模型 |
+| RAC-105-A-08 | 关闭未完成/失败时仍 busy，明确重试完成实际关闭后可重取 | 真实插件 stop 屏障及 SDK/Host 关闭链，不只测 release 函数 |
+| RAC-105-A-09/10 | 真实 stdio 与 resident 共存，context/alias 只由 resident 提交；错 Home/token/Origin/重放、伪造身份、取消/换主体/关闭拒绝且无迟到写 | 原生产协议、HTTP 与 owner 读写；无本地 fallback |
+
+作者验证已覆盖本片 RAC-105-A-01～10：实际双进程、真实 Node SDK、闲置及晚绑定 Host、实际插件 stop、SDK/Catalog 关闭失败重试、生产 stdio/context/alias 和取消后的目录回滚。整体构建与源码指纹核对通过；8 个 A 测试/夹具文件的 scoped TypeScript 检查、包边界、merge-base health、页面资源和版本核对通过。扩展到历史测试的额外严格类型检查存在原有诊断，不能写成全部测试类型检查已通过；原始对照随 PR 交付。
+
+先按包要求、AI Skill 与安全清单自然跑完 337 个明确文件，首轮 328 通过、9 失败，保留原始结果。修复技术目录误判、关闭开始时点和所需夹具后，受影响的 20 个非浏览器文件及 MCP 授权真实页面通过；另补 24 个直接消费者，记忆采用是其中的真实阶段时序遗漏，修后再按受影响的 6 个文件复验。原记忆采用 9/9、Alchemist 生命周期 21/21、删除 processes 16/16、service 16/16、studios 4/4 与实际授权/撤权均通过；只复验相关项，未重复整批 337。
+
+Studio 的 HTTPS 升级用例在本分支与干净 `bde02c59` 基线上仍同为 TLS 建连失败、同一断言 400 而非 200；最初一次基线给“结果未知”的不同正文也保留，不将它们混为同一根因。三个可选 live 条件未启用，不当作执行通过；没有商业模型、真实 Home、Keychain、全量或用户验收结论。`affected-tests` 建议 full（装配、存储、跨 4 包），选出 310 文件，其中 117 个建议项仍交 TEST/Claude 的后续窗口，full 只由 Claude 统一。完整 A 最小生产调用链和拒绝证据齐备后交正常非 Draft PR，作者验证不替代首评、独立审验或集成；完整快照与恢复仍未实现。
+
+#### A 初始化清理重试补修（FIX4，#1254）
+
+TEST 在固定 `19ccdfa8ed41fee58038e9cedcd43abf3f48e65d` 用公开 API 和真实 SDK/MCP 订阅复现：初始化后段抛错，第一次退订也抛错，原 catch 报 AggregateError 并保留借用，却丢失清理闭包；重建报 agent.storage_busy，父 owner.release 报 storage.owner.borrowed，退订没有第二次调用。Host composition 又只保存成功返回的 adapter，dispose 够不到失败实例。原件为 `/tmp/molis-verify-2026-10-24/pr1254-19cc-test/initialization-cleanup-repro.{mjs,log,json}`。
+
+初始化返回的 Promise 保留显式 `close(): Promise<void>` 句柄；原 await 的 adapter 结果与成功后的 close 入口保持。句柄从创建起拥有本次资源、未完成清理和 release，不依赖异常类或全局恢复登记。初始化失败仍先尝试清理，失败报告原 AggregateError；显式 close 等待本次初始化结算后只重试未完成项，全部成功才归还借用/独立 owner。正常 shutdown 复用这些资源的完成记录，保留原顺序；一项成功后不因后项失败重复副作用。并发 close 共用同次 Promise，失败后允许下一次明确调用，不自动循环。
+
+Host 从创建时保存初始化句柄；失败后的显式 ready 先完成旧实例清理再起新实例，dispose 即使没有成功 adapter 也调用该句柄。关闭一开始拒绝新初始化；已接纳的 ready 保留原正常结算合同，但不能在关闭后登记运行时或再建第二实例，由 dispose 等实际清理。Memory 先于 SDK 的原外层关闭顺序保持。只改 Agent Node 生命周期、Host composition、直接回归和必要说明；不改 storage 锁/快照端口、snapshot/restore 登记与 CLI、SDK 包、真实 Home/凭据、门禁或 baseline，完整 snapshot/restore 仍归实现2。
+
+| 编号 | 本题验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-105-A-11 | 初始化失败且清理失败仍可显式重试；再次失败仍占锁；已完成项不重复，全部清理成功后同 Home 可合法初始化/关闭/重新取得 owner | 原公开 API 复现和真实 SDK/MCP 订阅的父借用、独立 owner 回归；持续拒绝与恢复均实测，不能在 finally 提前 release |
+| RAC-105-A-12 | Host dispose 能收尾未完成初始化；同 Home 并发 ready/close 只初始化/清理一次，关闭后不登记或重开运行时，不提前归还 owner | 真实 Host composition/关闭路径、实际订阅及受控关闭屏障，正常启动/关闭控制；无模型、临时 Home |
+
+目标为本题功能可用并完成必要工程与独立核收；原 A 的 369 文件分阶段证据保原范围，只补本题受影响调用链，不重跑整批或新 full。先在19cc实际整体构建并保留原复现/新增回归红，再改实现并整体构建；定向 lifecycle、安全拒绝及适用包/Skill 回归、scoped strict/Biome、准确 merge-base health、boundary、test-imports、推前 fresh-fetch secrets。资源走 machine-slot，固定修后头正常更新原PR后交 REVIEW 增量/TEST，Claude FIRST 保留。
+
+补修作者证据：原19cc构建来源指纹重新核对匹配b1226d80，原公开API探针仍以exit1记录退订只调用一次/借用不可归还；相同故障的修后探针真实调用第二次退订，后续初始化、关闭、父owner释放与再次取得均成立。新增A-11/12六项通过。首轮30文件为29过/1红，既有system-agent-service指出已接纳ready应正常结算；修正生产分支并保留原断言后，相关8文件50项全过，与其余适用结果合计30唯一文件208项有效并集，不冒一个同头全绿批。原首败、19cc的369分阶段与可选live/Studio边界均保留。构建、strict、Biome、准确merge-base健康、边界和引用检查的原件在 `/tmp/molis-pr1254-init-cleanup-retry-20261024/`；固定修后头还须独立REVIEW增量/TEST与原Claude FIRST、CI/集成核收，本片不关闭完整A、snapshot/restore或C2。
 
 快照只在持 lease 的离线窗口枚举和读数据，逐库 backup，非 SQLite 与其引用取同一切点；写入私有暂存目录，全部验证后才发布完成清单。恢复先验证清单、所有文件、实际版本、完整性、摘要、密钥依赖和原路径；不自动盖版本或迁移。任何预检拒绝都不改原 Home。发布/回滚保留可观察状态和原数据，不复用旧数据库连接，不让半成品被宿主当成新 Home。
 

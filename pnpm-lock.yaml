@@ -678,6 +678,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@prologue/sdk':
         specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz
         version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz

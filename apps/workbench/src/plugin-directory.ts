@@ -98,11 +98,11 @@ export function scriptJson(value: unknown): string {
   return JSON.stringify(value).replace(/[<>&\u2028\u2029]/gu, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
-/** What the page's scripts read of the directory: which plugins' tabs open one object by id, and the names they go by. */
-export interface ClientDirectoryEntry { readonly id: string; readonly name: string; readonly accepts_objects: boolean }
+/** What the page's scripts read of the directory: each plugin's key and whether its views accept objects. */
+export interface ClientDirectoryEntry { readonly id: string; readonly accepts_objects: boolean }
 
 export function clientPluginDirectory(directory: PluginDirectory): ClientDirectoryEntry[] {
-  return directory.map(entry => ({ id: entry.id, name: entry.name, accepts_objects: entry.ui.views.some(view => view.accepts_objects === true) }));
+  return directory.map(entry => ({ id: entry.id, accepts_objects: entry.ui.views.some(view => view.accepts_objects === true) }));
 }
 
 /** The directory element the page's scripts read once at start (`data-plugin-directory`). */

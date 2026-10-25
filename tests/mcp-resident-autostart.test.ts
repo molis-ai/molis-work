@@ -30,6 +30,7 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
     // Both MCP processes are gone; the resident still proves the same identity and serves the next client.
     assert.deepEqual(await f.health(), first); await f.stopHost();
   });
+  t.signal.throwIfAborted();
   await t.test("trusted management uses the same resident after preflight and never adopts a local writable fallback", async st => {
     st.after(f.cleanupCase); assert.ok(managed); assert.equal(typeof managed.database_path, "string");
     const preload = fileURLToPath(new URL("./fixtures/mcp-autostart-no-local-sql.mjs", import.meta.url));
@@ -49,6 +50,7 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
       "the actual resident recorded this domain refusal; a local SQLite fallback would have been rejected by the preload");
     assert.equal((await readdir(f.attempts)).length, count + 1); await f.health(); await peer.close(); await f.stopHost();
   });
+  t.signal.throwIfAborted();
   await t.test("two independent MCP processes race their real launch candidates but share one owner and idempotent write", async st => {
     st.after(f.cleanupCase);
     await f.reset(); const count = (await readdir(f.attempts)).length;
@@ -73,6 +75,7 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
     assert.deepEqual(await f.health(), first);
     await Promise.all([a.close(), b.close()]); assert.deepEqual(await f.health(), first); await f.stopHost();
   });
+  t.signal.throwIfAborted();
   await t.test("cancel and EOF end their waits while another MCP completes; cancelled tools never create projects", async st => {
     st.after(f.cleanupCase);
     await f.reset(); const count = (await readdir(f.attempts)).length;
@@ -93,6 +96,7 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
     assert.ok(!projects.projects.some(project => ["取消绝不创建", "EOF绝不创建"].includes(project.display_name)));
     await Promise.all([a.close(), survivor.close()]); await f.stopHost();
   });
+  t.signal.throwIfAborted();
   await t.test("a real offline owner remains held with its inode and data intact; a new request can recover after release", async st => {
     st.after(f.cleanupCase);
     await f.release(); const peers = storageOwnerProcesses(st), owner = await peers.start(join(f.home, "agent-runtime"));
@@ -107,6 +111,7 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
     } finally { await owner.stop(); }
     await tool<Resolution>(peer, "context_resolve"); await f.health(); await peer.close(); await f.stopHost();
   });
+  t.signal.throwIfAborted();
   await t.test("a committed real create with a severed response reports delivery_unknown and never replays", async st => {
     st.after(f.cleanupCase); await f.release();
     const marker = join(f.root, "response-cut"), preload = fileURLToPath(new URL("./fixtures/mcp-autostart-cut-response.mjs", import.meta.url));
@@ -121,6 +126,7 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
     assert.equal((await tool<ProjectList>(peer, "context_list_projects")).projects.filter(project => project.display_name === input.display_name).length, 1);
     assert.equal((await readdir(f.attempts)).length, attempts); await f.health(); await peer.close(); await f.stopHost();
   });
+  t.signal.throwIfAborted();
   await t.test("invalid identity/payload/startup arguments and another installation on PATH cannot start anything", async st => {
     st.after(f.cleanupCase);
     const count = (await readdir(f.attempts)).length;

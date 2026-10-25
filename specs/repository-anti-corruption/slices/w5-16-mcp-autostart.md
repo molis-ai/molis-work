@@ -1,6 +1,6 @@
 # W5-16 C5：MCP 按需启动常驻宿主
 
-状态：叠层实现及本机定向验证通过，待独立收验与父链实际落地（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；完成程度为下列隔离 Home 中的功能可用，不代表整个 W5-16/C1/C3 完成、已进入 main、真实 App 或本人验收通过。
+状态：叠层实现已推送，测试清理竞态已修复，最终实装收验未完成，待受控验证与父链实际落地（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；目标完成程度为隔离 Home 中功能可用，下列既有通过范围不覆盖最终实装首败，也不代表整个 W5-16/C1/C3 完成、已进入 main、真实 App 或本人验收通过。
 
 统筹已在 [6394070792](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6394070792) 审定本稿：选 A 常驻；唯一 Home owner 允许短暂被拒的启动候选；20 秒总预算、1 秒探测、250 毫秒退避；EOF/cancellation 必须接通。Root 已授权以推送的 batch-36 `bb7137fc2550d8ae8fd7f8bb6caced55ee7cba9f` 为固定实施基底，只推自己的 feature 分支。#1254 尚未实际落地；batch-36 合入后核实际 main 增量与共享 hunk，再交一个完整非 Draft PR。FIX4/FIX7 的原生命周期 hunk 不在本片改写；S 新编号和共同行由 carrier 唯一登记，本片交确切语义及拒绝测试引用。
 
@@ -113,3 +113,15 @@
 历史失败保留原范围：真实安装两次在 release staging 超过 240 秒、零进程子场景，不称为 flaky 或产品通过；之后按同一公共重活 FIFO 与整体构建隔离，原限额内完整实装通过。首次竞争测试误要求两个同键并发创建都成功，后改为保留原冲突/已完成回执合同并断言只有一个项目；其失败曾导致后继场景未在无宿主状态，旧取消结论作废。另有一组在组合构建尚排队时误启动的校验已作废，实际记录只使用构建后的 11/11 结果。
 
 父基线 `desktop-entry-failures.test.ts` 的 `transport-reject` 仍期望 Host close 一次而实际为零：本片与独立干净 `bb7137fc` 均为同一 12/14，已交原 Home-owner A/FIX15，未改其关闭/资源 lifetime hunk。独立 REVIEW 已复核门禁 v2 窄增量；最终整片独立 REVIEW/TEST、统一 full、父链合入后的实际 main 增量复核仍由 PIPE 接续。本轮没有运行 macOS App/WebKit 的实际复用/退出，也没有一骏本人验收；不能用上述 Node/安装测试替代它们。
+
+### 冻结提交后的失败追查
+
+固定提交 `3077bfc` 的完整实装重跑是 4 pass、3 fail、1 cancelled：240 秒父测试期限在 offline-owner 子场景等待时到期，不能用此前 8/8 覆盖。原始记录保留在 `/tmp/c5-frozen-process.log`。随后与 TEST 对齐的唯一 offline-owner 子路径仍沿 public 完整安装与原 240/20 秒预算，在实装 staging 尚未结束时耗尽父预算，零产品子场景执行。观察记录明确显示父级清理在安装复制未结束时删除同一个临时 Home，返回 `ENOTEMPTY`；安装随后仍继续写入 staging，至原进程约 377 秒才自行退出。该记录证明测试设施的清理竞态，尚未证明原 offline-owner 产品路径的根因；不称 flaky、不提高预算、不接管父 transport 或其他构建。
+
+最小修正仅在测试设施：父级清理先等已启动的安装成功或失败落定，再关闭自有进程、删除临时 Home；两个子场景之间检查父测试的取消信号，阻止清理后的测试体继续访问安装。真实产品测试默认仍调用同一个 public 安装器。故障注入回归只给测试 fixture 一个受控的未完成安装任务，实际写入临时目录，验证取消、落定和清理的顺序；不替代真实安装证据。
+
+`RAC-628-F1`：强制父测试到期后仍须返回失败；安装落定之前不删除其 Home，落定后目录完全清理，且取消后的下一子场景不执行。用 `mcp-autostart-fixture.test.ts` 验证清理顺序和失败结果，另用原 Node 版本的小故障复现验证子场景取消检查。原 20 秒生产等待、240 秒产品测试总限额及各项拒绝断言保持。真实 offline-owner 与后继产品场景仍待受控验证；测试设施修复不等于该产品失败已关闭。
+
+设施回归 `mcp-autostart-fixture.test.ts` 1/1 通过；实际故障反例只移除等待安装落定的那一行，测试因真实顺序变为 `parent.aborted → cleanup.begin → cleanup.end → installer.settled` 而失败，随后源码逐字节恢复。原 Node 小复现中加入父级取消检查后也阻止了后继场景；它仍按强制超时返回失败。日志分别为 `/tmp/c5-fixture-fix-v2.log`、`/tmp/c5-fixture-mutant.log` 与 `/tmp/c5-node-timeout-guarded-events.jsonl`，均不计为产品实装通过。
+
+本次按入库后的实际形态重新检查 health（固定基底 `bb7137fc`）失败：`security-invariants-mcp-autostart.test.ts` 尚无 `docs/system/SECURITY-INVARIANTS.md` 表行引用。原组合 health 通过记录不作为当前固定入库形态的通过结论；不改名绕过、不放宽门禁。新 S 编号/共同行仍由 PIPE/carrier 唯一登记，本片交准确语义和拒绝测试。四个改动测试文件的 lint 已通过；本次只有 tests/specs 变化，生产构建输入与 `3077bfc` 相同，没有重跑整体构建或产品整批实装。

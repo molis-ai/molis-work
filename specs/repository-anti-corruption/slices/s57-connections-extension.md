@@ -190,6 +190,18 @@ RAC-346～349 是本线旧号段（RAC-330～349）的末尾。X 片另用统筹
 | RAC-472 | 真实项目 Runtime 的宿主内与 `execution: "sandbox"` 变体，保留/不保留数据卸载都立即拒绝旧原文件登记、删除本项目记录绑定；保留数据重装仍保留私有 KV，但不恢复授权；丢弃重装的既有 helper 也清理残留授权；相邻项目、Home 空串登记、相邻/另一安装、共享安装槽和账号不变，原文件内容不变。授权删除失败或部分完成后，同一与新 Runtime 的重装均在发布前重试清理，仍失败则卸载记录、代次和不可用状态不变，解除后无旧授权且 KV 保留 | `tests/security-invariants-installation-records.test.ts` 的 `S-45 S-71 RAC-472` 成功路径与真实删除故障变体；创作台原入口另由 `tests/installed-plugin-host.test.ts` 的 RAC-471 保持 |
 | RAC-473 | 真实 Home Runtime 的两个执行变体，所有卸载选择均只清本安装的空串原文件登记；同安装各项目登记、另一安装、Home 安装在各项目的按记录绑定、按安装槽与账号均保留；保留私有 KV 后重装不能恢复原授权，丢弃重装仍清残留登记。真实原文件删除故障持续时，同一与新 Runtime 都拒绝发布；恢复后只撤销本安装空串授权，KV 与项目绑定不变 | `tests/security-invariants-installation-records.test.ts` 的 `S-45 RAC-473` 成功路径与真实删除故障变体 |
 
+### 5.2 R55 插件账号保存的长期回归（#1308 首评 §7.2，2026-10-25）
+
+负责人：Codex R55 长期回归专职。仅补测试，产品修复 `0f0bdb83a` 已由载体 `50823b548` 包含；原 29 项与 TEST6403388677 的临时组件证据按原范围复用，不重做修复或全量。验收在本项达到工程回归可用，不代表完整 Host 授权、持久化、视觉或用户验收。
+
+`tests/connector-plugin-slots.e2e.test.ts` 使用既有公开 renderer 的完整设置页，随当前构建取得真实 HTML、dataset、请求助手与连接脚本，在公共 test-kit 的专用 Chrome 和独立 profile 中运行；本机 HTTP 在收到请求后持有响应，再分别给成功或拒绝。没有复制保存算法、保存旧 JS、增加生产测试出口或导入例外。每个变体的浏览器、HTTP 与临时目录由测试清理；运行器另提供隔离 Home。
+
+| 验收编号 | 必须观察的结果 | 证明 |
+| --- | --- | --- |
+| RAC-657 | Home 与含中文、空格、斜杠、`&?"+#%` 的项目视图均成功保存新账号后，再拒绝另一选择：等待期间保留上次 `saved`，`disabled`/`aria-busy` 为 true；失败后 `value` 回最近成功账号、`saved` 不被失败覆盖、错误可见，finally 恢复可操作；第三次保存成功。真实 HTML/dataset 发出的每次请求均为预期 POST、精确 URL 与安装/插件/槽/服务/账号 body，项目仅解码一次即等于原 ID。 | `tests/connector-plugin-slots.e2e.test.ts` 的 Home、encoded Project 两个 RAC-657 R55 变体；运行 `node scripts/run-tests.mjs --jobs 1 --verbose --retries 0 tests/connector-plugin-slots.e2e.test.ts`。HTTP 受控，仅证明生产页面组件路径。 |
+
+定向验证：待新用例实际运行与独立复查，原批次、组合 full、资源结算及 main 采用仍归 PIPE/唯一 Claude carrier。
+
 ## 6. 还没核的
 
 - 目录连接器里有多少能直接用 `bearer` 加到固定来源，要在 X1 里逐项核。这里只按 `catalog.ts` 里出现的 API 地址粗看过，大约 30 个服务，其中 Salesforce 等是租户地址。

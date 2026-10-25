@@ -141,7 +141,7 @@ export function createLocalGoalsReadHttp(ports: {
             actorId: LOCAL_PERSON_ACTOR_ID,
             escapeHtml,
             translate: (value: string) => value,
-            workspaces: projectConfiguration.workspaces,
+            workspaces: projectConfiguration.workspaces, workspacesFor: async () => projectConfiguration.workspaces,
             routePrefix: view.route_prefix,
           };
           const builtinStages = await projectPluginStages(surfacePorts, view, projectConfiguration, declaredStageModel);

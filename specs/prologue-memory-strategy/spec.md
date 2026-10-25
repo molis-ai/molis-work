@@ -1342,3 +1342,9 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 允许路径是本次真实合并交点及其必要文档/测试：原五处文本冲突、自动合并的调用链与 owner 装配、相关 README、现有健康/API/资源快照和本节。资源只迁移原同一已批功能的精确净增：Workbench +3,193 B、Coding +612 B；以准确新 main 的实际基数和原工具复测为准，不借用余量、不改门禁判断。超出上述增长或发现安全、公开合同、写主人变化时先报告 Root，不扩设计。
 
 先完成静态合并与用例清单，整体 build、browser 与 native 均由 Root 安排机器时段。验证沿原命令与公开生产链：根/Host/Agent/Coding 严格类型、API/边界、准确 main 的健康与资源门，相关 README 必跑并集，以及 Original 输入、Assistant 原件、可信调用者、删除链、project_runtime 装配和五冲突用例；runner 固定 jobs2/browser1/retries0，不放宽断言、超时、重试、CI 或阈值。仅有效验证后可本地提交，不 push、不合并 PR、不跑全量、不付费调用模型；最终聚合、远端 #1064/#1101 与真人验收仍由 Root 负责。
+
+本轮合并 checkpoint 为 `d1b7be5f92674fb85b182fe87a7a08e97ee61cd6`，两父包含准确 b3bac main；随后顺序带入已审的 CDP 清理错误保留 helper 与永久故障回归，对应本地 `1811cc1270c70afaab44fed402590b4c175cad36`、`14b0dd138636c763f340080ab470913ef10d5399`。主干已撤销的 `openLingguangStore` 插件包导出不再被两份新 plugin-frame 回归使用，统一取主干公开测试 fixture；没有修改旧工作树或重新添加存储开口。
+
+准确 b3bac 的健康、75 份 API 快照、根/Host/Agent/Coding strict、包边界及原资源门通过。原计量确认 Workbench `1127729 → 1130922`（+3193 B）、Coding `289017 → 289629`（+612 B），其余29资源与 main相同；原 `--update --base` 冻结31资源共7,513,524 B，并只同步本地快查的主干条目迁移与真实下降，不增改门禁或 giant exception。冻结离线安装、原整体 build 与最终增量整体 build 均通过，最终源码与安装构建指纹一致；现有 xterm 导出警告保留。
+
+原选择器、相关 README 必跑、前批交点和本轮冲突的必要并集在上述实际源码上一次执行：269文件全部首跑通过，其中240 native、29 browser，共2780测试、零失败、零跳过、零重试，原 runner 固定 jobs2/browser1/retries0。覆盖两处 Coding 等待拒绝、非空记忆删除进程16项、原调用者16项、project_runtime登记16项、plugin-frame输入/回执6项（含新增故障保留）与readiness2项。原始日志与明确输入集合留在仓外 `/private/tmp/foundation-batch39-*-20261026.log`、`/private/tmp/foundation-batch39-necessary-tests-20261026.txt`。这仅为本轮有界集成工程及所覆盖自动化路径证据；未跑全量、未碰真实Home、未调用付费模型、未推送或合并PR，原CI首红、Cloudflare疑点、显式召回规模时延失败与最终产品/用户验收均不因此改变。

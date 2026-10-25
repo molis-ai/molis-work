@@ -8,8 +8,8 @@ import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installedPluginViews, pluginInstallActions, pluginInstallProvider, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 
-// ac-trust T7: what the install preview and the plugin's detail page tell the person. RAC-430 the platform says what a permission is
-// (BL-353); RAC-431 the detail page lists what each installed plugin asked for and why, the jobs it keeps (BL-362), who signed it and the
+// ac-trust T7: what the install preview and the plugin's detail page tell the person. RAC-405 the platform says what a permission is
+// (BL-353); RAC-406 the detail page lists what each installed plugin asked for and why, the jobs it keeps (BL-362), who signed it and the
 // agreements given, as a read only the person's own surfaces make.
 
 const AT = "2026-10-25T00:00:00.000Z";
@@ -18,7 +18,7 @@ const record = (patch: Partial<PluginInstanceRecord>): PluginInstanceRecord => (
   manifest_digest: "digest", deployment: "local", selected_entrypoint: "./plugin.mjs", grants: [], execution: "sandbox", publisher_trust: "pinned", state: "running",
   recovery_count: 0, last_error_code: null, installed_at: AT, updated_at: AT, uninstalled_at: null, retain_private_data: false, ...patch });
 
-test("RAC-430 the platform names what a platform permission lets a plugin do, a site or a secret by its name, and says nothing of a permission it does not define", () => {
+test("RAC-405 the platform names what a platform permission lets a plugin do, a site or a secret by its name, and says nothing of a permission it does not define", () => {
   assert.match(platformPermissionMeaning("storage:private")!, /私有空间/);
   assert.match(platformPermissionMeaning("actions:delegate")!, /你能做的事/);
   assert.equal(platformPermissionMeaning("network:api.example.com"), "连接到这个网站：api.example.com");
@@ -27,14 +27,14 @@ test("RAC-430 the platform names what a platform permission lets a plugin do, a 
   assert.equal(platformPermissionMeaning("network"), null);
 });
 
-test("RAC-430 an install preview lists each permission with the plugin's reason and the platform's meaning", async () => {
+test("RAC-405 an install preview lists each permission with the plugin's reason and the platform's meaning", async () => {
   const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), now: () => AT, install: async () => undefined, installed: async () => [] });
   const shown = service.preview({ bundle: signedPackage(newPublisher()) }, { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID });
   assert.deepEqual(shown.preview.permissions, [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据", meaning: platformPermissionMeaning("storage:private") }]);
   assert.deepEqual(shown.preview.jobs, [], "a sandbox package keeps no background job");
 });
 
-test("RAC-431 an installed plugin's detail has its trust, the publisher's name, each permission with reason and meaning, its background jobs, and every agreement given including a revoked one", () => {
+test("RAC-406 an installed plugin's detail has its trust, the publisher's name, each permission with reason and meaning, its background jobs, and every agreement given including a revoked one", () => {
   const ledger = new MemoryPluginConsentLedger();
   ledger.pinPublisher({ key_id: "ed25519:sha256:aa", public_key_spki_base64: "spki", label: "Example", pinned_at: AT, pinned_by: LOCAL_PERSON_ACTOR_ID });
   const [given] = ledger.record({ plugin_id: PACKAGE_PLUGIN_ID, publisher_signature: "ed25519:sha256:aa", manifest_digest: "digest", granted_by: "user", grants: [{ kind: "always_on", subject: "plugin" }], at: AT });
@@ -52,7 +52,7 @@ test("RAC-431 an installed plugin's detail has its trust, the publisher's name, 
     "a Manifest that cannot be read is said so, not shown as asking for nothing");
 });
 
-test("RAC-431 plugins.installed.list is the person's read of one project: other audiences do not see it, and it needs a project", async () => {
+test("RAC-406 plugins.installed.list is the person's read of one project: other audiences do not see it, and it needs a project", async () => {
   const entries = [{ record: record({}), manifest: undefined }];
   let asked: string | undefined;
   const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), now: () => AT, install: async () => undefined,

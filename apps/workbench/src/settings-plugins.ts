@@ -85,11 +85,11 @@ const consents = (plugin) => group(L("你给过的同意"), L("没有同意记�
 const item = row(L(KIND[consent.kind] || consent.kind) + " · " + consent.subject,
 consent.revoked_at ? L("已于 {date} 撤回", { date: day(consent.revoked_at) }) : L(consent.granted_by === "user" ? "你同意的" : "宿主随这个插件代为同意") + " · " + day(consent.granted_at));
 if (!consent.revoked_at) {
-const revoke = button(L("撤回"), "mw-btn--ghost");
+const revoke = button(L("撤回同意"), "mw-btn--ghost");
 revoke.addEventListener("click", async () => {
 if (!await ask(L("撤回这条同意？"), L("{plugin} 的“{kind}”同意（{subject}）。撤回后立即生效；以后需要时可以重新同意。", { plugin: plugin.name, kind: L(KIND[consent.kind] || consent.kind), subject: consent.subject }), L("撤回"))) return;
 error.hidden = true;
-try { await api("/consents/revoke", { consent_id: consent.consent_id }); toast(L("已撤回")); await load(); } catch (failure) { fail(failure); }
+try { await api("/consents/revoke", { consent_id: consent.consent_id }); toast(L("同意已撤回")); await load(); } catch (failure) { fail(failure); }
 });
 item.append(revoke);
 }

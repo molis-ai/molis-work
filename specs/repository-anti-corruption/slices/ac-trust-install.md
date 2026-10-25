@@ -192,6 +192,19 @@ S-81 适配证据：060 证明提交为 `a21f2f0d593fee2a972d094467058177e32a227
 | MCP 与命令行的 goal 工具、`goal-advance` Skill | 未做，归 BL-585：`apps/mcp/src/goal-tools.ts` 的 v1 工具是固定列表，要用真实 MCP 会话核「没有 Goals 时的答复」 |
 | Feed、成果库等挂 Goal 的地方 | 未做，归 BL-585：已有记录的只读与不丢要逐处核 |
 
+**T3b 的结果（2026-10-25，与 T7 同一个 PR）**：RAC-400 的页面、设置、画板、管理入口、插件列表、成果库入口与 Skill 做完；证据是 `tests/goals-absent-project.test.ts`（用应用自己的 Host，带目录可用性）与 `tests/goals-absent-project.e2e.test.ts`（真实浏览器，CI 跑）。核对时发现，之前用不带目录可用性的 Host 验证页面会漏掉最大的一处：项目页的数据本身就读 Goals 的 `goals.collection`，没有 Goals 的项目整页被 403 `actions.plugin_disabled` 挡掉。
+
+| 地方 | T3b 的结果 |
+| --- | --- |
+| 项目页与画板 | 做完。`cachedMolisWorkWebView` 把被拒的 Goals 读当作「没有 Goal」（Goals 自己导出的 `emptyGoalsDocumentCollection`，不由宿主直接读 Goals 的表）；`/api/capsule` 同样。页面从首页打开，不画 Goal 视图。Goals 的舞台与对话框仍留在隐藏的画面池里：工作台只有一个客户端程序，去掉它们会让整页空白（试过），它们没有入口、不显示。 |
+| 链接与标签页 | 做完。`openPlugin`、`openItem`、`goal` 的链接只打开本项目提供的插件（菜单或条里有它的）；存过 Goals 标签的布局在没有 Goals 的项目里重新开始，不恢复丢掉的标签。`frame-container`、`editing-graph`、`global-search`、`placement`、`project-home` 里的 `"goals"` 特判没有逐个加守卫：它们的入口只在有 Goal 时才出现，深链与旧布局两条进路已拦。 |
+| 项目设置 | 做完。「项目说明」是 Goals 的页，没有 Goals 的项目导航与目录不列它，手输地址回到「常规」；设置页读 Goals 的规划被拒就是没有 Goals，不报错。 |
+| 工作台外壳与插件列表 | 做完。插件列表的锁与卡片读 Host 给目录的 `always_on`（来自账本，页面带 Host 目录时，`marksFromHost`），不读 Manifest：撤回之后 Goals 是可以再添加的一项，加回后照常打开，并且可以再移除；没有 Host 的页面仍按 Manifest。 |
+| MCP 与命令行的 goal 工具 | 做完。管理入口（常驻宿主）对没有 Goals 的项目答 `actions.plugin_disabled`，不写任何东西（`tests/goals-absent-project.test.ts` 的管理入口用例）；Runtime 的动作工具来自动作目录，按可用性隐藏。管理工具表是平台的固定表，不随项目变，所以「工具列表不列」只对 Runtime 成立。 |
+| `goal-advance` Skill | 做完。步骤 2 加一句：项目可能没有 Goals，Goal 工具不在或答 `actions.plugin_disabled` 时照实说，继续用项目有的别的插件，不重新绑定。 |
+| Feed 与成果库 | 做完。Feed 阅读页的「升格为 Goal」见 T3；成果库详情的「作为 Goal 的输入」没有 Goals 时不画；已有挂着 Goal 的记录原样保留（`artifacts.links` 读成果库自己的记录）。 |
+| 新建项目与引导 | T3 已做（建项目只写 `initial()`）；引导步骤里没有对 Goal 的假定，本片核过。 |
+
 ### 3.5 默认连线要同意（PG-005）
 
 `bindDeclaredDefaults` 的判断从 `shipsWithHost(target)` 和 `shipsWithHost(source)` 改成：
@@ -319,7 +332,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | T4 | 默认连线要同意：`bindDeclaredDefaults` 改读账本、来源签名核对、C10、S-67 的 2 与 3 | T1，T2（预览里要有同意项） | |
 | T5 | 撤回与世代：`consents.revoke`、发布者撤销、并入授权世代检查、S-67 的 4 | T1，T3，T4 | 和 S-18 的测试放一起 |
 | T6 | 提供方身份：S-75 安装拒绝与启动重验、BL-506 前缀检查 | T1 | |
-| T7 | 界面：安装预览、插件详情页里的同意清单与撤回、BL-353 与 BL-362 的文字 | T2，T5，#1098 | PG-002 的开关同在这一页，归 PG-002 那条线 |
+| T7 | 界面：安装预览、插件详情页里的同意清单与撤回、BL-353 与 BL-362 的文字 | T2，T5，#1098 | PG-002 的开关同在这一页，归 PG-002 那条线。**已落地**，见 7.4 |
 | T8 | 文档与手册：POLICY 7.8、THIRD-PARTY-PLUGINS、`skills/molis-plugin-dev`、PG-016 的版本跟随写明 | T1 | |
 
 
@@ -397,6 +410,10 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 
 文档与手册，不改代码：`docs/releases/POLICY.md` 新增第 7.9 节（版本跟随算安装信任，条件是 `host` 信任等级）；`docs/system/THIRD-PARTY-PLUGINS.md` 新增第 4.1 节（三个等级与要同意的声明）并在安装步骤里加上逐项同意；`skills/molis-plugin-dev/elements.md` 改写 `always_on` 一条、新增「装的时候用户会被问哪些声明」；`privileges.md` 的 PG-016 一行记为已做。BL-562 做完，行已删。安装服务、预览与命令（T2）、界面（T7）落地后，这三处里写「随 T2」的话要跟着改。
 
+### 7.4 T7 与 T3b 落地（2026-10-25）
+
+一个 PR：界面与 Goals 缺席的余项。**数据**（`e5a42d258`）：合同里 `PluginPermissionView`、`PluginJobView`、`PluginInstalledView` 与 `platformPermissionMeaning`（平台权限的说明文字只在这一处，BL-353；PG-002 的开关要用同一份，不另写）；安装预览的每一项权限带插件的理由和平台的说明，后台作业列出（BL-362）；动作 `plugins.installed.list@1`（只给本人，需要项目）。**界面**：项目设置里新增「插件」页（目录里也有），列出已装的插件与它们要的权限、作业、同意（含已撤回的），可以装签名包（先预览、再确认并给发布者起名）、撤回一项同意；走 `/projects/<id>/api/plugin-trust/*`，写入一律要控制令牌与页面来源、不读请求里的人。T3b 见 §3.4.1。BL-561、BL-353、BL-362、BL-585 做完，行已删；浏览器里的两条用例随 PR 交 CI。页面资源脚本与样式的增长写在 PR 里。
+
 ## 8. 验收
 
 | 编号 | 内容 | 证据（测试文件待实现片定，名字里写编号） |
@@ -407,7 +424,12 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-383 | 非 `host` 等级只在沙箱：`execution` 与等级不一致被拒；映射不了沙箱形态的 Manifest 安装时拒绝 | Runtime 单元测试 |
 | RAC-384 | `unsigned` 声明 `always_on` 且没有同意：装得上、不生效（不在常开名单，可移除，依据统筹 10-24 定的待定 1）；有同意则生效（S-34 新语义） | 重写后的 `tests/security-invariants-always-on.test.ts` |
 | RAC-385 | 同意不分等级都可撤（用户 2026-10-24）：`host` 等级的 `always_on` 默认同意、不弹窗；撤回后它不再出现在常开名单里，能被隐藏、移除；`pinned` 同意后可撤 | 同上 |
-| RAC-400 | Goals 不在项目里（常开被撤回后移除）时，首页、建项目与引导、Dock、搜索、项目页渲染、标签页、MCP/命令行的 goal 工具、Feed/成果库挂 Goal 的入口、Inbox/Sessions 等照常工作，不报错、不出空白；清单见 §3.4.1 | **部分**：T3 的 `tests/security-invariants-always-on-records.test.ts` 只覆盖服务端成员派生、建项目与移除；余项与浏览器、真实 MCP 归原 ac-trust 与 T7/BL-585，不晚于撤回入口落地 |
+| RAC-400 | Goals 不在项目里（常开被撤回后移除）时，首页、建项目与引导、Dock、搜索、项目页渲染、标签页、MCP/命令行的 goal 工具、Feed/成果库挂 Goal 的入口、Inbox/Sessions 等照常工作，不报错、不出空白；清单见 §3.4.1 | `tests/security-invariants-always-on-records.test.ts`（成员派生、建项目、移除）；`tests/goals-absent-project.test.ts`（页面、设置、画板、管理入口，用应用自己的 Host）；`tests/goals-absent-project.e2e.test.ts`（真实浏览器）；`tests/feed-promote-reader.test.ts`（阅读页没有升格） |
+| RAC-405 | 平台说明每一项平台权限的意思，站点与密钥按名字；没定义的权限不乱说（BL-353）；安装预览的每一项带插件的理由和平台的说明 | `tests/plugin-trust-view.test.ts` |
+| RAC-406 | 已装插件的详情有信任等级、发布者名、每项权限的理由与说明、后台作业、给过的每一项同意（含已撤回的）；`plugins.installed.list` 只给本人；项目设置有「插件」页（目录里与嵌入的一节） | `tests/plugin-trust-view.test.ts`、`tests/plugin-trust-http.test.ts` |
+| RAC-407 | 插件的网页路由要控制令牌与页面来源，只认它们列出的步骤，请求里自称是谁的一律拒 | `tests/plugin-trust-http.test.ts` |
+| RAC-408 | 签名包先预览（什么也不写），再按人给的固定名安装，概览里列出它要的东西 | 同上 |
+| RAC-409 | 经路由撤回一项同意写下 `revoked_at`，概览显示已撤回 | 同上 |
 | RAC-401 | 常开查询只读、缺库或缺行的构建担保不落账；撤回、重新同意与安装状态即时生效；现有非法库拒绝且不修复；第三方未同意不获担保，Host 启动仍记账 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-401；重启不重复和已撤回不复活另见 `tests/plugin-runtime-maintenance-v3.test.ts` |
 | RAC-402 | 已撤回、停用及移除/隐藏后再破坏 Home 版本或完整结构，授权仍拒绝、原记录不变；恢复页只显示存储事实，不提供插件内容 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-402；原页面与 retry 不变量见 `tests/home-plugin-private-store.test.ts` 的 W3-06-F-05/F-08 |
 | RAC-403 | 只处理 Home store 自己的明确拒绝，同码/同消息的其他错误继续传播；合法结构恢复后即时复查，撤回不复活 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-403 |
@@ -429,7 +451,7 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 
 ## 9. 待办
 
-BL-557～561 写在 `specs/BACKLOG.md`（T3～T7 各一行；T2 的 BL-556 与 BL-562 即 T8 已做完，行已删；T2 余项是 BL-588、BL-589）；T1 的 BL-555 和 T1 开工前核 Home 库账本的 BL-563（结论在 §10 待定 4）都已做完，行已删；BL-564 空着。
+BL-557～561 写在 `specs/BACKLOG.md`（T3～T7 各一行，T7 的 BL-561 与 T3b 的 BL-585 已做完、行已删；T2 的 BL-556 与 BL-562 即 T8 已做完，行已删；T2 余项是 BL-588、BL-589）；T1 的 BL-555 和 T1 开工前核 Home 库账本的 BL-563（结论在 §10 待定 4）都已做完，行已删；BL-564 空着。
 
 ## 10. 待定
 

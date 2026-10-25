@@ -55,10 +55,23 @@ export function assertHomeScopeAllowed(manifest: PluginManifest, trust: PluginTr
   }
 }
 
-/** What `install` asks of a definition's trust: it fits where the code runs, and a Home scope in the Manifest is the Host build's alone. */
+/**
+ * Looking for command-line tools on this machine (`local_tools`, PG-112) is told to a plugin of the Host's build alone: what is installed
+ * here is information about the person's machine, and a plugin whose code the Host did not ship has no consent behind it yet. It is
+ * refused at install, before any record, so a declaration that could never be served does not sit in the permissions a person is asked
+ * to confirm (opening it to other plugins goes through the consent ledger, BL-626).
+ */
+export function assertLocalToolsAllowed(manifest: PluginManifest, trust: PluginTrust): void {
+  if (manifest.local_tools !== undefined && !isHostTrust(trust)) {
+    throw pluginErrors.declaration_invalid("本机工具查找（local_tools）现在只给随宿主发布的插件，请删掉 Manifest 的 local_tools");
+  }
+}
+
+/** What `install` asks of a definition's trust: it fits where the code runs, and a Home scope or a look for local tools in the Manifest is the Host build's alone. */
 export function assertTrustFitsDefinition(definition: PluginDefinition, trust: PluginTrust): void {
   assertTrustFitsExecution(trust, definition.execution ?? "host");
   assertHomeScopeAllowed(definition.manifest, trust);
+  assertLocalToolsAllowed(definition.manifest, trust);
 }
 
 /** Who a consent is recorded as given by: the Host, for the build it ships; a person, for everything else. */

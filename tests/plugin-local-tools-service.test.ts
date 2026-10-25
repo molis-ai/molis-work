@@ -29,7 +29,7 @@ async function started(t: TestContext, probe = localToolsProbe()) {
     check: (path: string) => action.invoke(probe.caller(), probe.check, { path }), refresh: () => action.invoke(probe.caller(), probe.refresh, {}) };
 }
 
-test("RAC-662 a plugin that declares no local_tools is given no service, and one that declares them is given it", async t => {
+test("RAC-732 a plugin that declares no local_tools is given no service, and one that declares them is given it", async t => {
   const none = localToolsProbe("toolsnone", null);
   const served = await serveHomeRuntime(t, { pluginFixtures: { home: [none.entry()] } });
   await served.host.homePlugins!.ready();
@@ -38,7 +38,7 @@ test("RAC-662 a plugin that declares no local_tools is given no service, and one
   assert.ok(withTools.probe.contexts.at(-1)?.services?.localTools);
 });
 
-test("RAC-662 find answers each declared tool with the runnable file in the pinned directory, and null where there is none or the file is not runnable", async t => {
+test("RAC-732 find answers each declared tool with the runnable file in the pinned directory, and null where there is none or the file is not runnable", async t => {
   const directory = pinned(t, "alpha-cli");
   writeFileSync(join(directory, "beta-cli"), "not runnable", { mode: 0o644 });
   mkdirSync(join(directory, "alpha"));
@@ -46,7 +46,7 @@ test("RAC-662 find answers each declared tool with the runnable file in the pinn
   assert.deepEqual(await f.find(), [{ tool_id: "alpha", executable: join(directory, "alpha-cli") }, { tool_id: "beta", executable: null }]);
 });
 
-test("RAC-662 isExecutable answers yes or no for a path the person gave, and refuses what is not an absolute path or when the Manifest did not declare custom_executables", async t => {
+test("RAC-732 isExecutable answers yes or no for a path the person gave, and refuses what is not an absolute path or when the Manifest did not declare custom_executables", async t => {
   const directory = pinned(t, "mine");
   const f = await started(t);
   assert.equal(await f.check(join(directory, "mine")), true);
@@ -63,7 +63,7 @@ test("RAC-662 isExecutable answers yes or no for a path the person gave, and ref
 
 // BL-411: once the instance has stopped, a service call its left-running code makes does nothing: a promise that never settles, or
 // nothing at all for a synchronous method (`inertAfterStop`), instead of an error nobody catches.
-test("RAC-662 a plugin that is stopped gets nothing back: no answer, no search", async t => {
+test("RAC-732 a plugin that is stopped gets nothing back: no answer, no search", async t => {
   pinned(t, "alpha-cli");
   const f = await started(t), client = f.probe.client();
   assert.equal((await client.find()).length, 2);
@@ -74,15 +74,17 @@ test("RAC-662 a plugin that is stopped gets nothing back: no answer, no search",
   assert.equal(client.refresh(), undefined);
 });
 
-test("RAC-662 a plugin the person did not grant local-tools:read is refused", async t => {
+test("RAC-732 a plugin the person did not grant local-tools:read is refused", async t => {
   pinned(t, "alpha-cli");
   const probe = localToolsProbe("toolsnogrant"), served = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.entry()] } });
   await served.host.homePlugins!.ready();
+  // A plugin of the Host's build holds every permission it declares; this is the person turning local-tools:read off.
+  await grantLocalTools(served.host, probe, ["storage:private"]);
   await assert.rejects(probe.client().find(), { code: "actions.forbidden" });
   await assert.rejects(probe.client().isExecutable("/bin/sh"), { code: "actions.forbidden" });
 });
 
-test("RAC-663 the answer is kept for a while and asked again after refresh or when the pinned directory changes; concurrent asks share one search", async t => {
+test("RAC-733 the answer is kept for a while and asked again after refresh or when the pinned directory changes; concurrent asks share one search", async t => {
   const directory = pinned(t, "alpha-cli");
   const f = await started(t);
   const [first, second] = await Promise.all([f.find(), f.find()]);
@@ -97,7 +99,7 @@ test("RAC-663 the answer is kept for a while and asked again after refresh or wh
   assert.deepEqual((await f.find()).map(entry => entry.executable), [null, null], "a different pin is a different question");
 });
 
-test("RAC-664 MOLIS_WORK_LOCAL_TOOLS=off finds nothing and says no to every path", async t => {
+test("RAC-734 MOLIS_WORK_LOCAL_TOOLS=off finds nothing and says no to every path", async t => {
   const directory = pinned(t, "alpha-cli");
   const f = await started(t);
   process.env[SWITCH_ENV] = "off";
@@ -105,7 +107,7 @@ test("RAC-664 MOLIS_WORK_LOCAL_TOOLS=off finds nothing and says no to every path
   assert.equal(await f.check(join(directory, "alpha-cli")), false);
 });
 
-test("RAC-663 RAC-665 the Host's service only queries the file system, and neither the plugin package nor the Module reads the environment or starts a process", () => {
+test("RAC-733 RAC-735 the Host's service only queries the file system, and neither the plugin package nor the Module reads the environment or starts a process", () => {
   const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
   assert.doesNotMatch(source("apps/local-host/src/plugin-local-tools-service.ts"), /child_process|spawn|exec(File)?\(/u);
   assert.doesNotMatch(source("packages/plugin-runtime/src/local-tools.ts"), /child_process|spawn|process\.env|node:fs/u);

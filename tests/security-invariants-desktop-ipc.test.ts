@@ -75,8 +75,8 @@ test("S-14 each permission is defined in the shell, allows only commands the she
   for (const command of ["pty_spawn", "pty_write", "pty_resize", "pty_kill"]) assert.equal(registered.has(command), false);
 });
 
-// PG-113, RAC-671: a page's files reach the shell as relative paths plus the Host route and the page's id. The shell asks the Host
-// which files those are and checks the answer before it opens, copies or drags anything (the Rust cases `rac_670_…` in
+// PG-113, RAC-738: a page's files reach the shell as relative paths plus the Host route and the page's id. The shell asks the Host
+// which files those are and checks the answer before it opens, copies or drags anything (the Rust cases `rac_737_…` in
 // page_files.rs), so nothing in the main window can name a path of its own. The old commands took absolute paths.
 test("S-14 the shell's file commands take a page's relative paths and ask the Host for the files, and the old path-taking command names are gone", () => {
   const main = readFileSync(MAIN_RS, "utf8");

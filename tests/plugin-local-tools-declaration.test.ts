@@ -16,7 +16,7 @@ const manifest = (local_tools: unknown, permissions = ["storage:private", "local
   ...(local_tools === undefined ? {} : { local_tools }),
 });
 
-test("RAC-661 the Manifest's local_tools declare named tools with bare file names, plain directories, and the permission the Manifest holds", () => {
+test("RAC-731 the Manifest's local_tools declare named tools with bare file names, plain directories, and the permission the Manifest holds", () => {
   assert.deepEqual(parsePluginManifest(manifest(TOOLS)).local_tools, TOOLS);
   assert.equal(parsePluginManifest(manifest(undefined)).local_tools, undefined);
   const many = (count: number) => Array.from({ length: count }, (_, index) => ({ tool_id: `tool-${index}`, binaries: ["x"] }));
@@ -41,7 +41,7 @@ test("RAC-661 the Manifest's local_tools declare named tools with bare file name
   ] as const) assert.throws(() => parsePluginManifest(manifest(declared, permissions as string[] | undefined)), mentions, JSON.stringify(declared));
 });
 
-test("RAC-661 Shelf's terminal Agents are its Manifest's local_tools: one tool per engine, the permission is required, and no other shipped plugin declares any", () => {
+test("RAC-731 Shelf's terminal Agents are its Manifest's local_tools: one tool per engine, the permission is required, and no other shipped plugin declares any", () => {
   const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === "io.molis.work.shelf")!;
   assert.equal(shelf.manifest.local_tools, SHELF_LOCAL_TOOLS);
   assert.equal(shelf.manifest.permissions.find(entry => entry.permission === "local-tools:read")?.required, true, "a dual-instance Manifest's permissions are all required");

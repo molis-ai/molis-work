@@ -8,6 +8,7 @@ import {
   type PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { HOST_BUILD_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { person } from "./home-runtime.js";
 
 export const LOCAL_TOOLS: PluginLocalToolsDeclaration = {
@@ -41,14 +42,15 @@ export function localToolsProbe(name = "toolsprobe", declaration: PluginLocalToo
         { ...refresh, handle: () => client().refresh() },
       ] };
     } };
-  return { id, definition, permissions, contexts, find, check, refresh, client, entry: () => ({ definition }),
+  return { id, definition, permissions, contexts, find, check, refresh, client, /** The service is told to a plugin of the Host's build alone (S-75): the fixture stands in for one, so it is started with that trust. */
+    entry: () => ({ definition, trust: HOST_BUILD_TRUST }),
     caller: () => person(permissions) };
 }
 
-export async function grantLocalTools(host: MolisWorkLocalHost, probe: ReturnType<typeof localToolsProbe>) {
+export async function grantLocalTools(host: MolisWorkLocalHost, probe: ReturnType<typeof localToolsProbe>, permissions: readonly string[] = probe.permissions) {
   const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(probe.id)!;
   await platform.runtime.stop(install.install_id);
-  platform.runtime.grant(install.install_id, probe.permissions);
+  platform.runtime.grant(install.install_id, [...permissions]);
   await platform.supervisor.restart(probe.id);
   return { platform, install: platform.runtime.get(install.install_id) };
 }

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
-import { HomePluginHost, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
+import { HomePluginHost, PLATFORM_PLUGIN_REGISTRATIONS, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -77,7 +77,7 @@ function createProbe(): PluginDefinition {
   return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: PROBE_ID, version: "1.0.0", name: PROBE, kind: "app",
     publisher: { publisher_id: "example", signature: `home-${PROBE}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: PROBE_PERMISSIONS.map(permission => ({ permission, required: true, reason: "分区探针读写自己的库" })),
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions, databases: { home: PROBE_DATABASE },
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions, runtime: { scope: "home" }, databases: { home: PROBE_DATABASE },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } },
   async start(context) {
     probe.contexts.push(context);
@@ -105,9 +105,12 @@ const catalog = BUILTIN_PLUGIN_CATALOG as PluginRegistration[];
 const todo = catalog.find(entry => entry.project_plugin_id === "todo")?.runtime;
 assert.ok(todo, "the Todo entry lends its package for the Runtime's release archive");
 const shipped = createProbe();
-catalog.push({ project_plugin_id: PROBE, catalog_order: 10_000, manifest: shipped.manifest, summary: "分区探针", project_data: projectData,
-  runtime: { scope: "home", create: createProbe, package_name: todo.package_name, factory_export: todo.factory_export },
-  workbench: { order: 10_000, contributions: [] } });
+const probeRegistration: PluginRegistration = { project_plugin_id: PROBE, catalog_order: 10_000, manifest: shipped.manifest, summary: "分区探针", project_data: projectData,
+  runtime: { create: createProbe, package_name: todo.package_name, factory_export: todo.factory_export },
+  workbench: { order: 10_000, contributions: [] } };
+// The Host reads its own list (plugin-registry.generated.ts), the workbench its own: the probe is in both, as a shipped plugin is.
+catalog.push(probeRegistration);
+(PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[]).push(probeRegistration);
 
 /** The probe, declaring `library` as its Home library instead of the catalog's (or none): what a Manifest that disagrees with the registry looks like. */
 export function probeWithLibrary(library: HomePluginDatabaseDeclaration | undefined): () => PluginDefinition {
@@ -117,7 +120,7 @@ export function probeWithLibrary(library: HomePluginDatabaseDeclaration | undefi
 /** The Home entry the Host makes of a catalog entry (project-host.ts), with what a test changes about it. */
 export function probeEntry(change: Partial<HomePluginEntry> = {}): HomePluginEntry {
   const entry = catalog.find(item => item.project_plugin_id === PROBE)!;
-  return { ...entry.runtime!, manifest: entry.manifest, project_data: { owner_id: PROBE, declaration: entry.project_data! }, ...change };
+  return { ...entry.runtime!, scope: "home", manifest: entry.manifest, project_data: { owner_id: PROBE, declaration: entry.project_data! }, ...change };
 }
 
 /** The probe's library of a project, where the Host puts it. */

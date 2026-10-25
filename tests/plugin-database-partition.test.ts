@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { captureHostLog, type HostLogEntry, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, type HostLogEntry, PLATFORM_PLUGIN_REGISTRATIONS, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -53,8 +53,8 @@ test("PART-03 a partitioned library needs a project data owner and may leave pur
   await assert.rejects(both.host.ready(), /不能两样都有/u);
   await partitionHome(t, [probeEntry({ project_data: { owner_id: PROBE, declaration: { label: "分区探针的笔记" } } })]).ready();
 
-  // The deletion's owners come from the build's catalog as well (project-deleted-owners.ts): there, too, only a partitioned one may leave out purge.
-  const catalog = BUILTIN_PLUGIN_CATALOG as PluginRegistration[], shipped = catalog.find(entry => entry.project_plugin_id === PROBE)!;
+  // The deletion's owners come from the build's catalog as well (project-deleted-owners.ts, from the Host's own list): there, too, only a partitioned one may leave out purge.
+  const catalog = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[], shipped = catalog.find(entry => entry.project_plugin_id === PROBE)!;
   const elsewhere = mkdtempSync(join(tmpdir(), "plugin-partition-owners-"));
   t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
   catalog.push({ ...shipped, project_plugin_id: "purgeless", project_data: { label: "没有清理办法的数据" }, runtime: undefined });

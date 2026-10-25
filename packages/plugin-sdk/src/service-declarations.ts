@@ -1,5 +1,5 @@
-// The shape of a Manifest's `model_configuration`, `image_generation` (PG-102) and `local_tools` (PG-112): the settings of the model a
-// plugin uses, the image connections it uses and the command-line tools it looks for. Only the shape is checked here. Whether the Home's store registry holds the directory or namespace as
+// The shape of a Manifest's `model_configuration`, `image_generation` (PG-102), `local_tools` (PG-112) and `runtime` (PG-011): the settings of
+// the model a plugin uses, the image connections it uses, the command-line tools it looks for and where it runs. Only the shape is checked here. Whether the Home's store registry holds the directory or namespace as
 // this plugin's own, and that the two settings actions are the plugin's own, is for the Host to check when it starts the plugin.
 // `parsePluginManifest` is the one caller.
 
@@ -16,6 +16,7 @@ const LOCAL_TOOL_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const LOCAL_BINARY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
 /** `~/…` or an absolute path; characters that are not part of a plain path are refused. */
 const LOCAL_DIRECTORY = /^(?:~\/|\/)[A-Za-z0-9._\/ -]{1,300}$/u;
+const RUNTIME_FIELDS = new Set(["scope"]);
 const IMAGE_FIELDS = new Set(["store_name", "read_permission", "write_permission", "generate_permission"]);
 
 export function modelConfigurationDeclarationProblems(value: unknown, permissions: ReadonlySet<string>): string[] {
@@ -95,6 +96,17 @@ export function localToolsDeclarationProblems(value: unknown, permissions: Reado
   }
   if (value.custom_executables !== undefined && value.custom_executables !== true) problems.push("local_tools.custom_executables 只能写 true");
   if (!permissions.has(PLUGIN_LOCAL_TOOLS_PERMISSION)) problems.push(`local_tools 需要这份 Manifest 在 permissions 里声明 ${PLUGIN_LOCAL_TOOLS_PERMISSION}`);
+  return problems;
+}
+
+/** `runtime` says where a plugin runs; the only place other than the project is the Home. The dual-instance mark is the Host's to give, never a Manifest's (S-48). */
+export function runtimeDeclarationProblems(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!isRecord(value)) return ["runtime 必须为对象"];
+  const problems: string[] = [];
+  const unknown = Object.keys(value).filter(field => !RUNTIME_FIELDS.has(field));
+  if (unknown.length > 0) problems.push(`runtime 不认这些字段：${unknown.join("、")}${unknown.includes("dual_instance") ? "（双实例的标记只来自宿主的登记，Manifest 说不了）" : ""}`);
+  if (value.scope !== "home") problems.push("runtime.scope 只能写 \"home\"（项目级插件不写 runtime）");
   return problems;
 }
 

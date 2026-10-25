@@ -48,6 +48,8 @@ export const shelfManifest: PluginManifest = {
   ],
   // The text of a Coding result comes from Coding itself (the plugin audience only); Shelf adds its own heading and source.
   capabilities: { provides: [], consumes: [codingResultDocument.capability_id] },
+  // Runs in the Home, and also as each project's instance (the registration says so): one plugin, two halves of this one Manifest.
+  runtime: { scope: "home" },
   // The Home half is given these files (`services.ownerFiles`); a project's half, which shares this Manifest, is not.
   owner_files: SHELF_OWNER_FILES,
   // The Home half is also given the platform's look for the terminal Agents on this machine (`services.localTools`); the project half is not.

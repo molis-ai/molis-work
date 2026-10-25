@@ -137,10 +137,10 @@ interface PluginLocalToolsClient {
 
 只做**范围的来源**，不做「装非内置 Home 插件」的入口（§1.4、D3）：
 
-- Manifest 新增 `runtime?: { scope: "home"; dual_instance?: true }`（缺省是项目级）。SDK 的解析器检查：`scope` 只能是 `"home"`；`dual_instance` 只能和 `scope:"home"` 一起写；写了 `runtime.scope:"home"` 的 Manifest 必须有对应的 `databases.home` / `owner_files` 等之一或声明 `home: true` 之外的 Home 级动作（否则没有意义，拒绝）。
-- `PluginRegistration.runtime` 里的 `scope` 与 `dual_instance` 删掉，只留 `create`、`package_name`、`factory_export`、`keys`（这些是「怎么把代码装进来」，不是范围）；`homePluginEntries()` 改成从 Manifest 的 `runtime.scope` 筛，`routeProject` 的 `shipped` 判断也读 Manifest。
-- 宿主的信任闸（新，一处）：`assertHomeScopeAllowed(trust)`：只有 `HOST_BUILD_TRUST`（随构建装的）可以起 Home 实例；其他信任（装上的、生成的）声明了 `runtime.scope:"home"` 一律在安装时被拒，错误码 `plugin.home_scope_unavailable`，信息说明「Home 级插件要等沙箱宿主支持 Home 实例」。这不是新的特权，是把现在隐含在「只在登记里」的那条规则搬成一个有名字、有测试的闸，将来沙箱宿主支持 Home 实例时改这一处。
-- 现有 Home 级插件（Todo、Issues、Shelf 等）的 Manifest 各加一行；`dual_instance` 的现有插件同样。夹具里的 Home 夹具不变。
+- Manifest 新增 `runtime?: { scope: "home" }`（缺省是项目级）。SDK 的解析器（`service-declarations.ts` 的 `runtimeDeclarationProblems`）检查：`runtime` 必须是对象，`scope` 只能写 `"home"`，别的字段一律列出拒绝。**`dual_instance` 不进 Manifest**：S-48（用户 2026-10-20 U2）规定双实例的标记只来自宿主的登记或 Home 夹具，Manifest 写了就被拒，信息指向 S-48。
+- `PluginRegistration.runtime` 里的 `scope` 删掉，留 `create`、`package_name`、`factory_export`、`keys`、`dual_instance`（前三项是「怎么把代码装进来」，`dual_instance` 是宿主的标记，都不是范围）。Manifest 的 `runtime.scope` 与登记有没有 `runtime` 必须一致（`plugin-registry.ts` 的 `catalogProblems`，不一致宿主加载时就失败）。读范围的地方（`homePluginEntries()`、`routeProject` 的内置判断、`project-plugin-stages`、`project-plugin-databases`、`plugin-scope-entries`、工作台首页导航）改读 Manifest。
+- 宿主的信任闸（新，一处）：`assertHomeScopeAllowed(manifest, trust)`（`plugin-runtime/src/trust-rules.ts`，`PluginRuntime.install` 里调）：只有 `HOST_BUILD_TRUST`（随构建装的）可以装声明了 `runtime.scope:"home"` 的插件；其他信任（装上的、生成的）一律在安装时被拒，错误码 `plugin.home_scope_unavailable`，信息说明「Home 级插件要等沙箱宿主支持 Home 实例」。这不是新的特权，是把现在隐含在「只在登记里」的那条规则搬成一个有名字、有测试的闸，将来沙箱宿主支持 Home 实例时改这一处。
+- 六个 Home 级内置插件（Cognia、Images、Issues、Jelly、Shelf、Todo）的 Manifest 各加一行 `runtime: { scope: "home" }`；Home 夹具不变（夹具靠 `fixtures.home` 进名单，不经 Manifest）。
 
 ## 3. 验收
 
@@ -155,9 +155,9 @@ interface PluginLocalToolsClient {
 | RAC-666 | Shelf 的终端 Agent 发现、能否跑任务、隔离等级与改之前同输入同输出 | `tests/shelf-settings.test.ts`、`tests/shelf-dropagent-parity.e2e.test.ts` 里不开浏览器的部分 |
 | RAC-670 | 桌面壳三个命令：endpoint、page_id、相对路径各种不合格的输入不发请求；宿主回的路径是相对路径、目录、链接、硬链接多的文件时整批拒绝 | `apps/desktop/adapters/tauri/src/page_files.rs` 的 `rac_670_…`（`cargo test`，CI 的 `native-checks`） |
 | RAC-671 | 父页只发 `files_*`，参数里没有绝对路径；旧 `shelf_open_path`/`shelf_copy_files`/`shelf_drag_out` 名不再注册 | `tests/security-invariants-desktop-ipc.test.ts`「S-14 the shell's file commands take a page's relative paths…」，e2e 期望跟着改：`tests/security-invariants-plugin-terminals.e2e.test.ts`、`tests/security-invariants-plugin-pages.e2e.test.ts`、`tests/shelf-dropagent-parity.e2e.test.ts` |
-| RAC-680 | Manifest 的 `runtime.scope` 被解析；不合法的组合被拒 | `tests/plugin-manifest-v2.test.ts` |
-| RAC-681 | 非 `HOST_BUILD_TRUST` 的安装声明 Home 级被拒，`plugin.home_scope_unavailable` | `tests/home-scope-trust.test.ts` |
-| RAC-682 | 现有 Home 级插件的集合（由 Manifest 推出）与改之前由登记推出的集合逐项相同 | `tests/builtin-plugin-composition.test.ts` |
+| RAC-680 | Manifest 的 `runtime.scope` 被解析；不是对象、`scope` 不是 `"home"`、写了 `dual_instance` 或别的字段，各被拒 | `tests/plugin-runtime-scope.test.ts` |
+| RAC-681 | 六个 Home 级内置插件的集合（由 Manifest 推出）与改之前由登记推出的集合逐项相同；登记的 `runtime` 与 Manifest 的 `runtime.scope` 同进退；双实例标记只在 Shelf 的登记上，不在任何 Manifest 里 | 同上、`tests/builtin-plugin-assembly-gate.test.ts` |
+| RAC-682 | 非 `HOST_BUILD_TRUST` 的安装声明 Home 级被拒（未签名、钉住公钥），`plugin.home_scope_unavailable`，被拒的不留记录；项目级插件不受影响 | `tests/plugin-runtime-scope.test.ts` |
 
 ## 4. 不做
 
@@ -169,5 +169,5 @@ interface PluginLocalToolsClient {
 
 - **D1 PG-112 不建「起进程探测」，只建「查找」**：推荐。`--help` 探测在产品里没有一处走到（`capability_pending` 恒真），为它建平台的起进程服务是给死代码加合同面；删掉它，平台服务只做文件系统查询，不起进程。BL-380 原文要的「超时、不在请求路径上同步起进程」自然满足（没有进程）。若 ① 要保留能力探测，作后续片，那时再加 `probes` 与起进程。
 - **D2 PG-113**：推荐 B-lite（§2.2）：壳自己向宿主换路径，路径不过 IPC。原先写的 A（Rust 收窄到某个根）已放弃。无法在本机跑桌面壳，Rust 单元测试和 CI 的 `native-checks` 是这一块的证据，真机验收归用户。
-- **D3 PG-011 只做范围来源和信任闸**：推荐。安装与沙箱宿主等 ac-sandbox-sched；若它已有 Home 实例的计划，我把闸留成一处，它来改。
+- **D3 PG-011 只做范围来源和信任闸**：推荐，已做。安装与沙箱宿主等 ac-sandbox-sched；闸只有 `assertHomeScopeAllowed` 一处，它支持 Home 实例时改这一处。双实例标记留在登记（S-48），不进 Manifest。
 - **D4 `MOLIS_WORK_SHELF_AGENT*` 两个环境变量改名为平台的 `MOLIS_WORK_LOCAL_TOOLS*`，偏好那个删掉**：推荐（现在不留兼容期）。需要同步改的测试与文档我来改。

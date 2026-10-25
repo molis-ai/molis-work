@@ -12,7 +12,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要在�
 
 ### 个人 Home 插件
 
-个人数据跨项目一致、无项目也可用时，插件自己的 `registration` 声明 `runtime: { scope: "home", create, package_name, factory_export }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它（双实例插件的项目一半除外，见下面「双实例」）。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
+个人数据跨项目一致、无项目也可用时，Manifest 写 `runtime: { scope: "home" }`（运行范围是 Manifest 的），插件自己的 `registration` 再给 `runtime: { create, package_name, factory_export }`（Home 实例的代码，只来自这份宿主登记；两者必须同时有，宿主启动时检查）。只有随宿主发布的插件能这样用：装上的或生成的插件 Manifest 写了 `runtime`，安装时以 `plugin.home_scope_unavailable` 被拒，等沙箱宿主能跑 Home 实例再放开。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它（双实例插件的项目一半除外，见下面「双实例」）。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
 
 Home 级插件的数据按项目放、删项目时整份一起走（如 Alchemist 的工作室）时，在 Manifest 的 `databases.home` 写 `partition: "project"`，Home 存储登记里同一个库的 `library.partition` 也写 `"project"`，并在目录条目声明 `project_data`（`label` 必填，`purge` 可省：平台删这个项目的库）。插件拿到的 `services.database` API 不变，宿主按调用所在的项目给它那个项目的库：只有在项目里调用的动作和场景回调能读写，`start`、路由处理器本身、Home 路径下的动作答 `actions.project_required`；后台作业写进受理它的那个项目。打开、闲置关闭、停用关闭、删项目都归平台，插件不自己拼目录、不自己管连接。项目级插件不能声明。规则与验收见 `specs/plugin-project-partition/spec.md`。数据放在同一个库里、按列记项目的，在 `databases.home` 写 `project_rows`（标签、要删的表与列），删项目时平台照声明删行，插件不写清除代码；写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「Home 消费者的模型配置、生图与项目清理」。
 
@@ -36,9 +36,9 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 ### 双实例：同一个插件的 Home 实例和项目实例
 
-个人数据在 Home、又要在每个项目里读成果与过程项、接端口或事件时，不拆成两个插件：同一个 `plugin_id`、同一份 Manifest，Home 那一半在 `registration` 写 `runtime: { scope: "home", dual_instance: true, … }`，项目那一半照旧是 `project-plugins.ts` 启动名单里的条目。设计与验收见 [`specs/dual-instance-plugins`](../../specs/dual-instance-plugins/spec.md)。
+个人数据在 Home、又要在每个项目里读成果与过程项、接端口或事件时，不拆成两个插件：同一个 `plugin_id`、同一份 Manifest，Home 那一半的 Manifest 写 `runtime: { scope: "home" }`，登记里写 `runtime: { dual_instance: true, create, … }`，项目那一半照旧是 `project-plugins.ts` 启动名单里的条目。设计与验收见 [`specs/dual-instance-plugins`](../../specs/dual-instance-plugins/spec.md)。
 
-- **标记只在 Home 那一半、只来自宿主**：目录条目的 `runtime.dual_instance`；测试夹具写成 Home 夹具 `{ definition, dual_instance: true }`，项目夹具不带。Manifest、安装记录和项目条目都说不了，项目条目自己带标记在启动前被拒。同一个 `plugin_id` 不带标记出现在两份名单里、带标记却没有项目那一半，也都在启动前被拒。
+- **标记只在 Home 那一半、只来自宿主**：目录条目登记里的 `runtime.dual_instance`（Manifest 的 `runtime` 只认 `scope`，写 `dual_instance` 被拒）；测试夹具写成 Home 夹具 `{ definition, dual_instance: true }`，项目夹具不带。Manifest、安装记录和项目条目都说不了，项目条目自己带标记在启动前被拒。同一个 `plugin_id` 不带标记出现在两份名单里、带标记却没有项目那一半，也都在启动前被拒。
 - **两半要么都随宿主发布（`host` 信任），要么都不是**，这样两半登记同一个提供方，钉死的引用和 MCP 授权不分叉；不一致在启动前被拒，目录条目在评审时由门禁 `scripts/gates/dual-instance.mjs` 查。
 - **每一项各归一半**：Manifest 的每个动作、场景、路由、视图恰好由一半的 `start` 返回处理器，互相引用的（撤销、后台任务、片段与事项目标）放在同一半。端口、事件、成果与过程项归项目那一半：Home 那一半启动时不因 Manifest 有这些声明被拒，也拿不到这些服务。运行时只放宽「声明了没提供」，「提供了没声明」照旧拒绝。
 - **权限全部 `required: true`**（用户 2026-10-20 定，U1），门禁 `scripts/gates/dual-instance.mjs` 检查（`pnpm health:check`）：每条权限写成对象字面量、字面量 `required: true`，展开或算出来的它读不懂，也算失败。每个实例各一条授权记录，人只在 Home 那条上看和管，一个实例的授权不借给另一个。项目记录因此也持有只有 Home 一半才用的权限：项目一半没有那些处理器，用不到。

@@ -78,7 +78,7 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 
 ## 双实例插件（`dual-instance.mjs`，S0-2b-2）
 
-双实例插件是一个 `plugin_id`、一份 Manifest，分两半：Home 一半是 Home 目录里 `runtime` 写了 `dual_instance: true` 的条目，项目一半是项目启动名单 `apps/local-host/src/project-plugins.ts` 里的一条（[specs/dual-instance-plugins](../../specs/dual-instance-plugins/spec.md)）。配错的宿主启动时已经拒绝（`apps/local-host/src/plugin-scope-entries.ts`）；这个门禁在评审时就说出来，再加一条宿主不查的。入口 `check-health-gates.mjs` 在 `absolute()` 里单独引入它，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类）。它只新增检查，不放宽任何已有规则。
+双实例插件是一个 `plugin_id`、一份 Manifest，分两半：Home 一半是 Home 目录里 `runtime`（Home 实例的代码）写了 `dual_instance: true` 的条目（运行范围本身是 Manifest 的，PG-011；标记只来自宿主的登记，S-48），项目一半是项目启动名单 `apps/local-host/src/project-plugins.ts` 里的一条（[specs/dual-instance-plugins](../../specs/dual-instance-plugins/spec.md)）。配错的宿主启动时已经拒绝（`apps/local-host/src/plugin-scope-entries.ts`）；这个门禁在评审时就说出来，再加一条宿主不查的。入口 `check-health-gates.mjs` 在 `absolute()` 里单独引入它，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类）。它只新增检查，不放宽任何已有规则。
 
 | 项 | 说明 |
 | --- | --- |

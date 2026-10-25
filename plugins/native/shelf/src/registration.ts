@@ -14,7 +14,7 @@ export const registration: PluginRegistration = {
   home_store: { path: "shelf" },
   // The Home half of a dual-instance plugin; each project's half is in the Host's project start list. The sample goes on a new
   // shelf once, in the Home half's own `start`: reading the shelf writes nothing.
-  runtime: { scope: "home", create: createHomeShelfPlugin, dual_instance: true,
+  runtime: { create: createHomeShelfPlugin, dual_instance: true,
     package_name: "@molis-ai/molis-work-plugin-shelf", factory_export: "createHomeShelfPlugin" },
   messages: SHELF_MESSAGES,
   workbench: {

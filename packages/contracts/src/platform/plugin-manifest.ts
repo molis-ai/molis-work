@@ -80,6 +80,11 @@ export interface PluginRouteDeclaration {
   stream?: "ndjson";
 }
 
+/** The dual-instance mark (docs/system/GLOSSARY.md) is not here: only the Host's registration can say it (S-48). */
+export interface PluginRuntimeDeclaration {
+  readonly scope: "home";
+}
+
 export interface PluginManifest {
   /** 1 is the original shape. 2 adds ports, events, views, commands, routes and agent. */
   schema_version: 1 | 2;
@@ -161,6 +166,12 @@ export interface PluginManifest {
   model_configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationDeclaration;
   /** The image connections this plugin uses (`services.imageGeneration`, PG-102): the namespace its bindings live in and the permissions that read, bind and generate. */
   image_generation?: import("./plugin-image-generation.js").PluginImageGenerationDeclaration;
+  /**
+   * Where this plugin runs, written here and nowhere else (PG-011). Left out, it is a project plugin. `home` is the Host's own Home
+   * Runtime; only code of the Host's build may be started there, so an installed or generated plugin that writes it is refused at
+   * install (`plugin.home_scope_unavailable`) until the sandbox host can run a Home instance.
+   */
+  runtime?: PluginRuntimeDeclaration;
   /** The command-line tools this plugin looks for on this machine (`services.localTools`, PG-112): names and directories declared here, found by the platform, never run by it. */
   local_tools?: import("./plugin-local-tools.js").PluginLocalToolsDeclaration;
   /** v2: the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */

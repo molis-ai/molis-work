@@ -1,5 +1,5 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentGrant, PluginConsentGranter, PluginConsentKind, PluginDeclarationNeedingConsent, PluginTrust, PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
 // Install trust and the declarations that need consent (ac-trust T1, specs/repository-anti-corruption/slices/ac-trust-install.md §2–§3).
@@ -42,6 +42,23 @@ export function assertPluginTrust(value: unknown): PluginTrust {
  */
 export function assertTrustFitsExecution(trust: PluginTrust, execution: "host" | "sandbox"): void {
   if (trust.level === "host" && execution === "sandbox") throw pluginErrors.grant_denied("沙箱里的生成插件不能当作随宿主发布的插件：它的权限是人确认的，不是 Manifest 声明的全部");
+}
+
+/**
+ * Where a plugin runs is its Manifest's (`runtime.scope`, PG-011), but nothing a plugin writes can start it in the Home: only code of
+ * the Host's build is started there (its Home registration), so an installed or generated plugin that writes `runtime.scope: "home"`
+ * is refused at install, until the sandbox host can run a Home instance. This is the one place that says so.
+ */
+export function assertHomeScopeAllowed(manifest: PluginManifest, trust: PluginTrust): void {
+  if (manifest.runtime?.scope === "home" && !isHostTrust(trust)) {
+    throw pluginErrors.home_scope_unavailable("Home 级插件要等沙箱宿主支持 Home 实例：现在只有随宿主发布的插件能在 Home 里运行，请删掉 Manifest 的 runtime");
+  }
+}
+
+/** What `install` asks of a definition's trust: it fits where the code runs, and a Home scope in the Manifest is the Host build's alone. */
+export function assertTrustFitsDefinition(definition: PluginDefinition, trust: PluginTrust): void {
+  assertTrustFitsExecution(trust, definition.execution ?? "host");
+  assertHomeScopeAllowed(definition.manifest, trust);
 }
 
 /** Who a consent is recorded as given by: the Host, for the build it ships; a person, for everything else. */

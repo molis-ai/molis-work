@@ -11,7 +11,7 @@ import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
-import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems } from "./service-declarations.js";
+import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { createStations, viewPlacementProblems } from "./view-placement-declarations.js";
@@ -84,7 +84,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions);
   if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
   const serviceProblems = [...ownerFilesDeclarationProblems(manifest.owner_files, permissions), ...modelConfigurationDeclarationProblems(manifest.model_configuration, permissions),
-    ...imageGenerationDeclarationProblems(manifest.image_generation, permissions), ...localToolsDeclarationProblems(manifest.local_tools, permissions)];
+    ...imageGenerationDeclarationProblems(manifest.image_generation, permissions), ...localToolsDeclarationProblems(manifest.local_tools, permissions),
+    ...runtimeDeclarationProblems(manifest.runtime)];
   if (serviceProblems.length > 0) invalid(serviceProblems.join("；"));
   const capabilities = record(manifest.capabilities, "capabilities");
   strings(capabilities.provides, "capabilities.provides");

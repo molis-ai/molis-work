@@ -56,7 +56,7 @@ function homeEntries(snapshot) {
   const entries = [], problems = [];
   for (const { file, object } of catalogEntries(snapshot)) {
     const runtime = unwrap(property(object, "runtime")?.initializer);
-    if (!runtime || !ts.isObjectLiteralExpression(runtime) || literal(property(runtime, "scope")?.initializer) !== "home") continue;
+    if (!runtime || !ts.isObjectLiteralExpression(runtime)) continue; // the catalog entries with Home code; where they run is their Manifest's (PG-011)
     const mark = property(runtime, "dual_instance");
     if (mark && !isTrue(mark.initializer)) problems.push(`${file}: write runtime.dual_instance as the literal true, or leave it out`);
     entries.push({ file, object, package: literal(property(runtime, "package_name")?.initializer), marked: Boolean(mark) && isTrue(mark.initializer) });

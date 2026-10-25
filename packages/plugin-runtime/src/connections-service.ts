@@ -9,7 +9,7 @@ import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginIns
 const errors = defineErrorCodes("plugin", {
   connections_call_required: "forbidden", connections_permission_undeclared: "forbidden", connections_action_not_concurrent: "forbidden",
   connections_slot_undeclared: "invalid", connections_request_invalid: "invalid", connections_read_only: "forbidden",
-  connections_record_key_invalid: "invalid", connections_project_required: "forbidden",
+  connections_record_key_invalid: "invalid", connections_project_required: "forbidden", connections_release_unsupported: "invalid",
 });
 
 const METHODS: readonly PluginConnectionMethod[] = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"];
@@ -69,7 +69,7 @@ export interface PluginConnectionsGate extends PluginInstance {
  */
 export function createPluginConnectionsClient(manifest: PluginManifest, port: PluginConnectionsPort, gate: PluginConnectionsGate): PluginConnectionsClient {
   const slots = new Map((manifest.connections?.slots ?? []).map(slot => [slot.slot_id, slot]));
-  const enter = (slot_id: unknown, record_key: unknown, sends: boolean) => {
+  const enter = (slot_id: unknown, record_key: unknown, sends: boolean, releases = false) => {
     const scope = currentPluginInvocation();
     if (!scope || !inPluginInstance(scope, gate) || "scene" in scope) throw errors.connections_call_required("连接只能在本插件自己的动作或后台作业里使用");
     if ("definition" in scope) {
@@ -79,6 +79,7 @@ export function createPluginConnectionsClient(manifest: PluginManifest, port: Pl
     if (!scope.caller.permissions.includes(PLUGIN_CONNECTIONS_PERMISSION)) throw errors.connections_permission_undeclared(`这次调用没有 ${PLUGIN_CONNECTIONS_PERMISSION}`);
     const slot = typeof slot_id === "string" ? slots.get(slot_id) : undefined;
     if (!slot) throw errors.connections_slot_undeclared(`连接槽 ${String(slot_id)} 没有在 Manifest 的 connections.slots 里声明`);
+    if (releases && slot.binding !== "per_record") throw errors.connections_release_unsupported(`连接槽 ${slot.slot_id} 按安装绑定，账号只能由本人在设置里解除`);
     return { scope, slot, target: slotTarget(manifest, gate, slot, record_key, scope.caller.project_id) };
   };
   const currentFor = (scope: NonNullable<ReturnType<typeof currentPluginInvocation>>, signal?: AbortSignal) => () => {
@@ -106,8 +107,7 @@ export function createPluginConnectionsClient(manifest: PluginManifest, port: Pl
       return bound ? { bound, ...(display_name === undefined ? {} : { display_name }), ...(state === undefined ? {} : { state }) } : { bound };
     },
     async release(slot_id: string, record_key: string): Promise<void> {
-      const { scope, slot, target } = enter(slot_id, record_key, false);
-      if (slot.binding !== "per_record") throw errors.connections_record_key_invalid(`连接槽 ${slot.slot_id} 按安装绑定，账号只能由本人在设置里解除`);
+      const { scope, target } = enter(slot_id, record_key, false, true);
       if (pluginInvocationReadOnly(scope)) throw errors.connections_read_only("只读调用里不能解除连接");
       const current = currentFor(scope, scope.caller.signal);
       current();

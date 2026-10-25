@@ -60,14 +60,19 @@ async function bound(t: TestContext) {
 /** The plugin's client over `port`, and a way to run code as its own action in a project (or none). */
 function rig(port: PluginConnectionsPort, instance: { project_id?: string; plugin_id?: string; install_id?: string } = {}) {
   const install_id = instance.install_id ?? INSTALL;
+  const state = { active: true, granted: true, allowed: true, abort: new AbortController(), beforeEffect: async (): Promise<void> => {
+    if (!state.allowed) throw new ActionError("actions.forbidden", "调用已撤销");
+  } };
   const client = createPluginConnectionsClient({ ...manifest, plugin_id: instance.plugin_id ?? PLUGIN }, port, { install_id, installation_generation: "g1",
-    ...(instance.project_id ? { project_id: instance.project_id } : {}), assertActive: () => {}, requireGrant: () => {} });
+    ...(instance.project_id ? { project_id: instance.project_id } : {}),
+    assertActive: () => { if (!state.active) throw new ActionError("actions.forbidden", "实例已停止"); },
+    requireGrant: () => { if (!state.granted) throw new ActionError("actions.forbidden", "连接授权已撤销"); } });
   const action = (kind: "query" | "command"): ActionDefinition => ({ capability_id: "example.records.fetch", version: 1, operation: kind, action: {
     title: "fetch", description: "probe", scope: "project", kind: kind === "query" ? "query" : "operation", subject_kinds: [], audiences: ["user"],
     permissions: ["connections:use"], scheduling: "concurrent", input_schema: { type: "object", additionalProperties: false } } });
   const inAction = <T>(project_id: string | null, run: () => T, kind: "query" | "command" = "command"): T => runInPluginAction({ install_id, installation_generation: "g1", definition: action(kind),
-    caller: { permissions: ["connections:use"], project_id, signal: new AbortController().signal, beforeEffect: async () => {}, query_only: kind === "query" ? true : undefined } as ActionExecutionContext }, run);
-  return { client, inAction };
+    caller: { permissions: ["connections:use"], project_id, signal: state.abort.signal, beforeEffect: () => state.beforeEffect(), query_only: kind === "query" ? true : undefined } as ActionExecutionContext }, run);
+  return { client, inAction, state };
 }
 
 const user = { url: "https://api.github.com/user" };
@@ -93,8 +98,8 @@ test("S-71 RAC-347 a record key is the plugin's only word: of a plain form, on a
   // A per_record slot needs a key; an installation slot takes none, and its account is not the plugin's to release.
   await assert.rejects(inAction("p-1", () => client.request("feed", user)), code("plugin.connections_record_key_invalid"));
   await assert.rejects(inAction("p-1", () => client.request("account", { ...user, record_key: "src-1" })), code("plugin.connections_record_key_invalid"));
-  await assert.rejects(inAction("p-1", () => client.release("account", "src-1")), code("plugin.connections_record_key_invalid"));
-  await assert.rejects(inAction("p-1", () => (client.release as (slot_id: string, record_key?: string) => Promise<void>)("account")), code("plugin.connections_record_key_invalid"));
+  await assert.rejects(inAction("p-1", () => client.release("account", "src-1")), code("plugin.connections_release_unsupported"));
+  await assert.rejects(inAction("p-1", () => (client.release as (slot_id: string, record_key?: string) => Promise<void>)("account")), code("plugin.connections_release_unsupported"));
   assert.equal(count.sent, 0);
   // The Host's own encoding refuses the same keys, and reads back only what it wrote.
   for (const key of BAD_KEYS) assert.throws(() => pluginBindingScope({ install_id: INSTALL, project_id: "p-1", record_key: key as string }), code("connector.plugin_bindings.record_key_invalid"), String(key));
@@ -163,6 +168,65 @@ test("S-71 RAC-347 release only takes an account away: the record's requests go 
   assert.equal((await inAction("p-1", () => client.request("feed", { ...user, record_key: "src-1" }))).authenticated, false);
   assert.deepEqual(await inAction("p-1", () => client.describe("feed", "src-1")), { bound: false });
   assert.deepEqual(seen, [`Bearer ${BEARER_VALUE}`, undefined]);
+});
+
+test("S-71 RAC-347 release refuses cancellation, withdrawn grants, stopped instances and failed beforeEffect checks without changing the binding", { timeout: 30_000 }, async t => {
+  const { seen, options } = await github(t);
+  type State = ReturnType<typeof rig>["state"];
+  const cases = [
+    { name: "cancelled", invalidate: (state: State) => state.abort.abort(), refuses: (error: unknown) => error instanceof Error && error.name === "AbortError" },
+    { name: "grant withdrawn", invalidate: (state: State) => { state.granted = false; }, refuses: code("actions.forbidden") },
+    { name: "instance stopped", invalidate: (state: State) => { state.active = false; }, refuses: code("actions.forbidden") },
+    { name: "beforeEffect refused", invalidate: (state: State) => { state.allowed = false; }, refuses: code("actions.forbidden") },
+  ];
+  for (const phase of ["before release", "during beforeEffect"] as const) for (const fault of cases) await t.test(`${fault.name} ${phase}`, async child => {
+    const { home } = await bound(child), hostPort = createPluginConnectionsPort(home, options);
+    let releases = 0;
+    const { client, inAction, state } = rig({ ...hostPort, release(target) { releases += 1; hostPort.release(target); } }, { project_id: "p-1" });
+    const stored = () => withConnectorConnections(home, store => store.binding(pluginBindingScope({ install_id: INSTALL, project_id: "p-1", record_key: "src-1" }), PLUGIN, "feed"));
+    const original = stored(), beforeEffect = state.beforeEffect;
+    let pending: Promise<void>;
+    if (phase === "before release") {
+      fault.invalidate(state);
+      pending = inAction("p-1", () => client.release("feed", "src-1"));
+    } else {
+      let entered!: () => void, resume!: () => void;
+      const reached = new Promise<void>(resolve => { entered = resolve; }), waiting = new Promise<void>(resolve => { resume = resolve; });
+      state.beforeEffect = async () => { entered(); await waiting; await beforeEffect(); };
+      pending = inAction("p-1", () => client.release("feed", "src-1"));
+      await reached;
+      fault.invalidate(state); resume();
+    }
+    await assert.rejects(pending, fault.refuses);
+    assert.equal(releases, 0, "a refused call must not reach the Host's release port");
+    assert.deepEqual(stored(), original, "the persisted binding must be unchanged");
+    state.active = true; state.granted = true; state.allowed = true; state.abort = new AbortController(); state.beforeEffect = beforeEffect;
+    assert.deepEqual(await inAction("p-1", () => client.describe("feed", "src-1")), { bound: true, display_name: "Work GitHub", state: "connected" });
+    const sent = seen.length;
+    assert.equal((await inAction("p-1", () => client.request("feed", { ...user, record_key: "src-1" }))).authenticated, true);
+    await inAction("p-1", () => client.release("feed", "src-1"));
+    assert.equal(releases, 1, "the same client can release once the invocation is authorized again");
+    assert.equal(stored(), null);
+    assert.equal((await inAction("p-1", () => client.request("feed", { ...user, record_key: "src-1" }))).authenticated, false);
+    assert.deepEqual(seen.slice(sent), [`Bearer ${BEARER_VALUE}`, undefined]);
+  });
+});
+
+test("S-71 RAC-347 release of an installation slot reports unsupported and preserves its real account binding", { timeout: 30_000 }, async t => {
+  const { home, connection_id } = await bound(t), { seen, options } = await github(t);
+  const scopeId = pluginBindingScope({ install_id: INSTALL });
+  withConnectorConnections(home, store => store.bind({ scopeId, pluginId: PLUGIN, slotId: "account", serviceId: "github", connectionId: connection_id }));
+  const stored = () => withConnectorConnections(home, store => store.binding(scopeId, PLUGIN, "account"));
+  const original = stored(), hostPort = createPluginConnectionsPort(home, options);
+  let releases = 0;
+  const { client, inAction } = rig({ ...hostPort, release(target) { releases += 1; hostPort.release(target); } }, { project_id: "p-1" });
+  for (const key of ["src-1", "a/b", undefined]) {
+    await assert.rejects(inAction("p-1", () => (client.release as (slot: string, key?: string) => Promise<void>)("account", key)), code("plugin.connections_release_unsupported"));
+    assert.deepEqual(stored(), original);
+  }
+  assert.equal(releases, 0);
+  assert.equal((await inAction("p-1", () => client.request("account", user))).authenticated, true);
+  assert.deepEqual(seen, [`Bearer ${BEARER_VALUE}`]);
 });
 
 test("S-71 RAC-348 only the person binds a record's account, in the project they call from, on a slot the installation declares per_record", { timeout: 60_000 }, async t => {

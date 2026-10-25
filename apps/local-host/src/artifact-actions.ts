@@ -2,7 +2,7 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistrati
 import { logPreviewFailure } from "./host-log.js";
 import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
+import { artifactLinkKinds, artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { readProjectReference } from "./project-file-reference.js";
 import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
@@ -19,6 +19,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
     handlers: createArtifactActionHandlers({
       projectId: runtime.project_id, artifacts: runtime.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
+      linkKinds: artifactLinkKinds(),
       goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.project_id, goalId)?.title ?? null,
       typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
       // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.

@@ -237,11 +237,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// batch-38 (#1300, coordinator review 2026-10-25): the combined batch grows workbench.js by +388 B against main (measured
-// against #1304's 1124686 after it landed first; PG-055 alone is -1 B; the growth comes from the batch's new client logic,
-// not measured slice by slice). Checked module by module with a metafile at W6 wrap-up; whatever can be saved is saved in
-// this same asset.
-const APPROVED_CEILINGS = { "/assets/molis-work-workbench.js": [1124686, 1125074] };
+// batch-39 (#1307, coordinator review 2026-10-25): +2,655 B against main fc1e03c3c, both trees measured on the served script.
+// PG-049 (#1298) adds the platform settings page 本机目录, the user's decision (see and take back the local folders a plugin
+// may read, with each read); its client script is 3,584 B served, measured by taking it out of the same served script.
+// Everything else in the batch, PG-049's binding on the settings page and its read notice included, nets -929 B (the
+// remainder, not measured slice by slice; PG-075 dropping the per-plugin colour map is the largest part). The page reuses
+// molisWorkRequest and its error display, the settings renderer and the shared settings classes; no further saving was
+// tried in this batch. Not yet measured: one DOM-element helper shared by the settings scripts (each defines its own), R-55.
+const APPROVED_CEILINGS = { "/assets/molis-work-workbench.js": [1125074, 1127729] };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

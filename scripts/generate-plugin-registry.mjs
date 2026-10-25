@@ -8,13 +8,17 @@
 // only the list of those entries: one import per package (by package name, in code-point order) and the array in
 // `catalog_order`; the platform's file is the same list under its own name. Neither is edited by hand: a new plugin writes its
 // own registration and this script lists it.
-// (It still joins WORKSPACE_PACKAGES in scripts/workspace-packages.mjs and is added as a dependency of apps/workbench and
-// apps/local-host in their package.json; PG-069, W5-02 PR-2, generates those from the registry.)
+// The packages that import those files depend on exactly the plugins they list (PG-069, W5-02 PR-C): this script also writes the
+// built-in plugin dependencies of apps/workbench/package.json, apps/local-host/package.json and the root package.json (the
+// union of the two files' imports), and the workspace registry reads each plugin's entry from its own package.json, so a new
+// plugin is named in no file outside its package.
 //
-//   node scripts/generate-plugin-registry.mjs          write both files (refuses while any registration is malformed)
+//   node scripts/generate-plugin-registry.mjs          write both files and the three manifests' plugin dependencies (refuses
+//                                                      while any registration is malformed)
 //   node scripts/generate-plugin-registry.mjs --check  fail, naming the package, when either file is stale, edited by hand or
-//                                                      missing,
-//                                                      or a registration cannot be listed (pnpm health:check runs this)
+//                                                      missing, a manifest depends on a built-in plugin neither file imports or
+//                                                      lacks one they import, or a registration cannot be listed (pnpm
+//                                                      health:check runs this)
 //
 // What --check reads is syntax only, nothing of the repository is executed: a package under plugins/native/ with no
 // registration at all (W5-02-REG-02: deleting a plugin's registration and its package.json declaration together does not
@@ -33,6 +37,12 @@ import ts from "typescript";
 
 export const CATALOG_FILE = "apps/workbench/src/builtin-plugins.ts";
 export const PLATFORM_FILE = "apps/local-host/src/plugin-registry.generated.ts";
+/** The manifests whose built-in plugin dependencies are the generated files' imports: the importing app's, and the root's (both). */
+export const PLUGIN_DEPENDENCY_MANIFESTS = [
+  { manifest: "apps/workbench/package.json", files: [CATALOG_FILE] },
+  { manifest: "apps/local-host/package.json", files: [PLATFORM_FILE] },
+  { manifest: "package.json", files: [CATALOG_FILE, PLATFORM_FILE] },
+];
 export const REGISTRATION_CONTRACT = "packages/contracts/src/platform/plugin-registration.ts";
 const PLUGIN_ROOT = "plugins/native/";
 const REGISTRATION_FILE = "src/registration.ts";
@@ -185,6 +195,37 @@ export function pluginRegistry(snapshot, packages) {
   return { text: generateCatalog(entries), platformText: generatePlatformRegistry(entries), problems: [] };
 }
 
+/** The packages a generated file's text imports registrations from. */
+const importedPackages = (text) => [...(text ?? "").matchAll(/from "([^"]+)\/registration";/g)].map((match) => match[1]);
+
+/**
+ * Each manifest that exists, with what is wrong with its built-in plugin dependencies against the generated texts, and its text
+ * with them made exactly the imported packages (the other dependencies kept, all of them in code-point order).
+ */
+export function pluginDependencyManifests(snapshot, packages, generated) {
+  const plugins = new Set(packages.filter((item) => item.path.startsWith(PLUGIN_ROOT)).map((item) => item.name));
+  const result = [];
+  for (const { manifest, files } of PLUGIN_DEPENDENCY_MANIFESTS) {
+    const source = snapshot.read(manifest);
+    if (source === null) continue;
+    let json;
+    try { json = JSON.parse(source); } catch { result.push({ manifest, problems: [`${manifest} is not JSON`], text: null }); continue; }
+    const wanted = new Set(files.flatMap((file) => importedPackages(generated[file])));
+    const dependencies = json.dependencies ?? {};
+    const problems = [];
+    for (const [name, version] of Object.entries(dependencies)) {
+      if (!plugins.has(name)) continue;
+      if (!wanted.has(name)) problems.push(`${manifest} depends on ${name}, which ${files.join(" and ")} does not import`);
+      else if (version !== "workspace:*") problems.push(`${manifest} depends on ${name} as ${JSON.stringify(version)}, not "workspace:*"`);
+    }
+    for (const name of wanted) if (!(name in dependencies)) problems.push(`${manifest} does not depend on ${name}, which ${files.join(" and ")} imports`);
+    const kept = Object.entries(dependencies).filter(([name]) => !plugins.has(name));
+    const next = Object.fromEntries([...kept, ...[...wanted].map((name) => [name, "workspace:*"])].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    result.push({ manifest, problems, text: `${JSON.stringify({ ...json, dependencies: next }, null, 2)}\n` });
+  }
+  return result;
+}
+
 /** The --check rule for pnpm health:check: the registrations can be listed and each generated file is exactly their list. */
 export function pluginRegistryProblems(snapshot, packages) {
   const { text, platformText, problems } = pluginRegistry(snapshot, packages);
@@ -192,8 +233,11 @@ export function pluginRegistryProblems(snapshot, packages) {
   // A repository with no built-in plugins and no generated files (a scratch layout of the gates' own tests) has nothing to list.
   const empty = text === generateCatalog([]) && snapshot.read(CATALOG_FILE) === null && snapshot.read(PLATFORM_FILE) === null;
   if (empty) return [];
-  return [[CATALOG_FILE, text], [PLATFORM_FILE, platformText]].filter(([file, expected]) => snapshot.read(file) !== expected)
+  const stale = [[CATALOG_FILE, text], [PLATFORM_FILE, platformText]].filter(([file, expected]) => snapshot.read(file) !== expected)
     .map(([file]) => `Plugin registry: ${file} is out of date or edited by hand; run node scripts/generate-plugin-registry.mjs`);
+  const manifests = pluginDependencyManifests(snapshot, packages, { [CATALOG_FILE]: text, [PLATFORM_FILE]: platformText })
+    .flatMap((entry) => entry.problems.map((problem) => `Plugin registry: ${problem}; run node scripts/generate-plugin-registry.mjs and pnpm install`));
+  return [...stale, ...manifests];
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
@@ -209,6 +253,10 @@ if (invokedPath === import.meta.url) {
     const { text, platformText } = pluginRegistry(snapshot, WORKSPACE_PACKAGES);
     for (const [file, expected] of [[CATALOG_FILE, text], [PLATFORM_FILE, platformText]]) {
       if (snapshot.read(file) !== expected) writeFileSync(path.join(root, file), expected);
+    }
+    // A manifest is rewritten only when its plugin dependencies are not already exactly the imported ones.
+    for (const { manifest, problems: wrong, text: next } of pluginDependencyManifests(snapshot, WORKSPACE_PACKAGES, { [CATALOG_FILE]: text, [PLATFORM_FILE]: platformText })) {
+      if (wrong.length && next !== null) writeFileSync(path.join(root, manifest), next);
     }
     console.log(`${CATALOG_FILE}, ${PLATFORM_FILE}: ${text.split("\n").filter((line) => line.startsWith("  ")).length} registrations`);
   } else console.log(`${CATALOG_FILE} and ${PLATFORM_FILE} list every built-in plugin's registration`);

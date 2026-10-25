@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readdir, readFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, PLATFORM_PLUGIN_REGISTRATIONS, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -11,7 +13,7 @@ import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperat
 
 /**
  * Built-in plugins reach the product one of two ways. Plugin Runtime plugins are
- * started by the supervisor in `apps/local-host/src/project-plugins.ts` and get
+ * started by a supervisor from their registration's `runtime` (the Home) or `project_runtime` (each project, PG-067) and get
  * install records, upgrade checks, crash recovery and per-install private storage.
  * Build-time composed plugins are wired by hand: a `registerProvider(...)` line in
  * `project-host.ts` and an `<plugin>-native-plugin-http.ts` route file (the catalog entry is no hand step: each plugin's
@@ -25,21 +27,19 @@ import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperat
  */
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
-/** Started by `createPluginPlatform` in `project-plugins.ts`; the package name proves it. */
+/**
+ * Started by the project supervisor from an entry written in `project-plugins.ts`, because its factory takes a port from the Host:
+ * Files only, until that port is the platform's (PG-005, X-5, BL-616). Frozen on 2026-10-25; it may only shrink.
+ */
+const HAND_STARTED: ReadonlyMap<string, string> = new Map([["files", "@molis-ai/molis-work-plugin-files"]]);
+
+/** Each project's registrations that declare `project_runtime`, read from the generated platform registry (PG-067). */
+const PROJECT_RUNTIME_ENTRIES = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.project_runtime);
+
+/** Started by `createPluginPlatform` in each project: the declared project instances and the hand-started ones. */
 const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
-  ["schedule", "@molis-ai/molis-work-plugin-schedule"],
-  ["shelf", "@molis-ai/molis-work-plugin-shelf"],
-  ["coding", "@molis-ai/molis-work-plugin-coding"],
-  ["files", "@molis-ai/molis-work-plugin-files"],
-  ["git", "@molis-ai/molis-work-plugin-git"],
-  ["diff", "@molis-ai/molis-work-plugin-diff"],
-  ["text-stats", "@molis-ai/molis-work-plugin-text-stats"],
-  ["form", "@molis-ai/molis-work-plugin-form"],
-  ["dataset", "@molis-ai/molis-work-plugin-dataset"],
-  ["lingguang", "@molis-ai/molis-work-plugin-lingguang"],
-  ["pages", "@molis-ai/molis-work-plugin-pages"],
-  ["ppt", "@molis-ai/molis-work-plugin-ppt"],
-  ["workflows", "@molis-ai/molis-work-plugin-workflows"],
+  ...PROJECT_RUNTIME_ENTRIES.map(entry => [entry.project_plugin_id, entry.project_runtime!.package_name] as const),
+  ...HAND_STARTED,
 ]);
 
 const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home");
@@ -61,15 +61,22 @@ test("every built-in catalog entry is either Runtime-assembled or on the frozen 
     .map(entry => entry.project_plugin_id)
     .filter(id => !RUNTIME_ASSEMBLED.has(id) && !HOME_RUNTIME_IDS.has(id) && !BUILD_TIME_ASSEMBLED.has(id));
   assert.deepEqual(unknown, [],
-    `New built-in plugins must be started by the Plugin Runtime (declare a Home Runtime factory, or add a project supervisor entry and list it in RUNTIME_ASSEMBLED). Not on the build-time list: ${unknown.join(", ")}`);
+    `New built-in plugins must be started by the Plugin Runtime (declare runtime or project_runtime in the plugin's registration). Not on the build-time list: ${unknown.join(", ")}`);
 });
 
 test("a plugin listed as Runtime-assembled really is started by the supervisor", async () => {
   const source = await readFile(join(repoRoot, "apps/local-host/src/project-plugins.ts"), "utf8");
   const catalogIds = new Set(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id));
-  for (const [id, packageName] of RUNTIME_ASSEMBLED) {
-    assert.ok(catalogIds.has(id), `${id} is listed as Runtime-assembled but has no catalog entry`);
-    assert.ok(source.includes(`"${packageName}"`), `${id} is listed as Runtime-assembled but project-plugins.ts does not start ${packageName}`);
+  for (const [id, packageName] of HAND_STARTED) {
+    assert.ok(catalogIds.has(id), `${id} is listed as hand-started but has no catalog entry`);
+    assert.ok(source.includes(`"${packageName}"`), `${id} is listed as hand-started but project-plugins.ts does not start ${packageName}`);
+  }
+  // A declared project instance is the factory its package ships, under the registration's own Manifest.
+  for (const entry of PROJECT_RUNTIME_ENTRIES) {
+    const declaration = entry.project_runtime!;
+    const module = await import(declaration.package_name);
+    assert.equal(module[declaration.factory_export], declaration.create, `${entry.project_plugin_id}: ${declaration.factory_export} is what the package exports`);
+    assert.deepEqual(declaration.create().manifest, entry.manifest, `${entry.project_plugin_id}: its project instance runs the registration's Manifest`);
   }
   const overlap = [...RUNTIME_ASSEMBLED.keys(), ...HOME_RUNTIME_IDS].filter(id => BUILD_TIME_ASSEMBLED.has(id));
   assert.deepEqual(overlap, [], "an id cannot be on both lists");
@@ -108,11 +115,14 @@ test("the frozen lists name exactly what exists: no id, route file or Runtime pl
   assert.deepEqual([...NATIVE_PLUGIN_HTTP_FILES].filter(name => !onDisk.has(name)), [],
     "a <name>-native-plugin-http.ts route file was deleted or renamed; delete its name from NATIVE_PLUGIN_HTTP_FILES");
 
-  // The supervisor entries in project-plugins.ts are the other half of the Runtime list.
+  // RAC-571: the entries written in project-plugins.ts are exactly the hand-started ones, and it names no other plugin package, so
+  // a new project instance is its registration's project_runtime and the supervisor's file does not change for it.
   const supervisor = await readFile(join(repoRoot, "apps/local-host/src/project-plugins.ts"), "utf8");
   const started = new Set([...supervisor.matchAll(/"(@molis-ai\/molis-work-plugin-[a-z0-9-]+)",\s*"create[A-Za-z]+Plugin"/g)].map(match => match[1]));
-  assert.deepEqual([...started].sort(), [...RUNTIME_ASSEMBLED.values()].sort(),
-    "the plugins project-plugins.ts starts and RUNTIME_ASSEMBLED have to be the same set");
+  assert.deepEqual([...started].sort(), [...HAND_STARTED.values()].sort(),
+    "the plugins project-plugins.ts starts by hand and HAND_STARTED have to be the same set");
+  const named = new Set([...supervisor.matchAll(/["'](@molis-ai\/molis-work-plugin-(?!runtime\b|sdk\b|sandbox\b)[a-z0-9-]+)/g)].map(match => match[1]));
+  assert.deepEqual([...named].sort(), [...HAND_STARTED.values()].sort(), "project-plugins.ts names no plugin package it does not start by hand");
 });
 
 /**
@@ -153,13 +163,13 @@ test("Runtime plugins that the Host also assembles by hand are named, and no plu
 test("W5-01-GIT-01..03: the Host keeps no Git wiring of its own; its workspace Git service imports no plugin and registers actions only", async () => {
   const sources = await hostSourceFiles();
   const text = new Map(await Promise.all(sources.map(async file => [file, await readFile(join(repoRoot, file), "utf8")] as const)));
-  // W5-01-GIT-01: only the supervisor starts Git; its companion stage in Coding's page is Git's own contribution (PG-036 C9).
+  // W5-01-GIT-01: only the project supervisor starts Git, from its registration's project_runtime (PG-067); its companion stage in
+  // Coding's page is Git's own contribution (PG-036 C9). The generated platform registry imports its registration only.
   const importsGit = sources.filter(file => /["']@molis-ai\/molis-work-plugin-git["']/.test(text.get(file)!));
-  assert.deepEqual(importsGit, ["apps/local-host/src/project-plugins.ts"],
-    "a Host file imports the Git plugin; Git is started by the supervisor and reached through its declarations");
-  const supervisor = text.get("apps/local-host/src/project-plugins.ts")!;
-  assert.deepEqual([...supervisor.matchAll(/createGitPlugin\(([^)]*)\)/g)].map(match => match[1]), [""], "the supervisor starts Git with no Host ports");
-  assert.match(supervisor, /"createGitPlugin",\s*factory => factory\(\)\)/, "and builds its release artifact the same way");
+  assert.deepEqual(importsGit, [], "a Host file imports the Git plugin; Git is started by the supervisor and reached through its declarations");
+  const git = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "git")?.project_runtime;
+  assert.equal(git?.factory_export, "createGitPlugin", "the supervisor starts Git from its declared factory");
+  assert.equal(git!.create.length, 0, "with no Host ports");
   assert.deepEqual(sources.filter(file => /\bgitPorts\b|observeGitOperations/.test(text.get(file)!)), [], "no Host-written Git port");
   // W5-01-GIT-02: the workspace Git service is the platform's, so it depends on no plugin package. The SDK, Runtime and sandbox
   // share the prefix but are the platform's own packages: the porcelain parse comes from the SDK, as it does for the Git plugin.
@@ -217,6 +227,25 @@ test("Home Runtime declarations resolve shipped factories and start once without
       assert.deepEqual(declaration.create().manifest, entry.manifest);
       assert.equal(platform.supervisor.state(entry.manifest.plugin_id)?.status, "running");
       assert.equal(host.homePlugins!.installations().filter(row => row.plugin_id === entry.manifest.plugin_id).length, 1);
+    }
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// RAC-571 (W5-02 PR-B4, PG-067): each project's Runtime starts every declared project instance and the hand-started ones from the
+// registration alone, one installation each, under the Host's build trust.
+test("RAC-571 a project's Runtime installs every registration's project_runtime and the hand-started plugins, once each", { timeout: 90_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "project-assembly-"));
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "装配", actor_id: "owner" }));
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  try {
+    await host.localPersonContext(reference);
+    const records = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list());
+    for (const [id, packageName] of RUNTIME_ASSEMBLED) {
+      const pluginId = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === id)!.manifest.plugin_id;
+      const installed = records.filter(record => record.plugin_id === pluginId && record.state !== "uninstalled");
+      assert.equal(installed.length, 1, `${id} (${packageName}) is installed once in the project`);
+      assert.equal(installed[0]!.publisher_trust, "host", `${id} ships with the Host`);
     }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

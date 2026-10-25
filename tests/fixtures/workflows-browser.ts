@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { TestContext } from "node:test";
-import { openWorkflowsStore, type Workflow } from "@molis-ai/molis-work-plugin-workflows";
+import { type Workflow } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./plugin-home-stores.js";
 import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { openGoalBrowser } from "./goal-browser.js";
 import { pluginFrameBrowser } from "./plugin-frame-browser.js";

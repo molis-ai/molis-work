@@ -14,6 +14,16 @@ export const UNSIGNED_TRUST: PluginTrust = Object.freeze({ level: "unsigned" });
 
 export const isHostTrust = (trust: PluginTrust): boolean => trust.level === "host";
 
+/**
+ * The default-rule keys the Host's own build declares are the Host's: a plugin that is not host-trusted may not be installed declaring
+ * one, whatever id it carries. Refused before any record is written, so nothing of it is left behind.
+ */
+export function assertRuleKeysUnreserved(manifest: PluginManifest, trust: PluginTrust, reserved: ReadonlySet<string> | undefined): void {
+  if (!reserved?.size || isHostTrust(trust)) return;
+  const taken = (manifest.action_scenes ?? []).flatMap(scene => scene.default_rule && reserved.has(scene.default_rule.function_key) ? [scene.default_rule.function_key] : []);
+  if (taken.length) throw pluginErrors.rule_key_reserved(`默认规则 ${taken.join("、")} 是宿主自带场景的，未受宿主信任的插件不能声明`);
+}
+
 const LEVELS: readonly PluginTrustLevel[] = ["host", "pinned", "unsigned"];
 const KEY_ID = /^ed25519:sha256:[0-9a-f]{64}$/u;
 

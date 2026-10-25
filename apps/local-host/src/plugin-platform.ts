@@ -1,4 +1,7 @@
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
+import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
+import { declarationOwnersFor } from "./declaration-owners.js";
+import { bindProjectArtifacts } from "./declared-types.js";
 import { randomUUID } from "node:crypto";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -38,6 +41,7 @@ import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
+import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -54,6 +58,8 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
   readonly inTransaction?: boolean;
   /** The file the connection is (better-sqlite3's `name`): the project's library, which plugins' own tables live in. */
   readonly name?: string;
+  /** better-sqlite3's `open`: false once the connection is closed. */
+  readonly open?: boolean;
 };
 
 /**
@@ -165,12 +171,18 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { redemption: definition => ({ partial: identity.dualInstance(definition) }), hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {},
+    { declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }), redemption: definition => ({ partial: identity.dualInstance(definition) }), hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
+  // What this project's installs declare is read from its supervisor while the platform is open: for display (all projects together)
+  // and, for the writes in this project, by this project's database alone. A closed connection cannot answer, so a view over it is
+  // as gone as one whose coordination closed: the Host closes coordination first, but a store closed on its own must not make every
+  // other project's read of the shared directory throw.
+  const artifactView = supervisedArtifacts(supervisor, runtime, () => !closed && options.db.open !== false);
+  const unwatchArtifacts = installedArtifacts.watch(artifactView), unbindArtifacts = bindProjectArtifacts(options.db, artifactView);
   const wiring = new PluginInputGraph({
     projectId: options.project_id,
     lifecycle: supervisor,
@@ -219,7 +231,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     invalidateView,
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
     async closeCoordination() {
-      closed = true; installations.dispose();
+      closed = true; installations.dispose(); unwatchArtifacts(); unbindArtifacts();
       stopArtifactRefresh?.();
       detachActivation();
       await wiring.close();

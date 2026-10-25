@@ -3,11 +3,12 @@
 // not honour; the workbench reads the declarations and keeps only the group names and their order.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { UI_VIEW_GROUPS, type UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { UI_VIEW_GROUPS, UI_VIEW_HUES, type UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   BUILTIN_PLUGIN_CATALOG, creatableKinds, findPluginSettingsNavItem, homeStarts, listPluginSettingsNavItems, pluginSettingsNavItemsFrom,
 } from "@molis-ai/molis-work-app-workbench";
-import { defineWorkflowContentActions } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineWorkflowContentActions, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
@@ -19,6 +20,7 @@ const creating = defineWorkflowContentActions({ ...STATION, create: true });
 const listing = defineWorkflowContentActions(STATION);
 const CREATES = [creating.list, creating.read, creating.receive, creating.create];
 const GROUPS = `（${UI_VIEW_GROUPS.join("、")}）`;
+const HUES = `（${UI_VIEW_HUES.join("、")}）`;
 
 /** A Manifest with one view, `main`, in the navigator, laid over by `over`; its actions are a station that can create `notes`. */
 function placed(over: Part = {}, actions: unknown = CREATES): Record<string, unknown> {
@@ -28,6 +30,19 @@ function placed(over: Part = {}, actions: unknown = CREATES): Record<string, unk
   });
 }
 
+test("SH1303-02 public Manifest parsing retains colour names and refuses non-string hues", () => {
+  for (const hue of UI_VIEW_HUES) assert.equal(parsePluginManifest(placed({ hue })).ui?.views?.[0]?.hue, hue);
+  for (const hue of [7, ["indigo"], [["indigo"]], null, true, {}]) {
+    assert.throws(() => parsePluginManifest(placed({ hue })), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "plugin.declaration_invalid");
+      assert.equal(error.kind, "invalid");
+      assert.equal(error.message, `视图 main 的 hue ${String(hue)} 不是设计系统的颜色名${HUES}`);
+      return true;
+    }, "reject " + JSON.stringify(hue));
+  }
+});
+
 const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; expected: string }> = [
   { rule: "a view that declares none of them", manifest: placed(), expected: "" },
   { rule: "a navigator view that declares all of them", manifest: placed({ group: "make", creates: { station: "notes", title: "笔记" }, start: { title: "写一条笔记", hint: "先写下来。", icon: "note" } }), expected: "" },
@@ -35,6 +50,11 @@ const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; ex
   // icon
   { rule: "an icon that is not a name", manifest: placed({ icon: 3 }), expected: "视图 main 的 icon 必须是图标名" },
   { rule: "a blank icon", manifest: placed({ icon: " " }), expected: "视图 main 的 icon 必须是图标名" },
+  // hue (RAC-701): any view may name its plugin's tab-strip colour, and only by a design-system colour name
+  { rule: "a design-system hue on a navigator view", manifest: placed({ hue: "indigo" }), expected: "" },
+  { rule: "a design-system hue on a side view", manifest: placed({ slot: "side", hue: "slate" }), expected: "" },
+  { rule: "a hue the design system does not have", manifest: placed({ hue: "magenta" }), expected: `视图 main 的 hue magenta 不是设计系统的颜色名${HUES}` },
+  { rule: "a colour value in place of a name", manifest: placed({ hue: "#ff0000" }), expected: `视图 main 的 hue #ff0000 不是设计系统的颜色名${HUES}` },
   // group
   { rule: "a group the workbench does not have", manifest: placed({ group: "tools" }), expected: `视图 main 的 group tools 不是工作台的分组${GROUPS}` },
   { rule: "a group that is not a name", manifest: placed({ group: 7 }), expected: `视图 main 的 group 7 不是工作台的分组${GROUPS}` },

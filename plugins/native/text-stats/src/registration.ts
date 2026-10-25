@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { TEXT_STATS_CLIENT_FACTORY_SCRIPT, TEXT_STATS_PROJECT_PLUGIN_ID, TEXT_STATS_STYLES, textStatsManifest, textStatsUiContribution } from "./index.js";
+import { createTextStatsPlugin, TEXT_STATS_CLIENT_FACTORY_SCRIPT, TEXT_STATS_PROJECT_PLUGIN_ID, TEXT_STATS_STYLES, textStatsManifest, textStatsUiContribution } from "./index.js";
 import { TEXT_STATS_MESSAGES } from "./messages.js";
 
 /**
@@ -10,5 +10,6 @@ export const registration: PluginRegistration = {
   project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, catalog_order: 26,
   messages: TEXT_STATS_MESSAGES,
   manifest: textStatsManifest,
+  project_runtime: { create: createTextStatsPlugin, package_name: "@molis-ai/molis-work-plugin-text-stats", factory_export: "createTextStatsPlugin" },
   workbench: { order: 24, contributions: [textStatsUiContribution], clientFactory: TEXT_STATS_CLIENT_FACTORY_SCRIPT, stylesheet: TEXT_STATS_STYLES },
 };

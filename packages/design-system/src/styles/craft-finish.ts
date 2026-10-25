@@ -112,7 +112,7 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
 
   /* ⌥1…⌥9 open the first nine tools of the rail, Home first. Typing, terminals and menus keep their keys. */
   const railShortcuts = () => [...document.querySelectorAll(".dock-pins [data-dock-pin], .plugin-rail-items [data-plugin-id]")]
-    .filter((node) => node.dataset.pluginId !== "plugin-builder" && node.getClientRects().length).slice(0, 9);
+    .filter((node) => node.getClientRects().length).slice(0, 9);
   document.addEventListener("keydown", (event) => {
     if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || event.defaultPrevented) return;
     const digit = /^Digit([1-9])$/.exec(event.code);

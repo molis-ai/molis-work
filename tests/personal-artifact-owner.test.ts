@@ -11,6 +11,7 @@ import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactsActions, createArtifactActionHandlers, importArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
 import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
+import { installProducers } from "./fixtures/installed-producers.js";
 import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores, type ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -136,6 +137,7 @@ test("a document imported before the Home named its owner is re-imported by the 
 
 test("a real Home's coordinator reads the person as the owner of every personal 成果", async () => {
   const storage = new LocalProjectDatabase(":memory:"), project = new GoalProjectApplication(storage), library = openProjectVersionStores(storage);
+  installProducers(storage.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report"] });
   project.initializeBoard({ project_id: "p", actor_id: person, idempotency_key: "p" });
   try {
     const registration = (actor: string, version: number): RegisterArtifactVersionInput => ({ project_id: "p", actor_id: actor, artifact_id: "report", version,

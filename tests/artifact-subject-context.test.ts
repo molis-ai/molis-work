@@ -8,6 +8,7 @@ import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-mod
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
+import { artifactLinkKinds } from "@molis-ai/molis-work-app-local-host";
 import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
 import { requireArtifactAnalysisRecord } from "@molis-ai/molis-work-module-artifacts";
 
@@ -41,7 +42,7 @@ function fixture(t: test.TestContext) {
     provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: projectId },
     definitions: artifactsManifest.actions!,
     availability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "已停用" },
-    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, importSources: () => ({}),
+    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds: artifactLinkKinds(), importSources: () => ({}),
       importDocument: async () => { throw new Error("read-only fixture"); }, openProjectReference: async () => { throw new Error("must not fetch a file"); } }),
   });
   return { db, artifacts, ledger, actions, publish, unregister, reads: () => reads, disable: () => { enabled = false; } };

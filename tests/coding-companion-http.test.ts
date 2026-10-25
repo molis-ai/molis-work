@@ -10,6 +10,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 
 const exec = promisify(execFile);
 
+// W5-02-REG-06: standalone enablement, real Files→Diff snapshots and Git→fixed Diff content through the generated startup list.
 test("Standalone companion HTTP routes admit only enabled surfaces and their embedded readers", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "coding-companion-http-"));
   const token = "coding-companion-control-token-0123456789abcdef";
@@ -75,6 +76,7 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
     const second = await open(); assert.equal(second.status, 200);
     assert.equal((await capture("after", second.body.result.fingerprint)).status, 200);
     const diff = await request(api(files.id, "diff")); assert.equal(diff.body.view.phase, "ready"); assert.equal(diff.body.view.identical, false);
+    assert.match(diff.body.html, /first/); assert.match(diff.body.html, /second/, "the default Files→Diff graph carries both captured texts");
     const stats = await request(api(files.id, "text-stats")); assert.equal(stats.body.view.characters, 10); assert.equal(stats.body.view.lines, 2);
 
     const gitProject = projects.get("git")!;
@@ -87,7 +89,9 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
     assert.equal(selected.status, 200); assert.equal(selected.body.result.after, "changed\n");
     const fixed = selected.body.selected.reference;
     const suffix = `/state?artifact_id=${encodeURIComponent(fixed.artifact_id)}&version=${fixed.version}`;
-    assert.equal((await request(api(gitProject.id, "diff", suffix))).body.view.phase, "ready");
+    const fixedDiff = await request(api(gitProject.id, "diff", suffix));
+    assert.equal(fixedDiff.body.view.phase, "ready");
+    assert.match(fixedDiff.body.html, /first/); assert.match(fixedDiff.body.html, /changed/, "the fixed Git→Diff reader carries the selected change");
     assert.equal((await request(api(files.id, "diff", suffix))).status, 400, "fixed artifacts remain scoped to their project");
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));

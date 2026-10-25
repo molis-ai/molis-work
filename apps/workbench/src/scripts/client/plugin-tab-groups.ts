@@ -1,7 +1,10 @@
-import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
-
-/** Each plugin's group colour on the tab strip: its catalog hue (specs/plugin-tab-groups). */
-const PLUGIN_HUES = Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, plugin.hue]));
+/**
+ * The group colour of the workbench's own surfaces on the tab strip, which no plugin declares. A plugin's colour is the `hue` its
+ * Manifest declares, read from the page's plugin directory (`script[data-plugin-directory]`) and handed in as `hues`; the platform
+ * does not keep a list of plugins (W5-02 PR-D, PG-075). If that directory script is absent, plugin groups use the same
+ * id-based spare hues as plugins that declare no hue.
+ */
+const SURFACE_HUES = { home: "gray", characters: "purple", workspace: "slate", settings: "steel" };
 /** Hues a plugin outside the catalog (one built in the studio) may get, picked by its id so it keeps it. */
 const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow", "mint", "red", "indigo"];
 
@@ -9,8 +12,8 @@ const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow
  * Plugin groups on the tab strip: drawing a plugin's automatic group, the plugin tab as the current place, closing a
  * group with a way back, and ⌘/Ctrl- or middle-click on a record opening it as a tab in its group.
  */
-export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab }) => {
-  const HUES = ${JSON.stringify(PLUGIN_HUES)};
+export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab, hues = {} }) => {
+  const HUES = { ...${JSON.stringify(SURFACE_HUES)}, ...hues };
   const SPARE = ${JSON.stringify(SPARE_HUES)};
   const hueOf = (plugin) => HUES[plugin] || SPARE[[...String(plugin)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % SPARE.length];
   const UNDO_MS = 6000;

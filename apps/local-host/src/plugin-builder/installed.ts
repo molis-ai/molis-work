@@ -23,7 +23,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
  */
 export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
   return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
-    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, compatibleFrom: earlierVersions.map(releaseVersion) });
+    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion) });
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */

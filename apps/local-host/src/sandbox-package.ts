@@ -6,7 +6,7 @@
  */
 import { Buffer } from 'node:buffer';
 import { isDeepStrictEqual } from 'node:util';
-import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackagePayload, type SandboxPackageInterface, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertContract, effectsFromContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
@@ -57,7 +57,7 @@ function promptsOf(value: unknown): SandboxPackagePrompt[] {
   return (value as unknown[]).map(item => {
     if (!plain(item) || Object.keys(item).some(key => !['id', 'title', 'purpose', 'body'].includes(key))
       || ['id', 'title', 'purpose', 'body'].some(key => typeof item[key] !== 'string')) return refuse('每个 prompt 是 { id, title, purpose, body }，都是文字');
-    const prompt = item as unknown as SandboxPackagePrompt;
+    const prompt: SandboxPackagePrompt = { id: item.id as string, title: item.title as string, purpose: item.purpose as string, body: item.body as string };
     if (!PROMPT_ID.test(prompt.id) || seen.has(prompt.id)) refuse('prompt 标识不合法或重复：' + prompt.id);
     if (!prompt.title.trim() || !prompt.purpose.trim() || !prompt.body.trim() || prompt.body.length > MAX_PROMPT_BODY) refuse('prompt ' + prompt.id + ' 需要标题、用途和不超过 ' + MAX_PROMPT_BODY + ' 字的正文');
     seen.add(prompt.id);
@@ -78,25 +78,25 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
 
   const shape = jsonFile(files, SANDBOX_PACKAGE_FILES.interface);
-  if (!plain(shape) || Object.keys(shape).some(key => !['parts', 'nodes', 'presentation', 'acceptance'].includes(key))) refuse('interface.json 只能有 parts、nodes、presentation、acceptance');
-  const surface = shape as unknown as SandboxPackageInterface;
+  if (!plain(shape) || Object.keys(shape).some(key => !['parts', 'nodes', 'presentation', 'acceptance'].includes(key))) return refuse('interface.json 只能有 parts、nodes、presentation、acceptance');
+  const surface: { parts?: unknown; nodes?: unknown; presentation?: unknown; acceptance?: unknown } = shape;
   const parts = validated('interface.json 的 parts', () => validatePluginComponentPlans(surface.parts, contract));
   const nodes = validated('interface.json 的 nodes', () => {
     if (!Array.isArray(surface.nodes)) throw new Error('nodes 要是数组');
-    const assembled = surface.nodes as unknown as PluginComponentNode[];
+    const assembled: PluginComponentNode[] = surface.nodes;
     validatePluginComponentNodes(assembled, parts, contract);
     return assembled;
   });
   const presentation = surface.presentation === undefined ? undefined
     : validated('interface.json 的 presentation', () => validatePluginPresentation(surface.presentation, parts, contract));
-  if (surface.acceptance !== undefined && !Array.isArray(surface.acceptance)) refuse('interface.json 的 acceptance 要是数组');
+  const acceptance: unknown[] = surface.acceptance === undefined ? [] : Array.isArray(surface.acceptance) ? surface.acceptance : refuse('interface.json 的 acceptance 要是数组');
 
   const prompts = promptsOf(jsonFile(files, SANDBOX_PACKAGE_FILES.prompts));
   const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
 
   // The Manifest of a sandbox plugin has one shape; what the package may choose is who it is, its version, its name, and what it upgrades from.
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
-    presentation: presentation !== undefined, compatibleFrom: manifest.upgrade_compatibility?.compatible_from_versions });
+    presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions });
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
-  return { manifest, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance: surface.acceptance ?? [], prompts, entrypoint, permissions };
+  return { manifest, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
 }

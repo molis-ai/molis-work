@@ -126,7 +126,7 @@ test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh h
     // The toast is the shared request helper's error (with its 诊断编号 when the call left a row, W3-10), marked as a failure
     // (it carries the failure glyph, DESIGN.md → Toasts); the request names what could not be refreshed.
     assert.match(script, /showToast\(error,\s*true\)/);
-    assert.match(script, /fallback:\s*L\("无法更新 (Feed|Inbox) 列表"\s*\)/);
+    assert.match(script, /fallback:\s*F?L\("无法更新 (Feed|Inbox) 列表"\s*\)/);
   }
 });
 

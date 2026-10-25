@@ -11,6 +11,7 @@ import { openMemoryLedger, openHomeSqliteDatabase, homeSqlitePath, MEMORY_LEDGER
 import { MemoryService, isCompletePrefs, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend, hostTextGeneration, ASSISTANT_STORE_NAME, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebHost, MolisWorkServer, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { homeBusinessTree } from "./fixtures/home-storage-files.js";
 
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -95,7 +96,7 @@ test("a new Home is reviewed; manual saving and reading work, and a later saved 
     const saved = await env.actions.invoke(memoryActions.write, { scope: "personal", text: "周报先写风险", kind: "preference" });
     assert.equal(saved.outcome, "written");
     assert.equal((await env.service.recall(worker, { query: "周报风险" })).items.length, 1);
-    await env.actions.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { auto: true, consumers: { agent: false } } });
+    await env.actions.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { auto: true, consumers: { ...prefs.prefs.consumers, agent: false } } });
     assert.equal((await env.service.recall(worker, { query: "周报风险" })).items.length, 0);
     await env.close(); env = await open(home);
     assert.equal((await env.actions.invoke(memoryActions.prefs, { scope: "personal" })).prefs.auto, true);
@@ -150,15 +151,9 @@ test("adopted effective defaults retain automatic writing, project overrides and
   }
 });
 
-function files(directory: string): Record<string, string> {
-  if (!existsSync(directory)) return {};
-  const result: Record<string, string> = {};
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) for (const [name, body] of Object.entries(files(path))) result[`${entry.name}/${name}`] = body;
-    else result[entry.name] = readFileSync(path).toString("base64");
-  }
-  return result;
+/** Keep all business-file bytes, modes and mtimes. Opening/closing a SQLite WAL may change only its containing directory's mtime. */
+function files(directory: string) {
+  return Object.fromEntries(Object.entries(homeBusinessTree(directory)).filter(([, state]) => "bytes" in state));
 }
 
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.
@@ -169,31 +164,33 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
     if (shape !== "missing-ledger") {
       const ledger = openMemoryLedger({ homeDirectory: home });
       ledger.setMarker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption", { origin: "existing-home" }, "2026-10-22T00:00:00Z");
+      // Deliberately persist historical/incomplete records; startup must reject these shapes.
+      const saveStoredPrefs = (actor: string, key: string, prefs: unknown) => ledger.savePrefs(actor, key, prefs as Parameters<typeof ledger.savePrefs>[2]);
       if (shape === "partial-prefs") {
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", { auto: true });
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", originalPrefs);
+        saveStoredPrefs(LOCAL_PERSON_ACTOR_ID, "personal", { auto: true });
+        saveStoredPrefs(LOCAL_PERSON_ACTOR_ID, "project-default", originalPrefs);
       }
       if (shape === "six-field-prefs") {
         const { enabled: _enabled, task_recall: _task, class_restrictions: _restrictions, ...prior } = originalPrefs;
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", prior);
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", prior);
+        saveStoredPrefs(LOCAL_PERSON_ACTOR_ID, "personal", prior);
+        saveStoredPrefs(LOCAL_PERSON_ACTOR_ID, "project-default", prior);
       }
       if (shape === "eight-field-prefs" || shape === "project-old-prefs" || shape === "other-actor-old-prefs") {
         const { class_restrictions: _restrictions, ...prior } = originalPrefs;
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", shape === "eight-field-prefs" ? prior : originalPrefs);
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", shape === "eight-field-prefs" ? prior : originalPrefs);
-        if (shape === "project-old-prefs") ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, `project:${PROJECT_A}`, prior);
-        if (shape === "other-actor-old-prefs") ledger.savePrefs("other-person", "personal", prior);
+        saveStoredPrefs(LOCAL_PERSON_ACTOR_ID, "personal", shape === "eight-field-prefs" ? prior : originalPrefs);
+        saveStoredPrefs(LOCAL_PERSON_ACTOR_ID, "project-default", shape === "eight-field-prefs" ? prior : originalPrefs);
+        if (shape === "project-old-prefs") saveStoredPrefs(LOCAL_PERSON_ACTOR_ID, `project:${PROJECT_A}`, prior);
+        if (shape === "other-actor-old-prefs") saveStoredPrefs("other-person", "personal", prior);
       }
       if (shape === "adopting") {
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", originalPrefs);
-        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", originalPrefs);
+        saveStoredPrefs(LOCAL_PERSON_ACTOR_ID, "personal", originalPrefs);
+        saveStoredPrefs(LOCAL_PERSON_ACTOR_ID, "project-default", originalPrefs);
         ledger.setMarker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption", { origin: "adopting", original_origin: "existing-home" }, "2026-10-23T00:00:00Z");
       }
       ledger.close();
       if (shape === "wrong-version") { const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)); db.exec("PRAGMA user_version = 2"); db.close(); }
     }
-    const before = files(join(home, "agent-runtime"));
+    const before = files(home);
     const ledgerBefore = existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) ? readFileSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) : null;
     const directories = readdirSync(home).sort();
     const refused = { code: shape === "wrong-version" ? "storage.schema_version_mismatch" : "memory.unavailable" };
@@ -208,7 +205,7 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
       assert.ok(generate);
       await assert.rejects(generate("must not dispatch", { timeoutMs: 500 }), { code: "actions.service_unavailable", message: "AI 执行服务尚未就绪或已停止，请稍后重试；材料已保留" });
     } finally { await unbound.close(); }
-    assert.deepEqual(files(join(home, "agent-runtime")), before);
+    assert.deepEqual(files(home), before, "RAC-105-A-07: rejected entrances preserve all business bytes, modes and mtimes, excluding owner bookkeeping before it is read");
     if (ledgerBefore) assert.deepEqual(readFileSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)), ledgerBefore, "refusal must not repair stored profiles or mutate the ledger");
     assert.deepEqual(readdirSync(home).sort(), directories, "the refused startup created no other Home stores");
     if (shape === "missing-ledger") assert.equal(existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)), false);

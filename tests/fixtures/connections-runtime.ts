@@ -3,7 +3,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 /** A Home plugin declaring one GitHub connection slot (`services.connections`, S-57), with the actions its checks call. */
-export function connectionsProbe(name = "connectionsprobe", options: { permissions?: string[]; execution?: "sandbox"; slots?: boolean } = {}) {
+export function connectionsProbe(name = "connectionsprobe", options: { permissions?: string[]; execution?: "sandbox"; slots?: boolean; binding?: "per_record" } = {}) {
   const id = `io.molis.work.example.${name}`, permissions = ["storage:private", ...(options.permissions ?? ["connections:use"])];
   const contexts: PluginStartContext[] = [];
   const action = (suffix: string, needed: string[], shape: { concurrent?: boolean; query?: boolean } = {}): ActionDefinition<Record<string, never>, unknown> => ({
@@ -26,7 +26,7 @@ export function connectionsProbe(name = "connectionsprobe", options: { permissio
     publisher: { publisher_id: "example", signature: `connections-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "连接服务测试声明" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [send, query, serial, plain],
-    ...(declared ? { connections: { slots: [{ slot_id: "github", service_id: "github", reason: "读取本人的 GitHub 通知" }] } } : {}),
+    ...(declared ? { connections: { slots: [{ slot_id: "github", service_id: "github", reason: "读取本人的 GitHub 通知", ...(options.binding ? { binding: options.binding } : {}) }] } } : {}),
   }, async start(context) {
     contexts.push(context);
     return { kind: "app", actions: [send, query, serial, plain].map(item => ({ ...item, handle: (caller: ActionExecutionContext) => behavior.send(context, caller) })) };

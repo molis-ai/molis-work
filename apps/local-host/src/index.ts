@@ -47,6 +47,7 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./local-host.js";
+export type { HomeInitializationFailure } from "./home-storage-lifetime.js";
 export { MolisWorkWebServiceManager } from "./installer/web-service.js";
 export { type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceManagerOptions } from "./installer/web-service-contract.js";
 export { MolisWorkUninstallService } from "./installer/uninstall.js";
@@ -119,6 +120,8 @@ export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
 export { connectorSetupIntentAction } from "./connector-setup-intent.js";
 export { holdConnectorAuthorizationsForSession } from "./connector-authorization-status.js";
 export { alchemistPulseGithub } from "./alchemist-pulse-github.js";
+export { startApiOAuth, completeApiOAuth } from "./connector-api-oauth.js";
+export { listConnectorConnectionViews } from "./connector-connection-views.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export * from "./github-oauth.js";
 

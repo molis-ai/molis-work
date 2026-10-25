@@ -64,6 +64,10 @@ export interface PluginHostServices {
   /** Public metadata of installations in this activation's scope. */
   readonly notifications?: import("./plugin-notifications.js").PluginNotificationClient;
   readonly installations?: import("./plugin-installations.js").PluginInstallationClient;
+  /** The project's Attention entries (the Inbox's); present with `attention:read` or `attention:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
+  readonly attention?: import("./plugin-attention.js").PluginAttentionClient;
+  /** The project's Context Ledger edges; present with `context-ledger:read` or `context-ledger:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
+  readonly contextLedger?: import("./plugin-attention.js").PluginContextLedgerClient;
   /** Awaited, owner-bound Agent work through the Home's shared runtime. */
   readonly agents?: import("./plugin-agents.js").PluginAgentClient;
   /** One finite continuation of an accepted action; business jobs and recovery remain plugin-owned. */

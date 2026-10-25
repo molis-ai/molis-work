@@ -96,21 +96,31 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const agentHost = new AgentHost(options.prompts ? { prompts: options.prompts } : {});
 
   let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  let initialization: ReturnType<typeof createPrologueNodeAdapter> | undefined;
   let ready: Promise<void> | undefined;
   let markStarted!: () => void;
   const started = new Promise<void>(resolve => { markStarted = resolve; });
   let disposed = false, disposal: Promise<void> | undefined;
   const initialize = (): Promise<void> => {
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
-    return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
-      ...options.prologue,
-      // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
-      documentParsers: [pdfDocumentParser],
-      // File, owner and background-job waits each recheck the authority of their own source.
-      checks: hostConditionChecks(options),
-      reviewQueue: agentHost.reviews,
-      app: { appId: "io.molis.work", appVersion: "0.0.0" },
-    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))
+    return ready ??= (async () => {
+      if (options.prologue === undefined) return;
+      // A rejected start may still own resources. Finish that instance before creating another one.
+      await initialization?.close();
+      if (disposed) return;
+      initialization = createPrologueNodeAdapter({
+        ...options.prologue,
+        // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
+        documentParsers: [pdfDocumentParser],
+        // File, owner and background-job waits each recheck the authority of their own source.
+        checks: hostConditionChecks(options),
+        reviewQueue: agentHost.reviews,
+        app: { appId: "io.molis.work", appVersion: "0.0.0" },
+      });
+      const adapter = await initialization;
+      if (disposed) return;
+      prologue = adapter; agentHost.register(adapter); markStarted();
+    })()
       .catch(error => { ready = undefined; throw error; });
   };
   // Connected external MCP tools join the project directory; they follow every list, save and connection change.
@@ -166,8 +176,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     externalMcp.close();
     return disposal = (async () => {
       await ready?.catch(() => undefined);
-      await prologue?.close();
-    })();
+      await initialization?.close();
+    })().catch(error => { disposal = undefined; throw error; });
   } };
 }
 

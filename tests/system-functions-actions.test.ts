@@ -104,6 +104,7 @@ test("published rules become versioned system actions without a project, preserv
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+// RAC-105-A-17: both real transports reach this one resident provider and persist in this Home.
 test("global HTTP published invocation uses the same system handler and separate Homes never mix definitions", async t => {
   const root = await mkdtemp(join(tmpdir(), "functions-http-"));
   const home = join(root, "a"), otherHome = join(root, "b");
@@ -137,7 +138,7 @@ test("global HTTP published invocation uses the same system handler and separate
     // The MCP client is granted through the access settings, like a person does; the Host checks each grant against what the client can really use.
     await served.grant("runtime:codex", null, [functionsActions.invoke, ...Object.values(functionContextActions)]);
     await external.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/system-functions-mcp-server.ts", import.meta.url)), home], stderr: "pipe" }));
+      fileURLToPath(new URL("./fixtures/system-functions-mcp-server.ts", import.meta.url)), home, origin], stderr: "pipe" }));
     const tools = await external.listTools();
     const directoryName = "molis_work_v1_action_functions.list__v1";
     assert.ok(tools.tools.some(tool => tool.name === directoryName));
@@ -152,6 +153,7 @@ test("global HTTP published invocation uses the same system handler and separate
     const result = await external.callTool({ name: "molis_work_v1_action_functions.invoke__v1", arguments: { function_key: record.function_key, input: "external MCP" } });
     assert.notEqual(result.isError, true, JSON.stringify(result));
     assert.equal(JSON.parse((result.content as { text: string }[])[0]!.text).data.choice, "yes");
+    assert.equal(calls.value, before + 2, "HTTP and MCP each run this same resident provider once");
     const history = withFunctionsService(home, service => service.listJudgments(), options);
     assert.equal(history.filter(row => row.function_key === record.function_key).length, 2, "HTTP and external MCP each persist one judgment in the same Home");
   } finally {

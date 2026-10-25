@@ -2,7 +2,7 @@ import { memoryData } from "./fixtures/current-memory.js";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -15,6 +15,8 @@ import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, ensureSystemAgentService, molisWorkHostProjectReference, projectDeletedHooksFor, type ProjectDeletedOwner } from "@molis-ai/molis-work-app-local-host";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { openMemoryLedger, openTextSearchIndex } from "@molis-ai/molis-work-storage";
+import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { homeBusinessTree, runtimeBusinessEntries } from "./fixtures/home-storage-files.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 
@@ -41,8 +43,10 @@ async function scratchHome(t: TestContext): Promise<{ home: string; catalog: Cat
   return { home, catalog };
 }
 /** The Home as an app that has run in it leaves it: an Agent runtime directory and a search index. */
-function ranBefore(home: string): void {
-  mkdirSync(join(home, "agent-runtime"), { recursive: true });
+async function ranBefore(home: string): Promise<void> {
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "0.0.0" },
+    storageRoot: join(home, "agent-runtime"), modelConfiguration: async () => { throw new Error("Runtime presence must not call a model"); } });
+  await adapter.close();
   openTextSearchIndex({ homeDirectory: home }).close();
 }
 /**
@@ -65,9 +69,10 @@ async function holdAgentRuntime(home: string): Promise<{ release(): Promise<void
   return { release };
 }
 
-test("a forwarding Host refuses before accepting deletion, starts no Agent runtime, and the executor can accept the original request", { timeout: 180_000 }, async t => {
+test("RAC-105-A-07: an idle Home Host refuses unprepared deletion, retains exclusive ownership, and its successor can accept the original request", { timeout: 180_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
-  ranBefore(home);
+  await ranBefore(home);
+  // A business Home Host owns the runtime even before adopting its Agent service.
   const forwarding = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(() => forwarding.close());
   const project = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
@@ -76,9 +81,9 @@ test("a forwarding Host refuses before accepting deletion, starts no Agent runti
   assert.deepEqual(catalog.listProjectDeletions(), [], "without a fixed Memory plan no deletion was accepted");
   assert.equal(catalog.getProject(project.project_id).database_path, project.database_path);
   assert.equal(existsSync(project.database_path), true);
-  const free = await holdAgentRuntime(home);
-  await free.release();
+  await assert.rejects(holdAgentRuntime(home), /agent.storage_busy/, "an idle Home Host already excludes a second execution process");
 
+  // The successor can prepare the original request only after the Home owner closes.
   await forwarding.close();
   const executor = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(() => executor.close());
@@ -90,45 +95,54 @@ test("a forwarding Host refuses before accepting deletion, starts no Agent runti
   assert.deepEqual(finished.deletion.owner_steps.filter(step => step.owner_id === "memory").map(step => [step.state, step.error]), [["complete", null]]);
 });
 
-test("the forwarding stdio MCP tool refuses an unprepared deletion and leaves the Agent runtime free", { timeout: 180_000 }, async t => {
+test("RAC-105-A-09: a forwarding stdio with no resident refuses binding and deletion without changing the Home or occupying its runtime", { timeout: 180_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
-  ranBefore(home);
+  await ranBefore(home);
   const project = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
+  const before = homeBusinessTree(home);
   // As apps/desktop/launchers/mcp/server.ts builds it: the Runtime's Home and the resident Host's address, so every action
   // is forwarded to that Host and this process runs none.
   const server = new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "project-deletion-processes", host_declares_stable: true } },
-    undefined, "http://127.0.0.1:4173");
+    undefined, "http://127.0.0.1:1");
   t.after(() => server.close());
   const call = async (name: string, args: Record<string, unknown>) => (await server.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) as
     { result: { isError: boolean; content: Array<{ text: string }> } }).result;
 
   const bound = await call("molis_work_v1_context_bind", { project_id: project.project_id, user_confirmed: true });
-  assert.equal(bound.isError, false, bound.content[0]?.text);
+  assert.equal(bound.isError, true, bound.content[0]?.text);
+  assert.match(bound.content[0]?.text ?? "", /actions.service_unavailable/);
   const deleted = await call("molis_work_v1_project_delete", { project_id: project.project_id, delete_confirmed: true, idempotency_key: "mcp-forwarding-delete" });
   assert.equal(deleted.isError, true, deleted.content[0]?.text);
-  assert.match(deleted.content[0]!.text, /运行中的 Molis Work/);
+  assert.match(deleted.content[0]?.text ?? "", /actions.service_unavailable/);
+  assert.deepEqual(homeBusinessTree(home), before, "the forwarding entry has no local Catalog or business fallback");
+  assert.equal(existsSync(project.database_path), true);
+  assert.deepEqual(catalog.listRuntimeContextBindings(), []);
   assert.deepEqual(catalog.listProjectDeletions(), []);
   assert.equal(catalog.getProject(project.project_id).database_path, project.database_path);
-  assert.equal(existsSync(project.database_path), true);
   const free = await holdAgentRuntime(home).catch((error: Error) => error);
   assert.ok(!(free instanceof Error), `the tool call did not take the Agent runtime from the resident Host (${free instanceof Error ? free.message.slice(0, 200) : ""})`);
   if (!(free instanceof Error)) await free.release();
 });
 
-test("an executor cannot accept deletion while another process holds its runtime, and can accept it once free", { timeout: 180_000 }, async t => {
+test("RAC-105-A-07: a real SDK owner refuses Host startup and unprepared deletion, and a successor accepts once ownership is free", { timeout: 180_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
-  ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
+  let host: MolisWorkLocalHost | undefined;
   const held = await holdAgentRuntime(home);
-  t.after(async () => { await held.release(); await host.close(); });
+  t.after(async () => { await held.release(); await host?.close(); });
   const project = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
+  const before = homeBusinessTree(home);
+  assert.throws(() => { host = new MolisWorkLocalHost({ homeDirectory: home }); }, { code: "storage.owner.busy" });
+  assert.deepEqual(homeBusinessTree(home), before, "a refused Host initializes no business owner");
 
-  await assert.rejects(() => catalog.deleteProject(deletion(project.project_id)), /另一个 Molis Work 进程/);
-  assert.deepEqual(catalog.listProjectDeletions(), []);
+  await assert.rejects(() => catalog.deleteProject(deletion(project.project_id)), /运行中的 Molis Work/);
+  assert.deepEqual(catalog.listProjectDeletions(), [], "without a fixed Memory plan no deletion was accepted");
   assert.equal(catalog.getProject(project.project_id).database_path, project.database_path);
   assert.equal(existsSync(project.database_path), true);
+  assert.deepEqual(homeBusinessTree(home), before, "refused deletion leaves all business data unchanged");
 
   await held.release();
+  host = new MolisWorkLocalHost({ homeDirectory: home });
+  await ensureSystemAgentService(host, home, withMolisWorkProjectCatalog).ready;
   const finished = await catalog.deleteProject(deletion(project.project_id));
   assert.equal(finished.replayed, false, "the first request never committed a decision");
   assert.equal(finished.deletion.cleanup_state, "complete");
@@ -164,42 +178,84 @@ test("a Host whose runtime has already started clears the memory step itself, wh
   } finally { await host.close(); }
 });
 
-test("a Host without a runtime refuses unknown ledger notes without accepting deletion or discarding them", { timeout: 60_000 }, async t => {
+for (const adopted of [false, true]) test(`RAC-105-A-07: ledger-only notes ${adopted ? "require a full Runtime deletion plan" : "remain intact without an adopted executor"}`, { timeout: 60_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(() => host.close());
+  if (adopted) ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
   const gone = (await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" })).project_id;
   const ledger = openMemoryLedger({ homeDirectory: home });
   t.after(() => ledger.close());
   ledger.setMarker("web-user", `tidy:project:${gone}`, { seen: true }, new Date().toISOString());
   assert.ok(ledger.marker("web-user", `tidy:project:${gone}`));
 
-  await assert.rejects(() => catalog.deleteProject(deletion(gone)), /已有记忆账注/);
-  assert.deepEqual(catalog.listProjectDeletions(), []);
-  assert.equal(catalog.getProject(gone).project_id, gone);
-  assert.deepEqual(ledger.marker("web-user", `tidy:project:${gone}`)?.body, { seen: true });
-  assert.equal(existsSync(join(home, "agent-runtime")), false, "the refusal does not start a runtime or pretend the notes prove emptiness");
+  assert.deepEqual(runtimeBusinessEntries(join(home, "agent-runtime")), [], "only the Home owner exists before deletion preparation");
+  if (adopted) {
+    const hooks = projectDeletedHooksFor(home), memory = hooks.owners().find(owner => owner.id === "memory")!;
+    let prepared = false;
+    const dispose = hooks.register({ ...memory, withRecovery: (request, work) => memory.withRecovery!(request, (plan, proof) => {
+      assert.equal(plan.kind, "runtime", "the executor prepares the full Runtime plan before Catalog accepts deletion");
+      assert.deepEqual(catalog.listProjectDeletions(), []);
+      prepared = true;
+      return work(plan, proof);
+    }) });
+    try {
+      const result = await catalog.deleteProject(deletion(gone));
+      assert.equal(prepared, true);
+      assert.equal(result.deletion.cleanup_state, "complete");
+      assert.equal(ledger.marker("web-user", `tidy:project:${gone}`), null);
+      assert.ok(runtimeBusinessEntries(join(home, "agent-runtime")).length > 0, "preparing the first Runtime plan may initialize SDK business storage");
+    } finally { dispose(); }
+  } else {
+    const before = homeBusinessTree(home);
+    await assert.rejects(() => catalog.deleteProject(deletion(gone)), /已有记忆账注/);
+    assert.deepEqual(catalog.listProjectDeletions(), []);
+    assert.equal(catalog.getProject(gone).project_id, gone);
+    assert.deepEqual(ledger.marker("web-user", `tidy:project:${gone}`)?.body, { seen: true });
+    assert.deepEqual(homeBusinessTree(home), before, "unknown ledger notes cannot prove emptiness or authorize cleanup");
+    assert.deepEqual(runtimeBusinessEntries(join(home, "agent-runtime")), [], "technical owner files do not count as SDK business storage");
+  }
 });
 
-test("with the Agent runtime held by another process a demo is still made the first time, and a rebuild refuses before it clears anything", { timeout: 180_000 }, async t => {
+for (const entry of ["unknown", "technical-link"] as const) test(`RAC-105-A-07: ${entry} runtime data cannot be mistaken for owner-only bookkeeping during memory preflight`, async t => {
+  const { home, catalog } = await scratchHome(t), host = new MolisWorkLocalHost({ homeDirectory: home });
+  const project = await catalog.createProject({ display_name: "保留的记忆", actor_id: "test-user" });
+  const ledger = openMemoryLedger({ homeDirectory: home }), marker = `tidy:project:${project.project_id}`;
+  const file = join(home, "agent-runtime", entry === "unknown" ? "unknown-sdk-entry" : ".molis-runtime-owner.db-wal");
+  try {
+    ledger.setMarker("web-user", marker, { original: true }, new Date().toISOString());
+    if (entry === "unknown") writeFileSync(file, "original unknown runtime bytes");
+    else symlinkSync(join(home, "missing-target"), file);
+    const before = homeBusinessTree(home);
+    if (entry === "unknown") await assert.rejects(projectDeletedHooksFor(home).ready(), /记忆放在 Agent/);
+    else await assert.rejects(projectDeletedHooksFor(home).ready(), { code: "storage.owner.invalid" });
+    assert.deepEqual(homeBusinessTree(home), before);
+    assert.ok(ledger.marker("web-user", marker), "an unresolved runtime never clears ledger history");
+    assert.equal(catalog.getProject(project.project_id).project_id, project.project_id);
+  } finally { rmSync(file, { force: true }); ledger.close(); await host.close(); }
+});
+
+test("RAC-105-A-07: an occupied Home refuses its business Host before a demo rebuild, and the rebuild works after ownership is available", { timeout: 180_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
-  ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
+  let host: MolisWorkLocalHost | undefined;
+  const created = await catalog.ensureDemoProject(input);
   const held = await holdAgentRuntime(home);
-  t.after(async () => { await held.release(); await host.close(); });
+  t.after(async () => { await held.release(); await host?.close(); });
   const files = recorder("test-files");
   const dispose = projectDeletedHooksFor(home).register(files.owner);
   t.after(dispose);
 
-  const created = await catalog.ensureDemoProject(input);
   assert.equal(created.status, "created", "there is no earlier demo, so there is nothing for the runtime to clear");
   assert.deepEqual(files.calls, []);
-
-  await assert.rejects(() => catalog.resetDemoProject(input), /另一个/);
+  const before = homeBusinessTree(home);
+  assert.throws(() => { host = new MolisWorkLocalHost({ homeDirectory: home }); }, { code: "storage.owner.busy" });
+  assert.deepEqual(homeBusinessTree(home), before);
   assert.deepEqual(files.calls, [], "no owner cleared a part before the rebuild refused: the runtime is only busy, and a retry can clear it");
   assert.equal(existsSync(created.project.database_path), true, "the demo is as it was");
 
   await held.release();
+  host = new MolisWorkLocalHost({ homeDirectory: home });
+  ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
   const rebuilt = await catalog.resetDemoProject(input);
   assert.deepEqual(files.calls, [DEMO_PROJECT_ID]);
   assert.equal(rebuilt.owners_left, undefined, "an executor that has the runtime leaves nothing to anyone");
@@ -207,7 +263,7 @@ test("with the Agent runtime held by another process a demo is still made the fi
 
 test("a process without the Agent runtime rebuilds the demo, clears what it can, and reports what it left to Molis Work", async t => {
   const { home, catalog } = await scratchHome(t);
-  ranBefore(home);
+  await ranBefore(home);
   await catalog.ensureDemoProject(input);
   const sparks = () => { const store = openLingguangStore(home); try { return store.list(DEMO_PROJECT_ID).map(spark => spark.title); } finally { store.close(); } };
   const addSpark = (title: string) => { const store = openLingguangStore(home); store.create({ project_id: DEMO_PROJECT_ID, title, body: "私密" }); store.close(); };
@@ -227,7 +283,7 @@ test("a process without the Agent runtime rebuilds the demo, clears what it can,
 
 test("a catalog-only process cannot accept runtime cleanup; an accepted executor plan stays pending until its remaining owner completes", async t => {
   const { home, catalog } = await scratchHome(t);
-  ranBefore(home);
+  await ranBefore(home);
   const demo = await catalog.ensureDemoProject(input);
   const request = { project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-1" };
   await assert.rejects(() => catalog.removeDemoProject(request), /运行中的 Molis Work/);
@@ -267,7 +323,7 @@ test("a catalog-only process cannot accept runtime cleanup; an accepted executor
 
 test("demo recreation waits for a current resident Memory proof after Host shutdown and rejects a receipt with no owner steps", async t => {
   const { home, catalog } = await scratchHome(t);
-  ranBefore(home);
+  await ranBefore(home);
   const demo = await catalog.ensureDemoProject(input);
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(() => host.close());
@@ -398,7 +454,7 @@ test("the public CLI refuses an unprepared runtime deletion and retains the orig
   const home = join(directory, "home");
   t.after(() => rm(directory, { recursive: true, force: true }));
   await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
-  ranBefore(home);
+  await ranBefore(home);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const demo = (action: string, ...flags: string[]) => spawnSync(process.execPath, [join(root, "dist", "cli", "main.js"), "demo", action, "--home", home, "--confirm", ...flags], { cwd: root, env: process.env, encoding: "utf8" });
 
@@ -424,7 +480,7 @@ test("the public CLI rebuilds the demo in a Home that has an Agent runtime, and 
   const home = join(directory, "home");
   t.after(() => rm(directory, { recursive: true, force: true }));
   await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
-  ranBefore(home);
+  await ranBefore(home);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const demo = (action: string, ...flags: string[]) => spawnSync(process.execPath, [join(root, "dist", "cli", "main.js"), "demo", action, "--home", home, "--confirm", ...flags], { cwd: root, env: process.env, encoding: "utf8" });
   const sparks = () => { const store = openLingguangStore(home); try { return store.list(DEMO_PROJECT_ID).map(spark => spark.title); } finally { store.close(); } };

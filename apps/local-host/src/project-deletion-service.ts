@@ -18,8 +18,8 @@ export interface ProjectDeletionPorts {
 
 /**
  * Deleting a project, for every door: the settings page and the MCP tool run this one service, in the process that has the
- * terminals and the runtime (the resident Host; a process with no Host to forward to has none of either). It refuses while
- * one of the project's terminals is alive. The original plan clears Memory and Sessions before releasing its runtime:
+ * terminals and the runtime (production stdio forwards through the resident context handler; embedded MCP uses its explicitly
+ * supplied Host). It refuses while one of the project's terminals is alive. The original plan clears Memory and Sessions before releasing its runtime:
  * catalog's receipt (one step for each owner of project data) and its retry stay the catalog's. The caller says who asks;
  * the arguments of a person's or a Runtime's request never do.
  */
@@ -68,7 +68,3 @@ export function webProjectDeletionPorts(web: {
     },
   };
 }
-
-/** What the resident Web Host runs when a process that only forwards (the stdio MCP) hands it a deletion: this server's own terminals and runtimes. */
-export const webProjectDeletion = (withCatalog: LocalWebCatalogRunner, web: Parameters<typeof webProjectDeletionPorts>[0]): ProjectDeletionService =>
-  new ProjectDeletionService(withCatalog, webProjectDeletionPorts(web));

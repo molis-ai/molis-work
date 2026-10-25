@@ -1,4 +1,4 @@
-import { artifactsErrors } from "./errors.js";
+import { artifactsErrors } from "./artifact-errors.js";
 
 export interface ArtifactProjectReferencePorts {
   /** Host supplies the bounded, project-contained text reader. */

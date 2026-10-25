@@ -1,4 +1,4 @@
-import type { JellyBlock, JellyItem, JellyWorkspace, JellySchedule } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyBlock, JellyItem, JellyWorkspace, JellySchedule } from "./contract.js";
 import { emptyJellyWorkspace, validateJellyWorkspace } from "./calendar.js";
 import { jellyAddDays } from "./calendar-validation.js";
 import { jellyHash, validateJellyContent } from "./content.js";

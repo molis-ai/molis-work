@@ -1,5 +1,12 @@
 /** English for the project home: heading, day strip, the Goal in progress, the note and the things at hand. */
 export const HOME_EN: Record<string, string> = {
+  "Home 插件运行库不可用": "Home plugin store unavailable",
+  "请查看插件状态，恢复运行库后重新加载页面。": "Check the plugin status, then reload this page after restoring the store.",
+  "重新加载页面": "Reload page",
+  "已保存的项目插件": "Saved project plugins",
+  "没有已保存的项目插件": "No saved project plugins",
+  "返回项目列表": "Back to projects",
+  "已隐藏": "Hidden",
   "今天的工作": "Today's work",
   "{date}的工作": "Work on {date}",
   "{week}，{date}": "{week}, {date}",

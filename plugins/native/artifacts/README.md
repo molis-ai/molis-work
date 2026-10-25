@@ -55,13 +55,17 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/browser.ts](src/browser.ts) | 浏览、版本与导出 |
-| [src/actions.ts](src/actions.ts) | 统一动作合同与业务处理器 |
-| [src/project-reference.ts](src/project-reference.ts) | 项目引用打开 |
+| [src/actions.ts](src/actions.ts) | 统一动作合同（Manifest 的动作清单；业务处理器已在成果库模块，两边由 `tests/plugin-artifact-schemas.test.ts` 的 RAC-414 对照，插件删除时这份消失） |
+| [src/browser-view.ts](src/browser-view.ts) | 成果页的视图类型与版本路径（读取在模块） |
+| [modules/artifacts/src/artifact-actions.ts](../../../modules/artifacts/src/artifact-actions.ts) | 动作合同与业务处理器（ac-artifacts A2 搬到成果库模块） |
+| [modules/artifacts/src/artifact-browser.ts](../../../modules/artifacts/src/artifact-browser.ts) | 浏览、版本与导出 |
+| [modules/artifacts/src/artifact-project-reference.ts](../../../modules/artifacts/src/artifact-project-reference.ts) | 项目引用打开 |
+| [modules/artifacts/src/artifact-document-import.ts](../../../modules/artifacts/src/artifact-document-import.ts) | 文件与外部文档导入 |
+| [modules/artifacts/src/artifact-original-store.ts](../../../modules/artifacts/src/artifact-original-store.ts) | 大文件原件的存取（插件只留 Home 存储登记与项目删除时的清理） |
 | [modules/artifacts/src/plugin-client.ts](../../../modules/artifacts/src/plugin-client.ts) | 安装专属 SDK 动作与客户端（ac-artifacts A2 搬到成果库模块） |
 | [modules/artifacts/src/plugin-operations.ts](../../../modules/artifacts/src/plugin-operations.ts) | 固定身份的成果/过程项 owner 操作 |
 | [modules/artifacts/src/plugin-action-contracts.ts](../../../modules/artifacts/src/plugin-action-contracts.ts) | 直调与 SDK 共用的输入投影和动作 schema |
-| [src/goal-context.ts](src/goal-context.ts) | 目标中的 Artifact 引用 |
+| [modules/artifacts/src/artifact-goal-context.ts](../../../modules/artifacts/src/artifact-goal-context.ts) | 目标中的 Artifact 引用 |
 
 可对照现有调用方 [apps/local-host/src/plugin-executor.ts](../../../apps/local-host/src/plugin-executor.ts) 阅读装配方式。
 

@@ -56,7 +56,7 @@ export function createWebCatalogAccess(
         if (active) await new Promise<void>(resolve => idle.add(resolve));
         const catalog = await opening?.catch(() => undefined);
         catalog?.close(); ready = false;
-      })();
+      })().catch(error => { shutdown = undefined; throw error; });
     },
   };
 }

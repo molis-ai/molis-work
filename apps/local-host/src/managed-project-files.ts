@@ -35,7 +35,9 @@ async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjec
 async provisionCreatedProject<T>(
     input: { displayName: string; actorId: string; projectId?: string },
     commit: (record: MolisWorkProjectRecord) => T,
+    beforeEffect: () => void = () => undefined,
   ): Promise<T> {
+    beforeEffect();
     const record = this.projects.lifecycle.prepareRecord({
       project_id: input.projectId,
       display_name: input.displayName,
@@ -48,17 +50,22 @@ async provisionCreatedProject<T>(
       if (error.code === "ENOENT") return false;
       throw error;
     })) {
+      beforeEffect();
       validateManagedProject(record.database_path, record.project_id);
-      return this.commit(() => commit(record));
+      return this.commit(() => { beforeEffect(); return commit(record); });
     }
     let promoted = false;
     try {
+      beforeEffect();
       await fs.mkdir(stagingDirectory, { recursive: false });
+      beforeEffect();
       await initializeProjectDatabase(
         path.join(stagingDirectory, "molis-work.db"),
         record.project_id,
       );
+      beforeEffect();
       await validateManagedProject(path.join(stagingDirectory, "molis-work.db"), record.project_id);
+      beforeEffect();
       try {
         await fs.rename(stagingDirectory, projectDirectory);
         promoted = true;
@@ -68,7 +75,7 @@ async provisionCreatedProject<T>(
         validateManagedProject(record.database_path, record.project_id);
         await fs.rm(stagingDirectory, { recursive: true, force: true });
       }
-      return await this.commit(() => commit(record));
+      return await this.commit(() => { beforeEffect(); return commit(record); });
     } catch (error) {
       await fs.rm(stagingDirectory, { recursive: true, force: true });
       // Fixed identities can be adopted by a concurrent/restarted request; retain their promoted database for recovery.

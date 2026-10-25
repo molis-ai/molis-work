@@ -5,6 +5,7 @@ import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-wor
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID, PERSONAL_SPACE_TITLE } from "./personal-space.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
+import { alwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
@@ -192,9 +193,9 @@ export class MolisWorkProjectCatalog {
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     this.projects = new ProjectsModule({
       db,
-      // Which Plugins a project may enable comes from what this build ships, not
-      // from a list compiled into Projects.
-      plugins: BUILTIN_PLUGIN_REGISTRY,
+      // Which Plugins a project may enable comes from what this build ships, not from a list compiled into Projects;
+      // which are 常开 is worked out from the install records and the Home's consent ledger each time it is asked.
+      plugins: { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => alwaysOnProjectPlugins(homeDirectory) },
     });
     this.runtimeContexts = createRuntimeContextModule({
       db, ledger, projects: this.projects, validation: contextBindingValidation,
@@ -233,7 +234,7 @@ export class MolisWorkProjectCatalog {
           });
         },
         appendProjectEvent: (projectId, type, actorId, payload) => {
-          this.appendEvent(projectId, type, actorId, payload);
+          this.projects.lifecycle.appendEvent(projectId, type, actorId, payload);
         },
       },
     });
@@ -315,10 +316,10 @@ export class MolisWorkProjectCatalog {
   ): MolisWorkRuntimeContextSuggestionRejectionResult { return this.runtimeContexts.commands.rejectRuntimeContextSuggestion(input); }
   bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution { return this.runtimeContexts.commands.bindRuntimeContext(input); }
   unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult { return this.runtimeContexts.commands.unbindRuntimeContext(input); }
-  async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<MolisWorkRuntimeContextResolution> {
+  async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput, beforeEffect: () => void = () => undefined): Promise<MolisWorkRuntimeContextResolution> {
     return this.runtimeContexts.createProjectAndBindRuntimeContext(input, {
-      registerProject: (record, eventType, actorId) => this.insertProjectInTransaction(record, eventType, actorId),
-      provisionCreatedProject: (input, commit) => this.projectFiles.provisionCreatedProject(input, commit),
+      registerProject: (record, eventType, actorId) => { beforeEffect(); this.projects.lifecycle.register(record, eventType, actorId); },
+      provisionCreatedProject: (input, commit) => this.projectFiles.provisionCreatedProject(input, commit, beforeEffect),
     });
   }
   listRuntimeContextBindingEvents(
@@ -424,12 +425,9 @@ export class MolisWorkProjectCatalog {
     return this.projects.commands.renameProject(projectId, displayName, actorId);
   }
 
-  private insertProjectInTransaction(record: MolisWorkProjectRecord, eventType: string, actorId: string): void {
-    this.projects.lifecycle.register(record, eventType, actorId);
-  }
-
-  private appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, unknown>): void {
-    this.projects.lifecycle.appendEvent(projectId, type, actorId, payload);
+  /** Persisted page projection; callers must keep using listProjectPlugins for availability and command guards. */
+  storedProjectPluginMembership(projectId: string) {
+    return this.projects.query.storedProjectPluginMembership(projectId);
   }
 }
 

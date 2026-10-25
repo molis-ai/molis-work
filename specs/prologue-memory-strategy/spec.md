@@ -2691,3 +2691,11 @@ product-interaction.e2e、coding-workbench.e2e、code-scale.e2e 三文件仅依�
 来源聚合最终工程验证：包含 Catalog dfc、Ledger db5829、空计划根判定和 App 三个 SDK 只读薄映射的完整 build 通过；五文件115/115、零跳过/重试，含 Catalog读取35、Ledger12、Index15、adoption35及项目原恢复18。根类型、准确d08健康、boundary、API检查通过；仅生成 Memory 合同快照一份（新增无正文来源 DTO，普通插件动作/写口未变），全库仍73份3045声明。原独立空计划脚本仅把包路径换到聚合构建、修后预期改为拒绝，八组合实跑通过，合法空计划仍保留；日志 `/private/tmp/molis-ledger-source-parent-completeness-root-fixed-20261025.log`。原 SDK 精确读取实测非空 Memory/Session termination、越scope拒绝、撤权/取消/关闭和源字节不变；没有目标执行证明。
 
 验证日志 `/private/tmp/molis-memory-recovery-sources-aggregate-{build,direct,types,health,boundary,api-update,api}-20261025.log`。27资源7,630,892 B与上一聚合逐项一致，正式门仍仅Coding+1,333 B待批；`...-assets-20261025.json`及`...-assets-gate-20261025.log`保留。推送前fetch发现新main批次36为64a3ccc9c177ba6f3a2bbb44cf80dc1cce648f2a，新增Home存储主人并改删除/SDK装配；#1064 d08与其merge-tree确认7处文本冲突，前述CI仅证明d08对3817的结果。统筹将先整合基础再传入#1101；本来源交付仍以d08为父，不伪称最新main整合或完整MEM-40/全量通过。
+
+### #1064 接入 Home 存储归属主干（2026-10-25，合并验证中）
+
+准确 main `64a3ccc9c177ba6f3a2bbb44cf80dc1cce648f2a`（batch36）在业务初始化前取得 Home 所有权，SDK 只借用同一 owner；关闭失败保留 lease，明确重试继续关闭。此次沿用这条生命周期，同时保留 Memory 的可信原件、当前权限、删除回执与采用检查，不额外建立锁或恢复执行核。存储技术锁文件不代表已经存在 Memory 业务数据，原删除主人改用主干的 `hasStorageBusinessFiles`，只据此选择既有启动路径，不据此证明采用或删除完成。
+
+七处文本冲突：LocalHost README 保留两段原件合同及新 Home 生命周期；MemoryHost 保留现删除主人委托，并将主干的业务文件判断移到该主人；System Agent 同时传入 Memory 与 storageOwner、沿用可重试关闭；Prologue Node 保留 MemoryAuthority 并登记主干初始化失败的真实资源关闭；AgentHost 依赖与 workspace 登记同时保留 storage 和 SDK94；健康快查冲突先取主干快照，合并后按准确 merge-base 重新生成，只许降低。SDK102 和冷恢复实现仍留在 #1101，不混入基础 PR。
+
+原冻结离线安装及完整 `pnpm build` 通过；真实 Home 排他、初始化清理、SDK 借用、System Agent、采用/维护、Memory 权限和项目删除共 14 文件 115 项首次通过，无跳过或重试，日志 `/private/tmp/molis-memory-foundation-batch36-{install,build,direct}-20261025.log`。此前 d08 的普通 CI 与 Full suite 已通过，但只证明 d08；本合并结果仍需门禁、安装/备份及最终 head 的完整 CI。旧 Cloudflare 影响和历史首败 UNKNOWN 保留，尚未合并 main，也未完成产品/用户验收。

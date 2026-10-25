@@ -7,6 +7,10 @@
 
 `openReadOnlyHomeSqlite` 为插件查询服务提供 SQLite 自身强制的只读连接；Host 用 `openBaselineHomeSqlite` 开当前业务基线，再持有读写连接。`homeStoreRegistry`（`home-stores.ts`）是 Home 存储登记的形状与检查：路径只能是 Home 下的一个名字或 `config/` 下的一个文件，一个路径只有一个主人；登记本身由 Host 组装（`apps/local-host/src/home-stores.ts`），这里不认识任何插件或模块。记忆账本与搜索索引的登记（`MEMORY_LEDGER_HOME_STORE`、`TEXT_SEARCH_HOME_STORE`）在各自的适配器旁，普通卸载保留，明确 purge 才清除。当前基线、回滚与错版拒绝由 `tests/issue-home.test.ts` 验证。
 
+`acquireStorageOwner` 是 Host、独立 Agent 与离线 Home 操作共用的 SQLite EXCLUSIVE 所有权技术端口，路径仍是显式绝对目录里的 `.molis-runtime-owner.db`。获取始终严格，同一进程第二次获取也拒绝；不另建锁或根据 PID 放行。`assertStorageOwner` 与 `borrowStorageOwner` 只认本模块认证、同一 canonical root 和原 inode 的 live capability；复制对象不能借用，一个父 owner 同时只给一个执行服务借用。子服务关闭仅归还借用，父 owner 在借用归还前不能释放。失败关闭由原拥有者明确重试，普通释放保留锁 inode；Home 的 `agent-runtime` 父目录也不能在恢复发布时整体替换。该锁及侧车不进业务快照。回归：`tests/security-invariants-home-storage-owner.test.ts`、`tests/security-invariants-home-storage-sdk.test.ts`、`tests/security-invariants-home-storage-host.test.ts`。
+
+持锁进程不能再用普通文件 API 打开/关闭该锁原件来读取或计算摘要：POSIX 文件锁会受到同进程其他描述符关闭的影响。快照和字节对照在读取前排除锁与侧车；inode、模式与目录检查只用元数据。`hasOnlyStorageOwnerFiles` 在 live proof 下只读核对目录是否仅含这些技术文件，任何 SDK 或业务条目都返回 false，不能用它自动采用已有记忆数据。`hasStorageBusinessFiles` 只读同一组技术文件之外是否有条目，缺目录或仅合法技术文件为 false，未知条目为 true，不安全技术链接或异常拒绝；它不授予所有权、采用或写入权，供原数据 owner 保持未启动 SDK 时的 ledger-only 删除。
+
 ## 一次典型调用
 
 LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 把各模块交出的当前 schema 拼成库的基线（`applySqliteBaseline`），版本不符就拒绝，不就地升级。runWithMolisWorkHome 将文件适配限定到当前 Home。

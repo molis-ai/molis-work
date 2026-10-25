@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
-import { memoryLedgerHasOnlyPreferences, MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { memoryLedgerHasOnlyPreferences, MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -14,6 +14,7 @@ import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 import { forgetProjectOriginalFiles } from "./material-original-files.js";
+import { forgetProjectConnectionBindings } from "./connector-plugin-requests.js";
 
 /** The two owners whose data sits in a running service: what each says in the deletion receipt and, if it has one, in the dialog. */
 export const MEMORY_OWNER = { id: "memory", label: "这个项目及其角色的记忆" } as const;
@@ -29,7 +30,7 @@ export const SEARCH_OWNER = { id: "search", label: null } as const;
 export function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
   const plans = new AsyncLocalStorage<{ active: boolean; recreation?: string }>();
   const check = () => {
-    if (existsSync(agentRuntimeDirectory(home))) throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，这个入口不运行它；由运行中的 Molis Work 清理，它会接着做", true);
+    if (hasStorageBusinessFiles(agentRuntimeDirectory(home))) throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，这个入口不运行它；由运行中的 Molis Work 清理，它会接着做", true);
   };
   return {
     ...MEMORY_OWNER, check,
@@ -145,6 +146,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "knowledge", label: "项目资料的卡片与整理记录", clear: projectId => { clearKnowledgeProject(home, projectId); } },
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
     { id: "plugin-originals", label: null, clear: projectId => { forgetProjectOriginalFiles(home, projectId); } },
+    // Which account a plugin uses for each of its records in the project (`per_record` slots); the accounts are the person's and stay.
+    { id: "plugin-connections", label: null, clear: projectId => { forgetProjectConnectionBindings(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

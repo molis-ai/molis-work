@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { JellyBlock, JellyCommand, JellyItem, JellyNote, JellyPlan, JellyRelation, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyBlock, JellyCommand, JellyItem, JellyNote, JellyPlan, JellyRelation, JellyWorkspace } from "./contract.js";
 import { makeJellyItem, jellyOccurrences, jellySchedulesOverlap } from "./calendar.js";
 import { jellyAssert, jellyErrors } from "./error.js";
 import { validateJellySchedule } from "./calendar-validation.js";
@@ -138,7 +138,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
       const selected = command.selected_action_ids === undefined ? plan.actions.map(a => a.id) : command.selected_action_ids; jellyAssert(Array.isArray(selected) && selected.every(id => typeof id === "string"), "选择的任务无效"); jellyAssert(selected.length > 0 && new Set(selected).size === selected.length, "至少选择一项任务，不能重复");
       jellyAssert(selected.every(id => plan.actions.some(a => a.id === id)) && new Set(plan.actions.map(a => a.id)).size === plan.actions.length, "提案任务 ID 无效");
       const actions = plan.actions.filter(a => selected.includes(a.id));
-      const proposed: import("@molis-ai/molis-work-contracts/modules/jelly").JellySchedule[] = [];
+      const proposed: import("./contract.js").JellySchedule[] = [];
       for (const action of actions) {
         jellyAssert(typeof action.title === "string" && action.title.trim() && typeof action.notes === "string" && ["none", "P0", "P1", "P2"].includes(action.priority), "提案任务内容无效"); category(state, action.category_id);
         jellyAssert(action.duration_minutes === undefined || [15, 30, 45, 60, 90].includes(action.duration_minutes), "任务预计时长无效");

@@ -81,6 +81,8 @@ description: How to add or change an AI capability in Molis Work — anything th
 接入本人操作的等待使用 `molis.connector-setup@1`，参数仅 `{ authorization_id }`，来自本会话的 `connectors.setup.prepare`。Host 在登记与每次读取前后检查请求的原会话、用户、项目及当前助理查询权限；重启后只恢复这项窄读取，不恢复通用动作或文件授权。检查只证明请求和连接状态，等待满足后还须按最新任务调用真实业务能力。App-tools 业务角色使用同一个 SDK 持久等待，只允许其 App 登记的只读外部检查器；命令、信封、节点及待答问题条件不向此模式开放。无绑定、其他会话与已撤权检查均拒绝。真实 SDK 与本机协议替身已验证等待、最新请求、单次接续及重启，真实模型和服务账号的验收仍见 `specs/assistant-service-connections/spec.md` §11。
 8. **文档**：新能力写进对应插件 spec；改了本清单涉及的契约，同一任务更新手册与本 Skill；改了手册第 14 节点名的代码，同一改动更新那一行。
 
+装配 Node Runtime 时从创建起保留 `createPrologueNodeAdapter` 的初始化句柄；初始化拒绝后的资源清理仍经该句柄的 `close()` 显式重试，全部成功才归还存储所有权。调用合同和 Host 接法见 [Agent Host README](../../horizontal/agent-host/README.md)。
+
 ## 交互：问人、建议一步、引用对象
 
 AI 要人补信息、确认一步或挑一个对象时，用下面四条共用的路（`specs/ai-interaction-experience`）。不在回复正文里列选项让人照着打字，不自己画卡，也不另存一份等待状态：等待归 Runtime，卡归宿主，规则在插件 SDK。

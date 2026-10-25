@@ -1,6 +1,6 @@
 import { ActionError, type ActionAvailability, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineConnectorUsagesAction, type ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { IMAGES_PLUGIN_ID, type ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import { IMAGES_PLUGIN_ID, type ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import type { ImagesService } from "./service.js";
 import { createImagesSearchHandlers, imagesSearchActions } from "./search.js";
 import { IMAGES_FILES_WRITE } from "./owner-files.js";

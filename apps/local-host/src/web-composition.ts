@@ -50,7 +50,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   registerConnectorDevicePolling(home, periodicTasks);
   registerOnboardingStagingCleanup(home, periodicTasks);
   return {
-    PAGE_CSP, withCatalog, workbenchRenderer, isDesktopShellRequest,
+    PAGE_CSP, withCatalog, workbenchRenderer, isDesktopShellRequest, desktopRenderer: platform.desktopRenderer,
     desktopRuntimeAvailability: platform.cliAvailability,
     handleDesktopPanelApi, projectSettings,
     servePtyClient, serveWorkbenchAsset, handleArtifactNativePluginHttp,

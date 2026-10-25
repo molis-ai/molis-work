@@ -52,7 +52,7 @@ test("S-57 the Host gives the service only to a plugin whose Manifest declares c
   const declared = connectionsProbe("connectionsdeclared"), undeclared = connectionsProbe("connectionsnone", { permissions: [] });
   const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [declared.definition, undeclared.definition] } });
   await grantConnections(host, declared); await grantConnections(host, undeclared);
-  assert.deepEqual(Object.keys(declared.contexts.at(-1)!.services!.connections!), ["request"]);
+  assert.deepEqual(Object.keys(declared.contexts.at(-1)!.services!.connections!), ["request", "describe", "release"]);
   assert.equal(undeclared.contexts.at(-1)!.services!.connections, undefined);
 });
 

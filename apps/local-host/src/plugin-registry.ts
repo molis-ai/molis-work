@@ -39,8 +39,26 @@ export function catalogProblems(catalog: readonly PluginRegistration[]): string[
     ];
     for (const [field, id] of named) if (!listed.has(id)) problems.push(`${entry.project_plugin_id} names ${id} in ${field}, which is not in the catalog`);
   }
+  // Extra class prefixes a plugin declares for its own rules (PG-070): they decide which rules leave the shared sheet, so one
+  // must not be another plugin's id or prefix, and the platform's own prefixes are not a plugin's to claim.
+  const claimed = new Map<string, string>();
+  for (const entry of catalog) {
+    for (const prefix of entry.workbench.stylesheetPrefixes ?? []) {
+      if (!/^[a-z][a-z0-9]*-$/u.test(prefix)) problems.push(`${entry.project_plugin_id}: stylesheet prefix ${prefix} is not a lowercase class prefix ending in -`);
+      else if (PLATFORM_STYLE_PREFIXES.has(prefix)) problems.push(`${entry.project_plugin_id}: stylesheet prefix ${prefix} is the platform's`);
+      else if (listed.has(prefix.slice(0, -1))) problems.push(`${entry.project_plugin_id}: stylesheet prefix ${prefix} repeats a plugin's id`);
+      const owner = claimed.get(prefix);
+      if (owner !== undefined) problems.push(owner === entry.project_plugin_id
+        ? `${entry.project_plugin_id} lists stylesheet prefix ${prefix} twice`
+        : `${owner} and ${entry.project_plugin_id} both claim stylesheet prefix ${prefix}`);
+      else claimed.set(prefix, entry.project_plugin_id);
+    }
+  }
   return problems;
 }
+
+/** The platform's own class prefixes, which no plugin's extra prefix may take. */
+const PLATFORM_STYLE_PREFIXES = new Set(["mw-", "pc-"]);
 
 const CATALOG_PROBLEMS = catalogProblems(PLATFORM_PLUGIN_REGISTRATIONS);
 if (CATALOG_PROBLEMS.length > 0) throw new Error(`Built-in plugin catalog: ${CATALOG_PROBLEMS.join("; ")}`);

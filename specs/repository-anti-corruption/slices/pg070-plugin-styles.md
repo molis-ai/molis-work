@@ -7,7 +7,7 @@
 ## 范围
 
 - **拆分**（`apps/workbench/src/plugin-styles.ts`）：一条规则的每个选择器都点名了插件自己的类或 `data-` 属性（`.<id>`、`.<id>-…`、`[data-<id>…]`），且名字不在 `:not()`、`:is()`、`:where()` 里，规则才移出，所以它只能匹配到插件自己的元素；别的规则、`@keyframes`、`@font-face`、`@import` 原样留在共用样式表，`@media`/`@supports`/`@container` 里的规则在组内各自分开。拆分只看名字，不改任何一条规则适用的对象。
-- **谁拆**：页面在框架里运行的插件（有客户端、没有设置页客户端）。没有客户端的插件（Feed 等，外壳自己画）和有设置页的插件（Shelf，设置页在外壳里画）整张样式留在共用样式表。
+- **谁拆**：页面在框架里运行的插件（有客户端）。没有客户端的插件（Feed 等，外壳自己画）整张样式留在共用样式表。第 1 片时还有设置页的插件不拆（Shelf），第 2 片改成也拆、由外壳画设置页时链接它（见下）。
 - **合同**：`PluginWorkbenchRegistration.stylesheetShared`（命名空间里宿主或共用库在框架之外也画的类，规则留在共用样式表）和 `stylesheetUses`（框架也画了别的插件的类，要链接它们的样式表；`clientUses` 里的已经算）。
 - **接线**：`pluginSurfaceClients()` 的 `styles` 给出一个框架要链接的样式表（自己的在前，再是用到的）；`renderPluginFrameSurface` 把这些 `<link>` 放在交给框架的页面最前面，所以它们在框架里排在工作台样式表（框架 head 里链接）之后、页面自己的规则之前；框架的策略本来就允许 `/assets/` 下的样式表。宿主在 `/assets/molis-work-plugins/<id>.css` 发它们，没有自带规则的插件那个地址不发。组件板的「插件行视图」页画了有样例的插件的行，同样链接这些样式表。框架脚本和工作台脚本一个字节没加。
 - **门禁**：页面资源门禁认 `.css` 的插件包路径，15 个新样式表按用户批准（2026-10-25）一次登记；`workbench.css` 的预算同时降下来。
@@ -19,8 +19,8 @@
 ## 保留的限制
 
 - 靠源码扫描找「框架之外也画的类」：运行时拼出来的类名找不到。`tests/plugin-styles.test.ts` 的精确对照挡的是漏列和多列，挡不住拼出来的类名；这类情形靠框架页面的浏览器用例兜底。
-- 插件创作台与 Alchemist 不迁（绕过）：创作台的类前缀是 `pb-`/`as-`，不在它的 id 名字空间里，样式整张留在共用样式表；Alchemist 只有 151 字节的规则移出。两者没有改任何逻辑。
-- Diff 的规则都点名了 SDK 的 diff 视图和评审面也画的类，所以全部留在共用样式表，它没有自己的样式表。
+- 插件创作台与 Alchemist 不迁（绕过）——第 1 片的限制；第 2 片用 `stylesheetPrefixes` 搬走创作台的 `as-`/`pb-` 规则，逻辑与类名没改（见下）。Alchemist 仍只有 151 字节可以移出，留给它自己那片。
+- Diff 的规则都点名了 SDK 的 diff 视图画的类——第 1 片的限制；第 2 片按 SDK 组件自己的名字空间处理（见下）。
 
 ## 对插件和调用方的影响
 
@@ -39,3 +39,26 @@
 | RAC-760 | 宿主在插件样式表的地址发它，没有样式表的插件那个地址不发，客户端包的地址照旧 | 同上 |
 | RAC-761 | 框架 head 链接工作台样式表、页面里插件样式表在后；框架策略只允许 `/assets/` 下的样式表 | 同上 |
 | RAC-762 | 组件板的插件行视图链接样例插件的样式表，在工作台样式表之后；回复部分不链接 | 同上 |
+
+
+## 第 2 片：Shelf、Diff、插件创作台（2026-10-25，RAC-763～769）
+
+接着第 1 片，把最后三块整张留在共用样式表里的插件规则搬出去，并给「共用样式表里还剩多少插件的规则」加门禁。
+
+- **Shelf**：`settingsClient` 不再阻止拆分（`plugin-workbench.ts` 的 `splitOf`），`SHELF_STYLES` 整个成为 `/assets/molis-work-plugins/shelf.css`。框架页照旧由 `pluginSurfaceClients()` 的 `styles` 链接；外壳画的设置页加两条：`GET /settings/shelf` 的文档在设置样式表之后链接它（`pluginSettingsStyleLinks(contribution_id)`，按贡献 id 找包），工作台里的设置面板把抓来的文档里 `/assets/molis-work-plugins/*.css` 的链接去重插进 `document.head` 并等加载后再插入页面（`scripts/client/settings-directory.ts` 的 `ensureStyleSheets`）。`renderMolisWorkSettingsStylesheet()` 不再包含插件样式。
+- **Diff**：27 条规则只画 SDK `diff-view` 的类，Diff 插件自己没有独有标记，所以不新建 `diff.css`，而是把类名收到 SDK 组件的名字空间（`diff-*` → `mw-diff-*`，只改类名、不改逻辑），规则搬进 design-system 的 `DIFF_VIEW_STYLES`，由工作台样式表下发（`page-assets.ts` 里仍排在原共用样式的位置）。Diff 的登记删掉 `stylesheet`/`stylesheetShared`，Coding 的 `stylesheetUses: ["diff"]` 随之删掉，`plugins/native/diff/src/styles.ts` 删除。`data-*`、`--diff-*` 变量和动作 id 不变。
+- **插件创作台**：`PluginWorkbenchRegistration` 新增 `stylesheetPrefixes`（额外类/属性前缀，`as-`、`pb-` 这种类名早于 id 的插件用），拆分按「id 名字空间 + 声明的前缀」判定；宿主在 `catalogProblems` 里拒绝不是小写前缀、占用平台前缀（`mw-`、`pc-`）、重复插件 id、同一条目录里重复或两个插件争用的前缀。创作台声明 `["as-", "pb-"]`，`stylesheetShared` 列 `as-preview-page`、`pb-surface`（宿主的预览页/舞台画它们）；`pc-` 组件词汇整张留在共用样式表（预览页与已装插件页只链工作台样式表）。逻辑与类名一个没改。
+- **级联**：shelf.css/plugin-builder.css 仍排在工作台样式表（以及设置页的 settings.css）之后。离线核对把移出的规则与共用表里排在旧位置之后的规则逐条比（同特异性、属性重叠、可命中同一元素）：Shelf 里被 design-system `craft-finish` 点名同元素的只有五个类——`.shelf-stage-chrome`（`craft-finish-pages.ts:389-404` 的 ≥761px stage grid、`:432-450` 的 ≤760px flex，特异性 0,5,1）、`.shelf-search`（前者同段的最小宽度，0,5,1）、`.shelf-side-menu` 与 `.shelf-find`（`:240` 的暗色菜单背景，≈0,3,2）、`.shelf-drop`（`:472` 的拖拽过渡，0,2,1）——都高于 Shelf 自己的 `[data-shelf] .shelf-stage-chrome`(0,2,0)、`[data-shelf] .shelf-stage-chrome .shelf-search`(0,3,0)，没有同优先级平局；`plugin-stage.ts:82` 的 `> .shelf-stage` 本来就排在插件规则之前。因此 Shelf 整张搬出、`stylesheetShared` 留空，外观不变。创作台移出的规则点名自己的前缀，与共用规则同样没有同优先级平局。PR 评论里「Shelf 的 stage chrome 规则留共用」是核对前的保守说法，交付时已更正；这五个类在 craft 与 Shelf 之间的归属记在 `specs/BACKLOG.md` BL-646（owner 防腐统筹），改动 `craft-finish-pages.ts` 或 Shelf 的 stage chrome 结构时要重跑这条核对。
+- **门禁（RAC-769）**：共用样式表里属于具体插件的规则按插件计数、只许减少，新文件/新插件从 0 开始；Feed 与 Goals（外壳直接 import 样式）按用户决定留数字。口径先在 PR #1302 评论说明、统筹 2026-10-25 回复批准后实现：`scripts/gates/plugin-styles.mjs` 从构建产物按第 1 片 splitter 逐插件数「本该搬进按需表却还在共用表」的规则块，记录在 `tooling/gates/plugin-styles.json`（首冻结 **feed 234、goals 321，共 555 块**），只许下降；`--update` 拒绝任何增长与新插件，CI 在 `architecture-boundaries` 里 page-assets 之后对 merge-base 比对。测试 `tests/plugin-styles-gate.test.ts`（增长、就地抬预算、`--update` 不掩盖、新插件、首冻结、缺构建退出 2、真实仓库只有 feed/goals），口径与看不到的写在 `tooling/gates/README.md`。
+
+### 验收（第 2 片）
+
+| 编号 | 标准 | 证明 |
+| --- | --- | --- |
+| RAC-763 | Shelf 整张样式成为自己的页面资源：框架与外壳画的设置页都链接它，工作台/设置样式表不再带它的规则 | `tests/plugin-styles.test.ts` |
+| RAC-764 | 创作台声明 `as-`/`pb-` 前缀后按前缀拆分；`pc-` 组件词汇与宿主画的那几类留在共用样式表 | 同上 |
+| RAC-765 | Diff 的类归 SDK 组件自己的 `mw-diff-*` 名字空间、规则在工作台样式表里；Diff 没有自己的样式表，旧类名不再出现 | 同上 |
+| RAC-766 | SDK diff 视图写的每个类都在宿主样式表里有规则（与 /ui 同一份合同） | `tests/sdk-ui-markup.test.ts` |
+| RAC-767 | 宿主拒绝不是小写类前缀、占用平台前缀、重复插件 id、同目录重复或两个插件争用的额外前缀 | `tests/plugin-registry-generation.test.ts` |
+| RAC-768 | 工作台设置面板在插入抓来的插件设置页之前，先加载它链接的插件样式表 | `tests/plugin-styles.test.ts` |
+| RAC-769 | 共用样式表里属于具体插件的规则按插件计数、只许减少；新文件/新插件从 0 开始 | `tests/plugin-styles-gate.test.ts`、`scripts/gates/plugin-styles.mjs`（`tooling/gates/plugin-styles.json`） |

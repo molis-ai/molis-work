@@ -98,6 +98,16 @@
 
 **看不到的（已知盲区，#958 → #990）**：服务端固定 prompt 里的中文常量。它经模型往返后是运行时的动态字符串（页面用 `L(动态值)` 显示），门禁只按字面量认翻译调用，所以删掉它的英文条目时「缺英文」仍是零。#958 删掉 Issue 的固定追问句（`plugins/native/issues/src/prompts.ts` 的 `ISSUE_ASK`）的英文后门禁放行，由 `tests/issue-naming.test.ts` 的 `PRR-08` 断言拦下，#990 恢复。补偿是给每一条这类固定句子钉一条测试：断言英文词典含该确切字符串（`PRR-08` 的写法）。要自动扫这类常量，得先定「哪些服务端常量算用户可见文案、从哪些文件读」，那属于改门禁本身，先问用户。
 
+## 插件样式预算（`scripts/gates/plugin-styles.mjs`，PG-070、RAC-769）
+
+共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter（`splitPluginStylesheet`，传入注册的 `stylesheetShared` 与 `stylesheetPrefixes`）算出「本该搬进按需表、却还留在共用表」的规则块数。已经按需加载（`pluginOnDemandStylesheet` 非空）的插件为 0、不出现在文件里；Goals 没有注册样式表，数的是 `apps/workbench/src/page-assets.ts` 直接拼进共用表的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES`；Feed 还没有框架，冻结成它拿到框架后能搬走的数量。
+
+- 文件：`tooling/gates/plugin-styles.json`，`{ note, plugins: { "<project_plugin_id>": <rule blocks> } }`，只许下降。搬走规则后用 `node scripts/gates/plugin-styles.mjs --update --base origin/main` 在同一个 PR 里降数。
+- 防止就地改预算：CI 与 `--base` 把这份文件和 merge-base 里的比（与 page-assets 同一套）：PR 里调大数字、加插件、或删掉仍在计数的条目都失败；`--update` 对任何增长（含未知插件 >0）拒绝写入。删条目只在构建里真的不再计数后允许。
+- 位置：CI 的 `architecture-boundaries` 任务，在 `pnpm workspace:verify`（构建）与 Page asset budgets 之后；本机 `pnpm plugin-styles:check`。退出码 2 表示构建缺失或 git 读不了，不是通过。
+- 看不到的（已知限制，不是决定）：只认注册的 `stylesheet` 与 page-assets 导入的 Goals 常量；宿主模块里手抄的插件规则、以及没声明 `stylesheetPrefixes` 的插件（今天 Text Stats 的 `stats-`）都按 0；字节不在这里。
+- 测试：`tests/plugin-styles-gate.test.ts`（增长、就地抬预算、`--update` 拒绝、新插件、缺构建、首冻结、缩小，全部带 RAC-769），最后一条跑真实仓库构建并断言 `measured` 只有 `feed`、`goals`。
+
 ## 公开 API 快照
 
 `api/` 下每个 contracts 的 subpath（`packages/contracts/package.json` 的 `exports`）和插件 SDK 各一个文件，如 `api/contracts/platform/plugin.txt`、`api/plugin-sdk/index.txt`。

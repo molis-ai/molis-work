@@ -1,0 +1,7 @@
+{
+  "note": "Only decreases. For each plugin, the rule blocks of its own namespace that are still in the shared stylesheets although an on-demand sheet could carry them (the first slice's splitter, with the plugin's stylesheetShared and stylesheetPrefixes; Goals counts the document styles page-assets imports). Measured from the build by scripts/gates/plugin-styles.mjs; lower it with `node scripts/gates/plugin-styles.mjs --update --base origin/main` in the PR that moves rules out. CI compares this file with the merge-base's copy, so raising a number or adding a plugin here is refused. A plugin whose page runs in a frame must not appear at all (0).",
+  "plugins": {
+    "feed": 234,
+    "goals": 321
+  }
+}

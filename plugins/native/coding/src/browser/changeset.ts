@@ -74,7 +74,7 @@ interface Reader {
 const LAYOUT_KEY = "molis-coding-diff-layout";
 const MAX_REMARKS = 30;
 
-const numberOf = (row: Element, side: string) => row.querySelector(":scope > .diff-" + side)?.textContent?.trim() || "";
+const numberOf = (row: Element, side: string) => row.querySelector(":scope > .mw-diff-" + side)?.textContent?.trim() || "";
 const key = (r: Reader) => "molis-coding-feedback:" + r.ports.root.dataset.codingPrefix + ":" + r.ports.current() + ":" + r.runId;
 
 function showLayout(r: Reader) {
@@ -87,7 +87,7 @@ function showLayout(r: Reader) {
 
 function anchorOf(r: Reader): Place | null {
   const { q } = r.ports, top = q("[data-coding-tools]").getBoundingClientRect().top;
-  const row = [...q("[data-coding-change-body]").querySelectorAll(".diff-rows > li:not([hidden]):not(.diff-fold)")].find(li => li.getBoundingClientRect().bottom > top);
+  const row = [...q("[data-coding-change-body]").querySelectorAll(".mw-diff-rows > li:not([hidden]):not(.mw-diff-fold)")].find(li => li.getBoundingClientRect().bottom > top);
   return row ? { after: numberOf(row, "after"), before: numberOf(row, "before"), offset: row.getBoundingClientRect().top - top } : null;
 }
 
@@ -98,7 +98,7 @@ function unfold(rows: Element | null | undefined, group: string) {
 
 /** Unfolds what the reader had open and scrolls back to the line they were reading. */
 function keepPlace(r: Reader, place: Place | null) {
-  const { q } = r.ports, list = q("[data-coding-change-body]").querySelector(".diff-rows");
+  const { q } = r.ports, list = q("[data-coding-change-body]").querySelector(".mw-diff-rows");
   r.opened.forEach(group => unfold(list, group));
   if (!place || !list) return;
   const row = [...list.children].find((li): li is HTMLElement => li instanceof HTMLElement && (place.after ? numberOf(li, "after") === place.after : place.before !== "" && numberOf(li, "before") === place.before));
@@ -343,7 +343,7 @@ async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, req
     renderFiles(r, result.change.files, nextRun);
     if (r.net) {
       const whole = ports.root.querySelector("[data-coding-change-files] .is-net[aria-pressed=true]");
-      whole?.append(counts(body.querySelectorAll(".diff-rows li[data-kind=insert],.diff-split code[data-kind=insert]").length, body.querySelectorAll(".diff-rows li[data-kind=delete],.diff-split code[data-kind=delete]").length));
+      whole?.append(counts(body.querySelectorAll(".mw-diff-rows li[data-kind=insert],.mw-diff-split code[data-kind=insert]").length, body.querySelectorAll(".mw-diff-rows li[data-kind=delete],.mw-diff-split code[data-kind=delete]").length));
     }
     drawReference(r, result, scrollToStart);
     renderComments(r);

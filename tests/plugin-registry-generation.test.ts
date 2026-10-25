@@ -154,6 +154,13 @@ test("W5-02-REG-02: the built catalog has no repeated key, Manifest id or positi
     ["repeated position", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", manifest: { ...feedEntry.manifest, plugin_id: "io.molis.copy" } }], new RegExp(`two plugins have the catalog position ${feedEntry.catalog_order}`)],
     ["dangling companion", without("inbox"), /feed names inbox in companions, which is not in the catalog/],
     ["dangling clientUses", without(coding.workbench.clientUses![0]!), new RegExp(`${coding.project_plugin_id} names ${coding.workbench.clientUses![0]} in workbench.clientUses, which is not in the catalog`)],
+    // PG-070 RAC-767: a plugin's extra class prefixes decide what leaves the shared sheet, so one catalog entry may not take
+    // another plugin's id or the platform's own prefixes, and the same prefix cannot be listed twice or by two plugins.
+    ["prefix is not a class prefix", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", workbench: { ...feedEntry.workbench, stylesheetPrefixes: ["As-"] } }], /copy: stylesheet prefix As- is not a lowercase class prefix ending in -/],
+    ["prefix takes the platform's", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", workbench: { ...feedEntry.workbench, stylesheetPrefixes: ["mw-"] } }], /copy: stylesheet prefix mw- is the platform's/],
+    ["prefix repeats a plugin's id", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", workbench: { ...feedEntry.workbench, stylesheetPrefixes: ["inbox-"] } }], /copy: stylesheet prefix inbox- repeats a plugin's id/],
+    ["prefix listed twice", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", workbench: { ...feedEntry.workbench, stylesheetPrefixes: ["cd-", "cd-"] } }], /copy lists stylesheet prefix cd- twice/],
+    ["two plugins claim one prefix", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", workbench: { ...feedEntry.workbench, stylesheetPrefixes: ["shared-"] } }, { ...feedEntry, project_plugin_id: "copy2", catalog_order: 9999, manifest: { ...feedEntry.manifest, plugin_id: "io.molis.copy2" }, workbench: { ...feedEntry.workbench, stylesheetPrefixes: ["shared-"] } }], /copy and copy2 both claim stylesheet prefix shared-/],
   ];
   for (const [label, catalog, expected] of cases) assert.match(catalogProblems(catalog).join("\n"), expected, label);
 });

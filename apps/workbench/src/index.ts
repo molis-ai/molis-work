@@ -148,6 +148,8 @@ export {
 export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer, type HostArtifactProducer } from "./plugin-catalog.js";
 
 export { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
+export { pluginSettingsStyleLinks } from "./plugin-workbench.js";
+export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
 export { selectorNames, splitPluginStylesheet, type SplitStylesheet } from "./plugin-styles.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter, type WriteCheckerFields } from "./scripts/write-checkers.js";

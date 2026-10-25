@@ -5,10 +5,11 @@ import { createServer } from "node:http";
 import test from "node:test";
 import { createLocalWebAssets } from "@molis-ai/molis-work-app-local-host";
 import {
-  parseConditionFrame, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchPacks, pluginWorkbenchStyles,
-  renderMolisWorkConditionsSpecimen, renderPluginFrameSurface, selectorNames, splitPluginStylesheet,
-  type BuiltinPluginWorkbenchPack,
+  parseConditionFrame, pluginOnDemandStylesheet, pluginSettingsStyleLinks, pluginSurfaceClients,
+  pluginWorkbenchPacks, pluginWorkbenchStyles, renderMolisWorkConditionsSpecimen, renderPluginFrameSurface, selectorNames,
+  splitPluginStylesheet, SETTINGS_DIRECTORY_FACTORY_SCRIPT, type BuiltinPluginWorkbenchPack, type MolisWorkSettingsView,
 } from "@molis-ai/molis-work-app-workbench";
+import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 // PG-070: a plugin whose page runs in a frame sends the rules of its own namespace as a sheet of its own, which only the frames that
 // need it link. What moves is decided by the names in the selectors, so a rule never changes what it applies to; the shared sheet
@@ -32,7 +33,7 @@ test("RAC-756 a rule moves out only when every selector names the plugin's own c
 });
 
 const packs = pluginWorkbenchPacks();
-const framed = (pack: BuiltinPluginWorkbenchPack) => Boolean(pack.stylesheet && pack.clientFactory && !pack.settingsClient);
+const framed = (pack: BuiltinPluginWorkbenchPack) => Boolean(pack.stylesheet && pack.clientFactory);
 
 test("RAC-757 a framed plugin's sheet is split with nothing lost; a plugin the shell draws keeps its whole sheet in the shared one", () => {
   const shared = pluginWorkbenchStyles(packs);
@@ -44,10 +45,10 @@ test("RAC-757 a framed plugin's sheet is split with nothing lost; a plugin the s
       assert.ok(shared.includes(pack.stylesheet!), `${id} keeps its whole sheet in the shared one`);
       continue;
     }
-    const split = splitPluginStylesheet(pack.stylesheet!, id, pack.stylesheetShared);
+    const split = splitPluginStylesheet(pack.stylesheet!, id, pack.stylesheetShared, pack.stylesheetPrefixes);
     assert.equal(own, split.scoped || null);
-    assert.equal(splitPluginStylesheet(split.scoped, id, pack.stylesheetShared).shared, "", `${id}: the sheet it brings holds only its own rules`);
-    assert.equal(splitPluginStylesheet(split.shared, id, pack.stylesheetShared).scoped, "", `${id}: nothing movable is left in the shared sheet`);
+    assert.equal(splitPluginStylesheet(split.scoped, id, pack.stylesheetShared, pack.stylesheetPrefixes).shared, "", `${id}: the sheet it brings holds only its own rules`);
+    assert.equal(splitPluginStylesheet(split.shared, id, pack.stylesheetShared, pack.stylesheetPrefixes).scoped, "", `${id}: nothing movable is left in the shared sheet`);
     const bare = (css: string) => normal(css).replace(/\s+/g, "").length;
     assert.ok(bare(split.scoped) + bare(split.shared) >= bare(pack.stylesheet!), `${id}: no rule is lost`);
     assert.ok(bare(split.scoped) + bare(split.shared) <= bare(pack.stylesheet!) + 512, `${id}: only conditional wrappers are repeated`);
@@ -69,9 +70,12 @@ const ids = new Set(packs.filter(framed).map((pack) => pack.project_plugin_id));
 /** The classes of a plugin's namespace that code outside the plugin's own package draws: by the host and the shared libraries, and by other plugins. */
 function drawnOutside(pack: BuiltinPluginWorkbenchPack) {
   const id = pack.project_plugin_id, names = new Set<string>();
+  const namespaces = [id, ...(pack.stylesheetPrefixes ?? []).map((prefix) => prefix.endsWith("-") ? prefix.slice(0, -1) : prefix)];
+  const own = (name: string) => namespaces.some((namespace) => name === namespace || name.startsWith(`${namespace}-`)
+    || name === `data-${namespace}` || name.startsWith(`data-${namespace}-`));
   for (const match of pack.stylesheet!.matchAll(/\.(-?[_a-zA-Z][\w-]*)|\[\s*(data-[\w-]+)/g)) {
     const name = (match[1] ?? match[2])!;
-    if (name === id || name.startsWith(`${id}-`) || name === `data-${id}` || name.startsWith(`data-${id}-`)) names.add(name);
+    if (own(name)) names.add(name);
   }
   const byHost = new Set<string>(), byPlugin = new Map<string, Set<string>>();
   for (const [file, text] of sources) {
@@ -116,6 +120,8 @@ test("RAC-759 a frame's page starts with its plugin's sheet and the sheets of th
   const coding = clients.find((client) => client.id === "coding")!;
   assert.deepEqual([...coding.styles].sort(), ["coding", "files", "git"], "Coding mounts the Git and Files clients, so its frame links their sheets");
   assert.ok(!clients.find((client) => client.id === "diff")!.styles.includes("diff"), "the Diff plugin's rules are all shared, so it has no sheet to link");
+  assert.deepEqual([...clients.find((client) => client.id === "shelf")!.styles], ["shelf"], "Shelf's page loads Shelf's own sheet");
+  assert.deepEqual([...clients.find((client) => client.id === "plugin-builder")!.styles], ["plugin-builder"], "so does the studio");
   assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "coding", "Coding")), `${link("coding")}${link("git")}${link("files")}<p>x</p>`);
   assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "diff", "Diff")), "<p>x</p>", "a plugin with no sheet of its own adds nothing");
   assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "feed", "Feed")), "<p>x</p>", "the shell draws Feed itself, so it has no sheet to link");
@@ -143,7 +149,13 @@ test("RAC-760 the host serves a plugin's own sheet at its address, and nothing a
   assert.equal(coding.status, 200);
   assert.match(coding.type, /^text\/css/);
   assert.match(coding.body, /\.coding-/);
-  for (const none of ["diff", "feed", "shelf", "not-a-plugin"]) assert.equal((await serve(assets, `/assets/molis-work-plugins/${none}.css`)).status, 404, `${none} has no sheet of its own`);
+  const shelf = await serve(assets, "/assets/molis-work-plugins/shelf.css");
+  assert.equal(shelf.status, 200);
+  assert.match(shelf.body, /\.shelf-/, "Shelf's rules are served as its own sheet");
+  const studio = await serve(assets, "/assets/molis-work-plugins/plugin-builder.css");
+  assert.equal(studio.status, 200);
+  assert.match(studio.body, /\.as-shell/, "the studio's own rules are served as its own sheet");
+  for (const none of ["diff", "feed", "not-a-plugin"]) assert.equal((await serve(assets, `/assets/molis-work-plugins/${none}.css`)).status, 404, `${none} has no sheet of its own`);
   assert.equal((await serve(assets, "/assets/molis-work-plugins/coding.js")).status, 200, "the client bundle keeps its address");
 });
 
@@ -161,4 +173,64 @@ test("RAC-762 the component board's plugin rows link the sheets of the plugins w
   assert.ok(page.indexOf("molis-work-workbench.css") < page.indexOf("molis-work-plugins/coding.css"), "after the workbench sheet");
   assert.doesNotMatch(renderMolisWorkConditionsSpecimen(parseConditionFrame(new URLSearchParams("part=reply")), { L: (text) => text, htmlLang: () => "zh-CN", clientI18nScript: () => "" }),
     /molis-work-plugins\//, "the reply part draws no plugin row");
+});
+
+const SHELF_SETTINGS_CONTRIBUTION = "io.molis.work.native.shelf.settings.v1";
+
+test("RAC-763 Shelf's whole sheet is its own page asset, linked by its frame and by the settings page the shell draws", () => {
+  const shelf = packs.find((pack) => pack.project_plugin_id === "shelf")!;
+  const own = pluginOnDemandStylesheet("shelf", packs);
+  assert.ok(own?.includes(".shelf-"), "Shelf's rules leave the shared sheet for a sheet of its own");
+  assert.deepEqual([...(shelf.stylesheetShared ?? [])], [], "nothing of Shelf's page is drawn outside its own package");
+  assert.doesNotMatch(normal(pluginWorkbenchStyles(packs)), /\.shelf-|\[data-shelf/u, "the shared sheet carries none of them");
+  assert.equal(pluginSettingsStyleLinks(SHELF_SETTINGS_CONTRIBUTION, packs), link("shelf"), "the settings page the shell draws links the same sheet");
+  assert.equal(pluginSettingsStyleLinks("io.molis.work.native.goals.proposal", packs), "", "a page with no sheet of its own adds nothing");
+  assert.equal(pluginSettingsStyleLinks("no.such.contribution", packs), "", "so does an unknown page");
+  assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "shelf", "Shelf")), `${link("shelf")}<p>x</p>`, "the frame links it first");
+  // The host's own rules may name a Shelf class (the stage chrome craft draws); the Shelf sheet's rules must not be in either sheet.
+  const shelfSheet = own!;
+  for (const rule of ["[data-shelf-material-dialog]", "[data-shelf-back]", ".shelf-doc"]) {
+    assert.ok(shelfSheet.includes(rule), `Shelf's sheet holds ${rule}`);
+    assert.ok(!renderMolisWorkWorkbenchStylesheet().includes(rule), `the workbench sheet no longer carries ${rule}`);
+    assert.ok(!renderMolisWorkSettingsStylesheet().includes(rule), `nor does the settings sheet: ${rule}`);
+  }
+  // The shell-drawn settings page: the plugin sheet follows the settings sheet.
+  const view: MolisWorkSettingsView = {
+    section: "shelf", plugin_settings_html: "<p>s</p>", runtimes: [], projects: [],
+    web_service: { provider: "unsupported", state: "unsupported", supported: false, owned: false, running: false, label: "", plist_path: "", command: [], stdout_log: "", stderr_log: "", message: "" },
+    diagnostics: { home_directory: "/", installation_state: "ready", version: null, release_directory: null, project_count: 0, launchers: [] },
+  };
+  const page = renderMolisWorkSettings(view);
+  assert.ok(page.indexOf('href="/assets/molis-work-settings.css"') < page.indexOf('href="/assets/molis-work-plugins/shelf.css"'), "linked after the settings sheet");
+});
+
+test("RAC-764 the studio declares its own class prefixes, and only rules that name them leave the shared sheet", () => {
+  const builder = packs.find((pack) => pack.project_plugin_id === "plugin-builder")!;
+  assert.deepEqual([...(builder.stylesheetPrefixes ?? [])], ["as-", "pb-"]);
+  const own = pluginOnDemandStylesheet("plugin-builder", packs)!;
+  assert.match(own, /\.as-shell\{/u);
+  assert.match(own, /\.as-canvas/u);
+  assert.doesNotMatch(own, /as-preview-page/u, "the host draws the preview page, so its rules stay shared");
+  const shared = pluginWorkbenchStyles(packs);
+  assert.match(shared, /as-preview-page/u);
+  assert.match(shared, /\.pc-/, "the component vocabulary generated plugins draw stays in the shared sheet");
+});
+
+test("RAC-765 the diff view's classes belong to the host page, so the Diff plugin brings no sheet", () => {
+  const diff = packs.find((pack) => pack.project_plugin_id === "diff")!;
+  assert.equal(diff.stylesheet, undefined, "no stylesheet is registered");
+  assert.equal(pluginOnDemandStylesheet("diff", packs), null);
+  const sheet = renderMolisWorkWorkbenchStylesheet();
+  for (const token of ["mw-diff", "mw-diff-sides", "mw-diff-source", "mw-diff-rows", "mw-diff-split", "mw-diff-before", "mw-diff-after", "mw-diff-sign", "mw-diff-fold", "mw-diff-notices"]) {
+    assert.match(sheet, new RegExp(`\\.${token}(?![\\w-])`, "u"), token);
+  }
+  assert.doesNotMatch(sheet, /\.diff \.diff-/u, "the old class names are gone");
+  assert.ok(!pluginSurfaceClients(packs).some((client) => client.id === "diff" && client.styles.length), "no frame links a Diff sheet");
+});
+
+test("RAC-768 the workbench's settings panel loads a fetched page's plugin sheets before it shows it", () => {
+  const script = SETTINGS_DIRECTORY_FACTORY_SCRIPT;
+  assert.match(script, /molis-work-plugins\//u);
+  assert.ok(script.includes("ensureStyleSheets(html)"), "the panel reads the sheets a fetched page links");
+  assert.ok(script.indexOf("ensureStyleSheets(html)") < script.indexOf("loadFromHtml(section, html, fetchPath)"), "and waits for them before it inserts the page");
 });

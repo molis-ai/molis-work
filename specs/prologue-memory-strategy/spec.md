@@ -2530,3 +2530,13 @@ Storage README 原指定11文件首批10/11文件、79/80项通过；唯一 `sec
 准确合并 d5f320d3c 的后续验证：主线3817健康、boundary、API/Action、资源与secrets均通过；本地现有快查基线也以只读方式通过且没有待降低项，无需写基线。自动审批曾拒绝一次更新基线请求，未执行该写入，未改变基线或门禁。独立深审核对主线Action/原件/后台/撤权调用链，无阻塞；四个独立边界用例最终通过，沙箱内回环EPERM伴随的Node原生失败日志保留。
 
 平台补验首次6/8文件通过：install 22/23，原因是本次资源脚本更新使原构建指纹过期，真实安装正确拒绝；另一个失败是统筹误填不存在的backup.test.ts，未运行备份用例。随后原pnpm build刷新最终指纹，install 23/23、实际home-backup-recovery 1/1及runtime-config-backup-maintenance 6/6均通过。原日志与复验日志分别为 /private/tmp/molis-memory-main3817-platform-20261025.log、/private/tmp/molis-memory-main3817-install-backup-final-20261025.log。未修改生产、断言、重试或门禁处理这两项失败。最终普通CI/Full suite仍待运行，旧Cloudflare未知及用户验收边界继续保留。
+
+### 2026-10-25：App 聚合接入最终基础及搜索主人
+
+本地008706ad0已合并项目覆盖20ed、Search existing-only主人6ecf，以及准确基础#1064的430f（含main3817批次34/35）。Coding两处文本冲突保留App生命周期阻断，并改用主线PluginActionClient与services.actions；发布清单按真实代码分别记项目库10/Coding库2。spec两侧合同和结果均保留。Search独审无阻塞：另有9项真实SQLite探针覆盖换根、祖先替换、COMMIT锁冲突、撤权回滚及重试，原30项再验通过；报告 /private/tmp/molis-memory-search-owner-independent-review-20261025.md。该owner仍未接完整MEM-40上层恢复。
+
+聚合原frozen/offline安装、完整pnpm build、根类型、准确430f健康、boundary、73 API快照、Action快照均通过。原直接批20文件350项首次全部通过，jobs2/retries0，覆盖Memory管理/采用/权限、Coding及Assistant生命周期、项目恢复与Search。此前2aa项目覆盖聚合的6文件批因统筹误填不存在memory-project-purge-plan.test.ts为5/6，5个有效文件78项通过；核对真实文件project-deletion-memory-plan.test.ts后10/10单独通过。两次均原样保留，不把误填文件当产品失败或一批全绿。
+
+只读准确基础健康实测83个巨大单元，比基础84更少；原decrease-only --update随后通过，快查baseline仅按实测降低，未放宽limits或CI。27资源共7,630,892 B，主线资源缩减保留；App相对430f的workbench.js仍+32,890 B、两份CSS各+680 B、Coding已批准+570 B，全部来自此前逐项授权，Assistant+4,064 B已计入且不重复申请。Coding实际374,756 B仍比批准上限373,423 B高1,333 B，正式资源门继续失败；不挪用节省字节或扩用批准。其余实测与账本一致。
+
+本轮日志 /private/tmp/molis-memory-app-foundation430-{install,build,types,health,health-tighten,boundary,api,actions,direct,assets-gate}-20261025.log；资源只读JSON同前缀assets-20261025.json。生产无新增测试重试或超时调整。后继基础d08b的一行trust夹具修复、Session清除P1修复、新源Index投影、最终SDK main e371包以及完整AppCI/MEM-40仍待依次集成；不以本轮局部工程结果代替它们、产品实操或用户验收。

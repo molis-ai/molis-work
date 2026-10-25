@@ -216,7 +216,7 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
       const steps=(${embeddedFactory("stepReports")})({lifetime,translate:L,q,current:()=>'s',status:message=>errors.push(message),refresh:async()=>{},prepareRework:()=>{},receipts:{link:()=>null},
         api:async()=>({runs:[{ref:{run_id:'r'},phase:'completed'}],taskboard_plans:[{run_id:'r',revision:2,plan:{content:{steps:[{title:'Write the parser',acceptance:'Tests pass'}]}},
-          board:{project_id:'p',version:3,nodes:[{id:'step-1',state:'succeeded',owner:{kind:'person'},reports:[{by:'Builder',note:'Done it'}]}]},
+          board:{project_id:'p',version:3,nodes:[{id:'step-1',state:'succeeded',owner:{kind:'person'},reports:[{by:{kind:'subtask',title:'Builder'},note:'Done it'}]}]},
           verdicts:{'step-1':{status:'needs-work',notes:'Missing an edge case',project_id:'p',board_version:2,revision:1}}}]})});
       await steps.open('s','r','step-1');
       const step=q('[data-coding-step-detail]').textContent.replace(/\\s+/g,' '),stepStatus=q('[data-coding-step-status]').textContent;
@@ -238,7 +238,7 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
         comments:q('[data-coding-feedback-list]').querySelector('textarea').getAttribute('aria-label')};
     })()`);
     assert.deepEqual(result.han, [], "no Chinese in what the dialog and the reader draw");
-    assert.match(result.step, /Run r · plan revision 2.*Write the parser.*Done when: Tests pass.*The model reports success; for you to check.*Held by: you.*Builder: Done it/);
+    assert.match(result.step, /Run r · plan revision 2.*Write the parser.*Done when: Tests pass.*The model reports success; for you to check.*Held by: You.*Subtask “Builder”: Done it/);
     assert.match(result.step, /You asked for rework.*Missing an edge case.*This assessment is for an earlier report/);
     assert.equal(result.stepStatus, "The run has ended; the step reports keep their states, so check each one.");
     assert.match(result.files, /a\.ts\s*Writes: 2\s*Net change this turn.*Write 1.*Written.*Write 2.*Write failed/);

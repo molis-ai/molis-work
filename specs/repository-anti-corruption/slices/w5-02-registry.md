@@ -185,8 +185,8 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 | RAC-565 | 装进 Home 的包带着 `molis-work.registration` 和 `registration` 导出，不进启动名单、不拿 `bundled`、不能用内置 plugin id 作提供方（S-08、S-15，进 `pnpm test:security`）。「提供方身份」与 ac-trust T6（S-68、BL-506）重叠：实现前看 T6 的状态，只留一处检查，这里只断言结果 | B1 |
 | RAC-566 | 门禁的旧读法被拒：手写数组形式的目录、手写的平台名单，`catalog-entries.mjs` 与 `--check` 都失败 | B1 |
 | RAC-567 | `--check` 对两份生成文件都核：任一份过期、手改、缺一份都失败 | B1 |
-| RAC-576 | Q3 的拒绝用例：页面把 `personal`、`companions`、`always_on` 改了再提交（加、移除），宿主照自己的登记办：加 Text Stats 仍带上 Files，移除 Pages 仍是在这个项目隐藏，Goals 仍不能移除（`catalog.plugin_always_on`） | B1 |
-| RAC-577 | 目录上的标记只由宿主按自己的登记写：内置插件的 `personal` 与 `companions` 与登记相同；`always_on` 只认这个 Home 同意过的；跑着的插件只有 plugin id 与发布者都与内置相同时才带标记 | B1 |
+| RAC-710 | Q3 的拒绝用例：页面把 `personal`、`companions`、`always_on` 改了再提交（加、移除），宿主照自己的登记办：加 Text Stats 仍带上 Files，移除 Pages 仍是在这个项目隐藏，Goals 仍不能移除（`catalog.plugin_always_on`） | B1 |
+| RAC-711 | 目录上的标记只由宿主按自己的登记写：内置插件的 `personal` 与 `companions` 与登记相同；`always_on` 只认这个 Home 同意过的；跑着的插件只有 plugin id 与发布者都与内置相同时才带标记 | B1 |
 | RAC-568 | `summary`、`developer` 从 Manifest 读；SDK 检查拒绝空 `summary`、超长、`developer: false` 与非布尔；登记里再写这两项，`--check` 报不认识的键 | B2 |
 | RAC-569 | #679：夹具登记一个目录里没有的 Home 级插件，项目路径下能路由；项目隐藏它后是 `actions.plugin_disabled`；`/plugins/<键>` 能打开（S-31，进 `pnpm test:security`） | B3 |
 | RAC-570 | 生成的项目级条目与改之前手写的逐条相等（包名、工厂名、`bundled`、有无 Home 目录时的取舍），一次性比对贴进 PR | PR-B4 |
@@ -275,7 +275,7 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 
 ## 10. 号段
 
-- RAC：A 560～563；B 564～569；B4 570～571；C 572～575；576～578 原给 D，D 移交 ac-shell 后留给本线（B 用 576、577）；E 579。
+- RAC：A 560～563；B 564～569；B4 570～571；C 572～575；576～578 原给 D，D 移交 ac-shell 后留给本线；E 579。统筹 10-25 续给 RAC-710～729：B 的目录标记两条用 710、711。
 - BL（随各 PR 写进 `specs/BACKLOG.md`）：BL-615 Images 的项目数据按声明删（等 PG-104、PG-106）；BL-616 Files 的监督器条目（等 PG-005、X-5）；BL-617 Images、Jelly 合同挪进插件（Codex）；BL-618 Shelf 合同挪进 `modules/shelf`、Images 按动作 id 调用；BL-619 沙箱插件的 `project_rows`（#1255 落地后把拒绝改成删除）；BL-620 启动名单之外的 Home 插件与带 Home 库的项目插件的 `project_rows`（PR-A 中发现）；BL-621～624 留给实现中发现的。
 - 安全不变量：S-暂A（删项目只按声明删、不跑插件代码，PR-A）；S-08、S-15（B1）、S-31（B3）改代码列。
 

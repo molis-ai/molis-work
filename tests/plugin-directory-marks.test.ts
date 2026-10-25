@@ -7,7 +7,7 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 // a plugin brings along are the Host's facts. It writes them on the directory the page is drawn with, from its own registration; the
 // page only reads them, and what the page sends back is never read as one of them.
 
-test("RAC-577 the Host marks each built-in from its own registration: personal, what it brings along, and 常开 only from what this Home agreed to", () => {
+test("RAC-711 the Host marks each built-in from its own registration: personal, what it brings along, and 常开 only from what this Home agreed to", () => {
   const market = builtinMarketDirectory();
   assert.deepEqual(market.map(entry => entry.id), PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.project_plugin_id), "every built-in, in the registration's order");
   assert.deepEqual(market.filter(entry => entry.personal === true).map(entry => entry.id), [...PERSONAL_PLUGIN_IDS]);
@@ -20,7 +20,7 @@ test("RAC-577 the Host marks each built-in from its own registration: personal, 
   assert.equal(market.some(entry => entry.always_on === true), false, "without a Home nothing is 常开: a declaration alone is not agreement");
 });
 
-test("RAC-577 a running plugin gets the marks only when it is the built-in itself: same plugin id and the same publisher", () => {
+test("RAC-711 a running plugin gets the marks only when it is the built-in itself: same plugin id and the same publisher", () => {
   const pages = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "pages")!;
   const manifests = new Map([
     [pages.manifest.plugin_id, pages.manifest],
@@ -39,7 +39,7 @@ test("RAC-577 a running plugin gets the marks only when it is the built-in itsel
   assert.deepEqual([impostor!.id, impostor!.chosen, "personal" in impostor!], [pages.manifest.plugin_id, false, false]);
 });
 
-test("RAC-576 marks a page sends back are not read: adding still brings what the registration says, a personal plugin is still hidden, a 常开 one still stays", { timeout: 60_000 }, async t => {
+test("RAC-710 marks a page sends back are not read: adding still brings what the registration says, a personal plugin is still hidden, a 常开 one still stays", { timeout: 60_000 }, async t => {
   const { request, project } = await serveHomeRuntime(t), here = await project("页面改过的标记");
   const plugins = `/api/settings/projects/${encodeURIComponent(here.project_id)}/plugins`;
 

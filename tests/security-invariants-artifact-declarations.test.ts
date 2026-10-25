@@ -369,6 +369,35 @@ test("RAC-417 S-82 an enable asks too: a second owner that got in cannot be swit
   assert.equal(heldInstalls(home).some(held => held.record.plugin_id === z.manifest.plugin_id && held.manifest === null), true);
 });
 
+/** A development installation: put in unsigned from a directory, with no release row kept for its Manifest. */
+const bare = (definition: PluginDefinition) => ({ definition, trust: UNSIGNED_TRUST });
+
+test("RAC-417 S-82 a development installation with no kept Manifest is not refused by its own record, and its running Manifest holds its names", { timeout: 180_000 }, async t => {
+  const p = project(t, bareHome(t));
+  await p.supervisor.start([bare(plugin(PRODUCER, "1.0.0", ["example.note"]))]);
+  assert.equal(p.supervisor.state(PRODUCER)?.status ?? "running", "running", "a development installation starts");
+  // Its own record has no Manifest to read, and it is the plugin being asked about: the name is its own, so nothing is refused.
+  p.supervisor.revoke(PRODUCER);
+  assert.equal((await p.supervisor.enable(PRODUCER)).status, "running", "its own enable is not refused by its own record");
+  // Another plugin's names are held by the Manifest this project's supervisor is running for it.
+  assert.throws(() => p.install(plugin(OTHER, "1.0.0", ["example.note"])), { ...refusal, message: /example\.note 已由 io\.molis\.work\.example\.notes 声明/ }, "a name the running development plugin declares");
+  assert.doesNotThrow(() => p.install(plugin("io.molis.work.example.third", "1.0.0", ["example.third"])), "a plugin of other names installs next to it");
+});
+
+test("RAC-417 S-82 two development installations start together, whichever the supervisor reaches first", { timeout: 180_000 }, async t => {
+  const p = project(t, bareHome(t));
+  await p.supervisor.start([bare(plugin(PRODUCER, "1.0.0", ["example.note"])), bare(plugin(OTHER, "1.0.0", ["example.other"]))]);
+  assert.deepEqual([PRODUCER, OTHER].map(id => p.supervisor.state(id)?.status), ["running", "running"], "both start");
+  await p.supervisor.start([bare(plugin(PRODUCER, "1.0.0", ["example.note"])), bare(plugin(OTHER, "1.0.0", ["example.other"]))]);
+  assert.deepEqual([PRODUCER, OTHER].map(id => p.supervisor.state(id)?.status), ["running", "running"], "and start again over their records");
+});
+
+test("RAC-417 S-82 a development installation in another project that cannot be read still refuses, never passes", { timeout: 180_000 }, async t => {
+  const { pa, pb } = await twoProjects(t);
+  await pb.supervisor.start([bare(plugin(PRODUCER, "1.0.0", ["example.note"]))]);
+  assert.throws(() => pa.install(plugin(OTHER, "1.0.0", ["example.other"])), { ...refusal, message: /读不到已装插件 io\.molis\.work\.example\.notes 的 Manifest/ }, "only the project that runs it can say what it declares");
+});
+
 test("RAC-417 S-82 two Homes in one process do not share names", { timeout: 120_000 }, async t => {
   const one = project(t, bareHome(t)), two = project(t, bareHome(t));
   await one.supervisor.start([entry(plugin(PRODUCER, "1.0.0", ["example.note"]))]);

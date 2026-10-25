@@ -1,4 +1,5 @@
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { randomUUID } from "node:crypto";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
 import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMoveHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, type FragmentActionOffer, type FragmentOffersInput, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
@@ -156,11 +157,11 @@ function keptMaterial(read: LingguangHostMaterial): LingguangMaterial {
 }
 const SPARK_IN_PROMPT = 12_000;
 function conversationPrompt(state: LingguangConversationState, body: string): InstructedPrompt {
-  // JSON keeps source text visibly separate from the instruction; all values remain untrusted material.
+  // The person may rewrite the instruction, so the untrusted-materials notice belongs to the fixed fence below, not to the instruction (S-13).
   // A spark read from a file or page can be long: the conversation gets its opening part, said so.
   const material = { sparks: state.sparks.map(({ title, body }) => ({ title, body: body.length > SPARK_IN_PROMPT ? body.slice(0, SPARK_IN_PROMPT) + "\n（以下省略）" : body })),
     history: state.messages.filter(message => message.role !== "stub").map(({ role, body }) => ({ role, body })), message: body };
-  const data = JSON.stringify(material);
+  const data = fencedMaterials(material, "MATERIALS_" + randomUUID());
   if (data.length > 180_000) throw lingguangErrors.context_too_large("这场对话的材料过长，请减少所选灵光后开启对话");
   return instructed(LINGGUANG_CONVERSATION, data);
 }

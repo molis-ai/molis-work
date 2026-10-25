@@ -10,13 +10,13 @@
 
 FIX6 是唯一源移植 owner，已独立实现并冻结；原完整103 patch 对旧 base 的两处真实不适用及合同差异保留，不能称原样应用。writer/verifier/原公开 Node consumer/wrapper 四文件与准确 final103 `513237d2` 相同；Reader 普通 list/read 保留旧记录游标、无 cost 与原读取行为。storage-contract/listAll、package/lock、Memory/Session 没有纳入现代合同。功能 [REVIEW 6395474238](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395474238) 与 [独立 TEST 6395486420](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395486420) 绑定4e，原真实23+2和作者八文件68不重叠累计；尾提交仅三份 Markdown +4/-2，[导航复核6395521334](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395521334) 已通过。包必须从最终 ba75 构建，不能把4e、dcaa或旧42产物改标签。
 
-两份独立无旧 dist 的 SDK 目录各准确检出 ba75、离线 frozen/ignore-scripts 安装，经公共机器 FIFO 整体 build/pack；实际整包字节相同后测新 SHA/内容清单，采用其中原始字节。Molis 仅替换唯一 tgz/sha/provenance、SDK file 依赖与 lock、必要历史/README/本段和实际包身份断言；代码改动仅限真实消费回归暴露的最小 snapshot 接线，SDK 语义问题回原 owner。不新增兼容层、模型/Memory迁移、锁、动作、门禁或 baseline，不碰真实 Home/凭据。source/provenance/history 明确这是公开固定分支的过渡提交、不是 main 祖先；旧42只保历史候选证据，不作正式已采用包记账。
+两份独立无旧 dist 的 SDK 目录各准确检出 ba75、离线 frozen/ignore-scripts 安装，经公共机器 FIFO 整体 build/pack；实际整包字节相同后测新 SHA/内容清单，采用其中原始字节。Molis 仅替换唯一 tgz/sha/provenance、SDK file 依赖与 lock、包登记表 `scripts/workspace-packages.mjs` 的同一依赖路径、必要历史/README/本段和实际包身份断言；登记表只同步当前包位置，不改变边界规则、谓词或阈值。代码改动仅限真实消费回归暴露的最小 snapshot 接线，SDK 语义问题回原 owner。不新增兼容层、模型/Memory迁移、锁、动作、门禁或 baseline，不碰真实 Home/凭据。source/provenance/history 明确这是公开固定分支的过渡提交、不是 main 祖先；旧42只保历史候选证据，不作正式已采用包记账。
 
 两项已接受的103风险保留并在 PR 正文披露：检查过程中目录变化可能漏读或从头续页；普通 NodeStorage 仍继承检查方法，误调用 close 会清其 key。Molis 的适用前提是同一真正离线 Home lease、复制完成后的稳定私有归档、原 key 映射和正常存储对象不调用检查方法；没有104的冻结清单/FD竞争/生命周期保障，不宣称抵抗任意外部并发。全写入口/卸载/purge 的 FIX19 合同由原 carrier 组合，本 SDK 后继不代替其完整互斥结论。共享 SECURITY-INVARIANTS 的同行说明只交唯一 carrier 窄 patch。
 
 | 编号 | 本后继验收 | 证明方式 |
 | --- | --- | --- |
-| RAC-109-S-09 | 正确可重建过渡来源、两目录包一致，实际 tgz/依赖/lock/sha/provenance/history相符，不伪称main或旧候选正式采用 | 独立实际 build/pack 原件、全文件及整包比较；`vendor-provenance` 实际包断言及源/祖先核验 |
+| RAC-109-S-09 | 正确可重建过渡来源、两目录包一致，实际 tgz/依赖/lock/包登记表/sha/provenance/history相符，不伪称main或旧候选正式采用 | 独立实际 build/pack 原件、全文件及整包比较；`vendor-provenance` 实际包断言及源/祖先核验、原包边界检查 |
 | RAC-104-S-10 | 已有 snapshot 真 SDK 认证接线在准确新包上保持，错误 key/tag、各 kind/页/空正文/墓碑拒绝且零源写；metadata-only/检查点正常 | 原 `security-invariants-home-snapshot-sdk` 全部真实正负例，原四个 snapshot 文件、有限 SDK 消费要求；不以type/import成功替代 |
 
 先安装并整体构建 Molis，再跑原要求的91非浏览器/4专用浏览器文件、SDK认证及snapshot直接回归；真实付费/公开npm等 opt-in 未获授权仍单列未运行。已有 Studio TLS/400 基线故障保原件，若复现只在代码/场景一致时注明，不能放宽断言。类型、精确merge-base health、boundary、import graph、版本/资源及推前 fresh-fetch secrets 按实际差异核。普通推送独立固定消费者头，公开 #1267 直交 REVIEW/TEST/PIPE；full、组合批与实际 main 由 Claude 唯一执行，不把SDK切片通过当作完整C2或正常restore通过。

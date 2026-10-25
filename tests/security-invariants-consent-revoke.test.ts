@@ -101,3 +101,14 @@ test("RAC-385 S-77 the Host agrees to Goals' 常开 once at startup, and a perso
     assert.deepEqual(goalsAgreements(), [{ ...first!, revoked_at: AT }], "the Host does not agree again after the person took it back");
   } finally { await rm(home, { recursive: true, force: true }); }
 });
+
+test("RAC-393 S-77 the Host registers the consent actions with its other platform providers: system providers that belong to no plugin", async () => {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-consent-providers-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  try {
+    const views = await host.inspectActionMetadata({ actor_id: "local-person", project_id: null, audience: "user", permissions: PLUGIN_CONSENT_PERMISSIONS });
+    const consents = views.filter(view => view.capability_id.startsWith("plugins.consents."));
+    assert.deepEqual(consents.map(view => view.capability_id).sort(), [pluginConsentActions.list.capability_id, pluginConsentActions.revoke.capability_id].sort());
+    for (const view of consents) assert.deepEqual([view.provider.kind, view.provider.plugin_id], ["system", undefined]);
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});

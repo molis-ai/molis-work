@@ -1,8 +1,25 @@
 # W5-16：Home 离线快照与恢复
 
-状态：Codex C2 实施中；B1/B2a 已实际进入 main，B2b #1239 固定 `5e1d8a29156509d6fc51f75fd5bcc17316e3f225` 已独立核验、在 batch-35 #1258 待统一集成。A #1254 的固定 `b5211d8a5b9557783710ea7574a5e6d26751701e` 已由 Claude FIRST 判可合，并与 MCP 消费夹具 `e2d2ea19dee474bc3aaf788a0c86ba2f06c09c7e` 纳入 batch-36；原树冻结，后续修复由原队列独立接续，不等于已进入 main。本 snapshot 后续树已完成 SDK 零写认证接线及有限工程验证，待本片 FIRST/TEST；独立恢复 checkpoint `0dbde60642fec7ba294d0efe32ecaf22c2dc5a1b` 留在本地 `feature/codex-w5-16-home-restore`，不混入本快照 PR。完整恢复仍依赖 Memory owner 契约，C2 保持进行中。负责人：Codex 实现2。目标是完整命令功能可用，工程证据、临时 Home 实操与一骏本人验收分别结算。
+状态：Codex C2 实施中；本树是冻结 snapshot `1556d97b7` 的独立过渡 SDK 消费后继，按 Root/PIPE 已确认的基点和范围执行，最终 SDK 源固定 `ba75c9f8`。两目录重建与本应用验证正在进行；原 #1267、恢复 WIP、FIX8/18/19 和唯一 carrier 保持原分工。本后继未 Ready、不代表完整 snapshot/restore 或本人验收完成。负责人：Codex 实现2；目标仍是完整命令功能可用，工程、临时 Home 实操、本人验收分别结算。
 
 ## 目标、依据与交付顺序
+
+### #1267 final103 过渡 SDK 消费（2026-10-25 当前合同）
+
+本独立后继以冻结 snapshot `1556d97b7eb35d72de8b83b7569fbfd48b239760` 为父；原树与 PR head 保持不动。Root/PIPE 已依据 [accepted WO](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395049480) 明确 C2 为唯一包/消费 writer：仅采用 SDK 基点 `2c7feba5a6ea85e81e4a263671fb5e68f536d86a` 上的 final103 移植，准确最终源 `ba75c9f8437018904b24dabeaaef6ded8054add5`（功能 `4e018e1a`、文档尾 ba75）；不带 #61–#101/#104、旧 `42ccc75` 或整个 main。main dcaa 已双核包保留为参考，原 #1064/main 采用线与恢复的真实 Memory 资格/合法空态责任均不取消。当前恢复 WIP、FIX8/18/19 不混本分支，统一 carrier 仍由 Claude/PIPE 负责。
+
+FIX6 是唯一源移植 owner，已独立实现并冻结；原完整103 patch 对旧 base 的两处真实不适用及合同差异保留，不能称原样应用。writer/verifier/原公开 Node consumer/wrapper 四文件与准确 final103 `513237d2` 相同；Reader 普通 list/read 保留旧记录游标、无 cost 与原读取行为。storage-contract/listAll、package/lock、Memory/Session 没有纳入现代合同。功能 [REVIEW 6395474238](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395474238) 与 [独立 TEST 6395486420](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395486420) 绑定4e，原真实23+2和作者八文件68不重叠累计；尾提交仅三份 Markdown +4/-2，[导航复核6395521334](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395521334) 已通过。包必须从最终 ba75 构建，不能把4e、dcaa或旧42产物改标签。
+
+两份独立无旧 dist 的 SDK 目录各准确检出 ba75、离线 frozen/ignore-scripts 安装，经公共机器 FIFO 整体 build/pack；实际整包字节相同后测新 SHA/内容清单，采用其中原始字节。Molis 仅替换唯一 tgz/sha/provenance、SDK file 依赖与 lock、必要历史/README/本段和实际包身份断言；代码改动仅限真实消费回归暴露的最小 snapshot 接线，SDK 语义问题回原 owner。不新增兼容层、模型/Memory迁移、锁、动作、门禁或 baseline，不碰真实 Home/凭据。source/provenance/history 明确这是公开固定分支的过渡提交、不是 main 祖先；旧42只保历史候选证据，不作正式已采用包记账。
+
+两项已接受的103风险保留并在 PR 正文披露：检查过程中目录变化可能漏读或从头续页；普通 NodeStorage 仍继承检查方法，误调用 close 会清其 key。Molis 的适用前提是同一真正离线 Home lease、复制完成后的稳定私有归档、原 key 映射和正常存储对象不调用检查方法；没有104的冻结清单/FD竞争/生命周期保障，不宣称抵抗任意外部并发。全写入口/卸载/purge 的 FIX19 合同由原 carrier 组合，本 SDK 后继不代替其完整互斥结论。共享 SECURITY-INVARIANTS 的同行说明只交唯一 carrier 窄 patch。
+
+| 编号 | 本后继验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-109-S-09 | 正确可重建过渡来源、两目录包一致，实际 tgz/依赖/lock/sha/provenance/history相符，不伪称main或旧候选正式采用 | 独立实际 build/pack 原件、全文件及整包比较；`vendor-provenance` 实际包断言及源/祖先核验 |
+| RAC-104-S-10 | 已有 snapshot 真 SDK 认证接线在准确新包上保持，错误 key/tag、各 kind/页/空正文/墓碑拒绝且零源写；metadata-only/检查点正常 | 原 `security-invariants-home-snapshot-sdk` 全部真实正负例，原四个 snapshot 文件、有限 SDK 消费要求；不以type/import成功替代 |
+
+先安装并整体构建 Molis，再跑原要求的91非浏览器/4专用浏览器文件、SDK认证及snapshot直接回归；真实付费/公开npm等 opt-in 未获授权仍单列未运行。已有 Studio TLS/400 基线故障保原件，若复现只在代码/场景一致时注明，不能放宽断言。类型、精确merge-base health、boundary、import graph、版本/资源及推前 fresh-fetch secrets 按实际差异核。普通推送独立固定消费者头，公开 #1267 直交 REVIEW/TEST/PIPE；full、组合批与实际 main 由 Claude 唯一执行，不把SDK切片通过当作完整C2或正常restore通过。
 
 落实主规格决定 #20：`molis-work home snapshot --to <dir>` 与恢复在离线窗口操作同一个 Home；逐库用 SQLite backup API，保存必要的非 SQLite 状态，清单记录版本、完整性与摘要，恢复版本不符就拒绝。定时在线备份、在线 quiesce/resume、换机器或搬动 Home 绝对路径不在这里。真实 Home、钥匙串、真实凭据与发版均不操作。
 

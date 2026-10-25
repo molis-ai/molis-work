@@ -685,8 +685,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-final103-bridge.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-final103-bridge.tgz
 
   horizontal/connector-host:
     dependencies:
@@ -1779,8 +1779,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz':
-    resolution: {integrity: sha512-v3DaJdn3umjlzp5kOaKZF6BliyE3L68fOdgasyZv4Y8VKqd2lYFtT+AwrwUXF4wg7JF59fahYMXgQtyiKQjy+g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-final103-bridge.tgz':
+    resolution: {integrity: sha512-bJe5iAUafhFgz1HLptJTBj41F0expGOwQYEptuoSk/zSoglEkHiNOM55ZSSEHGHETP8eLx310wamDt6mHaWAUA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-final103-bridge.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':
@@ -3547,7 +3547,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-final103-bridge.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

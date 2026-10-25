@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+// RAC-104-S-10: this existing real snapshot/SDK suite is rerun against the independently rebuilt final103 bridge.
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import fs, { existsSync } from "node:fs";

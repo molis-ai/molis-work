@@ -11,15 +11,22 @@
 
 另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
 
-## 当前依赖：node-storage-verification（2026-10-24）
+## 当前依赖：final103-bridge（2026-10-25，消费验证中）
 
-当前包 `prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz`（1,252,963 字节），SHA-256 `349ad8987683472d219ef6dffd49d3e98f77dfaf8b95cc5b5b5b42eaeaf77a1c`。来源为本地上游仓库固定代码提交 `42ccc75ae85b138f73e65f81b789ffecdbb05ce3`，唯一 parent 是上一份实际消费的 `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`；源树干净、无补丁，不声称该本地提交已推送或合入上游 main。最终文档头 `a0e8a76e70bfc49103b3a0abdb1400181f504725` 只补 slice 文字，`packages/sdk` 全部字节相同。Root/流水线接受固定候选后由原 C2 writer 串行消费，没有采用整个 SDK #102 或 Molis Memory #1101。
+`prologue-sdk-0.0.0-rc.1-final103-bridge.tgz` 为 **1,253,301 字节**，SHA-256 `884295c966ad85ee8be46c5bc6f162c3fa892217aa43a404e600adea7253a834`。准确来源是上游公开分支 `feature/node-storage-final103-bridge` 的 `ba75c9f8437018904b24dabeaaef6ded8054add5`：基点 `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`（Prologue #60），只移植 #103 定稿 `6523abb47..513237d2` 的功能。它是已提交、已推送的过渡源码，**不是上游 main 的祖先**，不标作 main/dcaa/f175；不带 #61–#101、#104 或旧 `42ccc75` 候选。依据是 [accepted WO 6395049480](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395049480) 和 Root/PIPE 的具体消费派单。
 
-公开 Node 门面增加 `verifyNodeStorageContents({storageRoot,keyRoot,assertCurrent,signal?}): Promise<void>`。它仅认证已有 SDK 数据的全部 kind/分页、合法空正文与保留密文墓碑；原 AES-GCM reader 共用，不启动 Runtime/模型、不写 key/leases/claims、不输出正文或 key。数据根与原 key 根可以不同；无 sealed 数据不读 key，也不声称 key 已认证。所有错误均拒绝，含非法记录 id 的 `STORAGE_KEY_INVALID`。普通 NodeStorage 复用抽出的同一 reader，原读写合同保持。
+SDK 源作者用独立树处理了原始 patch 的真实上下文冲突：writer、verifier、原公开 Node consumer/wrapper 与准确 final103 相同；Reader 仅让普通 list/read 保持旧记录游标、无 cost 与原读取语义，存储合同/listAll、package/lock、Memory/Session 不变。功能头 `4e018e1a` 经 [REVIEW](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395474238) 与 [独立 TEST](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395486420)；ba75 只是三份 Markdown 的导航尾修，[尾审](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395521334) 已过。[SDK 过渡合同与适配说明](https://github.com/molis-ai/molis-prologue/blob/ba75c9f8437018904b24dabeaaef6ded8054add5/docs/slices/host-storage.md#final103-bridge) 是来源事实，不将它说成原样应用 diff 或普通 main 升级。
 
-C2 对准确包再核 708→712 文件：五项改变（README、Node 门面与 NodeStorage 的 JS/d.ts）、四项新增（reader 与 verification 的 JS/d.ts），其余 703 项与 package.json 逐字节相同。SDK 固定源与空目录安装消费者经独立 REVIEW/TEST 通过，覆盖 1002 条跨页、多 kind、双 root、错误/缺 key/坏 tag、纯元数据/检查点、取消/同步当前性及两根字节/mode/inode/mtime/ctime 不变，无 Runtime/模型。C2 没有再次构建 SDK；应用自身的快照原红例与回归另在 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md) 结算，上游通过不能代替本应用通过。
+C2 在两个独立、无旧 dist 的准确 ba75 目录中，分别用 Node 24.14.0 / pnpm 11.9.0 离线 frozen 安装、经公共 FIFO 整体 build/pack，均自然退出0；两份完整 tgz 逐字节相同，采用其中一份原始字节。712 个条目全是安全普通文件，四个公开子路径的 JS/types 目标齐。相对旧42未采用候选，708 文件逐字节相同、四文件改变、无增删，package.json相同；这不代替新包的应用消费。真实来源、重建步骤、实际 SHA-512 integrity 记在相邻 `.provenance.json`，包字节与 `.sha256` 一致。
 
-源码交付是准确 commit 的 git archive（16,106,940 字节，SHA-256 `2044a91e265f0f81c5a84f970e3d36b6a3493de5325e381275a0951d0f388adc`），归档和工具要求/重建命令记在 `.provenance.json`。按固定 source 在空目录离线安装，再构建 `@prologue/sdk` 并 `pnpm pack`；候选只改归档文件名，采用时字节不变。旧 retry-waiting 包及来源记录已移除，按 `patch-history.json` 的 git blob 取回。
+公开 Node 认证仍是 `verifyNodeStorageContents({storageRoot,keyRoot,assertCurrent,signal?}): Promise<void>`：全 kind/分页、空密文和保留密文墓碑，沿原 AEAD；void、无正文/key、无 Runtime/模型、无 key/claims/leases 初始化。只有真实 sealed 记录才要求原 keyRoot 和 key 存在；metadata/checkpoint-only 允许整个原根缺失，不声称此时已认证 key 或目录身份。
+
+**两项 #103 已接受风险保留。** 检查期间目录变化可能漏读或从头续页；普通 NodeStorage 仍继承检查方法，误调用 `closeInspection` 会清其 key。本包没有 #104 的清单冻结、FD 竞争或生命周期隔离保证。Molis 调用前提是同一真正离线 Home 独占窗口、复制完成后稳定的私有 payload、可信原 key 映射，并且普通存储对象不调用检查方法；全写入口/FIX19 的最终互斥由统一 carrier 合成，不能由本 SDK 切片代替。风险和前提同时进入 #1267 正文及共享安全说明。
+
+重建：从源仓库在两个独立空目录检出准确 ba75；各自执行 `pnpm install --frozen-lockfile --offline --ignore-scripts`、`pnpm build`、`pnpm -C packages/sdk pack --pack-destination <各自外部目录>`，比较完整 tgz 后原字节改用当前文件名。本机 build/pack 都经机器 FIFO；该排队包装器不是 SDK 的依赖。版本仍为 `0.0.0-rc.1`，没有发布新版本。
+
+main dcaa 的双核包只保留为参考；旧42只曾作为 #1267 的来源候选验证，没有正式进入 main，不追加为已采用的历史包。上一份正式依赖仍是下面的 retry-waiting。#1064/main 采用线、Memory 的归档资格/合法空态端口、完整恢复及统一 full 各自结算；SDK 来源/双包通过不代表本应用已验证、整条 C2 完成或本人验收。
+
 
 ## 上一份：retry-waiting（2026-10-23）
 
@@ -402,7 +409,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：32 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：41 个 Prologue 提交于 2026-10-23 对 main `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`（上游仓库已改名 `molis-ai/molis-prologue`）逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
+- `upstream`：42 个 Prologue 提交于 2026-10-25 对准确 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 逐项用 Git 祖先关系复核：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
 
 怎么取回并核对：
 

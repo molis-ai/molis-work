@@ -7,11 +7,34 @@ import { createPluginMessageStore } from "./plugin-messages.js";
 /** The words of the installed Plugins, from their Manifests: the built-in ones at start, the others as the Host installs them. */
 const pluginMessages = createPluginMessageStore();
 for (const entry of BUILTIN_PLUGIN_CATALOG) {
-  const problems = pluginMessages.register(entry.manifest, { host: true });
+  const problems = pluginMessages.register(entry.manifest);
   if (problems.length > 0) throw new Error(`${entry.manifest.plugin_id}: ${problems.join("；")}`);
 }
 export const registerPluginMessages = pluginMessages.register;
 export const unregisterPluginMessages = pluginMessages.unregister;
+
+/**
+ * English for the built-in Plugins the shell draws itself (no framed client, or a settings page that runs in the page): they
+ * have no frame to keep their words in, so what they declare is the page's own. `EN` still wins over it, and any other Plugin
+ * is framed, so none of those can add to it.
+ */
+const SHELL_DRAWN_EN: Readonly<Record<string, string>> = Object.assign({}, ...BUILTIN_PLUGIN_CATALOG
+  .filter(entry => !entry.workbench.clientFactory || entry.workbench.settingsClient)
+  .map(entry => entry.manifest.ui.translations));
+
+/** The English a Plugin keys by Chinese text, while the page draws that Plugin's contribution (see `withPluginWords`). */
+let drawingFor: Readonly<Record<string, string>> | null = null;
+
+/**
+ * Runs `draw` with `pluginId`'s own `ui.translations` applied after the Host's English, so what the Plugin's contribution
+ * draws can be shown in English without the same Chinese sentence changing anywhere else on the page. Synchronous on purpose:
+ * the scope ends when `draw` returns, and nothing it awaits would still be inside it.
+ */
+export function withPluginWords<T>(pluginId: string, draw: () => T): T {
+  const outer = drawingFor;
+  drawingFor = pluginMessages.translationsFor(pluginId);
+  try { return draw(); } finally { drawingFor = outer; }
+}
 
 
 export { EN } from "./i18n/en.js";
@@ -108,7 +131,7 @@ function localeSwitchHref(locale: WebLocale, nextPath: string): string {
 
 function L(key: string, vars?: Record<string, string | number>): string {
   const locale = currentLocale();
-  return fillMessage(pluginMessages.messages()[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? pluginMessages.translations()[key] ?? key) : key), vars);
+  return fillMessage(pluginMessages.messages()[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? drawingFor?.[key] ?? SHELL_DRAWN_EN[key] ?? key) : key), vars);
 }
 
 function renderLocaleSwitch(nextPath: string): string {
@@ -121,7 +144,13 @@ function renderLocaleSwitch(nextPath: string): string {
 
 function catalogJson(locale: WebLocale): string {
   const messages = Object.fromEntries(Object.entries(pluginMessages.messages()).map(([key, text]) => [key, text[locale]]));
-  return JSON.stringify({ ...(locale === "en" ? { ...pluginMessages.translations(), ...EN } : {}), ...messages }).replaceAll("<", "\\u003c");
+  return JSON.stringify({ ...(locale === "en" ? { ...SHELL_DRAWN_EN, ...EN } : {}), ...messages }).replaceAll("<", "\\u003c");
+}
+
+/** Each Plugin's own English by its id, for the frame that draws that Plugin and nothing else (`ui.translations` are not page-wide). */
+function pluginWordsJson(locale: WebLocale): string {
+  const words = locale === "en" ? Object.fromEntries(pluginMessages.translated()) : {};
+  return JSON.stringify(words).replaceAll("<", "\\u003c");
 }
 
 function englishCatalogJson(): string {
@@ -134,6 +163,7 @@ function clientI18nScript(): string {
   const titles = JSON.stringify(pluginTabTitles(currentLocale() === "en")).replaceAll("<", "\\u003c");
   return `globalThis.MOLIS_WORK_MESSAGES = ${catalog};
   globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};
+  globalThis.MOLIS_WORK_PLUGIN_WORDS = ${pluginWordsJson(currentLocale())};
   globalThis.L = (fill => function L(key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? key, vars); })(${fillMessage.toString()});`;
 }
 

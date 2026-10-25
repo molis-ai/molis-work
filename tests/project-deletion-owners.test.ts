@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, EN, L, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, L, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
@@ -172,7 +172,7 @@ test("the delete dialog lists the library owners' data in the person's language"
   await withHome(async ({ home }) => {
     const scope = projectDeletedHooksFor(home).owners().flatMap(owner => owner.label ? [owner.label] : []);
     for (const label of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "放在这个项目里的待办", "灵光里的想法与对话"]) assert.ok(scope.includes(label), label);
-    for (const label of scope) assert.ok(EN[label], `${label} has an English translation`);
+    for (const label of scope) runWithLocale("en", () => assert.notEqual(L(label), label, `${label} has an English translation`));
     assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹");
     runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages documents and folders"));
   });

@@ -205,7 +205,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const detachActivation = supervisor.observeActivation(pluginId => {
     // The words the Manifest declares (`ui.messages`) reach the pages' catalog the same way for a built-in and an installed plugin.
     const manifest = supervisor.manifest(pluginId);
-    if (manifest) registerPluginMessages(manifest, { host: identity.shipsWithHost(manifest) });
+    if (manifest) registerPluginMessages(manifest);
     if (!stopArtifactRefresh && options.journal && supervisor.manifest(pluginId)?.ports?.inputs.length) {
       stopArtifactRefresh = observePluginArtifacts(options.project_id, options.journal, wiring);
     }

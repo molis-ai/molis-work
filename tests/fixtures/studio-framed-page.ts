@@ -1,7 +1,7 @@
 import type { TestContext } from "node:test";
 import type { ServerResponse } from "node:http";
 import type { ChromeHarness, ChromePage, WaitOptions } from "@molis-ai/molis-work-test-kit/browser";
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, renderPluginDocumentShell, BUILTIN_PLUGIN_CATALOG, STYLES, MORE_STYLES, RESPONSIVE_STYLES } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, renderPluginDocumentShell, withPluginWords, BUILTIN_PLUGIN_CATALOG, STYLES, MORE_STYLES, RESPONSIVE_STYLES } from "@molis-ai/molis-work-app-workbench";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 import { AGENT_STUDIO_STYLES, renderAgentStudio } from "@molis-ai/molis-work-plugin-builder";
 import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
@@ -29,7 +29,10 @@ export async function framedStudioPage(t: TestContext, browser: ChromeHarness, p
     } };
 }
 
-/** Production opaque frame and registered route catalog; only models and the surrounding standalone server are fixtures. */
+/**
+ * Production opaque frame and registered route catalog; only models and the surrounding standalone server are fixtures. The studio is
+ * the plugin builder's, so in another language it gets that plugin's own English with the page's catalog, as a frame does (PG-071).
+ */
 export function isolatedStudioHarness(home: string, projectId: string, controlToken: string, locale?: StudioHarnessLocale): string {
   const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "plugin-builder")!;
   const authorization = pluginPagesFor(home).open(entry.manifest.plugin_id, projectId, "web-user", undefined, {
@@ -37,6 +40,6 @@ export function isolatedStudioHarness(home: string, projectId: string, controlTo
     requestAllowed: (method, path) => entry.workbench.pageRequests!.some(route => route.method === method && new RegExp("^" + route.path.replace(/:[a-z]+/gu, "[^/]+") + "$", "u").test(path)),
   });
   const document = renderPluginDocumentShell({ id: "plugin-builder", plugin_id: entry.manifest.plugin_id, bundle: "plugin-builder", title: "插件创作台",
-    html: renderAgentStudio(locale?.translate), project_id: projectId, route_prefix: "/projects/" + projectId, page: {}, control_token: controlToken, authorization });
-  return locale ? document.replace('<html lang="zh-CN">', '<html lang="' + locale.lang + '">').replace('<script src="/assets/molis-work-plugin-frame.js">', '<script>' + locale.clientScript + '</script><script src="/assets/molis-work-plugin-frame.js">') : document;
+    html: renderAgentStudio(locale && ((zh, values) => withPluginWords(entry.manifest.plugin_id, () => locale.translate(zh, values)))), project_id: projectId, route_prefix: "/projects/" + projectId, page: {}, control_token: controlToken, authorization });
+  return locale ? document.replace('<html lang="zh-CN">', '<html lang="' + locale.lang + '">').replace('<script src="/assets/molis-work-plugin-frame.js">', '<script>' + locale.clientScript + ';globalThis.MOLIS_WORK_MESSAGES = { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[' + JSON.stringify(entry.manifest.plugin_id) + '], ...globalThis.MOLIS_WORK_MESSAGES };</script><script src="/assets/molis-work-plugin-frame.js">') : document;
 }

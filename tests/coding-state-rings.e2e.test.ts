@@ -38,7 +38,7 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
     primitives: { escape: escapeHtml, icon, text: value => value, formatDate: value => value } });
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`); // the scripts read the page's translator, `L`
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's translator, `L`
     const result = await page.evaluate<{
       running: string[]; paused: string[]; person: string; accepted: string; labels: string[];
       commands: string[]; letters: string[]; delegation: string; errors: string[];
@@ -87,10 +87,10 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: pageText("en"), formatDate: value => value } });
+    primitives: { escape: escapeHtml, icon, text: pageText("en", "coding"), formatDate: value => value } });
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; meter: string; cards: string; coop: string; errors: string[] }>(`(async () => {
       document.documentElement.lang='en';document.body.innerHTML=${JSON.stringify(html)};
       ${STATE_RING_CLIENT_SCRIPT}
@@ -150,11 +150,11 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: pageText("en"), formatDate: value => value } });
+    primitives: { escape: escapeHtml, icon, text: pageText("en", "coding"), formatDate: value => value } });
   const marker = "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n";
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; writers: string; turn: string; integration: string; errors: string[] }>(`(async () => {
       document.documentElement.lang='en';document.body.innerHTML=${JSON.stringify(html)};
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
@@ -206,10 +206,10 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: pageText("en"), formatDate: value => value } });
+    primitives: { escape: escapeHtml, icon, text: pageText("en", "coding"), formatDate: value => value } });
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; step: string; stepStatus: string; files: string; reader: string; comments: string }>(`(async () => {
       document.documentElement.lang='en';document.body.innerHTML=${JSON.stringify(html)};
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
@@ -257,10 +257,10 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: pageText("en"), formatDate: value => value } });
+    primitives: { escape: escapeHtml, icon, text: pageText("en", "coding"), formatDate: value => value } });
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; note: string; changes: string; palette: string; shortcuts: string[]; characters: string; actions: string; statuses: string[] }>(`(async () => {
       document.documentElement.lang='en';document.body.innerHTML=${JSON.stringify(html)};
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;

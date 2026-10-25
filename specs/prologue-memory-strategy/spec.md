@@ -2430,3 +2430,13 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 根类型、相对准确基础9e055220的health、boundary、API、真实临时Host动作快照及全分支秘密扫描通过，日志均同 ...-types/health/boundary/api/actions/secrets-20261025.log 前缀。27项实际资源逐项等于前一聚合，共7,678,780B；workbench.js1,166,999B、coding.js379,783B。本轮净增0B；正式资源门仍仅拒绝未获答复的Coding+1,333B，...-assets-gate-20261025.log exit1原样保留，Assistant+4,064B已批准不扩用。
 
 推送前远端main更新至52560f32c（新增#1244桌面启动拒绝/关闭失败修复），本头未合入该新main；三方检查无冲突，不能把此检查称为最终合并结果CI。新App完整CI/Full suite、Coding零模型恢复决定、历史owner覆盖接线、业务永久清除与完整MEM-40仍未闭合。SDK新覆盖候选22d的三个独审P2已由0b33在本地修补并待独立复核，尚未替换本App的4ac包。本轮只推进既有#1101可审查交付，不新增PR、不代签产品实操或用户验收。
+
+### 2026-10-25：采用已复核的 SDK 覆盖候选
+
+本次在 App `e7da727a` 上仅更新受控 SDK、来源、锁文件及来源测试。采用 Draft #102 的 `0b33ad130b92cbf9891808c7b0c56d0987114c2f`；其三类独审 P2 已复核关闭，公开真实 Node 探针 28 项通过，另 shutdown 观察明确未列入已冻结完成门。准确 SDK 头的原 `pnpm quality` exit0（70 文件723项、另4项质量门、干净包消费者、Cargo检查），相对原基础6523的ratchet通过。此候选仍未合入 SDK main；后续固定 App Index 维护口另行深审，不包含在本包。
+
+原归档1,384,634 B，SHA-256 `323f9674625dc437494ccd4f0d0086ce1f05647a2d5bed9eae219e69d24f4832`。根会话逐字节比较归档800个dist文件、SDK最终质量构建及真实依赖路径 `horizontal/agent-host/node_modules/@prologue/sdk`，三者无差异。证据 `/private/tmp/molis-memory-sdk102-coverage-sdk-match-20261025.json`。旧4ac归档的大小、hash与Git blob保留在既有patch-history，同名旧包仍从Git取回。
+
+原冻结离线安装首先因store symlink写权限EPERM失败，原命令取得缓存访问后通过；不改变锁、验证选项或依赖。整体build、根类型、相对准确基础9e055220的health与diff检查通过。7个直接文件179项全部通过（来源78、SDK采用34、LocalHost采用28、ledger9、运行权限25、项目清除3、不可重绑定2），jobs2/retries0。日志 `/private/tmp/molis-memory-sdk102-coverage-{install,install-approved,build,types,health,direct}-20261025.log` 保留首败及有效结果。
+
+实测27项资源逐项等于前一聚合，总计7,678,780 B，本更新净增0 B；Coding未批准的+1,333 B仍使正式资源门失败，Assistant已批准+4,064 B不重复申请、不扩用。此处只证明新包接入的工程影响面，未运行新的App完整CI/Full suite、全部业务清除或MEM-40端到端，未代签产品实操及用户验收。

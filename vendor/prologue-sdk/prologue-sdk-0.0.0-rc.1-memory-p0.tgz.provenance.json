@@ -9,22 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "4ac8d7dc823233aca67924942688e9f9aae9e87d",
+    "commit": "0b33ad130b92cbf9891808c7b0c56d0987114c2f",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
       "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/102",
-      "head": "4ac8d7dc823233aca67924942688e9f9aae9e87d",
+      "head": "0b33ad130b92cbf9891808c7b0c56d0987114c2f",
       "status": "draft",
       "note": "冻结候选，尚未合并；App 最终整合由统筹负责。"
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1378953,
-    "sha256": "f46c51b37dc71b6d0f7b07abdd9ad59c627253b8459c007f40c093a9f549d36a",
-    "integrity": "sha512-JSWWFqZMj3SXjZdOXRyCXUs/hucET1otxIQD6qSelKJP77sZWfahYxncL0HjRnZ4OTbEopSaty88Jja6ncqQWA=="
+    "bytes": 1384634,
+    "sha256": "323f9674625dc437494ccd4f0d0086ce1f05647a2d5bed9eae219e69d24f4832",
+    "integrity": "sha512-T/croyMghi5FJ4zJDKhPRWSGw7pHm0rB/PJss3YNYhtsobZ0BkLnCDhvCpYsHOkeynRiHSkcyhd2m+ENWk6ciA=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,11 +32,11 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "统筹提供干净冻结 4ac8d7d 受控归档；在 d57 上增加 inspection 返回前的必填同步当前权限复核",
-      "核对 796 归档文件与冻结构建，独立公开包消费者验证",
-      "Molis 按原 vendor 规则替换同名依赖及 sidecar/provenance/lock，不修改 SDK 源码"
+      "固定干净 SDK 0b33ad1；原 pnpm quality、准确 6523 基线 ratchet 与独立边界复核通过",
+      "统筹逐字节核对归档的 800 个 dist 文件与最终质量构建，差异为 0",
+      "原 pnpm pack 产物，不在 vendor 修补；同步同名归档、sidecar、来源和 lock"
     ],
     "packedOn": "2026-10-25",
-    "note": "Draft #102 冻结候选。d57 原 quality 70 文件 723 项及磁盘满定向 4 文件 40 项通过；4ac8d7d 同步复核补丁的独立深审进行中，不称已合并、完整 App 或用户验收。"
+    "note": "Draft #102 冻结候选，尚未合并。本头原 quality 70 文件 723 项和 4 项质量门通过；独立公开 Node 探针 28 项关闭三类 P2。App 全主人清除与完整 MEM-40 仍未验收。"
   }
 }

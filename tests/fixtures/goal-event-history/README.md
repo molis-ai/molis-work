@@ -15,4 +15,4 @@
 
 版本 9（SYS-15-S6）在临时副本执行同一份维护九脚本（`tests/fixtures/project-maintenance-v9.sql`），新增空的动作闹钟安装绑定表，旧闹钟暂停且清空租约，未填造授权。四份夹具的其余业务行逐表核对不变，再用同样的 `sqlite3 .dump` 导出。
 
-版本 10（ac-trust T1）：安装记录表 `plugin_runtime_installs` 多了一列 `publisher_trust`，夹具里这张表没有行，所以只改了建表语句与版本号，其余逐字不变（对照用 `tests/fixtures/project-maintenance-v10.sql` 在副本上跑一遍再导出，结构相同）。
+版本 10（ac-trust T1 与 #1245 合成同一版，batch-36）：安装记录表 `plugin_runtime_installs` 多了一列 `publisher_trust`，夹具里这张表没有行，只改了建表语句；Attention 两表多了 owner 字段与按 owner 区分的部分唯一索引，不从历史 ID 推断 owner，现有记录保持未归属 null。四份夹具的历史业务 INSERT 原样保留，行与 rowid 逐表核对不变，外键和完整性检查通过（对照用 `tests/fixtures/project-maintenance-v10.sql` 在副本上跑一遍再导出，结构相同）。它们是历史业务数据的现行 schema 夹具，不是生产读取时的迁移路径。

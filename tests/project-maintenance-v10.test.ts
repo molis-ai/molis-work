@@ -7,9 +7,9 @@ import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase, PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 
-// ac-trust T1: the installation records of a project library gain the Host's evidence (`publisher_trust`), which makes it version 10.
-// A version 9 library is refused, never upgraded in place; the offline maintenance is `tests/fixtures/project-maintenance-v10.sql`, and
-// these cases are its rehearsal.
+// ac-trust T1: the installation records of a project library gain the Host's evidence (`publisher_trust`); S9-0b (#1245): Inbox entries
+// and Attention events gain an explicit owner. Both together make it version 10. A version 9 library is refused, never upgraded in place;
+// the offline maintenance is `tests/fixtures/project-maintenance-v10.sql`, and these cases are its rehearsal.
 const before = readFileSync(new URL("./fixtures/project-database-schema-v9.sql", import.meta.url), "utf8");
 const maintenance = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8");
 
@@ -21,12 +21,18 @@ function fixture(t: TestContext, execution: string[] = ["host", "sandbox"]) {
   const db = new DatabaseSync(file); db.exec(before);
   db.exec("PRAGMA user_version = 9; INSERT INTO project_root VALUES ('project', '2026-10-24T00:00:00Z')");
   execution.forEach((kind, index) => db.prepare("INSERT INTO plugin_runtime_installs VALUES (?, ?)").run(`install-${index}`, record(`install-${index}`, kind)));
+  db.prepare(`INSERT INTO inbox_entries (rowid, project_id, entry_id, subject_type, subject_id, reason, status, detail_json, revision, created_at, updated_at, completed_at)
+    VALUES (41, 'project', 'entry-a', 'feed_item', 'item-1', 'manual', 'done', '{"note":"kept"}', 3, '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z', '2026-10-02T00:00:00Z')`).run();
+  db.prepare(`INSERT INTO attention_events (rowid, event_id, project_id, entry_id, type, subject_type, subject_id, at)
+    VALUES (7, 'event-a', 'project', 'entry-a', 'created', 'feed_item', 'item-1', '2026-10-01T00:00:00Z')`).run();
   db.close(); return file;
 }
 const read = (file: string) => {
   const db = new DatabaseSync(file);
   try { return { version: db.prepare("PRAGMA user_version").get()!.user_version, installs: db.prepare("SELECT * FROM plugin_runtime_installs ORDER BY install_id").all().map(row => ({ ...row })),
-    shape: describeSqliteSchema(db), maintenance: db.prepare("SELECT name FROM sqlite_master WHERE name LIKE '%maintenance%'").all().length }; }
+    entries: db.prepare("SELECT rowid AS row_id, * FROM inbox_entries ORDER BY entry_id").all().map(row => ({ ...row })),
+    events: db.prepare("SELECT rowid AS row_id, * FROM attention_events ORDER BY event_id").all().map(row => ({ ...row })),
+    shape: describeSqliteSchema(db), maintenance: db.prepare("SELECT name FROM sqlite_master WHERE name LIKE '%maintenance%' OR name LIKE '%\\_v10' ESCAPE '\\'").all().length }; }
   finally { db.close(); }
 };
 const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync(file); try { db.exec(sql); } finally { db.close(); } };
@@ -45,6 +51,10 @@ test("RAC-397: a version 9 library is refused without being touched; the mainten
   assert.deepEqual(after.installs.map(row => ({ ...JSON.parse(row.record_json as string), publisher_trust: undefined })),
     original.installs.map(row => ({ ...JSON.parse(row.record_json as string), publisher_trust: undefined })), "nothing else of a record changed");
   assert.equal(after.maintenance, 0, "nothing of the script's own stays");
+  assert.deepEqual(after.entries, original.entries.map(row => ({ ...row, owner_plugin_id: null })),
+    "ATTN-OWNER-07: an old Inbox entry keeps its rowid and every value, and its owner stays unassigned (null), never guessed");
+  assert.deepEqual(after.events, original.events.map(row => ({ ...row, owner_plugin_id: null })),
+    "ATTN-OWNER-07: an old Attention event keeps its rowid and every value, with a null owner");
 
   const fresh = new DatabaseSync(":memory:"); fresh.exec(PROJECT_DATABASE_BASELINE.schema);
   assert.deepEqual(after.shape, describeSqliteSchema(fresh), "table by table the same as a new library");
@@ -60,6 +70,12 @@ test("RAC-397: the maintenance stops and changes nothing unless the library is v
   const unnamed = fixture(t, ["host", "elsewhere"]), kept = read(unnamed);
   assert.throws(() => apply(unnamed), /NOT NULL/u, "a record of neither execution is refused, not guessed");
   assert.deepEqual(read(unnamed), kept);
+
+  const widened = fixture(t), before = new DatabaseSync(widened);
+  before.exec("ALTER TABLE inbox_entries ADD COLUMN unexpected TEXT"); before.close();
+  const widenedBefore = read(widened);
+  assert.throws(() => apply(widened), /CHECK/u, "ATTN-OWNER-07: an Attention table with a column the v9 baseline lacks is refused, not copied without it");
+  assert.deepEqual(read(widened), widenedBefore);
 
   const failing = fixture(t), unchanged = read(failing);
   const at = maintenance.lastIndexOf("COMMIT;");

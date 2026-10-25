@@ -27,10 +27,32 @@ const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "fe
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-// The fixture is that schema as of version 10: changing any owner's tables means a new version and a new fixture, never a silent drift.
+// ATTN-OWNER-07: the fixture is that schema as of version 10 (ac-trust T1 and S9-0b together): changing any owner's tables means a new
+// version and a new fixture, never a silent drift.
 test("the project database baseline is version 10 and the platform's and Modules' current tables", () => {
   assert.equal(PROJECT_DATABASE_BASELINE.version, 10);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql")));
+});
+
+test("ATTN-OWNER-07 a version 9 project with legal namespace-shaped ids is refused without rewriting its schema or rows", () => {
+  const home = mkdtempSync(join(tmpdir(), "attention-v9-refusal-")), file = join(home, "project.db");
+  try {
+    const old = new DatabaseSync(file);
+    old.exec(fixture("project-database-schema-v9.sql"));
+    old.exec("PRAGMA user_version = 9");
+    old.prepare("INSERT INTO project_root (project_id, created_at) VALUES (?, ?)").run("p", "2026-10-24");
+    old.prepare("INSERT INTO inbox_entries (project_id, entry_id, subject_type, subject_id, reason, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("p", "io.molis.work.example:entry", "goal_decision", "io.molis.work.example:goal", "goal_decision", "open", "2026-10-24", "2026-10-24");
+    const before = { schema: describeSqliteSchema(old), rows: old.prepare("SELECT * FROM inbox_entries").all() };
+    old.close();
+    assert.throws(() => new LocalProjectDatabase(file), error => error instanceof SqliteSchemaVersionError && error.found === 9 && error.expected === 10);
+    const after = new DatabaseSync(file, { readOnly: true });
+    try {
+      assert.equal(after.prepare("PRAGMA user_version").get()!.user_version, 9);
+      assert.deepEqual(describeSqliteSchema(after), before.schema);
+      assert.deepEqual(after.prepare("SELECT * FROM inbox_entries").all(), before.rows);
+    } finally { after.close(); }
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 test("PLIB-01, PLIB-13: the library's baseline imports no plugin package, so no plugin's tables, Goals' among them, can enter it", () => {

@@ -159,6 +159,8 @@ export interface PluginManifest {
   model_configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationDeclaration;
   /** The image connections this plugin uses (`services.imageGeneration`, PG-102): the namespace its bindings live in and the permissions that read, bind and generate. */
   image_generation?: import("./plugin-image-generation.js").PluginImageGenerationDeclaration;
+  /** v2: the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
+  attention?: import("./plugin-attention.js").PluginAttentionDeclaration;
   /** v2: places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
   connections?: import("./plugin-connections.js").PluginConnectionsDeclaration;
   /** v2: kept jobs and commands the platform may wake for this installation. */

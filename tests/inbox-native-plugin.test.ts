@@ -318,6 +318,7 @@ test("Inbox projection keeps references and ranks active entries first", () => {
     {
       project_id: "p1",
       entry_id: "done-1",
+      owner_plugin_id: null,
       subject_type: "feed_item",
       subject_id: "item-1",
       reason: "manual",
@@ -331,6 +332,7 @@ test("Inbox projection keeps references and ranks active entries first", () => {
     {
       project_id: "p1",
       entry_id: "open-1",
+      owner_plugin_id: null,
       subject_type: "feed_item",
       subject_id: "item-1",
       reason: "source_rule",

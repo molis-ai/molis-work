@@ -258,3 +258,13 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | R-51 | 已关（10-25 用户：「skip this: Workers Builds: molis-work-production」）：PR 上的 Cloudflare `Workers Builds: molis-work-production` 红，不是必需检查 | 无 | 用户定忽略：评审与合并都不看这项检查，不再追 | PIPE／当前批次合并执行者 | 已定（按名忽略；原红/未验保留） |
 | R-52 | 新（10-25，S10+S11 设计审）：目录库版本号撞车——W5-17（`claude/ac-w517-catalog-paths`）、Goals 个人规划搬库与别的作者的 #1101（`codex/memory-management-pages`，jingxusandra-gif）都把 `CATALOG_SCHEMA_VERSION` 设成 23 | 两份不同的 v23 会让维护脚本对不上、真实 Home 打开被拒 | 防腐线的 W5-17 与 Goals 合成一版，取落地时 main 的下一个号（#1101 先合就是 v24），不动 #1101 的分支；维护时段按版本顺序跑，`assertCurrentCatalog` 防漏跑 | 统筹 + ac-sc3 | 维护时段前 |
 | R-53 | Prologue #103 两条有效nonblock的SDK源码修复已由FIX6在#104/bea实现，REVIEW6395182357/TEST6395209187双PASS，2026-10-25T08:09:18Z实际main f1753ec8fa2cbca45667e60e101b93702acc6640，完整tree=e7949fc6与已审头相同；SDK源码部分已关闭。#1267按Claude6395049480/Root现行窄WO仍只取2c7feba5+#103定稿，不含104，因此其过渡包风险仍保留 | 过渡包仍可能分页位置/清单变化误接受，普通NodeStorage仍暴露inspection生命周期；不能用104 actual冒过渡包已修 | 上游已修：Prologue #104（`f1753ec8f`），事后严格评审过（挡合并 0）；#1267 的过渡包带上 #104（provenance 记 `f1753ec8f`） | FIX6 SDK104源码本题实际闭环；Root已另正式恢复F6处理2c7+final103桥接最小移植，不能混104；C2 01a16c97-5b6a-7343-b245-dc63b65e1e11负责本1267过渡包/风险说明与必要消费，PIPE/Claude核最终采用 | #1267 过渡包含 #104 落地后关 |
+
+### SDK104 事后 FIRST 建议的逐项接续（PIPE）
+
+来源：[6395355069](https://github.com/molis-ai/molis-prologue/pull/104#issuecomment-6395355069)，绑定已actual f175的bea增量，挡合并0项。以下建议不重新打开已合104，也不改变Claude6395049480/Root接受的only103过渡WO。
+
+- **unsafe kind/id错误码与缺负例：有效后续，尚未实施。** 实施owner FIX6（01a16fa8-53d9-7622-8169-0c424357366c），依赖当前bridge源4e及doc尾项实现/独立审验完成。下一明确源题由Root按当前主线派启动：归档不安全kind/id应报归档错误而非调用方KEY_INVALID，保留CONFLICT等必要拒绝，并补真实目录/文件名负例；新固定PR/提交→独立复审/验证→actualmain才闭环。当前不往bridge/only103包暗带104或后继。
+- **二次读取/清单随规模增长：条件建议，当前未证性能缺陷。** Root已明确保留现有身份复核链；原真实替换/分页负例支持该链，不因建议削弱校验。下一动作由Root在有实际规模/延迟需求时给独立可验收性能任务，再指定source writer；目前不造未经授权缓存/修改读取语义，不将登记算优化已实施。
+- **Windows no-follow说明：适用范围待确认。** PIPE只读核main f175的根README、SDK README、Host README，三份均无Windows/win32/macOS/Linux支持声明，不能据此推断支持或不支持，也不把review对O_NOFOLLOW的推测写成已核平台保证。范围owner Root先核准确平台约定；若Node Host确承诺Windows，再由FIX6在前题结束后补准确限制/必要primary技术依据，不宣称已验证跨平台。
+
+评审末段建议过渡包加入104、provenance记main：**本次不采用**，与现行only103窄WO冲突。过渡源必须记真实2c7+final103及显式最小port固定头；dcaa参考包/main f175均不是该过渡来源。该处理保留Root裁定与后续明确范围变更入口，不用review建议替换人类/统筹工单。

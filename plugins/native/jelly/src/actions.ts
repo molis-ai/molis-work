@@ -1,5 +1,5 @@
 import { withActionEffect, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { JellyItem, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyItem, JellySeries, JellyWorkspace } from "./contract.js";
 import { runJellyAi, type JellyAiInput, type JellyAiPorts } from "./ai.js";
 import { jellyOccurrences, jellyProgress } from "./calendar.js";
 import { jellyErrors } from "./error.js";

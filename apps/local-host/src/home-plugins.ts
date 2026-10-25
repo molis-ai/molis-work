@@ -3,7 +3,7 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
-import { PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
@@ -34,6 +34,7 @@ export class HomePluginHost {
   private executor?: HomePluginExecutor;
   private db?: ReturnType<typeof openHomePluginStore>["db"];
   private closed = false;
+  private closing?: Promise<void>;
   private retryable = false;
   private releaseProjectOwners?: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
@@ -72,6 +73,10 @@ export class HomePluginHost {
   installation(providerId: string): PluginInstanceRecord | null {
     return this.installations().find(record => (record.plugin_id === providerId || record.install_id === providerId) && record.state !== "uninstalled") ?? null;
   }
+  /** Why the plugin may not be switched off or uninstalled (it is 常开 and the person's agreement stands); asked before anything is touched. */
+  leaveRefusal(providerId: string, action: "停用" | "卸载"): ActionError | undefined {
+    return leaveRefusal(this.db ? new SqlitePluginConsentLedger(this.db) : undefined, this.installation(providerId), action);
+  }
   invalidateView(providerId: string): void {
     const record = this.installation(providerId);
     if (record) this.platform?.invalidateView(record.plugin_id);
@@ -80,11 +85,12 @@ export class HomePluginHost {
   stopProjectJobs(projectId: string): void {
     this.executor?.stopProjectJobs(projectId);
   }
-  async close(): Promise<void> {
-    if (this.closed) return;
+  close(): Promise<void> {
     this.closed = true;
-    try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
-    await this.release();
+    return this.closing ??= (async () => {
+      try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
+      await this.release();
+    })().catch(error => { this.closing = undefined; throw error; });
   }
   private async release(): Promise<void> {
     const failures: unknown[] = [];
@@ -107,10 +113,10 @@ export class HomePluginHost {
     const identity = pluginEntryIdentity();
     const shipped = this.options.entries.map(entry => {
       const definition = entry.create();
-      return { definition, bundled: true, project_data: entry.project_data, dual_instance: entry.dual_instance,
+      return { definition, trust: HOST_BUILD_TRUST, project_data: entry.project_data, dual_instance: entry.dual_instance,
         releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => {
           const released = factory();
-          identity.remember([{ definition: released, bundled: true, project_data: identity.projectDataFor(definition),
+          identity.remember([{ definition: released, trust: HOST_BUILD_TRUST, project_data: identity.projectDataFor(definition),
             dual_instance: entry.dual_instance }]);
           return released;
         }) };
@@ -136,7 +142,8 @@ export class HomePluginHost {
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
-    const runtime = new PluginRuntime(repository, executor, { redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
+    const runtime = new PluginRuntime(repository, executor, { consents: new SqlitePluginConsentLedger(db),
+      redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({

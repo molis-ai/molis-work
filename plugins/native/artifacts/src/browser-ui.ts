@@ -1,7 +1,7 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
+import { artifactVersionPath, type ArtifactBrowserView } from "./browser-view.js";
 import { renderArtifactPortInputs } from "./port-input-ui.js";
 import type { ArtifactPluginInput } from "./actions.js";
 

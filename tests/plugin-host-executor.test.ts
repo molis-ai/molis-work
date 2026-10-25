@@ -23,10 +23,11 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const host = new MolisWorkLocalHost();
-  const protectedEntry = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" as const };
+  const protectedEntry = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" as const,
+    action: { title: "Development", description: "Removed", kind: "operation" as const, scope: "project" as const, audiences: ["plugin" as const], permissions: [], subject_kinds: [], input_schema: { type: "object" } } };
   const port = host.client({ project_id: DEMO_PROJECT_ID, storage_key: file });
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, port.project.project_id),
-    project_id: DEMO_PROJECT_ID, actor_id: "user", capabilities: port,
+    project_id: DEMO_PROJECT_ID, actor_id: "user", dependencyCheck: reference => port.availability(reference, { consumer: "plugin" }),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   }));
@@ -38,19 +39,19 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
     manifest: { ...base.manifest, plugin_id: "io.molis.work.example.protected-adapter",
       capabilities: { ...base.manifest.capabilities, consumes: [protectedEntry.capability_id] } },
     async start(context) {
-      const sdk = context.services!.capabilities!;
+      const sdk = context.services!.actions!;
       const availability = sdk.availability(protectedEntry);
       assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.dependency_missing");
       const forged = { ...protectedEntry, host_only: false };
-      await assert.rejects(sdk.invoke(forged, { authority: { actor_kind: "user" } }, { consumer: undefined }), { code: "actions.dependency_missing" });
+      await assert.rejects(sdk.invoke(forged, { authority: { actor_kind: "user" } }), { code: "actions.dependency_missing" });
       return base.start(context);
     },
   };
   let installId: string | undefined;
   try {
-    installId = runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(p => p.permission) }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: definition.manifest.permissions.map(p => p.permission) }).install.install_id;
     await runtime.start(installId);
-    await assert.rejects(port.invoke(protectedEntry, {}), { code: "actions.dependency_missing" }, "the normal Host client cannot restore the removed protocol");
+    await assert.rejects(port.invoke(protectedEntry, {}), { code: "actions.missing" }, "the normal Host client cannot restore the removed protocol");
   } finally {
     if (installId && runtime.get(installId).state === "running") await runtime.stop(installId);
     await host.close(); store.close(); rmSync(directory, { recursive: true, force: true });
@@ -102,7 +103,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
       return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
     }, async stop(context) { assert.ok(context.services); if (failStop) throw new Error("stop failed"); } };
   try {
-    const installation = runtime.install({ definition, deployment: "local",
+    const installation = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local",
       grants: definition.manifest.permissions.map(permission => permission.permission) });
     const installId = installation.install.install_id;
     await runtime.start(installId);
@@ -141,7 +142,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
 
     failStart = true;
     failStop = false;
-    runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(permission => permission.permission) });
+    runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: definition.manifest.permissions.map(permission => permission.permission) });
     await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "failed startup must release SDK actions");
@@ -194,12 +195,12 @@ test("compatible Host execution and crash recovery use the implementation versio
   try {
     const first = new PluginRuntime(repository, executor(), { actions: pluginActions(store, DEMO_PROJECT_ID) });
     const old = make("1.0.0");
-    const installed = first.install({ definition: old, deployment: "local", grants: old.manifest.permissions.map(p => p.permission) }).install;
+    const installed = first.install({ trust: { level: "unsigned" }, definition: old, deployment: "local", grants: old.manifest.permissions.map(p => p.permission) }).install;
     await first.start(installed.install_id);
     await first.stop(installed.install_id);
     const runtime = new PluginRuntime(repository, executor(), { actions: pluginActions(store, DEMO_PROJECT_ID) });
     const next = make("2.0.0");
-    runtime.install({ definition: next, deployment: "local", grants: installed.grants });
+    runtime.install({ trust: { level: "unsigned" }, definition: next, deployment: "local", grants: installed.grants });
     await runtime.start(installed.install_id);
     assert.equal(contexts.at(-1)!.services!.storage!.get("visits"), "2");
     assert.deepEqual(contexts.at(-1)!.services!.artifacts.read({ artifact_id: "compatible-note", version: 1 })!.payload, { count: 1 });

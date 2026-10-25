@@ -2,6 +2,7 @@ import { SchedulePluginRouteTable, SCHEDULE_NATIVE_PLUGIN_ROUTES } from "./sched
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -19,6 +20,7 @@ import {
 import { railEntries } from "@molis-ai/molis-work-app-workbench";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { directScheduleActions } from "./schedule-direct-actions.js";
+import { zh } from "./fixtures/schedule-host.js";
 
 test("SYS-15-S1: the zero-port Schedule factory declares valid public services and background actions", () => {
   const plugin = createSchedulePlugin();
@@ -33,10 +35,7 @@ const primitives: ScheduleUiModel["primitives"] = {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,
-  text: (value, variables) => Object.entries(variables ?? {}).reduce(
-    (result, [key, replacement]) => result.replaceAll(`{${key}}`, String(replacement)),
-    value,
-  ),
+  text: zh,
   formatDate: (value) => value,
 };
 
@@ -152,7 +151,7 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
   assert.match(conversation, /data-schedule-kind="task"/);
   assert.match(conversation, /把未读收成三条/);
   assert.doesNotMatch(conversation, /其他插件的闹钟/);
-  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /queueMicrotask\(\(\) => select\(pending, "task"\)\)/);
+  assert.match(readFileSync("plugins/native/schedule/src/browser/client.ts", "utf8"), /queueMicrotask\(\(\) => select\(page, pending, "task"\)\)/);
 });
 
 test("Schedule HTTP 能列出任务并暂停", async () => {

@@ -12,7 +12,7 @@ export * from "./due-reminders.js";
 export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
-import type { HostCapabilityDefinition } from "./app-host.js";
+import type { HostCapabilityDescriptor } from "./app-host.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
 export * from "./workflow-content.js";
 import type { SearchSourceDeclaration } from "./search-sources.js";
@@ -123,7 +123,7 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly readable_project_ids?: readonly string[];
   /** Host-bound installation identity for private Plugin SDK services. */
   readonly plugin_install_id?: string;
-  /** Trusted typed-capability origin. Never accepted from business arguments or persisted. */
+  /** The Host-issued plugin caller this call is made for. Never accepted from business arguments or persisted. */
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
   /**
    * The one original file the person handed the Host in this request (an import through the Host's own entry), set only on the control
@@ -284,7 +284,12 @@ export interface ActionMetadata {
   };
 }
 
-export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
+/**
+ * Stable, transport-neutral action identity with its metadata. The optional type member is compile-time only; JSON transports
+ * use the public descriptor fields.
+ */
+export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
+  readonly __types__?: { input: Input; output: Output };
   /** An action is a query or a command; following a live round is a query declared `scheduling: "concurrent"`. */
   readonly operation: "query" | "command";
   readonly provider_id?: string;

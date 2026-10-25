@@ -55,9 +55,17 @@ test("RAC-580 S-68 a personal plugin the project hides is not reached through a 
   assert.deepEqual([...availableProjectPluginIds(["embedding"], [embeddedProjectPlugin, goals])].sort(), ["embedding", "goals"]);
 });
 
-test("RAC-580 S-68 an always-on plugin cannot be hidden, so it is shown whatever the project hid", () => {
-  assert.ok(shownProjectPlugins(["goals"], ["shelf", "pages"]).includes("shelf"));
-  assert.ok(!shownProjectPlugins(["goals"], ["shelf", "pages"]).includes("pages"));
+test("RAC-580 S-68 an always-on plugin stays in reach because the project's catalog never lists it as hidden (the Home's agreement); the reach list holds no name of it", async t => {
+  const home = await openTestHome(t, { catalogPolicy: false });
+  const project = await home.createProject("Always on", ["goals"]);
+  await hide(home, project, "pages");
+  const listed = await withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog => ({ enabled: catalog.listProjectPlugins(project.project_id), hidden: catalog.listHiddenPlugins(project.project_id) }));
+  assert.deepEqual(listed.hidden, ["pages"], "what the person hid is listed, and a 常开 plugin is never among it");
+  const shown = shownProjectPlugins(listed.enabled, listed.hidden);
+  assert.ok(shown.includes("shelf") && !shown.includes("pages"));
+  const availability = projectActionAvailability(withMolisWorkProjectCatalog, home.home);
+  assert.deepEqual(await availability(callerIn(project.project_id), view("shelf")), { available: true });
+  assert.equal((await availability(callerIn(project.project_id), view("pages"))).available, false);
 });
 
 test("RAC-580 S-68 the availability both the action directory and discovery use refuses a hidden personal plugin, only in the project that hid it", async t => {

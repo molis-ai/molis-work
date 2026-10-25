@@ -83,7 +83,7 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, 
     // The executor plugin is one of the project's executors beside Coding; the work this test hands over names it by its plugin id.
     const repository = await local.withProject(reference, project => new SqlitePluginRuntimeRepository(project.store.db));
     runtime = new PluginRuntime(repository, undefined, { actions: { registry: local.actionRegistry(reference), project_id: reference.project_id } });
-    installId = runtime.install({ definition: executor.definition, deployment: "local", grants: [USE] }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: executor.definition, deployment: "local", grants: [USE] }).install.install_id;
     await runtime.start(installId);
     const views = await local.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: reference.project_id, permissions: [] }, reference);
     assert.equal(views.find(view => view.capability_id === `${PREFIX}.state`)?.provider.plugin_id, EXECUTOR_ID, "the person reaches the executor plugin's actions");

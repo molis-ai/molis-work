@@ -119,9 +119,12 @@ test("context_resolve restores Host focus outside the discovery window and write
     // Sessions are retired (BL-177): the context no longer reads or reports a Session.
     assert.equal(Object.hasOwn(result, "session_registry"), false);
     runtimeHost.goalId = undefined;
+    assert.equal(runtime.runtimeContextHost?.goalId, "FOCUS-HOST", "mutating a constructor input cannot change live transport metadata");
+    runtime.runtimeContextHost = { ...runtimeHost };
     result = await resolve();
     assert.equal(result.resume.focus.source, "project_recovery_order");
     runtimeHost.goalId = "DOES-NOT-EXIST";
+    runtime.runtimeContextHost = { ...runtimeHost };
     result = await resolve();
     assert.equal(result.resume.focus.source, "project_recovery_order");
     await runtime.close();

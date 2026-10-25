@@ -33,7 +33,7 @@ for (const quarantined of [false, true]) test(`SYS-15-S8 authorized retry restor
     const oldRuntime = new PluginRuntime(repository, undefined, { maxRecoveryAttempts: 1 });
     const currentDiff = createDiffPlugin();
     const diff = { ...currentDiff, manifest: { ...currentDiff.manifest, version: "1.3.1" } };
-    const diffInstall = oldRuntime.install({ definition: diff, deployment: "local", grants: ["artifact:read"] }).install;
+    const diffInstall = oldRuntime.install({ trust: { level: "host" }, definition: diff, deployment: "local", grants: ["artifact:read"] }).install;
     // A persisted install from before the port spelling was corrected. The old
     // spelling is no longer admitted for new installs by the current parser.
     const legacyDiff = JSON.parse(JSON.stringify(diff.manifest).replaceAll("git-changeset", "git_changeset"));
@@ -41,7 +41,7 @@ for (const quarantined of [false, true]) test(`SYS-15-S8 authorized retry restor
     repository.save({ ...diffInstall, manifest_digest: pluginManifestDigest(legacyDiff) });
     const current = createCodingPlugin();
     const old = { ...current, async start(): Promise<never> { throw new Error("fixture startup failure"); }, manifest: { ...current.manifest, version: "1.30.0", upgrade_compatibility: undefined } };
-    const installed = oldRuntime.install({ definition: old, deployment: "local", grants: old.manifest.permissions.map(p => p.permission) }).install;
+    const installed = oldRuntime.install({ trust: { level: "host" }, definition: old, deployment: "local", grants: old.manifest.permissions.map(p => p.permission) }).install;
     await assert.rejects(oldRuntime.start(installed.install_id), /Plugin entrypoint 启动失败/);
     if (quarantined) await assert.rejects(oldRuntime.recover(installed.install_id), /已隔离/);
     const base = `/projects/${projectId}`;

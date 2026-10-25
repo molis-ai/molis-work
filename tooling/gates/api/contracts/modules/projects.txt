@@ -80,7 +80,7 @@ export interface ProjectPluginRegistry {
     initial?(): readonly ProjectPluginId[];
     companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
     isPersonal?(pluginId: ProjectPluginId): boolean;
-    isAlwaysOn?(pluginId: ProjectPluginId): boolean;
+    alwaysOn?(): readonly ProjectPluginId[];
 }
 
 export interface ProjectRecord {

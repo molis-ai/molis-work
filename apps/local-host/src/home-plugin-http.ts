@@ -35,7 +35,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const entry = page ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home" && entry.project_plugin_id === page[1]) : undefined;
   if (page && !entry) return false;
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
-  // The catalog names existing pages; the actual Home registration owns API routing, including non-bundled entries.
+  // The catalog names existing pages; the actual Home registration owns API routing, including entries that are not of the Host's build.
   if (!host.homePlugins.manifest(pluginId)) return false;
   const side = sidePage?.[2] ?? (page ? url.searchParams.get("side") : null);
   const sideView = side ? entry?.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
@@ -92,6 +92,8 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       const state = await platform.supervisor.enable(pluginId);
       sendLocalWebJson(response, state.status === "running" ? 200 : 503, { state, ...(state.message ? { error: state.message } : {}) });
     } else {
+      const refusal = host.homePlugins.leaveRefusal(pluginId, "停用");
+      if (refusal) { const refused = actionErrorResponse(refusal); sendLocalWebJson(response, refused.status, refused.body); return true; }
       platform.supervisor.revoke(pluginId);
       if (install && install.state !== "disabled") await platform.runtime.stop(install.install_id);
       sendLocalWebJson(response, 200, { disabled: true });

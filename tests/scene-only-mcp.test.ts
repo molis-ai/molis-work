@@ -58,7 +58,7 @@ test("scene-only plugin receives exact MCP configuration grants through existing
     }] }; } });
   const repository = new SqlitePluginRuntimeRepository(db);
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: project.project_id } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   const caller = { actor_id: "owner", project_id: project.project_id, audience: "user" as const, permissions: ["only:run", "only:configure", "judgment:run"] };
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   let external: LocalMcpServer | undefined;

@@ -7,9 +7,9 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
 import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
-import { requireArtifactAnalysisRecord } from "@molis-ai/molis-work-plugin-artifacts";
+import { requireArtifactAnalysisRecord } from "@molis-ai/molis-work-module-artifacts";
 
 const projectId = "canonical-project";
 const reference = { artifact_id: 'report/季度@2:["draft"]', version: 1 };

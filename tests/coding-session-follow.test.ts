@@ -1,4 +1,4 @@
-import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -30,8 +30,8 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
   let waitSignal: AbortSignal | undefined, releaseWait: (() => void) | undefined;
   const view = (phase: string) => ({ ref: { session_id: "sdk", run_id: "r1" }, phase, frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input, options?: { signal?: AbortSignal }): Promise<Output> {
-    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
-    if (definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id) return { workspace_id: "work", display_name: "work" } as Output;
+    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, display_name: "work", realpath_verified: true }] as Output;
+    if (definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id) return { workspace_id: "work", canonical_path: root, display_name: "work", realpath_verified: true } as Output;
     if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
     if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
@@ -57,9 +57,8 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
     }
     throw new Error(`Unexpected capability ${definition.capability_id}`);
   } };
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(pluginActions(store, DEMO_PROJECT_ID), (definition, input, options) => agentHost.invoke(definition, input, options)), actorId: "web-user",
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: agentHost,
+  const host = () => withFakeAgentHost({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, agentHost,
   });
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -140,7 +139,7 @@ async function codingJobs() {
     { ...collaboration.read, handle: async () => ({ sessions: held ? [structuredClone(held)] : [] }) }] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
     const id = definition.capability_id, input = args as unknown[];
-    if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
+    if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, display_name: "work", realpath_verified: true }] as Output;
     if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (id === agent.listActions.capability_id) return [] as Output;
     if (id === agent.readSession.capability_id) return { runs: [] } as Output;
@@ -160,9 +159,8 @@ async function codingJobs() {
     if (id === agent.awaitContinuations.capability_id) { calls.awaitContinuations++; return await (on.awaitContinuations ?? ready)() as Output; }
     throw new Error(`Unexpected capability ${id}`);
   } };
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(actions, (definition, input, options) => agentHost.invoke(definition, input, options)), actorId: "web-user",
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: agentHost,
+  const host = () => withFakeAgentHost({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, agentHost,
   });
   const platform = (await ensureProjectPlugins(host())).platform!, install = platform.supervisor.state("io.molis.work.coding")!.install_id!;
   const send = (execution: { signal: AbortSignal; beforeEffect(): Promise<void>; assert_authority_current(): void }) => platform.router().dispatch({ method: "POST",

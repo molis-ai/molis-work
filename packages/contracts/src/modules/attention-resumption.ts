@@ -9,7 +9,9 @@ export const modulesAttentionResumptionContract = {
   ssot: "docs/modules/attention-resumption.md",
 } as const satisfies ContractDescriptor;
 
-export type AttentionSubjectType = "feed_item" | "goal_decision" | "source_fault";
+/** The platform's closed list of subject kinds; ownership is a separate fact, not implied by a kind. */
+export const ATTENTION_SUBJECT_TYPES = ["feed_item", "goal_decision", "source_fault"] as const;
+export type AttentionSubjectType = typeof ATTENTION_SUBJECT_TYPES[number];
 export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault" | "artifact_out_failed";
 export type AttentionStatus = "open" | "in_progress" | "done" | "dismissed";
 
@@ -20,6 +22,8 @@ export type AttentionStatus = "open" | "in_progress" | "done" | "dismissed";
 export interface AttentionEntryRecord {
   project_id: string;
   entry_id: string;
+  /** The explicitly recorded plugin owner; null is an unassigned object, never inferred from its kind or id. */
+  owner_plugin_id: string | null;
   subject_type: AttentionSubjectType;
   subject_id: string;
   reason: AttentionReason;
@@ -33,6 +37,8 @@ export interface AttentionEntryRecord {
 
 export interface CreateAttentionEntryInput {
   project_id: string;
+  /** A trusted owner's declaration. Omitting it creates an explicitly unassigned object. */
+  owner_plugin_id?: string | null;
   subject_type: AttentionSubjectType;
   subject_id: string;
   reason: AttentionReason;
@@ -52,11 +58,13 @@ export interface AttentionQuery {
     projectId: string,
     subjectType: AttentionSubjectType,
     subjectId: string,
+    ownerPluginId?: string | null,
   ): AttentionEntryRecord | null;
   findForSubject(
     projectId: string,
     subjectType: AttentionSubjectType,
     subjectId: string,
+    ownerPluginId?: string | null,
   ): AttentionEntryRecord[];
 }
 
@@ -74,13 +82,15 @@ export interface AttentionCommands {
     status: AttentionStatus,
     expectedRevision?: number,
   ): AttentionEntryRecord;
-  deleteSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string): number;
+  deleteSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId?: string | null): number;
 }
 
 export interface AttentionEvent {
   event_id: string;
   project_id: string;
   entry_id: string;
+  /** Recorded with the event, so deleting an entry does not erase its ownership. */
+  owner_plugin_id: string | null;
   type: `inbox_entry.${"created" | AttentionStatus | "deleted"}`;
   subject_type: AttentionSubjectType;
   subject_id: string;

@@ -6,7 +6,7 @@
 // the Host does not check:
 //   1. marked ⇔ on both lists: a marked Home entry's package has a project half, and a Home entry's package that the project
 //      start list also starts is marked;
-//   2. both halves ship with the Host: every catalog entry does, so the project half says `bundled: true`;
+//   2. both halves ship with the Host: every catalog entry does, so the project half says `trust: HOST_BUILD_TRUST`;
 //   3. no optional permission (user 2026-10-20, U1): every permission of a marked entry's Manifest is an object literal with
 //      `required: true`.
 //
@@ -45,7 +45,7 @@ export function dualInstanceProblems(snapshot) {
     const half = project.halves.get(entry.package);
     if (entry.marked && !half) problems.push(`${entry.file}: runtime.dual_instance marks ${entry.package} as a dual-instance plugin, but ${PROJECT_START_LIST} starts no project half of it`);
     if (!entry.marked && half) problems.push(`${PROJECT_START_LIST}: ${entry.package} is also a Home catalog entry (${entry.file}); a plugin on both start lists says runtime.dual_instance: true on its Home entry`);
-    if (entry.marked && half && !half.bundled) problems.push(`${PROJECT_START_LIST}: the project half of the dual-instance plugin ${entry.package} must say bundled: true, as its Home half ships with the Host`);
+    if (entry.marked && half && !half.hostBuilt) problems.push(`${PROJECT_START_LIST}: the project half of the dual-instance plugin ${entry.package} must say trust: HOST_BUILD_TRUST, as its Home half ships with the Host`);
     if (entry.marked) problems.push(...optionalPermissions(snapshot, entry));
   }
   return problems;
@@ -64,7 +64,7 @@ function homeEntries(snapshot) {
   return { entries, problems };
 }
 
-/** The project start list's entries by package: `{ bundled }`, read from each `definition: create…(…)` call's import. */
+/** The project start list's entries by package: `{ hostBuilt }`, read from each `definition: create…(…)` call's import. */
 function projectHalves(snapshot) {
   const halves = new Map(), problems = [], text = snapshot.read(PROJECT_START_LIST);
   if (text === null) return { halves, problems };
@@ -74,12 +74,19 @@ function projectHalves(snapshot) {
       const call = unwrap(property(node, "definition").initializer);
       const from = call && ts.isCallExpression(call) && ts.isIdentifier(call.expression) ? imports.get(call.expression.text) : undefined;
       if (!from || from.specifier.startsWith(".")) problems.push(`${PROJECT_START_LIST}: cannot tell which plugin package the entry \`${node.getText().slice(0, 60)}…\` starts; write its definition as a call of a factory imported from the plugin's package`);
-      else halves.set(from.specifier, { bundled: isTrue(property(node, "bundled")?.initializer) });
+      else halves.set(from.specifier, { hostBuilt: isHostBuildTrust(property(node, "trust")?.initializer) });
     }
     ts.forEachChild(node, visit);
   };
   visit(tree);
   return { halves, problems };
+}
+
+/** Whether an entry's `trust` is the Host's own build: the `HOST_BUILD_TRUST` constant, or the literal `{ level: "host" }`. */
+function isHostBuildTrust(node) {
+  const value = unwrap(node);
+  if (value && ts.isIdentifier(value)) return value.text === "HOST_BUILD_TRUST";
+  return Boolean(value) && ts.isObjectLiteralExpression(value) && literal(property(value, "level")?.initializer) === "host";
 }
 
 /** Local name -> `{ specifier, imported }` for a file's value imports. */

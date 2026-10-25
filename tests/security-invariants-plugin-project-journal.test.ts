@@ -110,7 +110,7 @@ async function platform(t: TestContext) {
   });
   const main = probe("journalmain", true), peer = probe("journalpeer", true, () => main.services()), bare = probe("journalbare", false);
   const child = probe("journalchild", true, undefined, `${main.id}.child`);
-  assert.deepEqual((await running.start([main, peer, bare, child].map(item => ({ definition: item.definition, bundled: true })))).running.toSorted(),
+  assert.deepEqual((await running.start([main, peer, bare, child].map(item => ({ definition: item.definition, trust: { level: "host" } })))).running.toSorted(),
     [main.id, peer.id, bare.id, child.id].toSorted());
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
   const event = (name: string) => store.db.prepare("SELECT seq, project_id, actor_id, type, object_id FROM events WHERE event_id = ?").get(`ev-${name}`) as

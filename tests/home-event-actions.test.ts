@@ -24,7 +24,7 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
     async start() { return { kind: "app", actions: [{ ...query, handle: async () => { await Promise.resolve(); duringRead?.(); return { source: { surface: "notes", title: "我的笔记", icon: "note" }, events }; } }] }; } });
   const repository = new MemoryPluginRuntimeRepository();
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: service, project_id: caller.project_id! } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read"] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read"] }).install;
   const read = async (context = caller) => await service.invoke(context, homeEventActions.events, window) as HomeEventsResult;
   try {
     await runtime.start(install.install_id);

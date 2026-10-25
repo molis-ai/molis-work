@@ -444,7 +444,7 @@ test("an action the Host registers under another provider id is named, action by
   assert.doesNotMatch(renamed, /SAME version|who may call it/, "the provider id is its own list, not a change of shape");
   // A plugin the Runtime assembles registers under its own plugin_id, as the native ones do (user decision 2026-10-10, W3-06 Q1): the
   // id derived from its signature is what the Runtime gives every other plugin, and it is not what a persisted reference holds for
-  // a built-in one. So a built-in plugin registered under it, as the Host not naming it `bundled` would, is named action by action.
+  // a built-in one. So a built-in plugin registered under it, as the Host not giving it host trust would, is named action by action.
   const shelf = committedRegistration("io.molis.work.shelf");
   assert.equal(shelf.id, "io.molis.work.shelf");
   const installId = `plugin-install-${"b".repeat(32)}`;

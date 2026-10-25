@@ -1,5 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { JELLY_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/jelly";
+import { JELLY_PLUGIN_ID } from "./contract.js";
 import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
 import { JELLY_ACTIONS, JELLY_ACTION_PERMISSIONS } from "./actions.js";
 import { JELLY_DATABASE } from "./database.js";

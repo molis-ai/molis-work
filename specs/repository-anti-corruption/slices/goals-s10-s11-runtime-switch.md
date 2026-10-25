@@ -1,6 +1,6 @@
 # Goals S10+S11：Goals 切到 Plugin Runtime，个人规划进 Home 实例（PG-094，设计稿）
 
-状态：设计稿（2026-10-25，迁移线 ac-sc3，叠在 S9-1 分支上，等统筹审；未写代码）。统筹 10-25 裁定走「一条链」：S10 与 S11 合成一片（Home 半 + 项目半切 Runtime + 个人规划表搬进 Home 库），之后 S12 删私路，最后 S9-3 纯搬家；每片只推分支、叠着做，不开 PR，等用户维护窗口一起落；不申请 `pluginOutsideMentions` 放行。
+状态：已审定、开工（2026-10-25，迁移线 ac-sc3，叠在 S9-1 分支上；统筹 10-25 审过设计稿并给了七条条件，已写进本稿：§3.4、§3.6、§5.2、§5.3、§7、§8）。统筹 10-25 裁定走「一条链」：S10 与 S11 合成一片（Home 半 + 项目半切 Runtime + 个人规划表搬进 Home 库），之后 S12 删私路，最后 S9-3 纯搬家；每片只推分支、叠着做，不开 PR，等用户维护窗口一起落；不申请 `pluginOutsideMentions` 放行。
 
 ## 1. 为什么 S10 与 S11 不能分开
 
@@ -72,7 +72,7 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 // 平台执行 SAVEPOINT <平台生成的名字>、body、keep 为 false 或 body 抛错时 ROLLBACK TO，最后 RELEASE；每一步先问 check()
 ```
 
-名字由平台生成、插件传不进 SQL（所以不放行任意 `exec`）；`body` 必须同步；窗口句柄结束后失效。适配器里：`transaction(op).immediate()` 在写窗口里 = `savepoint(() => ({ keep: true, value: op() }))`；`previewMaterialization`/`previewMaterializationItem` 由 Governance 的 `GovernanceDecisionTransactions` 改成调适配器的 `preview(op, keep)`，不再写 `exec("SAVEPOINT …")`，`GovernanceSqliteDatabase` 去掉 `exec` 与 `pragma`。沙箱插件的语句通道（`project_statements`）不加这个原语：沙箱插件拿不到（`SANDBOX_SERVICE_FATE`），Goals 是受信的宿主条目。
+名字由平台生成、插件传不进 SQL（所以不放行任意 `exec`）；`body` 必须同步；窗口句柄结束后失效。**它是平台对所有插件同样提供的通用原语，不是给 Goals 开的特例**（统筹条件 2）：声明在 `PluginDatabaseTransaction`（`packages/contracts`），插件 SDK 的合同快照随之更新（`pnpm api:update`），`docs/system/CONTRACT-CHANGES.md` 写明对插件的影响（只增一个可选方法，既有插件不受影响；沙箱插件的语句通道没有它）；安全不变量新开一行，S 号先用暂定号（落地时由统筹编）；拒绝用例要断言「插件传不进 SQL」「`body` 写成异步被拒」「事务结束后句柄用不了」。适配器里：`transaction(op).immediate()` 在写窗口里 = `savepoint(() => ({ keep: true, value: op() }))`；`previewMaterialization`/`previewMaterializationItem` 由 Governance 的 `GovernanceDecisionTransactions` 改成调适配器的 `preview(op, keep)`，不再写 `exec("SAVEPOINT …")`，`GovernanceSqliteDatabase` 去掉 `exec` 与 `pragma`。沙箱插件的语句通道（`project_statements`）不加这个原语：沙箱插件拿不到（`SANDBOX_SERVICE_FATE`），Goals 是受信的宿主条目。
 
 ### 3.5 其余端口
 
@@ -82,7 +82,7 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 | Attention（`AttentionApi` 的 `commands`/`query`，`GoalDecisionAttentionSync` 在用） | 小门面：`query.*` 转 `services.attention` 的读；`commands.create/setStatus` 在写窗口里转 `attention.join(tx, w => w.create(...))`。`owner_plugin_id` 由平台记（S9-0b），门面不传 |
 | Context Ledger（`GoalInputBindings`、`deliverables.ledger`） | 同上，转 `services.contextLedger`；键是 Goals 自己的裸键（S9-0b 已按插件号加前缀） |
 | `clock`、`randomUUID`、`now` | 不变 |
-| 成果库的读 `readArtifact`、`pin` | 现在宿主的 `runtime.artifacts.query` 和 `pinActionSubject`；切 Runtime 后经 `services.actions` 调成果库的公开动作（与 Shelf 的 `ARTIFACT_FILE_IMPORT_ACTION` 同法）。**这是 S11 里要核对的外部依赖，见 §8** |
+| 成果库的读 `readArtifact`、`pin` | 只经成果库的公开动作（`services.actions`），不留宿主进程内的私路；动作形状不够（例如要按引用读固定版本）就先在成果库的主人那里补动作，作为本链最前面的一个小片（§9 片 A） |
 
 ## 4. 为什么不在每次调用时重建对象图
 
@@ -100,16 +100,16 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 
 - 引擎仍注入 `personalMethods: () => readonly PlanningMethodPack[]`，实现是一个**调用快照**：这五个入口的处理器先 `await` 调自己的 Home 半 `goals.planning.personal.list`（经 `services.actions`），把结果放进快照，再同步执行体；快照只在这次同步执行内有效，窗口外读它抛 `goals.planning.personal_not_loaded`（不静默读旧的）。其余动作不取，不增加开销。
 - `list` 返回的是合成后的（内置 + 个人），快照取 `scope === "personal"` 的并去掉 `overridden_scopes`，与原先读到的原始个人列表逐项相同（`resolvePlanningMethodPacks` 里个人版本的权重高于内置，个人项一定被选中）。
-- Home 半停用或不可用时，这五个入口以 `goals.planning.personal_unavailable` 拒绝，不退成「没有个人方法」（那是静默丢数据）。
+- Home 半停用或不可用时，这五个入口以 `goals.planning.personal_unavailable` 拒绝，不退成「没有个人方法」（那是静默丢数据）。两个错误码按 `defineErrorCodes("goals", …)` 声明（`goals.planning.personal_not_loaded`、`goals.planning.personal_unavailable`），不新写 Error 子类。
 
 ### 5.3 数据与维护（要用户维护窗口，与 W5-17 同一版本号）
 
 | 项 | 做法 |
 | --- | --- |
-| 目录库版本 | **不再升**。W5-17（`claude/ac-w517-catalog-paths`，目录库 22→23，脚本 `tests/fixtures/catalog-path-maintenance.mjs`）已占 v23；本片的变化「目录库不再有 `personal_planning_method_packs`」跟着 v23 走，不另升 24 |
+| 目录库版本 | **取落地时 main 的下一个号，不把 23 写死成前提**（统筹条件 4）。W5-17（`claude/ac-w517-catalog-paths`，目录库 22→23）和本片共用同一个新版本号，只升一次；#1101（`codex/memory-management-pages`，别的作者）也把版本设成 23，我们不碰它的分支：它先合，我们就是 v24，维护时段按版本顺序跑（风险登记 R-52）。本片的变化「目录库不再有 `personal_planning_method_packs`」跟着那一个版本走 |
 | 脚本 | `scripts/maintenance/goals-personal-planning-move.mjs`（`list`、`move`）：先全读目录库该表，再用与平台同一个 Home 库打开函数（`@molis-ai/molis-work-storage` 的 `openBaselineHomeSqlite`，基线取 `GOALS_HOME_DATABASE`）建出 Home 库并写入，写完逐行读回比对，最后在一个事务里 `DROP TABLE`；幂等（表不在就什么都不改）、真实 Home 要 `--maintenance-window` 并查占用、只在一次性 Home 里演练 |
-| 与 W5-17 的顺序 | 同一窗口先跑 W5-17 的 `rewrite`（v22→v23），再跑本脚本 `move`（v23 带表 → v23 不带表）。两者谁后合入谁在自己的脚本里调用另一个的 `list` 先检查，不各升一次 |
-| 防漏跑 | `assertCurrentCatalog` 加一条：目录库里还有 `personal_planning_method_packs` 就拒绝（`catalog.unsupported_schema`，提示先跑维护），避免版本号相同却没搬数据、个人方法静默消失 |
+| 与 W5-17 的顺序 | 同一窗口先跑 W5-17 的 `rewrite`（旧版 → 新版），再跑本脚本 `move`（新版带表 → 新版不带表）；若 #1101 先合，按版本顺序先跑它的维护。两者谁后合入谁在自己的脚本里调用另一个的 `list` 先检查，不各升一次 |
+| 防漏跑（必须写清） | 两次维护落在同一个版本号上，版本号本身分不出「搬过没有」，所以 `assertCurrentCatalog` 加一条：目录库里还有 `personal_planning_method_packs` 就拒绝（`catalog.unsupported_schema`，提示先跑维护），避免版本号相同却没搬数据、个人方法静默消失 |
 | 建表 | `initializeCatalog` 不再调 `createPersonalPlanningMethodSchema`；`project-catalog.ts` 去掉 `personalPlanningMethods`；`HOME-DATA.md` 4.1 目录库表删一行，4.x 加 Goals Home 库；`table-owners.json` 随之 |
 
 ## 6. S12（只列，不在本片）：宿主私路删除
@@ -119,9 +119,9 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 ## 7. 验收（编号 RAC-294～309，从 294 起；远端各分支都没用过）
 
 - **RAC-294**：适配器的语句映射：`get` 无行为 `undefined`、`all`、`run` 的 `changes`；参数只收字符串、数字、`null`，布尔与 `undefined` 在入口抛。（`tests/goals-plugin-sqlite-adapter.test.ts`）
-- **RAC-295**：窗口纪律：窗口外访问、异步续体里访问、只读窗口里写、换模式重入、窗口句柄被留住后再用，都抛，且什么都没写。
+- **RAC-295**：窗口纪律：窗口外访问、**异步续体里访问（处理器 `await` 之后的回调、`setTimeout`、被留住的句柄）**、只读窗口里写、换模式重入、窗口句柄被留住后再用，都抛，且什么都没写。
 - **RAC-296**：嵌套事务语义等同 `better-sqlite3`：内层抛错只回滚内层，外层继续并提交；`immediate()` 在无写窗口时抛。
-- **RAC-297**：平台保存点原语：名字由平台生成、`body` 异步被拒、事务结束后句柄失效、撤权或取消在每一步被检查；`keep:false` 与抛错都回滚到保存点并释放。（安全不变量一行 + `tests/security-invariants-plugin-savepoint.test.ts`）
+- **RAC-297**：平台保存点原语（通用，任何插件都可用）：插件传不进 SQL（名字、语句都由平台生成）、名字由平台生成、`body` 异步被拒、事务结束后句柄失效、撤权或取消在每一步被检查；`keep:false` 与抛错都回滚到保存点并释放。（安全不变量一行 + `tests/security-invariants-plugin-savepoint.test.ts`）
 - **RAC-298**：两条预检（整份、逐条）经保存点跑，结果与原先逐条相同；Governance 的 `exec`/`pragma` 从接口里删除，静态扫描两模块源码没有 `exec(`。
 - **RAC-299**：既有模块测试（`goal-events`、`goals-command-module`、`goals-query-*`、`governance-collaboration-module`、`planning-engine` 等）改建在「插件客户端 + 适配器」上仍通过，语句数与 S9-1 相同。
 - **RAC-300**：Goals 以 `createGoalsPlugin` 在项目监督器里启动；`LOCAL_OWNER_PERMISSIONS` 不再含 `goals:*`，本机所有者与助手、MCP、页面经安装授权到达同一批动作；动作合同快照里 Goals 的提供方由宿主改为安装，其余逐行不变。
@@ -135,9 +135,20 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 
 ## 8. 风险与要先核对的
 
-1. **只读场景里的写**：`assertPluginActionCurrent` 对 `query_only`/`read_only_effects`/只读场景拒绝写。Goals 的 `tree.check` 是命令（写幂等记录），不受影响；但助手/场景以只读方式调用 Goals 的命令时今天怎样处理，要对照现有行为测。
-2. **每条语句的守卫开销**：客户端每句问授权、调用者、表名。S9-1 的夹具能数出每个动作的语句数，在 RAC-299 里记下最大的几个（快照、`history`、`tree.decide`），超过阈值再决定是否合并读。
-3. **成果库依赖**：`readArtifact`、`pinActionSubject` 现在是宿主进程内的对象；切 Runtime 后只能经公开动作。若成果库的动作形状不够（需要按引用读版本），要先补动作，补动作是合同改动，另议。
+1. **只读场景里的写**：`assertPluginActionCurrent` 对 `query_only`/`read_only_effects`/只读场景拒绝写。助手、场景以只读方式调用 Goals 命令的现行行为，在切换前先列成断言（逐个命令：被拒的错误码与消息、有无半写入），切换前后必须一致；不一致就停下来问统筹（统筹条件 6）。
+2. **每条语句的守卫开销**：客户端每句问授权、调用者、表名。RAC-299 里记下语句数最多的几个动作（快照、`history`、`tree.decide`）；测出来真慢就开一行性能 BL，不在本片优化（统筹条件 7）。
+3. **成果库依赖**：`readArtifact`、`pinActionSubject` 现在是宿主进程内的对象；切 Runtime 后只经成果库的公开动作。形状不够就先在成果库的主人那里补动作（合同改动，按 CONTRACT-CHANGES），作为本链最前面的小片，不留私路。
 4. **Goals 停用或卸载**：Goals 是每个项目都带的内置插件；Home 半停用对个人规划的影响见 §5.2。项目半被停用后的页面、助手行为沿用其它内置 Runtime 插件的既有规则，不为 Goals 单独开路。
 5. **体量**：约 30 个文件的实质改动（适配层 + 保存点 + 两个插件定义 + 删宿主装配 + 脚本 + 测试 5 个改写）。内部提交顺序：①平台保存点原语 ②适配器与两模块接口收窄（宿主仍装配，测试在适配器上跑）③`createGoalsPlugin` 与 Manifest/注册/监督器条目，删宿主装配 ④个人规划 Home 半与读取快照 ⑤数据搬迁脚本与目录库检查 ⑥文档、门禁、快照。
 6. **不能在本机验证的**：真实 Home 的维护只在统筹问到时段后由用户做；演练只用一次性 Home。浏览器批与全量不跑（统筹要求），依赖 CI 全量。
+
+## 9. 分片与顺序（叠着做，只推分支，不开 PR，等维护窗口；不跑全量和浏览器批）
+
+| 片 | 内容 |
+| --- | --- |
+| A | 成果库公开动作核对与补动作（Goals 的 `readArtifact`、`pin`、`candidates` 要的形状） |
+| B | 平台保存点原语（合同、客户端、SDK 快照、CONTRACT-CHANGES、SI 暂定号、拒绝用例） |
+| C | `PluginSqlite` 适配器与两模块接口收窄（Governance 去掉 `exec`/`pragma`），宿主仍装配，既有模块测试跑在适配器上 |
+| D | `createGoalsPlugin`、Manifest 权限与库声明、项目监督器条目，删宿主装配；动作合同快照 |
+| E | 个人规划 Home 半、调用快照、错误码、Home 库声明 |
+| F | 搬迁脚本、目录库防漏跑检查、HOME-DATA 与 `table-owners`、文档 |

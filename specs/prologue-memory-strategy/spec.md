@@ -2852,3 +2852,13 @@ Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私�
 本片工程结果：原 ConnectorConnectionStore 与 projectBindingsWhere 均未修改，生产只改上述三个 App 文件，真实 Secrets 装配仅提到同文件私有函数复用。固定 Node24.14 原整体 build/FIFO、最终 boundary（errors=[]）、严格测试 TypeScript、准确父030 health、diff检查通过。12个不同定向文件123项通过、零重试/skip：首批8文件76项，最终构建补验新维护14项与目录交错/Secret装配/Search 4文件47项；重复的新14项不重复计入123。原S-71 RAC-470/RAC-471、无control路径和账号/按安装/邻项目保持均通过。新增真实双进程测试在实际BEGIN尝试时通知另一writer撤权，并确认本进程确已拿到锁再拒绝；提交前测试执行真实DELETE后撤权，事务回滚保留全部绑定。
 
 中途工程问题均保留：测试的SQLite.run重载类型经unknown[]原样反射透传修正；App直接node:sqlite类型import被原边界拒绝，已改为现openConnectorsStore返回类型，未改规则；S-71文档首次检查找不到尚未跟踪的新测试，allowlist登记后通过。最终日志 `/private/tmp/molis-memory-plugin-connections-control-{build-final,boundary-final,types-final,health-final,direct,final}.log`。诊断原三反例及旧版本拒绝前chmod证据保持在原tmp文件；本片未push、不跑全量、不触真实Home、不宣称完整MEM-40/App产品实操或用户验收完成，待统筹独审后并入同一PR。
+
+### Web 健康用例等待真实 Catalog 准备（2026-10-25）
+
+本刀基于 `e801b45e8a286e2b8b0a2bdcefd5625ec9f15a07`，只修测试观察。最新 Full suite `40194256812` 的 shard 11 / job `121171604193` 在 `tests/web.test.ts:559` 得到 `starting !== ok`，原一次重试仍失败；6/16 分片通过，9 片取消，整套未通过。两份同名健康用例都把 HTTP listen 完成当成 Catalog 准备完成；实际 `createWebCatalogAccess` 要等异步开库与 `listProjects` 成功，`/health` 此前明确返回 503 / starting，PTY 则同步接上。
+
+范围仅 `tests/web.test.ts` 与本节。沿现有公开 Catalog 装配口、真实临时 Home 和 HTTP 路由等待准备，保留两份旧用例和两种 process id 原断言，并明确断言 HTTP 200；另用已有 `ensureWebCatalog` 的开库端口固定交错，在放行真实开库前检查 HTTP 503 / starting，放行并完成同一 Catalog 读取后检查 200 / ok。`MEM-WEB-READY-01`：监听成功不冒充服务就绪；`MEM-WEB-READY-02`：准备完成仍报告真实进程身份。不给生产新增 ready API，不读私有字段，不使用任意 sleep、延长 timeout/retry、把 starting 当成功或删除旧用例。生产准备、错误与关闭语义不变；测试失败/结束释放等待、关闭 Web 与借用 Host，并删除临时 Home。
+
+验证：复用准确基线的完整构建产物，保留确定性旧断言失败，再跑原 Web 文件及必要启动/安全相邻文件、类型与准确 e801 健康门。仅工程验证；不代表最终 App 产品实操、真实用户 Home 或用户验收，不启动全量、推送或 CI。
+
+实证：已复制基础树的 71 处 dist；原完整构建以来只有测试/spec 改动，使用原 `computeBuildSourceDigest` 核对复制后的 `.molis-work-build.json` 完全一致，没有重建或改指纹。Node 24.14.0 下公开开库口固定等待后，旧 `ok` 断言确定性失败为 `starting !== ok`（`/private/tmp/molis-memory-web-health-readiness-red-20261025.log`）。修后原 Web 19 项、Catalog 恢复 4 项、Home 存储宿主安全 23 项及本机入口安全 15 项，共 4 文件 61 项全部通过，jobs1/browser1/retries0，无跳过；日志 `-green-20261025.log`。根类型检查及准确 e801 健康门通过，生产、依赖、资源、门禁与 retry/timeout 均未改。额外严格编译整个旧 Web 测试文件时，候选与准确 e801 同样有 4 条旧诊断（ScheduleJobPort 缺 register、旧 contract/update 字面量及 GoalsCoverageItem 导出），仅行号偏移；保留 `-test-types-20261025.log` 与 `-base-test-types-20261025.log`，没有将这项额外检查报告为通过，也没有扩大本刀修复。最终提交的 CI/Full 与产品/用户验收仍未验证。

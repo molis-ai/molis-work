@@ -1,5 +1,5 @@
 import { fencedMaterials, instructed, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import type { TodoCandidate, TodoCandidateKind, TodoItem, TodoPlacement } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidate, type TodoCandidateKind, type TodoItem, type TodoPlacement } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, isTodoTime, localDate } from "./dates.js";
 import { parseTodoQuickText } from "./quick-parse.js";
 
@@ -26,8 +26,6 @@ export interface TodoOrganizeParse {
 
 /** One model call reads at most this much material; longer sets are read in parts. */
 const TODO_ORGANIZE_PART_CHARS = 40_000;
-/** A single material is cut here; the batch says so. */
-export const TODO_ORGANIZE_MATERIAL_CHARS = 60_000;
 
 const KINDS: readonly TodoCandidateKind[] = ["request", "commitment", "waiting", "suggestion"];
 const PLACEMENTS: readonly TodoPlacement[] = ["project", "personal", "unassigned"];

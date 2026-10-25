@@ -75,6 +75,8 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 MEM-40原项目计划的冷retention由 `createMemoryLedgerProjectRetention` 提供（合同见Memory spec的同名段）。它固定Home及原项目/actor/operation/ID/scope/source，以四种语义方法抑制来源、移除原候选账注、遗忘原正式ID和最后清非个人scope；沿原retention与adoption事务执行，不暴露SQL/DB/万能mutation。每步接expected adoption snapshot，COMMIT成功后才返回同事务post，父frame据此接受自己的变更；异常不猜提交状态。original模式拒绝写，只读验证原对象全部retention后置条件与来源屏障，不能凭marker或当前scope空态清同ID后继。参数/当前授权不可扩大固定集合；个人scope只逐ID处理，scope收尾前SDK覆盖证明归上层。直接回归 `tests/memory-ledger-project-retention.test.ts`；不新增schema、registry或第二删除核。局部真实SQLite验证已覆盖提交前回滚、提交后未知结果不返回post、撤权/取消、计划外拒绝与同ID后继保持；完整冷Memory父frame接线与全主人恢复仍由上层集成。
 
+MEM-40 的非项目精确选择由 `createMemoryLedgerSelectedRetention` 承接：固定 actor/operation 与多个已授权 scope 中的原正式 ID、候选 ID、来源元组，没有 project_id 或 forgetScopes。它与项目入口共用原路径/current、existing-only adoption 事务、五表双存身份检查、三种逐对象 mutation 及原件证明；项目范围收尾仍只在项目入口。个人 owner 必须等于 actor，重复 scope 或同类对象 ID 拒绝。selected 来源的 version 可省略，直接表示真实 source-forgotten 事件屏障；存在时必须非空，命令逐完整原元组匹配，不替屏障编造版本。项目入口的来源 version 继续必填。original 模式拒绝全部写入，仅验证固定原件的全部 retention 后置条件。独立遗忘和来源屏障不删除 owner、偏好、信号或 scope，也不证明上层 SDK 删除已完成。直接回归 `tests/memory-ledger-selected-retention.test.ts`，实施合同见 Memory spec 的 MEM-40-SELECTED-01..06。
+
 ## 离线搜索目标清理
 
 `clearProjectInExistingTextSearchIndex` 供 MEM-40 原项目删除步骤维护停写 target：调用者固定目标 Home、项目及原操作决定，持有原维护 owner；必填同步 `assertCurrent` 检查同一 frame 的当前 owner/权限，`signal` 检查取消。入口、事务删除前与提交前均复核，拒绝回滚。它复用搜索当前 DDL、结构描述器和 `removeProject` 的删除事务，只清该项目文档、来源与对应 FTS，不启动 SearchService 或 Runtime。

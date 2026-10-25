@@ -39,8 +39,6 @@ function ports(store: LocalProjectDatabase, titles: Readonly<Record<string, stri
     actorId: "web-user",
     escapeHtml,
     translate: (value: string) => value,
-    // No folder is set up for this project.
-    workspacesFor: async () => [],
   };
 }
 

@@ -104,25 +104,23 @@ export function withFakeAgentHost<H extends { actions: ReturnType<typeof pluginA
 export const PROJECT_FOLDER_READS: readonly ActionDefinition[] = [projectSettingsCapabilities.workspaces, projectSettingsCapabilities.browsingWorkspace];
 /** The folder reads and the Agent runtime the project picked, for a test whose table also answers which runtime Coding starts on. */
 export const PROJECT_SETTINGS_READS: readonly ActionDefinition[] = [...PROJECT_FOLDER_READS, projectSettingsCapabilities.runtime];
-export type ProjectFolderPorts = { workspacesFor(): Promise<readonly ProjectWorkspaceRef[]>; dependencyCheck(reference: { capability_id: string }): { available: true } | { available: false; code: string; reason: string } };
+export type ProjectFolderPorts = { dependencyCheck(reference: { capability_id: string }): { available: true } | { available: false; code: string; reason: string } };
 
 /**
  * The project settings reads a plugin consumes, for a test without the project settings service (the real handlers are tested
- * in tests/host-action-registration.test.ts): `answer` gives what an action returns; a folder it names comes back as a complete
+ * in tests/host-action-registration.test.ts): `answer` gives what an action returns to its caller; a folder it names comes back as a complete
  * `ProjectWorkspaceRef` (its name defaults to its id), as the action's output contract requires. The first call for a project's
- * actions is the one that answers. Returns the Host ports that go with it: the folders the opening announcement reads
- * (`workspacesFor`), and a dependency check that reports only these reads as present.
+ * actions is the one that answers. Returns the Host port that goes with it: a dependency check that reports only these reads as present.
  */
-export function fakeProjectSettings(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition) => unknown, settings: readonly ActionDefinition[] = PROJECT_FOLDER_READS): ProjectFolderPorts {
+export function fakeProjectSettings(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, caller: ActionCallContext) => unknown, settings: readonly ActionDefinition[] = PROJECT_FOLDER_READS): ProjectFolderPorts {
   const complete = (value: unknown): unknown => Array.isArray(value) ? value.map(folderRef) : value && typeof value === "object" && "workspace_id" in value ? folderRef(value as ProjectWorkspaceRef) : value;
   if (!settingsServed.has(actions.registry)) {
     settingsServed.add(actions.registry);
     actions.registry.registerProvider({ provider: { provider_id: "project-settings-fixture", title: "项目设置", kind: "system" }, definitions: [...settings],
-      handlers: settings.map(definition => ({ ...definition, handle: async () => complete(await answer(definition)) })) });
+      handlers: settings.map(definition => ({ ...definition, handle: async (caller: ActionCallContext) => complete(await answer(definition, caller)) })) });
   }
   const present = new Set(settings.map(definition => definition.capability_id));
   return {
-    workspacesFor: async () => complete(await answer(projectSettingsCapabilities.workspaces)) as readonly ProjectWorkspaceRef[],
     dependencyCheck: reference => present.has(reference.capability_id) ? { available: true } : { available: false, code: "fixture.missing", reason: "The fixture serves only the project settings reads" },
   };
 }

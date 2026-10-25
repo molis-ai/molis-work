@@ -38,7 +38,6 @@ import { homeRouteProjectPlugins, projectPluginServices, projectRequestContext, 
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { bindGoalsWebActions } from "./goals-actions.js";
 import { projectFeedOptions } from "./workflow-feed-options.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
@@ -148,9 +147,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
   const pluginServices = projectPluginServices(context);
   const pluginPorts: ProjectPluginSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, artifacts, processItems, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
-    actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value),
-    workspacesFor: () => context.composition.withCatalog({ homeDirectory: context.serverOptions.homeDirectory },
-      catalog => catalog.listWorkspaceDirectory(options.projectId).map(projectWorkspaceRef)) };
+    actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value) };
   const withoutView = { ...context, store, feedOptions, homeActions, goalActions, pluginServices, pluginPorts };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
 }

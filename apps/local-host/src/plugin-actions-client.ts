@@ -205,8 +205,9 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
         : callScope(options.project_id, options.client, control), projectId = scope.project_id;
       const own = manifest.actions?.find(action => sameAction(action, definition));
       // A call whose audience is `plugin` (the outer call is a plugin's, or there is none) goes the way a job's does, below: with the Host's
-      // issued caller, as the installation itself, never as a caller shaped here to look like the person.
-      const ownCaller = scope.caller !== undefined || ownAudience(outer) !== "plugin";
+      // issued caller, as the installation itself, never as a caller shaped here to look like the person. A control the Host routed is the
+      // person's request (a route, or a page action, whose control names no caller); `callScope` has already refused one whose request ended.
+      const ownCaller = (control !== undefined && routedControls.has(control)) || ownAudience(outer) !== "plugin";
       if (own && !job && ownCaller) return passed(outer, own, await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output);
       if (!own && !consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
       // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would

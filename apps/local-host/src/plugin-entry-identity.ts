@@ -1,4 +1,4 @@
-import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isHostTrust } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
@@ -7,6 +7,7 @@ import type { PluginOwnerFilesEntry, PluginOwnerFilesBinding } from "./plugin-ow
 /** Only the Host's actual definition objects may inherit the provider of its own build (`host` trust) or a declared library. */
 export function pluginEntryIdentity() {
   const hostBuilt = new WeakSet<PluginDefinition>();
+  const hostBuiltManifests = new WeakSet<PluginManifest>();
   const listed = new WeakSet<PluginDefinition>();
   const ownerFiles = new WeakMap<PluginDefinition, PluginOwnerFilesBinding>();
   const configurations = new WeakMap<PluginDefinition, PluginModelConfigurationDeclaration>();
@@ -15,6 +16,8 @@ export function pluginEntryIdentity() {
   const dual = new WeakSet<PluginDefinition>();
   return {
     providerFor: (definition: PluginDefinition, installId: string) => hostBuilt.has(definition) ? definition.manifest.plugin_id : installId,
+    /** Whether this Manifest object is the one a definition of `host` trust on the Host's start list carries. */
+    shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && hostBuiltManifests.has(manifest),
     /** The library its Manifest declares, for a definition object the Host's start list holds; none for any other. */
     databaseFor: (definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined => listed.has(definition) ? definition.manifest.databases?.home : undefined,
     ownerFilesFor: (definition: PluginDefinition) => ownerFiles.get(definition),
@@ -27,7 +30,7 @@ export function pluginEntryIdentity() {
     remember(entries: readonly (PluginOwnerFilesEntry & { trust?: PluginTrust;
       project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
-        if (entry.trust && isHostTrust(entry.trust)) hostBuilt.add(entry.definition);
+        if (entry.trust && isHostTrust(entry.trust)) { hostBuilt.add(entry.definition); hostBuiltManifests.add(entry.definition.manifest); }
         if (entry.dual_instance) dual.add(entry.definition);
         listed.add(entry.definition);
         const owned = entry.definition.manifest.owner_files;

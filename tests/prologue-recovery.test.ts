@@ -1,14 +1,86 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createPrologueNodeAdapter, PrologueAgentAdapter, type PrologueRuntimePort, type PrologueEvent, type PrologueRunTiming } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunRef, AgentSessionRef, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { startModelStandIn } from "./fixtures/model-stand-in.ts";
 
 const owner = { project_id: "recovery-board", plugin_id: "io.molis.work.coding", install_id: "recovery-install" };
 const model = { protocol: "anthropic-compatible", endpoint: "https://127.0.0.1:1/v1/messages", model: "offline-fixture", credential_ref: "fixture" };
+
+test("BL-100: packed SDK crash prefix closes the original pending call, not the later tool-call, after cold restart", { timeout: 60_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), "molis-approval-prefix-"));
+  await writeFile(join(root, "report.txt"), "ORIGINAL\n");
+  let requests = 0;
+  const provider = createServer(async (request, response) => {
+    for await (const _chunk of request) { /* consume this real protocol request */ }
+    const calls = ++requests === 1
+      ? [{ id: "read-source", name: "read", input: { path: "report.txt" } }]
+      : [{ id: "approval-edit", name: "write", input: { path: "report.txt", text: "CHANGED\n" } },
+        { id: "later-read", name: "read", input: { path: "report.txt" } }];
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write(`data: ${JSON.stringify({ id: `reply-${requests}`, model: "stand-in", choices: [{ index: 0, delta: { role: "assistant", tool_calls: calls.map((call, index) => ({ index, id: call.id, type: "function", function: { name: call.name, arguments: JSON.stringify(call.input) } })) }, finish_reason: null }] })}\n\n`);
+    response.end(`data: ${JSON.stringify({ id: `reply-${requests}`, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage: { prompt_tokens: 3, completion_tokens: 2 } })}\n\ndata: [DONE]\n\n`);
+  });
+  await new Promise<void>(resolve => provider.listen(0, "127.0.0.1", resolve));
+  const address = provider.address(); assert.ok(address && typeof address === "object");
+  const endpoint = `http://127.0.0.1:${address.port}/v1/chat/completions`;
+  const app = { appId: "io.molis.work.approval-prefix", appVersion: "1.0.0" };
+  const child = spawn(process.execPath, ["--input-type=module", "--eval", `
+    import { AgentReviewQueue, createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-host';
+    const root = ${JSON.stringify(root)};
+    const adapter = await createPrologueNodeAdapter({ app: ${JSON.stringify(app)}, storageRoot: root + '/runtime', reviewQueue: new AgentReviewQueue(),
+      modelConfiguration: async () => ({ protocol: 'openai-compatible', endpoint: ${JSON.stringify(endpoint)}, model: 'stand-in', credential_ref: 'fixture' }), resolveCredential: () => 'stand-in-key' });
+    const owner = ${JSON.stringify(owner)}, directory = { canonical_path: root, realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, directory, title: 'Pending prefix' });
+    const handle = await adapter.start({ ...owner, session, directory, task: 'Read then change report.txt.', role_id: 'writer',
+      role: { role_id: 'writer', version: 1, execution: 'text-edit', host_tools: ['read-file', 'write'], prompts: [] } });
+    await new Promise((resolve, reject) => { adapter.observe(handle.ref, view => {
+      if (view.phase === 'awaiting-review' && view.activity.some(item => item.call_id === 'later-read')) resolve();
+      else if (['failed', 'completed', 'cancelled'].includes(view.phase)) reject(new Error(JSON.stringify(view)));
+    }); });
+    // Let the SDK's queued progress commit finish; the cold read below must prove that this prefix actually survived.
+    await new Promise(resolve => setTimeout(resolve, 250));
+    process.stdout.write(JSON.stringify({ session, ref: handle.ref }) + '\\n');
+    process.stdin.resume(); await new Promise(resolve => process.stdin.once('end', resolve));
+  `], { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] });
+  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => child.once("exit", (code, signal) => resolve({ code, signal })));
+  let stderr = "", adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  child.stderr.on("data", data => { stderr = (stderr + data).slice(-4000); });
+  t.after(async () => {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    await exited; await adapter?.close();
+    await new Promise<void>(resolve => { provider.closeAllConnections(); provider.close(() => resolve()); });
+    await rm(root, { recursive: true, force: true });
+  });
+  const saved = await new Promise<{ session: AgentSessionRef; ref: AgentRunRef }>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`SDK did not reach its approval: ${stderr}`)), 20_000);
+    let output = "";
+    child.stdout.on("data", data => { output += data; if (output.includes("\n")) { clearTimeout(timer); resolve(JSON.parse(output.slice(0, output.indexOf("\n")))); } });
+    child.once("error", error => { clearTimeout(timer); reject(error); });
+    child.once("exit", code => { clearTimeout(timer); reject(new Error(`child ended before its durable prefix (${code}): ${stderr}`)); });
+  });
+  assert.equal(requests, 2);
+  child.kill("SIGKILL"); assert.equal((await exited).signal, "SIGKILL");
+  const make = () => createPrologueNodeAdapter({ app, storageRoot: join(root, "runtime"),
+    modelConfiguration: async () => { throw new Error("recovery must not request a model"); } });
+  for (let read = 0; read < 2; read += 1) {
+    adapter = await make();
+    assert.equal((await adapter.readSessionStatus(saved.session)).status.latest_phase, "reconcile-required");
+    const view = (await adapter.readSession(saved.session)).latest_run!;
+    assert.deepEqual(view.ref, saved.ref);
+    assert.deepEqual(view.activity.map(item => [item.call_id, item.state]), [["read-source", "completed"], ["approval-edit", "failed"], ["later-read", "unknown"]]);
+    assert.match(view.activity[1]!.summary, /等待批准时这一轮结束，没有执行/u);
+    assert.doesNotMatch(view.activity[2]!.summary, /没有执行/u);
+    assert.equal(await readFile(join(root, "report.txt"), "utf8"), "ORIGINAL\n");
+    assert.equal(requests, 2, "cold history is observation; no new model or tool dispatch");
+    await adapter.close(); adapter = undefined;
+  }
+});
 
 for (const result of ["saved", "failed"] as const) {
   test(`steer ${result}: control route waits for the SDK receipt and propagates failure`, async () => {

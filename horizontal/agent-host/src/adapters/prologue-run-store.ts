@@ -94,7 +94,7 @@ export class PrologueRunStore {
     const session: SessionRecord = { title: restored.title, owner: restored.owner, workspace: restored.workspace ?? "required", runs: [],
       ...(restored.recovery ? { recovery: restored.recovery } : {}) };
     for (const saved of restored.runs) {
-      const { state, endedAt } = restorePrologueRun(saved);
+      const { state, endedAt } = restorePrologueRun(saved, waiting => this.#runtime.unexecutedApprovalCall?.(saved.ref, waiting));
       // Replayed records are immutable observations. A new Run continues the
       // same SDK session; old control handles cannot be resurrected.
       const unavailable = (): never => { throw agentErrors.capability_unavailable("历史执行没有活动控制句柄，不能重放停止、回答或继续指令"); };
@@ -124,7 +124,7 @@ export class PrologueRunStore {
         if (event.text === task) return;
       }
       const at = this.now().toISOString();
-      if (!applyRunEvent(record.state, event, at)) return;
+      if (!applyRunEvent(record.state, event, at, waiting => this.#runtime.unexecutedApprovalCall?.(ref, waiting))) return;
       // A held ending reads as what was wrong with it; one that ended still only announcing says nothing was done.
       if (event.type === "model-response-repair" && event.reason === "stop-held") {
         const label = ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));
@@ -256,7 +256,7 @@ export function isEnded(phase: string): boolean {
 }
 
 /** One interpretation of persisted progress for both the directory and full history. */
-export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number]) {
+export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number], readCall?: Parameters<typeof closeInterruptedPrologueStream>[1]) {
   const state = runStreamState(saved.frozen.model_context?.prompt_includes_cache ?? false, saved);
   state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at, sequence: 0 });
   let firstPrompt = true;
@@ -268,7 +268,7 @@ export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number
     }
     const atMs = (event as { atMs?: unknown }).atMs;
     const at = typeof atMs === "number" && Number.isFinite(atMs) ? new Date(atMs).toISOString() : null;
-    applyRunEvent(state, event, at);
+    applyRunEvent(state, event, at, readCall);
     if (isEnded(state.phase) && typeof atMs === "number") endedAt = at;
   }
   if (saved.timing) {
@@ -282,7 +282,7 @@ export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number
     if (!state.awaiting_input.some(held => held.pending_id === question.pending_id)) state.awaiting_input.push({ ...question, sequence: state.next_sequence++ });
   }
   if (!saved.events || !isEnded(state.phase)) {
-    closeInterruptedPrologueStream(state);
+    closeInterruptedPrologueStream(state, readCall);
     if (saved.terminal) {
       // The runtime sealed the run; only its progress stopped short (the service went down while it was ending).
       // Nothing is left to reconcile for it — an operation with an unknown outcome would still be open work, and that

@@ -6,13 +6,15 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PLUGIN_TRUST_SCHEMA_SQL, PluginRuntime, SqlitePluginConsentLedger, SqlitePluginRuntimeRepository, UNSIGNED_TRUST, alwaysOnAgreed, consentSubject, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
-import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // ac-trust T3 (specs/repository-anti-corruption/slices/ac-trust-install.md §3.4): the 常开 list is worked out from the consent ledger and the
 // install records each time it is asked, nothing names a plugin, and the server refuses to uninstall, switch off or remove a 常开 plugin.
@@ -248,5 +250,106 @@ for (const [name, corrupt, expected] of [
     assert.throws(() => f.catalog.listHiddenPlugins(f.project.project_id), expected);
     assert.throws(() => f.catalog.removeProjectPlugin({ project_id: f.project.project_id, plugin_id: "goals", actor_id: "test" }), expected);
     assert.deepEqual(filesAt(f.home), before);
+  });
+}
+
+for (const corruption of ["version", "structure"] as const) {
+  test(`RAC-402 RAC-403 S-34 revoked and disabled records survive ${corruption} failure; only the page gets stored membership`, { timeout: 60_000 }, async t => {
+    const home = await mkdtemp(join(tmpdir(), "molis-work-revoked-invalid-"));
+    const availability = projectActionAvailability(withMolisWorkProjectCatalog, home);
+    const f = await serveHomeRuntime(t, { homeDirectory: home, actionAvailability: availability });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    try {
+      const project = await catalog.createProject({ display_name: "保留撤回与隐藏", actor_id: "test" });
+      const db = seedStore(home), ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
+      const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
+      const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
+      const runtime = new PluginRuntime(repository, undefined, { consents: ledger });
+      const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
+        definition: { manifest: shelf, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
+      ledger.record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature, manifest_digest: pluginManifestDigest(goals),
+        granted_by: "host_build", grants: [ALWAYS_ON], at: "2026-10-25T00:00:00.000Z" });
+      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "test" });
+      db.prepare("UPDATE plugin_consents SET revoked_at = ? WHERE kind = 'always_on'").run("2026-10-25T01:00:00.000Z");
+      repository.save({ ...install, state: "disabled" });
+      catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "test" });
+      catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "shelf", actor_id: "test" });
+      const stored = { plugins: ["schedule"], hidden: ["shelf"] };
+      assert.deepEqual(catalog.storedProjectPluginMembership(project.project_id), stored);
+      assert.deepEqual(catalog.listProjectPlugins(project.project_id), stored.plugins);
+      assert.deepEqual(catalog.listHiddenPlugins(project.project_id), stored.hidden);
+      const caller = person(["goals:read"], project.project_id);
+      const action = { provider: { provider_id: goals.plugin_id, plugin_id: goals.plugin_id, title: "Goals", kind: "plugin" as const } };
+      assert.equal((await availability(caller, action)).available, false);
+      if (corruption === "version") db.exec("PRAGMA user_version = 2");
+      else db.exec("DROP TABLE plugin_private_values");
+      const consents = ledger.consents(goals.plugin_id), installs = repository.list();
+      db.close();
+      const before = filesAt(home), bytes = readFileSync(storePath(home));
+      const refusal = { code: corruption === "version" ? "storage.schema_version_mismatch" : "actions.execution_failed" };
+      for (let attempt = 0; attempt < 2; attempt++) {
+        assert.throws(() => catalog.listProjectPlugins(project.project_id), refusal);
+        assert.throws(() => catalog.listHiddenPlugins(project.project_id), refusal);
+        for (const plugin_id of ["goals", "shelf"]) assert.throws(() => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "test" }), refusal);
+        await assert.rejects(Promise.resolve().then(() => availability(caller, action)), refusal);
+      }
+      assert.deepEqual(filesAt(home), before, "strict reads and refused commands write no files or business records");
+      const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+      await assert.rejects(f.host.actionClient(reference, false).invoke(caller, goalsActions.snapshot, {}), refusal);
+      for (const path of [`/projects/${project.project_id}/`, `/projects/${project.project_id}/settings/general`, `/settings/appearance?project=${project.project_id}`, `/projects/${project.project_id}/side/pages/comments`]) {
+        const page = await f.request(path);
+        assert.equal(page.status, 200, await page.clone().text());
+        const html = await page.text();
+        assert.match(html, /Home 插件运行库不可用/u);
+        assert.match(html, /data-stored-project-plugin="schedule"/u);
+        assert.match(html, /data-stored-project-plugin="shelf" data-plugin-hidden="true"/u);
+        assert.doesNotMatch(html, /data-stored-project-plugin="goals"|data-issue-composer|id="molis-work-data"/u);
+        assert.equal([...html.matchAll(/data-work-surface="issues"/gu)].length, 1);
+        assert.match(html, /href="\/plugins\/issues"/u);
+      }
+      for (const path of ["/api/board", "/api/board/refresh"]) {
+        const response = await f.request(`/projects/${project.project_id}${path}`);
+        assert.equal(response.status, 503, "read APIs retain refusal and return no substitute plugin content");
+        const body = await response.json() as Record<string, unknown>;
+        assert.equal(body.error, "Home 插件运行库不可用"); assert.equal(body.code, refusal.code);
+        assert.equal("snapshot" in body, false); assert.equal("goals" in body, false);
+      }
+      const membership = await f.request("/api/settings/project-plugins");
+      assert.equal(membership.status, 503, "the live plugin picker sees the unavailable state instead of treating stored rows as current authority");
+      const payload = await membership.json() as { projects: Array<{ project_id: string; plugins: string[]; hidden: string[]; unavailable?: string }> };
+      assert.deepEqual(payload.projects.find(item => item.project_id === project.project_id), { project_id: project.project_id, display_name: project.display_name,
+        ...stored, unavailable: "Home 插件运行库不可用" });
+      assert.deepEqual(readFileSync(storePath(home)), bytes, "page recovery never repairs or writes the damaged ledger");
+      const restored = new DatabaseSync(storePath(home));
+      try {
+        assert.deepEqual(new SqlitePluginConsentLedger(restored).consents(goals.plugin_id), consents);
+        assert.deepEqual(new SqlitePluginRuntimeRepository(restored).list(), installs);
+        // Restoring only the missing structure/version makes the next read authoritative again, while preserving every revoked row.
+        if (corruption === "version") restored.exec("PRAGMA user_version = 3");
+        else {
+          const schema = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime-v3.sql", import.meta.url), "utf8");
+          const table = schema.match(/CREATE TABLE plugin_private_values \([\s\S]*?\n\);/u)?.[0];
+          assert.ok(table); restored.exec(table);
+        }
+      } finally { restored.close(); }
+      assert.deepEqual(catalog.listProjectPlugins(project.project_id), stored.plugins);
+      assert.deepEqual(catalog.listHiddenPlugins(project.project_id), stored.hidden);
+      assert.equal((await availability(caller, action)).available, false);
+    } finally { catalog.close(); }
+  });
+}
+
+for (const error of [new SqliteSchemaVersionError("unrelated.db", 1, 3), new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源")]) {
+  test(`RAC-403 a ${error.name} from outside the Home store is not swallowed even with the same code or message`, { timeout: 60_000 }, async t => {
+    const f = await serveHomeRuntime(t, { actionAvailability: (_caller, action) => {
+      if (action.capability_id === goalsActions.collection.capability_id) throw error;
+      return { available: true };
+    } });
+    const one = await f.project("Other errors stay visible");
+    for (const path of ["/", "/api/board", "/api/board/refresh"]) {
+      const page = await f.request(`/projects/${one.project_id}${path}`);
+      assert.equal(page.status, 500);
+      assert.doesNotMatch(await page.text(), /data-home-plugin-store-unavailable/u);
+    }
   });
 }

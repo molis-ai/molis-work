@@ -1,4 +1,5 @@
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
 import { feedRuleActions } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
@@ -85,7 +86,7 @@ export async function handleMolisWorkWebRequest(
     && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
   if (resolved.kind === "catalog_index") {
     const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
-    await dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant });
+    await withHomePluginStorePageRecovery(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));
     return;
   }
   if (resolved.kind === "project_not_found") {
@@ -93,7 +94,8 @@ export async function handleMolisWorkWebRequest(
     return;
   }
   url.pathname = resolved.pathname;
-  await dispatchWebRoutes(PROJECT_ROUTES, projectRequestContext(context, resolved.options));
+  await withHomePluginStorePageRecovery(context, resolved.options.project?.project_id ?? null,
+    () => dispatchWebRoutes(PROJECT_ROUTES, projectRequestContext(context, resolved.options)));
 }
 
 /** The project list, or (when it cannot be read) the chooser saying so: the chooser is the way in, and the personal space still opens. */

@@ -7,6 +7,7 @@ import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-cont
 import type { PluginInputGroupDeclaration, PluginInputPortDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-wiring";
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, bindDeclaredDefaults, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
@@ -20,8 +21,9 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 /**
  * W4-03 (BL-087, D-04 A): an input port's default source is declared in its own plugin's Manifest (`default_source`, and a
  * default input group), and the Host binds what the running plugins declare. There is no list of names in the Host: a plugin the
- * old table never named gets its default the same way as Coding's family, and only where nothing was chosen. For now defaults
- * apply only between plugins that ship with the Host, as the table did: another plugin's declaration is read as absent.
+ * old table never named gets its default the same way as Coding's family, and only where nothing was chosen. A default applies
+ * on a standing agreement in the consent ledger (the Host agrees for the plugins it ships): a plugin nobody agreed for is read as
+ * if it declared none (tests/security-invariants-default-consent.test.ts holds the agreement rules).
  */
 
 const FILES = "io.molis.work.files";
@@ -47,7 +49,7 @@ function project(run: (platform: ReturnType<typeof createPluginPlatform>) => Pro
     const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db,
       artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
       processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-      ui: new UiHost(), home: null, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
+      ui: new UiHost(), home: null, consents: new MemoryPluginConsentLedger(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
     try { await run(platform); } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
   };
 }
@@ -97,7 +99,7 @@ test("W4-03-02 a default is not bound over the person's choice, nor when its sou
   assert.equal(platform.wiring.selectedGroup(PROBE), "two", "the person's group stays");
 }));
 
-test("W4-03-04 a plugin that does not ship with the Host gets no default (not Coding's changesets, not its default group, not under a built-in's id), and no built-in reads it by default", project(async platform => {
+test("W4-03-04 a plugin nobody agreed for gets no default (not Coding's changesets, not its default group, not under a built-in's id), and no built-in reads it by default", project(async platform => {
   const installed = "io.molis.work.example.collector";
   const changesetPort = (port: string, plugin_id: string, source: string): PluginInputPortDeclaration =>
     ({ port, artifact_type_id: "coding.changeset.v1", schema_version: 1, optional: true, default_source: { plugin_id, port: source } });

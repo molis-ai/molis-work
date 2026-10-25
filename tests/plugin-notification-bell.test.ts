@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { EN } from "@molis-ai/molis-work-app-local-host";
 import { renderImmersiveHeader } from "../apps/workbench/dist/immersive-shell.js";
 import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";

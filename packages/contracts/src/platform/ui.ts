@@ -1,5 +1,9 @@
 import type { ContractDescriptor } from "./package.js";
 import type { ActionReference } from "./actions.js";
+import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
+import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
+
+type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 
 /** The isolated page calls only its installation's own or declared consumed actions. Identity and grants stay with the Host. */
 /** The current contribution only; the Host chooses its address and rechecks its installation. */
@@ -134,6 +138,48 @@ export const UI_VIEW_GROUPS = ["advance", "make", "personal", "research", "code"
 
 export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
 
+/**
+ * Where a `navigator` view's plugin sits in the rail apart from its `group` (W5-02 PR-D, PG-074). `core` is the backbone, listed
+ * under the first heading in the views' `order`; `extend` is a way to extend the workbench, offered from the Dock menu and the
+ * switcher's head instead of the list of tools. The Host honours either only for a built-in plugin the project chooses.
+ */
+export const UI_VIEW_RAILS = ["core", "extend"] as const;
+
+export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
+
+/**
+ * Where a settings page gets what it shows (W5-02 PR-D, PG-072). `action` is the `capability_id` of one of the same Manifest's own
+ * actions: a query for the person (audience `user`) that only reads, with one version. The Host calls it with no input, in the Home,
+ * and the page receives the answer as `SettingsPageModel.data`; a page that needs nothing of its own declares none.
+ */
+export interface UiSettingsDataDeclaration {
+  readonly action: string;
+}
+
+/** The platform facts the Host gives every plugin's settings page, in this one shape, whatever the plugin is. */
+export interface SettingsPageContext {
+  /** The projects the person has, for a page that offers to open something in one. */
+  readonly projects: ReadonlyArray<{ readonly project_id: string; readonly name: string }>;
+  /** The project the settings were opened from (`?project=`), and the address of its workbench; null when opened from none. */
+  readonly project: { readonly project_id: string; readonly name: string; readonly href: string } | null;
+  /** The registered Agent Runtimes, requested by `settings_runtimes`; empty when the view does not request them. Query failure is an error, not an empty list. */
+  readonly runtimes: readonly AgentRuntimeDescriptor[];
+}
+
+/** What the Host writes text and markup with on a settings page. */
+export interface SettingsPagePrimitives {
+  escape(value: unknown): string;
+  text(value: string, values?: Record<string, string | number>): string;
+}
+
+/** The model a plugin's settings page is rendered from: the platform context, and the answer of its declared `settings_data` action. */
+export interface SettingsPageModel<Data = unknown> {
+  readonly context: SettingsPageContext;
+  /** The `settings_data` action's answer; absent when the view declares none. */
+  readonly data?: Data;
+  readonly primitives: SettingsPagePrimitives;
+}
+
 /** A kind of thing a person can make new from a Goal: one of the Manifest's create stations, and the kind's name. */
 export interface UiViewCreateEntry {
   /** The `id` of a `workflow_content` station of the same Manifest whose role is `create`; `placement.create` calls it. */
@@ -177,6 +223,14 @@ export interface UiViewDeclaration {
   readonly order?: number;
   /** `navigator` and `island` views only: the rail group the plugin is listed in. Omitted means 更多. */
   readonly group?: UiViewGroup;
+  /** `navigator` views only: the plugin is part of the rail's backbone (`core`) or a way to extend the workbench (`extend`). Omitted means an ordinary tool. */
+  readonly rail?: UiViewRail;
+  /** `navigator` views only: the Dock keeps this plugin until the person chooses others. Their choice, once made, replaces it. */
+  readonly pinned_default?: true;
+  /** `settings` views only: the read action that gives the page its data. The Host calls it as the person and hands the answer to the page. */
+  readonly settings_data?: UiSettingsDataDeclaration;
+  /** `settings` views only: request the Host's Agent Runtime list in `SettingsPageContext.runtimes`. Omission skips the query. */
+  readonly settings_runtimes?: true;
   /** `navigator` and `island` views only: what a person can make new with this plugin from a Goal. */
   readonly creates?: UiViewCreateEntry;
   /** `navigator` and `island` views only: the project home's way to start with this plugin. */
@@ -199,39 +253,6 @@ export interface UiSideContextMessage {
   readonly type: "molis:side-context";
   readonly context_epoch: number;
   readonly context: UiSideContext | null;
-}
-
-export const UI_COMMAND_INPUT_KINDS = ["current", "object", "agent-session", "artifacts"] as const;
-
-export type UiCommandInputKind = (typeof UI_COMMAND_INPUT_KINDS)[number];
-
-export interface UiCommandDeclaration {
-  readonly command_id: string;
-  readonly title: string;
-  readonly input_kinds: readonly UiCommandInputKind[];
-  readonly opens_view_id: string;
-}
-
-export type UiCommandAvailability =
-  | { readonly available: true }
-  | { readonly available: false; readonly reason: string };
-
-export interface UiViewObjectRef {
-  readonly view_id: string;
-  readonly object_id: string;
-}
-
-export interface UiOpenedObjectView {
-  readonly ref: UiViewObjectRef;
-  readonly title: string;
-}
-
-/** One command as the Host presents it, with the owning Plugin resolved. */
-export interface UiWorkspaceCommand {
-  readonly plugin_id: string;
-  readonly plugin_title: string;
-  readonly declaration: UiCommandDeclaration;
-  readonly availability: UiCommandAvailability;
 }
 
 export interface UiSlotDescriptor {
@@ -483,3 +504,31 @@ export interface UiFailureView {
 
 /** The shared request helper installed once per page. */
 export type UiRequest = UiRequestCall & UiFailureView;
+
+/**
+ * One step beside a composer: a view of an existing record, never an execution by itself (§15.6). `waiting` marks a step
+ * that waits on the person (an amber dot); `waitingLabel` is what a screen reader hears for it, in the caller's words.
+ */
+export interface InteractionNextStep { id: string; label: string; source: string; primary?: boolean; busy?: boolean; disabled?: boolean; waiting?: boolean; waitingLabel?: string }
+
+/**
+ * The words for the values on the ledger and in the model's statement, one table for every place that says them: the receipt
+ * (handed to the page program with it) and Coding's report (BL-158). Each set is the contract's closed set, read as it is.
+ */
+export const RECEIPT_WORDS = {
+  FACT: { received: "已送达", applied: "已放进上下文，等 AI 回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" },
+  TREATMENT: { "apply-now": "立即影响当前这一步", "later-step": "留到后面某一步", "new-task": "作为新任务", "needs-clarification": "需要你澄清", "not-adopted": "暂不采纳", answered: "已在回复里回答", noted: "记下，不改变执行", merged: "与另一条一起处理" },
+  KIND: { supplement: "补充", correction: "纠正", constraint: "约束", request: "新需求", question: "提问" },
+  IMPACT: { objective: "目标", scope: "范围", priority: "优先级", approach: "实现方案", acceptance: "验收条件", outputs: "已有成果", constraint: "约束" },
+  TARGET: { input: "另一条补充", "app-ref": "应用里的对象", todo: "这一轮的待办", pending: "一个问题", "board-node": "计划的一步" },
+  QUESTION: { open: "等你回答", settled: "已回答", expired: "已过期", cancelled: "已取消", unresolved: "这一轮结束时还没回答" },
+  // A step's state as the plan card says it: the model's report of done or failed is its report, not a check.
+  STEP: { "not-started": "等待前一步", ready: "可以开始", running: "进行中", waiting: "在等别的步骤", succeeded: "模型报告完成", failed: "模型报告失败", cancelled: "已取消", blocked: "受阻，等你决定", "needs-reconciliation": "重启后需要核对" },
+  // A step a person holds ends by their own mark, not by the model's report: the words Coding's plan card uses for it.
+  MARK: { succeeded: "你标记完成", failed: "你标记失败" },
+} satisfies ReceiptWords;
+export type ReceiptWords = {
+  FACT: Record<AgentTurnSteer["state"], string>; TREATMENT: Record<AgentInputTreatment, string>; KIND: Record<AgentInputKind, string>;
+  IMPACT: Record<AgentInputImpact, string>; TARGET: Record<AgentInputTarget["kind"], string>; QUESTION: Record<AgentInputQuestion["state"], string>;
+  STEP: Record<AgentStepState, string>; MARK: Partial<Record<AgentStepState, string>>;
+};

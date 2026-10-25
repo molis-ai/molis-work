@@ -4,7 +4,7 @@ import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopb
 import type { PluginDefinition, PluginMaterialsClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
 import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { initializeShelfFiles, openShelfStore, shelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { initializeShelfFiles, openShelfStore, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfActionHandlers, createShelfProjectActionHandlers, SHELF_PROJECT_ACTIONS, shelfActions, type ShelfActionPorts } from "./actions.js";
 import { shelfAiPorts } from "./ai.js";
 import { shelfManifest } from "./manifest.js";
@@ -119,8 +119,8 @@ export function createHomeShelfPlugin(): PluginDefinition {
 
 /** The store opens on each call, inside the action that asks: the files service, and the folder behind it, answer only there. */
 function shelfServices(context: PluginStartContext) {
-  const services = context.services, files = services?.ownerFiles, model = services?.model, materials = services?.materials, actions = services?.actions;
+  const services = context.services, files = services?.ownerFiles, model = services?.model, materials = services?.materials, actions = services?.actions, tools = services?.localTools;
   if (!files || !model || !materials?.extract || !materials.readSource || !materials.readLocalPage || !actions?.dependencies) throw new ActionError("actions.unredeemed", "Shelf 需要公共文件、模型、材料与动作服务");
   const readers = shelfMaterialPorts(materials), ai = shelfAiPorts(model, readers);
-  return { actions, model, files, store: () => openShelfStore(files.rootPath(), files, shelfRuntimeProbe(), readers, ai) };
+  return { actions, model, files, store: () => openShelfStore(files.rootPath(), files, { ...(tools ? { tools } : {}) }, readers, ai) };
 }

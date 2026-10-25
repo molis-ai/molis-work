@@ -7,7 +7,7 @@ import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiCont
  */
 export const registration: PluginRegistration = {
   project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, catalog_order: 4,
-  runtime: { scope: "home", create: createImagesPlugin,
+  runtime: { create: createImagesPlugin,
     package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" },
   manifest: imagesManifest,
   messages: IMAGES_MESSAGES,

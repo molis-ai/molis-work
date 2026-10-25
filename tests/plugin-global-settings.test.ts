@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {mkdir, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
+import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   HOTKEY_MODIFIER_REQUIRED,
@@ -90,6 +91,82 @@ const diagnostics = {
   project_count: 0,
   launchers: [],
 };
+
+const settingsRuntime: AgentRuntimeDescriptor = {
+  runtime_id: "settings-runtime-probe", display_name: "Controlled settings runtime", provider_version: "1",
+  capabilities: Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(name => [name, "supported"])) as AgentRuntimeDescriptor["capabilities"],
+};
+
+/** The real Web route, with only the Agent service's existing lazy-ready port controlled; Shelf still reads its real Home action. */
+async function runtimeSettingsServer(t: TestContext, ready: () => Promise<void>) {
+  const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-settings-runtime-"));
+  const host = new MolisWorkLocalHost({ homeDirectory, completeText: null });
+  const server = createMolisWorkWebServer({ homeDirectory, localHost: host });
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
+    await rm(homeDirectory, { recursive: true, force: true });
+  });
+  const agents = host.ensureAgentService(homeDirectory, () => { throw new Error("the served Host already owns its Agent service"); });
+  const readyQuery = t.mock.getter(agents, "ready", ready);
+  const runtimeQuery = t.mock.method(agents.agentHost, "descriptors", () => [settingsRuntime]);
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  return { host, readyQuery, runtimeQuery, get: (section: string) => fetch(`http://127.0.0.1:${address.port}/settings/${section}`, { signal: t.signal }) };
+}
+
+for (const [name, ready] of [
+  ["rejects", async () => { throw new ActionError("actions.execution_failed", "runtime directory unavailable"); }],
+  ["never settles", () => new Promise<void>(() => {})],
+] as const) {
+  test(`FIX-4 Shelf's real data page returns without calling a runtime provider that ${name}`, { timeout: 20_000 }, async t => {
+    const fixture = await runtimeSettingsServer(t, ready);
+    const response = await fixture.get("shelf");
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /data-shelf-settings/);
+    assert.match(html, /name="drop_wheel_enabled"[^>]*checked/);
+    assert.equal(fixture.readyQuery.mock.callCount(), 0);
+    assert.equal(fixture.runtimeQuery.mock.callCount(), 0);
+  });
+}
+
+test("FIX-4 a page that declares runtimes queries once and renders the returned runtime", { timeout: 20_000 }, async t => {
+  const fixture = await runtimeSettingsServer(t, async () => {});
+  const response = await fixture.get("coding-settings");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /data-coding-settings/);
+  assert.ok(html.includes(settingsRuntime.display_name));
+  assert.equal(fixture.readyQuery.mock.callCount(), 1);
+  assert.equal(fixture.runtimeQuery.mock.callCount(), 1);
+});
+
+test("FIX-4 runtime failure on a dependent page remains a visible HTTP action error", { timeout: 20_000 }, async t => {
+  const fixture = await runtimeSettingsServer(t, async () => { throw new ActionError("actions.execution_failed", "runtime directory unavailable"); });
+  const response = await fixture.get("coding-settings");
+  assert.equal(response.status, 500);
+  const body = await response.json() as { error: string; code: string; diagnostic_id: string };
+  assert.deepEqual({ error: body.error, code: body.code }, { error: "runtime directory unavailable", code: "actions.execution_failed" });
+  assert.ok(body.diagnostic_id, "the existing HTTP error chain supplies a diagnostic id");
+  assert.equal(fixture.readyQuery.mock.callCount(), 1);
+  assert.equal(fixture.runtimeQuery.mock.callCount(), 0);
+});
+
+test("FIX-4 a settings data action's own failure is still visible without a runtime dependency", { timeout: 20_000 }, async t => {
+  const fixture = await runtimeSettingsServer(t, async () => { throw new Error("unrequested runtime provider"); });
+  const client = fixture.host.homeActionClient();
+  t.mock.method(client, "invoke", async () => { throw new ActionError("actions.execution_failed", "settings data unavailable"); });
+  t.mock.method(fixture.host, "homeActionClient", () => client);
+  const response = await fixture.get("shelf");
+  assert.equal(response.status, 500);
+  const body = await response.json() as { error: string; code: string; diagnostic_id: string };
+  assert.deepEqual({ error: body.error, code: body.code }, { error: "settings data unavailable", code: "actions.execution_failed" });
+  assert.ok(body.diagnostic_id, "data-action failures keep the existing diagnostic id too");
+  assert.equal(fixture.readyQuery.mock.callCount(), 0);
+  assert.equal(fixture.runtimeQuery.mock.callCount(), 0);
+});
 
 function settingsPage(overrides: Partial<UiContributionDeclaration> = {}): UiContributionDeclaration {
   return {
@@ -262,8 +339,10 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
     localeSwitchHref: (locale, nextPath) => `/locale?lang=${locale}&next=${encodeURIComponent(nextPath)}`,
   }, "/settings/appearance");
   assert.doesNotMatch(appearance, /拖放轮盘|drop_wheel|data-shelf-drop-wheel/);
+  // The page is drawn from the answer of the read action its Manifest view declares (`settings_data`) and the platform's context.
   const mounted = renderPluginSettingsContribution(SHELF_SETTINGS_UI_CONTRIBUTION_ID, {
-    settings: shelfSettings(),
+    context: { projects: [], project: null, runtimes: [] },
+    data: { settings: shelfSettings() },
     primitives,
   });
   assert.match(mounted, /data-shelf-settings/);

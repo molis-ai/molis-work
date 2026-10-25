@@ -1,6 +1,6 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
 import { openPluginInSide, sideOpenedTabs } from "./plugin-place.js";
-import { pluginRecordRows, pluginSearchRows } from "../../plugin-workbench.js";
+import { recordRows, searchRows } from "../../search-rows.js";
 import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
 import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
@@ -47,7 +47,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
-  const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())};
+  const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
   const openInSide = (${openPluginInSide}).bind(null, ${sideOpenedTabs()});
   const PLUGIN_TAB_TITLES = { home: "项目首页", market: L("插件市场"), ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   // Plugins installed at run time (built in the studio) name their own stage.
@@ -196,7 +196,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
   const titleForItem = (plugin, itemId, fallback) => {
     if (plugin === "goals") return visibleGoals()?.find((item) => item.goal.goal_id === itemId)?.goal.title || fallback || itemId;
-    const row = document.querySelector('[data-feed-entry-id="' + CSS.escape(itemId) + '"], [data-inbox-row][data-inbox-entry-id="' + CSS.escape(itemId) + '"]');
+    const row = ((spec) => spec && [...document.querySelectorAll(spec[1])].find((el) => el.dataset[spec[2]] === itemId))(RECORD_ROWS.find(([id]) => id === plugin));
     return row?.getAttribute("data-frame-asset-title") || row?.querySelector("strong")?.textContent?.trim() || fallback || itemId;
   };
   let loadingGoalId = null;
@@ -1165,8 +1165,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     persist();
   };
   // Search keeps owner-specific save/select behavior, including inside a split pane.
-  const SEARCH_ROWS = ${JSON.stringify([...pluginSearchRows(), ["feed", "[data-feed-task-toggle]", "feedTaskToggle"], ["characters", "[data-character-id]", "characterId"]])};
-  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: ${JSON.stringify(pluginRecordRows())}.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab });
+  const SEARCH_ROWS = ${JSON.stringify(searchRows())};
+  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab });
   let cancelRecordJump = null;
   const openPluginRecord = (plugin, itemId) => {
     // A plugin with no search rows is still opened, and asked for the record by id below (the side panel's files).

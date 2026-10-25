@@ -1,4 +1,4 @@
-import { DOCK_DEFAULT_PINS, pluginStageSummaries } from "../../plugin-catalog.js";
+import { dockDefaultPins, pluginStageSummaries } from "../../plugin-catalog.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
 export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
@@ -118,7 +118,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
 
   /* The Dock: 项目首页 always, then the plugins chosen with the button at the end of their entry in the switcher. */
   const PINS_KEY = 'molis-work:dock-pins';
-  const DEFAULT_PINS = ${JSON.stringify(DOCK_DEFAULT_PINS)};
+  const DEFAULT_PINS = ${JSON.stringify(dockDefaultPins())};
   const pins = dock.querySelector('[data-dock-pins]');
   const readPins = () => {
     try { const value = JSON.parse(localStorage.getItem(PINS_KEY) || 'null'); if (Array.isArray(value)) return value.filter((id) => typeof id === 'string'); } catch {}

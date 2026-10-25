@@ -546,11 +546,11 @@ test("PG-026-S4-01 PG-026-S4-02 demo HTTP restores samples and preserves a succe
 
 test("the Shelf plugin routes admit, extract, and do not expose origin paths", async (t) => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-shelf-http-"));
-  const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
-  process.env.MOLIS_WORK_SHELF_AGENT = "off";
+  const agentSetting = process.env.MOLIS_WORK_LOCAL_TOOLS;
+  process.env.MOLIS_WORK_LOCAL_TOOLS = "off";
   t.after(() => {
-    if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT;
-    else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting;
+    if (agentSetting === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS;
+    else process.env.MOLIS_WORK_LOCAL_TOOLS = agentSetting;
   });
   const token = "shelf-plugin-http-token-01234567890123";
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: token });

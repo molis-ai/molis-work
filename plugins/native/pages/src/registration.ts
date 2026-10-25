@@ -16,6 +16,6 @@ export const registration: PluginRegistration = {
     stylesheet: PAGES_STYLES,
     clientFactory: PAGES_CLIENT_FACTORY_SCRIPT,
     clientAssets: ["/assets/molis-work-pages-editor.js"],
-    searchRow: { selector: "button.feed-stage-entry[data-page-id]", idDataset: "pageId" },
+    searchRow: { selector: "button[data-page-id]", idDataset: "pageId" },
   },
 };

@@ -1,5 +1,6 @@
 import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginConsentKind, PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginConsentLedger } from "./consent-ledger.js";
 import { consentSubject } from "./trust-rules.js";
 
@@ -7,10 +8,13 @@ import { consentSubject } from "./trust-rules.js";
 // installed and on, exactly while an unrevoked `always_on` agreement of the Home's consent ledger names it. An agreement exists only
 // for a Manifest that declares `always_on` (a grant for anything else is refused when it is recorded), so the ledger alone answers.
 
+/** Whether one of a plugin's ledger rows is a standing agreement to this declaration from this publisher: the row is not revoked. */
+export const consentStands = (rows: readonly PluginConsentRecord[], publisherSignature: string, kind: PluginConsentKind, subject: string): boolean =>
+  rows.some(row => row.kind === kind && row.subject === subject && row.publisher_signature === publisherSignature && row.revoked_at === null);
+
 /** Whether the Home holds a standing `always_on` agreement for this plugin from this publisher. */
 export function alwaysOnAgreed(ledger: PluginConsentLedger | undefined, pluginId: string, publisherSignature: string): boolean {
-  return ledger?.consents(pluginId).some(row => row.kind === "always_on" && row.subject === consentSubject.alwaysOn()
-    && row.publisher_signature === publisherSignature && row.revoked_at === null) === true;
+  return ledger !== undefined && consentStands(ledger.consents(pluginId), publisherSignature, "always_on", consentSubject.alwaysOn());
 }
 
 /** Why a person may not switch this installation off or uninstall it: it is a 常开 plugin and the agreement stands. Undefined when they may. */

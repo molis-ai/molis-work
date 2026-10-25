@@ -34,7 +34,6 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-module-shelf": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "@xterm/addon-fit": "^0.11.0",

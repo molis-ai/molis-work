@@ -1,6 +1,6 @@
 import type { EditorView } from "prosemirror-view";
 import { TextSelection } from "prosemirror-state";
-import { followScroll, placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { followScroll, placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { linkAt, commentAt } from "./commands.js";
 import { bookmarkLabel, safePagesHref } from "./link.js";
 import type { PagesEditorMountOptions } from "./editor-types.js";

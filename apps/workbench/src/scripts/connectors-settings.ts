@@ -308,6 +308,19 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         }
       });
       click('[data-connectors-back]', button => showDetail(''));
+      const slots = box.querySelector('[data-plugin-slots]');
+      slots?.querySelectorAll('[data-plugin-slot-account]').forEach(select => select.addEventListener('change', async () => {
+        const row = select.closest('[data-plugin-slot]'), result = row.querySelector('[data-plugin-slot-result]'), project = slots.dataset.pluginSlotsProject;
+        busy(select, true);
+        try {
+          await api('plugin-slots' + (project ? '?project=' + encodeURIComponent(project) : ''), { ...JSON.parse(row.dataset.pluginSlot), connection_id: select.value || null });
+          select.dataset.saved = select.value;
+          const reconnect = select.selectedOptions[0]?.hasAttribute('data-needs-reconnect');
+          select.querySelectorAll('[data-needs-reconnect]').forEach(option => { option.disabled = option.value !== select.value; });
+          output(result, L(reconnect ? '已保存绑定；这个账号需要重新连接确认站点，插件暂时不能请求。' : select.value ? '已保存，插件之后的请求用这个账号。' : 'tenant' in select.dataset ? '已解除，插件不能再请求这个服务。' : '已解除，插件之后的请求不带凭据。'));
+        } catch (error) { select.value = select.dataset.saved || ''; fail(result, error); }
+        finally { busy(select, false); }
+      }));
       box.querySelector('[data-connectors-add]')?.addEventListener('click', () => { search.scrollIntoView({ block: 'center', behavior: 'smooth' }); search.focus(); });
       box.addEventListener('keydown', event => { if (!box.dataset.setupId && event.key === 'Escape' && list.hidden && !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) { event.preventDefault(); showDetail(''); } });
       const params = page.address().searchParams;

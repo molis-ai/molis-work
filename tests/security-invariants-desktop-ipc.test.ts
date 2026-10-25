@@ -63,7 +63,7 @@ test("S-14 each permission is defined in the shell, allows only commands the she
     }
   }
   const registered = new Set([...(/generate_handler!\[([\s\S]*?)\]/.exec(readFileSync(MAIN_RS, "utf8"))?.[1] ?? "").matchAll(/(?:[A-Za-z_]+::)?([a-z_][a-z0-9_]*)\s*,?/g)].map(match => match[1]!));
-  assert.ok(registered.has("capsule_hide") && registered.has("shelf_open_path"), "the command list was read");
+  assert.ok(registered.has("capsule_hide") && registered.has("files_open"), "the command list was read");
   for (const [identifier, commands] of definitions) for (const command of commands) assert.ok(registered.has(command), `${identifier} allows ${command}, which the shell does not register`);
   for (const capability of capabilities) for (const permission of capability.permissions as string[]) {
     if (permission.startsWith("core:")) continue;
@@ -73,6 +73,34 @@ test("S-14 each permission is defined in the shell, allows only commands the she
   const spawning = capabilities.filter(capability => (capability.permissions as string[]).some(permission => (definitions.get(permission) ?? []).includes("pty_spawn")));
   assert.deepEqual(spawning, []);
   for (const command of ["pty_spawn", "pty_write", "pty_resize", "pty_kill"]) assert.equal(registered.has(command), false);
+});
+
+// PG-113, RAC-738: a page's files reach the shell as relative paths plus the Host route and the page's id. The shell asks the Host
+// which files those are and checks the answer before it opens, copies or drags anything (the Rust cases `rac_737_…` in
+// page_files.rs), so nothing in the main window can name a path of its own. The old commands took absolute paths.
+test("S-14 the shell's file commands take a page's relative paths and ask the Host for the files, and the old path-taking command names are gone", () => {
+  const main = readFileSync(MAIN_RS, "utf8");
+  const permission = readFileSync(join(SHELL, "permissions", "shelf.toml"), "utf8");
+  const client = readFileSync(new URL("../apps/workbench/src/browser/plugin-frame/native-files.ts", import.meta.url), "utf8");
+  for (const old of ["shelf_open_path", "shelf_copy_files", "shelf_drag_out"]) {
+    for (const [where, text] of [["main.rs", main], ["permissions/shelf.toml", permission], ["native-files.ts", client]] as const) assert.equal(text.includes(old), false, `${where} still names ${old}`);
+  }
+  const allowed = [...(/commands\.allow\s*=\s*\[([^\]]*)\]/.exec(permission)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(match => match[1]!);
+  const registered = /generate_handler!\[([\s\S]*?)\]/.exec(main)?.[1] ?? "";
+  for (const command of ["files_open", "files_copy", "files_drag_out"]) {
+    assert.ok(allowed.includes(command), `${command} has no permission`);
+    assert.match(registered, new RegExp(`\\b${command}\\b`), `${command} is not registered`);
+    const signature = new RegExp(`async fn ${command}\\(([^)]*)\\)`).exec(main)?.[1] ?? "";
+    assert.match(signature, /endpoint: String,\s*page_id: String,\s*paths: Vec<String>/, `${command} must take the route, the page and relative paths`);
+    assert.doesNotMatch(signature, /\bpath: |PathBuf/, `${command} takes a path of its own`);
+    const blocking = new RegExp(`fn ${command}_blocking\\(([^)]*)\\)[^{]*\\{([\\s\\S]*?)\\n\\}\\n`).exec(main);
+    assert.ok(blocking, `${command}_blocking was read`);
+    assert.match(blocking[2]!, /page_files::plugin_page_files\(endpoint, page_id, paths\)\?/, `${command} must ask the Host before it acts`);
+  }
+  // The window sends the route and the page's id, and no longer asks the Host itself or passes the answer on.
+  assert.match(client, /invoke\("files_open"/); assert.match(client, /"files_copy"/); assert.match(client, /"files_drag_out"/);
+  assert.match(client, /endpoint: route\("\/api\/host\/plugin-page-files"\)/);
+  assert.doesNotMatch(client, /molisWorkRequest|files\.paths|\.paths\[0\]/, "the window must not hold the absolute paths");
 });
 
 test("S-14 the shell's own configuration does not turn on remote IPC for every domain or load anything but the local placeholder first", () => {

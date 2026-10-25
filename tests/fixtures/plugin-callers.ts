@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./isolated-host.js";
 import assert from "node:assert/strict";
 import { PluginHostExecutor, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionRegistryPort, type SyncActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -100,7 +101,7 @@ export async function startPlugin(host: { actionRegistry(reference: LocalHostPro
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
     ...(options.dependencies ? { dependencyCheck: (dependency: ActionReference) => options.dependencies!.availability(dependency, { consumer: "plugin" }) } : {}) });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), executor);
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), executor, { hostIds: ISOLATED_HOST_IDS });
   const required = plugin.definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
   const { install } = runtime.install({ trust: { level: "unsigned" }, definition: plugin.definition, deployment: "local", grants: [...required, ...(options.grants ?? [])] });
   await runtime.start(install.install_id);

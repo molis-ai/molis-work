@@ -1,4 +1,4 @@
-import { renderStateRing } from "@molis-ai/molis-work-design-system";
+import { renderStateRing } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalDisplayStatus } from "./tree-order.js";
 import type { GoalPresentationState } from "./tree-order.js";

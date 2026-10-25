@@ -1,4 +1,5 @@
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
 import type { HomePluginEntry } from "./home-plugins.js";
@@ -29,6 +30,9 @@ export function catalogProblems(catalog: readonly PluginRegistration[]): string[
   once("the catalog position", catalog.map(entry => entry.catalog_order));
   const listed = new Set(catalog.map(entry => entry.project_plugin_id));
   for (const entry of catalog) {
+    if ((entry.manifest.runtime?.scope === "home") !== (entry.runtime !== undefined)) {
+      problems.push(`${entry.project_plugin_id}: the Manifest's runtime.scope and the registration's runtime (the code a Home instance starts from) go together`);
+    }
     const named: Array<readonly [string, string]> = [
       ...(entry.companions ?? []).map(id => ["companions", id] as const),
       ...(entry.workbench.clientUses ?? []).map(id => ["workbench.clientUses", id] as const),
@@ -96,9 +100,18 @@ export function availableProjectPluginIds(
   return available;
 }
 
+/** Whether a catalog entry runs in the Home: its Manifest says so (PG-011), and `catalogProblems` holds that to the registration's code. */
+export const runsInHome = (entry: PluginRegistration): boolean => entry.manifest.runtime?.scope === "home";
+
+/** Each Home plugin's definition as the owner-files and scope checks read it, with the dual-instance mark its registration gives it. */
+export function homeDefinitionEntries(): { definition: PluginDefinition; dual_instance?: true }[] {
+  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime
+    ? [{ definition: entry.runtime.create(), ...entry.runtime.dual_instance ? { dual_instance: true as const } : {} }] : []);
+}
+
 /** The Home Runtime's start list: each registration that runs there, under its project key, with what deleting a project clears of it. */
 export function homePluginEntries(): HomePluginEntry[] {
-  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, key: entry.project_plugin_id, manifest: entry.manifest,
+  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, scope: "home" as const, key: entry.project_plugin_id, manifest: entry.manifest,
     project_data: { owner_id: entry.project_plugin_id, ...(entry.project_data ? { declaration: entry.project_data } : {}) } }] : []);
 }
 

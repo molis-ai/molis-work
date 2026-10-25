@@ -11,8 +11,8 @@ import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and local paths stay with the local user", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "shelf-actions-"));
-  const previous = process.env.MOLIS_WORK_SHELF_AGENT;
-  process.env.MOLIS_WORK_SHELF_AGENT = "off";
+  const previous = process.env.MOLIS_WORK_LOCAL_TOOLS;
+  process.env.MOLIS_WORK_LOCAL_TOOLS = "off";
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS };
   const client = host.homeActionClient(), bound = bindActionClient(client, () => user);
@@ -77,7 +77,7 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
     const other = await host.actionClient(project).discover({ ...owner, actor_id: "runtime:other", audience: "mcp" });
     assert.ok(other.filter(row => row.capability_id === "shelf.results.list").every(row => !row.availability.available));
   } finally {
-    if (previous === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = previous;
+    if (previous === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS; else process.env.MOLIS_WORK_LOCAL_TOOLS = previous;
     await host.close();
     await rm(home, { recursive: true, force: true });
   }
@@ -85,8 +85,8 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
 
 test("the demo puts Shelf's sample back through shelf.sample.seed; a Shelf that is not running is left alone", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "shelf-demo-sample-"));
-  const previous = process.env.MOLIS_WORK_SHELF_AGENT;
-  process.env.MOLIS_WORK_SHELF_AGENT = "off";
+  const previous = process.env.MOLIS_WORK_LOCAL_TOOLS;
+  process.env.MOLIS_WORK_LOCAL_TOOLS = "off";
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS };
   const bound = bindActionClient(host.homeActionClient(), () => user);
@@ -104,7 +104,7 @@ test("the demo puts Shelf's sample back through shelf.sample.seed; a Shelf that 
     await assert.rejects(seedDemoHomeSamples({ invoke: async () => { throw new ActionError("actions.execution_failed", "示例写坏了"); } }),
       { code: "actions.execution_failed" }, "a failure other than Shelf being off or not granted reaches the demo");
   } finally {
-    if (previous === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = previous;
+    if (previous === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS; else process.env.MOLIS_WORK_LOCAL_TOOLS = previous;
     await host.close();
     await rm(home, { recursive: true, force: true });
   }

@@ -48,7 +48,7 @@ for (const output of ["report", "changeset", "plan"] as const) for (const stop o
     });
     const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: { directory: home, completeText: () => undefined, stores: homeStores() },
       actions: { registry, client, project_id: DEMO_PROJECT_ID }, dependencyCheck: hostDependencyCheck(local.client(reference)), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
-    await platform.start([{ definition: createCodingPlugin(), grants: ["search:read", "goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read", "review:git-worktree", "review:git-integration"] }]);
+    await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" }, grants: ["search:read", "goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read", "review:git-worktree", "review:git-integration"] }]);
     t.after(async () => { releaseRead(); await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
       await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
     t.mock.method(globalThis, "fetch", async () => cogniaModelResponse(JSON.stringify({ title: "Fixture plan", steps: [{ title: "Read fixture", acceptance: "Keep source" }], blockers: "", change_reason: "" })));

@@ -8,7 +8,6 @@ export interface CommentSideHost {
   route(path: string): string;
   /** A path under this plugin's own routes in the current project. */
   pluginRoute(path: string): string;
-  controlHeaders(): Record<string, string>;
 }
 export interface CommentDraft {
   body: string; ai: boolean; reply_to: string | null; request_id: string; message_id?: string;

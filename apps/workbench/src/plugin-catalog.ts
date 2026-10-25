@@ -1,7 +1,7 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
@@ -20,8 +20,19 @@ export interface PluginMarketCard {
   readonly sites: readonly string[];
 }
 
-/** The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer). */
-export const DOCK_DEFAULT_PINS: readonly string[] = ["goals", "inbox", "feed"];
+/**
+ * The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer): the ones whose
+ * navigator view declares `pinned_default`, in the order of their views. Only a plugin the project chooses can be one.
+ */
+export function dockDefaultPins(directory: PluginDirectory = builtinPluginDirectory()): string[] {
+  const chosen = directory.filter(entry => entry.chosen);
+  return railEntries(chosen.map(entry => entry.id), chosen).filter(entry => entry.pinned_default).map(entry => entry.id);
+}
+
+/** The shell keys of the plugins that are a way to extend the workbench (a navigator view with `rail: "extend"`), kept out of the list of tools. */
+export function extendPluginIds(directory: PluginDirectory = builtinPluginDirectory()): ReadonlySet<string> {
+  return new Set(directory.filter(entry => entry.chosen && entry.ui.views.some(view => view.slot === "navigator" && view.rail === "extend")).map(entry => entry.id));
+}
 
 /**
  * Plugins whose page parts the workbench wires once, when the page loads and cannot change after, so adding or removing one
@@ -37,6 +48,10 @@ export interface RailEntry {
   glyph: string;
   /** The rail group the plugin's view names (W5-06 2b); null is 更多. */
   group: UiViewGroup | null;
+  /** The view's place in the rail apart from its group: `core` (the backbone) or `extend` (a way to extend the workbench); null is an ordinary tool. */
+  rail: UiViewRail | null;
+  /** Whether the Dock keeps the plugin until the person chooses others (the view's `pinned_default`). */
+  pinned_default: boolean;
   /** Whether the project's plugin list chooses it (a built-in); a plugin installed at run time is in the project because it runs there. */
   chosen: boolean;
 }
@@ -124,7 +139,9 @@ function placedViews(directory: PluginDirectory, enabled: readonly ProjectPlugin
 }
 
 function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }): RailEntry {
-  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package", group: view.group, chosen: entry.chosen };
+  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package", group: view.group,
+    // Only a plugin the project chooses can be the backbone, an extend entry or pinned by default, whoever built the directory.
+    rail: entry.chosen ? view.rail ?? null : null, pinned_default: entry.chosen && view.pinned_default === true, chosen: entry.chosen };
 }
 
 /** Navigator entries for the enabled set, in the order the Manifests declare. */

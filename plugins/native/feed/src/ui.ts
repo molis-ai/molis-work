@@ -6,9 +6,7 @@ import type {
   FeedMaterialRecord,
 } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
-import {
-  renderStatusMark, renderStateRing, type StateRingState,
-} from "@molis-ai/molis-work-design-system";
+import { renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
   UiContributionDeclaration,

@@ -8,9 +8,10 @@ import { shownState } from "./connector-refresh-refusals.js";
 
 // Which of the person's accounts a plugin installation's connection slot uses (`services.connections`, S0b-2, S-57). Only the person
 // binds: the audience is `user`, so neither a plugin page nor an Agent nor MCP can choose the account a plugin sends requests with.
-// The slot's declaration is checked when the plugin sends (its Manifest's slot and service), so a binding for a slot the
-// installation does not declare is never used. Version 2 binds a `per_record` slot (S-71 provisional): one account for one of the
-// plugin's records, in the caller's project, and only for an installation of that project (or the Home's) that declares the slot so.
+// Binding checks the installation's Manifest (BL-350): an installation of that plugin in the caller's project (or the Home's) that
+// declares the slot, for that service and with that kind of binding; the plugin's send checks the declaration again. Version 1 binds an
+// `installation` slot: one account for the installation, in every project. Version 2 binds a `per_record` slot (S-71 provisional): one
+// account for one of the plugin's records, in the caller's project.
 
 const slot = {
   install_id: { type: "string", minLength: 1, maxLength: 160 },
@@ -56,6 +57,19 @@ export const connectorPluginSlotActions = {
     output_schema: result } } as ActionDefinition<BindInput<RecordInput>, { connection: ConnectorConnectionView | null }>,
 };
 
+/**
+ * An installation here that declares this slot, for this service, with this kind of binding. Only binding asks: unbinding only takes an
+ * account away, so a binding left by a plugin no longer installed (or whose Manifest dropped the slot) can still be removed.
+ */
+async function assertDeclared(declarations: PluginSlotDeclarations, caller: ActionCallContext, input: SlotInput & { service_id: string }, binding: "installation" | "per_record"): Promise<void> {
+  const slots = await declarations(caller, input.install_id, input.plugin_id);
+  if (!slots) throw pluginSlotErrors.installation_missing(`这里没有插件 ${input.plugin_id} 的这个安装`);
+  const declared = slots.find(item => item.slot_id === input.slot_id);
+  if (!declared || (declared.binding ?? "installation") !== binding || declared.service_id !== input.service_id) {
+    throw pluginSlotErrors.slot_undeclared(`插件没有声明${binding === "per_record" ? "按记录绑定" : "按安装绑定"}、用 ${input.service_id} 的连接槽 ${input.slot_id}`);
+  }
+}
+
 function bound(home: string, input: SlotInput, scope = pluginSlotScope(input.install_id)): ConnectorConnectionView | null {
   return withConnectorConnections(home, store => {
     const binding = store.binding(scope, input.plugin_id, input.slot_id);
@@ -75,6 +89,7 @@ export function connectorPluginSlotHandlers(home: string, declarations: PluginSl
     { capability_id: connectorPluginSlotActions.read.capability_id, version: 1, handle: (_caller, input) => ({ connection: bound(home, input as SlotInput) }) },
     { capability_id: connectorPluginSlotActions.bind.capability_id, version: 1, handle: async (caller, value) => {
       const input = value as SlotInput & { service_id: string; connection_id: string | null };
+      if (input.connection_id !== null) await assertDeclared(declarations, caller, input, "installation");
       await caller.beforeEffect();
       withConnectorConnections(home, store => input.connection_id === null
         ? store.unbind(pluginSlotScope(input.install_id), input.plugin_id, input.slot_id)
@@ -87,14 +102,7 @@ export function connectorPluginSlotHandlers(home: string, declarations: PluginSl
     } },
     { capability_id: connectorPluginSlotActions.bindRecord.capability_id, version: 2, handle: async (caller, value) => {
       const input = value as BindInput<RecordInput>, scope = recordScope(caller, input);
-      // BL-350, the binding half: an installation here that declares this slot, for this service, one account per record. Unbinding
-      // only takes an account away, so a binding left by a plugin no longer installed can still be removed.
-      if (input.connection_id !== null) {
-        const slots = await declarations(caller, input.install_id, input.plugin_id);
-        if (!slots) throw pluginSlotErrors.installation_missing(`这个项目里没有插件 ${input.plugin_id} 的这个安装`);
-        const declared = slots.find(item => item.slot_id === input.slot_id);
-        if (declared?.binding !== "per_record" || declared.service_id !== input.service_id) throw pluginSlotErrors.slot_undeclared(`插件没有声明按记录绑定、用 ${input.service_id} 的连接槽 ${input.slot_id}`);
-      }
+      if (input.connection_id !== null) await assertDeclared(declarations, caller, input, "per_record");
       await caller.beforeEffect();
       withConnectorConnections(home, store => input.connection_id === null ? store.unbind(scope, input.plugin_id, input.slot_id)
         : store.bind({ scopeId: scope, pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id }));

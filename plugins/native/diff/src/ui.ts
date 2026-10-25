@@ -3,9 +3,9 @@ import type {
   UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { renderCompanionListStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
 import { renderDiff, type DiffViewLabels, type DiffViewModel, type DiffViewPrimitives } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 
+import { renderCompanionListStage, type CompanionStageModel } from "./companion-stage.js";
 import type { DiffInputGroup } from "./comparison.js";
 
 export const DIFF_UI_CONTRIBUTION_ID = "io.molis.work.native.diff.ui.v1";

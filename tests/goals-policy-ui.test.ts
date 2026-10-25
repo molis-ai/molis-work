@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchGoalsPolicyRenderer, createWorkbenchUiHost, type GoalsPolicyItem } from "@molis-ai/molis-work-app-workbench";
 import { GOALS_POLICY_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-goals";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const base = { human_approval: true };

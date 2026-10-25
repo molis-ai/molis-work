@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
@@ -57,7 +58,7 @@ function project(directory: string, browsing?: () => unknown) {
     db: store.db,
     artifacts, processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(),
-    home: null,
+    home: null, consents: new MemoryPluginConsentLedger(),
     ...(settings ? { dependencyCheck: settings.dependencyCheck } : {}),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
@@ -74,11 +75,11 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
   try {
     const { store, platform } = project(directory);
     const report = await platform.start([
-      { definition: createFilesPlugin({ readable: () => true }) },
-      { definition: createDiffPlugin() },
-      { definition: createGitPlugin({ ready: () => true }) },
-      { definition: createTextStatsPlugin() },
-      { definition: createCodingPlugin() },
+      { definition: createFilesPlugin({ readable: () => true }), trust: { level: "host" } },
+      { definition: createDiffPlugin(), trust: { level: "host" } },
+      { definition: createGitPlugin(), trust: { level: "host" } },
+      { definition: createTextStatsPlugin(), trust: { level: "host" } },
+      { definition: createCodingPlugin(), trust: { level: "host" } },
     ]);
     assert.deepEqual(report.failed, []);
     assert.deepEqual(report.blocked, []);
@@ -98,7 +99,7 @@ test("Files reads browsing settings without a Workspace binding and rejects the 
   let selected = { workspace_id: "one", display_name: "One", canonical_path: "/one", realpath_verified: true };
   const { store, platform } = project(directory, () => selected);
   try {
-    const report = await platform.start([{ definition: createFilesPlugin() }]);
+    const report = await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []);
     const read = () => platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "tester", query: {} });
     const first = await read();
@@ -124,8 +125,9 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
           createFilesPlugin({ readable: () => true }),
           (context) => { filesServices = context.services; },
         ),
+        trust: { level: "host" },
       },
-      { definition: createTextStatsPlugin({ onSnapshot: (input) => { counted.push(input); } }) },
+      { definition: createTextStatsPlugin({ onSnapshot: (input) => { counted.push(input); } }), trust: { level: "host" } },
     ]);
 
     platform.wiring.bind({
@@ -259,13 +261,6 @@ test("每个插件声明的视图都有对应的 contribution", () => {
         declared.has(view.contribution_id ?? `${manifest.plugin_id}.${view.view_id}`),
         true,
         `${manifest.plugin_id} 的视图 ${view.view_id} 没有对应的 contribution`,
-      );
-    }
-    for (const command of manifest.ui.commands ?? []) {
-      assert.equal(
-        (manifest.ui.views ?? []).some((view) => view.view_id === command.opens_view_id),
-        true,
-        `${manifest.plugin_id} 的命令 ${command.command_id} 指向不存在的视图`,
       );
     }
   }

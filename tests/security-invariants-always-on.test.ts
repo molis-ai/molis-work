@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
@@ -29,7 +30,7 @@ function definition(value: PluginManifest, execution?: "sandbox"): PluginDefinit
   return { manifest: value, ...(execution ? { execution } : {}), async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition;
 }
 
-const runtimeWith = (consents = new MemoryPluginConsentLedger()) => ({ consents, runtime: new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { consents }) });
+const runtimeWith = (consents = new MemoryPluginConsentLedger()) => ({ consents, runtime: new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, consents }) });
 const declaredInvalid = (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid";
 
 test("RAC-384 S-34 an unsigned plugin that declares always_on is installed, and without a consent the declaration is not in effect", () => {

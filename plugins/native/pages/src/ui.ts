@@ -4,7 +4,7 @@ import type {
   UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PAGES_TEMPLATES } from "./templates.js";
 
 export const PAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.pages.ui.v1";

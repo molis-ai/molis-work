@@ -36,7 +36,7 @@ function gitOperation(value: unknown): GitOperation {
   }
 }
 
-export function gitActionHandlers(context: PluginStartContext, onReady: (ready: boolean) => void = () => {}): ActionHandlerBinding[] {
+export function gitActionHandlers(context: PluginStartContext): ActionHandlerBinding[] {
   const services = context.services!;
   const browsing = [projectSettingsCapabilities.browsingWorkspace];
   const reviewResults = [...browsing, readGitResultsCapability];
@@ -139,14 +139,12 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
         { beforeEffect: beforeWrite });
     }, [...browsing, prepareGitOperationCapability]),
     bindOwnerPluginAction(context, gitActions.state, async () => {
-      onReady(false);
       const current = await workspace(), value = await read({ workspace_id: current.workspace_id, kind: "status" });
       const saved = services.storage?.get("git-selection");
       const selected = typeof saved === "string" ? JSON.parse(saved) as GitSelected : null;
       if (value.result.outcome !== "status") return { workspace: current,
         view: projectGit({ phase: value.result.outcome === "not-a-repository" ? "not-a-repository" : "error", status: null, message: "message" in value.result ? value.result.message : "Git 状态不可读" }), selected: null };
       const status = parsePorcelainStatus({ stdout: value.result.porcelain });
-      onReady(true);
       if (status.head.kind !== "unborn" && value.result.head_commit) status.head = { ...status.head, commit: value.result.head_commit };
       return { workspace: current, view: projectGit({ phase: "ready", status }), selected: selected?.workspace_id === current.workspace_id ? selected : null };
     }, browsing),

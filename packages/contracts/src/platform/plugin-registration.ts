@@ -83,21 +83,22 @@ export interface PluginRegistration {
   /** Short ids enabled together with this plugin in a project, whatever its ports say (Feed brings Inbox). Trusted, as above. */
   readonly companions?: readonly string[];
   /**
-   * Explicit Runtime activation in the Home; personal visibility alone never migrates an existing plugin. Trusted, as above.
-   * Its library is the Manifest's `databases.home` (PG-022). Its files, model settings and image generation are the Manifest's `owner_files`,
-   * `model_configuration` and `image_generation` (PG-102).
+   * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
+   * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;
+   * personal visibility alone never migrates an existing plugin. Trusted: the Host reads it from this registration only, never from a
+   * Manifest or an installed package. Its library is the Manifest's `databases.home` (PG-022). Its files, model settings and image
+   * generation are the Manifest's `owner_files`, `model_configuration` and `image_generation` (PG-102).
    */
   readonly runtime?: {
-    readonly scope: "home";
     readonly create: () => PluginDefinition;
     readonly package_name: string;
     readonly factory_export: string;
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
     readonly keys?: string;
     /**
-     * This Home instance is one half of a dual-instance plugin (docs/system/GLOSSARY.md): the same plugin also runs as each
-     * project's instance from the project start list, and each half offers only its share of the one Manifest. Trusted, as above:
-     * no Manifest or installed package can say it. Every permission of such a Manifest is required (specs/dual-instance-plugins).
+     * This Home instance is one half of a dual-instance plugin (docs/system/GLOSSARY.md): the same plugin also runs as each project's
+     * instance from the project start list, and each half offers only its share of the one Manifest. Trusted, as above: no Manifest
+     * or installed package can say it (S-48). Every permission of such a Manifest is required (specs/dual-instance-plugins).
      */
     readonly dual_instance?: true;
   };

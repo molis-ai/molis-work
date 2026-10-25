@@ -11,12 +11,9 @@ import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-run
 test("SYS-15-F3 S-47 Shelf opens the backend program in its owner directory, reconnects once and kills it on revocation", { timeout: 20_000 }, async t => {
   const f = await serveHomeRuntime(t), bin = join(f.home, "bin"); await mkdir(bin);
   await writeFile(join(bin, "codex"), "#!/bin/sh\nprintf 'OWNER_CWD=%s\\n' \"$PWD\"\nexec /bin/cat\n", { mode: 0o700 });
-  const prior = process.env.MOLIS_WORK_SHELF_AGENT, priorPath = process.env.MOLIS_WORK_SHELF_AGENT_PATH;
-  process.env.MOLIS_WORK_SHELF_AGENT = "codex"; process.env.MOLIS_WORK_SHELF_AGENT_PATH = bin;
-  t.after(() => {
-    if (prior === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = prior;
-    if (priorPath === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT_PATH; else process.env.MOLIS_WORK_SHELF_AGENT_PATH = priorPath;
-  });
+  const priorPath = process.env.MOLIS_WORK_LOCAL_TOOLS_PATH;
+  process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = bin;
+  t.after(() => { if (priorPath === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS_PATH; else process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = priorPath; });
   const opened = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.shelf" } });
   assert.equal(opened.status, 200, await opened.clone().text());
   const { page_id } = await opened.json(), headers = { "x-molis-plugin-page": page_id };

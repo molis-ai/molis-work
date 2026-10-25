@@ -3,7 +3,7 @@ import test from "node:test";
 import { createWorkbenchGoalsDialogsRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { GoalsDialogItem } from "@molis-ai/molis-work-plugin-goals";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const renderer = createWorkbenchGoalsDialogsRenderer({ translate: L, escapeHtml, icon });

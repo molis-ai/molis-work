@@ -1,5 +1,7 @@
+import { PLUGIN_SLOTS_EN } from "./plugin-slots-en.js";
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  ...PLUGIN_SLOTS_EN,
   "{plugin} 暂不可用": "{plugin} is unavailable",
   "插件没有在运行": "The plugin is not running",
   "插件正在运行，但未提供页面": "The plugin is running but has not provided a page",

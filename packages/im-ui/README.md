@@ -55,7 +55,7 @@ node scripts/run-tests.mjs tests/im-controller-initialization.test.ts tests/im-b
 - 负责：项目群聊与内联话题界面。
 - 不负责：服务端身份、消息持久化与同步实现（在 `server/src/im`）。
 - 公开入口：`@molis-ai/molis-work-im-ui`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/im`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（页面部件 `/ui`）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 每个项目只有一个主群，权限来自 `mw_access`；浏览器不能自行取得项目权限。
   - 具名成员不按名字匹配、不替换另一名成员，不开放远端自动授权。

@@ -94,6 +94,7 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
   - **batch-36 定稿**：并 FIX13 最终头 `4e1385937`（账本恢复页 + 触控 44px），批头 `cd9099265`，已推 batch 与 carrier，full 第 3 轮 run 40183726008。
   - **batch-37 收口**（`batch/1025-37` 已推 `d00ab909c`）：在原有之外又并 #1275 FIX `1294e4345`、#1278 `047826700`、#1280 `d654f9688`+FIX `d12c812c2`、#1281 `4e09f50f5`+FIX `a35e60dd6`、#1272 FIX `5bdddabeb`、#1277 `43049e2ab`（24 个读取器 @2）；批内修：project rows 改读宿主登记、registry 测试锚点、S-72 测试名、s57 slice 的 S 号、用完的 workbench.js 一次性放行删掉。本机门禁重跑中；过了再并 batch-36 最终头与 main、推 carrier 跑 full。
   - **batch-38 候选**：#1279（ac-trust T6，S-75，host-plugin-ids 改读 plugin-registry）、#1276 FIX14（保留数据也删授权，P1 修中）、#1255+FIX5（S-76）、#1283（FI-2）、#1284（PG-055，叠在 #1278）、#1267+C2 包（只带 #103，R-53 留采用线）+FIX18/8/19+两份 SI 补丁、ac-shell PR-D1。
+  - **batch-38 已组（10-25 晚，分支 `batch/1025-38` 头 `df6454c24`，叠在 batch-37 `f7422dc66` 上，未开 PR、未 build）**：#1276 FIX14 `33312c934`（SI S-71 行取 FIX14 版本、S-72～74 保留）、#1281 S-31 处理器未执行证明 `59e1e257a`、#1284 PG-055 `d67cf115a`（与 batch-37 的 15 处冲突已解：插件 ui.ts 取 `plugin-sdk/ui`、settings 与 immersive-shell 用 `PluginIconName`；`ui.txt` 与 page-assets 待 build 后重生成）、ac-trust T8 `acb410201`（#1286 已按 PR 粒度关掉，直接合分支；与 #1280 的 PG-016 重复以 POLICY 7.8「信任」为准、7.9 只留新内容）。T8 文档写到 T4/T5/T6 的行为，**必须与 #1282、#1285、#1279 同批落**。等进：#1279/#1283（Codex 修）、#1282/#1285（待一轮）、#1255（组合核证）、#1267+#1271（App 回归）、#1280/#1277/#1284 的 Codex 修复。batch-37 的 full 起之前不 build batch-38（C5 窗口另留 8 分钟）。
   - 线分配：W5-02 PR-D（PG-072～076）移交 ac-shell（RAC-690～709、BL-656～665）；ac-registry 续 B4→C→E（RAC-710～729）；PG-063 已由 R11 #1169 做完。
 
 ### 当前交付核实（PIPE，2026-10-25）

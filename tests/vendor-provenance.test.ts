@@ -215,11 +215,11 @@ describe("the records of this repository", () => {
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
     // The merged tree equals the exact quality-checked package source.
-    assert.equal(provenance.source.commit, "13c476a3a9ab3b44c811ad1e3cac7abeea9816c4");
-    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/102");
-    assert.equal(provenance.source.candidateUpstream.head, "13c476a3a9ab3b44c811ad1e3cac7abeea9816c4");
+    assert.equal(provenance.source.commit, "b54429dbf43e8f9f8f4b910999674c192077c247");
+    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/106");
+    assert.equal(provenance.source.candidateUpstream.head, "281678bc115dfa13178ab9738be4f837fa85fc05");
     assert.equal(provenance.source.candidateUpstream.status, "merged");
-    assert.equal(provenance.source.candidateUpstream.mergeCommit, "0ff107a616efd88e4e489727cf6f2b00581992a7");
+    assert.equal(provenance.source.candidateUpstream.mergeCommit, "b54429dbf43e8f9f8f4b910999674c192077c247");
     assert.equal(provenance.source.inFlight, undefined);
     // The historical ancestry audit remains pinned to the main commit it actually checked.
     assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");

@@ -471,6 +471,7 @@ export interface UiViewDeclaration {
     readonly rail?: UiViewRail;
     readonly pinned_default?: true;
     readonly settings_data?: UiSettingsDataDeclaration;
+    readonly settings_runtimes?: true;
     readonly creates?: UiViewCreateEntry;
     readonly start?: UiViewStartEntry;
 }

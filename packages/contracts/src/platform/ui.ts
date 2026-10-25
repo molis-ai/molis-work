@@ -162,7 +162,7 @@ export interface SettingsPageContext {
   readonly projects: ReadonlyArray<{ readonly project_id: string; readonly name: string }>;
   /** The project the settings were opened from (`?project=`), and the address of its workbench; null when opened from none. */
   readonly project: { readonly project_id: string; readonly name: string; readonly href: string } | null;
-  /** The Agent Runtimes the Host has registered. */
+  /** The registered Agent Runtimes, requested by `settings_runtimes`; empty when the view does not request them. Query failure is an error, not an empty list. */
   readonly runtimes: readonly AgentRuntimeDescriptor[];
 }
 
@@ -229,6 +229,8 @@ export interface UiViewDeclaration {
   readonly pinned_default?: true;
   /** `settings` views only: the read action that gives the page its data. The Host calls it as the person and hands the answer to the page. */
   readonly settings_data?: UiSettingsDataDeclaration;
+  /** `settings` views only: request the Host's Agent Runtime list in `SettingsPageContext.runtimes`. Omission skips the query. */
+  readonly settings_runtimes?: true;
   /** `navigator` and `island` views only: what a person can make new with this plugin from a Goal. */
   readonly creates?: UiViewCreateEntry;
   /** `navigator` and `island` views only: the project home's way to start with this plugin. */

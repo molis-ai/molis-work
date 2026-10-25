@@ -78,3 +78,31 @@
 | PG-088 的 Pages 宿主提供方、根路由、构建期装配 | 已删，不需要再做 | #847 删宿主四个 Pages 文件与根路由；本分支 `apps/local-host/src` 里没有 `/api/pages`、没有 Pages 的提供方、没有 `resolveModelPrompt` 的 Pages 调用；宿主对 Pages 包的其余点名都在别的行（监督器条目与生成登记表是正路，`content-action-providers.ts` 的权限点名单是 PG-007，`inbox-actions.ts` 是 Inbox 线，`artifact-native-plugin-http.ts` 是 A6，`apps/local-host/src/web-assets.ts:115` 仍用 `requireAsset.resolve("@molis-ai/molis-work-plugin-pages/editor")` 为 `/assets/` 发放 Pages 编辑器资源，归 [PG-070](../privileges.md) / W5-04 的插件客户端包与页面资源职责） |
 
 privileges.md 的 PG-088 状态格已按上面写清依据（统筹 10-25 要求）；PG-060 的状态格由统筹在合入后改（本片之后外壳里按插件手写的行只剩上表中归别线的几项和 BL-636）。
+
+## 7. FIRST 后的设置数据修复（Codex 实现2）
+
+Root 接受的 WO 绑定 #1293 的 `ec3e0c3ad5c4ca8f0a445a7259071e58b43ea7d4` 与首评 [6398256968](https://github.com/molis-ai/molis-work/pull/1293#issuecomment-6398256968)。修复在独立 `feature/codex-pr1293-settings-data`，不改原作者树，不接管全局状态、编号或资源预算；不另开 PR。
+
+- 文档如实限定：`settings_data` 目前只对内置设置贡献兑现；已安装 Runtime 插件接入设置贡献与数据动作仍是缺口，本次不实现动态支持。
+- 默认 contribution id 沿用 `declared-stages.ts` 的既有规则，将该规则供同层设置目录复用；不改其他层的重复处、不从工作台公共入口增加导出。显式 id 与默认 `<plugin_id>.<view_id>` 的结果不变。
+- `web-catalog.ts` 写明设置数据查询有意以个人 `LOCAL_OWNER_PERMISSIONS` 执行；Home 调用者、只读约束、提供方上限与信任判断不变。
+- `agentRuntimes` 的失败和慢查询须与无此依赖的设置数据页隔离，并保留可见失败。现有 `SettingsPageContext.runtimes` 是必填同步数组，贡献 `render` 同步返回字符串，视图没有上下文依赖声明；实际 provider 在 `web-catalog-index-routes.ts` 先 `await agentReady()` 再读目录。只加 catch 仍等待慢查询，按有无 `settings_data` 跳过查询会新增未约定的互斥语义。
+
+**Root 2026-10-25 裁定**：允许为第四项增加唯一的现有上下文依赖声明 `UiViewDeclaration.settings_runtimes?: true`，取代本 WO 原先的“不增加公开接口”限制。不声明时不查询并给 `context.runtimes: []`（未请求），声明时只查询一次并给真实列表；查询拒绝由现有 ActionError/HTTP 错误链可见，不用空列表伪装成功。只许 `settings` 视图声明，值只能为 `true`；Coding 显式声明，Shelf 不声明。仍同步 render，不增加通用加载框架、超时、重试、兼容值或插件名分支。沿同一个 `viewContributionId` 读取动作与运行时依赖。所有当前 `context.runtimes` 生产消费者已查：仅 Coding；Shelf 不消费，现有渲染样本的数组形状不变。
+
+允许修改 contracts/ui、SDK 既有视图校验、工作台的声明投影、Host 准备链、Coding Manifest、必要文档/测试，以及正式 `pnpm api:update` 生成的对应快照；动作 id/schema/权限不变。共享核心全量由 PIPE/Claude 在最终组合统一跑。
+
+| 本 WO 验收 | 结果要求 | 验证 |
+| --- | --- | --- |
+| FIX-1 | 内置兑现范围与已安装 Runtime 缺口写清 | Skill 文档与实际目录核对 |
+| FIX-2 | 显式和默认 contribution id 不变，动作与依赖都沿同一规则查到 | 生产 helper 与目录查询的定向断言 |
+| FIX-3 | 个人 Home 调用者、原权限与提供方上限不变 | 原权限代码 diff、真实设置动作与既有授权用例 |
+| FIX-4 | 无运行时依赖的页面对拒绝、永不落定 provider 均不调用；有依赖成功时显示原运行时且调用一次，拒绝时保留可见错误；错误取值/槽被 SDK 拒绝 | 真实 HTTP 路由与声明正反例，保留数据动作失败路径 |
+
+验证：复用 `shell-declared-lists`、`declared-stages`、`plugin-global-settings`、`coding-product-http` 的生产渲染与真实 Home 设置动作路径，补正常/失败/未结束查询和 SDK 声明正反例；按影响面跑授权、合同与门禁。不触真实 Home、真实模型、不跑独立全量。构建走公共机器 FIFO；验证结果在固定修复头回填。
+
+本轮结果（2026-10-25）：FIX-1～4 已实现并通过对应定向验证。正式 `pnpm api:update` 只更新 `tooling/gates/api/contracts/platform/ui.txt` 的一个可选字段；最终公共 FIFO `pnpm build` 退出 0。16 个定向文件中 15 个全部通过（436/436），含新增 5 个真实 HTTP 场景、SDK 声明正反例、默认/显式 id、真实设置读取和持久化重读、Coding 项目设置及本地动作授权。`check-package-boundaries`、严格 test-imports、API check、page-assets 均退出 0；代码提交上的 secrets 检查退出 0，最终推送前按仓库要求再次检查。相对准确基线 `ec3e0c3ad` 的最终健康门禁退出 0；相对 `origin/main`（merge-base `54437998`）仍退出 1，仅为批里既有的 `PlacementService` 301 行/20 方法，不属于本修复。
+
+**保留失败**：额外加跑的 `host-pages-error-model.test.ts` 在前 6 条通过后，于 MCP recorded 变体耗尽 Node 堆（原报告 6/7 + 进程失败，294 秒）；不能写成 16 文件全绿。该文件在 `ec3` 与本修复代码提交上是同一 Git blob `a8da73cf6fd7f121c40469829888328eccd94279`。已核测试阶段、MCP 将 runner 绑定给 Home 的路径，以及个人 Todo 的项目可达读取回到同一 Catalog 的链，与 A1 的夹具递归修复 `2593b69de26804b65aa3a45827573537c6c5a562` 一致（[#1287 的归属说明](https://github.com/molis-ai/molis-work/pull/1287#issuecomment-6399212516)）。本单没有改 MCP/Todo 链、夹带 A1 补丁、调整堆或放宽断言，也没有自行验证 A1 修复通过；其固定构建与最终组合覆盖由 PIPE/TEST 承接。Root 指示复用该准确证据后，尚未开工的自有基线构建已退出队列并移除临时树，原 OOM 原件保留。
+
+原始命令、退出码与完整输出在 `/tmp/molis-pr1293-settings-data-20261025/`；未跑浏览器或独立全量，未改真实 Home、模型、PG-060/088 或 Memory。最终固定分支交 REVIEW/TEST 做本增量审验，合入与全局状态仍归 carrier。

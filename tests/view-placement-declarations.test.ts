@@ -111,6 +111,23 @@ for (const { rule, manifest, expected } of DATA_RULES) {
   });
 }
 
+test("FIX-4 a settings view can request runtimes with or without a data action", () => {
+  assert.equal(manifestProblems(settingsView({ settings_runtimes: true })), "");
+  assert.equal(manifestProblems(settingsView({ settings_data: undefined, settings_runtimes: true })), "");
+});
+
+for (const slot of ["navigator", "stage", "side", "island"]) {
+  test(`FIX-4 the SDK refuses a runtime-list request on ${slot}`, () => {
+    assert.equal(manifestProblems(placed({ slot, settings_runtimes: true })), "视图 main 的 settings_runtimes 只用于 settings 视图");
+  });
+}
+
+for (const value of [false, null, "true", 1, {}, []]) {
+  test(`FIX-4 the SDK refuses settings_runtimes=${JSON.stringify(value)}`, () => {
+    assert.equal(manifestProblems(settingsView({ settings_runtimes: value })), "视图 main 的 settings_runtimes 只能是 true");
+  });
+}
+
 test("RAC-75 W5-06-PLACE-01 every bundled Manifest's placement declarations pass", () => {
   for (const entry of BUILTIN_PLUGIN_CATALOG) assert.equal(manifestProblems(entry.manifest), "", entry.project_plugin_id);
 });

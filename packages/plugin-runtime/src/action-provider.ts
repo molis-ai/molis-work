@@ -1,9 +1,18 @@
 import { type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginActionAvailability } from "./action-availability.js";
-import { pluginActionBeforeEffect, runInPluginAction, type PluginInstance } from "./action-scope.js";
+import { pluginActionBeforeEffect, reservePluginInvocationPlace, runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { pluginSceneHandler } from "./scene-provider.js";
 import { pluginCallbackContext } from "./callback-context.js";
+
+/** The permission that lets a Home-level plugin's action be given the projects the person may reach (PG-014); the Manifest declares it, the person grants it. */
+export const PROJECT_REACH_PERMISSION = "projects:reach";
+
+/**
+ * The Host's answer to "which projects may the person reach through this plugin", asked right before an action that declares `project_reach`
+ * runs for the installation (PG-014). It reads the catalog each time. `undefined` means the Host does not give a list to this caller.
+ */
+export type PluginProjectReach = (manifest: PluginManifest, context: ActionCallContext) => Promise<readonly string[] | undefined>;
 
 /**
  * What a running Plugin offers the action service: the actions and scenes its Manifest declares, each available only while
@@ -13,7 +22,7 @@ import { pluginCallbackContext } from "./callback-context.js";
  * `instance` is the activation's record as it started: its calls run as that instance, and only its services serve them.
  */
 export function pluginActionProvider(manifest: PluginManifest, contribution: PluginContribution, instance: PluginInstance, providerId: string, projectId: string | undefined,
-  state: { record(): PluginInstanceRecord | null; live(): boolean }): ActionProviderRegistration {
+  state: { record(): PluginInstanceRecord | null; live(): boolean }, projectReach?: PluginProjectReach): ActionProviderRegistration {
   const installId = instance.install_id, { installation_generation } = instance;
   const grantAvailability = (permissions: readonly string[], own?: (context: ActionCallContext) => ActionAvailability) =>
     (context: ActionCallContext): ActionAvailability => {
@@ -29,9 +38,16 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       // The Plugin's services ask which action is running; the Host answers, the Plugin does not say. The call's own `beforeEffect`
       // returning is one way it passes its last authority check (`PluginActionScope.checked`).
       return { ...h, handle: (context, input) => {
-        const checked = { passed: false }, view = pluginCallbackContext(context), before = view.beforeEffect;
-        return runInPluginAction({ install_id: installId, installation_generation, definition, caller: context, checked },
-          () => h.handle(before ? { ...view, beforeEffect: pluginActionBeforeEffect(before, checked) } : view, input));
+        const begun = reservePluginInvocationPlace();
+        const run = (readable?: readonly string[]) => {
+          const checked = { passed: false }, view = { ...pluginCallbackContext(context), ...(readable ? { readable_project_ids: readable } : {}) }, before = view.beforeEffect;
+          return runInPluginAction({ install_id: installId, installation_generation, definition, caller: context, checked, begun },
+            () => h.handle(before ? { ...view, beforeEffect: pluginActionBeforeEffect(before, checked) } : view, input));
+        };
+        // The list is the Host's, read now, for the person only, and only for an action that declares it and an installation that holds the grant (S-70).
+        const reaches = projectReach && definition.action.project_reach === "person" && context.audience === "user"
+          && state.record()?.grants.includes(PROJECT_REACH_PERMISSION) === true;
+        return reaches ? projectReach(manifest, context).then(run) : run();
       }, availability: grantAvailability(definition.action.permissions, h.availability ? caller => pluginActionAvailability(instance, definition, caller, h.availability!) : undefined) };
     }),
     scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {

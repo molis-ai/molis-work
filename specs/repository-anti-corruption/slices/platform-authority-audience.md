@@ -1,6 +1,6 @@
 # 授权与受众：隐藏的个人插件、自调用的受众、跨项目读取范围
 
-状态：草稿，等统筹审（2026-10-24，防腐线 ac-platform，按 `origin/main` `df5527f27` 重核）；还没写代码。做的是 `privileges.md` 的 PG-013、PG-028、PG-014 三行，合成一个 slice。验收号 RAC-580～593，S 号全是暂定（见 §6）。
+状态：统筹已审、照稿开工（2026-10-24，防腐线 ac-platform，按 `origin/main` `df5527f27` 重核；§9 是统筹的裁定与必改）。做的是 `privileges.md` 的 PG-013、PG-028、PG-014 三行，合成一个 slice。验收号 RAC-580～593，S 号全是暂定（见 §6）。
 
 ## 1. 重核结果（对着 `df5527f27`）
 
@@ -52,15 +52,15 @@
 
 ### 2.3 PG-014：读取范围由平台给，插件只用清单
 
-- 新增 Manifest 动作声明（名字暂定 `project_reach: "person"`，只许写在 `scope: "home"` 的动作上；SDK 的 Manifest 检查是同一条规则）。声明本身不授予任何东西，只是告诉平台「这个动作要看本人名下各项目的清单」，并且是安装确认能展示的一条（`ac-trust-install`）。
-- 新增调用上下文字段 `readable_project_ids?: readonly string[]`（`ActionCallContext`，Host 填、不读输入）。Host 在派发带声明的动作时，对 **受众是 `user` 且操作者是本机这个人** 的调用，给出此刻的清单：目录里没在关闭中的项目里、该插件还在显示（与 §2.1 同一个判断）的那些。别的受众（agent、mcp、workflow、plugin）、本人以外的操作者，不给这个字段。
+- 两样都要（S-15 的口径，统筹 10-24 定）：Manifest 声明一条权限 `projects:reach`，由人在安装时授予，安装确认里看得到；动作上写 `project_reach: "person"`，只许写在 `scope: "home"` 的动作上（SDK 的 Manifest 检查是同一条规则）。只有写了它、并且安装持有 `projects:reach` 的动作拿得到清单。
+- 新增调用上下文字段 `readable_project_ids?: readonly string[]`（`ActionCallContext`，Host 填、不读输入，每次调用现算、不缓存）。Host 在派发带声明的动作时，对 **受众是 `user` 且操作者是本机这个人**、**安装此刻持有 `projects:reach`** 的调用，给出清单：目录里没在关闭或删除中的项目里、该插件还在显示（与 §2.1 同一个判断）的那些。授权没有或被撤回、别的受众（agent、mcp、workflow、plugin）、本人以外的操作者，都不给这个字段。内置的 Todo 也照这条走，没有特例。
 - 清单与「调用在哪个项目」是两件事：`caller.project_id` 仍是调用所在项目，清单只管读写别的项目的 Home 级记录。
 - Todo：`TodoAccess` 的 `everything: boolean` 换成 `projectIds: readonly string[]`（可见项目）；`todoAccess` 里不再出现 `audience`：`list` 带 `all_projects` 时可见项目 = 清单，没有清单就是 `actions.forbidden`（保持现在对 agent 的行为）；其余写动作用清单（有就用，没有就只有调用所在的项目）。`search.ts:61` 同改。
 - 自调用（PG-028 之后）继承外层的受众，也就继承外层有没有清单；插件不能给自己升。
 
 ## 3. 验收
 
-- **RAC-580**（新 `tests/security-invariants-hidden-personal-plugin.test.ts`）：个人插件在项目 A 隐藏后，`projectActionAvailability` 的 `live` 与 `snapshotForDiscovery` 两条路对它的动作都返回 `actions.plugin_disabled`；没隐藏的项目 B 可用；常开的 Shelf 隐藏也可用；无项目、项目已删的调用，个人插件可用，项目级插件仍拒。
+- **RAC-580**（新 `tests/security-invariants-hidden-personal-plugin.test.ts`）：被嵌入（`ui.embedded_plugins`）的个人插件被隐藏后，只放行嵌入那一条路，不经嵌入直接调它的动作被拒；个人插件在项目 A 隐藏后，`projectActionAvailability` 的 `live` 与 `snapshotForDiscovery` 两条路对它的动作都返回 `actions.plugin_disabled`；没隐藏的项目 B 可用；常开的 Shelf 隐藏也可用；无项目、项目已删的调用，个人插件可用，项目级插件仍拒。
 - **RAC-581**（同文件，走项目 MCP 的真实路径）：隐藏了 Pages 的项目，MCP 的工具列表里没有 `pages.*`；直接调用被拒 `actions.plugin_disabled`，处理器没跑。
 - **RAC-582**（同文件，走项目 Runtime 路由）：隐藏了的个人插件的 `/projects/<id>/api/plugins/<插件>/…` 返回 `actions.plugin_disabled`；没隐藏的照常；Home 级路径（无项目）不受影响。
 - **RAC-583**（同文件）：取消隐藏后立即可用，加上不缓存的断言（隐藏、调用被拒、取消隐藏、再调用成功，同一个 Host 里连续做）。
@@ -69,10 +69,10 @@
 - **RAC-586**（同文件）：`start` 里、`start` 里设的定时器里自调用，受众是 `plugin`；动作的 `audiences` 到不了 `plugin` 的被拒，处理器没跑。
 - **RAC-587**（`tests/security-invariants-plugin-materials.test.ts` 加在「S-39 RAC-26」旁）：agent、mcp、workflow 的外层动作经自调用要 `allowModelDownload`，语音助手没带 `--allow-model-download`，`material.model_required`；`user` 外层则带；定时器里的自调用不带。变异检查：把自调用的受众改回 `user`，这条失败。
 - **RAC-588**（同文件）：S-39 的表（agent、mcp、workflow、plugin）再加「自调用」一栏，每一栏都不下载、不落地模型。
-- **RAC-589**（`tests/plugin-manifest-v2.test.ts`）：`project_reach` 写在 `scope: "project"` 的动作上，`parsePluginManifest` 拒；写在 `scope: "home"` 的上放行；合同快照（`pnpm actions:update`）出现这一项。
-- **RAC-590**（新 `tests/security-invariants-project-reach.test.ts`）：本人调带声明的动作，上下文里的清单 = 此刻显示该插件、没在关闭中的项目；隐藏该插件的项目、已删的项目不在；agent、mcp、workflow、plugin 调同一个动作，上下文里没有这个字段。
-- **RAC-591**（`tests/todo-actions.test.ts`，改现有「scope」用例）：`all_projects` 对 agent 仍 `actions.forbidden`；`plugins/native/todo/src/actions.ts` 与 `search.ts` 里没有 `audience` 与 `"user"` 的比较（源码断言）；`todoAccess` 的形状是 `projectIds`。
-- **RAC-592**（同文件）：隐藏了 Todo 的项目 B 的待办，不出现在本人的 `all=1`，按 id 的 `get`、`update`、`status` 读为 `todo.not_found`；取消隐藏后出现。
+- **RAC-589**（`tests/plugin-manifest-v2.test.ts`）：`project_reach` 写在 `scope: "project"` 的动作上，`parsePluginManifest` 拒；写了 `project_reach` 却没声明 `projects:reach` 权限也拒；写在 `scope: "home"` 的上放行；合同快照（`pnpm actions:update`）出现这一项。
+- **RAC-590**（新 `tests/security-invariants-project-reach.test.ts`）：本人调带声明的动作，上下文里的清单 = 此刻显示该插件、没在关闭或删除中的项目；隐藏该插件的项目、已删的项目不在；agent、mcp、workflow、plugin 调同一个动作，上下文里没有这个字段；**没授 `projects:reach` 的安装（或授权被撤回之后）拿不到清单**；清单每次现算（隐藏、取消隐藏之间连续两次调用，清单跟着变）。
+- **RAC-591**（`tests/todo-actions.test.ts`，改现有「scope」用例并加一条）：`all_projects` 对没有清单的调用（Agent，或没带 `readable_project_ids` 的）仍 `actions.forbidden`；有清单的本人调用只看到清单里的项目；`actions.ts` 里决定范围的行（带 `projectIds`、`readable_project_ids` 的）与 `search.ts` 里没有 `audience` 的比较（源码断言；`actions.ts` 的操作者标签 `actor` 只用来写历史，不决定范围，不在此列）；`store-types.ts` 的 `TodoAccess` 是 `projectIds`。
+- **RAC-592**（`tests/security-invariants-project-reach.test.ts`，走真实 Host，因为隐藏要经项目目录；`todo-actions.test.ts` 的 `ActionService` 夹具没有目录）：隐藏了 Todo 的项目 B 的待办，不出现在本人的 `all=1`，按 id 的 `get`、`update`、`status` 读为 `todo.not_found`；取消隐藏后出现，版本不变。
 - **RAC-593**（`tests/security-invariants-project-reach.test.ts`）：插件拿不到升级：处理器输入、返回里带 `readable_project_ids` 无效（只读 Host 的上下文）；agent 外层的自调用没有清单、`all_projects` 被拒；本人外层的自调用有清单。
 
 变异检查：RAC-580 去掉新判断、RAC-585 去掉对 `plugin` 外层的处理、RAC-590 去掉对受众的筛，各自失败。
@@ -90,13 +90,13 @@
 1. **PPT 依赖 Pages**：PPT 的 Manifest `consumes` 了 `pages.content.read`、`pages.content.list`。隐藏 Pages 之后，那个项目里 PPT 读 Pages 会得到 `plugin_disabled`。建议：照 `privileges.md` 的字句，隐藏就拒；依赖的显示由 PPT 的页面解释（和项目级插件被关一样）。要保住的话，另选「被显示的插件 `consumes` 的个人插件也算可用」，那会多一条规则和一类测试，建议不做。
 2. **无外层的自调用（§2.2）改成 `plugin` 受众**：仓库里自调用都是带 control 的路由或动作里的嵌套，没有发现 `start`/定时器里的（开工前再扫一遍，见 §7）。发现有就按那处的需要处理，不为它保留 `user`。
 3. **`project_reach` 的名字与 Manifest 位置**：建议写在动作上、只许 Home 级动作用；备选是写在插件权限里（`projects:reach`）让安装确认直接问。前者简单，后者对第三方更明白。信任边界（安装确认的展示）归统筹定。
-4. **S 号**：三行暂定 S-91、S-92、S-93（§6），落地时按顺序定。
+4. **S 号**：三行暂定 S-68、S-69、S-70（§6），落地时按顺序定。
 
 ## 6. SECURITY-INVARIANTS（暂定）
 
-- S-91（PG-013）：个人插件在项目里隐藏后，动作（目录、MCP、Agent、工作流）和路由都拒，返回 `actions.plugin_disabled`；常开插件不能隐藏；无项目、项目不存在没有隐藏可言。测试：RAC-580～583。
-- S-92（PG-028）：插件调自己的动作沿用外层受众，`plugin` 外层不被洗成 `user`，没有外层的自调用是 `plugin`；`allowModelDownload`、原始文件认领、`directory` 都据此。测试：RAC-584～588。
-- S-93（PG-014）：跨项目读取范围只来自 Host 填的 `readable_project_ids`，只给本人、只给声明了 `project_reach` 的 Home 级动作，清单里没有隐藏了该插件和不存在的项目；插件不判断受众。测试：RAC-589～593。
+- S-68（PG-013）：个人插件在项目里隐藏后，动作（目录、MCP、Agent、工作流）和路由都拒，返回 `actions.plugin_disabled`；常开插件不能隐藏；无项目、项目不存在没有隐藏可言。测试：RAC-580～583。
+- S-69（PG-028）：插件调自己的动作沿用外层受众，`plugin` 外层不被洗成 `user`，没有外层的自调用是 `plugin`；`allowModelDownload`、原始文件认领、`directory` 都据此。测试：RAC-584～588。
+- S-70（PG-014）：跨项目读取范围只来自 Host 填的 `readable_project_ids`，只给本人、只给声明了 `project_reach` 的 Home 级动作，清单里没有隐藏了该插件和不存在的项目；插件不判断受众。测试：RAC-589～593。
 
 ## 7. 开工前再核
 
@@ -110,3 +110,14 @@
 ## 8. 本机验证计划（做完代码后）
 
 只做构建、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`pnpm secrets:check`、`pnpm api:update` / `pnpm actions:update` 以及新写的非浏览器用例（RAC-580～593 里不要浏览器的）和 `tests/todo-actions.test.ts`、`tests/security-invariants-plugin-action-delegation.test.ts`、`tests/security-invariants-plugin-materials.test.ts`；不跑 affected 全集、浏览器用例、全量。`affected-tests --json` 的 `full` 与选中数写进 PR 正文。
+
+## 9. 统筹的裁定与必改（2026-10-24）
+
+1. PPT 依赖 Pages：隐藏了就拒，不加「被依赖就可用」的规则。
+2. 没有外层的自调用改成 `plugin` 受众；§7 第 1 条的扫描结果写进 PR。
+3. `project_reach` 要权限和动作声明两样都有（§2.3 已按此改），内置 Todo 同样。
+4. S 号暂定 S-68～70 可以，落地时统筹按顺序定。
+5. 「常开插件始终显示」：ac-trust T3（PR #1259）把常开改成从同意账本算（`ProjectPluginRegistry.alwaysOn()`，可撤回）。PG-013 的判断用 T3 的这个来源；T3 没合入之前按现状读 Manifest 的 `always_on`，这一处在 PR 里点名，后合入的改成同一个来源。
+6. `ui.embedded_plugins` 的闭包保留，只放行嵌入那一条路（RAC-580 已加断言）。
+7. `readable_project_ids` 每次调用现算；正在删除的项目不进清单；沙箱插件的执行上下文能带这个字段（数组），写一条沙箱路径的断言，或写明 PG-017 之后再补并开 BL。
+8. 和 ac-registry 对齐：它的 B1 会把 `shownProjectPlugins` 这类平台事实搬进 `apps/local-host/src/plugin-registry.ts`。本片的判断函数只写一份，先放在 local-host 平台这一侧；两边谁后到谁重基，同批评审就照 `MERGE-QUEUE.md` §1a 同批落。

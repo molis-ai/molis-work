@@ -67,14 +67,19 @@ export function shownProjectPlugins(enabled: readonly string[], hidden: readonly
   return next;
 }
 
-/** Enabled surfaces and their declared embedded dependencies; no installation or grant mutation. */
+/**
+ * The plugins whose actions and routes a project may reach: what it shows (`shownProjectPlugins`: enabled ones, and personal ones
+ * the person did not hide there) and the plugins those declare embedded. No installation or grant mutation. A personal plugin the
+ * project hides is not reached even when a shown plugin embeds it: hiding is final for actions (PG-013), embedding only brings in
+ * plugins the project has not hidden.
+ */
 export function availableProjectPluginIds(
-  enabled: readonly string[], catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG,
+  shown: readonly string[], catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG,
 ): ReadonlySet<string> {
   const byProjectId = new Map(catalog.map(entry => [entry.project_plugin_id, entry]));
   const byManifestId = new Map(catalog.map(entry => [entry.manifest.plugin_id, entry]));
   const available = new Set<string>();
-  const pending = [...enabled, ...catalog.filter(entry => entry.personal).map(entry => entry.project_plugin_id)];
+  const pending = [...shown];
   while (pending.length) {
     const id = pending.pop()!;
     const entry = byProjectId.get(id);
@@ -85,6 +90,8 @@ export function availableProjectPluginIds(
       if (embedded) pending.push(embedded.project_plugin_id);
     }
   }
+  const listed = new Set(shown);
+  for (const entry of catalog) if (entry.personal && !listed.has(entry.project_plugin_id)) available.delete(entry.project_plugin_id);
   return available;
 }
 

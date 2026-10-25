@@ -4,7 +4,7 @@
 
 包名：`@molis-ai/molis-work-plugin-todo`。需求见 [specs/archive/todo-plugin/spec.md](../../../specs/archive/todo-plugin/spec.md)，实现与进度见 [implementation.md](../../../specs/archive/todo-plugin/implementation.md)。
 
-所有动作由插件的 `actions.ts` 声明，`scope: "home"`。Todo 是 Plugin Runtime 上的 Home 级插件（`src/plugin.ts` 的 `createTodoPlugin`，目录条目 `runtime: { scope: "home" }`，库由宿主的 Home 库服务按 `TODO_DATABASE` 打开）：没有项目时也能用。调用方在项目里时只看到个人、暂未归类和这个项目的待办；跨项目的“所有项目”只对用户本人的界面（`audience: "user"`）开放，助理、工作流和 MCP 看不到。HTTP 是 Manifest 声明的路由（`/api/plugins/io.molis.work.todo/…`，每条经 `bindPluginActionRoute` 转成一个动作），只转参数：身份由 Host 绑定，项目只来自页面路径 `/projects/<id>/api/plugins/io.molis.work.todo/…`（宿主核对项目存在且显示 Todo，见 SECURITY-INVARIANTS S-31），请求体里的 `project_id` 被丢掉。
+所有动作由插件的 `actions.ts` 声明，`scope: "home"`。Todo 是 Plugin Runtime 上的 Home 级插件（`src/plugin.ts` 的 `createTodoPlugin`，目录条目 `runtime: { scope: "home" }`，库由宿主的 Home 库服务按 `TODO_DATABASE` 打开）：没有项目时也能用。调用方在项目里时只看到个人、暂未归类和这个项目的待办；跨项目的“所有项目”不由 Todo 判断受众：声明了 `project_reach: "person"` 的动作，宿主只在本人自己的调用里（并且用户给了 `projects:reach`）把此刻显示 Todo 的项目放进 `caller.readable_project_ids`，Todo 只按这份清单放行（SECURITY-INVARIANTS S-70）；助理、工作流和 MCP 的调用没有清单，隐藏了 Todo 的项目也不在清单里。HTTP 是 Manifest 声明的路由（`/api/plugins/io.molis.work.todo/…`，每条经 `bindPluginActionRoute` 转成一个动作），只转参数：身份由 Host 绑定，项目只来自页面路径 `/projects/<id>/api/plugins/io.molis.work.todo/…`（宿主核对项目存在且显示 Todo，见 SECURITY-INVARIANTS S-31），请求体里的 `project_id` 被丢掉。
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/todo-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `TODO_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `TodoPage` 对象里（`page.ts`），列表、提醒、整理审阅、详情、快速输入各是一个部件，在启动时把自己的操作装到这个对象上；按钮是 `commands.ts` 里按顺序匹配的命令表；请求只经工作台的 `molisWorkRequest`（`request.ts`），不直接 `fetch`。Todo 与 Form 从公共 `platform/ui` 的 `UiPluginClientHost` 取实际字段，宿主同合同类型检查；`pluginId` 与 `pluginRoute` 来自 Manifest 和当前项目，`route` 只处理平台路径。esbuild 是包的直接开发依赖，版本与根相同；升级后的资源增长仍须按资源规则评审。
 
@@ -25,7 +25,7 @@
   - 每次修改记一条历史；用户本人改过的字段记入 `edited_fields`，之后的自动更新据此保护。
   - 撤销按历史进行，之后又被改过就拒绝；删除不可撤销，执行前确认。
   - 从 Inbox、灵光“转为待办”走情境的创作入口（`todo.items.create` 声明的 intake，由 `todo.fragment.offers` 准备）：原条目只作为来源（`material`，`subject` 记着它是哪个对象）保留，不改它的状态；请求号 `intake:todo:<对象种类>:<id>` 让同一条再转时找到原来的待办；来源要不要显示成可点开的链接，由工作台按插件声明的对象种类找页面决定（找不到或有几个都不显示链接，只显示文字）。整个对象（Inbox 条目、灵光）转出的待办放在调用所在的项目（个人空间里则放个人空间），项目取自调用上下文、不读输入；只选一段文字转出的待办仍不带落位，留给本人。
-  - 重要标记只能由用户本人设置；“所有项目”只给用户本人的界面。
+  - 重要标记只能由用户本人设置；“所有项目”只给宿主给了清单的本人调用（`readable_project_ids`）。
   - 新建带 `request_id` 时同一请求重试不重复创建；请求号按调用者与所在项目分别记（整理结果的请求号同理），别的调用者用了同一个号是另一次请求，不会拿到别人的待办。
   - 已落库的旧请求号不迁移、不回退匹配：按调用者与项目分别记之前写入 `todo_requests` 和 `todo_batches.request_id` 的行存的是原始请求号，现在的键是 `[调用者, 项目, 请求号]`，旧行不再命中。后果：升级前已转过的 Inbox／灵光条目（`inbox:<id>`、`lingguang:<id>`，也含改走创作入口之前的 `intake` 以外的请求号）再转一次会新建一条待办，升级前发出的整理请求重试也不再去重；升级后新写入的请求照常去重。旧行只是不再命中，读取与整理都不会因它报错，`todo_requests` 的旧行随它所属待办的删除或撤销一并清掉；这是按“没有旧数据”处理的取舍，不另写回退匹配或改写旧行的逻辑。
   - 整理只产生待确认的候选，不直接新建或修改待办；依据必须能在原文里找到，原文没写的日期只作建议，用户手动改过的字段只作冲突提示——采用时按待办此刻的状态再判断，整理之后才改的字段同样不被覆盖。

@@ -3,7 +3,7 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
-import { PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
@@ -37,7 +37,7 @@ export class HomePluginHost {
   private retryable = false;
   private releaseProjectOwners?: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
-    entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[] }) {}
+    entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; projectReach?: PluginProjectReach }) {}
 
   ready(): Promise<HomePluginPlatform> {
     if (this.closed) return Promise.reject(new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭"));
@@ -137,7 +137,8 @@ export class HomePluginHost {
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const runtime = new PluginRuntime(repository, executor, { redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
-      actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id) } });
+      actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
+        ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({
       definition: entry.definition, project_data: identity.projectDataFor(entry.definition),
     })), executor);

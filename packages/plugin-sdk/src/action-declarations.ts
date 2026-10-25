@@ -44,6 +44,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...offerChoiceProblems(key, action),
     ...homeProtocolProblems(key, raw.operation, action),
     ...homeAggregateProblems(key, raw.operation, action),
+    ...projectReachProblems(key, action),
     ...backgroundJobProblems(key, raw.operation, action),
     ...undoProblems(key, raw.operation, action),
     ...searchSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
@@ -180,6 +181,24 @@ function homeAggregateProblems(key: string, operation: unknown, a: ActionBody): 
     return [`能力 ${key} 的首页聚合声明必须是项目范围的只读查询，写明输出类型，不调用模型、不计费`];
   }
   return [];
+}
+
+// ---- the person's projects, given by the Host --------------------------------------------------------------------------------
+
+function projectReachProblems(key: string, a: ActionBody): string[] {
+  if (a.project_reach === undefined) return [];
+  if (a.project_reach !== "person" || a.scope !== "home") return [`能力 ${key} 的 project_reach 只能是 "person"，并且只能写在 Home 范围的动作上`];
+  return [];
+}
+
+/**
+ * Whether the Manifest holds up its end of `project_reach` (PG-014): every action that declares it needs the `projects:reach` permission
+ * declared too, so the installation's confirmation can show it and the person can decline it. Declaring is half; the grant is the other.
+ */
+export function projectReachPermissionProblems(actions: unknown, permissions: ReadonlySet<string>): string[] {
+  if (!Array.isArray(actions) || permissions.has("projects:reach")) return [];
+  return actions.flatMap(definition => isObject(definition) && isObject(definition.action) && definition.action.project_reach !== undefined
+    ? [`能力 ${String(definition.capability_id)} 声明了 project_reach，Manifest 必须声明 projects:reach 权限`] : []);
 }
 
 /**

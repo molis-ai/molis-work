@@ -7,7 +7,8 @@ import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type 
 
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, saveInstalled, validateInstalledManifest } from "./install-rules.js";
-import { pluginActionProvider } from "./action-provider.js";
+import { pluginActionProvider, type PluginProjectReach } from "./action-provider.js";
+export { PROJECT_REACH_PERMISSION, type PluginProjectReach } from "./action-provider.js";
 import { outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
@@ -32,7 +33,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, currentPluginAction, currentPluginInvocation, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
+export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
 export type { PluginInstance } from "./action-scope.js";
 export { inertAfterStop, StoppedServiceCalls, type StoppedServiceCall } from "./stopped-services.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
@@ -123,7 +124,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope;
-      actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string } } = {},
+      actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string; projectReach?: PluginProjectReach } } = {},
   ) {}
 
   register(definition: PluginDefinition): void {
@@ -659,7 +660,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         const actions = this.options.actions;
         if (!actions) throw pluginErrors.contribution_unredeemed("宿主未提供系统动作注册服务");
         this.actionDisposers.set(record.install_id, actions.registry.registerProvider(pluginActionProvider(manifest, contribution, record,
-          actions.providerId?.(record, definition) ?? record.install_id, actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) })));
+          actions.providerId?.(record, definition) ?? record.install_id, actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) }, actions.projectReach)));
       }
     } catch (error) {
       const live = this.liveContext(record.install_id);

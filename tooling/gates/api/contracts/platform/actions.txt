@@ -405,6 +405,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly user_action?: ActionUserAction;
     readonly project_id: string | null;
     readonly audience: ActionAudience;
+    readonly readable_project_ids?: readonly string[];
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
     readonly original_file?: HostOfferedOriginalFile;
@@ -523,6 +524,7 @@ export interface ActionMetadata {
         readonly subject_kind: string;
     };
     readonly home_aggregate?: true;
+    readonly project_reach?: "person";
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
     readonly intake?: ActionIntake;

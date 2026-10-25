@@ -155,12 +155,11 @@ export class PluginRuntime implements PluginRuntimeApi {
   constructor(
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
-    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners;
+    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; reservedRuleKeys?(): ReadonlySet<string>;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). */
       hostIds: ReadonlySet<string>;
-      reservedRuleKeys?(): ReadonlySet<string>;
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string; projectReach?: PluginProjectReach } },
   ) { if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单"); }
 
@@ -168,9 +167,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     validateManifest(definition.manifest);
     const key = definitionKey(definition.manifest);
     const current = this.definitions.get(key);
-    if (current && current !== definition) {
-      throw pluginErrors.definition_conflict("同一 Plugin ID、Version 和签名不能注册两个实现");
-    }
+    if (current && current !== definition) throw pluginErrors.definition_conflict("同一 Plugin ID、Version 和签名不能注册两个实现");
     this.definitions.set(key, definition);
   }
 

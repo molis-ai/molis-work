@@ -47,9 +47,8 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const railItem = (id) => dock.querySelector('.plugin-rail-items [data-plugin-id="' + CSS.escape(id) + '"]');
   // The market and the plugin studio are buttons at the head of the switcher, not rows of the rail: the chip names them
   // from there too, so a place the rail does not list still reads as its name rather than its id (BL-114).
-  const headItem = (id) => dock.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(id) + '"]');
   const labelOf = (node) => node.querySelector('span')?.textContent?.trim() || node.getAttribute('title') || '';
-  const namedItem = (id) => railItem(id) || headItem(id);
+  const namedItem = (id) => railItem(id) || dock.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(id) + '"]');
   const nameOf = (id) => { const item = namedItem(id); return (item && labelOf(item)) || id; };
   const glyphOf = (id) => namedItem(id)?.querySelector('svg')?.cloneNode(true) || null;
 

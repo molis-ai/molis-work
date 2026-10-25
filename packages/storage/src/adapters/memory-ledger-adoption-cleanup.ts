@@ -100,7 +100,11 @@ export function inspectMemoryLedgerCleanupSources(input: { homeDirectory: string
 function read(db: DatabaseSync, operation: string): MemoryLedgerCleanupDecision | undefined {
   const row = db.prepare("SELECT body FROM memory_markers WHERE actor_id='' AND key=?").get(keyOf(operation));
   if (!row) return undefined;
-  const mark = object(JSON.parse(String(row.body)));
+  return decodeMemoryLedgerCleanupDecision(JSON.parse(String(row.body)), operation);
+}
+
+export function decodeMemoryLedgerCleanupDecision(value: unknown, operation: string): MemoryLedgerCleanupDecision {
+  const mark = object(value);
   if (mark.kind !== "adoption-cleanup" || mark.operation_id !== operation || !["pending", "committed"].includes(String(mark.phase)) || !Array.isArray(mark.items)) return conflict();
   const items = mark.items.map(value => {
     const item = object(value);

@@ -114,3 +114,5 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 `beginMemoryLedgerAdoption` 与 complete 共用现 change 事务的同步 assertCurrent：取得原 snapshot 后、实际 COMMIT 前都复核，异步 checker 或拒绝回滚该事务。原 origin/adopting、CAS 和库版本不变；SDK 失败后已提交的 adopting 保留。回归见 `tests/memory-adoption-maintenance.test.ts` 与 `tests/memory-ledger-adoption.test.ts`。
 
 `MemoryLedgerPort.ownerRelations()` 在同一 SQLite 读取中投影全部 owner 与候选账的身份关系，不交正文、标题或历史；候选索引/JSON 身份不一致及跨源同 owner 项目冲突明确拒绝。不改变 adoption snapshot 或授予 scope 权限。
+
+`openMemoryLedgerRecoveryInspection` 仅检查完整 T1 工作副本：单 readonly SQLite BEGIN 快照，`next` 默认 40、最大 100 条 fact+issue，非法限额拒绝；计划条目跨页延续，不整库收集后切页。输出只有经过校验的身份/原决定/来源屏障，不交正文或 raw marker。失败页保留位置；`close` 即使取消/撤权也释放连接并报告检查或关闭失败。没有 Home/库/表/key 创建、迁移或 checkpoint，工作副本可出现 SQLite 必要侧车；原件 T1/T0 不打开。`exhausted` 不是恢复 complete。Schema、清理决定、owner/candidate 行级校验与现入口共用。专项回归：`tests/memory-ledger-recovery.test.ts`；相关读取影响面加跑 `tests/memory-owner-relations.test.ts`、`tests/memory-ledger-adoption.test.ts`、`tests/memory-adoption-maintenance.test.ts`、`tests/memory-ledger-transaction.test.ts`。

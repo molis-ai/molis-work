@@ -3100,3 +3100,22 @@ inspection 与维护 bridge 增加 `verifySessionPurge({target,signal?})`，只�
 允许原 AgentHost Session/冷 adoption 实现和必要公开类型导出、相关真实回归、AgentHost README 与本 spec；不改 SDK、Coding/Assistant 业务副本、父 DTO、Catalog 或 Memory 删除范围。硬授权、原决定及拒绝语义不可配；App 提供可信 source 和稳定 operation/current/signal，用户确认由原删除决定负责，不新增槽、registry、phase 或通用存储入口。验收覆盖真实非空持久 target 与 source 版本不同、prepared/SDK complete但Index未complete/complete 重试、错 owner/相反决定/absent、撤权/Index交错、输入隔离、后继和正文残留拒绝、reader 原句柄 close 重试。使用原 FIFO build 和定向测试、类型/边界/准确父基 health；不跑全量或真实 Home/模型。先前筛选运行的 Node native async_id 断言日志仍按 UNKNOWN 保留，后续通过不消除该事实。此口不证明业务副本已清或完整 MEM-40 完成。
 
 实施核验：基线 `37f0d5d36af76e1b92fdbcbd2b2d174f11110390`，生产仅上述原主人四文件。固定 Node24.14.0、pnpm11.9.0 整体 FIFO build 通过；新增17项真实持久回归，连同原 Session/Project/冷桥/父 owner/lifecycle 五文件125项通过，AgentHost README必跑19文件129项通过，均 jobs2/browser1/retries0、零跳过。根与新增测试严格 TypeScript、准确37f父基 health、包边界、改动文件lint和diff检查通过。日志 `/private/tmp/molis-standalone-session-{build-approved,tests,readme-tests,types,test-types,health,boundary,lint}-20261026.log`。第一次受限安装在既有pnpm SQLite store打开处失败，原 `build` 日志保留；获准访问原离线store后完成，不改锁或vendor。原 `/private/tmp/molis-session-copy-contract-existing-20261026.log` 的Node native async_id崩溃仍为UNKNOWN，未据后续通过归因为环境或产品。真实T1源为原非空T0副本归档再清除，准备核目标不同版本；close注入只在原key清零处，失败资源原引用三次调用后成功且业务始终关闭。本地工程验证不代替独立审查、父frame接线、业务副本清理、完整恢复或产品/用户验收；无push、真实Home和外部模型调用。
+
+### #1064 接入 batch37 主干（2026-10-26）
+
+本刀将准确 `070bdd28284d031de0602d27e1f588e315affc46` 与主干 `4f4e59a33b6830839323f9c33f87a7ad9047943f` 集成。保留既有人的原输入、续跑引用、不可重放的恢复、MemoryUsage 回执与关闭时最后事件的记账；沿主干 Prologue ports / run store / run start 的原主人接线，Coding 原输入及补充回执进入 typed browser 的真实生产 bundle。不恢复巨类、旧 inline 客户端或第二套恢复解释；Host audience、projectReach 与 registry 新边界不回退。
+
+范围为上述冲突与真实调用链、当前文档及必要回归；不混入 #1101 后续 Catalog/维护恢复，不更换 SDK、schema、模型或授权。原输入来源与权限、关闭期间最后记账是不可配置硬边界；现有端口可替换，App 配置和用户选项保持现合同，不新增旋钮。按原 FIFO build、双方 README 必跑及相关回归、strict、boundary、API、准确 4f 健康和真实 page-assets 验证；现 main 资源起点与规则保留，不套用旧 070 的一次性额度或手拼健康数字。最终 CI/全量与用户验收由统筹核验，本刀不自行声明完成。
+
+本次资源首次原门实测拒绝已保留（`/private/tmp/foundation-batch37-assets-first.log`）：相对准确 4f，Workbench `1124423 → 1127616`（+3193 字节），Coding `289788 → 290400`（+612 字节）。统筹核对原会话及本 spec 的既有授权：这是同一批已批准 Memory 控件与原输入发送行为接入新主干，Workbench 增量未变，Coding 比原净增 717 字节少 105 字节；没有新增功能或授权范围。只迁移这两个精确起点/终点 pair，不保留旧大绝对上限或差额；由原 `--update --base 4f4e59a33b6830839323f9c33f87a7ad9047943f` 重新实测冻结，不改比较算法、其他资源或重试规则。
+
+集成后的有界工程验证：原整体 build、生产严格编译、根类型、改动输入相关四文件的额外 strict、boundary（70 包、errors=[]）、72 份 API 快照、准确 4f 健康与真实资源门通过。两侧三个相关 README 必跑并集及输入/恢复/权限/声明式清理相邻共 138 文件 975 项通过，另原资源预算规则 171 项通过，原 runner jobs2/browser1/retries0；不运行全量。健康快查仅由原 `--update --base` 在合法下降后生成（giant 73→72、explicitAny 下降）。
+
+失败边界保留：首次 build 是恢复迁移后遗留的未使用类型导入；首轮 Coding 原输入 7/8，唯一失败为旧夹具把翻译函数放在全局 L，而主干真实 bundle 要求参数 translate；仅改夹具接线，原八项断言全部保留并通过。额外对六个完整测试文件执行非项目规定的独立 strict 命令没有通过：准确 070 同命令已有 14 条旧 fixture/ES2022 诊断，候选 15 条，多的一条定位到 4f 新增但沿用缺 actor_id owner 的恢复 fixture；没有降低类型规则、修无关 fixture 或把这项报告为通过。原始日志均为 `/private/tmp/foundation-batch37-*`，由统筹独审。此结果只覆盖本次主干迁移，不等于历史 54.1ms 性能失败根因修复；最终 CI/全量、真实用户 App 体验及用户验收尚未覆盖。
+
+
+### #1101 应用接入 batch37 与项目业务原件清理（2026-10-26）
+
+本刀基于准确 b759 应用合入已验证 3b3e522 基础，保留 Session 生命周期拒旧、Memory 原 Run 权限和末尾记账，沿主干 ports/store/start 与 typed browser 生产入口迁移，不恢复巨类或旧 inline 客户端。声明式 project_rows 沿同一 ProjectDeletionControl 传到原 Storage 清理事务，保持原锁后/提交前 current 与路径身份核对，不另起维护入口。
+
+叠入已冻结 Session 业务 owner DTO 3d80edb 与实现 eca0b8c。项目清理复用原 Assistant Work 事务，把实际归该 Work 的 source 边与其 cause 历史由 relations.preparePurge(identity)→clearPurge(identity,selected,current) 清掉；不清引用目标、别的 Work 或独立成果，assistant_usage 纯数值计费保留。公开项目 purge 必须以非空数据库、原取消/故障和重开结果验证，standalone 通过不等于项目闭合。不改父恢复计划/frame、schema、manifest、SDK/vendor 或锁文件；权限与不重放为硬边界，不新增插件、配置或用户选项。

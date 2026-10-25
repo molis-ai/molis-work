@@ -8,12 +8,14 @@ import { CONTINUATION_MARKER } from "./continuation.js";
 import { codingDraft } from "./drafts.js";
 import { CODING_RUN_UPDATED_EVENT } from "./events.js";
 import { resolveGoalContext } from "./goal-context.js";
+import { WRITER_SPLIT_HEAD } from "./writer-split.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
 import { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { MODEL_UNAVAILABLE } from "./models.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
-import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
+import { executionSteps } from "./plan-content.js";
+import { confirmedPlan, planMaterial } from "./plans.js";
 import { reaskMaterial } from "./reask.js";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 import { limitsCharacters } from "./runtime-choice.js";
@@ -155,7 +157,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
       subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
       return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
     });
-    task += "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n" + JSON.stringify(tasks, null, 2);
+    task += WRITER_SPLIT_HEAD + JSON.stringify(tasks, null, 2);
     if (task.length > 100_000) throw codingFailure("coding.server.task-too-long");
   } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw codingFailure("coding.server.parallel-only");
   // The one model list the platform keeps (`services.model`, PG-047): the chosen model must be on it and able to run now.

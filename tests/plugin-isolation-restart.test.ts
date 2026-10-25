@@ -13,7 +13,6 @@ function view(pluginId: string, viewId: string): UiContribution {
   return {
     descriptor: {
       contribution_id: `${pluginId}.${viewId}`,
-      plugin_id: pluginId,
       kind: "primary-page",
       label: viewId,
       slots: [],
@@ -203,14 +202,25 @@ test("a Plugin cannot contribute a view its Manifest never declared", async () =
   assert.match(report.failed[0]?.message ?? "", /没有在 Manifest 里声明/u);
 });
 
-test("a Plugin cannot borrow another Plugin's identity for a view", async () => {
-  const impostor = appPlugin({
-    id: "io.molis.work.impostor",
-    contribution: () => ({ kind: "app", views: [view("io.molis.work.victim", "main")] }),
-  });
+test("RAC-637 a Plugin names no owner for a view: not another Plugin's, and not its own either (the platform fills it from the Manifest)", async () => {
+  const claiming = (claimed: (id: string) => string) => {
+    const id = "io.molis.work.impostor";
+    return appPlugin({
+      id,
+      contribution: () => {
+        const own = view(id, "main");
+        return { kind: "app", views: [{ ...own, descriptor: { ...own.descriptor, plugin_id: claimed(id) } } as UiContribution] };
+      },
+    });
+  };
+  for (const claimed of [() => "io.molis.work.victim", (id: string) => id]) {
+    const supervisor = new PluginSupervisor(new PluginRuntime());
+    const report = await supervisor.start([{ definition: claiming(claimed).definition }]);
+    assert.deepEqual(report.running, []);
+    assert.match(report.failed[0]?.message ?? "", /自己写了插件身份/u);
+  }
+  // Without the field the same view is what the Manifest declared, and the plugin starts.
+  const honest = appPlugin({ id: "io.molis.work.honest", contribution: () => ({ kind: "app", views: [view("io.molis.work.honest", "main")] }) });
   const supervisor = new PluginSupervisor(new PluginRuntime());
-  const report = await supervisor.start([{ definition: impostor.definition }]);
-
-  assert.deepEqual(report.running, []);
-  assert.match(report.failed[0]?.message ?? "", /别的插件身份/u);
+  assert.equal((await supervisor.start([{ definition: honest.definition }])).running.length, 1);
 });

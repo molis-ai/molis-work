@@ -1,6 +1,7 @@
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
-import type { PrologueControlPort, PrologueRestoredSession, RunRecord, SessionRecord } from "./prologue.js";
+import type { PrologueControlPort, PrologueRestoredSession } from "./prologue-ports.js";
+import type { RunRecord, SessionRecord } from "./prologue-run-store.js";
 import { applyRunEvent, closeInterruptedPrologueStream, runStreamState } from "./prologue-stream.js";
 
 /** Restore only immutable observations. SDK reads and active execution stay with their existing owners. */

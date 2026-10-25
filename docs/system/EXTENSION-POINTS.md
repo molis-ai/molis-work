@@ -150,7 +150,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | --- | --- | --- |
 | 底栏插件切换器 | 0 | `navigator` 视图加目录条目的 `summary`（`pluginMarketCards()` 只收有 `summary` 且有 `navigator`/`island` 视图的条目）；没有分组的插件落在「更多」（`immersive-shell.ts` 注释：adding a Plugin never edits the shell） |
 | 分组、默认固定 | 0 / 1 | 分组：`navigator`/`island` 视图的 `group`（`advance`、`make`、`personal`、`research`、`code`，W5-06 第 2b 片），宿主只管组名与顺序；默认固定：`DOCK_DEFAULT_PINS` 在 `plugin-catalog.ts`，只有 4 个核心插件 |
-| 新建入口、项目首页起点 | 0（页面改读声明以前是 3：`goal-inputs-html.ts`、`scripts/client/placement.ts`、`scripts/client/project-home.ts` 里各有一张手写的表，③ 接上后删） | 同一个视图的 `creates`（指向本 Manifest 里能新建的工作流内容站，默认标题为「未命名」加 `title`）与 `start`（`title`、`hint`，可选 `icon`），工作台经 `creatableKinds`、`homeStarts`（`plugin-catalog.ts`）读 |
+| 新建入口、项目首页起点 | 0（W5-06 余项第 1 片以前是 3：`goal-inputs-html.ts`、`scripts/client/placement.ts`、`scripts/client/project-home.ts` 里各有一张手写的表，已删；服务端按 `creatableKinds`、`homeStarts` 把声明写进页面，客户端只读页面上的值） | 同一个视图的 `creates`（指向本 Manifest 里能新建的工作流内容站，默认标题为「未命名」加 `title`）与 `start`（`title`、`hint`，可选 `icon`），工作台经 `creatableKinds`、`homeStarts`（`plugin-catalog.ts`）读 |
 | 侧栏标签 | 0 | `side` 视图，贡献的目标槽是 `workbench.side`；插件启用才出现 |
 
 **打开插件时落在哪里由声明决定**（W2'-2）：`?openPlugin=`、搜索命中的 `open.surface`、助理通知与放置卡片的 `open`、页面里各处的「打开某插件」都只说是哪个插件（和可选的条目 id），不说位置。工作台在一处（`apps/workbench/src/plugin-catalog.ts` 的 `sideOpenedPlugins`，页面一侧 `apps/workbench/src/scripts/client/plugin-place.ts`）按声明决定：界面有工作区界面（`workbench.main` 或 `workbench.directory`）的在工作区打开，和以前一样，即使它也有 `side` 视图；只有 `side` 视图的打开它的侧栏格，条目 id 原样交给那个视图（`molis-work:select-item`），工作台不解释。所以加一个只住在侧栏的插件不用改任何打开它的地方，存着的链接与 `open` 也不用迁移。
@@ -162,7 +162,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 **怎么加**：每种对象一个读取器（`defineSubjectContextAction`），再声明一个搜索来源（`defineSearchEntriesAction`）；宿主从动作目录读 `search_source`，插件不写索引（`skills/molis-plugin-dev/search.md`，`docs/platform/PLUGIN-DEVELOPMENT.md`「系统搜索」）。
 
-**现在：0。** 索引和发现都是声明驱动；命中后怎么打开也是：目录条目的 `workbench.searchRow`（条目本来就要写，不另计），或在打开舞台的 Manifest 视图上声明 `accepts_objects: true`（按标签打开对象；W5-06 余项以前要把插件加进 `global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES`，现在那里只保留平台自己的成果，Sessions 入口已由 SC-4 移除；这份名单读构建期的内置目录，开发中与第三方插件的声明还进不来，见 BL-388）。另有一个已知缺口 BL-040：生成插件不能声明搜索来源。
+**现在：0。** 索引和发现都是声明驱动；命中后怎么打开也是：目录条目的 `workbench.searchRow`（条目本来就要写，不另计），或在打开舞台的 Manifest 视图上声明 `accepts_objects: true`（按标签打开对象；W5-06 余项以前要把插件加进 `global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES`，现在那里只保留平台自己的成果，Sessions 入口已由 SC-4 移除；名单由宿主写进页面的插件目录（`<script type="application/json" data-plugin-directory>`，取自 Runtime 里运行中安装的 Manifest）下发，客户端启动时读一次，内置与运行时装的插件同一份；W5-06 余项第 2 片）。另有一个已知缺口 BL-040：生成插件不能声明搜索来源。
 
 ### 3.9 记忆作用域
 

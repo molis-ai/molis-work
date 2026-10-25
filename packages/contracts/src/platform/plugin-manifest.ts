@@ -99,6 +99,10 @@ export interface PluginManifest {
    * declare it: the Runtime refuses to install or upgrade to a Manifest that does from anywhere else.
    */
   always_on?: boolean;
+  /** One sentence for the plugin market and the page heading, at most 120 characters once trimmed. Without one the market lists the plugin by its name. */
+  summary?: string;
+  /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable, and shown where already added. Only `true`. */
+  developer?: true;
   entrypoints: PluginEntrypointManifest[];
   permissions: PluginPermissionDeclaration[];
   capabilities: {

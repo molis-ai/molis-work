@@ -10,7 +10,7 @@ import type { ActionDefinition, ActionExecutionPolicy } from '@molis-ai/molis-wo
 import { PluginRuntime, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
@@ -555,27 +555,35 @@ test('an install that fails over kept data does not undo the person\'s choice to
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test('after an uninstall the newer published version can be installed again, with the kept data or without it', mac, async () => {
+test('RAC-609-UNINSTALL-01 after an uninstall the directory loses the real installation and a newer published version can be installed again, with the kept data or without it', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-reinstall-newer-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   try {
     const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
+    const listed = () => runningPluginDirectory(installed.platform.supervisor).some(entry => entry.plugin_id === fixture.release.pluginId);
     await client.invoke(caller, action(fixture.release, 'save'), { value: 'kept across versions' });
+    assert.equal(listed(), true, 'the installed plugin is in the real Host directory before the uninstall');
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
+    assert.equal(listed(), false, 'the next directory read after a retaining Host uninstall has no entry');
     assert.deepEqual(installed.installations(), []);
 
     const v2 = { ...fixture.release, version: 2 }; installed.releases.release(v2);
     await installed.lifecycle('install', v2, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }]);
+    assert.equal(listed(), true, 'the new installation returns to the directory');
     assert.equal(await client.invoke(caller, action(v2, 'read'), null), 'kept across versions', 'the data the uninstall kept is there for the new version');
     assert.equal(installed.platform.runtime.get(fixture.install.install_id).installation_generation !== fixture.install.installation_generation, true, 'it is a new installation');
 
     await installed.lifecycle('uninstall', v2, { keepData: false });
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
+    assert.equal(listed(), false, 'dropping private data also leaves no entry on the next directory read');
     const v3 = { ...fixture.release, version: 3 }; installed.releases.release(v3);
     await installed.lifecycle('install', v3, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 3 }]);
+    assert.equal(listed(), true, 'installing after data deletion returns the fresh installation to the directory');
     assert.equal(await client.invoke(caller, action(v3, 'read'), null), 'empty', 'deleted data stays deleted');
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });

@@ -443,6 +443,7 @@
       "goals",
       "inbox_judgment",
       "input_bindings",
+      "plugin_directory",
       "plugin_stages",
       "policy_bindings",
       "project",
@@ -451,6 +452,7 @@
       "schedule_jobs",
       "schedule_operations",
       "schedule_tasks",
+      "shown_plugins",
       "snapshot",
       "trashed_goals",
       "unavailable_plugin_stages"
@@ -897,6 +899,7 @@
       "goals",
       "inbox_judgment",
       "input_bindings",
+      "plugin_directory",
       "plugin_stages",
       "policy_bindings",
       "project",
@@ -905,6 +908,7 @@
       "schedule_jobs",
       "schedule_operations",
       "schedule_tasks",
+      "shown_plugins",
       "snapshot",
       "trashed_goals",
       "unavailable_plugin_stages"

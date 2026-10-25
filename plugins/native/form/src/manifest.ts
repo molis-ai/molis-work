@@ -21,6 +21,7 @@ export const formManifest: PluginManifest = {
   plugin_id: FORM_PLUGIN_ID,
   version: "0.3.0",
   name: "Forms",
+  summary: "建问卷，收答卷，看逐题汇总。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-form-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

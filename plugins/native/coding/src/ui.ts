@@ -2,7 +2,7 @@ import { codingUsageSummary } from "./usage.js";
 import { CODING_SESSION_MARKS } from "./session-marks.js";
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiNestedContentModel,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -62,9 +62,8 @@ export interface CodingUiModel extends UiNestedContentModel {
   readonly primitives: CodingUiPrimitives;
 }
 
-export const codingUiDescriptor: UiContributionDescriptor = {
+export const codingUiDescriptor: UiContributionDeclaration = {
   contribution_id: CODING_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.coding",
   kind: "primary-page",
   navigation_id: "coding",
   label: "Coding",
@@ -444,9 +443,8 @@ export interface CodingSettingsModel {
   readonly primitives: CodingUiPrimitives;
 }
 
-export const codingSettingsDescriptor: UiContributionDescriptor = {
+export const codingSettingsDescriptor: UiContributionDeclaration = {
   contribution_id: CODING_SETTINGS_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.coding",
   kind: "settings-page",
   navigation_id: "coding-settings",
   label: "Coding",

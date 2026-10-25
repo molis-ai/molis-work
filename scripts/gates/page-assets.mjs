@@ -237,21 +237,26 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
+// #1064's already approved Memory controls and original-input sender, moved onto batch37's smaller assets.
+// Same behavior and scope: workbench stays +3193 bytes; typed Coding is +612, 105 fewer than the prior +717.
 const APPROVED_CEILINGS = {
-  // Preserve only the previously approved application deltas on exact foundation 430f65b3.
-  // Includes Assistant +4064 B; pending Coding +1333 B is not admitted.
-  "/assets/molis-work-workbench.js": [1129760, 1162650],
-  "/assets/molis-work-settings.css": [983230, 983910],
-  "/assets/molis-work-workbench.css": [1552484, 1553164],
-  "/assets/molis-work-plugins/coding.js": [372853, 373423],
+  "/assets/molis-work-workbench.js": [1124423, 1127616],
+  "/assets/molis-work-plugins/coding.js": [289788, 290400],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
 // User approved 2026-10-21 (specs/archive/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
 // shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
+// User approved 2026-10-24 (pop-up decision, W5-04 third group): Files, Git, Diff and Text Stats each ship their own bundle now that
+// Coding lends them to its panels through `clientUses` instead of copying their code into coding.js; coding.js falls by 82 KB.
+// Each is frozen once at the measured bytes.
 const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugin-frame.js": 187120,
+  "/assets/molis-work-plugins/diff.js": 1483,
+  "/assets/molis-work-plugins/files.js": 11227,
+  "/assets/molis-work-plugins/git.js": 29496,
+  "/assets/molis-work-plugins/text-stats.js": 1281,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

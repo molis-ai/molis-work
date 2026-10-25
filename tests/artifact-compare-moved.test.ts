@@ -7,7 +7,8 @@ import { PAGES_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/p
 import { FORM_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/form";
 import { DATASET_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
-import { pagesActions, createPagesActionHandlers, openPagesStore, ownPagesStores, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions, createPagesActionHandlers, ownPagesStores, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { formActions, createFormActionHandlers, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, createDatasetActionHandlers, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { pptActions, createPptActionHandlers, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";

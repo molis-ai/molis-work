@@ -16,7 +16,6 @@ export const registration: PluginRegistration = {
   // shelf once, in the Home half's own `start`: reading the shelf writes nothing.
   runtime: { scope: "home", create: createHomeShelfPlugin, dual_instance: true,
     package_name: "@molis-ai/molis-work-plugin-shelf", factory_export: "createHomeShelfPlugin" },
-  summary: "把文件放上来处理副本，原件不动。",
   messages: SHELF_MESSAGES,
   workbench: {
     order: 8,

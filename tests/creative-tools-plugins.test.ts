@@ -11,11 +11,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  BUILTIN_PLUGIN_CATALOG,
-  PERSONAL_PLUGIN_IDS,
-  PROJECT_SCOPED_PLUGIN_IDS,
-  pluginMarketCards,
-  railEntries,
+  BUILTIN_PLUGIN_CATALOG, pluginMarketCards, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
   datasetActions,
@@ -41,6 +37,8 @@ import {
   renderMolisWorkWorkbenchStylesheet,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 
 const PROJECT = "project-creative-tools";
 const OTHER = "project-other";
@@ -125,7 +123,7 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
     rail.filter((id) => ["form", "dataset", "ppt"].includes(id)),
     ["form", "dataset", "ppt"],
   );
-  const market = pluginMarketCards();
+  const market = pluginMarketCards({}, builtinMarketDirectory());
   // Every personal plugin is in the market except the 常开插件 (Shelf), which nobody adds or removes.
   const alwaysOn = BUILTIN_PLUGIN_CATALOG.filter((entry) => entry.manifest.always_on === true).map((entry) => entry.project_plugin_id);
   assert.deepEqual(alwaysOn, ["goals", "shelf"]);
@@ -135,7 +133,7 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
 });
 
 test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label 里", () => {
-  const owner = renderMolisWorkWeb(emptyView());
+  const owner = renderMolisWorkWeb(withHostPluginFacts(emptyView()));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="form"/);
   assert.match(html, /data-plugin-id="dataset"/);
@@ -192,7 +190,9 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
 test("工作台客户端脚本在挂上三个创作插件后仍能解析", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.ok(script.includes("const PERSONAL_PLUGIN_IDS = " + JSON.stringify([...PERSONAL_PLUGIN_IDS])));
+  // Which market card is personal is the Host's mark on the card (W5-02 B1); the client keeps no list of its own.
+  assert.doesNotMatch(script, /PERSONAL_PLUGIN_IDS/);
+  assert.ok(script.includes("data-market-personal"));
   assert.doesNotMatch(formSource("save.ts"), /fillEditor/);
   assert.doesNotMatch(between(datasetSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);
   assert.doesNotMatch(between(pptSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);

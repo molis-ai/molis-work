@@ -1,26 +1,8 @@
 import { agentErrors } from "../errors.js";
-import { isTerminalAgentPhase, type AgentActionClient, type AgentRecalledMemory, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, type AgentActionClient, type AgentRecalledMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MEMORY_PROVIDER_ID, type MemoryRunReadControl, type MemoryRunReadResult, type MemoryRunReference } from "@molis-ai/molis-work-contracts/services/memory";
-import type { PrologueControlPort, PrologueModelConfiguration } from "./prologue.js";
-import type { PrologueStreamState } from "./prologue-stream.js";
+import type { RunRecord } from "./prologue-run-store.js";
 import { runMemoryContext } from "./prologue-memory-usage.js";
-
-export interface RunRecord {
-  /** Live SDK control only; never restored from persisted history. */
-  memory?: PrologueRunMemoryPort;
-  view: AgentRunView;
-  state: PrologueStreamState;
-  control: PrologueControlPort;
-  /** The model this Run started with (live runs only): what a switch has to stay compatible with. */
-  model?: PrologueModelConfiguration;
-  unsubscribe: () => void;
-  listeners: Set<(view: AgentRunView) => void>;
-  timingCommit?: Promise<void>;
-  timingReady?: boolean;
-  timingError?: string;
-  observedEndAt?: string;
-  memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage"> & Partial<Pick<AgentRecalledMemory, "class_restrictions" | "current_scene">>;
-}
 
 /** Only the Adapter translates this narrow port to SDK memory.expand. */
 export interface PrologueRunMemoryPort {

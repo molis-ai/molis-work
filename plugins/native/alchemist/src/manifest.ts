@@ -11,6 +11,7 @@ export const alchemistManifest: PluginManifest = {
   plugin_id: ALCHEMIST_PLUGIN_ID,
   version: "0.3.0",
   name: "炼金术士",
+  summary: "写下方向，炼成可比较的卡再决定。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-alchemist-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

@@ -144,8 +144,8 @@ test("a second start in one Session is refused while the original is in flight, 
 
 test("the shipped Coding input sender retains a failed command's identity and excludes derived starts", async () => {
   const sent: Array<{ original_input?: { input_id: string; text: string } }> = []; let fail = true;
-  const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, { L: (key: string) => key, crypto: { randomUUID }, JSON });
-  const client = factory({ api: async (_path: string, _method: string, body: { original_input?: { input_id: string; text: string } }) => {
+  const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, { crypto: { randomUUID }, JSON });
+  const client = factory({ translate: (key: string) => key, api: async (_path: string, _method: string, body: { original_input?: { input_id: string; text: string } }) => {
     sent.push(structuredClone(body)); if (fail) { fail = false; throw new Error("lost response"); } return {};
   } });
   const command = { task: "原始任务", intent: "discuss" };

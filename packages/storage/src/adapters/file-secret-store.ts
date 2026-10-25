@@ -24,7 +24,7 @@ import { execFileSync } from "node:child_process";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DatabaseSync } from "node:sqlite";
 import { atomicWriteFileSync } from "./atomic-write.js";
-import { readProductEnv, resolveFeedSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
+import { readProductEnv, resolveHomeSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
 
 export interface SecretStore {
   put(authRef: string, plaintext: string): void;
@@ -84,11 +84,11 @@ interface SecretsFileV2 {
 }
 
 function secretsPath(): string {
-  return path.join(resolveFeedSecurityDirectory(), "secrets.json");
+  return path.join(resolveHomeSecurityDirectory(), "secrets.json");
 }
 
 function secretsLockDbPath(): string {
-  return path.join(resolveFeedSecurityDirectory(), "secrets.lock.sqlite");
+  return path.join(resolveHomeSecurityDirectory(), "secrets.lock.sqlite");
 }
 
 /**
@@ -144,7 +144,7 @@ export function holdSecretsLockForTest<T>(fn: () => T): T {
 }
 
 function installKeyPath(): string {
-  return path.join(resolveFeedSecurityDirectory(), "secrets.key");
+  return path.join(resolveHomeSecurityDirectory(), "secrets.key");
 }
 
 function preferKeychain(): boolean {
@@ -435,7 +435,7 @@ function snapshotHome(homeDirectory: string): string {
   if (typeof homeDirectory !== "string" || !path.isAbsolute(homeDirectory)) throw snapshotErrors.invalid("密文预检需要明确的绝对 Home 路径");
   try {
     runWithMolisWorkHome(homeDirectory, () => {
-      const directory = fs.lstatSync(resolveFeedSecurityDirectory(), { throwIfNoEntry: false });
+      const directory = fs.lstatSync(resolveHomeSecurityDirectory(), { throwIfNoEntry: false });
       if (directory && (!directory.isDirectory() || directory.isSymbolicLink())) throw snapshotErrors.key_unavailable("凭据目录不能是链接");
       const key = fs.lstatSync(installKeyPath(), { throwIfNoEntry: false });
       if (key && (!key.isFile() || key.nlink !== 1)) throw snapshotErrors.key_unavailable("原密钥必须是只有一个链接的普通文件");
@@ -595,7 +595,7 @@ const storeCache = new Map<string, SecretStore>();
 const keychainFailures = new Map<string, KeychainUnavailableError>();
 
 function cacheKey(): string {
-  const dataDir = resolveFeedSecurityDirectory();
+  const dataDir = resolveHomeSecurityDirectory();
   const env = readProductEnv("ENCRYPTION_KEY") ?? "";
   const backend = readProductEnv("SECRET_BACKEND") ?? "";
   return `${dataDir}::${backend}::${env}`;

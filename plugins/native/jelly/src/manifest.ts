@@ -5,6 +5,7 @@ import { JELLY_ACTIONS, JELLY_ACTION_PERMISSIONS } from "./actions.js";
 import { JELLY_DATABASE } from "./database.js";
 import { JELLY_MODEL_CONFIGURATION } from "./model-configuration.js";
 export const jellyManifest: PluginManifest = {
+  summary: "日历与笔记，按天安排。",
   schema_version: 2, host_api_version: 2, plugin_id: JELLY_PLUGIN_ID, version: "0.3.0", name: "Jelly", kind: "native",
   publisher: { publisher_id: "molis", signature: "official-jelly-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

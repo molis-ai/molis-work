@@ -286,7 +286,7 @@ test("W5-01-DELEGATE-05 S-43 a caller shaped like an MCP client whose grant on t
 });
 
 test("W5-01-DELEGATE-03 S-43 a plugin calling its own action through services.actions.invoke delegates only as far as that caller reaches: not to another plugin's target, which never runs", async t => {
-  // `plugin-actions-client.ts` `actionCaller` makes this caller: the user audience (so `originOf` lets it through), the plugin's own grants, `allowed_actions` of
+  // `plugin-actions-client.ts` `actionCaller` makes this caller: the outer call's audience (the person's here, so `originOf` lets it through; S-73), the plugin's own grants, `allowed_actions` of
   // its own actions and `required_actions` only, and an authority check that knows only the actions the plugin declares. The delegated call inherits all of it.
   const selfcall = delegateProbe("selfcall", { permissions: ["delegate:read"] });
   const s = await setup(t, [selfcall], [...GRANTED, "delegate:read"]);

@@ -2,13 +2,14 @@ import { goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
-import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import { PAGE_PLUGINS_WITHOUT_SELECTION, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { currentLocale } from "./web-locale.js";
 import { developerMode } from "./developer-mode.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
+import { shownProjectPlugins } from "./plugin-registry.js";
 
 export interface WebViewOptions {
   databasePath: string; projectId: string; demo?: boolean; projectRoot?: string;
@@ -62,6 +63,9 @@ export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: 
     archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
     counts: collection.counts, input_bindings: collection.input_bindings,
     policy_bindings: collection.policy_bindings, events: collection.events,
+    // Which plugins the page shows is the Host's fact (W5-02 PR-B). Without a project's selection: the shell's page default and the
+    // personal plugins. A project's view is given its Catalog's selection per request instead (`projectWebView`), never this.
+    ...(options.project ? {} : { shown_plugins: shownProjectPlugins(PAGE_PLUGINS_WITHOUT_SELECTION) }),
     ...projection,
   };
 }

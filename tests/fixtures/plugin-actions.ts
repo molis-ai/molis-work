@@ -38,18 +38,21 @@ const readers = new WeakSet<object>();
 /**
  * Goals' public directory as `goals.list` answers it, for a plugin test without the Goals plugin (the real one is tested with the
  * Goals suites). `titles` maps a Goal id to its title; the answer lists them in that order, `pageSize` to a page.
+ * This read-only stand-in owns no placement relation, so it does not claim the real directory's candidates role (RAC-634-MIG-02).
  */
 export function fakeGoalDirectory(actions: ReturnType<typeof pluginActions>, titles: () => Readonly<Record<string, string>>, pageSize = 100, seen?: ActionCallContext[]) {
   if (directories.has(actions.registry)) return actions;
-  directories.add(actions.registry);
-  actions.registry.registerProvider({ provider: { provider_id: "goals-fixture", title: "目标", kind: "system" }, definitions: [goalPluginActions.list],
-    handlers: [{ ...goalPluginActions.list, handle: (caller, input) => {
+  const list = { ...goalPluginActions.list, action: { ...goalPluginActions.list.action } };
+  delete list.action.placement_relation;
+  actions.registry.registerProvider({ provider: { provider_id: "goals-fixture", title: "目标", kind: "system" }, definitions: [list],
+    handlers: [{ ...list, handle: (caller, input) => {
       seen?.push(caller);
       const asked = input as { after_cursor?: string; limit?: number }, rows = Object.entries(titles()), start = asked.after_cursor ? Number(asked.after_cursor) : 0;
       const size = Math.min(asked.limit ?? pageSize, pageSize), page = rows.slice(start, start + size);
       return { goals: page.map(([goal_id, title]) => ({ goal_id, title, work_status: "open", completion_effect: false, can_record: true, next_hint: "", unmet_requirement_count: 0,
         pending_decision_count: 0, blocking_concern_count: 0, updated_at: "2026-09-19T14:00:00Z" })), next_cursor: start + size < rows.length ? String(start + size) : null, observed_event_cursor: 0 };
     } }] });
+  directories.add(actions.registry);
   return actions;
 }
 const directories = new WeakSet<object>();

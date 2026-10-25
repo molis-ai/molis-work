@@ -404,7 +404,59 @@ for (const persistence of ["delayed", "failed"] as const) {
   });
 }
 
-test("closing an inspected interruption refreshes the same session, excludes concurrent work and preserves failure", async () => {
+for (const checkpointSource of ["prototype getter", "replaced own property"] as const) {
+  const acceptance = checkpointSource === "prototype getter" ? "R38-RECOVERY-LIVE-01" : "R38-RECOVERY-LIVE-02";
+  test(`${acceptance}: recovery close reads live checkpoints from the runtime's ${checkpointSource}`, async () => {
+    const ref = { run_id: "live-checkpoint-run", session_id: "live-checkpoint-session" };
+    const session = { session_id: ref.session_id, runtime_id: "prologue" };
+    let closed = false, calls = 0, restores = 0;
+    let checkpoints: NonNullable<PrologueRuntimePort["checkpoints"]> = {
+      busy: received => { assert.deepEqual(received, session); return false; },
+      list: async () => [], prepareRewind: async () => { throw new Error("unused"); },
+    };
+    const frozen = { role_id: "builder", role_version: 1, execution: "workspace-write" as const, model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/original", realpath_verified: true } };
+    const report = { session_id: ref.session_id, blockers: [], runs: [{ run_id: ref.run_id, version: 1, live: false, waiting: 0, can_close: true, blockers: [], operations: [] }] };
+    const runtime: PrologueRuntimePort = {
+      recovery: { inspect: async () => closed ? { ...report, runs: [] } : report, close: async (received, id, version) => {
+        calls++; assert.deepEqual(received, session); assert.equal(id, ref.run_id); assert.equal(version, 1);
+        closed = true; return { ...report, runs: [] };
+      } },
+      sessions: { create: async () => { throw new Error("unused"); }, restore: async () => {
+        restores++;
+        return { title: "原会话", owner, ...(closed ? {} : { recovery: { required: true as const, reason: "需要核对" } }),
+          runs: closed ? [] : [{ ref, frozen, task: "原要求", started_at: "2026-09-20T00:00:00Z" }] };
+      } },
+      startAgentRun: async () => { throw new Error("must not replay"); }, shutdown: async () => {},
+    };
+    if (checkpointSource === "prototype getter") Object.setPrototypeOf(runtime, { get checkpoints() { return checkpoints; } });
+    else runtime.checkpoints = checkpoints;
+    const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+    try {
+      const before = await adapter.readSession(session);
+      assert.equal(before.latest_run?.phase, "reconcile-required");
+      checkpoints = { ...checkpoints, busy: received => { assert.deepEqual(received, session); return true; } };
+      if (checkpointSource === "replaced own property") runtime.checkpoints = checkpoints;
+      await assert.rejects(adapter.recovery!.close(session, ref.run_id, 1), { code: "agent.session_busy" });
+      assert.equal(calls, 0, "busy rejection must not reach the runtime's recovery writer");
+      assert.equal(closed, false, "busy rejection must leave authoritative recovery state unchanged");
+      assert.equal(restores, 1, "busy rejection must not evict and reload the held session");
+      assert.deepEqual(await adapter.readSession(session), { ...before, checkpoint_busy: true });
+      assert.deepEqual(await adapter.recovery!.inspect(session), report);
+      // R38-RECOVERY-LIVE-03: the same adapter can close and reload after checkpoints become idle.
+      checkpoints = { ...checkpoints, busy: received => { assert.deepEqual(received, session); return false; } };
+      if (checkpointSource === "replaced own property") runtime.checkpoints = checkpoints;
+      assert.deepEqual(await adapter.recovery!.close(session, ref.run_id, 1), { ...report, runs: [] });
+      assert.equal(calls, 1);
+      assert.equal(closed, true);
+      assert.equal(restores, 2);
+      const after = await adapter.readSession(session);
+      assert.equal(after.recovery, undefined);
+      assert.equal(after.latest_run, null, "successful close must reload current runtime state");
+    } finally { await adapter.close(); }
+  });
+}
+
+test("R38-RECOVERY-LIVE-03: closing an inspected interruption refreshes the same session, excludes concurrent work and preserves failure", async () => {
   const ref = { run_id: "interrupted-close", session_id: "same-session" };
   let closed = false, calls = 0;
   let release!: () => void, entered!: () => void;

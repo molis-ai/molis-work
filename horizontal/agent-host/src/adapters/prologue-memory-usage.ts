@@ -1,5 +1,5 @@
 import type { AgentMemoryUseReceipt, AgentRecalledMemory, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { RunRecord } from "./prologue.js";
+import type { RunRecord } from "./prologue-run-store.js";
 
 /** Deliver body-free Run observations; a failed projection never replays model execution. */
 export class PrologueMemoryUsage {

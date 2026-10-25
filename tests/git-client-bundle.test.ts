@@ -36,13 +36,14 @@ test("RAC-167 every word the Git page says has a stable key with both languages"
   for (const [key] of GIT_SENTENCE_TABLE) assert.ok(key in GIT_MESSAGES, `${key} is defined`);
 });
 
-test("RAC-168 the Git page's client is typed browser code bundled by esbuild, asks only through the host's request and names no route", () => {
+test("RAC-168 the Git page's client is typed browser code bundled by esbuild, asks the Host only in request.ts and names no plugin route", () => {
   for (const file of browserFiles()) {
     const source = readFileSync(file, "utf8");
     assert.doesNotMatch(source, /\bfetch\(/u, `${file} calls fetch directly`);
     assert.doesNotMatch(source, /:\s*any\b|as any\b|as unknown as|catch\s*(\([^)]*\))?\s*\{\s*\}/u, `${file} has an untyped escape or an empty catch`);
     assert.doesNotMatch(source, /window\.(confirm|alert|prompt)\(/u, `${file} opens a browser dialog`);
-    assert.doesNotMatch(source, /\/api\/plugins\/|molisWorkRequest|io\.molis\.work\./u, `${file} writes a route prefix or asks the Host itself: Coding's bundle owns the request`);
+    assert.doesNotMatch(source, /\/api\/plugins\/|io\.molis\.work\./u, `${file} writes a plugin route or id: the Host gives the route (host.pluginRoute)`);
+    if (!file.endsWith("/request.ts")) assert.doesNotMatch(source, /molisWorkRequest/u, `${file} asks the Host itself: request.ts owns the requests`);
     assert.doesNotMatch(source, /\.toLocaleString\(\)/u, `${file} shows a time in the browser's language, not the page's`);
   }
   assert.match(readFileSync(join(BROWSER, "page.ts"), "utf8"), /toLocaleString\(document\.documentElement\.lang/, "the times the page shows follow the page's language");
@@ -61,5 +62,5 @@ test("RAC-168 the Git page's client is typed browser code bundled by esbuild, as
   assert.doesNotMatch(GIT_CLIENT_FACTORY_SCRIPT, /git\.outcome\.succeeded.*"zh"|"en":/u, "the bundle carries no dictionary");
   // Hand it a root without Git's elements: it mounts nothing and hands back nothing.
   const factory = new Function(`return ${GIT_CLIENT_FACTORY_SCRIPT}`)() as (host: unknown) => unknown;
-  assert.equal(factory({ root: { querySelector: () => null }, translate: (key: string) => key }), null);
+  assert.equal(factory({ root: { querySelector: () => null }, translate: (key: string) => key, openResult() {}, closeResult() {}, route: (path: string) => path, pluginRoute: (path: string) => path, reviews: { show: async () => {} } }), null);
 });

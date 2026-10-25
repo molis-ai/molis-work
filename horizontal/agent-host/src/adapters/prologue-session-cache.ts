@@ -2,7 +2,8 @@ import type { AgentSessionLifecycle } from "@molis-ai/molis-work-contracts/servi
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import { restoredSessionRecords } from "./prologue-restored-session.js";
-import type { PrologueRuntimePort, RunRecord, SessionRecord } from "./prologue.js";
+import type { PrologueRuntimePort } from "./prologue-ports.js";
+import type { RunRecord, SessionRecord } from "./prologue-run-store.js";
 
 /** One adapter's historical handles; the Node index fence also invalidates other handles sharing its owner. */
 export class PrologueSessionCache {

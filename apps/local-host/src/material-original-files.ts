@@ -1,10 +1,11 @@
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createHash } from "node:crypto";
-import { constants, existsSync, type Stats } from "node:fs";
+import { constants, type Stats } from "node:fs";
 import { lstat, open, realpath, stat, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOriginalFileKey } from "@molis-ai/molis-work-plugin-runtime";
-import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, clearInExistingHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 /**
  * The original files plugins may read again: for each plugin installation, the project its activation runs in and its own record key,
@@ -68,9 +69,12 @@ export async function releaseOriginalFile(home: string, key: PluginOriginalFileK
 }
 
 /** A deleted project's registrations, whatever plugin made them; the files themselves are the person's and stay where they are. */
-export function forgetProjectOriginalFiles(home: string, projectId: string): void {
-  if (!projectId || !existsSync(homeSqlitePath(home, ORIGINAL_FILES_HOME_STORE.path))) return;
-  withStore(home, db => db.prepare("DELETE FROM plugin_original_files WHERE project_id = ?").run(projectId));
+export function forgetProjectOriginalFiles(home: string, projectId: string, control?: ProjectDeletionControl): void {
+  if (!projectId) return;
+  clearInExistingHomeSqlite(home, ORIGINAL_FILES_HOME_STORE.path, ORIGINAL_FILES_BASELINE, db => {
+    control?.assertCurrent();
+    db.prepare("DELETE FROM plugin_original_files WHERE project_id = ?").run(projectId);
+  }, control);
 }
 
 /** The path must still lead to exactly what was registered: the same real path, with no link anywhere along it. */

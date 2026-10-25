@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
-import { applySqliteBaseline } from "@molis-ai/molis-work-storage";
+import type { ProjectDataDeclaration, ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
+import { inspectExistingSqlitePath, applySqliteBaseline, openExistingBaselineSqlite } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_HOME_STORE, CHARACTERS_STORE_BASELINE } from "./open.js";
 
 /**
@@ -11,16 +11,21 @@ import { CHARACTERS_HOME_STORE, CHARACTERS_STORE_BASELINE } from "./open.js";
  * library has nothing to clear and gets none, a store at another version is refused like anywhere else, and running it again
  * finds nothing.
  */
-export function purgeCharactersProject(homeDirectory: string, projectId: string): void {
+export function purgeCharactersProject(homeDirectory: string, projectId: string, control?: ProjectDeletionControl): void {
+  control?.assertCurrent();
   const filename = join(homeDirectory, CHARACTERS_HOME_STORE.path, CHARACTERS_HOME_STORE.library.file);
-  if (!existsSync(filename)) return;
-  const db = new DatabaseSync(filename);
+  const target = control ? inspectExistingSqlitePath(filename) : undefined;
+  if (target ? !target.exists : !existsSync(filename)) return;
+  const db = control ? openExistingBaselineSqlite(filename, CHARACTERS_STORE_BASELINE) : new DatabaseSync(filename);
   try {
     db.exec("PRAGMA busy_timeout = 5000");
-    applySqliteBaseline(db, filename, CHARACTERS_STORE_BASELINE);
+    if (!control) applySqliteBaseline(db, filename, CHARACTERS_STORE_BASELINE);
+    control?.assertCurrent(); target?.assertCurrent();
     db.exec("BEGIN IMMEDIATE");
     try {
+      control?.assertCurrent(); target?.assertCurrent();
       db.prepare("DELETE FROM character_runs WHERE project_id = ?").run(projectId);
+      control?.assertCurrent(); target?.assertCurrent();
       db.exec("COMMIT");
     } catch (error) { db.exec("ROLLBACK"); throw error; }
   } finally { db.close(); }

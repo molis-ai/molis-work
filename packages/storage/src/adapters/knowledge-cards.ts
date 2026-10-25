@@ -103,11 +103,14 @@ function receiptsOf(db: DatabaseSync, projectId: string, options: { subject?: Ac
   return { receipts: rows.map(row => JSON.parse(String(row.body)) as KnowledgeReadReceipt), total };
 }
 
-function removeProjectCards(db: DatabaseSync, projectId: string): number {
+function removeProjectCards(db: DatabaseSync, projectId: string, control?: { assertCurrent(): void }): number {
   const ids = db.prepare("SELECT card_id FROM knowledge_cards WHERE project_id = ?").all(projectId) as Row[];
-  for (const row of ids) db.prepare("DELETE FROM knowledge_cards_fts WHERE rowid = ?").run(Number(row.card_id));
+  for (const row of ids) { control?.assertCurrent(); db.prepare("DELETE FROM knowledge_cards_fts WHERE rowid = ?").run(Number(row.card_id)); }
+  control?.assertCurrent();
   db.prepare("DELETE FROM knowledge_cards WHERE project_id = ?").run(projectId);
+  control?.assertCurrent();
   db.prepare("DELETE FROM knowledge_usage WHERE project_id = ?").run(projectId);
+  control?.assertCurrent();
   db.prepare("DELETE FROM knowledge_receipts WHERE project_id = ?").run(projectId);
   return ids.length;
 }
@@ -130,8 +133,8 @@ function searchCards(db: DatabaseSync, projectId: string, query: string, limit: 
 }
 
 /** A deleted project's cards and usage, cleared from the file by whichever process deletes it (nothing to do when there is no store yet). */
-export function clearKnowledgeProject(homeDirectory: string, projectId: string): number {
-  return clearInExistingHomeSqlite(homeDirectory, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, db => removeProjectCards(db, projectId)) ?? 0;
+export function clearKnowledgeProject(homeDirectory: string, projectId: string, control?: { assertCurrent(): void }): number {
+  return clearInExistingHomeSqlite(homeDirectory, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, db => removeProjectCards(db, projectId, control), control) ?? 0;
 }
 
 /** The knowledge store in the Home's store registry (W4-11). */

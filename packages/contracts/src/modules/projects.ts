@@ -142,7 +142,8 @@ export interface CreateProjectInput {
  * already collects, so it never names a plugin or lists its tables. The owner's id in the deletion receipt is the
  * plugin's `project_plugin_id`.
  */
-/** Live authority for a maintenance deletion; checked by the actual owner before each write, including after awaits. */
+/** Live maintenance authority: the real owner rechecks after waits/locks and before writes/commit.
+ * Controlled paths must preserve the original physical target and refuse redirected files or ancestors. */
 export interface ProjectDeletionControl { assertCurrent(): void }
 
 export interface ProjectDataDeclaration {

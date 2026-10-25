@@ -17,6 +17,8 @@ export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
 export { LocalCatalogMetadata } from "./catalog-metadata.js";
 
+export { inspectExistingStoragePath, inspectExistingSqlitePath, type ExistingStoragePath } from "./storage-maintenance-path.js";
+
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
 export { acquireStorageOwner, assertStorageOwner, borrowStorageOwner, hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, type StorageOwner, type StorageOwnerBorrow } from "./adapters/storage-owner.js";
 
@@ -35,6 +37,7 @@ export {
   describeSqliteSchema,
   listSqliteObjects,
   openBaselineHomeSqlite,
+  openExistingBaselineSqlite,
   type SqliteBaseline,
   type SqliteBaselineDatabase,
   type SqliteSchemaObject,

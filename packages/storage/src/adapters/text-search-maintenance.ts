@@ -1,5 +1,5 @@
-import { lstatSync, type Stats } from "node:fs";
-import { dirname, isAbsolute, join, parse, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
+import { inspectExistingSqlitePath } from "../storage-maintenance-path.js";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -28,41 +28,11 @@ function current(input: TextSearchProjectCleanupInput): void {
   }
   if (input.signal?.aborted) refuse("search.maintenance_cancelled");
 }
-function stat(path: string): Stats | undefined {
-  try { return lstatSync(path); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; }
-}
-
-/** Reject redirected roots and SQLite sidecars before SQLite can open any of them. */
-function targetFiles(home: string): Array<{ path: string; dev: number; ino: number }> | undefined {
-  if (!isAbsolute(home) || resolve(home) !== home) refuse("search.maintenance_path");
-  const path = homeSqlitePath(home, TEXT_SEARCH_STORE), directory = dirname(path);
-  const files: Array<{ path: string; dev: number; ino: number }> = [];
-  let at = parse(directory).root;
-  for (const part of directory.slice(at.length).split("/")) {
-    at = join(at, part);
-    const found = stat(at);
-    if (!found) return undefined;
-    if (!found.isDirectory() || found.isSymbolicLink()) refuse("search.maintenance_path");
-    files.push({ path: at, dev: found.dev, ino: found.ino });
-  }
-  let present = false;
-  for (const suffix of ["", "-wal", "-shm", "-journal"]) {
-    const found = stat(path + suffix);
-    if (!found) continue;
-    if (!found.isFile() || found.isSymbolicLink() || found.nlink !== 1) refuse("search.maintenance_path");
-    if (!suffix) present = true;
-    files.push({ path: path + suffix, dev: found.dev, ino: found.ino });
-  }
-  if (!present && files.some(file => file.path.startsWith(path + "-"))) refuse("search.maintenance_path");
-  return present ? files : undefined;
-}
-function sameTarget(home: string, original: readonly { path: string; dev: number; ino: number }[]): void {
-  const found = targetFiles(home);
-  // SQLite can create/remove its own sidecars; directory and database identities cannot change.
-  const dbPath = homeSqlitePath(home, TEXT_SEARCH_STORE);
-  for (const file of original.filter(file => !file.path.startsWith(dbPath + "-"))) {
-    if (!found?.some(other => other.path === file.path && other.dev === file.dev && other.ino === file.ino)) refuse("search.maintenance_path");
+function checkedPath<T>(work: () => T): T {
+  try { return work(); }
+  catch (error) {
+    if ((error as { code?: string }).code === "storage.maintenance_path") refuse("search.maintenance_path");
+    throw error;
   }
 }
 
@@ -89,13 +59,14 @@ export function clearProjectInExistingTextSearchIndex(input: TextSearchProjectCl
   const fixed = { ...input };
   if (!fixed.projectId || !fixed.projectId.trim()) refuse("search.maintenance_project");
   current(fixed);
-  const files = targetFiles(fixed.homeDirectory);
-  if (!files) { current(fixed); return { state: "absent" }; }
+  if (!isAbsolute(fixed.homeDirectory) || resolve(fixed.homeDirectory) !== fixed.homeDirectory) refuse("search.maintenance_path");
+  const files = checkedPath(() => inspectExistingSqlitePath(homeSqlitePath(fixed.homeDirectory, TEXT_SEARCH_STORE)));
+  if (!files.exists) { current(fixed); return { state: "absent" }; }
   const path = homeSqlitePath(fixed.homeDirectory, TEXT_SEARCH_STORE);
   const inspection = new DatabaseSync(path, { readOnly: true });
   try { validateSchema(inspection); } finally { inspection.close(); }
   current(fixed);
-  sameTarget(fixed.homeDirectory, files);
+  checkedPath(() => files.assertCurrent());
   // SQLite's mode=rw is essential: a disappeared file must fail instead of being recreated.
   const uri = pathToFileURL(path); uri.searchParams.set("mode", "rw");
   const db = new DatabaseSync(uri.href);
@@ -104,10 +75,10 @@ export function clearProjectInExistingTextSearchIndex(input: TextSearchProjectCl
     return inTextSearchTransaction(db, () => {
       validateSchema(db);
       current(fixed);
-      sameTarget(fixed.homeDirectory, files);
+      checkedPath(() => files.assertCurrent());
       const removed = removeTextSearchProject(db, fixed.projectId);
       current(fixed);
-      sameTarget(fixed.homeDirectory, files);
+      checkedPath(() => files.assertCurrent());
       return { state: "cleared", removed };
     });
   } finally { db.close(); }

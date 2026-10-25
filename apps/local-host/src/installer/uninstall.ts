@@ -9,6 +9,7 @@ import { installedLibraryPaths } from "../installed-plugin-libraries.js";
 import { RuntimeIntegrationService } from "./runtime-integration.js";
 import { SUPPORTED_RUNTIME_IDS } from "./runtime-integration-contract.js";
 import { MolisWorkWebServiceManager } from "./web-service.js";
+import { withUninstallOwner } from "./uninstall-owner.js";
 import { UNINSTALL_OWNER, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallChange, type PreparedUninstallPlan, type UninstallReceipt } from "./uninstall-contract.js";
 import { inspectOwnedHomeAssets, existingPaths, assetKind, assetKindLabel, pathFingerprint, digest, removeEmptyDirectory } from "./uninstall-files.js";
 export class MolisWorkUninstallService {
@@ -122,6 +123,17 @@ export class MolisWorkUninstallService {
     decision: "confirmed" | "declined";
     purge_confirmation?: { home_directory: string; user_project_count: number };
   }): Promise<MolisWorkUninstallResult> {
+    const prepared = this.plans.get(input.plan_id);
+    if (input.decision !== "confirmed" || prepared?.publicPlan.status !== "ready") return this.confirmPrepared(input);
+    if (this.options.localHost && prepared.webPlan.detection.running) {
+      throw installerErrors["installer.uninstall.conflict"]("请先从另一个进程明确关闭常驻服务，再重新预览卸载；承载卸载的宿主不能等待自己退出");
+    }
+    // Refuse before consuming the preview or writing a receipt. The same explicit confirmation can retry after release.
+    return withUninstallOwner(this.homeDirectory, prepared.publicPlan.purge_user_data ? undefined : this.options.localHost,
+      () => this.confirmPrepared(input));
+  }
+
+  private async confirmPrepared(input: Parameters<MolisWorkUninstallService["confirm"]>[0]): Promise<MolisWorkUninstallResult> {
     const prepared = this.plans.get(input.plan_id);
     if (!prepared) throw installerErrors["installer.uninstall.plan_missing"]("卸载预览不存在或已失效，请重新预览");
     this.plans.delete(input.plan_id);

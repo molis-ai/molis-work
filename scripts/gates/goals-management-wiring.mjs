@@ -24,12 +24,23 @@ export function checkGoalsManagementWiring(source, mode) {
   const namedCalls = name => calls.filter(node => ts.isIdentifier(node.expression) && node.expression.text === name);
   const factory = namedCalls("bindGoalsManagementActions"), call = factory.length === 1 ? factory[0] : undefined;
   const opened = call?.arguments[0], fallback = declarations.get("fallback");
+  const body = fallback?.initializer && ts.isArrowFunction(fallback.initializer) ? fallback.initializer.body : undefined;
+  const creates = namedCalls("prepareLocalProjectStorage").filter(node => text(node.arguments[1]) === '"create"');
+  const external = creates.find(node => node.pos < fallback?.pos);
+  const guarded = !mcp && body && ts.isBlock(body) && body.statements.length === 3
+    && imports.has("./home-storage-lifetime.js:ensureHomeStorageOwner")
+    && imports.has("./project-storage.js:prepareLocalProjectStorage")
+    && text(declarations.get("homeDatabase")?.initializer) === "databaseInHome(home,databasePath)"
+    && creates.length === 2 && text(external?.parent.parent) === 'if(operation==="init"&&!homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
+    && text(body.statements[0]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost(),home);'
+    && text(body.statements[1]) === 'if(operation==="init"&&homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
+    && ts.isReturnStatement(body.statements[2]) && body.statements[2].expression === call;
   const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost()).actionClient";
   if (!imports.has("./goals-actions.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
     || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 2
     || text(opened.arguments[0]) !== "reference" || opened.arguments[1].kind !== ts.SyntaxKind.FalseKeyword
     || text(call.arguments[1]) !== "reference" || text(call.arguments[2]) !== (mcp ? "{signal:caller.resident?.signal}" : "{signal:options.signal}")
-    || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || fallback.initializer.body !== call) {
+    || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || (mcp ? body !== call : !guarded)) {
     reject("bindGoalsManagementActions must build the single lazy fallback with the unprepared actionClient(reference, false), bound reference and original signal");
   }
   const resident = namedCalls("residentManagementActions"), residentCall = resident.length === 1 ? resident[0] : undefined;

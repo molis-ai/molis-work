@@ -75,6 +75,33 @@ Skill/README 的有限回归明确为 91 个非浏览器和四个浏览器文件
 
 RAC-107/108 的统一 restore 发布、回滚和重启续写仍归本 C2 后续；此处仅约定共享输入格式和原路径/key 约束，不把 owner 解密或手动读回称为 restore 命令完成。
 
+### FIX19：离线窗口覆盖实际卸载与 CLI 写入口（2026-10-24）
+
+状态：Codex 专职修复19实施中；parent `1556d97b7eb35d72de8b83b7569fbfd48b239760`，只补 #1267 FIRST 非阻塞2，完整 C2/restore、SDK 来源和快照错误分类仍归原队列。目标为此互斥合同功能可用，作者工程证据与独立审验分别记录。
+
+已核真实链：snapshot 取得 `agentRuntimeDirectory(home)` 的 owner 并持到发布/清理结束；卸载 prepare 的 Catalog、RuntimeIntegration/WebService 预览只读，confirm 却在没有 owner 时写收据、移接入/服务、删 demo 与登记的 Home stores。purge 直接删除 `agent-runtime` 会使活锁 inode 脱离路径。CLI v1 的本地 fallback 构造未绑定 Home 的 Host，项目库在 runtime open 时写入；init 的 mkdir 更早。这两条确实绕过现有离线窗口，单文件 stat 不能补跨库一致性。
+
+Root 已裁定普通卸载的最小接线：只读预览保持；confirmed 可写窗口在任何可避免副作用前严格取得同一 owner，busy 不消费计划。已有 Host 先同步检查 `lifecycle()` running，再用原 `ensureHomeStorageOwner`、`retainHomeStorageResources` 接纳并保留 pending，最终 settle 才归还；不改 Host 方法或 close 实现，不重取或伪造 SDK 借用。若该模式的预览表明受管服务仍在运行，先拒绝，不能在被保留的卸载中 bootout 自己并等待自身退出。不同 Home、closing、失败回执与明确新预览重试分别验证。
+
+离线 purge 的候选是清全部登记业务数据而永久保留原 `agent-runtime` 目录、owner 锁与侧车；Home 最终可仅余技术骨架，不能先 unlink 再声称旧连接仍排他。借活 Host 的 purge 候选为先拒绝，由用户显式关闭后独立执行。这两项仍等原 Claude 的具体裁定，不以 Root 对普通卸载的批准代替。无第二把锁、lease 表或维护状态机，不主动停止占锁用户进程；非合作外部文件写入不在互斥保证内。
+
+CLI fallback 仅在目标实际位于当前 Home 或由该 Home Catalog 登记时，通过 `ensureHomeStorageOwner` 绑定到本次 Host 的现有生命周期；拿锁早于 init mkdir、运行环境和 SQL。真实转发、明确拒绝/结果未知不回退的 S-07 合同不变，外部独立数据库不因本修复取得无关 Home owner。沿现有 owner 能完成的接线不修改 storage 公开结构。
+
+首轮整体 build 自然通过；boundary 的唯一失败是管理入口门禁把 CLI fallback AST 写死为直接返回单表达式，不接受此前置 owner。Root 与 REVIEW 对具体 v2 patch 核定为必要门禁收紧，已按原授权应用：准确 Home 分类与 owner 前置、Home init mkdir、原唯一 return 是强制规范，旧无 guard 形状与额外业务语句拒绝，MCP 的原单表达式及唯一 unprepared client、reference、signal、resident/dispatcher 约束不变。外部独立 init 保留原有 JSON 解码前的父目录创建，Home init 只在 fallback 实际接纳且持 owner 后创建。全部原门禁变异组与新增 14 种拒绝变异已正式通过；最终候选双审验另结，不用专项文本核验代替真实运行。
+
+| 编号 | 本修复验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-105-S-06 | snapshot 占用时 confirmed 普通卸载/purge 在收据与安装/数据副作用前拒绝，原计划在释放后可重试成功 | 临时 Home、真实 snapshot 子进程与可释放 payload 屏障，源文件/安装数据/收据对照 |
+| RAC-105-S-07 | 清理持有窗口中 snapshot/第二 Host 拒绝；purge 到 owner 目录清理后也不能重建锁绕过，释放后可重取同 inode | 正式 purge 的最终收据删除边界中真实子进程；业务项移除与原目录/锁 inode 实查 |
+| RAC-105-S-08 | Home CLI fallback 与 snapshot 双向互斥，init 拒绝不建目标目录，释放后真实写入；外部独立库不被无关 Home 占用阻断 | 真实 CLI 与 runtime-open 子进程屏障，SQLite 实查/正式 snapshot 与源/目标对照 |
+| RAC-105-S-09 | 已持 owner Host 的正常卸载不二次获取，关闭等待已接纳卸载，closing 后不接纳新维护 | 现有 Host/lifetime 的真实并发交错，拒绝前业务不变、完成后同 inode 可重取 |
+
+定向新用例为 `tests/security-invariants-home-snapshot-entries.test.ts`，受控进程夹具 `tests/fixtures/home-snapshot-entry-window.ts`；沿生产公开入口，不用 sleep 决定交错。原 parent 的 RED 与最终 GREEN raw 分开保留于 `/tmp/molis-fix19-snapshot-exclusion-20261024/`。最终按 Host/CLI 的 README 跑适用定向要求、整体 build（公共 machine-slot）、boundary、准确 merge-base health、test-imports、secrets；不重复 full，不接触真实 Home。S-07/S-12 仅将必要窄语义和准确拒绝测试引用交唯一 carrier 更新，避免覆盖 FIX4/FIX7 的共享表。
+
+普通卸载/CLI v2 阶段已实际完成：整体 build、70 包 boundary、8 条 S-08/S-09 真实交错/别名/登记项目后备/关闭与拒绝用例全绿；原 CLI 协议 5 项及完整管理门禁 7 项（其中含 14 种新增拒绝变异）全绿。按 Host 与 CLI README 第一条必跑清单去重的 62 文件自然通过 557/557（含父项），零 fail/cancel/skip/todo；包含 README 点名的一个浏览器文件，使用公共 test-kit、独立 profile 和 `MOLIS_WORK_TEST_CHROME` 指定 wrapper，并经公共 build/browser 槽。新用例 strict、8 文件 scoped Biome 与对实际 merge-base `52560f32` 的 health 通过。这些不是 full 或独立最终候选核收。
+
+原红分开保留：stdin 屏障的 ready/EPIPE 不能证明窗口，标夹具故障/未验证；FIFO 屏障加独立 busy 断言后的旧实现真实拒绝失败另存 `red-1556-controlled-fifo.log` 与 `red-1556-parent-and-uninstall.log`。普通 v1 的 10 文件批为 9 过/1 CLI 协议回归；恢复外部 init 原顺序后的 v2/62 文件结果单列，不抹首败。purge 的 busy 之后同 plan 重试仍是 `plan_stale`，未计通过；独立诊断只见 Memory 的 0-byte WAL/32768-byte SHM、Agent 锁目录时间及项目目录派生项变化，不是业务修改。此处尚未实现技术指纹规范化、保锁 purge 或活 Host purge 的最终策略，RAC-105-S-06/07 和整题保持未完成，等原 Claude 对具体合同裁定后继续。
+
 ## B1：只存哈希的邀请合同
 
 B1 实施前，`server/src/im/writes.ts` 将原文写入 `im_rooms.invite_token`，轮换回执又保存完整 `ImInvite`（token/path/url）；GET 从库取回原文，`packages/im-ui` 依赖它。B1 同改合同与客户端，避免只换列值导致现有页面失效。

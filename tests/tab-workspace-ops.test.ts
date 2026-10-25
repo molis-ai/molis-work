@@ -38,7 +38,9 @@ test("RAC-84 PG-060 tab-title rules fall back to a plugin id and retain Host sur
   assert.equal(ops.pluginTitle("lingguang"), "lingguang");
   assert.equal(ops.pluginTitle("home"), "项目首页");
   assert.equal(ops.pluginTitle("characters"), "Characters");
+  assert.equal(ops.pluginTitle("market"), "插件市场");
   assert.equal(createTabWorkspaceOps({ home: "Project home" }).pluginTitle("home"), "Project home");
+  assert.equal(createTabWorkspaceOps({ market: "Plugin market" }).pluginTitle("market"), "Plugin market");
 });
 
 test("opening the same plugin again stays on the default view", () => {

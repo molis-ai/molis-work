@@ -762,7 +762,9 @@ export interface AssistantRoundDiagnostics {
     capability?: { capability_id: string; version: number; provider_id: string }; method?: { method_id: string; version?: number } }>;
   usage: { input: number; output: number; cached_input: number } | null;
   /** Calls that failed or whose outcome is not known, with the tool's own name and summary. */
-  failures: Array<{ tool: string; target: string; state: "failed" | "unknown"; summary: string }>;
+  failures: Array<{ tool: string; target: string; state: "failed" | "unknown"; summary: string;
+    /** The runtime's own words for the failure, bounded; when a summary only names a generic code, the rule that refused the call and its reason are here. */
+    detail?: string }>;
 }
 
 /** Immutable destination of a discussion work. The owner provides context and stores the final reply. */

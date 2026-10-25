@@ -331,3 +331,19 @@ test('Git result projection excludes active, uncertain, undelivered and foreign 
     await assert.rejects(actions.invoke(readGitResultsCapability, { workspace_id: 'unlinked' }), { code: 'workspace_git.workspace_unavailable' });
   } finally { await close(item); store.close(); }
 });
+
+test("装配缺服务时按主人给出带码的错误，调用方分得出缺的是哪一块（BL-221）", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "agent-composition-refusals-"));
+  const localHost = new MolisWorkLocalHost();
+  const composition = composeAgentHost({ localHost, workspaceFor: () => null });
+  try {
+    await assert.rejects(composition.createBuilderAgent(undefined as never),
+      (error: Error & { code?: string; kind?: string }) => error.code === "host.builder_unavailable" && error.kind === "unavailable");
+    await assert.rejects(composition.refreshExternalMcp({ project_id: "project-a" } as never),
+      (error: Error & { code?: string; kind?: string }) => error.code === "host.project_connection_unavailable" && error.kind === "unavailable");
+  } finally {
+    await composition.dispose();
+    await localHost.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

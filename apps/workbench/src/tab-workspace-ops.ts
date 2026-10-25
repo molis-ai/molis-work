@@ -8,7 +8,7 @@ export function createTabWorkspaceOps(titles) {
   const pluginViewKey = (plugin) => "plugin:" + plugin;
   const tabKey = (tab) => tab.kind === "system" ? "system:" + tab.owner + ":" + tab.itemId : tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
   // Plugins name their tabs with their Manifest views' titles (the page passes `pluginTabTitles`); only the Host's own surfaces are named here.
-  const pluginTitle = (plugin) => (titles && titles[plugin]) || ({ home: "项目首页", characters: "Characters" }[plugin] || plugin);
+  const pluginTitle = (plugin) => (titles && titles[plugin]) || ({ home: "项目首页", characters: "Characters", market: "插件市场" }[plugin] || plugin);
   const pluginOfSurface = (surface) => surface === "goal" ? "goals" : surface === "sources" ? "feed" : surface;
   const countTabs = (state) => state.panes.reduce((sum, pane) => sum + pane.tabs.length, 0);
   const focused = (state) => state.panes.find((pane) => pane.id === state.focusedPaneId) || state.panes[0];

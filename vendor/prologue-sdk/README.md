@@ -1,10 +1,10 @@
 # Prologue SDK 受控包
 
-当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 是 [Draft #102](https://github.com/molis-ai/molis-prologue/pull/102) 的冻结候选 `0b33ad130b92cbf9891808c7b0c56d0987114c2f`，尚未合并。它包含 #101、只读 inspection 与固定目标 maintenance，并增加 exact Session 清除、owner coverage 和最后授权后的页内/Session 状态复核。Molis 的离线采用桥不启动普通 Runtime。
+当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 是 [Draft #102](https://github.com/molis-ai/molis-prologue/pull/102) 的冻结候选 `ee806705cdf1d992479425eb1edb03d12eb3744b`，已合入主线 f175，尚未合并 PR。它包含只读 inspection、固定目标 maintenance、exact Session 清除与 owner coverage，并补齐固定 App Index kind 的维护口及等待前 metadata 快照。Molis 离线采用桥不启动普通 Runtime。
 
-归档 1,384,634 字节，800 个 dist 文件，SHA-256 `323f9674625dc437494ccd4f0d0086ce1f05647a2d5bed9eae219e69d24f4832`；sidecar/provenance 和 lock 同步。保留一份 retry-waiting 主线在途包，仍为两份；被替换的同名历史版本记在 patch-history notes，原包从 Git 历史取回。
+归档 1,390,295 字节，808 个 dist 文件，SHA-256 `ffef5464b0b249fe9c28acd447de2b88e0436037dc1073673b461e88d65056d5`；sidecar/provenance 和 lock 同步。保留一份 retry-waiting 主线在途包，仍为两份；被替换的同名历史版本记在 patch-history notes，原包从 Git 历史取回。
 
-重建：在独立干净 SDK checkout 固定上述 SHA，使用 Node 24.14.0 / pnpm 11.9.0，`pnpm install --frozen-lockfile --offline --store-dir <既有缓存>`、`pnpm quality`，再于 `packages/sdk` 执行 `pnpm pack --pack-destination <独立目录>`。本仓消费原归档，未在 vendor 修改 SDK。准确头的原 quality 70 文件 / 723 项、4 项质量门、干净消费者与 Cargo 检查通过，准确 6523 基线 ratchet 通过；独立公开 Node 28 项关闭三类 P2。统筹对本归档 800 个 dist 文件与最终质量构建逐字节核验一致。Molis 的真实清除完整性与 MEM-40 全主人恢复仍待接线验收，不由 SDK 工程结果代替。
+重建：在独立干净 SDK checkout 固定上述 SHA，使用 Node 24.14.0 / pnpm 11.9.0，`pnpm install --frozen-lockfile --offline --store-dir <既有缓存>`、`pnpm quality`，再于 `packages/sdk` 执行 `pnpm pack --pack-destination <独立目录>`。本仓消费原归档，未在 vendor 修改 SDK。原 quality 70 文件 / 723 项、4 项质量门、干净消费者与 Cargo 检查通过，准确 f175 基线 ratchet 通过；最终独审原探针14项、新公开入口探针9项通过。统筹逐字节核验本归档全部 dist 与最终质量构建一致。磁盘满环境两项未执行；inspection拒交付的自有字节副本未主动擦除，不能声称所有未交付明文都已擦除。Molis 的真实清除完整性与 MEM-40 全主人恢复仍待接线验收。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 

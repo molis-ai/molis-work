@@ -2461,3 +2461,13 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 这只证明 body-free 关系投影前置，不是 SDK coverage/authority 接线、实际 Catalog complete、完整 P0/MEM-40、真实 Home 或用户验收。未运行全量、付费模型或跨库删除；只有历史 Round、裸 operation/adoption-cleanup 或 SDK 双缺且 App 无原据的 owner 仍是未知，不能称完整覆盖。
 
 统筹集成复验（2026-10-25）：`0779c69b40d3656bbcd3483ea44b688444e7f5ff` 合入上述1bff投影与421f SDK更新，生产无文本冲突；唯一spec追加冲突完整保留双方内容。该头原整体build、类型、准确基础9e的health和boundary通过；6文件65项首轮通过，覆盖投影4、不可重绑定2、项目清除3、采用28、角色来源3、运行权限25。27资源共7,678,780 B，与上一包更新后逐项相同。日志 `/private/tmp/molis-memory-owner-aggregate-{build,types,health,boundary,direct}-20261025.log`、`...-assets-20261025.json`。本头已推入既有#1101；资源既有Coding+1,333 B失败及未完成的Catalog覆盖、业务清除、全AppCI与完整恢复仍保留，不以本次65项替代它们。
+
+
+### 2026-10-25：接入 SDK #102 最终主线合并包的短合同
+
+在原干净聚合8506上将受控 SDK 从0b33升级到ee806705（合入main f175）。新增固定App Index kind的窄维护口、共享字节metadata在等待前按原JSON持久化语义冻结，并保留主线只读全库认证；不在vendor补丁或改变App写主人、业务UI和资源额度。只换原归档/来源/锁与对应来源断言，旧包按原Git blob记入历史；先逐字节核对SDK最终quality构建，再冻结离线安装、整体build、采用/权限/项目清除直接回归及资源检查。原SDK quality、准确f175质量门和独审通过，磁盘满两项环境未执行、inspection未交付私有副本未主动擦除的证据边界保留；不能以SDK工程通过替代完整MEM-40。
+
+
+本包接入工程结果：原冻结离线安装、整体build、根类型及准确父8506健康通过。归档1,390,295 B，808个dist文件与SDK最终quality构建及真实AgentHost依赖逐字节一致；来源/版本/补丁历史和原lock单条integrity同步，旧包原Git blob保留。6个直接文件按最终有效结果共188项通过；不是一次全绿：采用文件首次32/34，旧故障注入只匹配字符串路径，新主线安全读取已改为打开的文件描述符，未触发撤权/取消。测试改为按真实原件dev/ino匹配描述符后，两种故障均触发且仍断言拒交付/原字节保持，整文件34/34复验通过，生产未改。首败日志 /private/tmp/molis-memory-sdk102-ee8067-direct-20261025.log，修后 /private/tmp/molis-memory-sdk102-ee8067-adoption-descriptor-20261025.log；修后根类型/准确父health再次通过。
+
+27资源仍7,678,780 B，与此前聚合逐项相同；本包净增0，Coding原未批准+1,333 B继续阻塞正式资源门。该结果只证明新包消费影响，不替代项目覆盖与Session基础合并后的验证、App全量CI或完整MEM-40。

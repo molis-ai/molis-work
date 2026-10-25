@@ -9,22 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "0b33ad130b92cbf9891808c7b0c56d0987114c2f",
+    "commit": "ee806705cdf1d992479425eb1edb03d12eb3744b",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
       "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/102",
-      "head": "0b33ad130b92cbf9891808c7b0c56d0987114c2f",
+      "head": "ee806705cdf1d992479425eb1edb03d12eb3744b",
       "status": "draft",
       "note": "冻结候选，尚未合并；App 最终整合由统筹负责。"
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1384634,
-    "sha256": "323f9674625dc437494ccd4f0d0086ce1f05647a2d5bed9eae219e69d24f4832",
-    "integrity": "sha512-T/croyMghi5FJ4zJDKhPRWSGw7pHm0rB/PJss3YNYhtsobZ0BkLnCDhvCpYsHOkeynRiHSkcyhd2m+ENWk6ciA=="
+    "bytes": 1390295,
+    "sha256": "ffef5464b0b249fe9c28acd447de2b88e0436037dc1073673b461e88d65056d5",
+    "integrity": "sha512-9ooicSsDXNWgwi+FJHVHgVGJsrGTIIRX3gvW28bgX4TfYLJRMfg5ErLhmANyYWKJ6boUQqB593qzOgScWD1b1Q=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,11 +32,11 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "固定干净 SDK 0b33ad1；原 pnpm quality、准确 6523 基线 ratchet 与独立边界复核通过",
-      "统筹逐字节核对归档的 800 个 dist 文件与最终质量构建，差异为 0",
+      "固定干净 SDK ee806705；原 pnpm quality、准确 f175 基线 ratchet 与最终独立评审通过",
+      "统筹逐字节核对归档 808 个 dist 文件与最终质量构建，差异为 0",
       "原 pnpm pack 产物，不在 vendor 修补；同步同名归档、sidecar、来源和 lock"
     ],
     "packedOn": "2026-10-25",
-    "note": "Draft #102 冻结候选，尚未合并。本头原 quality 70 文件 723 项和 4 项质量门通过；独立公开 Node 探针 28 项关闭三类 P2。App 全主人清除与完整 MEM-40 仍未验收。"
+    "note": "Draft #102 已合入主线 f175 的冻结候选，尚未合并。原 quality 70 文件 723 项和 4 质量门、干净消费者通过；最终独审原探针14项、新探针9项通过。磁盘满环境两项未执行；inspection拒交付私有副本未主动擦除。App完整MEM-40仍待验收。"
   }
 }

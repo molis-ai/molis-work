@@ -215,9 +215,9 @@ describe("the records of this repository", () => {
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
     // Draft #102 remains a candidate until the coordinator verifies and merges its exact head.
-    assert.equal(provenance.source.commit, "0b33ad130b92cbf9891808c7b0c56d0987114c2f");
+    assert.equal(provenance.source.commit, "ee806705cdf1d992479425eb1edb03d12eb3744b");
     assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/102");
-    assert.equal(provenance.source.candidateUpstream.head, "0b33ad130b92cbf9891808c7b0c56d0987114c2f");
+    assert.equal(provenance.source.candidateUpstream.head, "ee806705cdf1d992479425eb1edb03d12eb3744b");
     assert.equal(provenance.source.candidateUpstream.status, "draft");
     assert.equal(provenance.source.inFlight, undefined);
     // The historical ancestry audit remains pinned to the main commit it actually checked.

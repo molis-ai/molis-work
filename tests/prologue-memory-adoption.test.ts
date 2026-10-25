@@ -488,6 +488,8 @@ test("MEM-40 real SDK opening failure leaves adopting and releases only the fail
 for (const cause of ["cancel", "revoke"] as const) test(`MEM-40 inspection ${cause} during real storage reading returns no preview and leaves bytes unchanged`, async t => {
   const f = scratch(t); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: endedFormal(original.id) }]);
   const before = storageBytes(f.storageRoot), controller = new AbortController();
+  const records = Object.keys(before).filter(path => path.endsWith(".json"))
+    .map(path => fs.statSync(join(f.storageRoot, path), { bigint: true }));
   let allowed = true, reads = 0;
   const inspection = await openPrologueMemoryAdoptionInspection({ storageRoot: f.storageRoot, appVersion: app.appVersion,
     scopes: [scope], policy: memoryRuntimePolicy(() => undefined).policy, signal: controller.signal,
@@ -495,7 +497,9 @@ for (const cause of ["cancel", "revoke"] as const) test(`MEM-40 inspection ${cau
   const read = fs.readFileSync;
   const fault = t.mock.method(fs, "readFileSync", (...args: Parameters<typeof fs.readFileSync>) => {
     const value = read(...args);
-    if (String(args[0]).startsWith(realpathSync(f.storageRoot)) && String(args[0]).endsWith(".json")) {
+    // Inspection reads its checked descriptor; match the real record inode without replacing any I/O.
+    const held = typeof args[0] === "number" ? fs.fstatSync(args[0], { bigint: true }) : undefined;
+    if (held && records.some(record => record.dev === held.dev && record.ino === held.ino)) {
       reads++; queueMicrotask(() => { if (cause === "cancel") controller.abort(); else allowed = false; });
     }
     return value;

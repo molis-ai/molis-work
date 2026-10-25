@@ -3119,3 +3119,22 @@ inspection 与维护 bridge 增加 `verifySessionPurge({target,signal?})`，只�
 本刀基于准确 b759 应用合入已验证 3b3e522 基础，保留 Session 生命周期拒旧、Memory 原 Run 权限和末尾记账，沿主干 ports/store/start 与 typed browser 生产入口迁移，不恢复巨类或旧 inline 客户端。声明式 project_rows 沿同一 ProjectDeletionControl 传到原 Storage 清理事务，保持原锁后/提交前 current 与路径身份核对，不另起维护入口。
 
 叠入已冻结 Session 业务 owner DTO 3d80edb 与实现 eca0b8c。项目清理复用原 Assistant Work 事务，把实际归该 Work 的 source 边与其 cause 历史由 relations.preparePurge(identity)→clearPurge(identity,selected,current) 清掉；不清引用目标、别的 Work 或独立成果，assistant_usage 纯数值计费保留。公开项目 purge 必须以非空数据库、原取消/故障和重开结果验证，standalone 通过不等于项目闭合。不改父恢复计划/frame、schema、manifest、SDK/vendor 或锁文件；权限与不重放为硬边界，不新增插件、配置或用户选项。
+
+
+### MEM-40 独立 Session 业务原件（2026-10-26，短合同与本地实现）
+
+本刀只闭合两条实际归属：Coding canonical Session 清其自有会话/计划表与同安装精确私有键；Assistant canonical Session 清 `StoredWork.session_id` 相同且可信 owner 一致的 Work 及其自有记录。不同 canonical 的独立 Work、executor 引用、成果、长期 Memory 不级联；不按内容血缘推导删除权，未知 owner 保持 incomplete。
+
+原父 Home 恢复决定是唯一持久选择。顺序为：可信 T1 source → AgentHost 原 target 准备 → 原 SDK wait ID 页穷尽 → 各业务主人只读准备精确纯 DTO → 父决定保存 → 原 SDK/Index purge → 业务 clear → 各主人 verifyOriginal → 关闭全部资源 → 父 committed。重试只用原 DTO，不刷新当前选择。SDK 旧 complete 且 wait 归属原 ID 已丢失时保持 incomplete；SDK/Index 双 absent 仍不证明完成。App 选择必须先于 SDK wait 删除持久化。
+
+Coding 只定义自己的键语义，PluginRuntime 拥有 private-values SQL 与真实安装世代；Host 在同一个项目库事务组合两主人，最后删除 Coding 锚。私有键逐个固定，不整安装清理。既有 project schema 校验抽只读 existing-only 路径，不初始化缺表/空库，不启动 Plugin Runtime。Assistant 复用原项目清理的 Work 表集合，以精确 Work 主键、原 revision、canonical/actor/created_at 守住聚合根选择；同一根的自有子记录整组清理，不另加每表清单。Relations 只选该 Work 拥有的 source 边（含 removed 历史），ContextLedger 只清其精确 key/revision/引用原件，保留被引用对象与其他 owner 的入边。全部选集先核再删，锚最后删除，同库一次事务。
+
+DTO 不含正文、路径、hash、活对象或新增阶段。沿已有安装 generation、Work/edge revision 和实际主键，不把 updated_at 或 created_at 当新版本。current/物理路径在拿锁后、每次写及 COMMIT 前重核；同 ID 后继、集合变化、坏身份、坏库或旧 schema 拒绝且不清后继。已完成仅核固定原件，空选择不扫描并删除后来对象。关闭失败保留同一连接可显式重试，不重开、不重放、不发布父完成。
+
+允许原 Coding Store/同职责 session-purge、PluginRuntime private-storage/project-database/repository、Assistant project-purge/store/relations/同职责 session-purge、ContextLedger 原 service/repository、LocalHost 冷装配及必要公开入口、对应纯合同/API快照/README和真实定向测试。Storage 仅增原 sqlite.ts 的 existing-only 连接入口：句柄返回后立即由冷维护持有，再配置 foreign_keys/校验/事务；普通 LocalSqliteStorage 不改。父 MemoryHomeRecoveryDecision 与 Storage decoder、SDK/vendor/lock由统筹集成；不增 schema、registry、锁、第二账本或假 ProjectPlan。
+
+验收：真实隔离非空SQLite中原键/Work/关系历史清除重开；相邻 Session/Work/安装/项目、共享 Goal title、独立成果逐字保留；错归属/坏行/旧schema/拿锁后撤权/COMMIT故障拒绝；SDK完成后App失败、close失败沿原tuple续跑；同ID后继与空complete零删除；清Coding不清独立Assistant Work。FIFO build、README定向并集、严格类型、准确父health、boundary/API，不跑全量、不触真实Home或付费模型、不push。仅交工程证据，不代替完整 MEM-40 或用户验收。
+
+本地实现入口为 `createSessionBusinessPurgeOwner({homeDirectory,assertCurrent,projectDatabase})`，后者仅由可信 Catalog 解析原项目库并提供同步 current。`prepare({session,owner,wait_ids})` 返回 Coding/Assistant 闭集纯选择，`clear(original)` 与 `verifyOriginal(original)` 不换选择；未知 owner 拒绝。读写只用现有文件、同库事务和原主人公开窄口。PluginRuntime 校验安装记录 JSON 与原 install_id/信任列一致，existing-only 声明校验额外拒绝插件自有表上的未声明对象。Assistant 沿原项目清理保留 `assistant_usage` 的无正文 token 计数与 actor 设置，不从统计重建正文或工作。
+
+本地工程验证：固定 Node24.14.0、pnpm11.9.0、离线依赖与原 FIFO 完整构建通过。`tests/session-business-purge.test.ts` 的21项真实 SQLite 公开冷入口覆盖原键/计划/Work/rounds/cards/send 快照与 removed 关系历史、不同 canonical 与 incoming 边保留、同 ID 后继/安装代/坏安装身份、空原选择、旧 schema、未声明 trigger、拿锁后撤权、同步 current、真实 deferred-FK COMMIT 失败及提交后丢响应、读写初始化失败与 close 双故障。该文件严格 TypeScript、原14文件144项相关 owner 回归通过；API 由原脚本仅更新三个 DTO 快照，准确 b759 父基 health、包边界、lint 与 diff 核查通过。日志前缀 `/private/tmp/molis-session-business-`（build、test、regressions、test-types、health、boundary、api、lint）；初次平台 sqlite_sequence 比较不对称失败保留为 `test-schema-red.log`，已按原 schema 对称比较修复。未跑全量或真人实操、不触真实 Home/付费模型、不 push。父决定持久化/SDK wait 页与完整恢复接线由统筹继续；本刀通过不表示 MEM-40 整体或用户验收完成。

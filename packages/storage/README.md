@@ -144,3 +144,7 @@ MEM-40 恢复父决定沿原 Ledger marker 持久化，一次冻结来源含义�
 维护文件路径共用原 Search 提取的 `inspectExistingStoragePath` / `inspectExistingSqlitePath`：逐祖先拒绝链接，文件必须普通且单链接，原目录/库 dev+ino 在等待后复核；SQLite 侧车允许自身创建/消失但不能重定向。`openExistingBaselineSqlite` 拒绝别名路径；维护调用方提供 canonical Home。实际 rm 的库外目录也须独立检查。`deleteSecretEntriesWithPrefix(prefix, control?)` 把同一控制传入原 mutex 和原子保存，拿锁后、临时密文写入前及 rename/COMMIT 前复核；维护只用既有凭据互斥库，不解密或创建密钥。普通无 control 的初始化与写入语义不变。真实链接、硬链接与双进程撤权回归见 `tests/project-deletion-file-boundaries.test.ts`。
 
 冷 Memory 首次计划需要两遍身份与来源连接时，完整消费 `openMemoryLedgerRecoveryInspection.next()` 至 exhausted 后可调用 `rewind()`，在同一连接、同一只读 BEGIN 中复扫；未穷尽、待交拒绝页或关闭后拒绝。它不重新开库或获取新快照，外部 writer 的后续提交只在关闭重开后可见。两遍仍受原同步 current/取消控制，成功 close 后才允许进入写阶段；该读取能力不替代父 Home owner 或目标 SDK CAS。
+
+### 独立 Session 冷维护连接
+
+`openExistingSqliteConnection(filename, {readonly})` 只打开已存在的 BetterSqlite 文件，缺库拒绝；不配置 PRAGMA、不建表、不迁移。调用者拿到句柄立即纳入原资源的 close 集合，再校验 schema、设置所需 foreign_keys、拿写锁并复核 current。初始化校验或 PRAGMA 失败与 close 失败须同时可见；关闭失败只明确重试同一连接，不重开库、不重放业务。普通 `LocalSqliteStorage` 行为不变。

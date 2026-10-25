@@ -142,3 +142,8 @@ Coding数据库声明升到2，只加nullable lifecycle_json；旧版严格拒�
 持久prepared尚未complete时，同Session原件/绑定与新执行写入明确拒绝；准入沿原调用control进入SDK/model之前，Store普通会话写在最终事务同turn重验。纯读及原archive/unarchive请求可继续，观察/wake不投影、不启动pending Session，另一Session保持独立。此准入只复用当前lifecycle记录，跨Node/SQLite及激活重开仍生效，不创建新锁表或journal。
 
 计划修订与其补充输入属于执行写入，pending期间同样拒绝，跨读取等待仍过同一最终门。子任务入口按职责区分：stop受Session准入；对已完成子任务的本人评价及步骤评价仍可用，继续检查原Run/child、当前评价revision和授权，评价不改变执行状态或完成生命周期。
+
+
+### 独立 Session 业务原件冷维护（MEM-40）
+
+独立 canonical Session 的冷清理由 Coding 定义精确自有两表与私有键选集；keys 在 SDK 清 wait 前固定到父恢复决定。PluginRuntime 拥有私有存储，Coding 不跨表写 SQL。清理先核完整原集合、同安装世代和 canonical 绑定，再在同项目事务删原键/计划/会话；同ID后继保持，updated_at 不当版本。共享 Goal title 与独立 Assistant Work/成果保留。

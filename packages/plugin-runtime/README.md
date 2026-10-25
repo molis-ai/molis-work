@@ -129,3 +129,10 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 Home 的消费者设置与生图服务分别由 `model-configuration.ts`、`image-generation.ts` 核对可信声明、当前实例、动作权限与执行范围。只读 selection/inspect 供可用性判断，不递归进入完整动作可用性；真实模型/配置写入仍复查 beforeEffect 和同步授权。图片结果携带派出时的 revision，交付与业务写入按该版本复核。合同和恢复边界见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-消费者的模型配置生图与项目清理)；改这些路径加跑 `tests/plugin-model-configuration.test.ts`、`tests/plugin-image-generation.test.ts`、`tests/home-plugin-project-cleanup.test.ts`、`tests/home-plugin-project-routes.test.ts`。
 
 插件的 callback view 不暴露 Host 绑定的 `runtime_memory`；原调用快照只留在 Runtime action scope，供宿主代理同一调用者时保留，不允许插件通过可变 view 改写原 Run 的分类限制。
+
+
+### 独立 Session 业务原件冷维护（MEM-40）
+
+冷 Session 维护复用既有项目声明/ledger/shape 校验的 existing-only 查询与安装事实；不建表、不启动实例。私有存储仅给现有键清单、精确选键清理和原件缺席证明，SQL 仍归本包；清理绑定原安装世代并由父维护 current 在实际语句前核验，不提供整安装清理替代。
+
+`existingPluginPrivateKeys` 只列 item_key、逐键 clear 与 verifyAbsent，不交正文；Host 提供已持有的连接与同库事务。`inspectExistingPluginProjectDatabase` 复用原声明/发布者/schema 校验，拒绝缺登记和未声明对象。原安装读取在同一持久化边界核 record 的 install_id/信任来源与实际列一致；不新增 generation。回归见 `tests/session-business-purge.test.ts` 和原 private-storage/runtime-integration/project-database-ledger 回归。

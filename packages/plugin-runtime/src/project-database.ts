@@ -180,6 +180,35 @@ const record = (row: LedgerRow, where = ""): PluginProjectDatabaseRecord => {
     objects, created_at: row.created_at };
 };
 
+/** Shared declaration/ledger/shape check; inspection never starts a transaction or creates missing tables. */
+function checkedExisting(connection: PluginRuntimeDatabase, owner: { readonly publisher_signature: string; readonly declaration: PluginDatabaseDeclaration },
+  inspector: PluginProjectSchemaInspector, declared: DeclaredSchema, row: LedgerRow, where: string, path: string): PluginProjectDatabaseRecord {
+  const { declaration } = owner;
+  if (row.publisher_signature !== owner.publisher_signature) throw pluginProjectDatabaseErrors.publisher_mismatch(`${where} 是另一个发布者建的，换了发布者不能打开`);
+  if (Number(row.version) !== declaration.version) {
+    throw pluginProjectDatabaseErrors.version_mismatch(`${where} 是第 ${row.version} 版，这次声明的是第 ${declaration.version} 版`,
+      { path, store_name: declaration.store_name, recorded_version: Number(row.version), declared_version: declaration.version });
+  }
+  if (row.store_name !== declaration.store_name || canonical(record(row, where).objects) !== canonical(declared.objects)
+    || standing(connection, declared, inspector) !== canonical(declared.shape)) {
+    throw pluginProjectDatabaseErrors.shape_mismatch(`${where} 的表和索引与声明不同（账本记的库名 ${row.store_name}）`);
+  }
+  return record(row, where);
+}
+
+export function inspectExistingPluginProjectDatabase(connection: PluginRuntimeDatabase,
+  owner: { readonly plugin_id: string; readonly publisher_signature: string; readonly declaration: PluginDatabaseDeclaration },
+  inspector: PluginProjectSchemaInspector, options: { readonly path: string }): PluginProjectDatabaseRecord {
+  const declared = inspectPluginProjectSchema(owner.declaration, inspector);
+  const row = connection.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json, created_at FROM plugin_project_databases WHERE plugin_id = ?")
+    .get(owner.plugin_id) as LedgerRow | undefined;
+  if (!row) throw pluginProjectDatabaseErrors.shape_mismatch("原插件项目库未登记，维护不会建库");
+  const checked = checkedExisting(connection, owner, inspector, declared, row, `项目库 ${options.path}`, options.path);
+  const objects = inspector.objects(connection).filter(object => declared.tables.includes(object.table) && !object.automatic).map(object => object.name).sort();
+  if (canonical(objects) !== canonical(declared.objects)) throw pluginProjectDatabaseErrors.shape_mismatch("原插件项目库有未声明对象，维护不会执行");
+  return checked;
+}
+
 /**
  * Open a plugin's tables in a project's library, making them the first time (PLIB-02, PLIB-04). In one write transaction: with no
  * ledger row, nothing of the same name may exist yet, and the statements run and the row is written together; with one, the
@@ -197,16 +226,7 @@ export function openPluginProjectDatabase(connection: PluginRuntimeDatabase,
       .get(owner.plugin_id) as LedgerRow | undefined;
     let opened: { record: PluginProjectDatabaseRecord; created: boolean };
     if (row) {
-      if (row.publisher_signature !== owner.publisher_signature) throw pluginProjectDatabaseErrors.publisher_mismatch(`${where} 是另一个发布者建的，换了发布者不能打开`);
-      if (Number(row.version) !== declaration.version) {
-        throw pluginProjectDatabaseErrors.version_mismatch(`${where} 是第 ${row.version} 版，这次声明的是第 ${declaration.version} 版`,
-          { path: options.path, store_name: declaration.store_name, recorded_version: Number(row.version), declared_version: declaration.version });
-      }
-      if (row.store_name !== declaration.store_name || canonical(record(row, where).objects) !== canonical(declared.objects)
-        || standing(connection, declared, inspector) !== canonical(declared.shape)) {
-        throw pluginProjectDatabaseErrors.shape_mismatch(`${where} 的表和索引与声明不同（账本记的库名 ${row.store_name}）`);
-      }
-      opened = { record: record(row, where), created: false };
+      opened = { record: checkedExisting(connection, owner, inspector, declared, row, where, options.path), created: false };
     } else {
       const holder = connection.prepare("SELECT plugin_id FROM plugin_project_databases WHERE store_name = ?").get(declaration.store_name) as { plugin_id: string } | undefined;
       if (holder) throw pluginProjectDatabaseErrors.object_taken(`${where}：库名已归插件 ${holder.plugin_id}`);

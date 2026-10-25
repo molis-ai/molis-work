@@ -13,4 +13,19 @@ export interface CodingResultDocumentInput {
     reference: ArtifactReference;
 }
 
+export interface CodingSessionPurgeSelection {
+    readonly session: AgentSessionRef;
+    readonly owner: AgentSessionOwner;
+    readonly installation_generation: string;
+    readonly sessions: readonly {
+        readonly session_id: string;
+        readonly created_at: string;
+        readonly keys: readonly string[];
+    }[];
+    readonly waits: readonly {
+        readonly wait_id: string;
+        readonly keys: readonly string[];
+    }[];
+}
+
 export declare const codingResultDocument: ActionDefinition<CodingResultDocumentInput, CodingResultDocument>;

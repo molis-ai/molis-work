@@ -205,3 +205,4 @@ export { codingMethods } from "./methods.js";
 export { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
 
 export { CODING_PROJECT_DATABASE } from "./database.js";
+export { prepareCodingSessionPurge, clearCodingSessionPurge, verifyCodingSessionPurge, type CodingPrivatePurgeKeys } from "./session-purge.js";

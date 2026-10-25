@@ -6,6 +6,7 @@ import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from 
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentSessionOwner, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ownerOf } from "./assistant-round-start.js";
+import type { LedgerConnection } from "../context-ledger-database.js";
 
 /** Full owner query, including archived Works; project association never changes the Session's actual owner. */
 export function assistantProjectSessions(home: string, projectId: string): Array<{ session: AgentSessionRef; owner: AgentSessionOwner }> {
@@ -30,6 +31,17 @@ interface AssistantProjectLive {
 /** Everything a work keeps under its id, the work last. Usage counts stay: they are numbers the daily cap is read from. */
 const WORK_TABLES = ["assistant_rounds", "assistant_cards", "assistant_notices", "assistant_followups", "assistant_undos", "assistant_jobs",
   "assistant_unsettled", "assistant_observed", "assistant_requests", "assistant_works"] as const;
+
+/** The Work aggregate's own rows, shared by project and exact canonical-Session maintenance. Caller owns the transaction. */
+export function clearAssistantWorkRows(db: LedgerConnection, workId: string, current: () => void): void {
+  for (const table of WORK_TABLES) { current(); db.prepare(`DELETE FROM ${table} WHERE work_id = ?`).run(workId); }
+}
+
+export function verifyAssistantWorkRowsAbsent(db: LedgerConnection, workId: string): void {
+  for (const table of WORK_TABLES) {
+    if (db.prepare(`SELECT 1 FROM ${table} WHERE work_id = ? LIMIT 1`).get(workId)) throw new Error("助理原工作数据尚未清除");
+  }
+}
 
 /**
  * The project is deleted: the Assistant's works that belong to it go, with their rounds, cards, notices, follow-ups,
@@ -72,10 +84,7 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
           control?.assertCurrent(); target?.assertCurrent();
           relations.unlink(identity, related.relation, related.object, "项目已删除");
         }
-        for (const table of WORK_TABLES) {
-          control?.assertCurrent(); target?.assertCurrent();
-          db.prepare(`DELETE FROM ${table} WHERE work_id = ?`).run(work.work_id);
-        }
+        clearAssistantWorkRows(db, work.work_id, () => { control?.assertCurrent(); target?.assertCurrent(); });
       }
       control?.assertCurrent(); target?.assertCurrent();
       db.exec("COMMIT");

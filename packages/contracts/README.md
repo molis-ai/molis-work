@@ -130,3 +130,8 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 候选显式分类采用的当前合同：`MemoryCandidate` 增加 canonical 分类、正式期限意图和独立等待期限；`MemoryCandidateDecision.formal` 由本人明确给出完整 kind/classification/expires_at，不接收 owner、来源或 Session 授权。按现行合同规则，受候选输出影响的 `memory.write@4`、`memory.candidates.list@3`、`memory.candidates.accept@4`、`memory.candidates.discard@3` 同步升版本。Host HTTP、助理接线和内部查询均从现 `memoryActions` 引用，不保留旧版本兼容；存量固定旧 Action 的工作流引用按原规则保留并报版本不可用，不静默改为新版本。统筹已在 SDK99 整体构建后生成两个受影响 API 快照和一份 Action 快照；API/Action 生成检查通过，其余动作与 API 不变。验收复用 `tests/memory-candidate-adoption.test.ts`、`tests/memory-actions.test.ts` 与既定合同回归。
 
 `MemoryLedgerRecoveryFact/Page/Issue` 是离线来源检查的无正文 DTO，限定原事实身份、决定、关联与闭集问题；不包含 SQL、数据库、原 marker、Memory 正文或 target command。页 exhausted 不表示恢复完成。Storage 解码、Memory 解释，专项回归见 `tests/memory-ledger-recovery.test.ts`。
+
+
+### 独立 Session 业务原件冷维护（MEM-40）
+
+Session 业务原件恢复 DTO 按 Coding、Assistant 和 ContextLedger 真实主人定义，仅固定身份、现有revision与精确键选集。父 Memory 恢复合同引用这些纯类型，不存正文/hash/活对象或另建阶段。未知 owner 不能表达为无副本完成。

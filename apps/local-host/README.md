@@ -356,3 +356,12 @@ Catalog target 初始化的 readonly 预检和 writer 装配若收尾失败，�
 来源 Catalog inspection 初始化在 BEGIN/schema/current 拒绝后也共用 `project-deletion-catalog-close.ts` 的原连接清理：初始化失败与 close 错误同时保留，readCatalog 的安全错误码/文案保持、底层原因进入非枚举 cause。异常的 close 只关闭同一 BetterSqlite 连接，由原生 close 释放读事务，不再查权限或发 SQL；关闭成功不把原初始化失败改成成功。重试/并发与已物理关闭后报错均不重开、不重放。回归：`tests/project-deletion-recovery-inspection.test.ts` 与原 target 回归；不代表 source/target 组合恢复完成。
 
 项目删除的声明式 project_rows 与既有 purge 共用 ProjectDeletionControl 和原 Storage 事务；Assistant 原 Work 清理必须在同一事务清除精确 source 边及其 cause 历史，保留引用目标、别的 Work 和纯数值 assistant_usage。验收走公开项目 purge 的非空、故障与重开路径，不能以独立 Session 清理替代。
+
+
+### 独立 Session 业务原件冷维护（MEM-40）
+
+独立 Session 业务冷 owner 只调 Coding/Assistant 真实主人，父 Home 决定先保存精确纯 DTO 再允许 SDK 与业务写入。不同 canonical 的独立 Work 和 executor 引用不级联；Assistant 仅清自身 canonical 匹配 Work。资源 existing-only，准备只读，写事务先核全部原集合；close失败保留原连接明确重试，父提交等待全部资源成功关闭。
+
+公开 `createSessionBusinessPurgeOwner` 接收 Home 原恢复 current 与可信 Catalog 的 `projectDatabase(projectId)` 窄口，提供 `prepare({session,owner,wait_ids}) → clear(original) → verifyOriginal(original)` 与可重试 `close()`。父在 SDK purge 前保存纯选择和原 wait IDs；SDK 旧 complete 已失原 ID 的情况不能用空页补证明。该入口不装配普通 Runtime。Assistant 保留原策略下的无正文用量统计和个人设置。
+
+本刀定向回归为 `tests/session-business-purge.test.ts`，并运行 ContextLedger、PluginRuntime/private-storage/project-database、Coding store/lifecycle、Storage baseline、project-deletion-owners/studios 与 LocalHost 的原公开入口回归。它证明业务 owner 冷维护的工程路径，父恢复/SDK 组合验收仍归原 Memory spec。

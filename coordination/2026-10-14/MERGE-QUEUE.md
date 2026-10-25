@@ -82,6 +82,7 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 - Prologue #104 事后严格评审过（ac-review，挡合并 0，[评论](https://github.com/molis-ai/molis-prologue/pull/104#issuecomment-6395355069)）；三条不挡建议（不安全 kind 目录的错误码无用例、密封记录读两遍、Windows 无 O_NOFOLLOW）交 Codex。
 - **10-25 下午派单（统筹）**：ac-kernel → PG-015、016、029、008（RAC-650～669；PG-013/028 已随 #1266 做完）；ac-giants → ac-artifacts 未被挡的余项 + PG-080、064（RAC-670～689、BL-646～655）；ac-clients-1 → W5-04 第三组开 PR → PG-055 设计稿 → PG-056/070/071 余项；ac-coding → ac-trust T6→T2→T4→T5→T8（叠 batch-36）；ac-sandbox-sched → FI-2（#1242 已合）→ FI-3 PR → P2e；#1276（BL-356）进 batch-37。
 - 号段：ac-platform 第 2 组（PG-032/098/100）另给 **RAC-630～649**（RAC-600～619 是 ac-shell 的）；D1～D5 按草稿推荐准，D5 改号段。
+- **10-25 17:36Z 编号接续（Root授权PIPE核号/交槽）**：**BL-666 唯一预留给 #784 Shelf QA-018 项目切换/通知残项，实施 owner FIX1 `01a1682d-0a26-7522-b2b2-4446d904a7b7`**。已鲜核19个Open head的BACKLOG、main `4f4e59a33b6830839323f9c33f87a7ad9047943f`、38 `affe0c277af443e38924c993c70fa51a012d1e1a`、39 `d9ef9d41c2830d7d16e0f5d963a27f2dd6591e56`及165工作树可读BACKLOG：无666及以上；统筹已分号段止于665（646～655/656～665整段不复用），595属连接项。F1仅改准确 `a1ffb2aca95e903e1b33fbe89bdd5bca9b220a15` 独立树中 BACKLOG/Shelf行及QA报告对应活引用，两个真实待办均保留，main成果库/统一壳子本人验收仍BL-400；历史CI重号事实/状态/计数/验收/原PR头和非Draft不改。无第二认领/同hunk writer，保护主检出已有无关BL-356等dirty，不动它。只登记和文档消歧，产品修复/最终报告合入另验；报告仍最后合。
 
 - 10-25 09:30 UTC（统筹）：
   - batch-37 已并 b36 头 `78f15f2e6`（A+D）与三份 Codex 修复（#1272 FIX `5a9f2dd8a`、#1273 FIX `9f8338a5e`、#1274 FIX `f9574b9a5`），再并 #1276 `5a55e0824`（S-71 取 #1276 的行，S-72～74 照留），合并提交 `09dbd517d`；正在重跑构建、门禁与上轮红的文件。

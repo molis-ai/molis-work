@@ -617,8 +617,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     options: { retain_private_data?: boolean } = {},
   ): Promise<PluginLifecycleReceipt> {
     const refusal = leaveRefusal(this.options.consents, this.repository.get(installId), "卸载");
-    if (refusal) return Promise.reject(refusal);
-    return this.locks.run(installId, () => this.uninstallOnce(installId, options));
+    return refusal ? Promise.reject(refusal) : this.locks.run(installId, () => this.uninstallOnce(installId, options));
   }
 
   /** Take back an install that did not finish (`installed`): the row goes back to the uninstalled record it replaced (`earlier`), whole, or is marked uninstalled with nothing kept when there was none; its code stops. See `abandonRefusal`. */

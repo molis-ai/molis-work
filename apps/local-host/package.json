@@ -62,6 +62,7 @@
     "@molis-ai/molis-work-module-signals": "workspace:*",
     "@molis-ai/molis-work-module-sources": "workspace:*",
     "@molis-ai/molis-work-plugin-alchemist": "workspace:*",
+    "@molis-ai/molis-work-plugin-artifacts": "workspace:*",
     "@molis-ai/molis-work-plugin-builder": "workspace:*",
     "@molis-ai/molis-work-plugin-coding": "workspace:*",
     "@molis-ai/molis-work-plugin-cognia": "workspace:*",

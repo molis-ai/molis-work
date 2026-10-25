@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ExactRef, PurgePreview } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote, AgentSessionDecision, AgentSessionLifecycleReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -7,6 +6,7 @@ import type { PrologueRestoredSession, PrologueRunTiming, PrologueStartInput } f
 import type { PrologueRewindIntent } from "./prologue-checkpoints.js";
 import type { PrologueSubagentRoot } from "./prologue-subagents.js";
 import type { NodeHost } from "./prologue-node-kit.js";
+import { readSessionIndex, sessionIndexKind } from "./prologue-session-index-reader.js";
 
 /**
  * Each session's Host record beside the SDK's ledger: who owns it, its workspace mode, and the frozen intent of every
@@ -64,7 +64,7 @@ export interface SessionIndexStore {
 }
 
 export function createSessionIndexStore(host: NodeHost, appId: string, projectDeletionPending?: (projectId: string, sessionId?: string) => boolean, sessionLive?: (id: string) => boolean): SessionIndexStore {
-  const indexKind = `molis-agent-index-${createHash("sha256").update(appId).digest("hex").slice(0, 24)}`;
+  const indexKind = sessionIndexKind(appId);
   const versions = new Map<string, number>();
   const indexUpdates = new Map<string, Promise<void>>();
   const gates = new Map<string, { generation: number; busy: boolean; starting: number; unavailable: boolean }>();
@@ -88,31 +88,12 @@ export function createSessionIndexStore(host: NodeHost, appId: string, projectDe
     } finally { bytes.fill(0); }
   };
   const inspect = async (id: string): Promise<SessionIndex | undefined> => {
-    const record = await host.storage.get({ kind: indexKind, id });
-    if (!record || record.tombstoned) return undefined;
-    const bytes = await host.storage.readSecure({ kind: indexKind, id });
-    try {
-      const value: SessionIndex = JSON.parse(new TextDecoder().decode(bytes));
-      if (value.schema !== 1 || value.ref?.id !== id || value.ref?.kind !== "session" || value.ref.revision !== 1
-        || typeof value.title !== "string" || !Array.isArray(value.attempts)
-        || ![value.owner?.project_id, value.owner?.plugin_id, value.owner?.install_id].every(v => typeof v === "string" && v.length > 0)) {
-        throw new Error("Coding 会话归属索引损坏，不能当作空会话继续");
-      }
-      if (value.workspace !== undefined && value.workspace !== "required" && value.workspace !== "none" && value.workspace !== "business"
-        || value.attempts.some(attempt => (attempt.frozen.workspace ?? "required") !== (value.workspace ?? "required")
-          || (value.workspace === "none" || value.workspace === "business") && (attempt.root_ref !== undefined || attempt.frozen.directory !== undefined))) {
-        throw new Error("会话工作区模式索引不一致，不能猜测执行授权");
-      }
-      if (value.attempts.some(attempt => attempt.timing !== undefined && !validRunTiming(attempt.timing))) {
-        throw new Error("Coding 显示时间索引损坏，不能猜测历史时间");
-      }
-      if (value.lifecycle !== undefined && !validLifecycle(value)) throw new Error("会话原生命周期决定损坏，不能猜测完成或重做清除");
-      const after = await host.storage.get({ kind: indexKind, id });
-      if (!after || after.version !== record.version || after.tombstoned) throw unavailable();
-      versions.set(id, record.version); admission.remember(id, value.owner.project_id);
-      gate(id).unavailable = Boolean(value.lifecycle && (value.lifecycle.phase !== "complete" || value.lifecycle.action === "purge"));
-      return value;
-    } finally { bytes.fill(0); }
+    const read = await readSessionIndex(host.storage, indexKind, id);
+    if (!read) return undefined;
+    const { value, version } = read;
+    versions.set(id, version); admission.remember(id, value.owner.project_id);
+    gate(id).unavailable = Boolean(value.lifecycle && (value.lifecycle.phase !== "complete" || value.lifecycle.action === "purge"));
+    return value;
   };
   const serialize = async <T>(id: string, work: () => Promise<T>): Promise<T> => {
     const previous = indexUpdates.get(id) ?? Promise.resolve();
@@ -236,35 +217,4 @@ function projectAdmission(pending: ((project: string, session?: string) => boole
       finally { active = false; heldProjects.delete(project); for (const id of sessions) heldSessions.delete(id); }
     },
   };
-}
-
-function validLifecycle(index: SessionIndex): boolean {
-  const held = index.lifecycle!;
-  if (!held || !["archive", "unarchive", "purge"].includes(held.action) || !["prepared", "sdk-complete", "complete"].includes(held.phase)) return false;
-  const decision = held.decision, preview = held.preview, receipt = held.receipt;
-  if (!decision || typeof decision.operation_id !== "string" || !decision.operation_id.trim() || decision.operation_id.length > 200
-    || !Number.isSafeInteger(decision.expected_version) || decision.expected_version < 1 || !["active", "archived"].includes(decision.expected_state)) return false;
-  if (held.action === "purge" ? !preview || preview.sessionRef?.kind !== "session" || preview.sessionRef.id !== index.ref.id
-    || preview.sessionRef.revision !== index.ref.revision || preview.atVersion !== decision.expected_version || preview.destroysKey !== true
-    || ![preview.runs, preview.resources].every(value => Number.isSafeInteger(value) && value >= 0) : preview !== undefined) return false;
-  if (held.phase === "prepared") return receipt === undefined;
-  return receipt?.scope === "agent-host-session" && receipt.session.runtime_id === "prologue" && receipt.session.session_id === index.ref.id
-    && receipt.operation_id === decision.operation_id && receipt.action === held.action
-    && receipt.state === (held.action === "purge" ? "purged" : held.action === "archive" ? "archived" : "active")
-    && receipt.version === decision.expected_version + (held.action === "purge" ? 2 : 1);
-}
-
-function validRunTiming(value: unknown): value is PrologueRunTiming {
-  if (!value || typeof value !== "object") return false;
-  const timing = value as PrologueRunTiming;
-  const at = (value: unknown) => value === null || typeof value === "string" && Number.isFinite(Date.parse(value));
-  const rows = (value: unknown, key: "turn_id" | "call_id") => {
-    if (!Array.isArray(value)) return false;
-    const ids = new Set<string>();
-    return value.every(item => {
-      if (!item || typeof item[key] !== "string" || !item[key] || ids.has(item[key]) || !at(item.at)) return false;
-      ids.add(item[key]); return true;
-    });
-  };
-  return at(timing.ended_at) && rows(timing.turns, "turn_id") && rows(timing.activity, "call_id");
 }

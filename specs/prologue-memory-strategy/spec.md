@@ -2551,3 +2551,17 @@ Storage README 原指定11文件首批10/11文件、79/80项通过；唯一 `sec
 ### 2026-10-25：App 安装夹具跟随主线 trust 合同
 
 聚合6fd4121ce合入基础d08后，原assistant-executor整文件首次15/17；App归档交错用例的第二个PluginRuntime.install夹具同样遗漏主线必填trust，在进入原断言前拒绝安装。只补trust:{level:"unsigned"}，原归档、迟到回调、无新增执行/轮次断言全部保留，未改生产、权限、时限、重试或CI。整文件随后17/17、无skip/retry通过，日志 /private/tmp/molis-memory-app-d08-executor-trust-20261025.log；首败 /private/tmp/molis-memory-app-d08-executor-20261025.log保留。此一行测试变化不改变此前008706聚合的350项及资源实测适用范围，最终App完整CI与产品验收仍未完成。
+
+### MEM-40 源 SessionIndex 分页投影短合同（2026-10-25，实施前）
+
+从已冻结聚合 `008706ad0c86e81c2a8a2ad63f1434325ca303ad` 隔离实施本前置。停写后的完整 T1 工作副本由现 AgentHost inspection 经 SDK existing-only storage 读取唯一固定 App Index kind；不打开普通 Runtime、不初始化目录或密钥、不清 CAS、不读写 T1 原件/T0 或目标。只提供 `inspectSessionIndexes({limit?,cursor?,signal?})`，沿 SDK list 的现有默认页长和上限返回逐字段构造的 owner、SessionRef、原生命周期 action/decision/phase/preview/receipt，以及 cursor/exhausted。没有 raw storage、title、attempt、task 或 original_input 出口，不新增存储、状态或覆盖 registry。
+
+在线与离线共用同一 SessionIndex reader/decoder；在线 versions/admission/gate、原 capture 前后检查和写队列不变。源读取保持 get/readSecure/decode/get 同版本检查和字节 finally 清零；列表记录与读取版本不同、已枚举记录消失/墓碑、坏行或读取失败均整页拒绝，权限撤销、取消、关闭和最后异步后的当前检查失败也不交付部分结果。owner.actor_id 若存在必须为合法非空字符串，不猜旧记录缺失值；生命周期各阶段只陈述原事实，不改写状态或重放原决定。
+
+单页或空列表不证明全库覆盖，也不证明任一已知 Session 的原件不存在。只有后续 MEM-40 上层穷尽分页并与 SDK/Catalog 的可信 Session 事实联结，明确拒绝缺失关联后，才能声明覆盖；本片不实现该联结或目标写入。
+
+允许路径：AgentHost 新共享 Index reader、现 Index 读取接缝、adoption inspection 及必要类型出口、AgentHost README、本 spec 与直接测试。不改 Session 生命周期写入、authority、SDK/vendor/锁、UI 或 gates。验证使用临时真实 Node 存储及公开包入口，覆盖非空分页、完整无正文白名单、损坏/变更/晚撤权/取消拒绝和源文件集合及字节不变；随后按 AgentHost README 跑相关影响面，所有构建/测试遵循机器 FIFO，子代理不跑全量。无真实 Home、模型、网络或新 PR；本地提交交统筹合回同 #1101。
+
+本前置局部工程结果：独立树 `codex/memory-source-session-index` 从上述聚合头实施，仅七个允许路径。现 decoder、kind 派生和稳定读取抽到同一 reader，在线写队列与版本/准入更新仍由原 Store 拥有；分页复用 SDK 上限，每页末再核全部已读记录版本。真实 App 创建/归档/purge 的源事实、九种原生命周期形状的逐字段投影、缺失 actor/其他 kind 隔离、坏行/墓碑、晚取消/撤权/close，以及真实磁盘消失/版本变化/较早行变更直接回归 15/15；成功和拒绝路径检查源文件集合及字节不变，故障注入例只保留外部注入差异。日志 `/private/tmp/molis-memory-source-index-direct-20261025.log`。
+
+固定 Node 24.14.0 / pnpm 11.9.0 的 frozen/offline 安装、完整 `pnpm build`、新测试 strict TypeScript、README 与现读取/维护桥影响面 22 文件 189/189（jobs2/browser1/retries0）、准确 `--base 008706ad0c86e81c2a8a2ad63f1434325ca303ad` health 和 boundary 均通过；未重复全量。日志为 `/private/tmp/molis-memory-source-index-{install-authorized,build-authorized,test-types,impact,health,boundary}-20261025.log`，完整执行脚本保留在 `/private/tmp/molis-memory-source-index-validation-20261025.sh`。首轮离线安装因 pnpm 缓存注册 EPERM、首轮整体构建因 Swift module cache EPERM 失败，分别保留 `...-install-20261025.log`、`...-build-20261025.log`；同源码正式权限原命令通过，没有跳步骤或放宽断言。本片无产品反例修后红绿声明，新增入口的工程行为由上述实跑支持。源码不涉及 UI/资源、SDK/vendor/锁或生命周期写状态；源工作副本构造、跨主人穷尽联结、目标恢复、完整 MEM-40、真实 Home、付费模型和用户验收仍未由本片执行或替代。

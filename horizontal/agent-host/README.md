@@ -236,3 +236,10 @@ Memory renew 经现可信 caller、ExecutionControl 和 formal ref 解析直接�
 
 
 verifyPurgeCoverage 是内部无正文薄桥；inspection authority 只取真实 bound caller，复用 execution control，并要求 App 提供异步授权与同步最终检查。缺口拒绝，普通管理许可不代替 owner coverage 许可。
+## MEM-40 源 SessionIndex 读取
+
+离线 `openPrologueMemoryAdoptionInspection` 从停写后的完整 T1 工作副本，通过 SDK existing-only inspection 读取固定 App Index kind；`inspectSessionIndexes({limit?,cursor?,signal?})` 返回有界 facts 与 cursor/exhausted。facts 仅含可信 owner、SessionRef 和原生命周期决定/阶段/预览/回执；不返回 title、attempt、task、original_input 或 raw storage。在线 Store 与离线读取共用唯一 decoder，在线写队列与生命周期状态不变。
+
+已枚举行消失、墓碑、坏形状、版本变化或授权/取消/关闭检查失败，整页拒绝，不交付部分事实。原生命周期阶段不是恢复命令；缺失 actor 不猜补。调用者必须穷尽分页后再与 SDK/Catalog 可信 Session 事实联结；空页不能证明已知 Session 原件不存在，本前置不完成 MEM-40 覆盖判定或目标写入。限制沿 SDK list；本层没有新阈值或可绕过的检查。
+
+直接回归：`node scripts/run-tests.mjs tests/prologue-session-index-inspection.test.ts tests/prologue-memory-adoption.test.ts tests/prologue-session-lifecycle.test.ts tests/prologue-session-cache-lifecycle.test.ts --jobs 2 --browser-jobs 1 --retries 0`，另保留本 README 的开发要求影响面。真实 Node 测试只使用临时存储，不触真实 Home 或外部模型。

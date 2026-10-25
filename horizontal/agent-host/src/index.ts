@@ -674,6 +674,7 @@ export { PrologueInferenceError, inferenceServiceUnavailableReason, isDispatchRe
 export { reportedTokenTotal, decodePrologueJsonOutput } from "./inference.js";
 export type { PrologueCredentialInput, PrologueTextInput, PrologueInputImage, PrologueTextResult, PrologueExecutionReceipt, PrologueRunRef, PrologueStructuredRequest, PrologueTextProgress, PrologueImageInput, PrologueTypeSafeInput, PrologueInferenceClient } from "./inference.js";
 export { openPrologueMemoryAdoption, openPrologueMemoryAdoptionInspection, type PrologueMemoryAdoptionInput, type PrologueMemoryAdoptionBridge, type PrologueMemoryAdoptionInspection, type PrologueMemoryAdoptionScope } from "./adapters/prologue-memory-adoption.js";
+export type { PrologueSessionIndexFact, PrologueSessionIndexPage } from "./adapters/prologue-session-index-reader.js";
 export type { PrologueMemoryOptions } from "./adapters/prologue-memory-authority.js";
 
 export type { PrologueProjectDeletion, ProjectSessionDeletionPlan } from "./adapters/prologue-project-deletion.js";

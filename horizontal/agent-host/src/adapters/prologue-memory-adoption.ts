@@ -5,6 +5,7 @@ import { openNodeRecoveryMaintenance, openNodeRecoveryInspection, type NodeRecov
 import { agentErrors } from "../errors.js";
 import type { PrologueMemoryOptions } from "./prologue-memory-authority.js";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
+import { inspectSessionIndexPage, sessionIndexKind, type PrologueSessionIndexPage } from "./prologue-session-index-reader.js";
 
 export interface PrologueMemoryAdoptionScope { readonly scope: "user" | "project" | "character"; readonly owner: string }
 export interface PrologueMemoryAdoptionInput {
@@ -26,7 +27,11 @@ export interface PrologueMemoryAdoptionBridge {
   close(afterSDKClosed?: () => void): Promise<void>;
 }
 
-export type PrologueMemoryAdoptionInspection = Pick<PrologueMemoryAdoptionBridge, "previewCleanup"> & { close(): Promise<void> };
+export type PrologueMemoryAdoptionInspection = Pick<PrologueMemoryAdoptionBridge, "previewCleanup"> & {
+  /** One bounded source page; empty/exhausted does not certify SDK/Catalog Session coverage. */
+  inspectSessionIndexes(input: { limit?: number; cursor?: string; signal?: AbortSignal }): Promise<PrologueSessionIndexPage>;
+  close(): Promise<void>;
+};
 
 function prepare(input: Omit<PrologueMemoryAdoptionInput, "onOwned">) {
   input = { ...input };
@@ -136,11 +141,23 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
 /** Existing-only inspection: no writer owner, directory creation or SDK recovery. */
 export async function openPrologueMemoryAdoptionInspection(input: Omit<PrologueMemoryAdoptionInput, "onOwned">): Promise<PrologueMemoryAdoptionInspection> {
   const { input: fixed, app, memory, current, stop, pending, perform } = prepare(input);
-  const inspection = await openNodeRecoveryInspection({ storageRoot: fixed.storageRoot, app, memory, assertCurrent: current });
+  const kind = sessionIndexKind(app.appId);
+  const inspection = await openNodeRecoveryInspection({ storageRoot: fixed.storageRoot, app, memory, appStorageKind: kind, assertCurrent: current });
   let closing: Promise<void> | undefined;
   const close = () => closing ??= (async () => {
     stop.abort(); await Promise.allSettled([...pending]); await inspection.close();
   })();
   if (fixed.signal?.aborted) { await close(); fixed.signal.throwIfAborted(); }
-  return { previewCleanup: request => perform(request.signal, signal => inspection.previewAdoptionCleanup({ ...request, signal })), close };
+  return {
+    previewCleanup: request => perform(request.signal, signal => inspection.previewAdoptionCleanup({ ...request, signal })),
+    inspectSessionIndexes: request => {
+      const { limit, cursor } = request;
+      return perform(request.signal, async signal => {
+        const check = () => { current(); signal.throwIfAborted(); };
+        const page = await inspectSessionIndexPage(inspection.storage, kind, { limit, cursor }, check);
+        check(); return page;
+      });
+    },
+    close,
+  };
 }

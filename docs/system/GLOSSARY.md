@@ -366,7 +366,7 @@ A　指产品、导入来源或运行环境的（按 2.3 是 Runtime；已知是
 | `modules/shelf/src/runtimes.ts:195`、`plugins/native/shelf/src/browser/model.ts` | 还没有选定运行工具时的缺省名「Agent」 | 「Runtime」 |
 | `plugins/native/shelf/src/messages.ts` 里 `shelf.preview.*`、`shelf.bar.*` 的键 | 没有 Agent 也可以先提取 PDF 里的字；未发现终端 Agent。（及其后接「文件已留在架子上。」的两处） | 同样把「Agent」换成「Runtime」 |
 | `plugins/native/shelf/src/settings-ui.ts:209,213,224` | 本机文字提取不调用 Agent；不需要 Agent、授权或联网；未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。 | 同样把「Agent」换成「Runtime」 |
-| `plugins/native/shelf/src/terminal-client.ts:169` | 未发现终端 Agent。装一个再来对话。 | 未发现终端 Runtime。装一个再来对话。 |
+| `plugins/native/shelf/src/messages.ts` 里 `shelf.tui.*` 的键（终端井搬进 `src/browser/terminal.ts` 后，这句话在这些键里） | 未发现终端 Agent。（及其后接「文件已留在架子上。」的一处） | 未发现终端 Runtime。 |
 
 B　说工作者本身的（做事、用自己的权限、请求授权和提问；按 2.3 写「外部 Agent」）
 

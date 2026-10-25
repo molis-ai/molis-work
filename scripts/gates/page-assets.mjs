@@ -250,10 +250,16 @@ const headErrors = (measured, budget, base) => {
 //   The same change takes 303,332 B out of workbench.css and 36,506 B out of settings.css (budgets lowered below).
 // - plugin-frame.js +54 B: a frame merges its own plugin's English under the page's (PG-071), the one expression that does it.
 // - plugins/coding.js +45 B: the shared diff classes are drawn as mw-diff-* (PG-070's frozen shared prefix), 15 selectors x 3 B.
+// PG-053 (ac-shell), against the same main:
+// - plugins/shelf.js +1,247 B: Shelf's terminal well moves from the platform's pty-client.js into Shelf's own bundle, so the platform
+//   entry no longer imports the Shelf package. It is a move: dist/web/pty-client.js (not a budgeted asset) shrinks by 3,196 B, and the
+//   frame no longer preloads that 0.5 MB script for Shelf. Tried in the same asset: the bridge reuses Shelf's `post` and page lifetime
+//   in place of its own request and observer code; the tui.ts reader of the bridge is unchanged, so no second copy of it is added.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1127729, 1129466],
   "/assets/molis-work-plugin-frame.js": [190143, 190197],
   "/assets/molis-work-plugins/coding.js": [289017, 289062],
+  "/assets/molis-work-plugins/shelf.js": [63376, 64623],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

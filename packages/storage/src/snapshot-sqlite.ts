@@ -36,7 +36,12 @@ export interface SqliteSnapshotMetadata {
 /** A storage owner's literal metadata declaration; only owner/schema_version, never business rows. */
 export function readSqliteSnapshotMetadata(database: SqliteDatabase, expected: SqliteSnapshotMetadata): Readonly<Record<string, string | number>> {
   if (!/^[a-z][a-z0-9_]*$/u.test(expected.table) || !Number.isSafeInteger(expected.version) || expected.version < 1) throw invalid("快照版本元数据声明无效");
-  const rows = database.prepare(`SELECT key, value FROM "${expected.table}" WHERE key IN ('owner', 'schema_version')`).all() as Array<{ key: string; value: string }>;
+  let rows: Array<{ key: string; value: string }>;
+  try { rows = database.prepare(`SELECT key, value FROM "${expected.table}" WHERE key IN ('owner', 'schema_version')`).all() as Array<{ key: string; value: string }>; }
+  catch (error) {
+    if (error instanceof Database.SqliteError && (error.code === "SQLITE_ERROR" || error.code === "SQLITE_CORRUPT" || error.code === "SQLITE_NOTADB")) throw invalid("快照版本元数据表无效");
+    throw error;
+  }
   const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
   if (rows.length !== 2 || values.owner !== expected.owner || Number(values.schema_version) !== expected.version) throw invalid("退役存储的 owner 或版本不符，未生成快照");
   return { owner: values.owner, schema_version: Number(values.schema_version) };
@@ -73,8 +78,9 @@ function inspect(database: SqliteDatabase, file: string, options: SqliteSnapshot
 /** SQLite's backup API includes committed WAL pages. No live file/sidecar is copied or checkpointed. */
 export async function backupSnapshotSqlite(source: string, destination: string, options: SqliteSnapshotOptions = {}) {
   const before = snapshotFileStat(source);
-  const database = new Database(source, { readonly: true, fileMustExist: true, timeout: 0 });
+  let database: SqliteDatabase | undefined;
   try {
+    database = new Database(source, { readonly: true, fileMustExist: true, timeout: 0 });
     options.signal?.throwIfAborted();
     const original = inspect(database, source, options);
     await database.backup(destination, { progress: () => { options.signal?.throwIfAborted(); return 128; } });
@@ -93,5 +99,8 @@ export async function backupSnapshotSqlite(source: string, destination: string, 
     const output = openSync(destination, "r");
     try { fsyncSync(output); } finally { closeSync(output); }
     return { ...snapshotFileDigest(destination), mode: before.mode & 0o777, sqlite: result };
-  } finally { database.close(); }
+  } catch (error) {
+    if (error !== options.signal?.reason && error instanceof Database.SqliteError && (error.code === "SQLITE_CORRUPT" || error.code === "SQLITE_NOTADB")) throw invalid(`快照库不是有效的 SQLite 数据: ${source}`);
+    throw error;
+  } finally { database?.close(); }
 }

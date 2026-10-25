@@ -8,7 +8,6 @@ import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "./i
 export const registration: PluginRegistration = {
   project_plugin_id: INBOX_PROJECT_PLUGIN_ID, catalog_order: 8,
   manifest: inboxManifest,
-  summary: "只看需要你介入的事项。",
   workbench: {
     order: 6,
     contributions: [inboxUiContribution],

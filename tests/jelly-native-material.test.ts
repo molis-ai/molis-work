@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { extractUploadedMaterial } from "../apps/local-host/src/material-upload.js";
@@ -68,6 +69,62 @@ const whisperHelper = fileURLToPath(new URL("../apps/local-host/native/materials
 function silentWav(): Buffer {
   const samples = 16000; const header = Buffer.alloc(44); header.write("RIFF", 0); header.writeUInt32LE(36 + samples * 2, 4); header.write("WAVEfmt ", 8); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22); header.writeUInt32LE(16000, 24); header.writeUInt32LE(32000, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34); header.write("data", 36); header.writeUInt32LE(samples * 2, 40); return Buffer.concat([header, Buffer.alloc(samples * 2)]);
 }
+test("RAC-427: the Home extractor invokes the configured material helper and never falls back to the retired variable on any platform", async () => {
+  const directory = home(), materialHome = path.join(directory, "home");
+  const currentName = "MOLIS_MATERIAL_WHISPER_HELPER", retiredName = ["MOLIS", "JELLY", "WHISPER", "HELPER"].join("_");
+  const previous = new Map([currentName, retiredName].map(name => [name, process.env[name]]));
+  const current = path.join(directory, "current-helper"), retired = path.join(directory, "retired-helper");
+  const invoked = path.join(directory, "current.jsonl"), retiredMarker = path.join(directory, "retired.called");
+  const answer = { text: "材料助手返回的转写", extractor: "configured-material-helper", pages: [],
+    coverage: { status: "sufficient", processed_pages: 0, total_pages: 0, issues: [] } };
+  let discovery: ReturnType<typeof registerHooks> | undefined;
+  try {
+    writeFileSync(current, `#!${process.execPath}
+const fs = require('node:fs'), path = require('node:path');
+const [command, input, models, work, ...flags] = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(invoked)}, JSON.stringify({ command, input, models, work, flags, bytes: fs.readFileSync(input).toString('base64') }) + '\\n');
+fs.writeFileSync(path.join(models, 'helper-effect'), 'configured helper ran');
+process.stdout.write(${JSON.stringify(JSON.stringify(answer))});
+`, { mode: 0o700 });
+    writeFileSync(retired, `#!${process.execPath}
+require('node:fs').writeFileSync(${JSON.stringify(retiredMarker)}, 'retired helper ran');
+process.stdout.write(${JSON.stringify(JSON.stringify({ ...answer, text: "retired fallback" }))});
+`, { mode: 0o700 });
+    process.env[currentName] = current; process.env[retiredName] = retired;
+    const input = silentWav();
+    // The trusted platform option only enters the native boundary; the real upload → extractHomeMaterial chain runs unchanged.
+    const result = await extractUploadedMaterial(materialHome, upload("sample.wav", input), { platform: "darwin" });
+    assert.deepEqual(result, { ...answer, file_name: "sample.wav" });
+    const calls = readFileSync(invoked, "utf8"), [call] = calls.trim().split("\n").map(line => JSON.parse(line));
+    assert.equal(calls.trim().split("\n").length, 1);
+    assert.equal(call.command, "extract"); assert.equal(call.bytes, input.toString("base64")); assert.deepEqual(call.flags, []);
+    assert.equal(call.models, path.join(realpathSync(materialHome), "lingguang", "models"));
+    assert.equal(path.dirname(call.input), call.work);
+    assert.equal(readFileSync(path.join(call.models, "helper-effect"), "utf8"), "configured helper ran");
+    assert.equal(existsSync(call.input), false); assert.equal(existsSync(call.work), false);
+    assert.equal(existsSync(retiredMarker), false, "configuring both names calls only the current helper");
+
+    delete process.env[currentName];
+    // Isolate only bundled executable discovery, so the old-name-only case never touches an installed native helper.
+    const emptyEntry = pathToFileURL(path.join(directory, "empty-install", "dist", "index.js")).href;
+    let discoveries = 0;
+    discovery = registerHooks({ resolve(specifier, context, nextResolve) {
+      if (specifier === "@molis-ai/molis-work-app-local-host" && /\/material-native\.[jt]s$/.test(context.parentURL ?? "")) {
+        discoveries++; return { url: emptyEntry, shortCircuit: true };
+      }
+      return nextResolve(specifier, context);
+    } });
+    await assert.rejects(extractUploadedMaterial(materialHome, upload("only-old.wav", input), { platform: "darwin" }), { code: "material.native_unavailable" });
+    assert.equal(discoveries, 1, "an absent current variable uses bundled discovery, never the retired variable");
+    assert.equal(existsSync(retiredMarker), false, "a configured retired helper is never invoked, even without the current name");
+    assert.equal(readFileSync(invoked, "utf8"), calls, "the first helper was not retained as a fallback");
+    assert.deepEqual(readdirSync(call.models), ["helper-effect"]);
+  } finally {
+    discovery?.deregister();
+    for (const [name, value] of previous) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 test("real Whisper helper requires an explicit model download choice and leaves no temporary audio", { skip: process.platform !== "darwin" || !existsSync(whisperHelper) }, async () => {
   const directory = home();
   try {

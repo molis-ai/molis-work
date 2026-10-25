@@ -24,8 +24,8 @@ test("S-39 PMAT-48 an import downloads the speech model only on a person's expli
   });
   // The helper records each download permission it is given; without one it answers as the real helper does when the model is missing.
   const helper = join(home, "speech-helper"), choices = join(home, "choices.jsonl"), downloaded = join(home, "downloaded");
-  const prior = process.env.MOLIS_JELLY_WHISPER_HELPER; process.env.MOLIS_JELLY_WHISPER_HELPER = helper;
-  t.after(() => { if (prior === undefined) delete process.env.MOLIS_JELLY_WHISPER_HELPER; else process.env.MOLIS_JELLY_WHISPER_HELPER = prior; });
+  const prior = process.env.MOLIS_MATERIAL_WHISPER_HELPER; process.env.MOLIS_MATERIAL_WHISPER_HELPER = helper;
+  t.after(() => { if (prior === undefined) delete process.env.MOLIS_MATERIAL_WHISPER_HELPER; else process.env.MOLIS_MATERIAL_WHISPER_HELPER = prior; });
   writeFileSync(helper, `#!${process.execPath}
 const fs = require('node:fs'); const allowed = process.argv.includes('--allow-model-download');
 fs.appendFileSync(${JSON.stringify(choices)}, JSON.stringify(allowed) + '\\n');

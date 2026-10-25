@@ -58,6 +58,7 @@ export const goalsManifest: PluginManifest = {
   plugin_id: GOALS_PLUGIN_ID,
   version: "0.3.0",
   name: "Goals",
+  summary: "确定目标，推进工作，留下结果。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
   // 常开插件 (specs/repository-anti-corruption/slices/ac-trust-install.md §3.4): on in every project, and removable only after the person

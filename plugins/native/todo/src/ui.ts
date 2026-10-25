@@ -1,4 +1,4 @@
-import type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
 
 export const TODO_UI_CONTRIBUTION_ID = "io.molis.work.native.todo.ui.v1";
@@ -14,9 +14,8 @@ export interface TodoUiModel {
   readonly primitives: TodoUiPrimitives;
 }
 
-export const todoUiDescriptor: UiContributionDescriptor = {
+export const todoUiDescriptor: UiContributionDeclaration = {
   contribution_id: TODO_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.todo",
   kind: "primary-page",
   navigation_id: "todo",
   label: "待办",

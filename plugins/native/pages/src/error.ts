@@ -11,6 +11,8 @@ export const pagesErrors = defineErrorCodes("pages", {
   conflict: "conflict",
   /** The request cannot proceed in this state: no writing model, a generation still running, an import whose files or choice changed. */
   unavailable: "conflict",
+  /** A Markdown text converts to a body over what one Pages document holds; nothing is cut and no body is returned. */
+  body_too_large: "invalid",
   /** A Pages file reader cannot read this version of a 成果. */
   unsupported: "invalid",
   /** Saving a 成果 was interrupted or conflicts with what the 成果库 holds; the document and the earlier record are kept. */

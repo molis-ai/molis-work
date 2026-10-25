@@ -25,6 +25,7 @@ export const imagesManifest: PluginManifest = {
   plugin_id: IMAGES_PLUGIN_ID,
   version: "0.3.0",
   name: "图片",
+  summary: "连接生图服务，按描述生成图片。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

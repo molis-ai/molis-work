@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const controlToken = "artifact-source-links-control-token-0123456789";

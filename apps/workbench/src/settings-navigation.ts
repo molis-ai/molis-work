@@ -80,8 +80,7 @@ function renderSettingsNavigation(
   project: WebProjectNavigation | null,
   desktopShell = false,
   _projects: readonly WebProjectNavigation[] = [],
-  enabledPlugins?: readonly string[],
-  hiddenPlugins?: readonly string[],
+  shownPlugins?: readonly string[],
 ): string {
   const href = (path: string) => settingsContextHref(path, project, desktopShell);
   const current = (section: SettingsNavigationActive) => active === section ? ' aria-current="page"' : "";
@@ -89,7 +88,7 @@ function renderSettingsNavigation(
   return `<nav class="settings-navigation settings-navigation--codex" aria-label="${L("系统设置")}">
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${L("返回项目")}</a>
     <div class="settings-nav-body">
-      ${groupedGlobalSettingsSections(enabledPlugins, hiddenPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${L(group)}</div>
+      ${groupedGlobalSettingsSections(shownPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${L(group)}</div>
       ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(L(section.label))}</a>`).join("")}`).join("")}
     </div>
   </nav>`;

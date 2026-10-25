@@ -3,7 +3,7 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
-import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
@@ -14,10 +14,14 @@ import { assertProjectCleanupEntries, registerPluginProjectCleanup, type PluginP
 import { pluginFixtureEntries, pluginHomeFor, fixtureDeclarationsFor, type PluginFixture } from "./home-side.js";
 import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
+import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import type { PluginPlatform } from "./plugin-platform.js";
+import { bindHomeRegistration } from "./home-registration.js";
 
 export interface HomePluginEntry {
   readonly scope: "home";
+  /** The key its page and a project's plugin list use: a shipped plugin's project key. Without one it is its plugin id. */
+  readonly key?: string;
   readonly manifest: PluginManifest;
   readonly create: () => PluginDefinition;
   readonly project_data?: PluginProjectCleanup;
@@ -37,8 +41,11 @@ export class HomePluginHost {
   private closing?: Promise<void>;
   private retryable = false;
   private releaseProjectOwners?: () => void;
+  private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
-    entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[] }) {}
+    entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; projectReach?: PluginProjectReach }) {
+    this.releaseRegistration = bindHomeRegistration(options.home, this, () => this.outsideBuild());
+  }
 
   ready(): Promise<HomePluginPlatform> {
     if (this.closed) return Promise.reject(new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭"));
@@ -58,6 +65,21 @@ export class HomePluginHost {
       this.retryable = true;
       throw error;
     }
+  }
+  /**
+   * The plugins registered in the Home, as its pages and routes find them (#679, S-31): the start list's entries, then the Host's
+   * fixtures. A shipped plugin is keyed by its project key; any other by its plugin id, which has a dot where a project key has none.
+   */
+  registered(): readonly { readonly key: string; readonly manifest: PluginManifest }[] {
+    return [...this.options.entries.map(entry => ({ key: entry.key ?? entry.manifest.plugin_id, manifest: entry.manifest })),
+      ...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => ({ key: entry.definition.manifest.plugin_id, manifest: entry.definition.manifest }))];
+  }
+  /**
+   * The registered Home plugins outside the start list that have no project half, by plugin id: personal plugins of every project
+   * unless it hides them (#679, B3). A dual-instance one is reached through its project half, as before.
+   */
+  outsideBuild(): readonly string[] {
+    return pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest.plugin_id).filter(id => !this.dualInstance(id));
   }
   installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }
   manifest(pluginId: string): PluginManifest | undefined {
@@ -87,6 +109,7 @@ export class HomePluginHost {
   }
   close(): Promise<void> {
     this.closed = true;
+    this.releaseRegistration();
     return this.closing ??= (async () => {
       try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
       await this.release();
@@ -142,9 +165,10 @@ export class HomePluginHost {
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
-    const runtime = new PluginRuntime(repository, executor, { consents: new SqlitePluginConsentLedger(db),
+    const runtime = new PluginRuntime(repository, executor, { consents: new SqlitePluginConsentLedger(db), hostIds: HOST_PLUGIN_IDS,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
-      actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id) } });
+      actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
+        ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({
       definition: entry.definition, project_data: identity.projectDataFor(entry.definition),
     })), executor);

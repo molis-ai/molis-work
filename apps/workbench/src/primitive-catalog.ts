@@ -15,15 +15,16 @@ import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assista
 import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plugin-rows.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
-import { DOCK_DEFAULT_PINS, shownProjectPlugins } from "./plugin-catalog.js";
+import { builtinPluginDirectory } from "./plugin-catalog.js";
 
 /**
- * The specimen project's plugins: what a fresh project has enabled (the Dock's default pins plus the person plugins), by
- * the same rule the workbench fills a project's rail. The bar specimen draws these bright and the rest of the build-time
- * plugin directory (`pluginMarketCards()`, which already leaves developer plugins out) grey "not added", so the grid
- * follows the directory as it grows rather than a written list. The runtime Manifest directory is BL-388.
+ * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
+ * of a fresh project. The bar specimen draws these bright and the rest of the build-time plugin directory (`pluginMarketCards()`,
+ * which already leaves developer plugins out) grey "not added". The board runs no Runtime and no Host, so it is drawn from the
+ * built-in catalog's directory; a project page is drawn from the one the Host supplies (`plugin_directory`, `shown_plugins`).
  */
-const SAMPLE_PROJECT_PLUGINS = shownProjectPlugins([...DOCK_DEFAULT_PINS]);
+const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "plugin-builder", "images", "jelly", "shelf", "lingguang", "todo",
+  "pages", "form", "dataset", "ppt", "alchemist", "workflows"];
 
 /**
  * The resident bar exactly as the workbench composes it, on a strip of desk: Dock menu, pinned plugins,
@@ -37,7 +38,7 @@ function renderBarSpecimen(): string {
   const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="切换项目">${monogram}<strong>${project.display_name}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>切换项目</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${project.display_name}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>管理项目</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
   const bar = renderWorkbenchBar(primitives, {
     enabled: SAMPLE_PROJECT_PLUGINS,
-    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, ""),
+    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, "", "", builtinPluginDirectory()),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu),
   });
   const pin = (id: string, glyph: Parameters<typeof icon>[0], label: string, extra = "") => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" data-dock-pin="${id}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;

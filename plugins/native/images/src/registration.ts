@@ -13,7 +13,6 @@ export const registration: PluginRegistration = {
   messages: IMAGES_MESSAGES,
   project_data: imagesProjectData,
   personal: true,
-  summary: "连接生图服务，按描述生成图片。",
   workbench: {
     order: 2,
     contributions: [imagesUiContribution],

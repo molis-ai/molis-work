@@ -1,7 +1,7 @@
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ScheduleConversationTaskView } from "./tasks.js";
@@ -28,9 +28,8 @@ export interface ScheduleUiModel {
   readonly primitives: ScheduleUiPrimitives;
 }
 
-export const scheduleUiDescriptor: UiContributionDescriptor = {
+export const scheduleUiDescriptor: UiContributionDeclaration = {
   contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.schedule",
   kind: "primary-page",
   navigation_id: "schedule",
   label: "Schedule",

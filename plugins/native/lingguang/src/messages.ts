@@ -88,9 +88,6 @@ export const LINGGUANG_MESSAGES = {
   "lingguang.discard.one": { zh: "丢掉这条？它会离开灵光池。", en: "Discard this? It will leave the pool." },
   "lingguang.copy.done": { zh: "已复制", en: "Copied" },
   "lingguang.copy.failed": { zh: "复制失败", en: "Could not copy" },
-  "lingguang.fate.goal": { zh: "已建 Goal", en: "Goal created" },
-  "lingguang.fate.todo": { zh: "已转为待办", en: "Now a todo" },
-  "lingguang.fate.page": { zh: "已转成文档", en: "Now a document" },
-  "lingguang.fate.jelly": { zh: "已转成 Jelly 笔记", en: "Now a Jelly note" },
+  "lingguang.fate.into": { zh: "已转到 {plugin}", en: "Moved to {plugin}" },
   "lingguang.fate.other": { zh: "已转出", en: "Converted" },
 } as const satisfies Record<string, { readonly zh: string; readonly en: string }>;

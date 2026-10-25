@@ -1,7 +1,7 @@
 import { createPrologueTypeSafeProvider } from "./typesafe-prologue.js";
 import { selectedTypeSafeConnection, typeSafeCredential, typeSafeConfiguration } from "./typesafe-connection.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { HOME_DOCK_SCENE_ID, type FunctionSceneMap, type FunctionsSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
 import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -20,7 +20,7 @@ import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 function declaredRuleTargets(rule: BuiltinRuleSubject): FunctionSceneMap {
   if (rule.scene_id !== HOME_DOCK_SCENE_ID) return {};
   const targets = new Map<string, Set<string>>();
-  for (const { manifest } of BUILTIN_PLUGIN_CATALOG) {
+  for (const { manifest } of PLATFORM_PLUGIN_REGISTRATIONS) {
     for (const definition of manifest.actions ?? []) {
       const { action } = definition;
       if (action.input_type !== SUBJECT_OFFERS_INPUT_TYPE || action.output_type !== SUBJECT_OFFERS_OUTPUT_TYPE) continue;

@@ -4,7 +4,8 @@ import { pagesErrors } from "./error.js";
 
 export { EMPTY_PAGES_BODY };
 
-const MAX_BODY_CHARS = 1_500_000;
+/** The most a Pages document's body may be, as its JSON encoding in characters. */
+export const MAX_BODY_CHARS = 1_500_000;
 
 export function parsePagesBody(value: unknown): PagesBody {
   if (value === undefined || value === null) return { ...EMPTY_PAGES_BODY, content: [...(EMPTY_PAGES_BODY.content ?? [])] };

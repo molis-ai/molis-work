@@ -64,7 +64,7 @@ export const goalsFactorsUiContribution: UiContribution<{
     primitives: GoalsFactorsPrimitives;
     args: Parameters<GoalsFactorsRenderer>;
 }> = {
-    descriptor: { contribution_id: GOALS_FACTORS_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal relations and constraints",
+    descriptor: { contribution_id: GOALS_FACTORS_UI_CONTRIBUTION_ID, kind: "embedded", label: "Goal relations and constraints",
         surfaces: [{ surface_id: GOALS_FACTORS_UI_SURFACE, target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
     render({ model }) { return createFactorsRenderer(model.primitives)(...model.args); },
 };

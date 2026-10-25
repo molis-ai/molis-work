@@ -6,7 +6,7 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { CODING_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 
 test("Coding formal routes preserve drafts and isolate projects across server restart", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "coding-product-http-"));
@@ -27,7 +27,7 @@ test("Coding formal routes preserve drafts and isolate projects across server re
   }
   const close = () => new Promise<void>(resolve => server.close(() => resolve()));
   try {
-    new Function('return (' + CODING_CLIENT_FACTORY_SCRIPT + ')');
+    new Function('return (' + CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT + ')');
     new Function(CODING_SETTINGS_CLIENT_SCRIPT);
     await start();
     const projects = [];

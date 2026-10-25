@@ -22,6 +22,7 @@ import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createGithubConnector } from "./github-connector.js";
 import { createGmailConnector } from "./gmail-connector.js";
 import { createCatalogConnector } from "./catalog-connector.js";
+import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 
 export type OfficialProviderFactory = (source: FeedSourceRecord) => IntegrationProviderPort;
 
@@ -59,7 +60,7 @@ export class OfficialIntegrationRegistry {
       const runtime = new PluginRuntime(
         new MemoryPluginRuntimeRepository(),
         undefined,
-        { now: this.now },
+        { now: this.now, hostIds: HOST_PLUGIN_IDS },
       );
       const installed = runtime.install({ definition, deployment: "local", trust: HOST_BUILD_TRUST });
       const requiredGrants = definition.manifest.permissions

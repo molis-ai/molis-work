@@ -1,6 +1,6 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -88,9 +88,8 @@ export interface GitUiModel {
   readonly primitives: GitUiPrimitives;
 }
 
-export const gitUiDescriptor: UiContributionDescriptor = {
+export const gitUiDescriptor: UiContributionDeclaration = {
   contribution_id: GIT_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.git",
   kind: "primary-page",
   navigation_id: "git",
   label: "Git",

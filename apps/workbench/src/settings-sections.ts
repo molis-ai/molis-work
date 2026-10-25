@@ -43,10 +43,10 @@ const HOST_SECTIONS: readonly HostSection[] = [
 const PLUGIN_GROUP = "插件";
 const HOST_ORDER_END = 100;
 
-function globalSettingsSections(enabled?: readonly string[], hidden?: readonly string[]): GlobalSettingsSection[] {
+function globalSettingsSections(shown?: readonly string[]): GlobalSettingsSection[] {
   const placed = [
     ...HOST_SECTIONS.map((section) => ({ ...section, kind: "host" as const })),
-    ...listPluginSettingsNavItems(enabled, hidden).map((item) => ({
+    ...listPluginSettingsNavItems(shown).map((item) => ({
       id: item.section_id,
       label: item.label,
       icon: item.icon as MolisWorkIcon,
@@ -64,9 +64,9 @@ function globalSettingsSections(enabled?: readonly string[], hidden?: readonly s
 }
 
 /** The same list, split where the group changes, for a navigation with group labels. */
-export function groupedGlobalSettingsSections(enabled?: readonly string[], hidden?: readonly string[]): { group: string; sections: GlobalSettingsSection[] }[] {
+export function groupedGlobalSettingsSections(shown?: readonly string[]): { group: string; sections: GlobalSettingsSection[] }[] {
   const groups: { group: string; sections: GlobalSettingsSection[] }[] = [];
-  for (const section of globalSettingsSections(enabled, hidden)) {
+  for (const section of globalSettingsSections(shown)) {
     const last = groups.at(-1);
     if (last?.group === section.group) last.sections.push(section);
     else groups.push({ group: section.group, sections: [section] });

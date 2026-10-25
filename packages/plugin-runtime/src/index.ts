@@ -7,11 +7,13 @@ import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type 
 
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest } from "./install-rules.js";
-import { assertConsentsDeclared, assertPluginTrust, assertTrustFitsExecution, isHostTrust } from "./trust-rules.js";
+import { isHostTrust } from "./trust-rules.js";
+import { NO_HOST_IDS, actionProviderId, assertInstallIdentity, assertInstalledNamespace } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
 import { leaveRefusal } from "./always-on-rules.js";
-import { pluginActionProvider } from "./action-provider.js";
+import { pluginActionProvider, type PluginProjectReach } from "./action-provider.js";
+export { PROJECT_REACH_PERMISSION, type PluginProjectReach } from "./action-provider.js";
 import { outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
@@ -40,7 +42,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, currentPluginAction, currentPluginInvocation, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
+export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
 export type { PluginInstance } from "./action-scope.js";
 export { inertAfterStop, StoppedServiceCalls, type StoppedServiceCall } from "./stopped-services.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
@@ -154,7 +156,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
-      actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string } } = {},
+      /** The `plugin_id`s the Host's build ships: an install of another level may not take one or nest with it (S-75). */ hostIds?: ReadonlySet<string>;
+      actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string; projectReach?: PluginProjectReach } } = {},
   ) {}
 
   register(definition: PluginDefinition): void {
@@ -168,9 +171,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   install(input: PluginInstallInput): PluginLifecycleReceipt {
-    const trust = assertPluginTrust(input.trust);
-    assertTrustFitsExecution(trust, input.definition.execution ?? "host");
-    assertConsentsDeclared(input.definition.manifest, input.consents ?? []);
+    const trust = assertInstallIdentity(input, this.repository.list(), this.options.hostIds ?? NO_HOST_IDS);
     const receipt = this.installRecord(input, trust);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
     return receipt;
@@ -464,6 +465,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const definition = this.requireDefinition(current);
     assertRequiredGrants(definition.manifest, current.grants);
     try {
+      assertInstalledNamespace(current, this.repository.list(), this.options.hostIds ?? NO_HOST_IDS);
       const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
       await this.redeem(definition, current, handle.contribution);
       const updated = {
@@ -691,7 +693,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         const actions = this.options.actions;
         if (!actions) throw pluginErrors.contribution_unredeemed("宿主未提供系统动作注册服务");
         this.actionDisposers.set(record.install_id, actions.registry.registerProvider(pluginActionProvider(manifest, contribution, record,
-          actions.providerId?.(record, definition) ?? record.install_id, actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) })));
+          actionProviderId(actions, record, definition), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) }, actions.projectReach)));
       }
     } catch (error) {
       const live = this.liveContext(record.install_id);
@@ -739,7 +741,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
-    const activation = createActivationContext(record, definition, this.options.actions?.providerId?.(record, definition) ?? record.install_id);
+    const activation = createActivationContext(record, definition, actionProviderId(this.options.actions, record, definition));
     this.contexts.set(record.install_id, activation);
     return activation.context;
   }
@@ -785,6 +787,7 @@ const runtimeFailureCodes = {
   "plugin.contribution_unredeemed": true,
   "plugin.quarantined": true,
   "plugin.upgrade_required": true,
+  "plugin.id_namespace_conflict": true,
   "plugin.kept_data_incompatible": true,
   "plugin.upgrade_validation_missing": true,
   "plugin.upgrade_validation_failed": true,

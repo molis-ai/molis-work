@@ -26,6 +26,6 @@ export function resolveProjectDatabaseFile(directory: string): string {
   return path.join(directory, PROJECT_DATABASE_FILENAME);
 }
 
-export function resolveFeedSecurityDirectory(): string {
+export function resolveHomeSecurityDirectory(): string {
   return path.join(resolveMolisWorkHome(), "feed");
 }

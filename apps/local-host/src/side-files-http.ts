@@ -9,7 +9,8 @@ import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { BUILTIN_PLUGIN_CATALOG, artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
+import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { ARTIFACT_SUBJECT_KIND, parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 /**
@@ -55,7 +56,7 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
     const shown = await ports.shownPlugins?.();
     // A built-in plugin the project does not show lists nothing here; a plugin installed from outside the catalog follows its own state.
     const hiddenHere = (view: ActionView) => {
-      const builtin = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === (view.provider.plugin_id ?? view.provider.provider_id));
+      const builtin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === (view.provider.plugin_id ?? view.provider.provider_id));
       return !!shown && !!builtin && !shown.has(builtin.project_plugin_id);
     };
     const sources = views.filter(view => isFileEntriesSource(view.action) && view.action.file_source?.kinds.length && view.availability.available && !hiddenHere(view));

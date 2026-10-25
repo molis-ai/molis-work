@@ -60,7 +60,7 @@ function consentProbe() {
       const input = raw as Directive, target: ActionDefinition = pluginConsentActions[input.action];
       if (input.mode === "own") return { working: true };
       if (input.mode === "delegate") return context.services!.actions!.directory!.invoke(target, input.input, caller);
-      if (input.mode === "query") return context.services!.actions!.query(target, input.input);
+      if (input.mode === "query") return context.services!.actions!.invokeQuery(target, input.input);
       return context.services!.actions!.invoke(target, input.input, caller);
     } }] }; } };
   return { id, definition, seen, permissions };
@@ -82,7 +82,8 @@ test("RAC-393-PAGE RAC-393-DELEGATE S-79 a real plugin page with user_action and
   for (const mode of ["invoke", "query", "delegate"] as const) for (const action of ["list", "revoke"] as const) {
     const input = action === "list" ? { plugin_id: GOALS } : { consent_id: row.consent_id };
     const response = await f.request(`/api/plugins/${probe.id}/run`, { method: "POST", headers, body: { mode, action, input } });
-    assert.equal(response.status, 403, `${mode} ${action}`); assert.equal((await response.json()).code, "actions.forbidden", `${mode} ${action}`);
+    const failure = await response.json();
+    assert.equal(response.status, 403, `${mode} ${action}: ${JSON.stringify(failure)}`); assert.equal(failure.code, "actions.forbidden", `${mode} ${action}`);
     assert.ok(probe.seen.at(-1)!.user_action, "the real page route gave the plugin a user_action");
     assert.equal(probe.seen.at(-1)!.audience, "user");
     assert.deepEqual(ledger.consents(GOALS), before, `${mode} ${action} leaves the entire ledger unchanged`);

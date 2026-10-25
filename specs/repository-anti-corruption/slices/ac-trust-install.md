@@ -99,7 +99,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - **宿主启动时为没有监督器安装的常开插件（Goals）代为同意**（`always-on-plugins.ts` 的 `recordHostAlwaysOnAgreements`，由 Home 插件宿主启动时调用）：Goals 不在任何监督器里，没有人替它写账本行，本人就没有可撤的东西；写入同样遵守「已有一行（含已撤回的）就不再写」，查询不写。
 - 恢复了 `tests/feed-promote-reader.test.ts` 里「项目没有 Goals 时不显示升格」的一半：撤回 Goals 的常开同意、移除、阅读页没有升格入口（BL-585 里 Feed 那一行的一部分）。
 
-**T2 落地（2026-10-25，与 T5、T8 叠在 `claude/ac-trust-t8`）：**安装服务、预览与确认、发布者固定、`verifyPluginPackage` 接上、`plugin install` 命令（S-80，RAC-382/383/387/393）。
+**T2 落地（2026-10-25，与 T5、T8 叠在 `claude/ac-trust-t8`）：**安装服务、预览与确认、发布者固定、`verifyPluginPackage` 接上、`plugin install` 命令（S-81，RAC-382/383/387/393）。
 
 - **沙箱包是公开格式**（统筹 10-25 裁定 A 的约束 1）：五个文件（`manifest.json`、`plugin.mjs`、`contract.json`、`interface.json`、`prompts.json`），字段写在 `docs/platform/PLUGIN-DEVELOPMENT.md`「沙箱包格式与安装」，类型在 contracts（`SANDBOX_PACKAGE_FILES`、`SandboxPackageInterface`、`SandboxPackagePrompt`）。读它的是 `apps/local-host/src/sandbox-package.ts`，不引创作台的任何实现；创作台发布现在也把 `parts` 写进 `interface.json`（它是这个格式的一个作者，仍走自己的 release 目录，BL-589 让它出签名包）。
 - **不是这个格式的包**（约束 2）：签名验过之后、写任何记录之前，以 `plugin.declaration_invalid` 拒绝；`tests/security-invariants-plugin-install.test.ts` 的 RAC-383 用例逐项断言 11 种不合格（多一个文件、缺 `prompts.json`、缺 `contract.json`、合同是另一个插件的、`interface.json` 多余键、没有 `parts`、零件读区域里没有的操作、组件不在可选范围、坏的 prompt、清单多一条路由、清单的视图被改）并确认没有固定的发布者、没有保存的包、没有安装。

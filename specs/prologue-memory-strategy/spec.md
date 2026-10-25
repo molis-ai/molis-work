@@ -2414,6 +2414,20 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 
 最小修复沿现 owner，不加锁或状态库：writer `close(afterSDKClosed?)` 可收一次同步发布回调，等在途调用及 SDK close 成功后、释放 owner 前执行；非undefined或thenable拒绝，第二次close不能补跑新的回调，普通close()仍幂等。SDK close 失败不执行回调并保 owner；回调本身失败时SDK已关闭，应释放owner但拒绝返回完成。只读 inspection 的 close 仍为零参，不增加写口。LocalHost 仅在 try 内 convert/verify 正常返回且所有结果 complete 后传真实同步 ledger complete；异常 finally 只关句柄，不能凭默认 result 或已跑一半的 verify 发布。回调仍检查原外层取消/维护authority与ledger CAS，不调用已经 stop.abort 的桥 current，也不移除原 current 检查。
 
+#### 接入 Home 父 owner 与失败重试（2026-10-25，实施前）
+
+完整恢复的父 frame 必须持有同一 Home owner，直到 Ledger/Catalog 最终发布及业务资源关闭结束。冷 writer 的可选 `storageOwner` 接收 Storage 的真实原 capability，沿现 `acquirePrologueStorageOwner` 只借一个 execution child；未传时保留独立采用的原自有 owner。父 capability 不克隆，不以 scope、adoption 或调用方字段代替；假 proof、异目录、已释放或 inode 变化均拒绝。当前检查同时保留取消、原维护权限与父 owner 有效性。只读 source inspection 不获取或借用锁，冷 Session 内部 SDK reader 也不再借第二 child；没有普通 Runtime 构造、恢复、模型或 shutdown。
+
+第一次 `close` 冻结发布回调（包括未提供），立刻永久封住新业务调用，等待原在途调用收敛。SDK 关闭失败保留 child，后续显式无参 `close()` 只能重试同一 SDK 句柄的未完成清理，不重开 factory、读取新 key 或恢复业务调用。SDK 成功后原回调至多尝试一次；回调抛错、非 void 或 thenable 均保留发布失败，后续 close 不再发布且仍报告该失败。归还 child 或自有 owner 失败可重试；已成功的 SDK 清理和发布不重放。借用模式只归还 child，不释放父 owner；父 frame 的授权、Ledger/Catalog CAS 与最终发布责任不转给冷桥。发布回调检查原父 frame，而非已经关闭的冷桥 current。
+
+本刀允许 AgentHost 冷桥、其 README、本 spec 和直接回归；不改完整恢复编排、普通采用范围/决定、SDK/vendor、业务 schema 或门禁。SDK 同句柄清理可重试是明确依赖，由同批 SDK 独立修复并正式打包后验证。验收走真实 Node/Storage owner：父锁贯穿 child 关闭和最终发布、第二 child 拒绝、source reader 不借锁、关闭/取消/撤权后零新写、原资源关闭失败保留且显式重试恢复、发布不重放；原采用和 Session 清除回归保持。构建走机器 FIFO，按准确父 `994357e9579f8a21d5753d71daa639f2655ce16a` 检查类型、边界及健康门，不运行 App 全量、浏览器、模型或真实 Home。
+
+本刀已实现并完成有界工程接入验证：可选父 capability 沿原 Storage owner 借用，关闭的 SDK 清理、一次发布与最后释放各自记住已完成状态；只读 inspection 保持不借锁。真实新测试 13 项覆盖跨进程互斥、父能力不可复制/撤销、第二 child 拒绝、源读取不借锁、取消/撤权/关闭零写、同句柄实际清钥一次失败后重试、并发 close 合并、发布失败不可重放和自有 owner 释放重试。没有修改 LocalHost 外层恢复编排。
+
+原 `adoptMemoryHome` 的 try/finally 本就会在失败后再次无参 close；新能力使这次调用真实重试。单次 SDK 清钥或 owner 释放故障时，第二次关闭可完成清理及至多一次发布，Ledger 为4、owner 已释放，但 API 仍抛第一次的原错误，不返回 completed。持续 SDK 故障时两次清理均失败、零发布、Ledger 仍3/adopting且 owner 互斥；持续 owner 释放故障发生在已提交之后，Ledger 保持4、API拒绝、owner互斥。这两种持续故障保留原拒绝/持锁断言，并另加两条真实 LocalHost 单次故障恢复，不能拿失败返回猜账本未提交。
+
+验证使用固定 Node 24.14.0，原整体 build、strict TS、Biome、准确994基底健康、boundary、API通过。SDK为当前54bff7db的独立打包安装，只在此隔离树 node_modules 指向该包，未改vendor/lock；正式依赖与完整 MEM-40 由统筹聚合验证。原28文件批保留为27通过、采用文件两处旧故障预期失败；定位上述try/finally后仅修故障注入/明确次数并补单次恢复，该文件37/37通过，其余27文件有效结果保留，不称一次28文件全绿。日志前缀 `/private/tmp/molis-memory-cold-parent-owner-`，原失败为 `tests-20261025.log`，修后为 `adoption-corrected-20261025.log`。没有跑App全量、浏览器、外部模型或真实Home，不替代外层Ledger/Catalog完整恢复或用户验收。
+
 允许改现 AgentHost writer/inspection close 类型和实现、Home adoption 发布编排、两份 README、本spec与直接测试及其必要合法 close 注入；不改SDK、vendor/lock、普通Runtime、清理选集/原决定、CI/资源门或完整恢复合同。验收必须以两进程可控交错证明原owner持有时发布、另一owner只能在ledger4之后接管；回调异常/缺失/重复/异步、取消和ledger COMMIT拒绝不能返回完成，SDK关闭失败不发布；已有采用与清理故障回归保持。SDK/业务句柄关闭失败发生在发布前，必须保adopting与owner；ledger COMMIT成功后owner释放失败属于已提交后的关闭故障，账本保持已完成，API明确抛出释放错误且owner仍阻止接管，不能伪造回滚为adopting或正常返回completed。保留原owner-close故障注入和互斥断言，另加真实SDK.close故障，不将二者混称。完整MEM-40仍待后续全主人恢复链。
 
 

@@ -490,15 +490,17 @@ test("MEM-40 open and close preserve unselected dispatching board and expired qu
 test("MEM-40 owner release failure after publication keeps the committed ledger and rejects instead of reporting completion", async t => {
   const f = scratch(t); ledger(f.home); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
   const originalClose = DatabaseSync.prototype.close;
-  let retained: DatabaseSync | undefined;
+  let retained: DatabaseSync | undefined, closeFaults = 0;
   const fault = t.mock.method(DatabaseSync.prototype, "close", function(this: DatabaseSync) {
-    if (this.prepare("PRAGMA database_list").all().some(row => String(row.file) === join(realpathSync(f.storageRoot), ".molis-runtime-owner.db")) && !retained) {
-      retained = this; throw new Error("owner close failed");
+    // Both the successful-work close and LocalHost's finally cleanup retry fail on this same owner.
+    if (this === retained || !retained && this.prepare("PRAGMA database_list").all().some(row => String(row.file) === join(realpathSync(f.storageRoot), ".molis-runtime-owner.db"))) {
+      retained = this; closeFaults++; throw new Error("owner close failed");
     }
     return originalClose.call(this);
   });
   try {
     await assert.rejects(adoptMemoryHome({ homeDirectory: f.home }), /owner close failed/);
+    assert.equal(closeFaults, 2);
     assert.ok(retained); assert.equal(ledgerState(f.home).marker.origin, "existing-home"); assert.equal(ledgerState(f.home).version, 4);
     await assert.rejects(open(f.storageRoot), { code: "agent.storage_busy" });
   } finally { fault.mock.restore(); if (retained) originalClose.call(retained); }
@@ -641,7 +643,8 @@ test("MEM-40 genuine SDK close failure does not publish and retains the real own
         finally { closing = false; }
       } };
     } }), /SDK key close failed/);
-    assert.equal(closeFaults, 1); assert.equal(publicationCalls, 0); assert.ok(retained);
+    // The original try/finally makes two explicit closes; both fail before any completion publication.
+    assert.equal(closeFaults, 2); assert.equal(publicationCalls, 0); assert.ok(retained);
     assert.equal(ledgerState(f.home).version, 3); assert.equal(ledgerState(f.home).marker.origin, "adopting");
     await assert.rejects(open(f.storageRoot), { code: "agent.storage_busy" });
   } finally {
@@ -650,4 +653,36 @@ test("MEM-40 genuine SDK close failure does not publish and retains the real own
     retained?.close();
   }
   assert.equal((await adoptMemoryHome({ homeDirectory: f.home })).outcome, "completed");
+});
+
+for (const layer of ["sdk", "owner"] as const) test(`MEM-40 one-shot ${layer} close failure remains rejected after finally recovers the same handle and publishes once`, async t => {
+  const f = scratch(t); ledger(f.home); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
+  const failure = new Error(`one-shot ${layer} close failure`), fill = Buffer.prototype.fill, close = DatabaseSync.prototype.close;
+  let closing = false, injected = false, closeCalls = 0, publications = 0;
+  const fault = layer === "sdk"
+    ? t.mock.method(Buffer.prototype, "fill", function(this: Buffer, ...args: unknown[]) {
+      if (closing && !injected && this.length === 32 && args[0] === 0) { injected = true; throw failure; }
+      return Reflect.apply(fill, this, args);
+    })
+    : t.mock.method(DatabaseSync.prototype, "close", function(this: DatabaseSync) {
+      if (closing && !injected && this.prepare("PRAGMA database_list").all().some(row => String(row.file) === join(realpathSync(f.storageRoot), ".molis-runtime-owner.db"))) {
+        injected = true; throw failure;
+      }
+      return close.call(this);
+    });
+  try {
+    await assert.rejects(adoptMemoryHome({ homeDirectory: f.home, open: async input => {
+      const real = await openPrologueMemoryAdoption({ storageRoot: f.storageRoot, appVersion: app.appVersion,
+        scopes: input.scopes, policy: memoryRuntimePolicy(() => undefined).policy, onOwned: input.onOwned,
+        assertCurrent: input.assertCurrent, ...(input.signal ? { signal: input.signal } : {}) });
+      return { ...real, close: async publish => {
+        closeCalls++; closing = true;
+        try { await real.close(publish && (() => { publications++; publish(); })); }
+        finally { closing = false; }
+      } };
+    } }), error => error === failure);
+  } finally { fault.mock.restore(); }
+  assert.equal(injected, true); assert.equal(closeCalls, 2); assert.equal(publications, 1);
+  assert.equal(ledgerState(f.home).version, 4); assert.equal(ledgerState(f.home).marker.origin, "existing-home");
+  const next = await open(f.storageRoot); await next.close();
 });

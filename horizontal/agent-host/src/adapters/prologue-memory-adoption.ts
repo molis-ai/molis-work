@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { type MemoryAdoptionCleanupItem, type MemoryAdoptionCleanupPage, type MemoryAdoptionPage, type MemoryAdoptionVerification } from "@prologue/sdk";
 import { openNodeRecoveryMaintenance, openNodeRecoveryInspection, type NodeRecoveryMaintenance, type NodeRecoveryInspectionInput, type NodeRecoveryInspection } from "@prologue/sdk/node";
 import type { AgentSessionLifecycleReceipt, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { assertStorageOwner, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { createColdSessionPurge } from "./prologue-session-cold-purge.js";
 import { sessionPurgePreview, sessionConflict, type PrologueSessionPurgeTarget } from "./prologue-session-purge.js";
 import { agentErrors } from "../errors.js";
@@ -13,6 +14,8 @@ import { inspectSessionIndexPage, sessionIndexKind, type PrologueSessionIndexPag
 export interface PrologueMemoryAdoptionScope { readonly scope: "user" | "project" | "character"; readonly owner: string }
 export interface PrologueMemoryAdoptionInput {
   readonly storageRoot: string;
+  /** Borrow the Home parent's sole execution child; closing never releases this parent. */
+  readonly storageOwner?: StorageOwner;
   readonly appVersion: string;
   readonly scopes: readonly PrologueMemoryAdoptionScope[];
   readonly policy: PrologueMemoryOptions["policy"];
@@ -29,7 +32,7 @@ export interface PrologueMemoryAdoptionBridge {
   previewCleanup(input: PrologueMemoryAdoptionScope & { kind: "memory" | "memory-candidate"; cursor?: string; signal?: AbortSignal }): Promise<MemoryAdoptionCleanupPage>;
   purgeCleanupTarget(input: { target: MemoryAdoptionCleanupItem; operation_id: string; signal?: AbortSignal }): Promise<void>;
   purgeSessionTarget(input: { session: AgentSessionRef }): Promise<AgentSessionLifecycleReceipt>;
-  /** Publish synchronously after SDK close, while this same owner is still held. Supplied on the first close only. */
+  /** First close fixes one synchronous publication. Retry failed cleanup without replaying publication or releasing a supplied parent. */
   close(afterSDKClosed?: () => void): Promise<void>;
 }
 
@@ -61,12 +64,15 @@ function prepare(input: Omit<PrologueMemoryAdoptionInput, "onOwned" | "sessionPu
   const allowed = (target: { scope: string; owner: string }) => scopes.some(scope => scope.scope === target.scope && scope.owner === target.owner);
   const current = () => {
     input.signal?.throwIfAborted(); stop.signal.throwIfAborted();
+    if (input.storageOwner !== undefined) assertStorageOwner(input.storageRoot, input.storageOwner);
     const checked: unknown = input.assertCurrent?.();
     if (checked !== undefined) {
       if (checked !== null && (typeof checked === "object" || typeof checked === "function") && "then" in checked)
         void Promise.resolve(checked).catch(() => undefined);
       throw agentErrors.capability_unavailable("维护权限必须同步确认");
     }
+    input.signal?.throwIfAborted(); stop.signal.throwIfAborted();
+    if (input.storageOwner !== undefined) assertStorageOwner(input.storageRoot, input.storageOwner);
   };
   const bound = (request: { appId: string; context: unknown }) => { current(); return request.appId === app.appId && isDeepStrictEqual(request.context, context); };
   const memory: NodeRecoveryInspectionInput["memory"] = { policy, context, scopes, authority: {
@@ -98,7 +104,7 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
   const previews = targets.map(sessionPurgePreview);
   if (new Set(targets.map(target => target.session.session_id)).size !== targets.length) throw sessionConflict();
   const { input: fixed, app, memory, current, allowed, stop, pending, perform } = prepare(input);
-  const release = acquirePrologueStorageOwner(fixed.storageRoot);
+  const release = acquirePrologueStorageOwner(fixed.storageRoot, fixed.storageOwner);
   let maintenance: NodeRecoveryMaintenance;
   try {
     current();
@@ -113,23 +119,34 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
   } catch (error) { release(); throw error; }
   const purgeSession = createColdSessionPurge(maintenance, { storageRoot: fixed.storageRoot, app, memory,
     appStorageKind: sessionIndexKind(app.appId), assertCurrent: current }, targets, current);
-  let closing: Promise<void> | undefined;
+  let closing: Promise<void> | undefined, publish: (() => void) | undefined;
+  let started = false, sdkClosed = false, publicationAttempted = false, released = false;
+  let publicationFailure: { error: unknown } | undefined;
   const close = (afterSDKClosed?: () => void): Promise<void> => {
-    if (closing) return afterSDKClosed === undefined ? closing
-      : Promise.reject(agentErrors.capability_unavailable("维护关闭已经开始，不能追加完成发布"));
+    if (started && afterSDKClosed !== undefined) return Promise.reject(agentErrors.capability_unavailable("维护关闭已经开始，不能追加完成发布"));
+    if (!started) { started = true; publish = afterSDKClosed; stop.abort(); }
+    if (closing) return closing;
     closing = (async () => {
-      stop.abort();
       await Promise.allSettled([...pending]);
       // Failed SDK close retains the owner and must never publish completion.
-      await maintenance.close();
-      try {
-        const checked: unknown = afterSDKClosed?.();
-        if (checked !== undefined) {
-          void Promise.resolve(checked).catch(() => undefined);
-          throw agentErrors.capability_unavailable("维护完成必须同步发布");
-        }
-      } finally { release(); }
-    })();
+      if (!sdkClosed) { await maintenance.close(); sdkClosed = true; }
+      if (!publicationAttempted) {
+        publicationAttempted = true;
+        try {
+          const checked: unknown = publish?.();
+          if (checked !== undefined) {
+            void Promise.resolve(checked).catch(() => undefined);
+            throw agentErrors.capability_unavailable("维护完成必须同步发布");
+          }
+        } catch (error) { publicationFailure = { error }; }
+      }
+      try { if (!released) { release(); released = true; } }
+      catch (error) {
+        if (publicationFailure) throw new AggregateError([publicationFailure.error, error], "维护发布及资源释放失败");
+        throw error;
+      }
+      if (publicationFailure) throw publicationFailure.error;
+    })().catch(error => { closing = undefined; throw error; });
     return closing;
   };
   if (fixed.signal?.aborted) { await close(); fixed.signal.throwIfAborted(); }
@@ -162,7 +179,7 @@ export async function openPrologueMemoryAdoptionInspection(input: Omit<PrologueM
   let closing: Promise<void> | undefined;
   const close = () => closing ??= (async () => {
     stop.abort(); await Promise.allSettled([...pending]); await inspection.close();
-  })();
+  })().catch(error => { closing = undefined; throw error; });
   if (fixed.signal?.aborted) { await close(); fixed.signal.throwIfAborted(); }
   return {
     previewCleanup: request => perform(request.signal, signal => inspection.previewAdoptionCleanup({ ...request, signal })),

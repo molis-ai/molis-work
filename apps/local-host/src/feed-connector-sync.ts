@@ -1,4 +1,4 @@
-import { feedSourceSyncLease } from "./feed-source-sync-lease.js";
+import { feedSourceSyncLease } from "./feed-source-service.js";
 import { createHash } from "node:crypto";
 import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";

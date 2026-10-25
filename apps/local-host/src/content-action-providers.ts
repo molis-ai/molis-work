@@ -6,7 +6,7 @@ import type { FunctionsHostOptions } from "./functions-host.js";
 import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ActionError, retainActionAuthority, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSceneClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedManifest, feedQueryActions, promoteOffered, readLinkedFeedContext, feedItemContext, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
+import { feedManifest, feedQueryActions, promoteOffered, readLinkedFeedContext, feedItemContext, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedInboxHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { createHomeJudgmentTrigger } from "./home-actions.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
@@ -20,6 +20,7 @@ import { lingguangContentActions } from "@molis-ai/molis-work-plugin-lingguang";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { hydrateFeedItemContent } from "./feed-content.js";
+import { inspectSourceAuthorization } from "./connector-access.js";
 
 /** New messages a source call brings in are judged with that caller's authority, as the Web route does for the local user. */
 function judgedAs(caller: ActionCallContext, scenes: ActionSceneClient, projectId: string): LocalFeedApplicationOptions {
@@ -59,6 +60,8 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
       },
     }),
     ...createFeedRuleHandlers(feed, runtime.project_id, hydrate, scene?.selection),
+    ...createFeedInboxHandlers(feed, runtime.project_id, { hydrate,
+      authorize: async source => home ? await inspectSourceAuthorization(home, source) : { authorized: false, reason: "来源连接不可用" } }),
     ...createFeedItemHandlers(feed, runtime.project_id, {
       inboxActive: itemId => feed.listInboxEntries(runtime.project_id).some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId
         && (entry.status === "open" || entry.status === "in_progress")),

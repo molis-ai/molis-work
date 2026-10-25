@@ -15,6 +15,7 @@ import type { FeedApplicationPorts } from "./application-ports.js";
 import { retireFeedSource } from "./source-history.js";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import { JudgmentQueue } from "./judgment-queue.js";
+import { admitToInbox, isIgnored } from "./inbox-admission.js";
 import {
   feedOutRuleMatches,
   registerFeedCaptureVersion,
@@ -180,10 +181,7 @@ export class FeedApplication {
     if (expectedRevision != null && expectedRevision !== item.revision) {
       throw feedErrors.revision_conflict("这条 Item 已经变化，请刷新后重试");
     }
-    const stored = this.ensureInboxEntryForFeedItem(projectId, itemId, "manual", { added_by: "web_user" });
-    if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
-      this.setInboxEntryStatus(projectId, stored.entry.entry_id, "open", stored.entry.revision);
-    }
+    admitToInbox(this, projectId, itemId, "web_user");
     return item;
   }
 
@@ -407,7 +405,7 @@ export class FeedApplication {
   }
 
   private isArchived(projectId: string, itemId: string): boolean {
-    return this.ports.feed.query.exists(projectId, itemId) && this.getFeedItem(projectId, itemId).disposition === "archived";
+    return this.ports.feed.query.exists(projectId, itemId) && isIgnored(this.getFeedItem(projectId, itemId));
   }
 
   /** An ignored item comes back through restore, never by being admitted, reopened or reported on in the Inbox. */

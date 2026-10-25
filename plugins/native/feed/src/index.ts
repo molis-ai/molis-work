@@ -71,6 +71,7 @@ export type { ConnectorSyncMode, FeedConnectorSyncPorts, FeedConnectorListener }
 export type { ConnectorAuthStatus } from "./connector-auth-status.js";
 
 export { FeedSourceScheduler, type FeedSourceSchedulerDispatch, type FeedSourceSchedulerResult } from "./source-scheduler.js";
+export { createFeedSourceSyncLease, type FeedSourceSyncLease } from "./source-sync-lease.js";
 
 export { promoteFeedItemToGoal, type FeedGoalPromotionPorts, type FeedGoalPromotionGoals, type FeedGoalPromotionInput } from "./goal-promotion.js";
 
@@ -91,5 +92,6 @@ export { createFeedSceneRuntime, type FeedSceneHost, type FeedSceneJudgmentInput
 export type { FeedRuleJudgmentSelection } from "./rule-actions.js";
 
 export { feedQueryActions, createFeedQueryHandlers, type FeedDirectorySnapshot } from "./query-actions.js";
+export { feedInboxActions, FEED_INBOX_ACTIONS, createFeedInboxHandlers, type FeedInboxActionPorts, type FeedAdmission, type FeedMaterial, type FeedBriefs, type FeedAdmitted } from "./inbox-actions.js";
 
 export { FEED_PROJECT_DATABASE } from "./database.js";

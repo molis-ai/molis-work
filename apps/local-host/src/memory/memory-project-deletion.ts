@@ -6,7 +6,7 @@ import { verifyMemoryCoverage, verifyProjectMemoryEmpty } from "./memory-project
 import { hasStorageBusinessFiles } from "@molis-ai/molis-work-storage";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
-import { memoryErrors, purgeProjectMemories, previewProjectMemoryPurge, applyProjectMemoryPurge, type MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
+import { memoryErrors, purgeProjectMemories, previewProjectMemoryPurge, applyProjectMemoryPurge, projectMemoryPurgeLedger, readProjectMemoryPurgeLedgerFacts, type MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
 import type { AgentMemoryExecutionControl, AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueProjectDeletion } from "@molis-ai/molis-work-service-agent-host";
 import type { ProjectDeletionRecovery, WithProjectRecreation } from "../project-deletion-recovery.js";
@@ -93,7 +93,8 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
               }
               const plan: ProjectDeletionRecovery = input.original ?? { version: 1, kind: "runtime", project_id: input.project_id,
                 operation_id: input.operation_id, sessions,
-                memory: await previewProjectMemoryPurge({ backend: controlledBackend(control), ledger: ports.ledger, caller }, input.project_id,
+                memory: await previewProjectMemoryPurge({ backend, caller, current,
+                  readLedgerFacts: query => readProjectMemoryPurgeLedgerFacts(ports.ledger, query) }, input.project_id,
                   { sessions: sessions.sessions.map(item => ({ kind: "session", id: item.session.session_id, revision: 1 })), scopes: projection.scopes }) };
               frame.plan = plan;
               const verifyMemory = async () => {
@@ -105,7 +106,8 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
                 if (plan.kind === "absent") { await verifyMemory(); return; }
                 frame.purging = true;
                 try {
-                  await applyProjectMemoryPurge({ backend: controlledBackend(control), ledger: ports.ledger, caller, control, verifyScopeCleanup: verifyMemory }, plan.memory);
+                  await applyProjectMemoryPurge({ backend: { purgeMemory: request => backend.remove(request), purgeCandidate: request => backend.candidates.purge(request) },
+                    ledger: projectMemoryPurgeLedger(ports.ledger, caller.actor_id), caller, control, verifyScopeCleanup: verifyMemory }, plan.memory);
                   current();
                   await withEffect(control, () => active.purge(plan.sessions));
                 } finally { frame.purging = false; }

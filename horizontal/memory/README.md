@@ -283,3 +283,5 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 原固定目标逐项完成后，applyProjectMemoryPurge 必须先调用 verifyScopeCleanup，证明当前目标无残留且归属 coverage 完整，再同步复核 control 并执行 forgetScopes。未知或遗漏原件会保留未选候选、历史与归属依据，也阻止后继 Session purge；已选目标不跨存储回滚。最终 Catalog 提交仍另验当前证明。
 
 来源 Ledger 的 `interpretMemoryLedgerRecoveryFact` 与 `resolveForgottenMemoryIdentity` 是纯解释：事件屏障保留 event 级、普通 closed/来源关联/预览不变成删除指令；forgotten 只联精确 scope/owner，未知或矛盾返回 unresolved。merge 只交 drop 给源 SDK 检查，不删 kept、不自动新增来源屏障。返回 inspect-target 仅为核对原事实，不授权 target 写入或恢复 complete。Storage 持有唯一持久化投影，Memory 不读 SQL/raw marker。本片不接 LocalHost/Catalog 或恢复执行。专项回归 `tests/memory-ledger-recovery.test.ts`。
+
+项目删除的同一规划器与执行核接收实际需要的窄口：规划只收绑定 preview、current 与已校验 Ledger facts；执行只收绑定 purgeMemory/purgeCandidate 及 suppressSources/dropCandidate/forget/forgetScopes。在线主人由原 Backend/Ledger 接线保留语义；冷主人用 SDK 现存入口和 Storage retention，不伪造完整 Backend/Ledger。Ledger source/change/forgotten 事实只证明原件归属、缺失与来源，当前 CAS 版本仍只来自 SDK。先做当前空态/coverage 后才能 forgetScopes，complete proof 不重算原计划。

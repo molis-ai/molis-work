@@ -2881,6 +2881,27 @@ Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私�
 统筹在该聚合上完成原整体 `pnpm build`，随后 12 个实际文件 177 项通过，jobs2/browser1/retries0、零跳过，覆盖冷 retention、采用/恢复/事务、Memory retention roundtrip、SDK 采用、Catalog 原 Memory 计划与恢复、连接绑定维护、Web 与 Home 文件。根 TypeScript、准确 `3a2dea91e` health、boundary errors=[]、72 份 API 快照通过；页面资源仍仅 Coding 374,756 B 对已批准 373,423 B 超出 1,333 B，未放行。日志 `/private/tmp/molis-memory-retention-aggregate-{build,direct,types,health,boundary,api-final,assets}-20261025.log`；API 首次误传不支持的 `--check` 参数只产生用法错误，改用原默认检查后通过，原错误日志保留。
 
 #1064 的 `3a2dea91e` 普通 CI 已通过，Full suite `40197949022` 尚未结束，旧 e801 的 Full shard11 失败不重写为通过。下一步仍集中在 #1101 补原 SDK 桥接、冷 Memory owner 与完整 MEM-40；上述仅局部聚合工程验证。Coding 原两项待定、单 Session 业务副本清理、最终非空旅程、真实模型质量/token 与用户验收保持原要求。没有新增资源、真实 Home 操作、发布或付费模型调用。
+#### MEM-40 原项目 raw Session 与首次 target 准备（2026-10-25，实施前短合同）
+
+补充关闭边界：原 indexed 路径与新增 raw/prepare/verify 的临时 reader 统一归入既有 recoveryReaders。任一 close 失败即永久 abort 同一 bridge 的业务，原句柄只允许 close 重试；清理完成后仍不可继续业务。SDK 与原 reader 全部关闭成功前不发布、不归还父 owner 借用，不新增关闭集合或状态机。
+
+基线为 App 2e846ecc 与已冻结 bridge bbb21c 的合成树 d7796fff。只补同 AgentHost Session 主人的 cold 装配：完整可信同 Home 同历史 T1 Catalog 原计划已经拥有 refs、owner、parent_run 与拓扑；不重建当前关系、不按 ID 猜 owner，也不要求 T0 旧父 Run 额外 terminal。允许修改 AgentHost 原 cold Session/计划校验、桥接与公开出口、直接测试、AgentHost README 及本节；不改 SDK/vendor/lock、Storage90c、LocalHost 冷 Memory owner或外层 marker。
+
+writer 输入增加 projectSessionPurges: readonly ProjectSessionDeletionPlan[]。打开前复制整计划，逐计划核唯一 Session、父项在前、raw 必须有原父且同 owner，复用原 decision/preview/exact ref 校验。indexed 根可来自原在线 associated 关系，不能强制 owner.project_id 等于被删项目。与旧 standalone sessionPurges 重复拒绝；跨项目只有相同 Session 的 owner/decision/preview/indexed/parent_run 全相同才合并目标，冲突不任选。执行仍只收 purgeSessionTarget({session})。indexed 保留原状态机；raw 复用同 Session hold，真实 Index 必须不存在（含墓碑也不能当作没有 Index），当前 SDK present 必须与固定 preview/CAS 相同，purged 必须有匹配的原 termination。仅调用同 maintenance.purgeSession，不创建 synthetic Index；SDK 后核 complete 与原 preview/version，absent 或冲突保持原决定。
+
+首次 target 准备由 inspection.prepareProjectSessionPurge({sourcePlan,operationId,signal?}) 负责：source 只授权原 refs/owner/拓扑，读取 target 当前 canonical preview 与 Index exact facts 生成 target plan；已有 indexed purge 决定保其原 operation/preview，不以新操作覆盖。缺 Index、未知/坏归属、未决其他生命周期、absent 和不一致终止事实拒绝；不返回空计划或普通 Runtime fallback。已有 target original 不调用本口。inspection.verifyProjectSessionPurge({plan,signal?}) 仅核固定原件：SDK 原 terminal complete、indexed 原 owner/decision/preview/receipt 或 raw Index 缺席。只读证明不清同 ID 后继；后继与原 exact 身份冲突时拒绝并保留。
+
+所有异步读取后与实际 SDK/Index 使用前复核原 current/取消；沿原 bridge 管理读句柄、失败 close 重试与父 owner，不增配置、registry、第二 decoder 或删除核。用户确认仍由 Catalog 原决定与当前维护权限共同提供，不能用历史 actor、source complete 或 person:true 代替。验收走真实临时 Home 与正式 SDK：非空 raw 清除/重开、首次 target 版本不同于 source、已有 indexed 原决定保持、错父/owner/拓扑、同 ID Index（含墓碑）冲突、同 Session 并发、实际 await 后撤权/取消、absent、complete 后原件 proof 与未选后继字节保留；复用原 indexed/shared parent/current 回归。机器 FIFO build 和局部测试，不跑全量；只交工程证据，不宣称完整 MEM-40/App或用户验收。
+
+父 Index 交错补充：整组校验保留同次读取的 Index 版本与 raw 缺席事实；后续 SDK 观察结束、SDK purge 和每次 Index save 前后及结果返回前重新核对整组，不能只在初始遍历时核 owner。indexed 自有 save 只有成功后才按该次 CAS 推进自身版本，不重新读取并接受其他成员的新状态。复用原父 owner 与 SDK 同步 current，不新增锁或同步文件读取口；这是原 owner 内可观察等待边界的检查，不宣称跨进程任意指令间原子性。独审原例与修前复现日志保留：`/private/tmp/molis-cold-raw-session-independent-metadata-race-20261025.log`、`/private/tmp/molis-cold-raw-session-parent-index-red-20261025.log`。
+
+正常 App 写入隔离仍由真实 Home 单 child 排除在线 writer；同 bridge 的相关项目按项目 ID 稳定顺序复用原 holdProject，完整固定成员只持有一次，原 associated owner 不变，退出沿原 finally 逆序释放。第一目标等待时重叠目标拒绝且不写入，第一目标完成后新的调用可沿原决定继续。直接 Node Host storage.commit 的故障注入绕过 App owner，只用来证明已观测等待中的外来版本不会被接受；不能把异步最后复核描述成覆盖 SDK 内部任意 I/O 的原子锁。
+
+交错修复工程验证（2026-10-26）：原两处真实 metadata 探针（初始整组读取、后续 raw 观察）均以 agent.session_busy 拒绝，SDK 保持 active，除故障注入的父 Index 改动外 records 逐字保留；恢复原父 owner 后，同桥同原计划重试成功。独审日志为 `/private/tmp/molis-cold-raw-session-independent-early-fixed-20261026.log` 与 `...-later-fixed-20261026.log`。新增3项实际覆盖上述两处等待及同桥关联目标拒绝/在线 writer 排他/退出后原决定继续；原项目35、cold Session23、parent owner13，共3文件71项通过，无重试或跳过。完整 FIFO build、严格测试类型、boundary、准确 d7796fff health、diff检查通过。测试初次补例漏必填 modelConfiguration 的类型失败保留；补合法回调后严格类型及项目35项再验通过。证据前缀 `/private/tmp/molis-cold-raw-session-parent-index-`，原3b566a97与首红不改写；不重复全量，不扩大到完整MEM-40或产品验收。
+
+本片局部工程结果：生产仅4个 AgentHost 文件；实际整组 Index 归属在 SDK 副作用前核对，indexed 原状态机未另造。真实 producer 通过 SDK public board 保留非空 raw child，再由在线项目主人生成原拓扑，冷路径不编造关系。8个实际文件163项通过（项目32、cold Session23、bridge14、adoption37、parent owner13、Index15、lifecycle23、cache6），零重试/skip。实际 Buffer.fill 边界保留同一个 reader key，失败业务停止，三次清理尝试直到成功前不发布、不归还父借用；成功 close 后业务仍永久拒绝。实际 source archive 后的版本与 T0 target 不同，准备使用 target CAS；已有 indexed 原决定不替换；原空计划/关联根/同 tuple 合并与新 Index 后继保留均已覆盖。
+
+原 FIFO build、根类型、严格测试类型、boundary、准确 d7796fff ratchet、diff 检查通过。首次构建的公开类型推导诊断已补显式返回类型；默认沙箱的 pnpm SQLite/Swift cache 拒绝日志保留，经授权本机构建后通过。首次撤权测试用了未命中的 fs.promises 路径，已按真实同步 FD/inode 读取修正；最终影响面命令误写一个父 owner 文件名，7个实际文件150项仍通过，只补跑正确文件13项，不将该命令报告为全绿。原测试中两处缺 role_id 与可选 withdraw 的严格类型诊断在同文件补合法输入/显式断言，未降低原断言。日志前缀 `/private/tmp/molis-memory-cold-raw-session-`，保留 direct-first、final 的首失败及 parent-owner-final；最终 build-frozen、test-types-frozen、boundary、health 对应本片。未跑全量、未push，未操作真实 Home；完整冷 Memory owner/外层恢复与用户验收仍未完成。
 
 #### MEM-40 冷 Memory 归属覆盖与固定 Session 预览薄桥（2026-10-25，实施前短合同）
 
@@ -2941,3 +2962,26 @@ Catalog observation 候选独立核验（2026-10-26）：原7ae的展示 `listPr
 实施核验：完整 FIFO build、根 TypeScript 和本次 target/inspection 两份测试严格 TypeScript 通过；真实 target/inspection/recovery 三文件79项，以及 LocalHost/Contracts/Projects README 必跑并集余下68文件890项全部通过（共71文件969项；jobs2/browser1/retries0，零跳过）。准确父 `e57f0d0fa` health、boundary errors=[] 与72份API快照通过；仅由原 update 脚本更新 contracts/projects 的两份纯 DTO 公共声明，Host旧类型出口保留，调用方无删除或改名。主要日志 `/private/tmp/molis-catalog-observation-{fixed-build,fixed-direct,required,health,boundary,api-check}.log`。build source digest与当前生产输入一致；未跑全量、未推送，工程结论仅覆盖本Catalog资源和关联用例，不替代父marker/完整frame恢复、真实Home或用户验收。
 
 收尾额外检查未改动的 `project-deletion-recovery.test.ts` strict 类型时，发现原20edab31dd引入的 tracked:unknown 六处错误（531/533/546/552行，日志 `/private/tmp/molis-catalog-observation-recovery-types.log`）。该文件真实18项已通过；本刀不改其旧fixture，不能把这次额外strict失败写成通过。
+#### MEM-40 冷 Memory 项目主人（2026-10-25，实施前短合同）
+
+基底为 App `2e846ecc21023d4de1a5d88258b2d314505159ca` 加已独审桥 `bbb21c598156d962e9be555b6e2505d472592a66`，隔离合成 `f79f1075f08542bcd27f85d41cab80c468e4cecf`。Storage 原 retention/post snapshot 已在 App。复用 ProjectDeletedOwner、原 Catalog 已解码 ProjectDeletionRecovery、唯一 previewProjectMemoryPurge/applyProjectMemoryPurge 和 Storage/SDK 原主人，不开普通 Runtime、不创建第二删除核或 decoder。实现本实例的 withRecovery/clear/proof，拒重入，活动 frame/原 receipt/plan 必须一致；回调结束能力失效。
+
+首次 original 缺失时，外层 prepareProject 提供固定可信整 Home knownScopes、本项目 project/character scopes、同原历史 Session 选集和 target 当前 Session plan；Session 的 target preview/CAS/Index/raw 拓扑准备由 AgentHost 原主人完成，失败拒绝而非空回退。Memory 规划先用 target SDK 有界预览取得当前版本；Ledger 用原 openMemoryLedgerRecoveryInspection 的 body-free facts，同一只读事务两遍均受同一 current/frame 控制：先只收本项目 scope 或已选 personal ID 的 candidate/change，再 rewind 只收这些 ID 的 forgotten/source-link。reader 写前关闭；关闭失败交外层保留资源，不继续写或重新读取吸收变化。unknown/issues/partial/未穷尽或来源未知拒绝；Ledger/来源版本不作为目标 CAS，不累积全 Home 数组。
+
+实现前核实两次独立 BEGIN 会取得不同 SQLite 快照，而 adoption snapshot 不覆盖全部 source-link/forgotten/change。统筹确认在原 Storage reader 增加 rewind：只在完整 exhausted 且无待交页时重置扫描位置，同一连接/BEGIN 内复扫，不重新开库或获取新 snapshot；未穷尽、拒绝页尚存或已关闭时拒绝，保留 current/取消。冷 producer 因此使用一个 reader 两遍，写前成功 close；清理失败保原句柄。真实对照将在首遍后用另一 writer 提交来源/forgotten/change，验证第二遍仍是旧视图，关闭重开才见新值。该口不证明全 Ledger CAS，父 owner/current 和 SDK fixed tuple 仍分别承担原职责；不加 hash、复制库或 schema。允许追加原 Storage reader、README、现只读回归。
+
+原规划器只消费 bound previewPurge 与限定选集的 Ledger facts；在线只接线，保留原来源合并、forgotten、缺原件语义。SDK selected 页可跨授权 scope：先核整页 outcome/issues/cursor 和每项原 Session/范围，再按原 personal↔user 映射选当前 scope；不将跨 scope 页假装 personal-only，不以末页空覆盖先前 partial。原 applyProjectMemoryPurge 收窄为 bound purgeCandidate/purgeMemory 与 ledger suppressSources/dropCandidate/forget/forgetScopes，不提供假完整 Backend/Ledger。
+
+withWriter({memoryPurges,sessionPlan},work) 属外层真实 SDK 装配，仅 Catalog 原 plan prepared 落盘后的 clear 调用。同父 Home owner 全程保留、最多一个 SDK child；顺序 close/reopen 原桥不发布最终 Ledger 完成，失败关闭不得开下一 writer。owner 只取固定目标 purge 与无正文检查，不取得旧 purgeCleanupTarget 或宽写口。pending/new 逐项清除后先 scope 空态和全 metadata coverage，再 forgetScopes，之后 Session 原清除；complete 只 verifyOriginal 原 Memory/Session/Index 与 Storage 原选集，不扫后继，不调用 apply/forgetScopes，原空 complete 也不例外。
+
+每个 await 后 current；Storage 成功返回 post 后紧接 ledgerCommitted({before,after})，先核 frame 缓存 before，再推进 post，然后普通 current。失配 frame 失效，不重新 inspect 吸收未知。Ledger frame 只需 ledgerExpected()/ledgerCommitted；最终外层/Catalog/source 关联由统筹负责。原 selection/policy/CAS/owner/current 是不可配硬边界；SDK/Storage 原公开实现可装配，分页沿既有预算，无新配置或用户设置，用户确认仍是原删除决定。
+
+允许修改原 Memory 规划/删除核窄依赖、在线接线、LocalHost 冷 owner 与同职责 facts/SDK 映射、相关 README/spec、公共入口必要类型/快照及真实 SDK/SQLite 回归；不改 SDK/vendor/lock/raw Session 实现/外层 frame。MEM-COLD-OWNER-01：首次计划用 target 当前 CAS、来源和遗漏不丢；MEM-COLD-OWNER-02：pending 顺序、complete 原选集和后继保持；MEM-COLD-OWNER-03：真实 post 前进、外来变化/撤权/关闭失败拒绝。原 FIFO build、types/boundary/准确合成基 health、定向原项目删除和新真实公开 owner 用例；不全量、不push、不另开 PR，工程证据不代替整套恢复/App与用户验收。
+
+本片工程结果：基 f79f1075（App 2e846ecc+薄桥 bbb21c），合入原 Session 主人冻结 3b566a9 后在合成 f0f29fd0 上验证本片。冷 owner 新11项全部走真实 SDK公开桥与SQLite：target当前CAS不同于Ledger来源/旧版本、同Session的project/user整页筛选、真实候选/Memory/Session清除及来源屏障、unknown/缺来源/coverage拒绝、当前范围缩小仍核原scope、空complete保留后继、失效proof/receipt/重入/撤权、提交后cached-before失配拒绝、部分真实purge后新frame沿同Catalog plan恢复、facts reader关闭失败保句柄并阻止下一阶段。原Ledger读取新增同BEGIN rewind对照：外部writer提交source-link/forgotten/change后复扫仍旧视图，关闭重开才见新值；未穷尽/拒绝待交页/已关闭均拒绝rewind。
+
+本片定向11文件112项通过，jobs2/browser1/retries0，无skip：新owner11、Ledger recovery13、原Memory plan10、retention14、owner relations2、adoption9、maintenance28、transaction1、在线Memory删除3、项目恢复18、项目主人3。固定Node24.14原FIFO integrated build、根类型、三文件严格测试类型、boundary（errors=[]）、登记全部新文件后的准确 f79f1075 health 与diff检查通过；未改vendor/lock/SDK、外层frame、算法阈值或门禁。日志前缀 `/private/tmp/molis-memory-cold-project-owner-`，最终为 build-integrated、final-tests、online-tests、test-types-final、boundary、health-staged；首轮 selection.kind 编译遗漏、测试metadata/Session caller与缺采用marker、关闭注入误命中adoption snapshot连接等失败均保留，修的是输入/故障触点，没有放宽生产权限。采用状态由真实Storage begin进入；Catalog prepared/frame装配在该局部测试中由窄口提供，SDK/Storage和持久化副作用是真实的，完整T1/T0外层集成、最终App和用户验收仍由统筹验证。本实例close仅处理其保留的Ledger reader和失效回调；SDK child的取消/关闭与最终Ledger发布仍由外层withInspection/withWriter及父owner负责。
+
+2026-10-26 关联复验：保持冷 owner `1b308e43` 不变，合入原 Session 主人修复 `a4a6d9ca85a9428af24b8920bcfabbe2a56ddf60`（父 `3b566a97`），合成 `8fdcdf5e6d308279fad5a70c9c41f00be3e45619`，保留双方独立祖先。修复沿原 holdProject 和 effect 前全计划 Index 观察复核；本片接口/删除核/frame 边界不变，不承诺任意直接 SDK 底层写入的原子性。
+
+在此实际新生产上，固定 Node24.14 原 FIFO build 成功；cold owner、project deletion、Session cold purge、Memory cold bridge、父 owner 五文件96项全部通过（jobs2/browser1/retries0，无skip），根类型、三相关测试文件严格类型、boundary（errors=[]）、准确新 merge-base `a4a6d9ca` health 和 diff 检查通过。日志前缀 `/private/tmp/molis-memory-cold-project-owner-raw-fixed-`，日期 `20261026`，含 build/tests/types/test-types/boundary/health。未重复全量、未push。本地复合证据仍不替代真实 Catalog prepared/frame 完整装配、完整T1/T0恢复、最终App或用户验收；上游两个 metadata 交错反例的独审证据由统筹保留。

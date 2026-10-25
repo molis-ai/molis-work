@@ -4,6 +4,7 @@ import type { AgentRunRef, AgentSessionDecision, AgentSessionLifecycle, AgentSes
 import { agentErrors } from "../errors.js";
 import type { PrologueEffects } from "./prologue-effects.js";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
+import { sessionPurgePreview } from "./prologue-session-purge.js";
 
 export interface ProjectSessionDeletionPlan {
   project_id: string;
@@ -28,6 +29,21 @@ const denied = () => agentErrors.session_busy("项目清理集合或原决定不
 const exact = (session: AgentSessionRef): ExactRef<"session"> => ({ kind: "session", id: session.session_id, revision: 1 });
 const view = (id: string): AgentSessionRef => ({ runtime_id: "prologue", session_id: id });
 const sameOwner = (a: AgentSessionOwner, b: AgentSessionOwner) => ["project_id", "plugin_id", "install_id", "actor_id"].every(key => a[key as keyof AgentSessionOwner] === b[key as keyof AgentSessionOwner]);
+
+/** The original planner owns this topology; cold consumers never reconstruct it from current IDs. */
+export function assertProjectSessionDeletionPlan(plan: ProjectSessionDeletionPlan): void {
+  if (!plan.project_id.trim() || !plan.operation_id.trim() || plan.operation_id.length > 180) throw denied();
+  const seen = new Map<string, AgentSessionOwner>();
+  for (const item of plan.sessions) {
+    const id = item.session.session_id, parent = item.parent_run && seen.get(item.parent_run.session_id);
+    if (!["active", "archived", "purged"].includes(item.state) || seen.has(id) || typeof item.indexed !== "boolean"
+      || !["project_id", "plugin_id", "install_id", "actor_id"].every(key => {
+        const value = item.owner[key as keyof AgentSessionOwner]; return typeof value === "string" && !!value.trim();
+      }) || !item.indexed && !parent || item.parent_run && (!parent || !item.parent_run.run_id.trim())
+      || !sameOwner(item.owner, parent ?? item.owner)) throw denied();
+    sessionPurgePreview(item); seen.set(id, item.owner);
+  }
+}
 
 /** Own index roots and SDK public graph relations are the only collection facts. No synthetic child index is written. */
 export function createProjectDeletion(deps: Deps): PrologueProjectDeletion {
@@ -140,15 +156,12 @@ export function createProjectDeletion(deps: Deps): PrologueProjectDeletion {
             },
             purge: submitted => deps.effects.admit(assertHeld, async () => {
               const plan = structuredClone(submitted); current();
-              if (plan.project_id !== scope.project_id || !plan.operation_id.trim() || plan.operation_id.length > 180) throw denied();
+              if (plan.project_id !== scope.project_id) throw denied();
+              assertProjectSessionDeletionPlan(plan);
               const seen = new Map<string, AgentSessionOwner>();
               // Validate the whole persisted set before the first irreversible SDK operation.
               for (const item of plan.sessions) {
                 const id = item.session.session_id, parent = item.parent_run && seen.get(item.parent_run.session_id);
-                if (!["active", "archived", "purged"].includes(item.state) || seen.has(id) || item.session.runtime_id !== "prologue" || !sameOwner(item.owner, parent ?? item.owner)
-                  || item.parent_run && !parent || !isDeepStrictEqual(item.preview.session, item.session)
-                  || !item.decision.operation_id.trim() || item.decision.operation_id.length > 200 || item.decision.expected_version !== item.preview.version
-                  || item.decision.expected_state !== item.preview.state) throw denied();
                 const saved = await deps.index.inspect(id); current(); deps.index.assertIdle(id);
                 if (item.indexed ? !saved || !sameOwner(saved.owner, item.owner) : !!saved || !parent) throw denied();
                 if (!item.parent_run) { if (!saved) throw denied(); checkRoot(saved); }

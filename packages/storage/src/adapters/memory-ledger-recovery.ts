@@ -10,6 +10,8 @@ const MAX_RECOVERY_PAGE_SIZE = 100;
 const failure = (code: string) => Object.assign(new Error("记忆来源检查未完成，保留原件待核对"), { code: `memory.${code}` });
 export interface MemoryLedgerRecoveryInspection {
   next(options?: { limit?: number }): MemoryLedgerRecoveryPage;
+  /** Replay only a fully consumed scan in this same SQLite read transaction. */
+  rewind(): void;
   close(): void;
 }
 
@@ -51,7 +53,7 @@ export function openMemoryLedgerRecoveryInspection(input: {
     { table: "candidates", sql: "SELECT rowid AS row_number,candidate_id,actor_id,state,body FROM memory_candidates WHERE 1" },
     { table: "changes", sql: "SELECT rowid AS row_number,change_id,actor_id,memory_id,at,body FROM memory_changes WHERE 1" },
   ] as const;
-  let table = 0, last: number | undefined, entries: Generator<RecoveryEntry> | undefined;
+  let table = 0, last: number | undefined, entries: Generator<RecoveryEntry> | undefined, exhausted = false;
   // Entries consumed while assembling a refused page stay here. A later call never skips that page.
   const pending: RecoveryEntry[] = [];
   const read = (): RecoveryEntry | undefined => {
@@ -90,8 +92,15 @@ export function openMemoryLedgerRecoveryInspection(input: {
       }
       current();
       const page = pending.splice(0, limit);
+      exhausted = table === queries.length && pending.length === 0;
       return { facts: page.flatMap(entry => "fact" in entry ? [entry.fact] : []),
-        issues: page.flatMap(entry => "issue" in entry ? [entry.issue] : []), exhausted: table === queries.length && pending.length === 0 };
+        issues: page.flatMap(entry => "issue" in entry ? [entry.issue] : []), exhausted };
+    },
+    rewind() {
+      if (closed) throw failure("recovery_closed");
+      current();
+      if (!exhausted || table !== queries.length || pending.length || entries !== undefined) throw failure("recovery_not_exhausted");
+      exhausted = false; table = 0; last = undefined; current();
     },
     close() {
       if (closed) return;

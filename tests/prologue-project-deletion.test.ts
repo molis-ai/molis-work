@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
-import { createRequire } from "node:module";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import fs, { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import test, { type TestContext } from "node:test";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type ProjectSessionDeletionPlan } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, openPrologueMemoryAdoption, openPrologueMemoryAdoptionInspection, type ProjectSessionDeletionPlan, type PrologueMemoryAdoptionInput } from "@molis-ai/molis-work-service-agent-host";
+import { memoryRuntimePolicy } from "@molis-ai/molis-work-app-local-host";
+import { assertStorageOwner } from "@molis-ai/molis-work-storage";
+import { storageOwnerResources } from "./fixtures/home-storage-owner.js";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -17,9 +21,338 @@ const owner = { project_id: "project", plugin_id: "io.molis.work.coding", instal
 const control = { beforeEffect() {}, assert_current() {} };
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
 
-async function fixture(t: TestContext) {
+function persistentRecords(root: string): Record<string, Buffer> {
+  const result: Record<string, Buffer> = {};
+  const visit = (directory: string, relative: string) => {
+    for (const item of readdirSync(directory, { withFileTypes: true })) {
+      const key = join(relative, item.name), file = join(directory, item.name);
+      if (item.isDirectory()) visit(file, key); else result[key] = readFileSync(file);
+    }
+  };
+  visit(join(root, "records"), ""); return result;
+}
+
+/** Obtain the real online owner's complete plan for a nonempty raw child retained in the public board. */
+async function coldProjectFixture(t: TestContext) {
+  const f = await fixture(t, "io.molis.work"), directory = { canonical_path: f.home, realpath_verified: true };
+  const parent = await f.adapter.createSession({ ...owner, directory, title: "Cold original parent" });
+  const other = await f.create("other");
+  const instruction = "RAW ORIGINAL CONTENT survives a failed relationship write";
+  let calls = 0, faults = 0;
+  f.respond(body => {
+    const character = JSON.stringify(body.messages).match(/molis-child-[a-z0-9-]+@\d+/)?.[0];
+    const delta = calls++ === 0 ? { tool_calls: [{ index: 0, id: "dispatch", type: "function", function: { name: "dispatch-subagent",
+      arguments: JSON.stringify({ instruction, tools: [], character, idempotencyKey: "raw-child", maxTurns: 2 }) } }] } : { content: "The parent finished." };
+    return `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: calls === 1 ? "tool_calls" : "stop" }] })}\n\ndata: [DONE]\n\n`;
+  });
+  type Commit = { kind: string; expectedVersion: number };
+  const prototype: { commit(input: Commit): Promise<unknown> } = Object.getPrototypeOf(f.inspector.storage), commit = prototype.commit;
+  const fault = t.mock.method(prototype, "commit", async function(this: typeof prototype, request: Commit) {
+    if (request.kind.includes("subagents") && request.expectedVersion === 0 && !faults) { faults++; throw createPrologueError("STORAGE_UNAVAILABLE", "original relationship fault"); }
+    return commit.call(this, request);
+  });
+  const host = new AgentHost({ reviews: f.queue }); host.register(f.adapter);
+  const handle = await host.start("prologue", { ...owner, session: parent, directory, role_id: "coordinator", task: "Dispatch one child" },
+    { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [f.home] });
+  for (const until = Date.now() + 10_000; ; await new Promise(resolve => setTimeout(resolve, 10))) {
+    const view = await f.adapter.read(handle.ref);
+    if (["completed", "failed", "cancelled"].includes(view.phase)) { assert.equal(view.phase, "completed", view.stop_reason); break; }
+    for (const review of f.queue.list(owner.project_id, "pending")) await f.queue.respond({ review_id: review.review_id, decision: "approve", actor_id: owner.actor_id });
+    assert.ok(Date.now() < until);
+  }
+  fault.mock.restore(); assert.equal(faults, 1);
+  await f.reopen(async () => {
+    const runtime = await createRuntime({ app: f.app, host: createNodeHost({ storageRoot: f.home }), preset: "local-agent" });
+    try {
+      const attempts = runtime.boards.refs().flatMap((ref: { id: string }) => runtime.boards.get(ref).nodes.flatMap((node: { attempts: Array<{ origin?: unknown; session: { id: string } }> }) => node.attempts));
+      const attempt = attempts.find((item: { origin?: unknown }) => item.origin); assert.ok(attempt);
+      const child = await runtime.sessions.open(attempt.session); assert.ok(child);
+      assert.ok(JSON.stringify(await child.conversation()).includes(instruction));
+    } finally { await runtime.shutdown(); }
+  });
+  const plan = await f.adapter.projectDeletion.withHold(f.scope(), held => held.preview("source-project-original"));
+  assert.equal(plan.sessions.length, 2); const raw = plan.sessions.find(item => !item.indexed); assert.ok(raw);
+  assert.deepEqual(raw.parent_run, handle.ref);
+  await f.adapter.close();
+  const input = { storageRoot: f.home, appVersion: f.app.appVersion, scopes: [{ scope: "user" as const, owner: owner.actor_id }], policy: memoryRuntimePolicy(() => undefined).policy };
+  return { ...f, get adapter() { return f.adapter; }, plan, raw, parent, other, input,
+    open: (extra: Partial<PrologueMemoryAdoptionInput> = {}) => openPrologueMemoryAdoption({ ...input, projectSessionPurges: [plan], ...extra }),
+    writeIndex: async (id: string, value: unknown) => {
+      const record = await f.inspector.storage.get({ kind: f.kind, id }), bytes = new TextEncoder().encode(JSON.stringify(value));
+      try { await f.inspector.storage.commit({ kind: f.kind, id, expectedVersion: record?.version ?? 0, metadata: { schema: 1 }, secureBody: bytes }); }
+      finally { bytes.fill(0); }
+    },
+  };
+}
+
+test("cold original project purges a real nonempty raw child, reopens the same decision and preserves successors", async t => {
+  const f = await coldProjectFixture(t), otherIndex = await f.index(f.other.session_id), otherSdk = await f.sdk(f.other.session_id);
+  const writer = await f.open();
+  let version: number;
+  try {
+    const receipt = await writer.purgeSessionTarget({ session: f.raw.session }); version = receipt.version;
+    assert.equal(receipt.version, f.raw.preview.version + 2);
+    assert.equal(await f.inspector.storage.get({ kind: f.kind, id: f.raw.session.session_id }), undefined, "raw cleanup must not manufacture an Index");
+    await assert.rejects(writer.verifyProjectSessionPurge({ plan: f.plan }), "the parent is still present");
+    await writer.purgeSessionTarget({ session: f.parent });
+    await writer.verifyProjectSessionPurge({ plan: f.plan });
+  } finally { await writer.close(); }
+  const beforeRetry = persistentRecords(f.home), retry = await f.open();
+  try {
+    assert.equal((await retry.purgeSessionTarget({ session: f.raw.session })).version, version);
+    await retry.purgeSessionTarget({ session: f.parent }); await retry.verifyProjectSessionPurge({ plan: f.plan });
+  } finally { await retry.close(); }
+  assert.deepEqual(persistentRecords(f.home), beforeRetry);
+  assert.deepEqual(await f.index(f.other.session_id), otherIndex); assert.deepEqual(await f.sdk(f.other.session_id), otherSdk);
+  const successor = { ...otherIndex, ref: { kind: "session", id: f.raw.session.session_id, revision: 1 }, title: "Later same-ID Index must remain" };
+  await f.writeIndex(f.raw.session.session_id, successor);
+  const later = persistentRecords(f.home), inspection = await openPrologueMemoryAdoptionInspection(f.input);
+  try { await assert.rejects(inspection.verifyProjectSessionPurge({ plan: f.plan })); }
+  finally { await inspection.close(); }
+  assert.deepEqual(persistentRecords(f.home), later); assert.deepEqual(await f.index(f.raw.session.session_id), successor);
+});
+
+test("cold first target preparation uses real target versions and leaves the later source unchanged", async t => {
+  const f = await coldProjectFixture(t), targetRoot = fs.realpathSync(mkdtempSync(join(tmpdir(), "molis-raw-target-")));
+  t.after(() => rmSync(targetRoot, { recursive: true, force: true })); cpSync(f.home, targetRoot, { recursive: true });
+  const original = f.plan.sessions.find(item => item.indexed)!;
+  await f.reopen();
+  await f.adapter.sessionLifecycle!.archive(f.parent, { operation_id: "source-after-backup", expected_version: original.preview.version, expected_state: "active" }, owner);
+  const sourcePlan = await f.adapter.projectDeletion.withHold(f.scope(), held => held.preview("source-later-plan"));
+  await f.adapter.close(); assert.notEqual(sourcePlan.sessions[0]!.preview.version, original.preview.version);
+  const sourceRecords = persistentRecords(f.home), targetBefore = persistentRecords(targetRoot);
+  const input = { ...f.input, storageRoot: targetRoot }, inspection = await openPrologueMemoryAdoptionInspection(input);
+  let plan: ProjectSessionDeletionPlan;
+  try { plan = await inspection.prepareProjectSessionPurge({ sourcePlan, operationId: "fixed-target-deletion" }); }
+  finally { await inspection.close(); }
+  assert.equal(plan.operation_id, "fixed-target-deletion"); assert.equal(plan.sessions[0]!.preview.version, original.preview.version);
+  assert.equal(plan.sessions[0]!.preview.state, "active"); assert.deepEqual(plan.sessions[1]!.parent_run, f.raw.parent_run);
+  assert.deepEqual(persistentRecords(targetRoot), targetBefore, "preparation is read only");
+  const writer = await openPrologueMemoryAdoption({ ...input, projectSessionPurges: [plan] });
+  try { for (const item of plan.sessions) await writer.purgeSessionTarget({ session: item.session }); await writer.verifyProjectSessionPurge({ plan }); }
+  finally { await writer.close(); }
+  assert.deepEqual(persistentRecords(f.home), sourceRecords);
+});
+
+test("cold preparation preserves an indexed original purge decision while preparing the remaining raw child", async t => {
+  const f = await coldProjectFixture(t), writer = await f.open();
+  try { await writer.purgeSessionTarget({ session: f.parent }); } finally { await writer.close(); }
+  const inspection = await openPrologueMemoryAdoptionInspection(f.input);
+  let prepared: ProjectSessionDeletionPlan;
+  try { prepared = await inspection.prepareProjectSessionPurge({ sourcePlan: f.plan, operationId: "target-project-request" }); }
+  finally { await inspection.close(); }
+  assert.deepEqual(prepared.sessions[0]!.decision, f.plan.sessions[0]!.decision);
+  assert.deepEqual(prepared.sessions[0]!.preview, f.plan.sessions[0]!.preview);
+  assert.equal(prepared.sessions[0]!.state, "purged"); assert.equal(prepared.sessions[1]!.decision.operation_id, "target-project-request:1");
+  const retry = await f.open({ projectSessionPurges: [prepared] });
+  try { for (const item of prepared.sessions) await retry.purgeSessionTarget({ session: item.session }); await retry.verifyProjectSessionPurge({ plan: prepared }); }
+  finally { await retry.close(); }
+});
+
+test("cold project validates the complete original relationship and refuses conflicting shared targets before writing", async t => {
+  const f = await coldProjectFixture(t), before = persistentRecords(f.home);
+  for (const change of [
+    (plan: ProjectSessionDeletionPlan) => { plan.sessions.reverse(); },
+    (plan: ProjectSessionDeletionPlan) => { plan.sessions[1]!.parent_run!.session_id = "wrong-parent"; },
+    (plan: ProjectSessionDeletionPlan) => { plan.sessions[1]!.owner.actor_id = "wrong-owner"; },
+    (plan: ProjectSessionDeletionPlan) => { delete plan.sessions[1]!.parent_run; },
+  ]) { const invalid = structuredClone(f.plan); change(invalid); await assert.rejects(f.open({ projectSessionPurges: [invalid] })); }
+  await assert.rejects(f.open({ sessionPurges: [f.plan.sessions[0]!] }));
+  const conflict = structuredClone(f.plan); conflict.sessions[1]!.decision.operation_id = "replacement-decision";
+  await assert.rejects(f.open({ projectSessionPurges: [f.plan, conflict] }));
+  assert.deepEqual(persistentRecords(f.home), before);
+  const snapshot = structuredClone(f.plan), writer = await f.open({ projectSessionPurges: [snapshot, structuredClone(snapshot)] });
+  snapshot.sessions[1]!.decision.operation_id = "mutated-after-open";
+  try { assert.equal((await writer.purgeSessionTarget({ session: f.raw.session })).operation_id, f.raw.decision.operation_id); }
+  finally { await writer.close(); }
+});
+
+for (const cause of ["raw-index", "raw-index-tombstone", "parent-owner", "parent-index-absent", "raw-sdk-absent", "raw-sdk-changed"] as const)
+  test(`cold raw fixed plan rejects ${cause} and preserves all persistent records`, async t => {
+    const f = await coldProjectFixture(t), id = f.raw.session.session_id;
+    if (cause.startsWith("raw-index")) {
+      await f.writeIndex(id, { ...await f.index(f.parent.session_id), ref: { kind: "session", id, revision: 1 }, title: "Another Index" });
+      if (cause === "raw-index-tombstone") await f.inspector.storage.remove({ kind: f.kind, id, expectedVersion: 1 });
+    }
+    if (cause === "parent-owner") await f.writeIndex(f.parent.session_id, { ...await f.index(f.parent.session_id), owner: { ...owner, actor_id: "another-person" } });
+    if (cause === "parent-index-absent") {
+      const record = await f.inspector.storage.get({ kind: f.kind, id: f.parent.session_id }); assert.ok(record);
+      await f.inspector.storage.remove({ kind: f.kind, id: f.parent.session_id, expectedVersion: record.version });
+    }
+    if (cause === "raw-sdk-absent") {
+      const files = persistentRecords(f.home), file = Object.keys(files).find(file => file.endsWith(`/${id}.json`) && !file.includes(f.kind)); assert.ok(file);
+      rmSync(join(f.home, "records", file));
+    }
+    if (cause === "raw-sdk-changed") {
+      await f.reopen(async () => {
+        const runtime = await createRuntime({ app: f.app, host: createNodeHost({ storageRoot: f.home }), preset: "local-agent" });
+        try { const child = await runtime.sessions.open({ kind: "session", id, revision: 1 }); assert.ok(child); await child.archive(); }
+        finally { await runtime.shutdown(); }
+      });
+      await f.adapter.close();
+    }
+    const before = persistentRecords(f.home), writer = await f.open();
+    try { await assert.rejects(writer.purgeSessionTarget({ session: f.raw.session })); } finally { await writer.close(); }
+    const inspection = await openPrologueMemoryAdoptionInspection(f.input);
+    try {
+      if (cause === "raw-sdk-changed") {
+        const fresh = await inspection.prepareProjectSessionPurge({ sourcePlan: f.plan, operationId: "target-new" });
+        assert.equal(fresh.sessions[1]!.preview.state, "archived"); assert.equal(fresh.sessions[1]!.preview.version, f.raw.preview.version + 1);
+      } else await assert.rejects(inspection.prepareProjectSessionPurge({ sourcePlan: f.plan, operationId: "target-new" }));
+    }
+    finally { await inspection.close(); }
+    assert.deepEqual(persistentRecords(f.home), before);
+  });
+
+for (const stage of ["group", "later-observation"] as const) test(`cold raw rejects a parent Index change during ${stage} SDK metadata read`, async t => {
+  const f = await coldProjectFixture(t), parent = await f.index(f.parent.session_id), writer = await f.open();
+  type Get = { kind: string; id: string };
+  const prototype: { get(request: Get): Promise<unknown> } = Object.getPrototypeOf(Object.getPrototypeOf(f.inspector.storage)), get = prototype.get;
+  const readers = new Set<object>(); let changed = false, afterForeignWrite: ReturnType<typeof persistentRecords> | undefined;
+  const boundary = t.mock.method(prototype, "get", async function(this: typeof prototype, request: Get) {
+    const result = await get.call(this, request);
+    if (request.kind === `${f.app.appId}~sessions` && request.id === f.raw.session.session_id) {
+      readers.add(this);
+      if (!changed && (stage === "group" || readers.size === 2)) {
+        changed = true;
+        await f.writeIndex(f.parent.session_id, { ...parent, owner: { ...parent.owner, actor_id: "foreign-current-owner" } });
+        afterForeignWrite = persistentRecords(f.home);
+      }
+    }
+    return result;
+  });
+  try {
+    await assert.rejects(writer.purgeSessionTarget({ session: f.raw.session }), { code: "agent.session_busy" });
+    assert.equal(changed, true); if (stage === "later-observation") assert.equal(readers.size, 2);
+    assert.equal((await f.sdk(f.raw.session.session_id)).metadata.state, "active");
+    assert.deepEqual(persistentRecords(f.home), afterForeignWrite, "no deletion after the unrelated durable Index mutation");
+    boundary.mock.restore(); await f.writeIndex(f.parent.session_id, parent);
+    assert.equal((await writer.purgeSessionTarget({ session: f.raw.session })).operation_id, f.raw.decision.operation_id);
+  } finally { boundary.mock.restore(); await writer.close(); }
+});
+
+test("cold original project hold blocks a related purge and another online writer during raw inspection", async t => {
+  const f = await coldProjectFixture(t), writer = await f.open(), entered = deferred(), release = deferred();
+  const parentBefore = await f.index(f.parent.session_id), parentSdk = await f.sdk(f.parent.session_id);
+  type Get = { kind: string; id: string };
+  const prototype: { get(request: Get): Promise<unknown> } = Object.getPrototypeOf(Object.getPrototypeOf(f.inspector.storage)), get = prototype.get;
+  let paused = false;
+  const boundary = t.mock.method(prototype, "get", async function(this: typeof prototype, request: Get) {
+    const result = await get.call(this, request);
+    if (!paused && request.kind === `${f.app.appId}~sessions` && request.id === f.raw.session.session_id) {
+      paused = true; entered.resolve(); await release.promise;
+    }
+    return result;
+  });
+  const pending = writer.purgeSessionTarget({ session: f.raw.session });
+  try {
+    await entered.promise;
+    await assert.rejects(writer.purgeSessionTarget({ session: f.parent }), { code: "agent.session_busy" });
+    const online = createPrologueNodeAdapter({ app: f.app, storageRoot: f.home, reviewQueue: f.queue,
+      modelConfiguration: async () => { throw new Error("the Home owner must reject before online configuration"); } });
+    try { await assert.rejects(online, { code: "agent.storage_busy" }); } finally { await online.close(); }
+    assert.deepEqual(await f.index(f.parent.session_id), parentBefore); assert.deepEqual(await f.sdk(f.parent.session_id), parentSdk);
+    release.resolve(); assert.equal((await pending).state, "purged");
+    await writer.purgeSessionTarget({ session: f.parent }); await writer.verifyProjectSessionPurge({ plan: f.plan });
+  } finally { release.resolve(); await pending.catch(() => undefined); boundary.mock.restore(); await writer.close(); }
+});
+
+for (const cause of ["revoke", "cancel"] as const) test(`cold raw ${cause} after a real SDK read preserves the original decision`, async t => {
+  const f = await coldProjectFixture(t), before = persistentRecords(f.home);
+  let revoked = false, observed = false; const stop = new AbortController();
+  const writer = await f.open({ signal: stop.signal, assertCurrent: () => { if (revoked) throw new Error("permission withdrawn after read"); } });
+  const file = Object.keys(before).find(file => file.endsWith(`/${f.raw.session.session_id}.json`) && !file.includes(f.kind)); assert.ok(file);
+  const identity = fs.statSync(join(f.home, "records", file), { bigint: true }), read = fs.readFileSync;
+  const fault = t.mock.method(fs, "readFileSync", (...args: Parameters<typeof read>) => {
+    const value = Reflect.apply(read, fs, args), held = typeof args[0] === "number" ? fs.fstatSync(args[0], { bigint: true }) : undefined;
+    if (!observed && held?.dev === identity.dev && held?.ino === identity.ino) {
+      observed = true; queueMicrotask(() => { if (cause === "cancel") stop.abort(); else revoked = true; });
+    }
+    return value;
+  });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(writer.purgeSessionTarget({ session: f.raw.session }));
+    assert.equal(observed, true); assert.deepEqual(persistentRecords(f.home), before);
+    fault.mock.restore(); syncBuiltinESMExports(); revoked = false;
+    if (cause === "revoke") assert.equal((await writer.purgeSessionTarget({ session: f.raw.session })).operation_id, f.raw.decision.operation_id);
+    else await assert.rejects(writer.purgeSessionTarget({ session: f.raw.session }));
+  } finally { fault.mock.restore(); syncBuiltinESMExports(); revoked = false; await writer.close(); }
+});
+
+test("cold original plans accept real associated roots and merge equal decisions across projects", async t => {
+  const f = await fixture(t, "io.molis.work"), session = await f.create();
+  const first = await f.adapter.projectDeletion.withHold(f.scope(), held => held.preview("first-catalog-request"));
+  await f.adapter.withEffect(control, () => f.adapter.projectDeletion.withHold(f.scope(), held => held.purge(first)));
+  const second = await f.adapter.projectDeletion.withHold({ project_id: "associated-project", associated_sessions: [{ session, owner }] }, held => held.preview("associated-catalog-request"));
+  assert.notEqual(second.project_id, second.sessions[0]!.owner.project_id);
+  assert.deepEqual(second.sessions[0]!.decision, first.sessions[0]!.decision); await f.adapter.close();
+  const input = { storageRoot: f.home, appVersion: f.app.appVersion, scopes: [{ scope: "user" as const, owner: owner.actor_id }], policy: memoryRuntimePolicy(() => undefined).policy };
+  const before = persistentRecords(f.home), writer = await openPrologueMemoryAdoption({ ...input, projectSessionPurges: [first, second] });
+  try { await writer.purgeSessionTarget({ session }); await writer.verifyProjectSessionPurge({ plan: first }); await writer.verifyProjectSessionPurge({ plan: second }); }
+  finally { await writer.close(); }
+  assert.deepEqual(persistentRecords(f.home), before);
+});
+
+test("cold empty original Session plan proves only its empty selection and preserves a later same-project Session", async t => {
+  const f = await fixture(t, "io.molis.work");
+  const sourcePlan = await f.adapter.projectDeletion.withHold(f.scope(), held => held.preview("old-empty-project"));
+  assert.deepEqual(sourcePlan.sessions, []); const later = await f.create(); await f.adapter.close();
+  const input = { storageRoot: f.home, appVersion: f.app.appVersion, scopes: [{ scope: "user" as const, owner: owner.actor_id }], policy: memoryRuntimePolicy(() => undefined).policy };
+  const before = persistentRecords(f.home), inspection = await openPrologueMemoryAdoptionInspection(input);
+  try {
+    const target = await inspection.prepareProjectSessionPurge({ sourcePlan, operationId: "empty-target" }); assert.deepEqual(target.sessions, []);
+    await inspection.verifyProjectSessionPurge({ plan: sourcePlan });
+  } finally { await inspection.close(); }
+  assert.deepEqual(persistentRecords(f.home), before); assert.equal((await f.sdk(later.session_id)).metadata.state, "active");
+});
+
+test("cold raw uses the original same-Session hold for overlapping calls", async t => {
+  const f = await coldProjectFixture(t), writer = await f.open(); let settled = false;
+  try {
+    const first = writer.purgeSessionTarget({ session: f.raw.session }).then(value => { settled = true; return value; });
+    assert.equal(settled, false);
+    await assert.rejects(writer.purgeSessionTarget({ session: f.raw.session }), { code: "agent.session_busy" });
+    assert.equal((await first).state, "purged");
+    assert.equal((await writer.purgeSessionTarget({ session: f.raw.session })).version, f.raw.preview.version + 2);
+  } finally { await writer.close(); }
+});
+
+test("cold Session reader close failure stops business until the same reader is cleaned before parent release", async t => {
+  const f = await coldProjectFixture(t), resources = storageOwnerResources(t), parent = resources.acquire(f.home);
+  const writer = await f.open({ storageOwner: parent }), before = persistentRecords(f.home);
+  const file = Object.keys(before).find(file => file.endsWith(`/${f.parent.session_id}.json`) && !file.includes(f.kind)); assert.ok(file);
+  const identity = fs.statSync(join(f.home, "records", file), { bigint: true }), read = fs.readFileSync, fill = Buffer.prototype.fill;
+  let armed = false, failing = true, attempts = 0, published = 0, originalKey: Buffer | undefined;
+  const reading = t.mock.method(fs, "readFileSync", (...args: Parameters<typeof read>) => {
+    const value = Reflect.apply(read, fs, args), held = typeof args[0] === "number" ? fs.fstatSync(args[0], { bigint: true }) : undefined;
+    if (held?.dev === identity.dev && held?.ino === identity.ino) armed = true;
+    return value;
+  });
+  const zeroing = t.mock.method(Buffer.prototype, "fill", function(this: Buffer, ...args: unknown[]) {
+    if (armed && this.length === 32 && args[0] === 0) {
+      originalKey ??= this;
+      if (this === originalKey) { attempts++; if (failing) throw new Error("original Session reader cleanup failed"); }
+    }
+    return Reflect.apply(fill, this, args);
+  });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(writer.purgeSessionTarget({ session: f.raw.session }), /original Session reader cleanup failed/);
+    assert.ok(armed && originalKey); assert.equal(attempts, 1);
+    await assert.rejects(writer.purgeSessionTarget({ session: f.parent })); assert.equal(attempts, 1, "failed cleanup must stop subsequent business reads");
+    await assert.rejects(writer.close(() => { published++; }), /original Session reader cleanup failed/);
+    assert.equal(attempts, 2); assert.equal(published, 0); assertStorageOwner(f.home, parent);
+    assert.throws(() => parent.release(), { code: "storage.owner.borrowed" });
+    failing = false; await writer.close(); assert.equal(attempts, 3); assert.equal(published, 1);
+    assertStorageOwner(f.home, parent); await assert.rejects(writer.purgeSessionTarget({ session: f.raw.session }));
+    parent.release(); assert.deepEqual(persistentRecords(f.home), before);
+  } finally { failing = false; reading.mock.restore(); zeroing.mock.restore(); syncBuiltinESMExports(); await writer.close(); }
+});
+
+async function fixture(t: TestContext, appId = "io.molis.project-delete-test") {
   const home = await mkdtemp(join(tmpdir(), "molis-project-session-delete-"));
-  const app = { appId: "io.molis.project-delete-test", appVersion: "1.0.0" };
+  const app = { appId, appVersion: "1.0.0" };
   const pending = new Set<string>(), pendingSessions = new Set<string>();
   const queue = new AgentReviewQueue();
   let providerHold: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
@@ -42,7 +375,7 @@ async function fixture(t: TestContext) {
   const kind = `molis-agent-index-${createHash("sha256").update(app.appId).digest("hex").slice(0, 24)}`;
   t.after(async () => { await adapter.close(); await inspector.storage.close?.(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(home, { recursive: true, force: true }); });
   return { app, home, kind, pending, pendingSessions, queue, inspector, holdProvider: () => { const hold = { entered: deferred(), release: deferred() }; providerHold = hold; t.after(() => hold.release.resolve()); return hold; }, respond: (next: typeof respond) => { respond = next; }, get adapter() { return adapter; },
-    create: (project_id = owner.project_id) => adapter.createSession({ ...owner, project_id, workspace: "none", title: "Private title" }),
+    create: (project_id = owner.project_id) => adapter.createSession({ ...owner, project_id, workspace: "none", role_id: "reader", title: "Private title" }),
     scope: (associated_sessions: Array<{ session: AgentSessionRef; owner: typeof owner }> = []) => ({ project_id: owner.project_id, associated_sessions }),
     reopen: async (between?: () => Promise<void>) => { await adapter.close(); await between?.(); adapter = await open(); },
     index: async (id: string) => JSON.parse(new TextDecoder().decode(await inspector.storage.readSecure({ kind, id }))),
@@ -110,7 +443,7 @@ test("project preview enumerates archived/unbound own indexes, binds associated 
 test("project hold refuses an already prepared creation without cancelling it; pending survives reopening", async t => {
   const f = await fixture(t), entered = deferred(), release = deferred();
   let checks = 0;
-  const creating = f.adapter.createSession({ ...owner, workspace: "none", title: "Prepared" }, { beforeStart: async () => {
+  const creating = f.adapter.createSession({ ...owner, workspace: "none", role_id: "reader", title: "Prepared" }, { beforeStart: async () => {
     if (++checks === 2) { entered.resolve(); await release.promise; }
   } });
   try {
@@ -288,7 +621,7 @@ test("pending cleanup rejects resume, steer and queued additions while cancel an
     const original = await f.adapter.inputs.send(run.ref, { text: "Earlier queued input", source: "host", mode: "after-run", key: "before-deletion" });
     await f.adapter.control(run.ref, { kind: "pause" });
     f.pending.add(owner.project_id);
-    await f.adapter.inputs.withdraw(run.ref, original.input_id);
+    assert.ok(f.adapter.inputs.withdraw); await f.adapter.inputs.withdraw(run.ref, original.input_id);
     const results = await Promise.allSettled([
       f.adapter.control(run.ref, { kind: "resume" }),
       f.adapter.inputs.send(run.ref, { text: "Late steer", source: "host", key: "late-steer" }),

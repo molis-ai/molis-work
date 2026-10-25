@@ -296,3 +296,5 @@ export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 
 export { pluginPagesFor } from "./plugin-page-authority.js";
 export { openProjectDeletionRecoveryInspection, type ProjectDeletionRecoveryInspection, type ProjectDeletionRecoverySource } from "./project-deletion-recovery-inspection.js";
+export { createColdMemoryProjectOwner, type ColdMemoryProjectOwnerInput, type ColdMemoryProjectPreparation } from "./memory/memory-cold-project-owner.js";
+export type { ColdProjectMemoryInspection, ColdProjectMemoryWriter, ColdProjectMemoryPurgeTarget } from "./memory/memory-cold-project-sdk.js";

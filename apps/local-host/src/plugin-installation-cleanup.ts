@@ -3,6 +3,7 @@ import { forgetDeclaredRulesIn } from "@molis-ai/molis-work-module-functions";
 import { forgetInstallationProjectBindings } from "./connector-plugin-requests.js";
 import { forgetInstallationOriginalFiles } from "./material-original-files.js";
 import { hostLog } from "./host-log.js";
+import { pluginHeldElsewhere } from "./plugin-holders.js";
 import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-sandbox-owner-files.js";
 
 /**
@@ -18,12 +19,13 @@ export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record:
 }
 
 /**
- * The default rules the plugin's scenes declared, and the scene bindings that name them, go with its data: the person chose to keep none
- * of it. A rule another project's binding still names stays until that binding goes; the plugin's next registration writes any that went.
- * A plugin that keeps its data leaves them (the provider is gone, so nothing calls them); a reinstall registers it again and finds them.
+ * The scene bindings that name the default rules the plugin's scenes declared go with this installation's data: the person chose to keep
+ * none of it. The rules go only with the last installation: while the plugin is still installed (or kept) in another project or the Home,
+ * they stay with whatever that installation put on them. A plugin that keeps its data leaves everything (the provider is gone, so nothing
+ * calls them); a reinstall registers it again and finds them.
  */
 function forgetInstallationRules(home: string, record: PluginInstanceRecord, projectId: string | null): void {
-  const forgotten = forgetDeclaredRulesIn(home, record.plugin_id, projectId);
+  const forgotten = forgetDeclaredRulesIn(home, record.plugin_id, projectId, pluginHeldElsewhere(home, record.plugin_id, projectId));
   if (forgotten && (forgotten.removed.length || forgotten.kept.length || forgotten.bindings)) hostLog.debug("functions", "declared_rules_forgotten", { plugin_id: record.plugin_id, project_id: projectId, ...forgotten });
 }
 

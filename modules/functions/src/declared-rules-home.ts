@@ -11,9 +11,9 @@ export function admitDeclaredRulesIn(homeDirectory: string, rules: readonly Decl
 }
 
 /**
- * A plugin is uninstalled without keeping its data, or reinstalled discarding it: the rules it declared and the bindings that name them go
- * (`forgetDeclaredRules`). Undefined when there is no library.
+ * A plugin is uninstalled without keeping its data, or reinstalled discarding it: the bindings that name the rules it declared go, and the
+ * rules with them unless `keepRules` (another installation still holds the plugin; `forgetDeclaredRules`). Undefined when there is no library.
  */
-export function forgetDeclaredRulesIn(homeDirectory: string, declarer: string, projectId: string | null): ForgottenDeclaredRules | undefined {
-  return clearInExistingHomeSqlite(homeDirectory, "functions", FUNCTIONS_STORE_BASELINE, (db) => forgetDeclaredRules(db, declarer, projectId));
+export function forgetDeclaredRulesIn(homeDirectory: string, declarer: string, projectId: string | null, keepRules = false): ForgottenDeclaredRules | undefined {
+  return clearInExistingHomeSqlite(homeDirectory, "functions", FUNCTIONS_STORE_BASELINE, (db) => forgetDeclaredRules(db, declarer, projectId, keepRules));
 }

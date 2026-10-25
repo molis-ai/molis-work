@@ -98,7 +98,7 @@ export function seedDeclaredRules(db: DatabaseSync, rules: readonly DeclaredScen
   }
 }
 
-/** What leaving a declarer behind removed: the rules it declared, those kept because another project's binding still uses them, and the bindings removed. */
+/** What leaving a declarer behind removed: the rules it declared, those kept because another installation or project's binding still uses them, and the bindings removed. */
 export interface ForgottenDeclaredRules {
   readonly removed: readonly string[];
   readonly kept: readonly string[];
@@ -106,12 +106,13 @@ export interface ForgottenDeclaredRules {
 }
 
 /**
- * A declarer's data is gone: the rules it declared leave the library, with the bindings that name them. Bindings are per project, so a
- * project's uninstall (`projectId`) removes that project's bindings, and a rule another project's binding still names stays until that
- * binding goes. The Home-level uninstall (`projectId` null) removes every binding. Rules nobody declared are never touched, nor are
- * the judgments already made (they are history, and go with their project).
+ * A declarer's data is gone from one place: the bindings that name its rules go, and so do the rules unless something else still needs
+ * them. Bindings are per project, so a project's uninstall (`projectId`) removes that project's bindings, and the Home-level uninstall
+ * (`projectId` null) removes every binding. A rule stays when `keepRules` says another installation of the declarer still holds it (the
+ * Host's question, answered from the install records), and when another project's binding still names it. Rules nobody declared are never
+ * touched, nor are the judgments already made (they are history, and go with their project).
  */
-export function forgetDeclaredRules(db: DatabaseSync, declarer: string, projectId: string | null): ForgottenDeclaredRules {
+export function forgetDeclaredRules(db: DatabaseSync, declarer: string, projectId: string | null, keepRules = false): ForgottenDeclaredRules {
   const keys = new Set((db.prepare("SELECT id, function_key FROM functions WHERE substr(id, 1, ?) = ?").all(DECLARED_ID_PREFIX.length, DECLARED_ID_PREFIX) as Array<{ id: string; function_key: string }>)
     .filter(row => declarerOf(row.id, row.function_key) === declarer).map(row => row.function_key));
   if (!keys.size) return { removed: [], kept: [], bindings: 0 };
@@ -120,8 +121,8 @@ export function forgetDeclaredRules(db: DatabaseSync, declarer: string, projectI
   const mine = bindings.filter(row => projectId === null || row.project_id === projectId);
   for (const row of mine) db.prepare("DELETE FROM function_scene_bindings WHERE scene_id = ? AND project_id = ?").run(row.scene_id, row.project_id);
   const stillUsed = new Set(bindings.filter(row => !mine.includes(row)).map(row => row.key));
-  const kept = [...keys].filter(key => stillUsed.has(key));
-  const removed = [...keys].filter(key => !stillUsed.has(key));
+  const kept = [...keys].filter(key => keepRules || stillUsed.has(key));
+  const removed = [...keys].filter(key => !kept.includes(key));
   for (const key of removed) db.prepare("DELETE FROM functions WHERE function_key = ?").run(key);
   return { removed, kept, bindings: mine.length };
 }

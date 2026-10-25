@@ -1,5 +1,6 @@
 import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
@@ -106,4 +107,28 @@ export function artifactTypeDeclarations(sources: readonly ArtifactProducerSourc
 /** Every 成果 type the producers declare, as consumers name types (id and schema version). */
 export function declaredArtifactTypes(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): Array<{ artifact_type_id: string; schema_version: number }> {
   return sources.flatMap(source => source.artifacts.produces).map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version }));
+}
+
+/**
+ * The kinds of ledger edge Plugins declare from their objects to a 成果 version (`artifacts.links`), by kind; the 成果库 reads links
+ * with this and names no kind itself. A kind has one owner: where two producers declare it, the first stays and `linkKindProblems`
+ * names the other.
+ */
+export function artifactLinkKinds(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ArtifactLinkKinds {
+  const kinds = new Map<string, { module: string; role: "input" | "output"; proposal: boolean }>();
+  for (const source of sources) for (const link of source.artifacts.links ?? []) {
+    if (!kinds.has(link.kind)) kinds.set(link.kind, { module: source.surface, role: link.role, proposal: link.proposal === true });
+  }
+  return kinds;
+}
+
+/** What stops the producers' link kinds from being one table: a kind declared by more than one Plugin (S-70.3). */
+export function linkKindProblems(sources: readonly ArtifactProducerSource[]): string[] {
+  const owners = new Map<string, string>(), problems: string[] = [];
+  for (const source of sources) for (const link of source.artifacts.links ?? []) {
+    const owner = owners.get(link.kind);
+    if (owner === undefined) owners.set(link.kind, source.plugin_id);
+    else if (owner !== source.plugin_id) problems.push(`链接种类 ${link.kind} 已由 ${owner} 声明，${source.plugin_id} 不能再声明`);
+  }
+  return problems;
 }

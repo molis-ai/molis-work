@@ -71,7 +71,12 @@ export const goalsManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS],
-  artifacts: { produces: [], consumes: [] },
+  // The four kinds of edge Goals writes from a Goal to an exact version in the 成果库 (its inputs and deliverables, and the proposals
+  // of either that a person confirms). `deliverable-actions.ts` writes them; the 成果库 reads them from here, by kind.
+  artifacts: { produces: [], consumes: [], links: [
+    { kind: "goal.input", role: "input" }, { kind: "goal.input.proposal", role: "input", proposal: true },
+    { kind: "goal.output", role: "output" }, { kind: "goal.output.proposal", role: "output", proposal: true },
+  ] },
   databases: { project: GOALS_PROJECT_DATABASE },
   routes: GOALS_ROUTES,
   ui: {

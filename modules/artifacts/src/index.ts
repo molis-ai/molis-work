@@ -156,3 +156,4 @@ export type { ArtifactDocumentImportPorts, ArtifactOriginalFile, ImportedArtifac
 export { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, ARTIFACTS_HOME_STORE, artifactOriginalPath, openArtifactOriginal, storeArtifactOriginal } from "./artifact-original-store.js";
 export type { StoredArtifactOriginal } from "./artifact-original-store.js";
 export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./artifact-goal-context.js";
+export { linkKindOf, type ArtifactLinkKind, type ArtifactLinkKinds } from "./artifact-link-kinds.js";

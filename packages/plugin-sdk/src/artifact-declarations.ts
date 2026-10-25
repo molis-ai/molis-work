@@ -25,10 +25,30 @@ const ROLES: Readonly<Record<Role, { label: string; operation: "query" | "comman
  */
 export function artifactDeclarationProblems(manifest: Pick<PluginManifest, "schema_version" | "artifacts" | "actions">): string[] {
   const produced = records(manifest.artifacts?.produces), consumed = records(manifest.artifacts?.consumes);
-  if (manifest.schema_version === 1) return versionOneProblems(produced, consumed);
+  if (manifest.schema_version === 1) return [...versionOneProblems(produced, consumed), ...(manifest.artifacts?.links === undefined ? [] : ["成果链接种类（artifacts.links）需要 schema_version 2"])];
   const actions = declaredActions(manifest.actions);
   return [...produced.flatMap(type => producedTypeProblems(type, actions)), ...consumed.flatMap(type => [...roleProblems(type, "continue", actions), ...fileProblems(type)]),
+    ...linkProblems(manifest.artifacts?.links),
     ...produced.filter(type => type.file !== undefined).map(type => `成果类型 ${keyOf(type)} 是产出的类型，file 只能写在读取的类型（artifacts.consumes）上`)];
+}
+
+/** `links` names the kinds of ledger edge a plugin writes to a 成果 version: each kind once, with a role. */
+function linkProblems(links: unknown): string[] {
+  if (links === undefined) return [];
+  if (!Array.isArray(links)) return ["artifacts.links 必须是数组"];
+  const problems: string[] = [], seen = new Set<string>();
+  for (const value of links) {
+    const link = value as Part | null;
+    if (typeof link !== "object" || link === null || Array.isArray(link)) { problems.push("artifacts.links 的每一项必须是对象"); continue; }
+    const kind = link.kind;
+    if (typeof kind !== "string" || !/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/u.test(kind)) problems.push(`链接种类 ${String(kind)} 必须是小写字母开头、用点分段的名字（如 "goal.input"）`);
+    else if (seen.has(kind)) problems.push(`链接种类 ${kind} 声明了不止一次`);
+    else seen.add(kind);
+    if (link.role !== "input" && link.role !== "output") problems.push(`链接种类 ${String(kind)} 的 role 必须是 "input" 或 "output"`);
+    if (link.proposal !== undefined && typeof link.proposal !== "boolean") problems.push(`链接种类 ${String(kind)} 的 proposal 必须是布尔值`);
+    for (const name of Object.keys(link)) if (name !== "kind" && name !== "role" && name !== "proposal") problems.push(`链接种类 ${String(kind)} 没有 ${name} 这一项`);
+  }
+  return problems;
 }
 
 /** `file` names the extensions a plugin reads from an imported file; a type that is not continued from has nothing to filter. */

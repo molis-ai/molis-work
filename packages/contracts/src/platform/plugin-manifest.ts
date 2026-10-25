@@ -89,6 +89,17 @@ export interface ArtifactFileDeclaration {
   stored_text?: boolean;
 }
 
+/**
+ * One kind of link from a Plugin's objects to a 成果 version in the context ledger (「被谁引用」, 「目标的输入与交付物」). `role` is what the
+ * object does with the version: takes it as an input, or hands it in as an output; `proposal` marks the edge written for a person to
+ * confirm before the plain kind is.
+ */
+export interface ArtifactLinkDeclaration {
+  kind: string;
+  role: "input" | "output";
+  proposal?: boolean;
+}
+
 export interface PluginManifest {
   /** 1 is the original shape. 2 adds ports, events, views, commands, routes and agent. */
   schema_version: 1 | 2;
@@ -133,6 +144,8 @@ export interface PluginManifest {
   artifacts: {
     produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
     consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number }; file?: ArtifactFileDeclaration }>;
+    /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
+    links?: ArtifactLinkDeclaration[];
   };
   /** Exchange data this Plugin records for others and reads from them; kept out of the 成果库. A type is either a 成果 type or a process item type. */
   process_items?: {

@@ -908,6 +908,12 @@ export interface ArtifactLineHead {
     source_revision: number | null;
 }
 
+export interface ArtifactLinkDeclaration {
+    kind: string;
+    role: "input" | "output";
+    proposal?: boolean;
+}
+
 export interface ArtifactPinInput {
     subject_id: string;
 }
@@ -3258,6 +3264,7 @@ export interface PluginManifest {
             };
             file?: ArtifactFileDeclaration;
         }>;
+        links?: ArtifactLinkDeclaration[];
     };
     process_items?: {
         produces: Array<{

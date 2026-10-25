@@ -9,6 +9,7 @@ import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js
 import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
+import { pluginSettingsStyleLinks } from "./plugin-workbench.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
 import { renderAssistantSettings } from "./settings-assistant.js";
@@ -205,7 +206,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
             : "");
   return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}</head>
 <body class="settings-page project-preferences-page global-preferences-page${capabilities ? " capabilities-page" : ""}" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
   <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? L("能力") : projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L(capabilities ? "关闭能力服务" : "关闭全局设置")}">${icon("x")}</a></header>

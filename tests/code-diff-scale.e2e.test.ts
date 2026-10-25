@@ -25,7 +25,7 @@ const AFTER = lines.map((line, index) => index % 10 === 3 ? line.replace("comput
 // What the reader shows once coloured: each row's sign, then its pieces, the rows of the file coloured in order; a line past
 // 40,000 characters as its text.
 const WHOLE = `(list) => { const codes = [...list.querySelectorAll(':scope > li > code')].filter((code) => code.dataset.kind !== 'blank');
-  const rows = codes.map((code) => { const sign = code.querySelector('.diff-sign'); return { code, sign, kind: code.dataset.kind || code.parentElement.dataset.kind || '',
+  const rows = codes.map((code) => { const sign = code.querySelector('.mw-diff-sign'); return { code, sign, kind: code.dataset.kind || code.parentElement.dataset.kind || '',
     text: [...code.childNodes].filter((node) => node !== sign).map((node) => node.textContent).join('') }; });
   return diffRowTokens(rows, 'ts', tokensOf).map((pieces, index) => { const holder = document.createElement('code'); if (rows[index].sign) holder.append(rows[index].sign.cloneNode(true));
     if (rows[index].text.length > 40000) holder.append(rows[index].text); else for (const [kind, value] of pieces) { if (!kind) holder.append(value); else { const span = document.createElement('span'); span.className = 'tok-' + kind; span.textContent = value; holder.append(span); } }
@@ -48,11 +48,11 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
   await evaluate(`fakes.push({method:'GET',path:'layout=',body:${JSON.stringify(body)}})`);
   await evaluate("localStorage.setItem('molis-coding-diff-layout', 'unified')");
   const initialFontListeners = await evaluate<number>("diffFontListeners.size");
-  const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, list = `${reader}.querySelector('.diff-rows')`;
+  const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, list = `${reader}.querySelector('.mw-diff-rows')`;
   // DFP-01, DFP-02: build the independent whole-colouring reference before sampling: constructing it is test work, not a reader frame.
   await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.diffRowTokens = ${diffRowTokens.toString()};`);
   const expected = await evaluate<number>(`(() => { const copy = document.createElement('div'); copy.innerHTML = ${JSON.stringify(body.html)};
-    window.want = (${WHOLE})(copy.querySelector('.diff-rows')); return want.length; })()`);
+    window.want = (${WHOLE})(copy.querySelector('.mw-diff-rows')); return want.length; })()`);
   // Each frame, before the page's own work: how much of the long line reads, and how much of the change is coloured.
   await evaluate(`window.samples = []; let longCode; const tick = () => { const list = ${list};
     if (list) { const long = longCode ||= [...list.querySelectorAll(':scope > li > code')].find((code) => code.textContent.length > 100000);
@@ -117,18 +117,18 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     const full = await evaluate(`(() => { const rows = ${list}; delete rows.dataset.diffSized; const full = ${geometry}; rows.dataset.diffSized = ''; return full; })()`);
     assert.deepEqual(actual, full, `${width}px: remembered rows have the same scroll range as full layout`);
   }
-  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.diff .diff-rows { font-family: Courier New, monospace !important; font-size:14px !important; line-height:24px !important; }'; document.head.append(font); }`);
+  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.diff .mw-diff-rows { font-family: Courier New, monospace !important; font-size:14px !important; line-height:24px !important; }'; document.head.append(font); }`);
   await settle();
   const withFont = await evaluate(geometry);
   const fullFont = await evaluate(`(() => { const rows = ${list}; delete rows.dataset.diffSized; const full = ${geometry}; rows.dataset.diffSized = ''; return full; })()`);
   assert.deepEqual(withFont, fullFont, "a different font and line height have the same scroll range as full layout");
   await evaluate("document.querySelector('#diff-test-font').remove()");
   await settle();
-  const metrics = `(() => { const row = ${list}.querySelector('li[data-diff-measure]'); return [row.getBoundingClientRect().height, row.querySelector('.diff-before').getBoundingClientRect().width]; })()`;
+  const metrics = `(() => { const row = ${list}.querySelector('li[data-diff-measure]'); return [row.getBoundingClientRect().height, row.querySelector('.mw-diff-before').getBoundingClientRect().width]; })()`;
   const beforeCodeFont = await evaluate(metrics);
   // An already available font can change code widths without changing the row height or the line-number font.
   assert.equal(await evaluate("document.fonts.check('12px Arial')"), true);
-  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.diff .diff-rows code { font-family:Arial !important; }'; document.head.append(font); }`);
+  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.diff .mw-diff-rows code { font-family:Arial !important; }'; document.head.append(font); }`);
   await settle();
   assert.deepEqual(await evaluate(metrics), beforeCodeFont, "the code-only font change leaves row height and number width unchanged");
   const withCodeFont = await evaluate(geometry);

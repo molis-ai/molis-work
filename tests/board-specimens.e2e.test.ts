@@ -62,9 +62,9 @@ test("VUX-39 the board switches its own language, and its plugin rows are Shelf'
 
   // Diff: a round's three files with their counts; the long path stays inside its row; the first file's rows follow.
   const diff = await inFrame<{ files: Array<[string, string, string]>; inside: boolean; rows: number; phase: string }>(`const s = d.querySelector('[data-board-specimen=diff-files]');
-    const items = [...s.querySelectorAll('.diff-files li')], body = s.querySelector('.mw-cond-plugin__body').getBoundingClientRect();
-    return { files: items.map((li) => [li.dataset.kind, li.querySelector('button').textContent, li.querySelector('.diff-counts').textContent]),
-      inside: items.every((li) => li.getBoundingClientRect().right <= body.right + 0.5), rows: s.querySelectorAll('.diff-rows li').length, phase: s.querySelector('.diff').dataset.phase };`);
+    const items = [...s.querySelectorAll('.mw-diff-files li')], body = s.querySelector('.mw-cond-plugin__body').getBoundingClientRect();
+    return { files: items.map((li) => [li.dataset.kind, li.querySelector('button').textContent, li.querySelector('.mw-diff-counts').textContent]),
+      inside: items.every((li) => li.getBoundingClientRect().right <= body.right + 0.5), rows: s.querySelectorAll('.mw-diff-rows li').length, phase: s.querySelector('.mw-diff').dataset.phase };`);
   assert.deepEqual(diff.files.map(([kind, , counts]) => [kind, counts]), [["modified", "+3 −1"], ["added", "+128 −0"], ["deleted", "+0 −1042"]]);
   assert.match(diff.files[0]![1], /^1\. packages\/authentication\/.+\.ts$/);
   assert.deepEqual([diff.inside, diff.phase], [true, "ready"]);

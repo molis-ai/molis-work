@@ -117,8 +117,8 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   await click("[data-companion=git] [data-git-refresh]");
   await waitFor("document.querySelector('[data-companion=git] [data-git-commit]').textContent === 'Commit 3 staged files…'", 20_000);
   await click(`[data-companion=git] [data-git-path='${JSON.stringify([["kept.md"], "index"])}']`);
-  await waitFor("document.querySelector('[data-companion=git] [data-git-diff] .diff-notices')", 20_000);
-  assert.ok((await evaluate<string>("document.querySelector('[data-companion=git] [data-git-diff] .diff-notices').textContent")).includes("Renamed: keep.md → kept.md"), "VUX-40: the rename is said in English");
+  await waitFor("document.querySelector('[data-companion=git] [data-git-diff] .mw-diff-notices')", 20_000);
+  assert.ok((await evaluate<string>("document.querySelector('[data-companion=git] [data-git-diff] .mw-diff-notices').textContent")).includes("Renamed: keep.md → kept.md"), "VUX-40: the rename is said in English");
   assert.deepEqual(await evaluate<string[]>(HAN_IN("[data-companion=git]")), [], "Git in English, with a rename open");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=files` }, sessionId));

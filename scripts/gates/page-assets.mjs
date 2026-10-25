@@ -257,12 +257,18 @@ const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === byte
 // does not grow. Each is frozen once at the measured bytes.
 const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugin-frame.js": 187120,
+  // PG-070 slice 2 (2026-10-25): Shelf no longer keeps its sheet in the settings/workbench sheets, the plugin builder's own
+  // rules leave the shared sheet too; both are linked on demand, so both freeze once at the measured bytes.
+  "/assets/molis-work-plugins/plugin-builder.css": 19893,
+  "/assets/molis-work-plugins/shelf.css": 36541,
   "/assets/molis-work-plugins/diff.js": 1483,
   "/assets/molis-work-plugins/files.js": 11227,
   "/assets/molis-work-plugins/git.js": 29496,
   "/assets/molis-work-plugins/text-stats.js": 1281,
   "/assets/molis-work-plugins/alchemist.css": 151,
-  "/assets/molis-work-plugins/coding.css": 74576,
+  // PG-070 slice 2 renamed the shared diff view's classes to `mw-diff-*`; Coding's own rules that name them grew by
+  // 24 bytes (and its bundle by 45), so the first freeze is what this branch measures, not the pre-slice-2 number.
+  "/assets/molis-work-plugins/coding.css": 74600,
   "/assets/molis-work-plugins/cognia.css": 8283,
   "/assets/molis-work-plugins/dataset.css": 6916,
   "/assets/molis-work-plugins/files.css": 3199,

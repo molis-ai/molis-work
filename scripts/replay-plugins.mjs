@@ -80,7 +80,8 @@ async function replay(sample) {
       if (!offered) {
         const platform = await host.withProject(ref, runtime => runningProjectPlatform(runtime.store, project.project_id));
         const record = platform?.runtime.list().find(item => item.plugin_id === definition.manifest.plugin_id);
-        throw new Error(`${sample.action.capability_id}@${sample.action.version} is not in the project's action directory (installation ${record ? `${record.state}${record.last_error_code ? `, ${record.last_error_code}` : ""}` : "missing"})`);
+        const state = platform?.supervisor.state(definition.manifest.plugin_id);
+        throw new Error(`${sample.action.capability_id}@${sample.action.version} is not in the project's action directory (installation ${record ? `${record.state}${record.last_error_code ? `, ${record.last_error_code}` : ""}` : "missing"}; supervisor ${state ? `${state.status}${state.code ? `, ${state.code}` : ""}${state.message ? `: ${state.message}` : ""}` : "has no state"})`);
       }
       const result = await client.invoke(owner, sample.action, sample.action.input);
       if (sample.action.expect !== undefined && JSON.stringify(result) !== JSON.stringify(sample.action.expect)) {

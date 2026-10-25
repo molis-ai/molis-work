@@ -4,7 +4,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 ## 身份
 
-- `schema_version`：产品插件用 `2`（ports、events、views、commands、routes、agent、actions）。CLI 样例脚手架仍可能生成 `1`。
+- `schema_version`：产品插件用 `2`（ports、events、views、routes、agent、actions）。CLI 样例脚手架仍可能生成 `1`。
 - `host_api_version`：与 schema 对齐，产品用 `2`。
 - `plugin_id`：反向域名，如 `io.molis.work.feed`。
 - `*_PROJECT_PLUGIN_ID`：项目库短名（`feed`）。和全球 id 不是同一个字段。
@@ -59,7 +59,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 - `ui.contributions`：contribution id 列表。
 - `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（Host 图标名）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象，插件收 `molis-work:select-item`。当前搜索、放置卡和侧栏文件的对象标签名单由构建期插件目录派生；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），声明字段本身仍适用。不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
 - **槽（合同五选一）**：`navigator` 一级入口（底栏插件切换与 Dock）、`stage` 工作区工具面、`settings` 全局设置目录、`island` 底栏右侧的个人常驻入口（项目圆钮旁）、`side` 侧栏里的一个标签（见 [ui.md](ui.md#侧栏标签side)）。不要发明第六个。
-- `ui.commands`：命令菜单。`input_kinds`：`current` / `object` / `artifacts` / `agent-session`。必须写清作用对象。
+- 没有 `ui.commands`：界面命令没有一处调用，已取消（BL-363），Manifest 写了会被拒。
 - 贡献 descriptor 的 HTML Slot：`workbench.directory` / `workbench.main` / `workbench.overlay` / `workbench.settings` / `workbench.side`。`settings-page` 只能挂 settings。
 - `kind`：`primary-page` | `embedded` | `overlay` | `settings-page`。
 
@@ -140,17 +140,6 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 **总线只在 Plugin Runtime（`createPluginPlatform`）启动的插件里跑**：监督器里的 Coding 族、Shelf，以及已安装插件。Feed / Inbox / Pages 这类构建期 Native 没有；给它们抄 Coding 的 `events:` 块，运行时不会投递。
 
 对照：Files 订阅 Coding/Git 的文件变更；Coding 发布 file-changed / workspace-invalidated。
-
-## 命令菜单
-
-`ui.commands[]`：`command_id`、`title`、`input_kinds`（`current` / `object` / `artifacts` / `agent-session`）、`opens_view_id`。`opens_view_id` 必填，且必须是本 Manifest 已声明的 `view_id`。必须写清作用对象，不要默认「当前这一行」。
-
-`app` 的 `start()` 还要兑现：
-
-- `commandAvailability(commandId)` → `{ available, reason? }`
-- `executeCommand(commandId, input)` → 打开的视图
-
-只写 Manifest、不写这两个函数，菜单点不动。今天只有 Coding、Files、Git、Diff 声明了命令，对照它们。
 
 ## agent 块
 

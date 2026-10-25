@@ -76,7 +76,7 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
     const report = await platform.start([
       { definition: createFilesPlugin({ readable: () => true }) },
       { definition: createDiffPlugin() },
-      { definition: createGitPlugin({ ready: () => true }) },
+      { definition: createGitPlugin() },
       { definition: createTextStatsPlugin() },
       { definition: createCodingPlugin() },
     ]);
@@ -259,13 +259,6 @@ test("每个插件声明的视图都有对应的 contribution", () => {
         declared.has(view.contribution_id ?? `${manifest.plugin_id}.${view.view_id}`),
         true,
         `${manifest.plugin_id} 的视图 ${view.view_id} 没有对应的 contribution`,
-      );
-    }
-    for (const command of manifest.ui.commands ?? []) {
-      assert.equal(
-        (manifest.ui.views ?? []).some((view) => view.view_id === command.opens_view_id),
-        true,
-        `${manifest.plugin_id} 的命令 ${command.command_id} 指向不存在的视图`,
       );
     }
   }

@@ -1,4 +1,4 @@
-import type { UiCommandDeclaration, UiViewDeclaration } from "./ui.js";
+import type { UiViewDeclaration } from "./ui.js";
 import type { PluginEventsDeclaration } from "./plugin-events.js";
 import type { PluginPortsDeclaration } from "./plugin-wiring.js";
 import type { AgentManifest } from "./plugin-agent.js";
@@ -134,8 +134,6 @@ export interface PluginManifest {
     embedded_plugins?: string[];
     /** v2: where each contribution is placed. Absent means the Host places nothing. */
     views?: UiViewDeclaration[];
-    /** v2: commands offered to the command menu and content actions. */
-    commands?: UiCommandDeclaration[];
   };
   /** v2: named, typed connection points wired by the user inside a project. */
   ports?: PluginPortsDeclaration;

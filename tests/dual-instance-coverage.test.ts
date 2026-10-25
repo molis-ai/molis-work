@@ -14,7 +14,7 @@ import { dualPlugin } from "./fixtures/dual-plugin.js";
 // DUAL-03 and DUAL-14 (specs/dual-instance-plugins/spec.md), with the route half of DUAL-09: the two halves of a dual-instance plugin
 // together offer its one Manifest exactly once. The Runtime checks only that what a half offers is declared (P1: "declared and not
 // offered" is relaxed for a marked half), so this test is where "nothing left out, nothing offered twice" holds: every action and
-// consumption scene, route, view, the command handler and the input and event handlers come from exactly one half. Each half starts
+// consumption scene, route, view and the input and event handlers come from exactly one half. Each half starts
 // the way its supervisor starts it, in its own Runtime with the redemption the Host gives it, the two sharing one action service.
 
 /**
@@ -47,7 +47,6 @@ function declared(manifest: PluginManifest) {
     "消费场景": (manifest.action_scenes ?? []).map(scene => `${scene.scene_id}@${scene.version}`),
     "路由": (manifest.routes ?? []).map(route => route.route_id),
     "视图": (manifest.ui.views ?? []).map(view => viewContributionId(manifest, view.view_id)),
-    "命令处理器": manifest.ui.commands?.length ? ["executeCommand"] : [],
     "输入端口处理器": manifest.ports?.inputs?.length ? ["onUpstreamReady"] : [],
     "事件处理器": manifest.events?.subscribes?.length ? ["onEvent"] : [],
   };
@@ -58,7 +57,6 @@ function offered(contribution: PluginAppContribution): Record<keyof ReturnType<t
     "消费场景": (contribution.action_scenes ?? []).map(scene => `${scene.scene_id}@${scene.version}`),
     "路由": (contribution.routes ?? []).map(route => route.route_id),
     "视图": (contribution.views ?? []).map(view => view.descriptor.contribution_id),
-    "命令处理器": contribution.executeCommand ? ["executeCommand"] : [],
     "输入端口处理器": contribution.onUpstreamReady ? ["onUpstreamReady"] : [],
     "事件处理器": contribution.onEvent ? ["onEvent"] : [],
   };

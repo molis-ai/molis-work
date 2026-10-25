@@ -3,7 +3,7 @@ export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInterac
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
 import type { ContractDescriptor } from "./package.js";
-import type { UiCommandAvailability, UiContribution, UiOpenedObjectView } from "./ui.js";
+import type { UiContribution } from "./ui.js";
 import type { PluginEventRecord, PluginEventDeliveryContext, PluginEventType } from "./plugin-events.js";
 import type { PluginInputDeliveryContext, PluginUpstreamReadyInputs, PluginUpstreamUnavailableReason } from "./plugin-wiring.js";
 import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
@@ -27,8 +27,8 @@ import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-ser
 export type { PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginManifest } from "./plugin-manifest.js";
 export { SURFACE_BROWSER_PERMISSION, browserSiteDeclarations } from "./plugin-manifest.js";
 import type { PluginDeployment, PluginManifest } from "./plugin-manifest.js";
-export type { PluginCommandInput, PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
-import type { PluginCommandInput, PluginRouteBinding } from "./plugin-routes.js";
+export type { PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
+import type { PluginRouteBinding } from "./plugin-routes.js";
 
 export const platformPluginContract = {
   contractId: "io.molis.work.platform.plugin.v1",
@@ -92,11 +92,6 @@ export interface PluginAppContribution {
   views?: readonly UiContribution[];
   /** Handlers for the routes the Manifest declares. */
   routes?: readonly PluginRouteBinding[];
-  commandAvailability?(commandId: string): UiCommandAvailability;
-  executeCommand?(
-    commandId: string,
-    input: PluginCommandInput,
-  ): UiOpenedObjectView | Promise<UiOpenedObjectView>;
   /** Complete, fixed input set. The Host never delivers a partial change. */
   onUpstreamReady?(
     inputs: PluginUpstreamReadyInputs,

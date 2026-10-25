@@ -201,39 +201,6 @@ export interface UiSideContextMessage {
   readonly context: UiSideContext | null;
 }
 
-export const UI_COMMAND_INPUT_KINDS = ["current", "object", "agent-session", "artifacts"] as const;
-
-export type UiCommandInputKind = (typeof UI_COMMAND_INPUT_KINDS)[number];
-
-export interface UiCommandDeclaration {
-  readonly command_id: string;
-  readonly title: string;
-  readonly input_kinds: readonly UiCommandInputKind[];
-  readonly opens_view_id: string;
-}
-
-export type UiCommandAvailability =
-  | { readonly available: true }
-  | { readonly available: false; readonly reason: string };
-
-export interface UiViewObjectRef {
-  readonly view_id: string;
-  readonly object_id: string;
-}
-
-export interface UiOpenedObjectView {
-  readonly ref: UiViewObjectRef;
-  readonly title: string;
-}
-
-/** One command as the Host presents it, with the owning Plugin resolved. */
-export interface UiWorkspaceCommand {
-  readonly plugin_id: string;
-  readonly plugin_title: string;
-  readonly declaration: UiCommandDeclaration;
-  readonly availability: UiCommandAvailability;
-}
-
 export interface UiSlotDescriptor {
   readonly slot_id: string;
   readonly version: number;

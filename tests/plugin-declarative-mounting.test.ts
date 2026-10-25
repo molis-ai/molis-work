@@ -35,7 +35,6 @@ function manifestFor(input: {
   id: string;
   name: string;
   views: Array<{ view_id: string; slot: "navigator" | "stage" | "settings" | "island"; title: string; icon?: string; order?: number }>;
-  commands?: Array<{ command_id: string; title: string; input_kinds: Array<"current" | "object" | "agent-session" | "artifacts">; opens_view_id: string }>;
   routes?: Array<{ route_id: string; method: "GET" | "POST"; path: string; permission?: string }>;
   permissions?: string[];
 }): PluginManifest {
@@ -58,7 +57,6 @@ function manifestFor(input: {
     ui: {
       contributions: input.views.map((item) => `${input.id}.${item.view_id}`),
       views: input.views,
-      ...(input.commands ? { commands: input.commands } : {}),
     },
     ...(input.routes ? { routes: input.routes } : {}),
   };
@@ -80,17 +78,6 @@ function definitionFor(
               route_id: route.route_id,
               handle: () => handlers[route.route_id]?.() ?? { status: 200, body: { ok: route.route_id } },
             })),
-          }
-          : {}),
-        ...(manifest.ui.commands
-          ? {
-            commandAvailability: (commandId: string) => commandId === "blocked"
-              ? { available: false, reason: "还没有选择项目" }
-              : { available: true },
-            executeCommand: (commandId: string) => ({
-              ref: { view_id: "session", object_id: commandId },
-              title: commandId,
-            }),
           }
           : {}),
       };
@@ -117,10 +104,6 @@ const codingManifest = manifestFor({
     { view_id: "directory", slot: "navigator", title: "Coding", icon: "terminal", order: 20 },
     { view_id: "session", slot: "stage", title: "Coding" },
     { view_id: "prefs", slot: "settings", title: "Coding 设置" },
-  ],
-  commands: [
-    { command_id: "open-report", title: "打开报告", input_kinds: ["current", "artifacts"], opens_view_id: "session" },
-    { command_id: "blocked", title: "需要项目", input_kinds: ["current"], opens_view_id: "session" },
   ],
   routes: [
     { route_id: "coding.sessions", method: "GET", path: "/sessions" },
@@ -153,25 +136,6 @@ test("a disabled Plugin contributes nothing to the shell", () => {
   assert.deepEqual(registry.slot("navigator").map((entry) => entry.plugin_id), [GOALS]);
   assert.deepEqual(registry.slot("settings"), []);
   assert.equal(registry.view(CODING, "session"), null);
-});
-
-test("commands keep their unavailable reason instead of disappearing", () => {
-  const registry = new UiViewRegistry([{ manifest: codingManifest, enabled: true }]);
-  const commands = registry.commandsFor(
-    "current",
-    (_pluginId, commandId) => commandId === "blocked"
-      ? { available: false, reason: "还没有选择项目" }
-      : { available: true },
-  );
-  assert.deepEqual(commands.map((command) => [command.declaration.command_id, command.availability]), [
-    ["open-report", { available: true }],
-    ["blocked", { available: false, reason: "还没有选择项目" }],
-  ]);
-  assert.deepEqual(
-    registry.commandsFor("artifacts", () => ({ available: true }))
-      .map((command) => command.declaration.command_id),
-    ["open-report"],
-  );
 });
 
 test("declared routes are mounted under the Host prefix and undeclared paths fall through", async () => {
@@ -274,8 +238,6 @@ test("route parameters reach the handler as declared", async () => {
             return { status: 200, body: { params: request.params } };
           },
         })),
-        commandAvailability: () => ({ available: true }),
-        executeCommand: () => ({ ref: { view_id: "session", object_id: "x" }, title: "x" }),
       } satisfies PluginAppContribution;
     },
     async stop() {},

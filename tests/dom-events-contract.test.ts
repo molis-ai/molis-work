@@ -335,7 +335,7 @@ test("an owner is held to its shape: files, a sentence about its state, no other
 test("the prefixes are held to their shape: at least one, each a non-empty string", () => {
   const prefixes = /DOM_EVENT_PREFIXES = \[[^\]]*\]/;
   const wanted = /DOM_EVENT_PREFIXES has to list the name prefixes as non-empty strings/;
-  for (const list of ["[]", '["molis-work:", "molis:", "molis-shelf-", "workbench-", ""]', '["molis-work:", "molis:", "molis-shelf-", "workbench-", 3]', '["molis-work:", "molis:", "molis-shelf-", "workbench-", null]']) {
+  for (const list of ["[]", '["molis-work:", "molis:", "workbench-", ""]', '["molis-work:", "molis:", "workbench-", 3]', '["molis-work:", "molis:", "workbench-", null]']) {
     const problems = domEventProblems(withRegistry(prefixes, `DOM_EVENT_PREFIXES = ${list}`));
     assert.ok(problems.some((problem) => wanted.test(problem)), `${list}: ${problems.join("\n")}`);
   }
@@ -503,4 +503,16 @@ test("the gate's own command line checks and reports the working tree", () => {
   const tracked = spawnSync(process.execPath, [tool, "--root", scratch], { encoding: "utf8" });
   assert.equal(tracked.status, 1);
   assert.match(tracked.stderr, /dispatches "x:surprise"/);
+});
+
+test("RAC-426: the platform's prefix table names no plugin; a plugin's events follow molis-<owner>- and their registered owner", () => {
+  assert.ok(!DOM_EVENT_PREFIXES.some(prefix => Object.keys(PAGE_STATE_OWNERS).some(owner => prefix === `molis-${owner}-`)), "no owner has a prefix of its own in the table");
+  assert.deepEqual([...DOM_EVENT_PREFIXES], ["molis-work:", "molis:", "workbench-"]);
+  const shelf = DOM_EVENTS.filter(event => event.owner === "shelf");
+  assert.ok(shelf.length >= 4 && shelf.every(event => event.name.startsWith("molis-shelf-")), "Shelf's names are unchanged and satisfy the rule");
+  assert.deepEqual(domEventProblems(tree), []);
+  const wrongOwner = domEventProblems(withRegistry('name: "molis-shelf-notice", kind: "request", owner: "shelf"', 'name: "molis-shelf-notice", kind: "request", owner: "assistant"'));
+  assert.ok(wrongOwner.some(problem => /"molis-shelf-notice" starts with molis-shelf-, which is shelf's prefix, but it is owned by "assistant"/.test(problem)), wrongOwner.join("\n"));
+  const typo = problemsWith({ [NEW_FILE]: script("host.listen(window, 'molis-shelf-nocice', () => {});") });
+  assert.ok(typo.some(problem => /listens to "molis-shelf-nocice", which has a page event prefix but is not registered/.test(problem)), typo.join("\n"));
 });

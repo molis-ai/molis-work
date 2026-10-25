@@ -55,6 +55,12 @@ const KINDS = ["announcement", "request"];
 const TARGETS = ["window", "document", "element"];
 const EVENT_FIELDS = new Set(["name", "kind", "owner", "on", "bubbles", "cancelable", "detail", "summary"]);
 const OWNER_FIELDS = new Set(["files", "state"]);
+/** The owner a `molis-<owner>-` name belongs to by its prefix, when that owner is registered; null for any other name. */
+export function ownerPrefixOf(name, owners) {
+  for (const id of Object.keys(owners ?? {})) if (name.startsWith(`molis-${id}-`)) return id;
+  return null;
+}
+
 const NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)?$/;
 const FIRST_ARGUMENT_LIMIT = 400;
 
@@ -166,9 +172,9 @@ const argumentsAt = (pattern, text, open) => { pattern.lastIndex = open + 1; ret
  *   dispatches: { file, line, names | null, text, ctor, receiver }   `names` is null when the first argument is not readable
  *   listeners:  { file, line, name, receiver }                       only names with one of `prefixes`
  */
-export function domEventSites(snapshot, prefixes) {
+export function domEventSites(snapshot, prefixes, owners = {}) {
   const dispatches = [], listeners = [];
-  const pageName = (name) => prefixes.some((prefix) => name.startsWith(prefix));
+  const pageName = (name) => prefixes.some((prefix) => name.startsWith(prefix)) || ownerPrefixOf(name, owners) !== null;
   for (const file of snapshot.files.filter(isScanned)) {
     const text = snapshot.read(file);
     if (text === null || !/Event\b|Listener\b|\blisten\b/.test(text)) continue;
@@ -224,7 +230,9 @@ function registryProblems(registry, snapshot) {
     seen.add(name);
     if (previous && name < previous) problems.push(`${at} "${name}" is out of name order (after "${previous}")`);
     previous = name;
-    if (!prefixes.some((prefix) => name.startsWith(prefix))) problems.push(`${at} "${name}" starts with none of DOM_EVENT_PREFIXES (${prefixes.join(" ")})`);
+    const byPrefix = ownerPrefixOf(name, owners);
+    if (byPrefix !== null && byPrefix !== event.owner) problems.push(`${at} "${name}" starts with molis-${byPrefix}-, which is ${byPrefix}'s prefix, but it is owned by ${JSON.stringify(event.owner)}; name it molis-${event.owner}-… or register it under ${byPrefix}`);
+    else if (byPrefix === null && !prefixes.some((prefix) => name.startsWith(prefix))) problems.push(`${at} "${name}" starts with none of DOM_EVENT_PREFIXES (${prefixes.join(" ")}) or molis-<owner>- for its owner`);
     if (!KINDS.includes(event.kind)) problems.push(`${at} "${name}" has kind ${JSON.stringify(event.kind)}; it is one of ${KINDS.join(", ")}`);
     if (!TARGETS.includes(event.on)) problems.push(`${at} "${name}" has on ${JSON.stringify(event.on)}; it is one of ${TARGETS.join(", ")}`);
     if (!Object.hasOwn(owners, event.owner)) problems.push(`${at} "${name}" is owned by ${JSON.stringify(event.owner)}, which is not in PAGE_STATE_OWNERS`);
@@ -244,7 +252,7 @@ export function domEventProblems(snapshot) {
   const text = snapshot.read(DOM_EVENTS_CONTRACT);
   const registry = text === null ? null : readRegistry(text);
   if (registry?.error) return [`DOM events: ${DOM_EVENTS_CONTRACT} cannot be evaluated: ${registry.error}`];
-  const { dispatches, listeners } = domEventSites(snapshot, registry?.prefixes ?? []);
+  const { dispatches, listeners } = domEventSites(snapshot, registry?.prefixes ?? [], registry?.owners);
   if (!registry) {
     const some = dispatches[0];
     return some ? [`DOM events: ${some.file}:${some.line} creates a CustomEvent but ${DOM_EVENTS_CONTRACT} does not exist; the registry lists every page event (docs/platform/UI-PLATFORM.md)`] : [];
@@ -294,7 +302,7 @@ export function domEventReport(snapshot) {
   const text = snapshot.read(DOM_EVENTS_CONTRACT);
   const registry = text === null ? null : readRegistry(text);
   if (!registry || registry.error) return { error: registry?.error ?? `${DOM_EVENTS_CONTRACT} is missing`, events: [], findings: [] };
-  const { dispatches, listeners } = domEventSites(snapshot, registry.prefixes);
+  const { dispatches, listeners } = domEventSites(snapshot, registry.prefixes, registry.owners);
   const events = [], findings = [];
   for (const event of registry.events) {
     const sent = dispatches.filter((site) => site.names?.includes(event.name));

@@ -443,7 +443,7 @@ export declare const DOM_EVENTS: readonly [{
     readonly summary: "Open a group of the Feed directory.";
 }];
 
-export declare const DOM_EVENT_PREFIXES: readonly ["molis-work:", "molis:", "molis-shelf-", "workbench-"];
+export declare const DOM_EVENT_PREFIXES: readonly ["molis-work:", "molis:", "workbench-"];
 
 export interface DomEventDeclaration {
     readonly name: string;

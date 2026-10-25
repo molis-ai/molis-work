@@ -31,10 +31,12 @@ export const platformDomEventsContract = {
  */
 
 /**
- * The name prefixes in use. Four styles grew side by side; the rename to one is a separate change that edits this list
- * and every name below. A name must start with one of these, so a fifth style cannot appear unnoticed.
+ * The platform's own name prefixes: three styles grew side by side; the rename to one is a separate change that edits this
+ * list and every name below. A plugin's events need no entry here: a name that starts with `molis-<owner>-` is valid when the
+ * event's registered `owner` is exactly `<owner>` (`molis-shelf-notice` is owned by `shelf`), so every plugin gets the same
+ * treatment and the platform's table names none of them (ac-artifacts A4, PG-096). Any other name must start with one of these.
  */
-export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:", "molis-shelf-", "workbench-"] as const;
+export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:", "workbench-"] as const;
 
 /**
  * The module that holds a piece of page state. The rule: it is the only place that changes it, and the one other modules

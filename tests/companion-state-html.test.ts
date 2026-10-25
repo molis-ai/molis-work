@@ -53,7 +53,7 @@ async function withPlatform(run: (project: Platform) => Promise<void>) {
   const platform = createPluginPlatform({ actions, db: store.db, project_id: DEMO_PROJECT_ID, actor_id: ACTOR, artifacts, processItems: new ProcessItemsModule(options),
     ui: new UiHost(), home: null, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   try {
-    const report = await platform.start([{ definition: source }, { definition: createDiffPlugin(), bundled: true }, { definition: createTextStatsPlugin(), bundled: true }]);
+    const report = await platform.start([{ definition: source }, { definition: createDiffPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
     platform.wiring.selectInputGroup(DIFF_PLUGIN_ID, "snapshots");
     for (const [target, port] of [[DIFF_PLUGIN_ID, "after"], [TEXT_STATS_PLUGIN_ID, "text"]] as const) platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: ACTOR,
@@ -130,7 +130,7 @@ test("PG062-03: a model, a workflow or an MCP client reads the view alone, and b
 
 test("PG062-04: the Host no longer names Diff or Text Stats to decorate their route results or a page's action answers", () => {
   // coding-surface.ts is gone (PG-036 C9); what took over its stage and route work must not use these names either.
-  const surface = ["project-plugin-stages.ts", "project-plugin-input-refresh.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
+  const surface = ["project-plugin-stages.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
   for (const name of ["DIFF_PLUGIN_ID", "TEXT_STATS_PLUGIN_ID", "renderTextStats", "decorateRuntimeResult", "decorateCompanionState"]) {
     assert.equal(surface.includes(name), false, `the Host's stage and route code no longer uses ${name}`);
   }

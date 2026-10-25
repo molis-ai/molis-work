@@ -15,9 +15,10 @@ import {
   GIT_FILE_CHANGED_EVENT,
   workspaceReadActions,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { FILES_PLUGIN_ID } from "./plugin-id.js";
 import { FILES_UI_CONTRIBUTION_ID } from "./ui.js";
 
-export const FILES_PLUGIN_ID = "io.molis.work.files";
+export { FILES_PLUGIN_ID };
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
 const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */

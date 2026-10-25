@@ -59,6 +59,8 @@ export interface PluginInstanceRecord {
   grants: string[];
   /** Trusted host provenance, never read from a plugin Manifest. */
   execution: "host" | "sandbox";
+  /** Who vouched for this install (ac-trust): the Host's evidence at install time, never read from a plugin Manifest or a caller's input. */
+  publisher_trust: import("./plugin-trust.js").PluginTrustLevel;
   state: PluginLifecycleState;
   recovery_count: number;
   last_error_code: string | null;

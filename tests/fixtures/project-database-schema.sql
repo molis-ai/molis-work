@@ -1,4 +1,4 @@
--- The project database baseline, version 8 (repository-anti-corruption §4.1; PG-020): the schema a new project database gets, before
+-- The project database baseline, version 10 (repository-anti-corruption §4.1; PG-020): the schema a new project database gets, before
 -- the Host opens the plugins' own tables in it. Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
 CREATE TABLE attention_events (
       event_id TEXT PRIMARY KEY,
@@ -320,7 +320,8 @@ CREATE TABLE plugin_project_databases (
       tables_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
-CREATE TABLE plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL);
+CREATE TABLE plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL,
+      publisher_trust TEXT NOT NULL CHECK (publisher_trust IN ('host', 'pinned', 'unsigned')));
 CREATE TABLE plugin_runtime_release_artifacts (
       plugin_id TEXT NOT NULL,
       publisher_signature TEXT NOT NULL,

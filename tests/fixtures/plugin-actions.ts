@@ -3,6 +3,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { projectSettingsCapabilities, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 
 /** Standalone owner fixtures explicitly share one Kernel, just as the application Host does. */
@@ -84,13 +85,48 @@ export function fakeAgentHostActions(actions: ReturnType<typeof pluginActions>, 
 }
 const agentHosts = new WeakSet<object>();
 
+/** A test's own table of answers: one fake that stands in for the agent Host and the project settings a plugin reads. */
+export type FakeHostTable = { invoke(definition: ActionDefinition, input: never, options?: { signal?: AbortSignal }): Promise<unknown> };
+
 /**
- * A Coding test's host whose fake Agent Host (the test's own `capabilities` table) answers the agent Host's actions. The first host made for a project's actions is the one that answers; `served` are the test's own.
+ * A Coding test's host whose own table (`agentHost`) answers the agent Host's actions and the project's folder settings
+ * (`fakeProjectSettings`). The first host made for a project's actions is the one that answers; `served` are the test's own
+ * agent actions, `settings` the project settings reads its table answers. The returned host has the folder ports instead of the table.
  */
-export function withFakeAgentHost<H extends { actions: ReturnType<typeof pluginActions>; capabilities: { invoke(definition: ActionDefinition, input: never): Promise<unknown> } }>(host: H, served: readonly ActionDefinition[] = []): H {
-  fakeAgentHostActions(host.actions, (definition, input) => host.capabilities.invoke(definition, input as never), served);
-  return host;
+export function withFakeAgentHost<H extends { actions: ReturnType<typeof pluginActions>; agentHost: FakeHostTable }>(host: H, served: readonly ActionDefinition[] = [],
+  settings: readonly ActionDefinition[] = PROJECT_FOLDER_READS): Omit<H, "agentHost"> & ProjectFolderPorts {
+  const { agentHost, ...rest } = host;
+  fakeAgentHostActions(host.actions, (definition, input, options) => agentHost.invoke(definition, input as never, options), served);
+  return { ...rest, ...fakeProjectSettings(host.actions, definition => agentHost.invoke(definition, [] as never), settings) };
 }
+
+/** The project settings reads that say which folders a plugin may work in, and which one Files and Git browse. */
+export const PROJECT_FOLDER_READS: readonly ActionDefinition[] = [projectSettingsCapabilities.workspaces, projectSettingsCapabilities.browsingWorkspace];
+/** The folder reads and the Agent runtime the project picked, for a test whose table also answers which runtime Coding starts on. */
+export const PROJECT_SETTINGS_READS: readonly ActionDefinition[] = [...PROJECT_FOLDER_READS, projectSettingsCapabilities.runtime];
+export type ProjectFolderPorts = { dependencyCheck(reference: { capability_id: string }): { available: true } | { available: false; code: string; reason: string } };
+
+/**
+ * The project settings reads a plugin consumes, for a test without the project settings service (the real handlers are tested
+ * in tests/host-action-registration.test.ts): `answer` gives what an action returns to its caller; a folder it names comes back as a complete
+ * `ProjectWorkspaceRef` (its name defaults to its id), as the action's output contract requires. The first call for a project's
+ * actions is the one that answers. Returns the Host port that goes with it: a dependency check that reports only these reads as present.
+ */
+export function fakeProjectSettings(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, caller: ActionCallContext) => unknown, settings: readonly ActionDefinition[] = PROJECT_FOLDER_READS): ProjectFolderPorts {
+  const complete = (value: unknown): unknown => Array.isArray(value) ? value.map(folderRef) : value && typeof value === "object" && "workspace_id" in value ? folderRef(value as ProjectWorkspaceRef) : value;
+  if (!settingsServed.has(actions.registry)) {
+    settingsServed.add(actions.registry);
+    actions.registry.registerProvider({ provider: { provider_id: "project-settings-fixture", title: "项目设置", kind: "system" }, definitions: [...settings],
+      handlers: settings.map(definition => ({ ...definition, handle: async (caller: ActionCallContext) => complete(await answer(definition, caller)) })) });
+  }
+  const present = new Set(settings.map(definition => definition.capability_id));
+  return {
+    dependencyCheck: reference => present.has(reference.capability_id) ? { available: true } : { available: false, code: "fixture.missing", reason: "The fixture serves only the project settings reads" },
+  };
+}
+const settingsServed = new WeakSet<object>();
+const folderRef = (folder: Pick<ProjectWorkspaceRef, "workspace_id" | "canonical_path"> & Partial<ProjectWorkspaceRef>): ProjectWorkspaceRef =>
+  ({ realpath_verified: true, display_name: folder.workspace_id, ...folder });
 
 /*
  * A fake names only what its test reads; the rest of a session's or round's view takes neutral values here, so the answer

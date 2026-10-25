@@ -17,7 +17,7 @@ const LAZY_TABLES: Record<string, string[]> = { connectors: ["connector_authoriz
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 
 /**
- * The registered libraries with no schema fixture taken from a real Home: the Home Runtime's is checked against its own v2
+ * The registered libraries with no schema fixture taken from a real Home: the Home Runtime's is checked against its own v3
  * fixture below; Issues and the discussion store had no real-Home schema taken when the fixtures were; project knowledge's cards
  * (specs/project-knowledge K1), the original-file registrations plugins keep (plugin-originals, 2026-10-20) and the installations'
  * remembered Agent declarations (agent-declarations, PG-051 2026-10-23) are new, so no Home has them yet. A new library either
@@ -55,14 +55,14 @@ test("RAC-44: the cognia library is the one Cognia's Home Runtime declares, at v
   assert.ok(libraries.some(([name]) => name === "cognia") && !WITHOUT_REAL_HOME_FIXTURE.includes("cognia"));
 });
 
-test("W3-06-F-04 Home Runtime created by the public Host is the complete independent v2 baseline", async () => {
+test("W3-06-F-04 Home Runtime created by the public Host is the complete independent v3 baseline", async () => {
   const home = mkdtempSync(join(tmpdir(), "home-runtime-baseline-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   let db: DatabaseSync | undefined;
   try {
     await host.homePlugins!.ready();
     db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
-    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 2);
-    assert.deepEqual(describeSqliteSchema(db), shape(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime-v2.sql", import.meta.url), "utf8")));
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 3);
+    assert.deepEqual(describeSqliteSchema(db), shape(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime-v3.sql", import.meta.url), "utf8")));
   } finally { db?.close(); try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } }
 });
 

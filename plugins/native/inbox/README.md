@@ -20,6 +20,7 @@ Host 在项目运行时注册本插件声明的动作和 `inbox.next` 消费场�
 | [src/route-handlers.ts](src/route-handlers.ts) | HTTP 参数与动作客户端的薄适配 |
 | [src/actions.ts](src/actions.ts) | 能力合同、对象上下文、具体动作准备及业务端口 |
 | [src/scenes.ts](src/scenes.ts) | 判断场景、事件上下文准备和结果消费校验 |
+| [src/scene-runtime.ts](src/scene-runtime.ts) | 下一步场景的判断：哪些已发布规则可绑定、哪些建议仍成立、怎样记录；Host 只给判断账本与事项的端口（PG-034） |
 
 可对照现有调用方 [apps/workbench/src/inbox-projection-ui.ts](../../../apps/workbench/src/inbox-projection-ui.ts) 与 [apps/local-host/src/inbox-native-plugin-http.ts](../../../apps/local-host/src/inbox-native-plugin-http.ts)。
 
@@ -66,9 +67,10 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
   - 不直接读 Feed 或 Goals 表，不依赖 Feed、Goals、Functions 插件的实现。
   - 失败都是 `ActionError`：码是 `inbox.<原因>`（`inboxErrors`，声明在合同 `modules/attention-resumption`，因为 Feed 插件找不到 Inbox 事项时也用它）；状态只由 kind 推出，本插件没有错误类和状态表。
   - 建议不会自动完成或忽略事项；停用、撤权或原文变化撤回当前建议，历史保留。
+  - 场景判断（哪些建议仍成立、绑定哪条规则）在本包的 `createInboxSceneRuntime`；Host 的 `inbox-scene.ts` 只接判断账本与事项，不写判断（`tests/feed-inbox-scene-runtime.test.ts`）。
   - 工作流交接透传原调用者；等待期间撤权后不保存结果。
   - 文稿由 Pages 保存，生成不自动完成 Inbox 事项；相关对象不可读时保留记录与提示，不伪造正文。
-- 改动后必跑：`node scripts/run-tests.mjs tests/inbox-plugin.test.ts tests/inbox-action-scenes.test.ts tests/inbox-automatic-scenes.test.ts tests/inbox-prepared-pages.test.ts tests/inbox-native-plugin.test.ts tests/feed-inbox-schedule-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/inbox-plugin.test.ts tests/inbox-action-scenes.test.ts tests/inbox-automatic-scenes.test.ts tests/inbox-prepared-pages.test.ts tests/inbox-native-plugin.test.ts tests/feed-inbox-scene-runtime.test.ts tests/feed-inbox-schedule-error-model.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[specs/archive/feed-inbox-pages-loop/spec.md](../../../specs/archive/feed-inbox-pages-loop/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

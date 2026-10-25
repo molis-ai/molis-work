@@ -67,7 +67,7 @@ function projectRig(t: TestContext, probe: ReturnType<typeof stopProbe>) {
   const runtime = new PluginRuntime(undefined, executor, { actions: pluginActions(store, DEMO_PROJECT_ID) });
   const installs: string[] = [];
   const install = () => {
-    const installId = runtime.install({ definition: probe.definition, deployment: "local", grants: probe.definition.manifest.permissions.map(item => item.permission) }).install.install_id;
+    const installId = runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: probe.definition.manifest.permissions.map(item => item.permission) }).install.install_id;
     installs.push(installId);
     return installId;
   };

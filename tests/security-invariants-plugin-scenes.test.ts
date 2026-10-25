@@ -143,7 +143,7 @@ async function setup(t: TestContext) {
     try { await platform.closeCoordination(); for (const install of platform.runtime.list()) if (install.state === "running") await platform.runtime.stop(install.install_id); }
     finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
   });
-  assert.deepEqual((await platform.start([{ definition, bundled: true }])).running, [ID]);
+  assert.deepEqual((await platform.start([{ definition, trust: { level: "host" } }])).running, [ID]);
   services!.storage!.set("seed", "readable");
   const caller = (): ActionCallContext => ({ actor_id: "owner", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [PERMISSION] });
   const invoke = (kind: Mutation, context = caller()) => {

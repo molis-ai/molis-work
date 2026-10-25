@@ -11,6 +11,8 @@ import { SCHEDULE_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-schedule"
 
 const before = readFileSync(new URL("./fixtures/project-database-schema-v8.sql", import.meta.url), "utf8");
 const maintenance = readFileSync(new URL("./fixtures/project-maintenance-v9.sql", import.meta.url), "utf8");
+// This build is a version later (10, ac-trust): the library this maintenance makes is opened after the next one, which has its own rehearsal.
+const next = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8");
 function fixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "project-maintenance-v9-")), file = join(directory, "project.db");
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -46,6 +48,7 @@ test("SYS-15-S6: v8 is refused; offline maintenance preserves jobs/history, paus
   assert.deepEqual(after.job, { ...original.job, enabled: 0, lease_token: null, lease_until: null });
   assert.deepEqual(after.receipt, original.receipt);
   assert.deepEqual(after.task, original.task); assert.deepEqual(after.turn, original.turn);
+  apply(file, next);
   const store = new LocalProjectDatabase(file), clock = createScheduleService(store.db);
   try {
     assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM schedule_action_bindings").get()!.n, 0);

@@ -207,7 +207,7 @@ async function consumers() {
       artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], routes: [] },
     async start(context) { contexts.set(name, context); return { kind: "app", actions: [], routes: [] }; } });
   const start = async (name: string, consumes: string[], grants: string[]) => {
-    const installed = runtime.install({ definition: plugin(name, consumes), deployment: "local", grants }).install;
+    const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin(name, consumes), deployment: "local", grants }).install;
     await runtime.start(installed.install_id);
     return installed;
   };

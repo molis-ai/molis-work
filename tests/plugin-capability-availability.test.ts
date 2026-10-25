@@ -48,7 +48,7 @@ async function startPlugin(host: LocalHost<unknown>, project: ReturnType<typeof 
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
     ...(options.check === false ? {} : { dependencyCheck: dependency => raw.availability(dependency, { consumer: "plugin" }) }) });
   const runtime = new PluginRuntime(undefined, executor, { actions });
-  const { install } = runtime.install({ definition, deployment: "local", grants: [] });
+  const { install } = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] });
   await runtime.start(install.install_id);
   return { actions: contexts[0]!.services!.actions!, stop: () => runtime.stop(install.install_id),
     close: async () => { if (runtime.get(install.install_id).state === "running") await runtime.stop(install.install_id); store.close(); await rm(home, { recursive: true, force: true }); } };

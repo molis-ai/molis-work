@@ -11,6 +11,8 @@ import { publishedFunctionAction, publishedFunctionKey } from "@molis-ai/molis-w
 import { withFunctionsService } from "./functions-host.js";
 import type { InboxSceneServices } from "./inbox-scene.js";
 
+export const HOME_PROVIDER_ID = "system.home";
+
 type HomeSubject = ActionSubject;
 interface HomeSubjectContext extends HomeSubject { content: string; revision: string; reader: ActionReference }
 interface HomeSubjectState extends HomeSubjectContext { request_id: string; offers: HomeActionOffer[] }
@@ -172,7 +174,7 @@ export function homeActionProvider(home: string, projectId: string, services: In
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     ...definition, handle: (caller, input) => handle(input as I, caller),
   });
-  return { provider: { provider_id: "system.home", title: "首页", kind: "system", project_id: projectId },
+  return { provider: { provider_id: HOME_PROVIDER_ID, title: "首页", kind: "system", project_id: projectId },
     definitions: Object.values(homeActions), scenes: [homeDockScene], scene_handlers: [handler], handlers: [
       ...createHomeOfferHandlers(services.actions),
       ...createHomeEventHandlers(services.actions, homeActions.recommendations),
@@ -200,7 +202,7 @@ export function homeActionProvider(home: string, projectId: string, services: In
         const subjects = [...new Map(input.subjects.map(subject => [JSON.stringify([subject.kind, subject.id]), subject])).values()];
         for (const subject of subjects) { await assertSubjectFits(subject, caller); await resolve(subject, caller); }
         const judgments: JudgmentRecord[] = [];
-        const authority = retainActionAuthority(caller, { ...homeActions.evaluate, provider_id: "system.home" }, caller.beforeEffect);
+        const authority = retainActionAuthority(caller, { ...homeActions.evaluate, provider_id: HOME_PROVIDER_ID }, caller.beforeEffect);
         for (const subject of subjects) judgments.push(await services.scenes.runScene(authority, homeDockScene, homeDockBindingId(projectId), subject) as JudgmentRecord);
         return { judgments };
       }),

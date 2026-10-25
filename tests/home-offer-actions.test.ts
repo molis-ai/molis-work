@@ -35,7 +35,7 @@ test("unknown SDK plugin prepares real actions, Home revalidates exact input and
     } }] }; } });
   const repository = new MemoryPluginRuntimeRepository();
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: service, project_id: caller.project_id! } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["note:read", "note:write"] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["note:read", "note:write"] }).install;
   const input = { subject: { kind: "note", id: "note-1" }, request_id: "fixed-request" };
   const prepare = async (context = caller) => await service.invoke(context, homeOfferActions.offers, input) as HomeActionOffers;
   const request = (offer: HomeActionOffers["offers"][number]) => { const { availability, ...selected } = offer; return { ...input, offer: selected }; };

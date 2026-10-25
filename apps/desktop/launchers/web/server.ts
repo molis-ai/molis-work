@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { hostLog } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -43,9 +45,45 @@ if (isMain) {
     const server = createMolisWorkWebServer({
       ...(homeArgument ? { homeDirectory: path.resolve(homeArgument) } : {}),
     });
+    const connections = new Map<Socket, Promise<void>>();
+    server.on("connection", socket => {
+      const closed = new Promise<void>(resolve => {
+        socket.once("close", () => { connections.delete(socket); resolve(); });
+      });
+      connections.set(socket, closed);
+    });
+    let shutdownStarted = false;
     const shutdown = () => {
-      server.close(() => process.exit(0));
-      setTimeout(() => process.exit(0), 2000).unref();
+      if (shutdownStarted) return;
+      shutdownStarted = true;
+      const deadline = setTimeout(() => {
+        hostLog.error("web", "shutdown_timed_out", undefined, { deadline_ms: 2000, remaining_cleanup_skipped: true });
+        process.exit(1);
+      }, 2000);
+      let drain: NodeJS.Immediate | undefined;
+      const finish = (success: boolean, error?: unknown) => {
+        clearTimeout(deadline);
+        clearImmediate(drain);
+        if (!success) hostLog.error("web", "shutdown_failed", error);
+        process.exit(success ? 0 : 1);
+      };
+      try {
+        server.close((error) => {
+          if (error) { finish(false, error); return; }
+          // Node's listener-close callback may precede the sockets' cancellation/close hooks.
+          void Promise.all(connections.values()).then(() => finish(true), error => finish(false, error));
+        });
+        server.closeIdleConnections();
+        // Let the owners' early stream stops finish first. Active HTTP and upgraded sockets must not block close/Host cleanup.
+        drain = setImmediate(() => {
+          try {
+            server.closeAllConnections();
+            for (const socket of connections.keys()) socket.destroy();
+          } catch (error) { finish(false, error); }
+        });
+      } catch (error) {
+        finish(false, error);
+      }
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);

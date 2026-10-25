@@ -66,7 +66,7 @@ async function startPlugins(project: ReturnType<typeof openProject>) {
     { definition: source }, { definition: probe(PROBE, true), grants: ["artifact:read"] },
     { definition: probe(PROCESS_ONLY, false), grants: ["artifact:read"] },
     { definition: { ...diff, async start(context) { assert.ok(context.services?.inputs); clients.set(DIFF_PLUGIN_ID, context.services.inputs);
-      return await diff.start(context); } }, bundled: true },
+      return await diff.start(context); } }, trust: { level: "host" } },
   ]);
   assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
   return { clients, get outputs() { return outputs; } };

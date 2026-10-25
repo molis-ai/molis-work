@@ -84,7 +84,7 @@ test("W3-06-F-06 stopping revokes old storage/model/actions before its hook awai
   } finally { release.resolve(); }
   await stopping;
   await platform.runtime.uninstall(install.install_id, { retain_private_data: true });
-  const replacement = platform.runtime.install({ definition: probe.definition, deployment: "local", grants: ["storage:private"] }).install;
+  const replacement = platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: ["storage:private"] }).install;
   assert.equal(replacement.install_id, install.install_id);
   assert.notEqual(replacement.installation_generation, install.installation_generation);
   assert.deepEqual(replacement.grants, ["storage:private"]);

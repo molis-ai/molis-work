@@ -14,9 +14,9 @@ PG-036 / PG-037 / PG-091 / PG-099：`apps/local-host/src/coding-surface.ts` 是�
 - **伙伴放进别人的页面。** 合同 `UiNestedContentModel`（`contracts/platform/ui`）：父页的模型可带 `nested[slot_id]`。Coding 的描述符声明两个槽 `coding.companion-directory`、`coding.companion-result`（`declarative-html`）；Files、Git 各有两个 surface 指向它们。宿主的 `nestedContent` 按 Manifest `ui.embedded_plugins` 的次序，把运行中的嵌入插件指向该槽的 surface 用页面自己的模型画出来拼成 `nested`，不认识任何插件。嵌入的插件没在跑或它的 surface 出错，该槽为空（`hostLog.warn`），页面照常画。
 - **伙伴自己的舞台。** Files、Git 画 `renderCompanionBrowserStage`，Diff、Text Stats 画 `renderCompanionListStage`（`design-system/companion-stage`）：同一套外壳与钩子，词用各插件自己的稳定键（`files.stage.*` 等，中英都在插件的 `messages.ts`）。所以 Files、Git 的包多了对 design-system 的依赖，登记在 `scripts/workspace-packages.mjs` 与两份 README。
 - **不可用时。** 伙伴没有页面或读取失败，用 #1107 的“不可用”外壳带原因，不再是 `failedStage` 的宿主文案；也不再把伙伴的目录片段无条件塞进 Coding 页（以前不管 Files 在不在跑都注入）。
-- **`codingRouteHooks`。** 它做的是“读 Files 产物的插件先刷新一次 Files”，与 Coding 无关，改名为 `filesOutputsRefresh` 并搬到 `project-plugin-input-refresh.ts`（文件名不能以插件名起头，否则 Files 会进 HYBRID 清单）。BL-366 / BL-521（工作区设置的变化广播 `host.workspace.changed@1`，Files 自己重读）落地后这个钩子没有事做，整个文件与 20 个测试里的传参一并删；那一片请直接改这个文件。
+- **`codingRouteHooks`。** 它做的是“读 Files 产物的插件先刷新一次 Files”，与 Coding 无关，改名为 `filesOutputsRefresh` 并搬到 `project-plugin-input-refresh.ts`（文件名不能以插件名起头，否则 Files 会进 HYBRID 清单）。这个钩子已由 BL-521 第二片删掉（工作区设置的变化广播 `host.workspace.changed@1`，Files 自己重读），整个文件与 20 个测试里的传参一并删。
 - **门禁。** HYBRID 清单去掉 `coding`（只剩 `shelf`）；`W5-01-GIT-01` 收紧为只有监督器 import Git 包；`error-owners.json` 里 `coding` 的 `apps/local-host/src/coding-*` 已无文件，条目删除（Coding 包自己的主人名按目录自动给）。
-- **没做的。** Alchemist / 创作台的 PG-099 死代码；`codingRouteHooks` 的最终删除（等 BL-521）；PG-091 里与 Coding 无关的剩余项。
+- **没做的。** Alchemist / 创作台的 PG-099 死代码；`codingRouteHooks`（后来的 `filesOutputsRefresh`）的最终删除（BL-521 第二片已做）；PG-091 里与 Coding 无关的剩余项。
 
 ## 验收标准
 

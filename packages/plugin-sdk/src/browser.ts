@@ -1,5 +1,3 @@
-/// <reference lib="dom" />
-
 /**
  * Where a floating layer goes: beside, above or below what it belongs to, kept inside the screen or the stage the person is
  * working in. A leaf with no import and no use of Node, so a page bundle (the Pages editor) can take it by itself:

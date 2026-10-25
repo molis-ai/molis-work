@@ -116,3 +116,17 @@
 - PG055-05（RAC-553）外部作者只装 contracts 与 SDK 两个包，也能渲染舞台外壳、按钮、图标，取到 `/browser` 与 `/page-globals`。`tests/plugin-sample.e2e.test.ts`（本机兜底）。
 - PG055-06（RAC-554）design-system 里没有 SDK `/ui` 已公开的部件的第二份实现。`tests/sdk-ui-markup.test.ts`。
 - PG055-07（RAC-555）除 plugin-builder 外，没有插件的源码或 `package.json` 引用 design-system。同上。
+
+## 2026-10-25 编译环境跟进与验收（FIRST6396482114，非阻塞）
+
+准确基点是 `d67cf115ab2f21d18c965ea1741c020a0993fdb7`。SDK 的单一 `src/**/*.ts` 编译同时纳入了 `/browser`、`/page-globals` 的 `reference lib="dom"`，使 Node 实现和纯字符串 `/ui` 也能误用 `document`、`window`。本项只恢复编译时的环境边界，不改变部件行为、标记、公开导出或依赖；不作为 #1270 的合并依赖。
+
+SDK 的现有 `tsconfig.json` 继续编译 Node 与纯字符串源码，排除两个浏览器入口；新增包内 `tsconfig.browser.json` 单独用 ES2022、DOM 编译这两个入口，并从源码移除 DOM lib 引用。`build`、`typecheck` 顺序运行两份配置，仍向同一个 `dist/` 生成原路径的 JS、声明、映射。不改根配置或共享构建器，不新增公开路径，不转出私有包，不引入全局兜底。浏览器消费者自行声明 DOM 环境。
+
+目标是本项编译边界功能可用。`tests/plugin-sdk-environments.test.ts` 使用真实 TypeScript 按生产配置检查 SDK，并编译仅包含构建后 contracts、SDK 的独立消费项目；独立消费项目不跳过声明检查。反例以实际诊断失败证明，不能靠字符串扫描或 `@ts-expect-error`：
+
+- PG055-08：在 Node SDK 根入口和 `/ui` 的生产编译中注入 `document`、`window` 误用，两处都必须实际报找不到 DOM 全局；其余生产源码不能出现新诊断。
+- PG055-09：只有 ES2022 与 Node 类型的独立项目可从现有根入口和 `/ui` 消费构建声明；加上 `document`、`window` 后实际编译失败。
+- PG055-10：只有 ES2022 与 DOM、无 Node 类型的独立项目可消费 `/browser` 与 `/page-globals`，包括宿主 Window 扩展及页面端口；给 DOM 工具错误的元素类型时实际失败，证明声明完整且仍有约束。
+
+验证命令：公共 FIFO 中整体 `pnpm build`；`node scripts/run-tests.mjs tests/plugin-sdk-environments.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-sdk-subpaths.test.ts tests/sdk-ui-markup.test.ts`，以及 SDK README 要求的相关非浏览器用例；`pnpm --filter @molis-ai/molis-work-plugin-sdk run typecheck`、公开 API 快照与包边界检查。保留生成声明和构建来源证据。共享核心最终组合、full、CI 与合入仍由 Claude 统筹，本项不另起 full 或浏览器批次。

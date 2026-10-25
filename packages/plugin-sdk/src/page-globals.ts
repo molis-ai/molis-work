@@ -1,5 +1,3 @@
-/// <reference lib="dom" />
-
 /**
  * What the Workbench page puts on `window` for every plugin page, and the shapes those helpers take and give. The helpers are
  * installed by the host (design-system's page clients); this file is only their types, so a plugin's browser code can call

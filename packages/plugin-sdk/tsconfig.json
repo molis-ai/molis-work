@@ -2,9 +2,14 @@
   "extends": "../../tsconfig.package.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "types": ["node"]
   },
   "include": [
     "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/browser.ts",
+    "src/page-globals.ts"
   ]
 }

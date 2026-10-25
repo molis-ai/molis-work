@@ -51,6 +51,9 @@
 > - 不在本机做堆采样/`--inspect`；同一会话同一时间只开一个后台测试或构建；测试或构建被杀（137）先看 `memory_pressure`，别立刻重跑。
 > - 写代码、读代码、写 spec、开 PR 不限并行。
 
+> **10-25 晚 #1294 裁定（统筹）**：换设备恢复成果包（`apps/server/src/assets.ts` 的 `restoreWorkAssets`）遇到目标项目没装的产出者，选 (a) 照常导入并留警告：宿主内部的仅恢复入口，不经动作网关、不进 SDK/contracts 公开面，只有 `restoreWorkAssets` 调；只放包里原样带来的版本（producer、类型、哈希不改写）；产出者装好前不出预览、不进可写路径；拒绝测试证明普通写入照样 fail closed、恢复之外调用被拒。先恢复 X 的版本、后来 Y 先装占同名类型时的读取口径记 BL（PG-107）。
+> **10-25 晚 batch-37 A1 归因（统筹在批内修）**：AQD-04 pages-hidden 与两处自调用夹具按 §9.1/§9.2 改期望；`host-pages-error-model` 的 OOM 是测试替身的目录读取器经 PG-014 的 Todo 目录读回到自己（无限递归），夹具改成只让 MCP 自己那次失败；`security-invariants-plugin-pages` 是 #1266 的产品缺陷——页面动作的路由 control 不带 caller，PG-028 后落成 `plugin` 受众被拒，修成「宿主路由的 control 都算本人请求」（main 上页面动作本就是本人受众）。
+
 ## 1a. 在途但不在上表任何一条线里的 PR
 
 | PR | 谁在推 | 管的 PG 行 |

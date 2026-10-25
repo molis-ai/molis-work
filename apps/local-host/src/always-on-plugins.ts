@@ -53,7 +53,7 @@ export const alwaysOnProjectPlugins = (home: string): ProjectPluginId[] => alway
  * revoked one included, so a person's decision stands across restarts; queries never call this.
  */
 export function recordHostAlwaysOnAgreements(ledger: PluginConsentLedger, supervised: ReadonlySet<string>, at: string): void {
-  for (const { manifest } of BUILTIN_PLUGIN_CATALOG) {
+  for (const { manifest } of PLATFORM_PLUGIN_REGISTRATIONS) {
     if (manifest.always_on !== true || supervised.has(manifest.plugin_id)) continue;
     ledger.record({ plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, manifest_digest: pluginManifestDigest(manifest),
       granted_by: "host_build", grants: [{ kind: "always_on", subject: consentSubject.alwaysOn() }], at });

@@ -1,7 +1,8 @@
 import { bindActionClient, requireSynchronous, type ActionCallContext, type ActionReference, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { localWebActionContext, type bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";

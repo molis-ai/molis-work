@@ -1,4 +1,5 @@
-import { pluginTabTitles, shownProjectPlugins } from "@molis-ai/molis-work-app-workbench";
+import { pluginTabTitles } from "@molis-ai/molis-work-app-workbench";
+import { shownProjectPlugins } from "../plugin-registry.js";
 import type { LocalWebCatalogRunner } from "../web-project-settings.js";
 
 /** The project's first page. It is a fixed entry of the workbench rail, not a plugin, so no project lists it. */

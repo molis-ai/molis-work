@@ -8,38 +8,6 @@ import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
-/**
- * What makes a catalog unusable (W5-02-REG-02): two entries with one project key, Manifest id or position, or a short id in
- * `companions`, `workbench.clientFrom` or `workbench.clientUses` that names no entry. scripts/generate-plugin-registry.mjs
- * refuses these in the plugins' sources; this holds the built catalog to the same, and the Host does not start on one.
- */
-export function catalogProblems(catalog: readonly PluginRegistration[]): string[] {
-  const problems: string[] = [];
-  const once = (what: string, values: readonly (string | number)[]) => {
-    const seen = new Set<string | number>();
-    for (const value of values) {
-      if (seen.has(value)) problems.push(`two plugins have ${what} ${value}`);
-      seen.add(value);
-    }
-  };
-  once("the project key", catalog.map(entry => entry.project_plugin_id));
-  once("the Manifest id", catalog.map(entry => entry.manifest.plugin_id));
-  once("the catalog position", catalog.map(entry => entry.catalog_order));
-  const listed = new Set(catalog.map(entry => entry.project_plugin_id));
-  for (const entry of catalog) {
-    const named: Array<readonly [string, string]> = [
-      ...(entry.companions ?? []).map(id => ["companions", id] as const),
-      ...(entry.workbench.clientFrom === undefined ? [] : [["workbench.clientFrom", entry.workbench.clientFrom] as const]),
-      ...(entry.workbench.clientUses ?? []).map(id => ["workbench.clientUses", id] as const),
-    ];
-    for (const [field, id] of named) if (!listed.has(id)) problems.push(`${entry.project_plugin_id} names ${id} in ${field}, which is not in the catalog`);
-  }
-  return problems;
-}
-
-const CATALOG_PROBLEMS = catalogProblems(BUILTIN_PLUGIN_CATALOG);
-if (CATALOG_PROBLEMS.length > 0) throw new Error(`Built-in plugin catalog: ${CATALOG_PROBLEMS.join("; ")}`);
-
 export interface PluginMarketCard {
   readonly id: ProjectPluginId;
   readonly runtime_id: string;

@@ -1,11 +1,11 @@
-import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS, availableProjectPluginIds } from "./plugin-registry.js";
 import type { ActionAvailability, ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 /** Bundled plugins use the existing project installation record; Runtime plugins enforce their own grants. */
 export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, homeDirectory: string) {
   const projectPlugin = (action: Pick<ActionView, "provider">) => {
-    const plugin = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === action.provider.plugin_id);
+    const plugin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === action.provider.plugin_id);
     return plugin && !plugin.personal ? plugin.project_plugin_id : null;
   };
   const read = async (caller: ActionCallContext): Promise<ReadonlySet<string>> => {

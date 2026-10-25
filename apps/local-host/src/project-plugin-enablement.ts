@@ -1,4 +1,4 @@
-import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS, availableProjectPluginIds } from "./plugin-registry.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPlatform } from "./plugin-platform.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -14,7 +14,7 @@ export async function projectPluginEnablement(home: string | undefined, projectI
   });
   if (!installed) return undefined;
   const enabled = availableProjectPluginIds(installed);
-  return new Map(BUILTIN_PLUGIN_CATALOG.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, enabled.has(entry.project_plugin_id)]));
+  return new Map(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, enabled.has(entry.project_plugin_id)]));
 }
 
 /** Serialize reads with activation changes, so an earlier enable cannot outlive a later disable. */

@@ -1,4 +1,5 @@
-import { BUILTIN_PLUGIN_CATALOG, declaredStageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { declaredStageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { UiContribution, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { hostLog } from "./host-log.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -6,7 +7,7 @@ import type { ProjectPluginHttpPorts } from "./project-plugin-http.js";
 import { projectPluginProblem, type ProjectPluginState } from "./project-plugins.js";
 import { L } from "./web-locale.js";
 
-type CatalogEntry = (typeof BUILTIN_PLUGIN_CATALOG)[number];
+type CatalogEntry = (typeof PLATFORM_PLUGIN_REGISTRATIONS)[number];
 
 /** What a project page's plugin surfaces are drawn with: the project plugin services plus the page's escape. */
 export interface ProjectPluginSurfacePorts extends ProjectPluginHttpPorts {
@@ -33,7 +34,7 @@ export function renderProjectRuntimeStages(state: ProjectPluginState, store: Loc
   const runs = new Set(state.plugins ?? []), shown = new Set(options.shown), drawn = new Set(options.drawn);
   const html: string[] = [], ids: string[] = [];
   const unavailable: UnavailablePluginStage[] = [];
-  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+  for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
     if (entry.runtime?.scope === "home" || !runs.has(entry.manifest.plugin_id) || !shown.has(entry.project_plugin_id)) continue;
     const contributionId = declaredStageContributionId(entry);
     if (!contributionId || drawn.has(contributionId)) continue;

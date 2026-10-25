@@ -2,7 +2,8 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -32,7 +33,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const page = sidePage ?? /^\/plugins\/([a-z0-9-]+)$/u.exec(url.pathname);
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
-  const entry = page ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home" && entry.project_plugin_id === page[1]) : undefined;
+  const entry = page ? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.runtime?.scope === "home" && entry.project_plugin_id === page[1]) : undefined;
   if (page && !entry) return false;
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
   // The catalog names existing pages; the actual Home registration owns API routing, including non-bundled entries.
@@ -139,7 +140,7 @@ async function routeProject(segment: string, pluginId: string, projectPlugins: H
   try { projectId = decodeURIComponent(segment); } catch { return new ActionError("actions.missing", "找不到这个项目"); }
   const found = projectPlugins ? await projectPlugins(projectId) : null;
   if (!found) return new ActionError("actions.missing", "找不到这个项目");
-  const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.runtime?.scope === "home" && item.manifest.plugin_id === pluginId);
+  const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.runtime?.scope === "home" && item.manifest.plugin_id === pluginId);
   if (entry ? !found.plugins.includes(entry.project_plugin_id) : !dualInstance) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   return { ...molisWorkHostProjectReference({ databasePath: found.database_path, projectId }), display_name: found.display_name };
 }
@@ -161,7 +162,7 @@ function homePageContext(request: IncomingMessage, url: URL) {
   try {
     const page = new URL(request.headers.referer);
     if (page.protocol !== url.protocol || page.host !== requestHost(request)) return undefined;
-    const plugin = BUILTIN_PLUGIN_CATALOG.find(entry => page.pathname === `/plugins/${entry.project_plugin_id}` || page.searchParams.get("openPlugin") === entry.project_plugin_id);
+    const plugin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => page.pathname === `/plugins/${entry.project_plugin_id}` || page.searchParams.get("openPlugin") === entry.project_plugin_id);
     return { url: page.pathname, title: plugin?.manifest.name ?? null, provenance: "client_reported" as const };
   } catch { return undefined; /* A Referer that is not a URL names no page. */ }
 }
@@ -183,7 +184,7 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
   catch (error) { failure = error instanceof Error ? error.message : String(error); }
   const ids: string[] = [], sideOnly = sideOpenedPlugins();
   const unavailable: UnavailablePluginStage[] = [];
-  const html = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home" && !Object.hasOwn(sideOnly, entry.project_plugin_id)).flatMap(entry => {
+  const html = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.runtime?.scope === "home" && !Object.hasOwn(sideOnly, entry.project_plugin_id)).flatMap(entry => {
     const stage = stageContributionId(entry.manifest);
     if (stage) ids.push(stage);
     const install = host.installation(entry.manifest.plugin_id);

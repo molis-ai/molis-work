@@ -1,4 +1,4 @@
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { homeFixtureEntries, pluginFixtureDeclarations, storesWithFixtures, type PluginFixture } from "./home-side.js";
 import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
@@ -9,7 +9,7 @@ const dualOf = (fixture: PluginFixture) => !("manifest" in fixture) && fixture.d
 /** Host configuration is checked before any Home or project instance can start. */
 export function assertFixtureScopes(fixtures: { home?: readonly PluginFixture[]; project?: readonly PluginFixture[] } | undefined, hasHome: boolean): void {
   const home = fixtures?.home ?? [];
-  assertOwnerFilesEntries([...(hasHome ? BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, definition: entry.runtime.create() }] : []) : []),
+  assertOwnerFilesEntries([...(hasHome ? PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, definition: entry.runtime.create() }] : []) : []),
     ...pluginFixtureDeclarations(home)], pluginFixtureDeclarations(fixtures?.project ?? []), hasHome ? { stores: storesWithFixtures(fixtures) } : null);
   if (home.length && !hasHome) throw new Error("Home 夹具需要明确的 Home 目录");
   for (const fixture of fixtures?.project ?? []) if (dualOf(fixture)) throw new Error(`项目夹具 ${definitionOf(fixture).manifest.plugin_id} 不能自称双实例：标记只写在 Home 那一半`);
@@ -19,7 +19,7 @@ export function assertFixtureScopes(fixtures: { home?: readonly PluginFixture[];
     if (projectIds.has(id) !== dualOf(fixture)) {
       throw new Error(dualOf(fixture) ? `双实例插件 ${id} 在项目启动名单里没有另一半` : `插件 ${id} 不能同时在 Home 与项目启动名单里`);
     }
-    if (BUILTIN_PLUGIN_CATALOG.some(entry => entry.manifest.plugin_id === id)) {
+    if (PLATFORM_PLUGIN_REGISTRATIONS.some(entry => entry.manifest.plugin_id === id)) {
       throw new Error(`Home 夹具 ${id} 不能冒充内置插件的定义`);
     }
   }
@@ -37,7 +37,7 @@ export function projectScopeEntries<Entry extends { definition: PluginDefinition
     throw new Error(`项目插件 ${entry.definition.manifest.plugin_id} 不能自称双实例：标记只写在 Home 那一半`);
   }
   // A shipped plugin's Home half is in the catalog whether or not this host has a Home, so its project half is marked either way.
-  const homeSides = new Map<string, { dual: boolean; bundled: boolean }>(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home")
+  const homeSides = new Map<string, { dual: boolean; bundled: boolean }>(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.runtime?.scope === "home")
     .map(entry => [entry.manifest.plugin_id, { dual: entry.runtime!.dual_instance === true, bundled: true }]));
   if (!home) return entries.map(entry => homeSides.get(entry.definition.manifest.plugin_id)?.dual ? { ...entry, dual_instance: true as const } : entry);
   for (const entry of homeFixtureEntries(home)) homeSides.set(entry.definition.manifest.plugin_id, { dual: entry.dual_instance === true, bundled: false });

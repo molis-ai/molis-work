@@ -1,4 +1,4 @@
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
@@ -59,7 +59,7 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
  */
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: Array<{ id: string; label: string; order?: number; clear: (projectId: string) => void | Promise<void> }> = [
-    ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
+    ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
       const library = entry.manifest.databases?.home, pluginId = entry.manifest.plugin_id;
       if (library?.project_rows) {
         return [{ id: entry.project_plugin_id, label: library.project_rows.label, order: library.project_rows.order,

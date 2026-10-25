@@ -4,6 +4,8 @@
 
 ## 1. 现状
 
+BL-490 首评修复（PR #1255，Codex FIX5，输入 `d0f6cc53b`，2026-10-24）：本轮目标是补齐该服务的功能与安全拒绝证据，不代表完整 PG-017 或生成插件接线完成。修复范围限下列 Home 库合同、真实 Home Runtime 生命周期回归、严格进程断言与 storage 准确注释；不扩 BL-377/491/492/P2e，不动真实 Home。原作者 40 文件的原始清单与构建来源已定位：构建在 `e2dcc505e`，到 `d0f6cc53b` 只改 API 快照；原日志逐例统计 621/622，剩余一例未计入通过，原因不能从紧凑日志判定。它只属于原头证据，修复后按相关包与受影响路径验证，全量留唯一 carrier。跨项目共用同一 Home 库时，项目卸载/明确 discard 的清理授权范围尚待统筹对评论 6393304647 明确；当前双执行器删除接线只是可审阅候选，不据此推送或宣称 RAC-242 全部完成。
+
 ### 1.1 沙箱插件是什么、怎样拿到服务
 
 `execution: "sandbox"` 的 `PluginDefinition` 现在只有一个来源：创作台生成的插件（`apps/local-host/src/plugin-builder/installed.ts` 的 `sandboxedPluginDefinition`；创作台随 BL-377 删除重做，沙箱这一项照旧，见 privileges.md PG-017 的状态格）。形状是两层：
@@ -93,7 +95,7 @@
 - **`files`**：形状是字节读写（`list/read/create/remove`），可以做成 base64 且有上限的 broker 方法；**但声明只在条目上**（PG-102），且有两套服务要合成一套（PG-104、§4 n）。所以：等 PG-102/104 把声明放进 Manifest、文件服务合成一套之后，沙箱经 broker 拿同一套（BL-491）；这一组里不给。
 - **`ownerFiles`**（P2c，S-64，用户 2026-10-24 定：给，有界）：沙箱包在 Manifest 里声明 `owner_files`，经 broker 读写自己的文件。**不**把宿主的 `rootPath()` 和 writer 回调递进去：沙箱 SDK 只有 `stat`、`list`、`read`（一个文件，至多 256 KiB，没有就是 `null`）、`write`（至多 16 步，每步是 `mkdir`、`write`、`replace_atomic`、`copy`、`remove`、`set_access` 之一，字节是 base64，每个文件 ≤ 256 KiB，一次调用合计 ≤ 512 KiB，`list` 至多 1000 项），路径一律是相对路径，由宿主已有的 port 按声明的顶层条目查（越界、链接、硬链接、特殊节点、非严格相对路径全部拒绝）。效果键 `ownerFiles: ["read"]` / `["read", "write"]`，查询不能写；写在 broker 一侧先等这次调用的 `beforeEffect()`，宿主客户端自己再查一遍授权与动作作用域。
   - **根放哪里**（统筹 10-24 认可）：宿主内的插件根在 Home 里按插件的店名登记；沙箱包是装进来的，没有登记项，所以根是这个安装自己的目录，`<store_name>`（Manifest 的）是里面的一层。**项目里**：`<Home>/projects/<项目>/plugin-files/<安装>/<store_name>/`——按项目、按安装各一份，删项目时随项目目录一起删。**Home Runtime 里**（统筹 10-24 追加：用户定沙箱插件有主人文件，Home 级的也有）：`<Home>/plugin-files/<安装>/<store_name>/`，`plugin-files` 登记为宿主的 Home 库（`home-stores.ts`，owner `apps/local-host`），所以 `uninstall --purge-user-data` 覆盖它。项目 ID 与安装 ID 只许是普通目录名（`plugin-sandbox-owner-files.ts`）；没有 Home 的平台启动即拒。沙箱包不经启动名单，只走 `runtime.install`，所以 `assertHomeOnlyDeclarations` 与启动名单上对沙箱条目的拒绝（`assertOwnerFilesEntries`）与它无关；Home 执行器对沙箱定义不走 `ownerFilesGiven`（那是启动名单给的），走 `sandboxOwnerFilesFor`。
-  - **卸载时的清理**（统筹 10-24 要求二选一，选“平台清理”：两个执行器的 `uninstalled` 钩子，不是创作台生命周期里的一行）：运行时存下卸载这一行之后调执行器的 `uninstalled(record)`，沙箱安装且这次卸载不留私有数据（`retain_private_data: false`，含装到一半失败被收回）就删这个安装的目录，只删这一个；留数据的卸载留着目录，重装沿用同一个安装 ID，找回的就是它，和私有数据同口径。重装时放弃上次卸载保留的数据（`discard_kept_data`）：运行时存下新的安装行之后调新增的可选钩子 `keptDataDiscarded(earlier)`（`PluginExecutor`，合同里多一个可选成员），执行器删目录，在新代码启动之前。删除前父目录解析到 Home 之外就拒，符号链接不跟（只解开链接本身）。不靠插件自己交 `purge`（RAC-239 的口径）。
+  - **卸载时的清理**（统筹 10-24 要求二选一，选“平台清理”：两个执行器的 `uninstalled` 钩子，不是创作台生命周期里的一行）：运行时存下卸载这一行之后调执行器的 `uninstalled(record)`，沙箱安装且这次卸载不留私有数据（`retain_private_data: false`，含装到一半失败被收回）就删这个安装的目录，只删这一个；留数据的卸载留着目录，重装沿用同一个安装 ID，找回的就是它，和私有数据同口径。重装时放弃上次卸载保留的数据（`discard_kept_data`）：运行时验证授权并在登记/保存新安装之前调 `keptDataDiscarded(earlier)`（`PluginExecutor`）；执行器先清文件和账本归属 Home 库，再清 KV，成功后才发布候选，失败保留原卸载行供重试（#1246 准备路径与 #1255 裁 A 的明确 discard 增量）。删除前父目录解析到 Home 之外就拒，符号链接不跟（只解开链接本身）。不靠插件自己交 `purge`（RAC-239 的口径）。
   - **和宿主内同样待遇**：同一份 `PluginOwnerFilesClient`、同一个 port，所以 R1（动作之内凭动作与原调用者、动作之外凭安装现行授权）、`beforeEffect`、模式 0600/0700 都不另写一套。
 
 ### 3.7 Home 库、模型设置、生图、项目清理
@@ -101,6 +103,10 @@
 这四项都属于“**Home 级**”：库在 Home、偏好文件在 Home、连接绑定在 Home、清理由宿主在删项目时调函数。沙箱插件今天只会作为项目里的实例运行（创作台的第二个平台 `home: null`，PG-083）。设计：
 
 - **Home 库（`database`）**（BL-490，S-68，已做）：项目库已经给了（`projectDatabase`，S-59）。PG-022 把声明搬进 Manifest 之后，Home Runtime 里的沙箱包按 `databases.home` 拿账本里的库（`openInstalledPluginLibrary`，和装进来的任何插件一样），语句沿用 S-59 的子进程（`ProjectStatementProcess` 的 `record` 为空即 Home 库，引擎换 node:sqlite 的两条连接，没有 S-46 的记录检查，因为整个文件都归这个插件），不另写一套；宿主只做出文件就放手，不留连接。broker 多 `homeDatabase` 效果（和 `projectDatabase` 同一段检查），服务多 `database_statements`。项目里运行的沙箱包不能声明 Home 库（`plugin.declaration_invalid`）。
+  - **声明在任何真实效果前检查**：沙箱入口复用现有 `inspectPluginProjectSchema`（PLIB-03）检查每一句只建无库名前缀的表或索引，先在同一 SQLite 的空内存库试建；其他语句、无效结构都以 `plugin.declaration_invalid` 拒绝，不执行到真实插件库、账本或外部文件。安装也可能因明确 discard 清旧数据，所以 Home/项目组合向 Runtime 提供同步、无持久效果的 `validateInstall`，在任何清理/登记之前复用同一校验；开库时跨 turn 再查，Runtime 不依赖 Host 或 SQLite。不另写解析或放宽既有检查。原登记冲突检查也在破坏性准备前执行，授权不合法、定义冲突或坏 schema 都不能先清旧库/KV。通过后在账本的 open 回调经已有 `openPluginDatabase` 建库并立即关闭宿主连接，再交原语句子进程；版本检查复用该共同路径，不改门禁/例外/版本。
+  - **真实生命周期**：测试通过真实 Home Runtime 的 `runtime.install` 装入声明 Home 库的 sandbox 定义，交真实 Seatbelt runner/broker 与库语句子进程，验证启动/写入/停止/卸载后的调用拒绝和本次子进程退出。不会使用启动名单 fixture 绕过沙箱限制，也不把直接 helper 用例当装配证据。原 `homeLibraryFor` 对 sandbox 忽略给定条目绑定的规则也覆盖。
+  - **数据去留（统筹裁 A，评论 6393088218）**：账本可证明归属的已装 native 与 sandbox Home 库同一规则；`retain_private_data: false` 卸载和明确 `discard_kept_data` 均由原账本 owner 的窄清理口核可信 plugin/publisher、只清其登记库，文件成功后删该行再清 KV；失败留账本可重试，清完才登记/发布候选。`retain=true` 保留并可重装读回，丢弃后重装读不回。保留库、别家库、宿主 reserved 名和未登记目录不动，不扩 native 存量迁移。沿 #1246 `d42891e3f` 已接受的准备/发布顺序组合，不另写相反逻辑；本片已复用该原片的准备/发布与 KV owner 接线，并在同一准备口补 retained=true 且明确 discard 的分支；不另建清理状态。
+  - **storage 端口**：`openHomeSqliteFile` 继续沿用 SQLite 行为：只读打开缺失文件会失败，普通读写打开可以创建空文件；这里只修注释，不新增文件存在性契约。
 - **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64）。模型设置现有 Manifest 字段 `model_configuration` 已能声明，沙箱还没有其 broker 方法与设置端口，按 S-60 启动即以 `sandbox.service_not_given` 拒绝该声明；不让项目平台静默不给，Home 也不等后续条目校验才报错。正式开放仍属 BL-490/491，不随本轮修复接入。生图按 PG-102 的前提开放，`generate` 是花钱的，只给 `command`，字节结果有大小上限（BL-491）。
 - **项目清理**：`purge` 是宿主调的函数，沙箱插件没有。设计：沙箱插件的数据（私有存储、项目库里它自己的表、`files`）都归平台按安装和声明清掉（删项目时平台先停它的后台，再关库、清分区，§4 a），不需要它交一个函数。这一项不是“给沙箱一项服务”，而是确认**声明式清理对沙箱插件同样成立**，测试里补一条；`assertProjectCleanupEntries` 里对沙箱的拒绝改成带码的错误并写明理由。
 
@@ -160,9 +166,9 @@
 
 | 编号 | 断言 |
 | --- | --- |
-| RAC-240 | 沙箱包的 Home 库经账本做出，发布者是安装记录的；写、读都在子进程里（宿主进程没有连接） |
-| RAC-241 | 别的发布者、被宿主存储或别的插件占用的名字、Home 里已有的目录、按项目分开的库：一律带码拒绝，什么库都没做、没起进程 |
-| RAC-242 | 授权被撤之后下一次读、写被拒且什么都没写；关闭库之后的调用被拒，子进程随库结束 |
+| RAC-240 | 沙箱包的 Home 库经账本做出，发布者是安装记录的；写、读都在子进程里（宿主进程没有连接）。建库前复用 PLIB-03，只许建表/索引；非声明语句、无效 schema 以 `plugin.declaration_invalid` 拒绝，插件库未建、账本无行、预置外部 SQLite 文件逐字不变；合法 schema 仍成功 |
+| RAC-241 | 别的发布者、被宿主存储或别的插件占用的名字、Home 里已有的目录、按项目分开的库：一律带码拒绝，什么库都没做；逐项比较拒绝前后本测试进程的语句 worker PID 集合不变，结束后无新增或泄漏，不容许一个未知 worker |
+| RAC-242 | 授权被撤之后下一次读、写被拒且什么都没写；关闭库之后的调用被拒，子进程随库结束。真实 Home Runtime 安装 sandbox 包，启动写入后停止、重新启动与卸载，后续公开动作和保留的库调用拒绝，本次语句及沙箱进程退出 |
 | RAC-243 | 读只认 SELECT、WITH，写只认 INSERT、UPDATE、DELETE；PRAGMA、ATTACH 都不过；以 WITH 开头的写句过了关键字也写不进只读连接 |
 | RAC-244 | 读超时的进程被杀并带码回答，宿主照常；递归查询不会被拒、由时钟截止；下一次读在新进程里跑 |
 | RAC-245 | 写超时整个事务回滚，没有任何一句留下，下一个事务照常 |

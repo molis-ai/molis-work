@@ -6,7 +6,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, saveInstalled, validateInstalledManifest } from "./install-rules.js";
+import { abandonRefusal, assertMutable, followBundledBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 import { outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
@@ -109,6 +109,12 @@ export const packageDescriptor = {
   capabilities: ["plugin.lifecycle.v1", "plugin.grants.v1", "plugin.recovery.v1"],
 } as const;
 
+function availableDefinitionKey(definitions: ReadonlyMap<string, PluginDefinition>, definition: PluginDefinition): string {
+  const key = definitionKey(definition.manifest), current = definitions.get(key);
+  if (current && current !== definition) throw pluginErrors.definition_conflict("同一 Plugin ID、Version 和签名不能注册两个实现");
+  return key;
+}
+
 export class PluginRuntime implements PluginRuntimeApi {
   private readonly definitions = new Map<string, PluginDefinition>();
   private readonly contributions = new OfferedContributions();
@@ -123,17 +129,14 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope;
+      /** Host-only synchronous checks before installation may discard existing data; this check itself has no persistent effects. */
+      validateInstall?(definition: PluginDefinition): void;
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string } } = {},
   ) {}
 
   register(definition: PluginDefinition): void {
     validateManifest(definition.manifest);
-    const key = definitionKey(definition.manifest);
-    const current = this.definitions.get(key);
-    if (current && current !== definition) {
-      throw pluginErrors.definition_conflict("同一 Plugin ID、Version 和签名不能注册两个实现");
-    }
-    this.definitions.set(key, definition);
+    this.definitions.set(availableDefinitionKey(this.definitions, definition), definition);
   }
 
   install(input: {
@@ -171,6 +174,7 @@ export class PluginRuntime implements PluginRuntimeApi {
           throw pluginErrors.state_invalid("兼容启动会保留现有 grant；权限变更必须通过单独授权操作");
         }
         assertRequiredGrants(manifest, current.grants);
+        this.options.validateInstall?.(input.definition);
         // The changed Manifest may supply the running code only when its exact
         // same-version compatibility declaration allows the existing install.
         // Keep the stored digest untouched; this is not a version upgrade.
@@ -179,19 +183,22 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
       throw pluginErrors.definition_conflict("同一 Plugin ID、Version 和签名不能对应不同 Manifest；请递增版本");
     }
-    const refusal = keptDataRefusal(current, manifest, input.bundled === true, input.discard_kept_data === true);
-    if (refusal) throw pluginErrors.kept_data_incompatible(refusal);
-    this.register(input.definition);
     if (follow) {
+      this.options.validateInstall?.(input.definition);
+      this.register(input.definition);
       const moved = followBundledBuild(follow, input.deployment, manifest, digest, entrypoint.entrypoint, this.now(), input.declared_before);
       this.repository.save(moved);
       return this.receipt("install", moved, false);
     }
+    const grants = installationGrants(current, manifest, input.bundled === true, input.grants);
+    availableDefinitionKey(this.definitions, input.definition);
+    this.options.validateInstall?.(input.definition);
+    prepareInstallationData(this.executor, current, manifest, input.bundled === true, input.discard_kept_data === true);
+    this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
       if (!(manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version)) {
         throw pluginErrors.upgrade_required("有新版本可用；请在插件市场确认升级后再启用");
       }
-      const grants = normalizeGrants(manifest, input.grants ?? current.grants);
       if (!sameStrings(current.grants, grants)) {
         throw pluginErrors.state_invalid("兼容启动会保留现有 grant；权限变更必须通过单独授权操作");
       }
@@ -206,7 +213,6 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
       return this.receipt("install", current, true);
     }
-    const grants = input.bundled === true ? bundledGrants(manifest, current?.state === "uninstalled" ? undefined : current?.grants) : normalizeGrants(manifest, input.grants ?? []);
     if (current && current.state !== "uninstalled") {
       if (
         current.version === manifest.version
@@ -238,7 +244,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       uninstalled_at: null,
       retain_private_data: input.retain_private_data ?? current?.retain_private_data ?? true,
     };
-    saveInstalled(this.repository, this.executor, record, current, input.discard_kept_data === true);
+    saveInstalled(this.repository, record);
     return this.receipt("install", record, false);
   }
 

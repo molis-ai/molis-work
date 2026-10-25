@@ -197,7 +197,7 @@ export interface PluginExecutor {
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /** The installation is uninstalled and its row saved: remove what the Host kept for it (PG-051 Q1 b). Must be idempotent: uninstall retries call this again, including after a cleanup failure or a completed uninstall. */
   uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
-  /** A confirmed install dropped the private data an earlier uninstall kept (`discard_kept_data`), and its row is saved: what the Host kept beside that data goes too. `record` is the uninstalled row it replaced. */
+  /** Before a replacement is registered or saved, finish a non-retaining uninstall or explicit discard_kept_data. Remove Host-owned files/libraries before KV; failure keeps the earlier uninstalled record and is retryable. `record` is that earlier record. */
   keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 

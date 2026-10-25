@@ -14,6 +14,7 @@ import { assertProjectCleanupEntries, registerPluginProjectCleanup, type PluginP
 import { pluginFixtureEntries, pluginHomeFor, fixtureDeclarationsFor, type PluginFixture } from "./home-side.js";
 import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
+import { validateSandboxHomeDefinition } from "./plugin-sandbox-home-library.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 
 export interface HomePluginEntry {
@@ -136,7 +137,8 @@ export class HomePluginHost {
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
-    const runtime = new PluginRuntime(repository, executor, { redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
+    const runtime = new PluginRuntime(repository, executor, { validateInstall: validateSandboxHomeDefinition,
+      redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({
       definition: entry.definition, project_data: identity.projectDataFor(entry.definition),

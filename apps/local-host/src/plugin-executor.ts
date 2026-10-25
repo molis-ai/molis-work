@@ -5,7 +5,7 @@ import { StoppedServiceCalls, type PluginCapabilityPort, type PluginEventBus, ty
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
-import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
+import { discardInstallationOwnerData } from "./plugin-installation-cleanup.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -50,6 +50,8 @@ export interface PluginHostExecutorOptions {
    */
   invalidateView?(pluginId: string): void;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  /** The private KV owner's synchronous deletion port for non-retaining uninstall and cleanup before a reinstall/discard is published. */
+  deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /**
@@ -93,11 +95,11 @@ export class PluginHostExecutor implements PluginExecutor {
   uninstalled(record: PluginInstanceRecord): void {
     forgetPluginAgentDefinitions(this.options.home, record.install_id);
     // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
-    if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
+    if (!record.retain_private_data) discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id }, record, this.options.deleteInstallationData);
   }
 
   keptDataDiscarded(record: PluginInstanceRecord): void {
-    if (record.execution === "sandbox") removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
+    discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id }, record, this.options.deleteInstallationData);
   }
 
   /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */

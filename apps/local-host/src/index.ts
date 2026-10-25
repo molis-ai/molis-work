@@ -20,6 +20,7 @@ export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, typ
 export { openPluginDatabase } from "./plugin-database.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
+export { removeInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { dispatchDeclaredPluginRoutes, type DeclaredPluginRoutes } from "./plugin-route-operations.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";

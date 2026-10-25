@@ -1,4 +1,5 @@
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
+import { validateSandboxHomeDefinition } from "./plugin-sandbox-home-library.js";
 import { randomUUID } from "node:crypto";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -71,6 +72,8 @@ export interface PluginPlatformOptions {
   processItems: ProcessItemsApplicationApi;
   ui: UiHostApi;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  /** The private KV owner supplies whole-installation cleanup for non-retaining uninstall and pre-publication reinstall/discard. */
+  deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /** Capabilities the Host exposes to Plugins that declared consuming them. */
@@ -152,12 +155,13 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     home: options.home,
     ui: options.ui,
     privateStorageFor: options.privateStorageFor,
+    deleteInstallationData: options.deleteInstallationData,
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { redemption: definition => ({ partial: identity.dualInstance(definition) }),
+    { validateInstall: validateSandboxHomeDefinition, redemption: definition => ({ partial: identity.dualInstance(definition) }),
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),

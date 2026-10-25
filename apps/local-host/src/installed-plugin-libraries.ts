@@ -116,6 +116,33 @@ export function openInstalledPluginLibrary<Opened extends { close(): void }>(hom
 }
 
 /**
+ * Drop only the Home library this installation's recorded plugin and publisher own (BL-490, RAC-242). Both installed native and
+ * sandboxed plugins use this owner boundary. Remove files before the ledger row; a failure keeps that row for a cleanup retry.
+ * A directory without this owner's row is never ours to remove, and a reserved store is refused even if a ledger row names it.
+ */
+export function removeInstalledPluginLibrary(home: string, owner: InstalledLibraryOwner, reserved: HomeStoreRegistry): boolean {
+  if (!existsSync(join(home, INSTALLED_LIBRARIES_HOME_STORE.path, `${INSTALLED_LIBRARIES_HOME_STORE.path}.db`))) return false;
+  const ledger = openBaselineHomeSqlite(home, INSTALLED_LIBRARIES_HOME_STORE.path, LEDGER_BASELINE);
+  try {
+    ledger.exec("BEGIN IMMEDIATE");
+    const row = ledger.prepare("SELECT publisher_signature, store_name FROM plugin_home_libraries WHERE plugin_id = ?").get(owner.plugin_id) as
+      { publisher_signature: string; store_name: string } | undefined;
+    if (!row) { ledger.exec("COMMIT"); return false; }
+    if (row.publisher_signature !== owner.publisher_signature) throw installedLibraryErrors.publisher_mismatch("这个插件 ID 的 Home 库属于另一个发布者，不能清理");
+    if (!INSTALLED_LIBRARY_NAME.test(row.store_name) || holderOf(row.store_name, reserved)) {
+      throw installedLibraryErrors.object_taken("账本里的 Home 库名不是这个安装可以清理的目录");
+    }
+    rmSync(join(home, row.store_name), { recursive: true, force: true });
+    ledger.prepare("DELETE FROM plugin_home_libraries WHERE plugin_id = ? AND publisher_signature = ?").run(owner.plugin_id, owner.publisher_signature);
+    ledger.exec("COMMIT");
+    return true;
+  } catch (error) {
+    try { ledger.exec("ROLLBACK"); } catch { /* SQLite already ended the transaction. */ }
+    throw error;
+  } finally { ledger.close(); }
+}
+
+/**
  * The directories of the libraries installed plugins made, for `uninstall --purge-user-data`. A row is only a name the Host wrote, but
  * it becomes a path that is deleted, so a name that is not one plain directory name, or that a registered store has, is not listed.
  */

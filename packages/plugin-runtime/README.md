@@ -33,7 +33,7 @@ PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新
 
 ## 接入与边界
 
-这是受信任的进程内执行，不是 OS sandbox。包签名验证认证 bytes 与受信公钥，不代表官方审核。普通卸载保留私人数据；成功执行不保留数据的卸载后，Host 还须调用 deleteInstallationData，不能顺手删除交换出的 Artifacts。
+这是受信任的进程内执行，不是 OS sandbox。包签名验证认证 bytes 与受信公钥，不代表官方审核。普通卸载保留私人数据；不保留数据由 Host 的清理钩子负责（自定义执行器也须提供 KV owner 的删除端口），不能顺手删除交换出的 Artifacts。已装插件的账本归属 Home 库不区分 native 与 sandbox：不保留卸载或明确丢弃保留数据时，先清文件、删对应账本行，再删 KV；失败可重试，重装清完才登记和发布候选。未登记的目录、别家库、宿主保留库不动。
 
 私人存储增加可选的 `compareAndSet(key, expected, value)`：仅当当前值与 expected 完全相同才原子替换；expected 为 null 表示仅在 key 不存在时创建。返回 false 表示冲突，未修改数据。SQLite 实现使用单条条件写入，检查当前安装权限，支持不同连接间的冲突检测。旧 `get/set/delete` 不变；第三方 Host 未提供该可选方法时，需要原子更新的插件必须明确拒绝，不能用先读后写冒充原子操作。
 
@@ -74,7 +74,7 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
   - 安装事实存 SQLite repository；私有存储按安装 ID 隔离。
   - 稳定 install_id 用于私有数据；installation_generation 区分每次确认安装，重启、启停和升级不变，卸载重装生成新值。持久任务绑定二者。安装记录必有 installation_generation 与 execution（`host` 或 `sandbox`），缺的记录不是当前 schema。
   - `stop()` 默认记录 disabled；Host 正常关闭可传 `preserve_enabled: true`，停止进程与撤销上下文后保留 installed 状态。该选项不能重新启用已经 disabled 的安装，失败仍记录 crashed。是否启动由 Host 的当前启用策略决定。
-  - 不保留数据的卸载后 Host 还要调用 `deleteInstallationData`，但不能删除已交换出去的 Artifacts。
+  - 不保留数据的卸载由 Host 清理钩子调用 `deleteInstallationData`，在 owner 文件及已登记 Home 库清理之后；不能删除已交换出去的 Artifacts。重装须先完成不保留卸载或明确 `discard_kept_data` 的清理，失败不登记或保存新候选，原卸载行可重试。
   - 已 disabled 的安装可以升级与回滚：只换版本，安装仍是 disabled，不启动新旧任何一版的实例（插件自带的 `validateUpgrade` 与私有数据捕获照常运行，生成插件没有），失败也不会启动旧实现（其余失败的升级恢复升级前的旧实现）。Host 重启后 Supervisor 不登记 disabled 的安装；带目标定义的 `upgrade`/`rollback` 会为它登记并保持撤销启用状态，之后 `enable` 启动的是切换后的版本。对没登记过、又不是 disabled 的插件，升级回答 `plugin_unknown` 且不留状态。启用只由显式 start/enable 完成。
   - 卸载后的确认安装是新的安装（新 installation_generation，沿用 install_id），可以是别的已发布版本。卸载时保留了私有数据的，目标版本要声明 `compatible_from_versions` 包含被卸载的版本（Host 随带的更新版本、生成插件回到更低版本不受此限），否则以 `plugin.kept_data_incompatible` 拒绝；调用者明确带 `discard_kept_data: true`（人确认放弃旧数据）才全新安装，Runtime 只放行这次安装，保留的私有数据由 Host 删除。未保留数据则不受限制。同版本 Manifest 指纹不同仍拒绝。没做完的确认安装用 `abandonInstall(installed, earlier?)` 退回：记录整条回到它顶替的那条已卸载记录（版本、Manifest 指纹、installation_generation、是否保留数据都不变），第一次安装没有可退回的记录（不带 `earlier`），就记为已卸载、不保留数据；运行中的实例先停。只能撤销 `installed` 指明的那次安装，且只在行仍属于它时：已被后来的安装顶替的不动；行已在这次安装自己的 installation_generation 上被卸载的也不动（不是这次安装做的，是人做的，他对数据去留的选择要算数；已退回到 `earlier` 的重放不受此限）。两种情形都以 `plugin.install_replaced` 拒绝（与「指明的不是同一安装、已卸载的记录」的 `plugin.state_invalid` 区分开），调用者据此不去动属于新安装或人那次选择的密钥、数据和提示词。这样下一次确认安装仍被问到保留数据的取舍。
   - Supervisor 对非 `bundled` 的条目，默认 grant 在已有安装满足全部必需权限时重放已有 grant，随带升级后变成可选的权限、人关掉或打开的可选权限都不会让下次启动被当成静默改 grant；`bundled` 的条目按 `bundledGrants`（见下一条），条目自己的 `grants` 对它不起作用；升级失败后无论旧实现是否在运行，事件合同都回到旧版本的。

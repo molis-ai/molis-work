@@ -26,9 +26,10 @@
 //   --update                      rewrite baseline.json (with --base: only when nothing grew relative to the merge-base)
 //   --report [--top N] [--json]   print the per-file and per-unit numbers (with --base: next to the merge-base's)
 //   --root <dir>                  gate another repository root (tests/health-gates-merge-base.test.ts)
-// tooling/gates/giant-exceptions.json records the verdict "this giant unit has to be long" (a translation table, a stylesheet,
-// static data, generated code), each with a reason. It admits nothing: a unit that is not a giant unit at the merge-base
-// fails as new whether or not it is registered, and a registered unit may never grow.
+// tooling/gates/giant-exceptions.json marks the giant units that stay whole because they are reasonable as one unit (a
+// translation table, a stylesheet, static data, generated code, a cohesive unit), each with a reason and its measured size
+// (user 2026-10-25: a reasonable oversized unit is not force-split, it is marked). A registered unit whose recorded size equals
+// what is measured is admitted, new or grown; an unregistered giant unit may not appear or grow.
 // Exit codes: 0 passed, 1 a gate failed, 2 the command or the environment is unusable (there is no silent fallback).
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
@@ -106,19 +107,25 @@ if (!existsSync(limitsPath)) fail(`${limitsPath} is missing`);
 const limits = parseLimits(readFileSync(limitsPath, "utf8"), limitsPath);
 
 // ---- the giant-unit exceptions (§4.5 "must be long, with a reason") -----------------------------------------------------
-// tooling/gates/giant-exceptions.json: { "exceptions": { "<unit key as in baseline.json>": { "kind", "reason" } } }. An entry
-// is a verdict on a unit that is already giant, not a licence: it never lets a unit exist that was not a giant unit at the
-// merge-base (a new giant unit fails whatever the registry says; the PR that adds the entry is the PR that would be
-// excused, and review requests are not enforced), and, like every giant unit, a registered one may never grow. The entries
-// are checked against the head: each has to be a current giant unit, with a kind from the closed list and a reason that
-// says why splitting it would be wrong. A missing file is an empty registry; a file that is not JSON is exit 2.
-const EXCEPTION_KINDS = ["translation-table", "stylesheet", "static-data", "generated-code"];
+// tooling/gates/giant-exceptions.json: { "exceptions": { "<unit key as in baseline.json>": { "kind", "reason", "size" } } }.
+// An entry marks a giant unit that is reasonable as one unit and is not to be split (user 2026-10-25). It is checked against the
+// head: the unit has to be a current giant unit, the kind one from the closed list, the reason has to say why splitting it
+// would be wrong, and "size" has to equal what is measured now (a number of lines for a file or a function, { lines, methods }
+// for a class), so an entry reserves no headroom and every growth shows as an edit of the entry in the diff. A unit with a
+// valid entry is admitted by the merge-base comparison, new or grown; the entry is reviewed like an edit to the gate. A
+// missing file is an empty registry; a file that is not JSON is exit 2.
+const EXCEPTION_KINDS = ["translation-table", "stylesheet", "static-data", "generated-code", "cohesive-unit"];
+const EXCEPTION_FIELDS = ["kind", "reason", "size"];
 const MIN_REASON_CHARACTERS = 20;
-const problemsOfException = (entry) => {
-  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [`the entry must be an object with "kind" and "reason"`];
-  const problems = Object.keys(entry).filter((field) => field !== "kind" && field !== "reason").map((field) => `unknown field "${field}" (only "kind" and "reason")`);
+const sameSize = (recorded, measured) => (typeof measured === "number" ? recorded === measured
+  : !!recorded && typeof recorded === "object" && recorded.lines === measured.lines && recorded.methods === measured.methods);
+const recordedSize = (measured) => (typeof measured === "number" ? String(measured) : JSON.stringify({ lines: measured.lines, methods: measured.methods }));
+const problemsOfException = (entry, measured) => {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [`the entry must be an object with "kind", "reason" and "size"`];
+  const problems = Object.keys(entry).filter((field) => !EXCEPTION_FIELDS.includes(field)).map((field) => `unknown field "${field}" (only ${EXCEPTION_FIELDS.map((name) => `"${name}"`).join(", ")})`);
   if (!EXCEPTION_KINDS.includes(entry.kind)) problems.push(`"kind" must be one of ${EXCEPTION_KINDS.join(", ")}`);
-  if (typeof entry.reason !== "string" || entry.reason.replace(/\s+/g, "").length < MIN_REASON_CHARACTERS) problems.push(`"reason" needs at least ${MIN_REASON_CHARACTERS} characters that say why this unit has to be long`);
+  if (typeof entry.reason !== "string" || entry.reason.replace(/\s+/g, "").length < MIN_REASON_CHARACTERS) problems.push(`"reason" needs at least ${MIN_REASON_CHARACTERS} characters that say why this unit is reasonable as one unit`);
+  if (measured !== undefined && !sameSize(entry.size, measured)) problems.push(`"size" is ${JSON.stringify(entry.size)} but the unit measures ${recordedSize(measured)}; record the measured size (it is reviewed in the diff)`);
   return problems;
 };
 const loadExceptions = () => {
@@ -133,6 +140,8 @@ const loadExceptions = () => {
 const exceptions = loadExceptions();
 // An own entry only: a key such as "constructor" or "__proto__" must not resolve through the prototype.
 const registeredEntry = (unit) => (Object.hasOwn(exceptions, unit) ? exceptions[unit] : undefined);
+// A giant unit the merge-base comparison lets through: it has an entry with nothing wrong in it, its size included.
+const admitted = (unit, value) => { const entry = registeredEntry(unit); return entry !== undefined && problemsOfException(entry, value).length === 0; };
 
 // ---- what is scanned ------------------------------------------------------------------------------------------------
 const AREAS = /^(apps|horizontal|modules|packages|plugins|server|tooling)\//;
@@ -250,9 +259,10 @@ const giantUnits = {
     const errors = [];
     for (const [unit, value] of Object.entries(head)) {
       const was = before[unit];
-      // A unit the reference does not record as giant is new, registered or not: giant-exceptions.json admits nothing.
+      // A unit marked in giant-exceptions.json, with a reason and its measured size, is admitted new or grown.
+      if (admitted(unit, value)) continue;
       if (was === undefined) {
-        errors.push(`new giant unit: ${unit} (${describeUnit(value)}); split it or keep it under the limit. A tooling/gates/giant-exceptions.json entry does not admit it: the registry only records why a unit that is already giant at the merge-base has to stay long`);
+        errors.push(`new giant unit: ${unit} (${describeUnit(value)}); split it if it mixes several jobs, or keep it under the limit, or, if it is reasonable as one unit, mark it in tooling/gates/giant-exceptions.json with a kind, a reason and "size": ${recordedSize(value)}`);
       } else if (typeof value === "number") {
         if (value > was) errors.push(`giant unit grew: ${unit} ${was} → ${value}`);
       } else {
@@ -280,7 +290,7 @@ const giantUnits = {
     for (const row of rows) tally[row.kind] = (tally[row.kind] ?? 0) + 1;
     const registered = rows.filter((row) => registeredEntry(row.unit) !== undefined).length;
     const out = [`Giant units: ${rows.length} (${Object.entries(tally).sort().map(([name, count]) => `${count} ${name}`).join(", ")})`,
-      `  registered as exceptions (tooling/gates/giant-exceptions.json): ${registered}; the other ${rows.length - registered} are to be split or handed to the line that owns them (docs/system/HUGE-CLASS-MIGRATION.md)`,
+      `  marked as reasonable (tooling/gates/giant-exceptions.json): ${registered}; the other ${rows.length - registered} are to be split or marked (docs/system/HUGE-CLASS-MIGRATION.md)`,
       `  ${"kind".padEnd(13)}${"lines".padStart(6)}${"methods".padStart(9)}${ref ? "  base (l/m)".padEnd(14) : ""}  unit`];
     for (const row of rows.slice(0, top)) {
       const lines = typeof row.value === "number" ? row.value : row.value.lines;
@@ -498,12 +508,11 @@ const limitErrors = () => {
   return [...LIMIT_KEYS, ...RULE_LIMIT_KEYS].filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`)
     .concat(removed.map((key) => `limit "${key}" removed from tooling/gates/limits.json (it was ${before[key]}); limits only get tighter`));
 };
-// Every registered exception has to describe a giant unit that exists now, with a kind and a reason. A split or a rename that
-// leaves the entry behind fails here, so the registry shrinks with the list. (Whether a unit may exist at all is decided in
-// giantUnits.grew, and the registry has no say in it.)
+// Every registered exception has to describe a giant unit that exists now, with a kind, a reason and its measured size. A
+// split or a rename that leaves the entry behind fails here, so the registry shrinks with the list.
 const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions.json, or key it by the new name after a rename`]
-  : problemsOfException(entry).map((problem) => `giant exception for ${unit}: ${problem}`)));
+  : problemsOfException(entry, head.giant[unit]).map((problem) => `giant exception for ${unit}: ${problem}`)));
 const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...domEventProblems(workingTree()), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(workingTree(), { isSource }), ...kernelContextualProblems(workingTree()), ...dualInstanceProblems(workingTree()), ...productSubsetProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.

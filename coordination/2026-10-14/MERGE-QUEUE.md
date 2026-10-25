@@ -82,6 +82,13 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 - **10-25 下午派单（统筹）**：ac-kernel → PG-015、016、029、008（RAC-650～669；PG-013/028 已随 #1266 做完）；ac-giants → ac-artifacts 未被挡的余项 + PG-080、064（RAC-670～689、BL-646～655）；ac-clients-1 → W5-04 第三组开 PR → PG-055 设计稿 → PG-056/070/071 余项；ac-coding → ac-trust T6→T2→T4→T5→T8（叠 batch-36）；ac-sandbox-sched → FI-2（#1242 已合）→ FI-3 PR → P2e；#1276（BL-356）进 batch-37。
 - 号段：ac-platform 第 2 组（PG-032/098/100）另给 **RAC-630～649**（RAC-600～619 是 ac-shell 的）；D1～D5 按草稿推荐准，D5 改号段。
 
+- 10-25 09:30 UTC（统筹）：
+  - batch-37 已并 b36 头 `78f15f2e6`（A+D）与三份 Codex 修复（#1272 FIX `5a9f2dd8a`、#1273 FIX `9f8338a5e`、#1274 FIX `f9574b9a5`），再并 #1276 `5a55e0824`（S-71 取 #1276 的行，S-72～74 照留），合并提交 `09dbd517d`；正在重跑构建、门禁与上轮红的文件。
+  - #1276 的「保留数据也删按记录绑定与原文件登记」由 Codex 在同一批补（RAC-472 断言保留数据时也删）。
+  - #1278（W5-04 第三组，ac-review-2 可合 `047826700`）按 §1a 并入 batch-37；非阻塞的 `APPROVED_CEILINGS` workbench.js 死条目在批里删。
+  - #1277 挡合并 2 项转 ac-platform 修；裁：24 个对象读取器输出 schema 变了即升 @2（CONTRACT-CHANGES §3 第 3 条，阶段一不留旧版）。
+  - batch-36 full 2（run 40176320950，78f15f2e6）：1404/1405，持续红只剩 `tests/home-plugin-private-store.test.ts`（W3-06-F-05/F-08 项目页 500），交 FIX13（候选 `5dc2da402` 未含显示层）；cognia-actions、busy-feedback 首败重试过，原因未明，不记成环境。
+
 ### 当前交付核实（PIPE，2026-10-25）
 
 **batch35实际已合**：#1258固定aab81d922ef07e21bdc21f8b65e87bb3b4525277已06:25:57Z actual3817f8757abd9e60baaa825af7048cdac060479e，actual/candidate完整tree54bf575732b4e9c504b781195e7ee6663d104293已核，FIRST6393271026/REVIEW6394179117/TEST6394361864齐。Root窄移交后PIPE在06:39:40–06:40:06Z逐项close-only关闭1239/1240/1242/1243/1247/1249/1250并回读，均CLOSED/merged=false、准确源头未变，包含说明见6393246436，不再关闭/queue/full。PIPE当次未删分支；随后Root primary GraphQL核1239/1240/1242/1243/1247/1249与1258 headRef已null，1250 T1 ref仍在供1259，不能写所有分支现存。后续整线owner/验收保持。

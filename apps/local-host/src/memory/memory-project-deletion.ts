@@ -102,16 +102,23 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
                   { sessions: sessions.sessions.map(item => ({ kind: "session", id: item.session.session_id, revision: 1 })), scopes: projection.scopes }) };
               frame.plan = plan;
               const verifyMemory = async () => {
+                const knownScopes = readMemoryOwnerCoverage({ ...ports, projectId: input.project_id }).knownScopes;
+                const assertCovered = () => {
+                  current();
+                  if (!isDeepStrictEqual(readMemoryOwnerCoverage({ ...ports, projectId: input.project_id }).knownScopes, knownScopes))
+                    throw memoryErrors.conflict("记忆覆盖读取后的归属已变化，须用原操作重新核验");
+                };
                 await verifyProjectMemoryEmpty(backend, { scopes: projection.scopes, actor: caller.actor_id,
                   sessions: plan.kind === "runtime" ? plan.sessions.sessions.map(item => item.session.session_id) : [] }, current);
-                await covered(); current();
+                await covered(); assertCovered();
+                return assertCovered;
               };
               frame.purge = async () => {
                 if (plan.kind === "absent") { await verifyMemory(); return; }
                 frame.purging = true;
                 try {
                   await applyProjectMemoryPurge({ backend: { purgeMemory: request => backend.remove(request), purgeCandidate: request => backend.candidates.purge(request) },
-                    ledger: projectMemoryPurgeLedger(ports.ledger, caller.actor_id), caller, control, verifyScopeCleanup: verifyMemory }, plan.memory);
+                    ledger: projectMemoryPurgeLedger(ports.ledger, caller.actor_id), caller, control, verifyScopeCleanup: async () => { await verifyMemory(); } }, plan.memory);
                   current();
                   await withEffect(control, () => active.purge(plan.sessions));
                 } finally { frame.purging = false; }

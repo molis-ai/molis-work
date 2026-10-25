@@ -481,14 +481,57 @@ test("an original relation disappearing after the final asynchronous proof canno
   const business = hooks.register({ id: "test-arm-final-proof", label: null, clear: () => { armed = true; } }); t.after(business);
   const wrapped = hooks.register({ ...original, withRecovery: (input, work) => original.withRecovery!(input, (plan, proof) => work(plan, { ...proof,
     verifyMemory: async () => {
-      await proof.verifyMemory();
+      const assertCovered = await proof.verifyMemory();
       if (armed && ++checks === 2) ledger.forgetScopes({ scopes: [retainedOwner], project_id: f.kept.project_id, prefs_keys: [], signal_prefixes: [], marker_keys: [] });
+      return assertCovered;
     } })) }); t.after(wrapped);
   const result = await f.catalog.deleteProject(f.request);
   assert.equal(checks, 2, "the injected change follows the final beforeAcquire proof");
   assert.equal(result.deletion.cleanup_state, "pending"); assert.equal(result.deletion.cleaned_at, null); assert.match(result.deletion.cleanup_error ?? "", /归属已变化/);
   wrapped(); ledger.noteOwner(retainedOwner);
   assert.equal((await f.catalog.deleteProject(f.request)).deletion.cleanup_state, "complete");
+});
+
+for (const content of [false, true]) test(`a new project ${content ? "with Memory" : "without Memory"} after the final coverage read cannot publish its stale proof`, { timeout: 60_000 }, async t => {
+  const f = await fixture(t), hooks = projectDeletedHooksFor(f.home), original = hooks.owners().find(owner => owner.id === "memory")!;
+  const other = await openMolisWorkProjectCatalog({ homeDirectory: f.home }); t.after(() => other.close());
+  const trigger = Promise.withResolvers<void>();
+  // Start outside the deletion's async context, as an independent normal user operation.
+  const writing = (async () => {
+    await trigger.promise;
+    const project = await other.createProject({ display_name: "Independent project", actor_id: actor });
+    const memory = content ? await f.memory(project.project_id).write({ scope: "project", owner: project.project_id,
+      text: "Independent project keeps its own memory", origin: "Person", operation_id: "independent-write", meta }) : undefined;
+    return { project, memory };
+  })();
+  let armed = false, checks = 0;
+  const disarm = hooks.register({ id: "test-final-coverage-publication", label: null, clear: () => { armed = true; } }); t.after(disarm);
+  const unhook = hooks.register({ ...original, withRecovery: (input, work) => original.withRecovery!(input, (plan, proof) => work(plan, { ...proof,
+    verifyMemory: async () => {
+      const assertCovered = await proof.verifyMemory();
+      if (armed && ++checks === 2) { trigger.resolve(); await writing; }
+      return assertCovered;
+    } })) }); t.after(unhook);
+  const savedPlan = (deletion: string) => {
+    const db = f.storage();
+    try { return String(db.prepare("SELECT recovery_plan FROM project_deletions WHERE deletion_id=?").get(deletion)?.recovery_plan); }
+    finally { db.close(); }
+  };
+  try {
+    const result = await f.catalog.deleteProject(f.request), { project, memory } = await writing;
+    assert.equal(checks, 2, "the independent operation follows the final beforeAcquire read");
+    assert.equal(result.deletion.cleanup_state, "pending"); assert.equal(result.deletion.cleaned_at, null);
+    assert.match(result.deletion.cleanup_error ?? "", /覆盖读取后的归属已变化/);
+    const plan = savedPlan(result.deletion.deletion_id);
+    assert.equal(plan.includes(project.project_id), false, "the original decision never adopts the new project");
+    const expected = memory ? [[memory.memory_id, memory.version, memory.text]] : [];
+    const contents = async () => (await f.memory(project.project_id).list("project", project.project_id)).map(item => [item.memory_id, item.version, item.text]);
+    assert.deepEqual(await contents(), expected);
+    unhook(); other.close(); await f.reopen();
+    const retry = await f.catalog.deleteProject(f.request);
+    assert.equal(retry.deletion.deletion_id, result.deletion.deletion_id); assert.equal(retry.deletion.cleanup_state, "complete");
+    assert.equal(savedPlan(result.deletion.deletion_id), plan); assert.deepEqual(await contents(), expected);
+  } finally { trigger.resolve(); await writing; }
 });
 
 test("a real archived Work relation both covers and purges a Character that has no ledger mapping", { timeout: 60_000 }, async t => {

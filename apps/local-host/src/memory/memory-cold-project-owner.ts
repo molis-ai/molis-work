@@ -115,7 +115,7 @@ export function createColdMemoryProjectOwner(input: ColdMemoryProjectOwnerInput)
           active.plan = fixed.original;
           const proof = () => verifyOriginal(input, fixed.original!, current);
           await proof(); current();
-          const result = await work(structuredClone(fixed.original), { verifyMemory: proof, verifyOriginal: proof, assertCurrent: current }); current(); return result;
+          const result = await work(structuredClone(fixed.original), { verifyMemory: async () => { await proof(); current(); return current; }, verifyOriginal: proof, assertCurrent: current }); current(); return result;
         }
         const prepared = await input.prepareProject(fixed); current();
         const projection = structuredClone(prepared);
@@ -141,8 +141,9 @@ export function createColdMemoryProjectOwner(input: ColdMemoryProjectOwnerInput)
               sessions: plan.kind === "runtime" ? plan.sessions.sessions.map(item => item.session.session_id) : [] }, current); current();
             await verifyMemoryCoverage(reads, { operation_id: plan.operation_id, known_scopes: projection.knownScopes }, current); current();
           }); current();
+          return current;
         };
-        active.purge = () => plan.kind === "absent" ? verifyMemory() : executePlan(input, plan, projection, current, committed);
+        active.purge = async () => { if (plan.kind === "absent") await verifyMemory(); else await executePlan(input, plan, projection, current, committed); };
         const result = await work(structuredClone(plan), { verifyMemory, verifyOriginal: () => verifyOriginal(input, plan, current), assertCurrent: current }); current();
         return result;
       } finally { active.active = false; frame = undefined; }

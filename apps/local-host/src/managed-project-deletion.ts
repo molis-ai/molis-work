@@ -221,10 +221,12 @@ export class ManagedProjectDeletion {
       proof.assertCurrent(); this.maintenance?.assertCurrent();
       if (directory) await directory.remove(); else await fs.rm(record.staged_directory, { recursive: true, force: true });
       this.maintenance?.assertCurrent();
+      let assertCovered!: () => void;
       record = await this.commit(() => {
+        assertCovered();
         proof.assertCurrent();
         return this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, { state: "complete", error: null, cleaned_at: new Date().toISOString() });
-      }, proof.verifyMemory);
+      }, async () => { assertCovered = await proof.verifyMemory(); });
       return this.projects.lifecycle.deletionRecord(record);
     } catch (error) { return this.pending(record, error instanceof Error ? error.message : String(error)); }
   }

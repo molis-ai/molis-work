@@ -18,7 +18,8 @@ export interface ProjectDeletionPreparation {
   verification?: "original";
 }
 export interface ProjectDeletionMemoryProof {
-  verifyMemory(): Promise<void>;
+  /** Returns the original owner's synchronous check that this completed read still supports publication. */
+  verifyMemory(): Promise<() => void>;
   verifyOriginal?(): Promise<void>;
   assertCurrent(): void;
 }

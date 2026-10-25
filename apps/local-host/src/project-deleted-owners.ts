@@ -57,7 +57,7 @@ export function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
       };
       current();
       try { return await plans.run(frame, () => work(input.original ?? { version: 1, kind: "absent", project_id: input.project_id, operation_id: input.operation_id },
-        { verifyMemory: async () => { current(); }, assertCurrent: current })); }
+        { verifyMemory: async () => { current(); return current; }, assertCurrent: current })); }
       finally { frame.active = false; }
     },
     async clear(projectId, receipt) {

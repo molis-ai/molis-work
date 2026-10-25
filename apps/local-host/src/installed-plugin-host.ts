@@ -93,6 +93,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(), home: null,
     ...openProjectVersionStores(store),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
+    deleteInstallationData: id => privateStorage.deleteInstallationData(id),
     capturePrivateData: id => privateStorage.snapshotInstallationData(id),
     restorePrivateData: (id, snapshot) => privateStorage.restoreInstallationData(id, snapshot as ReturnType<typeof privateStorage.snapshotInstallationData>),
     ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });

@@ -11,7 +11,7 @@ import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
-import { openWorkflowsStore } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";

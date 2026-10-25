@@ -14,7 +14,8 @@ import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
-import { cogniaActions, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { cogniaActions, COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";

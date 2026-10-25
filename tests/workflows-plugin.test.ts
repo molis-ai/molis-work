@@ -11,27 +11,8 @@ import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
-import {
-  WORKFLOWS_CLIENT_FACTORY_SCRIPT,
-  WORKFLOWS_PLUGIN_ID,
-  WORKFLOWS_MESSAGES,
-  WORKFLOWS_PROJECT_PLUGIN_ID,
-  applyFunctionRule,
-  insertStation,
-  linkReadiness,
-  manualLink,
-  moveStation,
-  newStation,
-  openWorkflowsStore,
-  parseAiHandoff,
-  parseChain,
-  removeStation,
-  setLink,
-  workflowsManifest,
-  type WorkflowChain,
-  type WorkflowInstance,
-  type WorkflowLink,
-} from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_MESSAGES, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 
 const fn = (body: string, title = ""): WorkflowLink => ({ kind: "function", title_template: title, body_template: body, instructions: "" });
 const ai = (instructions: string): WorkflowLink => ({ kind: "ai", title_template: "", body_template: "", instructions });

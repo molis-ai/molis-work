@@ -1,5 +1,5 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   type Workflow,
   type WorkflowChain,
@@ -205,18 +205,6 @@ export function recordStoppedDelivery(store: WorkflowsStore, expected: WorkflowI
     ? { ...step, held: { at, reason: "流程已停止；这一项已经返回真实结果，内容保留，不会继续下一站。" } } : step) });
 }
 
-
-export function openWorkflowsStore(homeDirectory: string): WorkflowsStore {
-  const db = openHomeSqliteDatabase(homeDirectory, WORKFLOWS_HOME_STORE.path);
-  db.exec("PRAGMA journal_mode = WAL;");
-  applySqliteBaseline(db, homeSqlitePath(homeDirectory, WORKFLOWS_HOME_STORE.path), WORKFLOWS_DATABASE);
-  const sql: WorkflowsSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return new WorkflowsStore(sql, () => db.close());
-}
 
 function chainJson(chain: WorkflowChain): string {
   return JSON.stringify({ stations: chain.stations, links: chain.links });

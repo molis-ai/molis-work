@@ -30,7 +30,7 @@
 - 不负责：插件的内容存储、模型提供方、Feed/Inbox/Pages 的内部实现。
 - 公开入口：`@molis-ai/molis-work-plugin-workflows`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入；`createWorkflowsPlugin` 是 Runtime 入口）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 站点、动作步骤与判断规则都经 `context.services.actions.directory`（Manifest 权限 `actions:delegate`）到达，以启动这次调用的人、MCP 客户端或 Agent 本人的身份：目录沿用调用者的 `allowed_actions` 与 `validate_authority`，只把受众改成 `workflow`。插件本身只持有 `storage:private`、`workflows:read`、`workflows:write`、`actions:delegate`（必需）和 `model:invoke`（可选），站点和步骤要的权限归调用者，不归插件。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `workflows.<原因>`，状态由错误种类决定，Workflows 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `workflows.<原因>`，状态由错误种类决定，Workflows 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 被取消、撤权的调用不再写任何业务记录：写入前 `await beforeEffect()`，嵌套调用带着原调用的 `signal`、`beforeEffect` 与最终授权检查；人、MCP 客户端、Agent 各自够不到的步骤既不执行，也不在实例上留下「尝试」。
   - 流程只决定顺序与交接，插件各自工作；没配好的衔接显示为未接上，不能走。

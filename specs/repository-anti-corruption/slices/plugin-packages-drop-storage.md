@@ -1,6 +1,6 @@
 # 插件包不再依赖 storage、不再自己按路径开库（PG-023）
 
-状态：进行中（2026-10-25，防腐线 ac-platform，分支 `ac-platform/group5-home-services`）。第一片：Todo、Form、灵光、Dataset、PPT 五个包。Pages、Workflows、Jelly、Cognia、Images 不在这一片，原因在 §3。验收号 RAC-700～709。
+状态：进行中（2026-10-25，防腐线 ac-platform，分支 `ac-platform/group5-home-services`）。Todo、Form、灵光、Dataset、PPT、Workflows、Jelly、Cognia 八个包做了；Pages、Images 不在这里，原因在 §3。验收号 RAC-700～709。
 
 ## 1. 重核结果
 
@@ -13,20 +13,19 @@
 | Workflows、Jelly、Cognia | `openHomeSqliteDatabase` + `applySqliteBaseline` 开自己的库 | 没有；`ownJellyStores`、`ownWorkflowsStores` 没有调用方，生产走宿主的库 |
 | Images | `clearInExistingHomeSqlite`：删项目时按路径清自己的作业行 | **有**，是生产路径（PG-026 的一部分，删项目的清理归平台） |
 
-所以第一片的做法对五个形状相同的包最干净：把「按路径开库」整个搬出插件包，放到测试夹具里。
+所以做法是：把「按路径开库」整个搬出插件包，放到测试夹具里。Workflows、Jelly、Cognia 开库的写法略不同（先开库、再套基线，Jelly 开完还要 `initialize`），夹具里照原样写一份。
 
-## 2. 做什么（第一片）
+## 2. 做什么
 
-- 五个包删掉 `openXStore` 与它的私有 `immediate`，`store.ts` 的 `HomeStoreDeclaration` 改从合同取（`@molis-ai/molis-work-contracts/platform/plugin`，storage 的那个本来就是它的转出），`package.json` 去掉对 storage 的依赖，锁文件同步。
-- 测试夹具 `tests/fixtures/plugin-home-stores.ts` 提供同名同签名的 `openTodoStore`、`openFormStore`、`openLingguangStore`、`openDatasetStore`、`openPptStore`：用 storage 的 `openBaselineHomeSqlite` 按插件自己导出的 `XXX_DATABASE` 基线开库，再 `new XStore(...)`。夹具在所有插件包之外，所以 storage 只出现在测试里。
-- 57 个测试文件的导入从插件包改到夹具，用例本身不变。
+- 八个包删掉 `openXStore` 与它的私有 `immediate`，`store.ts` 的 `HomeStoreDeclaration` 改从合同取（`@molis-ai/molis-work-contracts/platform/plugin`，storage 的那个本来就是它的转出），`package.json` 去掉对 storage 的依赖，锁文件同步。
+- 测试夹具 `tests/fixtures/plugin-home-stores.ts` 提供同名同签名的 `openTodoStore`、`openFormStore`、`openLingguangStore`、`openDatasetStore`、`openPptStore`、`openJellyStore`、`openCogniaStore`、`openWorkflowsStore`：用 storage 的 `openBaselineHomeSqlite` 按插件自己导出的 `XXX_DATABASE` 基线开库，再 `new XStore(...)`。夹具在所有插件包之外，所以 storage 只出现在测试里。
+- 88 个测试文件的导入从插件包改到夹具，用例本身不变。
 
 不改：插件的动作、Manifest、`ownXStores`（运行中的插件用的那条）、库文件的位置和基线。
 
 ## 3. 这一片不做
 
 - **Pages**：已经是有边界规则看着的单独测试出口，不是插件在运行里开库。要去掉依赖，可照这一片的做法把 `testing.ts` 搬进夹具、改 59 个文件的导入，下一片做。
-- **Workflows、Jelly、Cognia**：开库的写法略不同（先开再套基线，Workflows 还有一个无人调用的 `ownWorkflowsStores`），归同一类「只有测试在用」，下一片。
 - **Images**：`clearInExistingHomeSqlite` 是生产里删项目的路径，不是测试夹具，要由平台替它清（PG-026），不在这里动。
 - **Alchemist**：不迁（用户 2026-10-21、2026-10-23）。
 
@@ -34,5 +33,5 @@
 
 | 号 | 内容 | 证明 |
 | --- | --- | --- |
-| RAC-700 | 五个包的 `package.json` 没有 `@molis-ai/molis-work-storage`，源码不 import 它，也不导出 `openXStore` | `tests/plugin-storage-dependency.test.ts` |
-| RAC-701 | 同一批原有用例在夹具上全部通过（行为不变） | 57 个原有测试文件 |
+| RAC-700 | 八个包的 `package.json` 没有 `@molis-ai/molis-work-storage`，源码不 import 它，也不导出 `openXStore` | `tests/plugin-storage-dependency.test.ts` |
+| RAC-701 | 同一批原有用例在夹具上全部通过（行为不变） | 原有测试文件（非浏览器的已在开发机跑过，浏览器的交 CI） |

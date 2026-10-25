@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -98,7 +99,7 @@ async function openHalves() {
   const contexts: Partial<Record<Half, PluginStartContext>> = {};
   const actions = { home: act("home", handles), project: act("project", handles) };
   const runtime = (redemption: { partial: true; outside_project?: true }, projectId?: string) => new PluginRuntime(new MemoryPluginRuntimeRepository(),
-    undefined, { redemption: () => redemption, actions: { registry: service, ...(projectId ? { project_id: projectId } : {}), providerId: () => PLUGIN } });
+    undefined, { hostIds: ISOLATED_HOST_IDS, redemption: () => redemption, actions: { registry: service, ...(projectId ? { project_id: projectId } : {}), providerId: () => PLUGIN } });
   for (const [which, target] of [["home", runtime({ partial: true, outside_project: true })], ["project", runtime({ partial: true }, PROJECT)]] as const) {
     const definition = half(which, actions, handles, reached, contexts);
     const installed = target.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: definition.manifest.permissions.map(item => item.permission) }).install;

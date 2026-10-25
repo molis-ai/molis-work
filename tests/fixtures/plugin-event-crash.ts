@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./isolated-host.js";
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
@@ -20,7 +21,7 @@ export function eventCrashDefinition(id: string, handler?: (context: PluginEvent
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const db = new Database(process.argv[2]!);
   db.exec('CREATE TABLE effects (value TEXT)');
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db)), supervisor = new PluginSupervisor(runtime);
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
   const bus = new PluginEventBus({ projectId: EVENT_BOARD, lifecycle: supervisor, repository: new SqlitePluginEventsRepository(db) });
   await supervisor.start([{ definition: eventCrashDefinition(EVENT_SOURCE) }, { definition: eventCrashDefinition(EVENT_SUBSCRIBER, async context => {
     context.beforeEffect(); db.prepare('INSERT INTO effects VALUES (?)').run('committed');

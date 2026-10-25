@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -42,7 +43,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
   };
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
     dependencyCheck: () => ({ available: true }),
-    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
+    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
   try {
     const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install;
     await runtime.start(installed.install_id);

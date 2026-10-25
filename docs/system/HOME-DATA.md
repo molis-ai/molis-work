@@ -365,6 +365,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 - 共享日志表 `events`、`idempotency_records` 还有 `modules/goals` 与 `modules/governance-collaboration` 各抄一份读写语句（依赖方向所致，见 4.5）；两个模块改用宿主注入的日志端口后，删掉 `tooling/gates/table-owners.json` 里这两条 `shared` 登记。其余跨 owner 直接 SQL 已由 W2-06 清零并有门禁。
 - 没有备份命令和快照；第 7 节的同一时点组没有工具保证（W5-16）。
 - 目录库存项目库的绝对路径（W5-17）。
+- W5-17 真实维护前的只读清单还须按各项目与 Home 的 Runtime 库分别列出违反 S-75 的安装：宿主保留 ID 或点分段嵌套、unsigned 同/异标签嵌套、不同 pinned key 嵌套及签名与信任不符；输出安装编号、插件号、信任等级与拒绝码，不输出私有数据或密钥。本片只记录后继检查要求，不扫描或改写真实 Home；正常启动重验拒绝并记诊断，既存记录的处置仍需维护窗口授权。
 - 旧 `goalboard-*` 的 release 与启动脚本卸载不认，而 `bin/goalboard-mcp` 还有进程在用（W4-11 的清除范围决策）。
 - purge 的用例读登记（W4-11），`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 也在遍历用例里写入再断言被删。`tests/uninstall.test.ts` 仍有一份写死的目录，只是它自己的场景，不再是清单。
 - 结构由宿主文件定义的库（assistant、placement、agent-definitions、context-onboarding、connectors、项目库的几段）按“库归 owner 包”看是错放，处理在 W3-06 与 W5-01。

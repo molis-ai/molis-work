@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -32,7 +33,7 @@ function exampleManifest(): PluginManifest {
 test("RAC-386 S-34 the Runtime refuses to uninstall a plugin while its 常开 agreement stands, and allows it once the agreement is revoked", async () => {
   const db = new DatabaseSync(":memory:");
   db.exec(PLUGIN_TRUST_SCHEMA_SQL);
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { consents: new SqlitePluginConsentLedger(db) });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, consents: new SqlitePluginConsentLedger(db) });
   const definition = { manifest: exampleManifest(), async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition;
   const { install } = runtime.install({ trust: UNSIGNED_TRUST, definition, deployment: "local", grants: [], consents: [ALWAYS_ON] });
   await runtime.start(install.install_id);
@@ -169,7 +170,7 @@ test("RAC-401 S-34 an existing current store stays byte-for-byte unchanged; miss
   const f = await catalogFixture(t), db = seedStore(f.home);
   t.after(() => db.close());
   const ledger = new SqlitePluginConsentLedger(db);
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { consents: ledger });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger });
   const definition = { manifest: exampleManifest(), async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition;
   const { install } = runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
   const before = filesAt(f.home);
@@ -186,7 +187,7 @@ test("RAC-401 S-34 each query sees persisted revocation, new consent and install
   t.after(() => db.close());
   const ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
   const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
-  const runtime = new PluginRuntime(repository, undefined, { consents: ledger });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger });
   const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
     definition: { manifest: shelf, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
   const writable = new Database(join(f.home, "projects/catalog.db"));

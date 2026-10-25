@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -119,7 +120,7 @@ test("a bundled entry registers under its plugin_id and names the installation w
     } finally { other.store.close(); }
   }));
 
-test("a plugin that declares a built-in plugin's id but is not on the Host's own bundled list is not installed (S-X2); a developed, sandboxed or fixture plugin under its own id keeps its installation id",
+test("a plugin that declares a built-in plugin's id but is not on the Host's own bundled list is not installed (S-75); a developed, sandboxed or fixture plugin under its own id keeps its installation id",
   withDirectory(async directory => {
     const host = hostProcess(directory);
     try {
@@ -141,14 +142,14 @@ test("a PluginRuntime built without the Host's rule keeps registering under the 
   const providers: ActionProvider[] = [];
   const registry: ActionRegistryPort = { registerProvider: registration => { if (registration.provider.kind === "plugin") providers.push(registration.provider); return service.registerProvider(registration); } };
   service.registerProvider({ provider: { provider_id: DEPENDENCY_PROVIDER, title: "Host fixture", kind: "system" }, definitions: [DEPENDENCY], handlers: [{ ...DEPENDENCY, handle: () => "dependency" }] });
-  const plain = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { actions: { registry, project_id: "p" } });
+  const plain = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry, project_id: "p" } });
   const first = plain.install({ trust: { level: "unsigned" }, definition: plugin({ pluginId: "io.molis.work.example.plain", signature: "plain" }), deployment: "local", grants: [WRITE] }).install.install_id;
   await plain.start(first);
   assert.deepEqual([providers[0]!.provider_id, providers[0]!.plugin_install_id], [first, first]);
   await plain.stop(first);   // the capability ids are the fixture's, so only one copy at a time
 
   const ruled = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined,
-    { actions: { registry, project_id: "p", providerId: record => record.plugin_id } });
+    { hostIds: ISOLATED_HOST_IDS, actions: { registry, project_id: "p", providerId: record => record.plugin_id } });
   const second = ruled.install({ trust: { level: "host" }, definition: plugin({ pluginId: "io.molis.work.example.ruled", signature: "ruled" }), deployment: "local", grants: [WRITE] }).install.install_id;
   await ruled.start(second);
   assert.deepEqual([providers[1]!.provider_id, providers[1]!.plugin_install_id], ["io.molis.work.example.ruled", second]);

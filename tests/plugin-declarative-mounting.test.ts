@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type {
@@ -176,7 +177,7 @@ test("commands keep their unavailable reason instead of disappearing", () => {
 });
 
 test("declared routes are mounted under the Host prefix and undeclared paths fall through", async () => {
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition: definitionFor(codingManifest) }]);
   const router = new PluginRouteRouter(supervisor, [codingManifest]);
@@ -213,7 +214,7 @@ test("declared routes are mounted under the Host prefix and undeclared paths fal
 });
 
 test("a route refuses a caller without the permission it declared", async () => {
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition: definitionFor(codingManifest) }]);
   const router = new PluginRouteRouter(supervisor, [codingManifest]);
@@ -235,7 +236,7 @@ test("a route on a Plugin that cannot start reports unavailable rather than cras
       throw new Error("Coding 启动失败");
     },
   };
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition: failing }]);
   const router = new PluginRouteRouter(supervisor, [codingManifest]);
@@ -281,7 +282,7 @@ test("route parameters reach the handler as declared", async () => {
     },
     async stop() {},
   };
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition }]);
   const router = new PluginRouteRouter(supervisor, [codingManifest]);

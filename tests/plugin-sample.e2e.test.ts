@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
@@ -129,7 +130,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       return result;
     };
     const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "developer",
-      artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { actions });
+      artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
     const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" });
     const installId = installed.install.install_id;
     await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied");

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
@@ -107,7 +108,7 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
         now: () => new Date(`2026-09-02T08:00:0${polls}.000Z`),
       });
       const repository = new MemoryPluginRuntimeRepository();
-      const runtime = new PluginRuntime(repository, undefined, {
+      const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS,
         now: () => new Date("2026-09-02T08:00:00.000Z"),
       });
       const install = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" });
@@ -204,7 +205,7 @@ test("Plugin identity is signature-bound while references retain plugin id and v
   const original = createGithubIntegrationPlugin({ provider });
   const changed = { ...original, manifest: changedManifest };
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository);
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
   const first = runtime.install({ trust: { level: "unsigned" }, definition: original, deployment: "local" });
   const second = runtime.install({ trust: { level: "unsigned" }, definition: changed, deployment: "local" });
 
@@ -218,7 +219,7 @@ test("Plugin identity is signature-bound while references retain plugin id and v
     manifest: { ...githubIntegrationManifest, name: "Changed without a version bump" },
   };
   assert.throws(
-    () => new PluginRuntime(repository).install({ trust: { level: "unsigned" }, definition: silentlyChanged, deployment: "local" }),
+    () => new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: silentlyChanged, deployment: "local" }),
     (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.definition_conflict",
   );
@@ -231,7 +232,7 @@ test("installation generations survive restart but change on same-millisecond re
   } });
   const repository = new MemoryPluginRuntimeRepository();
   let clock = new Date('2026-09-28T00:00:00.000Z');
-  const runtime = new PluginRuntime(repository, undefined, { now: () => clock });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, now: () => clock });
   const grants = definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
   const input = { definition, deployment: 'local' as const, grants, trust: { level: 'unsigned' as const } };
   const first = runtime.install(input).install, originalGeneration = first.installation_generation;
@@ -246,7 +247,7 @@ test("installation generations survive restart but change on same-millisecond re
   assert.equal(second.install_id, first.install_id);
   assert.equal(second.installed_at, first.installed_at, 'the wall clock did not advance');
   assert.notEqual(second.installation_generation, originalGeneration, 'a timestamp alone cannot identify this reinstall');
-  const reopened = new PluginRuntime(repository, undefined, { now: () => clock });
+  const reopened = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, now: () => clock });
   assert.equal(reopened.install(input).install.installation_generation, second.installation_generation);
   await reopened.uninstall(second.install_id);
   clock = new Date('2026-09-29T00:00:00.000Z');
@@ -345,7 +346,7 @@ function openRuntimeDatabase(directory: string, name: string): Database.Database
 
 test("J1A-01/02: a current owner crash code persists, revokes the live instance and recovers; driver codes use the fallback", async () => {
   const pluginId = "io.molis.work.crash-code-probe";
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   let live: PluginStartContext | undefined;
   const definition: PluginDefinition = { manifest: probeManifest(pluginId),
     async start(context) { live = context; return probeContribution(pluginId); }, async stop() {} };
@@ -404,7 +405,7 @@ test("a rebuilt runtime activates a persisted running plugin and does not revive
   };
   const dbA = openRuntimeDatabase(directory, "runtime.sqlite");
   try {
-    const runtimeA = new PluginRuntime(new SqlitePluginRuntimeRepository(dbA), undefined, {
+    const runtimeA = new PluginRuntime(new SqlitePluginRuntimeRepository(dbA), undefined, { hostIds: ISOLATED_HOST_IDS,
       maxRecoveryAttempts: 1,
     });
     const supervisorA = new PluginSupervisor(runtimeA);
@@ -438,7 +439,7 @@ test("a rebuilt runtime activates a persisted running plugin and does not revive
     failRecovery = false;
     const dbB = new Database(databasePath);
     try {
-      const runtimeB = new PluginRuntime(new SqlitePluginRuntimeRepository(dbB), undefined, {
+      const runtimeB = new PluginRuntime(new SqlitePluginRuntimeRepository(dbB), undefined, { hostIds: ISOLATED_HOST_IDS,
         maxRecoveryAttempts: 1,
       });
       const supervisorB = new PluginSupervisor(runtimeB);
@@ -532,7 +533,7 @@ test("a failed reactivation revokes grants, and a cold stop does not activate or
   };
   const dbA = openRuntimeDatabase(directory, "runtime.sqlite");
   try {
-    const runtimeA = new PluginRuntime(new SqlitePluginRuntimeRepository(dbA));
+    const runtimeA = new PluginRuntime(new SqlitePluginRuntimeRepository(dbA), undefined, { hostIds: ISOLATED_HOST_IDS });
     const supervisorA = new PluginSupervisor(runtimeA);
     await supervisorA.start([{ definition: failing }, { definition: parked }]);
     const failingInstall = supervisorA.state(failingId)?.install_id;
@@ -544,7 +545,7 @@ test("a failed reactivation revokes grants, and a cold stop does not activate or
     allow = false;
     const dbB = new Database(join(directory, "runtime.sqlite"));
     try {
-      const runtimeB = new PluginRuntime(new SqlitePluginRuntimeRepository(dbB));
+      const runtimeB = new PluginRuntime(new SqlitePluginRuntimeRepository(dbB), undefined, { hostIds: ISOLATED_HOST_IDS });
       const supervisorB = new PluginSupervisor(runtimeB);
       const report = await supervisorB.start([{ definition: failing }]);
       assert.deepEqual(report.running, []);
@@ -571,7 +572,7 @@ test("a failed reactivation revokes grants, and a cold stop does not activate or
 
     const dbC = new Database(join(directory, "runtime.sqlite"));
     try {
-      const runtimeC = new PluginRuntime(new SqlitePluginRuntimeRepository(dbC));
+      const runtimeC = new PluginRuntime(new SqlitePluginRuntimeRepository(dbC), undefined, { hostIds: ISOLATED_HOST_IDS });
       runtimeC.install({ trust: { level: "unsigned" }, definition: parked, deployment: "local", grants: [PROBE_PERMISSION] });
       const stopped = await runtimeC.stop(parkedInstall);
       assert.equal(stopped.install.state, "disabled");
@@ -611,7 +612,7 @@ test("repeated and concurrent start register once, and a stop queued behind star
     },
     async stop() {},
   };
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const installed = runtime.install({ trust: { level: "unsigned" },
     definition,
     deployment: "local",
@@ -705,7 +706,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
     },
     async stop() {},
   };
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const entries = [{ definition: producer }, { definition: consumer }];
   const started = await supervisor.start(entries);
@@ -887,7 +888,7 @@ test("a start that finishes after revoke does not become the active instance", a
     },
     async stop() {},
   };
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const pending = supervisor.start([{ definition }]);
   await inside;
@@ -943,7 +944,7 @@ test("ensureStarted that finishes after revoke cannot register an active instanc
     },
     async stop() {},
   };
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const failed = await supervisor.start([{ definition }]);
   assert.equal(failed.running.includes(pluginId), false);
@@ -972,7 +973,7 @@ test("PRERR-02: Runtime distinguishes its current refusals from foreign common e
   for (const [index, failure] of failures.entries()) {
     const pluginId = "io.molis.work.example.error-boundary-" + index;
     const repository = new MemoryPluginRuntimeRepository();
-    const runtime = new PluginRuntime(repository);
+    const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
     const definition: PluginDefinition = { manifest: probeManifest(pluginId), async start() { throw failure; } };
     const { install } = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["network:probe"] });
     await assert.rejects(runtime.start(install.install_id), (error: unknown) => index === 0 ? error === failure : error instanceof ActionError

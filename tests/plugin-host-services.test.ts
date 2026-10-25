@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
@@ -158,7 +159,7 @@ function harness(definitions: (register: Harness) => PluginDefinition[], partial
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   // A plugin that declares actions (the preview of a 成果 type it pins) is installed against the Kernel that holds them.
-  const runtime = new PluginRuntime(undefined, executor, { actions: pluginActions(store, DEMO_PROJECT_ID), ...(partial ? { redemption: () => ({ partial: true }) } : {}) });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID), ...(partial ? { redemption: () => ({ partial: true }) } : {}) });
   const supervisor = new PluginSupervisor(runtime);
   const wiring = new PluginInputGraph({
     projectId: DEMO_PROJECT_ID,

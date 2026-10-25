@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
@@ -35,7 +36,7 @@ test("W1-18-SEMVER-01 Runtime upgrades a hyphenated prerelease and refuses an un
     },
     async start() { starts.push(version); return { kind: "app" }; },
   });
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const original = definition("1.0.0-alpha-a"), newer = definition("1.0.0-alpha-b", "1.0.0-alpha-a");
   const installId = runtime.install({ trust: { level: "unsigned" }, definition: original, deployment: "local", grants: [] }).install.install_id;
   try {

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
@@ -48,7 +49,7 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
     nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add', ...(lookup ? ['fixture.lookup'] : [])],
       ...(secretRefs.length ? { networkDomains: ['api.example.test'], secretRefs } : {}) }, publishedAt: new Date().toISOString() };
   builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
   const { install } = runtime.install({ trust: { level: "unsigned" }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
   if (neverInstalled) store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(install.install_id);
   store.close();
@@ -584,7 +585,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
   const home = await mkdtemp(join(tmpdir(), 'installed-restore-error-')), databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
   let store = new LocalProjectDatabase(databasePath);
   try {
-    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
+    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
     const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('io.molis.work.generated.' + buildId + '\u0000' + installedSignature(buildId)).digest('hex').slice(0, 32);
     // The plugin restored first also sorts first by plugin id, so the Supervisor's sorted failure list starts with it.
     let first = '', second = '';

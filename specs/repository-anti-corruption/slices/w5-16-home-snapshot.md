@@ -20,6 +20,14 @@
 
 实施收敛：仅有 owner `inspect` 的快照store把普通文件刷盘延到该次完整私有payload认证成功之后；仍逐个刷齐，在manifest/目录最终flush及发布之前完成。普通复制默认即时刷盘，不改其他消费者。SDK仍只认证经过原排除规则的真实暂存payload，不新增原目录预验（原目录可能含既定排除的未完成claim/tmp）、解密器、缓存或另一套owner协议。保留原摘要/源稳定检查、离线lease、失败清理与发布后flush失败语义。原测试增加负控无record刷盘、成功发布前全1003个record已刷盘、认证成功后的刷盘故障拒绝与零源写；不减少原认证组合或改120秒。
 
+作者实现与必要验证完成，代码固定 `03d64d9fbe35bf8e544c049de666796011b65e9e`（准确父0cab）；后续只回填本段结果，源码/测试/包保持。新的无刷盘断言对原0cab构建做有限反证时，错有效长度key一项明确失败为 `1003 !== 0`（自然exit1，其他负项与builder未选，不冒全父项基线）。修后整体build退出0，官方源码与构建摘要匹配 `8b81a90c30c4d209d0b6cf50f12dbb9343ada4c24d3c24fe2bf0fbda35d73a4a`。
+
+无外置计时器、无用例筛选的正式 `security-invariants-home-snapshot-sdk.test.ts` 全24/24通过；其中原完整双分区认证父项17项全部完成，耗时22469.565ms，原120000ms未改，fail/cancel/skip/todo均0。负项在真实SDK拒绝后断言records文件无fsync；成功路径在实际rename之前断言两kind、跨页、空正文、保留密文墓碑的全1003文件都完成真实fsync；原私有payload篡改场景另注入有效认证后的文件刷盘故障，拒绝发布、零源写、清理暂存并可重新取得同一Home lease。原CLI、内容、输入、生命周期与Sessions离线五文件也通过，合计六文件73/73、自然exit0。测试前后代码头与clean状态不变。
+
+边界、严格test-imports、API、page-assets及相对0cab与`origin/main`（merge-base `52560f32`）的健康门禁均退出0，没有改门禁/基准/预算。`vendor`、依赖/锁/登记脚本、agent-host、contracts、plugin-sdk及Memory相对0cab均无改动；只改本题八个快照实现/测试/README/spec文件。推前按原要求fresh-fetch/secrets并普通推送。全部命令/退出码/完整输出在 `/tmp/molis-pr1267-snapshot-auth-timeout-20261025/`（`phase-original`是诊断，`regression-old-dist`是有限反证，`fixed-targeted`才是正式完整文件与相关回归）。
+
+原1556/0cab的两份120秒NOTPASS与旧builder-only9/9保原样，不把历史精确停顿原因或未选项回填成通过。本次只解决该非Memory认证父项；等待固定候选的增量REVIEW/TEST与唯一carrier采用，不算原PR/main已合入、完整C2/restore或本人验收完成。Memory接续仍暂停，未跑full/CI/浏览器或操作真实Home/凭据/模型。
+
 ### #1267 final103 过渡 SDK 消费（2026-10-25 当前合同）
 
 本独立后继以冻结 snapshot `1556d97b7eb35d72de8b83b7569fbfd48b239760` 为父；原树与 PR head 保持不动。Root/PIPE 已依据 [accepted WO](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395049480) 明确 C2 为唯一包/消费 writer：仅采用 SDK 基点 `2c7feba5a6ea85e81e4a263671fb5e68f536d86a` 上的 final103 移植，准确最终源 `ba75c9f8437018904b24dabeaaef6ded8054add5`（功能 `4e018e1a`、文档尾 ba75）；不带 #61–#101/#104、旧 `42ccc75` 或整个 main。main dcaa 已双核包保留为参考，原 #1064/main 采用线与恢复的真实 Memory 资格/合法空态责任均不取消。当前恢复 WIP、FIX8/18/19 不混本分支，统一 carrier 仍由 Claude/PIPE 负责。

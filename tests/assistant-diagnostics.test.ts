@@ -29,4 +29,6 @@ test("the diagnostics section is a closed disclosure that reads only when opened
   assert.doesNotMatch(html, /<details[^>]*\bopen\b/);
   assert.doesNotThrow(() => new Function(AGENT_DIAGNOSTICS_CLIENT_SCRIPT.replace("globalThis.molisWorkBindAgentDiagnostics(document);", "")));
   assert.match(AGENT_DIAGNOSTICS_CLIENT_SCRIPT, /\/api\/assistant\/diagnostics/);
+  // A failure's summary can be a generic code; the developer page also shows the runtime's own words (BL-090).
+  assert.match(AGENT_DIAGNOSTICS_CLIENT_SCRIPT, /failure\.detail/);
 });

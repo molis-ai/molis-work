@@ -35,4 +35,12 @@ export const hostErrors = defineErrorCodes("host", {
   workspace_not_found: "not_found",
   /** A part of a request path that is not valid percent-encoding: the caller's mistake, never a Host fault. */
   request_path_invalid: "invalid",
+  /** A service this composition starts on first use was not supplied: the caller learns which piece is missing (BL-221). */
+  builder_unavailable: "unavailable",
+  /** The project connection catalog was not composed; nothing can be refreshed through it (BL-221). */
+  project_connection_unavailable: "unavailable",
+  /** The Agent runtime was never started, so its write checkers cannot be read (BL-221). */
+  agent_runtime_unavailable: "unavailable",
+  /** The runtime's inference client was not composed (BL-221). */
+  inference_unavailable: "unavailable",
 });

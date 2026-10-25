@@ -18,6 +18,11 @@ import { managementCaller, managementGoals } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
+// The launcher compiles the TS entry through tsx on every spawn: about 5 s cold, and each MCP test here takes
+// 7–10.5 s on an idle machine (whole file 32.7 s). The old 60 s ceiling left no room for a fully loaded machine;
+// measured, not guessed: a real hang still fails, only at 120 s.
+const LAUNCHER_TIMEOUT = 120_000;
+
 test("Goals actions keep the runtime author; the management caller and the first-run door record the local person and refuse a supplied actor", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Goals", actor_id: "user" }));
@@ -175,7 +180,7 @@ async function openGoalsMcp(t: TestContext) {
   } catch (error) { await close(); throw error; }
 }
 
-test("official MCP launcher: granted reads and the trash lifecycle use the shared Host", { timeout: 60_000 }, async t => {
+test("official MCP launcher: granted reads and the trash lifecycle use the shared Host", { timeout: LAUNCHER_TIMEOUT }, async t => {
   const context = await openGoalsMcp(t);
   const { sdk, host, ref, project, caller, served, input, eventId, event, views, sessionActor, invokePlanning, parseText } = context;
   try {
@@ -252,7 +257,7 @@ test("official MCP launcher: granted reads and the trash lifecycle use the share
   } finally { await context.close(); }
 });
 
-test("official MCP launcher: guidance, live planning and user-owned configuration retain grant boundaries", { timeout: 60_000 }, async t => {
+test("official MCP launcher: guidance, live planning and user-owned configuration retain grant boundaries", { timeout: LAUNCHER_TIMEOUT }, async t => {
   const context = await openGoalsMcp(t);
   const { home, sdk, host, ref, project, caller, served, input, views, sessionActor, invokePlanning } = context;
   try {
@@ -330,7 +335,7 @@ test("official MCP launcher: guidance, live planning and user-owned configuratio
   } finally { await context.close(); }
 });
 
-test("official MCP launcher: work records and tree proposals retain provenance and protected decisions", { timeout: 60_000 }, async t => {
+test("official MCP launcher: work records and tree proposals retain provenance and protected decisions", { timeout: LAUNCHER_TIMEOUT }, async t => {
   const context = await openGoalsMcp(t);
   const { sdk, host, ref, project, caller, served, input, views, sessionActor, invokeWork, invokePlanning, parseText, noteName, noteInput } = context;
   try {

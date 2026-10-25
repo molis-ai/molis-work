@@ -562,6 +562,7 @@ export interface AssistantRoundDiagnostics {
         target: string;
         state: "failed" | "unknown";
         summary: string;
+        detail?: string;
     }>;
 }
 

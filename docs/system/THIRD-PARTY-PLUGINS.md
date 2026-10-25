@@ -12,7 +12,7 @@
 
 **有**（代码事实）：
 
-- `tooling/plugin-cli`：`create`、`validate`、`pack`、`identity`、`sign`、`verify`（`tooling/plugin-cli/src/cli.ts`）。`pack` 把 `package.json` 的 `files` 列出的文件打成一个 JSON 包：拒绝符号链接、越界路径、生命周期脚本，不超过 64 MiB（`package-files.ts`）。
+- `tooling/plugin-cli`：`create`、`validate`、`pack`、`identity`、`sign`、`verify`（`tooling/plugin-cli/src/cli.ts`）。`pack` 把 `package.json` 的 `files` 列出的文件打成一个 JSON 包：拒绝符号链接、越界路径与超过 64 MiB 的包，不执行 glob 或生命周期脚本（`package-files.ts`）。
 - 发布者身份是 Ed25519 公钥的指纹：`ed25519:sha256:<spki 的哈希>`（`pluginPublisherIdentity`，`packages/plugin-runtime/src/package-verification.ts`），Manifest 的 `publisher.signature` 必须等于它，`signPluginPackage` 不一致就拒绝；`verifyPluginPackage(bundle, 可信公钥)` 验签，没签名的包「不是已验证发行物」。
 - Runtime 的安装、授权、升级、回滚、停用、卸载，安装记录有 `execution: "host" | "sandbox"`（`packages/contracts/src/platform/plugin.ts`）。`execution: "sandbox"` 的插件必须带明确的授权清单才能安装（`packages/plugin-runtime/src/index.ts`、`supervisor.ts`）。
 - 沙箱：创作台做出的「生成插件」就是这条路径。`apps/local-host/src/plugin-builder/installed.ts` 的文件头写明「插件的代码从不在宿主进程里跑，界面是宿主的组件渲染器，所以页面里也没有插件脚本」。`packages/plugin-sandbox` 在 macOS 上用 `sandbox-exec` 启动子进程：不继承环境变量；Seatbelt 禁止创建进程、联网和一切文件写入，可读范围只有暂存的包与 worker、Node 可执行文件和系统库；网络和存储都经宿主服务；非 macOS 直接抛 `UNSUPPORTED_PLATFORM`（`packages/plugin-sandbox/README.md`、`runner.ts`）。

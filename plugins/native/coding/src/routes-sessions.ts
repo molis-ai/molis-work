@@ -4,7 +4,7 @@ import { materialSelection } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
-import { codingError, codingFailure, codingText } from "./words.js";
+import { codingError, codingText } from "./words.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { nextConfiguration, runControl, text } from "./run-inputs.js";
@@ -22,6 +22,27 @@ import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent
 const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" });
 
 /** Coding routes for sessions and their rounds: the directory, creating and changing a session, starting, queueing and steering a round. */
+
+/** What this file refuses about a session that is archived, busy, or not waiting: each code says what sort of refusal it is (W3-02). */
+const codingSessionErrors = defineErrorCodes("coding", {
+  session_busy: "conflict",
+  archived_edit: "conflict",
+  archived_run: "conflict",
+  waiting: "conflict",
+  wait_round_open: "conflict",
+  not_waiting: "conflict",
+  never_run: "conflict",
+  wait_target_gone: "not_found",
+  question_drafts_long: "too_large",
+  choose_workspace: "invalid",
+  compact_unclear: "invalid",
+  compact_nothing: "invalid",
+  materials_busy: "conflict",
+  question_drafts_invalid: "invalid",
+  draft_invalid: "invalid",
+  budget_range: "invalid",
+  wait_choose: "invalid",
+});
 
 // The directory reads current facts without changing any persistent record or starting background execution.
 const readState = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
@@ -48,7 +69,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
 /** The workspace a send names, as the directory it will run in. */
 const directoryOf = async (api: Capabilities, workspaceId: unknown) => {
   const workspace = (await api.invoke(projectSettingsCapabilities.workspaces, [])).find(entry => entry.workspace_id === workspaceId);
-  if (!workspace?.realpath_verified) throw codingFailure("coding.server.choose-workspace");
+  if (!workspace?.realpath_verified) throw codingError(codingSessionErrors.choose_workspace, "coding.server.choose-workspace");
   return workspace.canonical_path;
 };
 /** Other sessions' work that overlaps what a send names: its text, and its plan's steps when it runs one. */
@@ -139,8 +160,8 @@ const ROUTES: RouteMaker[] = [
     return route("coding.compact-next", async (request, _api, execution) => {
       const record = selected(a, request, execution);
       const on = bodyOf(request).on;
-      if (typeof on !== "boolean") throw codingFailure("coding.server.compact-unclear");
-      if (on && !record.runtime_session_id) throw codingFailure("coding.server.compact-nothing");
+      if (typeof on !== "boolean") throw codingError(codingSessionErrors.compact_unclear, "coding.server.compact-unclear");
+      if (on && !record.runtime_session_id) throw codingError(codingSessionErrors.compact_nothing, "coding.server.compact-nothing");
       if (on) context.services!.storage!.set(`compact-next:${record.session_id}`, "1");
       else context.services!.storage!.delete(`compact-next:${record.session_id}`);
       return { compact_requested: on };
@@ -153,23 +174,23 @@ const ROUTES: RouteMaker[] = [
       const body = bodyOf(request);
       if (body.archive === true) {
         const notSubmitting = () => {
-          if (busy.has(record.session_id)) throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.busy-archive");
+          if (busy.has(record.session_id)) throw codingError(codingSessionErrors.session_busy, "coding.server.busy-archive");
         };
         notSubmitting();
         if (record.runtime_session_id) {
           const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
           const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
           if (snapshot.checkpoint_busy || snapshot.recovery || snapshot.latest_run && !isTerminalAgentPhase(snapshot.latest_run.phase)) {
-            throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.stop-before-archive");
+            throw codingError(codingSessionErrors.session_busy, "coding.server.stop-before-archive");
           }
         }
         // Checked again inside the write: a round started while the write waited on `beforeWrite` is still refused.
         notSubmitting();
         return { session: await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString(), notSubmitting) };
       }
-      if (record.archived) throw codingFailure("coding.server.archived-edit");
+      if (record.archived) throw codingError(codingSessionErrors.archived_edit, "coding.server.archived-edit");
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
-      if (materials && busy.has(record.session_id)) throw codingFailure("coding.server.materials-busy");
+      if (materials && busy.has(record.session_id)) throw codingError(codingSessionErrors.materials_busy, "coding.server.materials-busy");
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
       const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
@@ -183,20 +204,20 @@ const ROUTES: RouteMaker[] = [
       if (characterSkills !== undefined) context.services!.storage!.set(`character-skills:${record.session_id}`, JSON.stringify(characterSkills));
       if (body.question_drafts !== undefined) {
         if (!body.question_drafts || typeof body.question_drafts !== "object" || Array.isArray(body.question_drafts)
-          || Object.keys(body.question_drafts).length > 20) throw codingFailure("coding.server.question-drafts-invalid");
+          || Object.keys(body.question_drafts).length > 20) throw codingError(codingSessionErrors.question_drafts_invalid, "coding.server.question-drafts-invalid");
         const encoded = JSON.stringify(body.question_drafts);
-        if (encoded.length > 100_000) throw codingFailure("coding.server.question-drafts-long");
+        if (encoded.length > 100_000) throw codingError(codingSessionErrors.question_drafts_long, "coding.server.question-drafts-long");
         context.services!.storage!.set(`question-drafts:${record.session_id}`, encoded);
       }
       if (body.draft !== undefined) {
-        if (typeof body.draft !== "string" || body.draft.length > 100_000) throw codingFailure("coding.server.draft-invalid");
+        if (typeof body.draft !== "string" || body.draft.length > 100_000) throw codingError(codingSessionErrors.draft_invalid, "coding.server.draft-invalid");
         context.services!.storage!.set(`draft:${record.session_id}`, body.draft);
       }
       // The person's budget for this session: reaching it is reported, never enforced (the person's choice).
       if (body.budget !== undefined) {
         const tokens = (body.budget as { tokens?: unknown } | null)?.tokens;
         if (body.budget === null || tokens === null) context.services!.storage!.delete(`budget:${record.session_id}`);
-        else if (typeof tokens !== "number" || !Number.isSafeInteger(tokens) || tokens < 1_000 || tokens > 10_000_000_000) throw codingFailure("coding.server.budget-range");
+        else if (typeof tokens !== "number" || !Number.isSafeInteger(tokens) || tokens < 1_000 || tokens > 10_000_000_000) throw codingError(codingSessionErrors.budget_range, "coding.server.budget-range");
         else context.services!.storage!.set(`budget:${record.session_id}`, JSON.stringify({ tokens }));
       }
       const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
@@ -208,18 +229,18 @@ const ROUTES: RouteMaker[] = [
     const { context, projectId, busy, route } = a;
     return route("coding.start-run", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      if (record.archived) throw codingFailure("coding.server.archived-run");
-      if (busy.has(record.session_id)) throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.busy");
+      if (record.archived) throw codingError(codingSessionErrors.archived_run, "coding.server.archived-run");
+      if (busy.has(record.session_id)) throw codingError(codingSessionErrors.session_busy, "coding.server.busy");
       busy.add(record.session_id);
       try {
         const body = bodyOf(request);
-        if (await a.waits.openWaitOf(record)) throw codingFailure("coding.server.waiting");
+        if (await a.waits.openWaitOf(record)) throw codingError(codingSessionErrors.waiting, "coding.server.waiting");
         // "等它完成后再开始": the round is held as an item waiting on the other work, and starts on its own when it is done.
         if (typeof body.wait_for === "string") {
-          if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw codingFailure("coding.server.wait-round-open");
+          if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw codingError(codingSessionErrors.wait_round_open, "coding.server.wait-round-open");
           const { directory, overlaps } = await overlapsFor(a, api!, execution, record, body, beforeWrite);
           const target = overlaps.find(overlap => overlap.work_id === body.wait_for);
-          if (!target) throw codingFailure("coding.server.wait-target-gone");
+          if (!target) throw codingError(codingSessionErrors.wait_target_gone, "coding.server.wait-target-gone");
           const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
             : await codingActions(context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
           if (!record.runtime_session_id) await execution.sessions.setRuntimeSession(beforeWrite, projectId, record.session_id, session.session_id, new Date().toISOString());
@@ -253,15 +274,15 @@ const ROUTES: RouteMaker[] = [
     const { projectId, busy, route } = a;
     return route("coding.queued-round", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), wait = await a.waits.openWaitOf(record), action = bodyOf(request).action;
-      if (!wait) throw codingFailure("coding.server.not-waiting");
+      if (!wait) throw codingError(codingSessionErrors.not_waiting, "coding.server.not-waiting");
       if (action === "cancel") {
         // Giving up a wait for an answer withdraws the request; for the person's own wait, its project work item goes.
         await a.waits.cancel(record, wait, beforeWrite);
         await execution.sessions.setState(beforeWrite, projectId, record.session_id, record.runtime_session_id ? "done" : "idle", new Date().toISOString());
         return { cancelled: true };
       }
-      if (action !== "start") throw codingFailure("coding.server.wait-choose");
-      if (busy.has(record.session_id)) throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.busy");
+      if (action !== "start") throw codingError(codingSessionErrors.wait_choose, "coding.server.wait-choose");
+      if (busy.has(record.session_id)) throw codingError(codingSessionErrors.session_busy, "coding.server.busy");
       busy.add(record.session_id);
       try {
         return await a.waits.goOn(api, execution, record, wait, beforeWrite);
@@ -286,7 +307,7 @@ const ROUTES: RouteMaker[] = [
     const { context, route, busy } = a;
     return route("coding.control-run", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) throw codingFailure("coding.server.never-run");
+      if (!record.runtime_session_id) throw codingError(codingSessionErrors.never_run, "coding.server.never-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
       const body = bodyOf(request);

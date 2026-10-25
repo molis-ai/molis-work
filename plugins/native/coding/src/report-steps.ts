@@ -1,5 +1,6 @@
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentRunView, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { insertedAcceptance } from "./inserted-step.js";
 import { codingTaskBoardPlans, type CodingStepVerdict } from "./taskboard.js";
 
 /** Evidence captured when the report is saved, never a live task ledger. */
@@ -42,7 +43,7 @@ export function codingReportStepsMarkdown(run: AgentRunView, evidence: CodingRep
   if (board) sections.push(literal(`原步骤图：${board.project_id} v${board.version}\n图状态：${board.terminal ? "已结束" : "尚未结束"}（不代表用户验收）`));
   const steps = board ? board.nodes.map(node => plan?.steps.find(step => step.id === node.id) ?? {
     id: node.id, title: node.title || node.id,
-    acceptance: node.reports.find(report => report.note.startsWith("用户插入"))?.note.split("完成条件：")[1] || "见插入说明",
+    acceptance: insertedAcceptance(node.reports) || "见插入说明",
   }) : plan?.steps ?? [];
   for (const [index, step] of steps.entries()) {
     const node = board?.nodes.find(node => node.id === step.id);

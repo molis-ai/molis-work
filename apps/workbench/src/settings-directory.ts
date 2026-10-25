@@ -76,12 +76,12 @@ function renderSettingsNav(
   });
 }
 
-export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, enabled?: readonly string[], hidden?: readonly string[]): string {
+export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, shown?: readonly string[]): string {
   const { L, icon } = primitives;
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("设置")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(enabled, hidden), "appearance", "系统设置", "settings")}
+      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(shown), "appearance", "系统设置", "settings")}
     </div>
   </section>`;
 }

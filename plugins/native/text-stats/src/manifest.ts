@@ -23,6 +23,8 @@ export const textStatsManifest: PluginManifest = {
   plugin_id: TEXT_STATS_PLUGIN_ID,
   version: "0.3.0",
   name: "Text stats",
+  summary: "统计文件快照的字数、字节与行数。",
+  developer: true,
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-text-stats-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

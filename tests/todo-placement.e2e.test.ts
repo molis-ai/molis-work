@@ -11,7 +11,7 @@ test("a todo moved away from the placement panel leaves this page: the open deta
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
   const store = openTodoStore(homeDirectory);
-  const scope = { projectId, everything: true, actor: "user" as const, actorId: "test" };
+  const scope = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
   const away = store.create({ title: "整理 Beta 用户回访记录", placement: "project" }, scope).item;
   const stay = store.create({ title: "准备周会材料", placement: "project" }, scope).item;
   store.close();

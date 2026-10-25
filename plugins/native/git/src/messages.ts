@@ -3,6 +3,8 @@ export const GIT_MESSAGES = {
   "git.dir.refresh": { zh: "刷新", en: "Refresh" },
   "git.dir.source-control": { zh: "提交与分支", en: "Commits and branches" },
   "git.dir.reopen": { zh: "上次查看的固定差异", en: "The pinned difference you last viewed" },
+  "git.list.back": { zh: "返回改动列表", en: "Back to changes" },
+  "git.error.workspace-unreadable": { zh: "无法读取文件工作区", en: "Couldn't read the file workspace" },
   "git.list.reading": { zh: "正在读取 Git…", en: "Reading Git…" },
   "git.list.reading-workspace": { zh: "正在读取 Git 工作区…", en: "Reading the Git workspace…" },
   "git.list.joiner": { zh: "、", en: ", " },

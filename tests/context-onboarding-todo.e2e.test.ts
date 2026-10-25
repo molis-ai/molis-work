@@ -69,7 +69,8 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
   assert.equal(await evaluate("new URL(location.href).searchParams.has('openPlugin')"), false);
   const store = openTodoStore(homeDirectory);
   try {
-    const items = store.list({ projectId: null, everything: true, actor: "user", actorId: "test" });
+    const adoptedProject = String(await evaluate("location.pathname.split('/')[2]"));
+    const items = store.list({ projectId: null, projectIds: [adoptedProject], actor: "user", actorId: "test" });
     assert.deepEqual(items.map(item => item.title), ["发送新版方案"]);
     assert.equal(items[0]!.sources[0]!.kind, "onboarding");
   } finally { store.close(); }

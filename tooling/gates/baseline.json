@@ -1,5 +1,5 @@
 {
-  "giantUnits": 80,
+  "giantUnits": 73,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1842,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -43,21 +43,8 @@
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
-    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 185,
+    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
-    "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
-    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 965,
-    "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 602,
-      "methods": 18
-    },
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 346,
-    "class horizontal/agent-host/src/index.ts#AgentHost": {
-      "lines": 381,
-      "methods": 12
-    },
-    "function horizontal/agent-host/src/index.ts#start": 252,
     "file horizontal/memory/src/service.ts": 1259,
     "class horizontal/memory/src/service.ts#MemoryService": {
       "lines": 1079,

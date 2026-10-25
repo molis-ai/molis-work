@@ -39,8 +39,8 @@ test("Form standard MCP preserves submissions and publications across tool proce
   const connect = (clientId: string, projectId: string): Tool => createActionMcpPorts({ serverInfo: { name: "external-form", version: "1" },
     service: new LocalActionGatewayClient({ url: web!.origin, homeDirectory: home, clientId, projectId, controlToken: web!.controlToken }),
     context: () => ({ actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [] }) });
-  // W4-6-07: a tool is named by its capability version, and `content.receive` is at version 2; the other tools keep `__v1`.
-  const tool = (name: string) => `form.${name}__v${name === "content.receive" ? 2 : 1}`;
+  // W4-6-07 RAC-633-MIG-01: content.receive and subject.read have version 2; the other tools keep version 1.
+  const tool = (name: string) => `form.${name}__v${["content.receive", "subject.read"].includes(name) ? 2 : 1}`;
   const answer = async (client: Tool, name: string, args: Record<string, unknown>) => {
     const reply = await handleMcpMessage({ id: 1, method: "tools/call", params: { name: tool(name), arguments: args } }, client);
     return reply!.result as { isError: boolean; content: Array<{ text: string }>; structuredContent?: unknown };

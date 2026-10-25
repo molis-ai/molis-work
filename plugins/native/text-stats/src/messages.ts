@@ -10,5 +10,8 @@ export const TEXT_STATS_MESSAGES = {
   "重新捕获一次，或者在 Sources 里换一个输入": { zh: "重新捕获一次，或者在 Sources 里换一个输入", en: "Pin it again, or choose another input in Sources" },
   "text-stats.stage.refresh": { zh: "刷新", en: "Refresh" },
   "text-stats.stage.open-files": { zh: "打开 Files", en: "Open Files" },
+  "text-stats.stage.reading": { zh: "正在读取固定内容…", en: "Reading the pinned versions…" },
+  "text-stats.stage.retry": { zh: "。请点击刷新重试。", en: ". Select Refresh to try again." },
+  "text-stats.error.unreadable": { zh: "无法读取文件工作区", en: "Couldn't read the file workspace" },
   "text-stats.stage.add-files": { zh: "到插件市场添加 Files", en: "Add Files from the plugin market" },
 } as const;

@@ -1,6 +1,6 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -50,9 +50,8 @@ export interface FilesUiModel {
   readonly primitives: FilesUiPrimitives;
 }
 
-export const filesUiDescriptor: UiContributionDescriptor = {
+export const filesUiDescriptor: UiContributionDeclaration = {
   contribution_id: FILES_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.files",
   kind: "primary-page",
   navigation_id: "files",
   label: "Files",

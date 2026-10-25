@@ -66,7 +66,7 @@ test("resolveActionSubject discovers the original provider and reads an exact in
   assert.ok(directory.some(view => view.capability_id === "artifacts.subject.read"));
   assert.equal(f.reads(), 0, "discovery must not load private content");
   const { context, reader } = await resolveActionSubject(f.actions, caller, subject());
-  assert.deepEqual(reader, { capability_id: "artifacts.subject.read", version: 1, provider_id: artifactsManifest.plugin_id });
+  assert.deepEqual(reader, { capability_id: "artifacts.subject.read", version: 2, provider_id: artifactsManifest.plugin_id });
   assert.deepEqual(context.subject, subject());
   assert.equal(context.title, "第一版原文");
   assert.equal(context.truncated, false);

@@ -2,12 +2,15 @@ import { treeErrors } from "./errors.js";
 import type { GoalTreeProposalDecisionRecord, GoalTreeProposalItemRecord, GoalTreeProposalRecord, GoalTreeItemOwner, GoalTreeSemanticReview, GovernanceRecordsApi, NewNativeGoalTreeProposal, NewNativeGoalTreeProposalItem } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { randomUUID } from "node:crypto";
 import { json, text, type GovernanceRow } from "./mappers.js";
-import { GovernanceRepository, type GovernanceSqliteDatabase } from "./repository.js";
+import { GovernanceRepository, type GovernanceJournal, type GovernanceSqliteDatabase } from "./repository.js";
 import { assertGovernanceTransition, deriveGoalTreeProposalState } from "./state-machine.js";
 
 /** Owns native proposal, item and decision records in the existing Governance tables. */
 export class GovernanceGoalTreeRecords {
-  constructor(private readonly db: GovernanceSqliteDatabase) {}
+  private readonly repository: GovernanceRepository;
+  constructor(private readonly db: GovernanceSqliteDatabase, journal: GovernanceJournal) {
+    this.repository = new GovernanceRepository(db, journal);
+  }
 
   recordGoalTreeItemDecision(input: Parameters<GovernanceRecordsApi["recordGoalTreeItemDecision"]>[0]): GoalTreeProposalDecisionRecord {
     const decisionId = `goal-tree-decision-${randomUUID()}`;
@@ -37,7 +40,7 @@ export class GovernanceGoalTreeRecords {
       revision_proposal_id: input.revision_proposal_id,
       updated_at: input.at,
     });
-    new GovernanceRepository(this.db).appendEvent({
+    this.repository.appendEvent({
       event_id: randomUUID(),
       project_id: input.project_id,
       actor_id: input.authority.actor_id,
@@ -70,7 +73,7 @@ export class GovernanceGoalTreeRecords {
     at: string,
     semanticReview: GoalTreeSemanticReview | null,
   ): void {
-    const proposal = new GovernanceRepository(this.db).getGoalTreeProposal(projectId, proposalId);
+    const proposal = this.repository.getGoalTreeProposal(projectId, proposalId);
     if (!proposal) throw treeErrors.not_found(`找不到 Goal Tree 提案: ${proposalId}`);
     const hasOpen = proposal.items.some((item) => item.state === "pending" || item.state === "conflict");
     const state = deriveGoalTreeProposalState(proposal.items);
@@ -85,7 +88,7 @@ export class GovernanceGoalTreeRecords {
       at,
       hasOpen ? null : at,
     );
-    new GovernanceRepository(this.db).appendEvent({
+    this.repository.appendEvent({
       event_id: randomUUID(),
       project_id: projectId,
       actor_id: actorId,

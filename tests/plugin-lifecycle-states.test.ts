@@ -215,7 +215,7 @@ function probe(version: string, options: ProbeOptions = {}): PluginDefinition {
     async start() {
       options.starts?.push(version);
       if (options.failStart) throw new Error(version + " cannot start");
-      return { kind: "app", views: [{ descriptor: { contribution_id: ID + ".main", plugin_id: ID, kind: "primary-page", label: "m", slots: [] }, render: () => "<p></p>" }] };
+      return { kind: "app", views: [{ descriptor: { contribution_id: ID + ".main", kind: "primary-page", label: "m", slots: [] }, render: () => "<p></p>" }] };
     },
     async stop() {},
   } as PluginDefinition;

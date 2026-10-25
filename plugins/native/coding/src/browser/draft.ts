@@ -11,7 +11,7 @@ export interface DraftPorts {
   readonly lifetime: DraftLifetime;
   readonly q: (selector: string) => Element;
   /** One request to the Coding routes; a failure is an Error. */
-  readonly api: (path: string, method: string, body: Record<string, unknown>) => Promise<unknown>;
+  readonly api: (path: string, method: "PATCH", body: Record<string, unknown>) => Promise<unknown>;
   readonly input: HTMLTextAreaElement;
   /** The session on show. */
   readonly current: () => string;

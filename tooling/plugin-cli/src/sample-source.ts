@@ -18,6 +18,7 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
       permissions, subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema, ...(result_view ? { result_view } : {}),
     },
   });
+  const selfCalled = (definition: ActionDefinition): ActionDefinition => ({ ...definition, action: { ...definition.action, audiences: [...definition.action.audiences, "plugin"] } });
   const preview = defineArtifactPreviewAction(`${pluginId}.results.preview`, "sample result", ["artifact:read"]);
   return [
     define("health", "Sample health", "Read the sample connector's health without accessing private results.", [], {
@@ -26,8 +27,9 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
     define("results.read", "Read my sample results", "Read the startup owner's private count and latest personal Artifact.", ["storage:private", "artifact:read"], {
       type: "object", properties: { count: { type: "integer", minimum: 0 }, latest: { anyOf: [result, { type: "null" }] } }, required: ["count", "latest"], additionalProperties: false,
     }),
-    define("results.publish", "Save my sample result", "Publish the next personal Artifact version and update the original private counter.",
-      ["storage:private", "artifact:read", "artifact:write"], result, true, false, { summary: "Sample result saved", title_pointer: "/payload/title" }),
+    // The plugin saves a result from its own polling, outside any caller, so it is open to the plugin's own calls too (the `plugin` audience).
+    selfCalled(define("results.publish", "Save my sample result", "Publish the next personal Artifact version and update the original private counter.",
+      ["storage:private", "artifact:read", "artifact:write"], result, true, false, { summary: "Sample result saved", title_pointer: "/payload/title" })),
     { ...preview, action: { ...preview.action, title: "Preview a sample result", description: "Show one saved version of a sample result as readable text; changes nothing." } },
   ];
 }
@@ -71,7 +73,7 @@ export default definePlugin({
     }
     services.ui.register({
       descriptor: {
-        contribution_id: manifest.ui.contributions[0], plugin_id: manifest.plugin_id,
+        contribution_id: manifest.ui.contributions[0],
         kind: "primary-page", label: "Local Plugin Sample", slots: [],
         surfaces: [{ surface_id: "main", target_slot_id: "plugin.main", format: "html" }],
       },

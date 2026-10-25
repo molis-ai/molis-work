@@ -42,6 +42,7 @@ function ports(store: LocalProjectDatabase, titles: Readonly<Record<string, stri
   };
 }
 
+// RAC-634-MIG-03: the original surface, input-port and companion-stage suites keep their behavior assertions with the read-only directory fixture.
 test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的库；Goal 标题经 Goals 的公开读动作读到", async () => {
   const directory = mkdtempSync(join(tmpdir(), "coding-surface-"));
   try {

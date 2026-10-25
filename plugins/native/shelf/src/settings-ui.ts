@@ -1,6 +1,6 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import type {
@@ -38,9 +38,8 @@ export interface ShelfSettingsUiModel {
   readonly primitives: ShelfUiPrimitives;
 }
 
-export const shelfSettingsUiDescriptor: UiContributionDescriptor = {
+export const shelfSettingsUiDescriptor: UiContributionDeclaration = {
   contribution_id: SHELF_SETTINGS_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.shelf",
   kind: "settings-page",
   navigation_id: "shelf",
   label: "Shelf",

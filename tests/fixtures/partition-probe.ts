@@ -3,8 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
-import { HomePluginHost, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { HomePluginHost, PLATFORM_PLUGIN_REGISTRATIONS, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { HomePluginDatabaseDeclaration, PluginBackgroundExecution, PluginDatabase, PluginDefinition, PluginExecutionControl, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -14,7 +13,7 @@ import { withLibrary } from "./home-library.js";
 import { person } from "./home-runtime.js";
 
 // A Home plugin whose library is partitioned by project (specs/plugin-project-partition), shipped the way a built-in one is: an entry
-// in the build's catalog. The Home's store registry is made from the catalog once per process, so the entry is added when this
+// in the platform's registration list (`PLATFORM_PLUGIN_REGISTRATIONS`, the Host's own since W5-02 PR-B). The Home's store registry is made from the catalog once per process, so the entry is added when this
 // module loads, before anything asks for the registry, and stays for the test file's process.
 
 export const PROBE = "partprobe";
@@ -101,11 +100,11 @@ function createProbe(): PluginDefinition {
 }
 
 const projectData: ProjectDataDeclaration = { label: "分区探针在这个项目里的笔记", purge: (home, projectId) => probe.purge(home, projectId) };
-const catalog = BUILTIN_PLUGIN_CATALOG as PluginRegistration[];
+const catalog = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
 const todo = catalog.find(entry => entry.project_plugin_id === "todo")?.runtime;
 assert.ok(todo, "the Todo entry lends its package for the Runtime's release archive");
 const shipped = createProbe();
-catalog.push({ project_plugin_id: PROBE, catalog_order: 10_000, manifest: shipped.manifest, summary: "分区探针", project_data: projectData,
+catalog.push({ project_plugin_id: PROBE, catalog_order: 10_000, manifest: shipped.manifest, project_data: projectData,
   runtime: { scope: "home", create: createProbe, package_name: todo.package_name, factory_export: todo.factory_export },
   workbench: { order: 10_000, contributions: [] } });
 

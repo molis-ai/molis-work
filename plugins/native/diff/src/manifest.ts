@@ -39,6 +39,7 @@ export const diffManifest: PluginManifest = {
   plugin_id: DIFF_PLUGIN_ID,
   version: "0.3.0",
   name: "Diff",
+  summary: "比较固定版本，逐项阅读差异。",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-diff-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

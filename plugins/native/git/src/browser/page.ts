@@ -94,17 +94,23 @@ export function createPage(host: GitHost, sentences: GitSentenceTable): GitPage 
 export const active = (page: GitPage, epoch: number): boolean =>
   page.lifetime.alive && page.lifetime.visible && !page.viewSignal?.aborted && epoch === page.generation;
 
-/** One request to a plugin's routes while the page is on show; a hidden page asks nothing. */
-export async function requestPlugin<T>(page: GitPage, plugin: string, path: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> {
+/** One request while the page is on show; a hidden page asks nothing. A write is not cancelled by the page being hidden. */
+async function whileShown<T>(page: GitPage, send: (signal: AbortSignal) => Promise<unknown>, write: boolean): Promise<T> {
   const signal = page.viewSignal;
   page.lifetime.assertCurrent(signal);
   if (!signal || !page.lifetime.visible) throw new DOMException("View hidden", "AbortError");
-  const value = await page.host.request(plugin, path, method, body, method === "GET" ? signal : page.lifetime.signal);
+  const value = await send(write ? page.lifetime.signal : signal);
   page.lifetime.assertCurrent(signal);
   return value as T;
 }
 
-export const request = <T>(page: GitPage, path: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> => requestPlugin<T>(page, "git", path, method, body);
+/** One request to Git's routes. */
+export const request = <T>(page: GitPage, path: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> =>
+  whileShown<T>(page, signal => page.host.request(path, method, body, signal), method !== "GET");
+
+/** The comparison Diff drew for a diff that was read and kept, by Diff's page action. */
+export const diffState = <T>(page: GitPage, reference: { readonly artifact_id: string; readonly version: number }): Promise<T> =>
+  whileShown<T>(page, signal => page.host.diffState(reference, signal), false);
 
 /** The Host's reviews of this workspace, drawn under the open result. */
 export const showReviews = (page: GitPage): Promise<unknown> | undefined =>

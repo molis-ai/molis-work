@@ -46,6 +46,7 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 - Module 导入 Horizontal Service、App 或 Plugin（代码 import 与 `package.json` 依赖都查，`module-upward-dependency`）。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
 - Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。在册的唯一例外：`plugins/native/shelf → modules/shelf`（Shelf 仍用 Shelf Module 的配方与设置解析，是待还的债，不是先例）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
+- 生产源码导入任何插件的 `./testing` 出口，或插件自己的其他模块导入它的 `testing` 模块（`plugin-testing-entry-import`）。`./testing` 是测试在运行时之外开插件数据的入口（现在只有 Pages 的 `openPagesStore`，连同它的进程内 attempts 记忆）；生产代码经 Plugin Runtime 取数据，不经它。
 - Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）、Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，kernel 注册时用）和逐行文本比较（`compareTexts` 等，工作台审查界面、Coding 与 Diff 从 SDK 取；结果与行的类型留在合同包）以及动作的两个绑定函数（`bindPluginActionRoute`、`bindOwnerPluginAction`，失败按错误的 kind 答，合同包里的那张状态表随之删除）；W3-03 要从合同包搬出的三样会运行的东西都已在 SDK 里；W3-02-C 又把这两个绑定函数从合同包搬了进来。
 - App 导入另一个 App，列出的启动器边之外都拒绝（`app-dependency-not-allowed`）：产品根的启动器 → desktop / local-host / mcp，desktop → local-host，local-host → cli / mcp / workbench，`apps/server` → desktop / local-host。
 - App Shell、CLI、MCP、Workbench 或 Desktop 直接写业务数据库。

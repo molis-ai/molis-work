@@ -3,7 +3,7 @@ import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platfor
 import type { PluginInstallPreviewResult, PluginInstallService } from "./plugin-install-service.js";
 
 // Installing a plugin from a signed package, as the person's own act (ac-trust T2, specs/repository-anti-corruption/slices/ac-trust-install.md
-// §3.1, S-80). The audience is `user` and the writing handlers want the protected entry's `user_action`, so an Agent, MCP, a workflow
+// §3.1, S-81). The audience is `user` and the writing handlers want the protected entry's `user_action`, so an Agent, MCP, a workflow
 // or a plugin can neither start an install nor confirm one (nor pin a publisher by confirming). The package is verified at the preview
 // and not trusted again after it: confirming takes only a preview the Host made for this person in this project.
 

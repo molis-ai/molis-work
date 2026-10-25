@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
@@ -96,13 +97,14 @@ test("RAC-501 the keys the Host's own scenes declare are reserved: any other plu
   assert.deepEqual(withFunctionsService(home.home, service => service.list(), OPTIONS), [], "a refused registration writes nothing");
 
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { reservedRuleKeys: () => new Set(reserved) });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, reservedRuleKeys: () => new Set(reserved) });
   const base = ownerFilesProbe("reservedkeys", "project").withoutFiles();
-  const declaring = (key: string, suffix = ""): PluginDefinition => ({ ...base, manifest: { ...base.manifest, plugin_id: `${base.manifest.plugin_id}${suffix}`,
-    publisher: { ...base.manifest.publisher, signature: `${base.manifest.publisher.signature}${suffix}` },
+  // A pinned install is only a pinned one when the Manifest's signature is its key (S-75.1); the reserved key is then what refuses it.
+  const declaring = (key: string, suffix = "", signature = `${base.manifest.publisher.signature}${suffix}`): PluginDefinition => ({ ...base, manifest: { ...base.manifest, plugin_id: `${base.manifest.plugin_id}${suffix}`,
+    publisher: { ...base.manifest.publisher, signature },
     permissions: [...base.manifest.permissions, ...["fixture:read", "fixture:write"].map(permission => ({ permission, required: false, reason: "Scene fixture" }))], action_scenes: [scene("reservedkeys.pick", rule(key))] } });
   for (const trust of [{ level: "unsigned" }, { level: "pinned", publisher_key_id: `ed25519:sha256:${"a".repeat(64)}` }] as const) {
-    assert.throws(() => runtime.install({ definition: declaring(reserved[0]!), deployment: "local", trust, grants: [] }),
+    assert.throws(() => runtime.install({ definition: declaring(reserved[0]!, "", trust.level === "pinned" ? trust.publisher_key_id : undefined), deployment: "local", trust, grants: [] }),
       (error: { code?: string }) => error.code === "plugin.rule_key_reserved", trust.level);
   }
   assert.deepEqual(repository.list(), [], "a refused install leaves no record");

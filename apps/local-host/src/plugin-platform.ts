@@ -58,6 +58,8 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
   readonly inTransaction?: boolean;
   /** The file the connection is (better-sqlite3's `name`): the project's library, which plugins' own tables live in. */
   readonly name?: string;
+  /** better-sqlite3's `open`: false once the connection is closed. */
+  readonly open?: boolean;
 };
 
 /**
@@ -176,8 +178,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
   // What this project's installs declare is read from its supervisor while the platform is open: for display (all projects together)
-  // and, for the writes in this project, by this project's database alone.
-  const artifactView = supervisedArtifacts(supervisor, runtime, () => !closed);
+  // and, for the writes in this project, by this project's database alone. A closed connection cannot answer, so a view over it is
+  // as gone as one whose coordination closed: the Host closes coordination first, but a store closed on its own must not make every
+  // other project's read of the shared directory throw.
+  const artifactView = supervisedArtifacts(supervisor, runtime, () => !closed && options.db.open !== false);
   const unwatchArtifacts = installedArtifacts.watch(artifactView), unbindArtifacts = bindProjectArtifacts(options.db, artifactView);
   const wiring = new PluginInputGraph({
     projectId: options.project_id,

@@ -267,6 +267,12 @@ verifyPurgeCoverage 是内部无正文薄桥；inspection authority 只取真实
 
 只读 inspection 提供 `prepareProjectSessionPurge({sourcePlan,operationId,signal?})` 与 `verifyProjectSessionPurge({plan,signal?})`。首次准备只以 sourcePlan 固定 refs/owner/父关系，实际 target preview/CAS 来自 SDK 与原 Index exact 读取；target 已有 indexed purge 决定保留原 tuple。已有 target original 绝不重新准备。原件证明只核原 SDK terminal 及原 Index tuple/raw Index 缺席；当前同 ID 后继冲突拒绝并保留，不按当前关系扩选，不要求 T0 旧父 Run 额外 terminal。权限/取消和 reader 关闭继续走原冷桥，实际 SDK/Index 使用后复核 current；读写均不公开 storage、不造新状态账。
 
+写入时保留整组首次观察的 Index 版本/raw 缺席，在后续 SDK 读取后、SDK purge 和 Index save 前后以及交回结果前重核。父 Index 在后续 raw 读取中变化会拒绝；只有本次成功 Index CAS 才推进自身版本，其他成员不能刷新接受。该检查沿原父 owner 与 SDK 同步 current，未增加跨进程锁或原子性承诺。
+
+正常在线 writer 由同 Home 单 child 排除；同桥重叠目标沿原 holdProject 持有固定完整成员，相关逻辑项目按稳定顺序获取/释放，associated owner 保持原值。直接 Host commit 故障注入绕过 App owner，其已观察到的等待交错由版本复核拒绝；不把这种验证扩大为 SDK 内部任意外部改写的原子保证。
+
+父 Index 交错定向修复已由两处真实 SDK metadata 读取探针确认拒绝且保留原件；相关3文件71项及原构建、类型、边界和健康门通过。原首红和修后证据保留在 Memory spec，不代表完整恢复链或用户验收。
+
 冷 Memory 桥另接受可选 `purgeInspection`（原 operationId、整 Home knownScopes、只读 Session selections）与 `memoryPurges`（原 ref/identity/expectedVersion/子 operationId/selection 完整 tuple）。打开时克隆固定，拒重复 ref 或当前 scopes 外目标，不接受后续追加。`purgeMemoryTarget({ref,signal?})` 仅选择固定 tuple 并调用 SDK 原 purgeMemory；独立 session-purge 权限全 tuple 匹配，preview 许可不能授写。调用方必须先持久化原计划再创建受控 writer；旧采用清理口不变，不向 LocalHost 暴露 SDK storage/Runtime 或完整 Backend。
 
 两冷入口提供 `verifyPurgeCoverage`；维护桥补 `inspectMemory` / `previewMemoryPurge`。宽 knownScopes 只进入隐藏的真实 existing-only coverage reader，普通条目权限恒拒绝；当前项目的普通读写仍守原 scopes。维护检查每次新开真实 SDK reader，避免写后沿用旧版本；异步读取后复核原 current/取消，close 失败留下句柄，由原 close 重试，所有读资源与 SDK 关闭成功后才发布、归还父 owner。参数与返回沿 SDK 原无正文类型，covered 不证明正文健康或删除完成，unknown 不当空。不存在新 operation 注册表、删除核或配置。硬授权不可关闭，用户确认仍由原 App 删除决定负责。直接真实正式包回归为 `tests/prologue-memory-cold-bridge.test.ts`，已通过14项工程验证；连同原 adoption、Session、Index 与父 owner 影响面共9文件162项通过。外层冷 Memory owner、完整恢复和用户验收尚未完成。

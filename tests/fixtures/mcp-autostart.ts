@@ -19,18 +19,21 @@ export async function waitUntil(check: () => Promise<boolean>, timeout = 8000): 
   }
 }
 
-export async function installedMcpHome(t: TestContext) {
+export async function installedMcpHome(t: TestContext, install = installMolisWorkHome) {
   const root = await mkdtemp(join(tmpdir(), "mcp-autostart-")), home = join(root, "home");
   const clients = new Set<ReturnType<typeof rawMcp>>();
   let cleanupHost = async () => {}, cleanupCandidates = async () => {};
+  let installation: ReturnType<typeof install> | undefined;
   const closePeers = async () => { await Promise.all([...clients].map(peer => peer.close())); clients.clear(); };
   t.after(async () => {
+    // RAC-628-F1: an expired parent must not delete files while its installer is still writing them.
+    await installation?.catch(() => { /* The test body retains the installation failure. */ });
     await closePeers(); await cleanupHost(); await cleanupCandidates();
     await rm(root, { recursive: true, force: true });
   });
   t.diagnostic("Installing the real build into an isolated Home");
-  const installed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fileURLToPath(new URL("../../", import.meta.url)),
-    beforeStep: step => { t.signal.throwIfAborted(); t.diagnostic(`Real installer phase: ${step}`); } });
+  const installed = await (installation = install({ homeDirectory: home, sourceDirectory: fileURLToPath(new URL("../../", import.meta.url)),
+    beforeStep: step => { t.signal.throwIfAborted(); t.diagnostic(`Real installer phase: ${step}`); } }));
   t.signal.throwIfAborted();
   t.diagnostic("Real install complete; beginning process scenarios");
   const reservation = createServer(); await new Promise<void>(resolve => reservation.listen(0, "127.0.0.1", resolve));

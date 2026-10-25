@@ -1,6 +1,6 @@
 # 防腐 PR 专职会话分工
 
-状态：2026-10-25 batch36 #1270已actual64a/九来源全关闭；下一唯一载体#1287/f77/full40188223878在途。FIX14/UI固定双核释放、C5单offline有限通过；C2原父验证未过，T4/T5新专职实际接手。当前职责以下表为准。
+状态：2026-10-25 actual main544（1289），batch36/九源已完成；batch37原f77 full最终31FAIL+1TIMEOUT，原A1/B/C writer实际接修。C5七路径分组核收/完整PR入口明确；C2本地同103有限通过而Memory两端口/正常restore未完；T4/T5等限定来源双核/归档不冒载体main。
 
 一骏最新纠偏：“整体还是听Claude统筹，可以从他那领取独立任务处理，不一定只解决问题和review问题，可以与他组织好领取独立任务，分配1-2个独立任务实现的session。”此前组织合并、持续接续评审与全部有效意见修复的要求保留。Claude是整条防腐线的总统筹，决定任务范围、优先级、跨线依赖和全量排期；下表Codex流水线职责只在Codex侧执行，不能替代Claude。
 
@@ -11,7 +11,7 @@
 | 流水线与合并执行 | 专职｜防腐流水线与合并执行 · Codex | 01a16c88-7956-7e10-a5f4-5baf476c3634 | gpt-6.1-sol/max；固定交付即复审/TEST接续、真实hunk交接、候选/readiness/元数据与共享CAS、既有授权正常合并执行 | 自动化PAUSED/不新计时、不重复全项目巡检或新单初派；Claude唯一批次full/批PR队列与来源关闭；不写实现/冒独立审验 |
 | 评审 | 专职｜防腐 PR 评审与复审 · Codex | 01a16bc4-68fe-71d3-af0e-83523232c1ea | 修复后按精确head只读二轮，复用ac-review有效一轮并给正式结论；gpt-6-astra/xhigh | 一轮全归Claude ac-review；不改源/构建/测试/合并，block/nonblock分别保留 |
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
-| 修复1（client字段固定） | Root既有专职，gpt-6.1-sol/max | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | FIRST4 3a/singleparent5b已push，REVIEW6396845167 PASS，TEST待；只3文件33/-10/19unique156 | FIRST3与server rail/pinned当前hunk保双方，B1可信目录等Root固定组合后接，不重复前片或冒采用 |
+| 修复1（1289评审尾实际实施） | Root既有专职，gpt-6.1-sol/max | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | actual544独立树修FIRST五项nonblock，固定直双核/不另PR；原client3a已双核释放 | 标明输出/size未知字段/真实3条文档及未标明措辞/同名键实证，跨仓键迁移先Root裁；不占placement/放宽其他gate |
 | 修复2（Store固定待TEST） | Root既有专职，gpt-6.1-sol/max | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | 9f→7ea固定push，6文件188/-30，REVIEW6396744933 PASS/独立TEST待，作者必要工程证据齐 | Memory后到融合d97→9f→7ea→1064 d08→1101 a804，受控恢复批次/清除/单份coalescing，禁readonly强转/重复append；不等第二泛批准才交付 |
 | 修复3（页面默认值已双核释放） | Root单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | 旧48a双PASS已释放；新S64原9c红，实际8ac已由原Claude实现，FIX3只核现成S20 mutation/doc | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
 | 修复4（初始化失败清理恢复） | Root单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | #1254 FIRST6393270921 item1/6393455820；39a444f89b5adf9d585a09f1533aa2611e9c9e71直接b521 | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
@@ -24,7 +24,7 @@
 | 修复11（刷新调度已双核） | Root单题专职，gpt-6.1-sol/max | 01a17156-c6df-7652-992c-f6dc06d6a8f0 | 1651a529905ee51027141d40c5cc1d21b30406e2，链fe8→72→1651 | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
 | 修复12（DOM前缀已双核） | Root单题专职，gpt-6.1-sol/max | 01a17157-8ec9-7081-9934-89e0c2741611 | #1265最终56d3b6e5cdcdb2ac9918d0b178f9ce086057f7ec，原1257基点27d | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
 | 修复13（59ce已采用/再次归档） | Root单题专职，gpt-6.1-sol/max | 01a17159-48df-7d02-b6f0-9e627622eed0 | cd909→59ce登记/HTTP补尾双核6396713760/6396728640，已采用5bbf，Root已最终idle归档 | 来源职责结束，保原件/分支不唤醒收据；exact5bbf适用checks/full复用/正常入队/actual九来源由唯一Claude/PIPE |
-| 修复14（最终来源已双核释放） | Root单题专职，gpt-6.1-sol/max | 01a1715a-561b-7bc3-ba7d-be3d5de076d9 | 最终11f/single总父5a55，REVIEW6396954489/独立实际TEST6397041805双核，10故障例0；Root source release | 按38完整收11f/保F5 notes与一次helper，作者99中两继承500/strict5旧诊断保；归档依Root官方idle，不为回执唤醒，未采用不冒actual |
+| 修复14（11f双核已归档） | Root单题专职，gpt-6.1-sol/max | 01a1715a-561b-7bc3-ba7d-be3d5de076d9 | 完整11f REVIEW6396954489/TEST6397041805，10真实故障例0，Root已官方归档 | 38完整采用，不只98d；37仅原5a55，保F5 notes/唯一helper，继承两500/strict旧诊断保，不唤醒收据 |
 | 修复15（SQL夹具验证边界） | Root单题专职，gpt-6.1-sol/max | 01a17189-e0e1-73a2-8a22-5723aa84cf69 | A+D83fc/父ebf已REVIEW6395225354/TEST6395306682双PASS，独立八文件8/8、32/32；PIPE6395337315已交Claude吸收，原13/18红保留，Root已核收并归档 | Root已官方归档（源码及约定审验已交付）；不为回执唤醒，具体返修必要时Root正式恢复。余下carrier吸收/同行文档/最终验证与actual仍PIPE→Claude，归档不算整PR/整线完成。 |
 | 修复16（改名/材料链验证） | Root单题专职，gpt-6.1-sol/max | 01a1718a-8840-7d31-a73b-568b29cb2178 | #1268 da50d106216322043b2a7d05c3498e16bbed5f1e/父93ba，code ba1a06bb1 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
 | 修复17（两个安装入口与标签） | Root单题专职，gpt-6.1-sol/max | 01a17190-8ef0-7472-907a-5f3b64f3ccbe | #1269最终f56e0e987e115285fc9577ee8a067cfd055eb06e/父5be32d0f03265e029b419bf6c3d0920e6a17e866 | 精确结果、有效证据与下一可执行动作见CODEX-TASKS当前交付表；每人仅当前单，固定释放可由Root接下一独立题，旧must-fix责任保留；不推冻结源/不冒actual或整线完成 |
@@ -32,20 +32,20 @@
 | 修复19（维护入口同Home互斥） | Root单题专职，gpt-6.1-sol/max | 01a1719f-51af-7e22-ae84-ea6790e94ea7 | 34b普通路径与最终1dbc增量已有限双核，source/buildf4d；Root已官方归档本专项，leaf SI引用health仍红，实际补/后续full/main由carrier6395294516承接 | 已由Root官方归档，不为一般回执唤醒；源码与有限审验完成不等于leaf health/full/main通过，S07/S12实际同行采用后由PIPE→Claude核。 |
 | #1274重启专项（已双核归档） | Root单题/既有专职，gpt-6.1-sol/max | 01a17224-396a-7ea2-aed3-ef5359eaf305 | f957单parent4043固定，REVIEW6395537884/TEST6395647000齐，Root已官方归档 | 来源+690B必要性已review，原541非全覆盖；carrier与1278/1284真实树核预算/生成物，未采用/full/main不冒完成，不唤醒收据 |
 | 两来源最终闭环（已交付归档） | 专职合并｜PR 1109、1112 收尾 · Codex | 01a16f02-8e7e-7a92-8976-fb7befe916fd | #1236已actual bde02c59；实际树/包含核实后仅1109/1112已19:05关闭，6388316807/6388317402；本人已向Root交付并官方归档该专职 | 未重复queue/full、未动原树；1223已原Claude6388301030关闭，旧三nonblock现FIX2新1253已TEST6390447468 PASS/待首评与actual，不因专职完成关闭整线 |
-| 独立实现 C1/C3/C4/C5 | 既有完整owner，gpt-6.1-sol/max | 01a16c97-0dde-7d82-9244-097a93f50770 | C5 4945真实单offline1子+父2/2/75.5s自然0，TEST原件有限核收/双槽PID和Home已清；doc8c仅同spec | 六未选/原3fail1cancel与health缺S77仍保；1254现64a actual依赖满足，freshbase继续剩余原场景/完整片PR，原OAuth C4三WO/其他完整责任保持 |
+| 独立实现 C1/C3/C4/C5 | 既有完整owner，gpt-6.1-sol/max | 01a16c97-0dde-7d82-9244-097a93f50770 | C5生产7a63→最终91e仅spec尾，七路径4+1+2分组有效/TEST原件齐，已获具体入口开唯一完整非Draft PR交Claude FIRST | health S77红透明、row提案由carrier连续表写；FIRST不是开PR前置，原首整组/控制miss/真实App边界保；OAuth C4三WO不改 |
 | 独立实现 C2 | 既有完整owner，gpt-6.1-sol/max | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | only103 ba75包来源REVIEW PASS；消费0cab原父TEST6397009834 NOTPASS，旧新各120s超时/未完整builder；独立restore063f仅同包metadata在跑必要有限 | 不重整父/擅涨时限/假定无回归，Memory两真实端口仍原owner，当前Draft头号不代资格；不混SDK104105/整个Draft/F19，未Ready |
 | #1275 Markdown（已归档） | Root单题专职，gpt-6.1-sol/max | 01a17243-393f-7ab0-87b9-a62217751e67 | 1294单parent761，最终双核；只converter用户语义/减半持久化验收 | 不改V18/§6+，carrier一次合叠层，root归档不唤醒收据 |
-| #1277 placement（实际实施） | Root单题专职，gpt-6.1-sol/max | 01a1725d-9275-72b0-a50f-67eba05e23e1 | 43049后继mover/copier/moveBack歧义与零副作用验收 | 保原guard/@2/RAC639，640–645后继固定直双核，不重复原dirty来源 |
-| #1277 UI（双核来源释放） | Root单题专职，gpt-6.1-sol/max | 01a17260-f086-75f1-9d25-00e5288cbdc7 | ac7/singleparent43049，REVIEW6396653070/TEST6397059682，独立三文件22/22与dist不变 | 仅tests/spec保guard/@2/RAC639及1278client，局部解析边界保，不冒整1277/full/main |
-| #1279 T6（候选待双核） | Root单题专职，gpt-6.1-sol/max | 01a17277-21cd-7bb1-a50e-61ff2e9eaaed | bd926单basef992已push，作者33文件646最终过，原夹具6红已基线分记 | B1后host-plugin-ids实际两行取平台registry，S75/0380编号由carrier，F14不同prepare hunk只串行实重叠 |
-| #1280 PG015（已按B实际实施） | Root单题专职，gpt-6.1-sol/max | 01a17271-0e27-73c3-95c4-5338edd84a29 | Claude6396510491已正式B：同kind多可用安装两边不列/各诊断/回读歧义拒绝；原writer已亲读实际实施 | 不扩SDK/改kind语义；A完整provider合同#1101后采用线，正式BL由Claude共用文件owner分配，当前不为编号空等或提前写已做 |
+| #1277 placement（接续batch37 C修复） | Root单题专职，gpt-6.1-sol/max | 01a1725d-9275-72b0-a50f-67eba05e23e1 | 原8f→最终2af仅spec8行限定交付释放；现Root实际派准确f77五read@2消费/fakeGoalDirectory/直接Coding证明 | 首86/87一cancel UNKNOWN随唯一carrier既定组合回归/full跟，不重复旧测/扩调度；先核真实声明与替身，保原生产guard |
+| #1277 UI（双核已归档） | Root单题专职，gpt-6.1-sol/max | 01a17260-f086-75f1-9d25-00e5288cbdc7 | ac7/43049 REVIEW6396653070/TEST6397059682三完整文件22/22，Root已归档 | 仅tests/spec/dist不变，保guard/@2/1278与placement真实hunk；实际carrier/main另核，不唤醒收据 |
+| #1279 T6（canonical bd双核归档） | Root单题专职，gpt-6.1-sol/max | 01a17277-21cd-7bb1-a50e-61ff2e9eaaed | bd926/父f992 REVIEW6396692602/TEST6397085089独立9/9，Root已归档 | Claude6396706323只采用bd，平行a8/后续不采用；canonical B1两行登记源/S75载体写，unsigned共用key未解决 |
+| #1280 PG015（B双核已归档） | Root单题专职，gpt-6.1-sol/max | 01a17271-0e27-73c3-95c4-5338edd84a29 | 生产b689→最终9061 doc尾，REVIEW6397164930/TEST6397659765独立30/30+doc核收，Root已归档 | B1只登记源hunk保多安装/hidden-reader claim；A双可选#1101后采用线真实BL由Claude编号，不混only103/不唤醒收据 |
 | #1280 RAC651（已双核归档） | Root单题专职，gpt-6.1-sol/max | 01a17273-724c-7a91-aa2e-d371848e7052 | d12单parentd654，REVIEW6396273958/TEST6396272893，Root已归档 | 仅test+PG008一行，静态接线不冒HTTP/full；carrier保PG015同spec窄hunk，不唤醒收据 |
 | #1281 RAC564（已双核归档） | Root单题专职，gpt-6.1-sol/max | 01a1727a-f047-7db1-b13a-b0e74ffd8e05 | a35单parent4e09，REVIEW6396341145/TEST6396355943，Root已归档 | 仅test/spec，名单未放大，T6+B1真实host ids源修仍carrier，不唤醒收据 |
 | #1281 S31（已双核归档） | Root单题专职，gpt-6.1-sol/max | 01a1727b-024c-70c3-9e1f-4a4807b87891 | 59e单parent4e09，REVIEW6396532689/TEST6396554305，Root已归档 | 4tests/spec真实两层counter，继承health623→624与S号/full/main另核，不唤醒收据 |
-| #1283默认规则种类校验 | Root单题专职，gpt-6.1-sol/max | 01a172af-ff72-7d62-8d29-3a75d753b154 | base9b，SDK action-declarations本题函数+独立新test/同FI2 spec | 不动原ac-fi2 block1/卸载/旧test/Runtime/库，固定直双核/PIPE、只分支不另PR/full |
-| #1284SDK DOM类型边界 | Root单题专职，gpt-6.1-sol/max | 01a172b0-0dcd-76c3-8382-93face22d05f | based67，已实际接手Node/Browser SDK编译/真实消费类型验证 | 不碰actions校验或共享builder，normalFIFO整体build保C5窗口，不另浏览器/full；固定直双核/PIPE |
-| #1282 T4来源变更 | 专职｜Codex 修复 · 默认连线来源变更 | 01a172cd-2411-7b90-8668-141e96a62a87 | gpt-6.1-sol/max；固定80b=已审cd890，仅来源换签/移出返回默认连线真实回归与同spec | S78给carrier窄语义，不并写T5/同意key/T6权限，固定直REVIEW/TEST/PIPE，只push不另PR |
-| #1285 T5可信撤回入口 | 专职｜Codex 修复 · 同意撤回可信入口 | 01a172cd-effb-7182-80ae-611475f3c3d2 | gpt-6.1-sol/max；eeaa独立，Claude6396785921只Host设置页本人/拒plugin page-delegate/真实next-request对账/精确码 | 当前T4固定80b可消费，后继真实差异再增量接；原ac-coding只编号/RAC564/merge37，S79给carrier，不新公共权限字段/广播 |
+| #1283默认规则种类校验（来源双核释放） | Root单题专职，gpt-6.1-sol/max | 01a172af-ff72-7d62-8d29-3a75d753b154 | 143de5/父9b REVIEW6397009847/TEST6397241983三文件15/15 | 仅subject_kinds；原e6跨安装卸载P1由原ac-fi2唯一修，不以本窄PASS盖原阻塞，归档依Root官方事实 |
+| #1284SDK DOM类型边界（双核已归档） | Root单题专职，gpt-6.1-sol/max | 01a172b0-0dcd-76c3-8382-93face22d05f | 9ad517/父d67 REVIEW6397009535/TEST6397197106真实TS3/3，Root已归档 | 212emitted/53dts逐字同、无公开API依赖改；1288叠层保后继，carrier实际核，不唤醒收据 |
+| #1282 T4来源变更（双核已归档） | 专职｜Codex 修复 · 默认连线来源变更 | 01a172cd-2411-7b90-8668-141e96a62a87 | 98a4/父80b仅test/spec97/-4，REVIEW6397418787/TEST6397551652独立2/2，Root已归档 | 来源换签/移出返回默认回归/手动positive保持；S78载体写，不混T5/同意key/真实Home验收 |
+| #1285 T5可信撤回入口（双核已归档） | 专职｜Codex 修复 · 同意撤回可信入口 | 01a172cd-effb-7182-80ae-611475f3c3d2 | 最终a9 doc尾，REVIEW6397457822/TEST6397551888真实settings3+revoke6=9/9，Root已归档 | 原41eeb+T4 FIX98+T5 FIXa9载体；下一project请求对账，S79/原registerProvider门禁待真实合成，BL587/unsigned未闭 |
 
 已有角色 owner 与有效技术裁定保持。独立树、独立明确问题且无真实重叠可多writer；同一实际hunk/合同/候选串行。Claude唯一组批/full/批PR队列；batch35七来源close-only已由Root窄移交PIPE实际关完，其他来源职责不变。Root唯一定时发现/初始派单/复杂裁决；本流水线交付驱动接续与既有普通小PR合并职责保持。整机一份build、一批browser，machine-slot排队。
 

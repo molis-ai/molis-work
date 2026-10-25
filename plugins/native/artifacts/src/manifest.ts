@@ -34,7 +34,7 @@ export const artifactsManifest: PluginManifest = {
   ui: {
     contributions: [ARTIFACT_BROWSER_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "browser", slot: "navigator", title: "成果", contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, icon: "package", order: 60, group: "make" },
+      { view_id: "browser", slot: "navigator", title: "成果", contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, icon: "package", hue: "pink", order: 60, group: "make" },
     ],
   },
 };

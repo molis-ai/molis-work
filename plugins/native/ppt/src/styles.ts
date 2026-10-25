@@ -14,7 +14,7 @@ export const PPT_STYLES = `
   }
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .ppt-stage-chrome { pointer-events: auto; }
-  [data-ppt=workbench] { --plugin-tint: var(--plugin-ppt); }
+  [data-ppt=workbench] { --plugin-tint: var(--ink-soft); }
   [data-ppt-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; flex-wrap: wrap; }
   [data-ppt-stage-workspace] > .ppt-note { flex-shrink: 0; margin: 0 24px 16px; }
   .ppt-workspace > * { flex-shrink: 0; }
@@ -53,17 +53,17 @@ export const PPT_STYLES = `
   }
   .ppt-slide-row > button:first-child:hover { background: var(--nav-hover); }
   .ppt-slide-row.is-selected > button:first-child {
-    background: color-mix(in srgb, var(--plugin-ppt, var(--ink)) 12%, transparent);
+    background: color-mix(in srgb, var(--ink-soft) 12%, transparent);
   }
   .ppt-slide-index {
     display: inline-grid; place-items: center; flex: none;
     width: 18px; height: 18px; border-radius: 4px;
     font-size: 11px; font-variant-numeric: tabular-nums;
-    background: color-mix(in srgb, var(--plugin-ppt, var(--ink)) 12%, transparent);
-    color: var(--plugin-ppt, var(--muted));
+    background: color-mix(in srgb, var(--ink-soft) 12%, transparent);
+    color: var(--ink-soft);
   }
   .ppt-slide-row.is-selected .ppt-slide-index {
-    background: color-mix(in srgb, var(--plugin-ppt, var(--ink)) 22%, transparent);
+    background: color-mix(in srgb, var(--ink-soft) 22%, transparent);
     color: var(--ink);
   }
   .ppt-slide-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -81,7 +81,7 @@ export const PPT_STYLES = `
     transition: box-shadow var(--dur-hover, 130ms) var(--ease-quint);
   }
   .ppt-card.is-current {
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--plugin-ppt, var(--focus)) 72%, var(--focus));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink-soft) 72%, var(--focus));
   }
   .ppt-card h2, .ppt-card li, .ppt-card-notes { overflow-wrap: anywhere; }
   .ppt-placement-line { margin: 2px 0 10px; }

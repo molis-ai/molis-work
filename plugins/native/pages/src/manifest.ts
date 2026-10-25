@@ -66,7 +66,7 @@ export const pagesManifest: PluginManifest = {
     contributions: [PAGES_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },
-      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", order: 56, group: "make", accepts_objects: true,
+      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", hue: "cyan", order: 56, group: "make", accepts_objects: true,
         creates: { station: "pages", title: "文档" }, start: { title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", icon: "file" } },
     ],
   },

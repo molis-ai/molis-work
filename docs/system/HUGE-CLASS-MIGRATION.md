@@ -216,6 +216,16 @@ R-38 第 2 片的恢复守卫补修（PR #1273 FIRST 第 2 项，2026-10-25，Co
 
 本轮验证：最终同版三项回归在独立 `d97` 源码上 1 通过 / 2 失败（均为应拒绝却放行），候选 3/3 通过；修后首次两次运行另暴露新增断言误把即时 busy 当固定值、把空轮次当 `undefined`，按现行合同改为 busy 为真、空轮次为 `null`，原失败日志保留，生产补丁未再改。整体构建、边界及对合并基点 `3817f875` 的健康检查通过，无门禁或基线改动。README/Skill 的 84 个非浏览器文件通过（574 项通过、2 项既有 npm/MiniMax opt-in 跳过）；4 个浏览器文件首次 2 通过 / 2 失败，完整日志保留。升级授权的本地 HTTPS 400/TLS 断开在 `d97` 同样失败；`W2-18-BUILDER-LATE-01` 首次等待 ready 超时，而 `d97` 同文件 42/42 通过，原因未确定，不以时序概括，也不把扩展回归记为全绿。独立复查与统一 full 另行裁决。
 
+R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-25，Codex，原行为的定向工程验证通过，待独立复查与集成）：接已双核、统筹释放的 `9f8338a5e4bb5258a72f3919069b03c681a2e51d`，只收拢 `PrologueRunStore` 已持有的三个集合与现有持有期、缓存重载。集合变为私有，消费者只读观察；创建会话与登记运行通过必要窄入口写入。三个操作的原拒绝检查留在各自入口、保持同步求值顺序；占用会话、等待、finally 释放统一由 Store 执行，不加第二把锁、新状态、排队、错误分类或通用框架。
+
+恢复关闭成功及回答结果为 queued 时，仍先等原操作成功，再由同一 Store 方法删除会话缓存并等待原 loadSession 重载；起跑失败则仍只在 Runtime 支持 restore 时失效缓存，不当场重载，不误当成功。运行登记仍先入运行表、再加入原会话，随后 follow/publish；恢复能力保留原接收者，动态 busy 仍在原决定点读取。范围限于 `prologue-run-store.ts`、`prologue-run-start.ts`、`prologue.ts`、`prologue-adapter-capabilities.ts`、必要现有真实 adapter 回归与本段；不改 Memory、SDK/公共合同、时限、安全拒绝、FIRST 第 1/4 项或原表状态。PIPE 已核承接顺序为 d97 → 9f → 本 Store 后继 → #1064（430f65b）→ #1101（8506bac）；Memory 原作者后到处理 prologue.ts/Cache 融合，真实 WIP 由 Root/Claude 交 fixed 头，仅同处串行，不整文件覆盖。
+
+验收：**R38-STORE-01** 真实 adapter 起跑在异步等待中同会话排他、不同会话可并发；拒绝后 finally 释放，支持 restore 的失败只失效且下次读取才重载，不支持 restore 的原缓存保留。**R38-STORE-02** 关闭/准备回退的异步持有期同样排他，throw/reject 后可再尝试；非本会话轮次/子任务仍先拒绝，失败零恢复写、零成功重载，合法关闭只在成功后重载一次，准备回退不借机重载。**R38-STORE-03** 原动态 busy、queued 回答重载、控制失败/恢复投影、检查点真实 SDK 与运行登记/观察/关闭合同保持；源码与构建核对集合外无写入及三处 add/finally/delete、两处删除重读已归唯一 Store，无新巨大单元或公开 API 变化。
+
+目标仅为现有行为保持的定向工程整理。新增并发/失败回归先在冻结 9f 的构建上通过，再在整理后通过；复用已核红绿与原 91 文件阶段证据，不机械重跑其全体。按本次调用影响运行 Agent Host README 必跑、Skill 三个通用检查及恢复、检查点、状态/控制/起跑必要文件，整体构建、boundary、merge-base health、提交前 secrets；公共 FIFO 单构建/单浏览器，作者不启动 full 或真实 Home。双核及统筹释放前不接下一项，carrier/full/main 与产品验收另由对应阶段核收。
+
+本轮结果：新增四项在冻结 9f 构建及候选均 4/4，候选含原动态 busy 三项的重点组 7/7，完整恢复 21 + 检查点 4 = 25/25；无跳过。整体构建、边界、对合并基点 3817f875 的健康检查通过，集合外无写入、无新公开 API 或巨大单元。28 文件首批 27 文件通过（195 项通过、1 项取消、零跳过），唯一文档资源释放用例达到原 120 秒 deadline，首记录保留；同文件、原 36 次 8 MiB 和断言不变，在 9f 与候选的独立单跑均 1/1 自然退出 0（约 53/35 秒），不把首批改成全绿，原因仍 UNKNOWN。后到 Memory 的实际恢复批次、生命周期投影清除及单份恢复合并适配清单已交 PIPE，当前未实施 Memory 或声明整合完成。
+
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
 | `adapters/plugin-builder.ts` | `createPluginBuilderAgent` 函数 204 行<br>`run` 函数 153 行 | 已拆（W5-10，R-38 第 1 片） | 已做：代码角色的权限钩子（`frozenAuthority`）、`plugin-checks`（`pluginChecks`）、Skill 挂载、截图入库、事件记账、重启时标记中断的记录各成模块级函数，`run` 只剩执行顺序。原计划：`run` 里 `execution` 一段 127 行，另有 `guard`（5）、`record`（3）；`createPluginBuilderAgent` 里 `authority` 16 行。执行体、守卫、记录、权限各成函数。`run` 内嵌在 `createPluginBuilderAgent` 里（同一段计两次）。 | 5 |

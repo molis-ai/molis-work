@@ -145,8 +145,7 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
     unsubscribe: () => {},
     listeners: new Set(),
   };
-  store.runs.set(ref.run_id, record);
-  session.runs.push(ref);
+  store.rememberRun(session, record);
   store.follow(record, request.task, started.run, context.ports);
   store.publish(ref.run_id);
   return { ref, frozen };

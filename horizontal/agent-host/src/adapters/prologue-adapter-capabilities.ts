@@ -79,13 +79,11 @@ export function guardedRecovery(store: PrologueRunStore, runtime: PrologueRuntim
       const phase = latest && store.requireRun(latest.run_id).view.phase;
       if (store.startingSessions.has(session.session_id) || runtime.checkpoints?.busy?.(session)
         || phase && phase !== "reconcile-required" && !isEnded(phase)) throw agentErrors.session_busy("会话仍在执行或回退，不能关闭中断轮次");
-      store.startingSessions.add(session.session_id);
-      try {
+      return store.withSessionHeld(session.session_id, async () => {
         const report = await recovery.close(session, runId, expectedVersion);
-        store.sessions.delete(session.session_id);
-        await store.loadSession(session.session_id);
+        await store.reloadSession(session.session_id);
         return report;
-      } finally { store.startingSessions.delete(session.session_id); }
+      });
     },
   };
 }
@@ -99,9 +97,7 @@ export function guardedCheckpoints(store: PrologueRunStore, checkpoints: AgentCh
       const held = await store.loadSession(session.session_id);
       if (held.recovery || store.startingSessions.has(session.session_id) || checkpoints.busy?.(session)
         || !store.latestEnded(held)) throw agentErrors.session_busy("会话仍有执行、回退或待核对结果，不能回退文件");
-      store.startingSessions.add(session.session_id);
-      try { return await checkpoints.prepareRewind(session, checkpointId); }
-      finally { store.startingSessions.delete(session.session_id); }
+      return store.withSessionHeld(session.session_id, () => checkpoints.prepareRewind(session, checkpointId));
     },
   };
 }

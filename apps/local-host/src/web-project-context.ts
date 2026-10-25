@@ -1,9 +1,9 @@
-import { bindActionClient, requireSynchronous, type ActionCallContext, type ActionReference, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { observeReviewSettlements } from "./review-settlement-events.js";
-import { localWebActionContext, type bindLocalWebActions } from "./local-web-actions.js";
+import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { bindGoalsWebActions } from "./goals-actions.js";
 import { molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "./project-host.js";
@@ -19,8 +19,11 @@ import { hostDependencyCheck } from "./plugin-actions-client.js";
 export interface ProjectRequestContext extends WebRequestContext {
   readonly options: ResolvedWebBoardOptions;
   readonly hostReference: LocalHostProjectReference;
-  /** A web user's call into one surface's own actions, with whatever transport (cancellation) the surface adds. */
-  readonly userActions: (permissions: readonly string[], transport?: Partial<ActionCallContext>) => ReturnType<typeof bindActionClient>;
+  /**
+   * The person's calls for one surface, capped by the permissions it names: a Host-registered provider by what the person holds over
+   * it, a Runtime plugin's by its installation's grants alone (PG-008, `bindLocalWebActions`); `entry` is the file an import handed in.
+   */
+  readonly userActions: (permissions: readonly string[], entry?: LocalWebEntry) => BoundActionClient;
   /** The plugins this project's page shows: personal ones included unless the person hid them here. */
   readonly shownPlugins: (projectId: string) => Promise<string[]>;
 }
@@ -43,8 +46,7 @@ type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "dependencyCheck" |
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
   const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
-  const userActions = (permissions: readonly string[], transport: Partial<ActionCallContext> = {}) => bindActionClient(localHost.actionClient(hostReference),
-    () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user" as const, permissions: [...permissions], ...transport }));
+  const userActions = (permissions: readonly string[], entry: LocalWebEntry = {}) => bindLocalWebActions(localHost, hostReference, permissions, entry);
   const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
     catalog => shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)));
   return { ...context, options, hostReference, userActions, shownPlugins };

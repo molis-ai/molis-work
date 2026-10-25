@@ -8,10 +8,8 @@ import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { functionsConnectionStatus } from "./functions-host.js";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { handleModelSettingsHttp } from "./web-model-settings.js";
 import { capabilitiesView } from "./web-capabilities.js";
 import { callDiagnosticsView } from "./web-call-diagnostics.js";
@@ -291,7 +289,7 @@ function escapeSettingsHtml(value: unknown): string {
 async function renderCatalogPluginSettings(contributionId: string, host: MolisWorkLocalHost): Promise<string | null> {
   const primitives = { escape: escapeSettingsHtml, text: L };
   if (contributionId === SHELF_SETTINGS_UI_CONTRIBUTION_ID) {
-    const snapshot = await bindActionClient(host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })).invoke(shelfActions.snapshot, {});
+    const snapshot = await bindLocalWebActions(host, undefined, SHELF_ACTION_PERMISSIONS).invoke(shelfActions.snapshot, {});
     return renderPluginSettingsContribution(contributionId, {
       settings: snapshot.settings,
       runtime: snapshot.runtime,

@@ -181,9 +181,8 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
   };
 }
 
-/** The person in this project, under one plugin's permissions. */
-const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) =>
-  bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: [...permissions] }));
+/** The person in this project, capped by one plugin's permissions and reaching each provider by its own authority (PG-008). */
+const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) => bindLocalWebActions(localHost, hostReference, permissions);
 
 /** The Goals settings and planning pages: the project's work and its Goals, read by their owners. */
 const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
@@ -247,7 +246,8 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
     homeDirectory: serverOptions.homeDirectory ?? resolveMolisWorkHome(),
     offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
-    ownerActions: permissions => userActions(permissions), // each 成果 type's owner previews its own versions (A4)
+    // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
+    ownerActions: permissions => userActions(permissions),
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
@@ -275,7 +275,8 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   ...directoryRoutes,
   // Alchemist's Studio and its own HTTP under `/api/alchemist`, under the plugin's permissions. The old `personal`
   // alias (`/api/plugins/<id>/` rewritten to `/api/<id>/`) is gone (W6-01); this is the plugin's own address.
-  { id: "alchemist", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost, userActions }) => Boolean(serverOptions.homeDirectory)
+  // Its calls keep the hand-written client (the person under Alchemist's permissions): Alchemist is not migrated and will be deleted (BL-376).
+  { id: "alchemist", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost }) => Boolean(serverOptions.homeDirectory)
     && await handleAlchemistNativePluginHttp(request, response, url, {
       projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
       actions: { invoke: async (definition, input, signal) => {
@@ -283,7 +284,8 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
         const control = pluginRouteControl(signal, () => {
           if (localHost.lifecycle() !== "running") throw new ActionError("actions.unavailable", "宿主已停止");
         });
-        return userActions(ALCHEMIST_ACTION_PERMISSIONS).invoke(definition, input, control);
+        return bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user",
+          permissions: [...ALCHEMIST_ACTION_PERMISSIONS] })).invoke(definition, input, control);
       } } }) },
   ...projectAssistantRoutes,
   ...pageOwnerRoutes,

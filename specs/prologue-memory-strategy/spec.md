@@ -2655,3 +2655,26 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 允许路径为同ManagedProjectDeletion及必要冷装配、原ProjectDeletedPort/hooks/file-owner接线、CatalogCommit、现binding/panel公开装配、ProjectDataDeclaration与相关原owner/store的实际权限接缝、必要公开出口/README/原spec/测试和生成API快照。source reader及其decoder文件由原负责人持有，不改；Ledger父marker/frame、Memory冷算法、Session/SDK由统筹/原负责人接。无普通初始化绕过、UI/vendor/lock/CI/资源/门禁变化。
 
 验收用公开构建的真实SQLite/文件：完整两端兼容子集、新请求/原pending/回应丢失重开、同键身份/计划冲突、sourcecomplete与sourceabsent不跳target、旧complete后继保持、多个source-only同项目、缺owner、SDK/业务/目录部分失败、每个异步副作用后撤权和COMMIT拒绝、snapshot推进与回调失败。保留原README定向回归、整体build FIFO、严格类型、精确acca健康/boundary；不全量/浏览器/真实Home/模型/发布。本段已由统筹冻结，授权本刀实施；合同冻结不代表首次source-only已实现或完整MEM-40通过。
+
+统筹集成与独审补记：540549fa 已合入聚合 acca61f7a，生产无冲突，spec 两侧追加完整保留。独立公共构建入口八组真实 Node/SQLite 探针通过，覆盖伪完成、SDK 已完成后撤权/关闭、原决定重开、同 Session 并发、固定集合及在线 archive/unarchive/prepare/purge；模型/网络均零，报告 `/private/tmp/molis-memory-cold-session-purge-independent-review-20261025.md`。作者 impact 命令因误填一个不存在文件整体失败，20 个实际文件145项有效；随后补真实 authority13项等结果，不能把原 impact 命令写成整体成功。
+
+准确聚合原整体 build、根类型、准确 d08 health、boundary 与 API 检查通过；API update 无快照变化（本次出口不是 contracts/plugin-sdk 快照面）。统筹复验五文件98/98、零重试/跳过，含冷清除、Memory当前权限、项目原计划/恢复及采用。首验证脚本最后误用不存在的 `pnpm api:check` 导致命令 exit1，此前五文件/types/health/boundary均已通过；改用现役 `node scripts/gates/api-snapshot.mjs` 单独通过，未无变化重跑已通过部分。日志 `/private/tmp/molis-memory-cold-session-aggregate-{build,direct,types,health,boundary,api-final,secrets}-20261025.log`。
+
+27资源仍为7,630,892 B，与前聚合逐项相同；正式资源门仍只拒绝待批 Coding +1,333 B（373,423→374,756），未登记额外额度。全分支 secrets 通过，远端 main 仍3817f8757。本轮继续推入既有 #1101，不新增 PR；完整源联结、业务清除、MEM-40及最终全量/产品/用户验收尚未完成。
+### MEM-40 Catalog 源读取短合同（2026-10-25）
+
+本片只把操作者明确提供的 T1 完整工作副本中 Catalog 原删除事实读全；不接受目标删除、不证明停写或跨 owner 完成。复用 Projects 表主人及唯一 `decodeProjectDeletionRecovery`，无新表、schema、Runtime 或执行核。
+
+- LocalHost `openProjectDeletionRecoveryInspection({homeDirectory, assertCurrent, signal?})` 固定绝对路径，只打开既有 readonly Catalog，检查 owner/current schema，同一连接 BEGIN 快照；不调用普通 Catalog.open、mkdir、初始化、迁移或 checkpoint。缺库/未知版本明确拒绝。SQLite 可访问副本 WAL、生成副本侧车，原件/target 隔离由上层负责。
+- `next({limit?})` 顺序 keyset 分页，默认 40、最多 100，pending/complete 全部读取；Projects 同主人严格检查持久身份、状态和原顺序 owner steps，不用全量 all 后 slice。原始 JSON 只交唯一 decoder，NULL/坏计划、坏 enum、空身份、矛盾/重复步骤拒绝，失败不推进页位置。单个既有大计划的解析内存不宣称固定字节上限。
+- 输出仅原 receipt 身份/状态、owner_id/state、无正文原计划及同 ID 当前/retained 项目白名单身份。禁止错误正文、显示名、路径、raw JSON/SQL；项目时间只作观察，不授权后继删除。最终 current/取消复核通过才推进页位置；close 无条件释放快照和连接。穷尽只证明该 Catalog 来源读完。
+- 允许路径：Projects 的完整只读投影职责与显式出口，LocalHost 相邻 reader、原 decoder 必要严格校验与显式出口，两包 README、本 spec、真实 SQLite 直接测试。禁止 target 删除、Memory outer frame、Ledger、SDK/vendor/lock、UI、模型/网络/CI/门禁改动。
+- 验证：原整体 build（机器 FIFO）、Projects README 相关及 Catalog source/recovery 定向测试、两包 typecheck、精确父 a8042a0feed0b3c587d41b56e3b4fa1fe870993c health 与 boundary。覆盖非空跨页、坏请求/计划/步骤、WAL 同快照、末页撤权/取消、失败重试同页、关闭释放、敏感字段不外送；全量及完整 target 恢复由主任务负责。
+
+本片验证结果：原整体 build 最终通过；首次在新增 `data_class` 投影字面量扩宽处 TypeScript 失败，明确注解原身份类型后通过。离线安装首次因 pnpm store 索引 symlink 沙箱 EPERM 失败，在原权限申请下安装成功，无 lock 改动。首次 7 文件定向回归中 5 文件通过；`project-settings-deletion` 的 3 项和 `project-deletion-hooks` 的 2 项被沙箱禁止 127.0.0.1 listen，未据此修改产品/断言。补上 SQLite 异常安全映射后，原 build 再次通过；来源专项 32/32、上述两份文件 3/3 与 11/11 在临时 Home 的回环权限下通过。其余有效结果复用：Projects 3/3、registry 3/3、current settings 4/4、原 deletion recovery 18/18。两包 typecheck、精确父 `a8042a0feed0b3c587d41b56e3b4fa1fe870993c` health、原 boundary 均通过；无门禁/阈值/基线放宽。构建保留现有 xterm default-import 告警，不在本片修复。日志 `/private/tmp/catalog-source-{build-final,tests,tests-final,health-final,boundary,projects-types,host-types-final}.log`。
+
+上述工程证据仅证明源 Catalog 读取路径；没有执行 target 接纳/删除、完整 T0/T1/T2 恢复、真实 Home、模型/公网、浏览器、全量或用户验收。当前/retained 的 `created_at` 不证明实例先后；无步骤/坏事实保持拒绝；SQLite 单条计划 JSON 的解析不承诺固定字节内存。完整 MEM-40 与跨 owner 完成仍由主任务验收。
+
+2026-10-25 源读取独审补正：入口在任何权限回调/数据库打开前要求明确非空绝对 Home 路径，不接受空串或相对路径落到 cwd；路径值仅读取一次，回调修改原输入不能转向另一库。同步 current 检查只接受 undefined，Promise/thenable 与其他返回值全部拒绝并接住拒绝 Promise，检查失败不能打开 Catalog 或推进末页；关闭仍不要求权限。移除没有现合同依据的 `recovery.memory.actor_id === receipt.actor_id` 判据：`ManagedProjectDeletion.deleteProject` 从入口 input.actor_id 写 receipt，但 withRecovery 只传 project/operation；`MemoryProjectDeletion` 固定 LOCAL_PERSON_ACTOR_ID 生成原 Memory 计划。两份身份各自保留，由其主人和上层解释，不凭等号拒绝合法原记录。补公共入口非法路径、冻结输入、异步/非void初始及最终检查拒绝/原页重试、不同原 actor 正例；其余原证据不作废，新增补丁待验证。
+
+上述独审补正验证：原整体 build、LocalHost typecheck、来源专项 35/35 与精确父 a8042a0 health 全部通过，零跳过/重试。35 项为原 32 项删除无依据的 actor 等号拒绝样本后新增 4 项公共入口用例；未把旧错误断言保留下来凑数。原 Projects/目录相关回归与 boundary 对未改变模块/依赖的证据继续有效，本轮未机械重跑。日志 `/private/tmp/catalog-source-review-{build,types,tests,health}.log`。仍只声明源读取工程路径，完整恢复边界不变。

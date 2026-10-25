@@ -13,6 +13,7 @@
 - **Pages 迁到 Plugin Runtime**：每个项目一个实例；旧 `/api/pages/…` 路由返回 404。`pages.import.preview`、`pages.import`、`pages.artifacts.continue` 的权限集合变宽（加 `materials:read`），已经授权的 MCP 客户端需要在设置页重新授权；动作 id 与版本不变。见 [#847](https://github.com/molis-ai/molis-work/pull/847)。
 - **Pages 新建动作升到 2**：`pages.create@2` 加入请求号重放与只在首次创建时返回的撤销版本，替换原来的严格返回合同。固定 `pages.create@1` 的工作流程、绑定和外部插件需重新发现并绑定当前动作；MCP 工具改为 `pages.create__v2`，不保留旧工具别名。HTTP `/pages` 路径不变。
 - **助理添加提醒规则动作升到 2**：`assistant.rules.add@2` 接受已安装插件的页面 id，每条规则最多指定 20 个页面。固定 `assistant.rules.add@1` 的动作引用须重新选择当前版本，旧版调用明确拒绝；现有规则、设置页 HTTP 接口和其他提醒动作的版本不变。
+- **Agent 会话与一轮的四个读取动作升到 2**（BL-470，`specs/repository-anti-corruption/slices/w5-10-agent-host.md`）：`agent.run.read@2`、`agent.run.wait@2`、`agent.session.read@2`、`agent.subagents.list@2` 的输出里，嵌套对象（冻结的开始、轮次、活动、用量、待答的问题、步骤板、建议、待读输入等）按字段核对类型，不符合的返回被拒；@1 不再登记。固定 `@1` 的动作引用须重新选择当前版本，旧版调用明确拒绝；按合同描述符或 `capability_id` 调用的插件（Coding、插件创作台）不用改。四个动作只给插件调，不涉及 MCP 工具、工作流步骤与绑定。
 
 ### 变化
 

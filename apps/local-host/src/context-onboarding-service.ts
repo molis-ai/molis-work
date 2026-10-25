@@ -367,15 +367,20 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
   for await (const _ of todoBatches(home, journey.id, references)) total++;
   const todo: NonNullable<ContextJourney["todo"]> = journey.todo = { status: "pending", key, batches: journey.todo?.key === key ? journey.todo.batches : [], total, error: null, timing: journey.todo?.key === key ? journey.todo.timing : { ms: 0, calls: 0 } }; save();
   try {
-    let index = 0;
-    for await (const materials of todoBatches(home, journey.id, references)) {
-      if (++index <= todo.batches.length) continue;
-      // The journey id and the batch number make a retried pass return the same drafts instead of organizing twice.
-      const todoActions = ports.homeActions!(home, AbortSignal.timeout(20 * 60_000));
-      const extract = await shipped<TodoExtract, { batch: TodoBatch }>(todoActions, "todo.organize.extract", 1, TODO_PLUGIN_ID);
-      const { batch } = await timedCall(todo.timing, () => todoActions.invoke(extract, { origin: "onboarding",
-        title: total > 1 ? L("开始使用时整理的待办（第 {k} / {n} 批）", { k: index, n: total }) : L("开始使用时整理的待办"), request_id: `onboarding:${journey.id}:${key}:${index}`, materials }));
-      todo.batches.push(batch); save();
+    const completed = todo.batches.length;
+    if (total > completed) {
+      const firstActions = ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
+      const extract = await shipped<TodoExtract, { batch: TodoBatch }>(firstActions, "todo.organize.extract", 1, TODO_PLUGIN_ID);
+      let index = 0;
+      for await (const materials of todoBatches(home, journey.id, references)) {
+        if (++index <= completed) continue;
+        // Discover once, but keep each batch's own cancellation window.
+        const todoActions = index === completed + 1 ? firstActions : ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
+        // The journey id and the batch number make a retried pass return the same drafts instead of organizing twice.
+        const { batch } = await timedCall(todo.timing, () => todoActions.invoke(extract, { origin: "onboarding",
+          title: total > 1 ? L("开始使用时整理的待办（第 {k} / {n} 批）", { k: index, n: total }) : L("开始使用时整理的待办"), request_id: `onboarding:${journey.id}:${key}:${index}`, materials }));
+        todo.batches.push(batch); save();
+      }
     }
     todo.status = "ready";
   } catch (error) {

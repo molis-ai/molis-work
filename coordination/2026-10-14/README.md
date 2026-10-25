@@ -3647,3 +3647,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - batch-40 PR 头本地 `853d8ea5a`（未推）：并进 Codex 两份只加测试的回归，Goals 集合英文 `74191f112`（RAC-773，REVIEW 6403923043）和 R-55 插件槽 `f502e480c`（RAC-657，REVIEW/TEST 6403949647）。ac-clients-1 在 `claude/b40-pg071-fixes` 推了 `2b2ba5798`（board 行用插件自己的词，另修 hover-actions、project-deletion-hooks、entry-exports）；shelf-plugin、shelf-plugin.e2e、RCPT-382 还在做，齐了再推 PR 头跑 Verify。
   - batch-41（本地 `5ac396d12`）：并了 batch-40 `853d8ea5a`、ac-platform 第 6 组 `334656fd0`（ac-review 6403966832 可合，挡合并 0 项）、Codex PACKAGE-BOUNDARIES `0598e26b2`（PIPE Ready 6403534423）、ac-giants 文档 `d4bccb21e`。还等 ac-shell `c603be282`、T7+T3b `25d998b32` 的评审，以及 Codex F2 `4ea83ee3d` 的收据。
   - 第 6 组评审交叉项：Inbox 实际调 Pages 仍经宿主 `inbox-actions.ts` 拿 Pages 包的 `ActionDefinition`（原有，不是这组加的），Inbox 上 Runtime 时（FI 线）去掉，届时靠动作网关的 schema 校验兜底；batch-41 的 PR 说明要写六个合同子路径删除对外部插件作者的影响。
+- 10-26 00:30 UTC：
+  - **batch-40 PR 头 `9b6e956ca` 已推**（Verify 在跑）。并进 Codex 两份只加测试的回归，以及 T2 重启缺陷的两处产品行：签名包装的插件在 Host 重启、或停用再启用后起不来（restore/enable 没带 `pinned` trust，S-75.1 拒）。这个缺陷由 ac-registry 在 W4-01 走安装半程时发现（`adc80abaa`），测试 RAC-792 随它的分支进 batch-41。撤回固定之后还起不起，交 ac-coding 答。
+  - **batch-41 本地 `f575ae4d4`**：又并了 ac-shell `c603be282`（6404077406，挡 0）、Codex F2 `4ea83ee3d`（REVIEW/TEST PASS 6404085727）、BL-470 `a35e75677`（6404109810，挡 0，含升级须知）。另补升级须知（统筹 `d120cb49d`），依据是 CONTRACT-CHANGES §3 第 8 条，随 ac-shell 进来：PG-071 插件词进 Manifest，六个插件合同子路径删除。还等 T7+T3b 的 preview @2，ac-registry PG-024（S-86），ac-giants `claude/b41-a3-dev-owners`。
+  - **A3 误拒**：`declaration-owners.ts` 读不到没有发行存档的开发插件的 Manifest，整次拒绝。`replay-plugins`（RAC-790/791）因此红，plugin dev 声明了成果的插件大概都会中。交 ac-giants。
+  - **FI-6 裁定 A**（ac-sandbox-sched 问）。依据：B 要的暂时私路违反 10-18 同等待遇规则，不为它问用户。
+    - 跨插件数据走 Feed 公开动作，Inbox 在 consumes 里声明，包括证据内容、来源授权核查、ensure/reopen/flush。
+    - 平台本来拥有的事实各做一片平台服务，交 ac-platform：场景加判断台账、Functions 绑定、ContextMaterialization 余项。每片带 SI 行和拒绝测试，只作用于自己声明的场景和函数，不放宽边界，非放宽不可的停下弹窗。
+    - 设计稿 §1.2 原来把 Inbox 当成 attention 上的薄壳，这个前提作废。

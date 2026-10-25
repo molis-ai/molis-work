@@ -19,7 +19,7 @@
 | 修复6（本题source/独立阶段已交） | Root单题专职，gpt-6.1-sol/max | 01a16fa8-53d9-7622-8169-0c424357366c | 1251固定267f四项双PASS6390380705/6390400572，16unique122，最终正文纯metadata重写已实际fetch比对一致；source冻结释放 | 原123归因/raw未认证/3browser与组成full保留，mergeable=true非Ready/actual，真实carrier保C2/1241等hunk，不启A6/新full |
 | 两来源最终闭环（已交付归档） | 专职合并｜PR 1109、1112 收尾 · Codex | 01a16f02-8e7e-7a92-8976-fb7befe916fd | #1236已actual bde02c59；实际树/包含核实后仅1109/1112已19:05关闭，6388316807/6388317402；本人已向Root交付并官方归档该专职 | 未重复queue/full、未动原树；1223已原Claude6388301030关闭，旧三nonblock现FIX2新1253已TEST6390447468 PASS/待首评与actual，不因专职完成关闭整线 |
 | 独立实现 C1 / C3 / C4准备 | 专职实现1（完整原owner保持）· Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | Gmail516已35吸收；横向1252固定8abab965c1f75bfb1ae1f695530a5d1a1312309f，15files533/-412/source释放，TEST6390184579 PASS/Claude FIRST6390137797待接 | C4原授权短准备已完，基FI3现实现缩3项WO待Claude6390280424，收到即实施不等旧CI/full/不自定信任，C1/C3完整未关 |
-| 独立实现 C2 | 专职实现2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | e2d双核待A carrier；snapshot4f SDK红保留，d8恢复预案后Root已准R-DEC1双root认证、2journal/pending guard、3原key/同安装前置，并直接START原owner做SDK外独立restore/新代码尚未固定交付 | Memory合法空/absent不可重开须安全预检拒绝但仍未完成能力，不降完整恢复标准；实际SDK执行claim待人类入口/原统筹认领，只认证调用串行，不全线停工。A只吸e2d，SDK/restore不加为A门槛；S/restore/C2/真实Home验收未关 |
+| 独立实现 C2 | 专职实现2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | e2d双核待A carrier；snapshot4f红/d8预案后Root已START SDK外restore，同一writer推进guard/owner纯读/新modules，指定hub未发现要停工的并写hunk | 两独立依赖：SDK双root认证；Molis Memory合法空快照目标投影的零写可重开判定/受控初始化。实际claim均待原入口，不混SDK/Molis职责/新writer，C2合法ledger恢复继续；空态RAC108仍未完，A只吸e2d，不关整线/真实Home验收 |
 
 已有角色 owner 与有效技术裁定保持。独立树、独立明确问题且无真实重叠可多writer；同文件/合同/候选串行。Claude唯一组批/full/批PR队列；Root唯一定时发现/初始派单/复杂裁决；本流水线交付驱动接续与既有普通小PR合并职责保持。整机一份build、一批browser，machine-slot排队。
 

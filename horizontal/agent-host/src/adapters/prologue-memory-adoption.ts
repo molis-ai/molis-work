@@ -37,6 +37,9 @@ export type PrologueMemoryAdoptionInspection = Pick<PrologueMemoryAdoptionBridge
   /** One bounded source page; empty/exhausted does not certify SDK/Catalog Session coverage. */
   inspectSessionIndexes(input: { limit?: number; cursor?: string; signal?: AbortSignal }): Promise<PrologueSessionIndexPage>;
   inspectSession: NodeRecoveryInspection["inspectSession"];
+  sessionTerminations: NodeRecoveryInspection["sessionTerminations"];
+  inspectMemory: NodeRecoveryInspection["inspectMemory"];
+  previewMemoryPurge: NodeRecoveryInspection["previewMemoryPurge"];
   close(): Promise<void>;
 };
 
@@ -164,6 +167,9 @@ export async function openPrologueMemoryAdoptionInspection(input: Omit<PrologueM
   return {
     previewCleanup: request => perform(request.signal, signal => inspection.previewAdoptionCleanup({ ...request, signal })),
     inspectSession: request => perform(request.signal, signal => inspection.inspectSession({ ...request, signal })),
+    sessionTerminations: request => perform(request.signal, signal => inspection.sessionTerminations({ ...request, signal })),
+    inspectMemory: request => perform(request.signal, signal => inspection.inspectMemory({ ...request, signal })),
+    previewMemoryPurge: request => perform(request.signal, signal => inspection.previewMemoryPurge({ ...request, signal })),
     inspectSessionIndexes: request => {
       const { limit, cursor } = request;
       return perform(request.signal, async signal => {

@@ -393,6 +393,34 @@ function storageBytes(root: string): Record<string, Buffer> {
   visit(root); return result;
 }
 
+test("MEM-40 exact Memory inspection and nonempty purge pages preserve source bytes and scope boundaries", async t => {
+  const f = scratch(t); ledger(f.home);
+  await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }, { kind: "memory-candidates", shape: 1, value: candidate }]);
+  assert.equal((await adoptMemoryHome({ homeDirectory: f.home })).outcome, "completed");
+  const before = storageBytes(f.storageRoot), controller = new AbortController(); let allowed = true;
+  const inspection = await openPrologueMemoryAdoptionInspection({ storageRoot: f.storageRoot, appVersion: app.appVersion,
+    scopes: [scope], policy: memoryRuntimePolicy(() => undefined).policy, signal: controller.signal,
+    assertCurrent: () => { if (!allowed) throw new Error("source authority revoked"); } });
+  const request = { ref: { kind: "memory" as const, id: original.id, revision: 1 }, identity: scope };
+  try {
+    const exact = await inspection.inspectMemory(request); assert.equal(exact.state, "present");
+    if (exact.state !== "present") assert.fail("expected the real adopted Memory");
+    assert.deepEqual(exact.target.ref, request.ref); assert.equal(exact.target.expectedVersion, original.version);
+    const page = await inspection.previewMemoryPurge({ ...scope, kind: "memory", limit: 1 });
+    assert.equal(page.outcome, "completed"); assert.deepEqual(page.items, [exact.target]);
+    assert.equal(JSON.stringify([exact, page]).includes(original.text), false);
+    assert.deepEqual(await inspection.inspectMemory({ ...request, ref: { ...request.ref, id: "never-created" } }), { state: "absent" });
+    await assert.rejects(inspection.inspectMemory({ ...request, identity: { scope: "project", owner: "foreign" } }));
+    await assert.rejects(inspection.previewMemoryPurge({ scope: "project", owner: "foreign", kind: "memory" }));
+    allowed = false;
+    await assert.rejects(inspection.inspectMemory(request)); await assert.rejects(inspection.previewMemoryPurge({ ...scope, kind: "memory" }));
+    allowed = true; controller.abort();
+    await assert.rejects(inspection.inspectMemory(request)); await assert.rejects(inspection.previewMemoryPurge({ ...scope, kind: "memory" }));
+  } finally { await inspection.close(); }
+  await assert.rejects(inspection.inspectMemory(request));
+  assert.deepEqual(storageBytes(f.storageRoot), before);
+});
+
 test("MEM-40 inspection previews nonempty orphan cleanup without creating an owner or changing SDK bytes", async t => {
   const f = scratch(t); ledger(f.home);
   await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: endedFormal(original.id) }, { kind: "memory-candidates", shape: 1, value: endedCandidate() }]);

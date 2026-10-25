@@ -83,7 +83,19 @@ test("source pages read real App-created Sessions and original lifecycle decisio
     } while (cursor);
     assert.deepEqual(found, expected.sort((a, b) => a.sessionRef.id.localeCompare(b.sessionRef.id)));
     assert.equal(JSON.stringify(found).includes(privateText), false);
+    const purged = expected.find(item => item.lifecycle?.action === "purge")!;
+    const terminations = []; let terminationCursor: string | undefined;
+    do {
+      const page = await inspection.sessionTerminations({ limit: 1, cursor: terminationCursor });
+      terminations.push(...page.items); terminationCursor = page.cursor;
+      assert.equal(page.exhausted, page.cursor === undefined);
+    } while (terminationCursor);
+    assert.equal(terminations.length, 1);
+    assert.deepEqual(terminations[0]!.preview.sessionRef, purged.sessionRef);
+    assert.equal(terminations[0]!.phase, "complete");
+    assert.equal(JSON.stringify(terminations).includes(privateText), false);
   } finally { await inspection.close(); }
+  await assert.rejects(inspection.sessionTerminations({}));
   assert.deepEqual(bytes(f.storageRoot), before);
 });
 

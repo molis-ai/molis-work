@@ -248,6 +248,8 @@ verifyPurgeCoverage 是内部无正文薄桥；inspection authority 只取真实
 
 已枚举行消失、墓碑、坏形状、版本变化或授权/取消/关闭检查失败，整页拒绝，不交付部分事实。原生命周期阶段不是恢复命令；缺失 actor 不猜补。调用者必须穷尽分页后再与 SDK/Catalog 可信 Session 事实联结；空页不能证明已知 Session 原件不存在，本前置不完成 MEM-40 覆盖判定或目标写入。限制沿 SDK list；本层没有新阈值或可绕过的检查。
 
+同一 inspection 的 `sessionTerminations`、`inspectMemory` 和 `previewMemoryPurge` 薄映射 SDK 原无正文读取，供上层与 Index、Ledger、Catalog 联结；present/cleared/absent 保持原义，缺失不证明已删除。固定 scope、取消、当前权限和关闭生命周期不变，不开放原始存储或新写口。
+
 直接回归：`node scripts/run-tests.mjs tests/prologue-session-index-inspection.test.ts tests/prologue-memory-adoption.test.ts tests/prologue-session-lifecycle.test.ts tests/prologue-session-cache-lifecycle.test.ts --jobs 2 --browser-jobs 1 --retries 0`，另保留本 README 的开发要求影响面。真实 Node 测试只使用临时存储，不触真实 Home 或外部模型。
 
 

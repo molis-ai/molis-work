@@ -13,14 +13,14 @@ function replay(...args: string[]) {
   return { status: run.status, report: JSON.parse(run.stdout.trim().split("\n").at(-1)!) as Report, stderr: run.stderr };
 }
 
-test("RAC-770 every sample of the replay corpus loads, runs, upgrades by upgrade_compatibility and runs again", { timeout: 300_000 }, () => {
+test("RAC-790 every sample of the replay corpus loads, runs, upgrades by upgrade_compatibility and runs again", { timeout: 300_000 }, () => {
   const { status, report, stderr } = replay();
   assert.equal(status, 0, JSON.stringify(report, null, 2) + stderr);
   assert.deepEqual(report.results.map(result => [result.id, result.ok]), [["plugin-sample", true], ["text-stats-packed", true]]);
   for (const result of report.results) assert.ok(result.steps.upgrade && result.steps.upgrade.from === result.steps.load!.version && result.steps.upgrade.to !== result.steps.upgrade.from, result.id);
 });
 
-test("RAC-771 a sample that declares badly, offers no such action or answers differently fails the replay", { timeout: 300_000 }, () => {
+test("RAC-791 a sample that declares badly, offers no such action or answers differently fails the replay", { timeout: 300_000 }, () => {
   const { status, report } = replay("--corpus", "tests/fixtures/replay-plugins/broken-corpus.json");
   assert.equal(status, 1);
   const failed = Object.fromEntries(report.results.map(result => [result.id, result.ok ? "passed" : result.error]));

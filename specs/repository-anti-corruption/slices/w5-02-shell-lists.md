@@ -1,6 +1,6 @@
 # W5-02 PR-D 外壳与设置的手写名单、PG-063（ac-shell 接手）
 
-状态：统筹 2026-10-25 已裁 Q1～Q4（见 §4），PR-D1 开工：第 1 个提交（PG-076 余项、PG-073 的 ①②）已实现，PG-074、PG-072 等 batch-37（`batch/1025-37`）推送后从它开。PR-D（PG-072～076）从 ac-registry 移来，加 PG-063；设计依据是 ac-registry 分支 `w5-02-registry.md` §5，事实按本分支头（`claude/ac-shell-slice4`，已含 #1261、#1272、#1274、#1275）重核。
+状态：统筹 2026-10-25 已裁 Q1～Q4（见 §4），PR-D1 已实现（四个提交：PG-076 余项与 PG-073 ①②；PG-074；PG-072；本稿与门禁收尾），在 `claude/ac-shell-lists`，基线 batch-37（`batch/1025-37`）。PG-075 留给 PR-D2，等 PG-055 合入。PR-D（PG-072～076）从 ac-registry 移来，加 PG-063；设计依据是 ac-registry 分支 `w5-02-registry.md` §5，事实按本分支头重核。
 
 验收编号：RAC-690～709。BL：BL-656～665（暂未取用）。
 
@@ -29,13 +29,13 @@
 | RAC-690 | Pages 的行选择器只用 `[data-page-id]`；类名不变，行为不变（点行、⌘/Ctrl 点开新标签、搜索命中跳到行） | `tests/` 里 Pages 的搜索与标签用例（非浏览器的声明断言；点击由统一浏览器批证明） |
 | RAC-691 | 两个页面脚本里没有按插件写的搜索行；Characters 行（平台）与 Feed 来源行（FI 线待迁）具名写在 `search-rows.ts`，仍写进页面 | 源码扫描 + `pluginSearchRows()` 的断言 |
 | RAC-692 | 标签标题查找不点 Feed、Inbox 的选择器，读声明的行 | 脚本文本断言 |
-| RAC-693 | `UiViewDeclaration.rail`、`pinned_default` 存在，只许 `navigator` 视图用，别处写了被 Manifest 检查拒绝（拒绝本身有测试） | 合同测试 + 快照（`pnpm api:update`） |
-| RAC-694 | `RAIL_CORE_ORDER`、`RAIL_EXTEND_PLUGIN_IDS`、`DOCK_DEFAULT_PINS` 三张表删除；骨干顺序、扩展入口、默认固定都读视图声明；三个骨干与 Plugin Studio 的页面与改之前一致 | `tests/` 的导航断言，对改之前的输出逐项相等 |
-| RAC-695 | 一个新插件只靠 Manifest 视图的声明就能出现在骨干 / 扩展位、能被设为默认固定 | 探针 Manifest 的断言 |
-| RAC-696 | `UiViewDeclaration.settings_data` 存在，只许 `settings` 槽的视图用；声明的动作必须是只读、受众含 `user` 的动作，否则被 Manifest 检查拒绝 | 合同测试 + 快照 |
-| RAC-697 | `web-catalog.ts` 的插件设置页只有一条通用路，没有 Shelf、Coding 两个分支，宿主不再 import `plugin-coding`、`plugin-shelf` 做设置页 | 源码扫描 + `pnpm boundary:check` |
-| RAC-698 | Shelf、Coding 的设置页内容与改之前相同（模型字段逐项相等） | 渲染前后对拍测试 |
-| RAC-699 | 外壳与设置的源码里，按插件名列的表只剩登记的例外（Goals S11、FI 线、A6 各一行，带理由），数字只许减少 | 源码计数脚本 |
+| RAC-693 | `UiViewDeclaration.rail`（`core` \| `extend`）、`pinned_default`（`true`）存在，只许 `navigator` 视图用，别处写了、取值不对被 Manifest 检查拒绝（拒绝本身有测试）。只有项目选择的内置插件的声明被采信：运行时装的插件（`chosen: false`）在 `sanitizePluginDirectory` 里被去掉 | `tests/view-placement-declarations.test.ts`（RAC-693）+ `tests/plugin-picker-pins.test.ts`（RAC-695 的第二条）+ 快照（`pnpm api:update`） |
+| RAC-694 | `RAIL_CORE_ORDER`、`RAIL_CORE_PLUGIN_IDS`、`RAIL_EXTEND_PLUGIN_IDS`、`DOCK_DEFAULT_PINS` 四个名字删除（`dockDefaultPins()`、`extendPluginIds()` 读视图声明）；骨干顺序（goals 10、inbox 30、feed 40）、扩展入口（Plugin Studio）、默认固定与改之前相同 | `tests/shell-declared-lists.test.ts`（源码扫描与 Manifest 声明）、`tests/plugin-picker-pins.test.ts`（画出的导航） |
+| RAC-695 | 一个新插件只靠 Manifest 视图的声明就能出现在骨干 / 扩展位、能被设为默认固定；只写 `rail: "extend"` 不等于固定 | `tests/plugin-picker-pins.test.ts` 的探针目录 |
+| RAC-696 | `UiViewDeclaration.settings_data` 存在，只许 `settings` 槽的视图用；声明的动作必须是本 Manifest 自己的、只有一个版本的、只读的、受众含 `user` 的查询，否则被 Manifest 检查拒绝 | `tests/view-placement-declarations.test.ts`（RAC-696 十条）+ 快照 |
+| RAC-697 | `web-catalog.ts` 的插件设置页只有一条通用路（`SettingsPageContext` + `settings_data` 的结果），没有 Shelf、Coding 两个分支，宿主不再 import `plugin-coding`、`plugin-shelf` 做设置页；Shelf 声明 `shelf.snapshot`，Coding 只用平台上下文 | `tests/shell-declared-lists.test.ts`（RAC-697）+ `pnpm boundary:check` |
+| RAC-698 | Shelf、Coding 的设置页内容与改之前相同（同样的输入画出逐字相同的页面） | `tests/shell-declared-lists.test.ts`（RAC-698，对拍旧模型直接渲染）；整条路由由 `tests/coding-product-http.test.ts` 与 `tests/plugin-global-settings.test.ts` 过 |
+| RAC-699 | 外壳与设置的源码里，按插件名列的表只剩登记的例外（Goals S11、FI 线、A6 各一行，带理由），门禁数字对 merge-base 只许减少 | `node scripts/check-health-gates.mjs --base origin/main`（宿主文件里点名内置插件包的文件数少一份：`web-catalog.ts` 不再 import `plugin-shelf`、`plugin-coding`） |
 | RAC-700～709 | 留给 PR-D2（PG-075）和实现里发现的 | |
 
 ## 3. 开工前核对
@@ -50,3 +50,10 @@
 - **Q2（PG-074 字段形状）**：`rail` + `pinned_default` 两个字段（照推荐）：默认固定是用户可改的偏好，骨干是平台排版，分开不会以后拆。
 - **Q3（Characters 行）**：平台模块，不是插件，它的搜索行留作平台自己的具名一行（照推荐）；理由：平台事实归平台。
 - **Q4（范围）**：同意。feed 切换分支 → FI 线（ac-sandbox-sched）、artifacts 字面量 → A6（ac-giants）、Goals `locked` / `SURFACE_OVERRIDES` → S11（ac-sc3），在 privileges 对应行写明归属，由统筹在批里改状态列；PG-075 单独 PR-D2，等 PG-055 合入后做。PG-063 的状态列统筹在 batch-37 里改成「已做（R11 #1169，RAC-135～137）」。
+
+## 5. 实现时与草稿不同的地方（PR-D1）
+
+- **Coding 的设置页不声明 `settings_data`。** 草稿写「Coding 的读动作返回角色、方法」；实现时发现 Coding 是项目级插件，设置页在 Home 下打开（没有项目），给它加一个 Home 范围的读动作只为返回它自己的常量是多余的登记。角色、方法本来就是 Coding 自己的 `codingAgentManifest`，由它的贡献（`codingSettingsModel`）自己读；宿主只给平台的固定上下文（项目、当前项目、Agent 运行时）。输出逐字相同（RAC-698）。`settings_data` 留给真正有自己数据的页，Shelf 声明 `shelf.snapshot`。
+- **`SettingsPageContext` 的 `project` 带宿主算好的工作台地址**（`/projects/<id>/`），页面不拼地址。运行时列表对每个插件设置页都取一次（以前只在 Coding 页取）；该函数读的是宿主已有的运行时目录。
+- **`rail` / `pinned_default` 只采信 `chosen` 的内置条目**：`sanitizePluginDirectory` 对 `chosen: false`（运行时装的插件）把两个字段去掉，`dockDefaultPins()` 与 `extendPluginIds()` 也只看 `chosen`。
+- 顺手删掉 `ui-composition.ts` 里没人调用的 `renderShelfSettingsContribution`（它的参数类型是旧的 Shelf 模型）。

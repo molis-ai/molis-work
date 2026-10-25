@@ -1,5 +1,5 @@
 import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
@@ -56,7 +56,13 @@ export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BU
       }
       return { ...pack, clientFactory: clientUses ? withUsedClients(registered, factory, all) : factory };
     })
-    .map(pack => ({ ...pack, contributions: pack.contributions.map(contribution => ownedContribution(contribution, owners.get(pack.project_plugin_id)!)) }));
+    .map(pack => ({ ...pack, contributions: pack.contributions.map(contribution => {
+      // The platform fills the owner from the Manifest; a contribution that writes one is refused, as the Runtime and `ui:register` refuse it, never overwritten.
+      if (declaresOwner(contribution.descriptor)) {
+        throw new Error(`${pack.project_plugin_id} 的贡献 ${contribution.descriptor.contribution_id} 自己写了插件身份；插件身份由平台按 Manifest 填写，请删掉 plugin_id`);
+      }
+      return ownedContribution(contribution, owners.get(pack.project_plugin_id)!);
+    }) }));
 }
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = pluginWorkbenchPacks();
 

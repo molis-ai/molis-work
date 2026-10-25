@@ -146,6 +146,28 @@ test("RAC-632 a failing owner does not hide the refusal: the error is the owner'
   await assert.rejects(serviceOver(t, refusing).bindGoal(NOTE, "q4", "t1"), { code: "topics.closed" });
 });
 
+test("RAC-639 two providers declaring the same relation in one directory is refused by every operation, and none of their actions is called", async t => {
+  const calls: string[] = [];
+  const split = [...owner("io.example.topics", "topic", ["list", "bind", "candidates"], calls), ...owner("io.example.themes", "topic", ["release", "create"], calls), reader("io.example.notes", "note")];
+  const both = [...owner("io.example.topics", "topic", FIVE, calls), ...owner("io.example.themes", "topic", FIVE, calls), reader("io.example.notes", "note")];
+  for (const views of [both, split]) {
+    const service = serviceOver(t, directory(views, calls));
+    const refused = { code: "placement.relation_ambiguous", kind: "conflict" };
+    await assert.rejects(service.describe(NOTE), refused);
+    await assert.rejects(service.goals("q4"), refused);
+    await assert.rejects(service.bindGoal(NOTE, "q4", "t1"), refused);
+    await assert.rejects(service.unlink(JSON.stringify(["goal", "q4", "t1", "b1"])), refused);
+    await assert.rejects(service.convert({ source: NOTE, to: { goal: true }, to_project_id: "q4", request_id: "r-ambiguous", payload: { title: "一个话题", body: "内容" } }), refused);
+  }
+  assert.deepEqual(calls.filter(id => /^io\.example\.(topics|themes)\./.test(id)), [], "neither provider was asked anything");
+  // The refusal names the two, so the person knows which to turn off.
+  await assert.rejects(serviceOver(t, directory(both, calls)).goals("q4"), (error: ActionError) => error.message.includes("io.example.topics") && error.message.includes("io.example.themes") && error.details?.relation === "topic");
+  // A second provider that is not enabled here is not a competitor: the enabled one keeps the relation alone.
+  const disabled = [...owner("io.example.topics", "topic", FIVE, calls), ...owner("io.example.themes", "topic", FIVE, calls, FIVE), reader("io.example.notes", "note")];
+  assert.deepEqual(await serviceOver(t, directory(disabled, calls)).goals("q4"), [{ goal_id: "t1", title: "第一个话题" }]);
+  assert.ok(calls.includes("io.example.topics.pick") && !calls.some(id => id.startsWith("io.example.themes.")), calls.join());
+});
+
 test("RAC-638 what a conversion made says which plugin keeps it, from the owner's reader; with no reader to say, it says nothing and names no kind", async t => {
   const calls: string[] = [];
   const views = [...owner("io.example.topics", "topic", FIVE, calls), reader("io.example.notes", "note"), reader("io.example.topics", "topic", "话题")];

@@ -189,6 +189,7 @@ export const PLACEMENT_EN: Record<string, string> = {
   "这个位置没有启用 Goals": "Goals isn't enabled here",
   "这个位置没有启用 Goals，不能关联目标": "Goals isn't enabled here, so it can't be linked to a goal",
   "这个位置没有启用 Goals，不能建成 Goal": "Goals isn't enabled here, so it can't become a Goal",
+  "不止一个插件在管「{relation}」这层关联：{providers}。请只启用其中一个": "More than one plugin keeps the “{relation}” link: {providers}. Keep only one of them enabled",
   "这个插件没有启用，或没有提供对象读取": "This plugin isn't enabled or doesn't let its items be read",
   "这个插件的内容还不能移动；可以复制或用于项目": "Items from this plugin can't be moved yet; copy them or use them in a project",
   "这条关系由插件自己管理，请在原处修改": "This link is managed by the plugin; change it there",

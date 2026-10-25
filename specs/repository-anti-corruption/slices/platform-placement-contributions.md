@@ -49,9 +49,11 @@
 
 不变的：放置规则（谁能移动、复制、转成；账本里的边；`describe` 的结果形状）；Goals 的动作 id、版本、输入输出；路由和系统动作的名字（见 D2）。
 
-`ActionSubjectContext.goal_ids` 改成输出里可选（D3）：读取器不属于任何 Goal 关联时不写；`subjectContext()` 不再替它补 `[]`。放置服务读的本来就是 `read.context?.goal_ids ?? []`。
+`ActionSubjectContext.goal_ids` 改成输出里可选（D3）：读取器不属于任何 Goal 关联时不写；`subjectContext()` 不再替它补 `[]`。放置服务读的本来就是 `read.context?.goal_ids ?? []`。**一轮评审后（ac-review，统筹裁）：输出 schema 变了，所有对象读取器（`defineSubjectContextAction` 一处）升到 `version: 2`**（`docs/system/CONTRACT-CHANGES.md` 第 3 节第 3 条；阶段一不留旧版本）；仓库里钉在 `@1` 的引用同一片改完，`pnpm actions:update`。
 
-动作合同快照：Goals 的 5 个动作多一项声明，traits 哈希变了，**版本不升**（输入输出 schema 不变；同 Todo 那次的理由，统筹 10-24 同意过一次，这里再确认，D1）。
+动作合同快照：Goals 的 5 个动作多一项声明，traits 哈希变了，**版本不升**（输入输出 schema 不变；同 Todo 那次的理由，统筹 10-24 同意过一次，这里再确认，D1）。对象读取器（23 个 Manifest 里的动作，含 `alchemist.playbook.context`，加宿主的 `characters.subject.read`，共 24 个）输出 schema 变，**升到 2**。
+
+一个关联在一个目录里只有一个提供方：放置服务按提供方分组，同一个关联名被不止一个可用的提供方声明，所有操作（`describe`、候选、挂上、取消、建成）一律 `placement.relation_ambiguous`（kind `conflict`，信息点出各个提供方），一个提供方的动作也不调，五个角色不混着取。
 
 ### 2.2 PG-098：贡献的 plugin_id 由平台填，插件不写
 
@@ -74,10 +76,11 @@
 - **RAC-632**：关联的提供方缺任何一个角色或不可用：对应的操作是 `placement.target_unavailable`，别的角色的动作没被调；
 - **RAC-633**：`goal_ids` 缺省的读取器能被 `describe` 照常处理；带 `goal_ids` 的读取器仍显示「挂接」；
 - **RAC-634**：Goals 的 5 个动作带声明；SDK 的声明检查拒绝：角色不在列表里、同一个关联同一角色出现两次、`relation` 不是小写词、`target` 写在非 `list` 角色上、`list` 角色缺 `target`；
-- **RAC-635**：内置贡献的声明里没有 `plugin_id`（读源码）；工作台登记后的描述 `plugin_id` 等于登记项 Manifest 的；
+- **RAC-635**：内置贡献的声明里没有 `plugin_id`（读 TypeScript 语法树，不论属性顺序、简写、带引号的键）；工作台登记后的描述 `plugin_id` 等于登记项 Manifest 的；声明自带 `plugin_id`（哪怕等于自己的）时 `pluginWorkbenchPacks` 抛错，信息里有插件和贡献 id，不覆盖；
 - **RAC-636**：插件经 `ui:register` 登记不在自己 Manifest `ui.contributions` 里的 id，`plugin_denied`；声明自带 `plugin_id`（哪怕等于自己的），`plugin_denied`，且没有登记；
 - **RAC-637**：启动返回的视图声明里没有 `plugin_id` 才能兑现，自带 `plugin_id` 的失败；对不上 Manifest 声明的 `contribution_id` 仍失败；
 - **RAC-638**：`derived_into` 的目标带所属插件的名字，灵光的标签读它；所属插件缺失（插件已停用）时显示「已转出」；灵光的 `list.ts` 里不再有 `todo`/`page`/`jelly`/`goal` 字符串（读源码）。
+- **RAC-639**：同一个目录里两个可用的提供方声明同一个关联名（五个角色全在两边，或分在两边）：`describe`、候选、挂上、取消、建成都是 `placement.relation_ambiguous`，两个提供方的动作都没被调；其中一个不可用时，另一个独自管这个关联；
 
 ## 4. 碰的文件（预计）
 

@@ -45,10 +45,11 @@ export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT = { type: "object", p
 export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", properties, required: Object.keys(required), additionalProperties: false };
 /**
  * A reader of one object kind's context. `scope` is where its objects live: a project's (the default), or the
- * person's own Home (a calendar, personal notes), so personal work can read them back too.
+ * person's own Home (a calendar, personal notes), so personal work can read them back too. Version 2: `goal_ids` left the required output
+ * (an object that belongs to no Goal gives none), so a reference pinned to the version-1 reader meets this other contract and is refused.
  */
 export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<SubjectContextRequest, ActionSubjectContext> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
+  return { capability_id: capabilityId, version: 2, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
     kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
     input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: SUBJECT_CONTEXT_INPUT_SCHEMA, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
 }

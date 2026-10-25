@@ -1,5 +1,5 @@
 import {
-  ActionError, isObjectCopier, isObjectMover, isPlacementRelation, isSubjectReader, PERSONAL_SPACE_PROJECT_ID,
+  ActionError, defineErrorCodes, isObjectCopier, isObjectMover, isPlacementRelation, isSubjectReader, PERSONAL_SPACE_PROJECT_ID,
   type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type PlacementRelationRole, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -472,21 +472,36 @@ interface PlacementRelation {
   create: ActionReference | null;
 }
 
+/** Codes this package owns beyond the platform's `placement.same_location`; the rest are raised as plain `ActionError`s where they happen. */
+const placementErrors = defineErrorCodes("placement", { relation_ambiguous: "conflict" });
+
+/**
+ * One relation has one owner in a partition: its five parts all come from the single provider that declares it. Two providers declaring the
+ * same relation name would make "who keeps the person's Goal" a guess (the parts of different owners mixed, or whichever came first), so that
+ * is refused, naming them, and none of their actions is called.
+ */
 async function placementRelationOf(ports: PlacementPorts, scope: PlacementScope): Promise<PlacementRelation> {
   const name = ports.relation ?? DEFAULT_RELATION;
-  const views = (await scope.client.discover(scope.caller)).filter(view => view.availability.available);
+  const declared = (await scope.client.discover(scope.caller)).filter(view => view.availability.available && view.action.placement_relation?.relation === name);
+  const providers = [...new Set(declared.map(view => view.provider.provider_id))];
+  if (providers.length > 1) {
+    throw placementErrors.relation_ambiguous(placementText(ports, "不止一个插件在管「{relation}」这层关联：{providers}。请只启用其中一个", { relation: name, providers: providers.join("、") }), { relation: name, providers });
+  }
+  const views = declared.filter(view => view.provider.provider_id === providers[0]);
   const play = (role: PlacementRelationRole) => {
     const view = views.find(entry => isPlacementRelation(entry.action, name, role));
     return view ? ref(view) : null;
   };
-  const declared = views.find(entry => isPlacementRelation(entry.action, name, "list"))?.action.placement_relation?.target;
-  return { noun: declared?.noun ?? DEFAULT_NOUN, target_kind: declared?.kind ?? name,
+  const target = views.find(entry => isPlacementRelation(entry.action, name, "list"))?.action.placement_relation?.target;
+  return { noun: target?.noun ?? DEFAULT_NOUN, target_kind: target?.kind ?? name,
     list: play("list"), bind: play("bind"), release: play("release"), candidates: play("candidates"), create: play("create") };
 }
 
 /** Like `placementRelationOf`, for a partition that may be gone: it has no relation parts and the wire vocabulary's own words. */
 async function placementRelation(ports: PlacementPorts, projectId: string | null): Promise<PlacementRelation> {
-  try { return await placementRelationOf(ports, await ports.scope(projectId)); } catch {
+  try { return await placementRelationOf(ports, await ports.scope(projectId)); } catch (error) {
+    // A partition that is gone has no relation; a relation with two owners is a refusal, not an absence.
+    if (error instanceof ActionError && error.code === "placement.relation_ambiguous") throw error;
     const name = ports.relation ?? DEFAULT_RELATION;
     return { noun: DEFAULT_NOUN, target_kind: name, list: null, bind: null, release: null, candidates: null, create: null };
   }

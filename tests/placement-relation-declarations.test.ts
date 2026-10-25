@@ -1,21 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionMetadata } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-import { goalsInputActions } from "../plugins/native/goals/dist/input-actions.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 /** RAC-634 (PG-032): what the SDK's declaration check says about the `placement_relation` a plugin writes on its actions. */
 
-const goalsRelation = [goalsInputActions.list, goalsInputActions.bind, goalsInputActions.release, goalPluginActions.list, goalEntryActions.create] as unknown as ActionDefinition[];
+type Declared = Pick<ActionDefinition, "action">;
+const goalsRelation: readonly Declared[] = [goalsActions.inputsList, goalsActions.inputsBind, goalsActions.inputsRelease, goalPluginActions.list, goalEntryActions.create];
 const problems = (definitions: unknown[]) => inspectActionDeclarations(definitions, undefined);
-const withRelation = (definition: ActionDefinition, placement_relation: unknown, patch: Record<string, unknown> = {}): ActionDefinition =>
-  ({ ...definition, action: { ...definition.action, ...patch, placement_relation } } as unknown as ActionDefinition);
+const withRelation = (definition: Declared, placement_relation: unknown, patch: Record<string, unknown> = {}): Declared & { action: ActionMetadata } =>
+  ({ ...definition, action: { ...definition.action, ...patch, placement_relation } });
 const asRole = (index: number, role: string, relation = "goal") => withRelation(goalsRelation[index]!, { relation, role, ...(role === "list" ? { target: { kind: "goal", noun: "Goal" } } : {}) });
 
 test("RAC-634 Goals' five actions declare the Goal relation, one part each, and the declaration check accepts them", () => {
-  const parts = goalsRelation.map(definition => (definition.action as { placement_relation?: { relation: string; role: string } }).placement_relation);
+  const parts = goalsRelation.map(definition => definition.action.placement_relation);
   assert.deepEqual(parts.map(part => part?.role), ["list", "bind", "release", "candidates", "create"]);
   assert.ok(parts.every(part => part?.relation === "goal"));
   assert.deepEqual(problems(goalsRelation), []);

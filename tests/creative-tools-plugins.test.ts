@@ -13,24 +13,12 @@ import { fileURLToPath } from "node:url";
 import {
   BUILTIN_PLUGIN_CATALOG, pluginMarketCards, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
-import {
-  datasetActions,
-  mergeDatasetDraftRows,
-  openDatasetStore,
-  parseCsv,
-  toCsv,
-} from "@molis-ai/molis-work-plugin-dataset";
-import {
-  FORM_CLIENT_FACTORY_SCRIPT,
-  FORM_EN,
-  FORM_STYLES,
-  formActions,
-  openFormStore,
-} from "@molis-ai/molis-work-plugin-form";
-import {
-  openPptStore,
-  pptActions,
-} from "@molis-ai/molis-work-plugin-ppt";
+import { datasetActions, mergeDatasetDraftRows, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { FORM_CLIENT_FACTORY_SCRIPT, FORM_EN, FORM_STYLES, formActions } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
+import { pptActions } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import {
   renderMolisWorkWeb,
   renderMolisWorkWorkbenchClientScript,

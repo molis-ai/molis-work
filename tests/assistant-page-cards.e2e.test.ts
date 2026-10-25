@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openWork, readWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
 
 // W2-18-PAGE-CARDS-01: two actual page offers share a work; rendering one cannot remove its sibling.

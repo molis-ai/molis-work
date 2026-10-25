@@ -1,6 +1,5 @@
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   FormOption,
   FormQuestion,
@@ -342,23 +341,6 @@ export class FormStore {
   }
 }
 
-
-/** A store on its own connection, for the project's deletion and for tests; the running plugin uses the library the Runtime gives it. */
-export function openFormStore(homeDirectory: string): FormStore {
-  const db = openBaselineHomeSqlite(homeDirectory, FORM_HOME_STORE.path, FORM_DATABASE);
-  const sql: FormSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return new FormStore(sql, run => immediate(db, run), () => db.close());
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
-}
 
 function fromRow(row: FormRow): FormRecord {
   const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as FormPublicationIntent : null;

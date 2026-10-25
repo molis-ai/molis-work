@@ -3,6 +3,7 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
 import type { HomePluginEntry } from "./home-plugins.js";
+import { declaresProjectCoordination } from "./plugin-project-coordination.js";
 
 // The platform's facts about the plugins this build ships, derived in this one place from the plugins' own registrations
 // (W5-02 PR-B, PG-065 in specs/repository-anti-corruption/privileges.md). scripts/generate-plugin-registry.mjs writes the list
@@ -32,6 +33,9 @@ export function catalogProblems(catalog: readonly PluginRegistration[]): string[
   for (const entry of catalog) {
     if ((entry.manifest.runtime?.scope === "home") !== (entry.runtime !== undefined)) {
       problems.push(`${entry.project_plugin_id}: the Manifest's runtime.scope and the registration's runtime (the code a Home instance starts from) go together`);
+    }
+    if (entry.runtime && !entry.runtime.dual_instance && declaresProjectCoordination(entry.manifest)) {
+      problems.push(`${entry.project_plugin_id}: a Home instance is given no 成果, ports or events; declaring them takes a dual-instance plugin (the project half gets them)`);
     }
     const named: Array<readonly [string, string]> = [
       ...(entry.companions ?? []).map(id => ["companions", id] as const),

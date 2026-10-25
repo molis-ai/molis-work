@@ -3012,3 +3012,15 @@ withWriter({memoryPurges,sessionPlan},work) 属外层真实 SDK 装配，仅 Cat
 诊断原始文件：`/private/tmp/molis-code-scale-baseline.{log,json,png}`、`/private/tmp/molis-code-scale-profile-4x.{log,json,png}`、`/private/tmp/molis-code-scale-traced-4x-captured.log`、`/private/tmp/molis-code-scale-4x-trace.json`，汇总 `/private/tmp/molis-code-scale-diagnosis.json`。均来自临时 Home、隔离 Chrome 和复用且已核验指纹的准确构建，没有真实 Home 或付费模型调用。
 
 候选观测补丁在原条件下跑完整 `code-scale.e2e` 5/5 通过、零跳过/重试；日志 `/private/tmp/molis-code-scale-observation-validation.log` 留存原始 75 片，最长 7.0ms。此结果仅证明观测补丁在本机仍通过原合同，**不是性能问题已修复**。原同步初始、每片 <50ms、至少15片、增量着色、回改、离页停止、400,000上限及真实 Coding/Assistant 重开等断言均原样保留；总计时起点仍在 step 前、终点仍在强制布局后，中间只多一次读时钟。末尾移除了候选中仅失败时额外抓图的一行，避免截图故障盖过原性能断言；真实失败构成由既有 diagnostic 日志与 JSON 提供，前述诊断截图保留。
+
+
+
+### MEM-40 Catalog 初始化失败的原连接清理（2026-10-26，实施前）
+
+基线 `0bc4b9f4` 的真实临时 Home/public Catalog target 反例已确认：只读预检成功后的 close、预检拒绝后的 finally close、writer 装配拒绝后的 catch close，只要 BetterSqlite 实际 close 抛错，工厂就只抛关闭异常，未关闭的原连接和原业务异常无法由调用方取得。实际先关闭再抛错也必须保留失败事实，但不能为清理重开连接。原成功返回的 target/observation 关闭重试保持不动。
+
+本刀只在原 target 初始化资源主人保留同连接 cleanup，沿用现公开 `HomeInitializationFailure.close(): Promise<void>` 形状。关闭失败返回 AggregateError，errors 保留原业务异常（若有）和关闭异常，cause 与原 code 指向业务原因；无业务异常时指向关闭原因。close 不自动重试，后续显式调用只检查原连接是否仍开着并关闭它，失败仍可再试；成功后重复/并发调用不重复实际关闭。这个能力不提供恢复、read、SQL 或重新授权入口，不再调用 current，不重开库，不重放原初始化/持久关联/项目删除。现 Home lifetime helper 会立即启动清理和超时等待，不能直接套在已经失败的 close 上造成自动重试；这里只复用已有公开资源类型，不新增通用框架。
+
+允许 `apps/local-host/src/project-deletion-recovery-target.ts`、既有 target 测试、LocalHost README 与本 spec。不改 Storage 构造器、父 frame、schema、SDK/vendor、CI、资源额度。验收用 BetterSqlite 原 close 故障注入，覆盖只读成功/失败、writer 原业务失败、实际已关闭再报错；保留错误、撤权后只清理、同连接反复失败后明确重试、禁 SQL 与物理关闭、已有真实关联文件/收据/项目文件不重放或伪回滚。先整体 FIFO build，跑 target/inspection 相邻回归、必要类型与门禁；子代理不跑全量。此刀不证明完整 Home 恢复或产品/用户验收。
+
+实施核验：准确 `0bc4b9f4` 原 build 上新增四个真实 BetterSqlite close 反例全部失败，原26项通过；三个连接实际仍 open，错误只有 closeError 且无 cleanup，另一项已经物理关闭但原业务失败也被覆盖。修后完整 FIFO build、target/inspection 两文件65项、LocalHost README必跑57文件共548项通过（jobs2/browser1/retries0）。根 TypeScript、这两份测试的严格 TypeScript、准确父基 health、boundary 与72份API快照通过，diff仅原target资源主人、测试和两份文档。初次测试strict发现新增用例的错误类型强转，已改成运行时缩窄并复验；README首批受沙箱listen EPERM影响，按已核实PID只停本批后以获准本机权限完整重跑，没有弱化断言。日志 `/private/tmp/catalog-init-{red-evidence,fixed-build,green,root-types,test-types,health,boundary,api,required,required-escalated}.log`。本地工程验证不替代父frame/全Home恢复、真实用户Home、产品实操或用户验收；未跑全量、未改Storage构造器，也未推送或发布。

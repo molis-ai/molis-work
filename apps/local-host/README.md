@@ -348,3 +348,6 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 冷恢复的项目 Memory 由 `createColdMemoryProjectOwner` 创建局部主人，只有原 `withRecovery/clear/proof` 生命周期，不注册 Runtime 或全局替代服务。外层固定已解码 Catalog 计划和父 Home owner；首次 `prepareProject` 给可信归属与 AgentHost 准备的 target Session plan，Memory 当前版本由 SDK 有界预览给出，Ledger 只用 Storage 已校验 body-free facts 在同一只读事务两遍连接来源/遗忘身份。未知、partial、未穷尽或来源未知拒绝；写前 reader 必须关闭，失败句柄保留到 `close()` 重试。
 
 外层 `withInspection` 和 `withWriter({memoryPurges,sessionPlan},work)` 顺序借用同一父 owner，任一时刻最多一个 SDK child；writer 只在 Catalog 原 prepared receipt 与活动 frame 相符后打开，关闭失败不能开下一个。主人仅获得固定原件 purge 与原件 proof，不获得旧 adoption cleanup、完整 Backend/Ledger 或 Runtime。项目删除继续唯一调用 `applyProjectMemoryPurge`：来源屏障→原候选/正式原件→当前空态及整 Home metadata coverage→非个人 Ledger scope 收尾→原 Session；Storage 提交返回后先由外层 `ledgerCommitted({before,after})` 核缓存并推进，再普通 current，失配使本主人失效。完成回执只读核原 Memory/Session/Index 与 Storage 原件后置条件，空 complete 不扫描或清除后继。真实包回归在 `tests/memory-cold-project-owner.test.ts`，外层完整 T1/T0 编排由集成根负责。
+
+
+Catalog target 初始化的 readonly 预检和 writer 装配若收尾失败，异常按既有 `HomeInitializationFailure` 形状保留不可枚举的 `close(): Promise<void>`。AggregateError 同时保留原业务错误与实际关闭错误，cause/code 以原业务原因为准；没有业务失败时以关闭原因为准。显式 close 只关闭同一实际连接，不查 current、不发 SQL、不重开库、不重放关联或删除；反复失败可再试，实际已关闭后再报错也不再关或重开。成功返回的 target/observation 资源合同保持。回归：`tests/project-deletion-recovery-target.test.ts`；本行为仅保证初始化资源仍可清理，不宣称父恢复完成。

@@ -16,7 +16,7 @@ export { TODO_MESSAGES } from "./messages.js";
 export { TODO_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { createTodoPlugin } from "./plugin.js";
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID, todoManifest } from "./manifest.js";
-export { openTodoStore, ownTodoStores, TodoStore, TODO_DATABASE, TODO_HOME_STORE } from "./store.js";
+export { ownTodoStores, TodoStore, TODO_DATABASE, TODO_HOME_STORE } from "./store.js";
 export type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoSql, TodoSqlValue, TodoStores } from "./store.js";
 export { todoErrors } from "./error.js";
 export { todoActions, TODO_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoAccess } from "./actions.js";

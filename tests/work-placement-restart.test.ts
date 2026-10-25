@@ -10,7 +10,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
-import { openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 

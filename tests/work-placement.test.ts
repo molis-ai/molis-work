@@ -16,10 +16,14 @@ import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis
 import { PlacementService, PLACEMENT_LEDGER_ACCESS } from "@molis-ai/molis-work-service-placement";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
-import { pptManifest, openPptStore, buildPptx, slidesFromMarkdown } from "@molis-ai/molis-work-plugin-ppt";
-import { formManifest, openFormStore, formFillPageHtml, formResultsCsv, FORM_ANSWER_FORMAT, questionsFromText } from "@molis-ai/molis-work-plugin-form";
-import { datasetManifest, openDatasetStore, parseCsv } from "@molis-ai/molis-work-plugin-dataset";
-import { lingguangManifest, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { pptManifest, buildPptx, slidesFromMarkdown } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
+import { formManifest, formFillPageHtml, formResultsCsv, FORM_ANSWER_FORMAT, questionsFromText } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
+import { datasetManifest, parseCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { createGoalsInputActionHandlers, goalsInputActions } from "../plugins/native/goals/dist/input-actions.js";
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";

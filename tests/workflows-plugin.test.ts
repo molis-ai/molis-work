@@ -8,7 +8,8 @@ import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSource
 import { openTestHome } from "./fixtures/test-home.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
 import {
   WORKFLOWS_CLIENT_FACTORY_SCRIPT,

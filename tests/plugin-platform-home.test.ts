@@ -103,7 +103,7 @@ test("a plugin id may appear once in a start list: a fixture cannot stand in for
     const item = platformParts(directory);
     try {
       const platform = createPluginPlatform({ ...item.options, home: null });
-      await assert.rejects(platform.start([{ definition: probe(), bundled: true }, { definition: probe({ signature: "a-second-copy" }) }]),
+      await assert.rejects(platform.start([{ definition: probe(), trust: { level: "host" } }, { definition: probe({ signature: "a-second-copy" }) }]),
         new RegExp(PROBE.replaceAll(".", "\\.")));
       assert.deepEqual(platform.supervisor.states(), []);
     } finally { item.store.close(); }

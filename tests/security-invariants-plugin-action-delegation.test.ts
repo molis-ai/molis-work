@@ -443,6 +443,8 @@ test("W5-01-DELEGATE-07 S-43 the call log row names the plugin beside the origin
 
 /** What `LOCAL_OWNER_PERMISSIONS` gives the person over the Host's own project settings; no probe here declares it. */
 const PERSON_HOLDS = "projects:settings";
+/** A Host provider the person holds `projects:settings` over (`localOwnerPermissionsOver`). */
+const PERSON_HOLDS_PROVIDER = "system.project-workspaces";
 
 /**
  * A project plugin whose page route runs its action as the person on the page, the production path: `web-request.ts` gives the route the
@@ -489,7 +491,9 @@ test("W5-01-DELEGATE-08 S-43 from the page, a project plugin's route reaches a t
   const lacked = target("delegate.person_lacks", ["user", "workflow"], ["delegate:admin"]);
   const closed = target("delegate.person_holds_not_workflow", ["user"], [PERSON_HOLDS]);
   const ran: string[] = [];
-  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "delegation-targets", title: "Delegation targets", kind: "system" },
+  // What the person holds is held over a provider (PG-007 stage 4): the targets sit under the Host provider the person holds
+  // `projects:settings` over, so "held" means held there; a Host provider the person holds nothing over would reach nothing at all.
+  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: PERSON_HOLDS_PROVIDER, title: "Delegation targets", kind: "system" },
     definitions: [held, lacked, closed], handlers: [held, lacked, closed].map(definition => ({ ...definition, handle: async () => { ran.push(definition.capability_id); return "done"; } })) }));
   const run = (definition: ActionDefinition) => fromPage(s, project.project_id, probe.id, { op: "invoke", reference: ref(definition) });
   for (const refused of [lacked, closed]) {
@@ -513,7 +517,7 @@ test("W5-01-DELEGATE-08 S-43 from the page, a plugin holding actions:delegate st
   const s = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [probe.definition] } } });
   const project = await s.createProject("Route query delegation", []);
   const ran: string[] = [];
-  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "delegation-targets", title: "Delegation targets", kind: "system" },
+  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: PERSON_HOLDS_PROVIDER, title: "Delegation targets", kind: "system" },
     definitions: [query], handlers: [{ ...query, handle: async () => { ran.push(query.capability_id); return "done"; } }] }));
   // The route's person caller no longer narrows what a nested call adds for this plugin; the query delegation still narrows its own children.
   const refused = await fromPage(s, project.project_id, probe.id, { op: "query", reference: ref(query) });

@@ -4,9 +4,10 @@ export interface CommentSideHost {
   messages: UiPageMessages;
   translate(value: string): string;
   projectId: string | (() => string);
+  /** A platform path in the current project. */
   route(path: string): string;
-  /** Where this plugin's documents live: `/api/plugins/<plugin id>/pages`. */
-  api: string;
+  /** A path under this plugin's own routes in the current project. */
+  pluginRoute(path: string): string;
   controlHeaders(): Record<string, string>;
 }
 export interface CommentDraft {

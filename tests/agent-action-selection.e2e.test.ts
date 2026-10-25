@@ -32,7 +32,7 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read, write] },
     async start() { return { kind: "app", actions: [read, write].map(def => ({ ...def, handle: () => "原笔记" })) }; } });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(b.store.db), undefined, { actions: { registry: localHost.actionRegistry(project), project_id: projectId } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
   // Stopped once in the middle of the test to withdraw the provider; the store is closed by then.
   let stopped = false; t.after(() => stopped ? undefined : runtime.stop(install.install_id));

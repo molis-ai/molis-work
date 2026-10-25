@@ -35,7 +35,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const entry = page ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home" && entry.project_plugin_id === page[1]) : undefined;
   if (page && !entry) return false;
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
-  // The catalog names existing pages; the actual Home registration owns API routing, including non-bundled entries.
+  // The catalog names existing pages; the actual Home registration owns API routing, including entries that are not of the Host's build.
   if (!host.homePlugins.manifest(pluginId)) return false;
   const side = sidePage?.[2] ?? (page ? url.searchParams.get("side") : null);
   const sideView = side ? entry?.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;

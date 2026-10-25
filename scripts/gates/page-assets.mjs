@@ -238,13 +238,12 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Same approved application deltas, rebased from 93b76797 to exact foundation 82bb6aae.
-  // Includes user-approved Assistant +4064 B; prior unused bytes remain unused.
-  // WB +32890, CSS +680 each, Coding +570. No new allowance.
-  "/assets/molis-work-workbench.js": [1134109, 1166999],
+  // Preserve only the previously approved application deltas on exact foundation 430f65b3.
+  // Includes Assistant +4064 B; pending Coding +1333 B is not admitted.
+  "/assets/molis-work-workbench.js": [1129760, 1162650],
   "/assets/molis-work-settings.css": [983230, 983910],
   "/assets/molis-work-workbench.css": [1552484, 1553164],
-  "/assets/molis-work-plugins/coding.js": [377880, 378450],
+  "/assets/molis-work-plugins/coding.js": [372853, 373423],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

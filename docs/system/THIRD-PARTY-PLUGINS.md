@@ -73,7 +73,7 @@ molis-work plugin trust list | revoke <publisher_identity>
 
 ## 5. 沙箱边界
 
-- 第三方安装一律 `execution: "sandbox"`。安装服务在装入前检查，`host` 执行只接受 `bundled: true` 的内置条目。
+- 第三方安装一律 `execution: "sandbox"`。安装服务在装入前检查，`host` 执行只接受 `trust: HOST_BUILD_TRUST` 的内置条目。
 - **阶段一的形态与生成插件相同**：一份 JSON 的 `operations` 合同（查询或命令，严格的 schema 子集）加平台 UI 目录的界面声明；网络、存储、模型、其他动作都只经宿主服务，每次调用复查调用方、授权和 `beforeEffect()`。这样阶段一不需要新的运行机制，只需要把「已验签的包」翻译成现有的 `sandboxedPluginDefinition` 的输入。
 - 第三方不能：在宿主进程里执行代码；在页面里放脚本；直接读写文件或联网；读别的插件的私有存储。
 - **`methods`**（2026-10-08 决定）：第三方 Manifest 声明的 `methods`（给其他 Agent 的方法）和内置插件一样登记：安装启动时登记，停用、卸载、升级时收回（切片 W4-02）。校验沿用 Manifest 的规则（`tools` 只能是业务工具），没有正文的方法不登记（`docs/platform/PLUGIN-DEVELOPMENT.md`「给其他 Agent 的方法」）。方法正文是文本不是代码，怎样随包携带由 W4-02 的设计定。

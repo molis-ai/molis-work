@@ -1,4 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { SCHEDULE_MESSAGES } from "./messages.js";
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "./index.js";
 
 /**
@@ -8,13 +9,14 @@ import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, SCHEDULE_CLIENT_FACTORY_S
 export const registration: PluginRegistration = {
   project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID, catalog_order: 9,
   default_enabled: true,
+  messages: SCHEDULE_MESSAGES,
   manifest: scheduleManifest,
   summary: "定时跑对话任务，也替插件准时提醒。",
   workbench: {
     order: 7,
     contributions: [scheduleUiContribution],
     stylesheet: SCHEDULE_STYLES,
-    clientFactory: SCHEDULE_CLIENT_FACTORY_SCRIPT, clientServed: true,
+    clientFactory: SCHEDULE_CLIENT_FACTORY_SCRIPT,
     searchRow: { selector: "[data-schedule-row][data-schedule-task-id]", idDataset: "scheduleTaskId" },
   },
 };

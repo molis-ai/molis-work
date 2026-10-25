@@ -27,9 +27,9 @@ const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "fe
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-// The fixture is that schema as of version 9: changing any owner's tables means a new version and a new fixture, never a silent drift.
-test("the project database baseline is version 9 and the platform's and Modules' current tables", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 9);
+// The fixture is that schema as of version 10: changing any owner's tables means a new version and a new fixture, never a silent drift.
+test("the project database baseline is version 10 and the platform's and Modules' current tables", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 10);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql")));
 });
 

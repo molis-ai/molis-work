@@ -43,7 +43,7 @@ test("an unknown plugin owns its Home event, context and real action; failure an
       } },
     ] }; } });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   const selector = '[data-home-subject-kind="fixture-note"][data-home-subject-id="own-note"]';
   const captures = reviewEvidenceUrl("home-plugin-events/");
   const capture = async (name: string) => { await mkdir(captures, { recursive: true }); const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64")); };

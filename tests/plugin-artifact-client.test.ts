@@ -58,7 +58,7 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
         const contribution = await base.start(context);
         return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
       }, stop() { dispose(); } };
-      const installed = runtime.install({ definition, deployment: "local", grants: [
+      const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [
         "network:github.com", "secret:github", "artifact:write", ...(options.read === false ? [] : ["artifact:read"]),
       ] });
       await runtime.start(installed.install.install_id);
@@ -166,7 +166,7 @@ test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts an
         const contribution = await base.start(context);
         return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
       }, stop() { hosted.dispose(); } };
-      const installed = runtime.install({ definition, deployment: "local", grants: ["network:github.com", "secret:github", "artifact:write", ...(read ? ["artifact:read"] : [])] });
+      const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["network:github.com", "secret:github", "artifact:write", ...(read ? ["artifact:read"] : [])] });
       await runtime.start(installed.install.install_id);
       return { ...hosted, installId: installed.install.install_id };
     }

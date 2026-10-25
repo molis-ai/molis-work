@@ -172,8 +172,8 @@ async function platform(t: TestContext) {
     } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
   const plugin = probe(), subscriber = listener(() => plugin.services());
-  assert.deepEqual((await running.start([{ definition: withLibrary(plugin.definition, DATABASE), bundled: true },
-    { definition: subscriber.definition, bundled: true }])).running.toSorted(), [LISTENER, ID].toSorted());
+  assert.deepEqual((await running.start([{ definition: withLibrary(plugin.definition, DATABASE), trust: { level: "host" } },
+    { definition: subscriber.definition, trust: { level: "host" } }])).running.toSorted(), [LISTENER, ID].toSorted());
   const written = (target: Target, name: string): boolean => {
     const services = plugin.services();
     if (target === "database") return Number(services.database!.get("SELECT count(*) AS n FROM notes WHERE text = ?", [name])!.n) > 0;

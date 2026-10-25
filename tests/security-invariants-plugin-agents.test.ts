@@ -67,7 +67,7 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
       } })) };
     },
   };
-  const installed = await platform.start([{ definition, bundled: true }]);
+  const installed = await platform.start([{ definition, trust: { level: "host" } }]);
   assert.deepEqual(installed.failed, []); assert.ok(installed.running.includes(id));
   close = async () => { release.resolve(); await platform.closeCoordination(); for (const record of platform.runtime.list()) if (record.plugin_id === id && record.state === "running") await platform.runtime.stop(record.install_id); };
   const installation = () => platform.runtime.list().find(row => row.plugin_id === id)!;

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, filesOutputsRefresh, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, openProjectVersionStores, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
 import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -186,7 +186,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
     },
   };
   const server = createServer((request, response) => {
-    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), ports, filesOutputsRefresh).then(handled => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), ports).then(handled => {
       if (!handled) { response.writeHead(404); response.end("fallthrough"); }
     }).catch(error => { response.writeHead(500); response.end(String(error)); });
   });
@@ -202,6 +202,9 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
     const request = (path: string, body?: unknown) => fetch(`${origin}/api/plugins/${pluginId}/${path}`, body === undefined ? {} : {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
     });
+    // The platform's first web route announces the project as opened (BL-521), which reads the folder Files browses once; open it
+    // with a route nothing answers, so the next one is measured for what only it causes.
+    assert.equal((await request("undeclared", {})).status, 404);
     dependencyCalls = 0;
     let response = await request("persist", { value: 7 });
     assert.equal(response.status, 200);
@@ -250,7 +253,7 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
   const platform = await host.withProject(reference, async runtime => {
     runtime.store.db.exec("CREATE TABLE web_plugin_notes (text TEXT NOT NULL)");
     const started = await ensureProjectPlugins({ store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: project.project_id, actorId: "web-user",
-      homeDirectory: home, capabilities: host.client(reference),
+      homeDirectory: home, dependencyCheck: hostDependencyCheck(host.client(reference)),
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: project.project_id } });
     assert.ok(started.platform);
     await started.platform.start([{ definition: {

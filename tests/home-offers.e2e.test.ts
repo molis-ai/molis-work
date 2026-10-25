@@ -50,7 +50,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
       assert.equal(result.changes, 1); writes++; return read();
     } }] }; } });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   await runtime.start(installed.install_id);
   // Feed offers its own item actions beside the unknown plugin's; the checks name the plugin's offer instead of taking the first button.
   const TAG = "[...document.querySelectorAll('[data-home-offer]')].find(button => button.textContent === '标记待核查')";

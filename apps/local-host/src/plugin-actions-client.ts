@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { bindActionClient, ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type HostOfferedOriginalFile, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { bindActionClient, ActionError, requireSynchronous, type ActionAvailability, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type HostOfferedOriginalFile, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller, LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { pluginErrors, type PluginActionClient, type PluginExecutionControl, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTIONS_DELEGATE_PERMISSION, declaresActionDelegation, pluginActionDirectory } from "./plugin-action-delegation.js";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, markPluginActionChecked, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
@@ -84,9 +84,21 @@ function callScope(instanceProject: string | undefined, instanceClient: ActionCl
     } };
 }
 
+/**
+ * The Host's synchronous check whether an action is registered and ready in the activation's project, asked for a plugin
+ * (`LocalHostProjectClient.availability` with `consumer: "plugin"`). A Home activation has none.
+ */
+export type PluginDependencyCheck = (reference: ActionReference) => ActionAvailability;
+
+/** The project client's check, asked for a plugin. */
+export function hostDependencyCheck(client: Pick<LocalHostProjectClient, "availability">): PluginDependencyCheck {
+  return reference => client.availability(reference, { consumer: "plugin" });
+}
+
 /** One action binding for project and Home activations; identity and authority come from the Host. */
 export function pluginHostActions(context: PluginStartContext, manifest: PluginManifest, options: {
   client: ActionClient; actor_id: string; project_id?: string; providerId?: string; assertActive(): void; pluginCaller: HostPluginCaller;
+  dependencyCheck?: PluginDependencyCheck;
 }): PluginActionClient | undefined {
   const consumed = new Set(manifest.capabilities.consumes);
   const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
@@ -177,6 +189,17 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     }));
   };
   return !manifest.actions?.length && consumed.size === 0 ? undefined : {
+    // Only what the Manifest consumes is asked of the Host, so the Manifest stays a complete account of what this plugin can reach.
+    availability: reference => {
+      const check = options.dependencyCheck;
+      if (!check) return { available: false, code: "actions.dependency_unknown", reason: "宿主未提供依赖状态检查" };
+      try { options.assertActive(); } catch { return { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" }; }
+      if (!consumed.has(reference.capability_id)) {
+        const denied = pluginErrors.capability_denied("插件未声明消费此动作");
+        return { available: false, code: denied.code, reason: denied.message, kind: denied.kind };
+      }
+      return check(reference);
+    },
     discover: async () => (await ownActions({ project_id: options.project_id ?? null, client: options.client }).discover())
       .filter(view => view.provider.plugin_install_id === context.install_id),
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),

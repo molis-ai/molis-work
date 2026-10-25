@@ -18,7 +18,7 @@ test('Characters still lists the person\'s drafts in a project that keeps the re
   // it stays until the maintenance in docs/releases/CHECKLIST.md removes it.
   const left: PluginInstanceRecord = { install_id: 'plugin-install-characters-left', installation_generation: 'generation-1', plugin_id: CHARACTER_PLUGIN_ID,
     version: '1.6.0', publisher_id: 'io.molis.work', publisher_signature: 'builtin', manifest_digest: 'sha256:left-behind', deployment: 'local',
-    selected_entrypoint: 'builtin', grants: ['artifact:read', 'artifact:write'], execution: 'host', state: 'running', recovery_count: 0, last_error_code: null,
+    selected_entrypoint: 'builtin', grants: ['artifact:read', 'artifact:write'], execution: 'host', publisher_trust: 'host', state: 'running', recovery_count: 0, last_error_code: null,
     installed_at: '2026-10-01T00:00:00.000Z', updated_at: '2026-10-01T00:00:00.000Z', uninstalled_at: null, retain_private_data: true };
   const repository = new SqlitePluginRuntimeRepository(b.store.db);
   repository.save(left);

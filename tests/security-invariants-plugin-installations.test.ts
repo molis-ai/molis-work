@@ -37,7 +37,7 @@ function fixture(t: TestContext, projectId = DEMO_PROJECT_ID) {
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read] },
       async start(value) { context = value; return { kind: "app", actions: [{ ...read, handle: () => (borrowed ?? value.services!.installations!).list() }] }; },
     };
-    const report = await platform.start([{ definition, bundled: true }]); assert.deepEqual(report.failed, []);
+    const report = await platform.start([{ definition, trust: { level: "host" } }]); assert.deepEqual(report.failed, []);
     const installation = () => platform.runtime.list().find(record => record.plugin_id === id)!;
     return { id, platform, definition, installation, get client() { return context!.services!.installations; }, borrow: (client: PluginInstallationClient) => { borrowed = client; },
       read: () => actions.client.invoke({ actor_id: "tester", project_id: projectId, audience: "user", permissions: [] }, read, {}) as Promise<PluginInstallationView[]> };
@@ -58,7 +58,7 @@ test("SYS-15-I1: shared Runtime installation metadata is current, public and lim
   await b.platform.runtime.uninstall(before.install_id, { retain_private_data: true });
   assert.equal(a.client!.get(before.install_id)?.state, "uninstalled");
   assert.ok(!a.client!.list().some(record => record.install_id === before.install_id));
-  b.platform.runtime.install({ definition: b.definition, deployment: "local", bundled: true });
+  b.platform.runtime.install({ definition: b.definition, deployment: "local", trust: { level: "host" } });
   await b.platform.runtime.start(b.installation().install_id);
   const after = a.client!.get(b.installation().install_id)!;
   assert.equal(after.name, "installation-target"); assert.notEqual(after.installation_generation, before.installation_generation);

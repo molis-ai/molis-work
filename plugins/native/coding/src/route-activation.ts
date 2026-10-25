@@ -10,7 +10,7 @@ import { startRound } from "./start-round.js";
 import { codingWakeLoop } from "./wake-loop.js";
 import { codingText } from "./words.js";
 
-export type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
+export type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["actions"]>;
 
 /**
  * One started Coding activation: what its routes share. The routes of each resource (routes-*.ts) take it; nothing
@@ -56,7 +56,7 @@ export function startCodingActivation(context: PluginStartContext, execution: Co
   // so the loop's first read does that. If that first read fails, the loop ends instead of retrying (wake-loop.ts, `recovery`);
   // the next `coding.state` read or round starts it again.
   const resumed = new Set(execution.sessions.list(projectId).filter(record => record.runtime_session_id && !execution.sessions.lifecycle.pending(projectId, record.session_id)).map(record => record.runtime_id));
-  if (context.services?.capabilities && resumed.size) for (const runtimeId of resumed) waits.wakeLoop(context.services.capabilities, execution, runtimeId, true);
+  if (context.services?.actions && resumed.size) for (const runtimeId of resumed) waits.wakeLoop(context.services.actions, execution, runtimeId, true);
   return activation;
 }
 

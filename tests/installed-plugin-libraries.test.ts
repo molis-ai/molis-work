@@ -75,7 +75,7 @@ function platformIn(directory: string) {
 }
 
 type Item = ReturnType<typeof platformIn>;
-const install = (item: Item, definition: PluginDefinition) => item.platform.runtime.install({ definition, deployment: "local", grants: GRANTS }).install.install_id;
+const install = (item: Item, definition: PluginDefinition) => item.platform.runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: GRANTS }).install.install_id;
 /** Install and start; resolves with the install id. */
 async function run(item: Item, definition: PluginDefinition) {
   const installId = install(item, definition);

@@ -4,7 +4,7 @@ import { readCodingSessions } from "./session-observation.js";
 
 /** Independently refresh derived directory facts, even when no page polls Coding. Queries never keep this job. */
 export function startCodingObservation(a: CodingActivation): void {
-  const { context, execution, projectId } = a, api = context.services?.capabilities;
+  const { context, execution, projectId } = a, api = context.services?.actions;
   if (!api || !context.services?.background) return;
   const job = context.services.background.keep("observe", async control => {
     const beforeWrite = Object.assign(control.beforeEffect, { assert_current: control.assert_authority_current, signal: control.signal });

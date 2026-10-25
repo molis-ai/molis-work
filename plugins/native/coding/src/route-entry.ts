@@ -1,5 +1,5 @@
 import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionLocale, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginActionClient, PluginCapabilityClient, PluginJobControl, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginActionClient, PluginJobControl, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingInteractionHtml } from "./interaction-html.js";
 import { codingPageHtml } from "./rich-html.js";
@@ -10,11 +10,11 @@ import { codingError, codingErrorIn } from "./words.js";
 
 export type CodingBeforeWrite = (() => Promise<void>) & { assert_current(): void; signal?: AbortSignal; original_input?: HostOfferedOriginalInput };
 type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current" | "original_input">;
-/** Carry the original route fence to a formal dependency action just as the typed adapter does. */
+/** Carry the original route fence to a dependency action. */
 export function codingActionControl(beforeWrite: CodingBeforeWrite): Control {
   return { signal: beforeWrite.signal, beforeEffect: beforeWrite, assert_authority_current: beforeWrite.assert_current };
 }
-/** Formal actions keep the same request/job fence as typed calls, as well as any control supplied by their caller. */
+/** Dependency actions keep the request's or job's fence, as well as any control supplied by their caller. */
 export function codingActions(context: PluginStartContext, beforeWrite: CodingBeforeWrite): PluginActionClient {
   const actions = context.services!.actions!;
   return { ...actions, invoke: (definition, input, control, transport) => actions.invoke(definition, input, { ...control,
@@ -35,10 +35,10 @@ const SESSION_COMMANDS = new Set(["coding.update-session", "coding.compact-next"
   "coding.control-run", "coding.select-goal", "coding.save-plan", "coding.confirm-plan", "coding.delegate", "coding.delegation-action",
   "coding.delegation-deliver", "coding.delegation-decide", "coding.plan-amendments", "coding.recover-run", "coding.prepare-rewind",
   "coding.message-cancel", "coding.background-stop", "coding.card-run", "coding.commit-draft"]);
-type Handler = (request: PluginRouteRequest, api: PluginCapabilityClient, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
+type Handler = (request: PluginRouteRequest, api: PluginActionClient, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
 /** What an action with no route of its own runs with. `routed` answers through one of the routes' handlers, under this action's fence. */
 export interface CodingActionCall {
-  readonly api: PluginCapabilityClient;
+  readonly api: PluginActionClient;
   readonly execution: CodingExecution;
   readonly beforeWrite: CodingBeforeWrite;
   routed(route_id: string, request: Pick<PluginRouteRequest, "method" | "params" | "query" | "body">): Promise<unknown>;
@@ -60,21 +60,10 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
     return Object.assign(async () => { if (ownerCheck) await ownerCheck(); else await control?.beforeEffect(); assert_current(); }, { assert_current, signal: control?.signal, original_input: control?.original_input });
   };
   const execute = async (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite, locale: ActionLocale | undefined) => {
-    const api = context.services?.capabilities;
-    if (!api || !context.project_id) throw codingError(message => new ActionError("actions.unredeemed", message), "coding.server.entry-unassembled");
+    if (!context.services?.actions || !context.project_id) throw codingError(message => new ActionError("actions.unredeemed", message), "coding.server.entry-unassembled");
     if (request.method !== "GET") await beforeWrite();
     beforeWrite.assert_current();
-    const controlled: PluginCapabilityClient = { availability: definition => api.availability(definition),
-      invoke: (definition, input, options) => api.invoke(definition, input, { ...options,
-        signal: beforeWrite.signal && options?.signal ? AbortSignal.any([beforeWrite.signal, options.signal]) : beforeWrite.signal ?? options?.signal,
-        before_effect: async () => { await options?.before_effect?.(); await beforeWrite(); },
-        assert_authority_current: () => {
-          requireSynchronous(options?.assert_authority_current?.(), "最终授权检查必须同步完成");
-          beforeWrite.assert_current();
-        },
-      }),
-    };
-    return { api: controlled, execution: { ...execution, locale } };
+    return { api: codingActions(context, beforeWrite), execution: { ...execution, locale } };
   };
   /** What a route answers Coding's own page: the words and the change drawn (`rich-html.ts`), the cards and the next-step row (`interaction-html.ts`). */
   const page = (body: unknown, request: PluginRouteRequest, route_id: string, locale: ActionLocale | undefined) =>

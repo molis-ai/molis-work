@@ -2,7 +2,7 @@ import { ActionError as ContractsError } from "@molis-ai/molis-work-contracts/pl
 import * as goalsPluginExports from "@molis-ai/molis-work-plugin-goals";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { servePages } from "./fixtures/pages-runtime.js";
-import { ActionError, bindActionClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { handleFunctionsHttp, seedSceneRules } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
@@ -26,7 +26,7 @@ import {
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
-import { INBOX_DISMISS_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
+import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
 import {
   datasetManifest,
@@ -52,6 +52,7 @@ import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { HOME_DOCK } from "./fixtures/home-dock-scene.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -230,17 +231,7 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 
-/**
- * Since FI-2 a default rule comes with the scene that declares it, seeded when a host registers its scenes, not when the
- * functions library opens. The Home dock scene as the Host declares it, to the extent seeding reads it (as in
- * tests/functions-feed-module-exits.test.ts), and a stand-in for the Host as its declarer.
- */
-const HOME_DOCK: ActionSceneDefinition = {
-  scene_id: "home.dock", version: 1, title: "首页下一步", description: "首页", trigger: "事项到达", scope: "project", subject_kinds: [], permissions: [],
-  input_schema: { type: "object" }, result_schema: { type: "object" }, recommendation_source: "subject-offers",
-  default_rule: { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, name: "首页事项处理建议", instructions: "根据事项原文推荐完成或忽略。", subject_kinds: ["inbox_entry"],
-    options: [{ key: INBOX_DONE_BEHAVIOR_ID, description: "做完了" }, { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" }] },
-};
+// BFTC-01: FI-2 seeds a rule when its scene registers, after the Host opens the Home; both seeding tests use the same contract input.
 const seedHomeDock = (home: string) => seedSceneRules(home, { provider_id: "test.declarer", title: "测试", kind: "system" }, [HOME_DOCK], { env: {}, credential: () => null });
 
 test("/api/plugins/functions 与 /api/functions 打到同一 handler", async () => {

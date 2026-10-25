@@ -131,7 +131,7 @@ PR 等 #1121 合入再开，不开第三层。
    - 顶层字段列全、`required`、`additionalProperties: false`。
    - 嵌套对象只列仓库里调用方（Coding 与其他调用点）真读的字段，其余只约束 `object`。
    - 只约束 `object` 的地方，动作合同快照看不出形状变化，所以只列真用的，不把没人读的字段塞进 schema。
-   - 收紧记为 BL-470。动作服务本来就按 output_schema 校验返回，只约束 `object` 的嵌套对象校验得过、约束不住形状。去掉的条件：仓库外第一个插件读嵌套字段。（原先写的「或 `validateResult`（PG-047）开启」是笔误：PG-047 的 `validateResult` 指模型结果，不是动作返回。）
+   - 收紧记为 BL-470，2026-10-25 已做（`w5-10-agent-host.md`「BL-470」，RAC-667：嵌套对象按调用方读的字段写出类型，仍不封闭）。动作服务本来就按 output_schema 校验返回，只约束 `object` 的嵌套对象校验得过、约束不住形状。去掉的条件：仓库外第一个插件读嵌套字段。（原先写的「或 `validateResult`（PG-047）开启」是笔误：PG-047 的 `validateResult` 指模型结果，不是动作返回。）
    - 小而稳的类型照第 1 批写全：`AgentSessionRef`、`AgentRunHandle`、`AgentCheckpoint`、`AgentRecoveryReport`、命令输出。
 2. **身份字段拆开。**
    - 插件给的 `*Input` 不带身份字段，就是动作的输入 schema。
@@ -163,7 +163,7 @@ PR 等 #1121 合入再开，不开第三层。
   - 宿主补全后的 `AgentCreateSessionRequest`、`AgentStartRequest` 只在宿主与运行时适配器之间用（`AgentRuntimeAdapter.createSession`、`start`），插件 SDK 不转出。
   - 归属 `AgentSessionOwner` 一处定义，`AgentSessionView.owner` 用它。
   - 原来的 `assertInputOwner`（输入里的身份与调用者比对）删掉：处理器只从调用者取归属，没有插件调用者就拒绝。`startRun` 另核元组里的 Runtime 与会话所在的一致，会话归属仍由 `readScopedSession` 核。
-- **输出（§9.3①）**：会话视图、一轮的视图、审批、子任务、回退请求的顶层字段列全，`required` 加 `additionalProperties: false`。嵌套对象（`frozen`、`turns`、`activity`、`usage`、`step_board`、审批的 `document` 等）只约束 `object`，收紧见 BL-470。
+- **输出（§9.3①）**：会话视图、一轮的视图、审批、子任务、回退请求的顶层字段列全，`required` 加 `additionalProperties: false`。嵌套对象（`frozen`、`turns`、`activity`、`usage`、`step_board`、审批的 `document` 等）只约束 `object`，收紧见 BL-470（会话与一轮视图的已做，审批的 `document` 不在其内）。
 - **输入**：开始一轮的每个嵌套字段都列了形状和上限（材料、计划、工具引用、预算等），宿主原有的检查（材料长度、预算、目录授权、角色）照旧在后面。
 - **Coding**：
   - 50 处调用改经 `codingActions(context, beforeWrite)`。`subagentGroups`、`reaskMaterial` 改收动作客户端或 `beforeWrite`；`coding.taskboard`、`coding.prepare-rewind` 两条路由多接 `beforeWrite`。

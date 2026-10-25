@@ -293,6 +293,10 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 - `tests/probe-plugin.test.ts`（RAC-579）：在仓库副本里放进 `plugins/native/probe`、跑生成器与 `pnpm install`，断言包外只变两份生成文件、三份 `package.json` 与锁文件；构建后由 `tests/fixtures/probe-lifecycle.mjs` 分两段走：启用前无动作、路由 403 → 启用（running、宿主构建的信任）→ 发现 → 路由建与列 → 按声明撤销 → 搜索与侧栏文件能找到 → 方法登记；改版本重建后 → 升级（同一安装、数据在）→ 停用（403 `actions.plugin_disabled`、动作与方法都没有）→ 再启用 → 撤一项必需权限（`plugin.grant_denied`，路由 503）→ 恢复 → 卸载（404）。为此 local-host 的公开入口导出 `runningProjectPlatform`，测试不深引 `dist`。
 - `scripts/replay-plugins.mjs`（RAC-790、RAC-791，`tests/replay-plugins.test.ts`）：每个样本一个临时 Home，加载并按 SDK 解析 Manifest → 调一个声明的动作并比对答案 → 升到下一个补丁版本（`upgrade_compatibility` 写明当前版本）→ 再调。语料 `tests/fixtures/replay-plugins/corpus.json` 现有 plugin-sample（目录）与 text-stats（`pnpm pack` 的包）；打包的内置插件在它自己的位置上回放（宿主已用同一 id 跑着出厂的那份，同一 id 两份会撞能力登记），打包代码作为升级进来。坏样本（未声明的权限、没有这个动作、答案不同）各自失败。
 - 创作台产物进语料放到第二步：它们按沙箱执行、经安装路径跑，`pluginFixtures` 拒绝沙箱定义，回放与装上的那一半走同一条 T2 安装路径；届时在隔离 Home 里用 MiniMax 真跑 2～3 个，源码与清单入库。
+**第二步：装上的那一半（2026-10-25，叠在 batch-40 的 T2 上）**：
+- `tests/probe-plugin-installed.test.ts`（RAC-792，macOS）：探针的笔记按沙箱包格式签名，经 `molis-work plugin install` 交给常驻宿主：预览不写任何东西 → 确认并固定发布者 → `pinned` 信任下运行 → 发现两项动作 → 记一条、列出来 → 宿主重启后同一个安装、数据还在。
+- 走的时候查出 T2 的一个缺陷，同片修了：签名包的安装重启后起不来（恢复和启用时 `platform.start` 不带信任，按 `unsigned` 装，指纹形的发布者签名被 S-75.1 拒，`plugin.signer_mismatch`）。现在两处都带上从验过的包读回来的 `pinned` 信任，与安装时一样（`installed-plugin-host.ts`、`installed-plugin-lifecycle.ts`）。RAC-792 的重启一步在修之前是红的。
+- 两边不一样的地方：签名包的格式没有路由、搜索与文件来源、方法、撤销；装上的插件也没有人能走的升级、停用、启用、卸载入口（BL-623，交 ac-trust）。RAC-792 在内置那一半升级的位置断言新包被拒，入口补上之后改成与 `tests/probe-plugin.test.ts` 逐项对照。
 
 ## 7. PG-095、PG-111 的评估（插件合同放在平台 contracts 里）
 

@@ -18,6 +18,9 @@ const PROJECT = "project", AT = "2026-10-25T00:00:00.000Z", ACTOR = "person-1", 
 type Params = readonly PluginSqlValue[];
 type Entry = AttentionEntryRecord;
 
+/** A stand-in for a platform handle: only the members these cases exercise, the rest absent. */
+const standIn = <T extends object>(members: Partial<Record<keyof T, unknown>>): T => members as T;
+
 function world() {
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY, created_at TEXT NOT NULL);");
@@ -35,18 +38,18 @@ function world() {
   const journal = () => bodies<{ actorId: string; type: string; objectType: string; objectId: string }>("fake_journal");
   const count = (table: string) => (get(`SELECT count(*) AS n FROM ${table}`) as { n: number }).n;
 
-  const transaction = {
+  const transaction = standIn<PluginProjectDatabaseTransaction>({
     get, all,
     run: (sql: string, parameters: Params = []) => ({ changes: Number(db.prepare(sql).run(...parameters as never[]).changes) }),
     journal: { appendEvent: (event: unknown) => { db.prepare("INSERT INTO fake_journal (body) VALUES (?)").run(JSON.stringify(event)); return 1; } },
-  } as unknown as PluginProjectDatabaseTransaction;
+  });
   const transact = <T>(body: () => T): T => {
     db.exec("BEGIN IMMEDIATE");
     try { const result = body(); db.exec("COMMIT"); return result; } catch (error) { db.exec("ROLLBACK"); throw error; }
   };
 
   let serial = 0;
-  const attention = {
+  const attention = standIn<PluginAttentionClient>({
     list: () => entries(),
     get: (entryId: string) => entries().find(entry => entry.entry_id === entryId) ?? assert.fail("no such entry"),
     findActiveForSubject: () => null,
@@ -77,8 +80,8 @@ function world() {
         return doomed.length;
       },
     }),
-  } as unknown as PluginAttentionClient;
-  const contextLedger = {
+  });
+  const contextLedger = standIn<PluginContextLedgerClient>({
     get: (key: string) => edges().find(edge => edge.key === key) ?? null,
     list: (query?: { type?: string }) => edges().filter(edge => !query?.type || edge.type === query.type),
     history: () => [],
@@ -90,8 +93,8 @@ function world() {
       },
       remove: (key: string) => { joined.run("DELETE FROM fake_edges WHERE key = ?", [key]); return null; },
     }),
-  } as unknown as PluginContextLedgerClient;
-  const database = { get, all, journal: {}, transaction: async () => assert.fail("Feed opens no transaction of its own") } as unknown as PluginProjectDatabase;
+  });
+  const database = standIn<PluginProjectDatabase>({ get, all, journal: {}, transaction: async () => assert.fail("Feed opens no transaction of its own") });
   const ports = createFeedRuntimePorts({ projectId: PROJECT, database, attention, contextLedger });
   const created: string[] = [];
   const app = assembleFeedApplication({ ...ports, subscribeInboxCreated: listener => ports.subscribeInboxCreated(entry => { created.push(entry.entry_id); listener(entry); }) });

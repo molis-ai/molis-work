@@ -141,7 +141,6 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 | 改路由加读这条路由的用例 | 改动行里的 `/api/…`、`/__…`；路由文件（`*-http.ts`、`routes.ts`、`web-*.ts` 等）里任何 `"/x/y"` 字面量。路由文件里，改动落在哪段处理函数里就算改了哪条路由：从每处改动往上找，第一行缩进比改动浅、又写着路由字面量的，就是包着它的那条路由（注释和同缩进的兄弟行不算，最多往上找 120 行），所以只改了处理函数的函数体、没碰路由那一行，也会选到读这条路由的用例。在参数处（`${}`、`:id`）拆开，读这条路由的用例要含全部固定片段（`/api/projects/` 和 `/brief`），查询串不算 |
 | 改合同字段加提这个字段的用例 | `packages/contracts/src/` 的源码改动，从新增行里取字段名（`name?: type`、`readonly name: type`），在用例文本里找提到这个名字的用例（`AgentTurnSteer` 加 `key` 一案里 `tests/prologue-recovery.test.ts` 能选到）。接口常常经过 barrel 或内联 `import(...)` 类型才到用例，所以按字段名找、不按接口名找；字段名太短（不足四个字符）或是 `options`、`state` 这类到处都有的词时不选，超过 25 个用例提它的字段不选并在 Notes 写出 |
 | 改样式表加按选择器断言整份样式表的用例 | 改动或删除的文件是 css、scss，或路径在 `styles/` 下：取类选择器（`.name`）、自定义属性（`--name`）、`data-`/`aria-` 属性，逐个在用例文本里找写过它的用例（`tests/web.test.ts` 这类读拼好的整份样式表、用正则断言某个选择器的用例既不 import 也不点名样式文件；W5-05 第 4 片删 `personal-workbench-v3` 时漏了三个）。一个选择器被超过 25 个用例写到时不选，Notes 写出；`--wide` 选全部 |
-
 | 界面加浏览器用例 | 改动在界面包（workbench、design-system、ui-host、im-ui），或文件名像客户端、样式、视图、渲染器，或是 css、html、svg，或改动行是页面脚本与样式模板。加 README「界面改动加跑」一行里 `再加跑` 之前的用例，并加该包同名的浏览器用例。输出提示页面资源门禁和三宽度、明暗截图（PR 模板） |
 | 全量 | 见下 |
 

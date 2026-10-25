@@ -102,6 +102,8 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 - **10-24 07:30 用户补充：减少 Claude 侧的测试和反复修改，测试与修复交 Codex 推进，Claude 先尽可能推进防腐线工程开发收尾。** 照此改：
   - **Claude 开发会话的本机检查只做**：构建、`check-health-gates --base origin/main`、`boundary:check`、`secrets:check`、`page-assets`（改了资源时）、直接改到的少量非浏览器单测。**不跑浏览器用例批**、不跑 affected 全集；浏览器与回归证据交 Codex 测试专职和 CI / 集成批。PR 正文写清「没跑」的范围。
   - **评审只退挡合并项给作者**：`ac-review` 与 Codex 评审的非阻塞建议不再退回 Claude 作者，评论里标「非阻塞，交 Codex 修复队列」，由 Codex 流水线认领；Claude 作者只修挡合并的。评审复核只看那段 diff，统筹能核的统筹自己核。
-  - **做完就开 PR**：取消防腐线 15 个的总数上限，片做完、自检过就开非草稿 PR（每线在审最多两个照旧），让 Codex 评审、测试并行；开完立刻做下一片。积压由统筹按批与队列消化。
+  - ~~**做完就开 PR**~~（**10-25 作废**，用户 10-25 再强调 PR 粒度：只有整个功能做完或真依赖才开 PR，后续片叠在同一分支上；见 MERGE-QUEUE §0）：取消防腐线 15 个的总数上限，片做完、自检过就开非草稿 PR（每线在审最多两个照旧），让 Codex 评审、测试并行；开完立刻做下一片。积压由统筹按批与队列消化。
   - **机械同步**：PR 对 main DIRTY 时仍由原作者同步（作者最熟），只解冲突、不改语义；单纯 BEHIND 不同步。
 - 10-24 用户定 PG-017 再加两片，归 `ac-sandbox-sched`：P2c 沙箱经 broker 拿有界的 owner files（S-65，`claude/ac-pg017-p2-owner-files` `37e7ca25c`；统筹 10-24 补：卸载清目录，Home 级沙箱也给），P2d 沙箱经 broker 拿材料的 `fetch_local`、`original`（S-66，`claude/ac-pg017-p2-local-original` `b517bdc7a`，`readOriginalRange` 每段过宿主闸门）。排在 P2a #1143、P2b #1144 之后；都等 S-61～64 落地再开 PR。原来的公网读取（BL-492，`claude/ac-pg017-p2-fetch`）改名 P2e。
+- **10-25 号段与暂定 S 号（统筹）**：`ac-platform` 第 3 组 RAC-730～749（原拟 660～699 与 ac-kernel 650～669、ac-giants 670～689、ac-shell 690～709 撞）。暂定 S 号：S-75 T6 #1279、S-76 #1255、S-77 C5 mcp-autostart、S-78 T4 #1282、S-79 T5 #1285、S-80 起 ac-platform 第 3 组（PG-112 本机工具、PG-113 桌面 IPC）；组批时按落地顺序收紧连续。
+- **10-25 ac-platform 第 3 组裁定**：PG-112 Manifest `local_tools` + `services.localTools`（只探测不代跑、参数固定在 Manifest、只 `host` 等级可声明、新 SI 行带拒绝测试，第三方开放走同意账本另记 BL）；PG-113 只加固 Rust 一侧（plugin_files_*，限主人文件根、规范化、非链接、普通文件、nlink=1），一次性句柄后续片；PG-011 Manifest `runtime.scope` + 信任闸，非内置 Home 插件安装归 ac-sandbox-sched 队列；`MOLIS_WORK_SHELF_AGENT_*` 改 `MOLIS_WORK_LOCAL_TOOLS_*`、不留兼容，存量偏好进 W5-17 维护清单。

@@ -41,7 +41,10 @@ test("a Shelf file and a project reference open inside the workbench, not in a n
 
 test("RAC-84 PG-060 side-panel open selects the exact Files object on cold and already open views", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
-  if (!browser) return;
+  if (!browser) {
+    t.skip("RAC-84 not verified: test Chrome is unavailable; the Files selection journey did not run.");
+    return;
+  }
   const files = await pluginFrameBrowser(t, browser, "files");
   const { web, origin, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click } = browser;
   const prefix = `/projects/${projectId}`;

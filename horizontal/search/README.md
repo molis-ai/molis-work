@@ -48,6 +48,7 @@ pnpm --filter @molis-ai/molis-work-service-search build
   - 打开时对象读取器报任何错（已加密锁定、只有文件引用、暂时不可读，或插件自己抛的普通错误）都只说明“现在读不到”：随后一律再问来源自己的完整列出，列出里仍有就返回 `unavailable` 并保留索引条目，没有才返回 `missing` 并移出索引。读取器报错的错误码与措辞都不作判断依据。
   - 索引可以整个删掉重建，重建后结果与删前一致。
   - 可引用的候选与提交前的复核用同一次读取：调用者的权限、对象主人的读取器（`resolveActionSubject`），索引里的条目、页面或模型给的标题都不算数；只给调用者自己项目里的与 Home 范围的对象。
+  - 对象引用遇到多个可用读取器时，以 `actions.subject_ambiguous` 显式拒绝，不选提供方，也不吞成普通不可用；候选搜索在索引调用来源前先拒绝歧义，提交回读再用当前目录复核（PG-015 改裁 B）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/system-search.test.ts tests/search-references.test.ts tests/security-invariants-object-references.test.ts`
 - 相关手册：[docs/horizontal/search.md](../../docs/horizontal/search.md)、[specs/archive/system-search/spec.md](../../specs/archive/system-search/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

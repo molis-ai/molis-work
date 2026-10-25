@@ -18,7 +18,8 @@ export interface ReferenceAccess {
 
 /**
  * One object as its owner has it now, read with the caller's own authority through the owner's subject reader; null when it
- * is gone, the caller may not read it, or no single reader offers its kind. Nothing else counts: an index entry, a title the
+ * is gone, the caller may not read it, or no reader offers its kind. Multiple available readers explicitly refuse ambiguity.
+ * Nothing else counts: an index entry, a title the
  * page or the model gave, or a reference the person picked earlier is not proof the object is still there for them.
  */
 async function ownerRead(access: ReferenceAccess, subject: ActionSubject): Promise<{ label: string; revision: string } | null> {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
-import { runLocalCli, runLocalPluginDevelopment } from "@molis-ai/molis-work-app-local-host";
+import { hostLog, runLocalCli, runLocalPluginDevelopment } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { runPluginCli } from "@molis-ai/molis-work-plugin-cli";
 
@@ -21,5 +21,8 @@ const isMain =
     process.argv[1].endsWith("molis-work"));
 
 if (isMain) {
-  main().then((code) => process.exit(code));
+  main().then((code) => process.exit(code)).catch((error: unknown) => {
+    hostLog.error("cli", "entry_failed", error);
+    process.exit(1);
+  });
 }

@@ -87,8 +87,6 @@ export interface PluginHostServices {
   readonly project_statements?: import("./plugin-database.js").PluginProjectStatements;
   /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
   readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
-  /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
-  readonly files?: import("./plugin-files.js").PluginFilesClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
   readonly terminal?: PluginTerminalClient;
   /**

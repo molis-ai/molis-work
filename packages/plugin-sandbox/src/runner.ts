@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 import type { SandboxEffects, SandboxHostMessage, SandboxIdentity, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxWorkerMessage } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxBroker, type SandboxServices } from './broker.js';
+import { modelDeadlines } from './model.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { assertContract, assertEffects, assertJson, assertMatches, SandboxError } from './schema.js';
 import { seatbeltProfile } from './seatbelt.js';
@@ -177,8 +178,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
         if (!operation) throw new SandboxError('sandbox.unknown_operation', 'Operation is outside this contract');
         assertMatches(operation.input, input);
         if (Buffer.byteLength(JSON.stringify(input)) > limits.messageBytes / 2) throw new SandboxError('sandbox.request_too_large', 'Operation input exceeds channel limit');
-        const operationTimeoutMs = control?.limits?.operationTimeoutMs ?? limits.operationTimeoutMs;
-        const serviceTimeoutMs = control?.limits?.serviceTimeoutMs ?? limits.serviceTimeoutMs;
+        const { operationTimeoutMs, serviceTimeoutMs } = modelDeadlines(operation.effects, limits, control?.limits);
         for (const value of [operationTimeoutMs, serviceTimeoutMs]) {
           if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647) throw new SandboxError('sandbox.invalid_limit', 'Call deadlines must be positive timer-safe integers');
         }

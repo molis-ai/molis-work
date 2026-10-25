@@ -13,7 +13,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import { CODING_PLUGIN_ID, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -161,7 +161,7 @@ test("a bundled plugin's older install moves up when the project starts, so the 
     };
     const request = { method: "GET" } as IncomingMessage;
     const { response, recorded } = recordedResponse();
-    const handled = await handleProjectPluginHttp(request, response, new URL("http://localhost/api/plugins/runtime/updates"), ports, codingRouteHooks);
+    const handled = await handleProjectPluginHttp(request, response, new URL("http://localhost/api/plugins/runtime/updates"), ports);
     assert.equal(handled, true);
     assert.equal(recorded.statusCode, 200);
     const updates = JSON.parse(recorded.body).updates as Array<{ plugin_id: string; installed_version: string; target_version: string; mode: string; can_upgrade: boolean; project_plugin_id: string }>;
@@ -204,7 +204,7 @@ for (const shape of ["above the build's version", "at the build's version with a
       };
       const { response, recorded } = recordedResponse();
       const handled = await handleProjectPluginHttp({ method: "GET" } as IncomingMessage, response,
-        new URL("http://localhost/api/plugins/runtime/updates"), ports, codingRouteHooks);
+        new URL("http://localhost/api/plugins/runtime/updates"), ports);
       assert.equal(handled, true);
       assert.equal(recorded.statusCode, 200);
       const updates = JSON.parse(recorded.body).updates as Array<{ plugin_id: string }>;

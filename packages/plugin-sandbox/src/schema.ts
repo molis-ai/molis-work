@@ -102,14 +102,16 @@ export function assertMatches(schema: SandboxSchema, value: unknown, path = '$',
   }
 }
 
-const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase', 'connections', 'materials'] as const;
+const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase', 'connections', 'materials', 'ownerFiles', 'model', 'background'] as const;
 export function assertEffects(effects: unknown): asserts effects is SandboxEffects {
   if (!effects || typeof effects !== 'object' || Array.isArray(effects)) throw new SandboxError('sandbox.invalid_contract', 'Effects must be an object');
   for (const [key, values] of Object.entries(effects)) {
     if (!effectKeys.includes(key as typeof effectKeys[number]) || !Array.isArray(values) || values.some(v => typeof v !== 'string' || !v || v.length > 256) || new Set(values).size !== values.length) throw new SandboxError('sandbox.invalid_contract', `Invalid effect ${key}`);
-    if ((key === 'storage' || key === 'artifacts' || key === 'projectDatabase') && values.some(v => v !== 'read' && v !== 'write')) throw new SandboxError('sandbox.invalid_contract', `Invalid ${key} access`);
+    if ((key === 'storage' || key === 'artifacts' || key === 'projectDatabase' || key === 'ownerFiles') && values.some(v => v !== 'read' && v !== 'write')) throw new SandboxError('sandbox.invalid_contract', `Invalid ${key} access`);
     if (key === 'networkDomains' && values.some(v => !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Network effects require exact lowercase DNS domains');
-    if (key === 'materials' && values.some(v => v !== 'read')) throw new SandboxError('sandbox.invalid_contract', 'Invalid materials access');
+    if (key === 'materials' && values.some(v => v !== 'read' && v !== 'fetch_local' && v !== 'original')) throw new SandboxError('sandbox.invalid_contract', 'Invalid materials access');
+    if (key === 'model' && values.some(v => v !== 'read' && v !== 'invoke')) throw new SandboxError('sandbox.invalid_contract', 'Invalid model access');
+    if (key === 'background' && values.some(v => !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Background effects name operations of the contract');
     if (key === 'connections' && values.some(v => !/^[a-z][a-z0-9-]{0,63}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Connection effects name a slot of the Manifest');
     if (key === 'resources' && values.some(v => !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Resources require logical names, not paths');
   }
@@ -126,7 +128,7 @@ export function assertContract(contract: unknown): asserts contract is SandboxPl
     if (!id(op.id)) throw new SandboxError('sandbox.invalid_contract', 'Invalid operation id');
     if (op.kind !== 'query' && op.kind !== 'command') throw new SandboxError('sandbox.invalid_contract', 'Operation kind must be query or command');
     assertSchema(op.input); assertSchema(op.output); assertEffects(op.effects);
-    if (op.kind === 'query' && (op.effects.storage?.includes('write') || op.effects.artifacts?.includes('write') || op.effects.projectDatabase?.includes('write') || op.effects.events?.length)) throw new SandboxError('sandbox.invalid_contract', 'Queries cannot declare writes or publish events');
+    if (op.kind === 'query' && (op.effects.storage?.includes('write') || op.effects.artifacts?.includes('write') || op.effects.projectDatabase?.includes('write') || op.effects.ownerFiles?.includes('write') || op.effects.model?.includes('invoke') || op.effects.materials?.some(v => v !== 'read') || op.effects.events?.length || op.effects.background?.length)) throw new SandboxError('sandbox.invalid_contract', 'Queries cannot declare writes, a model request, a page fetch or saved original files, background work, or publish events');
     if (!Array.isArray(op.errors) || op.errors.some(e => !id(e.code) || typeof e.description !== 'string') || !unique(op.errors.map(e => e.code)) || !Array.isArray(op.examples) || !op.examples.length) throw new SandboxError('sandbox.invalid_contract', 'Operations require errors and examples');
     for (const example of op.examples) {
       assertMatches(op.input, example.input);
@@ -134,6 +136,11 @@ export function assertContract(contract: unknown): asserts contract is SandboxPl
       if (Object.hasOwn(example, 'output')) assertMatches(op.output, example.output);
       if (Object.hasOwn(example, 'error') && !op.errors.some(e => e.code === example.error)) throw new SandboxError('sandbox.invalid_contract', 'Example error is undeclared');
     }
+  }
+  // A background run is a command of the contract with no background work of its own: one level, so a run cannot start more than the person approved.
+  for (const op of c.operations) for (const target of op.effects.background ?? []) {
+    const started = c.operations.find(o => o.id === target);
+    if (!started || started.kind !== 'command' || started.effects.background?.length) throw new SandboxError('sandbox.invalid_contract', `Background effect ${target} of ${op.id} must name a command of the contract that starts no background work`);
   }
   for (const entity of c.entities) { if (!id(entity.id)) throw new SandboxError('sandbox.invalid_contract', 'Invalid entity id'); assertSchema(entity.schema); }
   if (!unique(c.entities.map(e => e.id)) || !unique(c.pages.map(p => p.id)) || !unique(c.acceptance.map(a => a.id))) throw new SandboxError('sandbox.invalid_contract', 'Duplicate structural ids');

@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -22,6 +22,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
   }
   let reads = 0, inFlight = 0, most = 0; const batches: string[][] = [];
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, _args: Input): Promise<Output> {
+    if (definition.capability_id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
     if (definition.capability_id === agent.listRuntimes.capability_id) {
       reads++; inFlight++; most = Math.max(most, inFlight);
       // Each directory read is slow, as it is with many sessions behind one project queue.
@@ -47,7 +48,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: agentHost,
   });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const state = async () => {
@@ -111,6 +112,7 @@ async function harness(initial: Entry[]) {
     calls.push([id, args]);
     // Every call that names a Runtime says which one, so a test can tell where each went.
     if (id === agent.listRuntimes.capability_id) return world.runtimes as Output;
+    if (id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
     // Each answer carries the Runtime it was asked of in a field of its own contract (a method's name, a server's label).
     if (id === agent.listSkills.capability_id) return [{ skill_id: "from", name: input[0] }] as Output;
     if (id === agent.listMcp.capability_id) return [{ id: "from", label: input[0] }] as Output;
@@ -138,7 +140,7 @@ async function harness(initial: Entry[]) {
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: agentHost,
   });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = async (path: string, body?: unknown) => {

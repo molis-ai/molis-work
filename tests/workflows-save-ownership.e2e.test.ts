@@ -6,30 +6,33 @@ type Editor = Awaited<ReturnType<typeof openEditor>>;
 type SaveRequest = { id: string; body: { revision: number; title?: string; chain?: { stations: { plugin: string }[]; links: { body_template: string }[] } }; status: number; returned: boolean };
 
 // A transport barrier holds the real Host response after its SQLite commit (or real CAS refusal).
-// It does not substitute the Workflows action, route, Store or client. The logs also expose each immutable body.
+// It does not substitute the Workflows action, route, Store or client: the page asks through molisWorkRequest, so the barrier
+// wraps that helper in the frame and hands every real answer (or real refusal) back. The logs also expose each immutable body.
 async function watchSaves(editor: Editor, { hold = false, refuse = false } = {}) {
   await editor.frame.evaluate(`(() => {
-    const original = window.fetch.bind(window);
+    const original = window.molisWorkRequest;
     window.__wfRequests = []; window.__wfReads = []; window.__wfHeld = false;
     let first = true;
-    window.fetch = async (input, init) => {
-      const url = new URL(String(input), "http://plugin.invalid");
-      const id = url.pathname.split('/').at(-1);
-      const owned = url.pathname.includes('/api/plugins/io.molis.work.native.workflows/workflows/') && [${JSON.stringify(editor.a.workflow_id)}, ${JSON.stringify(editor.b.workflow_id)}].includes(id);
-      if (!owned || init?.method !== 'POST') {
-        const response = await original(input, init);
-        if (owned) { await response.clone().text(); window.__wfReads.push(id); }
-        return response;
+    window.molisWorkRequest = Object.assign(async (url, init = {}) => {
+      const target = new URL(String(url), "http://plugin.invalid");
+      const id = target.pathname.split('/').at(-1);
+      const owned = target.pathname.includes('/api/plugins/io.molis.work.native.workflows/workflows/') && [${JSON.stringify(editor.a.workflow_id)}, ${JSON.stringify(editor.b.workflow_id)}].includes(id);
+      if (!owned || init.method !== 'POST') {
+        const answer = await original(url, init);
+        if (owned) window.__wfReads.push(id);
+        return answer;
       }
-      const body = JSON.parse(init.body);
+      const body = JSON.parse(JSON.stringify(init.body));
       const current = { id, body, status: 0, returned: false }; window.__wfRequests.push(current);
       const intercept = first && id === ${JSON.stringify(editor.a.workflow_id)}; if (intercept) first = false;
-      const response = await original(input, ${refuse} && intercept ? { ...init, body: JSON.stringify({ ...body, revision: body.revision + 1000 }) } : init);
-      current.status = response.status; current.result = await response.clone().json();
+      let failure = null, answer;
+      try { answer = await original(url, ${refuse} && intercept ? { ...init, body: { ...init.body, revision: body.revision + 1000 } } : init); current.status = 200; current.result = answer; }
+      catch (error) { failure = error; current.status = error.status; current.result = error.body; }
       if (${hold} && intercept) { window.__wfHeld = true; await new Promise(resolve => { window.__wfRelease = resolve; }); }
       requestAnimationFrame(() => requestAnimationFrame(() => { current.returned = true; }));
-      return response;
-    };
+      if (failure) throw failure;
+      return answer;
+    }, original);
   })()`);
 }
 

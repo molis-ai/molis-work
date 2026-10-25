@@ -4,9 +4,10 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { renderCompanionBrowserStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
 
 import type { GitListItem, GitView } from "./projection.js";
-import { GIT_SENTENCE_TABLE, sayHostSentence } from "./sentences.js";
+import { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js";
 
 export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
 
@@ -95,16 +96,33 @@ export const gitUiDescriptor: UiContributionDescriptor = {
   label: "Git",
   surfaces: [
     { surface_id: "changes", target_slot_id: "workbench.directory", format: "declarative-html" },
+    { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
+    // The browser the Coding page embeds (`ui.embedded_plugins`): the slots are the ones that page opens, by their ids.
+    { surface_id: "browser-directory", target_slot_id: "coding.companion-directory", format: "declarative-html" },
+    { surface_id: "browser-result", target_slot_id: "coding.companion-result", format: "declarative-html" },
   ],
   slots: [],
 };
 
-export const gitUiContribution: UiContribution<GitUiModel> = {
+export const gitUiContribution: UiContribution<GitUiModel | CompanionStageModel> = {
   descriptor: gitUiDescriptor,
-  render(request: UiRenderRequest<GitUiModel>): string {
-    return renderGitChanges(request.model);
+  render(request: UiRenderRequest<GitUiModel | CompanionStageModel>): string {
+    const model = request.model as CompanionStageModel;
+    switch (request.surface) {
+      case "workbench": return renderGitStage(model);
+      case "browser-directory": return renderGitBrowserDirectory(model.primitives.text);
+      case "browser-result": return renderGitBrowserResult(model.primitives.text);
+      default: return renderGitChanges(request.model as GitUiModel);
+    }
   },
 };
+
+/** Git's stage in the project page: its browser beside a note while no change is open. */
+export function renderGitStage(model: CompanionStageModel): string {
+  const { text } = model.primitives;
+  return renderCompanionBrowserStage({ surface: "git", label: "Git", icon: "git-branch", route_prefix: model.route_prefix, manage: text("git.stage.manage"),
+    empty: { title: text("git.stage.empty-title"), body: text("git.stage.empty-body") }, directory: renderGitBrowserDirectory(text), result: renderGitBrowserResult(text) });
+}
 
 export function renderGitChanges(model: GitUiModel): string {
   const { escape, icon } = model.primitives, p = model.primitives;
@@ -118,7 +136,7 @@ export function renderGitChanges(model: GitUiModel): string {
   }
   const header = `<header class="git-head">${icon("git-branch")}`
     + `<span class="git-branch">${escape(sayHostSentence(p.text, GIT_SENTENCE_TABLE, view.head))}</span>`
-    + (view.tracking === "" ? "" : `<span class="git-tracking">${escape(sayHostSentence(p.text, GIT_SENTENCE_TABLE, view.tracking))}</span>`)
+    + (view.upstream === null ? "" : `<span class="git-tracking">${escape(sayUpstream(p.text, view.upstream))}</span>`)
     + `</header>`;
   const body = view.message !== ""
     ? `<p class="git-clean">${escape(p.text(view.message))}</p>`

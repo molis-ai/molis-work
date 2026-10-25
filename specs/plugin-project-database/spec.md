@@ -1,6 +1,6 @@
 # 项目库里的插件表
 
-状态：执行中（2026-10-21）。L1a、L1b（#867）、S8（#881）已合：Manifest 的 `databases.project`、账本和打开函数；项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Goals、Schedule）建表、记账本、再打开时核对，被拒的插件只停它自己；Goals 的 31 张表由它自己声明；有 v7 项目库的 Home 要先做维护八。L2、L3 待审（同一个 PR，进集成批）：`services.project_database` 与 Home 库共用一份客户端，每一句过了关键字再对照账本逐句检查；经 Plugin Runtime 启动的插件启动时建表或核对；沙箱插件经 broker 的 `sdk.projectDatabase` 读写，检查相同。还没有的：Coding 的代码改用这个服务（③ 的 C1）；创作台写不出 `databases.project`（创作台防腐收尾后删除，BL-377）；Home 库的声明搬进 `databases.home`（L4）；Goals 上 Runtime（S9）之前，宿主仍替它调打开函数、建看板。
+状态：执行中（2026-10-21）。L1a、L1b（#867）、S8（#881）已合：Manifest 的 `databases.project`、账本和打开函数；项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Goals、Schedule）建表、记账本、再打开时核对，被拒的插件只停它自己；Goals 的 31 张表由它自己声明；有 v7 项目库的 Home 要先做维护八。L2、L3 待审（同一个 PR，进集成批）：`services.project_database` 与 Home 库共用一份客户端，每一句过了关键字再对照账本逐句检查；经 Plugin Runtime 启动的插件启动时建表或核对；沙箱插件经 broker 的 `sdk.projectDatabase` 读写，检查相同。还没有的：Coding 的代码改用这个服务（③ 的 C1）；创作台写不出 `databases.project`（创作台防腐收尾后删除，BL-377）；Home 库的声明搬进 `databases.home`（L4）已在 `claude/ac-pg022-manifest-declarations` 做好、未合入（片稿 `specs/repository-anti-corruption/slices/pg022-manifest-declarations.md`，只给宿主启动名单上的插件，发布者账本是 P1b）；Goals 上 Runtime（S9）之前，宿主仍替它调打开函数、建看板。
 
 依据：
 
@@ -22,12 +22,12 @@
 
 ```ts
 interface PluginManifest { …; databases?: PluginManifestDatabases }
-interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration }   // home 一半在 L4 加
+interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration; readonly home?: HomePluginDatabaseDeclaration }   // home 一半是 L4（PG-022）
 ```
 
 - 按范围的对象，不用数组：每个范围结构上最多一份。每份仍是 `PluginDatabaseDeclaration`（`store_name`、`version`、`schema`、`read_permission`、`write_permission`），`scripts/verify-release-versions.mjs` 照样认得。
 - SDK 的形状检查（`packages/plugin-sdk/src/database-declarations.ts`，`parsePluginManifest` 调它），任一项不合，整份 Manifest 拒绝（`plugin.manifest_invalid`）：
-  - `databases` 是对象，现在只认 `project`；`home` 到 L4 才认。
+  - `databases` 是对象，认 `project` 和 `home`（L4，PG-022）；`home` 比 `project` 多一个可选的 `partition`，只许 `"project"`。
   - `project` 只有上面五个字段。
   - `store_name` 合 Home 库同一条名字规则（小写字母开头，只含小写字母、数字、连字符）。
   - `version` 是正整数，`schema` 不是空白。
@@ -171,7 +171,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | PLIB-08 | 同一个进程里同一文件只用一份 SQLite 库（测试断言客户端的连接类型）；2026-10-23 用户定：沙箱插件的语句在另一个进程里，那个进程用自己的一份 better-sqlite3 开同一个文件（口径、锁与一致性、崩溃见 `specs/repository-anti-corruption/slices/sandbox-project-database-limits.md` 第 2.3 节），那个进程里同样只有一份库 | L2、BL-395 | `tests/security-invariants-plugin-project-database.test.ts`；`tests/security-invariants-sandbox-project-database-limits.test.ts`（S-59） |
 | PLIB-09 | 项目的身份是 `project_root`：正好一行；11 张表的外键指向它；`boards` 由 Goals 声明，它的外键也指向 `project_root`，Goals 的其余表仍指向 `boards` | L1b、S8 | `tests/project-database-baseline.test.ts` |
 | PLIB-10 | 沙箱插件经 broker 读写，检查与原生插件相同 | L3 | `tests/security-invariants-plugin-project-database.test.ts`；`tests/installed-plugin-execution.test.ts`（装进项目的沙箱插件，取消与撤权） |
-| PLIB-11 | Home 库的声明只在 Manifest 的 `databases.home`，可信条目上不再有 `database:` | L4 | |
+| PLIB-11 | Home 库的声明只在 Manifest 的 `databases.home`，可信条目上不再有 `database:` | L4 | `tests/home-library-declaration.test.ts` |
 | PLIB-12 | Goals 在 Manifest 里声明项目库：声明过 SDK 的形状检查和 SQL 规则；在空库里建出 Goals 与治理的全部表（31 张表、30 个索引）并写账本一行；再打开原样不变 | S8 | `tests/goals-project-database.test.ts` |
 | PLIB-13 | 宿主基线不再带 Goals 与治理的表；声明的表与 v7 基线里 Goals 的那些相同，只有 `boards` 不同：没有 `title`，`project_id` 的外键指 `project_root`；存量的 v7 库、`goal-event-history` 的夹具都按这个形状 | S8 | `tests/goals-project-database.test.ts`、`tests/project-database-baseline.test.ts`、`tests/project-maintenance-v8.test.ts` |
 | PLIB-14 | Goals 的发布者、版本或形状与账本不符时只停 Goals：动作不在项目的目录里，调用被拒，平台记下的拒绝码保留，库照常打开、别的插件照常、库里什么都不修补、不重建、不补账本 | S8 | `tests/goals-project-database-refusal.test.ts` |

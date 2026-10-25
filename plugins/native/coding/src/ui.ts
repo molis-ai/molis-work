@@ -3,9 +3,10 @@ import { CODING_SESSION_MARKS } from "./session-marks.js";
 import type {
   UiContribution,
   UiContributionDescriptor,
+  UiNestedContentModel,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { renderButton, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
+import { icon, renderButton, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
 import {
@@ -18,6 +19,13 @@ import {
 
 export const CODING_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.ui.v1";
 export const CODING_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.settings.v1";
+
+/**
+ * The two places Coding's page opens for the plugins it embeds (`ui.embedded_plugins`): their browsers' lists go in the directory
+ * column, their readers beside the conversation. An embedded plugin fills one by declaring a surface that targets its id.
+ */
+export const CODING_COMPANION_DIRECTORY_SLOT = "coding.companion-directory";
+export const CODING_COMPANION_RESULT_SLOT = "coding.companion-result";
 
 export type CodingUiSurface = "directory" | "workbench";
 
@@ -43,7 +51,7 @@ export interface CodingUiPrimitives {
   formatDate(value: string): string;
 }
 
-export interface CodingUiModel {
+export interface CodingUiModel extends UiNestedContentModel {
   readonly route_prefix: string;
   readonly face: CodingDirectoryFace;
   readonly filter: CodingDirectoryFilter;
@@ -51,9 +59,6 @@ export interface CodingUiModel {
   readonly tools: readonly CodingToolAvailability[];
   /** Host-authorized workspace, or null when this project has none bound. */
   readonly workspace_path: string | null;
-  /** Trusted HTML contributed by companion plugins through the Host. */
-  readonly companion_directory?: string;
-  readonly companion_result?: string;
   readonly primitives: CodingUiPrimitives;
 }
 
@@ -67,7 +72,10 @@ export const codingUiDescriptor: UiContributionDescriptor = {
     { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
-  slots: [],
+  slots: [
+    { slot_id: CODING_COMPANION_DIRECTORY_SLOT, version: 1, accepts: ["declarative-html"] },
+    { slot_id: CODING_COMPANION_RESULT_SLOT, version: 1, accepts: ["declarative-html"] },
+  ],
 };
 
 
@@ -85,17 +93,31 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
   },
 };
 
-/** What the Host hands Coding's page when it renders: everything but the session directory, which Coding reads from its own tables. */
-export type CodingUiHostModel = Omit<CodingUiModel, "sessions">;
+/**
+ * What the platform hands any plugin's stage when it renders: the route prefix, the shared primitives and what the plugins this one
+ * embeds drew in its slots. The rest of Coding's page is Coding's own: its face, the session directory and the primitives it brings.
+ */
+export interface CodingUiHostModel extends UiNestedContentModel {
+  readonly route_prefix: string;
+  readonly primitives: Pick<CodingUiPrimitives, "escape" | "text"> & Partial<CodingUiPrimitives>;
+}
+
+const codingIcon = (name: string): string => icon(name as Parameters<typeof icon>[0]);
+const codingDate = (value: string): string => value.slice(0, 10);
 
 /**
  * Coding's page as one started plugin gives it: the session directory is read from the plugin's own store (`directory`) each time
- * the page renders, so the Host never reads Coding's tables to draw it (PG-091, V-14).
+ * the page renders, so the Host never reads Coding's tables to draw it (PG-091, V-14). The page opens on the sessions face with every
+ * session listed; the tool tabs and the workspace path are drawn by Coding's own client.
  */
 export function codingUiView(directory: () => readonly CodingSessionEntry[]): UiContribution<CodingUiHostModel> {
   return {
     descriptor: codingUiDescriptor,
-    render: request => codingUiContribution.render({ ...request, model: { ...request.model, sessions: directory() } }),
+    render: request => codingUiContribution.render({ ...request, model: {
+      route_prefix: request.model.route_prefix, face: "sessions", filter: "all", tools: [], workspace_path: null,
+      ...(request.model.nested ? { nested: request.model.nested } : {}), sessions: directory(),
+      primitives: { icon: codingIcon, formatDate: codingDate, ...request.model.primitives },
+    } }),
   };
 }
 
@@ -128,7 +150,7 @@ export function renderCodingDirectory(model: CodingUiModel): string {
       <p class="coding-face-note" data-coding-artifact-status role="status"></p><div class="coding-outline" data-coding-artifact-list></div>
       ${renderButton({label:p.text("coding.artifacts.refresh"),icon:"refresh",variant:"ghost",attrs:{"data-coding-artifact-refresh":""}})}
     </section>
-    ${model.companion_directory ?? ""}`,
+    ${model.nested?.[CODING_COMPANION_DIRECTORY_SLOT] ?? ""}`,
       add:{label:p.text("coding.directory.new"),attrs:{"data-coding-new":""}}
     })});
 }
@@ -323,7 +345,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape(p.text("coding.results.tools"))}"><h3 class="coding-tools-title">${p.escape(p.text("coding.results.title"))}</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="${p.escape(p.text("coding.results.back"))}" title="${p.escape(p.text("coding.results.back"))}">${p.icon("x")}</button></nav>
         <nav class="coding-results-index" data-coding-results-index aria-label="${p.escape(p.text("coding.results.index"))}" hidden></nav>
-        ${model.companion_result ?? ""}
+        ${model.nested?.[CODING_COMPANION_RESULT_SLOT] ?? ""}
         <section class="coding-result" data-coding-subagents aria-label="${p.escape(p.text("coding.results.subagents"))}" hidden></section>
         <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="${p.escape(p.text("coding.results.cooperation"))}" hidden></section>
         <section class="coding-result coding-background" data-coding-background aria-label="${p.escape(p.text("coding.results.background"))}" hidden></section>

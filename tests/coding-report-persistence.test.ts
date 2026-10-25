@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, agentTextMaterialContent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -53,7 +53,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, capabilities: agentHost,
   });
   const server = createServer((request, response) => {
-    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });
@@ -165,7 +165,7 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
       throw new Error(`Unexpected capability ${definition.capability_id} ${JSON.stringify(args)}`);
     } } });
   const server = createServer((request, response) => {
-    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host()), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); });
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host())).catch(error => { response.writeHead(500); response.end(String(error)); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");

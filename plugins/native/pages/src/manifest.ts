@@ -5,6 +5,7 @@ import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/a
 import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pagesMethods } from "./methods.js";
+import { PAGES_DATABASE } from "./database.js";
 
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID };
 
@@ -24,6 +25,7 @@ export const pagesManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   // Declaration order is match order: the fixed paths come before the ones that take a document id.
+  databases: { home: PAGES_DATABASE },
   routes: [
     { route_id: "pages.comments.list", method: "GET", path: "/pages/:id/comments" },
     { route_id: "pages.comments.append", method: "POST", path: "/pages/:id/comments", max_body_bytes: PAGES_BODY_BYTES },
@@ -63,7 +65,8 @@ export const pagesManifest: PluginManifest = {
     contributions: [PAGES_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },
-      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", order: 56 },
+      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", order: 56, group: "make", accepts_objects: true,
+        creates: { station: "pages", title: "文档" }, start: { title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", icon: "file" } },
     ],
   },
 };

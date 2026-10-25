@@ -6,7 +6,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, validateInstalledManifest } from "./install-rules.js";
+import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, saveInstalled, validateInstalledManifest } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 import { outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
@@ -238,7 +238,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       uninstalled_at: null,
       retain_private_data: input.retain_private_data ?? current?.retain_private_data ?? true,
     };
-    this.repository.save(record);
+    saveInstalled(this.repository, this.executor, record, current, input.discard_kept_data === true);
     return this.receipt("install", record, false);
   }
 

@@ -16,7 +16,7 @@ import { parsePluginBindingScope, pluginBindingScope } from "@molis-ai/molis-wor
 import { connectionsProbe, grantConnections } from "./fixtures/connections-runtime.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-// S-66 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X2): a `per_record` slot binds one of
+// S-70 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X2): a `per_record` slot binds one of
 // the person's accounts to one of the plugin's records, in one project. Only the person binds; the plugin names a record key, reads
 // whether there is an account (never which connection or its credential) and can only take an account away.
 
@@ -76,14 +76,14 @@ const port = (count: { sent: number }): PluginConnectionsPort => ({
   describe: () => { count.sent += 1; return { bound: false }; }, release: () => { count.sent += 1; },
 });
 
-test("S-66 RAC-347 the SDK reads a slot's binding only as installation or per_record", () => {
+test("S-70 RAC-347 the SDK reads a slot's binding only as installation or per_record", () => {
   assert.deepEqual(parsePluginManifest(manifest).connections, manifest.connections);
   for (const binding of ["project", "record", 1, null]) {
     assert.throws(() => parsePluginManifest({ ...manifest, connections: { slots: [{ slot_id: "feed", service_id: "github", reason: "按来源读取", binding }] } }), /binding/u, String(binding));
   }
 });
 
-test("S-66 RAC-347 a record key is the plugin's only word: of a plain form, on a per_record slot only, refused before the Host's side is asked", async () => {
+test("S-70 RAC-347 a record key is the plugin's only word: of a plain form, on a per_record slot only, refused before the Host's side is asked", async () => {
   const count = { sent: 0 }, { client, inAction } = rig(port(count), { project_id: "p-1" });
   for (const key of BAD_KEYS) {
     await assert.rejects(inAction("p-1", () => client.request("feed", { ...user, record_key: key as string })), code("plugin.connections_record_key_invalid"), String(key));
@@ -113,7 +113,7 @@ test("S-66 RAC-347 a record key is the plugin's only word: of a plain form, on a
   }
 });
 
-test("S-66 RAC-347 a record's account serves only that record, in the call's project, for that installation of that plugin", { timeout: 30_000 }, async t => {
+test("S-70 RAC-347 a record's account serves only that record, in the call's project, for that installation of that plugin", { timeout: 30_000 }, async t => {
   const { home } = await bound(t), { seen, options } = await github(t);
   const hostPort = createPluginConnectionsPort(home, options);
   const send = async (project: string | null, record_key: string, instance: Parameters<typeof rig>[1] = {}) => {
@@ -135,7 +135,7 @@ test("S-66 RAC-347 a record's account serves only that record, in the call's pro
   assert.equal(seen.length, sent);
 });
 
-test("S-66 RAC-347 describe tells only whether there is an account, its name and state: never which connection or its credential", { timeout: 30_000 }, async t => {
+test("S-70 RAC-347 describe tells only whether there is an account, its name and state: never which connection or its credential", { timeout: 30_000 }, async t => {
   const { home, connection_id } = await bound(t);
   const { client, inAction } = rig(createPluginConnectionsPort(home), { project_id: "p-1" });
   // Even in a read-only call.
@@ -153,7 +153,7 @@ test("S-66 RAC-347 describe tells only whether there is an account, its name and
   assert.deepEqual(await leaky.inAction("p-1", () => leaky.client.describe("feed", "src-1")), { bound: true, display_name: "x", state: "connected" });
 });
 
-test("S-66 RAC-347 release only takes an account away: the record's requests go out anonymously and the plugin has no way to bind one", { timeout: 30_000 }, async t => {
+test("S-70 RAC-347 release only takes an account away: the record's requests go out anonymously and the plugin has no way to bind one", { timeout: 30_000 }, async t => {
   const { home } = await bound(t), { seen, options } = await github(t);
   const { client, inAction } = rig(createPluginConnectionsPort(home, options), { project_id: "p-1" });
   assert.deepEqual(Object.keys(client), ["request", "describe", "release"]);
@@ -165,7 +165,7 @@ test("S-66 RAC-347 release only takes an account away: the record's requests go 
   assert.deepEqual(seen, [`Bearer ${BEARER_VALUE}`, undefined]);
 });
 
-test("S-66 RAC-348 only the person binds a record's account, in the project they call from, on a slot the installation declares per_record", { timeout: 60_000 }, async t => {
+test("S-70 RAC-348 only the person binds a record's account, in the project they call from, on a slot the installation declares per_record", { timeout: 60_000 }, async t => {
   const records = connectionsProbe("connectionrecordsbind", { binding: "per_record" }), plain = connectionsProbe("connectionrecordsplain");
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [records.definition, plain.definition] } });
   const { install } = await grantConnections(f.host, records), { install: plainInstall } = await grantConnections(f.host, plain);
@@ -200,7 +200,7 @@ test("S-66 RAC-348 only the person binds a record's account, in the project they
   assert.equal(stored(one.project_id), null);
 });
 
-test("S-66 RAC-470 deleting a project removes its per_record bindings, of every plugin, and nothing of another project or installation slot", { timeout: 60_000 }, async t => {
+test("S-70 RAC-470 deleting a project removes its per_record bindings, of every plugin, and nothing of another project or installation slot", { timeout: 60_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "connection-records-deletion-")); t.after(() => rm(directory, { recursive: true, force: true }));
   const home = join(directory, "home"), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); t.after(() => catalog.close());
   const gone = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
@@ -225,7 +225,7 @@ test("S-66 RAC-470 deleting a project removes its per_record bindings, of every 
   assert.equal(withConnectorConnections(home, store => store.get(connection.connection_id))?.connection_id, connection.connection_id, "the account itself stays");
 });
 
-test("S-66 RAC-471 an installation's per_record bindings in one project are matched on the separators: never another installation's or project's", async t => {
+test("S-70 RAC-471 an installation's per_record bindings in one project are matched on the separators: never another installation's or project's", async t => {
   const home = await mkdtemp(join(tmpdir(), "connection-records-install-")); t.after(() => rm(home, { recursive: true, force: true }));
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: BEARER_VALUE }));
   const rows = [[INSTALL, "p-1"], [`${INSTALL}x`, "p-1"], [INSTALL, "p-10"], [INSTALL, "p"]].map(([install_id, project_id]) => pluginBindingScope({ install_id: install_id!, project_id: project_id!, record_key: "src-1" }));

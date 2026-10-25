@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -18,7 +18,12 @@ import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { streamProbe } from "./fixtures/plugin-stream.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
 
+import { FORM_PLUGIN_ID } from "@molis-ai/molis-work-plugin-form";
+import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { lingguangActions, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import type { HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
 
@@ -181,7 +186,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
     },
   };
   const server = createServer((request, response) => {
-    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), ports, codingRouteHooks).then(handled => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), ports).then(handled => {
       if (!handled) { response.writeHead(404); response.end("fallthrough"); }
     }).catch(error => { response.writeHead(500); response.end(String(error)); });
   });
@@ -197,6 +202,9 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
     const request = (path: string, body?: unknown) => fetch(`${origin}/api/plugins/${pluginId}/${path}`, body === undefined ? {} : {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
     });
+    // The platform's first web route announces the project as opened (BL-521), which reads the folder Files browses once; open it
+    // with a route nothing answers, so the next one is measured for what only it causes.
+    assert.equal((await request("undeclared", {})).status, 404);
     dependencyCalls = 0;
     let response = await request("persist", { value: 7 });
     assert.equal(response.status, 200);
@@ -335,3 +343,161 @@ for (const scope of ["home", "project"] as const) {
     } finally { release.resolve(); heldStop.resolve(); }
   });
 }
+
+test("S-47 RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running instance's; a stopped one shows the unavailable shell, never the catalog's", { timeout: 60_000 }, async t => {
+  const { host, project, request } = await serveHomeRuntime(t);
+  const one = await project("Project stage has one Runtime owner");
+  const formUnavailable = /data-work-surface="form"[^>]*\bdata-project-plugin-unavailable\b/u;
+  const page = async (locale = "zh") => {
+    const response = await request(`/projects/${one.project_id}`, { headers: { cookie: `molis_work_locale=${locale}` } });
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.equal([...html.matchAll(/data-work-surface="form"/gu)].length, 1, "Form has one stage");
+    const stage = pluginDocuments(html).find(document => /data-work-surface="form"/u.test(document))
+      ?? html.match(/<section\b[^>]*data-work-surface="form"[^>]*data-project-plugin-unavailable[^>]*>[\s\S]*?<\/section>/u)?.[0];
+    assert.ok(stage, "the actual project Form stage is present");
+    return stage;
+  };
+  assert.match(await page(), /data-form-new/u);
+  const platform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  assert.ok(platform);
+  const pagePath = `/projects/${one.project_id}/api/host/plugin-pages`;
+  const opened = await request(pagePath, { method: "POST", body: { plugin_id: FORM_PLUGIN_ID } });
+  assert.equal(opened.status, 200);
+  const { page_id } = await opened.json();
+  await platform.runtime.stop(platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!);
+  assert.equal((await request(pagePath, { method: "POST", body: { plugin_id: FORM_PLUGIN_ID } })).status, 403,
+    "a stopped instance cannot grant a page just to display its placeholder");
+  assert.equal((await request(`/projects/${one.project_id}/api/plugins/${FORM_PLUGIN_ID}/forms`, {
+    method: "POST", body: { title: "must not be created" }, headers: { "x-molis-plugin-page": page_id },
+  })).status, 403, "a page granted before stop cannot write through its stale authority");
+  for (const [locale, title, reason, hint] of [
+    ["zh", "Forms 暂不可用", "插件没有在运行", "请检查插件状态后重新打开。"],
+    ["en", "Forms is unavailable", "The plugin is not running", "Check the plugin status, then reopen it."],
+  ]) {
+    const unavailable = await page(locale);
+    assert.match(unavailable, formUnavailable);
+    for (const text of [title, reason, hint]) assert.ok(unavailable.includes(text), `${locale}: ${text}`);
+    assert.doesNotMatch(unavailable, /data-form-new/u, "a stopped instance's stage is not drawn from the build catalog");
+  }
+  assert.equal((await platform.supervisor.restart(FORM_PLUGIN_ID)).status, "running");
+  assert.equal((await (await request(`/projects/${one.project_id}/api/plugins/${FORM_PLUGIN_ID}/forms`)).json()).forms.length, 0);
+  const back = await page();
+  assert.match(back, /data-form-new/u);
+  assert.doesNotMatch(back, formUnavailable);
+
+  const original = platform.supervisor.contribution.bind(platform.supervisor);
+  const form = original(FORM_PLUGIN_ID);
+  assert.ok(form?.kind === "app");
+  // Inject failures at the Runtime's public contribution port; each assertion still requests the production project page.
+  for (const [contribution, zh, en] of [
+    [null, "插件正在运行，但未提供页面", "The plugin is running but has not provided a page"],
+    [{ ...form, views: [] }, "插件页面未注册", "The plugin page is not registered"],
+    [{ ...form, views: form.views?.map(view => ({ ...view, render() { throw new Error("page render failed"); } })) },
+      "插件页面读取失败", "The plugin page could not be loaded"],
+  ] as const) {
+    const fault = t.mock.method(platform.supervisor, "contribution", id => id === FORM_PLUGIN_ID ? contribution : original(id));
+    try {
+      assert.equal(platform.runtime.get(platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!).state, "running");
+      for (const [locale, reason] of [["zh", zh], ["en", en]]) {
+        const unavailable = await page(locale);
+        assert.match(unavailable, formUnavailable);
+        assert.ok(unavailable.includes(reason), `${locale}: ${reason}`);
+        assert.doesNotMatch(unavailable, /插件没有在运行|The plugin is not running|data-form-new/u);
+      }
+    } finally { fault.mock.restore(); }
+  }
+  assert.match(await page(), /data-form-new/u, "the same live instance draws again after its contribution becomes available");
+});
+
+
+test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale, escape owner messages and distinguish a running instance without a view", { timeout: 60_000 }, async t => {
+  const { host, project, request } = await serveHomeRuntime(t);
+  const one = await project("Home stage language");
+  const platform = await host.homePlugins!.ready();
+  const install = host.homePlugins!.installation(TODO_PLUGIN_ID);
+  assert.ok(install);
+  const page = async (locale: string) => {
+    const response = await request(`/projects/${one.project_id}`, { headers: { cookie: `molis_work_locale=${locale}` } });
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    const stage = pluginDocuments(html).find(document => /data-work-surface="todo"/u.test(document))
+      ?? html.match(/<section\b[^>]*data-work-surface="todo"[^>]*data-home-plugin-unavailable[^>]*>[\s\S]*?<\/section>/u)?.[0];
+    assert.ok(stage, "the actual Home Todo stage is present");
+    return stage;
+  };
+  await platform.runtime.stop(install.install_id);
+  for (const [locale, heading, reason, link] of [
+    ["zh", "暂不可用", "插件已停用", "查看插件状态"],
+    ["en", "is unavailable", "The plugin is disabled", "View plugin status"],
+  ]) {
+    const html = await page(locale);
+    assert.match(html, /data-home-plugin-unavailable/u);
+    for (const text of [heading, reason, link]) assert.ok(html.includes(text), `${locale}: ${text}`);
+  }
+  assert.equal((await platform.supervisor.restart(TODO_PLUGIN_ID)).status, "running");
+  const original = platform.runtime.contribution.bind(platform.runtime);
+  const fault = t.mock.method(platform.runtime, "contribution", id => id === install.install_id ? null : original(id));
+  try {
+    for (const [locale, reason] of [["zh", "插件页面未注册"], ["en", "The plugin page is not registered"]]) {
+      const html = await page(locale);
+      assert.ok(html.includes(reason));
+      assert.doesNotMatch(html, /插件已停用|The plugin is disabled/u);
+    }
+    const state = platform.supervisor.state.bind(platform.supervisor);
+    const message = '<img src=x onerror="throw new Error(1)">';
+    const ownerError = t.mock.method(platform.supervisor, "state", id => {
+      const current = state(id);
+      return id === TODO_PLUGIN_ID && current ? { ...current, message } : current;
+    });
+    try {
+      const html = await page("en");
+      assert.ok(html.includes("&lt;img src=x onerror=&quot;throw new Error(1)&quot;&gt;"));
+      assert.doesNotMatch(html, /<img\b/u, "owner failure text cannot become markup in the Host placeholder");
+    } finally { ownerError.mock.restore(); }
+  } finally { fault.mock.restore(); }
+  assert.doesNotMatch(await page("en"), /data-home-plugin-unavailable/u);
+});
+
+test("S-47 RAC-79 W5-06-STAGE-01 the real Form frame stays usable after a stopped stage placeholder and restart; forged unavailable markers stay isolated", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { localHost, projectId, databasePath, origin, command, sessionId, navigate, reloadPage } = browser;
+  assert.ok(localHost && projectId);
+  const frame = await pluginFrameBrowser(t, browser, "form");
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=form` }, sessionId));
+  // loadList writes this link after the real list response; aria-busy is only set by a later user command.
+  const loaded = "document.querySelector('[data-form-new]') && document.querySelector('[data-form-ai-reason] a[href=\"/settings/models\"]')";
+  await frame.waitFor(loaded);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId });
+  const platform = await localHost.withProject(reference, runtime => runningProjectPlatform(runtime.store, projectId));
+  assert.ok(platform);
+  const original = platform.supervisor.contribution.bind(platform.supervisor), form = original(FORM_PLUGIN_ID);
+  assert.ok(form?.kind === "app");
+  const forged = { ...form, views: form.views?.map(view => ({ ...view, render(request: Parameters<typeof view.render>[0]) {
+    return view.render(request).replace('data-form="workbench"', 'data-form="workbench" data-project-plugin-unavailable="workbench" data-home-plugin-unavailable="workbench"');
+  } })) };
+  const spoof = t.mock.method(platform.supervisor, "contribution", id => id === FORM_PLUGIN_ID ? forged : original(id));
+  try {
+    await reloadPage(); await frame.waitFor(loaded);
+    assert.equal(await frame.evaluate("Boolean(document.querySelector('[data-project-plugin-unavailable][data-home-plugin-unavailable]'))"), true);
+    assert.equal(await browser.evaluate("document.querySelectorAll('[data-project-plugin-unavailable], [data-home-plugin-unavailable]').length"), 0,
+      "plugin HTML cannot promote itself into the Host's static placeholder path");
+    assert.equal(await frame.evaluate("(()=>{try{parent.document.body;return 'readable'}catch(error){return error.name}})()"), "SecurityError",
+      "a forged unavailable marker does not escape the actual opaque frame");
+  } finally { spoof.mock.restore(); }
+  await platform.runtime.stop(platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!);
+  await reloadPage();
+  await browser.waitFor("(()=>{const alert=document.querySelector('[data-project-plugin-unavailable] [role=alert]');return alert?.checkVisibility() && alert.textContent.includes('插件没有在运行')})()");
+  assert.equal(await browser.evaluate("document.querySelectorAll('[data-form-new], iframe[data-plugin-frame=form], [data-work-surface=form][data-deferred-surface]').length"), 0,
+    "the Host's visible placeholder neither mounts nor executes the stopped Form client");
+  assert.equal(await browser.evaluate("document.querySelectorAll('[data-work-surface=form]').length"), 1);
+  assert.equal((await platform.supervisor.restart(FORM_PLUGIN_ID)).status, "running");
+  await reloadPage();
+  await frame.waitFor(loaded);
+  assert.equal(await frame.evaluate("document.querySelectorAll('[data-project-plugin-unavailable]').length"), 0);
+  await frame.click("[data-form-new]");
+  await frame.waitFor("document.querySelector('[data-form-stage-workspace]')?.hidden === false && document.querySelector('[data-form=workbench]')?.getAttribute('aria-busy') === 'false'");
+  const created = await browser.web.get<{ forms: readonly unknown[] }>(`/projects/${projectId}/api/plugins/${FORM_PLUGIN_ID}/forms`);
+  assert.equal(created.forms.length, 1, "after recovery the real frame creates a persisted Form");
+});

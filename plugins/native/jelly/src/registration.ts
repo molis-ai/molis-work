@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION } from "./index.js";
+import { JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin } from "./index.js";
 import { JELLY_MESSAGES } from "./messages.js";
 
 /**
@@ -8,7 +8,7 @@ import { JELLY_MESSAGES } from "./messages.js";
  */
 export const registration: PluginRegistration = {
   project_plugin_id: JELLY_PROJECT_PLUGIN_ID, catalog_order: 5,
-  runtime: { scope: "home", create: createJellyPlugin, database: JELLY_DATABASE, model_configuration: JELLY_MODEL_CONFIGURATION,
+  runtime: { scope: "home", create: createJellyPlugin,
     package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" },
   messages: JELLY_MESSAGES,
   manifest: jellyManifest,

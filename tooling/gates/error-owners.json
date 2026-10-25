@@ -92,12 +92,6 @@
       ],
       "reason": "The Characters module and the Host files that assemble, serve and run it (the plugin was removed in CHR-1); character.* becomes characters.* (spec W3-02 R4c)."
     },
-    "coding": {
-      "paths": [
-        "apps/local-host/src/coding-*"
-      ],
-      "reason": "The Coding plugin's Host side (surface, background tasks, shelf material); its codes start with coding."
-    },
     "computer": {
       "paths": [
         "apps/local-host/src/computer/"
@@ -316,6 +310,12 @@
         "packages/contracts/src/modules/sources.ts"
       ],
       "reason": "The sources module (SourcesError): its source_* codes become sources.*."
+    },
+    "storage": {
+      "paths": [
+        "packages/storage/src/adapters/file-secret-store.ts"
+      ],
+      "reason": "The platform SecretStore owns sealed-vault snapshot format, existing-master dependency and integrity refusals; its new typed codes start with storage."
     },
     "ui_host": {
       "paths": [

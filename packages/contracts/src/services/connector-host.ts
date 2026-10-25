@@ -141,7 +141,7 @@ export interface ConnectorDirectoryEntry {
 }
 
 /**
- * How the Host sends a person's credential to one connection service for a plugin (`services.connections`, S-57, S-64): the exact
+ * How the Host sends a person's credential to one connection service for a plugin (`services.connections`, S-57, S-68): the exact
  * origins it is sent to, how it is written, which kinds of connection hold a credential the Host can send (a CLI login keeps its
  * secret in the CLI), and whether the Host may refresh that credential. A plugin names the service; all of this is the platform's.
  */

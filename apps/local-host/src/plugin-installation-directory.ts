@@ -39,7 +39,7 @@ export function installedPluginManifest(db: PluginRuntimeDatabase, install_id: s
 }
 
 /**
- * The connection slots an installation declares, for binding a `per_record` slot (S-72 provisional): the caller's project's installation
+ * The connection slots an installation declares, for binding a `per_record` slot (S-70 provisional): the caller's project's installation
  * of that plugin, else the Home's; `null` when neither has it.
  */
 export async function installedConnectionSlots<Reference>(install_id: string, plugin_id: string,

@@ -690,7 +690,7 @@ for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
     } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
   });
 
-test('S-66 RAC-471 uninstalling in one project takes the per_record bindings of that project only; the other project and the installation slot keep theirs', mac, async () => {
+test('S-70 RAC-471 uninstalling in one project takes the per_record bindings of that project only; the other project and the installation slot keep theirs', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-connection-bindings-'));
   const fixture = await publishedFixture(home, 'first'), copy = join(home, 'second.sqlite');
   await copyFile(fixture.databasePath, copy);

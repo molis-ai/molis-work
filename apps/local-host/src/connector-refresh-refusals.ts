@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import type { ConnectorConnectionRecord, ConnectorConnectionState } from "@molis-ai/molis-work-contracts/services/connector-host";
 
-// Connections whose token endpoint refused a refresh (S-73 provisional; slice s57-connections-extension X3, hub ruling 2026-10-24). The
+// Connections whose token endpoint refused a refresh (S-69 provisional; slice s57-connections-extension X3, hub ruling 2026-10-24). The
 // mark is not a stored fact: it is what the token endpoint's answer says, held in this Host process only. It is tied to the
 // connection's revision, so reconnecting (which changes `updated_at`) clears it, a refresh that succeeds clears it, and a restart
 // forgets it: the next request tries one refresh again and marks the connection only if that is refused too.

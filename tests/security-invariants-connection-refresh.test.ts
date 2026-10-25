@@ -10,7 +10,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { completeApiOAuth, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 
-// S-65 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X3): a 401 to a credential the Host can
+// S-69 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X3): a 401 to a credential the Host can
 // refresh is refreshed in the Host once, and the same request sent once more. The refreshed token never reaches the plugin.
 
 const ORIGIN = "http://localhost:19358";
@@ -71,7 +71,7 @@ async function asana(t: TestContext, refused: readonly string[]) {
 const dispatch = (extra: Partial<PluginConnectionDispatch> = {}): PluginConnectionDispatch =>
   ({ url: new URL("https://app.asana.com/api/1.0/users/me"), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {}, ...extra });
 
-test("S-65 RAC-349 a 401 to an OAuth credential the Host can refresh is refreshed once and the same request sent once more; the new token never comes back", { timeout: 30_000 }, async t => {
+test("S-69 RAC-349 a 401 to an OAuth credential the Host can refresh is refreshed once and the same request sent once more; the new token never comes back", { timeout: 30_000 }, async t => {
   const home = await connected(t);
   const refreshes = tokenEndpoint(t, () => json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 3600 }));
   const { seen, options } = await asana(t, ["stale-access"]);
@@ -82,7 +82,7 @@ test("S-65 RAC-349 a 401 to an OAuth credential the Host can refresh is refreshe
   assert.equal(/stale-access|fresh-access|refresh-/u.test(JSON.stringify(answer)), false, "no token or refresh material in the answer");
 });
 
-test("S-65 RAC-349 a second 401 goes back to the plugin as it is: one refresh, two requests, never a third", { timeout: 30_000 }, async t => {
+test("S-69 RAC-349 a second 401 goes back to the plugin as it is: one refresh, two requests, never a third", { timeout: 30_000 }, async t => {
   const home = await connected(t);
   const refreshes = tokenEndpoint(t, () => json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 3600 }));
   const { seen, options } = await asana(t, ["stale-access", "fresh-access"]);
@@ -93,7 +93,7 @@ test("S-65 RAC-349 a second 401 goes back to the plugin as it is: one refresh, t
   assert.equal(/fresh-access|refresh-/u.test(JSON.stringify(answer)), false);
 });
 
-test("S-65 RAC-349 a call that ends before the resend sends nothing more, though the credential was refreshed", { timeout: 30_000 }, async t => {
+test("S-69 RAC-349 a call that ends before the resend sends nothing more, though the credential was refreshed", { timeout: 30_000 }, async t => {
   const home = await connected(t);
   tokenEndpoint(t, () => json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 3600 }));
   const { seen, options } = await asana(t, ["stale-access"]);
@@ -106,7 +106,7 @@ test("S-65 RAC-349 a call that ends before the resend sends nothing more, though
   assert.deepEqual(seen, ["Bearer stale-access"], "the server got no second request");
 });
 
-test("S-65 RAC-349 a refresh that fails refuses the request, never sends it without the credential, and names no token", { timeout: 30_000 }, async t => {
+test("S-69 RAC-349 a refresh that fails refuses the request, never sends it without the credential, and names no token", { timeout: 30_000 }, async t => {
   const home = await connected(t);
   const refreshes = tokenEndpoint(t, () => json({ error: "invalid_grant" }, 400));
   const { seen, options } = await asana(t, ["stale-access"]);
@@ -116,7 +116,7 @@ test("S-65 RAC-349 a refresh that fails refuses the request, never sends it with
   assert.deepEqual(seen, ["Bearer stale-access"], "nothing more was sent, with a credential or without one");
 });
 
-test("S-65 RAC-349 a token connection is not refreshed: its 401 goes back to the plugin as it is", { timeout: 30_000 }, async t => {
+test("S-69 RAC-349 a token connection is not refreshed: its 401 goes back to the plugin as it is", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "connection-refresh-home-")); t.after(() => rm(home, { recursive: true, force: true }));
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "asana", displayName: "Asana", token: "pasted-token" }));
   withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "account", serviceId: "asana", connectionId: connection.connection_id }));
@@ -126,7 +126,7 @@ test("S-65 RAC-349 a token connection is not refreshed: its 401 goes back to the
   assert.deepEqual([answer.status, seen.length, refreshes.length], [401, 1, 0]);
 });
 
-test("S-65 RAC-349 a refresh the token endpoint refuses marks the account for reconnecting: shown so, refused without asking again, cleared by reconnecting", { timeout: 30_000 }, async t => {
+test("S-69 RAC-349 a refresh the token endpoint refuses marks the account for reconnecting: shown so, refused without asking again, cleared by reconnecting", { timeout: 30_000 }, async t => {
   const home = await connected(t);
   const refreshes = tokenEndpoint(t, () => json({ error: "invalid_grant" }, 400));
   const { seen, options } = await asana(t, ["stale-access"]);
@@ -143,7 +143,7 @@ test("S-65 RAC-349 a refresh the token endpoint refuses marks the account for re
   assert.deepEqual(seen.at(-1), "Bearer renewed-access");
 });
 
-test("S-65 RAC-349 a network failure while refreshing refuses only this request: nothing is marked and the next request tries again", { timeout: 30_000 }, async t => {
+test("S-69 RAC-349 a network failure while refreshing refuses only this request: nothing is marked and the next request tries again", { timeout: 30_000 }, async t => {
   const home = await connected(t);
   const refreshes = tokenEndpoint(t, () => { throw new TypeError("fetch failed"); });
   const { seen, options } = await asana(t, ["stale-access"]);

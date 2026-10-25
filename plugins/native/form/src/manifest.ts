@@ -8,6 +8,7 @@ import {
 import { FORM_UI_CONTRIBUTION_ID } from "./ui.js";
 import { formActions, FORM_ACTION_PERMISSIONS } from "./actions.js";
 import { formContentActions } from "./content-actions.js";
+import { FORM_DATABASE } from "./database.js";
 
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID };
 
@@ -33,6 +34,7 @@ export const formManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   // Served under /api/plugins/io.molis.work.form in the project (a route needs a path below the plugin's own); each one only maps
   // the request to its action (plugin.ts).
+  databases: { home: FORM_DATABASE },
   routes: [
     { route_id: "form.list", method: "GET", path: "/forms" },
     { route_id: "form.create", method: "POST", path: "/forms", max_body_bytes: FORM_BODY_BYTES },
@@ -59,7 +61,8 @@ export const formManifest: PluginManifest = {
   ui: {
     contributions: [FORM_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", order: 57 },
+      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", order: 57, group: "make",
+        creates: { station: "form", title: "问卷" } },
     ],
   },
 };

@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, developInPrivateHost, isProjectPluginDatabaseRefusal, molisWorkHostProjectReference, openProjectPluginDatabases, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, developInPrivateHost, isProjectPluginDatabaseRefusal, molisWorkHostProjectReference, openProjectPluginDatabases, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
@@ -15,6 +15,7 @@ import { GOALS_PLUGIN_ID, goalsActions, goalsManifest } from "@molis-ai/molis-wo
 import type { PluginProjectDatabaseRecord, PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
+import { codingView } from "./fixtures/coding-view.js";
 
 /**
  * PLIB-14 (S8; specs/plugin-project-database/spec.md §2.3 and §2.4): Goals' tables in a project's library are Goals' own, declared in
@@ -85,10 +86,10 @@ async function developerDoor(home: string, projectId: string, databasePath: stri
 async function codingPanel(databasePath: string, projectId: string): Promise<string> {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    const surface = await codingDirectoryPanel({ store, ...openProjectVersionStores(store), projectId, actions: pluginActions(store, projectId), actorId: "web-user",
-      escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), translate: value => value });
+    const panel = await codingView({ store, ...openProjectVersionStores(store), projectId, actions: pluginActions(store, projectId), actorId: "web-user",
+      escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") });
     await releaseProjectPlugins(store, projectId);
-    return surface?.panel ?? "";
+    return panel;
   } finally { store.close(); }
 }
 

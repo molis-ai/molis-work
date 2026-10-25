@@ -33,7 +33,10 @@ export interface SandboxEffects {
     resources?: string[];
     projectDatabase?: Array<'read' | 'write'>;
     connections?: string[];
-    materials?: Array<'read'>;
+    materials?: Array<'read' | 'fetch_local' | 'original'>;
+    ownerFiles?: Array<'read' | 'write'>;
+    model?: Array<'read' | 'invoke'>;
+    background?: string[];
 }
 
 export type SandboxHostMessage = {
@@ -123,6 +126,48 @@ export interface SandboxMaterialRequest {
     ocrLanguages?: Array<'zh-Hans' | 'zh-Hant' | 'en-US'>;
 }
 
+export type SandboxModelAvailability = {
+    available: true;
+    runtime_label?: string;
+    vision?: boolean;
+} | {
+    available: false;
+    code: string;
+    reason: string;
+    runtime_label?: string;
+    vision?: boolean;
+};
+
+export interface SandboxModelChoice extends SandboxModelSelection {
+    label: string;
+    vision: boolean;
+    reasoning_effort: boolean;
+}
+
+export interface SandboxModelRequest {
+    prompt_id: string;
+    data: string;
+    system_id?: string;
+    selection?: SandboxModelSelection;
+    output?: 'text' | 'json';
+    timeout_ms?: number;
+    max_output_tokens?: number;
+}
+
+export interface SandboxModelResult {
+    text: string;
+    value?: SandboxJson;
+    usage?: {
+        input_tokens: number;
+        output_tokens: number;
+    };
+}
+
+export interface SandboxModelSelection {
+    provider_id: string;
+    model_id: string;
+}
+
 export interface SandboxNetworkRequest {
     url: string;
     method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
@@ -159,6 +204,55 @@ export interface SandboxOperationExample {
 }
 
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
+
+export interface SandboxOriginalPart {
+    data_base64: string;
+    byte_length: number;
+    size: number;
+    revision: string;
+}
+
+export type SandboxOwnerFileChange = {
+    op: 'mkdir';
+    path: string;
+} | {
+    op: 'write';
+    path: string;
+    data_base64: string;
+    mode: 'create' | 'replace';
+} | {
+    op: 'replace_atomic';
+    path: string;
+    data_base64: string;
+} | {
+    op: 'copy';
+    from: string;
+    to: string;
+} | {
+    op: 'remove';
+    path: string;
+} | {
+    op: 'set_access';
+    path: string;
+    access: 'readonly' | 'readwrite';
+};
+
+export interface SandboxOwnerFileContent {
+    data_base64: string;
+    byte_length: number;
+}
+
+export interface SandboxOwnerFileEntry {
+    name: string;
+    kind: 'file' | 'directory';
+}
+
+export type SandboxOwnerFileInfo = {
+    kind: 'file';
+    byte_length: number;
+} | {
+    kind: 'directory';
+};
 
 export interface SandboxPluginContract {
     version: 1;
@@ -255,11 +349,34 @@ export interface SandboxSdk {
         imageTextAvailable(): Promise<boolean>;
         readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<SandboxMaterialDocumentBatch>;
         extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<SandboxMaterialExtraction>;
+        readLocalPage(url: string): Promise<SandboxMaterialExtraction>;
+        claimOriginal(record_key: string): Promise<void>;
+        readOriginal(record_key: string, request?: {
+            maxBytes?: number;
+        }): Promise<{
+            bytes: Uint8Array;
+        }>;
+        releaseOriginal(record_key: string): Promise<void>;
+    };
+    ownerFiles: {
+        stat(path: string): Promise<SandboxOwnerFileInfo | null>;
+        list(path: string): Promise<SandboxOwnerFileEntry[]>;
+        read(path: string): Promise<SandboxOwnerFileContent | null>;
+        write(changes: SandboxOwnerFileChange[]): Promise<void>;
+    };
+    model: {
+        choices(): Promise<SandboxModelChoice[]>;
+        availability(selection?: SandboxModelSelection): Promise<SandboxModelAvailability>;
+        complete(request: SandboxModelRequest): Promise<SandboxModelResult>;
+    };
+    background: {
+        start(operation: string, input: SandboxJson): Promise<string>;
+        cancel(id: string): Promise<boolean>;
     };
     interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
 
-export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
+export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 export type SandboxSqlRow = {
     [column: string]: SandboxSqlValue;

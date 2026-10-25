@@ -15,7 +15,7 @@ import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runti
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 
-// S-64 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X1): which services a plugin's
+// S-68 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X1): which services a plugin's
 // `services.connections` may reach, and on which origins, is only the platform's registry. A Manifest names a service, never an address.
 
 /** Stands in for the person's saved credential; it must never come back to the plugin. */
@@ -32,7 +32,7 @@ function manifest(service_id: string): PluginManifest {
   } as PluginManifest;
 }
 
-test("S-64 RAC-346 every registered service names exact https origins, a Bearer credential, its auth methods and a refresh rule", () => {
+test("S-68 RAC-346 every registered service names exact https origins, a Bearer credential, its auth methods and a refresh rule", () => {
   assert.ok(Object.keys(CONNECTOR_REQUEST_SERVICES).length > 1);
   for (const [id, service] of Object.entries(CONNECTOR_REQUEST_SERVICES)) {
     assert.ok(service.origins.length > 0 && new Set(service.origins).size === service.origins.length, id);
@@ -47,7 +47,7 @@ test("S-64 RAC-346 every registered service names exact https origins, a Bearer 
   }
 });
 
-test("S-64 RAC-346 a slot naming a service that is not registered is refused when the Manifest is read: tenant origins, other credential schemes, a CLI", () => {
+test("S-68 RAC-346 a slot naming a service that is not registered is refused when the Manifest is read: tenant origins, other credential schemes, a CLI", () => {
   for (const registered of ["github", "gmail", "cloudflare", "notion"]) {
     assert.equal(parsePluginManifest(manifest(registered)).connections?.slots[0]?.service_id, registered);
   }
@@ -91,7 +91,7 @@ async function bound(t: TestContext, service_id: string) {
   return { home, target, connection_id: connection.connection_id };
 }
 
-test("S-64 RAC-346 a request reaches only the registered origins of its service, bound or not, and carries the Bearer credential on each of them", { timeout: 30_000 }, async t => {
+test("S-68 RAC-346 a request reaches only the registered origins of its service, bound or not, and carries the Bearer credential on each of them", { timeout: 30_000 }, async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.cloudflare.com", "dash.cloudflare.com", "gmail.googleapis.com"]);
   const cloudflare = await bound(t, "cloudflare"), gmail = await bound(t, "gmail");
   const port = (home: string) => createPluginConnectionsPort(home, { lookup, allowAddress: () => true, testServer });
@@ -114,7 +114,7 @@ test("S-64 RAC-346 a request reaches only the registered origins of its service,
   assert.equal(seen.length, sent, "no refused request reached the server");
 });
 
-test("S-64 RAC-346 a bound connection pinned to one origin is refused on the service's other origin, not sent without its credential", { timeout: 30_000 }, async t => {
+test("S-68 RAC-346 a bound connection pinned to one origin is refused on the service's other origin, not sent without its credential", { timeout: 30_000 }, async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.cloudflare.com", "dash.cloudflare.com"]);
   const { home, target, connection_id } = await bound(t, "cloudflare");
   // The Host pins a connection's origin where it checked one when the connection was made (`connector_connection_targets`); nothing

@@ -106,6 +106,7 @@ export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
 export type { CallRowView } from "./call-row.js";
 export { renderMcpAccess, renderMcpAccessRows, mcpAccessEntryKey, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView } from "./page-view.js";
+export type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 export * from "./i18n.js";
 export * from "./ui-composition.js";
 export { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
@@ -119,9 +120,9 @@ export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFr
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";
-export { ALWAYS_ON_PLUGIN_IDS, availableProjectPluginIds, catalogProblems, shownProjectPlugins, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins } from "./plugin-catalog.js";
-export type { PluginMarketCard, RailEntry } from "./plugin-catalog.js";
-export { stageContributionId } from "./declared-stages.js";
+export { ALWAYS_ON_PLUGIN_IDS, availableProjectPluginIds, catalogProblems, shownProjectPlugins, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, objectTabPlugins } from "./plugin-catalog.js";
+export type { PluginCreatableKind, PluginHomeStart, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
+export { declaredStageContributionId, stageContributionId } from "./declared-stages.js";
 export { pluginWorkbenchPacks } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export {

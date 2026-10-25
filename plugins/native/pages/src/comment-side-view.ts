@@ -1,17 +1,17 @@
 import type { PagesUiModel } from "./ui.js";
 
 export function renderPagesComments({ primitives: p }: PagesUiModel): string {
-  return `<section class="pages-comments" data-pages-comments aria-label="${p.text("文档评论")}">
-    <header><small>${p.text("正在查看")}</small><h2 data-comment-title>${p.text("选择一篇文档")}</h2>
-      <div class="pages-comment-modes"><button type="button" data-comment-mode="comments" aria-pressed="true">${p.text("评论")}</button><button type="button" data-comment-mode="notes" aria-pressed="false">${p.text("块备注")}</button></div>
+  return `<section class="pages-comments" data-pages-comments aria-label="${p.text("pages.comments.label")}">
+    <header><small>${p.text("pages.comments.viewing")}</small><h2 data-comment-title>${p.text("pages.comments.pick-doc")}</h2>
+      <div class="pages-comment-modes"><button type="button" data-comment-mode="comments" aria-pressed="true">${p.text("pages.comments.comments")}</button><button type="button" data-comment-mode="notes" aria-pressed="false">${p.text("pages.comments.notes")}</button></div>
     </header>
-    <div data-comment-discussion><nav data-comment-threads aria-label="${p.text("评论线程")}"></nav><button class="mw-btn mw-btn--ghost" type="button" data-comment-new>${p.text("评论整篇文档")}</button>
-      <blockquote data-comment-quote hidden></blockquote><button type="button" class="mw-btn mw-btn--ghost" data-comment-locate hidden>${p.text("定位原文")}</button><div class="pages-comment-messages" data-comment-messages aria-live="polite"></div>
-      <p data-comment-run role="status"></p><div class="pages-comment-controls"><button class="mw-btn mw-btn--ghost" type="button" data-comment-retry hidden>${p.text("重试")}</button><button class="mw-btn mw-btn--ghost" type="button" data-comment-stop hidden>${p.text("停止")}</button></div>
+    <div data-comment-discussion><nav data-comment-threads aria-label="${p.text("pages.comments.threads")}"></nav><button class="mw-btn mw-btn--ghost" type="button" data-comment-new>${p.text("pages.comments.new-whole")}</button>
+      <blockquote data-comment-quote hidden></blockquote><button type="button" class="mw-btn mw-btn--ghost" data-comment-locate hidden>${p.text("pages.comments.locate")}</button><div class="pages-comment-messages" data-comment-messages aria-live="polite"></div>
+      <p data-comment-run role="status"></p><div class="pages-comment-controls"><button class="mw-btn mw-btn--ghost" type="button" data-comment-retry hidden>${p.text("pages.action.retry")}</button><button class="mw-btn mw-btn--ghost" type="button" data-comment-stop hidden>${p.text("pages.comments.stop")}</button></div>
     </div><div data-comment-notes hidden></div>
-    <form data-comment-form><p data-comment-scope hidden>${p.text("助理读取这篇文档和当前评论线程，回复留在这里。长内容会节选。")}</p><label data-comment-unsaved hidden><input type="checkbox" data-comment-include-draft>${p.text("明确附上本页未保存的正文草稿")}</label><button type="button" class="mw-btn mw-btn--ghost" data-comment-reply hidden></button><textarea class="mw-input" data-comment-draft rows="3" maxlength="20000" aria-label="${p.text("写评论")}" placeholder="${p.text("写评论，或请助理参与这条讨论")}"></textarea>
-      <footer><button class="mw-btn mw-btn--ghost" type="button" data-comment-ai aria-pressed="false">@${p.text("助理")}</button><span>${p.text("⌘ / Ctrl + Enter 发送")}</span><button class="mw-btn mw-btn--primary" data-comment-send>${p.text("发送")}</button></footer>
-    </form><p class="pages-comment-error" data-comment-error role="alert" hidden></p><button type="button" class="mw-btn mw-btn--ghost" data-comment-reload hidden>${p.text("重新载入评论")}</button>
+    <form data-comment-form><p data-comment-scope hidden>${p.text("pages.comments.scope-note")}</p><label data-comment-unsaved hidden><input type="checkbox" data-comment-include-draft>${p.text("pages.comments.include-draft")}</label><button type="button" class="mw-btn mw-btn--ghost" data-comment-reply hidden></button><textarea class="mw-input" data-comment-draft rows="3" maxlength="20000" aria-label="${p.text("pages.comments.write")}" placeholder="${p.text("pages.comments.write-placeholder")}"></textarea>
+      <footer><button class="mw-btn mw-btn--ghost" type="button" data-comment-ai aria-pressed="false">@${p.text("pages.comments.assistant")}</button><span>${p.text("pages.comments.send-hint")}</span><button class="mw-btn mw-btn--primary" data-comment-send>${p.text("pages.comments.send")}</button></footer>
+    </form><p class="pages-comment-error" data-comment-error role="alert" hidden></p><button type="button" class="mw-btn mw-btn--ghost" data-comment-reload hidden>${p.text("pages.comments.reload")}</button>
   </section>`;
 }
 

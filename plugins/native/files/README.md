@@ -36,7 +36,7 @@ Directory candidates and browsing preferences come from the [current-project set
 - 负责：工作目录树与阅读器，发布有界的文本快照与选区。
 - 不负责：读目录本身（由 Host 提供）、文件系统授权、比较渲染。
 - 公开入口：`@molis-ai/molis-work-plugin-files`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`（伙伴舞台的外壳 `renderCompanionBrowserStage`）、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 插件自己不读目录，只经 Host 能力。
   - 快照有界并带版本，下游按 Artifact 类型消费，不指定生产者。
@@ -45,4 +45,4 @@ Directory candidates and browsing preferences come from the [current-project set
 - 改动后必跑：`node scripts/run-tests.mjs tests/files-plugin.test.ts tests/files-product-http.test.ts tests/files-git-actions.test.ts tests/companion-client-lifecycle.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)、[docs/platform/PROJECT-SETTINGS.md](../../../docs/platform/PROJECT-SETTINGS.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-Coding 写了文件、Git 移动了工作区，都会发事件；宿主执行完本项目里任何插件发起、人批准的工作区操作（BL-379），或 Agent 经人批准写了本项目的工作目录（BL-366），也广播 `host.workspace.changed@1`。订阅的几种见 `src/manifest.ts` 的 `events.subscribes`。Files 在事件回调里先过 `beforeEffect()`，重新确认一次浏览目录（换了目录就作废旧目录的快照输出，BL-366），再调 `services.ui.invalidate()`，推自己这个安装的视图 revision（PG-061）。Files 没有会调它的定时器或监听器，所以停用以后不会再推（BL-411）。可见客户端只在首次进入、revision 变化或重连时重新读取目录与当前文件；隐藏/卸载停止。旧固定快照保持不变。
+Coding 写了文件、Git 移动了工作区，都会发事件；宿主执行完本项目里任何插件发起、人批准的工作区操作（BL-379），或 Agent 经人批准写了本项目的工作目录（BL-366），也广播 `host.workspace.changed@1`；项目设置里增、修、删工作目录或换浏览目录同样广播（`cause: "workspace-settings"`），宿主还在项目平台经网页入口头一次被打开时补发一次（`cause: "project-opened"`，补上平台没在运行时错过的设置变化，BL-521）。Files 对每个 `cause` 一视同仁，不在 `start()` 里读浏览目录（注册、发现、启动不读业务能力）。订阅的几种见 `src/manifest.ts` 的 `events.subscribes`。Files 在事件回调里先过 `beforeEffect()`，重新确认一次浏览目录（换了目录就作废旧目录的快照输出，BL-366），再调 `services.ui.invalidate()`，推自己这个安装的视图 revision（PG-061）。Files 没有会调它的定时器或监听器，所以停用以后不会再推（BL-411）。可见客户端只在首次进入、revision 变化或重连时重新读取目录与当前文件；隐藏/卸载停止。旧固定快照保持不变。

@@ -9,7 +9,7 @@ import { shownState } from "./connector-refresh-refusals.js";
 // Which of the person's accounts a plugin installation's connection slot uses (`services.connections`, S0b-2, S-57). Only the person
 // binds: the audience is `user`, so neither a plugin page nor an Agent nor MCP can choose the account a plugin sends requests with.
 // The slot's declaration is checked when the plugin sends (its Manifest's slot and service), so a binding for a slot the
-// installation does not declare is never used. Version 2 binds a `per_record` slot (S-72 provisional): one account for one of the
+// installation does not declare is never used. Version 2 binds a `per_record` slot (S-70 provisional): one account for one of the
 // plugin's records, in the caller's project, and only for an installation of that project (or the Home's) that declares the slot so.
 
 const slot = {

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, observeReviewSettlements, openProjectVersionStores, type ReviewSettlement } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, observeReviewSettlements, openProjectVersionStores, type ReviewSettlement } from "@molis-ai/molis-work-app-local-host";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -25,7 +25,7 @@ test("committed SDK receipts notify real project consumers once; history, other 
   const base = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user" };
   const ports = { ...base, observeReviewSettlements: (listener: (settlement: ReviewSettlement) => void) => observeReviewSettlements(queue, DEMO_PROJECT_ID, listener),
     escapeHtml: String, translate: (value: string) => value };
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://fixture"), ports, codingRouteHooks)
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://fixture"), ports)
     .then(handled => { if (!handled) { response.writeHead(404); response.end(); } }).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();assert.ok(address && typeof address !== "string");

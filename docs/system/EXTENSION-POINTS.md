@@ -28,20 +28,20 @@ git grep -l -E '@molis-ai/molis-work-plugin-text-stats|plugins/native/text-stats
 git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json ':!*.md'
 ```
 
-第一条得到 7 个文件（包依赖与装配）。第二条得到 5 个，其中 `coding-surface.ts` 与第一条重复，另有 4 个按名字登记的位置（见 3.1），合计 11（W4-03 删掉默认连线表之前是 12）。
+第一条得到 7 个文件（包依赖与装配）。第二条得到 4 个按名字登记的位置（见 3.1），合计 11 个里去掉 `coding-surface.ts`（PG-036 C9 已删，伙伴页由各插件自己的舞台声明画）后是 10（W4-03 删掉默认连线表之前是 12）。
 
 ## 2. 总表
 
 | # | 方向 | 现在 | 目标 | 靠什么到目标 |
 | --- | --- | --- | --- | --- |
-| 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（另有 2 处按需；外加 2）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（外加 2）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
+| 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（外加 2）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（外加 2）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
 | 2 | 第三方插件 | 改本仓库 0 处，但用户今天装不上 | 0；平台新增 4 件 | THIRD-PARTY-PLUGINS.md（信任模型已定，方案未实现） |
 | 3 | 服务集成 | token 型 1；公开来源型 5–7；自带 OAuth 型 12 | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
 | 4 | AI 能力、Agent 角色、提示词 | 已有插件 0；新 Runtime 插件 +1；系统级 2 | 0 / 0 / 2 | W3-06（`services.model`） |
 | 5 | 动作与消费场景 | 0 | 0 | 已达到 |
 | 6 | 设置分区 | 插件自带 0；宿主自有 9（含项目页 11） | 0 / 2 | 无切片，建议并入 W5-02 |
 | 7 | 底栏、侧栏、标题栏入口 | 底栏 0（落在「更多」）+ 分组或常驻 1；侧栏 0；标题栏新增一种状态项 4–6 | 0 / 0 / 0 / 2 | 分组与常驻靠 W5-02；标题栏无切片 |
-| 8 | 搜索来源 | 0–1 | 0 | W5-02 |
+| 8 | 搜索来源 | 0 | 0 | 已达到（W5-02、W5-06 余项） |
 | 9 | 记忆作用域 | 10 | 3 | 无切片，建议并入 W4-08 的边界规则 |
 | 10 | 新 Module | 6（有项目库表 7） | 4 | X-1（包登记生成）；表登记靠 W4-11、X-5 |
 | 11 | 新横向服务 | 6 | 4 | 同上 |
@@ -56,7 +56,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 **怎么加**：新的内置插件只走 Plugin Runtime（`AGENTS.md` 硬约束；门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。步骤在 `skills/molis-plugin-dev/host.md`「内置插件：经 Plugin Runtime 装配」：包 `plugins/native/<id>`（Manifest、动作、界面贡献、客户端、`en.ts`）、监督器条目、包自己的 `src/registration.ts`（目录条目，`builtin-plugins.ts` 由 `node scripts/generate-plugin-registry.mjs` 生成）。HTTP 由 Manifest `routes` 声明，挂在 `/api/plugins/<plugin_id>/`，不写 `apps/local-host/src/<插件>-native-plugin-http.ts`。
 
-**现在要改**（包外 11 处，另 2 处按需，外加 2）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；门禁名单和 SSOT 行是两端都要的外加项，不计入 11。一个带自己舞台页的新插件，把 `coding-surface.ts`、`demo-plugin-seed.ts` 两项换成舞台渲染的两处和英文词典，数字是 12。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
+**现在要改**（包外 11 处，外加 2）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；门禁名单和 SSOT 行是两端都要的外加项，不计入 11。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
 
 | 栏 | 文件 | 要做什么 |
 | --- | --- | --- |
@@ -70,17 +70,15 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 名单 | `packages/design-system/src/icons.ts`、`packages/design-system/src/primitives/catalog.ts` | `PLUGIN_ICON`、`PLUGIN_NAMES`，只进 `/__ui/catalog` 的图标清单 |
 | 外加 | `tests/builtin-plugin-assembly-gate.test.ts` | `RUNTIME_ASSEMBLED` 加一行 |
 | 外加 | `docs/SSOT-MATRIX.md` | 一行 owner |
-| 按需 | `apps/workbench/src/immersive-shell.ts` | `RAIL_TOOL_GROUPS` 分组；不改则落在插件切换器的「更多」（底栏右侧只有侧栏按钮，侧栏的格见 `apps/workbench/src/side-panel.ts`） |
-| 按需 | `apps/workbench/src/scripts/client/global-search.ts` | `SEARCH_ITEM_TAB_SURFACES`，命中结果按标签打开某个对象时才需要 |
 
-Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `coding-surface.ts`（宿主里写死的伙伴页渲染分支）、`demo-plugin-seed.ts`。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
+Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `demo-plugin-seed.ts`（原来还有 `coding-surface.ts`，宿主里写死的伙伴页渲染分支，PG-036 C9 已删）。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
 
 **个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 已不靠宿主里手写的文件接上 Home 数据：它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的（`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住），S4 删了 `shelf-actions.ts`，演示数据的示例由宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回；按第 1 节同一条命令换成 shelf，包外仍有 17 个源码或配置文件点名它。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
 
 **目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
 
 - W3-06：模型服务、Home 库服务、Home 级 Runtime 实例（2026-10-07 已定：个人插件装在一个 Home 级实例，按项目启用照旧，数据留在 `{home}/<id>/<id>.db`）。Home 级实例已经有了：Issue 插件（#396）在目录条目（现在是它自己的 `registration`）上声明 `runtime: { scope: "home" }`，宿主的 `home-plugins.ts` 装配它；W3-06-F 复用这个实例（spec §1 2026-10-12），登记位置按用户 2026-10-14 的决定写进 `AGENTS.md`。
-- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts` 和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。
+- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts`（PG-036 C9 已删）和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。
 - W5-02：目录、监督器列表、设计系统名单、搜索标签面、分组与常驻提示都由各包的声明生成。
 - W5-06：声明式贡献挂载，取代每个插件一套的渲染接线。
 - **X-1（4.3）**：应用的 `package.json` 依赖和根包依赖由脚本生成。路线图第 4.6 节的普查已经把「应用的 package.json 依赖」列进声明式注册该生成的东西（`specs/repository-anti-corruption/roadmap-2026-10-07.md` 第 607 行），W5-02 的切片描述却没有写它。没有 X-1，目标是 4（`scripts/workspace-packages.mjs` 加三个 `package.json`），不是 1。
@@ -136,7 +134,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 | 场景 | 现在 | 文件 |
 | --- | --- | --- |
-| 插件自己的设置页 | 0 | Manifest；图标取视图的 `icon`，缺省为 `settings`（`plugin-settings-catalog.ts` 的 `PLUGIN_SETTINGS_ICONS` 可选） |
+| 插件自己的设置页 | 0 | Manifest；图标取 `settings` 视图的 `icon`，没写或宿主不认识这个图标名时为 `settings`（W5-06 第 2b 片，宿主不再有图标表） |
 | 宿主自有的全局分区（以「记忆」为例） | 9 | `settings-sections.ts`（`HOST_SECTIONS`）、`settings-renderer.ts`、`settings-directory.ts`、`settings-navigation.ts`、`plugin-settings-catalog.ts`（`isHostGlobalSettingsSection`）、`scripts/client/settings-directory.ts`、`page-assets.ts`、`scripts/settings.ts`、`apps/local-host/src/web-goals-read.ts`（路由到分区） |
 | 同时有项目版 | +2 = 11 | `project-settings-pages.ts`、`project-settings-folds.ts` |
 
@@ -151,7 +149,8 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 入口 | 现在 | 说明 |
 | --- | --- | --- |
 | 底栏插件切换器 | 0 | `navigator` 视图加目录条目的 `summary`（`pluginMarketCards()` 只收有 `summary` 且有 `navigator`/`island` 视图的条目）；没有分组的插件落在「更多」（`immersive-shell.ts` 注释：adding a Plugin never edits the shell） |
-| 分组、默认固定 | 1 | `apps/workbench/src/immersive-shell.ts` 的 `RAIL_TOOL_GROUPS`；`DOCK_DEFAULT_PINS` 在 `plugin-catalog.ts`，只有 4 个核心插件 |
+| 分组、默认固定 | 0 / 1 | 分组：`navigator`/`island` 视图的 `group`（`advance`、`make`、`personal`、`research`、`code`，W5-06 第 2b 片），宿主只管组名与顺序；默认固定：`DOCK_DEFAULT_PINS` 在 `plugin-catalog.ts`，只有 4 个核心插件 |
+| 新建入口、项目首页起点 | 0（页面改读声明以前是 3：`goal-inputs-html.ts`、`scripts/client/placement.ts`、`scripts/client/project-home.ts` 里各有一张手写的表，③ 接上后删） | 同一个视图的 `creates`（指向本 Manifest 里能新建的工作流内容站，默认标题为「未命名」加 `title`）与 `start`（`title`、`hint`，可选 `icon`），工作台经 `creatableKinds`、`homeStarts`（`plugin-catalog.ts`）读 |
 | 侧栏标签 | 0 | `side` 视图，贡献的目标槽是 `workbench.side`；插件启用才出现 |
 
 **打开插件时落在哪里由声明决定**（W2'-2）：`?openPlugin=`、搜索命中的 `open.surface`、助理通知与放置卡片的 `open`、页面里各处的「打开某插件」都只说是哪个插件（和可选的条目 id），不说位置。工作台在一处（`apps/workbench/src/plugin-catalog.ts` 的 `sideOpenedPlugins`，页面一侧 `apps/workbench/src/scripts/client/plugin-place.ts`）按声明决定：界面有工作区界面（`workbench.main` 或 `workbench.directory`）的在工作区打开，和以前一样，即使它也有 `side` 视图；只有 `side` 视图的打开它的侧栏格，条目 id 原样交给那个视图（`molis-work:select-item`），工作台不解释。所以加一个只住在侧栏的插件不用改任何打开它的地方，存着的链接与 `open` 也不用迁移。
@@ -163,7 +162,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 **怎么加**：每种对象一个读取器（`defineSubjectContextAction`），再声明一个搜索来源（`defineSearchEntriesAction`）；宿主从动作目录读 `search_source`，插件不写索引（`skills/molis-plugin-dev/search.md`，`docs/platform/PLUGIN-DEVELOPMENT.md`「系统搜索」）。
 
-**现在：0–1。** 索引和发现都是声明驱动；命中后怎么打开：目录条目的 `workbench.searchRow`（条目本来就要写，不另计），或把插件的 surface 加进 `apps/workbench/src/scripts/client/global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES`（现有 10 项）。**目标：0**，由来源声明的 `open: { surface, id }` 推出（W5-02）。另有一个已知缺口 BL-040：生成插件不能声明搜索来源。
+**现在：0。** 索引和发现都是声明驱动；命中后怎么打开也是：目录条目的 `workbench.searchRow`（条目本来就要写，不另计），或在打开舞台的 Manifest 视图上声明 `accepts_objects: true`（按标签打开对象；W5-06 余项以前要把插件加进 `global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES`，现在那里只保留平台自己的成果，Sessions 入口已由 SC-4 移除；这份名单读构建期的内置目录，开发中与第三方插件的声明还进不来，见 BL-388）。另有一个已知缺口 BL-040：生成插件不能声明搜索来源。
 
 ### 3.9 记忆作用域
 

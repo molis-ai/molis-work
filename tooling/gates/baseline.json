@@ -1,5 +1,5 @@
 {
-  "giantUnits": 97,
+  "giantUnits": 90,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1842,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -31,7 +31,6 @@
       "methods": 41
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 217,
-    "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 154,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 179,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 176,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
@@ -45,13 +44,8 @@
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 185,
-    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 440,
-    "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
-    "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
+    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
-    "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 185,
-    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
-    "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
     "file horizontal/agent-host/src/adapters/prologue.ts": 965,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
@@ -142,7 +136,7 @@
       "lines": 455,
       "methods": 26
     },
-    "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
+    "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 173,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 151,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
@@ -181,7 +175,6 @@
     },
     "file plugins/native/shelf/src/client.ts": 1641,
     "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 233,
-    "file plugins/native/workflows/src/client.ts": 1329,
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013,
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 178,
     "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 168,
@@ -189,7 +182,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 423,
+  "testInternalImports": 422,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -358,7 +351,7 @@
     "tests/project-settings-stage.test.ts": 3,
     "tests/prologue-checkpoints.test.ts": 1,
     "tests/prologue-compaction.test.ts": 1,
-    "tests/prologue-git.test.ts": 2,
+    "tests/prologue-git.test.ts": 1,
     "tests/prologue-inference-native.test.ts": 2,
     "tests/prompt-registration.test.ts": 2,
     "tests/release-assets.test.ts": 3,
@@ -410,7 +403,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 112,
+  "emptyCatchesInScriptsTotal": 110,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -455,8 +448,7 @@
     "plugins/native/plugin-builder/src/agent-studio.ts": 3,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/reading-client.ts": 1,
-    "plugins/native/shelf/src/settings-client.ts": 1,
-    "plugins/native/workflows/src/client.ts": 2
+    "plugins/native/shelf/src/settings-client.ts": 1
   },
   "oldNamesTotal": 3,
   "oldNames": {
@@ -464,7 +456,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "scriptConstantsTotal": 120,
+  "scriptConstantsTotal": 119,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -552,13 +544,12 @@
     "plugins/native/goals/src/refresh-client.ts": 1,
     "plugins/native/goals/src/relation-client.ts": 5,
     "plugins/native/goals/src/tree-client.ts": 7,
-    "plugins/native/pages/src/client.ts": 1,
     "plugins/native/schedule/src/client.ts": 1,
     "plugins/native/shelf/src/client.ts": 1,
     "plugins/native/shelf/src/result-client.ts": 1,
     "plugins/native/shelf/src/settings-client.ts": 1
   },
-  "rawFetchInScriptsTotal": 32,
+  "rawFetchInScriptsTotal": 29,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
@@ -569,13 +560,10 @@
     "plugins/native/coding/src/settings-client.ts": 1,
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
     "plugins/native/coding/src/client.ts": 1,
-    "plugins/native/pages/src/client.ts": 1,
-    "plugins/native/pages/src/import-client.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 2,
     "plugins/native/schedule/src/client.ts": 3,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/result-client.ts": 1,
-    "plugins/native/workflows/src/client.ts": 1,
     "plugins/native/shelf/src/settings-client.ts": 4,
     "packages/im-ui/src/browser/transport.ts": 1
   },
@@ -651,22 +639,20 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 1,
-  "hybridPlugins": {
-    "coding#host-files": 1
-  },
-  "pluginOutsideMentionsTotal": 276,
+  "hybridPluginsTotal": 0,
+  "hybridPlugins": {},
+  "pluginOutsideMentionsTotal": 270,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 11,
     "artifacts#outside-files": 19,
-    "coding#outside-files": 12,
+    "coding#outside-files": 10,
     "cognia#outside-files": 6,
     "dataset#outside-files": 7,
-    "diff#outside-files": 8,
+    "diff#outside-files": 7,
     "feed#outside-files": 35,
-    "files#outside-files": 8,
+    "files#outside-files": 7,
     "form#outside-files": 7,
-    "git#outside-files": 8,
+    "git#outside-files": 7,
     "goals#outside-files": 33,
     "images#outside-files": 6,
     "inbox#outside-files": 17,
@@ -678,7 +664,7 @@
     "ppt#outside-files": 7,
     "schedule#outside-files": 11,
     "shelf#outside-files": 12,
-    "text-stats#outside-files": 7,
+    "text-stats#outside-files": 6,
     "todo#outside-files": 7,
     "workflows#outside-files": 7
   },
@@ -996,7 +982,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 468,
+  "explicitAnyTotal": 466,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1115,7 +1101,6 @@
     "tests/prologue-checkpoints.test.ts": 4,
     "tests/prologue-compaction-continue.test.ts": 1,
     "tests/prologue-compaction.test.ts": 8,
-    "tests/prologue-git.test.ts": 2,
     "tests/prologue-inference-images.test.ts": 2,
     "tests/prologue-inference-native.test.ts": 1,
     "tests/prologue-materials.test.ts": 5,
@@ -1143,9 +1128,8 @@
     "tests/workspace-plugin-graph.test.ts": 2,
     "tests/writer-integration-host.test.ts": 1
   },
-  "consoleCallsTotal": 21,
+  "consoleCallsTotal": 19,
   "consoleCalls": {
-    "apps/local-host/src/assistant/assistant-http.ts": 2,
     "apps/local-host/tooling/pack-npm.mjs": 1,
     "examples/seed-demo.mts": 3,
     "server/public/preview.mjs": 1,

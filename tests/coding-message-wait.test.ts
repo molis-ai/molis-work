@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, handleProjectPluginHttp, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration, type AgentCollaborationCondition, type AgentCollaborationWait, type AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -81,6 +81,7 @@ test("a round that ends waiting on an answer or a background command waits as th
     }
     if (id === agent.waitRun.capability_id) return { version: "v1", view: { ref: input[1], phase: "completed", frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] } } as Output;
     if (id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue", capabilities: { mcp: "unsupported" } }] as Output;
+    if (id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
     if (id === agent.readSessionStatuses.capability_id) return input[1].map((session_id: string) => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
     if (id === agent.listSkills.capability_id) return [] as Output;
     if (id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
@@ -91,7 +92,7 @@ test("a round that ends waiting on an answer or a background command waits as th
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: agentHost,
   });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = async (path: string, body?: unknown) => {

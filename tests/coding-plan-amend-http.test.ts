@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -35,7 +35,7 @@ test("plan changes are checked, applied through the Host's revise action, and to
       if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "running", step_board: board } as O;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } } });
-  const server = createServer((req, res) => { void handleProjectPluginHttp(req, res, new URL(req.url!, "http://localhost"), withFakeAgentHost(host()), codingRouteHooks).catch(error => { res.writeHead(500); res.end(String(error)); }); });
+  const server = createServer((req, res) => { void handleProjectPluginHttp(req, res, new URL(req.url!, "http://localhost"), withFakeAgentHost(host())).catch(error => { res.writeHead(500); res.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const post = async (body: unknown, run = "r") => { const result = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/app/runs/${run}/plan-amendments`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); return { status: result.status, body: await result.json() }; };

@@ -1,6 +1,6 @@
 # PG-031 另一半：平台入口不再从 Goals 插件包 import 动作
 
-状态：已实现，待 PR 合入（2026-10-24，防腐线 ac-kernel）。统筹 10-24 裁定用 contracts 描述符、不走目录查找（第 2 节「裁定」）。做的是 `privileges.md` PG-031 里「CLI 和 MCP 经动作目录调用，去掉 import」那一半；Goals 管理调用的提供方那一半是 BL-501（#1207，已随 batch-28 合入）。代码按 main `9ed0e7a5c` 核过。
+状态：已合入 main（#1218，随批 PR #1224，`112114f23`，2026-10-24，防腐线 ac-kernel）。统筹 10-24 裁定用 contracts 描述符、不走目录查找（第 2 节「裁定」）。做的是 `privileges.md` PG-031 里「CLI 和 MCP 经动作目录调用，去掉 import」那一半；Goals 管理调用的提供方那一半是 BL-501（#1207，已随 batch-28 合入）。代码按 main `9ed0e7a5c` 核过。
 
 ## 1. 要解决的
 

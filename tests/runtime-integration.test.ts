@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   MolisWorkLocalHost,
   RuntimeIntegrationService,
+  readRuntimeConfigBackup,
   type RuntimeIntegrationServiceOptions,
   type SupportedRuntimeId,
 } from "@molis-ai/molis-work-app-local-host";
@@ -306,7 +307,7 @@ test("Codex first and repeated connection preserve unrelated TOML and create a b
 
     assert.equal(result.status, "connected");
     assert.ok(result.backup_path);
-    assert.equal(await readFile(result.backup_path!, "utf8"), before);
+    assert.equal((await readRuntimeConfigBackup(fixture.home, result.runtime_id, result.plan_id)).contents, before);
     const after = await readFile(config, "utf8");
     assert.match(after, /private_note = "KEEP-ME"/);
     assert.match(after, /\[mcp_servers\.other\][\s\S]*command = "other-mcp"/);

@@ -11,7 +11,7 @@ import { withConnectorRequest } from "./connector-lifecycle.js";
 import { shownState } from "./connector-refresh-refusals.js";
 import { sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from "./public-https.js";
 
-// The Host's side of a plugin's `services.connections` (S0b-2, security invariants S-57 and S-64): which account a slot is bound to, the
+// The Host's side of a plugin's `services.connections` (S0b-2, security invariants S-57 and S-68): which account a slot is bound to, the
 // credential, the origins it may reach and the transport. The runtime client (packages/plugin-runtime `createPluginConnectionsClient`)
 // has already checked the call, the permission, the slot and the request's shape before anything reaches here.
 
@@ -40,7 +40,7 @@ export function forgetInstallationProjectBindings(home: string, install_id: stri
   if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.forgetInstallationProjectBindings(install_id, project_id));
 }
 
-/** A target's scope: an installation slot's, or a `per_record` slot's, which is also the call's project's and the record's (S-72 provisional). */
+/** A target's scope: an installation slot's, or a `per_record` slot's, which is also the call's project's and the record's (S-70 provisional). */
 export function targetScope(target: Pick<PluginConnectionTarget, "install_id" | "project_id" | "record_key">): string {
   return target.project_id === undefined && target.record_key === undefined ? pluginSlotScope(target.install_id)
     : pluginBindingScope({ install_id: target.install_id, project_id: target.project_id!, record_key: target.record_key! });
@@ -65,7 +65,7 @@ export interface PluginConnectionsPortOptions {
  * Requests reach only the slot's service origins, exactly. An unbound slot sends nothing but what the plugin wrote; a bound slot whose
  * account is gone, disabled, disconnected, of another service, pinned to another of the service's origins, or of a kind whose secret the Host cannot send,
  * is refused rather than sent without it. The person's credential is added here and nowhere else, and redirects come back unfollowed.
- * A 401 to a credential the Host can refresh (S-73 provisional: the service's `refresh: "host"` and an OAuth connection) is refreshed once
+ * A 401 to a credential the Host can refresh (S-69 provisional: the service's `refresh: "host"` and an OAuth connection) is refreshed once
  * and the same request sent once more; a second 401 goes back to the plugin as it is, and a refresh that fails refuses the request.
  */
 export function createPluginConnectionsPort(home: string, options: PluginConnectionsPortOptions = {}): PluginConnectionsPort {

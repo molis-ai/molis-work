@@ -2808,3 +2808,16 @@ P1 修正验证（2026-10-25）：新增公开包回归在旧构建上 12 项中
 本片结果：新增四项公开入口真实文件交错回归在 9b dist 全红，修复后全绿；原 13 项路径/密钥边界、9 项 file-control 与 30 项 Search 同轮保持通过。原独立脚本的正确期望版也确认三个目录主人只删原 target、source 不变。两个受影响包 README 必跑并集与实际 owner 影响面共 74 文件，已通过的三份专项不机械重跑，剩余 71 文件按 jobs2/browser1/retries0 运行，70 文件通过；唯一失败仍为准确父已有的 `verify-release-versions.test.ts` 21/22（发布清单仍指旧 `text-search-index.ts#SCHEMA_VERSION`）。这些文件及版本指针相对 9b 未改，本片不越界修它。连同 Search 额外回归，共 75 个不同文件、693/694 项通过，不能写成整批通过。
 
 固定 Node 24.14.0 的原整体 `pnpm build` 经机器 FIFO 通过；现构建上的 boundary 返回 errors=[]，新增测试 strict TypeScript 和 `git diff --check` 通过。health 对准确父 9b 仅报告原有 projects/Memory 两份 API 快照缺口，本片未改合同、快照、规则或阈值，仍交统筹聚合处理。日志前缀 `/private/tmp/molis-file-owner-directory-interleaving-`：`red-20261025.log`、`build-20261025.log`、`green-20261025.log`、`final-test-20261025.log`、`readme-20261025.log`、`boundary-20261025.log`、`types-20261025.log`、`health-20261025.log`；独立正确期望脚本与日志为 `/private/tmp/molis-file-owner-async-rm-secure-20261025.{mjs,log}`。工程证据只支持关闭本片已复现的 JavaScript 交错窗口，未作真实 Home、完整恢复或用户体验验收。
+
+
+### SDK #106 与文件主人主干交集集成（2026-10-25）
+
+Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私库本地验证流程合并，正式 merge 为 `b54429dbf43e8f9f8f4b910999674c192077c247`。Molis 使用该干净树原 pack 的 1,391,846 B 归档，810 个 dist 文件逐项与已验证 SDK 构建一致；来源、SHA、lock 与历史包记录已同步，仍只有原两个 vendor 归档，没有 vendor 补丁或公开发布。冻结离线安装通过。父 Home owner 借用与 SDK/lease 关闭失败的原资源重试已接入，采用状态只在 SDK 关闭成功后、仍持原 owner 时发布。
+
+聚合 `90bf56b7c` 的原完整 build、根类型、准确 main64a health、boundary 与 72 份 API 快照通过。12 个相关文件的最终有效结果为 286 项通过：11 文件 208 项首次通过，vendor 来源检查首轮 77/78 因测试还固定旧 #102 的提交号失败，按已合并 #106 的真实身份同步四个期望后单文件 78/78，通过不依赖重试。原失败、SQLite 侧车正负对照和 Node 24.14 日志保留在 `/private/tmp/molis-memory-sdk106-parent-aggregate-*-20261025.log`。测试临时目录已改为系统 tmpdir，避免 Linux 使用 macOS 专属目录。原完整生产构建未因测试与记录修改机械重复。
+
+文件主人 `6dd0614ea` 合入后的准确生产聚合为 `030361c3620d74d77b45e9a4b7dd267caec8d7c8`。六处合并交集保持新主干的 Home 业务存在检查、Images 本地合同、Artifacts 薄删除声明和新增连接器主人；仅将原控制/物理目标保护接回对应职责，不恢复已迁出的读写实现。独立静态复核未发现交集削弱；原独立实际目录交错、静态链接和双进程密钥撤权探针已验证候选。聚合冻结离线安装、整体 build 与七文件 110 项实际回归通过，包括原目录交错 4、文件边界 13、控制 9、Search 30、Catalog 目标恢复 17、项目删除服务 15、发布版本 22。旧分支发布清单指针失败在当前聚合已有正确指针，不修改门禁或断言。日志 `/private/tmp/molis-memory-file-owner-aggregate-{install,build,direct}-20261025.log`。
+
+主干新增 `plugin-connections` 主人不在旧文件主人分支中，统筹另作真实交集诊断，确认现有 `forgetProjectConnectionBindings` 未接 maintenance control：数据库软链接可误删 source 所选绑定；已有零字节库会被普通开库初始化；真实 SQLite 等锁期间撤权仍会提交后才在外层拒绝。反例 `/private/tmp/molis-plugin-connections-maintenance-probe-20261025.{mjs,log}` 保留，必须沿原 Storage/Connector 主人修复，不能将前述七文件通过解释为所有文件主人完成。该项及完整 MEM-40 组合、单 Session 业务副本、最终产品旅程、真实质量/token 对照与用户验收仍未完成。
+
+当前 #1064 基础为 `e801b45e8a286e2b8b0a2bdcefd5625ec9f15a07`，普通 CI 已通过，Full suite 尚在运行。应用依赖基础先合，并继续集中在 #1101；Coding +1,333 B 与零模型 Knowledge 整理边界仍待原问题答复，资源门不放宽。新包与本次文件主人没有新增页面资源；原 Assistant +4,064 B 已按授权登记，不重复请求。旧 Cloudflare 首败影响与其他历史 UNKNOWN 保留。

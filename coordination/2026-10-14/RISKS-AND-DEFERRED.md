@@ -263,6 +263,7 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | R-56 | 新（10-25，batch-39 #1307）：FI-2 之后默认规则在宿主登记场景时才写入（`project-host.ts` 的 `seedSceneRules`）；全新 Home 在打开第一个项目之前，函数库里没有首页 Dock 等内置规则 | 首次启动、还没打开项目时，设置里的函数页是空的 | 正常使用必然先开项目，影响很小；测试已按此改成先写入（`6371db810`）。W6 产品走查时确认是否要在 Home 级登记宿主场景 | 统筹（W6 走查） | W6 |
 | R-57 | 新（10-25）：#1304（12 条独立 BL）在 18:14 由共用账号加进合并队列，统筹与 Codex PIPE 都还没做 FIRST（PIPE 17:51 还在请求评审）；它和 batch-38/39 共改 `page-assets.json`/`.mjs`、`BACKLOG.md`、`contracts/services/assistant.ts` 与两份工作台客户端脚本，绕开了 MERGE-QUEUE §1a 的同路径一起落 | 未经评审的改动进 main；batch-38/39 要在它之后重量页面资源、解冲突 | 按用户 10-17「绕过时事后审，并在 main 上补跑全量」：ac-review-2 事后评审（结论写 #1304）；batch-38 已在本地预合 #1304 并重建量 ceiling，#1304 落地后推；main 补跑全量随 batch-38 的全量一并看 | 统筹 | #1304 已落地（`4db89e26d`）；main 补跑全量由 batch-39 全量覆盖 |
 | R-58 | 新（10-25，PIPE #1300 6402400266）：Linux probe（manual CI 40219623393，batch-38 `1b7564176`）85 分钟预算在启动前耗尽，44 个文件 NOTRUN；另 `connector-managed-install` ASC-06/17 因 runner 缺 `uv`（`spawn uv ENOENT`）失败，与 #734 同一缺口；`jelly-native-material` 3 项 skip，F16 RAC-427 的 Linux non-skip 缺口未关 | probe 显示绿但 Linux 覆盖不完整，NOTRUN 与 skip 容易被读成通过 | 不把 probe 绿当 Linux 全过；uv 缺口由 Codex（#734 线）先核重复与权限边界，不借此恢复 #734、不放宽门禁；44 NOTRUN 的处理（拆 probe 分片或缩名单）改 CI，W6 收尾前先问用户；RAC-427 逐项原件由 Codex TEST 交 | 统筹（NOTRUN、问用户）、Codex（uv、RAC-427） | W6 收尾 |
+| R-59 | 新（10-25，batch-40 全量归因）：W5-16 的 `snapshotFileStat` 要求 `realpathSync(file) === file`，Home 路径上任何一级是链接都会被拒，Home 快照和 `uninstall --purge` 都会停。macOS 的 `tmpdir()` 在 `/var -> /private/var` 后面，测试已改用真实路径。真实 Home 默认在 `~/.molis-work`，平常没有链接；但用户的家目录或 Home 若经过链接（迁移盘、同步目录），会看到「快照文件不是稳定的普通文件，或带有链接」，看不出原因 | 用户的 Home 路径有链接时，快照和清除都做不成，提示也看不懂 | 未改：要么入口（CLI、宿主）把 Home 先解析成真实路径再往下传，要么只拒最后一级是链接的。动 S-11 的边界，改前先定 | 统筹 → Codex W5-16 原作者 | 交 Codex 修复队列；W6 收尾前定 |
 
 ### SDK104 事后 FIRST 建议的逐项接续（PIPE）
 
@@ -275,4 +276,3 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 评审末段建议过渡包加入104、provenance记main：**本次不采用**，与现行only103窄WO冲突。过渡源必须记真实2c7+final103及显式最小port固定头；dcaa参考包/main f175均不是该过渡来源。该处理保留Root裁定与后续明确范围变更入口，不用review建议替换人类/统筹工单。
 
 本节实际接续也已公开至 SDK104 的PIPE评论6395597509；bridge最终源交付见 Molis1267/6395547824。源ba交付不冒包、Molis采用或restore完成。
-| R-59 | 新（10-25，batch-40 全量归因）：W5-16 的 `snapshotFileStat` 要求 `realpathSync(file) === file`，Home 路径上任何一级是链接都会被拒，Home 快照和 `uninstall --purge` 都会停。macOS 的 `tmpdir()` 在 `/var -> /private/var` 后面，测试已改用真实路径。真实 Home 默认在 `~/.molis-work`，平常没有链接；但用户的家目录或 Home 若经过链接（迁移盘、同步目录），会看到「快照文件不是稳定的普通文件，或带有链接」，看不出原因 | 用户的 Home 路径有链接时，快照和清除都做不成，提示也看不懂 | 未改：要么入口（CLI、宿主）把 Home 先解析成真实路径再往下传，要么只拒最后一级是链接的。动 S-11 的边界，改前先定 | 统筹 → Codex W5-16 原作者 | 交 Codex 修复队列；W6 收尾前定 |

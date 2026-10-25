@@ -2637,3 +2637,9 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 首败保留：首次 build 的 preparation revision 字面量类型不匹配已修正；第一次冷测试9例故障钩子使用 `/var` 路径，未命中 SDK canonical `/private/var`，改为 realpath 后实际命中，原拒绝/持久断言未删；未选 wait fixture 先只有 dispatching 而非 running，现用独立 running node 装真实 wait；影响面命令曾误写不存在的 authority 文件，正确现役文件已补跑，其他20文件未机械重跑。对应 `build`、`direct`、`direct-fixed`、`impact` 首败日志保留，不称所有尝试一次全绿。
 
 本片只完成已具可信 Index/owner 的目标 Session 前置；缺 Index 的跨主人联结与明确拒绝仍是完整 MEM-40 验收的一部分。source 全覆盖、Memory/Ledger/Catalog 完整恢复、最终集成全量/干净包/API 快照、真实 Home、付费模型、产品实操和用户验收均未由此片完成。只本地提交交统筹合回 #1101，不推送、不另建 PR。
+
+统筹集成与独审补记：540549fa 已合入聚合 acca61f7a，生产无冲突，spec 两侧追加完整保留。独立公共构建入口八组真实 Node/SQLite 探针通过，覆盖伪完成、SDK 已完成后撤权/关闭、原决定重开、同 Session 并发、固定集合及在线 archive/unarchive/prepare/purge；模型/网络均零，报告 `/private/tmp/molis-memory-cold-session-purge-independent-review-20261025.md`。作者 impact 命令因误填一个不存在文件整体失败，20 个实际文件145项有效；随后补真实 authority13项等结果，不能把原 impact 命令写成整体成功。
+
+准确聚合原整体 build、根类型、准确 d08 health、boundary 与 API 检查通过；API update 无快照变化（本次出口不是 contracts/plugin-sdk 快照面）。统筹复验五文件98/98、零重试/跳过，含冷清除、Memory当前权限、项目原计划/恢复及采用。首验证脚本最后误用不存在的 `pnpm api:check` 导致命令 exit1，此前五文件/types/health/boundary均已通过；改用现役 `node scripts/gates/api-snapshot.mjs` 单独通过，未无变化重跑已通过部分。日志 `/private/tmp/molis-memory-cold-session-aggregate-{build,direct,types,health,boundary,api-final,secrets}-20261025.log`。
+
+27资源仍为7,630,892 B，与前聚合逐项相同；正式资源门仍只拒绝待批 Coding +1,333 B（373,423→374,756），未登记额外额度。全分支 secrets 通过，远端 main 仍3817f8757。本轮继续推入既有 #1101，不新增 PR；完整源联结、业务清除、MEM-40及最终全量/产品/用户验收尚未完成。

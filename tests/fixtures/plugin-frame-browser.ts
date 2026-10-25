@@ -147,6 +147,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       await browser.command("Input.dispatchMouseEvent", { type: "mouseMoved", ...position }, browser.sessionId, remaining());
       movedTo = position;
     };
+    const failures: unknown[] = [];
     try {
       // Open the containing menu and hover the actual row before checking the final hit target.
       const hover = await evaluate<{ x: number; y: number } | null>(`(()=>{
@@ -199,16 +200,22 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       }
       throw new Error("Input was not delivered to plugin frame: " + target + "; covered=" + JSON.stringify(covered));
     } catch (error) {
-      if (Date.now() >= deadline) throw new Error("Input was not delivered to plugin frame within 10000ms: " + target, {cause:error});
-      throw error;
+      const failure = Date.now() >= deadline ? new Error("Input was not delivered to plugin frame within 10000ms: " + target, {cause:error}) : error;
+      failures.push(failure);
+      throw failure;
     } finally {
-      // A destroyed context has already removed its listener. Always release the remote handle as well.
+      // A destroyed context has already removed its listener. Attempt both cleanup steps without losing the input failure.
+      const inputFailures = failures.length;
       const cleanup = async (method: string, params: Record<string, unknown>) => {
         try { await browser.command(method, params, current.session, 1000); }
-        catch (error) { if (!/Cannot find context|Cannot find object|Could not find object|Session with given id not found|Target closed/.test(String(error))) throw error; }
+        catch (error) { if (!/Cannot find context|Cannot find object|Could not find object|Session with given id not found|Target closed/.test(String(error))) failures.push(error); }
       };
-      try { await cleanup("Runtime.callFunctionOn", {objectId, functionDeclaration:'function(){this.dispose();}'}); }
-      finally { await cleanup("Runtime.releaseObject", {objectId}); }
+      await cleanup("Runtime.callFunctionOn", {objectId, functionDeclaration:'function(){this.dispose();}'});
+      await cleanup("Runtime.releaseObject", {objectId});
+      if (failures.length > inputFailures) {
+        if (failures.length === 1) throw failures[0];
+        throw new AggregateError(failures, "Plugin frame operation failed", {cause: failures[0]});
+      }
     }
   }
   // Public coordinates are only a snapshot; click keeps its receipt alive while consuming them.

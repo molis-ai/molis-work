@@ -2,6 +2,10 @@
 
 状态：四单元源码拆分、定向工程验证与准确基线门禁完成，固定 PR 交 Claude 首评/独立 TEST/统一 full 与集成。Codex（实现 1）承接 C3 第二完整区域；Gmail 作者树保持冻结，后续增量归专职。C1 与 C3 整体未完成、原 owner 保留，本片不代表整线关闭。
 
+2026-10-24 首评维护增量（FIX6，基线 `8abab965c1f75bfb1ae1f695530a5d1a1312309f`，FIRST `6393236358`）：只处理三项非阻塞意见。IM 的滚动说明归回 `restoreScroll` 旁，以一行说明跟随、保存位置与重绘补偿，不改执行语句；函数仍在 150 行以内，序列化脚本可解析且不超过原 81,646 B 预算。Listener 的构造 options 只提为模块私有命名接口，字段、可选性和回调类型不变、不增加公开出口；投递辅助函数的依赖改为一个对象，保留原 options 引用、晚取时钟/cursor 回调、`beforeEffect` 的调用位置、Signal 回执后的写点及事务行为，持久化参数仅整理缩进。Placement 只去多余空行并把私有回调类型改称 `PlacementInstanceAccess`。
+
+本轮按 **RAC-129-LISTENER/PLACEMENT/IM** 核收：复用原 28 文件 205 项的原范围与原件，不重跑 Search 或完整集合；Listener 参数分组后跑既有接收者/撤权回执与 README 回归，Placement/IM 按修改风险及 README 验证。核 Listener options 的双向结构类型、公开出口不增加、Placement 执行代码等价、IM 下发脚本的执行 AST 等价、解析与字节预算，再做实际 merge-base health、边界、资源和推前 fresh-fetch/secrets。构建走公共单槽；不重做 FIRST、不另起 full、不改门禁或新增豁免，不扩到 PG-095 或其他公开合同。若来源已被 carrier 冻结，只交独立固定候选由 PIPE 吸收，不推进原分支。
+
 准确基线 `584112c65477baf907620d86657d1582d92e9eda`，独立 `feature/c3-horizontal-giants` 工作树。开工鲜核 199 个工作树，仅查四个目标目录，均无改动或未跟踪文件；24 个 open PR 的 23 个头与已核完整路径的头一致，增量鲜读 #1249 路径，四目录均无重叠。当前实际 AST 为 ListenerHost 361 行/18 方法、SearchService 392 行/25 方法、PlacementService 399 行/28 方法、createViews 162 行；其余单元不重做。现行上限：文件 800、类 300 行/25 方法、函数 150 行，不放宽、不加例外、不刷新公共 baseline 或预算。
 
 落生产源码前再次只核四目录：200 个实际工作树无 dirty owner，25 个 open PR 中 7 个新增/变头逐个鲜读完整路径，仍无实际重叠。带新增接收者/关闭交错断言的 14 文件 109 项先在原实现通过；IM 增加真实节点复用/焦点断言的原浏览器用例也在原实现 1/1 通过，再应用完整四单元拆分。

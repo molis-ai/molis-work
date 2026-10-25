@@ -315,7 +315,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         try {
           await api('plugin-slots' + (project ? '?project=' + encodeURIComponent(project) : ''), { ...JSON.parse(row.dataset.pluginSlot), connection_id: select.value || null });
           select.dataset.saved = select.value;
-          output(result, L(select.value ? '已保存，插件之后的请求用这个账号。' : '已解除，插件之后的请求不带凭据。'));
+          output(result, L(select.value ? '已保存，插件之后的请求用这个账号。' : 'tenant' in select.dataset ? '已解除，插件不能再请求这个服务。' : '已解除，插件之后的请求不带凭据。'));
         } catch (error) { select.value = select.dataset.saved || ''; fail(result, error); }
         finally { busy(select, false); }
       }));

@@ -238,8 +238,8 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // 统筹 10-25 认可，#1290 BL-350：服务连接里「插件用的账号」的行渲染与英文词典（+749 B，已省 86 B）。
-  "/assets/molis-work-workbench.js": [1124423, 1125172],
+  // 统筹 10-25 认可，#1290 BL-350：服务连接里「插件用的账号」的行渲染与英文词典（+826 B，已省 86 B；含租户型服务如实的说法与重新连接）。
+  "/assets/molis-work-workbench.js": [1124423, 1125249],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -100,3 +100,5 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
 `beginMemoryLedgerAdoption` 与 complete 共用现 change 事务的同步 assertCurrent：取得原 snapshot 后、实际 COMMIT 前都复核，异步 checker 或拒绝回滚该事务。原 origin/adopting、CAS 和库版本不变；SDK 失败后已提交的 adopting 保留。回归见 `tests/memory-adoption-maintenance.test.ts` 与 `tests/memory-ledger-adoption.test.ts`。
+
+`MemoryLedgerPort.ownerRelations()` 在同一 SQLite 读取中投影全部 owner 与候选账的身份关系，不交正文、标题或历史；候选索引/JSON 身份不一致及跨源同 owner 项目冲突明确拒绝。不改变 adoption snapshot 或授予 scope 权限。

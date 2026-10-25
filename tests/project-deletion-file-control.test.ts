@@ -11,7 +11,7 @@ import { projectDeletedHooksFor, purgeAssistantProject, AssistantStore, ASSISTAN
 import { clearInExistingHomeSqlite, createFileSecretStore, homeSqlitePath, homeSqlitePartitionDirectory, openBaselineHomeSqlite, openExistingBaselineSqlite,
   peekSealedEntry, runWithMolisWorkHome, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { PAGES_DATABASE } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 

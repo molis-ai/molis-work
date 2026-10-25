@@ -1,8 +1,6 @@
-import { createSessionBusinessPurgeOwner as composeSessionBusinessPurgeOwner, type SessionBusinessPurgeInput, type SessionBusinessPurgeOwner } from "./session-business-purge.js";
 import { scheduleServiceFor } from "./project-clock.js";
 import type { ProjectVersionStores } from "./project-version-stores.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { codingManifest, prepareCodingSessionPurge, clearCodingSessionPurge, verifyCodingSessionPurge } from "@molis-ai/molis-work-plugin-coding";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -196,10 +194,4 @@ function projectPluginEntries(ports: ProjectPluginPorts): PluginPlatformEntry[] 
 function currentWorkspaceId(ports: ProjectPluginPorts): string | null {
   const workspaces = ports.workspaces ?? [];
   return workspaces.length === 1 ? workspaces[0]!.workspace_id : null;
-}
-
-/** Assemble the original Coding rules for cold Session maintenance, without creating or activating a plugin. */
-export function createSessionBusinessPurgeOwner(input: SessionBusinessPurgeInput): SessionBusinessPurgeOwner {
-  return composeSessionBusinessPurgeOwner(input, { manifest: codingManifest, prepare: prepareCodingSessionPurge,
-    clear: clearCodingSessionPurge, verify: verifyCodingSessionPurge });
 }

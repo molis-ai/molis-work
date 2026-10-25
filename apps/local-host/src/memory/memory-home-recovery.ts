@@ -3,7 +3,8 @@ import type { MemoryHomeRecoveryDecision, MemoryHomeRecoveryRequest, MemoryHomeR
 export type { MemoryHomeRecoveryResult } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors } from "@molis-ai/molis-work-service-memory";
 import { inspectExistingStoragePath } from "@molis-ai/molis-work-storage";
-import { createSessionBusinessPurgeOwner } from "../project-plugins.js";
+import { createSessionBusinessPurgeOwner as composeSessionBusinessPurgeOwner, type SessionBusinessPurgeInput, type SessionBusinessPurgeOwner } from "../session-business-purge.js";
+import { codingManifest, prepareCodingSessionPurge, clearCodingSessionPurge, verifyCodingSessionPurge } from "@molis-ai/molis-work-plugin-coding";
 import { reconcileProjectDeletionHistory } from "../project-deletion-recovery-history.js";
 import { convert, profilesForAdoption, type MemoryHomeAdoptionResult } from "./memory-home-adoption.js";
 import { openMemoryHomeRecoveryFrame } from "./memory-home-recovery-frame.js";
@@ -111,4 +112,10 @@ export async function recoverMemoryHome(input: MemoryHomeRecoveryInput, platform
     await finishRecovery(frame, fixed, decision, source, targetFacts.coverage, platform, business);
     return { outcome: "completed", operation_id: fixed.operation_id, replayed: previous !== undefined };
   } catch (error) { throw frame.failure(error); }
+}
+
+/** Assemble the original Coding rules for cold Session maintenance, without creating or activating a plugin. */
+export function createSessionBusinessPurgeOwner(input: SessionBusinessPurgeInput): SessionBusinessPurgeOwner {
+  return composeSessionBusinessPurgeOwner(input, { manifest: codingManifest, prepare: prepareCodingSessionPurge,
+    clear: clearCodingSessionPurge, verify: verifyCodingSessionPurge });
 }

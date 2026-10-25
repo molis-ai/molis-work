@@ -22,7 +22,7 @@ function identity(row: PluginSqlRow, selection: Pick<CodingSessionPurgeSelection
   return { session_id: row.session_id, created_at: row.created_at };
 }
 function validate(selection: CodingSessionPurgeSelection): void {
-  if (selection.owner.plugin_id !== CODING_PLUGIN_ID || selection.session.runtime_id !== "prologue" || !selection.installation_generation
+  if (selection.owner.plugin_id !== CODING_PLUGIN_ID || typeof selection.session.runtime_id !== "string" || !selection.session.runtime_id || !selection.installation_generation
     || new Set(selection.sessions.map(item => item.session_id)).size !== selection.sessions.length
     || new Set(selection.waits.map(item => item.wait_id)).size !== selection.waits.length
     || selection.sessions.some(item => !item.session_id || !item.created_at || item.keys.some(key => !ownedKey(key, item.session_id)))

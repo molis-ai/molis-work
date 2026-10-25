@@ -3294,3 +3294,16 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 从准确b1762b945合入已验证基础52c1a7ea3（main b3bac731b）。五处文本冲突只处理同一功能的接线与记录：项目插件继续由main的project_runtime登记装配；离线Session清理仍复用原Coding公开manifest与prepare/clear/verify，不创建或启动插件。原Artifacts现有storage依赖的登记从已撤掉的脚本名单迁到本包molis-work元数据，不增依赖。卸载默认规则的数据清理语义采用main，Memory采用/恢复说明及两支历史失败记录并存。
 
 保留SDK107、原写主人、原操作恢复、最终同步覆盖检查、真实来源及会话屏障；不改存储格式、迁移语义、权限、CI、超时、重试或验收。资源只将同一已批功能移到准确Foundation基数，原build后再按实测收紧；Coding恢复原待答不代批，不手填预算。按两边相关README和原Memory并集做定向验证，旧219/1980及Foundation269/2780均不代替本次应用交点。正式规模失败、task时延未知、旧TTL非等钟和用户验收边界保留。当前为整合中，尚未验证或推送。
+
+本次原健康首红发现Coding包外引用由3变4，源于冷清理必须复用Coding的原公开规则。核对现登记后，不新增通用maintenance registry、不把后台接线藏入UI或动态import，也不改计数：已有Coding settings-page贡献与stylesheet已是唯一事实，但通用settings样式投影只认settingsClient，页面因此重复直接导入Coding样式。沿现投影补认既有settings-page贡献，撤掉页面重复直引；真实现登记只有Shelf、Goals、Coding的settings贡献，Goals无样式，因此既有产物完整CSS与顺序应保持字节一致。必要范围补入原plugin-workbench/page-assets及同一未知插件组合回归，先验证此等价性再跑已选集。Workbench旧9项审批总上限为32894 B（见上文逐项清单），本次首测32893 B仍是同一功能；精确pair待最终产物确认，不扩用至Coding或其它功能。原资源四红、健康首红均保留。
+
+418原必要并集在冻结产物完成：411文件通过、7失败，零跳过/重试，26个浏览器文件均过；这不是全绿。七首红保留在原日志：RAC-571的project-plugins新增Coding包点名、RAC-453的Coding session-purge写死Runtime、已知资源四红、两个新增PluginRuntime夹具缺hostIds（assistant-executor两例、session-business-purge共享夹具22例）、两个项目删除文件夹具仍导入主干撤销的Pages/testing出口。未到业务断言的夹具失败不充作功能证据。
+
+本轮收束仍在同一聚合：冷清理装配函数从project-plugins移入已有memory-home-recovery（唯一实际冷消费者与装配主人），公开函数名/签名和session-business-purge所收窄Port不变，runtime登记文件回到主干职责；保留前述settings登记投影及字节相等证据。Coding清理验证有效Runtime引用并继续按真实存储row的runtime_id/session_id/owner比对，不把Host选择的Runtime写死进插件；Host原固定Runtime范围不扩展。夹具声明实际宿主ID身份，不借builtin权限；Pages回归沿main已用的plugin-home-stores测试入口。只补受影响窄集及原静态/构建，不机械重跑418；正常资源门及原待答不改。上述修复开始前记录本短合同，当前仍未完成验收。
+
+
+上述接线修复完成后，只补六个原失败文件，82项全部通过、零重试；设置组合原8项通过，未重复418。独立复审未见新增生产P1/P2，指出README装配位置和新增测试unknown字段访问：README已同步，测试改用同一实际CodingSessionStore的公开有类型list，保留邻近会话断言，该文件随后严格noEmit及28项再次通过。原root/Host/Agent/Coding strict、75份API、准确52c健康、边界与secrets均通过。整体build完成，当前源摘要与dist构建身份一致；公开renderer生成的完整settings样式字符串1,041,296字节与改前逐字节相同，不用视觉猜测替代等价检查。
+
+额外独立编译四个测试文件的首条临时CLI保留失败：ES2022独立lib不提供Promise.withResolvers，另有未改行的夹具断言类型错误，以及本轮新增SQL unknown访问；最后一项已如上修正。不能把全部失败归为旧夹具，也不能宣称所有测试strict通过。原模块严格检查结果与这一额外诊断分开记录，不放宽断言/配置来消红。
+
+最终同一App产物资源为Workbench1,163,815、settings969,924、workbench.css1,538,622、Coding291,405 B；相对52c分别+32,893、+680、+680、+1,776 B。Workbench32,893仅落在原9项同功能批准总额32,894内，不是新的通用额度；Coding仅570已批，其余1,206仍待原问题答复。原更新器仍因Coding原子拒写，普通资源四红保留，不手填预算。性能100/1000原B1+5ms失败、SDK task时延未知、Knowledge边界待答及完整验收均不改变。日志为仓外molis-memory-app-batch39-fixes-*、coding-owner-*、final-build-identity-20261026.json；本次仍聚合#1101供审查，未合并。

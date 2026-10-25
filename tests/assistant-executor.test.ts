@@ -397,7 +397,7 @@ for (const role of ["run.start", "run.control"] as const) test(`AST-MEM-ARCH: a 
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: definitions },
     async start() { return { kind: "app", actions: handlers }; } });
   const repository = await home.host.withProject(project.reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: home.host.actionRegistry(project.reference), project_id: project.project_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: new Set(), actions: { registry: home.host.actionRegistry(project.reference), project_id: project.project_id } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install;
   try {
     await runtime.start(installed.install_id);

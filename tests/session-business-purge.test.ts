@@ -20,16 +20,16 @@ function owner(t: TestContext, directory: string, project: string, current: () =
     projectDatabase: id => { assert.equal(id, "project"); return { path: project, assertCurrent: current }; } });
   t.after(() => value.close()); return value;
 }
-async function coding(t: TestContext) {
+async function coding(t: TestContext, runtimeId = session.runtime_id) {
   const directory = home(t), path = join(directory, "project.db"), store = new LocalProjectDatabase(path);
   writeProjectRoot(store.db, "project", at);
-  const repository = new SqlitePluginRuntimeRepository(store.db), runtime = new PluginRuntime(repository);
+  const repository = new SqlitePluginRuntimeRepository(store.db), runtime = new PluginRuntime(repository, undefined, { hostIds: new Set([CODING_PLUGIN_ID]) });
   const install = runtime.install({ definition: createCodingPlugin(), deployment: "local", trust: { level: "host" },
     grants: codingManifest.permissions.map(item => item.permission) }).install;
   const binding: AgentSessionOwner = { project_id: "project", actor_id: "person", plugin_id: CODING_PLUGIN_ID, install_id: install.install_id };
   const sessions = codingSessions(store);
   for (const [id, canonical] of [["original", session.session_id], ["neighbor", "other-canonical"]]) {
-    await sessions.create(noEffect, { project_id: "project", session_id: id!, title: id!, runtime_id: "prologue", at });
+    await sessions.create(noEffect, { project_id: "project", session_id: id!, title: id!, runtime_id: runtimeId, at });
     await sessions.setRuntimeSession(noEffect, "project", id!, canonical!, at);
   }
   const set = (installId: string, key: string, value: string) => store.db.prepare("INSERT INTO plugin_private_values VALUES (?, ?, ?)").run(installId, key, value);
@@ -286,4 +286,19 @@ test("MEM-40 an absent Assistant library never validates a Coding selection or a
   const absent = await maintenance.prepare({ session, owner: assistantOwner, wait_ids: [] });
   await maintenance.clear(absent); await maintenance.verifyOriginal(absent);
   assert.deepEqual(f.snapshot(), before); assert.equal(existsSync(homeSqlitePath(f.directory, ASSISTANT_STORE_NAME)), false);
+});
+
+test("MEM-40 Coding cleanup follows its stored Runtime identity without choosing the Host's Runtime", async t => {
+  const f = await coding(t, "secondary-runtime"), maintenance = owner(t, f.directory, f.path);
+  const original = await maintenance.prepare({ session: { ...session, runtime_id: "secondary-runtime" }, owner: f.binding, wait_ids: [] });
+  assert.equal(original.kind, "coding");
+  if (original.kind !== "coding") throw new Error("Expected Coding selection");
+  assert.deepEqual(original.selection.sessions.map(item => item.session_id), ["original"]);
+  const before = f.snapshot();
+  await assert.rejects(maintenance.clear({ ...original, selection: { ...original.selection,
+    session: { ...original.selection.session, runtime_id: "different-runtime" } } }));
+  assert.deepEqual(f.snapshot(), before, "a different Runtime cannot delete the fixed business rows or private keys");
+  await maintenance.clear(original);
+  await maintenance.verifyOriginal(original);
+  assert.deepEqual(f.sessions.list("project").map(row => row.session_id), ["neighbor"]);
 });

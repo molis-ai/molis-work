@@ -45,6 +45,18 @@ test('one unknown bundled entry supplies actual UI mounting, ordered assets, cli
   assert.deepEqual(mounted.map(args => [...args as unknown[]]), [['future', 'project-1'], ['future.settings', 'project-1']]);
 });
 
+test('a registered settings page supplies its own styles without a settings client', () => {
+  const entry = futurePlugin(), view = entry.workbench.contributions[0]!;
+  const settings: PluginRegistration = { ...entry, workbench: { ...entry.workbench, settingsClient: undefined,
+    contributions: [{ ...view, descriptor: { ...view.descriptor, kind: 'settings-page', navigation_id: 'future-settings',
+      surfaces: [{ surface_id: 'settings', target_slot_id: 'workbench.settings', format: 'declarative-html' }] } }] } };
+  const packs = pluginWorkbenchPacks([settings]);
+  assert.equal(pluginWorkbenchSettingsStyles(packs), '.future{color:red}');
+  assert.equal(createWorkbenchUiHost(packs).mount({ slot: WORKBENCH_UI_SLOTS.settings,
+    contribution: { contribution_id: view.descriptor.contribution_id, surface: 'settings', model: { title: 'Settings' } } }).html,
+  '<article>Settings</article>');
+});
+
 test('RAC-635 a built-in contribution is registered under the plugin its Manifest names, whatever the contribution itself says', () => {
   // Native UI is composed statically, not redeemed as a Runtime contribution; the platform fills the owner from the catalog entry's Manifest (PG-098).
   const ui = createWorkbenchUiHost().list();

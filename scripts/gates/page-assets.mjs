@@ -238,10 +238,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 // #1101's same approved application behavior, moved onto the exact batch39 Foundation baseline.
-// Workbench's prior +32890 and each stylesheet's +680 must be confirmed by the original build measurement.
+// The same nine approved Workbench features total +32894; the exact build is +32893. CSS remains +680 each.
 // Coding restore remains pending and is not admitted here; no old ceiling or spare allowance carries over.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1130922, 1163812],
+  "/assets/molis-work-workbench.js": [1130922, 1163815],
   "/assets/molis-work-settings.css": [969244, 969924],
   "/assets/molis-work-workbench.css": [1537942, 1538622],
 };

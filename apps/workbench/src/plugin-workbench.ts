@@ -71,7 +71,7 @@ export function pluginWorkbenchStyles(packs: readonly BuiltinPluginWorkbenchPack
 
 export function pluginWorkbenchSettingsStyles(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
   return packs
-    .filter((pack) => pack.settingsClient)
+    .filter((pack) => pack.settingsClient || pack.contributions.some(({ descriptor }) => descriptor.kind === "settings-page"))
     .map((pack) => pack.stylesheet ?? "")
     .join("");
 }

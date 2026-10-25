@@ -258,6 +258,7 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | R-51 | 已关（10-25 用户：「skip this: Workers Builds: molis-work-production」）：PR 上的 Cloudflare `Workers Builds: molis-work-production` 红，不是必需检查 | 无 | 用户定忽略：评审与合并都不看这项检查，不再追 | PIPE／当前批次合并执行者 | 已定（按名忽略；原红/未验保留） |
 | R-52 | 新（10-25，S10+S11 设计审）：目录库版本号撞车——W5-17（`claude/ac-w517-catalog-paths`）、Goals 个人规划搬库与别的作者的 #1101（`codex/memory-management-pages`，jingxusandra-gif）都把 `CATALOG_SCHEMA_VERSION` 设成 23 | 两份不同的 v23 会让维护脚本对不上、真实 Home 打开被拒 | 防腐线的 W5-17 与 Goals 合成一版，取落地时 main 的下一个号（#1101 先合就是 v24），不动 #1101 的分支；维护时段按版本顺序跑，`assertCurrentCatalog` 防漏跑 | 统筹 + ac-sc3 | 维护时段前 |
 | R-53 | 上游SDK源码已修：#104/bea双核后2026-10-25T08:09:18Z实际main f1753ec8fa2cbca45667e60e101b93702acc6640；#1267当前ba75过渡包按Claude6396368622只带2c7 + 定稿#103，不含#104 | 该过渡包仍保留分页之间清单变化漏读与普通NodeStorage暴露inspection生命周期两项已接受风险；上游actual不能冒包内已修 | 本次C2只在spec与patch-history准确记录风险；适用前提为同一离线Home lease、复制完成后的稳定私有归档、普通对象不调inspection，不为关R53扩带#104或改provenance。当前候选0cab/包SHA884295c9…仅按其实际审验结算 | C2负责#1267风险说明；整体上游采用线负责后续实装关闭（#1101之后） | 整体换到包含#104/f175修复的上游包，核真实来源/消费与独立审验后关闭；当前仍OPEN |
+| R-54 | 新（10-25，#1291 PG-112 一轮修复）：`ui.commands` 在 PG-112 后由 Manifest 的 `local_tools` 取代，非宿主信任的 `local_tools` 在安装时拒；真实 Home 里已装的生成或开发插件若存着带 `ui.commands` 的 Manifest，重装或升级会被拒 | 用户的生成/开发插件升级失败 | W5-17 维护时段核真实 Home 的安装记录（只读拷贝先 list），有就在维护里改成现行形状或请用户重装；不在代码里留兼容读取 | 统筹 + 用户（W5-17 维护） | W5-17 维护时段 |
 
 ### SDK104 事后 FIRST 建议的逐项接续（PIPE）
 

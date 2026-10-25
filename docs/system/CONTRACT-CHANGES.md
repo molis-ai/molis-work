@@ -14,10 +14,10 @@
 
 | 合同 | 在哪里 | 版本记在哪 |
 | --- | --- | --- |
-| `packages/contracts` 的公开子路径 | `packages/contracts/package.json` 的 `exports` | 没有版本号；形状记在公开 API 快照 `tooling/gates/api/contracts/<子路径>.txt`，`pnpm health:check` 对照源码，有任何不同就失败，有意改用 `pnpm api:update`（第 3 节第 6 条） |
+| `packages/contracts` 的公开子路径 | `packages/contracts/package.json` 的 `exports` | 没有版本号；形状记在公开 API 快照 `tooling/gates/api/contracts/<子路径>.txt`，`pnpm health:check` 对照源码，有任何不同就失败，有意改用 `pnpm api:update`（第 3 节第 6 条）。新子路径不能只导出一个没人用的 `ContractDescriptor` 占位，`pnpm health:check` 的占位子路径规则（`scripts/gates/contract-placeholders.mjs`）直接失败 |
 | `packages/plugin-sdk` 的出口 | `packages/plugin-sdk/src` | 同上，快照是 `tooling/gates/api/plugin-sdk/index.txt` |
 | 动作（能力）的身份、输入输出 schema | `packages/contracts/src/platform/actions.ts`；各插件 Manifest 的动作声明；规则见 `specs/action-architecture/spec.md` §3 | 每个能力定义的 `version`；被固定的引用写成 `capability_id@version` 加提供方。形状记在动作合同快照 `tooling/gates/actions/`，`pnpm test:contracts` 对照，有意改用 `pnpm actions:update`（第 3 节第 6 条） |
-| 插件 Manifest 的格式与升级声明 | 类型在 `packages/contracts/src/platform/plugin-manifest.ts`（经 `platform/plugin` 子路径导出），校验与版本比较在 `packages/plugin-sdk/src/manifest.ts`（成果类型的声明检查在同包的 `artifact-declarations.ts`）；用法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「插件版本升级」 | Manifest `version`（SemVer）；`upgrade_compatibility.compatible_from_versions` / `migratable_from_versions` |
+| 插件 Manifest 的格式与升级声明 | 类型在 `packages/contracts/src/platform/plugin-manifest.ts`（经 `platform/plugin` 子路径导出），校验与版本比较在 `packages/plugin-sdk/src/manifest.ts`（成果类型的声明检查在同包的 `artifact-declarations.ts`）；用法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「插件版本升级」 | Manifest `version`（SemVer）；`upgrade_compatibility.compatible_from_versions` / `migratable_from_versions`。内置插件的 `version` 跟产品版本，只在发布 PR 里改（`docs/releases/POLICY.md`）：别的 PR 改 Manifest 的形状升的是能力 `version` 或合同里的其他版本字段，不动它 |
 | MCP 工具名与参数 | `apps/mcp`；`docs/mcp.md`；`skills/goal-advance` | 工具名即身份；Skill 与手册随它改 |
 | 对外合同 id | 现在没有（Casebook 的 `molis-work.casebook.*` 已于 2026-10-10 删除；以后出现新的对外合同 id，就在这里登记） | 合同 id 里的版本 |
 | Home 里存的数据 | 项目库、目录库等，清单与版本方案见 `docs/system/HOME-DATA.md` | 库的结构版本（`PRAGMA user_version` 或自带的 meta 表），经 `packages/storage/src/sqlite-baseline.ts` 的 `applySqliteBaseline` 建库，版本不符就拒绝 |
@@ -42,6 +42,7 @@
    **动作合同快照门禁**（`scripts/gates/action-contract-snapshot.mjs`，口径在 `tooling/gates/README.md`「动作合同快照」，跑在 `pnpm test:contracts` 的 `tests/action-contract-snapshot.test.ts`）：每个内置 Manifest 声明的动作与消费场景，一行一个 `capability_id@version`，写明提供方（Manifest 的 `plugin_id`，和宿主登记它用的提供方 id 各一列：固定引用里写的是后者）、种类、谁能调（受众、权限）和输入、输出 schema 的哈希，入库在 `tooling/gates/actions/`；所有内置插件启用时宿主还登记着、却没有 Manifest 声明的动作与消费场景（现在是首页的 `home.dock@1`，判断绑定固定的就是它和提供方 id），另记在同目录的 `host-actions.tsv` 与 `host-scenes.tsv`。源码与快照有任何不同就失败，并把变化分开列：**同一版本下形状变了**（schema、语义类型、主体、依赖与撤销声明等；已经固定了 `capability_id@version` 的引用会遇到另一份合同，要么升版本，要么在 PR 里写明为什么没有固定它的引用会坏）、**登记用的提供方 id 变了**（改名、原生与 Runtime 装配之间迁移、换了发布签名；该插件每个动作逐个列出，固定了旧 id 的引用会遇到 `actions.provider_changed`，要在同一个 PR 里列出并迁完）、谁能调变了、换了新版本、新增、删除。它只看形状和声明，不看函数体与语义；schema 里的 `title` 和 `description` 是文字，不算。有意改：`pnpm build` 后 `pnpm actions:update`，提交 `tooling/gates/actions/`，把命令打印的变化写进 PR「公开合同与 API 影响」一栏。
 
 7. **不算兼容、要保留的**：合同和 Schema 的版本号字段，插件升级声明 `compatible_from_versions` / `migratable_from_versions` 与发行物留存。它们是起点之后要用的机制，不是为旧数据留的（spec §1，2026-10-02「插件升级声明的机制」）。
+8. **破坏性变更要在升级须知里写一条。** 装新版本的人要动手的合同变更（MCP 工具名变了、固定的引用要重选、动作升了版本），在 `docs/releases/CHANGELOG.md` 的 `[Unreleased]`「升级须知」里写一条：谁要动什么；发布时它随版本发出去。PR 描述照第 2 条列消费者，升级须知是给用户看的，两处都要。
 
 ## 4. 阶段二：起点之后，读取兼容
 

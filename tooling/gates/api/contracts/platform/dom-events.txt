@@ -524,7 +524,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).";
     };
     readonly shelf: {
-        readonly files: readonly ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/terminal-client.ts", "plugins/native/shelf/src/browser/settings/reload.ts"];
+        readonly files: readonly ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/settings/reload.ts"];
         readonly state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.";
     };
     readonly coding: {

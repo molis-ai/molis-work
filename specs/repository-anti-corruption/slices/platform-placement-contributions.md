@@ -106,3 +106,26 @@
 ## 7. 本机验证计划（做完代码后）
 
 只构建改到的包（contracts、plugin-sdk、plugin-runtime、ui-host、placement、workbench、local-host、改过的插件）；`pnpm api:update`、`pnpm actions:update`；`check-health-gates --base origin/main`、`boundary:check`、`secrets:check`；直接相关的非浏览器用例：`work-placement*`、`placement*`、`plugin-manifest-v2`、`action-contract-snapshot`、新测试文件；不跑 affected-tests 的全集、浏览器用例和全量。
+
+## 8. C 组迁移回归（准确 f77，placement 专职）
+
+状态：实现中。按统筹 #1287 的 C 组分工及 Root 补充，从 `f77e0d0bda62c65c17d803a47328f9d8af07f7f9` 开独立后继树；原 `8f4d018` 的实现与重启取消证据保持冻结，后者第一次 86/87 的取消仍是 UNKNOWN，由 TEST 与唯一 Claude carrier 在下一准确组合既有相关／全量回归中接续。本组不展开 Host／SDK 调度，不改 RAC-438（由统筹 `20f0902bb` 处理）、A1、B 组或门禁。
+
+当前证据：`pages-actions` 把除 create 外所有动作都钉在 @1；四份 MCP 测试的工具列表预期漏了升级到 @2 的对象读取器。`fakeGoalDirectory` 只提供 `goals.list` 的分页目录，却继承了该真实动作的 `candidates` 关联角色；SDK 因同提供方没有 `list` 角色而在注册时拒绝，早于 Coding 端口调用。真实 Goals Manifest 是否完整由实际 SDK／ActionService 注册正控证明，不能由此替身的失败推断生产声明有缺陷。
+
+修复边界：只按真实 action id 列出现行版本，保留其他动作版本、工具全集及业务断言；只读目录替身保留 Goals 公开 id、版本、输入输出 schema、标题与调用者语义，移除它并未提供的关联角色声明，不虚构挂接／取消／创建处理器。生产关联声明与完整性校验保持原样，不增加兼容入口、API 或快照。允许文件为五份版本测试、`tests/fixtures/plugin-actions.ts`、直接三份 Coding 证明、`tests/placement-relation-declarations.test.ts` 与本 spec。
+
+沿用 RAC-633／634 的迁移子项：
+
+- **RAC-633-MIG-01**：`pages-actions`、`alchemist-mcp`、`form-mcp`、`ppt-mcp`、`dataset-mcp` 的完整动作／工具列表精确对应现行版本；只有真实升版的动作预期 @2，其余仍受原版本断言约束。
+- **RAC-634-MIG-01**：真实 Goals Manifest 的五个关联角色齐全，经 SDK 和真实 ActionService 注册成功；只有 candidates 而无 list 的声明仍以 `actions.definition_invalid` 拒绝，处理器零调用、目录零注册。
+- **RAC-634-MIG-02**：只读目录替身能经真实 ActionService 注册与调用，只暴露原 `goals.list`；除不实关联角色外，定义与公开合同一致，分页、标题、可信调用者和重复装配行为保留。
+- **RAC-634-MIG-03**：原 `coding-surface`、`coding-input-ports`、`coding-companion-stages` 的受影响用例恢复，保留标题读取／观察持久化／重启、插件身份与 companion 槽位断言。其他浏览器空页只能在调用链与修后证据支持时归为同因，不据此整组结清。
+
+验证：先在未改测试的准确 f77 整体构建，按官方运行器 `--jobs 2 --retries 0 --verbose` 跑上述九份文件，保留改前失败；实现后复用同一生产构建跑原文件及新增正负控，RAC-438 只报告旧红、不搬统筹的补丁。不改生产源码则不重复构建；如出现生产缺陷先补本节依据，再最小修复并整体构建。浏览器只在证明需要时选代表路径，经独立测试浏览器与机器槽位，不跑全量。旧 f77 的 PlacementService 301 行门禁原红保留；#1289 已 actual `54437998`，组合树的门禁由 PIPE／Claude 按现行规则与内聚理由核定，不硬拆、不改阈值或登记未经评审的例外。交付准确 head 与 scoped diff 给 REVIEW／TEST／PIPE，无新 PR。
+
+本机证据（2026-10-25）：准确 f77 整体构建通过；改前九文件 28/46，18 fail、无取消／跳过，只有原声明检查文件全绿。修后五份版本测试全部通过（Pages 17、Alchemist 2、Form／PPT／Dataset 各 1），`coding-surface` 4/4、`coding-input-ports` 9/9；`coding-companion-stages` 7/8，唯一原 RAC-438 仍红，由统筹已有补丁接续，六条因替身注册失败的用例已恢复。新增正控最初误把仅 Agent／MCP 可见的 `goals.events.acknowledge` 算进 user 目录，已按真实 audience 合同修正；最终声明检查 6/6、原放置关联 8/8，无生产改动或新增重跑／时限放宽。有效证据合计原九文件 48/49（唯一 RAC-438）及额外关联文件 8/8；不把重复运行累加。原件：`/tmp/placement-c-group-baseline-build.log`、`/tmp/placement-c-group-before.log`、`/tmp/placement-c-group-after.log`、`/tmp/placement-c-group-contracts.log`。
+
+浏览器归因边界：列出的八份浏览器文件走 `openGoalBrowser` → 真实 `MolisWorkLocalHost`；它们及两个共享 fixture 没有引用 `fakeGoalDirectory`。真实宿主 `goalsActionProvider` 从 Manifest 选全部 project 动作，五个关联角色都在这份定义中。因此本轮纯测试替身改动不能据此修复或结清这八份浏览器失败，仍交准确组合既有回归定位，未扩大重跑浏览器。未改生产定义、完整性检查、RAC-438、任何 gate／snapshot／构建配置或真实 Home；整个批次 Ready 与旧重启 UNKNOWN 均未由本证据替代。
+
+`pnpm boundary:check` 零错误；`check-health-gates --base f77e0d0bda62c65c17d803a47328f9d8af07f7f9` 通过，只证明本组未增加相对准确父版本的门禁问题（原件 `/tmp/placement-c-group-boundary.log`、`/tmp/placement-c-group-health.log`），不回填旧 f77 对 main 的 301 行原红。

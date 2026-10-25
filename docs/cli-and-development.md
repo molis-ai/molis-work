@@ -153,7 +153,7 @@ molis-work-mcp
 - **键盘焦点**只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不要自己写焦点色，不要去掉焦点。旧的「内侧 1px ink」规则（[neutral-focus-stroke](../specs/archive/neutral-focus-stroke/spec.md)）已被 Soft Workbench 取代。
 - **字与层次。** 系统字体栈，字重只有 400 / 500 / 600（`--weight-body` / `--weight-control` / `--weight-title`），不准全局强制字重。工作都在一张连续白色工作面上，插件不画自己的外框卡片；只有浮起的东西投影。
 
-改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手（真实底栏在 `/__ui/catalog/bar`，组合示例在「组合」一节）。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
+改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手（本机用 `pnpm web` 起宿主，默认地址是 `http://127.0.0.1:4173/__ui/catalog`；真实底栏在 `/__ui/catalog/bar`，组合示例在「组合」一节）。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
 
 ## 开发验证
 

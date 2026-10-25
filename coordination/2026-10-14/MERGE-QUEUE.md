@@ -74,6 +74,9 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 - **用户 10-25 定（弹窗）：#1267 用过渡包**：现用包的上游 `2c7feba5`（#60）之上只加 #103 定稿（`6523abb47..513237d2d`），不带 #61～#101；`patch-history.json` 记为过渡包。整体换到上游 main 留给 #1101 与采用线。#103 的两条不挡项交 Codex（R-53）。
 - batch-36 头 `9ec566702`：main 的 batch-35 squash 把 `PluginRuntime` 缩到 623 行，T3 净加 1 行，health 变红，已收回。FIX20、FIX21 仍待 Codex。
 - batch-37（`batch/1025-37`，本地未推）：已并 #1257+#1265 FIX12、#1260+FIX15、#1261+FIX3、#1262+#1269 FIX17、#1264+#1268 FIX16、#1266+FIX9（S-72/73/74）与 b36 `9ec566702`；改了 #1262 探针的信任等级（T1 之后每次安装都要 trust）；PG-099 结（Alchemist 绕过，BL-376）。#1272/#1273现已FIRST可合并按6395085777/6395086077冻结入本地37；ac-registry B按原owner与实际FIRST接续。
+- **#1267 组批清单**（等过渡包与 FIX19 独立 TEST）：#1267 头 `1556d97b7` + FIX18 #1271 `3ec04da03` + FIX8 可读性 `9ee51808b` + FIX19 `1dbc5de08`（REVIEW 6395260782 过）+ 过渡 SDK 包（#60 + #103 定稿，待打包）；carrier 时采用两份 SI 窄补丁：`/tmp/molis-pipe-carrier-docs-20261025/s11-row-1556.patch`、`/tmp/molis-fix19-snapshot-exclusion-20261024/fix19-security-invariants.patch`（S-07/S-12），采用后 health 才会过（新 entries 文件要被表引用）。
+- batch-37 又并入 #1272（`ab34bc79b`）、#1273（`d97df5ab7`）、R-38 收尾文档 `0b5dcc0f8`；本机 build、health（巨大单元 73）、boundary、快照、27+35 个相关文件过。待并 #1274（+541 B 已准一次性放行）、#1275（V-18 选 (b)：`openPagesStore` 与 Map 挪到 `/testing` 子路径，61 个测试文件的 import 用可重跑命令改）、ac-registry B。
+- ac-kernel：R-38 代码完成（agent-host 无巨大单元），下一片 BL-356（#1246 让非沙箱插件能丢弃数据，触发条件成立）。
 - 号段：ac-platform 第 2 组（PG-032/098/100）另给 **RAC-630～649**（RAC-600～619 是 ac-shell 的）；D1～D5 按草稿推荐准，D5 改号段。
 
 ### 当前交付核实（PIPE，2026-10-25）

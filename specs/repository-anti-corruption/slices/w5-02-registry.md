@@ -14,10 +14,12 @@
 | **B：PR-1b 平台读自己的登记** | 三个提交：B1 平台生成物、全部平台派生点切换；B2 Manifest 加 `summary`、`developer`；B3 #679 | PG-105、PG-065、PG-068（PR-1b 部分） | 只 B3 变（S-31） | A；batch-35（#1258，已含 #1243）落地 |
 | **B4：项目级监督器条目改成生成** | 单独一个 PR（统筹 10-24 拆） | PG-067 | 不变 | B；`project-plugins.ts` 还会被 FI-6（ac-sandbox-sched）、ac-clients-1 碰，冻结只从推送到合入，同批照 §1a 一起落 |
 | **C：PR-2 依赖改成生成，门禁 7→0** | 两个应用与根 `package.json` 的插件依赖由生成器写；`workspace-packages.mjs` 不再点名插件包；`NEW_PLUGIN_OUTSIDE_FILES` 7→0 | PG-069、PG-068（收尾的额度）、§5 第 7 条 | 不变 | B |
-| **D：PR-3 外壳与设置的手写名单** | 设置节、搜索标签、外壳分组与常驻、图标与色相、几张选项清单改成声明 | PG-072～076 | 不变（同样的界面） | B；与 W5-04 在途片错开 |
+| **D：PR-3 外壳与设置的手写名单**（D 移交 ac-shell（统筹 10-25）） | 设置节、搜索标签、外壳分组与常驻、图标与色相、几张选项清单改成声明 | PG-072～076 | 不变（同样的界面） | B；与 W5-04 在途片错开 |
 | **E：W4-01 探针插件夹具** | 一个只有声明的探针插件，走安装→发现→调用→升级→停用→卸载，id 只在自己的包里 | W4-01（W6-02 的前置） | 不变（只加测试） | C |
 
 为什么 A 排第一（派单写「能提前就提前」）：ac-artifacts 的 A3、A6 要等「PG-024 片」，因为 A6 要删成果库的目录条目，而成果库的项目数据今天挂在登记的 `project_data` 上；A 把这条路换成声明以后，A6 不用再往 Host 的名单里加一行。A 只改删除这条链，不依赖 B 的生成物：它照旧经今天的目录读 Manifest，B1 再统一换成平台生成物。A 和 B 都改合同、SDK，各自是共享核心，按批跑全量。
+
+D 移交 ac-shell（统筹 10-25），本线的顺序变成 B → B4 → C → E；原来给 D 的 RAC-576～578 留给本线在 B、C、E 用（§10）。
 
 PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
@@ -176,8 +178,8 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 | RAC-565 | 装进 Home 的包带着 `molis-work.registration` 和 `registration` 导出，不进启动名单、不拿 `bundled`、不能用内置 plugin id 作提供方（S-08、S-15，进 `pnpm test:security`）。「提供方身份」与 ac-trust T6（S-68、BL-506）重叠：实现前看 T6 的状态，只留一处检查，这里只断言结果 | B1 |
 | RAC-566 | 门禁的旧读法被拒：手写数组形式的目录、手写的平台名单，`catalog-entries.mjs` 与 `--check` 都失败 | B1 |
 | RAC-567 | `--check` 对两份生成文件都核：任一份过期、手改、缺一份都失败 | B1 |
-| W5-02-MARK-01 | Q3 的拒绝用例：页面把 `personal`、`companions`、`always_on` 改了再提交（加、移除），宿主照自己的登记办：加 Text Stats 仍带上 Files，移除 Pages 仍是在这个项目隐藏，Goals 仍不能移除（`catalog.plugin_always_on`）。RAC-560～579 已用完，号用本稿的 `W5-02-…` 写法，统筹要改 RAC 号时只改测试名 | B1 |
-| W5-02-MARK-02 | 目录上的标记只由宿主按自己的登记写：内置插件的 `personal` 与 `companions` 与登记相同；`always_on` 只认这个 Home 同意过的；跑着的插件只有 plugin id 与发布者都与内置相同时才带标记 | B1 |
+| RAC-576 | Q3 的拒绝用例：页面把 `personal`、`companions`、`always_on` 改了再提交（加、移除），宿主照自己的登记办：加 Text Stats 仍带上 Files，移除 Pages 仍是在这个项目隐藏，Goals 仍不能移除（`catalog.plugin_always_on`） | B1 |
+| RAC-577 | 目录上的标记只由宿主按自己的登记写：内置插件的 `personal` 与 `companions` 与登记相同；`always_on` 只认这个 Home 同意过的；跑着的插件只有 plugin id 与发布者都与内置相同时才带标记 | B1 |
 | RAC-568 | `summary`、`developer` 从 Manifest 读；SDK 检查拒绝空 `summary`、超长、`developer: false` 与非布尔；登记里再写这两项，`--check` 报不认识的键 | B2 |
 | RAC-569 | #679：夹具登记一个目录里没有的 Home 级插件，项目路径下能路由；项目隐藏它后是 `actions.plugin_disabled`；`/plugins/<键>` 能打开（S-31，进 `pnpm test:security`） | B3 |
 | RAC-570 | 生成的项目级条目与改之前手写的逐条相等（包名、工厂名、`bundled`、有无 Home 目录时的取舍），一次性比对贴进 PR | PR-B4 |
@@ -208,6 +210,8 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
 ## 5. PR-D：PR-3，外壳与设置的手写名单（PG-072～076）
 
+D 移交 ac-shell（统筹 10-25）：下面是移交时的核对与拆法，验收号由 ac-shell 从自己的号段给，不再用 RAC-576～578。
+
 开工前逐条再核（W5-06 2b 已收掉一部分），每条写成「声明在哪、谁读」：
 
 | PG | 还剩的 | 改成 |
@@ -218,7 +222,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 | 075 | `MW_PLUGINS`（色相）、`PLUGIN_ICON` | 图标读 Manifest 视图已有的 `icon`；色相加一项 Manifest 声明（限定在 design-system 的色名里），两张表删掉；保留「每个插件图标唯一」的测试，改读 Manifest |
 | 076 | 目标输入的 `CREATE` 归 ac-shell 第 1 片关掉（统筹 10-24）；D 只做 PG-076 余下的三项（Pages 的 searchRow 借用 Feed 的选择器、Todo 的初始化接线、开工前重核的第三项） | 改从登记表或消费场景读 |
 
-验收 RAC-576～578（实现前按上表细化，D 开工时把细化后的条目补进本稿再请统筹看一眼）：RAC-576 外壳与设置里不再有按插件名列的表（按源码扫描，只许减少到 0）；RAC-577 一个新插件只靠声明就出现在正确的分组、带图标与色相、能被设成默认固定；RAC-578 界面与改之前相同（组件板 `/__ui/catalog` 的快照与几张现有截图不变，浏览器部分交统一验证窗口）。
+移交时写的验收（ac-shell 按上表细化、另给号）：外壳与设置里不再有按插件名列的表（按源码扫描，只许减少到 0）；一个新插件只靠声明就出现在正确的分组、带图标与色相、能被设成默认固定；界面与改之前相同（组件板 `/__ui/catalog` 的快照与几张现有截图不变，浏览器部分交统一验证窗口）。
 
 **碰的文件**：`apps/workbench/src/immersive-shell.ts`、`plugin-catalog.ts`、`goal-inputs-html.ts`、`scripts/client/global-search.ts`、`tab-workspace.ts`、`apps/local-host/src/web-catalog.ts`、`packages/design-system/src/palette.ts`、`icons.ts`、`packages/contracts/src/platform/ui.ts`（视图声明）、相关插件的 Manifest。改合同，`pnpm api:update`。与 W5-04 在途片（客户端打包）错开：它们改各插件的 `registration.ts` 与客户端，D 只改 Manifest 视图声明与外壳。
 
@@ -264,7 +268,7 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 
 ## 10. 号段
 
-- RAC：A 560～563；B 564～569；B4 570～571；C 572～575；D 576～578；E 579。
+- RAC：A 560～563；B 564～569；B4 570～571；C 572～575；576～578 原给 D，D 移交 ac-shell 后留给本线（B 用 576、577）；E 579。
 - BL（随各 PR 写进 `specs/BACKLOG.md`）：BL-615 Images 的项目数据按声明删（等 PG-104、PG-106）；BL-616 Files 的监督器条目（等 PG-005、X-5）；BL-617 Images、Jelly 合同挪进插件（Codex）；BL-618 Shelf 合同挪进 `modules/shelf`、Images 按动作 id 调用；BL-619 沙箱插件的 `project_rows`（#1255 落地后把拒绝改成删除）；BL-620 启动名单之外的 Home 插件与带 Home 库的项目插件的 `project_rows`（PR-A 中发现）；BL-621～624 留给实现中发现的。
 - 安全不变量：S-暂A（删项目只按声明删、不跑插件代码，PR-A）；S-08、S-15（B1）、S-31（B3）改代码列。
 

@@ -20,7 +20,7 @@
 //
 // Goals is measured the same way in spirit: it has no registered stylesheet and no frame, and `apps/workbench/src/page-assets.ts`
 // imports `GOALS_DOCUMENT_STYLES`, `TRASH_GOAL_STYLES` and `PLANNING_SETTINGS_STYLES` straight into the shared sheets, so its
-// whole document style is held there and frozen.
+// three explicitly enumerated document style constants are held there and frozen; this is not import discovery.
 //
 // A number may only fall. `--update` refuses when any plugin grew relative to the reference (with `--base`: the merge-base's
 // copy, otherwise the committed file) and it refuses to write a plugin the file does not know, so a new plugin with rules in
@@ -31,7 +31,9 @@
 //    `stylesheetPrefixes` measures 0 here (the splitter sees no rule of its own). Text Stats is such a plugin today; its rules
 //    stay shared because it has no frame, and its number is not part of this budget.
 //  - Rules a plugin keeps in a host module rather than its registration stylesheet are not seen: only the registered
-//    `stylesheet` and, for Goals, the constants page-assets imports are measured.
+//    `stylesheet` and, for Goals, the three constants named above are measured. A fourth Goals constant newly imported by
+//    page-assets is not counted automatically: add it to measureFromBuild's goalsStyles and update the real-build gate test
+//    when adding the constant, then run plugin-styles-gate.test.ts and plugin-styles --base. No other Goals exports are scanned.
 //  - The shared sheets are not searched for plugin rules that no registration names (a class copied by hand into a host
 //    stylesheet is invisible to the splitter too).
 //  - Sizes are not measured here; `/assets/` bytes are `scripts/gates/page-assets.mjs`. The two files can disagree about what a

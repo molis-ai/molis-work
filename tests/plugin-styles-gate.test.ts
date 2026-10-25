@@ -88,6 +88,29 @@ const branch = (name: string, mutate: () => void) => {
   commit(name);
 };
 
+// PG070-NB-02: first-freeze has its own refs and counts; it cannot remove the shared fixture's main budget.
+const firstFreeze = () => {
+  const previous = { main: git("rev-parse", "main"), head: git("rev-parse", "HEAD"), budget: read(BUDGET), counts: { ...counts } };
+  const isolated = mkdtempSync(path.join(work, "first-freeze-")), localRepo = path.join(isolated, "repo");
+  try {
+    mkdirSync(localRepo);
+    gitAt(localRepo, "init", "-q", "-b", "main");
+    put("README.md", "fixture without a budget\n", localRepo);
+    gitAt(localRepo, "add", "-A");
+    gitAt(localRepo, "commit", "-q", "-m", "base without a budget");
+    const measured = { ...BASE, feed: 200 }, input = path.join(isolated, "counts.json");
+    writeFileSync(input, JSON.stringify(measured));
+    const frozen = run(localRepo, "--counts", input, "--update", "--base", "main");
+    assert.equal(frozen.code, 0, frozen.out);
+    assert.match(frozen.out, /the merge-base has no tooling\/gates\/plugin-styles\.json/);
+    assert.deepEqual(budgetOf(localRepo), { feed: 200, goals: 321 }, "the first freeze is what the build measures");
+  } finally { rmSync(isolated, { recursive: true, force: true }); }
+  assert.deepEqual({ main: git("rev-parse", "main"), head: git("rev-parse", "HEAD"), budget: read(BUDGET), counts }, previous,
+    "first-freeze preserves the shared fixture's refs, budget and measured counts");
+};
+
+test("RAC-769 PG070-NB-02 the first freeze writes the file when the merge-base has none", firstFreeze);
+
 test("RAC-769 the freeze passes only while every plugin keeps the rules the file says (and the merge-base agrees)", () => {
   git("checkout", "-q", "-f", "main");
   counts = { ...BASE };
@@ -173,17 +196,9 @@ test("RAC-769 shrinking passes once the number is lowered, and --update does it"
   assert.equal(after.code, 0, after.out);
 });
 
-test("RAC-769 the first freeze writes the file when the merge-base has none", () => {
-  git("checkout", "-q", "-f", "main");
-  git("clean", "-fdq");
-  rmSync(path.join(repo, BUDGET));
-  commit("remove the budget");
-  counts = { ...BASE, feed: 200 };
-  const frozen = gate("--update", "--base", "main");
-  assert.equal(frozen.code, 0, frozen.out);
-  assert.match(frozen.out, /the merge-base has no tooling\/gates\/plugin-styles\.json/);
-  assert.deepEqual(budgetOf(), { feed: 200, goals: 321 }, "the first freeze is what the build measures");
-  // This file is the last one to touch the scratch repository: it commits the first freeze on main.
+test("PG070-NB-02 first-freeze repeats after the other scenarios without changing their fixture", () => {
+  firstFreeze();
+  firstFreeze();
 });
 
 test("RAC-769 a missing build is exit 2, never a pass", () => {

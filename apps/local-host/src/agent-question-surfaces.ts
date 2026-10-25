@@ -29,9 +29,9 @@ type Declared = Parameters<typeof isSubjectReader>[0] & { subject_kinds: readonl
  * One plugin's kinds a reference question may ask for (T2, AC-28-1), each with the name the plugin gives it: a kind the
  * plugin lists for search and also reads back, since a pick is found by search and named by its owner's reader (S-26).
  */
-export function pluginReferenceKinds(plugin_id: string, builtin: boolean, actions: readonly Declared[]): ReferenceKindCandidate[] {
+export function pluginReferenceKinds(plugin_id: string, installation: string, actions: readonly Declared[]): ReferenceKindCandidate[] {
   const read = new Set(actions.filter(action => isSubjectReader(action)).flatMap(action => action.subject_kinds));
-  return actions.flatMap(action => action.search_source?.kinds ?? []).filter(entry => read.has(entry.kind)).map(entry => ({ plugin_id, builtin, kind: entry.kind, title: entry.title }));
+  return actions.flatMap(action => action.search_source?.kinds ?? []).filter(entry => read.has(entry.kind)).map(entry => ({ plugin_id, installation, kind: entry.kind, title: entry.title }));
 }
 
 /**
@@ -39,7 +39,7 @@ export function pluginReferenceKinds(plugin_id: string, builtin: boolean, action
  * project replaces it with that project's (agent-reference-kinds.ts); a round the Host cannot list for keeps this one.
  */
 export function hostReferenceKinds(manifests: ReadonlyArray<{ plugin_id: string; actions?: ReadonlyArray<{ action: Declared }> }> = BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest)): Array<{ kind: string; title: string }> {
-  return boundReferenceKinds(manifests.flatMap(manifest => pluginReferenceKinds(manifest.plugin_id, true, (manifest.actions ?? []).map(definition => definition.action)))).kinds;
+  return boundReferenceKinds(manifests.flatMap(manifest => pluginReferenceKinds(manifest.plugin_id, manifest.plugin_id, (manifest.actions ?? []).map(definition => definition.action)))).kinds;
 }
 
 /** A plugin that ships with the Host registers under its own id; any other installation under its installation id. */
@@ -57,14 +57,14 @@ const builtinOf = (view: ActionView) => {
  * panel's files leave them out (side-files-http.ts). `shown` is undefined when the project has no catalog entry.
  */
 export function projectReferenceKinds(views: readonly ActionView[], shown: ReadonlySet<string> | undefined, hidden: ReadonlySet<string>): ReferenceKindCandidate[] {
-  const plugins = new Map<string, { pluginId: string; builtin: boolean; views: ActionView[] }>();
+  const plugins = new Map<string, { pluginId: string; installation: string; views: ActionView[] }>();
   for (const view of views) {
     const pluginId = view.provider.plugin_id ?? view.provider.provider_id, builtin = builtinOf(view);
     if (!view.availability.available || hidden.has(builtin?.project_plugin_id ?? pluginId) || (builtin && shown && !shown.has(builtin.project_plugin_id))) continue;
     // One installation is one plugin: another installation that names a built-in plugin's id is not that plugin.
     const key = builtin ? `builtin:${pluginId}` : `installed:${view.provider.plugin_install_id ?? pluginId}`;
-    if (!plugins.has(key)) plugins.set(key, { pluginId, builtin: !!builtin, views: [] });
+    if (!plugins.has(key)) plugins.set(key, { pluginId, installation: key, views: [] });
     plugins.get(key)!.views.push(view);
   }
-  return [...plugins.values()].flatMap(plugin => pluginReferenceKinds(plugin.pluginId, plugin.builtin, plugin.views.map(view => view.action)));
+  return [...plugins.values()].flatMap(plugin => pluginReferenceKinds(plugin.pluginId, plugin.installation, plugin.views.map(view => view.action)));
 }

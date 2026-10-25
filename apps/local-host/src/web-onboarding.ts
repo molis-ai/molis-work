@@ -1,4 +1,5 @@
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindLocalWebActions } from "./local-web-actions.js";
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -26,9 +27,9 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     if (await createContextOnboardingHttp({ ...ports, actions: async (home, projectId, original_file) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-      return bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], ...original_file ? { original_file } : {} }));
-    }, homeActions: (_home, signal) => bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user",
-      permissions: ["todo:read", "todo:write", "model:invoke"], signal })) })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
+      // Each provider by its own authority (PG-008): Pages and Todo by their installations' grants, the Host's by what the person holds.
+      return bindLocalWebActions(localHost, reference, ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], original_file ? { original_file } : {});
+    }, homeActions: (_home, signal) => bindLocalWebActions(localHost, undefined, ["todo:read", "todo:write", "model:invoke"], { signal }) })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
       return true;

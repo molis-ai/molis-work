@@ -1,6 +1,6 @@
 # ac-artifacts：成果库去插件身份，成为平台事实的主人（设计稿）
 
-状态：设计稿已审定，A1、A2a（客户端与 owner 操作）已随 batch-27 落地；A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）2026-10-24 开发完成，等评审。A3 之后的实现片要等 ac-registry 的 PG-024 片。
+状态：设计稿已审定，A1、A2a（客户端与 owner 操作）已随 batch-27 落地；A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）2026-10-24 开发完成，等评审。A3（PG-064、PG-079、PG-077：成果类型登记表搬进宿主并读有效安装的 Manifest，`consumes[].file`，Goals 链接种类 `artifacts.links`，安装时拒重复属主，宿主这一层拒装上的产出者写未声明的类型）2026-10-25 开发完成，在分支 `anticorr/ac-artifacts-a3`，RAC-415～421；§5.1 的 S-69.1、S-70.4 暂记为 S-75，S-70.2、S-70.3 暂记为 S-76（S-69、S-70 已被连接扩展占用，合入时由统筹核号）。A3 之后的实现片要等 ac-registry 的 PG-024 片。
 
 A2b 的取舍（受「插件不能 import 模块」限制，插件在 A6 删除前仍要自己的 Manifest 与登记）：模块持有完整的 `artifact-actions.ts`（动作清单加处理器）、`artifact-provider.ts`（`ARTIFACTS_PROVIDER`：id、名称、版本、签名）及其依赖；插件只留动作清单（`actions.ts`）、`browser-view.ts`（页面视图类型与版本路径）、Home 存储登记与项目删除清理（`original-store.ts`）和界面。两份清单与提供方字段由 `tests/plugin-artifact-schemas.test.ts` 对照（RAC-414），A6 删插件时重复随之消失。
 
@@ -76,7 +76,7 @@ Plugin Runtime（有效安装的 Manifest）──► 类型登记表（modules/
 - 登记表由端口取数：Plugin Runtime 提供「有效安装的 Manifest 列表」（含启用状态），Characters 的宿主产出者表由 `modules/characters` 提供（PG-085 的方向），登记表在安装、卸载、启用、停用、升级时重建，不读 `BUILTIN_PLUGIN_CATALOG`。
 - 每条类型登记：`artifact_type_id@schema_version`、属主（插件 id 加发布者签名）、显示名、预览/钉入/比较动作、谁能续写（`produces.continue` 与 `consumes.continue`）、谁声明了「被谁引用」的动作。
 - **「没声明就拒写」对所有产出者一视同仁**：今天宿主检查只覆盖内置、装上的插件靠自己的客户端兜（S-69.1）。外加一层，不撤掉 Runtime 客户端那层。
-- 类型 id 只有一个属主：后来者声明了已被别的发布者占着的 `artifact_type_id` 时，安装被拒（S-70.2）。同一发布者的升级不算冲突。（统筹 10-24 定，见 §10 A 类第 2 项。）
+- 类型 id 只有一个属主：后来者声明了已被别的插件占着的 `artifact_type_id` 时，安装、换版本、启用都被拒（S-70.2）。按 `plugin_id` 比，同一个插件的升级不算冲突；名字空间是整个 Home，属主从 Home 插件库和各项目的安装记录推（停用、卸载但保留数据都算占着），不看此刻开着哪些监督器。（统筹 10-24 定，见 §10 A 类第 2 项。）
 
 ### 3.4 `artifacts.consumes` 能写文件类型（PG-079）
 
@@ -98,7 +98,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 
 - 链接种类由声明方在 Manifest 里登记：`artifacts.links: Array<{ kind: string; role: "input" | "output" | "reference"; … }>`（字段名实现片定）；`source.module` 取声明方的插件 id，不取输入（可信身份来自调用上下文）。Goals 的 Manifest 声明现有三种。
 - `artifacts.goals.embeds`、`goal-context.ts`、`readReferences` 里的字面量换成登记表查询；`GOAL_ROLES` 表消失。
-- 一个链接种类只有一个属主（S-70.3）：别的插件声明已被占的种类，安装被拒；插件不能写属主是别人的种类的边。
+- 一个链接种类只有一个属主（S-70.3）：别的插件声明已被占的种类，安装、换版本、启用被拒；插件不能写属主是别人的种类的边。
 - Goals 不在项目里时，这些查询返回空，不报错（ac-trust §3.4.1 的 Goals 缺席清单里已列成果库一项，本片的用例要覆盖它）。
 - 动作 `artifacts.goals.embeds` 的名字带 Goals：留不留、改不改，统筹 10-24 定保留，见 §10 A 类第 3 项。
 

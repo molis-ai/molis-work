@@ -135,7 +135,7 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps it
       ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: "Other publisher", icon: "note", group: "make",
         creates: { station: "publisher-notes", title: "Other note" }, start: { title: "Start other publisher", hint: "Keep this publisher's surface" } }] } },
     async start() { return { kind: "app", actions: stationActions.map(action => ({ ...action, handle: () => assert.fail("Reading the directory must not invoke business actions") })),
-      views: [{ descriptor: { contribution_id: `${pluginId}.main`, plugin_id: pluginId, kind: "primary-page", label: "Other publisher", slots: [] }, render: () => "<section>Other publisher</section>" }] }; },
+      views: [{ descriptor: { contribution_id: `${pluginId}.main`, kind: "primary-page", label: "Other publisher", slots: [] }, render: () => "<section>Other publisher</section>" }] }; },
   };
   try {
     assert.notEqual(definition.manifest.publisher.signature, builtin.manifest.publisher.signature);
@@ -230,7 +230,7 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
       ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: name, icon: "note", group: "make", accepts_objects: true,
         start: { title: "写一条笔记", hint: "先写下来。" } }] } },
     async start() {
-      return { kind: "app", views: [{ descriptor: { contribution_id: `${pluginId}.main`, plugin_id: pluginId, kind: "primary-page" as const, label: "Directory fixture", slots: [] },
+      return { kind: "app", views: [{ descriptor: { contribution_id: `${pluginId}.main`, kind: "primary-page" as const, label: "Directory fixture", slots: [] },
         render: () => "<section data-work-surface=\"directory-fixture\"></section>" }] };
     },
   });
@@ -275,7 +275,7 @@ test("RAC-609-BLOCK-01 an installed plugin blocked by a missing dependency leave
       ...(missing ? { requires: [{ capability_id: "directory.missing.v1", version: 1, reason: "Directory regression" }] } : {}),
       ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: pluginId,
         start: { title: `Start ${pluginId}`, hint: "An actual Runtime entry" } }] } },
-    async start() { starts.push(pluginId); return { kind: "app", views: [{ descriptor: { contribution_id: `${pluginId}.main`, plugin_id: pluginId, kind: "primary-page", label: pluginId, slots: [] },
+    async start() { starts.push(pluginId); return { kind: "app", views: [{ descriptor: { contribution_id: `${pluginId}.main`, kind: "primary-page", label: pluginId, slots: [] },
       render: () => "<section>Directory fixture</section>" }] }; },
   });
   try {

@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
-import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores, restoreArtifactVersions } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ImError } from "@molis-ai/molis-work-server";
@@ -48,15 +48,7 @@ export async function restoreWorkAssets(value: unknown, directory: string) {
   });
   const store=new LocalProjectDatabase(project.database_path,{existingOnly:true});
   try {
-    const {artifacts}=openProjectVersionStores(store);
-    const restored=store.immediate(()=>bundle.artifacts.map(asset=>{
-      const {owner_actor_id,availability,lifecycle_state,source_supersedes_version:_source,...record}=asset;
-      const result=artifacts.commands.registerVersion({...record,project_id:project.project_id,actor_id:owner_actor_id,team_share_authorized:record.scope === "team_project"});
-      const version={artifact_id:asset.artifact_id,version:asset.version};
-      if(availability === "unavailable")artifacts.commands.markUnavailable({project_id:project.project_id,actor_id:owner_actor_id,...version,reason:"原成果不可用，需要重新连接来源"});
-      if(lifecycle_state === "archived")artifacts.commands.archiveVersion({project_id:project.project_id,actor_id:owner_actor_id,...version});
-      return result;
-    }));
+    const restored=restoreArtifactVersions(store,project.project_id,bundle.artifacts);
     const installedPlugins=new SqlitePluginRuntimeRepository(store.db).list();
     const warnings=[...new Set(bundle.artifacts.filter(a=>!installedPlugins.some(p=>p.plugin_id===a.producer.plugin_id&&p.version===a.producer.plugin_version&&p.state!=="uninstalled"&&p.state!=="quarantined")).map(a=>`此目标项目尚未安装可用插件 ${a.producer.plugin_id}@${a.producer.plugin_version}，固定内容已保留。`)),
       ...bundle.artifacts.filter(a=>a.content.kind === "reference").map(a=>`成果 ${a.artifact_id} v${a.version} 需要重新连接来源；未导入私人凭据。`),

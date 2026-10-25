@@ -3,7 +3,7 @@ import type { PluginInstallationClient, PluginInstanceRecord, PluginManifest, Pl
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginInstallRecords } from "./plugin-install-records.js";
-import { pluginInstalledProjects } from "./plugin-holders.js";
+import { pluginInstalledProjects } from "./plugin-installed-projects.js";
 import { PLUGINS_READ_PERMISSION } from "./plugin-service-permissions.js";
 
 /** What the Runtime's repository can answer for the scope it is in; `projects()` is added where the Host knows the Home. */

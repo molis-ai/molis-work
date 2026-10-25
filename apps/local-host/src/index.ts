@@ -63,7 +63,7 @@ export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./pr
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export * from "./goal-project-application.js";
-export { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
+export { openProjectVersionStores, restoreArtifactVersions, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
 export * from "./web-locale.js";
 
@@ -100,6 +100,10 @@ export {
 export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
 
 export { createLocalFeedApplication } from "./feed-application.js";
+export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
+export { bindProjectArtifacts } from "./declared-types.js";
+export { declarationOwnersFor } from "./declaration-owners.js";
+export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, type InstallScope } from "./plugin-holders.js";
 export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
 export { seedSceneRules, withFunctionsService } from "./functions-host.js";
 

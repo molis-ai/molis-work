@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { FeedModule } from "@molis-ai/molis-work-module-feed";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { installProducers } from "./fixtures/installed-producers.js";
 import { GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -16,6 +17,7 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
   let store = new LocalProjectDatabase(databasePath);
   const compose = () => {
     const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
+    installProducers(store.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report"] });
     const ledger = createContextLedger(store.db, { authorize: () => true });
     let feed: FeedModule;
     const attention = new AttentionModule(store.db, { exists: (projectId, _type, id) => feed.query.exists(projectId, id) });

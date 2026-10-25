@@ -144,7 +144,6 @@ export {
   type ModelTemplateChoice,
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
-export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer, type HostArtifactProducer } from "./plugin-catalog.js";
 
 export { deferredSurfaceClients, pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";

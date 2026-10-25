@@ -9,11 +9,11 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
 
-import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
+import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION, FEED_PLUGIN_ID } from "./identity.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 export { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
 export const FEED_ARTIFACT_PRODUCER = {
-  plugin_id: "io.molis.work.native.feed",
+  plugin_id: FEED_PLUGIN_ID,
   plugin_version: "0.0.0",
   binding_signature: "native:feed",
 } as const;

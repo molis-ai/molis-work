@@ -910,9 +910,20 @@ export interface ArtifactContinueResult {
     };
 }
 
+export interface ArtifactFileDeclaration {
+    extensions: string[];
+    stored_text?: boolean;
+}
+
 export interface ArtifactLineHead {
     version: number;
     source_revision: number | null;
+}
+
+export interface ArtifactLinkDeclaration {
+    kind: string;
+    role: "input" | "output";
+    proposal?: boolean;
 }
 
 export interface ArtifactPinInput {
@@ -3279,7 +3290,9 @@ export interface PluginManifest {
                 capability_id: string;
                 version: number;
             };
+            file?: ArtifactFileDeclaration;
         }>;
+        links?: ArtifactLinkDeclaration[];
     };
     process_items?: {
         produces: Array<{

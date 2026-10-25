@@ -10,11 +10,14 @@ import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-
 
 // FI-5: Feed declares the Feed items, Sources, Signals and Listener Host tables, so the project library's baseline stops making them: version 11.
 // A version 10 library is refused, never upgraded in place; the offline maintenance is `tests/fixtures/project-maintenance-v11.sql` and these cases
-// are its rehearsal. Nothing moves: the eleven tables are the same statements in the same library, and the maintenance changes two records.
+// are its rehearsal. In the Feed tables nothing moves: the eleven tables are the same statements in the same library, and the maintenance changes
+// two records there. FI-6 adds what Feed and Inbox need to find their data through the platform's services: the owners of the Inbox entries and
+// their events, and the namespace of Feed's keys in the Context Ledger (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §3.5).
 const maintenance = readFileSync(new URL("./fixtures/project-maintenance-v11.sql", import.meta.url), "utf8");
 
 const V1_TABLES = '["feed_out_rules","feed_out_rules_project_enabled_idx"]';
 const AT = "2026-10-01T00:00:00.000Z";
+const GOALS = "io.molis.work.goals";
 
 /** A new library: the baseline, then each built-in plugin's declared tables, as the Host makes them. */
 function newLibrary(t: TestContext) {
@@ -45,6 +48,17 @@ function fixture(t: TestContext) {
       VALUES ('project', 'source-1', 'op-1', 'raw-1', 'dedupe-1', '{}', 'example.adapter', '1.0.0', 'accepted', ?, ?)`).run(at, at);
     db.prepare("INSERT INTO feed_source_runs (project_id, run_id, operation_id, source_id, phase, outcome, receipt_json, started_at, updated_at) VALUES ('project', 'run-1', 'op-1', 'source-1', 'terminal', 'completed', '{\"content_refs\":[\"evidence/ref-1\"]}', ?, ?)").run(at, at);
     db.prepare("INSERT INTO feed_out_rules (project_id, rule_id, name, match_json, created_at, updated_at, admission, revision) VALUES ('project', 'rule-1', '维护前的规则', '{}', ?, ?, 'inbox', 'r1')").run(at, at);
+    // The Inbox as version 10 left it: three entries of the three subject types, none with an owner, their events, and two edges in the Context
+    // Ledger, Feed's under its bare key and one that is not Feed's.
+    const entry = db.prepare("INSERT INTO inbox_entries (project_id, entry_id, owner_plugin_id, subject_type, subject_id, reason, status, detail_json, revision, created_at, updated_at) VALUES ('project', ?, NULL, ?, ?, ?, 'open', '{}', 1, ?, ?)");
+    const event = db.prepare("INSERT INTO attention_events (event_id, project_id, entry_id, owner_plugin_id, type, subject_type, subject_id, at) VALUES (?, 'project', ?, NULL, 'created', ?, ?, ?)");
+    for (const [id, type, subject, reason] of [["entry-item", "feed_item", "item-1", "manual"], ["entry-fault", "source_fault", "source-1", "source_fault"], ["entry-goal", "goal_decision", "goal-1", "goal_decision"]] as const) {
+      entry.run(id, type, subject, reason, at, at);
+      event.run(`event-${id}`, id, type, subject, at);
+    }
+    const edge = db.prepare("INSERT INTO context_edges (scope_kind, scope_id, edge_key, revision, relation_type, source_json, target_json, actor_id, cause, recorded_at, state) VALUES ('personal', 'project', ?, 1, ?, ?, ?, 'module:feed', 'linked', ?, 'active')");
+    edge.run("feed.goal:item-1", "feed.goal", '{"module":"feed","id":"item-1"}', '{"module":"goals","id":"goal-1"}', at);
+    edge.run("goal.note:goal-1", "goal.note", '{"module":"goals","id":"goal-1"}', '{"module":"goals","id":"goal-2"}', at);
     // What version 10 had recorded: Feed's declaration was its out rules alone, at version 1.
     db.prepare("UPDATE plugin_project_databases SET version = 1, tables_json = ?, created_at = ? WHERE plugin_id = ?").run(V1_TABLES, at, FEED_PLUGIN_ID);
     db.exec("PRAGMA user_version = 10");
@@ -65,6 +79,8 @@ const read = (file: string) => {
   } finally { db.close(); }
 };
 const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync(file); try { db.exec(sql); } finally { db.close(); } };
+/** The tables the maintenance gives an owner or a namespace; every other table's rows are as they were. */
+const NAMED_TABLES = ["attention_events", "context_edges", "inbox_entries"];
 const FEED_TABLES = ["feed_item_events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources", "listener_deliveries", "listener_instances",
   "signal_events", "signal_revisions", "signals", "source_events"];
 /** A ledger row without its row id, which is the order the rows were first written in. */
@@ -74,7 +90,7 @@ const ledgerRow = (rows: string[], pluginId: string) => {
   return row;
 };
 
-test("RAC-497, RAC-514: a version 10 library is refused without being touched; the maintenance changes the version and Feed's ledger row and nothing else", t => {
+test("RAC-497, RAC-514: a version 10 library is refused without being touched; the maintenance changes the version and Feed's ledger row, and Feed's tables and every other table but the three named ones keep every row", t => {
   const file = fixture(t), original = read(file);
   assert.equal(original.version, 10);
   assert.equal(ledgerRow(original.rows.plugin_project_databases!, FEED_PLUGIN_ID).version, 1);
@@ -88,7 +104,9 @@ test("RAC-497, RAC-514: a version 10 library is refused without being touched; t
   for (const table of FEED_TABLES) assert.deepEqual(after.rows[table], original.rows[table], `${table}: every row, its row id included, is as it was`);
   assert.deepEqual(after.master, original.master, "no table, index or trigger was made or dropped, and nothing of the script's own stays");
   assert.deepEqual(after.shape, original.shape, "and none changed shape");
-  const { plugin_project_databases: ledgerAfter, ...otherAfter } = after.rows, { plugin_project_databases: ledgerBefore, ...otherBefore } = original.rows;
+  const { plugin_project_databases: ledgerAfter, ...everyAfter } = after.rows, { plugin_project_databases: ledgerBefore, ...everyBefore } = original.rows;
+  const otherAfter = Object.fromEntries(Object.entries(everyAfter).filter(([name]) => !NAMED_TABLES.includes(name)));
+  const otherBefore = Object.fromEntries(Object.entries(everyBefore).filter(([name]) => !NAMED_TABLES.includes(name)));
   assert.deepEqual(otherAfter, otherBefore, "every row of every other table is as it was");
   assert.deepEqual(ledgerAfter!.filter(row => (JSON.parse(row) as { plugin_id: string }).plugin_id !== FEED_PLUGIN_ID),
     ledgerBefore!.filter(row => (JSON.parse(row) as { plugin_id: string }).plugin_id !== FEED_PLUGIN_ID), "the other plugins' ledger rows are as they were");
@@ -107,6 +125,39 @@ test("RAC-497, RAC-514: a version 10 library is refused without being touched; t
     assert.ok(feed && "record" in feed, "Feed is not refused");
   } finally { opened.close(); }
   assert.deepEqual(read(file).rows.plugin_project_databases, ledgerAfter, "and opening records nothing new");
+});
+
+const rowsOf = (rows: string[]) => rows.map(row => JSON.parse(row) as Record<string, unknown>);
+
+test("RAC-514: the maintenance names the owner of every Inbox entry and event and the namespace of Feed's edges, and changes nothing else in those rows", t => {
+  const file = fixture(t), before = read(file);
+  apply(file);
+  const after = read(file);
+  const owners = { "entry-item": FEED_PLUGIN_ID, "entry-fault": FEED_PLUGIN_ID, "entry-goal": GOALS } as Record<string, string>;
+  const withOwner = (row: Record<string, unknown>) => ({ ...row, owner_plugin_id: owners[String(row.entry_id)] });
+  assert.deepEqual(rowsOf(after.rows.inbox_entries!), rowsOf(before.rows.inbox_entries!).map(withOwner), "a Feed item's and a source fault's entry is Feed's, a Goal decision's is Goals'");
+  assert.deepEqual(rowsOf(after.rows.attention_events!), rowsOf(before.rows.attention_events!).map(withOwner), "and so are their events");
+  assert.deepEqual(rowsOf(after.rows.inbox_entries!).filter(row => row.owner_plugin_id === null), [], "no entry is left without an owner");
+
+  const edges = rowsOf(after.rows.context_edges!), earlier = rowsOf(before.rows.context_edges!);
+  assert.deepEqual(edges.map(row => row.edge_key).sort(), ["goal.note:goal-1", `${FEED_PLUGIN_ID}:feed.goal:item-1`], "Feed's edge is under its plugin's namespace and the other one is untouched");
+  const { edge_key: renamed, ...feedEdge } = edges.find(row => row.relation_type === "feed.goal")!, { edge_key: bare, ...feedBefore } = earlier.find(row => row.relation_type === "feed.goal")!;
+  assert.equal(bare, "feed.goal:item-1");
+  assert.equal(renamed, `${FEED_PLUGIN_ID}:${bare}`);
+  assert.deepEqual(feedEdge, feedBefore, "the edge is the same edge: revision, ends, author and time as they were");
+  assert.deepEqual(edges.find(row => row.relation_type === "goal.note"), earlier.find(row => row.relation_type === "goal.note"));
+});
+
+test("RAC-514: the maintenance refuses a library whose entries already have owners or whose ledger already holds Feed's namespaced keys, and changes nothing", t => {
+  for (const [name, change] of [
+    ["an entry already has an owner", "UPDATE inbox_entries SET owner_plugin_id = 'io.molis.work.feed' WHERE entry_id = 'entry-item'"],
+    ["Feed's namespaced key is already in the ledger", "UPDATE context_edges SET edge_key = 'io.molis.work.feed:feed.goal:item-1' WHERE edge_key = 'feed.goal:item-1'"],
+  ] as const) {
+    const file = fixture(t), edit = new DatabaseSync(file); edit.exec(change); edit.close();
+    const before = read(file);
+    assert.throws(() => apply(file), /CHECK/u, name);
+    assert.deepEqual(read(file), before, `${name}: nothing changed`);
+  }
 });
 
 test("RAC-514: the maintenance stops and changes nothing unless the library is version 10 with Feed's version 1 row and all eleven tables", t => {
